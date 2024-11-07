@@ -1,66 +1,32 @@
-## Foundry
+# zkEVM Verifier Comparison
+This repository is dedicated to comparing different zkEVM verifiers, specifically focusing on zkSync Era, Polygon, and Linea. zkEVMs are Layer 2 scaling solutions that leverage zero-knowledge proofs to enhance Ethereum's scalability while maintaining security and decentralization. By providing EVM compatibility, zkEVMs allow developers to deploy smart contracts using familiar tools and languages.
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+## Purpose
+The primary goal of this repository is to evaluate and compare the performance, compatibility, and unique features of various zkEVM verifiers. By importing the Solidity code for each verifier and creating a comprehensive test suite, we aim to provide insights into their operational differences and potential use cases.
 
-Foundry consists of:
+## Features
+zkSync Era: Known for its Type 4 zkEVM, zkSync Era focuses on speed and scalability with a custom VM, offering native account abstraction and compatibility with Solidity 0.8.25.
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+Polygon zkEVM: A Type 3 zk-Rollup, Polygon zkEVM aims for EVM equivalence, providing high security and compatibility with existing Ethereum tools, suitable for high-value transactions.
 
-## Documentation
+Linea: Developed by ConsenSys, Linea is a Type 3 zkEVM that executes native bytecode, aiming for future Type 2 compatibility to enhance scalability while maintaining Ethereum-like security.
 
-https://book.getfoundry.sh/
+## Test Suite
+Each verifier is subjected to a series of tests designed to assess:
 
-## Usage
+Performance: Evaluating transaction throughput and proof generation times.
+Compatibility: Testing EVM opcode support and integration with Ethereum tools.
+Security: Analyzing the robustness of zero-knowledge proofs and data availability mechanisms.
+Getting Started
+To explore the comparisons and run the tests yourself, follow these steps:
 
-### Build
-
-```shell
-$ forge build
+Clone the repository:
 ```
-
-### Test
-
-```shell
-$ forge test
+git clone <https://github.com/tokamak-network/ZKP-solidity-verifiers.git>
 ```
-
-### Format
-
-```shell
-$ forge fmt
+Run the test suite: 
 ```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
+forge test
 ```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+## Conclusion
+This repository serves as a resource for developers and researchers interested in understanding the nuances of zkEVM verifiers. By comparing zkSync Era, Polygon, and Linea, we hope to contribute to the ongoing discussion about the best approaches to scaling Ethereum.

@@ -20,7 +20,7 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-contract FflonkVerifier {
+contract FflonkVerifier_11 {
     uint32 constant n     = 16777216; // Domain size
 
     // Verification Key data
@@ -48,8 +48,8 @@ contract FflonkVerifier {
     uint256 constant w8_7 = 8613538655231327379234925296132678673308827349856085326283699237864372525723;
 
     // Verifier preprocessed input C_0(x)·[1]_1
-    uint256 constant C0x  = 19531210301294568511992648735135291982401633864004026433715722115099857739632;
-    uint256 constant C0y  = 16913517370715546973488219367119174715262034757907912789481968159710930517904;
+    uint256 constant C0x  = 5025437015266224703663153706990323429998172899911094409768560315505934222779;
+    uint256 constant C0y  = 16237221832599777269427415426993243095357146403844115525422788241385670511064;
 
     // Verifier preprocessed input x·[1]_2
     uint256 constant X2x1 = 21831381940315734285607113342023901060522397560371972897001948545212302161822;
@@ -159,7 +159,7 @@ contract FflonkVerifier {
     uint16 constant lastMem = 1920;
      
 
-    function verifyProof(bytes32[24] calldata /*proof*/, uint256[1] calldata pubSignals) public view returns (bool) {
+    function verifyProof(bytes32[24] calldata proof, uint256[1] calldata pubSignals) public view returns (bool) {
         assembly {
             // Computes the inverse of an array of values
             // See https://vitalik.ca/general/2018/07/21/starks_part_3.html in section where explain fields operations

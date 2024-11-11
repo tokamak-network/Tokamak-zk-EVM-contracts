@@ -9,8 +9,6 @@ zkSync Era: Known for its Type 4 zkEVM, zkSync Era focuses on speed and scalabil
 
 Polygon zkEVM: A Type 3 zk-Rollup, Polygon zkEVM aims for EVM equivalence, providing high security and compatibility with existing Ethereum tools, suitable for high-value transactions.
 
-Linea: Developed by ConsenSys, Linea is a Type 3 zkEVM that executes native bytecode, aiming for future Type 2 compatibility to enhance scalability while maintaining Ethereum-like security.
-
 ## Test Suite
 Each verifier is subjected to a series of tests designed to assess:
 
@@ -24,9 +22,20 @@ Clone the repository:
 ```
 git clone <https://github.com/tokamak-network/ZKP-solidity-verifiers.git>
 ```
-Run the test suite: 
+Run the foundry test suite: (zkSyncEra verifier) 
 ```
 forge test
 ```
+
+Compile the Polygon zkEVM contracts :
+```
+npm install --force
+npx hardhat compile
+```
+Run the hardhat test suite: (Polygon zkEVM)
+```
+npm run test
+```
+note: the ERC1967Utils contract is sometimes not compatible with Polygon v2 contracts. If it is the case, please modify the contract by manually importing the events inside of the contract.
 ## Conclusion
 This repository serves as a resource for developers and researchers interested in understanding the nuances of zkEVM verifiers. By comparing zkSync Era, Polygon, and Linea, we hope to contribute to the ongoing discussion about the best approaches to scaling Ethereum.

@@ -24,7 +24,11 @@ git clone <https://github.com/tokamak-network/ZKP-solidity-verifiers.git>
 ```
 Run the foundry test suite: (zkSyncEra verifier) 
 ```
-forge test
+forge test --mp test/zkSyncEra-verifier.t.sol
+```
+Run the foundry test suite: (Linea verifier) 
+```
+forge test --mp test/linea-verifier.t.sol
 ```
 
 Compile the Polygon zkEVM contracts :

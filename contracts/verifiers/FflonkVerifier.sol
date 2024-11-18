@@ -688,18 +688,19 @@ contract FflonkVerifier {
                 
 
                 // Execute Montgomery batched inversions of the previous prepared values
-                inverseArray(pMem)            }
+                inverseArray(pMem)            
+            }
 
-            // Compute Lagrange polynomial evaluation L_i(xi)
+            // Compute Lagrange polynomial evaluation L_i(X)
             function computeLagrange(pMem) {
                 let zh := mload(add(pMem, pZh))
                 let w := 1
                 
-                    mstore(add(pMem, pEval_l1 ), mulmod(mload(add(pMem, pEval_l1 )), zh, q))
+                mstore(add(pMem, pEval_l1 ), mulmod(mload(add(pMem, pEval_l1 )), zh, q))
                     
             }
 
-            // Compute public input polynomial evaluation PI(xi)
+            // Compute public input polynomial evaluation PI(X)
             function computePi(pMem, pPub) {
                 let pi := 0
                 pi := mod(add(sub(pi, mulmod(mload(add(pMem, pEval_l1)), calldataload(pPub), q)), q), q)

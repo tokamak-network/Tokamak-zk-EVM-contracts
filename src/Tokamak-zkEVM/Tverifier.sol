@@ -132,7 +132,7 @@ contract TVerifier is ITverifier {
     function verify(
         uint256[] calldata, // _publicInputs
         uint256[] calldata // _proof
-    ) public view virtual returns (bool result, uint256 teta1, uint256 teta2, uint256 teta3) {
+    ) public view virtual returns (bool result, uint256 teta1, uint256 teta2, uint256 teta3, uint256 kappa0, uint256 kappa1, uint256 zeta0, uint256 zeta1) {
         
         assembly {
 
@@ -363,22 +363,35 @@ contract TVerifier is ITverifier {
 
                 mstore(CHALLENGE_TETA_1_SLOT, getTranscriptChallenge(1))
 
-                updateTranscript(mload(PROOF_OPENING_EVAL_A_X_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_A_Y_SLOT))
                 updateTranscript(mload(PROOF_OPENING_EVAL_B_X_SLOT))
                 updateTranscript(mload(PROOF_OPENING_EVAL_B_Y_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_C_X_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_C_Y_SLOT))
 
                 mstore(CHALLENGE_TETA_2_SLOT, getTranscriptChallenge(2))
+
+                updateTranscript(mload(PROOF_RECURSION_POLY_X_SLOT))
+                updateTranscript(mload(PROOF_RECURSION_POLY_Y_SLOT))
+
+                mstore(CHALLENGE_KAPPA_0_SLOT, getTranscriptChallenge(3))
+
+                updateTranscript(mload(PROOF_CONSTRAINT_POLY_X_SLOT))
+                mstore(CHALLENGE_ZETA_0_SLOT, getTranscriptChallenge(4))
+
+                updateTranscript(mload(PROOF_CONSTRAINT_POLY_Y_SLOT))
+                mstore(CHALLENGE_ZETA_1_SLOT, getTranscriptChallenge(5))
+
+                updateTranscript(mload(PROOF_R1YZ_SLOT))
+                updateTranscript(mload(PROOF_R2YZ_SLOT))
+                updateTranscript(mload(PROOF_BYZ_SLOT))
+
+                mstore(CHALLENGE_KAPPA_1_SLOT, getTranscriptChallenge(6))
 
             }
 
             /*//////////////////////////////////////////////////////////////
-                            4. Computing the recursion polynomial R
+                            4. Computing the intermediary polynomial P
             //////////////////////////////////////////////////////////////*/
 
-            function computeRecursionPolynomial() {
+            function computeConstraintFinalPolynomial() {
                 
             }
 
@@ -408,6 +421,10 @@ contract TVerifier is ITverifier {
             teta1 := mload(CHALLENGE_TETA_0_SLOT)
             teta2 := mload(CHALLENGE_TETA_1_SLOT)
             teta3 := mload(CHALLENGE_TETA_2_SLOT)
+            kappa0 := mload(CHALLENGE_KAPPA_0_SLOT)
+            kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
+            zeta0 := mload(CHALLENGE_ZETA_0_SLOT)
+            zeta1 := mload(CHALLENGE_ZETA_1_SLOT)
             result := 1
             mstore(0, true)
         }

@@ -63,10 +63,24 @@ contract testLineaVerifier is Test {
 
     function testTVerifier() public view {
         // Call the verify function
-        (bool result, uint256 teta1, uint256 teta2, uint256 teta3) = tverifier.verify(publicInputs, serializedProof);
+        (
+            bool result, 
+            uint256 teta1, 
+            uint256 teta2, 
+            uint256 teta3, 
+            uint256 kappa0, 
+            uint256 kappa1, 
+            uint256 zeta0, 
+            uint256 zeta1
+        ) = tverifier.verify(publicInputs, serializedProof);
+        
         assertTrue(result);
-        console.log(teta1);
-        console.log(teta2);
-        console.log(teta3);
+        console.log("teta1: ", teta1);
+        console.log("teta2: ", teta2);
+        console.log("teta3: ", teta3);
+        console.log("kappa0: ", kappa0);
+        console.log("kappa1: ", kappa1);
+        console.log("zeta0: ", zeta0);
+        console.log("zeta1: ", zeta1);
     }
 }

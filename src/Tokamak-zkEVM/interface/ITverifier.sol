@@ -9,6 +9,6 @@ interface ITverifier {
     function verify(
         uint256[] calldata _publicInputs,
         uint256[] calldata _proof
-    ) external view returns (bool);
+    ) external view returns (bool result, uint256 teta1, uint256 teta2, uint256 teta3);
 
 }

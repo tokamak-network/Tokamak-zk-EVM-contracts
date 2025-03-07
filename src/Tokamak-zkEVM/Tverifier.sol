@@ -38,88 +38,104 @@ contract TVerifier is ITverifier {
     //////////////////////////////////////////////////////////////*/
 
     // OPEN_0
-    uint256 internal constant PROOF_OPENING_EVAL_U_X_SLOT = 0x200 + 0x180;
-    uint256 internal constant PROOF_OPENING_EVAL_U_Y_SLOT = 0x200 + 0x1a0;
-    uint256 internal constant PROOF_OPENING_EVAL_V_X0_SLOT = 0x200 + 0x1c0;
-    uint256 internal constant PROOF_OPENING_EVAL_V_X1_SLOT = 0x200 + 0x1e0;
-    uint256 internal constant PROOF_OPENING_EVAL_V_Y0_SLOT = 0x200 + 0x200;
-    uint256 internal constant PROOF_OPENING_EVAL_V_Y1_SLOT = 0x200 + 0x220;
-    uint256 internal constant PROOF_OPENING_EVAL_W_X_SLOT = 0x200 + 0x240;
-    uint256 internal constant PROOF_OPENING_EVAL_W_Y_SLOT = 0x200 + 0x260;
+    uint256 internal constant PROOF_OPENING_EVAL_U_X_SLOT = 0x200 + 0x160 + 0x020;
+    uint256 internal constant PROOF_OPENING_EVAL_U_Y_SLOT = 0x200 + 0x160 + 0x040;
+    uint256 internal constant PROOF_OPENING_EVAL_V_X0_SLOT = 0x200 + 0x160 + 0x060;
+    uint256 internal constant PROOF_OPENING_EVAL_V_X1_SLOT = 0x200 + 0x160 + 0x080;
+    uint256 internal constant PROOF_OPENING_EVAL_V_Y0_SLOT = 0x200 + 0x160 + 0x0a0;
+    uint256 internal constant PROOF_OPENING_EVAL_V_Y1_SLOT = 0x200 + 0x160 + 0x0c0;
+    uint256 internal constant PROOF_OPENING_EVAL_W_X_SLOT = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_OPENING_EVAL_W_Y_SLOT = 0x200 + 0x160 + 0x100;
     // selector polynomials
-    uint256 internal constant PROOF_OPENING_EVAL_A_X_SLOT = 0x200 + 0x280;
-    uint256 internal constant PROOF_OPENING_EVAL_A_Y_SLOT = 0x200 + 0x2a0;
-    uint256 internal constant PROOF_OPENING_EVAL_B_X_SLOT = 0x200 + 0x2c0;
-    uint256 internal constant PROOF_OPENING_EVAL_B_Y_SLOT = 0x200 + 0x2e0;
-    uint256 internal constant PROOF_OPENING_EVAL_C_X_SLOT = 0x200 + 0x300;
-    uint256 internal constant PROOF_OPENING_EVAL_C_Y_SLOT = 0x200 + 0x320;
+    uint256 internal constant PROOF_OPENING_EVAL_A_X_SLOT = 0x200 + 0x160 + 0x120;
+    uint256 internal constant PROOF_OPENING_EVAL_A_Y_SLOT = 0x200 + 0x160 + 0x140;
+    uint256 internal constant PROOF_OPENING_EVAL_B_X_SLOT = 0x200 + 0x160 + 0x160;
+    uint256 internal constant PROOF_OPENING_EVAL_B_Y_SLOT = 0x200 + 0x160 + 0x180;
+    uint256 internal constant PROOF_OPENING_EVAL_C_X_SLOT = 0x200 + 0x160 + 0x1a0;
+    uint256 internal constant PROOF_OPENING_EVAL_C_Y_SLOT = 0x200 + 0x160 + 0x1c0;
     // recursion polynomial
-    uint256 internal constant PROOF_RECURSION_POLY_X_SLOT = 0x200 + 0x340;
-    uint256 internal constant PROOF_RECURSION_POLY_Y_SLOT = 0x200 + 0x360;
-    // quotient polynomial
-    uint256 internal constant PROOF_CONSTRAINT_POLY_X_SLOT = 0x200 + 0x380;
-    uint256 internal constant PROOF_CONSTRAINT_POLY_Y_SLOT = 0x200 + 0x3a0;
+    uint256 internal constant PROOF_RECURSION_POLY_X_SLOT = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_RECURSION_POLY_Y_SLOT = 0x200 + 0x160 + 0x200;
+    // constraint polynomial
+    uint256 internal constant PROOF_CONSTRAINT_POLY_X_SLOT = 0x200 + 0x160 + 0x220;
+    uint256 internal constant PROOF_CONSTRAINT_POLY_Y_SLOT = 0x200 + 0x160 + 0x240;
     // points evaluations
-    uint256 internal constant PROOF_R1_AT_ZETA_SLOT = 0x200 + 0x3c0;
-    uint256 internal constant PROOF_R2_AT_ZETA_SLOT = 0x200 + 0x3e0;
-    uint256 internal constant PROOF_B_AT_ZETA_SLOT = 0x200 + 0x400;
+    uint256 internal constant PROOF_R1_AT_ZETA_SLOT = 0x200 + 0x160 + 0x260;
+    uint256 internal constant PROOF_R2_AT_ZETA_SLOT = 0x200 + 0x160 + 0x280;
+    uint256 internal constant PROOF_B_AT_ZETA_SLOT = 0x200 + 0x160 + 0x2a0;
     // transcript components
-    uint256 internal constant PROOF_PI0_X_SLOT = 0x200 + 0x420;
-    uint256 internal constant PROOF_PI0_Y_SLOT = 0x200 + 0x440;
-    uint256 internal constant PROOF_PI1_X_SLOT = 0x200 + 0x460;
-    uint256 internal constant PROOF_PI1_Y_SLOT = 0x200 + 0x480;
-    uint256 internal constant PROOF_PI2_X_SLOT = 0x200 + 0x4a0;
-    uint256 internal constant PROOF_PI2_Y_SLOT = 0x200 + 0x4c0;
-    uint256 internal constant PROOF_PI3_X_SLOT = 0x200 + 0x4e0;
-    uint256 internal constant PROOF_PI3_Y_SLOT = 0x200 + 0x500;
+    uint256 internal constant PROOF_PI0_X_SLOT = 0x200 + 0x160 + 0x2c0;
+    uint256 internal constant PROOF_PI0_Y_SLOT = 0x200 + 0x160 + 0x2e0;
+    uint256 internal constant PROOF_PI1_X_SLOT = 0x200 + 0x160 + 0x300;
+    uint256 internal constant PROOF_PI1_Y_SLOT = 0x200 + 0x160 + 0x320;
+    uint256 internal constant PROOF_PI2_X_SLOT = 0x200 + 0x160 + 0x340;
+    uint256 internal constant PROOF_PI2_Y_SLOT = 0x200 + 0x160 + 0x360;
+    uint256 internal constant PROOF_PI3_X_SLOT = 0x200 + 0x160 + 0x380;
+    uint256 internal constant PROOF_PI3_Y_SLOT = 0x200 + 0x160 + 0x3a0;
     // permutation_polynomials_at_zeta; // Sσ1(zeta),Sσ2(zeta)
-    uint256 internal constant PROOF_S2_AT_ZETA_SLOT = 0x200 + 0x520; // Sσ2(zeta0, zeta1)
+    uint256 internal constant PROOF_S2_AT_ZETA_SLOT = 0x200 + 0x160 + 0x3c0; // Sσ2(zeta0, zeta1)
     // L and K at zeta0 and zeta1
-    uint256 internal constant PROOF_L_MINUS1_AT_ZETA0_SLOT = 0x200 + 0x540;
-    uint256 internal constant PROOF_K_MINUS1_AT_ZETA1_SLOT = 0x200 + 0x560;
-    uint256 internal constant PROOF_K_0_AT_ZETA0_SLOT = 0x200 + 0x580;
+    uint256 internal constant PROOF_L_MINUS1_AT_ZETA0_SLOT = 0x200 + 0x160 + 0x3e0;
+    uint256 internal constant PROOF_K_MINUS1_AT_ZETA1_SLOT = 0x200 + 0x160 + 0x400;
+    uint256 internal constant PROOF_K_0_AT_ZETA0_SLOT = 0x200 + 0x160 + 0x420;
 
     /*//////////////////////////////////////////////////////////////
                  transcript slot (used for challenge computation)
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant TRANSCRIPT_BEGIN_SLOT = 0x200 + 0x5a0;
-    uint256 internal constant TRANSCRIPT_DST_BYTE_SLOT = 0x200 + 0x5c0;
-    uint256 internal constant TRANSCRIPT_STATE_0_SLOT = 0x200 + 0x5e0;
-    uint256 internal constant TRANSCRIPT_STATE_1_SLOT = 0x200 + 0x600;
-    uint256 internal constant TRANSCRIPT_CHALLENGE_SLOT = 0x200 + 0x620;
+    uint256 internal constant TRANSCRIPT_BEGIN_SLOT = 0x200 + 0x160 + 0x420 + 0x020;
+    uint256 internal constant TRANSCRIPT_DST_BYTE_SLOT = 0x200 + 0x160 + 0x420 + 0x040; // TODO can use less than 32 bytes
+    uint256 internal constant TRANSCRIPT_STATE_0_SLOT = 0x200 + 0x160 + 0x420 + 0x060;
+    uint256 internal constant TRANSCRIPT_STATE_1_SLOT = 0x200 + 0x160 + 0x420 + 0x080;
+    uint256 internal constant TRANSCRIPT_CHALLENGE_SLOT = 0x200 + 0x160 + 0x420 + 0x0a0;
 
     /*//////////////////////////////////////////////////////////////
                              Challenges
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant CHALLENGE_TETA_0_SLOT = 0x200 + 0x640;
-    uint256 internal constant CHALLENGE_TETA_1_SLOT = 0x200 + 0x660;
-    uint256 internal constant CHALLENGE_TETA_2_SLOT = 0x200 + 0x680;
-    uint256 internal constant CHALLENGE_KAPPA_0_SLOT = 0x200 + 0x6a0;
-    uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x200 + 0x6c0;
-    uint256 internal constant CHALLENGE_ZETA_0_SLOT = 0x200 + 0x6e0;
-    uint256 internal constant CHALLENGE_ZETA_1_SLOT = 0x200 + 0x700;
+    uint256 internal constant CHALLENGE_TETA_0_SLOT = 0x200 + 0x160 + 0x420 + 0x0c0;
+    uint256 internal constant CHALLENGE_TETA_1_SLOT = 0x200 + 0x160 + 0x420 + 0x0e0;
+    uint256 internal constant CHALLENGE_TETA_2_SLOT = 0x200 + 0x160 + 0x420 + 0x100;
+    uint256 internal constant CHALLENGE_KAPPA_0_SLOT = 0x200 + 0x160 + 0x420 + 0x120;
+    uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x200 + 0x160 + 0x420 + 0x140;
+    uint256 internal constant CHALLENGE_ZETA_0_SLOT = 0x200 + 0x160 + 0x420 + 0x160;
+    uint256 internal constant CHALLENGE_ZETA_1_SLOT = 0x200 + 0x160 + 0x420 + 0x180;
 
     /*//////////////////////////////////////////////////////////////
                        Intermediary verifier state
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant INTERMEDIARY_POLY_P_X_SLOT = 0x200 + 0x720;
-    uint256 internal constant INTERMEDIARY_POLY_P_Y_SLOT = 0x200 + 0x740;
+    uint256 internal constant INTERMEDIARY_POLY_P_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x020;
+    uint256 internal constant INTERMEDIARY_POLY_P_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x040;
 
-    uint256 internal constant INTERMEDIARY_POLY_F_X_SLOT = 0x200 + 0x760;
-    uint256 internal constant INTERMEDIARY_POLY_F_Y_SLOT = 0x200 + 0x780;
+    uint256 internal constant INTERMEDIARY_POLY_F_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x060;
+    uint256 internal constant INTERMEDIARY_POLY_F_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x080;
 
-    uint256 internal constant INTERMEDIARY_G_AT_ZETA_EVAL_SLOT = 0x200 + 0x7a0;
+    uint256 internal constant INTERMEDIARY_G_AT_ZETA_EVAL_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x0a0;
 
     // [mu_{-1}]_1
-    uint256 internal constant INTERMEDIARY_MU_MINUS_1_X_SLOT = 0x200 + 0x7c0;
-    uint256 internal constant INTERMEDIARY_MU_MINUS_1_Y_SLOT = 0x200 + 0x7e0;
+    uint256 internal constant INTERMEDIARY_MU_MINUS_1_X_SLOT = 15805639136721018565402881920352193254830339253282065586954346329754995870280;
+    uint256 internal constant INTERMEDIARY_MU_MINUS_1_Y_SLOT = 9779648407879205346559610309258181044130619080926897934572699915909528404984;
+
+    uint256 internal constant INTERMEDIARY_POLY_R_BUFFER_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x100;
+    uint256 internal constant INTERMEDIARY_POLY_R_BUFFER_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120;
 
     /*//////////////////////////////////////////////////////////////
                              Pairing data
     //////////////////////////////////////////////////////////////*/
+
+    uint256 internal constant PAIRING_BUFFER1_POINT_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120 + 0x020;
+    uint256 internal constant PAIRING_BUFFER1_POINT_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120 + 0x040;
+
+    uint256 internal constant PAIRING_BUFFER2_POINT_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120 + 0x060;
+    uint256 internal constant PAIRING_BUFFER2_POINT_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120 + 0x080;
+
+    // E_c pairing storage
+
+    // E_o pairing storage
+
+    // E_pi pairing storage
+
 
     /*//////////////////////////////////////////////////////////////
                              Constants
@@ -136,35 +152,51 @@ contract TVerifier is ITverifier {
     uint256 internal constant FR_MASK = 0x1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
     /*//////////////////////////////////////////////////////////////
-                             subcircuit library vairables
+                             subcircuit library variables
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant SUBCIRCUIT_LIBRARY_X = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_Y = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_Z = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_ALPHA_X = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_ALPHA_Y = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_BETA_X0 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_BETA_X1 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_BETA_Y0 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_BETA_Y1 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_GAMMA_X0 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_GAMMA_X1 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_GAMMA_Y0 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_GAMMA_Y1 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_DELTA_X0 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_DELTA_X1 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_DELTA_Y0 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_DELTA_Y1 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_ETA0 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_ETA1 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_MU = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_NU = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_PSI0 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_PSI1 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_PSI2 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_PSI3 = 0;
-    uint256 internal constant SUBCIRCUIT_LIBRARY_KAPPA = 0;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_X = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_Y = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_Z = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_ALPHA_X = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_ALPHA_Y = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_BETA_X0 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_BETA_X1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_BETA_Y0 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_BETA_Y1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_GAMMA_X0 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_GAMMA_X1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_GAMMA_Y0 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_GAMMA_Y1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_DELTA_X0 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_DELTA_X1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_DELTA_Y0 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_DELTA_Y1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_ETA0 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_ETA1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_MU = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_NU = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_PSI0 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_PSI1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_PSI2 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_PSI3 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant SUBCIRCUIT_LIBRARY_KAPPA = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant G2_MU_EXP_4_X1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
+    uint256 internal constant G2_MU_EXP_4_X2 = 0x1800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed;
+    uint256 internal constant G2_MU_EXP_4_Y1 = 0x090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b;
+    uint256 internal constant G2_MU_EXP_4_Y2 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa;
+    uint256 internal constant G2_MU_EXP_3_TIMES_NU_X1 = 0x260e01b251f6f1c7e7ff4e580791dee8ea51d87a358e038b4efe30fac09383c1;
+    uint256 internal constant G2_MU_EXP_3_TIMES_NU_X2 = 0x0118c4d5b837bcc2bc89b5b398b5974e9f5944073b32078b7e231fec938883b0;
+    uint256 internal constant G2_MU_EXP_3_TIMES_NU_Y1 = 0x04fc6369f7110fe3d25156c1bb9a72859cf2a04641f99ba4ee413c80da6a5fe4;
+    uint256 internal constant G2_MU_EXP_3_TIMES_NU_Y2 = 0x22febda3c0c0632a56475b4214e5615e11e6dd3f96e6cea2854a87d4dacc5e55;
+    uint256 internal constant G2_MU_EXP_4_TIMES_KAPPA_X1 = 0x260e01b251f6f1c7e7ff4e580791dee8ea51d87a358e038b4efe30fac09383c1;
+    uint256 internal constant G2_MU_EXP_4_TIMES_KAPPA_X2 = 0x0118c4d5b837bcc2bc89b5b398b5974e9f5944073b32078b7e231fec938883b0;
+    uint256 internal constant G2_MU_EXP_4_TIMES_KAPPA_Y1 = 0x04fc6369f7110fe3d25156c1bb9a72859cf2a04641f99ba4ee413c80da6a5fe4;
+    uint256 internal constant G2_MU_EXP_4_TIMES_KAPPA_Y2 = 0x22febda3c0c0632a56475b4214e5615e11e6dd3f96e6cea2854a87d4dacc5e55;
+    uint256 internal constant G2_MU_EXP_4_TIMES_KAPPA_SQUARE_X1 = 0x260e01b251f6f1c7e7ff4e580791dee8ea51d87a358e038b4efe30fac09383c1;
+    uint256 internal constant G2_MU_EXP_4_TIMES_KAPPA_SQUARE_X2 = 0x0118c4d5b837bcc2bc89b5b398b5974e9f5944073b32078b7e231fec938883b0;
+    uint256 internal constant G2_MU_EXP_4_TIMES_KAPPA_SQUARE_Y1 = 0x04fc6369f7110fe3d25156c1bb9a72859cf2a04641f99ba4ee413c80da6a5fe4;
+    uint256 internal constant G2_MU_EXP_4_TIMES_KAPPA_SQUARE_Y2 = 0x22febda3c0c0632a56475b4214e5615e11e6dd3f96e6cea2854a87d4dacc5e55;
 
     function verify(
         uint256[] calldata, // _publicInputs
@@ -248,6 +280,17 @@ contract TVerifier is ITverifier {
                 mstore(0x40, mload(p2))
                 mstore(0x60, sub(Q_MOD, mload(add(p2, 0x20))))
                 if iszero(staticcall(gas(), 6, 0x00, 0x80, dest, 0x40)) {
+                    revertWithMessage(28, "pointSubAssign: ecAdd failed")
+                }
+            }
+
+            /// @dev Performs a point subtraction operation and updates the first point with the result.
+            function pointSubAssign(p1, p2) {
+                mstore(0x00, mload(p1))
+                mstore(0x20, mload(add(p1, 0x20)))
+                mstore(0x40, mload(p2))
+                mstore(0x60, sub(Q_MOD, mload(add(p2, 0x20))))
+                if iszero(staticcall(gas(), 6, 0x00, 0x80, p1, 0x40)) {
                     revertWithMessage(28, "pointSubAssign: ecAdd failed")
                 }
             }
@@ -347,8 +390,8 @@ contract TVerifier is ITverifier {
                     let y := mod(calldataload(add(offset, 0x144)), Q_MOD)
                     let xx := mulmod(x, x, Q_MOD)
                     isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_OPENING_EVAL_W_X_SLOT, x)
-                    mstore(PROOF_OPENING_EVAL_W_Y_SLOT, y)
+                    mstore(PROOF_OPENING_EVAL_A_X_SLOT, x)
+                    mstore(PROOF_OPENING_EVAL_A_Y_SLOT, y)
                 }
 
                 // PROOF_OPENING_EVAL_B
@@ -357,8 +400,8 @@ contract TVerifier is ITverifier {
                     let y := mod(calldataload(add(offset, 0x184)), Q_MOD)
                     let xx := mulmod(x, x, Q_MOD)
                     isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_OPENING_EVAL_W_X_SLOT, x)
-                    mstore(PROOF_OPENING_EVAL_W_Y_SLOT, y)
+                    mstore(PROOF_OPENING_EVAL_B_X_SLOT, x)
+                    mstore(PROOF_OPENING_EVAL_B_Y_SLOT, y)
                 }
 
                 // PROOF_OPENING_EVAL_C
@@ -367,8 +410,8 @@ contract TVerifier is ITverifier {
                     let y := mod(calldataload(add(offset, 0x1c4)), Q_MOD)
                     let xx := mulmod(x, x, Q_MOD)
                     isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_OPENING_EVAL_W_X_SLOT, x)
-                    mstore(PROOF_OPENING_EVAL_W_Y_SLOT, y)
+                    mstore(PROOF_OPENING_EVAL_C_X_SLOT, x)
+                    mstore(PROOF_OPENING_EVAL_C_Y_SLOT, y)
                 }
 
                 // PROOF_RECURSION_POLY
@@ -378,7 +421,9 @@ contract TVerifier is ITverifier {
                     let xx := mulmod(x, x, Q_MOD)
                     isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
                     mstore(PROOF_RECURSION_POLY_X_SLOT, x)
+                    mstore(INTERMEDIARY_POLY_R_BUFFER_X_SLOT, x)
                     mstore(PROOF_RECURSION_POLY_Y_SLOT, y)
+                    mstore(INTERMEDIARY_POLY_R_BUFFER_Y_SLOT, y)
                 }
 
                 // PROOF_CONSTRAINT_POLY
@@ -388,7 +433,7 @@ contract TVerifier is ITverifier {
                     let xx := mulmod(x, x, Q_MOD)
                     isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
                     mstore(PROOF_CONSTRAINT_POLY_X_SLOT, x)
-                    mstore(PROOF_CONSTRAINT_POLY_X_SLOT, y)
+                    mstore(PROOF_CONSTRAINT_POLY_Y_SLOT, y)
                 }
 
                 mstore(PROOF_R1_AT_ZETA_SLOT, mod(calldataload(add(offset, 0x264)), R_MOD))
@@ -435,7 +480,7 @@ contract TVerifier is ITverifier {
                     mstore(PROOF_PI3_Y_SLOT, y)
                 }
 
-                // 
+                // Proofs at zeta
                 mstore(PROOF_S2_AT_ZETA_SLOT, mod(calldataload(add(offset, 0x3c4)), R_MOD))
                 mstore(PROOF_L_MINUS1_AT_ZETA0_SLOT, mod(calldataload(add(offset, 0x3e4)), R_MOD))
                 mstore(PROOF_K_MINUS1_AT_ZETA1_SLOT, mod(calldataload(add(offset, 0x404)), R_MOD))
@@ -530,14 +575,14 @@ contract TVerifier is ITverifier {
                 // 2. compute [B]_1 + teta0 * [S0]_1
                 pointAddAssign(INTERMEDIARY_POLY_F_X_SLOT, PROOF_OPENING_EVAL_B_X_SLOT)
                 // 3. compute [B]_1 + teta0 * [S0]_1 + teta1 * [S1]_1
-                pointMulAndAddIntoDest(PUBLIC_INPUT_PREPROCESSED_COM_S1_X_SLOT, t1, INTERMEDIARY_POLY_F_X_SLOT)
+                //pointMulAndAddIntoDest(PUBLIC_INPUT_PREPROCESSED_COM_S1_X_SLOT, t1, INTERMEDIARY_POLY_F_X_SLOT)
                 // 4. [F]_1 = [B]_1 + teta0 * [S0]_1 + teta1 * [S1]_1 + teta2 * [mu^{-1}]_1
-                pointMulAndAddIntoDest(INTERMEDIARY_MU_MINUS_1_X_SLOT, t2, INTERMEDIARY_POLY_F_X_SLOT)
+                //pointMulAndAddIntoDest(INTERMEDIARY_MU_MINUS_1_X_SLOT, t2, INTERMEDIARY_POLY_F_X_SLOT)
 
                 /// compute [P]_1
                 // 1. compute L_-1(zeta0) * K_-1(zeta1) * ([R]_1 - [mu^{-1}]_1)
                 let firstPartOfP
-                pointSubIntoDest(PROOF_RECURSION_POLY_X_SLOT, INTERMEDIARY_MU_MINUS_1_X_SLOT, firstPartOfP)
+                //pointSubAssign(INTERMEDIARY_POLY_R_BUFFER_X_SLOT, INTERMEDIARY_MU_MINUS_1_X_SLOT)
                 let factorMultiplier1 := mulmod(mload(PROOF_L_MINUS1_AT_ZETA0_SLOT), mload(PROOF_K_MINUS1_AT_ZETA1_SLOT), R_MOD)
                 pointMulIntoDest(firstPartOfP, factorMultiplier1, INTERMEDIARY_POLY_P_X_SLOT)
                 
@@ -561,25 +606,96 @@ contract TVerifier is ITverifier {
                 }
                 let thirdPartOfP
                 pointMulIntoDest(INTERMEDIARY_POLY_F_X_SLOT, PROOF_R2_AT_ZETA_SLOT, thirdPartOfP)
-                pointSubIntoDest(gTimesR, thirdPartOfP, thirdPartOfP)
-                pointMulIntoDest(thirdPartOfP, factorMultiplier3, thirdPartOfP)
-                pointAddIntoDest(INTERMEDIARY_POLY_P_X_SLOT, thirdPartOfP, INTERMEDIARY_POLY_P_X_SLOT)
+                //pointSubIntoDest(gTimesR, thirdPartOfP, thirdPartOfP)
+                //pointMulIntoDest(thirdPartOfP, factorMultiplier3, thirdPartOfP)
+                //pointAddIntoDest(INTERMEDIARY_POLY_P_X_SLOT, thirdPartOfP, INTERMEDIARY_POLY_P_X_SLOT)
 
                 //5. compute kappa1 * ([B]_1 - BYZ * [mu^{-1}]_1) and add it to the final P polynomial
                 let fourthPartOfP
-                pointMulIntoDest(INTERMEDIARY_MU_MINUS_1_X_SLOT, PROOF_B_AT_ZETA_SLOT, fourthPartOfP)
-                pointSubIntoDest(PROOF_OPENING_EVAL_B_X_SLOT, fourthPartOfP, fourthPartOfP)
-                pointMulIntoDest(fourthPartOfP, mload(CHALLENGE_KAPPA_1_SLOT), fourthPartOfP)
-                pointAddIntoDest(INTERMEDIARY_POLY_P_X_SLOT, fourthPartOfP, INTERMEDIARY_POLY_P_X_SLOT)
+                //pointMulIntoDest(INTERMEDIARY_MU_MINUS_1_X_SLOT, PROOF_B_AT_ZETA_SLOT, fourthPartOfP)
+                //pointSubIntoDest(PROOF_OPENING_EVAL_B_X_SLOT, fourthPartOfP, fourthPartOfP)
+                //pointMulIntoDest(fourthPartOfP, mload(CHALLENGE_KAPPA_1_SLOT), fourthPartOfP)
+                //pointAddIntoDest(INTERMEDIARY_POLY_P_X_SLOT, fourthPartOfP, INTERMEDIARY_POLY_P_X_SLOT)
             }
 
             /*//////////////////////////////////////////////////////////////
                             5. copy constraint pairing
             //////////////////////////////////////////////////////////////*/
 
-            function copyConstraintPairing() {
-                
+            /// @notice computes the first pairing 
+            /// @dev We should check the equation:
+            /// E_c = e([P]_1, [mu^4]_2) e^{-1}([Q]_1), [mu^3 * nu]_2)
+            function copyConstraintPairingEC() -> ec_success {
+                // compute E_c = e([P]_1, [mu^4]_2) e^{-1}([Q]_1), [mu^3 * nu]_2)
+                mstore(0x000, mload(INTERMEDIARY_POLY_P_X_SLOT))
+                mstore(0x020, mload(INTERMEDIARY_POLY_P_Y_SLOT))
+
+                mstore(0x040, G2_MU_EXP_4_X1)
+                mstore(0x060, G2_MU_EXP_4_X2)
+                mstore(0x080, G2_MU_EXP_4_Y1)
+                mstore(0x0a0, G2_MU_EXP_4_Y2)
+
+                mstore(0x0c0, mload(PROOF_CONSTRAINT_POLY_X_SLOT))
+                mstore(0x0e0, mload(PROOF_CONSTRAINT_POLY_Y_SLOT))
+
+                mstore(0x100, G2_MU_EXP_3_TIMES_NU_X1)
+                mstore(0x120, G2_MU_EXP_3_TIMES_NU_X2)
+                mstore(0x140, G2_MU_EXP_3_TIMES_NU_Y1)
+                mstore(0x160, G2_MU_EXP_3_TIMES_NU_Y2)
+                ec_success := staticcall(gas(), 8, 0, 0x180, 0x00, 0x20)
+                if iszero(ec_success) {
+                    revertWithMessage(32, "finalPairing: precompile failure")
+                }
             } 
+
+            /// @notice computes the second pairing 
+            /// @dev We should check the equation:
+            /// E_o = e([R]_1 - R1 * [mu_{-1}]_1, [mu^4 * kappa]_2) e([R]_1 - R2YZ * [mu^{-1}]_1, [mu^4 * kappa^2]_2)
+            function copyConstraintPairingEO() -> eo_success {
+                // compute E_o = e([R]_1 - R1YZ * [mu^{-1}]_1, [mu^4 * kappa]_2) e([R]_1 - R2YZ * [mu^{-1}]_1, [mu^4 * kappa^2]_2)
+                // this is like verifying e([R]_1 - R1YZ[mu^{-1}]_1, [mu^4 * kappa]_2) = e(R2YZ[mu^{-1}]_1 - [R]_1, [mu^4 * kappa^2]_2)
+
+                let r1yz := mload(PROOF_R1_AT_ZETA_SLOT)
+                let r2yz := mload(PROOF_R2_AT_ZETA_SLOT)
+
+
+                //mstore(0x000, mload())
+                //mstore(0x020, mload())
+
+                mstore(0x040, G2_MU_EXP_4_TIMES_KAPPA_X1)
+                mstore(0x060, G2_MU_EXP_4_TIMES_KAPPA_X2)
+                mstore(0x080, G2_MU_EXP_4_TIMES_KAPPA_Y1)
+                mstore(0x0a0, G2_MU_EXP_4_TIMES_KAPPA_Y2)
+
+                mstore(0x0c0, mload(PROOF_CONSTRAINT_POLY_X_SLOT))
+                mstore(0x0e0, mload(PROOF_CONSTRAINT_POLY_Y_SLOT))
+
+                mstore(0x100, G2_MU_EXP_4_TIMES_KAPPA_SQUARE_X1)
+                mstore(0x120, G2_MU_EXP_4_TIMES_KAPPA_SQUARE_X2)
+                mstore(0x140, G2_MU_EXP_4_TIMES_KAPPA_SQUARE_Y1)
+                mstore(0x160, G2_MU_EXP_4_TIMES_KAPPA_SQUARE_Y2)
+                eo_success := staticcall(gas(), 8, 0, 0x180, 0x00, 0x20)
+                if iszero(eo_success) {
+                    revertWithMessage(32, "finalPairing: precompile failure")
+                }
+            } 
+
+            /// @notice computes the first pairing 
+            /// @dev We should check the equation:
+            /// E_pi = e([pi_0]_1, [mu^3 * psi_0 * y]_2 - zeta0 * [mu^3 * psi_0]_2) * e([pi_1]_1, [mu^3 * psi_1 * z]_2 - zeta1 * [mu^3 * psi_1]_2)
+            ///        * e([pi_2]_1, [mu^3 * psi_2 * y]_2 - omega_Y^{-1} * zeta0 * [mu^3 * psi_2]_2) e([pi_3]_1, [mu^3 * psi3 * z]_2 - omega_Z^{-1} * zeta1 * [mu^3 * psi_3]_2)
+            ///
+            /// check if E_c * E_o = E_pi
+
+            function copyConstraintPairingEPI() -> epi_success {
+
+            } 
+
+            function checkCopyConstraintPairing(ec, eo, epi) -> res {
+                
+            }
+
+
 
             /*//////////////////////////////////////////////////////////////
                             6. Arithmetic constraint pairing
@@ -600,6 +716,12 @@ contract TVerifier is ITverifier {
 
             // Step 2: Recompute all the challenges with the transcript
             initializeTranscript()
+
+            // Step3: compute the constraint final polynomial
+            computeConstraintFinalPolynomial()
+
+            // Step4: compute the copy constraint pairing
+            //copyConstraintPairing()
 
             teta1 := mload(CHALLENGE_TETA_0_SLOT)
             teta2 := mload(CHALLENGE_TETA_1_SLOT)

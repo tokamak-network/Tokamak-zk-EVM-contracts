@@ -14,70 +14,141 @@ import {ITverifier} from "./interface/ITverifier.sol";
 contract TVerifier is ITverifier {
 
     /*//////////////////////////////////////////////////////////////
-                                  Public Inputs
+                            Proof Public Inputs
     //////////////////////////////////////////////////////////////*/
 
-    // preprocessed commitments
-    uint256 internal constant PUBLIC_INPUT_PREPROCESSED_COM_S0_X_SLOT = 0x200 + 0x000;
-    uint256 internal constant PUBLIC_INPUT_PREPROCESSED_COM_S0_Y_SLOT = 0x200 + 0x020;
-    uint256 internal constant PUBLIC_INPUT_PREPROCESSED_COM_S1_X_SLOT = 0x200 + 0x040;
-    uint256 internal constant PUBLIC_INPUT_PREPROCESSED_COM_S1_Y_SLOT = 0x200 + 0x060;
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART1 = 0x200 + 0x000;
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART2 = 0x200 + 0x020;
 
-    // permutation polynomials
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_X_SLOT = 0x200 + 0x080;
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_Y_SLOT = 0x200 + 0x0a0;
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_Z_SLOT = 0x200 + 0x0c0;
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S3_X_SLOT = 0x200 + 0x0e0;
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S3_Y_SLOT = 0x200 + 0x100;
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S3_Z_SLOT = 0x200 + 0x120;
-    uint256 internal constant PUBLIC_INPUT_A_IN_SLOT = 0x200 + 0x140;
-    uint256 internal constant PUBLIC_INPUT_A_OUT_SLOT = 0x200 + 0x160;
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART1 = 0x200 + 0x040;
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART2 = 0x200 + 0x060;
+
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART1 = 0x200 + 0x080;
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART2 = 0x200 + 0x0a0;
+
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART1 = 0x200 + 0x0c0;
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART2 = 0x200 + 0x0e0;
+
+    uint256 internal constant PUBLIC_INPUT_A_IN_LENGTH_SLOT = 0x200 + 0x100;
+    uint256 internal constant PUBLIC_INPUT_A_IN_DATA_SLOT = 0x200 + 0x120; // Starts after length
+
+    uint256 internal constant PUBLIC_INPUT_A_OUT_LENGTH_SLOT = 0x200 + 0x120; // Will be calculated at runtime
+    uint256 internal constant PUBLIC_INPUT_A_OUT_DATA_SLOT = 0x200 + 0x140;   // Will be calculated at runtime
+
+    /*//////////////////////////////////////////////////////////////
+                        Hard coded Public Inputs
+    //////////////////////////////////////////////////////////////*/
+
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_X_PART1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_X_PART2 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
+
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_Y_PART1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
+    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_Y_PART2 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
+
+
+    uint256 internal constant PUBLIC_INPUT_LI_KJ_X_SLOT_PART1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
+    uint256 internal constant PUBLIC_INPUT_LI_KJ_X_SLOT_PART2 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
+
+    uint256 internal constant PUBLIC_INPUT_LI_KJ_Y_SLOT_PART1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
+    uint256 internal constant PUBLIC_INPUT_LI_KJ_Y_SLOT_PART2 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
 
     /*//////////////////////////////////////////////////////////////
                                   Proof
     //////////////////////////////////////////////////////////////*/
 
-    // OPEN_0
-    uint256 internal constant PROOF_OPENING_EVAL_U_X_SLOT = 0x200 + 0x160 + 0x020;
-    uint256 internal constant PROOF_OPENING_EVAL_U_Y_SLOT = 0x200 + 0x160 + 0x040;
-    uint256 internal constant PROOF_OPENING_EVAL_V_X0_SLOT = 0x200 + 0x160 + 0x060;
-    uint256 internal constant PROOF_OPENING_EVAL_V_X1_SLOT = 0x200 + 0x160 + 0x080;
-    uint256 internal constant PROOF_OPENING_EVAL_V_Y0_SLOT = 0x200 + 0x160 + 0x0a0;
-    uint256 internal constant PROOF_OPENING_EVAL_V_Y1_SLOT = 0x200 + 0x160 + 0x0c0;
-    uint256 internal constant PROOF_OPENING_EVAL_W_X_SLOT = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_OPENING_EVAL_W_Y_SLOT = 0x200 + 0x160 + 0x100;
-    // selector polynomials
-    uint256 internal constant PROOF_OPENING_EVAL_A_X_SLOT = 0x200 + 0x160 + 0x120;
-    uint256 internal constant PROOF_OPENING_EVAL_A_Y_SLOT = 0x200 + 0x160 + 0x140;
-    uint256 internal constant PROOF_OPENING_EVAL_B_X_SLOT = 0x200 + 0x160 + 0x160;
-    uint256 internal constant PROOF_OPENING_EVAL_B_Y_SLOT = 0x200 + 0x160 + 0x180;
-    uint256 internal constant PROOF_OPENING_EVAL_C_X_SLOT = 0x200 + 0x160 + 0x1a0;
-    uint256 internal constant PROOF_OPENING_EVAL_C_Y_SLOT = 0x200 + 0x160 + 0x1c0;
-    // recursion polynomial
-    uint256 internal constant PROOF_RECURSION_POLY_X_SLOT = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_RECURSION_POLY_Y_SLOT = 0x200 + 0x160 + 0x200;
-    // constraint polynomial
-    uint256 internal constant PROOF_CONSTRAINT_POLY_X_SLOT = 0x200 + 0x160 + 0x220;
-    uint256 internal constant PROOF_CONSTRAINT_POLY_Y_SLOT = 0x200 + 0x160 + 0x240;
-    // points evaluations
-    uint256 internal constant PROOF_R1_AT_ZETA_SLOT = 0x200 + 0x160 + 0x260;
-    uint256 internal constant PROOF_R2_AT_ZETA_SLOT = 0x200 + 0x160 + 0x280;
-    uint256 internal constant PROOF_B_AT_ZETA_SLOT = 0x200 + 0x160 + 0x2a0;
-    // transcript components
-    uint256 internal constant PROOF_PI0_X_SLOT = 0x200 + 0x160 + 0x2c0;
-    uint256 internal constant PROOF_PI0_Y_SLOT = 0x200 + 0x160 + 0x2e0;
-    uint256 internal constant PROOF_PI1_X_SLOT = 0x200 + 0x160 + 0x300;
-    uint256 internal constant PROOF_PI1_Y_SLOT = 0x200 + 0x160 + 0x320;
-    uint256 internal constant PROOF_PI2_X_SLOT = 0x200 + 0x160 + 0x340;
-    uint256 internal constant PROOF_PI2_Y_SLOT = 0x200 + 0x160 + 0x360;
-    uint256 internal constant PROOF_PI3_X_SLOT = 0x200 + 0x160 + 0x380;
-    uint256 internal constant PROOF_PI3_Y_SLOT = 0x200 + 0x160 + 0x3a0;
-    // permutation_polynomials_at_zeta; // Sσ1(zeta),Sσ2(zeta)
-    uint256 internal constant PROOF_S2_AT_ZETA_SLOT = 0x200 + 0x160 + 0x3c0; // Sσ2(zeta0, zeta1)
-    // L and K at zeta0 and zeta1
-    uint256 internal constant PROOF_L_MINUS1_AT_ZETA0_SLOT = 0x200 + 0x160 + 0x3e0;
-    uint256 internal constant PROOF_K_MINUS1_AT_ZETA1_SLOT = 0x200 + 0x160 + 0x400;
-    uint256 internal constant PROOF_K_0_AT_ZETA0_SLOT = 0x200 + 0x160 + 0x420;
+    // U
+    uint256 internal constant PROOF_POLY_U_X_SLOT_PART1 = 0x200 + 0x120 + 0x020;
+    uint256 internal constant PROOF_POLY_U_X_SLOT_PART2 = 0x200 + 0x120 + 0x040;
+    uint256 internal constant PROOF_POLY_U_Y_SLOT_PART1 = 0x200 + 0x160 + 0x060;
+    uint256 internal constant PROOF_POLY_U_Y_SLOT_PART2 = 0x200 + 0x160 + 0x080;
+    // V
+    uint256 internal constant PROOF_POLY_V_X_SLOT_PART1 = 0x200 + 0x160 + 0x0a0;
+    uint256 internal constant PROOF_POLY_V_X_SLOT_PART2 = 0x200 + 0x160 + 0x0c0;
+    uint256 internal constant PROOF_POLY_V_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_V_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // W
+    uint256 internal constant PROOF_POLY_W_X_SLOT_PART1 = 0x200 + 0x160 + 0x0a0;
+    uint256 internal constant PROOF_POLY_W_X_SLOT_PART2 = 0x200 + 0x160 + 0x0c0;
+    uint256 internal constant PROOF_POLY_W_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_W_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // O_mid
+    uint256 internal constant PROOF_POLY_OMID_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
+    uint256 internal constant PROOF_POLY_OMID_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
+    uint256 internal constant PROOF_POLY_OMID_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_OMID_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // O_prv
+    uint256 internal constant PROOF_POLY_OPRV_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
+    uint256 internal constant PROOF_POLY_OPRV_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
+    uint256 internal constant PROOF_POLY_OPRV_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_OPRV_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // O_X
+    uint256 internal constant PROOF_POLY_QX_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
+    uint256 internal constant PROOF_POLY_QX_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
+    uint256 internal constant PROOF_POLY_QX_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_QX_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // O_Y
+    uint256 internal constant PROOF_POLY_QY_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
+    uint256 internal constant PROOF_POLY_QY_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
+    uint256 internal constant PROOF_POLY_QY_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_QY_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // O_Z
+    uint256 internal constant PROOF_POLY_QZ_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
+    uint256 internal constant PROOF_POLY_QZ_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
+    uint256 internal constant PROOF_POLY_QZ_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_QZ_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // Π_χ
+    uint256 internal constant PROOF_POLY_PI_CHI_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
+    uint256 internal constant PROOF_POLY_PI_CHI_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
+    uint256 internal constant PROOF_POLY_PI_CHI_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_PI_CHI_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // Π_ζ
+    uint256 internal constant PROOF_POLY_PI_ZETA_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
+    uint256 internal constant PROOF_POLY_PI_ZETA_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
+    uint256 internal constant PROOF_POLY_PI_ZETA_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_PI_ZETA_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // Π_ξ
+    uint256 internal constant PROOF_POLY_PI_XI_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
+    uint256 internal constant PROOF_POLY_PI_XI_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
+    uint256 internal constant PROOF_POLY_PI_XI_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
+    uint256 internal constant PROOF_POLY_PI_XI_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    // B
+    uint256 internal constant PROOF_POLY_B_X_SLOT_PART1 = 0x200 + 0x160 + 0x1a0;
+    uint256 internal constant PROOF_POLY_B_X_SLOT_PART2 = 0x200 + 0x160 + 0x1c0;
+    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1a0;
+    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART2 = 0x200 + 0x160 + 0x1c0;
+    // R
+    uint256 internal constant PROOF_POLY_R_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_R_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    // M_ζ
+    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    // M_ω_Z^-1ξ
+    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    // N_ω_Y^-1ζ
+    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    // N_ω_Z^-1ξ
+    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
+    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    // R_xy
+    uint256 internal constant PROOF_R1XY_SLOT = 0x200 + 0x160 + 0x200;
+    // R'_xy
+    uint256 internal constant PROOF_R2XY_SLOT = 0x200 + 0x160 + 0x200;
+    // R''_xy
+    uint256 internal constant PROOF_R3XY_SLOT = 0x200 + 0x160 + 0x200;
+
+
 
     /*//////////////////////////////////////////////////////////////
                  transcript slot (used for challenge computation)
@@ -105,36 +176,18 @@ contract TVerifier is ITverifier {
                        Intermediary verifier state
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant INTERMEDIARY_POLY_P_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x020;
-    uint256 internal constant INTERMEDIARY_POLY_P_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x040;
 
-    uint256 internal constant INTERMEDIARY_POLY_F_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x060;
-    uint256 internal constant INTERMEDIARY_POLY_F_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x080;
-
-    uint256 internal constant INTERMEDIARY_G_AT_ZETA_EVAL_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x0a0;
-
-    // [mu_{-1}]_1
-    uint256 internal constant INTERMEDIARY_MU_MINUS_1_X_SLOT = 15805639136721018565402881920352193254830339253282065586954346329754995870280;
-    uint256 internal constant INTERMEDIARY_MU_MINUS_1_Y_SLOT = 9779648407879205346559610309258181044130619080926897934572699915909528404984;
-
-    uint256 internal constant INTERMEDIARY_POLY_R_BUFFER_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x100;
-    uint256 internal constant INTERMEDIARY_POLY_R_BUFFER_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120;
 
     /*//////////////////////////////////////////////////////////////
                              Pairing data
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant PAIRING_BUFFER1_POINT_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120 + 0x020;
-    uint256 internal constant PAIRING_BUFFER1_POINT_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120 + 0x040;
+    uint256 internal constant PAIRING_BUFFER1_POINT_X_SLOT = 0x200 + 0x160 + 0x420 + 0x1a0;
+    uint256 internal constant PAIRING_BUFFER1_POINT_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x1c0;
 
-    uint256 internal constant PAIRING_BUFFER2_POINT_X_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120 + 0x060;
-    uint256 internal constant PAIRING_BUFFER2_POINT_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x180 + 0x120 + 0x080;
+    uint256 internal constant PAIRING_BUFFER2_POINT_X_SLOT = 0x200 + 0x160 + 0x420 + 0x1e0;
+    uint256 internal constant PAIRING_BUFFER2_POINT_Y_SLOT = 0x200 + 0x160 + 0x420 + 0x200;
 
-    // E_c pairing storage
-
-    // E_o pairing storage
-
-    // E_pi pairing storage
 
 
     /*//////////////////////////////////////////////////////////////
@@ -145,8 +198,11 @@ contract TVerifier is ITverifier {
     //uint256 internal constant PUBLIC_PARAMETER = 
 
     // Scalar field size
-    uint256 internal constant Q_MOD = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
-    uint256 internal constant R_MOD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+    // Q_MOD is the base field modulus (48 bytes long). To fit with the EVM, we sliced it into two 32bytes variables => 16 first bytes are zeros        
+    uint256 internal constant Q_MOD_PART1 = 0x000000000000000000000000000000001a0111ea397fe69a4b1ba7b6434bacd7;
+    uint256 internal constant Q_MOD_PART2 = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
+    // R_MOD is the main subgroup order 
+    uint256 internal constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
     /// @dev flip of 0xe000000000000000000000000000000000000000000000000000000000000000;
     uint256 internal constant FR_MASK = 0x1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
@@ -201,7 +257,7 @@ contract TVerifier is ITverifier {
     function verify(
         uint256[] calldata, // _publicInputs
         uint256[] calldata // _proof
-    ) public view virtual returns (bool result, uint256 teta1, uint256 teta2, uint256 teta3, uint256 kappa0, uint256 kappa1, uint256 zeta0, uint256 zeta1) {
+    ) public view virtual returns (bool result) {
         
         assembly {
 
@@ -225,74 +281,142 @@ contract TVerifier is ITverifier {
                 revert(0x00, 0x64)
             }
 
-            /// @dev Performs a point multiplication operation and stores the result in a given memory destination.
-            function pointMulIntoDest(point, s, dest) {
+            /// @dev Performs a G1 point multiplication operation and stores the result in a given memory destination.
+            function g1pointMulIntoDest(point, s, dest) {
                 mstore(0x00, mload(point))
                 mstore(0x20, mload(add(point, 0x20)))
-                mstore(0x40, s)
-                if iszero(staticcall(gas(), 7, 0, 0x60, dest, 0x40)) {
-                    revertWithMessage(30, "pointMulIntoDest: ecMul failed")
+                mstore(0x40, mload(add(point, 0x40)))
+                mstore(0x60, mload(add(point, 0x60)))
+                mstore(0x80, s)  
+                // BLS12-381 G1MSM at address 0x0c
+                if iszero(staticcall(gas(), 0x0c, 0, 0xa0, dest, 0x80)) {
+                    revertWithMessage(30, "g1pointMulIntoDest: ecMul failed")
                 }
             }
 
-            /// @dev Performs a point addition operation and stores the result in a given memory destination.
-            function pointAddIntoDest(p1, p2, dest) {
+            /// @dev Performs a G1 point addition operation and stores the result in a given memory destination.
+            function g1pointAddIntoDest(p1, p2, dest) {
                 mstore(0x00, mload(p1))
                 mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(p2))
-                mstore(0x60, mload(add(p2, 0x20)))
-                if iszero(staticcall(gas(), 6, 0x00, 0x80, dest, 0x40)) {
-                    revertWithMessage(30, "pointAddIntoDest: ecAdd failed")
+                mstore(0x40, mload(add(p1, 0x40)))
+                mstore(0x60, mload(add(p1, 0x60)))
+                mstore(0x80, mload(p2))
+                mstore(0xa0, mload(add(p2, 0x20)))
+                mstore(0xc0, mload(add(p2, 0x40)))
+                mstore(0xe0, mload(add(p2, 0x60)))
+                //  BLS12-381 G1ADDat address 0x0b
+                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
+                    revertWithMessage(30, "g1pointAddIntoDest: ecAdd failed")
                 }
             }
 
-            /// @dev Performs a point multiplication operation and then adds the result to the destination point.
-            function pointMulAndAddIntoDest(point, s, dest) {
+            /// @dev Performs a G2 point multiplication operation and stores the result in a given memory destination.
+            function g2pointMulIntoDest(point, s, dest) {
                 mstore(0x00, mload(point))
                 mstore(0x20, mload(add(point, 0x20)))
-                mstore(0x40, s)
-                let success := staticcall(gas(), 7, 0, 0x60, 0, 0x40)
-
-                mstore(0x40, mload(dest))
-                mstore(0x60, mload(add(dest, 0x20)))
-                success := and(success, staticcall(gas(), 6, 0x00, 0x80, dest, 0x40))
-
-                if iszero(success) {
-                    revertWithMessage(22, "pointMulAndAddIntoDest")
+                mstore(0x40, mload(add(point, 0x40)))
+                mstore(0x60, mload(add(point, 0x60)))
+                mstore(0x80, mload(add(point, 0x80)))
+                mstore(0xa0, mload(add(point, 0xa0)))
+                mstore(0xc0, mload(add(point, 0xc0)))
+                mstore(0xe0, mload(add(point, 0xe0)))
+                mstore(0x100, s)  
+                // BLS12-381 G2MSM at address 0x0c
+                if iszero(staticcall(gas(), 0x0e, 0, 0x120, dest, 0x100)) {
+                    revertWithMessage(30, "g2pointMulIntoDest: ecMul failed")
                 }
             }
 
-            /// @dev Performs a point addition operation and updates the first point with the result.
-            function pointAddAssign(p1, p2) {
+            /// @dev Performs a G2 point addition operation and stores the result in a given memory destination.
+            function g2pointAddIntoDest(p1, p2, dest) {
                 mstore(0x00, mload(p1))
                 mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(p2))
-                mstore(0x60, mload(add(p2, 0x20)))
-                if iszero(staticcall(gas(), 6, 0x00, 0x80, p1, 0x40)) {
-                    revertWithMessage(28, "pointAddAssign: ecAdd failed")
+                mstore(0x40, mload(add(p1, 0x40)))
+                mstore(0x60, mload(add(p1, 0x60)))
+                mstore(0x80, mload(add(p1, 0x80)))
+                mstore(0xa0, mload(add(p1, 0xa0)))
+                mstore(0xc0, mload(add(p1, 0xc0)))
+                mstore(0xe0, mload(add(p1, 0xe0)))
+                mstore(0x100, mload(p2))
+                mstore(0x120, mload(add(p2, 0x20)))
+                mstore(0x140, mload(add(p2, 0x40)))
+                mstore(0x160, mload(add(p2, 0x60)))
+                mstore(0x180, mload(add(p2, 0x80)))
+                mstore(0x1a0, mload(add(p2, 0xa0)))
+                mstore(0x1c0, mload(add(p2, 0xc0)))
+                mstore(0x1e0, mload(add(p2, 0xe0)))
+                // BLS12-381 G2ADD at address 0x0d
+                if iszero(staticcall(gas(), 0x0d, 0x00, 0x200, dest, 0x100)) {
+                    revertWithMessage(30, "g2pointAddIntoDest: ecAdd failed")
                 }
             }
 
-            /// @dev Performs a point subtraction operation and updates the first point with the result.
-            function pointSubIntoDest(p1, p2, dest) {
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(p2))
-                mstore(0x60, sub(Q_MOD, mload(add(p2, 0x20))))
-                if iszero(staticcall(gas(), 6, 0x00, 0x80, dest, 0x40)) {
-                    revertWithMessage(28, "pointSubAssign: ecAdd failed")
+            function coordinatesSub(a, b) -> result_part1, result_part2 {  
+                // Load the first 32 bytes of each variable
+                let a1 := mload(a)
+                let b1 := mload(b)
+
+                // Load the second 32 bytes of each variable
+                let a2 := mload(add(a, 0x20))
+                let b2 := mload(add(b, 0x20))
+
+                // Perform subtraction on the lower 32 bytes
+                let diff1 := sub(a1, b1)
+
+                // Check if there was a borrow (if b1 > a1)
+                let borrow := lt(a1, b1)
+
+                // Perform subtraction on the upper 32 bytes, accounting for borrow
+                let diff2 := sub(sub(a2, b2), borrow)
+
+                // Store the result
+                mstore(result_part1, diff1)
+                mstore(result_part2, diff2) 
+            }
+
+
+            /// @dev Performs a G2 point subtraction operation and stores the result in a given memory destination.
+            function g2pointSubIntoDest(p1, p2, dest) {
+                // Load the coordinates of the first point (p1)
+                mstore(0x000, mload(p1))            // x1
+                mstore(0x020, mload(add(p1, 0x20))) // x1
+                mstore(0x040, mload(add(p1, 0x40))) // y1
+                mstore(0x060, mload(add(p1, 0x60))) // y1
+                mstore(0x080, mload(add(p1, 0x80))) // x1'
+                mstore(0x0a0, mload(add(p1, 0xa0))) // x1'
+                mstore(0x0c0, mload(add(p1, 0xc0))) // y1'
+                mstore(0x0e0, mload(add(p1, 0xe0))) // y1'
+                    
+                // computes -y2 and -y2' coordinates 
+                let minus_y2_part1
+                let minus_y2_part2 
+                minus_y2_part1, minus_y2_part2 := coordinatesSub(mload(Q_MOD_PART1), mload(add(p2, 0x40)))
+
+                let minus_y2_prime_part1
+                let minus_y2_prime_part2
+                minus_y2_prime_part1, minus_y2_prime_part2 := coordinatesSub(mload(Q_MOD_PART1), mload(add(p2, 0xc0)))
+                
+                    // Load the coordinates of the second point (p2)
+                mstore(0x100, mload(p2))            // x2
+                mstore(0x120, mload(add(p2, 0x20))) // x2
+                mstore(0x140, minus_y2_part1)       // -y2
+                mstore(0x160, minus_y2_part2)       // -y2
+                mstore(0x180, mload(add(p2, 0x80))) // x2'
+                mstore(0x1a0, mload(add(p2, 0xa0))) // x2'
+                mstore(0x1c0, minus_y2_prime_part1) // -y2'
+                mstore(0x1e0, minus_y2_prime_part2) // -y2'
+
+                // Precompile at address 0x0d performs a G2ADD operation
+                if iszero(staticcall(gas(), 0x0d, 0x00, 0x200, dest, 0x100)) {
+                    revertWithMessage(30, "pointSubIntoDest: ecAdd failed")
                 }
             }
 
-            /// @dev Performs a point subtraction operation and updates the first point with the result.
-            function pointSubAssign(p1, p2) {
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(p2))
-                mstore(0x60, sub(Q_MOD, mload(add(p2, 0x20))))
-                if iszero(staticcall(gas(), 6, 0x00, 0x80, p1, 0x40)) {
-                    revertWithMessage(28, "pointSubAssign: ecAdd failed")
-                }
+            // Helper function to load a uint128 and left-pad it to bytes32
+            function loadAndFormatUint128(calldataOffset) -> formatted {
+                let rawValue := calldataload(calldataOffset)
+                // Mask to 128 bits (discard upper 16 bytes if they exist)
+                formatted := and(rawValue, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
             }
 
             /*//////////////////////////////////////////////////////////////
@@ -318,183 +442,122 @@ contract TVerifier is ITverifier {
             }
 
             /*//////////////////////////////////////////////////////////////
-                                        1. Load Proof
+                                    1. Load Public inputs
             //////////////////////////////////////////////////////////////*/
 
-            /// @dev This function loads a zk-SNARK proof, ensures it's properly formatted, and stores it in memory.
-            /// It ensures the number of inputs and the elliptic curve point's validity.
-            /// Note: It does NOT reject inputs that exceed these module sizes, but rather wraps them within the
-            /// module bounds.
-
-            function loadProof() {
-                // 1. Load public inputs
-                let offset := calldataload(0x04)
-                let publicInputLengthInWords := calldataload(add(offset, 0x04)) // we add 0x04 to skip the function selector
-                let isValid := eq(publicInputLengthInWords, 12) // (We expect 12 public inputs) 
-
-                // Load each public input into its respective slot
-                mstore(PUBLIC_INPUT_PREPROCESSED_COM_S0_X_SLOT, and(calldataload(add(offset, 0x24)), FR_MASK))
-                mstore(PUBLIC_INPUT_PREPROCESSED_COM_S0_Y_SLOT, and(calldataload(add(offset, 0x44)), FR_MASK))
-                mstore(PUBLIC_INPUT_PREPROCESSED_COM_S1_X_SLOT, and(calldataload(add(offset, 0x64)), FR_MASK))
-                mstore(PUBLIC_INPUT_PREPROCESSED_COM_S1_Y_SLOT, and(calldataload(add(offset, 0x84)), FR_MASK))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S2_X_SLOT, and(calldataload(add(offset, 0xa4)), FR_MASK))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S2_Y_SLOT, and(calldataload(add(offset, 0xc4)), FR_MASK))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S2_Z_SLOT, and(calldataload(add(offset, 0xe4)), FR_MASK))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S3_X_SLOT, and(calldataload(add(offset, 0x104)), FR_MASK))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S3_Y_SLOT, and(calldataload(add(offset, 0x124)), FR_MASK))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S3_Z_SLOT, and(calldataload(add(offset, 0x144)), FR_MASK))
-                mstore(PUBLIC_INPUT_A_IN_SLOT, and(calldataload(add(offset, 0x164)), FR_MASK))
-                mstore(PUBLIC_INPUT_A_OUT_SLOT, and(calldataload(add(offset, 0x184)), FR_MASK))
-
-                // 2. Load the proof 
-                offset := calldataload(0x24)
-                let proofLengthInWords := calldataload(add(offset, 0x04))
-                isValid := and(eq(proofLengthInWords, 32), isValid)
-
-                // PROOF_OPENING_EVAL_U
-                {
-                    let x := mod(calldataload(add(offset, 0x24)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x44)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid) // we verify the point belongs to the BN128 curve
-                    mstore(PROOF_OPENING_EVAL_U_X_SLOT, x)
-                    mstore(PROOF_OPENING_EVAL_U_Y_SLOT, y)
-                }
-                // PROOF_OPENING_EVAL_V
-                {
-                    // Load x0, x1, y0, y1 from calldata
-                    let x0 := mod(calldataload(add(offset, 0x64)), Q_MOD)
-                    let x1 := mod(calldataload(add(offset, 0x84)), Q_MOD)
-                    let y0 := mod(calldataload(add(offset, 0xa4)), Q_MOD)
-                    let y1 := mod(calldataload(add(offset, 0xc4)), Q_MOD)
-
-                    // Store the coordinates
-                    mstore(PROOF_OPENING_EVAL_V_X0_SLOT, x0)
-                    mstore(PROOF_OPENING_EVAL_V_X1_SLOT, x1)
-                    mstore(PROOF_OPENING_EVAL_V_Y0_SLOT, y0)
-                    mstore(PROOF_OPENING_EVAL_V_Y1_SLOT, y1)
-                }
-                // PROOF_OPENING_EVAL_W
-                {
-                    let x := mod(calldataload(add(offset, 0xe4)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x104)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_OPENING_EVAL_W_X_SLOT, x)
-                    mstore(PROOF_OPENING_EVAL_W_Y_SLOT, y)
-                }
-
-                // PROOF_OPENING_EVAL_A
-                {
-                    let x := mod(calldataload(add(offset, 0x124)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x144)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_OPENING_EVAL_A_X_SLOT, x)
-                    mstore(PROOF_OPENING_EVAL_A_Y_SLOT, y)
-                }
-
-                // PROOF_OPENING_EVAL_B
-                {
-                    let x := mod(calldataload(add(offset, 0x164)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x184)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_OPENING_EVAL_B_X_SLOT, x)
-                    mstore(PROOF_OPENING_EVAL_B_Y_SLOT, y)
-                }
-
-                // PROOF_OPENING_EVAL_C
-                {
-                    let x := mod(calldataload(add(offset, 0x1a4)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x1c4)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_OPENING_EVAL_C_X_SLOT, x)
-                    mstore(PROOF_OPENING_EVAL_C_Y_SLOT, y)
-                }
-
-                // PROOF_RECURSION_POLY
-                {
-                    let x := mod(calldataload(add(offset, 0x1e4)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x204)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_RECURSION_POLY_X_SLOT, x)
-                    mstore(INTERMEDIARY_POLY_R_BUFFER_X_SLOT, x)
-                    mstore(PROOF_RECURSION_POLY_Y_SLOT, y)
-                    mstore(INTERMEDIARY_POLY_R_BUFFER_Y_SLOT, y)
-                }
-
-                // PROOF_CONSTRAINT_POLY
-                {
-                    let x := mod(calldataload(add(offset, 0x224)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x244)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_CONSTRAINT_POLY_X_SLOT, x)
-                    mstore(PROOF_CONSTRAINT_POLY_Y_SLOT, y)
-                }
-
-                mstore(PROOF_R1_AT_ZETA_SLOT, mod(calldataload(add(offset, 0x264)), R_MOD))
-                mstore(PROOF_R2_AT_ZETA_SLOT, mod(calldataload(add(offset, 0x284)), R_MOD))
-                mstore(PROOF_B_AT_ZETA_SLOT, mod(calldataload(add(offset, 0x2a4)), R_MOD))
-
-                // PROOF_PI0
-                {
-                    let x := mod(calldataload(add(offset, 0x2c4)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x2e4)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_PI0_X_SLOT, x)
-                    mstore(PROOF_PI0_Y_SLOT, y)
-                }
-
-                // PROOF_PI1
-                {
-                    let x := mod(calldataload(add(offset, 0x304)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x324)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_PI1_X_SLOT, x)
-                    mstore(PROOF_PI1_Y_SLOT, y)
-                }
-
-                // PROOF_PI2
-                {
-                    let x := mod(calldataload(add(offset, 0x344)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x364)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_PI2_X_SLOT, x)
-                    mstore(PROOF_PI2_Y_SLOT, y)
-                }
-
-                // PROOF_PI3
-                {
-                    let x := mod(calldataload(add(offset, 0x384)), Q_MOD)
-                    let y := mod(calldataload(add(offset, 0x3a4)), Q_MOD)
-                    let xx := mulmod(x, x, Q_MOD)
-                    isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
-                    mstore(PROOF_PI3_X_SLOT, x)
-                    mstore(PROOF_PI3_Y_SLOT, y)
-                }
-
-                // Proofs at zeta
-                mstore(PROOF_S2_AT_ZETA_SLOT, mod(calldataload(add(offset, 0x3c4)), R_MOD))
-                mstore(PROOF_L_MINUS1_AT_ZETA0_SLOT, mod(calldataload(add(offset, 0x3e4)), R_MOD))
-                mstore(PROOF_K_MINUS1_AT_ZETA1_SLOT, mod(calldataload(add(offset, 0x404)), R_MOD))
+            function loadPublicInputs() {
+                let isValid
+                // 1. Calculate proper offset (skip function selector)
+                let offset := add(calldataload(0x04), 0x04) // 0x04 for function selector
                 
+                // Load permutation polynomials (0x00-0x9f in calldata)
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART1, loadAndFormatUint128(add(offset, 0x20)))
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART2, calldataload(add(offset, 0x30)))
+                
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART1, loadAndFormatUint128(add(offset, 0x40)))
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART2, calldataload(add(offset, 0x50)))
+                
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART1, loadAndFormatUint128(add(offset, 0x60)))
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART2, calldataload(add(offset, 0x70)))
+                
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART1, loadAndFormatUint128(add(offset, 0x80)))
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART2, calldataload(add(offset, 0x90)))
+                
+                // Advance offset past polynomial parts (0xa0 bytes)
+                offset := add(offset, 0xa0)
+                
+                // Load A_IN length and data
+                let aInLength := calldataload(offset)
+                mstore(PUBLIC_INPUT_A_IN_LENGTH_SLOT, aInLength)
+                offset := add(offset, 0x20)
+                
+                // Calculate A_IN data start position (0x320)
+                let aInDataPtr := PUBLIC_INPUT_A_IN_DATA_SLOT
+                
+                // Copy a_in elements
+                for { let i := 0 } lt(i, aInLength) { i := add(i, 1) } {
+                    mstore(add(aInDataPtr, mul(i, 0x20)), calldataload(offset))
+                    offset := add(offset, 0x20)
+                }
+                
+                // Calculate A_OUT position dynamically
+                let aOutOffset := add(aInDataPtr, mul(aInLength, 0x20))
+                let aOutLength := calldataload(offset)
+                mstore(aOutOffset, aOutLength) // Store length at calculated position
+                offset := add(offset, 0x20)
+                
+                // Store A_OUT elements starting after length
+                for { let i := 0 } lt(i, aOutLength) { i := add(i, 1) } {
+                    mstore(add(aOutOffset, mul(add(i, 1), 0x20)), calldataload(offset))
+                    offset := add(offset, 0x20)
+                }
 
-                // Revert if a proof/public input is not valid
+                // Revert if proof is invalid
                 if iszero(isValid) {
                     revertWithMessage(27, "loadProof: Proof is invalid")
                 }
-
             }
 
             /*//////////////////////////////////////////////////////////////
-                                    2. Transcript initialization
+                                    1. Load Proof
+            //////////////////////////////////////////////////////////////*/
+
+            function loadProof() {
+                let isValid
+                // 1. Calculate proper offset (skip function selector)
+                let offset := add(calldataload(0x04), 0x04) // 0x04 for function selector
+                
+                // Load permutation polynomials (0x00-0x9f in calldata)
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART1, loadAndFormatUint128(add(offset, 0x20)))
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART2, calldataload(add(offset, 0x30)))
+                
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART1, loadAndFormatUint128(add(offset, 0x40)))
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART2, calldataload(add(offset, 0x50)))
+                
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART1, loadAndFormatUint128(add(offset, 0x60)))
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART2, calldataload(add(offset, 0x70)))
+                
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART1, loadAndFormatUint128(add(offset, 0x80)))
+                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART2, calldataload(add(offset, 0x90)))
+                
+                // Advance offset past polynomial parts (0xa0 bytes)
+                offset := add(offset, 0xa0)
+                
+                // Load A_IN length and data
+                let aInLength := calldataload(offset)
+                mstore(PUBLIC_INPUT_A_IN_LENGTH_SLOT, aInLength)
+                offset := add(offset, 0x20)
+                
+                // Calculate A_IN data start position (0x320)
+                let aInDataPtr := PUBLIC_INPUT_A_IN_DATA_SLOT
+                
+                // Copy a_in elements
+                for { let i := 0 } lt(i, aInLength) { i := add(i, 1) } {
+                    mstore(add(aInDataPtr, mul(i, 0x20)), calldataload(offset))
+                    offset := add(offset, 0x20)
+                }
+                
+                // Calculate A_OUT position dynamically
+                let aOutOffset := add(aInDataPtr, mul(aInLength, 0x20))
+                let aOutLength := calldataload(offset)
+                mstore(aOutOffset, aOutLength) // Store length at calculated position
+                offset := add(offset, 0x20)
+                
+                // Store A_OUT elements starting after length
+                for { let i := 0 } lt(i, aOutLength) { i := add(i, 1) } {
+                    mstore(add(aOutOffset, mul(add(i, 1), 0x20)), calldataload(offset))
+                    offset := add(offset, 0x20)
+                }
+
+                // Revert if proof is invalid
+                if iszero(isValid) {
+                    revertWithMessage(27, "loadProof: Proof is invalid")
+                }
+            }
+
+
+            /*//////////////////////////////////////////////////////////////
+                                3. Transcript initialization
             //////////////////////////////////////////////////////////////*/
 
             /// @notice Recomputes all challenges
@@ -503,233 +566,27 @@ contract TVerifier is ITverifier {
             /// Get:      teta1, teta2 & teta3
 
             function initializeTranscript() {
-                updateTranscript(mload(PROOF_OPENING_EVAL_U_X_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_U_Y_SLOT))
-
-                mstore(CHALLENGE_TETA_0_SLOT, getTranscriptChallenge(0))
-
-                updateTranscript(mload(PROOF_OPENING_EVAL_V_X0_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_V_X1_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_V_Y0_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_V_Y1_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_W_X_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_W_Y_SLOT))
-
-                mstore(CHALLENGE_TETA_1_SLOT, getTranscriptChallenge(1))
-
-                updateTranscript(mload(PROOF_OPENING_EVAL_B_X_SLOT))
-                updateTranscript(mload(PROOF_OPENING_EVAL_B_Y_SLOT))
-
-                mstore(CHALLENGE_TETA_2_SLOT, getTranscriptChallenge(2))
-
-                updateTranscript(mload(PROOF_RECURSION_POLY_X_SLOT))
-                updateTranscript(mload(PROOF_RECURSION_POLY_Y_SLOT))
-
-                mstore(CHALLENGE_KAPPA_0_SLOT, getTranscriptChallenge(3))
-
-                updateTranscript(mload(PROOF_CONSTRAINT_POLY_X_SLOT))
-                mstore(CHALLENGE_ZETA_0_SLOT, getTranscriptChallenge(4))
-
-                updateTranscript(mload(PROOF_CONSTRAINT_POLY_Y_SLOT))
-                mstore(CHALLENGE_ZETA_1_SLOT, getTranscriptChallenge(5))
-
-                updateTranscript(mload(PROOF_R1_AT_ZETA_SLOT))
-                updateTranscript(mload(PROOF_R2_AT_ZETA_SLOT))
-                updateTranscript(mload(PROOF_B_AT_ZETA_SLOT))
-
-                mstore(CHALLENGE_KAPPA_1_SLOT, getTranscriptChallenge(6))
+                updateTranscript(mload(PUBLIC_INPUT_A_IN_DATA_SLOT))
+                updateTranscript(mload(PUBLIC_INPUT_A_OUT_DATA_SLOT))
 
             }
 
-            /*//////////////////////////////////////////////////////////////
-                        4. Computing the intermediary polynomial P
-            //////////////////////////////////////////////////////////////*/
-
-            /// @dev [P]_1 = L_-1(zeta0) * K_-1(zeta1) * ([R]_1 - [mu^{-1}]_1)
-            ///       + kappa0 * (zeta1 - 1) * (G * [R]_1 - R1YZ * [F]_1)
-            ///       + kappa0^2 * K_0(zeta1) * (G * [R]_1 - R2YZ * [F]_1)
-            ///       + kappa1 * ([B]_1 - BYZ * [mu^{-1}]_1)
-            ///
-            ///  where
-            ///      
-            ///       G = BYZ + teta0 * zeta0 + teta1 * s2(zeta1, zeta2) + teta2
-            ///      [F]_1 = [B]_1 + teta0 * [S0]_1 + teta1 * [S1]_1 + teta2 * [mu^{-1}]_1
-
-            function computeConstraintFinalPolynomial() {
-                /// compute G which does not involve any EC addition/multiplication
-                let byz := mload(PROOF_B_AT_ZETA_SLOT) // B(zeta0, zeta1) 
-                let t0 := mload(CHALLENGE_TETA_0_SLOT) // teta0
-                let t1 := mload(CHALLENGE_TETA_1_SLOT) // teta1
-                let t2 := mload(CHALLENGE_TETA_2_SLOT) // teta2
-                let z0 := mload(CHALLENGE_ZETA_0_SLOT) // zeta0
-                let z1 := mload(CHALLENGE_ZETA_1_SLOT) // zeta1
-                let sigmaS2 := mload(PROOF_S2_AT_ZETA_SLOT) // s2(zeta1, zeta2)
-                let g := addmod(byz, mulmod(t0,z0, R_MOD), R_MOD)
-                g := addmod(g, mulmod(t1,sigmaS2, R_MOD), R_MOD)
-                g := addmod(g, t2, R_MOD) // G = BYZ + teta0 * zeta0 + teta1 * s2(zeta1, zeta2) + teta2
-                mstore(INTERMEDIARY_G_AT_ZETA_EVAL_SLOT, g)
-
-                /// compute [F]_1
-                // 1. compute teta0 * [S0]_1
-                pointMulIntoDest(PUBLIC_INPUT_PREPROCESSED_COM_S0_X_SLOT, t0, INTERMEDIARY_POLY_F_X_SLOT)
-                // 2. compute [B]_1 + teta0 * [S0]_1
-                pointAddAssign(INTERMEDIARY_POLY_F_X_SLOT, PROOF_OPENING_EVAL_B_X_SLOT)
-                // 3. compute [B]_1 + teta0 * [S0]_1 + teta1 * [S1]_1
-                //pointMulAndAddIntoDest(PUBLIC_INPUT_PREPROCESSED_COM_S1_X_SLOT, t1, INTERMEDIARY_POLY_F_X_SLOT)
-                // 4. [F]_1 = [B]_1 + teta0 * [S0]_1 + teta1 * [S1]_1 + teta2 * [mu^{-1}]_1
-                //pointMulAndAddIntoDest(INTERMEDIARY_MU_MINUS_1_X_SLOT, t2, INTERMEDIARY_POLY_F_X_SLOT)
-
-                /// compute [P]_1
-                // 1. compute L_-1(zeta0) * K_-1(zeta1) * ([R]_1 - [mu^{-1}]_1)
-                let firstPartOfP
-                //pointSubAssign(INTERMEDIARY_POLY_R_BUFFER_X_SLOT, INTERMEDIARY_MU_MINUS_1_X_SLOT)
-                let factorMultiplier1 := mulmod(mload(PROOF_L_MINUS1_AT_ZETA0_SLOT), mload(PROOF_K_MINUS1_AT_ZETA1_SLOT), R_MOD)
-                pointMulIntoDest(firstPartOfP, factorMultiplier1, INTERMEDIARY_POLY_P_X_SLOT)
-                
-                // 2. compute kappa0 * (zeta1 - 1) * (G * [R]_1 - R1YZ * [F]_1) and add it to the final P polynomial
-                let factorMultiplier2 := mulmod(sub(z1, 1), mload(CHALLENGE_KAPPA_0_SLOT), R_MOD)
-                let gTimesR 
-                pointMulIntoDest(PROOF_RECURSION_POLY_X_SLOT, g, gTimesR)
-                let r1TimesF
-                pointMulIntoDest(INTERMEDIARY_POLY_F_X_SLOT, PROOF_R1_AT_ZETA_SLOT, r1TimesF)
-                let gTimesRMinusrTimesF
-                pointSubIntoDest(gTimesR,r1TimesF,gTimesRMinusrTimesF)
-                let secondPartOfP
-                pointMulIntoDest(gTimesRMinusrTimesF, factorMultiplier2, secondPartOfP)
-                pointAddIntoDest(INTERMEDIARY_POLY_P_X_SLOT,secondPartOfP,INTERMEDIARY_POLY_P_X_SLOT)
-                
-                // 4. compute kappa0^2 * K_0(zeta1) * (G * [R]_1 - R2YZ * [F]_1) and add it to the final P polynomial
-                let factorMultiplier3
-                {
-                    factorMultiplier3 := mulmod(mload(CHALLENGE_KAPPA_0_SLOT), mload(CHALLENGE_KAPPA_0_SLOT), R_MOD) // kappa0^2
-                    factorMultiplier3 := mulmod(factorMultiplier3, mload(PROOF_K_0_AT_ZETA0_SLOT), R_MOD) // kappa0^2 * K_0(zeta1)
-                }
-                let thirdPartOfP
-                pointMulIntoDest(INTERMEDIARY_POLY_F_X_SLOT, PROOF_R2_AT_ZETA_SLOT, thirdPartOfP)
-                //pointSubIntoDest(gTimesR, thirdPartOfP, thirdPartOfP)
-                //pointMulIntoDest(thirdPartOfP, factorMultiplier3, thirdPartOfP)
-                //pointAddIntoDest(INTERMEDIARY_POLY_P_X_SLOT, thirdPartOfP, INTERMEDIARY_POLY_P_X_SLOT)
-
-                //5. compute kappa1 * ([B]_1 - BYZ * [mu^{-1}]_1) and add it to the final P polynomial
-                let fourthPartOfP
-                //pointMulIntoDest(INTERMEDIARY_MU_MINUS_1_X_SLOT, PROOF_B_AT_ZETA_SLOT, fourthPartOfP)
-                //pointSubIntoDest(PROOF_OPENING_EVAL_B_X_SLOT, fourthPartOfP, fourthPartOfP)
-                //pointMulIntoDest(fourthPartOfP, mload(CHALLENGE_KAPPA_1_SLOT), fourthPartOfP)
-                //pointAddIntoDest(INTERMEDIARY_POLY_P_X_SLOT, fourthPartOfP, INTERMEDIARY_POLY_P_X_SLOT)
-            }
-
-            /*//////////////////////////////////////////////////////////////
-                            5. copy constraint pairing
-            //////////////////////////////////////////////////////////////*/
-
-            /// @notice computes the first pairing 
-            /// @dev We should check the equation:
-            /// E_c = e([P]_1, [mu^4]_2) e^{-1}([Q]_1), [mu^3 * nu]_2)
-            function copyConstraintPairingEC() -> ec_success {
-                // compute E_c = e([P]_1, [mu^4]_2) e^{-1}([Q]_1), [mu^3 * nu]_2)
-                mstore(0x000, mload(INTERMEDIARY_POLY_P_X_SLOT))
-                mstore(0x020, mload(INTERMEDIARY_POLY_P_Y_SLOT))
-
-                mstore(0x040, G2_MU_EXP_4_X1)
-                mstore(0x060, G2_MU_EXP_4_X2)
-                mstore(0x080, G2_MU_EXP_4_Y1)
-                mstore(0x0a0, G2_MU_EXP_4_Y2)
-
-                mstore(0x0c0, mload(PROOF_CONSTRAINT_POLY_X_SLOT))
-                mstore(0x0e0, mload(PROOF_CONSTRAINT_POLY_Y_SLOT))
-
-                mstore(0x100, G2_MU_EXP_3_TIMES_NU_X1)
-                mstore(0x120, G2_MU_EXP_3_TIMES_NU_X2)
-                mstore(0x140, G2_MU_EXP_3_TIMES_NU_Y1)
-                mstore(0x160, G2_MU_EXP_3_TIMES_NU_Y2)
-                ec_success := staticcall(gas(), 8, 0, 0x180, 0x00, 0x20)
-                if iszero(ec_success) {
-                    revertWithMessage(32, "finalPairing: precompile failure")
-                }
-            } 
-
-            /// @notice computes the second pairing 
-            /// @dev We should check the equation:
-            /// E_o = e([R]_1 - R1 * [mu_{-1}]_1, [mu^4 * kappa]_2) e([R]_1 - R2YZ * [mu^{-1}]_1, [mu^4 * kappa^2]_2)
-            function copyConstraintPairingEO() -> eo_success {
-                // compute E_o = e([R]_1 - R1YZ * [mu^{-1}]_1, [mu^4 * kappa]_2) e([R]_1 - R2YZ * [mu^{-1}]_1, [mu^4 * kappa^2]_2)
-                // this is like verifying e([R]_1 - R1YZ[mu^{-1}]_1, [mu^4 * kappa]_2) = e(R2YZ[mu^{-1}]_1 - [R]_1, [mu^4 * kappa^2]_2)
-
-                let r1yz := mload(PROOF_R1_AT_ZETA_SLOT)
-                let r2yz := mload(PROOF_R2_AT_ZETA_SLOT)
-
-
-                //mstore(0x000, mload())
-                //mstore(0x020, mload())
-
-                mstore(0x040, G2_MU_EXP_4_TIMES_KAPPA_X1)
-                mstore(0x060, G2_MU_EXP_4_TIMES_KAPPA_X2)
-                mstore(0x080, G2_MU_EXP_4_TIMES_KAPPA_Y1)
-                mstore(0x0a0, G2_MU_EXP_4_TIMES_KAPPA_Y2)
-
-                mstore(0x0c0, mload(PROOF_CONSTRAINT_POLY_X_SLOT))
-                mstore(0x0e0, mload(PROOF_CONSTRAINT_POLY_Y_SLOT))
-
-                mstore(0x100, G2_MU_EXP_4_TIMES_KAPPA_SQUARE_X1)
-                mstore(0x120, G2_MU_EXP_4_TIMES_KAPPA_SQUARE_X2)
-                mstore(0x140, G2_MU_EXP_4_TIMES_KAPPA_SQUARE_Y1)
-                mstore(0x160, G2_MU_EXP_4_TIMES_KAPPA_SQUARE_Y2)
-                eo_success := staticcall(gas(), 8, 0, 0x180, 0x00, 0x20)
-                if iszero(eo_success) {
-                    revertWithMessage(32, "finalPairing: precompile failure")
-                }
-            } 
-
-            /// @notice computes the first pairing 
-            /// @dev We should check the equation:
-            /// E_pi = e([pi_0]_1, [mu^3 * psi_0 * y]_2 - zeta0 * [mu^3 * psi_0]_2) * e([pi_1]_1, [mu^3 * psi_1 * z]_2 - zeta1 * [mu^3 * psi_1]_2)
-            ///        * e([pi_2]_1, [mu^3 * psi_2 * y]_2 - omega_Y^{-1} * zeta0 * [mu^3 * psi_2]_2) e([pi_3]_1, [mu^3 * psi3 * z]_2 - omega_Z^{-1} * zeta1 * [mu^3 * psi_3]_2)
-            ///
-            /// check if E_c * E_o = E_pi
-
-            function copyConstraintPairingEPI() -> epi_success {
-
-            } 
-
-            function checkCopyConstraintPairing(ec, eo, epi) -> res {
-                
-            }
 
 
 
-            /*//////////////////////////////////////////////////////////////
-                            6. Arithmetic constraint pairing
-            //////////////////////////////////////////////////////////////*/
+            // Step 1: Load the public inputs and check the correctness of its parts
+            loadPublicInputs()
 
-
-            /*//////////////////////////////////////////////////////////////
-                            7. inner product pairing
-            //////////////////////////////////////////////////////////////*/
-
-
-            /*//////////////////////////////////////////////////////////////
-                                    Verification
-            //////////////////////////////////////////////////////////////*/
-
-            // Step 1: Load the proof and check the correctness of its parts
+            // Step 2: Load the proof and check the correctness of its parts
             loadProof()
 
-            // Step 2: Recompute all the challenges with the transcript
+            // Step 3: Recompute all the challenges with the transcript
             initializeTranscript()
 
-            // Step3: compute the constraint final polynomial
-            computeConstraintFinalPolynomial()
 
             // Step4: compute the copy constraint pairing
-            //copyConstraintPairing()
+            
 
-            teta1 := mload(CHALLENGE_TETA_0_SLOT)
-            teta2 := mload(CHALLENGE_TETA_1_SLOT)
-            teta3 := mload(CHALLENGE_TETA_2_SLOT)
-            kappa0 := mload(CHALLENGE_KAPPA_0_SLOT)
-            kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
-            zeta0 := mload(CHALLENGE_ZETA_0_SLOT)
-            zeta1 := mload(CHALLENGE_ZETA_1_SLOT)
             result := 1
             mstore(0, true)
         }

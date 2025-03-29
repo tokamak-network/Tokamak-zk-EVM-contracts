@@ -17,8 +17,7 @@ interface IZkSyncEraVerifier {
     /// Note: The function may revert execution instead of returning false in some cases.
     function verify(
         uint256[] calldata _publicInputs,
-        uint256[] calldata _proof,
-        uint256[] calldata _recursiveAggregationInput
+        uint256[] calldata _proof
     ) external view returns (bool);
 
     /// @notice Calculates a keccak256 hash of the runtime loaded verification keys.

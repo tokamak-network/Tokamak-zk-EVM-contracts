@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity 0.8.20;
 
 import {IZkSyncEraVerifier} from "./interface/IZkSyncEraVerifier.sol";
@@ -7,13 +8,14 @@ import {IZkSyncEraVerifier} from "./interface/IZkSyncEraVerifier.sol";
 /// @author Matter Labs
 /// @notice Modified version of the Permutations over Lagrange-bases for Oecumenical Noninteractive arguments of
 /// Knowledge (PLONK) verifier.
-/// Modifications have been made to optimize the proof system for zkSync hyperchain circuits.
+/// Modifications have been made to optimize the proof system for ZK chain circuits.
+/// @dev Contract was generated from a verification key with a hash of 0xf688611ad4e0ef20184a89e7b593493dffcefe92071f85c1a0b94d4852c4f82f
 /// @dev It uses a custom memory layout inside the inline assembly block. Each reserved memory cell is declared in the
 /// constants below.
 /// @dev For a better understanding of the verifier algorithm please refer to the following papers:
 /// * Original Plonk Article: https://eprint.iacr.org/2019/953.pdf
 /// * Original LookUp Article: https://eprint.iacr.org/2020/315.pdf
-/// * Plonk for zkSync v1.1: https://github.com/matter-labs/solidity_plonk_verifier/raw/recursive/bellman_vk_codegen_recursive/RecursivePlonkUnrolledForEthereum.pdf
+/// * Plonk for ZKsync v1.1: https://github.com/matter-labs/solidity_plonk_verifier/raw/recursive/bellman_vk_codegen_recursive/RecursivePlonkUnrolledForEthereum.pdf
 /// The notation used in the code is the same as in the papers.
 /* solhint-enable max-line-length */
 contract ZkSyncEraVerifier is IZkSyncEraVerifier {
@@ -254,6 +256,7 @@ contract ZkSyncEraVerifier is IZkSyncEraVerifier {
     uint256 internal constant G2_ELEMENTS_1_Y1 = 0x04fc6369f7110fe3d25156c1bb9a72859cf2a04641f99ba4ee413c80da6a5fe4;
     uint256 internal constant G2_ELEMENTS_1_Y2 = 0x22febda3c0c0632a56475b4214e5615e11e6dd3f96e6cea2854a87d4dacc5e55;
 
+    /// @inheritdoc IZkSyncEraVerifier
     function verificationKeyHash() external pure returns (bytes32 vkHash) {
         _loadVerificationKey();
 
@@ -281,8 +284,8 @@ contract ZkSyncEraVerifier is IZkSyncEraVerifier {
     function _loadVerificationKey() internal pure virtual {
         assembly {
             // gate setup commitments
-            mstore(VK_GATE_SETUP_0_X_SLOT, 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d)
-            mstore(VK_GATE_SETUP_0_Y_SLOT, 0x2c9dc252441e9298b7f6df6335a252517b7bccb924adf537b87c5cd3383fd7a9)
+            mstore(VK_GATE_SETUP_0_X_SLOT, 0x081ccfc6c9462cdd712ad177cd032a2cef36c3a651491d85146aee57f24f759b)
+            mstore(VK_GATE_SETUP_0_Y_SLOT, 0x0e57fdedce42b58743280993b79d33dd6301791833c3f9fc5317f93044aa9fce)
             mstore(VK_GATE_SETUP_1_X_SLOT, 0x04659caf7b05471ba5ba85b1ab62267aa6c456836e625f169f7119d55b9462d2)
             mstore(VK_GATE_SETUP_1_Y_SLOT, 0x0ea63403692148d2ad22189a1e5420076312f4d46e62036a043a6b0b84d5b410)
             mstore(VK_GATE_SETUP_2_X_SLOT, 0x0e6696d09d65fce1e42805be03fca1f14aea247281f688981f925e77d4ce2291)
@@ -293,8 +296,8 @@ contract ZkSyncEraVerifier is IZkSyncEraVerifier {
             mstore(VK_GATE_SETUP_4_Y_SLOT, 0x22e404bc91350f3bc7daad1d1025113742436983c85eac5ab7b42221a181b81e)
             mstore(VK_GATE_SETUP_5_X_SLOT, 0x0d9b29613037a5025655c82b143d2b7449c98f3aea358307c8529249cc54f3b9)
             mstore(VK_GATE_SETUP_5_Y_SLOT, 0x15b3c4c946ad1babfc4c03ff7c2423fd354af3a9305c499b7fb3aaebe2fee746)
-            mstore(VK_GATE_SETUP_6_X_SLOT, 0x2a4cb6c495dbc7201142cc773da895ae2046e790073988fb850aca6aead27b8a)
-            mstore(VK_GATE_SETUP_6_Y_SLOT, 0x28ef9200c3cb67da82030520d640292014f5f7c2e2909da608812e04671a3acf)
+            mstore(VK_GATE_SETUP_6_X_SLOT, 0x2b25fd73d8df2a1f0acd8f8533190725b92e65bf6a992f63feb15e80fa2e491f)
+            mstore(VK_GATE_SETUP_6_Y_SLOT, 0x00369dda2f50716f5af66c4f8a2bf9a50afeca9da936591bb615c1425d89235d)
             mstore(VK_GATE_SETUP_7_X_SLOT, 0x283344a1ab3e55ecfd904d0b8e9f4faea338df5a4ead2fa9a42f0e103da40abc)
             mstore(VK_GATE_SETUP_7_Y_SLOT, 0x223b37b83b9687512d322993edd70e508dd80adb10bcf7321a3cc8a44c269521)
 
@@ -337,10 +340,10 @@ contract ZkSyncEraVerifier is IZkSyncEraVerifier {
         }
     }
 
+    /// @inheritdoc IZkSyncEraVerifier
     function verify(
         uint256[] calldata, // _publicInputs
-        uint256[] calldata, // _proof
-        uint256[] calldata // _recursiveAggregationInput
+        uint256[] calldata // _proof
     ) public view virtual returns (bool) {
         // No memory was accessed yet, so keys can be loaded into the right place and not corrupt any other memory.
         _loadVerificationKey();
@@ -519,7 +522,17 @@ contract ZkSyncEraVerifier is IZkSyncEraVerifier {
                 // 2. Load the proof (except for the recursive part)
                 offset := calldataload(0x24)
                 let proofLengthInWords := calldataload(add(offset, 0x04))
-                isValid := and(eq(proofLengthInWords, 44), isValid)
+
+                // Check the proof length depending on whether the recursive part is present
+                let expectedProofLength
+                switch mload(VK_RECURSIVE_FLAG_SLOT)
+                case 0 {
+                    expectedProofLength := 44
+                }
+                default {
+                    expectedProofLength := 48
+                }
+                isValid := and(eq(proofLengthInWords, expectedProofLength), isValid)
 
                 // PROOF_STATE_POLYS_0
                 {
@@ -666,21 +679,13 @@ contract ZkSyncEraVerifier is IZkSyncEraVerifier {
                 }
 
                 // 3. Load the recursive part of the proof
-                offset := calldataload(0x44)
-                let recursiveProofLengthInWords := calldataload(add(offset, 0x04))
-
-                switch mload(VK_RECURSIVE_FLAG_SLOT)
-                case 0 {
-                    // recursive part should be empty
-                    isValid := and(iszero(recursiveProofLengthInWords), isValid)
-                }
-                default {
+                if mload(VK_RECURSIVE_FLAG_SLOT) {
                     // recursive part should be consist of 2 points
-                    isValid := and(eq(recursiveProofLengthInWords, 4), isValid)
+
                     // PROOF_RECURSIVE_PART_P1
                     {
-                        let x := mod(calldataload(add(offset, 0x024)), Q_MOD)
-                        let y := mod(calldataload(add(offset, 0x044)), Q_MOD)
+                        let x := mod(calldataload(add(offset, 0x5a4)), Q_MOD)
+                        let y := mod(calldataload(add(offset, 0x5c4)), Q_MOD)
                         let xx := mulmod(x, x, Q_MOD)
                         isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
                         mstore(PROOF_RECURSIVE_PART_P1_X_SLOT, x)
@@ -688,8 +693,8 @@ contract ZkSyncEraVerifier is IZkSyncEraVerifier {
                     }
                     // PROOF_RECURSIVE_PART_P2
                     {
-                        let x := mod(calldataload(add(offset, 0x064)), Q_MOD)
-                        let y := mod(calldataload(add(offset, 0x084)), Q_MOD)
+                        let x := mod(calldataload(add(offset, 0x5e4)), Q_MOD)
+                        let y := mod(calldataload(add(offset, 0x604)), Q_MOD)
                         let xx := mulmod(x, x, Q_MOD)
                         isValid := and(eq(mulmod(y, y, Q_MOD), addmod(mulmod(x, xx, Q_MOD), 3, Q_MOD)), isValid)
                         mstore(PROOF_RECURSIVE_PART_P2_X_SLOT, x)

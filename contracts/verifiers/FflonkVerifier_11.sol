@@ -70,32 +70,32 @@ contract FflonkVerifier_11 {
     uint256 constant G2y1 = 8495653923123431417604973247489272438418190587263600148770280649306958101930;
     uint256 constant G2y2 = 4082367875863433681332203403145435568316851327593401208105741076214120093531;
 
-    // Proof calldata
-    // Byte offset of every parameter of the calldata
-    // Polynomial commitments
-    uint16 constant pC1       = 4 + 0;     // [C1]_1
-    uint16 constant pC2       = 4 + 32*2;  // [C2]_1
-    uint16 constant pW1       = 4 + 32*4;  // [W]_1
-    uint16 constant pW2       = 4 + 32*6;  // [W']_1
-    // Opening evaluations
-    uint16 constant pEval_ql  = 4 + 32*8;  // q_L(xi)
-    uint16 constant pEval_qr  = 4 + 32*9;  // q_R(xi)
-    uint16 constant pEval_qm  = 4 + 32*10; // q_M(xi)
-    uint16 constant pEval_qo  = 4 + 32*11; // q_O(xi)
-    uint16 constant pEval_qc  = 4 + 32*12; // q_C(xi)
-    uint16 constant pEval_s1  = 4 + 32*13; // S_{sigma_1}(xi)
-    uint16 constant pEval_s2  = 4 + 32*14; // S_{sigma_2}(xi)
-    uint16 constant pEval_s3  = 4 + 32*15; // S_{sigma_3}(xi)
-    uint16 constant pEval_a   = 4 + 32*16; // a(xi)
-    uint16 constant pEval_b   = 4 + 32*17; // b(xi)
-    uint16 constant pEval_c   = 4 + 32*18; // c(xi)
-    uint16 constant pEval_z   = 4 + 32*19; // z(xi)
-    uint16 constant pEval_zw  = 4 + 32*20; // z_omega(xi)
-    uint16 constant pEval_t1w = 4 + 32*21; // T_1(xi omega)
-    uint16 constant pEval_t2w = 4 + 32*22; // T_2(xi omega)
-    uint16 constant pEval_inv = 4 + 32*23; // inv(batch) sent by the prover to avoid any inverse calculation to save gas,
-                                           // we check the correctness of the inv(batch) by computing batch
-                                           // and checking inv(batch) * batch == 1
+        // Proof calldata
+        // Byte offset of every parameter of the calldata
+        // Polynomial commitments
+        uint16 constant pC1       = 4 + 0;     // [C1]_1
+        uint16 constant pC2       = 4 + 32*2;  // [C2]_1
+        uint16 constant pW1       = 4 + 32*4;  // [W]_1
+        uint16 constant pW2       = 4 + 32*6;  // [W']_1
+        // Opening evaluations
+        uint16 constant pEval_ql  = 4 + 32*8;  // q_L(xi)
+        uint16 constant pEval_qr  = 4 + 32*9;  // q_R(xi)
+        uint16 constant pEval_qm  = 4 + 32*10; // q_M(xi)
+        uint16 constant pEval_qo  = 4 + 32*11; // q_O(xi)
+        uint16 constant pEval_qc  = 4 + 32*12; // q_C(xi)
+        uint16 constant pEval_s1  = 4 + 32*13; // S_{sigma_1}(xi)
+        uint16 constant pEval_s2  = 4 + 32*14; // S_{sigma_2}(xi)
+        uint16 constant pEval_s3  = 4 + 32*15; // S_{sigma_3}(xi)
+        uint16 constant pEval_a   = 4 + 32*16; // a(xi)
+        uint16 constant pEval_b   = 4 + 32*17; // b(xi)
+        uint16 constant pEval_c   = 4 + 32*18; // c(xi)
+        uint16 constant pEval_z   = 4 + 32*19; // z(xi)
+        uint16 constant pEval_zw  = 4 + 32*20; // z_omega(xi)
+        uint16 constant pEval_t1w = 4 + 32*21; // T_1(xi omega)
+        uint16 constant pEval_t2w = 4 + 32*22; // T_2(xi omega)
+        uint16 constant pEval_inv = 4 + 32*23; // inv(batch) sent by the prover to avoid any inverse calculation to save gas,
+                                            // we check the correctness of the inv(batch) by computing batch
+                                            // and checking inv(batch) * batch == 1
 
     // Memory data
     // Challenges
@@ -688,7 +688,8 @@ contract FflonkVerifier_11 {
                 
 
                 // Execute Montgomery batched inversions of the previous prepared values
-                inverseArray(pMem)            }
+                inverseArray(pMem)           
+            }
 
             // Compute Lagrange polynomial evaluation L_i(xi)
             function computeLagrange(pMem) {

@@ -134,13 +134,15 @@ contract TVerifier is ITverifier {
                              Challenges
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant CHALLENGE_TETA_0_SLOT = 0x200 + 0x020 + 0x900 + 0x0c0;
-    uint256 internal constant CHALLENGE_TETA_1_SLOT = 0x200 + 0x020 + 0x900 + 0x0e0;
-    uint256 internal constant CHALLENGE_TETA_2_SLOT = 0x200 + 0x020 + 0x900 + 0x100;
+    uint256 internal constant CHALLENGE_THETA_0_SLOT = 0x200 + 0x020 + 0x900 + 0x0c0;
+    uint256 internal constant CHALLENGE_THETA_1_SLOT = 0x200 + 0x020 + 0x900 + 0x0e0;
+    uint256 internal constant CHALLENGE_THETA_2_SLOT = 0x200 + 0x020 + 0x900 + 0x100;
     uint256 internal constant CHALLENGE_KAPPA_0_SLOT = 0x200 + 0x020 + 0x900 + 0x120;
     uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x200 + 0x020 + 0x900 + 0x140;
-    uint256 internal constant CHALLENGE_ZETA_0_SLOT = 0x200 + 0x020 + 0x900 + 0x160;
-    uint256 internal constant CHALLENGE_ZETA_1_SLOT = 0x200 + 0x020 + 0x900 + 0x180;
+    uint256 internal constant CHALLENGE_KAPPA_2_SLOT = 0x200 + 0x020 + 0x900 + 0x140;
+    uint256 internal constant CHALLENGE_ZETA_SLOT = 0x200 + 0x020 + 0x900 + 0x160;
+    uint256 internal constant CHALLENGE_XI_SLOT = 0x200 + 0x020 + 0x900 + 0x180;
+    uint256 internal constant CHALLENGE_CHI_SLOT = 0x200 + 0x020 + 0x900 + 0x180;
 
     /*//////////////////////////////////////////////////////////////
                        Intermediary verifier state
@@ -623,12 +625,73 @@ contract TVerifier is ITverifier {
 
             /// @notice Recomputes all challenges
             /// @dev The process is the following:
-            /// Commit:   [U], [V], [W], [A], [B], [C]
-            /// Get:      teta1, teta2 & teta3
-            /// Commit: 
+            /// Commit:   [U], [V], [W], [Q_X], [Q_Y]
+            /// Get:      χ, ζ
+            /// Commit:   [B]
+            /// Get:      θ_0, θ_1, θ_2
+            /// Commit    [R]
+            /// Get:      κ0, κ1, κ2
+            /// Commit    [Q_Z]
+            /// Get:      ξ
 
             function initializeTranscript() {
+                // Round 1
                 updateTranscript(mload(PROOF_PUBLIC_INPUTS_HASH))
+                updateTranscript(mload(PROOF_POLY_U_X_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_U_X_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_U_Y_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_V_X_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_V_X_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_V_Y_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_V_Y_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_W_X_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_W_X_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_W_Y_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_W_Y_SLOT_PART2))
+                
+                // compute χ
+                mstore(CHALLENGE_CHI_SLOT, getTranscriptChallenge(0))
+
+                // Round 1.5
+                updateTranscript(mload(PROOF_POLY_QX_X_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_QX_X_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_QX_Y_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_QX_Y_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_QY_X_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_QY_X_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_QY_Y_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_QY_Y_SLOT_PART2))
+
+                // compute ζ
+                mstore(CHALLENGE_ZETA_SLOT, getTranscriptChallenge(1))
+
+                // Round 2
+                updateTranscript(mload(PROOF_POLY_B_X_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_B_X_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_B_Y_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_B_Y_SLOT_PART2))
+
+                mstore(CHALLENGE_THETA_0_SLOT, getTranscriptChallenge(2))
+                mstore(CHALLENGE_THETA_1_SLOT, getTranscriptChallenge(3))
+                mstore(CHALLENGE_THETA_2_SLOT, getTranscriptChallenge(4))
+
+                // Round 3
+                updateTranscript(mload(PROOF_POLY_R_X_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_R_X_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_R_Y_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_R_Y_SLOT_PART2))
+
+                mstore(CHALLENGE_KAPPA_0_SLOT, getTranscriptChallenge(5))
+                mstore(CHALLENGE_KAPPA_1_SLOT, getTranscriptChallenge(6))
+                mstore(CHALLENGE_KAPPA_2_SLOT, getTranscriptChallenge(7))
+
+                // Round 4
+                updateTranscript(mload(PROOF_POLY_QZ_X_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_QZ_X_SLOT_PART2))
+                updateTranscript(mload(PROOF_POLY_QZ_Y_SLOT_PART1))
+                updateTranscript(mload(PROOF_POLY_QZ_Y_SLOT_PART2))
+
+                mstore(CHALLENGE_XI_SLOT, getTranscriptChallenge(8))              
 
             }
 

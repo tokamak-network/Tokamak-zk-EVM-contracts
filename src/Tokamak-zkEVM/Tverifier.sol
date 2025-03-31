@@ -17,160 +17,130 @@ contract TVerifier is ITverifier {
                             Proof Public Inputs
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART1 = 0x200 + 0x000;
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART2 = 0x200 + 0x020;
-
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART1 = 0x200 + 0x040;
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART2 = 0x200 + 0x060;
-
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART1 = 0x200 + 0x080;
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART2 = 0x200 + 0x0a0;
-
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART1 = 0x200 + 0x0c0;
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART2 = 0x200 + 0x0e0;
-
-    uint256 internal constant PUBLIC_INPUT_A_IN_LENGTH_SLOT = 0x200 + 0x100;
-    uint256 internal constant PUBLIC_INPUT_A_IN_DATA_SLOT = 0x200 + 0x120; // Starts after length
-
-    uint256 internal constant PUBLIC_INPUT_A_OUT_LENGTH_SLOT = 0x200 + 0x120; // Will be calculated at runtime
-    uint256 internal constant PUBLIC_INPUT_A_OUT_DATA_SLOT = 0x200 + 0x140;   // Will be calculated at runtime
-
-    /*//////////////////////////////////////////////////////////////
-                        Hard coded Public Inputs
-    //////////////////////////////////////////////////////////////*/
-
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_X_PART1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_X_PART2 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
-
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_Y_PART1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
-    uint256 internal constant PUBLIC_INPUT_PERMUTATION_POLY_S2_Y_PART2 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
-
-
-    uint256 internal constant PUBLIC_INPUT_LI_KJ_X_SLOT_PART1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
-    uint256 internal constant PUBLIC_INPUT_LI_KJ_X_SLOT_PART2 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
-
-    uint256 internal constant PUBLIC_INPUT_LI_KJ_Y_SLOT_PART1 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
-    uint256 internal constant PUBLIC_INPUT_LI_KJ_Y_SLOT_PART2 = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d; // to be hardcoded
+    // Public input
+    uint256 internal constant PROOF_PUBLIC_INPUTS_HASH = 0x200 + 0x020;
 
     /*//////////////////////////////////////////////////////////////
                                   Proof
     //////////////////////////////////////////////////////////////*/
 
     // U
-    uint256 internal constant PROOF_POLY_U_X_SLOT_PART1 = 0x200 + 0x120 + 0x020;
-    uint256 internal constant PROOF_POLY_U_X_SLOT_PART2 = 0x200 + 0x120 + 0x040;
-    uint256 internal constant PROOF_POLY_U_Y_SLOT_PART1 = 0x200 + 0x160 + 0x060;
-    uint256 internal constant PROOF_POLY_U_Y_SLOT_PART2 = 0x200 + 0x160 + 0x080;
+    uint256 internal constant PROOF_POLY_U_X_SLOT_PART1 = 0x200 + 0x020 + 0x020;
+    uint256 internal constant PROOF_POLY_U_X_SLOT_PART2 = 0x200 + 0x020 + 0x040;
+    uint256 internal constant PROOF_POLY_U_Y_SLOT_PART1 = 0x200 + 0x020 + 0x060;
+    uint256 internal constant PROOF_POLY_U_Y_SLOT_PART2 = 0x200 + 0x020 + 0x080;
     // V
-    uint256 internal constant PROOF_POLY_V_X_SLOT_PART1 = 0x200 + 0x160 + 0x0a0;
-    uint256 internal constant PROOF_POLY_V_X_SLOT_PART2 = 0x200 + 0x160 + 0x0c0;
-    uint256 internal constant PROOF_POLY_V_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_V_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_V_X_SLOT_PART1 = 0x200 + 0x020 + 0x0a0;
+    uint256 internal constant PROOF_POLY_V_X_SLOT_PART2 = 0x200 + 0x020 + 0x0c0;
+    uint256 internal constant PROOF_POLY_V_Y_SLOT_PART1 = 0x200 + 0x020 + 0x0e0;
+    uint256 internal constant PROOF_POLY_V_Y_SLOT_PART2 = 0x200 + 0x020 + 0x100;
     // W
-    uint256 internal constant PROOF_POLY_W_X_SLOT_PART1 = 0x200 + 0x160 + 0x0a0;
-    uint256 internal constant PROOF_POLY_W_X_SLOT_PART2 = 0x200 + 0x160 + 0x0c0;
-    uint256 internal constant PROOF_POLY_W_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_W_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_W_X_SLOT_PART1 = 0x200 + 0x020 + 0x120;
+    uint256 internal constant PROOF_POLY_W_X_SLOT_PART2 = 0x200 + 0x020 + 0x140;
+    uint256 internal constant PROOF_POLY_W_Y_SLOT_PART1 = 0x200 + 0x020 + 0x160;
+    uint256 internal constant PROOF_POLY_W_Y_SLOT_PART2 = 0x200 + 0x020 + 0x180;
     // O_mid
-    uint256 internal constant PROOF_POLY_OMID_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
-    uint256 internal constant PROOF_POLY_OMID_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
-    uint256 internal constant PROOF_POLY_OMID_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_OMID_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_OMID_X_SLOT_PART1 = 0x200 + 0x020 + 0x1a0;
+    uint256 internal constant PROOF_POLY_OMID_X_SLOT_PART2 = 0x200 + 0x020 + 0x1c0;
+    uint256 internal constant PROOF_POLY_OMID_Y_SLOT_PART1 = 0x200 + 0x020 + 0x0e0;
+    uint256 internal constant PROOF_POLY_OMID_Y_SLOT_PART2 = 0x200 + 0x020 + 0x200;
     // O_prv
-    uint256 internal constant PROOF_POLY_OPRV_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
-    uint256 internal constant PROOF_POLY_OPRV_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
-    uint256 internal constant PROOF_POLY_OPRV_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_OPRV_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_OPRV_X_SLOT_PART1 = 0x200 + 0x020 + 0x220;
+    uint256 internal constant PROOF_POLY_OPRV_X_SLOT_PART2 = 0x200 + 0x020 + 0x240;
+    uint256 internal constant PROOF_POLY_OPRV_Y_SLOT_PART1 = 0x200 + 0x020 + 0x260;
+    uint256 internal constant PROOF_POLY_OPRV_Y_SLOT_PART2 = 0x200 + 0x020 + 0x280;
     // O_X
-    uint256 internal constant PROOF_POLY_QX_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
-    uint256 internal constant PROOF_POLY_QX_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
-    uint256 internal constant PROOF_POLY_QX_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_QX_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_QX_X_SLOT_PART1 = 0x200 + 0x020 + 0x2a0;
+    uint256 internal constant PROOF_POLY_QX_X_SLOT_PART2 = 0x200 + 0x020 + 0x2c0;
+    uint256 internal constant PROOF_POLY_QX_Y_SLOT_PART1 = 0x200 + 0x020 + 0x2e0;
+    uint256 internal constant PROOF_POLY_QX_Y_SLOT_PART2 = 0x200 + 0x020 + 0x300;
     // O_Y
-    uint256 internal constant PROOF_POLY_QY_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
-    uint256 internal constant PROOF_POLY_QY_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
-    uint256 internal constant PROOF_POLY_QY_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_QY_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_QY_X_SLOT_PART1 = 0x200 + 0x020 + 0x320;
+    uint256 internal constant PROOF_POLY_QY_X_SLOT_PART2 = 0x200 + 0x020 + 0x340;
+    uint256 internal constant PROOF_POLY_QY_Y_SLOT_PART1 = 0x200 + 0x020 + 0x360;
+    uint256 internal constant PROOF_POLY_QY_Y_SLOT_PART2 = 0x200 + 0x020 + 0x380;
     // O_Z
-    uint256 internal constant PROOF_POLY_QZ_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
-    uint256 internal constant PROOF_POLY_QZ_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
-    uint256 internal constant PROOF_POLY_QZ_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_QZ_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_QZ_X_SLOT_PART1 = 0x200 + 0x020 + 0x3a0;
+    uint256 internal constant PROOF_POLY_QZ_X_SLOT_PART2 = 0x200 + 0x020 + 0x3c0;
+    uint256 internal constant PROOF_POLY_QZ_Y_SLOT_PART1 = 0x200 + 0x020 + 0x3e0;
+    uint256 internal constant PROOF_POLY_QZ_Y_SLOT_PART2 = 0x200 + 0x020 + 0x400;
     // Π_χ
-    uint256 internal constant PROOF_POLY_PI_CHI_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
-    uint256 internal constant PROOF_POLY_PI_CHI_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
-    uint256 internal constant PROOF_POLY_PI_CHI_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_PI_CHI_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_PI_CHI_X_SLOT_PART1 = 0x200 + 0x020 + 0x420;
+    uint256 internal constant PROOF_POLY_PI_CHI_X_SLOT_PART2 = 0x200 + 0x020 + 0x440;
+    uint256 internal constant PROOF_POLY_PI_CHI_Y_SLOT_PART1 = 0x200 + 0x020 + 0x460;
+    uint256 internal constant PROOF_POLY_PI_CHI_Y_SLOT_PART2 = 0x200 + 0x020 + 0x480;
     // Π_ζ
-    uint256 internal constant PROOF_POLY_PI_ZETA_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
-    uint256 internal constant PROOF_POLY_PI_ZETA_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
-    uint256 internal constant PROOF_POLY_PI_ZETA_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_PI_ZETA_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_PI_ZETA_X_SLOT_PART1 = 0x200 + 0x020 + 0x4a0;
+    uint256 internal constant PROOF_POLY_PI_ZETA_X_SLOT_PART2 = 0x200 + 0x020 + 0x4c0;
+    uint256 internal constant PROOF_POLY_PI_ZETA_Y_SLOT_PART1 = 0x200 + 0x020 + 0x4e0;
+    uint256 internal constant PROOF_POLY_PI_ZETA_Y_SLOT_PART2 = 0x200 + 0x020 + 0x500;
     // Π_ξ
-    uint256 internal constant PROOF_POLY_PI_XI_X_SLOT_PART1 = 0x200 + 0x160 + 0x120;
-    uint256 internal constant PROOF_POLY_PI_XI_X_SLOT_PART2 = 0x200 + 0x160 + 0x140;
-    uint256 internal constant PROOF_POLY_PI_XI_Y_SLOT_PART1 = 0x200 + 0x160 + 0x0e0;
-    uint256 internal constant PROOF_POLY_PI_XI_Y_SLOT_PART2 = 0x200 + 0x160 + 0x100;
+    uint256 internal constant PROOF_POLY_PI_XI_X_SLOT_PART1 = 0x200 + 0x020 + 0x520;
+    uint256 internal constant PROOF_POLY_PI_XI_X_SLOT_PART2 = 0x200 + 0x020 + 0x540;
+    uint256 internal constant PROOF_POLY_PI_XI_Y_SLOT_PART1 = 0x200 + 0x020 + 0x560;
+    uint256 internal constant PROOF_POLY_PI_XI_Y_SLOT_PART2 = 0x200 + 0x020 + 0x580;
     // B
-    uint256 internal constant PROOF_POLY_B_X_SLOT_PART1 = 0x200 + 0x160 + 0x1a0;
-    uint256 internal constant PROOF_POLY_B_X_SLOT_PART2 = 0x200 + 0x160 + 0x1c0;
-    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1a0;
-    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART2 = 0x200 + 0x160 + 0x1c0;
+    uint256 internal constant PROOF_POLY_B_X_SLOT_PART1 = 0x200 + 0x020 + 0x5a0;
+    uint256 internal constant PROOF_POLY_B_X_SLOT_PART2 = 0x200 + 0x020 + 0x5c0;
+    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART1 = 0x200 + 0x020 + 0x5e0;
+    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART2 = 0x200 + 0x020 + 0x600;
     // R
-    uint256 internal constant PROOF_POLY_R_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_R_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
-    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_R_X_SLOT_PART1 = 0x200 + 0x020 + 0x620;
+    uint256 internal constant PROOF_POLY_R_X_SLOT_PART2 = 0x200 + 0x020 + 0x640;
+    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART1 = 0x200 + 0x020 + 0x660;
+    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART2 = 0x200 + 0x020 + 0x680;
     // M_ζ
-    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
-    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART1 = 0x200 + 0x020 + 0x6a0;
+    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART2 = 0x200 + 0x020 + 0x6c0;
+    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART1 = 0x200 + 0x020 + 0x6e0;
+    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART2 = 0x200 + 0x020 + 0x700;
     // M_ω_Z^-1ξ
-    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
-    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_X_SLOT_PART1 = 0x200 + 0x020 + 0x720;
+    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_X_SLOT_PART2 = 0x200 + 0x020 + 0x740;
+    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_Y_SLOT_PART1 = 0x200 + 0x020 + 0x760;
+    uint256 internal constant PROOF_POLY_M_OMEGAZ_XI_Y_SLOT_PART2 = 0x200 + 0x020 + 0x780;
     // N_ω_Y^-1ζ
-    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
-    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_X_SLOT_PART1 = 0x200 + 0x020 + 0x7a0;
+    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_X_SLOT_PART2 = 0x200 + 0x020 + 0x7c0;
+    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_Y_SLOT_PART1 = 0x200 + 0x020 + 0x7e0;
+    uint256 internal constant PROOF_POLY_N_OMEGAY_ZETA_Y_SLOT_PART2 = 0x200 + 0x020 + 0x800;
     // N_ω_Z^-1ξ
-    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_X_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_X_SLOT_PART2 = 0x200 + 0x160 + 0x200;
-    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_Y_SLOT_PART1 = 0x200 + 0x160 + 0x1e0;
-    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_Y_SLOT_PART2 = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_X_SLOT_PART1 = 0x200 + 0x020 + 0x820;
+    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_X_SLOT_PART2 = 0x200 + 0x020 + 0x840;
+    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_Y_SLOT_PART1 = 0x200 + 0x020 + 0x860;
+    uint256 internal constant PROOF_POLY_N_OMEGAZ_XI_Y_SLOT_PART2 = 0x200 + 0x020 + 0x880;
     // R_xy
-    uint256 internal constant PROOF_R1XY_SLOT = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_R1XY_SLOT = 0x200 + 0x020 + 0x8a0;
     // R'_xy
-    uint256 internal constant PROOF_R2XY_SLOT = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_R2XY_SLOT = 0x200 + 0x020 + 0x8c0;
     // R''_xy
-    uint256 internal constant PROOF_R3XY_SLOT = 0x200 + 0x160 + 0x200;
+    uint256 internal constant PROOF_R3XY_SLOT = 0x200 + 0x020 + 0x8e0;
+    // V_xy
+    uint256 internal constant PROOF_VXY = 0x200 + 0x020 + 0x900;
 
 
 
     /*//////////////////////////////////////////////////////////////
-                 transcript slot (used for challenge computation)
+            transcript slot (used for challenge computation)
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant TRANSCRIPT_BEGIN_SLOT = 0x200 + 0x160 + 0x420 + 0x020;
-    uint256 internal constant TRANSCRIPT_DST_BYTE_SLOT = 0x200 + 0x160 + 0x420 + 0x040; // TODO can use less than 32 bytes
-    uint256 internal constant TRANSCRIPT_STATE_0_SLOT = 0x200 + 0x160 + 0x420 + 0x060;
-    uint256 internal constant TRANSCRIPT_STATE_1_SLOT = 0x200 + 0x160 + 0x420 + 0x080;
-    uint256 internal constant TRANSCRIPT_CHALLENGE_SLOT = 0x200 + 0x160 + 0x420 + 0x0a0;
+    uint256 internal constant TRANSCRIPT_BEGIN_SLOT = 0x200 + 0x020 + 0x900 + 0x020;
+    uint256 internal constant TRANSCRIPT_DST_BYTE_SLOT = 0x200 + 0x020 + 0x900 + 0x040; 
+    uint256 internal constant TRANSCRIPT_STATE_0_SLOT = 0x200 + 0x020 + 0x900 + 0x060;
+    uint256 internal constant TRANSCRIPT_STATE_1_SLOT = 0x200 + 0x020 + 0x900 + 0x080;
+    uint256 internal constant TRANSCRIPT_CHALLENGE_SLOT = 0x200 + 0x020 + 0x900 + 0x0a0;
 
     /*//////////////////////////////////////////////////////////////
                              Challenges
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant CHALLENGE_TETA_0_SLOT = 0x200 + 0x160 + 0x420 + 0x0c0;
-    uint256 internal constant CHALLENGE_TETA_1_SLOT = 0x200 + 0x160 + 0x420 + 0x0e0;
-    uint256 internal constant CHALLENGE_TETA_2_SLOT = 0x200 + 0x160 + 0x420 + 0x100;
-    uint256 internal constant CHALLENGE_KAPPA_0_SLOT = 0x200 + 0x160 + 0x420 + 0x120;
-    uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x200 + 0x160 + 0x420 + 0x140;
-    uint256 internal constant CHALLENGE_ZETA_0_SLOT = 0x200 + 0x160 + 0x420 + 0x160;
-    uint256 internal constant CHALLENGE_ZETA_1_SLOT = 0x200 + 0x160 + 0x420 + 0x180;
+    uint256 internal constant CHALLENGE_TETA_0_SLOT = 0x200 + 0x020 + 0x900 + 0x0c0;
+    uint256 internal constant CHALLENGE_TETA_1_SLOT = 0x200 + 0x020 + 0x900 + 0x0e0;
+    uint256 internal constant CHALLENGE_TETA_2_SLOT = 0x200 + 0x020 + 0x900 + 0x100;
+    uint256 internal constant CHALLENGE_KAPPA_0_SLOT = 0x200 + 0x020 + 0x900 + 0x120;
+    uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x200 + 0x020 + 0x900 + 0x140;
+    uint256 internal constant CHALLENGE_ZETA_0_SLOT = 0x200 + 0x020 + 0x900 + 0x160;
+    uint256 internal constant CHALLENGE_ZETA_1_SLOT = 0x200 + 0x020 + 0x900 + 0x180;
 
     /*//////////////////////////////////////////////////////////////
                        Intermediary verifier state
@@ -194,9 +164,6 @@ contract TVerifier is ITverifier {
                              Constants
     //////////////////////////////////////////////////////////////*/
 
-    //uint256 internal constant COMMON_REFERENCE_STRING = 
-    //uint256 internal constant PUBLIC_PARAMETER = 
-
     // Scalar field size
     // Q_MOD is the base field modulus (48 bytes long). To fit with the EVM, we sliced it into two 32bytes variables => 16 first bytes are zeros        
     uint256 internal constant Q_MOD_PART1 = 0x000000000000000000000000000000001a0111ea397fe69a4b1ba7b6434bacd7;
@@ -208,7 +175,7 @@ contract TVerifier is ITverifier {
     uint256 internal constant FR_MASK = 0x1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
     /*//////////////////////////////////////////////////////////////
-                             subcircuit library variables
+                        subcircuit library variables
     //////////////////////////////////////////////////////////////*/
 
     uint256 internal constant SUBCIRCUIT_LIBRARY_X = 0x110deb1e0863737f9a3d7b4de641a03aa00a77bc9f1a05acc9d55b76ab9fdd4d;
@@ -441,146 +408,236 @@ contract TVerifier is ITverifier {
                 challenge := and(keccak256(TRANSCRIPT_BEGIN_SLOT, 0x48), FR_MASK)
             }
 
-            /*//////////////////////////////////////////////////////////////
-                                    1. Load Public inputs
-            //////////////////////////////////////////////////////////////*/
-
-            function loadPublicInputs() {
-                let isValid
-                // 1. Calculate proper offset (skip function selector)
-                let offset := add(calldataload(0x04), 0x04) // 0x04 for function selector
-                
-                // Load permutation polynomials (0x00-0x9f in calldata)
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART1, loadAndFormatUint128(add(offset, 0x20)))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART2, calldataload(add(offset, 0x30)))
-                
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART1, loadAndFormatUint128(add(offset, 0x40)))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART2, calldataload(add(offset, 0x50)))
-                
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART1, loadAndFormatUint128(add(offset, 0x60)))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART2, calldataload(add(offset, 0x70)))
-                
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART1, loadAndFormatUint128(add(offset, 0x80)))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART2, calldataload(add(offset, 0x90)))
-                
-                // Advance offset past polynomial parts (0xa0 bytes)
-                offset := add(offset, 0xa0)
-                
-                // Load A_IN length and data
-                let aInLength := calldataload(offset)
-                mstore(PUBLIC_INPUT_A_IN_LENGTH_SLOT, aInLength)
-                offset := add(offset, 0x20)
-                
-                // Calculate A_IN data start position (0x320)
-                let aInDataPtr := PUBLIC_INPUT_A_IN_DATA_SLOT
-                
-                // Copy a_in elements
-                for { let i := 0 } lt(i, aInLength) { i := add(i, 1) } {
-                    mstore(add(aInDataPtr, mul(i, 0x20)), calldataload(offset))
-                    offset := add(offset, 0x20)
-                }
-                
-                // Calculate A_OUT position dynamically
-                let aOutOffset := add(aInDataPtr, mul(aInLength, 0x20))
-                let aOutLength := calldataload(offset)
-                mstore(aOutOffset, aOutLength) // Store length at calculated position
-                offset := add(offset, 0x20)
-                
-                // Store A_OUT elements starting after length
-                for { let i := 0 } lt(i, aOutLength) { i := add(i, 1) } {
-                    mstore(add(aOutOffset, mul(add(i, 1), 0x20)), calldataload(offset))
-                    offset := add(offset, 0x20)
-                }
-
-                // Revert if proof is invalid
-                if iszero(isValid) {
-                    revertWithMessage(27, "loadProof: Proof is invalid")
-                }
-            }
 
             /*//////////////////////////////////////////////////////////////
                                     1. Load Proof
             //////////////////////////////////////////////////////////////*/
 
             function loadProof() {
-                let isValid
-                // 1. Calculate proper offset (skip function selector)
-                let offset := add(calldataload(0x04), 0x04) // 0x04 for function selector
-                
-                // Load permutation polynomials (0x00-0x9f in calldata)
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART1, loadAndFormatUint128(add(offset, 0x20)))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_X_SLOT_PART2, calldataload(add(offset, 0x30)))
-                
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART1, loadAndFormatUint128(add(offset, 0x40)))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S0_Y_SLOT_PART2, calldataload(add(offset, 0x50)))
-                
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART1, loadAndFormatUint128(add(offset, 0x60)))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_X_SLOT_PART2, calldataload(add(offset, 0x70)))
-                
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART1, loadAndFormatUint128(add(offset, 0x80)))
-                mstore(PUBLIC_INPUT_PERMUTATION_POLY_S1_Y_SLOT_PART2, calldataload(add(offset, 0x90)))
-                
-                // Advance offset past polynomial parts (0xa0 bytes)
-                offset := add(offset, 0xa0)
-                
-                // Load A_IN length and data
-                let aInLength := calldataload(offset)
-                mstore(PUBLIC_INPUT_A_IN_LENGTH_SLOT, aInLength)
-                offset := add(offset, 0x20)
-                
-                // Calculate A_IN data start position (0x320)
-                let aInDataPtr := PUBLIC_INPUT_A_IN_DATA_SLOT
-                
-                // Copy a_in elements
-                for { let i := 0 } lt(i, aInLength) { i := add(i, 1) } {
-                    mstore(add(aInDataPtr, mul(i, 0x20)), calldataload(offset))
-                    offset := add(offset, 0x20)
+                // 1. Load public input
+                let offset := calldataload(0x04)
+                let publicInputLengthInWords := calldataload(add(offset, 0x04))
+                let isValid := eq(publicInputLengthInWords, 1) // We expect only one public input
+                mstore(PROOF_PUBLIC_INPUTS_HASH, and(calldataload(add(offset, 0x24)), FR_MASK))
+
+                // 2. load proof
+                offset := calldataload(0x24)
+                // PROOF_POLY_U
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x024))
+                    let x2 := calldataload(add(offset, 0x034))
+                    let y1 := loadAndFormatUint128(add(offset, 0x054))
+                    let y2 := calldataload(add(offset, 0x064))
+                    mstore(PROOF_POLY_U_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_U_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_U_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_U_Y_SLOT_PART2, y2)
                 }
-                
-                // Calculate A_OUT position dynamically
-                let aOutOffset := add(aInDataPtr, mul(aInLength, 0x20))
-                let aOutLength := calldataload(offset)
-                mstore(aOutOffset, aOutLength) // Store length at calculated position
-                offset := add(offset, 0x20)
-                
-                // Store A_OUT elements starting after length
-                for { let i := 0 } lt(i, aOutLength) { i := add(i, 1) } {
-                    mstore(add(aOutOffset, mul(add(i, 1), 0x20)), calldataload(offset))
-                    offset := add(offset, 0x20)
+                // PROOF_POLY_V
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x084))
+                    let x2 := calldataload(add(offset, 0x094))
+                    let y1 := loadAndFormatUint128(add(offset, 0x0b4))
+                    let y2 := calldataload(add(offset, 0x0c4))
+                    mstore(PROOF_POLY_V_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_V_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_V_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_V_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_W
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x0e4))
+                    let x2 := calldataload(add(offset, 0x0f4))
+                    let y1 := loadAndFormatUint128(add(offset, 0x114))
+                    let y2 := calldataload(add(offset, 0x124))
+                    mstore(PROOF_POLY_W_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_W_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_W_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_W_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_OMID
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x144))
+                    let x2 := calldataload(add(offset, 0x154))
+                    let y1 := loadAndFormatUint128(add(offset, 0x174))
+                    let y2 := calldataload(add(offset, 0x184))
+                    mstore(PROOF_POLY_OMID_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_OMID_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_OMID_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_OMID_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_OPRV
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x1a4))
+                    let x2 := calldataload(add(offset, 0x1b4))
+                    let y1 := loadAndFormatUint128(add(offset, 0x1d4))
+                    let y2 := calldataload(add(offset, 0x1e4))
+                    mstore(PROOF_POLY_OPRV_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_OPRV_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_OPRV_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_OPRV_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_QX
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x204))
+                    let x2 := calldataload(add(offset, 0x214))
+                    let y1 := loadAndFormatUint128(add(offset, 0x234))
+                    let y2 := calldataload(add(offset, 0x244))
+                    mstore(PROOF_POLY_QX_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_QX_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_QX_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_QX_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_QY
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x264))
+                    let x2 := calldataload(add(offset, 0x274))
+                    let y1 := loadAndFormatUint128(add(offset, 0x294))
+                    let y2 := calldataload(add(offset, 0x2a4))
+                    mstore(PROOF_POLY_QY_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_QY_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_QY_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_QY_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_QZ
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x2c4))
+                    let x2 := calldataload(add(offset, 0x2d4))
+                    let y1 := loadAndFormatUint128(add(offset, 0x2f4))
+                    let y2 := calldataload(add(offset, 0x304))
+                    mstore(PROOF_POLY_QZ_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_QZ_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_QZ_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_QZ_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_PI_CHI
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x324))
+                    let x2 := calldataload(add(offset, 0x334))
+                    let y1 := loadAndFormatUint128(add(offset, 0x354))
+                    let y2 := calldataload(add(offset, 0x364))
+                    mstore(PROOF_POLY_PI_CHI_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_PI_CHI_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_PI_CHI_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_PI_CHI_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_PI_ZETA
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x384))
+                    let x2 := calldataload(add(offset, 0x394))
+                    let y1 := loadAndFormatUint128(add(offset, 0x3b4))
+                    let y2 := calldataload(add(offset, 0x3c4))
+                    mstore(PROOF_POLY_PI_ZETA_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_PI_ZETA_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_PI_ZETA_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_PI_ZETA_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_PI_XI
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x3e4))
+                    let x2 := calldataload(add(offset, 0x3f4))
+                    let y1 := loadAndFormatUint128(add(offset, 0x414))
+                    let y2 := calldataload(add(offset, 0x424))
+                    mstore(PROOF_POLY_PI_XI_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_PI_XI_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_PI_XI_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_PI_XI_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_B
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x444))
+                    let x2 := calldataload(add(offset, 0x454))
+                    let y1 := loadAndFormatUint128(add(offset, 0x474))
+                    let y2 := calldataload(add(offset, 0x484))
+                    mstore(PROOF_POLY_B_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_B_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_B_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_B_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_R
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x4a4))
+                    let x2 := calldataload(add(offset, 0x4b4))
+                    let y1 := loadAndFormatUint128(add(offset, 0x4d4))
+                    let y2 := calldataload(add(offset, 0x4e4))
+                    mstore(PROOF_POLY_R_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_R_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_R_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_R_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_M_ZETA
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x504))
+                    let x2 := calldataload(add(offset, 0x514))
+                    let y1 := loadAndFormatUint128(add(offset, 0x534))
+                    let y2 := calldataload(add(offset, 0x544))
+                    mstore(PROOF_POLY_M_ZETA_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_M_ZETA_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_M_ZETA_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_M_ZETA_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_M_OMEGAZ_XI
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x564))
+                    let x2 := calldataload(add(offset, 0x574))
+                    let y1 := loadAndFormatUint128(add(offset, 0x594))
+                    let y2 := calldataload(add(offset, 0x5a4))
+                    mstore(PROOF_POLY_M_OMEGAZ_XI_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_M_OMEGAZ_XI_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_M_OMEGAZ_XI_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_M_OMEGAZ_XI_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_N_OMEGAY_ZETA
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x5c4))
+                    let x2 := calldataload(add(offset, 0x5d4))
+                    let y1 := loadAndFormatUint128(add(offset, 0x5f4))
+                    let y2 := calldataload(add(offset, 0x604))
+                    mstore(PROOF_POLY_N_OMEGAY_ZETA_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_N_OMEGAY_ZETA_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_N_OMEGAY_ZETA_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_N_OMEGAY_ZETA_Y_SLOT_PART2, y2)
+                }
+                // PROOF_POLY_N_OMEGAZ_XI
+                {
+                    let x1 := loadAndFormatUint128(add(offset, 0x624))
+                    let x2 := calldataload(add(offset, 0x634))
+                    let y1 := loadAndFormatUint128(add(offset, 0x654))
+                    let y2 := calldataload(add(offset, 0x664))
+                    mstore(PROOF_POLY_N_OMEGAZ_XI_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_N_OMEGAZ_XI_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_N_OMEGAZ_XI_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_N_OMEGAZ_XI_Y_SLOT_PART2, y2)
                 }
 
-                // Revert if proof is invalid
-                if iszero(isValid) {
-                    revertWithMessage(27, "loadProof: Proof is invalid")
-                }
+                mstore(PROOF_R1XY_SLOT, mod(calldataload(add(offset, 0x684)), R_MOD))
+                mstore(PROOF_R2XY_SLOT, mod(calldataload(add(offset, 0x6a4)), R_MOD))
+                mstore(PROOF_R3XY_SLOT, mod(calldataload(add(offset, 0x6c4)), R_MOD))
+                mstore(PROOF_VXY, mod(calldataload(add(offset, 0x6e4)), R_MOD))
             }
 
 
             /*//////////////////////////////////////////////////////////////
-                                3. Transcript initialization
+                                2. Transcript initialization
             //////////////////////////////////////////////////////////////*/
 
             /// @notice Recomputes all challenges
             /// @dev The process is the following:
             /// Commit:   [U], [V], [W], [A], [B], [C]
             /// Get:      teta1, teta2 & teta3
+            /// Commit: 
 
             function initializeTranscript() {
-                updateTranscript(mload(PUBLIC_INPUT_A_IN_DATA_SLOT))
-                updateTranscript(mload(PUBLIC_INPUT_A_OUT_DATA_SLOT))
+                updateTranscript(mload(PROOF_PUBLIC_INPUTS_HASH))
 
             }
 
 
 
-
-            // Step 1: Load the public inputs and check the correctness of its parts
-            loadPublicInputs()
-
-            // Step 2: Load the proof and check the correctness of its parts
+            // Step 1: Load the PI/proof a
             loadProof()
 
-            // Step 3: Recompute all the challenges with the transcript
+            // Step 2: Recompute all the challenges with the transcript
             initializeTranscript()
 
 

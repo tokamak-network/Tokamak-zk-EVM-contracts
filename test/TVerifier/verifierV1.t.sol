@@ -2,17 +2,17 @@
 pragma solidity 0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {TVerifier} from "../../src/Tokamak-zkEVM/Tverifier.sol";
+import {VerifierV1} from "../../src/Tokamak-zkEVM/VerifierV1.sol";
 import "forge-std/console.sol";
 
 contract testTokamakVerifier is Test {
-    TVerifier tverifier;
+    VerifierV1 verifier;
 
     uint256[] public publicInputs;
     uint256[] public serializedProof;
 
     function setUp() public virtual {
-        tverifier = new TVerifier();
+        verifier = new VerifierV1();
 
         // array of length 12 => 0.3kb
         publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_PREPROCESSED_COM_S0_X_SLOT
@@ -64,9 +64,9 @@ contract testTokamakVerifier is Test {
     
     }
 
-    function testTVerifier() public view {
+    function testVerifier() public view {
         // Call the verify function
-        bool result = tverifier.verify(publicInputs, serializedProof);
+        bool result = verifier.verify(publicInputs, serializedProof);
         
         assertTrue(result);
     }

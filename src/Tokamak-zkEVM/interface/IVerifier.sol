@@ -7,8 +7,8 @@ interface IVerifier {
     /// @dev Verifies a zk-SNARK proof.
     /// Note: The function may revert execution instead of returning false in some cases.
     function verify(
-        uint256[] calldata _publicInputs,
-        uint256[] calldata _proof
+        uint128[] calldata _proof_part1,
+        uint256[] calldata _proof_part2
     ) external view returns (bool result);
 
 }

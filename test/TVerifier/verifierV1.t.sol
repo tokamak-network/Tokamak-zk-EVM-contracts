@@ -8,65 +8,129 @@ import "forge-std/console.sol";
 contract testTokamakVerifier is Test {
     VerifierV1 verifier;
 
-    uint256[] public publicInputs;
-    uint256[] public serializedProof;
+    uint128[] public serializedProofPart1;
+    uint256[] public serializedProofPart2;
 
     function setUp() public virtual {
         verifier = new VerifierV1();
 
-        // array of length 12 => 0.3kb
-        publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_PREPROCESSED_COM_S0_X_SLOT
-        publicInputs.push(11856023086316274558845067687080284266010851703055534566998849536424959073766); // PUBLIC_INPUT_PREPROCESSED_COM_S0_Y_SLOT
-        publicInputs.push(10499239305859992443759785453270906003243074359959242371675950941500942473773); // PUBLIC_INPUT_PREPROCESSED_COM_S1_X_SLOT
-        publicInputs.push(21347231097799123231227724221565041889687686131480556177475242020711996173235); // PUBLIC_INPUT_PREPROCESSED_COM_S1_Y_SLOT
-        publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_PERMUTATION_POLY_S2_X_SLOT
-        publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_PERMUTATION_POLY_S2_Y_SLOT
-        publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_PERMUTATION_POLY_S2_Z_SLOT
-        publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_PERMUTATION_POLY_S3_X_SLOT
-        publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_PERMUTATION_POLY_S3_Y_SLOT
-        publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_PERMUTATION_POLY_S3_Z_SLOT
-        publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_A_IN_SLOT
-        publicInputs.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PUBLIC_INPUT_A_OUT_SLOT
+        // proof
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // s^{(0)}(x,y)_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // s^{(0)}(x,y)_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // s^{(1)}(x,y)_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // s^{(1)}(x,y)_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // s^{(2)}(x,y)_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // s^{(2)}(x,y)_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // U_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // U_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // V_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // V_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // W_X 
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // W_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // O_mid_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // O_mid_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // O_prv_X 
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // O_prv_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Q_{AX}_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Q_{AX}_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Q_{AY}_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Q_{AY}_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Q_{CX}_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Q_{CY}_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{A,χ}_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{A,χ}_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{A,ζ}_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{A,ζ}_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{B,χ}_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{B,χ}_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{B,ζ}_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{B,ζ}_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{C,χ}_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{C,χ}_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{C,ζ}_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // Π_{C,ζ}_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // B_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // B_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // R_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // R_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // M_ζ_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // M_ζ_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // M_χ_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // M_χ_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // N_ζ_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // N_ζ_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // N_χ_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // N_χ_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // O_pub_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // O_pub_Y
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // A_X
+        serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef312c2); // A_Y
 
-        // array of length 32 => 1.024kb
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // U_X
-        serializedProof.push(11856023086316274558845067687080284266010851703055534566998849536424959073766); // U_Y
-        serializedProof.push(11559732032986387107991004021392285783925812861821192530917403151452391805634); // V_XO
-        serializedProof.push(1085704699902305713594457074682324938475530866305809140572292398478473310229); // V_X1 
-        serializedProof.push(4082367875863433681332203403145435568316851327593401208105741076214120093531); // V_Y0
-        serializedProof.push(8495653923123431417604973247489272438418190587263600148770280649306958101930); // V_Y1
-        serializedProof.push(15488976127650523079605218040232167291115155239002840072043251018873550258833); // W_X
-        serializedProof.push(4352460820258659596860226525221943504756149602617718032378962471842121872064); // W_Y
-        serializedProof.push(10499239305859992443759785453270906003243074359959242371675950941500942473773); // A_X
-        serializedProof.push(21347231097799123231227724221565041889687686131480556177475242020711996173235); // A_Y
-        serializedProof.push(21448274562455512652922184359722637546669181231038098300951155169465175447933); // B_X
-        serializedProof.push(5224615512030263722410009061780530125927659699046094954022444377569738464640); // B_Y
-        serializedProof.push(457781538876079938778845275495204146302569607395268192839148474821758081582); // C_X
-        serializedProof.push(18861735728246155975127314860333796285284072325207684293054713266899263027595); // C_Y
-        serializedProof.push(457781538876079938778845275495204146302569607395268192839148474821758081582); // RECURSION_X
-        serializedProof.push(18861735728246155975127314860333796285284072325207684293054713266899263027595); // RECURSION_Y
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // CONSTRAINT_X
-        serializedProof.push(11856023086316274558845067687080284266010851703055534566998849536424959073766); // CONSTRAINT_Y
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // R1_AT_ZETA
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // R2_AT_ZETA
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // B_AT_ZETA
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PI0_X
-        serializedProof.push(11856023086316274558845067687080284266010851703055534566998849536424959073766); // PI0_Y
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PI1_X 
-        serializedProof.push(11856023086316274558845067687080284266010851703055534566998849536424959073766); // PI1_Y
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PI2_X
-        serializedProof.push(11856023086316274558845067687080284266010851703055534566998849536424959073766); // PI2_Y
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // PI3_X
-        serializedProof.push(11856023086316274558845067687080284266010851703055534566998849536424959073766); // PI3_Y
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // S2_AT_ZETA
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // L_-1_AT_ZETA0
-        serializedProof.push(10032255692304426541958487424837706541667730769782503366592797609781788557424); // K_-1_AT_ZETA1
-    
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(0)}(x,y)_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(0)}(x,y)_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(1)}(x,y)_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(1)}(x,y)_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(2)}(x,y)_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(2)}(x,y)_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // U_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // U_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // V_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // V_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // W_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // W_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // O_mid_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // O_mid_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // O_prv_X 
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // O_prv_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Q_{AX}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Q_{AX}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Q_{AY}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Q_{AY}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Q_{CX}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Q_{CX}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Q_{CY}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Q_{CY}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{A,χ}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{A,χ}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{A,ζ}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{A,ζ}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{B,χ}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{B,χ}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{B,ζ}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{B,ζ}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{C,χ}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{C,χ}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{C,ζ}_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // Π_{C,ζ}_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // B_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // B_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // R_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // R_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // M_ζ_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // M_ζ_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // M_χ_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // M_χ_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // N_ζ_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // N_ζ_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // N_χ_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // N_χ_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // O_pub_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // O_pub_Y
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // A_X
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // A_Y
+
+        // evaluations
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // R1XY
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // R2XY
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // R3XY
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // VXY
+        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // A_PUB
+
     }
 
     function testVerifier() public view {
         // Call the verify function
-        bool result = verifier.verify(publicInputs, serializedProof);
+        bool result = verifier.verify(serializedProofPart1, serializedProofPart2);
         
         assertTrue(result);
     }

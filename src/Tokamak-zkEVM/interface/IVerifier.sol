@@ -9,6 +9,6 @@ interface IVerifier {
     function verify(
         uint128[] calldata _proof_part1,
         uint256[] calldata _proof_part2
-    ) external view returns (bool result);
+    ) external view returns (bytes32 result);
 
 }

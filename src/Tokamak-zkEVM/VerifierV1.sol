@@ -172,7 +172,6 @@ contract VerifierV1 is IVerifier {
     uint256 internal constant PROOF_A_PUB_SLOT = 0x200 + 0x1a0 + 0xa20;
 
 
-
     /*//////////////////////////////////////////////////////////////
             transcript slot (used for challenge computation)
     //////////////////////////////////////////////////////////////*/
@@ -418,7 +417,7 @@ contract VerifierV1 is IVerifier {
     function verify(
         uint128[] calldata, //_proof part1 (16 bytes)
         uint256[] calldata // _proof part2 (32 bytes)
-    ) public view virtual returns (bool result) {
+    ) public view virtual returns (bytes32 result) {
         
         assembly {
 
@@ -651,13 +650,6 @@ contract VerifierV1 is IVerifier {
                 }
             }
 
-            // Helper function to load a uint128 and left-pad it to bytes32
-            function loadAndFormatUint128(calldataOffset) -> formatted {
-                let rawValue := calldataload(calldataOffset)
-                // Mask to 128 bits (discard upper 16 bytes if they exist)
-                formatted := and(rawValue, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
-            }
-
             /*//////////////////////////////////////////////////////////////
                                     Transcript helpers
             //////////////////////////////////////////////////////////////*/
@@ -690,21 +682,21 @@ contract VerifierV1 is IVerifier {
                 let offset2 := calldataload(0x24)
                 let part1LengthInWords := calldataload(add(offset, 0x04))
                 let part2LengthInWords := calldataload(add(offset2, 0x04))
-                let isValid := eq(part1LengthInWords, 50) 
+                let isValid := eq(part1LengthInWords, 52) 
                 // S PERMUTATION POLYNOMIALS (PART1 & PART2)
                 {
-                    let x0 := loadAndFormatUint128(add(offset, 0x014))
-                    let y0 := loadAndFormatUint128(add(offset, 0x024))
-                    let x1 := loadAndFormatUint128(add(offset, 0x034))
-                    let y1 := loadAndFormatUint128(add(offset, 0x044))
-                    let x2 := loadAndFormatUint128(add(offset, 0x054))
-                    let y2 := loadAndFormatUint128(add(offset, 0x064))
+                    let x0 := calldataload(add(offset, 0x024))
+                    let y0 := calldataload(add(offset, 0x044))
+                    let x1 := calldataload(add(offset, 0x064))
+                    let y1 := calldataload(add(offset, 0x084))
+                    let x2 := calldataload(add(offset, 0x0a4))
+                    let y2 := calldataload(add(offset, 0x0c4))
                     mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART1, x0)
                     mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART1, y0)
-                    mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART1, x1)
-                    mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART1, y1)
-                    mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART1, x2)
-                    mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART1, y2)
+                    mstore(PUBLIC_INPUTS_S_1_X_SLOT_PART1, x1)
+                    mstore(PUBLIC_INPUTS_S_1_Y_SLOT_PART1, y1)
+                    mstore(PUBLIC_INPUTS_S_2_X_SLOT_PART1, x2)
+                    mstore(PUBLIC_INPUTS_S_2_Y_SLOT_PART1, y2)
                     x0 := calldataload(add(offset2, 0x024))
                     y0 := calldataload(add(offset2, 0x044))
                     x1 := calldataload(add(offset2, 0x064))
@@ -713,19 +705,19 @@ contract VerifierV1 is IVerifier {
                     y2 := calldataload(add(offset2, 0x0c4))
                     mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART2, x0)
                     mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART2, y0)
-                    mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART2, x1)
-                    mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART2, y1)
-                    mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART2, x2)
-                    mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART2, y2)
+                    mstore(PUBLIC_INPUTS_S_1_X_SLOT_PART2, x1)
+                    mstore(PUBLIC_INPUTS_S_1_Y_SLOT_PART2, y1)
+                    mstore(PUBLIC_INPUTS_S_2_X_SLOT_PART2, x2)
+                    mstore(PUBLIC_INPUTS_S_2_Y_SLOT_PART2, y2)
                 }
                 // PROOF U, V & W (PART1 & PART2)
                 {
-                    let x0 := loadAndFormatUint128(add(offset, 0x074))
-                    let y0 := loadAndFormatUint128(add(offset, 0x084))
-                    let x1 := loadAndFormatUint128(add(offset, 0x094))
-                    let y1 := loadAndFormatUint128(add(offset, 0x0a4))
-                    let x2 := loadAndFormatUint128(add(offset, 0x0b4))
-                    let y2 := loadAndFormatUint128(add(offset, 0x0c4))
+                    let x0 := calldataload(add(offset, 0x0e4))
+                    let y0 := calldataload(add(offset, 0x104))
+                    let x1 := calldataload(add(offset, 0x124))
+                    let y1 := calldataload(add(offset, 0x144))
+                    let x2 := calldataload(add(offset, 0x164))
+                    let y2 := calldataload(add(offset, 0x184))
                     mstore(PROOF_POLY_U_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_U_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_V_X_SLOT_PART1, x1)
@@ -747,10 +739,10 @@ contract VerifierV1 is IVerifier {
                 }
                 // PROOF O_MID & O_PRV (PART1 & PART2)
                 {
-                    let x0 := loadAndFormatUint128(add(offset, 0x0d4))
-                    let y0 := loadAndFormatUint128(add(offset, 0x0e4))
-                    let x1 := loadAndFormatUint128(add(offset, 0x0f4))
-                    let y1 := loadAndFormatUint128(add(offset, 0x104))
+                    let x0 := calldataload(add(offset, 0x1a4))
+                    let y0 := calldataload(add(offset, 0x1c4))
+                    let x1 := calldataload(add(offset, 0x1e4))
+                    let y1 := calldataload(add(offset, 0x204))
                     mstore(PROOF_POLY_OMID_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_OMID_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_OPRV_X_SLOT_PART1, x1)
@@ -766,14 +758,14 @@ contract VerifierV1 is IVerifier {
                 }
                 // PROOF Q_AX, Q_AY, Q_CX & Q_CY (PART1 & PART2)
                 {
-                    let x0 := loadAndFormatUint128(add(offset, 0x114))
-                    let y0 := loadAndFormatUint128(add(offset, 0x124))
-                    let x1 := loadAndFormatUint128(add(offset, 0x134))
-                    let y1 := loadAndFormatUint128(add(offset, 0x144))
-                    let x2 := loadAndFormatUint128(add(offset, 0x154))
-                    let y2 := loadAndFormatUint128(add(offset, 0x164))
-                    let x3 := loadAndFormatUint128(add(offset, 0x174))
-                    let y3 := loadAndFormatUint128(add(offset, 0x184))
+                    let x0 := calldataload(add(offset, 0x224))
+                    let y0 := calldataload(add(offset, 0x244))
+                    let x1 := calldataload(add(offset, 0x264))
+                    let y1 := calldataload(add(offset, 0x284))
+                    let x2 := calldataload(add(offset, 0x2a4))
+                    let y2 := calldataload(add(offset, 0x2c4))
+                    let x3 := calldataload(add(offset, 0x2e4))
+                    let y3 := calldataload(add(offset, 0x304))
                     mstore(PROOF_POLY_QAX_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_QAX_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_QAY_X_SLOT_PART1, x1)
@@ -801,18 +793,18 @@ contract VerifierV1 is IVerifier {
                 }
                 // PROOF Π_{A,χ}, Π_{A,ζ}, Π_{B,χ}, Π_{B,ζ}, Π_{C,χ}, Π_{C,ζ} (PART1)
                 {
-                    let x0 := loadAndFormatUint128(add(offset, 0x194))
-                    let y0 := loadAndFormatUint128(add(offset, 0x1a4))
-                    let x1 := loadAndFormatUint128(add(offset, 0x1b4))
-                    let y1 := loadAndFormatUint128(add(offset, 0x1c4))
-                    let x2 := loadAndFormatUint128(add(offset, 0x1d4))
-                    let y2 := loadAndFormatUint128(add(offset, 0x1e4))
-                    let x3 := loadAndFormatUint128(add(offset, 0x1f4))
-                    let y3 := loadAndFormatUint128(add(offset, 0x204))
-                    let x4 := loadAndFormatUint128(add(offset, 0x214))
-                    let y4 := loadAndFormatUint128(add(offset, 0x224))
-                    let x5 := loadAndFormatUint128(add(offset, 0x234))
-                    let y5 := loadAndFormatUint128(add(offset, 0x244))
+                    let x0 := calldataload(add(offset, 0x324))
+                    let y0 := calldataload(add(offset, 0x344))
+                    let x1 := calldataload(add(offset, 0x364))
+                    let y1 := calldataload(add(offset, 0x384))
+                    let x2 := calldataload(add(offset, 0x3a4))
+                    let y2 := calldataload(add(offset, 0x3c4))
+                    let x3 := calldataload(add(offset, 0x3e4))
+                    let y3 := calldataload(add(offset, 0x404))
+                    let x4 := calldataload(add(offset, 0x424))
+                    let y4 := calldataload(add(offset, 0x444))
+                    let x5 := calldataload(add(offset, 0x464))
+                    let y5 := calldataload(add(offset, 0x484))
                     mstore(PROOF_POLY_PI_A_CHI_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_PI_A_CHI_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_PI_A_ZETA_X_SLOT_PART1, x1)
@@ -852,10 +844,10 @@ contract VerifierV1 is IVerifier {
                 }
                 // PROOF B & R (PART1)
                 {
-                    let x0 := loadAndFormatUint128(add(offset, 0x254))
-                    let y0 := loadAndFormatUint128(add(offset, 0x264))
-                    let x1 := loadAndFormatUint128(add(offset, 0x274))
-                    let y1 := loadAndFormatUint128(add(offset, 0x284))
+                    let x0 := calldataload(add(offset, 0x4a4))
+                    let y0 := calldataload(add(offset, 0x4c4))
+                    let x1 := calldataload(add(offset, 0x4e4))
+                    let y1 := calldataload(add(offset, 0x504))
                     mstore(PROOF_POLY_B_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_B_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_R_X_SLOT_PART1, x1)
@@ -871,14 +863,14 @@ contract VerifierV1 is IVerifier {
                 }
                 // PROOF M_ζ, M_χ, N_ζ & N_χ
                 {
-                    let x0 := loadAndFormatUint128(add(offset, 0x294))
-                    let y0 := loadAndFormatUint128(add(offset, 0x2a4))
-                    let x1 := loadAndFormatUint128(add(offset, 0x2b4))
-                    let y1 := loadAndFormatUint128(add(offset, 0x2c4))
-                    let x2 := loadAndFormatUint128(add(offset, 0x2d4))
-                    let y2 := loadAndFormatUint128(add(offset, 0x2e4))
-                    let x3 := loadAndFormatUint128(add(offset, 0x2f4))
-                    let y3 := loadAndFormatUint128(add(offset, 0x304))
+                    let x0 := calldataload(add(offset, 0x525))
+                    let y0 := calldataload(add(offset, 0x544))
+                    let x1 := calldataload(add(offset, 0x564))
+                    let y1 := calldataload(add(offset, 0x584))
+                    let x2 := calldataload(add(offset, 0x5a4))
+                    let y2 := calldataload(add(offset, 0x5c4))
+                    let x3 := calldataload(add(offset, 0x5e4))
+                    let y3 := calldataload(add(offset, 0x604))
                     mstore(PROOF_POLY_M_ZETA_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_M_ZETA_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_M_CHI_X_SLOT_PART1, x1)
@@ -906,10 +898,10 @@ contract VerifierV1 is IVerifier {
                 }
                 // PROOF O_PUB & A (PART1)
                 {
-                    let x0 := loadAndFormatUint128(add(offset, 0x314))
-                    let y0 := loadAndFormatUint128(add(offset, 0x324))
-                    let x1 := loadAndFormatUint128(add(offset, 0x334))
-                    let y1 := loadAndFormatUint128(add(offset, 0x344))
+                    let x0 := calldataload(add(offset, 0x624))
+                    let y0 := calldataload(add(offset, 0x644))
+                    let x1 := calldataload(add(offset, 0x664))
+                    let y1 := calldataload(add(offset, 0x684))
                     mstore(PROOF_POLY_OPUB_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_OPUB_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_A_X_SLOT_PART1, x1)
@@ -1022,7 +1014,7 @@ contract VerifierV1 is IVerifier {
             /// K_0(χ) := (χ^{ml}-1) / (m_I(χ-1))
             ///
             /// A_pub := A(χ) := ∑ (aM(χ))
-
+/*
             function prepareQueries() {
                 // calculate [F]_1
                 {
@@ -1103,7 +1095,7 @@ contract VerifierV1 is IVerifier {
                 }
             }
 
-
+*/
             /*//////////////////////////////////////////////////////////////
                                     4. Compute LHS and AUX
             //////////////////////////////////////////////////////////////*/
@@ -1138,6 +1130,7 @@ contract VerifierV1 is IVerifier {
             /// 
 
             /// @dev calculate [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1 * ([V]_1 - V_{x,y}[1]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1            
+/*           
             function prepareLHSA() {
                 g1pointMulIntoDest(PROOF_POLY_U_X_SLOT_PART1, mload(PROOF_VXY_SLOT), BUFFER_LHS_A_X_SLOT_PART1)
                 g1pointSubAssign(BUFFER_LHS_A_X_SLOT_PART1, PROOF_POLY_W_X_SLOT_PART1)
@@ -1161,8 +1154,9 @@ contract VerifierV1 is IVerifier {
                 // V_{x,y}[U]_1 - [W]_1 + κ1 * ([V]_1 - V_{x,y}[1]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
                 g1pointSubAssign(BUFFER_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
             }
-
+*/
             /// @dev [LHS_B]_1 := (1+κ2κ1^4)[A]_1 - κ2κ1^4 * A_{pub}[1]_1
+/*
             function prepareLHSB() {
                 let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
                 let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
@@ -1183,9 +1177,10 @@ contract VerifierV1 is IVerifier {
                 // (1+κ2κ1^4)[A]_1 - κ2κ1^4 * A_{pub}[1]_1
                 g1pointSubAssign(BUFFER_LHS_B_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
             }
-
+*/
             ///  @dev [LHS_C]_1 := κ1^2(R_{x,y} - 1) * [K_{-1}(X)L_{-1}(X)]_1 + a[G]_1 
             ///                    - b[F]_1 - κ1^2 * t_{m_l}(χ) * [Q_{C,X}]_1 - κ1^2 * t_{s_{max}}(ζ) * [Q_{C,Y}]_1) + c[R]_1 + d[1]_1
+/*            
             function prepareLHSC() {
                 let kappa0 := mload(CHALLENGE_KAPPA_0_SLOT)
                 let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
@@ -1236,10 +1231,11 @@ contract VerifierV1 is IVerifier {
                 g1pointMulAndAddIntoDest(IDENTITY_X_PART1, d, BUFFER_LHS_C_X_SLOT_PART1)
 
             }
-
+*/
             /// @dev [LHS]_1 := [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
             /// @dev [AUX]_1 := κ2 * χ * [Π_{χ}]_1 + κ2 * ζ *([Π_ζ]_1 + [M_ζ]_1) + 
             ///                 κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1 + κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1 + κ_2 * ω_smax^{-1} * ζ * [N_{ζ}]
+/*            
             function prepareAggregatedCommitment() {
                 // calculate [LHS]_1
                 {
@@ -1286,7 +1282,7 @@ contract VerifierV1 is IVerifier {
                 }
 
             }
-
+*/
             /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                                                                         5. Pairing
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
@@ -1299,10 +1295,11 @@ contract VerifierV1 is IVerifier {
             ///   | e([U]_1, [α]_2)e([V]_1, [α^2]_2)e([W]_1, [α^3]_2)  |    =    |  . e(κ2[Π_{χ}]_1 + κ2^2[M_{χ}]_1 + κ2^3[N_{χ}]_1, [x]_2)   |
             ///    \                                                  /          |  . e(κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1, [y]_2)   |
             ///                                                                   \                                                          / 
+ /*           
             function finalPairing() {
                 
             }
-
+*/
             // Step1: Load the PI/proof
             loadProof()
 
@@ -1310,22 +1307,22 @@ contract VerifierV1 is IVerifier {
             initializeTranscript()
 
             // Step3: computation of [F]_1, [G]_1, t_n(χ), t_smax(ζ) and t_ml(χ)
-            prepareQueries()
+            //prepareQueries()
 
 
             // Step4: computation of the final polynomial commitments
-            prepareLHSA()
-            prepareLHSB()
-            prepareLHSC()
-            prepareAggregatedCommitment()
+            //prepareLHSA()
+            //prepareLHSB()
+            //prepareLHSC()
+            //prepareAggregatedCommitment()
 
             // Step5: final pairing
-            finalPairing()
+            //finalPairing()
             
-
-            result := 1
-            mstore(0, true)
+            result := mload(CHALLENGE_KAPPA_1_SLOT)
+            //0x1cf8430148826f4770362ddb8cd44122f34d1222bceab19b9ec05d23986b49ed
+            //0x1cf8430148826f4770362ddb8cd44122f34d1222bceab19b9ec05d23986b49ed
+            //0x1cf8430148826f4770362ddb8cd44122f34d1222bceab19b9ec05d23986b49ed
         }
-
     }
 }

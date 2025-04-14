@@ -13,14 +13,21 @@ import {IVerifier} from "./interface/IVerifier.sol";
 /* solhint-enable max-line-length */
 contract VerifierV1 is IVerifier {
 
+
     /*//////////////////////////////////////////////////////////////
-                            Public Inputs
+                                  Proof
     //////////////////////////////////////////////////////////////*/
+
+    /// The encoding order of the `proof` (part1) is
+    /// ```
+    /// |        704 bytes        |   
+    /// | Polynomial commitments  |  
+    /// ```  
 
     /// The encoding order of the `proof` (part2) is
     /// ```
-    /// |        288 bytes        |      X bytes      |      
-    /// | permutation polynomials |    a_in/a_out     | 
+    /// |        1408 bytes       |   32 bytes  |   32 bytes   |   32 bytes  |   32 bytes  |   X bytes   |  
+    /// | Polynomial commitments  |   R_{x,y}   |   R'_{x,y}   |   R''_{x,y} |   V_{x,y}   |      a      |
     /// ```  
 
     // [s^{(0)}(x,y)]_1
@@ -40,10 +47,6 @@ contract VerifierV1 is IVerifier {
     uint256 internal constant PUBLIC_INPUTS_S_2_X_SLOT_PART2 = 0x200 + 0x160;
     uint256 internal constant PUBLIC_INPUTS_S_2_Y_SLOT_PART1 = 0x200 + 0x180;
     uint256 internal constant PUBLIC_INPUTS_S_2_Y_SLOT_PART2 = 0x200 + 0x1a0;
-
-    /*//////////////////////////////////////////////////////////////
-                                  Proof
-    //////////////////////////////////////////////////////////////*/
 
     // U
     uint256 internal constant PROOF_POLY_U_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x020;
@@ -71,25 +74,25 @@ contract VerifierV1 is IVerifier {
     uint256 internal constant PROOF_POLY_OPRV_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x260;
     uint256 internal constant PROOF_POLY_OPRV_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x280;
     // Q_{AX}
-    uint256 internal constant PROOF_POLY_QAX_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x3a0;
-    uint256 internal constant PROOF_POLY_QAX_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x3c0;
-    uint256 internal constant PROOF_POLY_QAX_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x3e0;
-    uint256 internal constant PROOF_POLY_QAX_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x400;
+    uint256 internal constant PROOF_POLY_QAX_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x2a0;
+    uint256 internal constant PROOF_POLY_QAX_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x2c0;
+    uint256 internal constant PROOF_POLY_QAX_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x2e0;
+    uint256 internal constant PROOF_POLY_QAX_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x300;
     // Q_{AY}
-    uint256 internal constant PROOF_POLY_QAY_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x420;
-    uint256 internal constant PROOF_POLY_QAY_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x440;
-    uint256 internal constant PROOF_POLY_QAY_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x460;
-    uint256 internal constant PROOF_POLY_QAY_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x480;
+    uint256 internal constant PROOF_POLY_QAY_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x320;
+    uint256 internal constant PROOF_POLY_QAY_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x340;
+    uint256 internal constant PROOF_POLY_QAY_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x360;
+    uint256 internal constant PROOF_POLY_QAY_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x380;
     // Q_{CX}
-    uint256 internal constant PROOF_POLY_QCX_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x2a0;
-    uint256 internal constant PROOF_POLY_QCX_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x2c0;
-    uint256 internal constant PROOF_POLY_QCX_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x2e0;
-    uint256 internal constant PROOF_POLY_QCX_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x300;
+    uint256 internal constant PROOF_POLY_QCX_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x3a0;
+    uint256 internal constant PROOF_POLY_QCX_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x3c0;
+    uint256 internal constant PROOF_POLY_QCX_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x3e0;
+    uint256 internal constant PROOF_POLY_QCX_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x400;
     // Q_{CY}
-    uint256 internal constant PROOF_POLY_QCY_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x320;
-    uint256 internal constant PROOF_POLY_QCY_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x340;
-    uint256 internal constant PROOF_POLY_QCY_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x360;
-    uint256 internal constant PROOF_POLY_QCY_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x380;
+    uint256 internal constant PROOF_POLY_QCY_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x420;
+    uint256 internal constant PROOF_POLY_QCY_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x440;
+    uint256 internal constant PROOF_POLY_QCY_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x460;
+    uint256 internal constant PROOF_POLY_QCY_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x480;
     // Π_{A,χ}
     uint256 internal constant PROOF_POLY_PI_A_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x4a0;
     uint256 internal constant PROOF_POLY_PI_A_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x4c0;
@@ -97,179 +100,189 @@ contract VerifierV1 is IVerifier {
     uint256 internal constant PROOF_POLY_PI_A_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x500;
     // Π{A,ζ}
     uint256 internal constant PROOF_POLY_PI_A_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x520;
-    uint256 internal constant PROOF_POLY_PI_A_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x4c0;
-    uint256 internal constant PROOF_POLY_PI_A_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x4e0;
-    uint256 internal constant PROOF_POLY_PI_A_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x500;
+    uint256 internal constant PROOF_POLY_PI_A_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x540;
+    uint256 internal constant PROOF_POLY_PI_A_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x560;
+    uint256 internal constant PROOF_POLY_PI_A_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x580;
     // Π_{B,χ}
-    uint256 internal constant PROOF_POLY_PI_B_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x4a0;
-    uint256 internal constant PROOF_POLY_PI_B_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x4c0;
-    uint256 internal constant PROOF_POLY_PI_B_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x4e0;
-    uint256 internal constant PROOF_POLY_PI_B_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x500;
-    // Π_{B,ζ}
-    uint256 internal constant PROOF_POLY_PI_B_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x520;
-    uint256 internal constant PROOF_POLY_PI_B_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x4c0;
-    uint256 internal constant PROOF_POLY_PI_B_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x4e0;
-    uint256 internal constant PROOF_POLY_PI_B_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x500;
+    uint256 internal constant PROOF_POLY_PI_B_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x5a0;
+    uint256 internal constant PROOF_POLY_PI_B_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x5c0;
+    uint256 internal constant PROOF_POLY_PI_B_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x5e0;
+    uint256 internal constant PROOF_POLY_PI_B_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x600;
     // Π_{C,χ}  
-    uint256 internal constant PROOF_POLY_PI_C_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x4a0;
-    uint256 internal constant PROOF_POLY_PI_C_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x4c0;
-    uint256 internal constant PROOF_POLY_PI_C_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x4e0;
-    uint256 internal constant PROOF_POLY_PI_C_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x500;
+    uint256 internal constant PROOF_POLY_PI_C_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x620;
+    uint256 internal constant PROOF_POLY_PI_C_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x640;
+    uint256 internal constant PROOF_POLY_PI_C_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x660;
+    uint256 internal constant PROOF_POLY_PI_C_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x680;
     // Π{C,ζ}
-    uint256 internal constant PROOF_POLY_PI_C_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x520;
-    uint256 internal constant PROOF_POLY_PI_C_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x4c0;
-    uint256 internal constant PROOF_POLY_PI_C_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x4e0;
-    uint256 internal constant PROOF_POLY_PI_C_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x500;
+    uint256 internal constant PROOF_POLY_PI_C_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x6a0;
+    uint256 internal constant PROOF_POLY_PI_C_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x6c0;
+    uint256 internal constant PROOF_POLY_PI_C_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x6e0;
+    uint256 internal constant PROOF_POLY_PI_C_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x700;
     // B
-    uint256 internal constant PROOF_POLY_B_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x5a0;
-    uint256 internal constant PROOF_POLY_B_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x5c0;
-    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x5e0;
-    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x600;
+    uint256 internal constant PROOF_POLY_B_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x720;
+    uint256 internal constant PROOF_POLY_B_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x740;
+    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x760;
+    uint256 internal constant PROOF_POLY_B_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x780;
     // R
-    uint256 internal constant PROOF_POLY_R_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x620;
-    uint256 internal constant PROOF_POLY_R_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x640;
-    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x660;
-    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x680;
+    uint256 internal constant PROOF_POLY_R_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x7a0;
+    uint256 internal constant PROOF_POLY_R_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x7c0;
+    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x7e0;
+    uint256 internal constant PROOF_POLY_R_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x800;
     // M_ζ
-    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x6a0;
-    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x6c0;
-    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x6e0;
-    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x700;
+    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x820;
+    uint256 internal constant PROOF_POLY_M_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x840;
+    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x860;
+    uint256 internal constant PROOF_POLY_M_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x880;
     // M_χ
-    uint256 internal constant PROOF_POLY_M_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x720;
-    uint256 internal constant PROOF_POLY_M_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x740;
-    uint256 internal constant PROOF_POLY_M_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x760;
-    uint256 internal constant PROOF_POLY_M_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x780;
+    uint256 internal constant PROOF_POLY_M_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x8a0;
+    uint256 internal constant PROOF_POLY_M_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x8c0;
+    uint256 internal constant PROOF_POLY_M_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x8e0;
+    uint256 internal constant PROOF_POLY_M_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x900;
     // N_ζ
-    uint256 internal constant PROOF_POLY_N_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x7a0;
-    uint256 internal constant PROOF_POLY_N_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x7c0;
-    uint256 internal constant PROOF_POLY_N_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x7e0;
-    uint256 internal constant PROOF_POLY_N_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x800;
+    uint256 internal constant PROOF_POLY_N_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x920;
+    uint256 internal constant PROOF_POLY_N_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x940;
+    uint256 internal constant PROOF_POLY_N_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x960;
+    uint256 internal constant PROOF_POLY_N_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x980;
     // N_χ
-    uint256 internal constant PROOF_POLY_N_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x820;
-    uint256 internal constant PROOF_POLY_N_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x840;
-    uint256 internal constant PROOF_POLY_N_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x860;
-    uint256 internal constant PROOF_POLY_N_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x880;
+    uint256 internal constant PROOF_POLY_N_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x9a0;
+    uint256 internal constant PROOF_POLY_N_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x9c0;
+    uint256 internal constant PROOF_POLY_N_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x9e0;
+    uint256 internal constant PROOF_POLY_N_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa00;
     // O_pub
-    uint256 internal constant PROOF_POLY_OPUB_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x8a0;
-    uint256 internal constant PROOF_POLY_OPUB_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x8c0;
-    uint256 internal constant PROOF_POLY_OPUB_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x8e0;
-    uint256 internal constant PROOF_POLY_OPUB_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x900;
+    uint256 internal constant PROOF_POLY_OPUB_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa20;
+    uint256 internal constant PROOF_POLY_OPUB_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40;
+    uint256 internal constant PROOF_POLY_OPUB_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa60;
+    uint256 internal constant PROOF_POLY_OPUB_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa80;
     // A
-    uint256 internal constant PROOF_POLY_A_X_SLOT_PART1 = 0x200 + 0x1a0 + 0x920;
-    uint256 internal constant PROOF_POLY_A_X_SLOT_PART2 = 0x200 + 0x1a0 + 0x940;
-    uint256 internal constant PROOF_POLY_A_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0x960;
-    uint256 internal constant PROOF_POLY_A_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0x980;
+    uint256 internal constant PROOF_POLY_A_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xaa0;
+    uint256 internal constant PROOF_POLY_A_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xac0;
+    uint256 internal constant PROOF_POLY_A_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xae0;
+    uint256 internal constant PROOF_POLY_A_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xb00;
     // R_xy
-    uint256 internal constant PROOF_R1XY_SLOT = 0x200 + 0x1a0 + 0x9a0;
+    uint256 internal constant PROOF_R1XY_SLOT = 0x200 + 0x1a0 + 0xb20;
     // R'_xy
-    uint256 internal constant PROOF_R2XY_SLOT = 0x200 + 0x1a0 + 0x9c0;
+    uint256 internal constant PROOF_R2XY_SLOT = 0x200 + 0x1a0 + 0xb40;
     // R''_xy
-    uint256 internal constant PROOF_R3XY_SLOT = 0x200 + 0x1a0 + 0x9e0;
+    uint256 internal constant PROOF_R3XY_SLOT = 0x200 + 0x1a0 + 0xb60;
     // V_xy
-    uint256 internal constant PROOF_VXY_SLOT = 0x200 + 0x1a0 + 0xa00;
+    uint256 internal constant PROOF_VXY_SLOT = 0x200 + 0x1a0 + 0xb80;
     // A_pub
-    uint256 internal constant PROOF_A_PUB_SLOT = 0x200 + 0x1a0 + 0xa20;
+    uint256 internal constant PROOF_A_PUB_SLOT = 0x200 + 0x1a0 + 0xba0;
 
 
     /*//////////////////////////////////////////////////////////////
             transcript slot (used for challenge computation)
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant TRANSCRIPT_BEGIN_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x00;
-    uint256 internal constant TRANSCRIPT_DST_BYTE_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x03; 
-    uint256 internal constant TRANSCRIPT_STATE_0_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x04;
-    uint256 internal constant TRANSCRIPT_STATE_1_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x24;
-    uint256 internal constant TRANSCRIPT_CHALLENGE_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x44;
+    uint256 internal constant TRANSCRIPT_BEGIN_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x00;
+    uint256 internal constant TRANSCRIPT_DST_BYTE_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x03; 
+    uint256 internal constant TRANSCRIPT_STATE_0_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x04;
+    uint256 internal constant TRANSCRIPT_STATE_1_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x24;
+    uint256 internal constant TRANSCRIPT_CHALLENGE_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x44;
 
     /*//////////////////////////////////////////////////////////////
                              Challenges
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant CHALLENGE_THETA_0_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x000;
-    uint256 internal constant CHALLENGE_THETA_1_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x020;
-    uint256 internal constant CHALLENGE_THETA_2_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x040;
-    uint256 internal constant CHALLENGE_KAPPA_0_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x060;
-    uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x080;
-    uint256 internal constant CHALLENGE_KAPPA_2_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x0a0;
-    uint256 internal constant CHALLENGE_ZETA_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x0c0;
-    uint256 internal constant CHALLENGE_XI_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x0e0;
-    uint256 internal constant CHALLENGE_CHI_SLOT = 0x200 + 0x1a0 + 0xa40 +0x80 + 0x100;
+    uint256 internal constant CHALLENGE_THETA_0_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x000;
+    uint256 internal constant CHALLENGE_THETA_1_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x020;
+    uint256 internal constant CHALLENGE_THETA_2_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x040;
+    uint256 internal constant CHALLENGE_KAPPA_0_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x060;
+    uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x080;
+    uint256 internal constant CHALLENGE_KAPPA_2_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x0a0;
+    uint256 internal constant CHALLENGE_ZETA_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x0c0;
+    uint256 internal constant CHALLENGE_XI_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x0e0;
+    uint256 internal constant CHALLENGE_CHI_SLOT = 0x200 + 0x1a0 + 0xba0 +0x80 + 0x100;
 
     /*//////////////////////////////////////////////////////////////
                        Intermediary verifier state
     //////////////////////////////////////////////////////////////*/
 
     // [F]_1
-    uint256 internal constant INTERMERDIARY_POLY_F_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x100 + 0x020;
-    uint256 internal constant INTERMERDIARY_POLY_F_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x100 + 0x040;
-    uint256 internal constant INTERMERDIARY_POLY_F_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x100 + 0x060;
-    uint256 internal constant INTERMERDIARY_POLY_F_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x100 + 0x080;
+    uint256 internal constant INTERMERDIARY_POLY_F_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x100 + 0x020;
+    uint256 internal constant INTERMERDIARY_POLY_F_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x100 + 0x040;
+    uint256 internal constant INTERMERDIARY_POLY_F_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x100 + 0x060;
+    uint256 internal constant INTERMERDIARY_POLY_F_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x100 + 0x080;
 
     // [G]_1
-    uint256 internal constant INTERMERDIARY_POLY_G_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 +0x100 + 0x0a0;
-    uint256 internal constant INTERMERDIARY_POLY_G_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x0c0;
-    uint256 internal constant INTERMERDIARY_POLY_G_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x0e0;
-    uint256 internal constant INTERMERDIARY_POLY_G_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x100;
+    uint256 internal constant INTERMERDIARY_POLY_G_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 +0x100 + 0x0a0;
+    uint256 internal constant INTERMERDIARY_POLY_G_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x0c0;
+    uint256 internal constant INTERMERDIARY_POLY_G_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x0e0;
+    uint256 internal constant INTERMERDIARY_POLY_G_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x100;
 
     // [Π_{χ}]_1
-    uint256 internal constant INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x120;
-    uint256 internal constant INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x140;
-    uint256 internal constant INTERMERDIARY_POLY_PI_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x160;
-    uint256 internal constant INTERMERDIARY_POLY_PI_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x180;
+    uint256 internal constant INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x120;
+    uint256 internal constant INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x140;
+    uint256 internal constant INTERMERDIARY_POLY_PI_CHI_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x160;
+    uint256 internal constant INTERMERDIARY_POLY_PI_CHI_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x180;
 
     // [Π_{ζ}]_1
-    uint256 internal constant INTERMERDIARY_POLY_PI_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x1a;
-    uint256 internal constant INTERMERDIARY_POLY_PI_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x1c0;
-    uint256 internal constant INTERMERDIARY_POLY_PI_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x1e0;
-    uint256 internal constant INTERMERDIARY_POLY_PI_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x200;
+    uint256 internal constant INTERMERDIARY_POLY_PI_ZETA_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x1a;
+    uint256 internal constant INTERMERDIARY_POLY_PI_ZETA_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x1c0;
+    uint256 internal constant INTERMERDIARY_POLY_PI_ZETA_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x1e0;
+    uint256 internal constant INTERMERDIARY_POLY_PI_ZETA_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x200;
 
     // t_n(χ)
-    uint256 internal constant INTERMERDIARY_SCALAR_T_N_CHI_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x220;
+    uint256 internal constant INTERMERDIARY_SCALAR_T_N_CHI_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x220;
     // t_smax(ζ)
-    uint256 internal constant INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x240;
+    uint256 internal constant INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x240;
     // t_ml(χ)
-    uint256 internal constant INTERMERDIARY_SCALAR_T_MI_CHI_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x260;
+    uint256 internal constant INTERMERDIARY_SCALAR_T_MI_CHI_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x260;
     // K_0(χ)
-    uint256 internal constant INTERMEDIARY_SCALAR_KO_SLOT = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280;
-
-    /*//////////////////////////////////////////////////////////////
-                             Pairing data
-    //////////////////////////////////////////////////////////////*/
-
-    uint256 internal constant BUFFER_LHS_A_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x020;
-    uint256 internal constant BUFFER_LHS_A_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x040;
-    uint256 internal constant BUFFER_LHS_A_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x060;
-    uint256 internal constant BUFFER_LHS_A_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x080; 
-
-    uint256 internal constant BUFFER_LHS_B_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x0a0;
-    uint256 internal constant BUFFER_LHS_B_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x0c0;
-    uint256 internal constant BUFFER_LHS_B_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x0e0;
-    uint256 internal constant BUFFER_LHS_B_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x100;
-
-    uint256 internal constant BUFFER_LHS_C_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x120;
-    uint256 internal constant BUFFER_LHS_C_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x140;
-    uint256 internal constant BUFFER_LHS_C_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x160;
-    uint256 internal constant BUFFER_LHS_C_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x180;
-
-    uint256 internal constant PAIRING_BUFFER_LHS_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x1a0;
-    uint256 internal constant PAIRING_BUFFER_LHS_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x1c0;
-    uint256 internal constant PAIRING_BUFFER_LHS_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x1e0;
-    uint256 internal constant PAIRING_BUFFER_LHS_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x200;
-
-    uint256 internal constant PAIRING_BUFFER_AUX_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x220;
-    uint256 internal constant PAIRING_BUFFER_AUX_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x240;
-    uint256 internal constant PAIRING_BUFFER_AUX_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x260;
-    uint256 internal constant PAIRING_BUFFER_AUX_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x280;
+    uint256 internal constant INTERMEDIARY_SCALAR_KO_SLOT = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280;
 
     /*//////////////////////////////////////////////////////////////
                              Aggregated commitment
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant BUFFER_AGGREGATED_POLY_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x2a0;
-    uint256 internal constant BUFFER_AGGREGATED_POLY_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x2c0;
-    uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x2e0;
-    uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xa40 + 0x80 + 0x100 + 0x280 + 0x300;
+    uint256 internal constant AGG_LHS_A_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x020;
+    uint256 internal constant AGG_LHS_A_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x040;
+    uint256 internal constant AGG_LHS_A_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x060;
+    uint256 internal constant AGG_LHS_A_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x080; 
+
+    uint256 internal constant AGG_LHS_B_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x0a0;
+    uint256 internal constant AGG_LHS_B_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x0c0;
+    uint256 internal constant AGG_LHS_B_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x0e0;
+    uint256 internal constant AGG_LHS_B_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x100;
+
+    uint256 internal constant AGG_LHS_C_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x120;
+    uint256 internal constant AGG_LHS_C_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x140;
+    uint256 internal constant AGG_LHS_C_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x160;
+    uint256 internal constant AGG_LHS_C_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x180;
+
+    uint256 internal constant PAIRING_AGG_LHS_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x1a0;
+    uint256 internal constant PAIRING_AGG_LHS_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x1c0;
+    uint256 internal constant PAIRING_AGG_LHS_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x1e0;
+    uint256 internal constant PAIRING_AGG_LHS_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x200;
+
+    uint256 internal constant PAIRING_AGG_AUX_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x220;
+    uint256 internal constant PAIRING_AGG_AUX_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x240;
+    uint256 internal constant PAIRING_AGG_AUX_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x260;
+    uint256 internal constant PAIRING_AGG_AUX_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x280;
+
+    uint256 internal constant PAIRING_AGG_LHS_AUX_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x2a0;
+    uint256 internal constant PAIRING_AGG_LHS_AUX_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x2c0;
+    uint256 internal constant PAIRING_AGG_LHS_AUX_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x2e0;
+    uint256 internal constant PAIRING_AGG_LHS_AUX_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x300;
+
+    uint256 internal constant PAIRING_AGG_RHS_1_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x320;
+    uint256 internal constant PAIRING_AGG_RHS_1_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x340;
+    uint256 internal constant PAIRING_AGG_RHS_1_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x360;
+    uint256 internal constant PAIRING_AGG_RHS_1_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x380;
+
+    uint256 internal constant PAIRING_AGG_RHS_2_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x3a0;
+    uint256 internal constant PAIRING_AGG_RHS_2_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x3c0;
+    uint256 internal constant PAIRING_AGG_RHS_2_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x3e0;
+    uint256 internal constant PAIRING_AGG_RHS_2_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x400;
+
+    /*//////////////////////////////////////////////////////////////
+                             Pairing data
+    //////////////////////////////////////////////////////////////*/
+
+    uint256 internal constant BUFFER_AGGREGATED_POLY_X_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x420;
+    uint256 internal constant BUFFER_AGGREGATED_POLY_X_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x440;
+    uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x460;
+    uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480;
 
 
 
@@ -289,9 +302,9 @@ contract VerifierV1 is IVerifier {
     
     // [K^_1(X)L^-1(X)]_1
     uint256 internal constant POLY_KXLX_X_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant POLY_KXLX_X_PART2 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant POLY_KXLX_X_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant POLY_KXLX_Y_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant POLY_KXLX_Y_PART2 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant POLY_KXLX_Y_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
     // [y]_1
     uint256 internal constant POLY_Y_X_PART1 = 0x0000000000000000198e939731fb5d25f1aa493335a9e71297e485b7aef312c2;
@@ -322,6 +335,16 @@ contract VerifierV1 is IVerifier {
     /*//////////////////////////////////////////////////////////////
                         G2 elements
     //////////////////////////////////////////////////////////////*/
+
+    // [1]_2
+    uint256 internal constant IDENTITY2_X0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant IDENTITY2_X0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant IDENTITY2_X1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant IDENTITY2_X1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant IDENTITY2_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant IDENTITY2_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant IDENTITY2_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant IDENTITY2_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
     // [α]_2
     uint256 internal constant ALPHA_X0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
@@ -363,55 +386,55 @@ contract VerifierV1 is IVerifier {
     uint256 internal constant ALPHA_POWER4_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant ALPHA_POWER4_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
-    // [γ]_2
+    // -[γ]_2
     uint256 internal constant GAMMA_X0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant GAMMA_X0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant GAMMA_X1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant GAMMA_X1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant GAMMA_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant GAMMA_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant GAMMA_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant GAMMA_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant GAMMA_MINUS_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant GAMMA_MINUS_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant GAMMA_MINUS_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant GAMMA_MINUS_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
-    // [η]_2
+    // -[η]_2
     uint256 internal constant ETA_X0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant ETA_X0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant ETA_X1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant ETA_X1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant ETA_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant ETA_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant ETA_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant ETA_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant ETA_MINUS_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant ETA_MINUS_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant ETA_MINUS_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant ETA_MINUS_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
-    // [δ]_2
+    // -[δ]_2
     uint256 internal constant DELTA_X0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant DELTA_X0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant DELTA_X1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant DELTA_X1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant DELTA_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant DELTA_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant DELTA_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant DELTA_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant DELTA_MINUS_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant DELTA_MINUS_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant DELTA_MINUS_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant DELTA_MINUS_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
-    // [x]_2
+    // -[x]_2
     uint256 internal constant X_X0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant X_X0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant X_X1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant X_X1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant X_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant X_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant X_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant X_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant X_MINUS_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant X_MINUS_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant X_MINUS_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant X_MINUS_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
-    //[y]_2
+    //-[y]_2
     uint256 internal constant Y_X0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant Y_X0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant Y_X1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
     uint256 internal constant Y_X1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant Y_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant Y_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant Y_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant Y_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant Y_MINUS_Y0_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant Y_MINUS_Y0_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant Y_MINUS_Y1_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
+    uint256 internal constant Y_MINUS_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
 
     function verify(
@@ -681,9 +704,8 @@ contract VerifierV1 is IVerifier {
                 let offset := calldataload(0x04)
                 let offset2 := calldataload(0x24)
                 let part1LengthInWords := calldataload(add(offset, 0x04))
-                let part2LengthInWords := calldataload(add(offset2, 0x04))
                 let isValid := eq(part1LengthInWords, 52) 
-                // S PERMUTATION POLYNOMIALS (PART1 & PART2)
+                // S PERMUTATION POLYNOMIALS
                 {
                     let x0 := calldataload(add(offset, 0x024))
                     let y0 := calldataload(add(offset, 0x044))
@@ -710,7 +732,7 @@ contract VerifierV1 is IVerifier {
                     mstore(PUBLIC_INPUTS_S_2_X_SLOT_PART2, x2)
                     mstore(PUBLIC_INPUTS_S_2_Y_SLOT_PART2, y2)
                 }
-                // PROOF U, V & W (PART1 & PART2)
+                // PROOF U, V & W 
                 {
                     let x0 := calldataload(add(offset, 0x0e4))
                     let y0 := calldataload(add(offset, 0x104))
@@ -737,7 +759,7 @@ contract VerifierV1 is IVerifier {
                     mstore(PROOF_POLY_W_X_SLOT_PART2, x2)
                     mstore(PROOF_POLY_W_Y_SLOT_PART2, y2)
                 }
-                // PROOF O_MID & O_PRV (PART1 & PART2)
+                // PROOF O_MID & O_PRV
                 {
                     let x0 := calldataload(add(offset, 0x1a4))
                     let y0 := calldataload(add(offset, 0x1c4))
@@ -756,7 +778,7 @@ contract VerifierV1 is IVerifier {
                     mstore(PROOF_POLY_OPRV_X_SLOT_PART2, x1)
                     mstore(PROOF_POLY_OPRV_Y_SLOT_PART2, y1)
                 }
-                // PROOF Q_AX, Q_AY, Q_CX & Q_CY (PART1 & PART2)
+                // PROOF Q_AX, Q_AY, Q_CX & Q_CY 
                 {
                     let x0 := calldataload(add(offset, 0x224))
                     let y0 := calldataload(add(offset, 0x244))
@@ -791,7 +813,7 @@ contract VerifierV1 is IVerifier {
                     mstore(PROOF_POLY_QCY_X_SLOT_PART2, x3)
                     mstore(PROOF_POLY_QCY_Y_SLOT_PART2, y3)
                 }
-                // PROOF Π_{A,χ}, Π_{A,ζ}, Π_{B,χ}, Π_{B,ζ}, Π_{C,χ}, Π_{C,ζ} (PART1)
+                // PROOF Π_{A,χ}, Π_{A,ζ}, Π_{B,χ}, Π_{C,χ}, Π_{C,ζ}
                 {
                     let x0 := calldataload(add(offset, 0x324))
                     let y0 := calldataload(add(offset, 0x344))
@@ -803,20 +825,16 @@ contract VerifierV1 is IVerifier {
                     let y3 := calldataload(add(offset, 0x404))
                     let x4 := calldataload(add(offset, 0x424))
                     let y4 := calldataload(add(offset, 0x444))
-                    let x5 := calldataload(add(offset, 0x464))
-                    let y5 := calldataload(add(offset, 0x484))
                     mstore(PROOF_POLY_PI_A_CHI_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_PI_A_CHI_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_PI_A_ZETA_X_SLOT_PART1, x1)
                     mstore(PROOF_POLY_PI_A_ZETA_Y_SLOT_PART1, y1)
                     mstore(PROOF_POLY_PI_B_CHI_X_SLOT_PART1, x2)
                     mstore(PROOF_POLY_PI_B_CHI_Y_SLOT_PART1, y2)
-                    mstore(PROOF_POLY_PI_B_ZETA_X_SLOT_PART1, x3)
-                    mstore(PROOF_POLY_PI_B_ZETA_Y_SLOT_PART1, y3)
-                    mstore(PROOF_POLY_PI_C_CHI_X_SLOT_PART1, x4)
-                    mstore(PROOF_POLY_PI_C_CHI_Y_SLOT_PART1, y4)
-                    mstore(PROOF_POLY_PI_C_ZETA_X_SLOT_PART1, x5)
-                    mstore(PROOF_POLY_PI_C_ZETA_Y_SLOT_PART1, y5)
+                    mstore(PROOF_POLY_PI_C_CHI_X_SLOT_PART1, x3)
+                    mstore(PROOF_POLY_PI_C_CHI_Y_SLOT_PART1, y3)
+                    mstore(PROOF_POLY_PI_C_ZETA_X_SLOT_PART1, x4)
+                    mstore(PROOF_POLY_PI_C_ZETA_Y_SLOT_PART1, y4)
                     x0 := calldataload(add(offset2, 0x324))
                     y0 := calldataload(add(offset2, 0x344))
                     x1 := calldataload(add(offset2, 0x364))
@@ -827,35 +845,31 @@ contract VerifierV1 is IVerifier {
                     y3 := calldataload(add(offset2, 0x404))
                     x4 := calldataload(add(offset2, 0x424))
                     y4 := calldataload(add(offset2, 0x444))
-                    x5 := calldataload(add(offset2, 0x464))
-                    y5 := calldataload(add(offset2, 0x484))
                     mstore(PROOF_POLY_PI_A_CHI_X_SLOT_PART2, x0)
                     mstore(PROOF_POLY_PI_A_CHI_Y_SLOT_PART2, y0)
                     mstore(PROOF_POLY_PI_A_ZETA_X_SLOT_PART2, x1)
                     mstore(PROOF_POLY_PI_A_ZETA_Y_SLOT_PART2, y1)
                     mstore(PROOF_POLY_PI_B_CHI_X_SLOT_PART2, x2)
                     mstore(PROOF_POLY_PI_B_CHI_Y_SLOT_PART2, y2)
-                    mstore(PROOF_POLY_PI_B_ZETA_X_SLOT_PART2, x3)
-                    mstore(PROOF_POLY_PI_B_ZETA_Y_SLOT_PART2, y3)
-                    mstore(PROOF_POLY_PI_C_CHI_X_SLOT_PART2, x4)
-                    mstore(PROOF_POLY_PI_C_CHI_Y_SLOT_PART2, y4)
-                    mstore(PROOF_POLY_PI_C_ZETA_X_SLOT_PART2, x5)
-                    mstore(PROOF_POLY_PI_C_ZETA_Y_SLOT_PART2, y5)
+                    mstore(PROOF_POLY_PI_C_CHI_X_SLOT_PART2, x3)
+                    mstore(PROOF_POLY_PI_C_CHI_Y_SLOT_PART2, y3)
+                    mstore(PROOF_POLY_PI_C_ZETA_X_SLOT_PART2, x4)
+                    mstore(PROOF_POLY_PI_C_ZETA_Y_SLOT_PART2, y4)
                 }
-                // PROOF B & R (PART1)
+                // PROOF B & R 
                 {
-                    let x0 := calldataload(add(offset, 0x4a4))
-                    let y0 := calldataload(add(offset, 0x4c4))
-                    let x1 := calldataload(add(offset, 0x4e4))
-                    let y1 := calldataload(add(offset, 0x504))
+                    let x0 := calldataload(add(offset, 0x464))
+                    let y0 := calldataload(add(offset, 0x484))
+                    let x1 := calldataload(add(offset, 0x4a4))
+                    let y1 := calldataload(add(offset, 0x4c4))
                     mstore(PROOF_POLY_B_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_B_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_R_X_SLOT_PART1, x1)
                     mstore(PROOF_POLY_R_Y_SLOT_PART1, y1)
-                    x0 := calldataload(add(offset2, 0x4a4))
-                    y0 := calldataload(add(offset2, 0x4c4))
-                    x1 := calldataload(add(offset2, 0x4e4))
-                    y1 := calldataload(add(offset2, 0x504))
+                    x0 := calldataload(add(offset2, 0x464))
+                    y0 := calldataload(add(offset2, 0x484))
+                    x1 := calldataload(add(offset2, 0x4a4))
+                    y1 := calldataload(add(offset2, 0x4c4))
                     mstore(PROOF_POLY_B_X_SLOT_PART2, x0)
                     mstore(PROOF_POLY_B_Y_SLOT_PART2, y0)
                     mstore(PROOF_POLY_R_X_SLOT_PART2, x1)
@@ -863,14 +877,14 @@ contract VerifierV1 is IVerifier {
                 }
                 // PROOF M_ζ, M_χ, N_ζ & N_χ
                 {
-                    let x0 := calldataload(add(offset, 0x525))
-                    let y0 := calldataload(add(offset, 0x544))
-                    let x1 := calldataload(add(offset, 0x564))
-                    let y1 := calldataload(add(offset, 0x584))
-                    let x2 := calldataload(add(offset, 0x5a4))
-                    let y2 := calldataload(add(offset, 0x5c4))
-                    let x3 := calldataload(add(offset, 0x5e4))
-                    let y3 := calldataload(add(offset, 0x604))
+                    let x0 := calldataload(add(offset, 0x4e4))
+                    let y0 := calldataload(add(offset, 0x504))
+                    let x1 := calldataload(add(offset, 0x524))
+                    let y1 := calldataload(add(offset, 0x544))
+                    let x2 := calldataload(add(offset, 0x564))
+                    let y2 := calldataload(add(offset, 0x584))
+                    let x3 := calldataload(add(offset, 0x5a4))
+                    let y3 := calldataload(add(offset, 0x5c4))
                     mstore(PROOF_POLY_M_ZETA_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_M_ZETA_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_M_CHI_X_SLOT_PART1, x1)
@@ -879,14 +893,14 @@ contract VerifierV1 is IVerifier {
                     mstore(PROOF_POLY_N_ZETA_Y_SLOT_PART1, y2)
                     mstore(PROOF_POLY_N_CHI_X_SLOT_PART1, x3)
                     mstore(PROOF_POLY_N_CHI_Y_SLOT_PART1, y3)
-                    x0 := calldataload(add(offset2, 0x524))
-                    y0 := calldataload(add(offset2, 0x544))
-                    x1 := calldataload(add(offset2, 0x564))
-                    y1 := calldataload(add(offset2, 0x584))
-                    x2 := calldataload(add(offset2, 0x5a4))
-                    y2 := calldataload(add(offset2, 0x5c4))
-                    x3 := calldataload(add(offset2, 0x5e4))
-                    y3 := calldataload(add(offset2, 0x604))
+                    x0 := calldataload(add(offset2, 0x4e4))
+                    y0 := calldataload(add(offset2, 0x504))
+                    x1 := calldataload(add(offset2, 0x524))
+                    y1 := calldataload(add(offset2, 0x544))
+                    x2 := calldataload(add(offset2, 0x564))
+                    y2 := calldataload(add(offset2, 0x584))
+                    x3 := calldataload(add(offset2, 0x5a4))
+                    y3 := calldataload(add(offset2, 0x5c4))
                     mstore(PROOF_POLY_M_ZETA_X_SLOT_PART2, x0)
                     mstore(PROOF_POLY_M_ZETA_Y_SLOT_PART2, y0)
                     mstore(PROOF_POLY_M_CHI_X_SLOT_PART2, x1)
@@ -896,31 +910,30 @@ contract VerifierV1 is IVerifier {
                     mstore(PROOF_POLY_N_CHI_X_SLOT_PART2, x3)
                     mstore(PROOF_POLY_N_CHI_Y_SLOT_PART2, y3)
                 }
-                // PROOF O_PUB & A (PART1)
+                // PROOF O_PUB & A 
                 {
-                    let x0 := calldataload(add(offset, 0x624))
-                    let y0 := calldataload(add(offset, 0x644))
-                    let x1 := calldataload(add(offset, 0x664))
-                    let y1 := calldataload(add(offset, 0x684))
+                    let x0 := calldataload(add(offset, 0x5e4))
+                    let y0 := calldataload(add(offset, 0x604))
+                    let x1 := calldataload(add(offset, 0x624))
+                    let y1 := calldataload(add(offset, 0x644))
                     mstore(PROOF_POLY_OPUB_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_OPUB_Y_SLOT_PART1, y0)
                     mstore(PROOF_POLY_A_X_SLOT_PART1, x1)
                     mstore(PROOF_POLY_A_Y_SLOT_PART1, y1)
-                    x0 := calldataload(add(offset2, 0x624))
-                    y0 := calldataload(add(offset2, 0x644))
-                    x1 := calldataload(add(offset2, 0x664))
-                    y1 := calldataload(add(offset2, 0x684))
+                    x0 := calldataload(add(offset2, 0x5e4))
+                    y0 := calldataload(add(offset2, 0x604))
+                    x1 := calldataload(add(offset2, 0x624))
+                    y1 := calldataload(add(offset2, 0x644))
                     mstore(PROOF_POLY_OPUB_X_SLOT_PART2, x0)
                     mstore(PROOF_POLY_OPUB_Y_SLOT_PART2, y0)
                     mstore(PROOF_POLY_A_X_SLOT_PART2, x1)
                     mstore(PROOF_POLY_A_Y_SLOT_PART2, y1)
                 }
 
-                mstore(PROOF_R1XY_SLOT, mod(calldataload(add(offset2, 0x6a4)), R_MOD))
-                mstore(PROOF_R2XY_SLOT, mod(calldataload(add(offset2, 0x6c4)), R_MOD))
-                mstore(PROOF_R3XY_SLOT, mod(calldataload(add(offset2, 0x6e4)), R_MOD))
-                mstore(PROOF_VXY_SLOT, mod(calldataload(add(offset2, 0x704)), R_MOD))
-                mstore(PROOF_A_PUB_SLOT, mod(calldataload(add(offset2, 0x724)), R_MOD))
+                mstore(PROOF_R1XY_SLOT, mod(calldataload(add(offset2, 0x664)), R_MOD))
+                mstore(PROOF_R2XY_SLOT, mod(calldataload(add(offset2, 0x684)), R_MOD))
+                mstore(PROOF_R3XY_SLOT, mod(calldataload(add(offset2, 0x6a4)), R_MOD))
+                mstore(PROOF_VXY_SLOT, mod(calldataload(add(offset2, 0x6c4)), R_MOD))
 
                 // Revert if the length of the proof is not valid
                 if iszero(isValid) {
@@ -1033,7 +1046,7 @@ contract VerifierV1 is IVerifier {
                     //g1pointMulAndAddIntoDest(PUBLIC_INPUTS_S_1_X_SLOT_PART1,theta1,INTERMERDIARY_POLY_F_X_SLOT_PART1)
                     //g1pointMulAndAddIntoDest(IDENTITY_X_PART1, theta2, INTERMERDIARY_POLY_F_X_SLOT_PART1)
                 }
-     /*           
+                
                 // calculate [G]_1
                 {
                     let theta0 := mload(CHALLENGE_THETA_0_SLOT)
@@ -1093,7 +1106,7 @@ contract VerifierV1 is IVerifier {
                     mstore(INTERMEDIARY_SCALAR_KO_SLOT, K0)
 
                 }
-    */            
+                
             }
 
             /*//////////////////////////////////////////////////////////////
@@ -1130,10 +1143,9 @@ contract VerifierV1 is IVerifier {
             /// 
 
             /// @dev calculate [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1 * ([V]_1 - V_{x,y}[1]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1            
-          
             function prepareLHSA() {
-                g1pointMulIntoDest(PROOF_POLY_U_X_SLOT_PART1, mload(PROOF_VXY_SLOT), BUFFER_LHS_A_X_SLOT_PART1)
-                g1pointSubAssign(BUFFER_LHS_A_X_SLOT_PART1, PROOF_POLY_W_X_SLOT_PART1)
+                g1pointMulIntoDest(PROOF_POLY_U_X_SLOT_PART1, mload(PROOF_VXY_SLOT), AGG_LHS_A_X_SLOT_PART1)
+                g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, PROOF_POLY_W_X_SLOT_PART1)
                 // V_{x,y} * [1]_1
                 g1pointMulIntoDest(IDENTITY_X_PART1, mload(PROOF_VXY_SLOT), BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
                 // [V]_1 - V_{x,y} * [1]_1
@@ -1141,22 +1153,21 @@ contract VerifierV1 is IVerifier {
                 // κ1 * ([V]_1 - V_{x,y} * [1]_1)
                 g1pointMulIntoDest(BUFFER_AGGREGATED_POLY_X_SLOT_PART1, mload(CHALLENGE_KAPPA_1_SLOT), BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
                 // (V_{x,y}[U]_1 - [W]_1) + (κ1 * ([V]_1 - V_{x,y}[1]_1))
-                g1pointAddIntoDest(BUFFER_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                g1pointAddIntoDest(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
 
                 // t_n(χ)[Q_{A,X}]_1
                 g1pointMulIntoDest(PROOF_POLY_QAX_X_SLOT_PART1, mload(INTERMERDIARY_SCALAR_T_N_CHI_SLOT), BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
                 
                 // (V_{x,y}[U]_1 - [W]_1) + (κ1 * ([V]_1 - V_{x,y}[1]_1)) - t_n(χ)[Q_{A,X}]_1
-                g1pointSubAssign(BUFFER_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
 
                 // t_{s_{max}}(ζ)[Q_{A,Y}]_1
                 g1pointMulIntoDest(PROOF_POLY_QAY_X_SLOT_PART1, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT), BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
                 // V_{x,y}[U]_1 - [W]_1 + κ1 * ([V]_1 - V_{x,y}[1]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
-                g1pointSubAssign(BUFFER_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
             }
 
             /// @dev [LHS_B]_1 := (1+κ2κ1^4)[A]_1 - κ2κ1^4 * A_{pub}[1]_1
-
             function prepareLHSB() {
                 let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
                 let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
@@ -1169,18 +1180,17 @@ contract VerifierV1 is IVerifier {
                 let coeff2 := mulmod(mulmod(kappa2, modexp(kappa1, 4), R_MOD), A_pub, R_MOD)
 
                 // (1+κ2κ1^4)[A]_1
-                g1pointMulIntoDest(PROOF_POLY_A_X_SLOT_PART1, coeff1, BUFFER_LHS_B_X_SLOT_PART1)
+                g1pointMulIntoDest(PROOF_POLY_A_X_SLOT_PART1, coeff1, AGG_LHS_B_X_SLOT_PART1)
 
                 // κ2κ1^4 * A_{pub}[1]_1
                 g1pointMulIntoDest(IDENTITY_X_PART1, coeff2, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
 
                 // (1+κ2κ1^4)[A]_1 - κ2κ1^4 * A_{pub}[1]_1
-                g1pointSubAssign(BUFFER_LHS_B_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                g1pointSubAssign(AGG_LHS_B_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
             }
 
             ///  @dev [LHS_C]_1 := κ1^2(R_{x,y} - 1) * [K_{-1}(X)L_{-1}(X)]_1 + a[G]_1 
             ///                    - b[F]_1 - κ1^2 * t_{m_l}(χ) * [Q_{C,X}]_1 - κ1^2 * t_{s_{max}}(ζ) * [Q_{C,Y}]_1) + c[R]_1 + d[1]_1
-          
             function prepareLHSC() {
                 let kappa0 := mload(CHALLENGE_KAPPA_0_SLOT)
                 let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
@@ -1215,21 +1225,49 @@ contract VerifierV1 is IVerifier {
                 // κ1^2 * t_{s_{max}}(ζ)
                 let kappa1_tsmax := mulmod(kappa1_pow2, t_smax, R_MOD)
                 
-                g1pointMulIntoDest(POLY_KXLX_X_PART1, kappa1_r_minus_1, BUFFER_LHS_C_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(INTERMERDIARY_POLY_G_X_SLOT_PART1, a, BUFFER_LHS_C_X_SLOT_PART1)
+                g1pointMulIntoDest(POLY_KXLX_X_PART1, kappa1_r_minus_1, AGG_LHS_C_X_SLOT_PART1)
+                g1pointMulAndAddIntoDest(INTERMERDIARY_POLY_G_X_SLOT_PART1, a, AGG_LHS_C_X_SLOT_PART1)
 
                 g1pointMulIntoDest(INTERMERDIARY_POLY_F_X_SLOT_PART1, b, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                g1pointSubAssign(BUFFER_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
 
                 g1pointMulIntoDest(PROOF_POLY_QCX_X_SLOT_PART1, kappa1_tml, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                g1pointSubAssign(BUFFER_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
 
                 g1pointMulIntoDest(PROOF_POLY_QCY_X_SLOT_PART1, kappa1_tsmax, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                g1pointSubAssign(BUFFER_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
 
-                g1pointMulAndAddIntoDest(PROOF_POLY_R_X_SLOT_PART1, c, BUFFER_LHS_C_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(IDENTITY_X_PART1, d, BUFFER_LHS_C_X_SLOT_PART1)
+                g1pointMulAndAddIntoDest(PROOF_POLY_R_X_SLOT_PART1, c, AGG_LHS_C_X_SLOT_PART1)
+                g1pointMulAndAddIntoDest(IDENTITY_X_PART1, d, AGG_LHS_C_X_SLOT_PART1)
 
+            }
+
+            /// @dev [RHS_1]_1 := κ2[Π_{χ}]_1 + κ2^2[M_{χ}]_1 + κ2^3[N_{χ}]_1
+            function prepareRHS1() {
+                let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
+                let kappa2_pow2 := mulmod(kappa2, kappa2, R_MOD)
+                let kappa2_pow3 := mulmod(kappa2_pow2, kappa2, R_MOD)
+                // Π_{χ}]_1 := Π_{A,χ}]_1 + Π_{B,χ}]_1 + Π_{C,χ}]_1
+                g1pointAddIntoDest(PROOF_POLY_PI_A_CHI_X_SLOT_PART1, PROOF_POLY_PI_B_CHI_X_SLOT_PART1, PAIRING_AGG_RHS_1_X_SLOT_PART1)
+                g1pointAddIntoDest(PAIRING_AGG_RHS_1_X_SLOT_PART1, PROOF_POLY_PI_C_CHI_X_SLOT_PART1, PAIRING_AGG_RHS_1_X_SLOT_PART1)
+
+                g1pointMulIntoDest(PAIRING_AGG_RHS_1_X_SLOT_PART1, kappa2, PAIRING_AGG_RHS_1_X_SLOT_PART1)
+                g1pointMulAndAddIntoDest(PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2, PAIRING_AGG_RHS_1_X_SLOT_PART1)
+                g1pointMulAndAddIntoDest(PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3, PAIRING_AGG_RHS_1_X_SLOT_PART1)
+            }
+
+            /// @dev [RHS_2]_1 := κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1
+            function prepareRHS2() {
+                let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
+                let kappa2_pow2 := mulmod(kappa2, kappa2, R_MOD)
+                let kappa2_pow3 := mulmod(kappa2_pow2, kappa2, R_MOD)
+
+                // Π_{ζ}]_1 := Π_{A,ζ}]_1 + Π_{C,ζ}]_1
+                g1pointAddIntoDest(PROOF_POLY_PI_A_ZETA_X_SLOT_PART1, PROOF_POLY_PI_C_ZETA_X_SLOT_PART1, PAIRING_AGG_RHS_2_X_SLOT_PART1)
+
+                g1pointMulIntoDest(PAIRING_AGG_RHS_2_X_SLOT_PART1, kappa2, PAIRING_AGG_RHS_2_X_SLOT_PART1)
+                g1pointMulAndAddIntoDest(PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2, PAIRING_AGG_RHS_2_X_SLOT_PART1)
+                g1pointMulAndAddIntoDest(PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3, PAIRING_AGG_RHS_2_X_SLOT_PART1)
             }
 
             /// @dev [LHS]_1 := [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
@@ -1239,9 +1277,9 @@ contract VerifierV1 is IVerifier {
                 // calculate [LHS]_1
                 {
                     let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
-                    g1pointAddIntoDest(BUFFER_LHS_A_X_SLOT_PART1, BUFFER_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                    g1pointMulIntoDest(BUFFER_AGGREGATED_POLY_X_SLOT_PART1, kappa2, PAIRING_BUFFER_LHS_X_SLOT_PART1)
-                    g1pointAddIntoDest(BUFFER_LHS_B_X_SLOT_PART1, PAIRING_BUFFER_LHS_X_SLOT_PART1, PAIRING_BUFFER_LHS_X_SLOT_PART1)
+                    g1pointAddIntoDest(AGG_LHS_A_X_SLOT_PART1, AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                    g1pointMulIntoDest(BUFFER_AGGREGATED_POLY_X_SLOT_PART1, kappa2, PAIRING_AGG_LHS_X_SLOT_PART1)
+                    g1pointAddIntoDest(AGG_LHS_B_X_SLOT_PART1, PAIRING_AGG_LHS_X_SLOT_PART1, PAIRING_AGG_LHS_X_SLOT_PART1)
                 }
 
                 // calculate [AUX]_1
@@ -1266,21 +1304,27 @@ contract VerifierV1 is IVerifier {
 
                     // [AUX]_1 accumulation
                     // κ2 * χ * [Π_{χ}]_1
-                    g1pointMulIntoDest(INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART1, kappa2_chi, PAIRING_BUFFER_AUX_X_SLOT_PART1)
+                    g1pointMulIntoDest(INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART1, kappa2_chi, PAIRING_AGG_AUX_X_SLOT_PART1)
                     // [Π_ζ]_1 + [M_ζ]_1
                     g1pointAddIntoDest(INTERMERDIARY_POLY_PI_ZETA_X_SLOT_PART1, PROOF_POLY_M_ZETA_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
                     //  += κ2 * ζ *([Π_ζ]_1 + [M_ζ]_1)
-                    g1pointMulAndAddIntoDest(BUFFER_AGGREGATED_POLY_X_SLOT_PART1, kappa2_zeta, PAIRING_BUFFER_AUX_X_SLOT_PART1)
+                    g1pointMulAndAddIntoDest(BUFFER_AGGREGATED_POLY_X_SLOT_PART1, kappa2_zeta, PAIRING_AGG_AUX_X_SLOT_PART1)
                     // += κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1
-                    g1pointMulAndAddIntoDest(PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2_omega_ml_chi, PAIRING_BUFFER_AUX_X_SLOT_PART1)
+                    g1pointMulAndAddIntoDest(PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2_omega_ml_chi, PAIRING_AGG_AUX_X_SLOT_PART1)
                     // += κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1
-                    g1pointMulAndAddIntoDest(PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3_omega_ml_chi, PAIRING_BUFFER_AUX_X_SLOT_PART1)
+                    g1pointMulAndAddIntoDest(PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3_omega_ml_chi, PAIRING_AGG_AUX_X_SLOT_PART1)
                     // += κ2 * ω_smax^{-1} * ζ * [N_{ζ}]
-                    g1pointMulAndAddIntoDest(PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_omega_smax_zeta, PAIRING_BUFFER_AUX_X_SLOT_PART1)
+                    g1pointMulAndAddIntoDest(PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_omega_smax_zeta, PAIRING_AGG_AUX_X_SLOT_PART1)
 
                 }
 
+                // calculate [LHS]_1 + [AUX]_1
+                {
+                    g1pointAddIntoDest(PAIRING_AGG_LHS_X_SLOT_PART1, PAIRING_AGG_AUX_X_SLOT_PART1, PAIRING_AGG_LHS_AUX_X_SLOT_PART1)
+                }
+
             }
+
 
             /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                                                                         5. Pairing
@@ -1294,11 +1338,179 @@ contract VerifierV1 is IVerifier {
             ///   | e([U]_1, [α]_2)e([V]_1, [α^2]_2)e([W]_1, [α^3]_2)  |    =    |  . e(κ2[Π_{χ}]_1 + κ2^2[M_{χ}]_1 + κ2^3[N_{χ}]_1, [x]_2)   |
             ///    \                                                  /          |  . e(κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1, [y]_2)   |
             ///                                                                   \                                                          / 
- /*           
+            
             function finalPairing() {
-                
+
+                // load [LHS]_1 + [AUX]_1
+                mstore(0x000, mload(PAIRING_AGG_LHS_AUX_X_SLOT_PART1))
+                mstore(0x020, mload(PAIRING_AGG_LHS_AUX_X_SLOT_PART2))
+                mstore(0x040, mload(PAIRING_AGG_LHS_AUX_Y_SLOT_PART1))
+                mstore(0x060, mload(PAIRING_AGG_LHS_AUX_Y_SLOT_PART2))
+
+                // load [1]_2 
+                mstore(0x080, IDENTITY2_X0_PART1)
+                mstore(0x0a0, IDENTITY2_X0_PART2)
+                mstore(0x0c0, IDENTITY2_X1_PART1)
+                mstore(0x0e0, IDENTITY2_X1_PART2)
+                mstore(0x100, IDENTITY2_Y0_PART1)
+                mstore(0x120, IDENTITY2_Y0_PART2)
+                mstore(0x140, IDENTITY2_Y1_PART1)
+                mstore(0x160, IDENTITY2_Y1_PART2)
+
+                // load [B]_1 
+                mstore(0x180, mload(PROOF_POLY_B_X_SLOT_PART1))
+                mstore(0x1a0, mload(PROOF_POLY_B_X_SLOT_PART2))
+                mstore(0x1c0, mload(PROOF_POLY_B_Y_SLOT_PART1))
+                mstore(0x1e0, mload(PROOF_POLY_B_Y_SLOT_PART2))
+
+                // load [α^4]_2 
+                mstore(0x200, ALPHA_POWER4_X0_PART1)
+                mstore(0x220, ALPHA_POWER4_X0_PART2)
+                mstore(0x240, ALPHA_POWER4_X1_PART1)
+                mstore(0x260, ALPHA_POWER4_X1_PART2)
+                mstore(0x280, ALPHA_POWER4_Y0_PART1)
+                mstore(0x2a0, ALPHA_POWER4_Y0_PART2)
+                mstore(0x2c0, ALPHA_POWER4_Y1_PART1)
+                mstore(0x2e0, ALPHA_POWER4_Y1_PART2)
+
+                // load [U]_1 
+                mstore(0x300, mload(PROOF_POLY_U_X_SLOT_PART1))
+                mstore(0x320, mload(PROOF_POLY_U_X_SLOT_PART2))
+                mstore(0x340, mload(PROOF_POLY_U_Y_SLOT_PART1))
+                mstore(0x360, mload(PROOF_POLY_U_Y_SLOT_PART2))
+
+                // load [α]_2 
+                mstore(0x380, ALPHA_X0_PART1)
+                mstore(0x3a0, ALPHA_X0_PART2)
+                mstore(0x3c0, ALPHA_X1_PART1)
+                mstore(0x3e0, ALPHA_X1_PART2)
+                mstore(0x400, ALPHA_Y0_PART1)
+                mstore(0x420, ALPHA_Y0_PART2)
+                mstore(0x440, ALPHA_Y1_PART1)
+                mstore(0x460, ALPHA_Y1_PART2)
+
+                // load [V]_1 
+                mstore(0x480, mload(PROOF_POLY_V_X_SLOT_PART1))
+                mstore(0x4a0, mload(PROOF_POLY_V_X_SLOT_PART2))
+                mstore(0x4c0, mload(PROOF_POLY_V_Y_SLOT_PART1))
+                mstore(0x4e0, mload(PROOF_POLY_V_Y_SLOT_PART2))
+
+                // load [α^2]_2 
+                mstore(0x500, ALPHA_POWER2_X0_PART1)
+                mstore(0x520, ALPHA_POWER2_X0_PART2)
+                mstore(0x540, ALPHA_POWER2_X1_PART1)
+                mstore(0x560, ALPHA_POWER2_X1_PART2)
+                mstore(0x580, ALPHA_POWER2_Y0_PART1)
+                mstore(0x5a0, ALPHA_POWER2_Y0_PART2)
+                mstore(0x5c0, ALPHA_POWER2_Y1_PART1)
+                mstore(0x5e0, ALPHA_POWER2_Y1_PART2)
+
+                // load [W]_1 
+                mstore(0x600, mload(PROOF_POLY_W_X_SLOT_PART1))
+                mstore(0x620, mload(PROOF_POLY_W_X_SLOT_PART2))
+                mstore(0x640, mload(PROOF_POLY_W_Y_SLOT_PART1))
+                mstore(0x660, mload(PROOF_POLY_W_Y_SLOT_PART2))
+
+                // load [α^3]_2 
+                mstore(0x680, ALPHA_POWER3_X0_PART1)
+                mstore(0x6a0, ALPHA_POWER3_X0_PART2)
+                mstore(0x6c0, ALPHA_POWER3_X1_PART1)
+                mstore(0x6e0, ALPHA_POWER3_X1_PART2)
+                mstore(0x700, ALPHA_POWER3_Y0_PART1)
+                mstore(0x720, ALPHA_POWER3_Y0_PART2)
+                mstore(0x740, ALPHA_POWER3_Y1_PART1)
+                mstore(0x760, ALPHA_POWER3_Y1_PART2)
+
+                // load [O_pub]_1 
+                mstore(0x780, mload(PROOF_POLY_OPUB_X_SLOT_PART1))
+                mstore(0x7a0, mload(PROOF_POLY_OPUB_X_SLOT_PART2))
+                mstore(0x7c0, mload(PROOF_POLY_OPUB_Y_SLOT_PART1))
+                mstore(0x7e0, mload(PROOF_POLY_OPUB_Y_SLOT_PART2))
+
+                // load -[γ]_2
+                mstore(0x800, GAMMA_X0_PART1)
+                mstore(0x820, GAMMA_X0_PART2)
+                mstore(0x840, GAMMA_X1_PART1)
+                mstore(0x860, GAMMA_X1_PART2)
+                mstore(0x880, GAMMA_MINUS_Y0_PART1)
+                mstore(0x8a0, GAMMA_MINUS_Y0_PART2)
+                mstore(0x8c0, GAMMA_MINUS_Y1_PART1)
+                mstore(0x8e0, GAMMA_MINUS_Y1_PART2)
+
+                // load [O_mid]_1
+                mstore(0x900, mload(PROOF_POLY_OMID_X_SLOT_PART1))
+                mstore(0x920, mload(PROOF_POLY_OMID_X_SLOT_PART2))
+                mstore(0x940, mload(PROOF_POLY_OMID_Y_SLOT_PART1))
+                mstore(0x960, mload(PROOF_POLY_OMID_Y_SLOT_PART2))
+
+                // load -[η]_2
+                mstore(0x980, ETA_X0_PART1)
+                mstore(0x9a0, ETA_X0_PART2)
+                mstore(0x9c0, ETA_X1_PART1)
+                mstore(0x9e0, ETA_X1_PART2)
+                mstore(0xa00, ETA_MINUS_Y0_PART1)
+                mstore(0xa20, ETA_MINUS_Y0_PART2)
+                mstore(0xa40, ETA_MINUS_Y1_PART1)
+                mstore(0xa60, ETA_MINUS_Y1_PART2)
+
+                // load [O_prv]_1
+                mstore(0xa80, mload(PROOF_POLY_OPRV_X_SLOT_PART1))
+                mstore(0xaa0, mload(PROOF_POLY_OPRV_X_SLOT_PART2))
+                mstore(0xac0, mload(PROOF_POLY_OPRV_Y_SLOT_PART1))
+                mstore(0xae0, mload(PROOF_POLY_OPRV_Y_SLOT_PART2))
+
+                // load -[δ]_2
+                mstore(0xb00, DELTA_X0_PART1)
+                mstore(0xb20, DELTA_X0_PART2)
+                mstore(0xb40, DELTA_X1_PART1)
+                mstore(0xb60, DELTA_X1_PART2)
+                mstore(0xb80, DELTA_MINUS_Y0_PART1)
+                mstore(0xba0, DELTA_MINUS_Y0_PART2)
+                mstore(0xbc0, DELTA_MINUS_Y1_PART1)
+                mstore(0xbe0, DELTA_MINUS_Y1_PART2)
+
+                // load [RHS_1]_1 := κ2[Π_{χ}]_1 + κ2^2[M_{χ}]_1 + κ2^3[N_{χ}]_1
+                mstore(0xc00, mload(PAIRING_AGG_RHS_1_X_SLOT_PART1))
+                mstore(0xc20, mload(PAIRING_AGG_RHS_1_X_SLOT_PART2))
+                mstore(0xc40, mload(PAIRING_AGG_RHS_1_Y_SLOT_PART1))
+                mstore(0xc60, mload(PAIRING_AGG_RHS_1_Y_SLOT_PART2))
+
+                // load -[x]_2
+                mstore(0xc80, X_X0_PART1)
+                mstore(0xca0, X_X0_PART2)
+                mstore(0xcc0, X_X1_PART1)
+                mstore(0xce0, X_X1_PART2)
+                mstore(0xd00, X_MINUS_Y0_PART1)
+                mstore(0xd20, X_MINUS_Y0_PART2)
+                mstore(0xd40, X_MINUS_Y1_PART1)
+                mstore(0xd60, X_MINUS_Y1_PART2)
+
+                // load [RHS_1]_2 := κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1
+                mstore(0xd80, mload(PAIRING_AGG_RHS_2_X_SLOT_PART1))
+                mstore(0xda0, mload(PAIRING_AGG_RHS_2_X_SLOT_PART2))
+                mstore(0xdc0, mload(PAIRING_AGG_RHS_2_Y_SLOT_PART1))
+                mstore(0xde0, mload(PAIRING_AGG_RHS_2_Y_SLOT_PART2))
+
+                // load -[y]_2
+                mstore(0xe00, Y_X0_PART1)
+                mstore(0xe20, Y_X0_PART2)
+                mstore(0xe40, Y_X1_PART1)
+                mstore(0xe60, Y_X1_PART2)
+                mstore(0xe80, Y_MINUS_Y0_PART1)
+                mstore(0xea0, Y_MINUS_Y0_PART2)
+                mstore(0xec0, Y_MINUS_Y1_PART1)
+                mstore(0xee0, Y_MINUS_Y1_PART2)
+
+                // precompile call
+                let success := staticcall(gas(), 0x0f, 0, 0xf00, 0x00, 0x20)
+                if iszero(success) {
+                    revertWithMessage(32, "finalPairing: precompile failure")
+                }
+                if iszero(mload(0)) {
+                    revertWithMessage(29, "finalPairing: pairing failure")
+                }
             }
-*/
+
             // Step1: Load the PI/proof
             loadProof()
 
@@ -1313,10 +1525,12 @@ contract VerifierV1 is IVerifier {
             prepareLHSA()
             prepareLHSB()
             prepareLHSC()
+            prepareRHS1()
+            prepareRHS2()
             prepareAggregatedCommitment()
 
             // Step5: final pairing
-            //finalPairing()
+            finalPairing()
             
             result := mload(INTERMERDIARY_POLY_F_X_SLOT_PART1)
         }

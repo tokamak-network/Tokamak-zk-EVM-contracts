@@ -13,10 +13,10 @@ contract testTokamakVerifier is Test {
 
     function setUp() public virtual {
         verifier = new VerifierV1();
-
         // proof
-        serializedProofPart1.push(0x9999493335a9e71297e485b7aef31001); // s^{(0)}(x,y)_X
-        serializedProofPart1.push(0xffff493335a9e71297e485b7aef31002); // s^{(0)}(x,y)_Y
+        
+        serializedProofPart1.push(0x17f1d3a73197d7942695638c4fa9ac0f); // s^{(0)}(x,y)_X
+        serializedProofPart1.push(0x08b3f481e3aaa0f1a09e30ed741d8ae4); // s^{(0)}(x,y)_Y
         serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef31003); // s^{(1)}(x,y)_X
         serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef31004); // s^{(1)}(x,y)_Y
         serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef31005); // s^{(2)}(x,y)_X
@@ -68,8 +68,8 @@ contract testTokamakVerifier is Test {
         serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef31051); // A_X
         serializedProofPart1.push(0xf1aa493335a9e71297e485b7aef31052); // A_Y
 
-        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(0)}(x,y)_X
-        serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(0)}(x,y)_Y
+        serializedProofPart2.push(0xc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb); // s^{(0)}(x,y)_X
+        serializedProofPart2.push(0xfcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1); // s^{(0)}(x,y)_Y
         serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(1)}(x,y)_X
         serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(1)}(x,y)_Y
         serializedProofPart2.push(0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2); // s^{(2)}(x,y)_X

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity ^0.8.23;
 
 import {IVerifier} from "./interface/IVerifier.sol";
 
@@ -284,7 +284,27 @@ contract VerifierV1 is IVerifier {
     uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x460;
     uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480;
 
+    /*//////////////////////////////////////////////////////////////
+                        Verification keys
+    //////////////////////////////////////////////////////////////*/
 
+    // [K^_1(X)L^-1(X)]_1
+    uint256 internal constant VK_POLY_KXLX_X_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x020;
+    uint256 internal constant VK_POLY_KXLX_X_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x040;
+    uint256 internal constant VK_POLY_KXLX_Y_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x060;
+    uint256 internal constant VK_POLY_KXLX_Y_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x080;
+
+    // [y]_1
+    uint256 internal constant VK_POLY_Y_X_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x0a0;
+    uint256 internal constant VK_POLY_Y_X_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x0c0;
+    uint256 internal constant VK_POLY_Y_Y_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x0e0;
+    uint256 internal constant VK_POLY_Y_Y_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x100;
+
+    // [1]_1
+    uint256 internal constant VK_IDENTITY_X_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x120;
+    uint256 internal constant VK_IDENTITY_X_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x140;
+    uint256 internal constant VK_IDENTITY_Y_PART1 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x160;
+    uint256 internal constant VK_IDENTITY_Y_PART2 = 0x200 + 0x1a0 + 0xba0 + 0x80 + 0x100 + 0x280 + 0x480 + 0x180;
 
     /*//////////////////////////////////////////////////////////////
                              Constants
@@ -299,18 +319,6 @@ contract VerifierV1 is IVerifier {
 
     /// @dev flip of 0xe000000000000000000000000000000000000000000000000000000000000000;
     uint256 internal constant FR_MASK = 0x1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-    
-    // [K^_1(X)L^-1(X)]_1
-    uint256 internal constant POLY_KXLX_X_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant POLY_KXLX_X_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant POLY_KXLX_Y_PART1 = 0x00000000000000000000000000000000f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant POLY_KXLX_Y_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
-
-    // [y]_1
-    uint256 internal constant POLY_Y_X_PART1 = 0x0000000000000000198e939731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant POLY_Y_X_PART2 = 0x0000000000000000198e939731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant POLY_Y_Y_PART1 = 0x0000000000000000198e939731fb5d25f1aa493335a9e71297e485b7aef312c2;
-    uint256 internal constant POLY_Y_Y_PART2 = 0x0000000000000000198e939731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
     // n 
     uint256 internal constant CONSTANT_N = 10;
@@ -318,12 +326,6 @@ contract VerifierV1 is IVerifier {
     uint256 internal constant CONSTANT_SMAX = 100;
     // m_l
     uint256 internal constant CONSTANT_MI = 50;
-
-    // [1]_1
-    uint256 internal constant IDENTITY_X_PART1 = 0x0;
-    uint256 internal constant IDENTITY_X_PART2 = 0x0;
-    uint256 internal constant IDENTITY_Y_PART1 = 0x0;
-    uint256 internal constant IDENTITY_Y_PART2 = 0x0;
 
     // ω_{m_l}^{-1}
     uint256 internal constant OMEGA_MI_MINUS_1 = 0x0;
@@ -437,11 +439,42 @@ contract VerifierV1 is IVerifier {
     uint256 internal constant Y_MINUS_Y1_PART2 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2;
 
 
+    /// @notice Load verification keys to memory in runtime.
+    /// @dev The constants are loaded into memory in a specific layout declared in the constants starting from
+    /// `VK_` prefix.
+    /// NOTE: Function may corrupt the memory state if some memory was used before this function was called.
+    function _loadVerificationKey() internal pure virtual {
+        assembly {
+            // public input commitment vk
+            mstore(VK_POLY_KXLX_X_PART1, 0x000000000000000000000000000000001031dce93e8312878ed043ac4aac5c4e)
+            mstore(VK_POLY_KXLX_X_PART2, 0x1477885fe0510bf0591d1e0b8e031de1a2814ec0fbe5a1f916c557f46bb15767)
+            mstore(VK_POLY_KXLX_Y_PART1, 0x00000000000000000000000000000000071e03a364beb9ff233c5f3c495f4f64)
+            mstore(VK_POLY_KXLX_Y_PART2, 0x2e28160e1e61cb8880bbd35bb4dd19327c66b042259d90a31d45c6dcccce45bf)
+
+            // [y]_1 vk
+            mstore(VK_POLY_Y_X_PART1, 0x000000000000000000000000000000001031dce93e8312878ed043ac4aac5c4e)
+            mstore(VK_POLY_Y_X_PART2, 0x1477885fe0510bf0591d1e0b8e031de1a2814ec0fbe5a1f916c557f46bb15767)
+            mstore(VK_POLY_Y_Y_PART1, 0x00000000000000000000000000000000071e03a364beb9ff233c5f3c495f4f64)
+            mstore(VK_POLY_Y_Y_PART2, 0x2e28160e1e61cb8880bbd35bb4dd19327c66b042259d90a31d45c6dcccce45bf)
+
+            // [1]_1 vk
+            mstore(VK_IDENTITY_X_PART1, 0x000000000000000000000000000000001031dce93e8312878ed043ac4aac5c4e)
+            mstore(VK_IDENTITY_X_PART2, 0x1477885fe0510bf0591d1e0b8e031de1a2814ec0fbe5a1f916c557f46bb15767)
+            mstore(VK_IDENTITY_Y_PART1, 0x00000000000000000000000000000000071e03a364beb9ff233c5f3c495f4f64)
+            mstore(VK_IDENTITY_Y_PART2, 0x2e28160e1e61cb8880bbd35bb4dd19327c66b042259d90a31d45c6dcccce45bf)
+        }
+    }
+
     function verify(
         uint128[] calldata, //_proof part1 (16 bytes)
         uint256[] calldata // _proof part2 (32 bytes)
     ) public view virtual returns (bytes32 result) {
-        
+        // No memory was accessed yet, so keys can be loaded into the right place and not corrupt any other memory.
+        _loadVerificationKey();
+
+        // Beginning of the big inline assembly block that makes all the verification work.
+        // Note: We use the custom memory layout, so the return value should be returned from the assembly, not
+        // Solidity code.
         assembly {
 
             /*//////////////////////////////////////////////////////////////
@@ -487,7 +520,7 @@ contract VerifierV1 is IVerifier {
                 mstore(0x80, s)  
                 // BLS12-381 G1MSM at address 0x0c
                 if iszero(staticcall(gas(), 0x0c, 0, 0xa0, dest, 0x80)) {
-                    revertWithMessage(30, "g1pointMulIntoDest: ecMul failed")
+                    revertWithMessage(30, "g1pointMulIntoDest: G1MSM failed")
                 }
             }
 
@@ -503,7 +536,7 @@ contract VerifierV1 is IVerifier {
                 mstore(0xe0, mload(add(p2, 0x60)))
                 //  BLS12-381 G1ADDat address 0x0b
                 if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
-                    revertWithMessage(30, "g1pointAddIntoDest: ecAdd failed")
+                    revertWithMessage(30, "g1pointAddIntoDest: G1ADD failed")
                 }
             }
 
@@ -527,68 +560,35 @@ contract VerifierV1 is IVerifier {
                 }
             }
 
-            /// @dev Performs a G2 point multiplication operation and stores the result in a given memory destination.
-            function g2pointMulIntoDest(point, s, dest) {
-                mstore(0x00, mload(point))
-                mstore(0x20, mload(add(point, 0x20)))
-                mstore(0x40, mload(add(point, 0x40)))
-                mstore(0x60, mload(add(point, 0x60)))
-                mstore(0x80, mload(add(point, 0x80)))
-                mstore(0xa0, mload(add(point, 0xa0)))
-                mstore(0xc0, mload(add(point, 0xc0)))
-                mstore(0xe0, mload(add(point, 0xe0)))
-                mstore(0x100, s)  
-                // BLS12-381 G2MSM at address 0x0c
-                if iszero(staticcall(gas(), 0x0e, 0, 0x120, dest, 0x100)) {
-                    revertWithMessage(30, "g2pointMulIntoDest: ecMul failed")
+            function coordinatesNeg(y0, y1) -> negY0, negY1 {
+                // Check if both y0 and y1 are zero
+                if and(iszero(y0), iszero(y1)) {
+                    negY0 := 0
+                    negY1 := 0
+                    leave
                 }
-            }
 
-            /// @dev Performs a G2 point addition operation and stores the result in a given memory destination.
-            function g2pointAddIntoDest(p1, p2, dest) {
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(add(p1, 0x40)))
-                mstore(0x60, mload(add(p1, 0x60)))
-                mstore(0x80, mload(add(p1, 0x80)))
-                mstore(0xa0, mload(add(p1, 0xa0)))
-                mstore(0xc0, mload(add(p1, 0xc0)))
-                mstore(0xe0, mload(add(p1, 0xe0)))
-                mstore(0x100, mload(p2))
-                mstore(0x120, mload(add(p2, 0x20)))
-                mstore(0x140, mload(add(p2, 0x40)))
-                mstore(0x160, mload(add(p2, 0x60)))
-                mstore(0x180, mload(add(p2, 0x80)))
-                mstore(0x1a0, mload(add(p2, 0xa0)))
-                mstore(0x1c0, mload(add(p2, 0xc0)))
-                mstore(0x1e0, mload(add(p2, 0xe0)))
-                // BLS12-381 G2ADD at address 0x0d
-                if iszero(staticcall(gas(), 0x0d, 0x00, 0x200, dest, 0x100)) {
-                    revertWithMessage(30, "g2pointAddIntoDest: ecAdd failed")
+                // Calculate Q_MOD - y
+                if lt(Q_MOD_PART2, y1) {
+                    // If Q_MOD_PART2 < y1, we need to borrow from the high part
+                    // Calculate (2^256 + Q_MOD_PART2) - y1
+                    negY1 := add(not(y1), 1) // 2^256 - y1 = complement(y1) + 1
+                    negY1 := add(negY1, Q_MOD_PART2)
+                    // Subtract 1 from the high part (borrow)
+                    negY0 := sub(Q_MOD_PART1, 1)
+                    // Subtract y0 from the high part
+                    negY0 := sub(negY0, y0)
+                } 
+                if gt(Q_MOD_PART2, y1) {
+                    negY1 := sub(Q_MOD_PART2, y1)
+                    negY0 := sub(Q_MOD_PART1, y0)
                 }
-            }
 
-            function coordinatesNeg(a, b) -> result_part1, result_part2 {  
-                // Load the first 32 bytes of each variable
-                let a1 := mload(a)
-                let b1 := mload(b)
-
-                // Load the second 32 bytes of each variable
-                let a2 := mload(add(a, 0x20))
-                let b2 := mload(add(b, 0x20))
-
-                // Perform subtraction on the lower 32 bytes
-                let diff1 := sub(a1, b1)
-
-                // Check if there was a borrow (if b1 > a1)
-                let borrow := lt(a1, b1)
-
-                // Perform subtraction on the upper 32 bytes, accounting for borrow
-                let diff2 := sub(sub(a2, b2), borrow)
-
-                // Store the result
-                mstore(result_part1, diff1)
-                mstore(result_part2, diff2) 
+                // If the result is exactly Q, we return 0
+                if and(eq(negY0, Q_MOD_PART1), eq(negY1, Q_MOD_PART2)) {
+                    negY0 := 0
+                    negY1 := 0
+                }
             }
 
             /// @dev Performs a point subtraction operation and updates the first point with the result.
@@ -601,14 +601,14 @@ contract VerifierV1 is IVerifier {
                 // computes -y2 and -y2' coordinates 
                 let minus_y2_part1
                 let minus_y2_part2 
-                minus_y2_part1, minus_y2_part2 := coordinatesNeg(mload(Q_MOD_PART1), mload(add(p2, 0x40)))
+                minus_y2_part1, minus_y2_part2 := coordinatesNeg(mload(add(p2, 0x40)), mload(add(p2, 0x60)))
 
                 mstore(0x80, mload(p2))             // x2
                 mstore(0xa0, mload(add(p2, 0x20)))  // x2
                 mstore(0xc0, minus_y2_part1)        // -y2
                 mstore(0xe0, minus_y2_part2)        // -y2
 
-                if iszero(staticcall(gas(), 0x0d, 0x00, 0x100, p1, 0x80)) {
+                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, p1, 0x80)) {
                     revertWithMessage(28, "pointSubAssign: G1ADD failed")
                 }
             }
@@ -623,53 +623,15 @@ contract VerifierV1 is IVerifier {
                 // computes -y2 and -y2' coordinates 
                 let minus_y2_part1
                 let minus_y2_part2 
-                minus_y2_part1, minus_y2_part2 := coordinatesNeg(mload(Q_MOD_PART1), mload(add(p2, 0x40)))
+                minus_y2_part1, minus_y2_part2 := coordinatesNeg(mload(add(p2, 0x40)), mload(add(p2, 0x60)))
 
                 mstore(0x80, mload(p2))             // x2
                 mstore(0xa0, mload(add(p2, 0x20)))  // x2
                 mstore(0xc0, minus_y2_part1)        // -y2
                 mstore(0xe0, minus_y2_part2)        // -y2
 
-                if iszero(staticcall(gas(), 0x0d, 0x00, 0x100, dest, 0x80)) {
+                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
                     revertWithMessage(28, "pointSubAssign: G1ADD failed")
-                }
-            }
-
-
-            /// @dev Performs a G2 point subtraction operation and stores the result in a given memory destination.
-            function g2pointSubIntoDest(p1, p2, dest) {
-                // Load the coordinates of the first point (p1)
-                mstore(0x000, mload(p1))            // x1
-                mstore(0x020, mload(add(p1, 0x20))) // x1
-                mstore(0x040, mload(add(p1, 0x40))) // y1
-                mstore(0x060, mload(add(p1, 0x60))) // y1
-                mstore(0x080, mload(add(p1, 0x80))) // x1'
-                mstore(0x0a0, mload(add(p1, 0xa0))) // x1'
-                mstore(0x0c0, mload(add(p1, 0xc0))) // y1'
-                mstore(0x0e0, mload(add(p1, 0xe0))) // y1'
-                    
-                // computes -y2 and -y2' coordinates 
-                let minus_y2_part1
-                let minus_y2_part2 
-                minus_y2_part1, minus_y2_part2 := coordinatesNeg(mload(Q_MOD_PART1), mload(add(p2, 0x40)))
-
-                let minus_y2_prime_part1
-                let minus_y2_prime_part2
-                minus_y2_prime_part1, minus_y2_prime_part2 := coordinatesNeg(mload(Q_MOD_PART1), mload(add(p2, 0xc0)))
-                
-                    // Load the coordinates of the second point (p2)
-                mstore(0x100, mload(p2))            // x2
-                mstore(0x120, mload(add(p2, 0x20))) // x2
-                mstore(0x140, minus_y2_part1)       // -y2
-                mstore(0x160, minus_y2_part2)       // -y2
-                mstore(0x180, mload(add(p2, 0x80))) // x2'
-                mstore(0x1a0, mload(add(p2, 0xa0))) // x2'
-                mstore(0x1c0, minus_y2_prime_part1) // -y2'
-                mstore(0x1e0, minus_y2_prime_part2) // -y2'
-
-                // Precompile at address 0x0d performs a G2ADD operation
-                if iszero(staticcall(gas(), 0x0d, 0x00, 0x200, dest, 0x100)) {
-                    revertWithMessage(30, "pointSubIntoDest: ecAdd failed")
                 }
             }
 
@@ -1043,10 +1005,9 @@ contract VerifierV1 is IVerifier {
                     mstore(INTERMERDIARY_POLY_F_Y_SLOT_PART2, mload(PROOF_POLY_B_Y_SLOT_PART2))
 
                     g1pointMulAndAddIntoDest(PUBLIC_INPUTS_S_0_X_SLOT_PART1,theta0,INTERMERDIARY_POLY_F_X_SLOT_PART1)
-                    //g1pointMulAndAddIntoDest(PUBLIC_INPUTS_S_1_X_SLOT_PART1,theta1,INTERMERDIARY_POLY_F_X_SLOT_PART1)
-                    //g1pointMulAndAddIntoDest(IDENTITY_X_PART1, theta2, INTERMERDIARY_POLY_F_X_SLOT_PART1)
+                    g1pointMulAndAddIntoDest(PUBLIC_INPUTS_S_1_X_SLOT_PART1,theta1,INTERMERDIARY_POLY_F_X_SLOT_PART1)
+                    g1pointMulAndAddIntoDest(VK_IDENTITY_X_PART1, theta2, INTERMERDIARY_POLY_F_X_SLOT_PART1)
                 }
-                
                 // calculate [G]_1
                 {
                     let theta0 := mload(CHALLENGE_THETA_0_SLOT)
@@ -1055,14 +1016,13 @@ contract VerifierV1 is IVerifier {
 
                     mstore(INTERMERDIARY_POLY_G_X_SLOT_PART1, mload(PROOF_POLY_B_X_SLOT_PART1))
                     mstore(INTERMERDIARY_POLY_G_X_SLOT_PART2, mload(PROOF_POLY_B_X_SLOT_PART2))
-                    mstore(INTERMERDIARY_POLY_G_X_SLOT_PART1, mload(PROOF_POLY_B_X_SLOT_PART1))
+                    mstore(INTERMERDIARY_POLY_G_Y_SLOT_PART1, mload(PROOF_POLY_B_Y_SLOT_PART1))
                     mstore(INTERMERDIARY_POLY_G_Y_SLOT_PART2, mload(PROOF_POLY_B_Y_SLOT_PART2))
 
                     g1pointMulAndAddIntoDest(PUBLIC_INPUTS_S_2_X_SLOT_PART1,theta0,INTERMERDIARY_POLY_G_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(POLY_Y_X_PART1,theta1,INTERMERDIARY_POLY_G_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(IDENTITY_X_PART1,theta2,INTERMERDIARY_POLY_G_X_SLOT_PART1)
+                    g1pointMulAndAddIntoDest(VK_POLY_Y_X_PART1,theta1,INTERMERDIARY_POLY_G_X_SLOT_PART1)
+                    g1pointMulAndAddIntoDest(VK_IDENTITY_X_PART1,theta2,INTERMERDIARY_POLY_G_X_SLOT_PART1)
                 }
-
                 // calculate t_n(χ)
                 {
                     let chi := mload(CHALLENGE_CHI_SLOT)
@@ -1105,8 +1065,7 @@ contract VerifierV1 is IVerifier {
 
                     mstore(INTERMEDIARY_SCALAR_KO_SLOT, K0)
 
-                }
-                
+                }             
             }
 
             /*//////////////////////////////////////////////////////////////
@@ -1147,7 +1106,7 @@ contract VerifierV1 is IVerifier {
                 g1pointMulIntoDest(PROOF_POLY_U_X_SLOT_PART1, mload(PROOF_VXY_SLOT), AGG_LHS_A_X_SLOT_PART1)
                 g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, PROOF_POLY_W_X_SLOT_PART1)
                 // V_{x,y} * [1]_1
-                g1pointMulIntoDest(IDENTITY_X_PART1, mload(PROOF_VXY_SLOT), BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                g1pointMulIntoDest(VK_IDENTITY_X_PART1, mload(PROOF_VXY_SLOT), BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
                 // [V]_1 - V_{x,y} * [1]_1
                 g1pointSubIntoDest(PROOF_POLY_V_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
                 // κ1 * ([V]_1 - V_{x,y} * [1]_1)
@@ -1183,7 +1142,7 @@ contract VerifierV1 is IVerifier {
                 g1pointMulIntoDest(PROOF_POLY_A_X_SLOT_PART1, coeff1, AGG_LHS_B_X_SLOT_PART1)
 
                 // κ2κ1^4 * A_{pub}[1]_1
-                g1pointMulIntoDest(IDENTITY_X_PART1, coeff2, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                g1pointMulIntoDest(VK_IDENTITY_X_PART1, coeff2, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
 
                 // (1+κ2κ1^4)[A]_1 - κ2κ1^4 * A_{pub}[1]_1
                 g1pointSubAssign(AGG_LHS_B_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
@@ -1225,7 +1184,7 @@ contract VerifierV1 is IVerifier {
                 // κ1^2 * t_{s_{max}}(ζ)
                 let kappa1_tsmax := mulmod(kappa1_pow2, t_smax, R_MOD)
                 
-                g1pointMulIntoDest(POLY_KXLX_X_PART1, kappa1_r_minus_1, AGG_LHS_C_X_SLOT_PART1)
+                g1pointMulIntoDest(VK_POLY_KXLX_X_PART1, kappa1_r_minus_1, AGG_LHS_C_X_SLOT_PART1)
                 g1pointMulAndAddIntoDest(INTERMERDIARY_POLY_G_X_SLOT_PART1, a, AGG_LHS_C_X_SLOT_PART1)
 
                 g1pointMulIntoDest(INTERMERDIARY_POLY_F_X_SLOT_PART1, b, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
@@ -1238,7 +1197,7 @@ contract VerifierV1 is IVerifier {
                 g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
 
                 g1pointMulAndAddIntoDest(PROOF_POLY_R_X_SLOT_PART1, c, AGG_LHS_C_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(IDENTITY_X_PART1, d, AGG_LHS_C_X_SLOT_PART1)
+                g1pointMulAndAddIntoDest(VK_IDENTITY_X_PART1, d, AGG_LHS_C_X_SLOT_PART1)
 
             }
 
@@ -1532,7 +1491,7 @@ contract VerifierV1 is IVerifier {
             // Step5: final pairing
             finalPairing()
             
-            result := mload(INTERMERDIARY_POLY_F_X_SLOT_PART1)
+            result := mload(INTERMEDIARY_SCALAR_KO_SLOT)
         }
     }
 }

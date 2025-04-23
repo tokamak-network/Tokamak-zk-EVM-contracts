@@ -10,6 +10,7 @@ contract testTokamakVerifier is Test {
 
     uint128[] public serializedProofPart1;
     uint256[] public serializedProofPart2;
+    
 
     function setUp() public virtual {
         verifier = new VerifierV1();
@@ -131,8 +132,12 @@ contract testTokamakVerifier is Test {
     }
 
     function testVerifier() public view {
-        // Call the verify function
+        uint256 gasBefore = gasleft();
         bytes32 result = verifier.verify(serializedProofPart1, serializedProofPart2);
-        console.logBytes32(result);  
+        uint256 gasAfter = gasleft();
+        uint256 gasUsed = gasBefore - gasAfter;
+        
+        console.log("Gas used:", gasUsed);
+        console.logBytes32(result);
     }
 }

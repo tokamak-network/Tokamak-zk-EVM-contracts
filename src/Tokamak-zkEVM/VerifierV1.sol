@@ -326,10 +326,10 @@ contract VerifierV1 is IVerifier {
     uint256 internal constant CONSTANT_OMEGA_N = 3;
     // s_max
     uint256 internal constant CONSTANT_SMAX = 100;
-    // m_l
+    // m_i
     uint256 internal constant CONSTANT_MI = 50;
     // l
-    uint256 internal constant CONSTANT_L = 3;
+    uint256 internal constant CONSTANT_L = 6;
 
     // ω_{m_l}^{-1}
     uint256 internal constant OMEGA_MI_MINUS_1 = 0x0;
@@ -992,8 +992,6 @@ contract VerifierV1 is IVerifier {
             /// t_{m_I}(χ) := χ^{m_I}-1
             ///
             /// K_0(χ) := (χ^{ml}-1) / (m_I(χ-1))
-            ///
-            /// A_pub := A(χ) := ∑ (aM(χ))
 
             function prepareQueries() {
                 // calculate [F]_1
@@ -1056,64 +1054,89 @@ contract VerifierV1 is IVerifier {
                     let chi := mload(CHALLENGE_CHI_SLOT)
                     let mI := mload(CONSTANT_MI)
                     
+                    // 1. Safety checks
+                    if iszero(chi) {
+                        // χ cannot be 0
+                        revert(0, 0)
+                    }
+                    
+                    // 2. Compute χ^mI using modexp 
                     let chi_mI := modexp(chi, mI)
-                    let chi_mI_minus_1 := addmod(chi_mI, sub(R_MOD, 1), R_MOD)
-
-                    // Calculate mI * (chi - 1) mod R_MOD
-                    let chi_minus_1 := addmod(chi, sub(R_MOD, 1), R_MOD)
+                    
+                    // 3. Compute numerator (χ^mI - 1)
+                    let chi_mI_minus_1 := sub(chi_mI, 1)
+                    
+                    // 4. Compute denominator components
+                    let chi_minus_1 := sub(chi, 1)
+                    
+                    // Critical check: denominator cannot be zero
+                    if iszero(chi_minus_1) {
+                        revert(0, 0)
+                    }
+                    
+                    // 5. Compute mI*(χ-1)
                     let mI_chi_minus_1 := mulmod(mI, chi_minus_1, R_MOD)
-
-                    // Calculate K0 = (chi^ml - 1) / (ml * (chi - 1))
-                    let denom_inv := modexp(mI_chi_minus_1, sub(R_MOD, 2)) // (ml * (chi - 1)^-1
-                    let K0 := mulmod(chi_mI_minus_1, denom_inv, R_MOD)
-
+                    
+                    // 6. Final division - critical check denominator != 0
+                    if iszero(mI_chi_minus_1) {
+                        revert(0, 0)
+                    }
+                    
+                    let K0 := div(chi_mI_minus_1, mI_chi_minus_1)
+                    
+                    // 7. Store result
                     mstore(INTERMEDIARY_SCALAR_KO_SLOT, K0)
-
-                }             
+                }            
             }
-            
+        
             /// A_pub := A(χ) := ∑ (a_jM_j(χ))
             function computeAPUB() {
                 let res := 0
-                let l_minus_1 := sub(mload(CONSTANT_L), 1)
+                let l :=6
+                let l_minus_1 := 5
                 let offset := calldataload(0x04)
-                let omega_pow_j := CONSTANT_OMEGA_N
-                let omega_pow_m := CONSTANT_OMEGA_N
-                let chi := mload(CHALLENGE_CHI_SLOT) 
-                for {let j := 0} lt(j, l_minus_1) { j := add(j, 1) } {
+                let chi := mload(CHALLENGE_CHI_SLOT)
+                let omega_n := CONSTANT_OMEGA_N
+                
+
+                for {let j := 0} lt(j, l_minus_1) {j := add(j, 1)} {
                     // Load coefficient a_j (mod R_MOD)
                     let a_j := mod(calldataload(add(offset, add(0x6e4, mul(j, 0x20)))), R_MOD)
-
+                    
                     // Initialize M_j = 1
                     let M_j := 1
-                    omega_pow_j := modexp(omega_pow_j, j)
-                    // Loop to compute M_j(X) = ∏_{m≠j} (χ - ω_n^m)/(ω_n^j - ω_n^m)
-                    for {let m := 1} lt(m, l_minus_1) { m := add(m, 1) } {
+                    let omega_j := modexp(omega_n, j)
+                    
+                    for {let m := 0} lt(m, l_minus_1) {m := add(m, 1)} {
                         // Skip when m == j
                         if eq(m, j) { continue }
-
-                        omega_m := modexp(omega_pow_m, m)
-
-                        // Compute numerator (χ - ω_n^m)
-                        let numerator := submod(chi, omega_pow_m, R_MOD)
-
-                        // Compute denominator (ω_n^j - ω_n^m)
-                        let denominator := submod(omega_pow_j, omega_pow_m, R_MOD)
-
-                        // Compute term = numerator / denominator (mod R_MOD)
-                        let term := mulmod(numerator, invmod(denominator, R_MOD), R_MOD)
-
-                        // Update M_j = M_j * term (mod R_MOD)
+                        
+                        let omega_m := modexp(omega_n, m)
+                        
+                        // Compute numerator (χ - ω_n^m) mod R_MOD
+                        let numerator := mod(add(sub(chi, omega_m), R_MOD), R_MOD)
+                        
+                        // Compute denominator (ω_n^j - ω_n^m) mod R_MOD
+                        let denominator := mod(add(sub(omega_j, omega_m), R_MOD), R_MOD)
+                        
+                        // Check for division by zero
+                        if iszero(denominator) {
+                            revert(0, 0)
+                        }
+                                  
+                        let term := div(numerator, denominator)
+                        
+                        // Update M_j = M_j * term mod R_MOD
                         M_j := mulmod(M_j, term, R_MOD)
                     }
-
-                    // Compute a_j * M_j (mod R_MOD)
+                    
+                    // Compute a_j * M_j mod R_MOD
                     let a_times_M := mulmod(a_j, M_j, R_MOD)
-
+                    
                     // Accumulate result
                     res := addmod(res, a_times_M, R_MOD)
                 }
-
+                
                 mstore(INTERMEDIARY_SCALAR_APUB_SLOT, res)
             }
 
@@ -1272,8 +1295,8 @@ contract VerifierV1 is IVerifier {
             }
 
             /// @dev [LHS]_1 := [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
-            /// @dev [AUX]_1 := κ2 * χ * [Π_{χ}]_1 + κ2 * ζ *([Π_ζ]_1 + [M_ζ]_1) + 
-            ///                 κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1 + κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1 + κ_2 * ω_smax^{-1} * ζ * [N_{ζ}]*            
+            /// @dev [AUX]_1 := κ2 * χ * [Π_{χ}]_1 + κ2 * ζ *[Π_ζ]_1 + 
+            ///                 κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1 + κ2^2 * ζ * [M_ζ]_1 + κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1 + κ_2^3 * ω_smax^{-1} * ζ * [N_{ζ}]            
             function prepareAggregatedCommitment() {
                 // calculate [LHS]_1
                 {
@@ -1294,28 +1317,29 @@ contract VerifierV1 is IVerifier {
                     let kappa2_chi := mulmod(kappa2, chi, R_MOD)
                     let kappa2_zeta := mulmod(kappa2, zeta, R_MOD)
                     let kappa2_pow2_omega_ml_chi := mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), omega_ml, R_MOD), chi, R_MOD)
+                    let kappa2_pow2_zeta := mulmod(mulmod(kappa2, kappa2, R_MOD), zeta, R_MOD)
                     let kappa2_pow3_omega_ml_chi := mulmod(mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), kappa2, R_MOD), omega_ml, R_MOD), chi, R_MOD)
-                    let kappa2_omega_smax_zeta := mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), omega_smax, R_MOD), zeta, R_MOD)
+                    let kappa2_pow3_omega_smax_zeta := mulmod(mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), kappa2, R_MOD), omega_smax, R_MOD), zeta, R_MOD)
 
                     // [Π_{χ}]_1 := [Π_{A,χ}]_1 + [Π_{B,χ}]_1 + [Π_{C,χ}]_1
                     g1pointAddIntoDest(PROOF_POLY_PI_A_CHI_X_SLOT_PART1, PROOF_POLY_PI_B_CHI_X_SLOT_PART1, INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART1)
                     g1pointAddIntoDest(INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART1, PROOF_POLY_PI_C_CHI_X_SLOT_PART1, INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART1)
-                    // [Π_{χ}]_1 := [Π_{A,χ}]_1 + [Π_{B,χ}]_1 + [Π_{C,χ}]_1
+                    // [Π_{ζ}]_1 := [Π_{A,ζ}]_1 + [Π_{C,ζ}]_1
                     g1pointAddIntoDest(PROOF_POLY_PI_A_ZETA_X_SLOT_PART1, PROOF_POLY_PI_C_ZETA_X_SLOT_PART1, INTERMERDIARY_POLY_PI_ZETA_X_SLOT_PART1)
 
                     // [AUX]_1 accumulation
                     // κ2 * χ * [Π_{χ}]_1
                     g1pointMulIntoDest(INTERMERDIARY_POLY_PI_CHI_X_SLOT_PART1, kappa2_chi, PAIRING_AGG_AUX_X_SLOT_PART1)
-                    // [Π_ζ]_1 + [M_ζ]_1
-                    g1pointAddIntoDest(INTERMERDIARY_POLY_PI_ZETA_X_SLOT_PART1, PROOF_POLY_M_ZETA_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                    //  += κ2 * ζ *([Π_ζ]_1 + [M_ζ]_1)
-                    g1pointMulAndAddIntoDest(BUFFER_AGGREGATED_POLY_X_SLOT_PART1, kappa2_zeta, PAIRING_AGG_AUX_X_SLOT_PART1)
+                    // += κ2 * ζ *[Π_ζ]_1
+                    g1pointMulAndAddIntoDest(INTERMERDIARY_POLY_PI_ZETA_X_SLOT_PART1,kappa2_zeta, PAIRING_AGG_AUX_X_SLOT_PART1)
                     // += κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1
                     g1pointMulAndAddIntoDest(PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2_omega_ml_chi, PAIRING_AGG_AUX_X_SLOT_PART1)
-                    // += κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1
+                    // += κ2^2 * ζ * [M_ζ]_1
+                    g1pointMulAndAddIntoDest(PROOF_POLY_M_ZETA_X_SLOT_PART1,kappa2_pow2_zeta,PAIRING_AGG_AUX_X_SLOT_PART1)
+                    // κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1
                     g1pointMulAndAddIntoDest(PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3_omega_ml_chi, PAIRING_AGG_AUX_X_SLOT_PART1)
-                    // += κ2 * ω_smax^{-1} * ζ * [N_{ζ}]
-                    g1pointMulAndAddIntoDest(PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_omega_smax_zeta, PAIRING_AGG_AUX_X_SLOT_PART1)
+                    // κ2^3 * ω_smax^{-1} * ζ * [N_{ζ}]
+                    g1pointMulAndAddIntoDest(PROOF_POLY_N_ZETA_X_SLOT_PART1,kappa2_pow3_omega_smax_zeta, PAIRING_AGG_AUX_X_SLOT_PART1)
 
                 }
 
@@ -1518,8 +1542,9 @@ contract VerifierV1 is IVerifier {
             // Step2: Recompute all the challenges with the transcript
             initializeTranscript()
 
-            // Step3: computation of [F]_1, [G]_1, t_n(χ), t_smax(ζ) and t_ml(χ)
+            // Step3: computation of [F]_1, [G]_1, t_n(χ), t_smax(ζ) and t_ml(χ), K0(χ) and A_pub
             prepareQueries()
+            computeAPUB()
 
 
             // Step4: computation of the final polynomial commitments

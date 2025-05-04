@@ -1109,8 +1109,8 @@ contract VerifierV1 is IVerifier {
             /// A_pub := A(χ) := ∑ (a_jM_j(χ))
             function computeAPUB() {
                 let res := 0
-                let l :=6
-                let l_minus_1 := 5
+                let l := CONSTANT_L
+                let l_minus_1 := sub(l, 1)
                 let offset := calldataload(0x04)
                 let chi := mload(CHALLENGE_CHI_SLOT)
                 let omega_n := CONSTANT_OMEGA_N
@@ -1186,8 +1186,8 @@ contract VerifierV1 is IVerifier {
             ///
             ///  and 
             ///
-            ///  [AUX]_1 := κ2 * χ * [Π_{χ}]_1 + κ2 * ζ *([Π_ζ]_1 + [M_ζ]_1) + 
-            ///             κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1 + κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1 + κ_2 ω_smax^{-1} * ζ * [N_{ζ}]
+            ///  [AUX]_1 := κ2 * χ * [Π_{χ}]_1 + κ2 * ζ *[Π_ζ]_1 + 
+            ///             κ2^2 * ω_{m_i}^{-1} * χ *[M_{χ}]_1 + κ2^2 * ζ * [M_{ζ}]_1 + κ2^3 * ω_{m_i}^{-1} * χ * [N_{χ}]_1 + κ_2^3 ω_smax^{-1} * ζ * [N_{ζ}]
             /// 
 
             /// @dev calculate [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1            

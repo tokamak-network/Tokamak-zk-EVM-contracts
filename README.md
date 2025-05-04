@@ -1,45 +1,55 @@
-# zkEVM Verifier Comparison
-This repository is dedicated to comparing different zkEVM verifiers, specifically focusing on zkSync Era, Polygon, and Linea. zkEVMs are Layer 2 scaling solutions that leverage zero-knowledge proofs to enhance Ethereum's scalability while maintaining security and decentralization. By providing EVM compatibility, zkEVMs allow developers to deploy smart contracts using familiar tools and languages.
+# Tokamak zkEVM Contracts
+
+This repository implements the core smart contracts for the Tokamak zkEVM rollup solution, providing Layer 2 scalability with Ethereum-equivalent functionality through zero-knowledge proofs.
 
 ## Purpose
-The primary goal of this repository is to evaluate and compare the performance, compatibility, and unique features of various zkEVM verifiers. By importing the Solidity code for each verifier and creating a comprehensive test suite, we aim to provide insights into their operational differences and potential use cases.
+
+The Tokamak zkEVM contracts facilitate:
+- Rollup consensus and state management
+- Transaction sequencing and batch processing
+- Interaction with the Tokamak zkSNARK on-chain verifier
+- L1-L2 communication bridges
+
+![Alt text](./images/architecture.png)
 
 ## Features
-zkSync Era: Known for its Type 4 zkEVM, zkSync Era focuses on speed and scalability with a custom VM, offering native account abstraction and compatibility with Solidity 0.8.25.
 
-Polygon zkEVM: A Type 3 zk-Rollup, Polygon zkEVM aims for EVM equivalence, providing high security and compatibility with existing Ethereum tools, suitable for high-value transactions.
+### Core Components
+- **Rollup Contract**: Main coordinator for batch submissions and state updates
+- **Verifier Interface**: Standardized interface for zkSNARK proof verification
+- **State Transition**: EVM-equivalent state transition logic
+- **Bridge Contracts**: Secure asset transfer between L1 and L2
 
 ## Test Suite
-Each verifier is subjected to a series of tests designed to assess:
 
-Performance: Evaluating transaction throughput and proof generation times.
-Compatibility: Testing EVM opcode support and integration with Ethereum tools.
-Security: Analyzing the robustness of zero-knowledge proofs and data availability mechanisms.
-Getting Started
-To explore the comparisons and run the tests yourself, follow these steps:
+The contracts are rigorously tested with:
 
-Clone the repository:
-```
-git clone <https://github.com/tokamak-network/ZKP-solidity-verifiers.git>
-```
-Run the foundry test suite: (zkSyncEra verifier) 
-```
-forge test --mp test/zkSyncEra-verifier.t.sol
-```
-Run the foundry test suite: (Linea verifier) 
-```
-forge test --mp test/linea-verifier.t.sol
-```
+### Verification Tests
+- **Proof Verification**: Valid/invalid proof handling
+- **Edge Cases**: Empty batches, invalid transitions
+- **Gas Benchmarking**: Verification cost analysis
 
-Compile the Polygon zkEVM contracts :
+### Integration Tests
+- L1-L2 message passing
+- Contract upgrades
+- Failure recovery scenarios
+
+### Security Tests
+- Reentrancy protection
+- Permissioned function access
+- Denial-of-service resistance
+
+## Getting Started
+
+### Prerequisites
+- Foundry (forge, anvil, cast)
+- Node.js 16+
+- Solidity 0.8.x
+
+### Installation
+```bash
+git clone https://github.com/tokamak-network/Tokamak-zkEVM-contracts.git
+cd Tokamak-zkEVM-contracts
+forge install
+forge test
 ```
-npm install --force
-npx hardhat compile
-```
-Run the hardhat test suite: (Polygon zkEVM)
-```
-npm run test
-```
-note: the ERC1967Utils contract is sometimes not compatible with Polygon v2 contracts. If it is the case, please modify the contract by manually importing the events inside of the contract.
-## Conclusion
-This repository serves as a resource for developers and researchers interested in understanding the nuances of zkEVM verifiers. By comparing zkSync Era, Polygon, and Linea, we hope to contribute to the ongoing discussion about the best approaches to scaling Ethereum.

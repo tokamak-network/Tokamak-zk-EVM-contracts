@@ -3,7 +3,8 @@ src = "src"
 out = "out"
 libs = ["lib"]
 remappings = [
-    "@openzeppelin/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "@openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "@openzeppelin/=lib/openzeppelin-contracts/contracts/"
 ]
 viaIr = true
 optimizer = true

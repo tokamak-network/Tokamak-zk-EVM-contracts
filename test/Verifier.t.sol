@@ -1,62 +1,45 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity 0.8.23;
 
-import {Script} from "forge-std/Script.sol";
-import {console} from "forge-std/console.sol";
+import {Test} from "forge-std/Test.sol";
+import {Verifier} from "../src/Verifier.sol";
 import {StateTransitionVerifier} from "../src/StateTransitionVerifier.sol";
 import {IStateTransitionVerifier} from "../src/interface/IStateTransitionVerifier.sol";
+import {ChannelRegistry} from "../src/ChannelRegistry.sol";
+import {IChannelRegistry} from "../src/interface/IChannelRegistry.sol";
 
-contract UpdateState is Script {
+import "forge-std/console.sol";
+
+contract testTokamakVerifier is Test {
+    address owner;
+
+    Verifier verifier;
     StateTransitionVerifier stateTransitionVerifier;
-    
+    ChannelRegistry channelRegistry;
+
+    IStateTransitionVerifier.StateUpdate internal newStateUpdate;
+
+
     uint128[] public serializedProofPart1;
     uint256[] public serializedProofPart2;
+    uint256[] public serializedProof;
     uint256[] public publicInputs;
     
-    function setUp() public {
-        // Initialize the arrays with test data
-        initializeProofData();
-        initializePublicInputs();
-    }
+
+    function setUp() public virtual {
+        verifier = new Verifier();
+
+        owner = makeAddr("owner");
+        vm.startPrank(owner);
+        channelRegistry = new ChannelRegistry();
+        stateTransitionVerifier = new StateTransitionVerifier(address(verifier), address(channelRegistry));
+
+        vm.stopPrank();
     
-    function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address stateTransitionVerifierAddress = vm.envAddress("STATE_TRANSITION_VERIFIER_ADDRESS");
-        address channelRegistryAddress = vm.envAddress("CHANNEL_REGISTRY_ADDRESS");
-        
-        stateTransitionVerifier = StateTransitionVerifier(stateTransitionVerifierAddress);
-        
-        // Create dynamic arrays for participantSignatures and signers
-        bytes[] memory participantSignatures = new bytes[](2);
-        participantSignatures[0] = bytes("0");
-        participantSignatures[1] = bytes("1");
-        
-        address[] memory signers = new address[](2);
-        signers[0] = vm.addr(deployerPrivateKey); // Use the deployer as signer
-        signers[1] = vm.addr(deployerPrivateKey); // Use the deployer as signer
-        
-        IStateTransitionVerifier.StateUpdate memory newStateUpdate = IStateTransitionVerifier.StateUpdate({
-            channelId: bytes32(uint256(0)),
-            oldStateRoot: bytes32(uint256(0)),
-            newStateRoot: bytes32(uint256(1)),
-            proofPart1: serializedProofPart1,
-            proofPart2: serializedProofPart2,
-            publicInputs: publicInputs,
-            participantSignatures: participantSignatures,
-            signers: signers,
-            nonce: 1
-        });
-        
-        vm.startBroadcast(deployerPrivateKey);
-        
-        console.log("Calling verifyAndCommitStateUpdate...");
-        bool success = stateTransitionVerifier.verifyAndCommitStateUpdate(newStateUpdate);
-        console.log("Success:", success);
-        
-        vm.stopBroadcast();
-    }
-    
-    function initializeProofData() internal {
+        // Complete test suite proof data
+        // serializedProofPart1: First 16 bytes (32 hex chars) of each coordinate
+        // serializedProofPart2: Last 32 bytes (64 hex chars) of each coordinate
+
         // SERIALIZED PROOF PART 1 (First 16 bytes - 32 hex chars)
         serializedProofPart1.push(0x0d8838cc826baa7ccd8cfe0692e8a13d); // s^{(0)}(x,y)_X
         serializedProofPart1.push(0x103aeb959c53fdd5f13b70a350363881); // s^{(0)}(x,y)_Y
@@ -150,9 +133,13 @@ contract UpdateState is Script {
         serializedProofPart2.push(0x52b690b1abedd5d98d6dc1da501896a0d24d16b4ac50b2b91705c9eacbf4ac0b); // R_omegaX_eval
         serializedProofPart2.push(0x416c2033250efefa6a38b627ba05c7ba67e800b681f9783a079f27c15f2aac32); // R_omegaX_omegaY_eval
         serializedProofPart2.push(0x130694604026116d02cbb135233c3219dce6a8527f02960cb4217dc0b8b17d17); // V_eval
-    }
 
-    function initializePublicInputs() internal {
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////             PUBLIC INPUTS             ////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    
         // Elements 0-31
         publicInputs.push(0x00000000000000000000000000000000392a2d1a05288b172f205541a56fc20d);
         publicInputs.push(0x00000000000000000000000000000000000000000000000000000000c2c30e79);
@@ -289,4 +276,49 @@ contract UpdateState is Script {
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
     }
 
+    function testVerifier() public view {
+        uint256 gasBefore = gasleft();
+        bool success = verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs);
+        uint256 gasAfter = gasleft();
+        uint256 gasUsed = gasBefore - gasAfter;
+        
+        console.log("Gas used:", gasUsed);
+        assert(success);
+    }
+
+
+    function testWrongProof_shouldRevert() public {
+        serializedProofPart1[4] = 0x0cf3e4f4ddb78781cd5740f3f2a1a3db; // Wrong U_X part1
+        serializedProofPart1[5] = 0x0f4b46798d566e5f6653c4fe4df20e83; // Wrong U_Y part1
+
+        serializedProofPart2[4] = 0xd3e45812526acc1d689ce05e186d3a8b9e921ad3a4701013336f3f00c654c908; // Wrong U_X part2
+        serializedProofPart2[5] = 0x76983b4b6af2d6a17be232aeeb9fdd374990fdcbd9b1a4654bfbbc5f4bba7e13; // Wrong U_X part2
+        vm.expectRevert(bytes("finalPairing: pairing failure"));
+        verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs);
+    }
+
+    function testEmptyPublicInput_shouldRevert() public {
+        uint256[] memory newPublicInputs;
+        vm.expectRevert(bytes("finalPairing: pairing failure"));
+        verifier.verify(serializedProofPart1, serializedProofPart2, newPublicInputs);
+    }
+
+    function testWrongSizeProof_shouldRevert() public {
+        serializedProofPart1.push(0x0d8838cc826baa7ccd8cfe0692e8a13d); // new point X
+        serializedProofPart1.push(0x103aeb959c53fdd5f13b70a350363881); // new point Y
+        serializedProofPart2.push(0xbbae56c781b300594dac0753e75154a00b83cc4e6849ef3f07bb56610a02c828); // new point X
+        serializedProofPart2.push(0xf3447285889202e7e24cd08a058a758a76ee4c8440131be202ad8bc0cc91ee70); // new point Y
+
+        vm.expectRevert(bytes("loadProof: Proof is invalid"));
+        verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs);
+
+    }
+
+    function testEmptyProof_shouldRevert() public {
+        uint128[] memory newSerializedProofPart1;
+        uint256[] memory newSerializedProofPart2;
+
+        vm.expectRevert(bytes("loadProof: Proof is invalid"));
+        verifier.verify(newSerializedProofPart1, newSerializedProofPart2, publicInputs);
+    }
 }

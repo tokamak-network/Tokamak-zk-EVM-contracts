@@ -10,7 +10,7 @@ contract DeployStateTransitionVerifier is Script {
         
         vm.startBroadcast(deployerPrivateKey);
         
-        StateTransitionVerifier stateTransitionVerifier = new StateTransitionVerifier(vm.envAddress("VERIFIER_ADDRESS"));
+        StateTransitionVerifier stateTransitionVerifier = new StateTransitionVerifier(vm.envAddress("VERIFIER_ADDRESS"), vm.envAddress("CHANNEL_REGISTRY_ADDRESS"));
         
         vm.stopBroadcast();
         

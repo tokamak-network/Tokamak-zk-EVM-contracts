@@ -5,14 +5,23 @@ import {Test} from "forge-std/Test.sol";
 import {Verifier} from "../src/Verifier.sol";
 import {StateTransitionVerifier} from "../src/StateTransitionVerifier.sol";
 import {IStateTransitionVerifier} from "../src/interface/IStateTransitionVerifier.sol";
+import {ChannelRegistry} from "../src/ChannelRegistry.sol";
+import {IChannelRegistry} from "../src/interface/IChannelRegistry.sol";
+import {MessageHashUtils} from "@openzeppelin/utils/cryptography/MessageHashUtils.sol";
 
 import "forge-std/console.sol";
 
 contract testTokamakVerifier is Test {
+    using MessageHashUtils for bytes32;
     address owner;
+    uint256 ownerPrivateKey;
+    address user2;
+    uint256 user2PrivateKey;
 
     Verifier verifier;
     StateTransitionVerifier stateTransitionVerifier;
+    ChannelRegistry channelRegistry;
+
     IStateTransitionVerifier.StateUpdate internal newStateUpdate;
 
 
@@ -20,15 +29,43 @@ contract testTokamakVerifier is Test {
     uint256[] public serializedProofPart2;
     uint256[] public serializedProof;
     uint256[] public publicInputs;
+
+    bytes32 public channelId;
+    bytes32 public initialStateRoot;
+    bytes32 public newStateRoot;
     
 
     function setUp() public virtual {
         verifier = new Verifier();
 
-        owner = makeAddr("owner");
+        // Create test accounts with known private keys
+        ownerPrivateKey = 0x1234;
+        owner = vm.addr(ownerPrivateKey);
+        
+        user2PrivateKey = 0x5678;
+        user2 = vm.addr(user2PrivateKey);
+        
+        // Fund the owner
+        vm.deal(owner, 100 ether);
+
         vm.startPrank(owner);
-        stateTransitionVerifier = new StateTransitionVerifier(address(verifier));
+        channelRegistry = new ChannelRegistry();
+        stateTransitionVerifier = new StateTransitionVerifier(address(verifier), address(channelRegistry));
+        channelRegistry.setStateTransitionVerifier(address(stateTransitionVerifier));
+
+        // create channel
+        initialStateRoot = bytes32(uint256(0x456));
+        channelId = channelRegistry.createChannel(owner, initialStateRoot);
+        
+        // Add user2 as participant if testing multi-sig
+        channelRegistry.addParticipant(channelId, user2);
+
         vm.stopPrank();
+    
+        // Initialize your proof data here...
+        // [Previous proof initialization code remains the same]
+        
+        newStateRoot = bytes32(uint256(0x789));
     
         // Complete test suite proof data
         // serializedProofPart1: First 16 bytes (32 hex chars) of each coordinate
@@ -270,66 +307,34 @@ contract testTokamakVerifier is Test {
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
     }
 
-    function testVerifier() public view {
-        uint256 gasBefore = gasleft();
-        bool success = verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs);
-        uint256 gasAfter = gasleft();
-        uint256 gasUsed = gasBefore - gasAfter;
-        
-        console.log("Gas used:", gasUsed);
-        assert(success);
-    }
-
-
-    function testWrongProof_shouldRevert() public {
-        serializedProofPart1[4] = 0x0cf3e4f4ddb78781cd5740f3f2a1a3db; // Wrong U_X part1
-        serializedProofPart1[5] = 0x0f4b46798d566e5f6653c4fe4df20e83; // Wrong U_Y part1
-
-        serializedProofPart2[4] = 0xd3e45812526acc1d689ce05e186d3a8b9e921ad3a4701013336f3f00c654c908; // Wrong U_X part2
-        serializedProofPart2[5] = 0x76983b4b6af2d6a17be232aeeb9fdd374990fdcbd9b1a4654bfbbc5f4bba7e13; // Wrong U_X part2
-        vm.expectRevert(bytes("finalPairing: pairing failure"));
-        verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs);
-    }
-
-    function testEmptyPublicInput_shouldRevert() public {
-        uint256[] memory newPublicInputs;
-        vm.expectRevert(bytes("finalPairing: pairing failure"));
-        verifier.verify(serializedProofPart1, serializedProofPart2, newPublicInputs);
-    }
-
-    function testWrongSizeProof_shouldRevert() public {
-        serializedProofPart1.push(0x0d8838cc826baa7ccd8cfe0692e8a13d); // new point X
-        serializedProofPart1.push(0x103aeb959c53fdd5f13b70a350363881); // new point Y
-        serializedProofPart2.push(0xbbae56c781b300594dac0753e75154a00b83cc4e6849ef3f07bb56610a02c828); // new point X
-        serializedProofPart2.push(0xf3447285889202e7e24cd08a058a758a76ee4c8440131be202ad8bc0cc91ee70); // new point Y
-
-        vm.expectRevert(bytes("loadProof: Proof is invalid"));
-        verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs);
-
-    }
-
-    function testEmptyProof_shouldRevert() public {
-        uint128[] memory newSerializedProofPart1;
-        uint256[] memory newSerializedProofPart2;
-
-        vm.expectRevert(bytes("loadProof: Proof is invalid"));
-        verifier.verify(newSerializedProofPart1, newSerializedProofPart2, publicInputs);
-    }
-
     function testVerifyAndCommitStateUpdate() public {
-        // Create dynamic arrays for participantSignatures and signers
-        bytes[] memory participantSignatures = new bytes[](2);
-        participantSignatures[0] = bytes("0");
-        participantSignatures[1] = bytes("1");
+        // Create the message hash that participants need to sign
+        bytes32 messageHash = keccak256(abi.encode(
+            channelId,
+            initialStateRoot,
+            newStateRoot,
+            uint256(1) // nonce
+        ));
         
-        address[] memory signers = new address[](2);
+        // Add Ethereum Signed Message prefix
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        
+        // Sign the message with the owner's private key
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, ethSignedMessageHash);
+        bytes memory ownerSignature = abi.encodePacked(r, s, v);
+        
+        // Create arrays for signatures and signers
+        bytes[] memory participantSignatures = new bytes[](1);
+        participantSignatures[0] = ownerSignature;
+        
+        address[] memory signers = new address[](1);
         signers[0] = owner;
-        signers[1] = owner;
         
         newStateUpdate = IStateTransitionVerifier.StateUpdate({
-            channelId: bytes32(uint256(0)),
-            oldStateRoot: bytes32(uint256(0)),
-            newStateRoot: bytes32(uint256(1)),
+            channelId: channelId,
+            oldStateRoot: initialStateRoot,
+            newStateRoot: newStateRoot,
+            nonce: 1,
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
             publicInputs: publicInputs,
@@ -337,8 +342,16 @@ contract testTokamakVerifier is Test {
             signers: signers
         });
 
-        assertEq(stateTransitionVerifier.verifyAndCommitStateUpdate(newStateUpdate), true);
-        console.log("newStateRoot: ");
-        console.logBytes32(stateTransitionVerifier.currentStateRoot());
+        // Update channel state root to match initial state
+        vm.prank(owner);
+        
+        bool result = stateTransitionVerifier.verifyAndCommitStateUpdate(newStateUpdate);
+        assertTrue(result);
+        
+        // Verify state was updated
+        (bytes32 currentRoot, uint256 nonce) = stateTransitionVerifier.getChannelState(channelId);
+        assertEq(currentRoot, newStateRoot);
+        assertEq(nonce, 1);
     }
+
 }

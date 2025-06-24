@@ -1,52 +1,77 @@
 # Tokamak zkEVM Contracts
 
-The Tokamak Network aims to support the Ethereum ecosystem by providing on-demand layer 2 rollups. In other words, the Tokamak ecosystem exists as an extension and subset of the Ethereum ecosystem. Its goal is to let Ethereum users and infrastructure providers seamlessly migrate to Tokamak Network demand arises — and then return to Ethereum once that demand is fulfilled. This flexible model sets Tokamak Network apart from other layer 2 networks, which tend to maintain their own isolated, fixed ecosystems.
+Our rollup enables on-demand state channels that hold private L2s. State channels are in charge of aggregating proofs and managing state root.
 
-This repository implements the core smart contracts for the Tokamak zkEVM rollup solution, providing Layer 2 scalability with Ethereum-equivalent functionality through zero-knowledge proofs.
+This repository implements the core smart contracts for the Tokamak zkEVM rollup solution, providing Layer 2 privacy with Ethereum-equivalent functionality through zero-knowledge proofs.
 
-## Purpose
+## Architecture
 
-The Tokamak zkEVM contracts facilitate:
-- Rollup consensus and state management
-- Transaction sequencing and batch processing
-- Interaction with the Tokamak zkSNARK on-chain verifier
-- L1-L2 communication bridges
+![Alt text](./images/image.png)
 
-![Alt text](./images/architecture.png)
-
-## Features
+## System Components 
 
 ### Core Components
-- **Rollup Contract**: Main coordinator for batch submissions and state updates
-- **Verifier Interface**: Standardized interface for zkSNARK proof verification
-- **State Transition**: EVM-equivalent state transition logic
-- **Bridge Contracts**: Secure asset transfer between L1 and L2
+The system consists of four main components working in harmony. The state channel layer handles all private transactions and state management within isolated channels. The zkSNARK proving system generates cryptographic proofs of valid state transitions. The Layer 1 smart contracts verify these proofs and maintain channel commitments. 
 
-## Test Suite
+### Channel Structure
 
-The contracts are rigorously tested with:
+Each state channel is identified by a unique 32-byte identifier and managed by a designated leader address. The channel maintains a Merkle tree containing all account states, with the root hash serving as a cryptographic commitment to the entire channel state. A transaction queue ensures ordered processing, while a monotonically increasing nonce prevents replay attacks.
 
-### Verification Tests
-- **Proof Verification**: Valid/invalid proof handling
-- **Edge Cases**: Empty batches, invalid transitions
-- **Gas Benchmarking**: Verification cost analysis
-
-### Integration Tests
-- L1-L2 message passing
-- Contract upgrades
-- Failure recovery scenarios
-
-### Security Tests
-- Reentrancy protection
-- Permissioned function access
-- Denial-of-service resistance
+### Role Definitions
+The system defines two distinct roles with specific responsibilities. Channel leaders administer state transitions, add users to the channel, and submit proofs to Layer 1. Channel participants submit transactions, monitor their account states, and must sign when a new state transition occurs (to avoid full trust on leaders).
 
 ## Getting Started
 
-### Prerequisites
-- Foundry (forge, anvil, cast)
-- Node.js 16+
-- Solidity 0.8.x
+### Required Software
+
+#### 1. Foundry Toolkit
+Foundry is a blazing fast, portable and modular toolkit for Ethereum development.
+
+```bash
+# Install Foundry
+curl -L https://foundry.paradigm.xyz | bash
+
+# Follow the instructions to add Foundry to your PATH, then run:
+foundryup
+
+# Verify installation
+forge --version
+cast --version
+anvil --version
+```
+
+#### 2. Node.js and npm
+Required for additional tooling and dependencies.
+
+```bash
+# Using nvm (recommended)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install 16
+nvm use 16
+
+# Or using your system's package manager
+# macOS with Homebrew
+brew install node@16
+
+# Ubuntu/Debian
+curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Verify installation
+node --version  # Should show v16.x.x
+npm --version
+```
+
+#### 3. Solidity Compiler
+The project uses Solidity 0.8.23. Foundry will handle the compiler installation automatically, but you can also install it manually:
+
+```bash
+# Via npm (optional)
+npm install -g solc@0.8.23
+
+# Verify the compiler version in foundry.toml
+```
+
 
 ### Installation
 ```bash

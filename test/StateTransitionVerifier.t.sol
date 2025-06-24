@@ -13,6 +13,7 @@ import "forge-std/console.sol";
 
 contract testTokamakVerifier is Test {
     using MessageHashUtils for bytes32;
+
     address owner;
     uint256 ownerPrivateKey;
     address user2;
@@ -24,7 +25,6 @@ contract testTokamakVerifier is Test {
 
     IStateTransitionVerifier.StateUpdate internal newStateUpdate;
 
-
     uint128[] public serializedProofPart1;
     uint256[] public serializedProofPart2;
     uint256[] public serializedProof;
@@ -32,7 +32,6 @@ contract testTokamakVerifier is Test {
 
     bytes32 public channelId;
     bytes32 public newStateRoot;
-    
 
     function setUp() public virtual {
         verifier = new Verifier();
@@ -40,10 +39,10 @@ contract testTokamakVerifier is Test {
         // Create test accounts with known private keys
         ownerPrivateKey = 0x1234;
         owner = vm.addr(ownerPrivateKey);
-        
+
         user2PrivateKey = 0x5678;
         user2 = vm.addr(user2PrivateKey);
-        
+
         // Fund the owner
         vm.deal(owner, 100 ether);
 
@@ -54,17 +53,17 @@ contract testTokamakVerifier is Test {
 
         // create channel
         channelId = channelRegistry.createChannel(owner);
-        
+
         // Add user2 as participant if testing multi-sig
         channelRegistry.addParticipant(channelId, user2);
 
         vm.stopPrank();
-    
+
         // Initialize your proof data here...
         // [Previous proof initialization code remains the same]
-        
+
         newStateRoot = bytes32(uint256(0x789));
-    
+
         // Complete test suite proof data
         // serializedProofPart1: First 16 bytes (32 hex chars) of each coordinate
         // serializedProofPart2: Last 32 bytes (64 hex chars) of each coordinate
@@ -114,10 +113,10 @@ contract testTokamakVerifier is Test {
         serializedProofPart1.push(0x104de32201c5ba649cc17df4cf759a1f); // A_Y
 
         // SERIALIZED PROOF PART 2 (Last 32 bytes - 64 hex chars)
-        serializedProofPart2.push(0xbbae56c781b300594dac0753e75154a00b83cc4e6849ef3f07bb56610a02c828); // s^{(0)}(x,y)_X 
-        serializedProofPart2.push(0xf3447285889202e7e24cd08a058a758a76ee4c8440131be202ad8bc0cc91ee70); // s^{(0)}(x,y)_Y 
-        serializedProofPart2.push(0x76e577ad778dc4476b10709945e71e289be5ca05c412ca04c133c485ae8bc757); // s^{(1)}(x,y)_X 
-        serializedProofPart2.push(0x7ada41cb993109dc7c194693dbcc461f8512755054966319bcbdea3a1da86938); // s^{(1)}(x,y)_Y 
+        serializedProofPart2.push(0xbbae56c781b300594dac0753e75154a00b83cc4e6849ef3f07bb56610a02c828); // s^{(0)}(x,y)_X
+        serializedProofPart2.push(0xf3447285889202e7e24cd08a058a758a76ee4c8440131be202ad8bc0cc91ee70); // s^{(0)}(x,y)_Y
+        serializedProofPart2.push(0x76e577ad778dc4476b10709945e71e289be5ca05c412ca04c133c485ae8bc757); // s^{(1)}(x,y)_X
+        serializedProofPart2.push(0x7ada41cb993109dc7c194693dbcc461f8512755054966319bcbdea3a1da86938); // s^{(1)}(x,y)_Y
         serializedProofPart2.push(0x12f31df6476c99289584549ae13292a824df5e10f546a9659d08479cf55b3bb2); // U_X
         serializedProofPart2.push(0xd28e43565c5c0a0b6d625a4572e02fbb6de2b255911ebe90f551a43a48c52ec0); // U_Y
         serializedProofPart2.push(0x185457d5b78e0dd03fb83b4af872c2f9800e0d4d3bbb1e36ca85a9d8ce763e55); // V_X
@@ -163,12 +162,10 @@ contract testTokamakVerifier is Test {
         serializedProofPart2.push(0x416c2033250efefa6a38b627ba05c7ba67e800b681f9783a079f27c15f2aac32); // R_omegaX_omegaY_eval
         serializedProofPart2.push(0x130694604026116d02cbb135233c3219dce6a8527f02960cb4217dc0b8b17d17); // V_eval
 
-
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         ///////////////////////////////////             PUBLIC INPUTS             ////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    
         // Elements 0-31
         publicInputs.push(0x00000000000000000000000000000000392a2d1a05288b172f205541a56fc20d);
         publicInputs.push(0x00000000000000000000000000000000000000000000000000000000c2c30e79);
@@ -307,27 +304,29 @@ contract testTokamakVerifier is Test {
 
     function testVerifyAndCommitStateUpdate() public {
         // Create the message hash that participants need to sign
-        bytes32 messageHash = keccak256(abi.encode(
-            channelId,
-            bytes32(0),
-            newStateRoot,
-            uint256(1) // nonce
-        ));
-        
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                channelId,
+                bytes32(0),
+                newStateRoot,
+                uint256(1) // nonce
+            )
+        );
+
         // Add Ethereum Signed Message prefix
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
-        
+
         // Sign the message with the owner's private key
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, ethSignedMessageHash);
         bytes memory ownerSignature = abi.encodePacked(r, s, v);
-        
+
         // Create arrays for signatures and signers
         bytes[] memory participantSignatures = new bytes[](1);
         participantSignatures[0] = ownerSignature;
-        
+
         address[] memory signers = new address[](1);
         signers[0] = owner;
-        
+
         newStateUpdate = IStateTransitionVerifier.StateUpdate({
             channelId: channelId,
             oldStateRoot: bytes32(0),
@@ -342,14 +341,13 @@ contract testTokamakVerifier is Test {
 
         // Update channel state root to match initial state
         vm.prank(owner);
-        
+
         bool result = stateTransitionVerifier.verifyAndCommitStateUpdate(newStateUpdate);
         assertTrue(result);
-        
+
         // Verify state was updated
         (bytes32 currentRoot, uint256 nonce) = stateTransitionVerifier.getChannelState(channelId);
         assertEq(currentRoot, newStateRoot);
         assertEq(nonce, 1);
     }
-
 }

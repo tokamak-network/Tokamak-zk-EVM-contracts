@@ -2,29 +2,23 @@
 pragma solidity 0.8.23;
 
 interface IStateTransitionVerifier {
-    
-    struct StateUpdate{
+    struct StateUpdate {
         bytes32 channelId;
         bytes32 oldStateRoot;
         bytes32 newStateRoot;
         uint128[] proofPart1;
         uint256[] proofPart2;
         uint256[] publicInputs;
-        bytes[] participantSignatures;  // Multi-sig requirement
-        address[] signers;  // Who signed
+        bytes[] participantSignatures; // Multi-sig requirement
+        address[] signers; // Who signed
         uint256 nonce;
     }
 
     // Events
-    event StateUpdated(
-        bytes32 indexed channelId,
-        bytes32 oldStateRoot,
-        bytes32 newStateRoot,
-        uint256 nonce
-    );
-    
+    event StateUpdated(bytes32 indexed channelId, bytes32 oldStateRoot, bytes32 newStateRoot, uint256 nonce);
+
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
-    
+
     // custom errors
     error Invalid__Verifier();
     error Invalid__ChannelRegistry();
@@ -39,6 +33,6 @@ interface IStateTransitionVerifier {
     error Invalid__ChannelNotActive();
     error Invalid__Caller();
 
-    function verifyAndCommitStateUpdate(StateUpdate calldata update) external returns(bool);
-    function updateVerifier(address _verifier) external; 
+    function verifyAndCommitStateUpdate(StateUpdate calldata update) external returns (bool);
+    function updateVerifier(address _verifier) external;
 }

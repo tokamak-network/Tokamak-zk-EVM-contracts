@@ -8,33 +8,33 @@ import {IStateTransitionVerifier} from "../src/interface/IStateTransitionVerifie
 
 contract UpdateState is Script {
     StateTransitionVerifier stateTransitionVerifier;
-    
+
     uint128[] public serializedProofPart1;
     uint256[] public serializedProofPart2;
     uint256[] public publicInputs;
-    
+
     function setUp() public {
         // Initialize the arrays with test data
         initializeProofData();
         initializePublicInputs();
     }
-    
+
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address stateTransitionVerifierAddress = vm.envAddress("STATE_TRANSITION_VERIFIER_ADDRESS");
         address channelRegistryAddress = vm.envAddress("CHANNEL_REGISTRY_ADDRESS");
-        
+
         stateTransitionVerifier = StateTransitionVerifier(stateTransitionVerifierAddress);
-        
+
         // Create dynamic arrays for participantSignatures and signers
         bytes[] memory participantSignatures = new bytes[](2);
         participantSignatures[0] = bytes("0");
         participantSignatures[1] = bytes("1");
-        
+
         address[] memory signers = new address[](2);
         signers[0] = vm.addr(deployerPrivateKey); // Use the deployer as signer
         signers[1] = vm.addr(deployerPrivateKey); // Use the deployer as signer
-        
+
         IStateTransitionVerifier.StateUpdate memory newStateUpdate = IStateTransitionVerifier.StateUpdate({
             channelId: bytes32(uint256(0)),
             oldStateRoot: bytes32(uint256(0)),
@@ -46,16 +46,16 @@ contract UpdateState is Script {
             signers: signers,
             nonce: 1
         });
-        
+
         vm.startBroadcast(deployerPrivateKey);
-        
+
         console.log("Calling verifyAndCommitStateUpdate...");
         bool success = stateTransitionVerifier.verifyAndCommitStateUpdate(newStateUpdate);
         console.log("Success:", success);
-        
+
         vm.stopBroadcast();
     }
-    
+
     function initializeProofData() internal {
         // SERIALIZED PROOF PART 1 (First 16 bytes - 32 hex chars)
         serializedProofPart1.push(0x0d8838cc826baa7ccd8cfe0692e8a13d); // s^{(0)}(x,y)_X
@@ -102,10 +102,10 @@ contract UpdateState is Script {
         serializedProofPart1.push(0x104de32201c5ba649cc17df4cf759a1f); // A_Y
 
         // SERIALIZED PROOF PART 2 (Last 32 bytes - 64 hex chars)
-        serializedProofPart2.push(0xbbae56c781b300594dac0753e75154a00b83cc4e6849ef3f07bb56610a02c828); // s^{(0)}(x,y)_X 
-        serializedProofPart2.push(0xf3447285889202e7e24cd08a058a758a76ee4c8440131be202ad8bc0cc91ee70); // s^{(0)}(x,y)_Y 
-        serializedProofPart2.push(0x76e577ad778dc4476b10709945e71e289be5ca05c412ca04c133c485ae8bc757); // s^{(1)}(x,y)_X 
-        serializedProofPart2.push(0x7ada41cb993109dc7c194693dbcc461f8512755054966319bcbdea3a1da86938); // s^{(1)}(x,y)_Y 
+        serializedProofPart2.push(0xbbae56c781b300594dac0753e75154a00b83cc4e6849ef3f07bb56610a02c828); // s^{(0)}(x,y)_X
+        serializedProofPart2.push(0xf3447285889202e7e24cd08a058a758a76ee4c8440131be202ad8bc0cc91ee70); // s^{(0)}(x,y)_Y
+        serializedProofPart2.push(0x76e577ad778dc4476b10709945e71e289be5ca05c412ca04c133c485ae8bc757); // s^{(1)}(x,y)_X
+        serializedProofPart2.push(0x7ada41cb993109dc7c194693dbcc461f8512755054966319bcbdea3a1da86938); // s^{(1)}(x,y)_Y
         serializedProofPart2.push(0x12f31df6476c99289584549ae13292a824df5e10f546a9659d08479cf55b3bb2); // U_X
         serializedProofPart2.push(0xd28e43565c5c0a0b6d625a4572e02fbb6de2b255911ebe90f551a43a48c52ec0); // U_Y
         serializedProofPart2.push(0x185457d5b78e0dd03fb83b4af872c2f9800e0d4d3bbb1e36ca85a9d8ce763e55); // V_X
@@ -288,5 +288,4 @@ contract UpdateState is Script {
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
     }
-
 }

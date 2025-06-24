@@ -8,7 +8,7 @@
     /// @dev It uses a custom memory layout inside the inline assembly block. Each reserved memory cell is declared in the
     /// constants below.
     /// @dev For a better understanding of the verifier algorithm please refer to the following paper:
-    /// * Original Tokamak zkEVM Paper: https://eprint.iacr.org/2024/507.pdf
+    /// * Original Tokamak zkSNARK Paper: https://eprint.iacr.org/2024/507.pdf
     /// The notation used in the code is the same as in the papers.
     /* solhint-enable max-line-length */
     contract Verifier is IVerifier {

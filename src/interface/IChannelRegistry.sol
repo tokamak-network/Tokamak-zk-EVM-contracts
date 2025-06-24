@@ -22,8 +22,7 @@ interface IChannelRegistry {
     // Events
     event ChannelCreated(
         bytes32 indexed channelId,
-        address indexed leader,
-        bytes32 initialStateRoot
+        address indexed leader
     );
     
     event ParticipantAdded(
@@ -44,6 +43,8 @@ interface IChannelRegistry {
     );
 
     event VerifierUpdated(address verifier);
+
+    event ClosingManagerUpdated(address closingManager);
     
     event ChannelDeleted(bytes32 indexed channelId);
     
@@ -54,10 +55,12 @@ interface IChannelRegistry {
     error Channel__InvalidLeader();
     error Channel__InvalidParticipant();
     error Channel__ParticipantAlreadyExists();
-    error Channel__CannotDeleteActiveChannel();
+    error Channel__CannotDeleteChannel();
     error Channel__InvalidStatus();
     error Channel__MaxParticipantsReached();
     error Channel__NotVerifier();
+    error Channel_NotClosingManager();
+    error Channel_AunauthorizedStatusTransition();
     
 
     function addParticipant(
@@ -66,8 +69,7 @@ interface IChannelRegistry {
     ) external returns(bool);
 
     function createChannel(
-        address _leader,
-        bytes32 _initialStateRoot
+        address _leader
     ) external returns (bytes32 channelId);
 
     function updateChannelStatus(
@@ -89,19 +91,11 @@ interface IChannelRegistry {
         uint256 threshold
     ) external;
 
-    function approveStateRoot(
-        bytes32 channelId,
-        bytes32 stateRoot
-    ) external;
-
     function updateStateRoot(bytes32 _channelId, bytes32 _newStateRoot) external;
 
     function setStateTransitionVerifier(address verifier) external;
-
-    function getStateApprovals(
-        bytes32 channelId,
-        bytes32 stateRoot
-    ) external view returns (uint256);
+    
+    function setClosingManager(address closingManager) external;
 
     function isChannelParticipant(bytes32 channelId, address participant) external view returns (bool);
     

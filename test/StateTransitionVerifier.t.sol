@@ -31,7 +31,6 @@ contract testTokamakVerifier is Test {
     uint256[] public publicInputs;
 
     bytes32 public channelId;
-    bytes32 public initialStateRoot;
     bytes32 public newStateRoot;
     
 
@@ -54,8 +53,7 @@ contract testTokamakVerifier is Test {
         channelRegistry.setStateTransitionVerifier(address(stateTransitionVerifier));
 
         // create channel
-        initialStateRoot = bytes32(uint256(0x456));
-        channelId = channelRegistry.createChannel(owner, initialStateRoot);
+        channelId = channelRegistry.createChannel(owner);
         
         // Add user2 as participant if testing multi-sig
         channelRegistry.addParticipant(channelId, user2);
@@ -311,7 +309,7 @@ contract testTokamakVerifier is Test {
         // Create the message hash that participants need to sign
         bytes32 messageHash = keccak256(abi.encode(
             channelId,
-            initialStateRoot,
+            bytes32(0),
             newStateRoot,
             uint256(1) // nonce
         ));
@@ -332,7 +330,7 @@ contract testTokamakVerifier is Test {
         
         newStateUpdate = IStateTransitionVerifier.StateUpdate({
             channelId: channelId,
-            oldStateRoot: initialStateRoot,
+            oldStateRoot: bytes32(0),
             newStateRoot: newStateRoot,
             nonce: 1,
             proofPart1: serializedProofPart1,

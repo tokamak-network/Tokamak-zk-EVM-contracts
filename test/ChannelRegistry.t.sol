@@ -21,7 +21,7 @@ contract testChannelRegistry is Test {
 
     function testCreateChannel() public {
         vm.prank(owner);
-        bytes32 channelId = channelRegistry.createChannel(owner, bytes32(0));
+        bytes32 channelId = channelRegistry.createChannel(owner);
         
         IChannelRegistry.ChannelInfo memory channelInfo = channelRegistry.getChannelInfo(channelId);
         
@@ -36,10 +36,10 @@ contract testChannelRegistry is Test {
 
     function testCreateChannelFullFlow() public {
         address leader = address(0x123);
-        bytes32 initialStateRoot = bytes32(uint256(0x456));
+        bytes32 initialStateRoot = bytes32(0);
         
         vm.prank(owner);
-        bytes32 channelId = channelRegistry.createChannel(leader, initialStateRoot);
+        bytes32 channelId = channelRegistry.createChannel(leader);
         
         // Verify channel exists
         IChannelRegistry.ChannelInfo memory info = channelRegistry.getChannelInfo(channelId);
@@ -58,7 +58,7 @@ contract testChannelRegistry is Test {
     function testCannotCreateChannelWithZeroLeader() public {
         vm.prank(owner);
         vm.expectRevert(IChannelRegistry.Channel__InvalidLeader.selector);
-        channelRegistry.createChannel(address(0), bytes32(0));
+        channelRegistry.createChannel(address(0));
     }
 
     function testCannotGetNonExistentChannel() public {

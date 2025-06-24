@@ -8,10 +8,10 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     // State variables
     mapping(bytes32 => ChannelInfo) private channels;
     mapping(bytes32 => mapping(address => bool)) private isParticipant;
-    mapping(bytes32 => mapping(bytes32 => uint256)) private stateApprovals;
     
     uint256 private channelCounter;
     address private verifier;
+    address private closingManager;
 
     // Constants
     uint256 public constant MAX_PARTICIPANTS = 100;
@@ -38,6 +38,13 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         _;
     }
 
+    modifier onlyClosingManager() {
+        if(msg.sender != closingManager) {
+            revert Channel_NotClosingManager();
+        }
+        _;
+    }
+
     constructor() Ownable(msg.sender) {}
 
     function setStateTransitionVerifier(address _verifier) external onlyOwner {
@@ -45,9 +52,13 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         emit VerifierUpdated(_verifier);
     }
 
+    function setClosingManager(address _closingManager) external onlyOwner {
+        closingManager = _closingManager;
+        emit ClosingManagerUpdated(_closingManager);
+    }
+
     function createChannel(
-        address _leader,
-        bytes32 _initialStateRoot
+        address _leader
     ) external onlyOwner returns (bytes32 channelId) {
         if(_leader == address(0)) {
             revert Channel__InvalidLeader();
@@ -65,7 +76,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         // Initialize channel
         ChannelInfo storage channel = channels[channelId];
         channel.leader = _leader;
-        channel.currentStateRoot = _initialStateRoot;
+        channel.currentStateRoot = bytes32(0);
         channel.signatureThreshold = DEFAULT_SIGNATURE_THRESHOLD;
         channel.nonce = 0;
         channel.lastUpdateBlock = block.number;
@@ -76,7 +87,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         channel.participants.push(_leader);
         isParticipant[channelId][_leader] = true;
         
-        emit ChannelCreated(channelId, _leader, _initialStateRoot);
+        emit ChannelCreated(channelId, _leader);
     }
 
     function addParticipant(
@@ -123,6 +134,10 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         if(!_isValidStatusTransition(oldStatus, _status)) {
             revert Channel__InvalidStatus();
         }
+
+        if(_status == ChannelStatus.CLOSED) {
+            revert Channel_AunauthorizedStatusTransition();
+        }
         
         channel.status = _status;
         channel.lastUpdateBlock = block.number;
@@ -161,12 +176,12 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
 
     function deleteChannel(
         bytes32 _channelId
-    ) external channelExists(_channelId) onlyChannelLeader(_channelId) {
+    ) external channelExists(_channelId) onlyClosingManager {
         ChannelInfo storage channel = channels[_channelId];
         
         // Only allow deletion of closed channels
-        if(channel.status != ChannelStatus.CLOSED) {
-            revert Channel__CannotDeleteActiveChannel();
+        if(channel.status != ChannelStatus.CLOSING) {
+            revert Channel__CannotDeleteChannel();
         }
         
         // Clean up participants mapping
@@ -225,22 +240,6 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     
     function getParticipantCount(bytes32 channelId) external view returns (uint256) {
         return channels[channelId].participants.length;
-    }
-    
-    function approveStateRoot(
-        bytes32 channelId,
-        bytes32 stateRoot
-    ) external channelExists(channelId) {
-        require(isParticipant[channelId][msg.sender], "Not a participant");
-        
-        stateApprovals[channelId][stateRoot]++;
-    }
-    
-    function getStateApprovals(
-        bytes32 channelId,
-        bytes32 stateRoot
-    ) external view returns (uint256) {
-        return stateApprovals[channelId][stateRoot];
     }
     
     // Internal functions

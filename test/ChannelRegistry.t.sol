@@ -92,9 +92,6 @@ contract testChannelRegistry is Test {
         commitments[1] = commitment1;
         commitments[2] = commitment2;
 
-        // Create initial balance root (empty tree)
-        bytes32 initialBalanceRoot = bytes32(0);
-
         IChannelRegistry.ChannelCreationParams memory params = IChannelRegistry.ChannelCreationParams({
             leader: leader,
             preApprovedParticipants: participants,
@@ -102,8 +99,7 @@ contract testChannelRegistry is Test {
             participantCommitments: commitments,
             signatureThreshold: 2,
             challengePeriod: 7 days,
-            initialStateRoot: bytes32(0),
-            initialBalanceRoot: initialBalanceRoot
+            initialStateRoot: bytes32(0)
         });
 
         // Add supported tokens
@@ -135,7 +131,7 @@ contract testChannelRegistry is Test {
         assertEq(tokens[2], address(token2));
 
         // Verify initial balance root
-        assertEq(channelRegistry.getChannelBalanceRoot(channelId), initialBalanceRoot);
+        assertEq(channelRegistry.getChannelStateRoot(channelId), bytes32(0));
     }
 
     function testParticipantStaking() public {
@@ -184,7 +180,7 @@ contract testChannelRegistry is Test {
         assertEq(channelBalance, depositAmount);
     }
 
-    function testUpdateBalanceRoot() public {
+    function testUpdateStateRoot() public {
         bytes32 channelId = _createTestChannelWithStakes();
 
         // Set up verifier address
@@ -192,13 +188,13 @@ contract testChannelRegistry is Test {
         channelRegistry.setStateTransitionVerifier(address(this));
 
         // Create a new balance root
-        bytes32 newBalanceRoot = keccak256("new balance root");
+        bytes32 newStateRoot = keccak256("new state root");
 
         // Update balance root (only verifier can do this)
-        channelRegistry.updateBalanceRoot(channelId, newBalanceRoot);
+        channelRegistry.updateStateRoot(channelId, newStateRoot);
 
         // Verify update
-        assertEq(channelRegistry.getChannelBalanceRoot(channelId), newBalanceRoot);
+        assertEq(channelRegistry.getChannelStateRoot(channelId), newStateRoot);
     }
 
     function testWithdrawWithProof() public {
@@ -225,7 +221,7 @@ contract testChannelRegistry is Test {
         bytes32 root = _computeRoot(leaf1, leaf2);
 
         // Update balance root
-        channelRegistry.updateBalanceRoot(channelId, root);
+        channelRegistry.updateStateRoot(channelId, root);
 
         // Change status to CLOSING
         vm.prank(leader);
@@ -325,8 +321,7 @@ contract testChannelRegistry is Test {
             participantCommitments: commitments,
             signatureThreshold: 2,
             challengePeriod: 7 days,
-            initialStateRoot: bytes32(0),
-            initialBalanceRoot: bytes32(0)
+            initialStateRoot: bytes32(0)
         });
 
         // Add supported tokens

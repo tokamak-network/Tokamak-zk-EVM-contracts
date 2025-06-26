@@ -30,7 +30,6 @@ interface IChannelRegistry {
         uint256 joinedAt;
         bool hasExited;
     }
-    // Note: individual token balances are now stored in Merkle tree off-chain
 
     struct LeaderBond {
         uint256 amount;
@@ -44,8 +43,7 @@ interface IChannelRegistry {
         address[] preApprovedParticipants;
         bytes32[] participantCommitments;
         uint256 signatureThreshold;
-        bytes32 initialStateRoot;
-        bytes32 initialBalanceRoot; // New: initial Merkle root of balances
+        bytes32 initialStateRoot; // initial Merkle root of balances
         uint256 challengePeriod;
         uint256 minimumStake;
     }
@@ -112,7 +110,6 @@ interface IChannelRegistry {
     function updateChannelStatus(bytes32 _channelId, ChannelStatus _status) external;
     function transferLeadership(bytes32 _channelId, address _newLeader) external;
     function closeChannel(bytes32 _channelId) external;
-    function updateStateRoot(bytes32 _channelId, bytes32 _newStateRoot) external;
     function getChannelInfo(bytes32 channelId) external view returns (ChannelInfo memory);
     function getCurrentStateRoot(bytes32 _channelId) external view returns (bytes32);
     function getLeaderAddress(bytes32 _channelId) external view returns (address);
@@ -126,10 +123,10 @@ interface IChannelRegistry {
     function depositETH(bytes32 channelId) external payable;
 
     // Merkle-based functions
-    function updateBalanceRoot(bytes32 channelId, bytes32 newBalanceRoot) external;
+    function updateStateRoot(bytes32 channelId, bytes32 newStateRoot) external;
     function withdrawWithProof(bytes32 channelId, address token, uint256 amount, bytes32[] calldata merkleProof)
         external;
-    function getChannelBalanceRoot(bytes32 channelId) external view returns (bytes32);
+    function getChannelStateRoot(bytes32 channelId) external view returns (bytes32);
     function hasParticipantWithdrawn(bytes32 channelId, address participant, address token)
         external
         view

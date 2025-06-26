@@ -170,7 +170,6 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         channel.status = ChannelStatus.ACTIVE;
         channel.challengePeriod = params.challengePeriod > 0 ? params.challengePeriod : DEFAULT_CHALLENGE_PERIOD;
 
-    
         // Add all pre-approved participants
         for (uint256 i = 0; i < params.preApprovedParticipants.length; i++) {
             address participant = params.preApprovedParticipants[i];
@@ -262,11 +261,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // New Merkle-based balance update - O(1) gas cost!
-    function updateStateRoot(bytes32 channelId, bytes32 newStateRoot)
-        external
-        onlyVerifier
-        channelExists(channelId)
-    {
+    function updateStateRoot(bytes32 channelId, bytes32 newStateRoot) external onlyVerifier channelExists(channelId) {
         bytes32 oldRoot = channelStateRoots[channelId];
         channelStateRoots[channelId] = newStateRoot;
 

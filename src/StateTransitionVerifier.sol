@@ -147,14 +147,8 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         }
 
         // Create the message hash that participants should have signed
-        bytes32 messageHash = keccak256(
-            abi.encode(
-                update.channelId,
-                update.oldStateRoot,
-                update.newStateRoot,
-                update.nonce
-            )
-        );
+        bytes32 messageHash =
+            keccak256(abi.encode(update.channelId, update.oldStateRoot, update.newStateRoot, update.nonce));
 
         // Add Ethereum Signed Message prefix
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();

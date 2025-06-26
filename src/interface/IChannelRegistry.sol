@@ -59,6 +59,11 @@ interface IChannelRegistry {
         uint256 amount;
     }
 
+    struct TokenBalance {
+        address token;
+        uint256 amount;
+    }
+
     // Events
     event ChannelCreated(bytes32 indexed channelId, address indexed leader);
     event ChannelCreatedWithParams(bytes32 indexed channelId, ChannelCreationParams params);
@@ -124,8 +129,12 @@ interface IChannelRegistry {
 
     // Merkle-based functions
     function updateStateRoot(bytes32 channelId, bytes32 newStateRoot) external;
-    function withdrawWithProof(bytes32 channelId, address token, uint256 amount, bytes32[] calldata merkleProof)
-        external;
+    function withdrawWithProof(bytes32 channelId,
+        address token,
+        uint256 amount,
+        TokenBalance[] calldata allBalances,  // All balances for this participant
+        bytes32[] calldata merkleProof
+    ) external;
     function getChannelStateRoot(bytes32 channelId) external view returns (bytes32);
     function hasParticipantWithdrawn(bytes32 channelId, address participant, address token)
         external

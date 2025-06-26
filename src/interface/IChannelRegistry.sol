@@ -129,10 +129,11 @@ interface IChannelRegistry {
 
     // Merkle-based functions
     function updateStateRoot(bytes32 channelId, bytes32 newStateRoot) external;
-    function withdrawWithProof(bytes32 channelId,
+    function withdrawWithProof(
+        bytes32 channelId,
         address token,
         uint256 amount,
-        TokenBalance[] calldata allBalances,  // All balances for this participant
+        TokenBalance[] calldata allBalances, // All balances for this participant
         bytes32[] calldata merkleProof
     ) external;
     function getChannelStateRoot(bytes32 channelId) external view returns (bytes32);

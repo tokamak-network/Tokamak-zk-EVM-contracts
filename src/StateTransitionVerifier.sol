@@ -81,12 +81,9 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         channelStateRoots[update.channelId] = update.newStateRoot;
         channelNonces[update.channelId] = update.nonce;
 
-        // Update current state root in channel registry
-        channelRegistry.updateStateRoot(update.channelId, update.newStateRoot);
-
         // Update balance root if provided (O(1) operation!)
-        if (update.newBalanceRoot != bytes32(0)) {
-            channelRegistry.updateBalanceRoot(update.channelId, update.newBalanceRoot);
+        if (update.newStateRoot != bytes32(0)) {
+            channelRegistry.updateStateRoot(update.channelId, update.newStateRoot);
         }
 
         emit StateUpdated(update.channelId, update.oldStateRoot, update.newStateRoot, update.nonce);
@@ -155,8 +152,7 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
                 update.channelId,
                 update.oldStateRoot,
                 update.newStateRoot,
-                update.nonce,
-                update.newBalanceRoot // Include balance root in signature
+                update.nonce
             )
         );
 
@@ -247,11 +243,6 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         // Update current state root in channel registry
         channelRegistry.updateStateRoot(update.channelId, update.newStateRoot);
 
-        // Update balance root if provided
-        if (update.newBalanceRoot != bytes32(0)) {
-            channelRegistry.updateBalanceRoot(update.channelId, update.newBalanceRoot);
-        }
-
         emit StateUpdated(update.channelId, update.oldStateRoot, update.newStateRoot, update.nonce);
 
         return true;
@@ -278,11 +269,6 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
 
         // Update registry
         channelRegistry.updateStateRoot(channelId, newStateRoot);
-
-        // Update balance root if provided
-        if (newBalanceRoot != bytes32(0)) {
-            channelRegistry.updateBalanceRoot(channelId, newBalanceRoot);
-        }
 
         emit EmergencyStateUpdate(channelId, oldRoot, newStateRoot, newNonce);
     }

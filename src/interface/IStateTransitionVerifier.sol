@@ -9,7 +9,6 @@ interface IStateTransitionVerifier {
         bytes32 channelId;
         bytes32 oldStateRoot;
         bytes32 newStateRoot;
-        bytes32 newBalanceRoot; // New: Merkle root of all participant balances
         uint256 nonce;
         bytes[] participantSignatures;
         address[] signers;

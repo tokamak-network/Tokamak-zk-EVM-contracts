@@ -18,7 +18,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     mapping(address => LeaderBond) private leaderBonds;
 
     // New Merkle-based balance tracking
-    mapping(bytes32 => bytes32) private channelBalanceRoots;
+    mapping(bytes32 => bytes32) private channelStateRoots;
     mapping(bytes32 => mapping(address => mapping(address => bool))) private hasWithdrawn; // channelId => participant => token => withdrawn
 
     // Channel deposits and configuration
@@ -170,10 +170,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         channel.status = ChannelStatus.ACTIVE;
         channel.challengePeriod = params.challengePeriod > 0 ? params.challengePeriod : DEFAULT_CHALLENGE_PERIOD;
 
-        // Initialize balance root as empty tree root
-        channelBalanceRoots[channelId] =
-            params.initialBalanceRoot != bytes32(0) ? params.initialBalanceRoot : bytes32(0);
-
+    
         // Add all pre-approved participants
         for (uint256 i = 0; i < params.preApprovedParticipants.length; i++) {
             address participant = params.preApprovedParticipants[i];
@@ -265,15 +262,15 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // New Merkle-based balance update - O(1) gas cost!
-    function updateBalanceRoot(bytes32 channelId, bytes32 newBalanceRoot)
+    function updateStateRoot(bytes32 channelId, bytes32 newStateRoot)
         external
         onlyVerifier
         channelExists(channelId)
     {
-        bytes32 oldRoot = channelBalanceRoots[channelId];
-        channelBalanceRoots[channelId] = newBalanceRoot;
+        bytes32 oldRoot = channelStateRoots[channelId];
+        channelStateRoots[channelId] = newStateRoot;
 
-        emit BalanceRootUpdated(channelId, oldRoot, newBalanceRoot);
+        emit BalanceRootUpdated(channelId, oldRoot, newStateRoot);
     }
 
     // Withdrawal with Merkle proof during channel closure
@@ -295,7 +292,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
 
         // Verify Merkle proof
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender, token, amount));
-        require(MerkleProof.verify(merkleProof, channelBalanceRoots[channelId], leaf), "Invalid balance proof");
+        require(MerkleProof.verify(merkleProof, channelStateRoots[channelId], leaf), "Invalid balance proof");
 
         // Mark as withdrawn
         hasWithdrawn[channelId][msg.sender][token] = true;
@@ -437,14 +434,9 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         delete channels[_channelId];
         delete channelDeposits[_channelId];
         delete minimumStakeRequired[_channelId];
-        delete channelBalanceRoots[_channelId];
+        delete channelStateRoots[_channelId];
 
         emit ChannelDeleted(_channelId);
-    }
-
-    function updateStateRoot(bytes32 _channelId, bytes32 _newStateRoot) external onlyVerifier {
-        channels[_channelId].currentStateRoot = _newStateRoot;
-        channels[_channelId].nonce++;
     }
 
     // View functions
@@ -484,8 +476,8 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         return channelDeposits[channelId];
     }
 
-    function getChannelBalanceRoot(bytes32 channelId) external view returns (bytes32) {
-        return channelBalanceRoots[channelId];
+    function getChannelStateRoot(bytes32 channelId) external view returns (bytes32) {
+        return channelStateRoots[channelId];
     }
 
     function hasParticipantWithdrawn(bytes32 channelId, address participant, address token)

@@ -118,7 +118,6 @@ contract testStateTransitionVerifier is Test {
             participantCommitments: commitments,
             signatureThreshold: 2, // Require 2 out of 3 signatures
             initialStateRoot: bytes32(0),
-            initialBalanceRoot: bytes32(0),
             challengePeriod: 7 days,
             minimumStake: MIN_PARTICIPANT_STAKE
         });
@@ -151,8 +150,7 @@ contract testStateTransitionVerifier is Test {
                 channelId,
                 bytes32(0),
                 newStateRoot,
-                uint256(1), // nonce
-                newBalanceRoot
+                uint256(1) // nonce
             )
         );
 
@@ -179,7 +177,6 @@ contract testStateTransitionVerifier is Test {
             channelId: channelId,
             oldStateRoot: bytes32(0),
             newStateRoot: newStateRoot,
-            newBalanceRoot: newBalanceRoot,
             nonce: 1,
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
@@ -201,7 +198,7 @@ contract testStateTransitionVerifier is Test {
 
     function testCannotSubmitWithInsufficientSignatures() public {
         // Create the message hash
-        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1), newBalanceRoot));
+        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1)));
 
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
@@ -222,7 +219,6 @@ contract testStateTransitionVerifier is Test {
             channelId: channelId,
             oldStateRoot: bytes32(0),
             newStateRoot: newStateRoot,
-            newBalanceRoot: newBalanceRoot,
             nonce: 1,
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
@@ -256,7 +252,6 @@ contract testStateTransitionVerifier is Test {
             channelId: channelId,
             oldStateRoot: bytes32(0),
             newStateRoot: newStateRoot,
-            newBalanceRoot: newBalanceRoot,
             nonce: 1,
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
@@ -277,7 +272,7 @@ contract testStateTransitionVerifier is Test {
         channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
 
         // For closing state, we need ALL remaining participants to sign
-        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1), newBalanceRoot));
+        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1)));
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
         // Get signatures from all 3 participants
@@ -302,7 +297,6 @@ contract testStateTransitionVerifier is Test {
             channelId: channelId,
             oldStateRoot: bytes32(0),
             newStateRoot: newStateRoot,
-            newBalanceRoot: newBalanceRoot,
             nonce: 1,
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,

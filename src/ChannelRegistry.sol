@@ -268,35 +268,45 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         emit BalanceRootUpdated(channelId, oldRoot, newStateRoot);
     }
 
-    // Withdrawal with Merkle proof during channel closure
-    function withdrawWithProof(bytes32 channelId, address token, uint256 amount, bytes32[] calldata merkleProof)
-        external
-        channelExists(channelId)
-    {
+    function withdrawWithProof(
+        bytes32 channelId,
+        address token,
+        uint256 amount,
+        TokenBalance[] calldata allBalances, // All balances for this participant
+        bytes32[] calldata merkleProof
+    ) external channelExists(channelId) {
         ChannelInfo storage channel = channels[channelId];
         require(
             channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED,
             "Channel not in withdrawal phase"
         );
 
-        ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
-        require(participant.isActive || participant.hasExited, "Not a participant");
+        // Verify the participant is withdrawing their own balance
+        require(allBalances.length > 0, "No balances provided");
+
+        // Find the specific token balance
+        uint256 tokenIndex = type(uint256).max;
+        for (uint256 i = 0; i < allBalances.length; i++) {
+            if (allBalances[i].token == token) {
+                require(allBalances[i].amount == amount, "Amount mismatch");
+                tokenIndex = i;
+                break;
+            }
+        }
+        require(tokenIndex != type(uint256).max, "Token not found in balances");
 
         // Check if already withdrawn
         require(!hasWithdrawn[channelId][msg.sender][token], "Already withdrawn");
 
+        // Compute leaf from all balances
+        bytes32 leaf = keccak256(abi.encode(msg.sender, allBalances));
+
         // Verify Merkle proof
-        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, token, amount));
         require(MerkleProof.verify(merkleProof, channelStateRoots[channelId], leaf), "Invalid balance proof");
 
-        // Mark as withdrawn
         hasWithdrawn[channelId][msg.sender][token] = true;
-
-        // Update channel total balance
-        require(channelTokenBalances[channelId][token] >= amount, "Insufficient channel balance");
         channelTokenBalances[channelId][token] -= amount;
 
-        // Transfer tokens
         if (token == ETH_TOKEN_ADDRESS) {
             payable(msg.sender).transfer(amount);
         } else {

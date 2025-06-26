@@ -5,14 +5,11 @@ import {Test} from "forge-std/Test.sol";
 import {ChannelRegistry} from "../src/ChannelRegistry.sol";
 import {IChannelRegistry} from "../src/interface/IChannelRegistry.sol";
 import {ERC20Mock} from "./mock/ERC20Mock.sol";
-import {BalanceMerkleTree} from "../src/libraries/BalanceMerkleTree.sol";
 import {MerkleProof} from "@openzeppelin/utils/cryptography/MerkleProof.sol";
 
 import "forge-std/console.sol";
 
 contract testChannelRegistry is Test {
-    using BalanceMerkleTree for *;
-
     address owner;
     address leader;
     address participant1;
@@ -197,7 +194,7 @@ contract testChannelRegistry is Test {
         assertEq(channelRegistry.getChannelStateRoot(channelId), newStateRoot);
     }
 
-    function testWithdrawWithProof() public {
+    function testWithdrawWithProofAccountBased() public {
         bytes32 channelId = _createTestChannelWithStakes();
 
         // Deposit tokens first
@@ -205,22 +202,41 @@ contract testChannelRegistry is Test {
         vm.startPrank(participant1);
         token1.approve(address(channelRegistry), depositAmount);
         channelRegistry.depositToken(channelId, address(token1), depositAmount);
+        token2.approve(address(channelRegistry), 50 * 10 ** 18);
+        channelRegistry.depositToken(channelId, address(token2), 50 * 10 ** 18);
+        vm.stopPrank();
+
+        vm.startPrank(participant2);
+        token1.approve(address(channelRegistry), 40 * 10 ** 18);
+        channelRegistry.depositToken(channelId, address(token1), 40 * 10 ** 18);
         vm.stopPrank();
 
         // Set up verifier
         vm.prank(owner);
         channelRegistry.setStateTransitionVerifier(address(this));
 
-        // Create balance data for Merkle tree
-        uint256 participant1Balance = 60 * 10 ** 18;
-        uint256 participant2Balance = 40 * 10 ** 18;
+        // Create account states for Merkle tree
+        // Participant1 has multiple tokens
+        IChannelRegistry.TokenBalance[] memory p1Balances = new IChannelRegistry.TokenBalance[](3);
+        p1Balances[0] = IChannelRegistry.TokenBalance({
+            token: address(0), // ETH
+            amount: 0.2 ether
+        });
+        p1Balances[1] = IChannelRegistry.TokenBalance({token: address(token1), amount: 60 * 10 ** 18});
+        p1Balances[2] = IChannelRegistry.TokenBalance({token: address(token2), amount: 50 * 10 ** 18});
 
-        // Create Merkle tree (off-chain computation)
-        bytes32 leaf1 = keccak256(abi.encodePacked(participant1, address(token1), participant1Balance));
-        bytes32 leaf2 = keccak256(abi.encodePacked(participant2, address(token1), participant2Balance));
+        // Participant2 has only one token
+        IChannelRegistry.TokenBalance[] memory p2Balances = new IChannelRegistry.TokenBalance[](1);
+        p2Balances[0] = IChannelRegistry.TokenBalance({token: address(token1), amount: 40 * 10 ** 18});
+
+        // Create leaves - one per account
+        bytes32 leaf1 = keccak256(abi.encode(participant1, p1Balances));
+        bytes32 leaf2 = keccak256(abi.encode(participant2, p2Balances));
+
+        // Simple 2-participant tree
         bytes32 root = _computeRoot(leaf1, leaf2);
 
-        // Update balance root
+        // Update state root
         channelRegistry.updateStateRoot(channelId, root);
 
         // Change status to CLOSING
@@ -231,20 +247,118 @@ contract testChannelRegistry is Test {
         bytes32[] memory proof = new bytes32[](1);
         proof[0] = leaf2;
 
-        // Withdraw with proof
+        // Withdraw token1 with proof - must provide all balances
         uint256 balanceBefore = token1.balanceOf(participant1);
 
         vm.prank(participant1);
-        channelRegistry.withdrawWithProof(channelId, address(token1), participant1Balance, proof);
+        channelRegistry.withdrawWithProof(channelId, address(token1), 60 * 10 ** 18, p1Balances, proof);
 
         // Verify withdrawal
         uint256 balanceAfter = token1.balanceOf(participant1);
-        assertEq(balanceAfter - balanceBefore, participant1Balance);
+        assertEq(balanceAfter - balanceBefore, 60 * 10 ** 18);
 
-        // Verify cannot withdraw again
+        // Verify cannot withdraw same token again
         vm.prank(participant1);
         vm.expectRevert("Already withdrawn");
-        channelRegistry.withdrawWithProof(channelId, address(token1), participant1Balance, proof);
+        channelRegistry.withdrawWithProof(channelId, address(token1), 60 * 10 ** 18, p1Balances, proof);
+
+        // But can withdraw different token
+        uint256 token2BalanceBefore = token2.balanceOf(participant1);
+
+        vm.prank(participant1);
+        channelRegistry.withdrawWithProof(channelId, address(token2), 50 * 10 ** 18, p1Balances, proof);
+
+        uint256 token2BalanceAfter = token2.balanceOf(participant1);
+        assertEq(token2BalanceAfter - token2BalanceBefore, 50 * 10 ** 18);
+    }
+
+    function testCannotWithdrawWithWrongBalances() public {
+        bytes32 channelId = _createTestChannelWithStakes();
+
+        // Deposit tokens
+        uint256 depositAmount = 100 * 10 ** 18;
+        vm.startPrank(participant1);
+        token1.approve(address(channelRegistry), depositAmount);
+        channelRegistry.depositToken(channelId, address(token1), depositAmount);
+        vm.stopPrank();
+
+        // Set up verifier
+        vm.prank(owner);
+        channelRegistry.setStateTransitionVerifier(address(this));
+
+        // Create correct account state
+        IChannelRegistry.TokenBalance[] memory correctBalances = new IChannelRegistry.TokenBalance[](1);
+        correctBalances[0] = IChannelRegistry.TokenBalance({token: address(token1), amount: 100 * 10 ** 18});
+
+        // Create wrong account state (trying to claim more)
+        IChannelRegistry.TokenBalance[] memory wrongBalances = new IChannelRegistry.TokenBalance[](1);
+        wrongBalances[0] = IChannelRegistry.TokenBalance({token: address(token1), amount: 200 * 10 ** 18});
+
+        // Create leaves
+        bytes32 correctLeaf = keccak256(abi.encode(participant1, correctBalances));
+        bytes32 participant2Leaf = keccak256(abi.encode(participant2, new IChannelRegistry.TokenBalance[](0)));
+
+        bytes32 root = _computeRoot(correctLeaf, participant2Leaf);
+        channelRegistry.updateStateRoot(channelId, root);
+
+        // Change to CLOSING
+        vm.prank(leader);
+        channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
+
+        // Try to withdraw with wrong balances
+        bytes32[] memory proof = new bytes32[](1);
+        proof[0] = participant2Leaf;
+
+        vm.prank(participant1);
+        vm.expectRevert("Invalid balance proof");
+        channelRegistry.withdrawWithProof(
+            channelId,
+            address(token1),
+            200 * 10 ** 18,
+            wrongBalances, // Wrong balances array
+            proof
+        );
+    }
+
+    function testWithdrawWithMismatchedAmount() public {
+        bytes32 channelId = _createTestChannelWithStakes();
+
+        // Setup and deposits...
+        uint256 depositAmount = 100 * 10 ** 18;
+        vm.startPrank(participant1);
+        token1.approve(address(channelRegistry), depositAmount);
+        channelRegistry.depositToken(channelId, address(token1), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        channelRegistry.setStateTransitionVerifier(address(this));
+
+        // Create account state
+        IChannelRegistry.TokenBalance[] memory balances = new IChannelRegistry.TokenBalance[](1);
+        balances[0] = IChannelRegistry.TokenBalance({token: address(token1), amount: 100 * 10 ** 18});
+
+        bytes32 leaf1 = keccak256(abi.encode(participant1, balances));
+        bytes32 leaf2 = keccak256(abi.encode(participant2, new IChannelRegistry.TokenBalance[](0)));
+        bytes32 root = _computeRoot(leaf1, leaf2);
+
+        channelRegistry.updateStateRoot(channelId, root);
+
+        vm.prank(leader);
+        channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
+
+        bytes32[] memory proof = new bytes32[](1);
+        proof[0] = leaf2;
+
+        // Try to withdraw different amount than in balances array
+        vm.prank(participant1);
+        vm.expectRevert("Amount mismatch");
+        channelRegistry.withdrawWithProof(
+            channelId,
+            address(token1),
+            50 * 10 ** 18, // Different from balances array
+            balances,
+            proof
+        );
     }
 
     function testCannotExitActiveChannel() public {

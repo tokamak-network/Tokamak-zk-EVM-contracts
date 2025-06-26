@@ -14,7 +14,7 @@ interface IStateTransitionVerifier {
         uint256[] publicInputs;
         bytes[] participantSignatures;
         address[] signers;
-        IChannelRegistry.BalanceUpdate[] balanceUpdates; // New field for balance updates
+        IChannelRegistry.BalanceUpdate[] balanceUpdates; 
     }
 
     // Events

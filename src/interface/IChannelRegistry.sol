@@ -20,7 +20,7 @@ interface IChannelRegistry {
         uint256 lastUpdateBlock;
         uint256 lastUpdateTimestamp;
         ChannelStatus status;
-        uint256 challengePeriod; // New field
+        uint256 challengePeriod; 
     }
 
     struct ChannelCreationParams {

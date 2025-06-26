@@ -8,16 +8,21 @@ import {IStateTransitionVerifier} from "../src/interface/IStateTransitionVerifie
 import {ChannelRegistry} from "../src/ChannelRegistry.sol";
 import {IChannelRegistry} from "../src/interface/IChannelRegistry.sol";
 import {MessageHashUtils} from "@openzeppelin/utils/cryptography/MessageHashUtils.sol";
+import {ERC20Mock} from "./mock/ERC20Mock.sol"; 
 
 import "forge-std/console.sol";
 
-contract testTokamakVerifier is Test {
+contract testStateTransitionVerifier is Test {
     using MessageHashUtils for bytes32;
 
     address owner;
     uint256 ownerPrivateKey;
-    address user2;
-    uint256 user2PrivateKey;
+    address leader;
+    uint256 leaderPrivateKey;
+    address participant1;
+    uint256 participant1PrivateKey;
+    address participant2;
+    uint256 participant2PrivateKey;
 
     Verifier verifier;
     StateTransitionVerifier stateTransitionVerifier;
@@ -25,13 +30,19 @@ contract testTokamakVerifier is Test {
 
     IStateTransitionVerifier.StateUpdate internal newStateUpdate;
 
+    // Mock tokens for testing
+    ERC20Mock token1;
+    ERC20Mock token2;
+
     uint128[] public serializedProofPart1;
     uint256[] public serializedProofPart2;
-    uint256[] public serializedProof;
     uint256[] public publicInputs;
 
     bytes32 public channelId;
     bytes32 public newStateRoot;
+
+    uint256 constant MIN_LEADER_BOND = 1 ether;
+    uint256 constant MIN_PARTICIPANT_STAKE = 0.1 ether;
 
     function setUp() public virtual {
         verifier = new Verifier();
@@ -40,31 +51,336 @@ contract testTokamakVerifier is Test {
         ownerPrivateKey = 0x1234;
         owner = vm.addr(ownerPrivateKey);
 
-        user2PrivateKey = 0x5678;
-        user2 = vm.addr(user2PrivateKey);
+        leaderPrivateKey = 0x5678;
+        leader = vm.addr(leaderPrivateKey);
 
-        // Fund the owner
+        participant1PrivateKey = 0x9abc;
+        participant1 = vm.addr(participant1PrivateKey);
+
+        participant2PrivateKey = 0xdef0;
+        participant2 = vm.addr(participant2PrivateKey);
+
+        // Fund accounts
         vm.deal(owner, 100 ether);
+        vm.deal(leader, 10 ether);
+        vm.deal(participant1, 5 ether);
+        vm.deal(participant2, 5 ether);
 
         vm.startPrank(owner);
+        // Deploy mock tokens
+        token1 = new ERC20Mock("Token1", "TK1");
+        token2 = new ERC20Mock("Token2", "TK2");
+
+        // Mint some tokens for testing
+        token1.mint(participant1, 1000 * 10**18);
+        token1.mint(participant2, 1000 * 10**18);
+        token2.mint(participant1, 1000 * 10**18);
+        token2.mint(participant2, 1000 * 10**18);
+
         channelRegistry = new ChannelRegistry();
         stateTransitionVerifier = new StateTransitionVerifier(address(verifier), address(channelRegistry));
         channelRegistry.setStateTransitionVerifier(address(stateTransitionVerifier));
-
-        // create channel
-        channelId = channelRegistry.createChannel(owner);
-
-        // Add user2 as participant if testing multi-sig
-        channelRegistry.addParticipant(channelId, user2);
-
         vm.stopPrank();
 
-        // Initialize your proof data here...
-        // [Previous proof initialization code remains the same]
+        // Create channel with enhanced parameters
+        channelId = _createTestChannelWithStakes();
 
         newStateRoot = bytes32(uint256(0x789));
 
-        // Complete test suite proof data
+        _initializeProofData();
+    }
+
+    function _createTestChannelWithStakes() internal returns (bytes32) {
+        // Leader bonds first
+        vm.prank(leader);
+        channelRegistry.bondAsLeader{value: MIN_LEADER_BOND}();
+
+        // Create commitments
+        bytes32 leaderNonce = keccak256("leader_nonce");
+        bytes32 participant1Nonce = keccak256("participant1_nonce");
+        bytes32 participant2Nonce = keccak256("participant2_nonce");
+
+        address[] memory participants = new address[](3);
+        participants[0] = leader;
+        participants[1] = participant1;
+        participants[2] = participant2;
+
+        bytes32[] memory commitments = new bytes32[](3);
+        commitments[0] = keccak256(abi.encode(leader, leaderNonce));
+        commitments[1] = keccak256(abi.encode(participant1, participant1Nonce));
+        commitments[2] = keccak256(abi.encode(participant2, participant2Nonce));
+
+        IChannelRegistry.ChannelCreationParams memory params = IChannelRegistry.ChannelCreationParams({
+            leader: leader,
+            preApprovedParticipants: participants,
+            minimumStake: MIN_PARTICIPANT_STAKE,
+            participantCommitments: commitments,
+            signatureThreshold: 2, // Require 2 out of 3 signatures
+            challengePeriod: 7 days,
+            initialStateRoot: bytes32(0)
+        });
+
+        // Add supported tokens
+        address[] memory supportedTokens = new address[](2);
+        supportedTokens[0] = address(token1);
+        supportedTokens[1] = address(token2);
+
+        vm.prank(leader);
+        bytes32 newChannelId = channelRegistry.createChannelWithParams(params, supportedTokens);
+
+        // All participants stake
+        vm.prank(leader);
+        channelRegistry.stakeAsParticipant{value: MIN_PARTICIPANT_STAKE}(newChannelId, leaderNonce);
+
+        vm.prank(participant1);
+        channelRegistry.stakeAsParticipant{value: MIN_PARTICIPANT_STAKE}(newChannelId, participant1Nonce);
+
+        vm.prank(participant2);
+        channelRegistry.stakeAsParticipant{value: MIN_PARTICIPANT_STAKE}(newChannelId, participant2Nonce);
+
+        return newChannelId;
+    }
+
+    function testVerifyAndCommitStateUpdateWithMultipleSignatures() public {
+        // Create the message hash that participants need to sign
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                channelId,
+                bytes32(0),
+                newStateRoot,
+                uint256(1) // nonce
+            )
+        );
+
+        // Add Ethereum Signed Message prefix
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+
+        // Sign with leader and participant1 (2 out of 3 signatures)
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(leaderPrivateKey, ethSignedMessageHash);
+        bytes memory leaderSignature = abi.encodePacked(r1, s1, v1);
+
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(participant1PrivateKey, ethSignedMessageHash);
+        bytes memory participant1Signature = abi.encodePacked(r2, s2, v2);
+
+        // Create arrays for signatures and signers
+        bytes[] memory participantSignatures = new bytes[](2);
+        participantSignatures[0] = leaderSignature;
+        participantSignatures[1] = participant1Signature;
+
+        address[] memory signers = new address[](2);
+        signers[0] = leader;
+        signers[1] = participant1;
+
+        // Create empty balance updates array
+        IChannelRegistry.BalanceUpdate[] memory balanceUpdates = new IChannelRegistry.BalanceUpdate[](0);
+
+        newStateUpdate = IStateTransitionVerifier.StateUpdate({
+            channelId: channelId,
+            oldStateRoot: bytes32(0),
+            newStateRoot: newStateRoot,
+            nonce: 1,
+            proofPart1: serializedProofPart1,
+            proofPart2: serializedProofPart2,
+            publicInputs: publicInputs,
+            participantSignatures: participantSignatures,
+            signers: signers,
+            balanceUpdates: balanceUpdates
+        });
+
+        // Only leader can submit state updates
+        vm.prank(leader);
+        bool result = stateTransitionVerifier.verifyAndCommitStateUpdate(newStateUpdate);
+        assertTrue(result);
+
+        // Verify state was updated
+        (bytes32 currentRoot, uint256 nonce) = stateTransitionVerifier.getChannelState(channelId);
+        assertEq(currentRoot, newStateRoot);
+        assertEq(nonce, 1);
+    }
+
+    function testCannotSubmitWithInsufficientSignatures() public {
+        // Create the message hash
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                channelId,
+                bytes32(0),
+                newStateRoot,
+                uint256(1)
+            )
+        );
+
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+
+        // Only sign with leader (1 out of 3, but threshold is 2)
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(leaderPrivateKey, ethSignedMessageHash);
+        bytes memory leaderSignature = abi.encodePacked(r, s, v);
+
+        bytes[] memory participantSignatures = new bytes[](1);
+        participantSignatures[0] = leaderSignature;
+
+        address[] memory signers = new address[](1);
+        signers[0] = leader;
+
+        // Create empty balance updates array
+        IChannelRegistry.BalanceUpdate[] memory balanceUpdates = new IChannelRegistry.BalanceUpdate[](0);
+
+        newStateUpdate = IStateTransitionVerifier.StateUpdate({
+            channelId: channelId,
+            oldStateRoot: bytes32(0),
+            newStateRoot: newStateRoot,
+            nonce: 1,
+            proofPart1: serializedProofPart1,
+            proofPart2: serializedProofPart2,
+            publicInputs: publicInputs,
+            participantSignatures: participantSignatures,
+            signers: signers,
+            balanceUpdates: balanceUpdates
+        });
+
+        vm.prank(leader);
+        vm.expectRevert(abi.encodeWithSelector(IStateTransitionVerifier.Invalid__SignatureCount.selector, 1, 2));
+        stateTransitionVerifier.verifyAndCommitStateUpdate(newStateUpdate);
+    }
+
+    function testCannotSubmitFromNonLeader() public {
+        bytes32 messageHash = keccak256(
+            abi.encode(channelId, bytes32(0), newStateRoot, uint256(1))
+        );
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(leaderPrivateKey, ethSignedMessageHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        bytes[] memory participantSignatures = new bytes[](1);
+        participantSignatures[0] = signature;
+
+        address[] memory signers = new address[](1);
+        signers[0] = leader;
+
+        // Create empty balance updates array
+        IChannelRegistry.BalanceUpdate[] memory balanceUpdates = new IChannelRegistry.BalanceUpdate[](0);
+
+        newStateUpdate = IStateTransitionVerifier.StateUpdate({
+            channelId: channelId,
+            oldStateRoot: bytes32(0),
+            newStateRoot: newStateRoot,
+            nonce: 1,
+            proofPart1: serializedProofPart1,
+            proofPart2: serializedProofPart2,
+            publicInputs: publicInputs,
+            participantSignatures: participantSignatures,
+            signers: signers,
+            balanceUpdates: balanceUpdates
+        });
+
+        // Try to submit from participant1 instead of leader
+        vm.prank(participant1);
+        vm.expectRevert(IStateTransitionVerifier.Invalid__Caller.selector);
+        stateTransitionVerifier.verifyAndCommitStateUpdate(newStateUpdate);
+    }
+
+    function testVerifyClosingStateUpdate() public {
+        // First, set channel to closing status
+        vm.prank(leader);
+        channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
+
+        // For closing state, we need ALL remaining participants to sign
+        bytes32 messageHash = keccak256(
+            abi.encode(channelId, bytes32(0), newStateRoot, uint256(1))
+        );
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+
+        // Get signatures from all 3 participants
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(leaderPrivateKey, ethSignedMessageHash);
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(participant1PrivateKey, ethSignedMessageHash);
+        (uint8 v3, bytes32 r3, bytes32 s3) = vm.sign(participant2PrivateKey, ethSignedMessageHash);
+
+        bytes[] memory participantSignatures = new bytes[](3);
+        participantSignatures[0] = abi.encodePacked(r1, s1, v1);
+        participantSignatures[1] = abi.encodePacked(r2, s2, v2);
+        participantSignatures[2] = abi.encodePacked(r3, s3, v3);
+
+        address[] memory signers = new address[](3);
+        signers[0] = leader;
+        signers[1] = participant1;
+        signers[2] = participant2;
+
+        // Create empty balance updates array
+        IChannelRegistry.BalanceUpdate[] memory balanceUpdates = new IChannelRegistry.BalanceUpdate[](0);
+
+        newStateUpdate = IStateTransitionVerifier.StateUpdate({
+            channelId: channelId,
+            oldStateRoot: bytes32(0),
+            newStateRoot: newStateRoot,
+            nonce: 1,
+            proofPart1: serializedProofPart1,
+            proofPart2: serializedProofPart2,
+            publicInputs: publicInputs,
+            participantSignatures: participantSignatures,
+            signers: signers,
+            balanceUpdates: balanceUpdates
+        });
+
+        vm.prank(leader);
+        bool result = stateTransitionVerifier.verifyClosingStateUpdate(newStateUpdate);
+        assertTrue(result);
+    }
+
+    function testGetActiveParticipantCount() public {
+        uint256 activeCount = stateTransitionVerifier.getActiveParticipantCount(channelId);
+        assertEq(activeCount, 3); // All participants should be active
+
+        // Test after one participant exits during closure
+        vm.prank(leader);
+        channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
+
+        vm.prank(participant1);
+        channelRegistry.exitChannel(channelId);
+
+        uint256 newActiveCount = stateTransitionVerifier.getActiveParticipantCount(channelId);
+        assertEq(newActiveCount, 2); // Should have 2 active participants
+    }
+
+    function testGetRequiredSignatureThreshold() public {
+        uint256 threshold = stateTransitionVerifier.getRequiredSignatureThreshold(channelId);
+        assertEq(threshold, 2); // Original threshold
+
+        // Test after participants exit
+        vm.prank(leader);
+        channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
+
+        vm.prank(participant1);
+        channelRegistry.exitChannel(channelId);
+
+        vm.prank(participant2);
+        channelRegistry.exitChannel(channelId);
+
+        uint256 newThreshold = stateTransitionVerifier.getRequiredSignatureThreshold(channelId);
+        assertEq(newThreshold, 1); // Should require all remaining participants (just leader)
+    }
+
+    function testEmergencyStateUpdate() public {
+        bytes memory disputeProof = abi.encode("emergency proof");
+        bytes32 emergencyStateRoot = bytes32(uint256(0x999));
+
+        vm.prank(owner); // Owner can call emergency function
+        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot, disputeProof);
+
+        (bytes32 currentRoot, uint256 nonce) = stateTransitionVerifier.getChannelState(channelId);
+        assertEq(currentRoot, emergencyStateRoot);
+        assertEq(nonce, 1);
+    }
+
+    function testCannotCallEmergencyFromUnauthorized() public {
+        bytes memory disputeProof = abi.encode("emergency proof");
+        bytes32 emergencyStateRoot = bytes32(uint256(0x999));
+
+        vm.prank(participant1);
+        vm.expectRevert("Unauthorized");
+        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot, disputeProof);
+    }
+
+    function _initializeProofData() internal {
         // serializedProofPart1: First 16 bytes (32 hex chars) of each coordinate
         // serializedProofPart2: Last 32 bytes (64 hex chars) of each coordinate
 
@@ -300,54 +616,5 @@ contract testTokamakVerifier is Test {
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
-    }
-
-    function testVerifyAndCommitStateUpdate() public {
-        // Create the message hash that participants need to sign
-        bytes32 messageHash = keccak256(
-            abi.encode(
-                channelId,
-                bytes32(0),
-                newStateRoot,
-                uint256(1) // nonce
-            )
-        );
-
-        // Add Ethereum Signed Message prefix
-        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
-
-        // Sign the message with the owner's private key
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, ethSignedMessageHash);
-        bytes memory ownerSignature = abi.encodePacked(r, s, v);
-
-        // Create arrays for signatures and signers
-        bytes[] memory participantSignatures = new bytes[](1);
-        participantSignatures[0] = ownerSignature;
-
-        address[] memory signers = new address[](1);
-        signers[0] = owner;
-
-        newStateUpdate = IStateTransitionVerifier.StateUpdate({
-            channelId: channelId,
-            oldStateRoot: bytes32(0),
-            newStateRoot: newStateRoot,
-            nonce: 1,
-            proofPart1: serializedProofPart1,
-            proofPart2: serializedProofPart2,
-            publicInputs: publicInputs,
-            participantSignatures: participantSignatures,
-            signers: signers
-        });
-
-        // Update channel state root to match initial state
-        vm.prank(owner);
-
-        bool result = stateTransitionVerifier.verifyAndCommitStateUpdate(newStateUpdate);
-        assertTrue(result);
-
-        // Verify state was updated
-        (bytes32 currentRoot, uint256 nonce) = stateTransitionVerifier.getChannelState(channelId);
-        assertEq(currentRoot, newStateRoot);
-        assertEq(nonce, 1);
     }
 }

@@ -7,25 +7,26 @@ import {IVerifier} from "./interface/IVerifier.sol";
 /// @author Project Ooo team
 /// @dev It uses a custom memory layout inside the inline assembly block. Each reserved memory cell is declared in the
 /// constants below.
-/// @dev For a better understanding of the verifier algorithm please refer to the following paper:
+/// @dev For a better understanding of the verifier algorithm please refer to the following papers:
+/// * 
 /// * Original Tokamak zkSNARK Paper: https://eprint.iacr.org/2024/507.pdf
 /// The notation used in the code is the same as in the papers.
 /* solhint-enable max-line-length */
 contract Verifier is IVerifier {
     /*//////////////////////////////////////////////////////////////
                                     Proof
-        //////////////////////////////////////////////////////////////*/
+    //////////////////////////////////////////////////////////////*/
 
     /// The encoding order of the `proof` (part1) is
     /// ```
-    /// |        704 bytes        |
-    /// | Polynomial commitments  |
+    /// |                  672 bytes                 |
+    /// | Polynomial commitments (16th first bytes)  |
     /// ```
 
     /// The encoding order of the `proof` (part2) is
     /// ```
-    /// |        1408 bytes       |   32 bytes  |   32 bytes   |   32 bytes  |   32 bytes  |   X bytes   |
-    /// | Polynomial commitments  |   R_{x,y}   |   R'_{x,y}   |   R''_{x,y} |   V_{x,y}   |      a      |
+    /// |               1344 bytes                |   32 bytes  |   32 bytes   |   32 bytes  |   32 bytes  | 
+    /// | Polynomial commitments (last 32 bytes)  |   R_{x,y}   |   R'_{x,y}   |   R''_{x,y} |   V_{x,y}   | 
     /// ```
 
     // [s^{(0)}(x,y)]_1
@@ -146,7 +147,7 @@ contract Verifier is IVerifier {
 
     /*//////////////////////////////////////////////////////////////
                 transcript slot (used for challenge computation)
-        //////////////////////////////////////////////////////////////*/
+    //////////////////////////////////////////////////////////////*/
 
     uint256 internal constant TRANSCRIPT_BEGIN_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x00;
     uint256 internal constant TRANSCRIPT_DST_BYTE_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x03;
@@ -156,7 +157,7 @@ contract Verifier is IVerifier {
 
     /*//////////////////////////////////////////////////////////////
                                 Challenges
-        //////////////////////////////////////////////////////////////*/
+    //////////////////////////////////////////////////////////////*/
 
     uint256 internal constant CHALLENGE_THETA_0_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x000;
     uint256 internal constant CHALLENGE_THETA_1_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x020;
@@ -170,7 +171,7 @@ contract Verifier is IVerifier {
 
     /*//////////////////////////////////////////////////////////////
                         Intermediary verifier state
-        //////////////////////////////////////////////////////////////*/
+    //////////////////////////////////////////////////////////////*/
 
     // [F]_1
     uint256 internal constant INTERMERDIARY_POLY_F_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x020;
@@ -197,8 +198,8 @@ contract Verifier is IVerifier {
     uint256 internal constant INTERMEDIARY_SCALAR_APUB_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0;
 
     /*//////////////////////////////////////////////////////////////
-                                Aggregated commitment
-        //////////////////////////////////////////////////////////////*/
+                      Aggregated commitment
+    //////////////////////////////////////////////////////////////*/
 
     uint256 internal constant AGG_LHS_A_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x020;
     uint256 internal constant AGG_LHS_A_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x040;
@@ -262,7 +263,7 @@ contract Verifier is IVerifier {
 
     /*//////////////////////////////////////////////////////////////
                                 Pairing data
-        //////////////////////////////////////////////////////////////*/
+    //////////////////////////////////////////////////////////////*/
 
     uint256 internal constant BUFFER_AGGREGATED_POLY_X_SLOT_PART1 =
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x420;
@@ -275,7 +276,7 @@ contract Verifier is IVerifier {
 
     /*//////////////////////////////////////////////////////////////
                             Verification keys
-        //////////////////////////////////////////////////////////////*/
+    //////////////////////////////////////////////////////////////*/
 
     // [K^_1(X)L^-1(X)]_1
     uint256 internal constant VK_POLY_KXLX_X_PART1 =
@@ -311,7 +312,7 @@ contract Verifier is IVerifier {
 
     /*//////////////////////////////////////////////////////////////
                                 Constants
-        //////////////////////////////////////////////////////////////*/
+    //////////////////////////////////////////////////////////////*/
 
     // Scalar field size
     // Q_MOD is the base field modulus (48 bytes long). To fit with the EVM, we sliced it into two 32bytes variables => 16 first bytes are zeros

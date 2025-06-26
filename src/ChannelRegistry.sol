@@ -240,11 +240,11 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
             revert("Use depositETH for ETH deposits");
         }
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-
         // Update balances using separate mapping
         participantTokenBalances[channelId][msg.sender][token] += amount;
         channelTokenBalances[channelId][token] += amount;
+
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
         emit TokenDeposited(channelId, msg.sender, token, amount);
     }

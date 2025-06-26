@@ -4,7 +4,7 @@ pragma solidity 0.8.23;
 import {Test} from "forge-std/Test.sol";
 import {ChannelRegistry} from "../src/ChannelRegistry.sol";
 import {IChannelRegistry} from "../src/interface/IChannelRegistry.sol";
-import {ERC20Mock} from "./mock/ERC20Mock.sol"; 
+import {ERC20Mock} from "./mock/ERC20Mock.sol";
 
 import "forge-std/console.sol";
 
@@ -15,7 +15,7 @@ contract testChannelRegistry is Test {
     address participant2;
     address participant3;
     ChannelRegistry channelRegistry;
-    
+
     // Mock tokens for testing
     ERC20Mock token1;
     ERC20Mock token2;
@@ -32,7 +32,7 @@ contract testChannelRegistry is Test {
 
         vm.startPrank(owner);
         channelRegistry = new ChannelRegistry();
-        
+
         // Deploy mock tokens
         token1 = new ERC20Mock("Token1", "TK1");
         token2 = new ERC20Mock("Token2", "TK2");
@@ -43,12 +43,12 @@ contract testChannelRegistry is Test {
         vm.deal(participant1, 5 ether);
         vm.deal(participant2, 5 ether);
         vm.deal(participant3, 5 ether);
-        
+
         // Mint some tokens for testing
-        token1.mint(participant1, 1000 * 10**18);
-        token1.mint(participant2, 1000 * 10**18);
-        token2.mint(participant1, 1000 * 10**18);
-        token2.mint(participant2, 1000 * 10**18);
+        token1.mint(participant1, 1000 * 10 ** 18);
+        token1.mint(participant2, 1000 * 10 ** 18);
+        token2.mint(participant1, 1000 * 10 ** 18);
+        token2.mint(participant2, 1000 * 10 ** 18);
     }
 
     function testLeaderBonding() public {
@@ -118,7 +118,7 @@ contract testChannelRegistry is Test {
         assertTrue(channelRegistry.isChannelParticipant(channelId, leader));
         assertTrue(channelRegistry.isChannelParticipant(channelId, participant1));
         assertTrue(channelRegistry.isChannelParticipant(channelId, participant2));
-        
+
         // Verify supported tokens
         address[] memory tokens = channelRegistry.getSupportedTokens(channelId);
         assertEq(tokens.length, 3); // ETH + 2 tokens
@@ -169,7 +169,8 @@ contract testChannelRegistry is Test {
         channelRegistry.stakeAsParticipant{value: MIN_PARTICIPANT_STAKE}(channelId, nonce1);
 
         // Verify staking
-        IChannelRegistry.ParticipantInfo memory participantInfo = channelRegistry.getParticipantInfo(channelId, participant1);
+        IChannelRegistry.ParticipantInfo memory participantInfo =
+            channelRegistry.getParticipantInfo(channelId, participant1);
         assertEq(participantInfo.stake, MIN_PARTICIPANT_STAKE);
         assertTrue(participantInfo.isActive);
         assertFalse(participantInfo.hasExited);
@@ -179,7 +180,7 @@ contract testChannelRegistry is Test {
         bytes32 channelId = _createTestChannelWithStakes();
 
         // Approve and deposit token1
-        uint256 depositAmount = 100 * 10**18;
+        uint256 depositAmount = 100 * 10 ** 18;
         vm.startPrank(participant1);
         token1.approve(address(channelRegistry), depositAmount);
         channelRegistry.depositToken(channelId, address(token1), depositAmount);
@@ -188,7 +189,7 @@ contract testChannelRegistry is Test {
         // Verify deposit
         uint256 balance = channelRegistry.getParticipantTokenBalance(channelId, participant1, address(token1));
         assertEq(balance, depositAmount);
-        
+
         // Verify channel total balance
         uint256 channelBalance = channelRegistry.getChannelTokenBalance(channelId, address(token1));
         assertEq(channelBalance, depositAmount);
@@ -212,13 +213,13 @@ contract testChannelRegistry is Test {
 
         // Create a new token that wasn't added during channel creation
         ERC20Mock unsupportedToken = new ERC20Mock("Unsupported", "UNS");
-        unsupportedToken.mint(participant1, 1000 * 10**18);
+        unsupportedToken.mint(participant1, 1000 * 10 ** 18);
 
         // Try to deposit unsupported token
         vm.startPrank(participant1);
-        unsupportedToken.approve(address(channelRegistry), 100 * 10**18);
+        unsupportedToken.approve(address(channelRegistry), 100 * 10 ** 18);
         vm.expectRevert("Token not supported");
-        channelRegistry.depositToken(channelId, address(unsupportedToken), 100 * 10**18);
+        channelRegistry.depositToken(channelId, address(unsupportedToken), 100 * 10 ** 18);
         vm.stopPrank();
     }
 
@@ -226,7 +227,7 @@ contract testChannelRegistry is Test {
         bytes32 channelId = _createTestChannelWithStakes();
 
         // Deposit some tokens first
-        uint256 depositAmount = 100 * 10**18;
+        uint256 depositAmount = 100 * 10 ** 18;
         vm.startPrank(participant1);
         token1.approve(address(channelRegistry), depositAmount);
         channelRegistry.depositToken(channelId, address(token1), depositAmount);
@@ -237,16 +238,16 @@ contract testChannelRegistry is Test {
         channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
 
         // Withdraw tokens
-        uint256 withdrawAmount = 50 * 10**18;
+        uint256 withdrawAmount = 50 * 10 ** 18;
         uint256 balanceBefore = token1.balanceOf(participant1);
-        
+
         vm.prank(participant1);
         channelRegistry.withdrawTokens(channelId, address(token1), withdrawAmount);
 
         // Verify withdrawal
         uint256 balanceAfter = token1.balanceOf(participant1);
         assertEq(balanceAfter - balanceBefore, withdrawAmount);
-        
+
         // Verify remaining balance
         uint256 remainingBalance = channelRegistry.getParticipantTokenBalance(channelId, participant1, address(token1));
         assertEq(remainingBalance, depositAmount - withdrawAmount);
@@ -297,7 +298,8 @@ contract testChannelRegistry is Test {
         assertEq(balanceAfter - balanceBefore, MIN_PARTICIPANT_STAKE);
 
         // Verify participant status
-        IChannelRegistry.ParticipantInfo memory participantInfo = channelRegistry.getParticipantInfo(channelId, participant1);
+        IChannelRegistry.ParticipantInfo memory participantInfo =
+            channelRegistry.getParticipantInfo(channelId, participant1);
         assertFalse(participantInfo.isActive);
         assertTrue(participantInfo.hasExited);
         assertEq(participantInfo.stake, 0);
@@ -306,7 +308,7 @@ contract testChannelRegistry is Test {
     function testCannotCreateChannelWithoutBond() public {
         address[] memory participants = new address[](1);
         participants[0] = leader;
-        
+
         bytes32[] memory commitments = new bytes32[](1);
         commitments[0] = keccak256(abi.encode(leader, keccak256("nonce")));
 
@@ -409,27 +411,28 @@ contract testChannelRegistry is Test {
 
         // Deposit various tokens
         uint256 ethAmount = 0.5 ether;
-        uint256 token1Amount = 100 * 10**18;
-        uint256 token2Amount = 200 * 10**18;
+        uint256 token1Amount = 100 * 10 ** 18;
+        uint256 token2Amount = 200 * 10 ** 18;
 
         vm.startPrank(participant1);
-        
+
         // Deposit ETH
         channelRegistry.depositETH{value: ethAmount}(channelId);
-        
+
         // Deposit token1
         token1.approve(address(channelRegistry), token1Amount);
         channelRegistry.depositToken(channelId, address(token1), token1Amount);
-        
+
         // Deposit token2
         token2.approve(address(channelRegistry), token2Amount);
         channelRegistry.depositToken(channelId, address(token2), token2Amount);
-        
+
         vm.stopPrank();
 
         // Get all balances
-        IChannelRegistry.TokenDeposit[] memory balances = channelRegistry.getParticipantAllBalances(channelId, participant1);
-        
+        IChannelRegistry.TokenDeposit[] memory balances =
+            channelRegistry.getParticipantAllBalances(channelId, participant1);
+
         assertEq(balances.length, 3); // ETH + 2 tokens
         assertEq(balances[0].token, address(0)); // ETH
         assertEq(balances[0].amount, ethAmount);

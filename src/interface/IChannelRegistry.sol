@@ -29,8 +29,8 @@ interface IChannelRegistry {
         bytes32 commitment;
         uint256 joinedAt;
         bool hasExited;
-        // Note: individual token balances are now stored in Merkle tree off-chain
     }
+    // Note: individual token balances are now stored in Merkle tree off-chain
 
     struct LeaderBond {
         uint256 amount;
@@ -45,7 +45,7 @@ interface IChannelRegistry {
         bytes32[] participantCommitments;
         uint256 signatureThreshold;
         bytes32 initialStateRoot;
-        bytes32 initialBalanceRoot;  // New: initial Merkle root of balances
+        bytes32 initialBalanceRoot; // New: initial Merkle root of balances
         uint256 challengePeriod;
         uint256 minimumStake;
     }
@@ -80,7 +80,9 @@ interface IChannelRegistry {
     event TokenWithdrawn(bytes32 indexed channelId, address indexed participant, address indexed token, uint256 amount);
     event BalancesUpdated(bytes32 indexed channelId, BalanceUpdate[] updates);
     event BalanceRootUpdated(bytes32 indexed channelId, bytes32 oldRoot, bytes32 newRoot);
-    event EmergencyWithdrawal(bytes32 indexed channelId, address indexed participant, address indexed token, uint256 amount);
+    event EmergencyWithdrawal(
+        bytes32 indexed channelId, address indexed participant, address indexed token, uint256 amount
+    );
 
     // Errors
     error Channel__NotLeader();
@@ -103,7 +105,10 @@ interface IChannelRegistry {
 
     // Functions
     function createChannel(address _leader) external returns (bytes32 channelId);
-    function createChannelWithParams(ChannelCreationParams calldata params, address[] calldata supportedTokens) external payable returns (bytes32 channelId);
+    function createChannelWithParams(ChannelCreationParams calldata params, address[] calldata supportedTokens)
+        external
+        payable
+        returns (bytes32 channelId);
     function updateChannelStatus(bytes32 _channelId, ChannelStatus _status) external;
     function transferLeadership(bytes32 _channelId, address _newLeader) external;
     function closeChannel(bytes32 _channelId) external;
@@ -119,24 +124,37 @@ interface IChannelRegistry {
     function stakeAsParticipant(bytes32 channelId, bytes32 nonce) external payable;
     function depositToken(bytes32 channelId, address token, uint256 amount) external;
     function depositETH(bytes32 channelId) external payable;
-    
+
     // Merkle-based functions
     function updateBalanceRoot(bytes32 channelId, bytes32 newBalanceRoot) external;
-    function withdrawWithProof(bytes32 channelId, address token, uint256 amount, bytes32[] calldata merkleProof) external;
+    function withdrawWithProof(bytes32 channelId, address token, uint256 amount, bytes32[] calldata merkleProof)
+        external;
     function getChannelBalanceRoot(bytes32 channelId) external view returns (bytes32);
-    function hasParticipantWithdrawn(bytes32 channelId, address participant, address token) external view returns (bool);
-    
+    function hasParticipantWithdrawn(bytes32 channelId, address participant, address token)
+        external
+        view
+        returns (bool);
+
     // Other functions
     function slashLeader(address leader, uint256 amount, bytes32 reason) external;
     function exitChannel(bytes32 channelId) external;
-    function getParticipantInfo(bytes32 channelId, address participant) external view returns (ParticipantInfo memory);
+    function getParticipantInfo(bytes32 channelId, address participant)
+        external
+        view
+        returns (ParticipantInfo memory);
     function getLeaderBond(address leader) external view returns (LeaderBond memory);
     function getTotalChannelDeposits(bytes32 channelId) external view returns (uint256);
-    function getParticipantTokenBalance(bytes32 channelId, address participant, address token) external view returns (uint256);
+    function getParticipantTokenBalance(bytes32 channelId, address participant, address token)
+        external
+        view
+        returns (uint256);
     function getChannelTokenBalance(bytes32 channelId, address token) external view returns (uint256);
     function getSupportedTokens(bytes32 channelId) external view returns (address[] memory);
     function isTokenSupportedInChannel(bytes32 channelId, address token) external view returns (bool);
-    function getParticipantAllBalances(bytes32 channelId, address participant) external view returns (TokenDeposit[] memory);
+    function getParticipantAllBalances(bytes32 channelId, address participant)
+        external
+        view
+        returns (TokenDeposit[] memory);
     function isChannelParticipant(bytes32 channelId, address participant) external view returns (bool);
     function getActiveParticipantCount(bytes32 channelId) external view returns (uint256);
 }

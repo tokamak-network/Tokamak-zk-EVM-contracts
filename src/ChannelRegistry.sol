@@ -16,11 +16,11 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     mapping(bytes32 => ChannelInfo) private channels;
     mapping(bytes32 => mapping(address => ParticipantInfo)) private participantDetails;
     mapping(address => LeaderBond) private leaderBonds;
-    
+
     // New Merkle-based balance tracking
     mapping(bytes32 => bytes32) private channelBalanceRoots;
     mapping(bytes32 => mapping(address => mapping(address => bool))) private hasWithdrawn; // channelId => participant => token => withdrawn
-    
+
     // Channel deposits and configuration
     mapping(bytes32 => uint256) private channelDeposits;
     mapping(bytes32 => uint256) private minimumStakeRequired;
@@ -115,15 +115,16 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
 
         uint256 amount = bond.amount;
         bond.amount = 0;
-        
+
         payable(msg.sender).transfer(amount);
     }
 
     // Channel creation
-    function createChannelWithParams(
-        ChannelCreationParams calldata params,
-        address[] calldata supportedTokens
-    ) external payable returns (bytes32 channelId) {
+    function createChannelWithParams(ChannelCreationParams calldata params, address[] calldata supportedTokens)
+        external
+        payable
+        returns (bytes32 channelId)
+    {
         // Validate leader has sufficient bond
         if (leaderBonds[params.leader].amount < MIN_LEADER_BOND) {
             revert Channel__InsufficientLeaderBond();
@@ -133,11 +134,15 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         require(params.preApprovedParticipants.length > 0, "Must have participants");
         require(params.preApprovedParticipants.length <= MAX_PARTICIPANTS, "Too many participants");
         require(params.participantCommitments.length == params.preApprovedParticipants.length, "Commitment mismatch");
-        require(params.signatureThreshold > 0 && params.signatureThreshold <= params.preApprovedParticipants.length, "Invalid threshold");
+        require(
+            params.signatureThreshold > 0 && params.signatureThreshold <= params.preApprovedParticipants.length,
+            "Invalid threshold"
+        );
         require(supportedTokens.length <= MAX_SUPPORTED_TOKENS, "Too many supported tokens");
 
         // Generate unique channel ID
-        channelId = keccak256(abi.encode(params.leader, channelCounter, block.timestamp, params.preApprovedParticipants));
+        channelId =
+            keccak256(abi.encode(params.leader, channelCounter, block.timestamp, params.preApprovedParticipants));
         channelCounter++;
 
         // Check channel doesn't already exist
@@ -166,17 +171,16 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         channel.challengePeriod = params.challengePeriod > 0 ? params.challengePeriod : DEFAULT_CHALLENGE_PERIOD;
 
         // Initialize balance root as empty tree root
-        channelBalanceRoots[channelId] = params.initialBalanceRoot != bytes32(0) 
-            ? params.initialBalanceRoot 
-            : bytes32(0);
+        channelBalanceRoots[channelId] =
+            params.initialBalanceRoot != bytes32(0) ? params.initialBalanceRoot : bytes32(0);
 
         // Add all pre-approved participants
         for (uint256 i = 0; i < params.preApprovedParticipants.length; i++) {
             address participant = params.preApprovedParticipants[i];
             require(participant != address(0), "Invalid participant");
-            
+
             channel.participants.push(participant);
-            
+
             // Store participant details with commitment
             participantDetails[channelId][participant] = ParticipantInfo({
                 isActive: true,
@@ -194,12 +198,12 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         // Setup supported tokens (ETH is always supported)
         channelSupportedTokens[channelId].push(ETH_TOKEN_ADDRESS);
         isTokenSupported[channelId][ETH_TOKEN_ADDRESS] = true;
-        
+
         for (uint256 i = 0; i < supportedTokens.length; i++) {
             address token = supportedTokens[i];
             require(token != address(0), "Invalid token address");
             require(!isTokenSupported[channelId][token], "Duplicate token");
-            
+
             channelSupportedTokens[channelId].push(token);
             isTokenSupported[channelId][token] = true;
             emit TokenSupported(channelId, token);
@@ -212,10 +216,10 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     // Participant staking
     function stakeAsParticipant(bytes32 channelId, bytes32 nonce) external payable channelExists(channelId) {
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
-        
+
         require(participant.isActive, "Not an approved participant");
         require(participant.stake == 0, "Already staked");
-        
+
         bytes32 expectedCommitment = keccak256(abi.encode(msg.sender, nonce));
         if (participant.commitment != expectedCommitment) {
             revert Channel__InvalidCommitment();
@@ -234,11 +238,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // Token deposit functions - deposits are tracked globally, not per participant
-    function depositToken(
-        bytes32 channelId, 
-        address token, 
-        uint256 amount
-    ) external channelExists(channelId) {
+    function depositToken(bytes32 channelId, address token, uint256 amount) external channelExists(channelId) {
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
         require(participant.isActive, "Not an active participant");
         require(isTokenSupported[channelId][token], "Token not supported");
@@ -265,56 +265,52 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // New Merkle-based balance update - O(1) gas cost!
-    function updateBalanceRoot(
-        bytes32 channelId,
-        bytes32 newBalanceRoot
-    ) external onlyVerifier channelExists(channelId) {
+    function updateBalanceRoot(bytes32 channelId, bytes32 newBalanceRoot)
+        external
+        onlyVerifier
+        channelExists(channelId)
+    {
         bytes32 oldRoot = channelBalanceRoots[channelId];
         channelBalanceRoots[channelId] = newBalanceRoot;
-        
+
         emit BalanceRootUpdated(channelId, oldRoot, newBalanceRoot);
     }
 
     // Withdrawal with Merkle proof during channel closure
-    function withdrawWithProof(
-        bytes32 channelId,
-        address token,
-        uint256 amount,
-        bytes32[] calldata merkleProof
-    ) external channelExists(channelId) {
+    function withdrawWithProof(bytes32 channelId, address token, uint256 amount, bytes32[] calldata merkleProof)
+        external
+        channelExists(channelId)
+    {
         ChannelInfo storage channel = channels[channelId];
         require(
-            channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED, 
+            channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED,
             "Channel not in withdrawal phase"
         );
-        
+
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
         require(participant.isActive || participant.hasExited, "Not a participant");
-        
+
         // Check if already withdrawn
         require(!hasWithdrawn[channelId][msg.sender][token], "Already withdrawn");
-        
+
         // Verify Merkle proof
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender, token, amount));
-        require(
-            MerkleProof.verify(merkleProof, channelBalanceRoots[channelId], leaf),
-            "Invalid balance proof"
-        );
-        
+        require(MerkleProof.verify(merkleProof, channelBalanceRoots[channelId], leaf), "Invalid balance proof");
+
         // Mark as withdrawn
         hasWithdrawn[channelId][msg.sender][token] = true;
-        
+
         // Update channel total balance
         require(channelTokenBalances[channelId][token] >= amount, "Insufficient channel balance");
         channelTokenBalances[channelId][token] -= amount;
-        
+
         // Transfer tokens
         if (token == ETH_TOKEN_ADDRESS) {
             payable(msg.sender).transfer(amount);
         } else {
             IERC20(token).safeTransfer(msg.sender, amount);
         }
-        
+
         emit TokenWithdrawn(channelId, msg.sender, token, amount);
     }
 
@@ -339,9 +335,12 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     // Participant exit mechanism
     function exitChannel(bytes32 channelId) external channelExists(channelId) {
         ChannelInfo storage channel = channels[channelId];
-        
-        require(channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED, "Can only exit during channel closure");
-        
+
+        require(
+            channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED,
+            "Can only exit during channel closure"
+        );
+
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
         require(participant.isActive, "Not an active participant");
         require(!participant.hasExited, "Already exited");
@@ -423,13 +422,13 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         for (uint256 i = 0; i < channel.participants.length; i++) {
             address participant = channel.participants[i];
             ParticipantInfo storage participantInfo = participantDetails[_channelId][participant];
-            
+
             if (participantInfo.stake > 0 && !participantInfo.hasExited) {
                 uint256 stakeToReturn = participantInfo.stake;
                 participantInfo.stake = 0;
                 payable(participant).transfer(stakeToReturn);
             }
-            
+
             delete participantDetails[_channelId][participant];
         }
 
@@ -469,7 +468,11 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         });
     }
 
-    function getParticipantInfo(bytes32 channelId, address participant) external view returns (ParticipantInfo memory) {
+    function getParticipantInfo(bytes32 channelId, address participant)
+        external
+        view
+        returns (ParticipantInfo memory)
+    {
         return participantDetails[channelId][participant];
     }
 
@@ -485,18 +488,15 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         return channelBalanceRoots[channelId];
     }
 
-    function hasParticipantWithdrawn(
-        bytes32 channelId, 
-        address participant, 
-        address token
-    ) external view returns (bool) {
+    function hasParticipantWithdrawn(bytes32 channelId, address participant, address token)
+        external
+        view
+        returns (bool)
+    {
         return hasWithdrawn[channelId][participant][token];
     }
 
-    function getChannelTokenBalance(
-        bytes32 channelId, 
-        address token
-    ) external view returns (uint256) {
+    function getChannelTokenBalance(bytes32 channelId, address token) external view returns (uint256) {
         return channelTokenBalances[channelId][token];
     }
 
@@ -504,10 +504,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         return channelSupportedTokens[channelId];
     }
 
-    function isTokenSupportedInChannel(
-        bytes32 channelId, 
-        address token
-    ) external view returns (bool) {
+    function isTokenSupportedInChannel(bytes32 channelId, address token) external view returns (bool) {
         return isTokenSupported[channelId][token];
     }
 
@@ -559,19 +556,20 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // Deprecated functions for backward compatibility
-    function getParticipantTokenBalance(
-        bytes32 channelId, 
-        address participant, 
-        address token
-    ) external view returns (uint256) {
+    function getParticipantTokenBalance(bytes32 channelId, address participant, address token)
+        external
+        view
+        returns (uint256)
+    {
         // This function is deprecated - balances are now in Merkle tree
         return 0;
     }
 
-    function getParticipantAllBalances(
-        bytes32 channelId, 
-        address participant
-    ) external view returns (TokenDeposit[] memory) {
+    function getParticipantAllBalances(bytes32 channelId, address participant)
+        external
+        view
+        returns (TokenDeposit[] memory)
+    {
         // This function is deprecated - balances are now in Merkle tree
         return new TokenDeposit[](0);
     }

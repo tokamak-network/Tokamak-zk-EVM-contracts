@@ -9,7 +9,7 @@ interface IStateTransitionVerifier {
         bytes32 channelId;
         bytes32 oldStateRoot;
         bytes32 newStateRoot;
-        bytes32 newBalanceRoot;  // New: Merkle root of all participant balances
+        bytes32 newBalanceRoot; // New: Merkle root of all participant balances
         uint256 nonce;
         bytes[] participantSignatures;
         address[] signers;
@@ -20,18 +20,10 @@ interface IStateTransitionVerifier {
 
     // Events
     event StateUpdated(
-        bytes32 indexed channelId,
-        bytes32 indexed oldStateRoot,
-        bytes32 indexed newStateRoot,
-        uint256 nonce
+        bytes32 indexed channelId, bytes32 indexed oldStateRoot, bytes32 indexed newStateRoot, uint256 nonce
     );
 
-    event EmergencyStateUpdate(
-        bytes32 indexed channelId,
-        bytes32 oldStateRoot,
-        bytes32 newStateRoot,
-        uint256 nonce
-    );
+    event EmergencyStateUpdate(bytes32 indexed channelId, bytes32 oldStateRoot, bytes32 newStateRoot, uint256 nonce);
 
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
 
@@ -53,7 +45,7 @@ interface IStateTransitionVerifier {
     function verifyAndCommitStateUpdate(StateUpdate calldata update) external returns (bool);
     function verifyClosingStateUpdate(StateUpdate calldata update) external returns (bool);
     function emergencyStateUpdate(
-        bytes32 channelId, 
+        bytes32 channelId,
         bytes32 newStateRoot,
         bytes32 newBalanceRoot,
         bytes calldata disputeProof

@@ -186,65 +186,65 @@ contract testChannelRegistry is Test {
 
     function testUpdateBalanceRoot() public {
         bytes32 channelId = _createTestChannelWithStakes();
-        
+
         // Set up verifier address
         vm.prank(owner);
         channelRegistry.setStateTransitionVerifier(address(this));
-        
+
         // Create a new balance root
         bytes32 newBalanceRoot = keccak256("new balance root");
-        
+
         // Update balance root (only verifier can do this)
         channelRegistry.updateBalanceRoot(channelId, newBalanceRoot);
-        
+
         // Verify update
         assertEq(channelRegistry.getChannelBalanceRoot(channelId), newBalanceRoot);
     }
 
     function testWithdrawWithProof() public {
         bytes32 channelId = _createTestChannelWithStakes();
-        
+
         // Deposit tokens first
         uint256 depositAmount = 100 * 10 ** 18;
         vm.startPrank(participant1);
         token1.approve(address(channelRegistry), depositAmount);
         channelRegistry.depositToken(channelId, address(token1), depositAmount);
         vm.stopPrank();
-        
+
         // Set up verifier
         vm.prank(owner);
         channelRegistry.setStateTransitionVerifier(address(this));
-        
+
         // Create balance data for Merkle tree
         uint256 participant1Balance = 60 * 10 ** 18;
         uint256 participant2Balance = 40 * 10 ** 18;
-        
+
         // Create Merkle tree (off-chain computation)
         bytes32 leaf1 = keccak256(abi.encodePacked(participant1, address(token1), participant1Balance));
         bytes32 leaf2 = keccak256(abi.encodePacked(participant2, address(token1), participant2Balance));
         bytes32 root = _computeRoot(leaf1, leaf2);
-        
+
         // Update balance root
         channelRegistry.updateBalanceRoot(channelId, root);
-        
+
         // Change status to CLOSING
         vm.prank(leader);
         channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
-        
+
         // Create Merkle proof for participant1
         bytes32[] memory proof = new bytes32[](1);
         proof[0] = leaf2;
-        
+
         // Withdraw with proof
         uint256 balanceBefore = token1.balanceOf(participant1);
-        
+
         vm.prank(participant1);
         channelRegistry.withdrawWithProof(channelId, address(token1), participant1Balance, proof);
-        
+
         // Verify withdrawal
         uint256 balanceAfter = token1.balanceOf(participant1);
         assertEq(balanceAfter - balanceBefore, participant1Balance);
-        
+
         // Verify cannot withdraw again
         vm.prank(participant1);
         vm.expectRevert("Already withdrawn");
@@ -286,13 +286,13 @@ contract testChannelRegistry is Test {
 
     function testDeprecatedFunctions() public {
         bytes32 channelId = _createTestChannelWithStakes();
-        
+
         // Test deprecated getParticipantTokenBalance - should return 0
         uint256 balance = channelRegistry.getParticipantTokenBalance(channelId, participant1, address(token1));
         assertEq(balance, 0);
-        
+
         // Test deprecated getParticipantAllBalances - should return empty array
-        IChannelRegistry.TokenDeposit[] memory balances = 
+        IChannelRegistry.TokenDeposit[] memory balances =
             channelRegistry.getParticipantAllBalances(channelId, participant1);
         assertEq(balances.length, 0);
     }
@@ -353,7 +353,7 @@ contract testChannelRegistry is Test {
 
         return channelId;
     }
-    
+
     function _computeRoot(bytes32 a, bytes32 b) internal pure returns (bytes32) {
         return a < b ? keccak256(abi.encodePacked(a, b)) : keccak256(abi.encodePacked(b, a));
     }

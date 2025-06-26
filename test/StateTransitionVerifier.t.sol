@@ -175,8 +175,6 @@ contract testStateTransitionVerifier is Test {
         signers[0] = leader;
         signers[1] = participant1;
 
-
-
         newStateUpdate = IStateTransitionVerifier.StateUpdate({
             channelId: channelId,
             oldStateRoot: bytes32(0),

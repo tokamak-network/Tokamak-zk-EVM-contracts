@@ -8,7 +8,7 @@ import {IVerifier} from "./interface/IVerifier.sol";
 /// @dev It uses a custom memory layout inside the inline assembly block. Each reserved memory cell is declared in the
 /// constants below.
 /// @dev For a better understanding of the verifier algorithm please refer to the following papers:
-/// * 
+/// *
 /// * Original Tokamak zkSNARK Paper: https://eprint.iacr.org/2024/507.pdf
 /// The notation used in the code is the same as in the papers.
 /* solhint-enable max-line-length */
@@ -25,8 +25,8 @@ contract Verifier is IVerifier {
 
     /// The encoding order of the `proof` (part2) is
     /// ```
-    /// |               1344 bytes                |   32 bytes  |   32 bytes   |   32 bytes  |   32 bytes  | 
-    /// | Polynomial commitments (last 32 bytes)  |   R_{x,y}   |   R'_{x,y}   |   R''_{x,y} |   V_{x,y}   | 
+    /// |               1344 bytes                |   32 bytes  |   32 bytes   |   32 bytes  |   32 bytes  |
+    /// | Polynomial commitments (last 32 bytes)  |   R_{x,y}   |   R'_{x,y}   |   R''_{x,y} |   V_{x,y}   |
     /// ```
 
     // [s^{(0)}(x,y)]_1

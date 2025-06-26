@@ -272,7 +272,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         bytes32 channelId,
         address token,
         uint256 amount,
-        TokenBalance[] calldata allBalances,  // All balances for this participant
+        TokenBalance[] calldata allBalances, // All balances for this participant
         bytes32[] calldata merkleProof
     ) external channelExists(channelId) {
         ChannelInfo storage channel = channels[channelId];
@@ -283,7 +283,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
 
         // Verify the participant is withdrawing their own balance
         require(allBalances.length > 0, "No balances provided");
-        
+
         // Find the specific token balance
         uint256 tokenIndex = type(uint256).max;
         for (uint256 i = 0; i < allBalances.length; i++) {
@@ -300,12 +300,9 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
 
         // Compute leaf from all balances
         bytes32 leaf = keccak256(abi.encode(msg.sender, allBalances));
-        
+
         // Verify Merkle proof
-        require(
-            MerkleProof.verify(merkleProof, channelStateRoots[channelId], leaf),
-            "Invalid balance proof"
-        );
+        require(MerkleProof.verify(merkleProof, channelStateRoots[channelId], leaf), "Invalid balance proof");
 
         hasWithdrawn[channelId][msg.sender][token] = true;
         channelTokenBalances[channelId][token] -= amount;

@@ -86,6 +86,7 @@ interface IChannelRegistry {
     event EmergencyWithdrawal(
         bytes32 indexed channelId, address indexed participant, address indexed token, uint256 amount
     );
+    event ParticipantSlashed(bytes32 indexed channelId, address indexed participant);
 
     // Errors
     error Channel__NotLeader();
@@ -107,7 +108,6 @@ interface IChannelRegistry {
     error Channel__DuplicateParticipant();
 
     // Functions
-    function createChannel(address _leader) external returns (bytes32 channelId);
     function createChannelWithParams(ChannelCreationParams calldata params, address[] calldata supportedTokens)
         external
         payable
@@ -151,17 +151,14 @@ interface IChannelRegistry {
         returns (ParticipantInfo memory);
     function getLeaderBond(address leader) external view returns (LeaderBond memory);
     function getTotalChannelDeposits(bytes32 channelId) external view returns (uint256);
-    function getParticipantTokenBalance(bytes32 channelId, address participant, address token)
-        external
-        view
-        returns (uint256);
+
     function getChannelTokenBalance(bytes32 channelId, address token) external view returns (uint256);
     function getSupportedTokens(bytes32 channelId) external view returns (address[] memory);
     function isTokenSupportedInChannel(bytes32 channelId, address token) external view returns (bool);
-    function getParticipantAllBalances(bytes32 channelId, address participant)
-        external
-        view
-        returns (TokenDeposit[] memory);
     function isChannelParticipant(bytes32 channelId, address participant) external view returns (bool);
     function getActiveParticipantCount(bytes32 channelId) external view returns (uint256);
+
+    function getStakedParticipantCount(bytes32 channelId) external view returns (uint256);
+    function hasParticipantStaked(bytes32 channelId, address participant) external view returns (bool);
+    function slashNonStakedParticipant(bytes32 channelId, address participant) external;
 }

@@ -212,9 +212,6 @@ contract testStateTransitionVerifier is Test {
         address[] memory signers = new address[](1);
         signers[0] = leader;
 
-        // Create empty balance updates array
-        IChannelRegistry.BalanceUpdate[] memory balanceUpdates = new IChannelRegistry.BalanceUpdate[](0);
-
         newStateUpdate = IStateTransitionVerifier.StateUpdate({
             channelId: channelId,
             oldStateRoot: bytes32(0),
@@ -244,9 +241,6 @@ contract testStateTransitionVerifier is Test {
 
         address[] memory signers = new address[](1);
         signers[0] = leader;
-
-        // Create empty balance updates array
-        IChannelRegistry.BalanceUpdate[] memory balanceUpdates = new IChannelRegistry.BalanceUpdate[](0);
 
         newStateUpdate = IStateTransitionVerifier.StateUpdate({
             channelId: channelId,
@@ -289,9 +283,6 @@ contract testStateTransitionVerifier is Test {
         signers[0] = leader;
         signers[1] = participant1;
         signers[2] = participant2;
-
-        // Create empty balance updates array
-        IChannelRegistry.BalanceUpdate[] memory balanceUpdates = new IChannelRegistry.BalanceUpdate[](0);
 
         newStateUpdate = IStateTransitionVerifier.StateUpdate({
             channelId: channelId,
@@ -344,11 +335,10 @@ contract testStateTransitionVerifier is Test {
     }
 
     function testEmergencyStateUpdate() public {
-        bytes memory disputeProof = abi.encode("emergency proof");
         bytes32 emergencyStateRoot = bytes32(uint256(0x999));
 
         vm.prank(owner); // Owner can call emergency function
-        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot, newBalanceRoot, disputeProof);
+        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot);
 
         (bytes32 currentRoot, uint256 nonce) = stateTransitionVerifier.getChannelState(channelId);
         assertEq(currentRoot, emergencyStateRoot);
@@ -356,12 +346,11 @@ contract testStateTransitionVerifier is Test {
     }
 
     function testCannotCallEmergencyFromUnauthorized() public {
-        bytes memory disputeProof = abi.encode("emergency proof");
         bytes32 emergencyStateRoot = bytes32(uint256(0x999));
 
         vm.prank(participant1);
         vm.expectRevert("Unauthorized");
-        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot, newBalanceRoot, disputeProof);
+        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot);
     }
 
     function _initializeProofData() internal {

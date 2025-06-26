@@ -394,19 +394,6 @@ contract testChannelRegistry is Test {
         assertEq(participantInfo.stake, 0);
     }
 
-    function testDeprecatedFunctions() public {
-        bytes32 channelId = _createTestChannelWithStakes();
-
-        // Test deprecated getParticipantTokenBalance - should return 0
-        uint256 balance = channelRegistry.getParticipantTokenBalance(channelId, participant1, address(token1));
-        assertEq(balance, 0);
-
-        // Test deprecated getParticipantAllBalances - should return empty array
-        IChannelRegistry.TokenDeposit[] memory balances =
-            channelRegistry.getParticipantAllBalances(channelId, participant1);
-        assertEq(balances.length, 0);
-    }
-
     // Helper functions
     function _createTestChannel() internal returns (bytes32) {
         // Leader bonds first

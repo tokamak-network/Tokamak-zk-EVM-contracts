@@ -40,11 +40,11 @@ interface IStateTransitionVerifier {
     function verifyAndCommitStateUpdate(StateUpdate calldata update) external returns (bool);
     function verifyClosingStateUpdate(StateUpdate calldata update) external returns (bool);
     function emergencyStateUpdate(bytes32 channelId, bytes32 newStateRoot, bytes calldata disputeProof) external;
-    
+
     // Management functions
     function updateVerifier(address _verifier) external;
     function updateChannelRegistry(address _channelRegistry) external;
-    
+
     // View functions
     function getChannelState(bytes32 channelId) external view returns (bytes32 stateRoot, uint256 nonce);
     function getActiveParticipantCount(bytes32 channelId) external view returns (uint256);

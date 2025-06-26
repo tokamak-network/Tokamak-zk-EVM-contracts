@@ -20,7 +20,7 @@ interface IChannelRegistry {
         uint256 lastUpdateBlock;
         uint256 lastUpdateTimestamp;
         ChannelStatus status;
-        uint256 challengePeriod;  // New field
+        uint256 challengePeriod; // New field
     }
 
     struct ChannelCreationParams {
@@ -104,45 +104,54 @@ interface IChannelRegistry {
     error Channel__InsufficientBalance();
 
     // Core functions
-    function createChannelWithParams(
-        ChannelCreationParams calldata params,
-        address[] calldata supportedTokens
-    ) external payable returns (bytes32 channelId);
+    function createChannelWithParams(ChannelCreationParams calldata params, address[] calldata supportedTokens)
+        external
+        payable
+        returns (bytes32 channelId);
     function bondAsLeader() external payable;
     function stakeAsParticipant(bytes32 channelId, bytes32 nonce) external payable;
     function exitChannel(bytes32 channelId) external;
     function slashLeader(address leader, uint256 amount, bytes32 reason) external;
-    
+
     // Token functions
     function depositToken(bytes32 channelId, address token, uint256 amount) external;
     function depositETH(bytes32 channelId) external payable;
     function withdrawTokens(bytes32 channelId, address token, uint256 amount) external;
     function updateParticipantBalances(bytes32 channelId, BalanceUpdate[] calldata updates) external;
-    
+
     // Legacy functions (deprecated)
     function createChannel(address _leader) external returns (bytes32 channelId);
     function addParticipant(bytes32 channelId, address _user) external returns (bool);
-    
+
     // Management functions
     function updateChannelStatus(bytes32 _channelId, ChannelStatus _status) external;
     function transferLeadership(bytes32 _channelId, address _newLeader) external;
     function deleteChannel(bytes32 _channelId) external;
     function updateStateRoot(bytes32 _channelId, bytes32 _newStateRoot) external;
-    
+
     // View functions
     function getChannelInfo(bytes32 channelId) external view returns (ChannelInfo memory);
-    function getParticipantInfo(bytes32 channelId, address participant) external view returns (ParticipantInfo memory);
+    function getParticipantInfo(bytes32 channelId, address participant)
+        external
+        view
+        returns (ParticipantInfo memory);
     function getLeaderBond(address leader) external view returns (LeaderBond memory);
     function getTotalChannelDeposits(bytes32 channelId) external view returns (uint256);
     function isChannelParticipant(bytes32 channelId, address participant) external view returns (bool);
     function getActiveParticipantCount(bytes32 channelId) external view returns (uint256);
     function getCurrentStateRoot(bytes32 _channelId) external view returns (bytes32);
     function getLeaderAddress(bytes32 _channelId) external view returns (address);
-    
+
     // Token view functions
-    function getParticipantTokenBalance(bytes32 channelId, address participant, address token) external view returns (uint256);
+    function getParticipantTokenBalance(bytes32 channelId, address participant, address token)
+        external
+        view
+        returns (uint256);
     function getChannelTokenBalance(bytes32 channelId, address token) external view returns (uint256);
     function getSupportedTokens(bytes32 channelId) external view returns (address[] memory);
     function isTokenSupportedInChannel(bytes32 channelId, address token) external view returns (bool);
-    function getParticipantAllBalances(bytes32 channelId, address participant) external view returns (TokenDeposit[] memory);
+    function getParticipantAllBalances(bytes32 channelId, address participant)
+        external
+        view
+        returns (TokenDeposit[] memory);
 }

@@ -8,7 +8,7 @@ import {IStateTransitionVerifier} from "../src/interface/IStateTransitionVerifie
 import {ChannelRegistry} from "../src/ChannelRegistry.sol";
 import {IChannelRegistry} from "../src/interface/IChannelRegistry.sol";
 import {MessageHashUtils} from "@openzeppelin/utils/cryptography/MessageHashUtils.sol";
-import {ERC20Mock} from "./mock/ERC20Mock.sol"; 
+import {ERC20Mock} from "./mock/ERC20Mock.sol";
 
 import "forge-std/console.sol";
 
@@ -72,10 +72,10 @@ contract testStateTransitionVerifier is Test {
         token2 = new ERC20Mock("Token2", "TK2");
 
         // Mint some tokens for testing
-        token1.mint(participant1, 1000 * 10**18);
-        token1.mint(participant2, 1000 * 10**18);
-        token2.mint(participant1, 1000 * 10**18);
-        token2.mint(participant2, 1000 * 10**18);
+        token1.mint(participant1, 1000 * 10 ** 18);
+        token1.mint(participant2, 1000 * 10 ** 18);
+        token2.mint(participant1, 1000 * 10 ** 18);
+        token2.mint(participant2, 1000 * 10 ** 18);
 
         channelRegistry = new ChannelRegistry();
         stateTransitionVerifier = new StateTransitionVerifier(address(verifier), address(channelRegistry));
@@ -200,14 +200,7 @@ contract testStateTransitionVerifier is Test {
 
     function testCannotSubmitWithInsufficientSignatures() public {
         // Create the message hash
-        bytes32 messageHash = keccak256(
-            abi.encode(
-                channelId,
-                bytes32(0),
-                newStateRoot,
-                uint256(1)
-            )
-        );
+        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1)));
 
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
@@ -243,9 +236,7 @@ contract testStateTransitionVerifier is Test {
     }
 
     function testCannotSubmitFromNonLeader() public {
-        bytes32 messageHash = keccak256(
-            abi.encode(channelId, bytes32(0), newStateRoot, uint256(1))
-        );
+        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1)));
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(leaderPrivateKey, ethSignedMessageHash);
@@ -285,9 +276,7 @@ contract testStateTransitionVerifier is Test {
         channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
 
         // For closing state, we need ALL remaining participants to sign
-        bytes32 messageHash = keccak256(
-            abi.encode(channelId, bytes32(0), newStateRoot, uint256(1))
-        );
+        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1)));
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
         // Get signatures from all 3 participants

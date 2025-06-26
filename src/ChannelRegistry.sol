@@ -20,7 +20,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     mapping(bytes32 => address[]) private channelSupportedTokens;
     mapping(bytes32 => mapping(address => bool)) private isTokenSupported;
     mapping(bytes32 => mapping(address => uint256)) private channelTokenBalances;
-    
+
     // Separate mapping for participant token balances
     mapping(bytes32 => mapping(address => mapping(address => uint256))) private participantTokenBalances;
 
@@ -111,15 +111,16 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
 
         uint256 amount = bond.amount;
         bond.amount = 0;
-        
+
         payable(msg.sender).transfer(amount);
     }
 
     // Channel creation
-    function createChannelWithParams(
-        ChannelCreationParams calldata params,
-        address[] calldata supportedTokens
-    ) external payable returns (bytes32 channelId) {
+    function createChannelWithParams(ChannelCreationParams calldata params, address[] calldata supportedTokens)
+        external
+        payable
+        returns (bytes32 channelId)
+    {
         // Validate leader has sufficient bond
         if (leaderBonds[params.leader].amount < MIN_LEADER_BOND) {
             revert Channel__InsufficientLeaderBond();
@@ -129,11 +130,15 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         require(params.preApprovedParticipants.length > 0, "Must have participants");
         require(params.preApprovedParticipants.length <= MAX_PARTICIPANTS, "Too many participants");
         require(params.participantCommitments.length == params.preApprovedParticipants.length, "Commitment mismatch");
-        require(params.signatureThreshold > 0 && params.signatureThreshold <= params.preApprovedParticipants.length, "Invalid threshold");
+        require(
+            params.signatureThreshold > 0 && params.signatureThreshold <= params.preApprovedParticipants.length,
+            "Invalid threshold"
+        );
         require(supportedTokens.length <= MAX_SUPPORTED_TOKENS, "Too many supported tokens");
 
         // Generate unique channel ID
-        channelId = keccak256(abi.encode(params.leader, channelCounter, block.timestamp, params.preApprovedParticipants));
+        channelId =
+            keccak256(abi.encode(params.leader, channelCounter, block.timestamp, params.preApprovedParticipants));
         channelCounter++;
 
         // Check channel doesn't already exist
@@ -165,9 +170,9 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         for (uint256 i = 0; i < params.preApprovedParticipants.length; i++) {
             address participant = params.preApprovedParticipants[i];
             require(participant != address(0), "Invalid participant");
-            
+
             channel.participants.push(participant);
-            
+
             // Store participant details with commitment
             participantDetails[channelId][participant] = ParticipantInfo({
                 isActive: true,
@@ -185,12 +190,12 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         // Setup supported tokens (ETH is always supported)
         channelSupportedTokens[channelId].push(ETH_TOKEN_ADDRESS);
         isTokenSupported[channelId][ETH_TOKEN_ADDRESS] = true;
-        
+
         for (uint256 i = 0; i < supportedTokens.length; i++) {
             address token = supportedTokens[i];
             require(token != address(0), "Invalid token address");
             require(!isTokenSupported[channelId][token], "Duplicate token");
-            
+
             channelSupportedTokens[channelId].push(token);
             isTokenSupported[channelId][token] = true;
             emit TokenSupported(channelId, token);
@@ -203,10 +208,10 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     // Participant staking
     function stakeAsParticipant(bytes32 channelId, bytes32 nonce) external payable channelExists(channelId) {
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
-        
+
         require(participant.isActive, "Not an approved participant");
         require(participant.stake == 0, "Already staked");
-        
+
         bytes32 expectedCommitment = keccak256(abi.encode(msg.sender, nonce));
         if (participant.commitment != expectedCommitment) {
             revert Channel__InvalidCommitment();
@@ -225,11 +230,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // Token deposit functions
-    function depositToken(
-        bytes32 channelId, 
-        address token, 
-        uint256 amount
-    ) external channelExists(channelId) {
+    function depositToken(bytes32 channelId, address token, uint256 amount) external channelExists(channelId) {
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
         require(participant.isActive, "Not an active participant");
         require(isTokenSupported[channelId][token], "Token not supported");
@@ -261,14 +262,15 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // Balance update function
-    function updateParticipantBalances(
-        bytes32 channelId,
-        BalanceUpdate[] calldata updates
-    ) external onlyVerifier channelExists(channelId) {
+    function updateParticipantBalances(bytes32 channelId, BalanceUpdate[] calldata updates)
+        external
+        onlyVerifier
+        channelExists(channelId)
+    {
         for (uint256 i = 0; i < updates.length; i++) {
             BalanceUpdate memory update = updates[i];
             ParticipantInfo storage participant = participantDetails[channelId][update.participant];
-            
+
             require(participant.isActive || participant.hasExited, "Invalid participant");
             require(isTokenSupported[channelId][update.token], "Token not supported");
 
@@ -288,14 +290,12 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // Withdrawal function
-    function withdrawTokens(
-        bytes32 channelId,
-        address token,
-        uint256 amount
-    ) external channelExists(channelId) {
+    function withdrawTokens(bytes32 channelId, address token, uint256 amount) external channelExists(channelId) {
         ChannelInfo storage channel = channels[channelId];
-        require(channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED, "Channel not closing");
-        
+        require(
+            channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED, "Channel not closing"
+        );
+
         uint256 balance = participantTokenBalances[channelId][msg.sender][token];
         require(balance >= amount, "Insufficient balance");
 
@@ -344,9 +344,12 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     // Participant exit mechanism
     function exitChannel(bytes32 channelId) external channelExists(channelId) {
         ChannelInfo storage channel = channels[channelId];
-        
-        require(channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED, "Can only exit during channel closure");
-        
+
+        require(
+            channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED,
+            "Can only exit during channel closure"
+        );
+
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
         require(participant.isActive, "Not an active participant");
         require(!participant.hasExited, "Already exited");
@@ -422,7 +425,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         for (uint256 i = 0; i < channel.participants.length; i++) {
             address participant = channel.participants[i];
             ParticipantInfo storage participantInfo = participantDetails[_channelId][participant];
-            
+
             if (participantInfo.stake > 0 && !participantInfo.hasExited) {
                 uint256 stakeToReturn = participantInfo.stake;
                 participantInfo.stake = 0;
@@ -434,10 +437,10 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
             for (uint256 j = 0; j < tokens.length; j++) {
                 address token = tokens[j];
                 uint256 balance = participantTokenBalances[_channelId][participant][token];
-                
+
                 if (balance > 0) {
                     participantTokenBalances[_channelId][participant][token] = 0;
-                    
+
                     if (token == ETH_TOKEN_ADDRESS) {
                         payable(participant).transfer(balance);
                     } else {
@@ -445,7 +448,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
                     }
                 }
             }
-            
+
             delete participantDetails[_channelId][participant];
         }
 
@@ -483,7 +486,11 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         });
     }
 
-    function getParticipantInfo(bytes32 channelId, address participant) external view returns (ParticipantInfo memory) {
+    function getParticipantInfo(bytes32 channelId, address participant)
+        external
+        view
+        returns (ParticipantInfo memory)
+    {
         return participantDetails[channelId][participant];
     }
 
@@ -495,18 +502,15 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         return channelDeposits[channelId];
     }
 
-    function getParticipantTokenBalance(
-        bytes32 channelId, 
-        address participant, 
-        address token
-    ) external view returns (uint256) {
+    function getParticipantTokenBalance(bytes32 channelId, address participant, address token)
+        external
+        view
+        returns (uint256)
+    {
         return participantTokenBalances[channelId][participant][token];
     }
 
-    function getChannelTokenBalance(
-        bytes32 channelId, 
-        address token
-    ) external view returns (uint256) {
+    function getChannelTokenBalance(bytes32 channelId, address token) external view returns (uint256) {
         return channelTokenBalances[channelId][token];
     }
 
@@ -514,27 +518,23 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         return channelSupportedTokens[channelId];
     }
 
-    function isTokenSupportedInChannel(
-        bytes32 channelId, 
-        address token
-    ) external view returns (bool) {
+    function isTokenSupportedInChannel(bytes32 channelId, address token) external view returns (bool) {
         return isTokenSupported[channelId][token];
     }
 
-    function getParticipantAllBalances(
-        bytes32 channelId, 
-        address participant
-    ) external view returns (TokenDeposit[] memory) {
+    function getParticipantAllBalances(bytes32 channelId, address participant)
+        external
+        view
+        returns (TokenDeposit[] memory)
+    {
         address[] memory tokens = channelSupportedTokens[channelId];
         TokenDeposit[] memory balances = new TokenDeposit[](tokens.length);
-        
+
         for (uint256 i = 0; i < tokens.length; i++) {
-            balances[i] = TokenDeposit({
-                token: tokens[i],
-                amount: participantTokenBalances[channelId][participant][tokens[i]]
-            });
+            balances[i] =
+                TokenDeposit({token: tokens[i], amount: participantTokenBalances[channelId][participant][tokens[i]]});
         }
-        
+
         return balances;
     }
 

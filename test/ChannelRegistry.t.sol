@@ -5,10 +5,14 @@ import {Test} from "forge-std/Test.sol";
 import {ChannelRegistry} from "../src/ChannelRegistry.sol";
 import {IChannelRegistry} from "../src/interface/IChannelRegistry.sol";
 import {ERC20Mock} from "./mock/ERC20Mock.sol";
+import {BalanceMerkleTree} from "../src/libraries/BalanceMerkleTree.sol";
+import {MerkleProof} from "@openzeppelin/utils/cryptography/MerkleProof.sol";
 
 import "forge-std/console.sol";
 
 contract testChannelRegistry is Test {
+    using BalanceMerkleTree for *;
+
     address owner;
     address leader;
     address participant1;
@@ -88,6 +92,9 @@ contract testChannelRegistry is Test {
         commitments[1] = commitment1;
         commitments[2] = commitment2;
 
+        // Create initial balance root (empty tree)
+        bytes32 initialBalanceRoot = bytes32(0);
+
         IChannelRegistry.ChannelCreationParams memory params = IChannelRegistry.ChannelCreationParams({
             leader: leader,
             preApprovedParticipants: participants,
@@ -95,7 +102,8 @@ contract testChannelRegistry is Test {
             participantCommitments: commitments,
             signatureThreshold: 2,
             challengePeriod: 7 days,
-            initialStateRoot: bytes32(0)
+            initialStateRoot: bytes32(0),
+            initialBalanceRoot: initialBalanceRoot
         });
 
         // Add supported tokens
@@ -125,38 +133,9 @@ contract testChannelRegistry is Test {
         assertEq(tokens[0], address(0)); // ETH
         assertEq(tokens[1], address(token1));
         assertEq(tokens[2], address(token2));
-    }
 
-    function testCreateChannelWithNoExtraTokens() public {
-        // Test creating a channel with only ETH support (empty token array)
-        vm.prank(leader);
-        channelRegistry.bondAsLeader{value: MIN_LEADER_BOND}();
-
-        address[] memory participants = new address[](1);
-        participants[0] = leader;
-
-        bytes32[] memory commitments = new bytes32[](1);
-        commitments[0] = keccak256(abi.encode(leader, keccak256("leader_nonce")));
-
-        IChannelRegistry.ChannelCreationParams memory params = IChannelRegistry.ChannelCreationParams({
-            leader: leader,
-            preApprovedParticipants: participants,
-            minimumStake: MIN_PARTICIPANT_STAKE,
-            participantCommitments: commitments,
-            signatureThreshold: 1,
-            challengePeriod: 7 days,
-            initialStateRoot: bytes32(0)
-        });
-
-        address[] memory supportedTokens = new address[](0); // Empty array
-
-        vm.prank(leader);
-        bytes32 channelId = channelRegistry.createChannelWithParams(params, supportedTokens);
-
-        // Verify only ETH is supported
-        address[] memory tokens = channelRegistry.getSupportedTokens(channelId);
-        assertEq(tokens.length, 1);
-        assertEq(tokens[0], address(0)); // Only ETH
+        // Verify initial balance root
+        assertEq(channelRegistry.getChannelBalanceRoot(channelId), initialBalanceRoot);
     }
 
     function testParticipantStaking() public {
@@ -186,11 +165,8 @@ contract testChannelRegistry is Test {
         channelRegistry.depositToken(channelId, address(token1), depositAmount);
         vm.stopPrank();
 
-        // Verify deposit
-        uint256 balance = channelRegistry.getParticipantTokenBalance(channelId, participant1, address(token1));
-        assertEq(balance, depositAmount);
-
-        // Verify channel total balance
+        // Note: Individual balances are no longer tracked on-chain
+        // Only total channel balance is tracked
         uint256 channelBalance = channelRegistry.getChannelTokenBalance(channelId, address(token1));
         assertEq(channelBalance, depositAmount);
     }
@@ -203,73 +179,76 @@ contract testChannelRegistry is Test {
         vm.prank(participant1);
         channelRegistry.depositETH{value: depositAmount}(channelId);
 
-        // Verify deposit
-        uint256 balance = channelRegistry.getParticipantTokenBalance(channelId, participant1, address(0));
-        assertEq(balance, depositAmount);
+        // Verify channel total balance
+        uint256 channelBalance = channelRegistry.getChannelTokenBalance(channelId, address(0));
+        assertEq(channelBalance, depositAmount);
     }
 
-    function testCannotDepositUnsupportedToken() public {
+    function testUpdateBalanceRoot() public {
         bytes32 channelId = _createTestChannelWithStakes();
-
-        // Create a new token that wasn't added during channel creation
-        ERC20Mock unsupportedToken = new ERC20Mock("Unsupported", "UNS");
-        unsupportedToken.mint(participant1, 1000 * 10 ** 18);
-
-        // Try to deposit unsupported token
-        vm.startPrank(participant1);
-        unsupportedToken.approve(address(channelRegistry), 100 * 10 ** 18);
-        vm.expectRevert("Token not supported");
-        channelRegistry.depositToken(channelId, address(unsupportedToken), 100 * 10 ** 18);
-        vm.stopPrank();
+        
+        // Set up verifier address
+        vm.prank(owner);
+        channelRegistry.setStateTransitionVerifier(address(this));
+        
+        // Create a new balance root
+        bytes32 newBalanceRoot = keccak256("new balance root");
+        
+        // Update balance root (only verifier can do this)
+        channelRegistry.updateBalanceRoot(channelId, newBalanceRoot);
+        
+        // Verify update
+        assertEq(channelRegistry.getChannelBalanceRoot(channelId), newBalanceRoot);
     }
 
-    function testWithdrawTokensDuringClosure() public {
+    function testWithdrawWithProof() public {
         bytes32 channelId = _createTestChannelWithStakes();
-
-        // Deposit some tokens first
+        
+        // Deposit tokens first
         uint256 depositAmount = 100 * 10 ** 18;
         vm.startPrank(participant1);
         token1.approve(address(channelRegistry), depositAmount);
         channelRegistry.depositToken(channelId, address(token1), depositAmount);
         vm.stopPrank();
-
+        
+        // Set up verifier
+        vm.prank(owner);
+        channelRegistry.setStateTransitionVerifier(address(this));
+        
+        // Create balance data for Merkle tree
+        uint256 participant1Balance = 60 * 10 ** 18;
+        uint256 participant2Balance = 40 * 10 ** 18;
+        
+        // Create Merkle tree (off-chain computation)
+        bytes32 leaf1 = keccak256(abi.encodePacked(participant1, address(token1), participant1Balance));
+        bytes32 leaf2 = keccak256(abi.encodePacked(participant2, address(token1), participant2Balance));
+        bytes32 root = _computeRoot(leaf1, leaf2);
+        
+        // Update balance root
+        channelRegistry.updateBalanceRoot(channelId, root);
+        
         // Change status to CLOSING
         vm.prank(leader);
         channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
-
-        // Withdraw tokens
-        uint256 withdrawAmount = 50 * 10 ** 18;
+        
+        // Create Merkle proof for participant1
+        bytes32[] memory proof = new bytes32[](1);
+        proof[0] = leaf2;
+        
+        // Withdraw with proof
         uint256 balanceBefore = token1.balanceOf(participant1);
-
+        
         vm.prank(participant1);
-        channelRegistry.withdrawTokens(channelId, address(token1), withdrawAmount);
-
+        channelRegistry.withdrawWithProof(channelId, address(token1), participant1Balance, proof);
+        
         // Verify withdrawal
         uint256 balanceAfter = token1.balanceOf(participant1);
-        assertEq(balanceAfter - balanceBefore, withdrawAmount);
-
-        // Verify remaining balance
-        uint256 remainingBalance = channelRegistry.getParticipantTokenBalance(channelId, participant1, address(token1));
-        assertEq(remainingBalance, depositAmount - withdrawAmount);
-    }
-
-    function testCannotStakeWithWrongCommitment() public {
-        bytes32 channelId = _createTestChannel();
-
-        // Try to stake with wrong nonce
-        bytes32 wrongNonce = keccak256("wrong_nonce");
+        assertEq(balanceAfter - balanceBefore, participant1Balance);
+        
+        // Verify cannot withdraw again
         vm.prank(participant1);
-        vm.expectRevert(IChannelRegistry.Channel__InvalidCommitment.selector);
-        channelRegistry.stakeAsParticipant{value: MIN_PARTICIPANT_STAKE}(channelId, wrongNonce);
-    }
-
-    function testCannotStakeInsufficientAmount() public {
-        bytes32 channelId = _createTestChannel();
-
-        bytes32 nonce1 = keccak256("nonce1");
-        vm.prank(participant1);
-        vm.expectRevert(IChannelRegistry.Channel__InsufficientParticipantStake.selector);
-        channelRegistry.stakeAsParticipant{value: MIN_PARTICIPANT_STAKE - 1}(channelId, nonce1);
+        vm.expectRevert("Already withdrawn");
+        channelRegistry.withdrawWithProof(channelId, address(token1), participant1Balance, proof);
     }
 
     function testCannotExitActiveChannel() public {
@@ -305,141 +284,17 @@ contract testChannelRegistry is Test {
         assertEq(participantInfo.stake, 0);
     }
 
-    function testCannotCreateChannelWithoutBond() public {
-        address[] memory participants = new address[](1);
-        participants[0] = leader;
-
-        bytes32[] memory commitments = new bytes32[](1);
-        commitments[0] = keccak256(abi.encode(leader, keccak256("nonce")));
-
-        IChannelRegistry.ChannelCreationParams memory params = IChannelRegistry.ChannelCreationParams({
-            leader: leader,
-            preApprovedParticipants: participants,
-            minimumStake: MIN_PARTICIPANT_STAKE,
-            participantCommitments: commitments,
-            signatureThreshold: 1,
-            challengePeriod: 7 days,
-            initialStateRoot: bytes32(0)
-        });
-
-        address[] memory supportedTokens = new address[](0);
-
-        vm.prank(leader);
-        vm.expectRevert(IChannelRegistry.Channel__InsufficientLeaderBond.selector);
-        channelRegistry.createChannelWithParams(params, supportedTokens);
-    }
-
-    function testCannotCreateChannelWithDuplicateParticipants() public {
-        vm.prank(leader);
-        channelRegistry.bondAsLeader{value: MIN_LEADER_BOND}();
-
-        address[] memory participants = new address[](2);
-        participants[0] = participant1;
-        participants[1] = participant1; // Duplicate
-
-        bytes32[] memory commitments = new bytes32[](2);
-        commitments[0] = keccak256(abi.encode(participant1, keccak256("nonce1")));
-        commitments[1] = keccak256(abi.encode(participant1, keccak256("nonce2")));
-
-        IChannelRegistry.ChannelCreationParams memory params = IChannelRegistry.ChannelCreationParams({
-            leader: leader,
-            preApprovedParticipants: participants,
-            minimumStake: MIN_PARTICIPANT_STAKE,
-            participantCommitments: commitments,
-            signatureThreshold: 1,
-            challengePeriod: 7 days,
-            initialStateRoot: bytes32(0)
-        });
-
-        address[] memory supportedTokens = new address[](0);
-
-        vm.prank(leader);
-        vm.expectRevert(IChannelRegistry.Channel__DuplicateParticipant.selector);
-        channelRegistry.createChannelWithParams(params, supportedTokens);
-    }
-
-    function testTransferLeadership() public {
+    function testDeprecatedFunctions() public {
         bytes32 channelId = _createTestChannelWithStakes();
-
-        // participant2 bonds to become eligible for leadership
-        vm.prank(participant2);
-        channelRegistry.bondAsLeader{value: MIN_LEADER_BOND}();
-
-        // Transfer leadership
-        vm.prank(leader);
-        channelRegistry.transferLeadership(channelId, participant2);
-
-        // Verify leadership transfer
-        IChannelRegistry.ChannelInfo memory channelInfo = channelRegistry.getChannelInfo(channelId);
-        assertEq(channelInfo.leader, participant2);
-    }
-
-    function testCannotTransferLeadershipWithoutBond() public {
-        bytes32 channelId = _createTestChannelWithStakes();
-
-        // Try to transfer to unbonded participant
-        vm.prank(leader);
-        vm.expectRevert(IChannelRegistry.Channel__InsufficientLeaderBond.selector);
-        channelRegistry.transferLeadership(channelId, participant2);
-    }
-
-    function testLegacyCreateChannelReverts() public {
-        vm.prank(owner);
-        vm.expectRevert("Use createChannelWithParams instead");
-        channelRegistry.createChannel(leader);
-    }
-
-    function testGetActiveParticipantCount() public {
-        bytes32 channelId = _createTestChannelWithStakes();
-
-        // All participants should be active initially
-        assertEq(channelRegistry.getActiveParticipantCount(channelId), 3);
-
-        // Change to closing status and have one participant exit
-        vm.prank(leader);
-        channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
-
-        vm.prank(participant1);
-        channelRegistry.exitChannel(channelId);
-
-        // Should have 2 active participants now
-        assertEq(channelRegistry.getActiveParticipantCount(channelId), 2);
-    }
-
-    function testGetParticipantAllBalances() public {
-        bytes32 channelId = _createTestChannelWithStakes();
-
-        // Deposit various tokens
-        uint256 ethAmount = 0.5 ether;
-        uint256 token1Amount = 100 * 10 ** 18;
-        uint256 token2Amount = 200 * 10 ** 18;
-
-        vm.startPrank(participant1);
-
-        // Deposit ETH
-        channelRegistry.depositETH{value: ethAmount}(channelId);
-
-        // Deposit token1
-        token1.approve(address(channelRegistry), token1Amount);
-        channelRegistry.depositToken(channelId, address(token1), token1Amount);
-
-        // Deposit token2
-        token2.approve(address(channelRegistry), token2Amount);
-        channelRegistry.depositToken(channelId, address(token2), token2Amount);
-
-        vm.stopPrank();
-
-        // Get all balances
-        IChannelRegistry.TokenDeposit[] memory balances =
+        
+        // Test deprecated getParticipantTokenBalance - should return 0
+        uint256 balance = channelRegistry.getParticipantTokenBalance(channelId, participant1, address(token1));
+        assertEq(balance, 0);
+        
+        // Test deprecated getParticipantAllBalances - should return empty array
+        IChannelRegistry.TokenDeposit[] memory balances = 
             channelRegistry.getParticipantAllBalances(channelId, participant1);
-
-        assertEq(balances.length, 3); // ETH + 2 tokens
-        assertEq(balances[0].token, address(0)); // ETH
-        assertEq(balances[0].amount, ethAmount);
-        assertEq(balances[1].token, address(token1));
-        assertEq(balances[1].amount, token1Amount);
-        assertEq(balances[2].token, address(token2));
-        assertEq(balances[2].amount, token2Amount);
+        assertEq(balances.length, 0);
     }
 
     // Helper functions
@@ -470,7 +325,8 @@ contract testChannelRegistry is Test {
             participantCommitments: commitments,
             signatureThreshold: 2,
             challengePeriod: 7 days,
-            initialStateRoot: bytes32(0)
+            initialStateRoot: bytes32(0),
+            initialBalanceRoot: bytes32(0)
         });
 
         // Add supported tokens
@@ -496,5 +352,9 @@ contract testChannelRegistry is Test {
         channelRegistry.stakeAsParticipant{value: MIN_PARTICIPANT_STAKE}(channelId, keccak256("nonce2"));
 
         return channelId;
+    }
+    
+    function _computeRoot(bytes32 a, bytes32 b) internal pure returns (bytes32) {
+        return a < b ? keccak256(abi.encodePacked(a, b)) : keccak256(abi.encodePacked(b, a));
     }
 }

@@ -42,7 +42,7 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         if (msg.sender != channelRegistry.getLeaderAddress(update.channelId)) {
             revert Invalid__Caller();
         }
-
+        
         // Get channel info from registry
         IChannelRegistry.ChannelInfo memory channelInfo = channelRegistry.getChannelInfo(update.channelId);
 
@@ -65,7 +65,7 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
 
         // Get only active participants for signature verification
         address[] memory activeParticipants = _getActiveParticipants(update.channelId, channelInfo.participants);
-
+        
         // Calculate dynamic threshold based on active participants
         uint256 activeThreshold = _calculateActiveThreshold(activeParticipants.length, channelInfo.signatureThreshold);
 
@@ -81,12 +81,12 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         channelStateRoots[update.channelId] = update.newStateRoot;
         channelNonces[update.channelId] = update.nonce;
 
-        // Update current root in channel registry
+        // Update current state root in channel registry
         channelRegistry.updateStateRoot(update.channelId, update.newStateRoot);
 
-        // Update participant balances if provided
-        if (update.balanceUpdates.length > 0) {
-            channelRegistry.updateParticipantBalances(update.channelId, update.balanceUpdates);
+        // Update balance root if provided (O(1) operation!)
+        if (update.newBalanceRoot != bytes32(0)) {
+            channelRegistry.updateBalanceRoot(update.channelId, update.newBalanceRoot);
         }
 
         emit StateUpdated(update.channelId, update.oldStateRoot, update.newStateRoot, update.nonce);
@@ -94,10 +94,10 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         return true;
     }
 
-    function _getActiveParticipants(bytes32 channelId, address[] memory allParticipants)
-        internal
-        view
-        returns (address[] memory)
+    function _getActiveParticipants(bytes32 channelId, address[] memory allParticipants) 
+        internal 
+        view 
+        returns (address[] memory) 
     {
         // Count active participants first
         uint256 activeCount = 0;
@@ -120,23 +120,23 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         return activeParticipants;
     }
 
-    function _calculateActiveThreshold(uint256 activeParticipantCount, uint256 originalThreshold)
-        internal
-        pure
-        returns (uint256)
+    function _calculateActiveThreshold(uint256 activeParticipantCount, uint256 originalThreshold) 
+        internal 
+        pure 
+        returns (uint256) 
     {
         // If more than half participants have exited, require all remaining participants
         if (activeParticipantCount <= originalThreshold) {
             return activeParticipantCount;
         }
-
+        
         // Otherwise use original threshold
         return originalThreshold;
     }
 
     function _verifyParticipantSignatures(
-        StateUpdate calldata update,
-        address[] memory activeParticipants,
+        StateUpdate calldata update, 
+        address[] memory activeParticipants, 
         uint256 threshold
     ) internal pure {
         // Check array lengths match
@@ -150,8 +150,13 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         }
 
         // Create the message hash that participants should have signed
-        bytes32 messageHash =
-            keccak256(abi.encode(update.channelId, update.oldStateRoot, update.newStateRoot, update.nonce));
+        bytes32 messageHash = keccak256(abi.encode(
+            update.channelId, 
+            update.oldStateRoot, 
+            update.newStateRoot, 
+            update.nonce,
+            update.newBalanceRoot  // Include balance root in signature
+        ));
 
         // Add Ethereum Signed Message prefix
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
@@ -201,7 +206,7 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         if (msg.sender != channelRegistry.getLeaderAddress(update.channelId)) {
             revert Invalid__Caller();
         }
-
+        
         // Get channel info from registry
         IChannelRegistry.ChannelInfo memory channelInfo = channelRegistry.getChannelInfo(update.channelId);
 
@@ -224,7 +229,7 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
 
         // For closing channels, require ALL remaining active participants to sign
         address[] memory activeParticipants = _getActiveParticipants(update.channelId, channelInfo.participants);
-
+        
         // During closure, require unanimous consent from remaining participants
         _verifyParticipantSignatures(update, activeParticipants, activeParticipants.length);
 
@@ -237,8 +242,13 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         channelStateRoots[update.channelId] = update.newStateRoot;
         channelNonces[update.channelId] = update.nonce;
 
-        // Update current root in channel registry
+        // Update current state root in channel registry
         channelRegistry.updateStateRoot(update.channelId, update.newStateRoot);
+
+        // Update balance root if provided
+        if (update.newBalanceRoot != bytes32(0)) {
+            channelRegistry.updateBalanceRoot(update.channelId, update.newBalanceRoot);
+        }
 
         emit StateUpdated(update.channelId, update.oldStateRoot, update.newStateRoot, update.nonce);
 
@@ -246,22 +256,32 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
     }
 
     // Emergency update function (only for dispute resolution)
-    function emergencyStateUpdate(bytes32 channelId, bytes32 newStateRoot, bytes calldata disputeProof) external {
+    function emergencyStateUpdate(
+        bytes32 channelId, 
+        bytes32 newStateRoot,
+        bytes32 newBalanceRoot,
+        bytes calldata disputeProof
+    ) external {
         // Only dispute resolver can call this
         require(msg.sender == owner() || msg.sender == address(channelRegistry), "Unauthorized");
-
+        
         // Additional verification logic for dispute proof would go here
         // For now, we'll just update the state
-
+        
         uint256 newNonce = channelNonces[channelId] + 1;
         bytes32 oldRoot = channelStateRoots[channelId];
-
+        
         channelStateRoots[channelId] = newStateRoot;
         channelNonces[channelId] = newNonce;
-
+        
         // Update registry
         channelRegistry.updateStateRoot(channelId, newStateRoot);
-
+        
+        // Update balance root if provided
+        if (newBalanceRoot != bytes32(0)) {
+            channelRegistry.updateBalanceRoot(channelId, newBalanceRoot);
+        }
+        
         emit EmergencyStateUpdate(channelId, oldRoot, newStateRoot, newNonce);
     }
 

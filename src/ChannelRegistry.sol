@@ -77,6 +77,13 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         _;
     }
 
+    modifier hasStaked(bytes32 channelId) {
+        ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
+        require(participant.isActive, "Not an active participant");
+        require(participant.stake > 0, "Must stake before participating");
+        _;
+    }
+
     constructor() Ownable(msg.sender) {}
 
     // Setup functions
@@ -234,7 +241,11 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // Token deposit functions - deposits are tracked globally, not per participant
-    function depositToken(bytes32 channelId, address token, uint256 amount) external channelExists(channelId) {
+    function depositToken(bytes32 channelId, address token, uint256 amount)
+        external
+        channelExists(channelId)
+        hasStaked(channelId)
+    {
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
         require(participant.isActive, "Not an active participant");
         require(isTokenSupported[channelId][token], "Token not supported");
@@ -250,7 +261,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         emit TokenDeposited(channelId, msg.sender, token, amount);
     }
 
-    function depositETH(bytes32 channelId) external payable channelExists(channelId) {
+    function depositETH(bytes32 channelId) external payable channelExists(channelId) hasStaked(channelId) {
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
         require(participant.isActive, "Not an active participant");
         require(msg.value > 0, "Amount must be greater than 0");
@@ -274,7 +285,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         uint256 amount,
         TokenBalance[] calldata allBalances, // All balances for this participant
         bytes32[] calldata merkleProof
-    ) external channelExists(channelId) {
+    ) external channelExists(channelId) hasStaked(channelId) {
         ChannelInfo storage channel = channels[channelId];
         require(
             channel.status == ChannelStatus.CLOSING || channel.status == ChannelStatus.CLOSED,
@@ -316,6 +327,25 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         emit TokenWithdrawn(channelId, msg.sender, token, amount);
     }
 
+    // Slashing mechanism - can slash participants who haven't staked
+    function slashNonStakedParticipant(bytes32 channelId, address participant)
+        external
+        onlyDisputeResolver
+        channelExists(channelId)
+    {
+        ParticipantInfo storage participantInfo = participantDetails[channelId][participant];
+
+        // Check if participant should have staked but didn't
+        require(participantInfo.isActive, "Not an active participant");
+        require(participantInfo.stake == 0, "Participant has staked");
+        require(block.timestamp > participantInfo.joinedAt + 7 days, "Grace period not over");
+
+        // Deactivate the participant
+        participantInfo.isActive = false;
+
+        emit ParticipantSlashed(channelId, participant);
+    }
+
     // Slashing mechanism
     function slashLeader(address leader, uint256 amount, bytes32 reason) external onlyDisputeResolver {
         LeaderBond storage bond = leaderBonds[leader];
@@ -327,11 +357,6 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         payable(disputeResolver).transfer(amount);
 
         emit LeaderSlashed(leader, amount, reason);
-    }
-
-    // Legacy create function
-    function createChannel(address _leader) external onlyOwner returns (bytes32 channelId) {
-        require(false, "Use createChannelWithParams instead");
     }
 
     // Participant exit mechanism
@@ -509,11 +534,28 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         return participantDetails[channelId][participant].isActive;
     }
 
+    function hasParticipantStaked(bytes32 channelId, address participant) external view returns (bool) {
+        return participantDetails[channelId][participant].stake > 0;
+    }
+
     function getActiveParticipantCount(bytes32 channelId) external view returns (uint256) {
         ChannelInfo storage channel = channels[channelId];
         uint256 count = 0;
         for (uint256 i = 0; i < channel.participants.length; i++) {
             if (participantDetails[channelId][channel.participants[i]].isActive) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // Get count of participants who have actually staked
+    function getStakedParticipantCount(bytes32 channelId) external view returns (uint256) {
+        ChannelInfo storage channel = channels[channelId];
+        uint256 count = 0;
+        for (uint256 i = 0; i < channel.participants.length; i++) {
+            ParticipantInfo storage participant = participantDetails[channelId][channel.participants[i]];
+            if (participant.isActive && participant.stake > 0) {
                 count++;
             }
         }
@@ -550,25 +592,6 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
 
     function getLeaderAddress(bytes32 _channelId) external view returns (address) {
         return channels[_channelId].leader;
-    }
-
-    // Deprecated functions for backward compatibility
-    function getParticipantTokenBalance(bytes32 channelId, address participant, address token)
-        external
-        view
-        returns (uint256)
-    {
-        // This function is deprecated - balances are now in Merkle tree
-        return 0;
-    }
-
-    function getParticipantAllBalances(bytes32 channelId, address participant)
-        external
-        view
-        returns (TokenDeposit[] memory)
-    {
-        // This function is deprecated - balances are now in Merkle tree
-        return new TokenDeposit[](0);
     }
 
     // Emergency functions

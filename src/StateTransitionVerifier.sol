@@ -243,12 +243,7 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
     }
 
     // Emergency update function (only for dispute resolution)
-    function emergencyStateUpdate(
-        bytes32 channelId,
-        bytes32 newStateRoot,
-        bytes32 newBalanceRoot,
-        bytes calldata disputeProof
-    ) external {
+    function emergencyStateUpdate(bytes32 channelId, bytes32 newStateRoot) external {
         // Only dispute resolver can call this
         require(msg.sender == owner() || msg.sender == address(channelRegistry), "Unauthorized");
 

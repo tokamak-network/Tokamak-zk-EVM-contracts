@@ -40,6 +40,7 @@ contract testStateTransitionVerifier is Test {
 
     bytes32 public channelId;
     bytes32 public newStateRoot;
+    bytes32 public newBalanceRoot;
 
     uint256 constant MIN_LEADER_BOND = 1 ether;
     uint256 constant MIN_PARTICIPANT_STAKE = 0.1 ether;
@@ -86,6 +87,7 @@ contract testStateTransitionVerifier is Test {
         channelId = _createTestChannelWithStakes();
 
         newStateRoot = bytes32(uint256(0x789));
+        newBalanceRoot = bytes32(uint256(0xabc));
 
         _initializeProofData();
     }
@@ -113,11 +115,12 @@ contract testStateTransitionVerifier is Test {
         IChannelRegistry.ChannelCreationParams memory params = IChannelRegistry.ChannelCreationParams({
             leader: leader,
             preApprovedParticipants: participants,
-            minimumStake: MIN_PARTICIPANT_STAKE,
             participantCommitments: commitments,
             signatureThreshold: 2, // Require 2 out of 3 signatures
+            initialStateRoot: bytes32(0),
+            initialBalanceRoot: bytes32(0),
             challengePeriod: 7 days,
-            initialStateRoot: bytes32(0)
+            minimumStake: MIN_PARTICIPANT_STAKE
         });
 
         // Add supported tokens
@@ -148,7 +151,8 @@ contract testStateTransitionVerifier is Test {
                 channelId,
                 bytes32(0),
                 newStateRoot,
-                uint256(1) // nonce
+                uint256(1), // nonce
+                newBalanceRoot
             )
         );
 
@@ -171,20 +175,19 @@ contract testStateTransitionVerifier is Test {
         signers[0] = leader;
         signers[1] = participant1;
 
-        // Create empty balance updates array
-        IChannelRegistry.BalanceUpdate[] memory balanceUpdates = new IChannelRegistry.BalanceUpdate[](0);
+
 
         newStateUpdate = IStateTransitionVerifier.StateUpdate({
             channelId: channelId,
             oldStateRoot: bytes32(0),
             newStateRoot: newStateRoot,
+            newBalanceRoot: newBalanceRoot,
             nonce: 1,
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
             publicInputs: publicInputs,
             participantSignatures: participantSignatures,
-            signers: signers,
-            balanceUpdates: balanceUpdates
+            signers: signers
         });
 
         // Only leader can submit state updates
@@ -200,7 +203,7 @@ contract testStateTransitionVerifier is Test {
 
     function testCannotSubmitWithInsufficientSignatures() public {
         // Create the message hash
-        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1)));
+        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1), newBalanceRoot));
 
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
@@ -221,13 +224,13 @@ contract testStateTransitionVerifier is Test {
             channelId: channelId,
             oldStateRoot: bytes32(0),
             newStateRoot: newStateRoot,
+            newBalanceRoot: newBalanceRoot,
             nonce: 1,
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
             publicInputs: publicInputs,
             participantSignatures: participantSignatures,
-            signers: signers,
-            balanceUpdates: balanceUpdates
+            signers: signers
         });
 
         vm.prank(leader);
@@ -255,13 +258,13 @@ contract testStateTransitionVerifier is Test {
             channelId: channelId,
             oldStateRoot: bytes32(0),
             newStateRoot: newStateRoot,
+            newBalanceRoot: newBalanceRoot,
             nonce: 1,
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
             publicInputs: publicInputs,
             participantSignatures: participantSignatures,
-            signers: signers,
-            balanceUpdates: balanceUpdates
+            signers: signers
         });
 
         // Try to submit from participant1 instead of leader
@@ -276,7 +279,7 @@ contract testStateTransitionVerifier is Test {
         channelRegistry.updateChannelStatus(channelId, IChannelRegistry.ChannelStatus.CLOSING);
 
         // For closing state, we need ALL remaining participants to sign
-        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1)));
+        bytes32 messageHash = keccak256(abi.encode(channelId, bytes32(0), newStateRoot, uint256(1), newBalanceRoot));
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
 
         // Get signatures from all 3 participants
@@ -301,13 +304,13 @@ contract testStateTransitionVerifier is Test {
             channelId: channelId,
             oldStateRoot: bytes32(0),
             newStateRoot: newStateRoot,
+            newBalanceRoot: newBalanceRoot,
             nonce: 1,
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
             publicInputs: publicInputs,
             participantSignatures: participantSignatures,
-            signers: signers,
-            balanceUpdates: balanceUpdates
+            signers: signers
         });
 
         vm.prank(leader);
@@ -353,7 +356,7 @@ contract testStateTransitionVerifier is Test {
         bytes32 emergencyStateRoot = bytes32(uint256(0x999));
 
         vm.prank(owner); // Owner can call emergency function
-        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot, disputeProof);
+        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot, newBalanceRoot, disputeProof);
 
         (bytes32 currentRoot, uint256 nonce) = stateTransitionVerifier.getChannelState(channelId);
         assertEq(currentRoot, emergencyStateRoot);
@@ -366,7 +369,7 @@ contract testStateTransitionVerifier is Test {
 
         vm.prank(participant1);
         vm.expectRevert("Unauthorized");
-        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot, disputeProof);
+        stateTransitionVerifier.emergencyStateUpdate(channelId, emergencyStateRoot, newBalanceRoot, disputeProof);
     }
 
     function _initializeProofData() internal {

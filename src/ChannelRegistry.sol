@@ -323,10 +323,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // Slashing mechanism - can slash participants who haven't staked
-    function slashNonStakedParticipant(bytes32 channelId, address participant)
-        external
-        channelExists(channelId)
-    {
+    function slashNonStakedParticipant(bytes32 channelId, address participant) external channelExists(channelId) {
         ParticipantInfo storage participantInfo = participantDetails[channelId][participant];
 
         // Check if participant should have staked but didn't

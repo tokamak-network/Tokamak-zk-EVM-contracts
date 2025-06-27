@@ -69,13 +69,6 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         _;
     }
 
-    modifier onlyDisputeResolver() {
-        if (msg.sender != disputeResolver) {
-            revert Channel__NotAuthorized();
-        }
-        _;
-    }
-
     modifier hasStaked(bytes32 channelId) {
         ParticipantInfo storage participant = participantDetails[channelId][msg.sender];
         require(participant.isActive, "Not an active participant");
@@ -335,19 +328,6 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         participantInfo.isActive = false;
 
         emit ParticipantSlashed(channelId, participant);
-    }
-
-    // Slashing mechanism
-    function slashLeader(address leader, uint256 amount, bytes32 reason) external onlyDisputeResolver {
-        LeaderBond storage bond = leaderBonds[leader];
-        require(bond.amount >= amount, "Insufficient bond to slash");
-
-        bond.amount -= amount;
-        bond.slashingHistory += amount;
-
-        payable(disputeResolver).transfer(amount);
-
-        emit LeaderSlashed(leader, amount, reason);
     }
 
     // Participant exit mechanism

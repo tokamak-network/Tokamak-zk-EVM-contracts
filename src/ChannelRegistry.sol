@@ -31,7 +31,6 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     uint256 private channelCounter;
     address private verifier;
     address private closingManager;
-    address private disputeResolver;
 
     // Constants
     uint256 public constant MAX_PARTICIPANTS = 100;
@@ -95,10 +94,6 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     function setClosingManager(address _closingManager) external onlyOwner {
         closingManager = _closingManager;
         emit ClosingManagerUpdated(_closingManager);
-    }
-
-    function setDisputeResolver(address _disputeResolver) external onlyOwner {
-        disputeResolver = _disputeResolver;
     }
 
     // Leader bonding mechanism
@@ -328,11 +323,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     }
 
     // Slashing mechanism - can slash participants who haven't staked
-    function slashNonStakedParticipant(bytes32 channelId, address participant)
-        external
-        onlyDisputeResolver
-        channelExists(channelId)
-    {
+    function slashNonStakedParticipant(bytes32 channelId, address participant) external channelExists(channelId) {
         ParticipantInfo storage participantInfo = participantDetails[channelId][participant];
 
         // Check if participant should have staked but didn't

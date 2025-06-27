@@ -120,7 +120,6 @@ interface IChannelRegistry {
     function getLeaderAddress(bytes32 _channelId) external view returns (address);
     function setStateTransitionVerifier(address _verifier) external;
     function setClosingManager(address _closingManager) external;
-    function setDisputeResolver(address _disputeResolver) external;
     function bondAsLeader() external payable;
     function withdrawLeaderBond() external;
     function stakeAsParticipant(bytes32 channelId, bytes32 nonce) external payable;
@@ -143,7 +142,6 @@ interface IChannelRegistry {
         returns (bool);
 
     // Other functions
-    function slashLeader(address leader, uint256 amount, bytes32 reason) external;
     function exitChannel(bytes32 channelId) external;
     function getParticipantInfo(bytes32 channelId, address participant)
         external

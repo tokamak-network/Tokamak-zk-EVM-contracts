@@ -108,9 +108,9 @@ contract testStateTransitionVerifier is Test {
         participants[2] = participant2;
 
         bytes32[] memory commitments = new bytes32[](3);
-        commitments[0] = keccak256(abi.encode(leader, leaderNonce));
-        commitments[1] = keccak256(abi.encode(participant1, participant1Nonce));
-        commitments[2] = keccak256(abi.encode(participant2, participant2Nonce));
+        commitments[0] = keccak256(abi.encode(keccak256(abi.encode(leader, leaderNonce))));
+        commitments[1] = keccak256(abi.encode(keccak256(abi.encode(participant1, participant1Nonce))));
+        commitments[2] = keccak256(abi.encode(keccak256(abi.encode(participant2, participant2Nonce))));
 
         IChannelRegistry.ChannelCreationParams memory params = IChannelRegistry.ChannelCreationParams({
             leader: leader,

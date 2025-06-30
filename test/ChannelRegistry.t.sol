@@ -75,8 +75,8 @@ contract testChannelRegistry is Test {
         // Create commitments for participants
         bytes32 nonce1 = keccak256("nonce1");
         bytes32 nonce2 = keccak256("nonce2");
-        bytes32 commitment1 = keccak256(abi.encode(participant1, nonce1));
-        bytes32 commitment2 = keccak256(abi.encode(participant2, nonce2));
+        bytes32 commitment1 = keccak256(abi.encode(keccak256(abi.encode(participant1, nonce1))));
+        bytes32 commitment2 = keccak256(abi.encode(keccak256(abi.encode(participant2, nonce2))));
 
         // Prepare channel creation parameters
         address[] memory participants = new address[](3);
@@ -85,7 +85,7 @@ contract testChannelRegistry is Test {
         participants[2] = participant2;
 
         bytes32[] memory commitments = new bytes32[](3);
-        commitments[0] = keccak256(abi.encode(leader, keccak256("leader_nonce")));
+        commitments[0] = keccak256(abi.encode(keccak256(abi.encode(leader, keccak256("leader_nonce")))));
         commitments[1] = commitment1;
         commitments[2] = commitment2;
 
@@ -230,8 +230,8 @@ contract testChannelRegistry is Test {
         p2Balances[0] = IChannelRegistry.TokenBalance({token: address(token1), amount: 40 * 10 ** 18});
 
         // Create leaves - one per account
-        bytes32 leaf1 = keccak256(abi.encode(participant1, p1Balances));
-        bytes32 leaf2 = keccak256(abi.encode(participant2, p2Balances));
+        bytes32 leaf1 = keccak256(abi.encode(keccak256(abi.encode(participant1, p1Balances))));
+        bytes32 leaf2 = keccak256(abi.encode(keccak256(abi.encode(participant2, p2Balances))));
 
         // Simple 2-participant tree
         bytes32 root = _computeRoot(leaf1, leaf2);
@@ -295,8 +295,9 @@ contract testChannelRegistry is Test {
         wrongBalances[0] = IChannelRegistry.TokenBalance({token: address(token1), amount: 200 * 10 ** 18});
 
         // Create leaves
-        bytes32 correctLeaf = keccak256(abi.encode(participant1, correctBalances));
-        bytes32 participant2Leaf = keccak256(abi.encode(participant2, new IChannelRegistry.TokenBalance[](0)));
+        bytes32 correctLeaf = keccak256(abi.encode(keccak256(abi.encode(participant1, correctBalances))));
+        bytes32 participant2Leaf =
+            keccak256(abi.encode(keccak256(abi.encode(participant2, new IChannelRegistry.TokenBalance[](0)))));
 
         bytes32 root = _computeRoot(correctLeaf, participant2Leaf);
         channelRegistry.updateStateRoot(channelId, root);
@@ -337,8 +338,9 @@ contract testChannelRegistry is Test {
         IChannelRegistry.TokenBalance[] memory balances = new IChannelRegistry.TokenBalance[](1);
         balances[0] = IChannelRegistry.TokenBalance({token: address(token1), amount: 100 * 10 ** 18});
 
-        bytes32 leaf1 = keccak256(abi.encode(participant1, balances));
-        bytes32 leaf2 = keccak256(abi.encode(participant2, new IChannelRegistry.TokenBalance[](0)));
+        bytes32 leaf1 = keccak256(abi.encode(keccak256(abi.encode(participant1, balances))));
+        bytes32 leaf2 =
+            keccak256(abi.encode(keccak256(abi.encode(participant2, new IChannelRegistry.TokenBalance[](0)))));
         bytes32 root = _computeRoot(leaf1, leaf2);
 
         channelRegistry.updateStateRoot(channelId, root);
@@ -411,9 +413,9 @@ contract testChannelRegistry is Test {
         participants[2] = participant2;
 
         bytes32[] memory commitments = new bytes32[](3);
-        commitments[0] = keccak256(abi.encode(leader, leaderNonce));
-        commitments[1] = keccak256(abi.encode(participant1, nonce1));
-        commitments[2] = keccak256(abi.encode(participant2, nonce2));
+        commitments[0] = keccak256(abi.encode(keccak256(abi.encode(leader, leaderNonce))));
+        commitments[1] = keccak256(abi.encode(keccak256(abi.encode(participant1, nonce1))));
+        commitments[2] = keccak256(abi.encode(keccak256(abi.encode(participant2, nonce2))));
 
         IChannelRegistry.ChannelCreationParams memory params = IChannelRegistry.ChannelCreationParams({
             leader: leader,

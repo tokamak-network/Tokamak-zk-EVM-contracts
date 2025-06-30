@@ -211,7 +211,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         require(participant.isActive, "Not an approved participant");
         require(participant.stake == 0, "Already staked");
 
-        bytes32 expectedCommitment = keccak256(abi.encode(msg.sender, nonce));
+        bytes32 expectedCommitment = keccak256(abi.encode(keccak256(abi.encode(msg.sender, nonce))));
         if (participant.commitment != expectedCommitment) {
             revert Channel__InvalidCommitment();
         }
@@ -298,7 +298,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         require(!hasWithdrawn[channelId][msg.sender][token], "Already withdrawn");
 
         // Compute leaf from all balances
-        bytes32 leaf = keccak256(abi.encode(msg.sender, allBalances));
+        bytes32 leaf = keccak256(abi.encode(keccak256(abi.encode(msg.sender, allBalances))));
 
         // Verify Merkle proof
         require(MerkleProof.verify(merkleProof, channelStateRoots[channelId], leaf), "Invalid balance proof");

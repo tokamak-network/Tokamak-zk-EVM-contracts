@@ -73,7 +73,7 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         _verifyParticipantSignatures(update, activeParticipants, activeThreshold);
 
         // Verify zkSNARK proof
-        if (!verifier.verify(update.proofPart1, update.proofPart2, update.publicInputs)) {
+        if (!verifier.verify(update.proofPart1, update.proofPart2, update.publicInputs, update.smax)) {
             revert Invalid__SnarkProof();
         }
 
@@ -226,7 +226,7 @@ contract StateTransitionVerifier is IStateTransitionVerifier, Ownable {
         _verifyParticipantSignatures(update, activeParticipants, activeParticipants.length);
 
         // Verify zkSNARK proof
-        if (!verifier.verify(update.proofPart1, update.proofPart2, update.publicInputs)) {
+        if (!verifier.verify(update.proofPart1, update.proofPart2, update.publicInputs, update.smax)) {
             revert Invalid__SnarkProof();
         }
 

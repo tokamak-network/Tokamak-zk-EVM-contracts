@@ -311,6 +311,13 @@ contract Verifier is IVerifier {
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x200;
 
     /*//////////////////////////////////////////////////////////////
+                                trusted-setup param
+    //////////////////////////////////////////////////////////////*/
+
+    // smax
+    uint256 internal constant PARAM_SMAX = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x200 + 0x020;
+
+    /*//////////////////////////////////////////////////////////////
                                 Constants
     //////////////////////////////////////////////////////////////*/
 
@@ -328,16 +335,25 @@ contract Verifier is IVerifier {
     uint256 internal constant CONSTANT_N = 1024;
     // ω_32
     uint256 internal constant OMEGA_128 = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
-    // s_max
-    uint256 internal constant CONSTANT_SMAX = 64;
     // m_i
     uint256 internal constant CONSTANT_MI = 1024;
 
     // ω_{m_i}^{-1}
     uint256 internal constant OMEGA_MI_1 = 0x2bcd9508a3dad316105f067219141f4450a32c41aa67e0beb0ad80034eb71aa6;
 
-    // ω_smax^{-1}
-    uint256 internal constant OMEGA_SMAX_1 = 0x199cdaee7b3c79d6566009b5882952d6a41e85011d426b52b891fa3f982b68c5;
+    // ω_smax_64^{-1}
+    uint256 internal constant OMEGA_SMAX_64_MINUS_1 = 0x199cdaee7b3c79d6566009b5882952d6a41e85011d426b52b891fa3f982b68c5;
+    // ω_smax_128^{-1}
+    uint256 internal constant OMEGA_SMAX_128_MINUS_1 = 0x1996fa8d52f970ba51420be43501370b166fb582ac74db12571ba2fccf28601b;
+    // ω_smax_256^{-1}
+    uint256 internal constant OMEGA_SMAX_256_MINUS_1 = 0x6d64ed25272e58ee91b000235a5bfd4fc03cae032393991be9561c176a2f777a;
+    // ω_smax_512^{-1}
+    uint256 internal constant OMEGA_SMAX_512_MINUS_1 = 0x1907a56e80f82b2df675522e37ad4eca1c510ebfb4543a3efb350dbef02a116e;
+    // ω_smax_1024^{-1}
+    uint256 internal constant OMEGA_SMAX_1024_MINUS_1 = 0x2bcd9508a3dad316105f067219141f4450a32c41aa67e0beb0ad80034eb71aa6;
+    // ω_smax_2048^{-1}
+    uint256 internal constant OMEGA_SMAX_2048_MINUS_1 = 0x394fda0d65ba213edeae67bc36f376e13cc5bb329aa58ff53dc9e5600f6fb2ac;
+
 
     /*//////////////////////////////////////////////////////////////
                             G2 elements
@@ -482,7 +498,8 @@ contract Verifier is IVerifier {
     function verify(
         uint128[] calldata, //_proof part1 (16 bytes)
         uint256[] calldata, // _proof part2 (32 bytes)
-        uint256[] calldata // publicInputs (used for computing A_pub)
+        uint256[] calldata, // publicInputs (used for computing A_pub)
+        uint256 // smax
     ) public view virtual returns (bool final_result) {
         // No memory was accessed yet, so keys can be loaded into the right place and not corrupt any other memory.
         _loadVerificationKey();
@@ -901,8 +918,21 @@ contract Verifier is IVerifier {
                 mstore(PROOF_R3XY_SLOT, mod(calldataload(add(offset2, 0x5a4)), R_MOD))
                 mstore(PROOF_VXY_SLOT, mod(calldataload(add(offset2, 0x5c4)), R_MOD))
 
+                // load smax
+                let offset4 := calldataload(0x64)
+                let isValidSmax
+                {
+                    let smax := calldataload(add(offset4, 0x024))
+                    isValidSmax := or(
+                        or(or(eq(smax, 64), eq(smax, 128)), or(eq(smax, 256), eq(smax, 512))),
+                        or(eq(smax, 1024), eq(smax, 2048))
+                    )
+                    mstore(PARAM_SMAX, smax)
+                }
+
                 // Revert if the length of the proof is not valid
                 if iszero(isValid) { revertWithMessage(27, "loadProof: Proof is invalid") }
+                if iszero(isValidSmax) { revertWithMessage(27, "loadProof: smax is invalid") }
             }
 
             /*//////////////////////////////////////////////////////////////
@@ -1050,7 +1080,7 @@ contract Verifier is IVerifier {
                 // calculate t_smax(ζ)
                 {
                     let zeta := mload(CHALLENGE_ZETA_SLOT)
-                    let t := sub(modexp(zeta, CONSTANT_SMAX), 1)
+                    let t := sub(modexp(zeta, mload(PARAM_SMAX)), 1)
                     mstore(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT, t)
                 }
 
@@ -1353,6 +1383,34 @@ contract Verifier is IVerifier {
                 g1pointMulAndAddIntoDest(PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3, PAIRING_AGG_RHS_2_X_SLOT_PART1)
             }
 
+
+            // @dev Function to get the correct omega_smax^{-1} value based on smax parameter
+            function getOmegaSmaxInverse(smax) -> omega_smax_inv {
+                switch smax
+                case 64 {
+                    omega_smax_inv := OMEGA_SMAX_64_MINUS_1
+                }
+                case 128 {
+                    omega_smax_inv := OMEGA_SMAX_128_MINUS_1
+                }
+                case 256 {
+                    omega_smax_inv := OMEGA_SMAX_256_MINUS_1
+                }
+                case 512 {
+                    omega_smax_inv := OMEGA_SMAX_512_MINUS_1
+                }
+                case 1024 {
+                    omega_smax_inv := OMEGA_SMAX_1024_MINUS_1
+                }
+                case 2048 {
+                    omega_smax_inv := OMEGA_SMAX_2048_MINUS_1
+                }
+                default {
+                    // This should never happen if loadProof validation is correct
+                    revertWithMessage(25, "Invalid smax for omega")
+                }
+            }
+
             /// @dev [LHS]_1 := [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
             /// @dev [AUX]_1 := κ2 * χ * [Π_{χ}]_1 + κ2 * ζ *[Π_ζ]_1 +
             ///                 κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1 + κ2^2 * ζ * [M_ζ]_1 + κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1 + κ_2^3 * ω_smax^{-1} * ζ * [N_{ζ}]
@@ -1381,7 +1439,7 @@ contract Verifier is IVerifier {
                     let chi := mload(CHALLENGE_CHI_SLOT)
                     let zeta := mload(CHALLENGE_ZETA_SLOT)
                     let omega_ml := OMEGA_MI_1
-                    let omega_smax := OMEGA_SMAX_1
+                    let omega_smax := getOmegaSmaxInverse(mload(PARAM_SMAX))
 
                     let kappa2_chi := mulmod(kappa2, chi, R_MOD)
                     let kappa2_zeta := mulmod(kappa2, zeta, R_MOD)

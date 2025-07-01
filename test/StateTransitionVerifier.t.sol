@@ -37,6 +37,7 @@ contract testStateTransitionVerifier is Test {
     uint128[] public serializedProofPart1;
     uint256[] public serializedProofPart2;
     uint256[] public publicInputs;
+    uint256 public smax;
 
     bytes32 public channelId;
     bytes32 public newStateRoot;
@@ -181,6 +182,7 @@ contract testStateTransitionVerifier is Test {
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
             publicInputs: publicInputs,
+            smax: smax,
             participantSignatures: participantSignatures,
             signers: signers
         });
@@ -220,6 +222,7 @@ contract testStateTransitionVerifier is Test {
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
             publicInputs: publicInputs,
+            smax: smax,
             participantSignatures: participantSignatures,
             signers: signers
         });
@@ -250,6 +253,7 @@ contract testStateTransitionVerifier is Test {
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
             publicInputs: publicInputs,
+            smax: smax,
             participantSignatures: participantSignatures,
             signers: signers
         });
@@ -292,6 +296,7 @@ contract testStateTransitionVerifier is Test {
             proofPart1: serializedProofPart1,
             proofPart2: serializedProofPart2,
             publicInputs: publicInputs,
+            smax: smax,
             participantSignatures: participantSignatures,
             signers: signers
         });
@@ -589,5 +594,7 @@ contract testStateTransitionVerifier is Test {
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
+
+        smax = 64;
     }
 }

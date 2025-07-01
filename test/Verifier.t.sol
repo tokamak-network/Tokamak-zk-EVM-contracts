@@ -23,6 +23,7 @@ contract testTokamakVerifier is Test {
     uint256[] public serializedProofPart2;
     uint256[] public serializedProof;
     uint256[] public publicInputs;
+    uint256 public smax;
 
     function setUp() public virtual {
         verifier = new Verifier();
@@ -270,11 +271,13 @@ contract testTokamakVerifier is Test {
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs.push(0x0000000000000000000000000000000000000000000000000000000000000000);
+
+        smax = 64;
     }
 
     function testVerifier() public view {
         uint256 gasBefore = gasleft();
-        bool success = verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs);
+        bool success = verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs, smax);
         uint256 gasAfter = gasleft();
         uint256 gasUsed = gasBefore - gasAfter;
 
@@ -289,13 +292,13 @@ contract testTokamakVerifier is Test {
         serializedProofPart2[4] = 0xd3e45812526acc1d689ce05e186d3a8b9e921ad3a4701013336f3f00c654c908; // Wrong U_X part2
         serializedProofPart2[5] = 0x76983b4b6af2d6a17be232aeeb9fdd374990fdcbd9b1a4654bfbbc5f4bba7e13; // Wrong U_X part2
         vm.expectRevert(bytes("finalPairing: pairing failure"));
-        verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs);
+        verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs, smax);
     }
 
     function testEmptyPublicInput_shouldRevert() public {
         uint256[] memory newPublicInputs;
         vm.expectRevert(bytes("finalPairing: pairing failure"));
-        verifier.verify(serializedProofPart1, serializedProofPart2, newPublicInputs);
+        verifier.verify(serializedProofPart1, serializedProofPart2, newPublicInputs, smax);
     }
 
     function testWrongSizeProof_shouldRevert() public {
@@ -305,7 +308,7 @@ contract testTokamakVerifier is Test {
         serializedProofPart2.push(0xf3447285889202e7e24cd08a058a758a76ee4c8440131be202ad8bc0cc91ee70); // new point Y
 
         vm.expectRevert(bytes("loadProof: Proof is invalid"));
-        verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs);
+        verifier.verify(serializedProofPart1, serializedProofPart2, publicInputs, smax);
     }
 
     function testEmptyProof_shouldRevert() public {
@@ -313,6 +316,6 @@ contract testTokamakVerifier is Test {
         uint256[] memory newSerializedProofPart2;
 
         vm.expectRevert(bytes("loadProof: Proof is invalid"));
-        verifier.verify(newSerializedProofPart1, newSerializedProofPart2, publicInputs);
+        verifier.verify(newSerializedProofPart1, newSerializedProofPart2, publicInputs, smax);
     }
 }

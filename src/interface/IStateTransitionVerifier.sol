@@ -15,6 +15,7 @@ interface IStateTransitionVerifier {
         uint128[] proofPart1;
         uint256[] proofPart2;
         uint256[] publicInputs;
+        uint256 smax;
     }
 
     // Events

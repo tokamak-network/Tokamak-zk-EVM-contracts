@@ -136,7 +136,8 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         require(supportedTokens.length <= MAX_SUPPORTED_TOKENS, "Too many supported tokens");
 
         // Generate unique channel ID
-        channelId = keccak256(abi.encode(params.leader, channelCounter, block.timestamp, params.preApprovedParticipants));
+        channelId =
+            keccak256(abi.encode(params.leader, channelCounter, block.timestamp, params.preApprovedParticipants));
         channelCounter++;
 
         // Check channel doesn't already exist

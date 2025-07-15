@@ -106,6 +106,7 @@ interface IChannelRegistry {
     error Channel__InsufficientParticipantStake();
     error Channel__InvalidCommitment();
     error Channel__DuplicateParticipant();
+    error Channel__AlreadyLeader();
 
     // Functions
     function createChannelWithParams(ChannelCreationParams calldata params, address[] calldata supportedTokens)

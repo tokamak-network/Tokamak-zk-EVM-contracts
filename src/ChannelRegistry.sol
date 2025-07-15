@@ -26,6 +26,7 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
     mapping(bytes32 => uint256) private minimumStakeRequired;
     mapping(bytes32 => address[]) private channelSupportedTokens;
     mapping(bytes32 => mapping(address => bool)) private isTokenSupported;
+    mapping(address => bool) private isLeader;
     mapping(bytes32 => mapping(address => uint256)) private channelTokenBalances; // Total deposited per token
 
     uint256 private channelCounter;
@@ -120,6 +121,11 @@ contract ChannelRegistry is IChannelRegistry, Ownable {
         payable
         returns (bytes32 channelId)
     {
+        // Cannot be leader of multiple channel
+        if (isLeader[params.leader]) {
+            revert Channel__AlreadyLeader();
+        }
+
         // Validate leader has sufficient bond
         if (leaderBonds[params.leader].amount < MIN_LEADER_BOND) {
             revert Channel__InsufficientLeaderBond();

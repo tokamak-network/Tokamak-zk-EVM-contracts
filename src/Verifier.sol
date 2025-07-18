@@ -166,7 +166,6 @@ contract Verifier is IVerifier {
     uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x080;
     uint256 internal constant CHALLENGE_KAPPA_2_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0a0;
     uint256 internal constant CHALLENGE_ZETA_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0c0;
-    uint256 internal constant CHALLENGE_XI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0e0;
     uint256 internal constant CHALLENGE_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100;
 
     /*//////////////////////////////////////////////////////////////
@@ -573,7 +572,7 @@ contract Verifier is IVerifier {
                 mstore(0xe0, mload(add(p2, 0x60)))
                 //  BLS12-381 G1ADDat address 0x0b
                 if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
-                    revertWithMessage(30, "g1pointAddIntoDest: G1ADD failed")
+                    revertWithMessage(32, "g1pointAddIntoDest: G1ADD failed")
                 }
             }
 
@@ -585,6 +584,8 @@ contract Verifier is IVerifier {
                 mstore(0x60, mload(add(point, 0x60)))
                 mstore(0x80, s)
                 let success := staticcall(gas(), 0x0c, 0, 0xa0, 0, 0x80)
+
+                if iszero(success) { revertWithMessage(22, "g1pointMulAndAddIntoDest") }
 
                 mstore(0x80, mload(dest))
                 mstore(0xa0, mload(add(dest, 0x20)))
@@ -627,8 +628,6 @@ contract Verifier is IVerifier {
                 case 1 {
                     // Need to borrow from high part
                     neg_y_low := sub(Q_MOD_PART2, y_low)
-                    neg_y_low := add(neg_y_low, not(0)) // Add 2^256
-                    neg_y_low := add(neg_y_low, 1)
                     borrow := 1
                 }
                 default { neg_y_low := sub(Q_MOD_PART2, y_low) }
@@ -645,56 +644,6 @@ contract Verifier is IVerifier {
                 }
             }
 
-            /// @dev Performs a point subtraction operation and updates dest with the result.
-            function g1pointSubIntoDest(p1, p2, dest) {
-                // We'll use the fact that for BLS12-381 with 48-byte coordinates,
-                // the precompile expects the full 384-bit representation
-
-                // Copy p1 to memory
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(add(p1, 0x40)))
-                mstore(0x60, mload(add(p1, 0x60)))
-
-                // Copy p2's x-coordinate
-                mstore(0x80, mload(p2))
-                mstore(0xa0, mload(add(p2, 0x20)))
-
-                // For the y-coordinate, we need to negate it
-                // In BLS12-381, -y = q - y where q is the field modulus
-                let y_low := mload(add(p2, 0x60))
-                let y_high := mload(add(p2, 0x40))
-
-                // Perform q - y
-                let neg_y_low, neg_y_high
-
-                // Since we're working with 384-bit numbers split into two 256-bit parts,
-                // and the high 128 bits of the high part are always zero for valid field elements
-                let borrow := 0
-
-                // Subtract low part
-                switch lt(Q_MOD_PART2, y_low)
-                case 1 {
-                    // Need to borrow from high part
-                    neg_y_low := sub(Q_MOD_PART2, y_low)
-                    neg_y_low := add(neg_y_low, not(0)) // Add 2^256
-                    neg_y_low := add(neg_y_low, 1)
-                    borrow := 1
-                }
-                default { neg_y_low := sub(Q_MOD_PART2, y_low) }
-
-                // Subtract high part with borrow
-                neg_y_high := sub(sub(Q_MOD_PART1, y_high), borrow)
-
-                mstore(0xc0, neg_y_high)
-                mstore(0xe0, neg_y_low)
-
-                // Perform the addition
-                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
-                    revertWithMessage(28, "pointSubAssign: G1ADD failed")
-                }
-            }
-
             /*//////////////////////////////////////////////////////////////
                                         Transcript helpers
                 //////////////////////////////////////////////////////////////*/
@@ -706,8 +655,8 @@ contract Verifier is IVerifier {
                 let newState0 := keccak256(TRANSCRIPT_BEGIN_SLOT, 0x64)
                 mstore8(TRANSCRIPT_DST_BYTE_SLOT, 0x01)
                 let newState1 := keccak256(TRANSCRIPT_BEGIN_SLOT, 0x64)
-                mstore(TRANSCRIPT_STATE_1_SLOT, newState1)
                 mstore(TRANSCRIPT_STATE_0_SLOT, newState0)
+                mstore(TRANSCRIPT_STATE_1_SLOT, newState1)
             }
 
             /// @dev Retrieves a transcript challenge.
@@ -935,11 +884,10 @@ contract Verifier is IVerifier {
                 let smax := calldataload(0xa4)
                 let isValidSmax
                 {
-                    isValidSmax :=
-                        or(
-                            or(or(eq(smax, 64), eq(smax, 128)), or(eq(smax, 256), eq(smax, 512))),
-                            or(eq(smax, 1024), eq(smax, 2048))
-                        )
+                    isValidSmax := and(
+                        and(iszero(and(smax, sub(smax, 1))), iszero(lt(smax, 64))),
+                        iszero(gt(smax, 2048))
+                    )
                     mstore(PARAM_SMAX, smax)
                 }
 
@@ -1107,7 +1055,7 @@ contract Verifier is IVerifier {
             // lagrange_K0_eval computation
             function computeLagrangeK0Eval() {
                 let chi := mload(CHALLENGE_CHI_SLOT)
-                let m_i := CONSTANT_MI // 256
+                let m_i := CONSTANT_MI 
 
                 // For k0_evals = [1, 0, 0, ..., 0], the polynomial evaluation becomes:
                 // lagrange_K0_eval = L_0(chi) where L_0 is the 0th Lagrange basis polynomial
@@ -1115,7 +1063,7 @@ contract Verifier is IVerifier {
                 // This is mathematically equivalent to: (chi^m_i - 1) / (m_i * (chi - 1))
 
                 // Safety check: χ cannot be 1
-                if eq(chi, 1) { revert(0, 0) }
+                if eq(chi, 1) { revertWithMessage(27, "chi cannot be eq 1") }
 
                 // Compute χ^m_i mod R_MOD
                 let chi_mi := modexp(chi, m_i)
@@ -1128,7 +1076,7 @@ contract Verifier is IVerifier {
                 let denominator := mulmod(m_i, chi_1, R_MOD)
 
                 // Check denominator is not zero
-                if iszero(denominator) { revert(0, 0) }
+                if iszero(denominator) { revertWithMessage(27, "denomiator eq 0") }
 
                 // Compute modular inverse using Fermat's little theorem
                 let inv_denominator := modexp(denominator, sub(R_MOD, 2))
@@ -1144,7 +1092,6 @@ contract Verifier is IVerifier {
                 let offset := calldataload(0x84)
 
                 let n := 128
-                let omega := OMEGA_128
 
                 // Compute chi^128 - 1
                 let chi_n := modexp(chi, n)
@@ -1160,7 +1107,7 @@ contract Verifier is IVerifier {
                             mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
                             leave
                         }
-                        omega_power := mulmod(omega_power, omega, R_MOD)
+                        omega_power := mulmod(omega_power, OMEGA_128, R_MOD)
                     }
                 }
 
@@ -1192,10 +1139,10 @@ contract Verifier is IVerifier {
 
                     // For small i, use repeated multiplication
                     if lt(i, 16) {
-                        for { let k := 0 } lt(k, i) { k := add(k, 1) } { omega_i := mulmod(omega_i, omega, R_MOD) }
+                        for { let k := 0 } lt(k, i) { k := add(k, 1) } { omega_i := mulmod(omega_i, OMEGA_128, R_MOD) }
                     }
                     // For larger i, use modexp
-                    if iszero(lt(i, 16)) { omega_i := modexp(omega, i) }
+                    if iszero(lt(i, 16)) { omega_i := modexp(OMEGA_128, i) }
 
                     // Compute contribution
                     let denominator := addmod(chi, sub(R_MOD, omega_i), R_MOD)
@@ -1228,7 +1175,7 @@ contract Verifier is IVerifier {
             ///
             /// where
             ///
-            /// [LHS_A]_1 := V_{x,y}[U]_1 - [W]_1 + κ1([V]_1 - V_{x,y}[G]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
+            /// [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
             ///
             ///
             /// and where
@@ -1280,7 +1227,7 @@ contract Verifier is IVerifier {
                     mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT),
                     BUFFER_AGGREGATED_POLY_X_SLOT_PART1
                 )
-                // V_{x,y}[U]_1 - [W]_1 + κ1 * ([V]_1 - V_{x,y}[1]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
+                // V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
                 g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
             }
 
@@ -1288,7 +1235,6 @@ contract Verifier is IVerifier {
             function prepareLHSB() {
                 let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
                 let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
-                let A_pub := mload(INTERMEDIARY_SCALAR_APUB_SLOT)
 
                 // 1+κ2κ1^4
                 let coeff1 := addmod(1, mulmod(kappa2, modexp(kappa1, 4), R_MOD), R_MOD)
@@ -1404,10 +1350,6 @@ contract Verifier is IVerifier {
                 case 512 { omega_smax_inv := OMEGA_SMAX_512_MINUS_1 }
                 case 1024 { omega_smax_inv := OMEGA_SMAX_1024_MINUS_1 }
                 case 2048 { omega_smax_inv := OMEGA_SMAX_2048_MINUS_1 }
-                default {
-                    // This should never happen if loadProof validation is correct
-                    revertWithMessage(25, "Invalid smax for omega")
-                }
             }
 
             /// @dev [LHS]_1 := [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)

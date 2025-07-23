@@ -3,10 +3,6 @@ pragma solidity 0.8.23;
 
 import {Test} from "forge-std/Test.sol";
 import {Verifier} from "../src/Verifier.sol";
-import {StateTransitionVerifier} from "../src/StateTransitionVerifier.sol";
-import {IStateTransitionVerifier} from "../src/interface/IStateTransitionVerifier.sol";
-import {ChannelRegistry} from "../src/ChannelRegistry.sol";
-import {IChannelRegistry} from "../src/interface/IChannelRegistry.sol";
 
 import "forge-std/console.sol";
 
@@ -14,10 +10,6 @@ contract testTokamakVerifier is Test {
     address owner;
 
     Verifier verifier;
-    StateTransitionVerifier stateTransitionVerifier;
-    ChannelRegistry channelRegistry;
-
-    IStateTransitionVerifier.StateUpdate internal newStateUpdate;
 
     uint128[] public serializedProofPart1;
     uint256[] public serializedProofPart2;
@@ -31,9 +23,6 @@ contract testTokamakVerifier is Test {
 
         owner = makeAddr("owner");
         vm.startPrank(owner);
-        channelRegistry = new ChannelRegistry();
-        stateTransitionVerifier = new StateTransitionVerifier(address(verifier), address(channelRegistry));
-
         vm.stopPrank();
 
         // serializedProofPart1: First 16 bytes (32 hex chars) of each coordinate

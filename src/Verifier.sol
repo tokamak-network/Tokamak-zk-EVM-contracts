@@ -556,7 +556,7 @@ contract Verifier is IVerifier {
                 mstore(0x80, s)
                 // BLS12-381 G1MSM at address 0x0c
                 if iszero(staticcall(gas(), 0x0c, 0, 0xa0, dest, 0x80)) {
-                    revertWithMessage(30, "g1pointMulIntoDest: G1MSM failed")
+                    revertWithMessage(32, "g1pointMulIntoDest: G1MSM failed")
                 }
             }
 
@@ -884,15 +884,13 @@ contract Verifier is IVerifier {
                 let smax := calldataload(0xa4)
                 let isValidSmax
                 {
-                    isValidSmax := and(
-                        and(iszero(and(smax, sub(smax, 1))), iszero(lt(smax, 64))),
-                        iszero(gt(smax, 2048))
-                    )
+                    isValidSmax :=
+                        and(and(iszero(and(smax, sub(smax, 1))), iszero(lt(smax, 64))), iszero(gt(smax, 2048)))
                     mstore(PARAM_SMAX, smax)
                 }
 
                 // Revert if smax is not valid
-                if iszero(isValidSmax) { revertWithMessage(27, "loadProof: smax is invalid") }
+                if iszero(isValidSmax) { revertWithMessage(26, "loadProof: smax is invalid") }
             }
 
             /*//////////////////////////////////////////////////////////////
@@ -1055,7 +1053,7 @@ contract Verifier is IVerifier {
             // lagrange_K0_eval computation
             function computeLagrangeK0Eval() {
                 let chi := mload(CHALLENGE_CHI_SLOT)
-                let m_i := CONSTANT_MI 
+                let m_i := CONSTANT_MI
 
                 // For k0_evals = [1, 0, 0, ..., 0], the polynomial evaluation becomes:
                 // lagrange_K0_eval = L_0(chi) where L_0 is the 0th Lagrange basis polynomial

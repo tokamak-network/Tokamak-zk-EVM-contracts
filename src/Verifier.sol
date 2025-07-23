@@ -585,7 +585,7 @@ contract Verifier is IVerifier {
                 mstore(0x80, s)
                 let success := staticcall(gas(), 0x0c, 0, 0xa0, 0, 0x80)
 
-                if iszero(success) { revertWithMessage(22, "g1pointMulAndAddIntoDest") }
+                if iszero(success) { revertWithMessage(24, "g1pointMulAndAddIntoDest") }
 
                 mstore(0x80, mload(dest))
                 mstore(0xa0, mload(add(dest, 0x20)))
@@ -593,7 +593,7 @@ contract Verifier is IVerifier {
                 mstore(0xe0, mload(add(dest, 0x60)))
                 success := and(success, staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80))
 
-                if iszero(success) { revertWithMessage(22, "g1pointMulAndAddIntoDest") }
+                if iszero(success) { revertWithMessage(24, "g1pointMulAndAddIntoDest") }
             }
 
             /// @dev Performs a point subtraction operation and updates the first point with the result.
@@ -1063,7 +1063,7 @@ contract Verifier is IVerifier {
                 // This is mathematically equivalent to: (chi^m_i - 1) / (m_i * (chi - 1))
 
                 // Safety check: χ cannot be 1
-                if eq(chi, 1) { revertWithMessage(27, "chi cannot be eq 1") }
+                if eq(chi, 1) { revertWithMessage(18, "chi cannot be eq 1") }
 
                 // Compute χ^m_i mod R_MOD
                 let chi_mi := modexp(chi, m_i)
@@ -1076,7 +1076,7 @@ contract Verifier is IVerifier {
                 let denominator := mulmod(m_i, chi_1, R_MOD)
 
                 // Check denominator is not zero
-                if iszero(denominator) { revertWithMessage(27, "denomiator eq 0") }
+                if iszero(denominator) { revertWithMessage(15, "denomiator eq 0") }
 
                 // Compute modular inverse using Fermat's little theorem
                 let inv_denominator := modexp(denominator, sub(R_MOD, 2))

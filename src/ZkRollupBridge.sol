@@ -6,6 +6,7 @@ import "@openzeppelin/utils/ReentrancyGuard.sol";
 import "@openzeppelin/token/ERC20/IERC20.sol";
 import "@openzeppelin/access/Ownable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
+import {IZKRollupBridge} from "./interface/IZKRollupBridge.sol";
 import {MerkleTree} from "./library/MerkleTree.sol";
 
 interface ITargetContract {
@@ -14,74 +15,15 @@ interface ITargetContract {
 
 // ==================== Main Bridge Contract ====================
 
-contract ZKRollupBridge is ReentrancyGuard, Ownable {
+contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     using ECDSA for bytes32;
-
-    // ========== State Variables ==========
-    struct Signature {
-        uint256 R_x;
-        uint256 R_y;
-        uint256 s;
-    }
-
-    struct User {
-        address l1Address;
-        address l2PublicKey;
-    }
-
-    struct Channel {
-        uint256 id;
-        address targetContract;
-        bytes32 computationType; // e.g., keccak256("TON_TRANSFER")
-        // State roots
-        bytes32 mptSnapshotRoot;
-        bytes32[] zkMerkleRoots; // Multiple trees for different state components
-        // Participants
-        User[] participants;
-        mapping(address => address) l2PublicKeys;
-        mapping(address => bool) isParticipant;
-        mapping(address => uint256) tokenTotalDeposits;
-        mapping(address => mapping(address => uint256)) tokenDeposits; // token => user => amount
-        // Channel state
-        ChannelState state;
-        uint256 openTimestamp;
-        uint256 closeTimestamp;
-        uint256 timeout;
-        address leader;
-        // Commitments for preprocessing
-        uint128[] preprocessedPart1;
-        uint256[] preprocessedPart2;
-        // Final state
-        bytes32 finalStateRoot;
-        bytes32 aggregatedProofHash;
-        uint256 requiredSignatures;
-        uint256 receivedSignatures;
-        mapping(address => bool) hasSigned;
-        mapping(address => bool) hasWithdrawn;
-    }
-
-    enum ChannelState {
-        None,
-        Initialized,
-        Open,
-        Active,
-        Closing,
-        Closed
-    }
 
     modifier onlyAuthorized() {
         require(authorizedChannelCreators[msg.sender], "Not authorized");
         _;
     }
 
-    // Mappings
-    mapping(uint256 => Channel) public channels;
-    mapping(address => bool) public authorizedChannelCreators;
-    mapping(address => bool) public isChannelLeader;
-
-    uint256 public nextChannelId;
-
-    // Constants
+    // ========== CONSTANTS ==========
     uint256 public constant LOCK_TIMEOUT = 7 days;
     uint256 public constant CHALLENGE_PERIOD = 14 days;
     uint256 public constant MIN_PARTICIPANTS = 3;
@@ -89,22 +31,17 @@ contract ZKRollupBridge is ReentrancyGuard, Ownable {
     uint256 public constant SIGNATURE_THRESHOLD_PERCENT = 67; // 2/3 threshold
     address public constant ETH_TOKEN_ADDRESS = address(1);
 
-    // Contracts
+    // ========== MAPPINGS ==========
+    mapping(uint256 => Channel) public channels;
+    mapping(address => bool) public authorizedChannelCreators;
+    mapping(address => bool) public isChannelLeader;
+
+    uint256 public nextChannelId;
+
+    // ========== CONTRACTS ==========
     IVerifier public immutable zkVerifier;
 
-    // Events
-    event L2AddressAssigned(address indexed l1Address, address indexed l2Address);
-    event ChannelOpened(uint256 indexed channelId, address indexed targetContract);
-    event StateConverted(uint256 indexed channelId, bytes32[] zkRoots);
-    event ProofAggregated(uint256 indexed channelId, bytes32 proofHash);
-    event ChannelClosed(uint256 indexed channelId);
-    event ChannelDeleted(uint256 indexed channelId);
-    event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
-    event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
-    event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
-
-    // ========== Constructor ==========
-
+    // ========== CONSTRUCTOR ==========
     constructor(address _zkVerifier) Ownable(msg.sender) {
         zkVerifier = IVerifier(_zkVerifier);
     }
@@ -131,11 +68,11 @@ contract ZKRollupBridge is ReentrancyGuard, Ownable {
         );
         require(participants.length == l2PublicKeys.length, "Mismatched arrays");
         require(timeout >= 1 hours && timeout <= 7 days, "Invalid timeout");
-        
+
         unchecked {
             channelId = nextChannelId++;
         }
-        
+
         isChannelLeader[msg.sender] = true;
         Channel storage channel = channels[channelId];
 
@@ -155,13 +92,10 @@ contract ZKRollupBridge is ReentrancyGuard, Ownable {
             require(!channel.isParticipant[participant], "Duplicate participant");
 
             // Create and push User struct
-            channel.participants.push(User({
-                l1Address: participant,
-                l2PublicKey: l2PublicKeys[i]
-            }));
-            
+            channel.participants.push(User({l1Address: participant, l2PublicKey: l2PublicKeys[i]}));
+
             channel.isParticipant[participant] = true;
-            
+
             // Also store in mapping for easy access
             channel.l2PublicKeys[participant] = l2PublicKeys[i];
         }
@@ -225,34 +159,26 @@ contract ZKRollupBridge is ReentrancyGuard, Ownable {
         uint256 channelId,
         uint256 claimedBalance,
         bytes32[] calldata merkleProof,
-        uint256 leafIndex  // User's index in the participants array
+        uint256 leafIndex // User's index in the participants array
     ) external nonReentrant {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Closed, "Channel not closed");
         require(channel.isParticipant[msg.sender], "Not a participant");
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
-        
+
         // Verify the leafIndex corresponds to msg.sender
         require(leafIndex < channel.participants.length, "Invalid leaf index");
         require(channel.participants[leafIndex].l1Address == msg.sender, "Leaf index mismatch");
-        
+
         // Construct the leaf hash (must match the format used in _convertToZKTrees)
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender, claimedBalance));
-        
+
         // Verify the Merkle proof against the finalStateRoot WITH INDEX
-        require(
-            MerkleTree.verifyProof(
-                merkleProof,
-                channel.finalStateRoot,
-                leaf,
-                leafIndex  
-            ),
-            "Invalid Merkle proof"
-        );
-        
+        require(MerkleTree.verifyProof(merkleProof, channel.finalStateRoot, leaf, leafIndex), "Invalid Merkle proof");
+
         // Mark as withdrawn to prevent double claims
         channel.hasWithdrawn[msg.sender] = true;
-        
+
         // Process withdrawal based on channel type
         if (channel.targetContract == ETH_TOKEN_ADDRESS) {
             // ETH withdrawal
@@ -297,7 +223,7 @@ contract ZKRollupBridge is ReentrancyGuard, Ownable {
 
     // ========== Generate first state root ==========
 
-    function channelsFirstStateRoot(uint256 channelId, bytes calldata multiSigSignature) external nonReentrant {
+    function channelsFirstStateRoot(uint256 channelId) external nonReentrant {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Initialized, "Invalid channel state");
         require(msg.sender == channel.leader, "Not leader");
@@ -355,7 +281,7 @@ contract ZKRollupBridge is ReentrancyGuard, Ownable {
         // Get l2PublicKey from the mapping
         address l2PublicKey = channel.l2PublicKeys[msg.sender];
         require(l2PublicKey != address(0), "L2 public key not found");
-        
+
         // Verify EdDSA signature on aggregated proof
         bytes32 message = keccak256(abi.encodePacked(channel.aggregatedProofHash, channel.finalStateRoot, channelId));
 
@@ -376,6 +302,7 @@ contract ZKRollupBridge is ReentrancyGuard, Ownable {
         uint256 smax
     ) external nonReentrant {
         Channel storage channel = channels[channelId];
+        require(msg.sender == channel.leader || msg.sender == owner(), "unauthorized caller");
         require(channel.state == ChannelState.Closing, "Not in closing state");
         require(channel.receivedSignatures >= channel.requiredSignatures, "Insufficient signatures");
 

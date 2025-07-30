@@ -8,10 +8,10 @@ import "./library/MPTStorageLib.sol";
 
 contract L2ChannelAdapter {
     using MPTStorageLib for *;
-    
+
     ZKRollupBridge public immutable bridge;
     IStorageReader public immutable storageReader;
-    
+
     // Events for L2 node synchronization
     event ChannelPrepared(
         uint256 indexed channelId,
@@ -22,31 +22,22 @@ contract L2ChannelAdapter {
         uint256[] userSlots,
         uint256[] contractSlots
     );
-    
-    event StorageSnapshotReady(
-        uint256 indexed channelId,
-        bytes32[] storageKeys,
-        bytes32[] values
-    );
-    
-    event StateTransitionRequest(
-        uint256 indexed channelId,
-        uint256 nonce,
-        bytes32 currentStateRoot,
-        address sender
-    );
-    
+
+    event StorageSnapshotReady(uint256 indexed channelId, bytes32[] storageKeys, bytes32[] values);
+
+    event StateTransitionRequest(uint256 indexed channelId, uint256 nonce, bytes32 currentStateRoot, address sender);
+
     constructor(address _bridge, address _storageReader) {
         bridge = ZKRollupBridge(_bridge);
         storageReader = IStorageReader(_storageReader);
     }
-    
+
     // ========== Channel Preparation for L2 Node ==========
-    
+
     /**
      * @dev Prepares channel data in the format expected by the L2 node
      */
-     /*
+    /*
     function prepareChannelForL2(uint256 channelId) external {
         (
             address targetContract,
@@ -111,11 +102,11 @@ contract L2ChannelAdapter {
     }
     */
     // ========== State Update Formatting ==========
-    
+
     /**
      * @dev Formats a state update for submission to the bridge
      */
-     /*
+    /*
     function prepareStateUpdate(
         uint256 channelId,
         uint256 newNonce,
@@ -139,12 +130,12 @@ contract L2ChannelAdapter {
     }
     */
     // ========== Public Input Formatting ==========
-    
+
     /**
      * @dev Formats public inputs for ZK proof verification
      * Matches the L2 node's format: [...initialStorageLeaves, ...finalStorageLeaves, signPubKey, ...MTRootSequence]
      */
-     /*
+    /*
     function formatPublicInputs(
         ZkRollupBridge.StorageLeaf[] calldata initialLeaves,
         ZkRollupBridge.StorageLeaf[] calldata finalLeaves,
@@ -187,27 +178,25 @@ contract L2ChannelAdapter {
     }
     */
     // ========== Merkle Tree Helpers ==========
-    
+
     /**
      * @dev Computes a Merkle leaf matching the L2 node's format
      */
-    function computeMerkleLeaf(
-        address participant,
-        uint256 balance
-    ) external pure returns (bytes32) {
+    function computeMerkleLeaf(address participant, uint256 balance) external pure returns (bytes32) {
         return MPTStorageLib.computeMerkleLeaf(participant, balance);
     }
-    
+
     /**
      * @dev Batch compute Merkle leaves for all participants
      */
-    function computeMerkleLeaves(
-        address[] calldata participants,
-        uint256[] calldata balances
-    ) external pure returns (bytes32[] memory leaves) {
+    function computeMerkleLeaves(address[] calldata participants, uint256[] calldata balances)
+        external
+        pure
+        returns (bytes32[] memory leaves)
+    {
         require(participants.length == balances.length, "Length mismatch");
         leaves = new bytes32[](participants.length);
-        
+
         for (uint256 i = 0; i < participants.length; i++) {
             leaves[i] = MPTStorageLib.computeMerkleLeaf(participants[i], balances[i]);
         }

@@ -4,6 +4,7 @@ pragma solidity 0.8.23;
 import "@openzeppelin/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/utils/ReentrancyGuard.sol";
 import "@openzeppelin/token/ERC20/IERC20.sol";
+import "@openzeppelin/access/Ownable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {MerkleTree} from "./library/MerkleTree.sol";
 
@@ -13,7 +14,7 @@ interface ITargetContract {
 
 // ==================== Main Bridge Contract ====================
 
-contract ZKRollupBridge is ReentrancyGuard {
+contract ZKRollupBridge is ReentrancyGuard, Ownable {
     using ECDSA for bytes32;
 
     // ========== State Variables ==========
@@ -26,10 +27,6 @@ contract ZKRollupBridge is ReentrancyGuard {
     struct User {
         address l1Address;
         address l2PublicKey;
-        bool isLocked;
-        uint256 lockedAmount;
-        uint256 lockTimestamp;
-        mapping(address => uint256) tokenBalances; // token => amount
     }
 
     struct Channel {
@@ -40,28 +37,27 @@ contract ZKRollupBridge is ReentrancyGuard {
         bytes32 mptSnapshotRoot;
         bytes32[] zkMerkleRoots; // Multiple trees for different state components
         // Participants
-        address[] participants;
+        User[] participants;
+        mapping(address => address) l2PublicKeys;
         mapping(address => bool) isParticipant;
-        mapping(address => uint256) participantDeposits; // ETH deposits
+        mapping(address => uint256) tokenTotalDeposits;
         mapping(address => mapping(address => uint256)) tokenDeposits; // token => user => amount
         // Channel state
         ChannelState state;
         uint256 openTimestamp;
+        uint256 closeTimestamp;
         uint256 timeout;
         address leader;
         // Commitments for preprocessing
         uint128[] preprocessedPart1;
         uint256[] preprocessedPart2;
-        
         // Final state
         bytes32 finalStateRoot;
         bytes32 aggregatedProofHash;
         uint256 requiredSignatures;
         uint256 receivedSignatures;
         mapping(address => bool) hasSigned;
-        // Final balances after L2 computation
-        mapping(address => uint256) finalEthBalances;
-        mapping(address => mapping(address => uint256)) finalTokenBalances;
+        mapping(address => bool) hasWithdrawn;
     }
 
     enum ChannelState {
@@ -73,17 +69,25 @@ contract ZKRollupBridge is ReentrancyGuard {
         Closed
     }
 
+    modifier onlyAuthorized() {
+        require(authorizedChannelCreators[msg.sender], "Not authorized");
+        _;
+    }
+
     // Mappings
-    mapping(address => address) public l1ToL2Address;
-    mapping(address => User) public users;
     mapping(uint256 => Channel) public channels;
+    mapping(address => bool) public authorizedChannelCreators;
+    mapping(address => bool) public isChannelLeader;
+
     uint256 public nextChannelId;
 
     // Constants
-    uint256 constant LOCK_TIMEOUT = 7 days;
-    uint256 constant MIN_PARTICIPANTS = 3;
-    uint256 constant SIGNATURE_THRESHOLD_PERCENT = 67; // 2/3 threshold
-    address constant ETH_TOKEN_ADDRESS = address(1);
+    uint256 public constant LOCK_TIMEOUT = 7 days;
+    uint256 public constant CHALLENGE_PERIOD = 14 days;
+    uint256 public constant MIN_PARTICIPANTS = 3;
+    uint256 public constant MAX_PARTICIPANTS = 50;
+    uint256 public constant SIGNATURE_THRESHOLD_PERCENT = 67; // 2/3 threshold
+    address public constant ETH_TOKEN_ADDRESS = address(1);
 
     // Contracts
     IVerifier public immutable zkVerifier;
@@ -92,47 +96,47 @@ contract ZKRollupBridge is ReentrancyGuard {
     event L2AddressAssigned(address indexed l1Address, address indexed l2Address);
     event ChannelOpened(uint256 indexed channelId, address indexed targetContract);
     event StateConverted(uint256 indexed channelId, bytes32[] zkRoots);
-    event UserStateLocked(uint256 indexed channelId, address indexed user);
     event ProofAggregated(uint256 indexed channelId, bytes32 proofHash);
     event ChannelClosed(uint256 indexed channelId);
+    event ChannelDeleted(uint256 indexed channelId);
     event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
 
     // ========== Constructor ==========
 
-    constructor(address _zkVerifier) {
+    constructor(address _zkVerifier) Ownable(msg.sender) {
         zkVerifier = IVerifier(_zkVerifier);
     }
 
-    // ========== L2 Address Assignment ==========
-
-    function assignL2Address(address l2Address, address l2PublicKey) external {
-        require(l1ToL2Address[msg.sender] == address(0), "L2 address already assigned");
-
-        l1ToL2Address[msg.sender] = l2Address;
-        users[msg.sender].l1Address = msg.sender;
-        users[msg.sender].l2PublicKey = l2PublicKey;
-
-        emit L2AddressAssigned(msg.sender, l2Address);
-    }
-
     // ========== Channel Opening ==========
+
+    function authorizeCreator(address creator) external onlyOwner {
+        authorizedChannelCreators[creator] = true;
+    }
 
     function openChannel(
         address targetContract,
         bytes32 computationType,
         address[] calldata participants,
-        address[] calldata publicKeys,
+        address[] calldata l2PublicKeys,
         uint128[] calldata preprocessedPart1,
         uint256[] calldata preprocessedPart2,
         uint256 timeout
-    ) external returns (uint256 channelId) {
-        require(participants.length >= MIN_PARTICIPANTS, "Insufficient participants");
-        require(participants.length == publicKeys.length, "Mismatched arrays");
+    ) external onlyAuthorized returns (uint256 channelId) {
+        require(!isChannelLeader[msg.sender], "Channel limit reached");
+        require(
+            participants.length >= MIN_PARTICIPANTS && participants.length <= MAX_PARTICIPANTS,
+            "Invalid participant number"
+        );
+        require(participants.length == l2PublicKeys.length, "Mismatched arrays");
         require(timeout >= 1 hours && timeout <= 7 days, "Invalid timeout");
-
-        channelId = nextChannelId++;
+        
+        unchecked {
+            channelId = nextChannelId++;
+        }
+        
+        isChannelLeader[msg.sender] = true;
         Channel storage channel = channels[channelId];
 
         channel.id = channelId;
@@ -150,13 +154,16 @@ contract ZKRollupBridge is ReentrancyGuard {
             address participant = participants[i];
             require(!channel.isParticipant[participant], "Duplicate participant");
 
-            channel.participants.push(participant);
+            // Create and push User struct
+            channel.participants.push(User({
+                l1Address: participant,
+                l2PublicKey: l2PublicKeys[i]
+            }));
+            
             channel.isParticipant[participant] = true;
-
-            // Store public keys for signature verification
-            if (users[participant].l2PublicKey == address(0)) {
-                users[participant].l2PublicKey = publicKeys[i];
-            }
+            
+            // Also store in mapping for easy access
+            channel.l2PublicKeys[participant] = l2PublicKeys[i];
         }
 
         // Calculate signature threshold (2/3 of participants)
@@ -179,7 +186,8 @@ contract ZKRollupBridge is ReentrancyGuard {
         require(msg.value > 0, "Deposit must be greater than 0");
         require(channel.targetContract == ETH_TOKEN_ADDRESS, "Token must be set to ETH");
 
-        channel.participantDeposits[msg.sender] += msg.value;
+        channel.tokenDeposits[ETH_TOKEN_ADDRESS][msg.sender] += msg.value;
+        channel.tokenTotalDeposits[ETH_TOKEN_ADDRESS] += msg.value;
 
         emit Deposited(_channelId, msg.sender, ETH_TOKEN_ADDRESS, msg.value);
     }
@@ -198,7 +206,7 @@ contract ZKRollupBridge is ReentrancyGuard {
         require(amount == _amount, "non ERC20 standard transfer logic"); // The token has non-standard transfer logic
 
         channel.tokenDeposits[_token][msg.sender] += _amount;
-        users[msg.sender].tokenBalances[_token] += _amount;
+        channel.tokenTotalDeposits[_token] += _amount;
 
         emit Deposited(_channelId, msg.sender, _token, _amount);
     }
@@ -213,27 +221,50 @@ contract ZKRollupBridge is ReentrancyGuard {
         return balanceAfter - balanceBefore;
     }
 
-    function withdrawAfterClose(uint256 channelId) external nonReentrant {
+    function withdrawAfterClose(
+        uint256 channelId,
+        uint256 claimedBalance,
+        bytes32[] calldata merkleProof,
+        uint256 leafIndex  // User's index in the participants array
+    ) external nonReentrant {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Closed, "Channel not closed");
         require(channel.isParticipant[msg.sender], "Not a participant");
-
-        // Withdraw ETH based on final balance
-        uint256 ethAmount = channel.finalEthBalances[msg.sender];
-        if (ethAmount > 0) {
-            channel.finalEthBalances[msg.sender] = 0;
-            (bool success,) = msg.sender.call{value: ethAmount}("");
+        require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
+        
+        // Verify the leafIndex corresponds to msg.sender
+        require(leafIndex < channel.participants.length, "Invalid leaf index");
+        require(channel.participants[leafIndex].l1Address == msg.sender, "Leaf index mismatch");
+        
+        // Construct the leaf hash (must match the format used in _convertToZKTrees)
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, claimedBalance));
+        
+        // Verify the Merkle proof against the finalStateRoot WITH INDEX
+        require(
+            MerkleTree.verifyProof(
+                merkleProof,
+                channel.finalStateRoot,
+                leaf,
+                leafIndex  
+            ),
+            "Invalid Merkle proof"
+        );
+        
+        // Mark as withdrawn to prevent double claims
+        channel.hasWithdrawn[msg.sender] = true;
+        
+        // Process withdrawal based on channel type
+        if (channel.targetContract == ETH_TOKEN_ADDRESS) {
+            // ETH withdrawal
+            require(claimedBalance > 0, "Nothing to withdraw");
+            (bool success,) = msg.sender.call{value: claimedBalance}("");
             require(success, "ETH transfer failed");
-            emit Withdrawn(channelId, msg.sender, ETH_TOKEN_ADDRESS, ethAmount);
-        }
-
-        // Withdraw tokens based on final balances
-        address token = channel.targetContract;
-        uint256 tokenAmount = channel.finalTokenBalances[token][msg.sender];
-        if (tokenAmount > 0) {
-            channel.finalTokenBalances[token][msg.sender] = 0;
-            IERC20(token).transfer(msg.sender, tokenAmount);
-            emit Withdrawn(channelId, msg.sender, token, tokenAmount);
+            emit Withdrawn(channelId, msg.sender, ETH_TOKEN_ADDRESS, claimedBalance);
+        } else {
+            // Token withdrawal
+            require(claimedBalance > 0, "Nothing to withdraw");
+            IERC20(channel.targetContract).transfer(msg.sender, claimedBalance);
+            emit Withdrawn(channelId, msg.sender, channel.targetContract, claimedBalance);
         }
     }
 
@@ -246,57 +277,30 @@ contract ZKRollupBridge is ReentrancyGuard {
         require(channel.state != ChannelState.Closed, "Already closed");
 
         // Return original deposits
-        uint256 ethDeposit = channel.participantDeposits[msg.sender];
+        uint256 ethDeposit = channel.tokenDeposits[ETH_TOKEN_ADDRESS][msg.sender];
         if (ethDeposit > 0) {
-            channel.participantDeposits[msg.sender] = 0;
+            channel.tokenDeposits[ETH_TOKEN_ADDRESS][msg.sender] = 0;
             (bool success,) = msg.sender.call{value: ethDeposit}("");
             require(success, "ETH transfer failed");
             emit EmergencyWithdrawn(channelId, msg.sender, address(0), ethDeposit);
-        }
-
-        // Return token deposits
-        address token = channel.targetContract;
-        uint256 tokenDeposit = channel.tokenDeposits[token][msg.sender];
-        if (tokenDeposit > 0) {
-            channel.tokenDeposits[token][msg.sender] = 0;
-            IERC20(token).transfer(msg.sender, tokenDeposit);
-            emit EmergencyWithdrawn(channelId, msg.sender, token, tokenDeposit);
+        } else {
+            // Return token deposits
+            address token = channel.targetContract;
+            uint256 tokenDeposit = channel.tokenDeposits[token][msg.sender];
+            if (tokenDeposit > 0) {
+                channel.tokenDeposits[token][msg.sender] = 0;
+                IERC20(token).transfer(msg.sender, tokenDeposit);
+                emit EmergencyWithdrawn(channelId, msg.sender, token, tokenDeposit);
+            }
         }
     }
 
-    // ========== State Locking and Conversion ==========
+    // ========== Generate first state root ==========
 
-    function lockStateAndConvert(uint256 channelId, bytes calldata multiSigSignature) external nonReentrant {
+    function channelsFirstStateRoot(uint256 channelId, bytes calldata multiSigSignature) external nonReentrant {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Initialized, "Invalid channel state");
-        require(channel.isParticipant[msg.sender], "Not a participant");
-
-        // Verify multisig for state locking
-        bytes32 lockMessage = keccak256(abi.encodePacked("LOCK_STATE", channelId, channel.participants));
-
-        // In production, implement proper multisig verification
-        // For now, simplified signature check
-        require(_verifyMultiSig(lockMessage, multiSigSignature, channel), "Invalid multisig");
-
-        // Lock participants' states
-        for (uint256 i = 0; i < channel.participants.length; i++) {
-            address participant = channel.participants[i];
-            User storage user = users[participant];
-
-            require(!user.isLocked, "User already locked");
-
-            // Lock user's deposited amounts
-            uint256 ethBalance = channel.participantDeposits[participant];
-            uint256 tokenBalance = channel.tokenDeposits[channel.targetContract][participant];
-
-            require(ethBalance > 0 || tokenBalance > 0, "No deposits to lock");
-
-            user.isLocked = true;
-            user.lockedAmount = tokenBalance; // For token-specific channels
-            user.lockTimestamp = block.timestamp;
-
-            emit UserStateLocked(channelId, participant);
-        }
+        require(msg.sender == channel.leader, "Not leader");
 
         // Convert MPT to ZK-friendly Merkle trees
         _convertToZKTrees(channelId);
@@ -311,54 +315,26 @@ contract ZKRollupBridge is ReentrancyGuard {
         bytes32[] memory balanceLeaves = new bytes32[](channel.participants.length);
 
         for (uint256 i = 0; i < channel.participants.length; i++) {
-            address participant = channel.participants[i];
+            // Access the User struct and get the l1Address
+            address participant = channel.participants[i].l1Address;
 
             // Use deposited amounts for the computation
             uint256 tokenBalance = channel.tokenDeposits[channel.targetContract][participant];
-            uint256 ethBalance = channel.participantDeposits[participant];
 
-            // Create leaf: hash(address, tokenBalance, ethBalance)
-            balanceLeaves[i] = keccak256(abi.encodePacked(participant, tokenBalance, ethBalance));
+            // Create leaf: hash(address, tokenBalance)
+            balanceLeaves[i] = keccak256(abi.encodePacked(participant, tokenBalance));
         }
 
         // Compute and store root
         bytes32 balanceRoot = MerkleTree.computeRoot(balanceLeaves);
         channel.zkMerkleRoots.push(balanceRoot);
 
-        // Could add more trees for different state components
-        // (e.g., allowances, nonces, etc.)
-
         emit StateConverted(channelId, channel.zkMerkleRoots);
-    }
-
-    // ========== Auto-unlock Mechanism ==========
-
-    function autoUnlock(uint256 channelId) external {
-        Channel storage channel = channels[channelId];
-        require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state for unlock");
-        require(block.timestamp >= channel.openTimestamp + channel.timeout, "Timeout not reached");
-
-        // Unlock all participants
-        for (uint256 i = 0; i < channel.participants.length; i++) {
-            address participant = channel.participants[i];
-            User storage user = users[participant];
-
-            if (user.isLocked) {
-                user.isLocked = false;
-                // In production, would restore original state
-            }
-        }
-
-        channel.state = ChannelState.Closed;
     }
 
     // ========== Proof Aggregation and Signing ==========
 
-    function submitAggregatedProof(
-        uint256 channelId,
-        bytes32 aggregatedProofHash,
-        bytes32 finalStateRoot
-    ) external {
+    function submitAggregatedProof(uint256 channelId, bytes32 aggregatedProofHash, bytes32 finalStateRoot) external {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state");
         require(msg.sender == channel.leader, "Only leader can submit");
@@ -376,12 +352,15 @@ contract ZKRollupBridge is ReentrancyGuard {
         require(channel.isParticipant[msg.sender], "Not a participant");
         require(!channel.hasSigned[msg.sender], "Already signed");
 
+        // Get l2PublicKey from the mapping
+        address l2PublicKey = channel.l2PublicKeys[msg.sender];
+        require(l2PublicKey != address(0), "L2 public key not found");
+        
         // Verify EdDSA signature on aggregated proof
-        User storage user = users[msg.sender];
         bytes32 message = keccak256(abi.encodePacked(channel.aggregatedProofHash, channel.finalStateRoot, channelId));
 
         // In production, implement proper EdDSA verification
-        require(_verifyEdDSA(message, signature, user.l2PublicKey), "Invalid signature");
+        require(_verifyEdDSA(message, signature, l2PublicKey), "Invalid signature");
 
         channel.hasSigned[msg.sender] = true;
         channel.receivedSignatures++;
@@ -402,54 +381,37 @@ contract ZKRollupBridge is ReentrancyGuard {
 
         // Verify the aggregated ZK proof
         require(
-            zkVerifier.verify(proofPart1, proofPart2, channel.preprocessedPart1, channel.preprocessedPart2, publicInputs, smax),
+            zkVerifier.verify(
+                proofPart1, proofPart2, channel.preprocessedPart1, channel.preprocessedPart2, publicInputs, smax
+            ),
             "Invalid ZK proof"
         );
 
-        // Verify public inputs match the channel state
-        require(keccak256(abi.encodePacked(publicInputs)) == channel.aggregatedProofHash, "Proof mismatch");
-
-        // Unlock users and update state
-        _updateL1State(channelId);
-
         // Clear storage and close channel
         channel.state = ChannelState.Closed;
+        channel.closeTimestamp = block.timestamp;
 
         emit ChannelClosed(channelId);
     }
 
-    function _updateL1State(uint256 channelId) internal {
+    function deleteChannel(uint256 channelId) external returns (bool) {
         Channel storage channel = channels[channelId];
+        require(msg.sender == owner() || msg.sender == channel.leader, "only owner or leader");
+        require(channel.state == ChannelState.Closed, "Channel not closed");
+        require(block.timestamp >= channel.closeTimestamp + CHALLENGE_PERIOD);
 
-        // In production, would:
-        // 1. Reconstruct final balances from ZK proof public inputs
-        // 2. Verify the final state matches the proof
-        // 3. Update channel final balances
+        delete channels[channelId];
+        isChannelLeader[msg.sender] = false;
 
-        // For demonstration, assuming final balances are provided in the proof
-        // In reality, these would be extracted from the ZK proof's public inputs
-        for (uint256 i = 0; i < channel.participants.length; i++) {
-            address participant = channel.participants[i];
-            User storage user = users[participant];
-
-            if (user.isLocked) {
-                user.isLocked = false;
-
-                // Set final balances based on L2 computation results
-                // These values would come from the ZK proof
-                // For now, using original deposits as placeholder
-                channel.finalEthBalances[participant] = channel.participantDeposits[participant];
-                channel.finalTokenBalances[channel.targetContract][participant] =
-                    channel.tokenDeposits[channel.targetContract][participant];
-            }
-        }
+        emit ChannelDeleted(channelId);
+        return true;
     }
 
     // ========== Helper Functions ==========
 
     function _verifyMultiSig(bytes32 message, bytes calldata signature, Channel storage channel)
         internal
-        view
+        pure
         returns (bool)
     {
         // Simplified multisig verification
@@ -476,14 +438,5 @@ contract ZKRollupBridge is ReentrancyGuard {
     {
         Channel storage channel = channels[channelId];
         return (channel.targetContract, channel.state, channel.participants.length, channel.zkMerkleRoots);
-    }
-
-    function getUserLockStatus(address user)
-        external
-        view
-        returns (bool isLocked, uint256 lockedAmount, uint256 lockTimestamp)
-    {
-        User storage u = users[user];
-        return (u.isLocked, u.lockedAmount, u.lockTimestamp);
     }
 }

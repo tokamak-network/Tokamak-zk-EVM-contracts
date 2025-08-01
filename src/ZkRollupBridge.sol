@@ -7,7 +7,7 @@ import "@openzeppelin/token/ERC20/IERC20.sol";
 import "@openzeppelin/access/Ownable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IZKRollupBridge} from "./interface/IZKRollupBridge.sol";
-import {MerkleTree} from "./library/MerkleTree.sol";
+import {MerklePatriciaTrie} from "./library/MerklePatriciaTrie.sol";
 
 interface ITargetContract {
     function balanceOf(address account) external view returns (uint256);
@@ -159,26 +159,29 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         uint256 channelId,
         uint256 claimedBalance,
         bytes32[] calldata merkleProof,
-        uint256 leafIndex // User's index in the participants array
+        uint256 leafIndex
     ) external nonReentrant {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Closed, "Channel not closed");
         require(channel.isParticipant[msg.sender], "Not a participant");
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
-
+        
         // Verify the leafIndex corresponds to msg.sender
         require(leafIndex < channel.participants.length, "Invalid leaf index");
         require(channel.participants[leafIndex].l1Address == msg.sender, "Leaf index mismatch");
-
-        // Construct the leaf hash (must match the format used in _convertToZKTrees)
-        bytes32 leaf = keccak256(abi.encodePacked(msg.sender, claimedBalance));
-
-        // Verify the Merkle proof against the finalStateRoot WITH INDEX
-        require(MerkleTree.verifyProof(merkleProof, channel.finalStateRoot, leaf, leafIndex), "Invalid Merkle proof");
-
+        
+        // Create the leaf hash using MPT format
+        bytes32 leaf = MerklePatriciaTrie.createLeafHash(msg.sender, claimedBalance);
+        
+        // Verify the Merkle proof against the finalStateRoot
+        require(
+            MerklePatriciaTrie.verifyProof(merkleProof, channel.finalStateRoot, leaf, leafIndex),
+            "Invalid Merkle proof"
+        );
+        
         // Mark as withdrawn to prevent double claims
         channel.hasWithdrawn[msg.sender] = true;
-
+        
         // Process withdrawal based on channel type
         if (channel.targetContract == ETH_TOKEN_ADDRESS) {
             // ETH withdrawal
@@ -236,25 +239,41 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
 
     function _convertToZKTrees(uint256 channelId) internal {
         Channel storage channel = channels[channelId];
-
-        // Extract values and create Merkle trees
-        bytes32[] memory balanceLeaves = new bytes32[](channel.participants.length);
-
+        
+        // Create array of leaf data for MPT
+        MerklePatriciaTrie.LeafData[] memory leafData = new MerklePatriciaTrie.LeafData[](channel.participants.length);
+        
+        // Prepare leaf data with participant addresses and balances
         for (uint256 i = 0; i < channel.participants.length; i++) {
-            // Access the User struct and get the l1Address
             address participant = channel.participants[i].l1Address;
-
-            // Use deposited amounts for the computation
             uint256 tokenBalance = channel.tokenDeposits[channel.targetContract][participant];
-
-            // Create leaf: hash(address, tokenBalance)
-            balanceLeaves[i] = keccak256(abi.encodePacked(participant, tokenBalance));
+            
+            leafData[i] = MerklePatriciaTrie.LeafData({
+                participant: participant,
+                balance: tokenBalance
+            });
         }
-
-        // Compute and store root
-        bytes32 balanceRoot = MerkleTree.computeRoot(balanceLeaves);
-        channel.zkMerkleRoots.push(balanceRoot);
-
+        
+        // Compute MPT root using the library
+        bytes32 mptRoot = MerklePatriciaTrie.computeRoot(leafData);
+        
+        // Store the root
+        channel.zkMerkleRoots.push(mptRoot);
+        
+        // Also store individual leaf hashes for proof generation later
+        bytes32[] memory leafHashes = new bytes32[](channel.participants.length);
+        for (uint256 i = 0; i < channel.participants.length; i++) {
+            leafHashes[i] = MerklePatriciaTrie.createLeafHash(
+                leafData[i].participant,
+                leafData[i].balance
+            );
+        }
+        
+        // Store leaf hashes in a new mapping if needed for proof generation
+        // You might want to add this to your Channel struct:
+        // mapping(uint256 => bytes32[]) public channelLeafHashes;
+        // channelLeafHashes[channelId] = leafHashes;
+        
         emit StateConverted(channelId, channel.zkMerkleRoots);
     }
 

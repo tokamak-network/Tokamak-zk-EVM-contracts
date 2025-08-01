@@ -30,6 +30,7 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     uint256 public constant MAX_PARTICIPANTS = 50;
     uint256 public constant SIGNATURE_THRESHOLD_PERCENT = 67; // 2/3 threshold
     address public constant ETH_TOKEN_ADDRESS = address(1);
+    uint256 public constant BALANCE_SLOT = 0;
 
     // ========== MAPPINGS ==========
     mapping(uint256 => Channel) public channels;
@@ -155,42 +156,41 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         return balanceAfter - balanceBefore;
     }
 
+    // Updated withdrawAfterClose to work with storage proofs
     function withdrawAfterClose(
         uint256 channelId,
         uint256 claimedBalance,
-        bytes32[] calldata merkleProof,
-        uint256 leafIndex
+        bytes32[] calldata merkleProof
     ) external nonReentrant {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Closed, "Channel not closed");
         require(channel.isParticipant[msg.sender], "Not a participant");
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
         
-        // Verify the leafIndex corresponds to msg.sender
-        require(leafIndex < channel.participants.length, "Invalid leaf index");
-        require(channel.participants[leafIndex].l1Address == msg.sender, "Leaf index mismatch");
+        // Create the storage leaf for verification
+        MerklePatriciaTrie.StorageLeaf memory leaf = MerklePatriciaTrie.StorageLeaf({
+            storageKey: MerklePatriciaTrie.computeStorageKey(msg.sender, BALANCE_SLOT),
+            slot: BALANCE_SLOT,
+            participant: msg.sender,
+            value: claimedBalance
+        });
         
-        // Create the leaf hash using MPT format
-        bytes32 leaf = MerklePatriciaTrie.createLeafHash(msg.sender, claimedBalance);
-        
-        // Verify the Merkle proof against the finalStateRoot
+        // Verify the storage proof
         require(
-            MerklePatriciaTrie.verifyProof(merkleProof, channel.finalStateRoot, leaf, leafIndex),
-            "Invalid Merkle proof"
+            MerklePatriciaTrie.verifyStorageProof(merkleProof, channel.finalStateRoot, leaf),
+            "Invalid storage proof"
         );
         
-        // Mark as withdrawn to prevent double claims
+        // Mark as withdrawn
         channel.hasWithdrawn[msg.sender] = true;
         
-        // Process withdrawal based on channel type
+        // Process withdrawal
         if (channel.targetContract == ETH_TOKEN_ADDRESS) {
-            // ETH withdrawal
             require(claimedBalance > 0, "Nothing to withdraw");
             (bool success,) = msg.sender.call{value: claimedBalance}("");
             require(success, "ETH transfer failed");
             emit Withdrawn(channelId, msg.sender, ETH_TOKEN_ADDRESS, claimedBalance);
         } else {
-            // Token withdrawal
             require(claimedBalance > 0, "Nothing to withdraw");
             IERC20(channel.targetContract).transfer(msg.sender, claimedBalance);
             emit Withdrawn(channelId, msg.sender, channel.targetContract, claimedBalance);
@@ -240,42 +240,35 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     function _convertToZKTrees(uint256 channelId) internal {
         Channel storage channel = channels[channelId];
         
-        // Create array of leaf data for MPT
-        MerklePatriciaTrie.LeafData[] memory leafData = new MerklePatriciaTrie.LeafData[](channel.participants.length);
+        // Create storage leaves array matching the off-chain format
+        MerklePatriciaTrie.StorageLeaf[] memory storageLeaves = 
+            new MerklePatriciaTrie.StorageLeaf[](channel.participants.length);
         
-        // Prepare leaf data with participant addresses and balances
+        // Build storage leaves for each participant
         for (uint256 i = 0; i < channel.participants.length; i++) {
             address participant = channel.participants[i].l1Address;
-            uint256 tokenBalance = channel.tokenDeposits[channel.targetContract][participant];
+            uint256 balance = channel.tokenDeposits[channel.targetContract][participant];
             
-            leafData[i] = MerklePatriciaTrie.LeafData({
+            // Compute storage key exactly like the off-chain implementation
+            bytes32 storageKey = MerklePatriciaTrie.computeStorageKey(participant, BALANCE_SLOT);
+            
+            storageLeaves[i] = MerklePatriciaTrie.StorageLeaf({
+                storageKey: storageKey,
+                slot: BALANCE_SLOT,
                 participant: participant,
-                balance: tokenBalance
+                value: balance
             });
         }
         
-        // Compute MPT root using the library
-        bytes32 mptRoot = MerklePatriciaTrie.computeRoot(leafData);
+        // Compute MPT root using storage format
+        bytes32 storageRoot = MerklePatriciaTrie.computeStorageRoot(storageLeaves);
         
         // Store the root
-        channel.zkMerkleRoots.push(mptRoot);
-        
-        // Also store individual leaf hashes for proof generation later
-        bytes32[] memory leafHashes = new bytes32[](channel.participants.length);
-        for (uint256 i = 0; i < channel.participants.length; i++) {
-            leafHashes[i] = MerklePatriciaTrie.createLeafHash(
-                leafData[i].participant,
-                leafData[i].balance
-            );
-        }
-        
-        // Store leaf hashes in a new mapping if needed for proof generation
-        // You might want to add this to your Channel struct:
-        // mapping(uint256 => bytes32[]) public channelLeafHashes;
-        // channelLeafHashes[channelId] = leafHashes;
+        channel.zkMerkleRoots.push(storageRoot);
         
         emit StateConverted(channelId, channel.zkMerkleRoots);
     }
+
 
     // ========== Proof Aggregation and Signing ==========
 

@@ -90,8 +90,7 @@ interface IZKRollupBridge {
     function withdrawAfterClose(
         uint256 channelId,
         uint256 claimedBalance,
-        bytes32[] calldata merkleProof,
-        uint256 leafIndex // User's index in the participants array
+        bytes32[] calldata merkleProof
     ) external;
 
     function emergencyWithdraw(uint256 channelId) external;

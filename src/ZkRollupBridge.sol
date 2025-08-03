@@ -7,7 +7,7 @@ import "@openzeppelin/token/ERC20/IERC20.sol";
 import "@openzeppelin/access/Ownable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IZKRollupBridge} from "./interface/IZKRollupBridge.sol";
-import {MerklePatriciaTrie} from "./library/MerklePatriciaTrie.sol";
+import "./MerklePatriciaTrie.sol";
 
 interface ITargetContract {
     function balanceOf(address account) external view returns (uint256);
@@ -37,6 +37,9 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     mapping(address => bool) public authorizedChannelCreators;
     mapping(address => bool) public isChannelLeader;
 
+    // MPT instance for each channel
+    mapping(uint256 => address) public channelMPTs;
+
     uint256 public nextChannelId;
 
     // ========== CONTRACTS ==========
@@ -58,6 +61,7 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         bytes32 computationType,
         address[] calldata participants,
         address[] calldata l2PublicKeys,
+        uint256[] calldata contractSlots,
         uint128[] calldata preprocessedPart1,
         uint256[] calldata preprocessedPart2,
         uint256 timeout
@@ -77,6 +81,11 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         isChannelLeader[msg.sender] = true;
         Channel storage channel = channels[channelId];
 
+        // Deploy new MPT instance for this channel
+        MerklePatriciaTrie mpt = new MerklePatriciaTrie();
+        channel.mptContract = address(mpt);
+        channelMPTs[channelId] = address(mpt);
+        channel.contractSlots = contractSlots;
         channel.id = channelId;
         channel.targetContract = targetContract;
         channel.computationType = computationType;
@@ -110,7 +119,7 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         emit ChannelOpened(channelId, targetContract);
     }
 
-    // ========== Deposit and Withdraw Functions ==========
+    // ========== Deposit Functions ==========
 
     function depositETH(uint256 _channelId) external payable nonReentrant {
         Channel storage channel = channels[_channelId];
@@ -156,121 +165,81 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         return balanceAfter - balanceBefore;
     }
 
-    // Updated withdrawAfterClose to work with storage proofs
-    function withdrawAfterClose(
-        uint256 channelId,
-        uint256 claimedBalance,
-        bytes32[] calldata merkleProof
-    ) external nonReentrant {
+    // ========== MPT state management ==========
+
+    /**
+     * @dev Initialize channel state with MPT
+     */
+    function initializeChannelState(uint256 channelId) external nonReentrant {
         Channel storage channel = channels[channelId];
-        require(channel.state == ChannelState.Closed, "Channel not closed");
-        require(channel.isParticipant[msg.sender], "Not a participant");
-        require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
-        
-        // Create the storage leaf for verification
-        MerklePatriciaTrie.StorageLeaf memory leaf = MerklePatriciaTrie.StorageLeaf({
-            storageKey: MerklePatriciaTrie.computeStorageKey(msg.sender, BALANCE_SLOT),
-            slot: BALANCE_SLOT,
-            participant: msg.sender,
-            value: claimedBalance
-        });
-        
-        // Verify the storage proof
-        require(
-            MerklePatriciaTrie.verifyStorageProof(merkleProof, channel.finalStateRoot, leaf),
-            "Invalid storage proof"
-        );
-        
-        // Mark as withdrawn
-        channel.hasWithdrawn[msg.sender] = true;
-        
-        // Process withdrawal
-        if (channel.targetContract == ETH_TOKEN_ADDRESS) {
-            require(claimedBalance > 0, "Nothing to withdraw");
-            (bool success,) = msg.sender.call{value: claimedBalance}("");
-            require(success, "ETH transfer failed");
-            emit Withdrawn(channelId, msg.sender, ETH_TOKEN_ADDRESS, claimedBalance);
-        } else {
-            require(claimedBalance > 0, "Nothing to withdraw");
-            IERC20(channel.targetContract).transfer(msg.sender, claimedBalance);
-            emit Withdrawn(channelId, msg.sender, channel.targetContract, claimedBalance);
-        }
-    }
-
-    function emergencyWithdraw(uint256 channelId) external nonReentrant {
-        Channel storage channel = channels[channelId];
-        require(
-            block.timestamp >= channel.openTimestamp + channel.timeout + LOCK_TIMEOUT, "Emergency timeout not reached"
-        );
-        require(channel.isParticipant[msg.sender], "Not a participant");
-        require(channel.state != ChannelState.Closed, "Already closed");
-
-        // Return original deposits
-        uint256 ethDeposit = channel.tokenDeposits[ETH_TOKEN_ADDRESS][msg.sender];
-        if (ethDeposit > 0) {
-            channel.tokenDeposits[ETH_TOKEN_ADDRESS][msg.sender] = 0;
-            (bool success,) = msg.sender.call{value: ethDeposit}("");
-            require(success, "ETH transfer failed");
-            emit EmergencyWithdrawn(channelId, msg.sender, address(0), ethDeposit);
-        } else {
-            // Return token deposits
-            address token = channel.targetContract;
-            uint256 tokenDeposit = channel.tokenDeposits[token][msg.sender];
-            if (tokenDeposit > 0) {
-                channel.tokenDeposits[token][msg.sender] = 0;
-                IERC20(token).transfer(msg.sender, tokenDeposit);
-                emit EmergencyWithdrawn(channelId, msg.sender, token, tokenDeposit);
-            }
-        }
-    }
-
-    // ========== Generate first state root ==========
-
-    function channelsFirstStateRoot(uint256 channelId) external nonReentrant {
-        Channel storage channel = channels[channelId];
-        require(channel.state == ChannelState.Initialized, "Invalid channel state");
+        require(channel.state == ChannelState.Initialized, "Invalid state");
         require(msg.sender == channel.leader, "Not leader");
-
-        // Convert MPT to ZK-friendly Merkle trees
-        _convertToZKTrees(channelId);
-
-        channel.state = ChannelState.Open;
-    }
-
-    function _convertToZKTrees(uint256 channelId) internal {
-        Channel storage channel = channels[channelId];
         
-        // Create storage leaves array matching the off-chain format
-        MerklePatriciaTrie.StorageLeaf[] memory storageLeaves = 
-            new MerklePatriciaTrie.StorageLeaf[](channel.participants.length);
+        MerklePatriciaTrie mpt = MerklePatriciaTrie(channel.mptContract);
         
-        // Build storage leaves for each participant
+        // Initialize user balances in MPT
         for (uint256 i = 0; i < channel.participants.length; i++) {
             address participant = channel.participants[i].l1Address;
             uint256 balance = channel.tokenDeposits[channel.targetContract][participant];
             
-            // Compute storage key exactly like the off-chain implementation
-            bytes32 storageKey = MerklePatriciaTrie.computeStorageKey(participant, BALANCE_SLOT);
-            
-            storageLeaves[i] = MerklePatriciaTrie.StorageLeaf({
-                storageKey: storageKey,
-                slot: BALANCE_SLOT,
-                participant: participant,
-                value: balance
-            });
+            // Put user balance into MPT
+            mpt.putStorage(participant, bytes32(BALANCE_SLOT), bytes32(balance));
         }
         
-        // Compute MPT root using storage format
-        bytes32 storageRoot = MerklePatriciaTrie.computeStorageRoot(storageLeaves);
+        // Initialize contract storage in MPT
+        if (channel.targetContract != ETH_TOKEN_ADDRESS) {
+            for (uint256 i = 0; i < channel.contractSlots.length; i++) {
+                uint256 slot = channel.contractSlots[i];
+                bytes32 value = _readContractStorage(channel.targetContract, slot);
+                
+                // Store contract slot value
+                // Using address(0) for contract-wide storage
+                mpt.putStorage(address(0), bytes32(slot), value);
+            }
+            
+            // Store contract bytecode hash
+            bytes memory code = _getContractCode(channel.targetContract);
+            bytes32 codeHash = keccak256(code);
+            mpt.put(abi.encodePacked(keccak256("codehash")), abi.encodePacked(codeHash));
+        }
         
-        // Store the root
-        channel.zkMerkleRoots.push(storageRoot);
+        // Get initial state root
+        channel.currentStateRoot = mpt.stateRoot();
+        channel.state = ChannelState.Open;
         
-        emit StateConverted(channelId, channel.zkMerkleRoots);
+        emit StateInitialized(channelId, channel.currentStateRoot);
     }
 
+    /**
+     * @dev Simulate transaction and update MPT
+     */
+    function simulateTransaction(
+        uint256 channelId,
+        address from,
+        address to,
+        uint256 amount
+    ) internal returns (bytes32 newStateRoot) {
+        Channel storage channel = channels[channelId];
+        MerklePatriciaTrie mpt = MerklePatriciaTrie(channel.mptContract);
+        
+        // Get current balances
+        bytes32 fromBalance = mpt.getStorage(from, bytes32(BALANCE_SLOT));
+        bytes32 toBalance = mpt.getStorage(to, bytes32(BALANCE_SLOT));
+        
+        uint256 fromBalanceUint = uint256(fromBalance);
+        uint256 toBalanceUint = uint256(toBalance);
+        
+        require(fromBalanceUint >= amount, "Insufficient balance");
+        
+        // Update balances in MPT
+        mpt.putStorage(from, bytes32(BALANCE_SLOT), bytes32(fromBalanceUint - amount));
+        mpt.putStorage(to, bytes32(BALANCE_SLOT), bytes32(toBalanceUint + amount));
+        
+        // Return new state root
+        return mpt.stateRoot();
+    }
 
-    // ========== Proof Aggregation and Signing ==========
+    // ========== Proof submission and Signing ==========
 
     function submitAggregatedProof(uint256 channelId, bytes32 aggregatedProofHash, bytes32 finalStateRoot) external {
         Channel storage channel = channels[channelId];
@@ -333,6 +302,43 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         emit ChannelClosed(channelId);
     }
 
+    // ========== Withdraw Functions ==========
+
+    /**
+     * @dev Withdraw using MPT proof
+     */
+    function withdrawAfterClose(
+        uint256 channelId,
+        uint256 claimedBalance
+    ) external nonReentrant {
+        Channel storage channel = channels[channelId];
+        require(channel.state == ChannelState.Closed, "Not closed");
+        require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
+        
+        MerklePatriciaTrie mpt = MerklePatriciaTrie(channel.mptContract);
+        
+        // Verify balance directly from MPT
+        bytes32 storedBalance = mpt.getStorage(msg.sender, bytes32(BALANCE_SLOT));
+        require(uint256(storedBalance) == claimedBalance, "Balance mismatch");
+        
+        // Additional proof verification could be added here
+        // to ensure the MPT state matches the closed channel state
+        
+        channel.hasWithdrawn[msg.sender] = true;
+        
+        // Process withdrawal
+        if (channel.targetContract == ETH_TOKEN_ADDRESS) {
+            (bool success,) = msg.sender.call{value: claimedBalance}("");
+            require(success, "ETH transfer failed");
+        } else {
+            IERC20(channel.targetContract).transfer(msg.sender, claimedBalance);
+        }
+        
+        emit Withdrawn(channelId, msg.sender, channel.targetContract, claimedBalance);
+    }
+
+    // ====== Delete Channel Functions ======
+
     function deleteChannel(uint256 channelId) external returns (bool) {
         Channel storage channel = channels[channelId];
         require(msg.sender == owner() || msg.sender == channel.leader, "only owner or leader");
@@ -366,6 +372,47 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         // Simplified EdDSA verification
         // In production, implement proper EdDSA verification
         return true;
+    }
+
+    /**
+     * @dev Read contract storage helper
+     */
+    function _readContractStorage(address target, uint256 slot) 
+        internal 
+        view 
+        returns (bytes32 value) 
+    {
+        assembly ("memory-safe") {
+            value := sload(slot)
+        }
+        
+        // For external contracts, we need to use staticcall
+        if (target != address(this)) {
+            (bool success, bytes memory data) = target.staticcall(
+                abi.encodeWithSignature("storageAt(uint256)", slot)
+            );
+            
+            if (success && data.length > 0) {
+                value = abi.decode(data, (bytes32));
+            }
+        }
+    }
+    
+    /**
+     * @dev Get contract bytecode
+     */
+    function _getContractCode(address target) internal view returns (bytes memory) {
+        uint256 size;
+        assembly ("memory-safe") {
+            size := extcodesize(target)
+        }
+        
+        bytes memory code = new bytes(size);
+        assembly ("memory-safe") {
+            extcodecopy(target, add(code, 0x20), 0, size)
+        }
+        
+        return code;
     }
 
     // ========== View Functions ==========

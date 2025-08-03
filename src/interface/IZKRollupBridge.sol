@@ -19,9 +19,15 @@ interface IZKRollupBridge {
         uint256 id;
         address targetContract;
         bytes32 computationType; // e.g., keccak256("TON_TRANSFER")
-        // State roots
-        bytes32 mptSnapshotRoot;
+
+        // MPT
+        address mptContract;  // Dedicated MPT instance for this channel
+        bytes32 currentStateRoot;
+        uint256[] contractSlots;  // Contract storage slots to track
+        
+        // MT
         bytes32[] zkMerkleRoots; // Multiple trees for different state components
+
         // Participants
         User[] participants;
         mapping(address => address) l2PublicKeys;
@@ -68,6 +74,7 @@ interface IZKRollupBridge {
     event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
+    event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
 
     // =========== FUNCTIONS ===========
 
@@ -78,10 +85,11 @@ interface IZKRollupBridge {
         bytes32 computationType,
         address[] calldata participants,
         address[] calldata l2PublicKeys,
+        uint256[] calldata contractSlots,
         uint128[] calldata preprocessedPart1,
         uint256[] calldata preprocessedPart2,
         uint256 timeout
-    ) external returns (uint256);
+    ) external returns (uint256 channelId);
 
     function depositETH(uint256 _channelId) external payable;
 
@@ -89,13 +97,10 @@ interface IZKRollupBridge {
 
     function withdrawAfterClose(
         uint256 channelId,
-        uint256 claimedBalance,
-        bytes32[] calldata merkleProof
+        uint256 claimedBalance
     ) external;
 
-    function emergencyWithdraw(uint256 channelId) external;
-
-    function channelsFirstStateRoot(uint256 channelId) external;
+    function initializeChannelState(uint256 channelId) external;
 
     function submitAggregatedProof(uint256 channelId, bytes32 aggregatedProofHash, bytes32 finalStateRoot) external;
 

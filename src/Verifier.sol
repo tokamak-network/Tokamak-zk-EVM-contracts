@@ -166,6 +166,7 @@ contract Verifier is IVerifier {
     uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x080;
     uint256 internal constant CHALLENGE_KAPPA_2_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0a0;
     uint256 internal constant CHALLENGE_ZETA_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0c0;
+    uint256 internal constant CHALLENGE_XI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0e0;
     uint256 internal constant CHALLENGE_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100;
 
     /*//////////////////////////////////////////////////////////////
@@ -332,8 +333,8 @@ contract Verifier is IVerifier {
 
     // n
     uint256 internal constant CONSTANT_N = 1024;
-    // ω_32
-    uint256 internal constant OMEGA_128 = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
+    // ω_64
+    uint256 internal constant OMEGA_64 = 0x0e4840ac57f86f5e293b1d67bc8de5d9a12a70a615d0b8e4d2fc5e69ac5db47f;
     // m_i
     uint256 internal constant CONSTANT_MI = 1024;
 
@@ -366,105 +367,117 @@ contract Verifier is IVerifier {
     // Each point uses 8 uint256 slots (256 bytes total)
     // Format: X0_PART1, X0_PART2, X1_PART1, X1_PART2, Y0_PART1, Y0_PART2, Y1_PART1, Y1_PART2
 
+    //H: G2serde(Affine { x: 0x0ebd6f4ef306fcda87ef2bee22be04444dcc4f561b26680192dd1d52248be8ebd8668b0402c2bb11ebef5b29236b3df618e99900440bf5c55fff0a4fc7dcd38b39bac47ef1c165cca4dbbc08422dff76ade6abc48d625866bb0d3fd0b60c297e, y: 0x158afd59d53811c63bd0ab61e61fdaa2dd6e34aade8d67b149a28ed43aafaa2919129ee085cbe08ce8492f52a8ebbfae10674b5316f6c08e79cc75aab46b4d6c2a701dfcde2a46ca0204c3f9e39741fb15732a8c419da857d29dec927648a99e })
     // [1]_2 (Identity/Generator point H)
-    uint256 internal constant IDENTITY2_X0_PART1 = 0x000000000000000000000000000000001062cb3c7e229c00647fdc4cdf7090f7;
-    uint256 internal constant IDENTITY2_X0_PART2 = 0x74a21b82d44d94698289654631255c5edcd1c2e67af02485c565c52fed895fc2;
-    uint256 internal constant IDENTITY2_X1_PART1 = 0x000000000000000000000000000000000890855e3092cc1da5063db0da3f1f6d;
-    uint256 internal constant IDENTITY2_X1_PART2 = 0xa30581ac6941b60f6a40d1c3295374f6399acd44d9f433265d13ee57462d11dc;
-    uint256 internal constant IDENTITY2_Y0_PART1 = 0x000000000000000000000000000000000bb5f9f0a02692690977e7ac5097cc72;
-    uint256 internal constant IDENTITY2_Y0_PART2 = 0xc17765756c7ee736d3e1a522834769114fbe20611a48ff5a8afb6c4f1c5d0834;
-    uint256 internal constant IDENTITY2_Y1_PART1 = 0x00000000000000000000000000000000118bf75ff2a1376d019f4fee31545717;
-    uint256 internal constant IDENTITY2_Y1_PART2 = 0xdfb119fb2317c7dbb08c59e874c8c2fe82235812eb3417567767b895af32efe7;
+    uint256 internal constant IDENTITY2_X0_PART1 = 0x000000000000000000000000000000000ebd6f4ef306fcda87ef2bee22be0444;
+    uint256 internal constant IDENTITY2_X0_PART2 = 0x4dcc4f561b26680192dd1d52248be8ebd8668b0402c2bb11ebef5b29236b3df6;
+    uint256 internal constant IDENTITY2_X1_PART1 = 0x0000000000000000000000000000000018e99900440bf5c55fff0a4fc7dcd38b;
+    uint256 internal constant IDENTITY2_X1_PART2 = 0x39bac47ef1c165cca4dbbc08422dff76ade6abc48d625866bb0d3fd0b60c297e;
+    uint256 internal constant IDENTITY2_Y0_PART1 = 0x00000000000000000000000000000000158afd59d53811c63bd0ab61e61fdaa2;
+    uint256 internal constant IDENTITY2_Y0_PART2 = 0xdd6e34aade8d67b149a28ed43aafaa2919129ee085cbe08ce8492f52a8ebbfae;
+    uint256 internal constant IDENTITY2_Y1_PART1 = 0x0000000000000000000000000000000010674b5316f6c08e79cc75aab46b4d6c;
+    uint256 internal constant IDENTITY2_Y1_PART2 = 0x2a701dfcde2a46ca0204c3f9e39741fb15732a8c419da857d29dec927648a99e;
 
+    //alpha: G2serde(Affine { x: 0x13be37b0d3120587e0ea3a415ba8932a7973015d69da881661e712c41c8154f27b50c7a4aa6b88f7ea1b0c6d61e339360745eb9f361eb7e56b6853618a7919ecb8b74018ab98f00d498a9e4fa058b2520c6ed587ce2c96eec826f1dd41aa668c, y: 0x12b3500ce7f7b2b50a7a84b4fb0811f7d59d351e08815fd68d1c5cd1a5cf2cf5cd1ef00b970b170fd49098b2b8a297ff0754077cedcdeab5a321c93993ecc2522227150031e13e16386f99fc5d9fa010df3261749509deee846fb9acdf1f31a0 })
     // [α]_2
-    uint256 internal constant ALPHA_X0_PART1 = 0x0000000000000000000000000000000009c1432fa1ffe138ea14345e30822c3b;
-    uint256 internal constant ALPHA_X0_PART2 = 0x78c007af61980943cac47c3f71088d12699101973e381f9d9a5ca7e09d7792a2;
-    uint256 internal constant ALPHA_X1_PART1 = 0x000000000000000000000000000000001742e817a24f46a2a9e017803313def9;
-    uint256 internal constant ALPHA_X1_PART2 = 0xfe6fd69373e64160954beca1fafd1d5b884583fe377488a541176932db6b066d;
-    uint256 internal constant ALPHA_Y0_PART1 = 0x00000000000000000000000000000000123a8d899dc3a23fe967bff3a3605c2d;
-    uint256 internal constant ALPHA_Y0_PART2 = 0x23c361089384f251b97640cc0367c1246fdbfffda0b0f135bc19ec3d0ede94b0;
-    uint256 internal constant ALPHA_Y1_PART1 = 0x0000000000000000000000000000000003dd485b1205942b2ea6b25d66cdeff4;
-    uint256 internal constant ALPHA_Y1_PART2 = 0xbc7aca4fc57970c5f0cf952e0ee664c5fe890b51e69baf67244accc119a822c2;
+    uint256 internal constant ALPHA_X0_PART1 = 0x0000000000000000000000000000000013be37b0d3120587e0ea3a415ba8932a;
+    uint256 internal constant ALPHA_X0_PART2 = 0x7973015d69da881661e712c41c8154f27b50c7a4aa6b88f7ea1b0c6d61e33936;
+    uint256 internal constant ALPHA_X1_PART1 = 0x000000000000000000000000000000000745eb9f361eb7e56b6853618a7919ec;
+    uint256 internal constant ALPHA_X1_PART2 = 0xb8b74018ab98f00d498a9e4fa058b2520c6ed587ce2c96eec826f1dd41aa668c;
+    uint256 internal constant ALPHA_Y0_PART1 = 0x0000000000000000000000000000000012b3500ce7f7b2b50a7a84b4fb0811f7;
+    uint256 internal constant ALPHA_Y0_PART2 = 0xd59d351e08815fd68d1c5cd1a5cf2cf5cd1ef00b970b170fd49098b2b8a297ff;
+    uint256 internal constant ALPHA_Y1_PART1 = 0x000000000000000000000000000000000754077cedcdeab5a321c93993ecc252;
+    uint256 internal constant ALPHA_Y1_PART2 = 0x2227150031e13e16386f99fc5d9fa010df3261749509deee846fb9acdf1f31a0;
 
+
+
+    //alpha2: G2serde(Affine { x: 0x04963020eb92f0b65c9ceaf9ab2e411103117178b8a11f9da6987b60f8cc693d8626202926927bd32f44de0eb28a92cf03e7633616ac2c91b7527b01e962466315abe86f2f99fba2a2b7a437cf6db2b7e5078fb39a8f184f2c2bd00798518317, y: 0x1004bc7121e29247d8702d1d33dd585a64d9d938f819b739cde470cf77a12b3e84df44eb5138728f9d8b417c212c4633130270d8e59e71458d5216a3107f3c48dcbc1d1de90631660d63207cd143c540ac7d3661787c13e393fbb1d5c45f2001 })
     // [α^2]_2
-    uint256 internal constant ALPHA_POWER2_X0_PART1 = 0x000000000000000000000000000000000e02f0bcd8f1d36763193c0b43872b8f;
-    uint256 internal constant ALPHA_POWER2_X0_PART2 = 0x73b0c3793343bc3ed13d97fc39224a56865b0803d0e07ce00eddb8b7c3f94168;
-    uint256 internal constant ALPHA_POWER2_X1_PART1 = 0x00000000000000000000000000000000059411cecf4a60426f1dabdfdcbc631b;
-    uint256 internal constant ALPHA_POWER2_X1_PART2 = 0x1f64afed1557f752be4988c10080881f72ef76fb32d9836faa64817efd0c94c2;
-    uint256 internal constant ALPHA_POWER2_Y0_PART1 = 0x000000000000000000000000000000000cccc9d09758396316b87bc7dc3ce8d5;
-    uint256 internal constant ALPHA_POWER2_Y0_PART2 = 0xafcdf22917ee9c7e905c53b6aa9ad6797beb7c247fa386766344721e89f58236;
-    uint256 internal constant ALPHA_POWER2_Y1_PART1 = 0x000000000000000000000000000000000611327e8964356147dd8238ebaeedb6;
-    uint256 internal constant ALPHA_POWER2_Y1_PART2 = 0xd53e73d6bf93f1769be7713a654c5173fd9eea9be2da4e186dc23430e0f67d49;
+    uint256 internal constant ALPHA_POWER2_X0_PART1 = 0x0000000000000000000000000000000004963020eb92f0b65c9ceaf9ab2e4111;
+    uint256 internal constant ALPHA_POWER2_X0_PART2 = 0x03117178b8a11f9da6987b60f8cc693d8626202926927bd32f44de0eb28a92cf;
+    uint256 internal constant ALPHA_POWER2_X1_PART1 = 0x0000000000000000000000000000000003e7633616ac2c91b7527b01e9624663;
+    uint256 internal constant ALPHA_POWER2_X1_PART2 = 0x15abe86f2f99fba2a2b7a437cf6db2b7e5078fb39a8f184f2c2bd00798518317;
+    uint256 internal constant ALPHA_POWER2_Y0_PART1 = 0x000000000000000000000000000000001004bc7121e29247d8702d1d33dd585a;
+    uint256 internal constant ALPHA_POWER2_Y0_PART2 = 0x64d9d938f819b739cde470cf77a12b3e84df44eb5138728f9d8b417c212c4633;
+    uint256 internal constant ALPHA_POWER2_Y1_PART1 = 0x00000000000000000000000000000000130270d8e59e71458d5216a3107f3c48;
+    uint256 internal constant ALPHA_POWER2_Y1_PART2 = 0xdcbc1d1de90631660d63207cd143c540ac7d3661787c13e393fbb1d5c45f2001;
 
+    //alpha3: G2serde(Affine { x: 0x04ad74c24fa7ae084e3f6baff982fcfdda88021e2c23d66ee515e928a623961d0ca53637153ae5dac70ef9cf4c5af13304febe79772a2ce774da4ec75a8200c7f42d6d312bcc388eadccd17b5cbcddcd9c3af3a9d91c58c3903472d7f375093f, y: 0x12e1c9d595e916879460d91511144d77fb3d937cb8659c9af1166aacd17a464cc639e725cd6ada4010eee603d8a334160fd5de7e910efff48c263d5a15e8b80dd5e5eb5d33e11c46d51ee27b5789b83fb472344f6ec8c1a1cd7da4206355ee2c })
     // [α^3]_2
-    uint256 internal constant ALPHA_POWER3_X0_PART1 = 0x0000000000000000000000000000000001ec505466dc0a042c23dbb296f1f84f;
-    uint256 internal constant ALPHA_POWER3_X0_PART2 = 0x965c6172377199b7a68a9c322f31ef24884842bc2da64f87c5e9d504fde810f3;
-    uint256 internal constant ALPHA_POWER3_X1_PART1 = 0x0000000000000000000000000000000009b3f2eee1513661deff0c695618f222;
-    uint256 internal constant ALPHA_POWER3_X1_PART2 = 0xe6354148b77b18c067e7471ff4d7db05db4124bd383125d4deda6657c6982457;
-    uint256 internal constant ALPHA_POWER3_Y0_PART1 = 0x000000000000000000000000000000001972902b5e6e9d30cb91157a57ffd3ca;
-    uint256 internal constant ALPHA_POWER3_Y0_PART2 = 0x95d52bc82491f9be8750597581a0d6e60759dabfbaf673c987b2649f18a645d6;
-    uint256 internal constant ALPHA_POWER3_Y1_PART1 = 0x0000000000000000000000000000000018dc22912739c4604fc8f78ff809dcee;
-    uint256 internal constant ALPHA_POWER3_Y1_PART2 = 0xc99ecc106779c5e7951100e8a6eb4625347c1a06f596d3c9eff8a6a36a297e9c;
+    uint256 internal constant ALPHA_POWER3_X0_PART1 = 0x0000000000000000000000000000000004ad74c24fa7ae084e3f6baff982fcfd;
+    uint256 internal constant ALPHA_POWER3_X0_PART2 = 0xda88021e2c23d66ee515e928a623961d0ca53637153ae5dac70ef9cf4c5af133;
+    uint256 internal constant ALPHA_POWER3_X1_PART1 = 0x0000000000000000000000000000000004febe79772a2ce774da4ec75a8200c7;
+    uint256 internal constant ALPHA_POWER3_X1_PART2 = 0xf42d6d312bcc388eadccd17b5cbcddcd9c3af3a9d91c58c3903472d7f375093f;
+    uint256 internal constant ALPHA_POWER3_Y0_PART1 = 0x0000000000000000000000000000000012e1c9d595e916879460d91511144d77;
+    uint256 internal constant ALPHA_POWER3_Y0_PART2 = 0xfb3d937cb8659c9af1166aacd17a464cc639e725cd6ada4010eee603d8a33416;
+    uint256 internal constant ALPHA_POWER3_Y1_PART1 = 0x000000000000000000000000000000000fd5de7e910efff48c263d5a15e8b80d;
+    uint256 internal constant ALPHA_POWER3_Y1_PART2 = 0xd5e5eb5d33e11c46d51ee27b5789b83fb472344f6ec8c1a1cd7da4206355ee2c;
 
+    //alpha4: G2serde(Affine { x: 0x15c78d1376869dff46751649e1ff542e787e2a33bcd670f1934a4b108cba6eb30c24aab6fd30aa881a438fa079dee4ad0c2bea345504f4f0432101efc805986c9b37d5ceacc254aacb1633f9ebd4ce738f3ee913b739d7f8c50185ce88516325, y: 0x12ce400907520a4e837fd8f4caf47654a7b43bdb96f09160fa6570dbe7c0e495a5526b5f631c10696d2846bbc622b53b0e9d3ded66b87f8803fe2d474d18d6310c80c0f600de136ff295ec94720abd2dcd173cb870afbffddf4b797347d682c3 })
     // [α^4]_2
-    uint256 internal constant ALPHA_POWER4_X0_PART1 = 0x000000000000000000000000000000001039465945ab682a5fda213751b71cba;
-    uint256 internal constant ALPHA_POWER4_X0_PART2 = 0x2454f29ed9a6b89e23cd44acbaf4171ec37383c2ec42facc3b022146dec8e274;
-    uint256 internal constant ALPHA_POWER4_X1_PART1 = 0x00000000000000000000000000000000156ab62d7896eccef5cecede0a9fe64f;
-    uint256 internal constant ALPHA_POWER4_X1_PART2 = 0xda7a0f8926ecf78915dedc7b7538c7096f53424dd4da29a02bdf616a17da3ed2;
-    uint256 internal constant ALPHA_POWER4_Y0_PART1 = 0x000000000000000000000000000000001924476b91cfdadb80c94b85af60bc24;
-    uint256 internal constant ALPHA_POWER4_Y0_PART2 = 0x720ba968c299e6d58db163a9caac27d185737f35ab29449fec9a7f09f7a5ca88;
-    uint256 internal constant ALPHA_POWER4_Y1_PART1 = 0x00000000000000000000000000000000166f92caf62181b9b0babcb44b18c96f;
-    uint256 internal constant ALPHA_POWER4_Y1_PART2 = 0xbc06f0fd6061fb9e4173cabf0ceaa811efe5b0ad70f5ca213940da5e84af3d45;
+    uint256 internal constant ALPHA_POWER4_X0_PART1 = 0x0000000000000000000000000000000015c78d1376869dff46751649e1ff542e;
+    uint256 internal constant ALPHA_POWER4_X0_PART2 = 0x787e2a33bcd670f1934a4b108cba6eb30c24aab6fd30aa881a438fa079dee4ad;
+    uint256 internal constant ALPHA_POWER4_X1_PART1 = 0x000000000000000000000000000000000c2bea345504f4f0432101efc805986c;
+    uint256 internal constant ALPHA_POWER4_X1_PART2 = 0x9b37d5ceacc254aacb1633f9ebd4ce738f3ee913b739d7f8c50185ce88516325;
+    uint256 internal constant ALPHA_POWER4_Y0_PART1 = 0x0000000000000000000000000000000012ce400907520a4e837fd8f4caf47654;
+    uint256 internal constant ALPHA_POWER4_Y0_PART2 = 0xa7b43bdb96f09160fa6570dbe7c0e495a5526b5f631c10696d2846bbc622b53b;
+    uint256 internal constant ALPHA_POWER4_Y1_PART1 = 0x000000000000000000000000000000000e9d3ded66b87f8803fe2d474d18d631;
+    uint256 internal constant ALPHA_POWER4_Y1_PART2 = 0x0c80c0f600de136ff295ec94720abd2dcd173cb870afbffddf4b797347d682c3;
 
+    //-γ: G2serde(Affine { x: 0x07096db3def0f79181e9158abd519288a1778ead6981f415cdcbb16cd1ee05623c7a039eb207fc3c0852be3d17e3966d0e49e51619f20c24db58848c4df7ee8cc6cbfbb10be3822342815908dc82e68b3a965e295980772d1dedc3f0a3706ee8, y: 0x05b45be412d083cc5777ed65a72a8872977bc8f68308abcbeeee2a8436ac25499ed831d9d0de4f26b90d283a9bd99e3907f69e1e80f708cb985652ac4e4ebb0502a826e55601f5e62bd1959df20ba54461dc96070f7ba31870fbc901bc67014d })
     // -[γ]_2 (negated for pairing)
-    uint256 internal constant GAMMA_X0_PART1 = 0x000000000000000000000000000000000de2e1e1c8cee742b061bc5967e7dd07;
-    uint256 internal constant GAMMA_X0_PART2 = 0x923d5d56f1721cbde5a4729fe3f7c79fd76cc3fbdd1dcff176cb0a8727bd3334;
-    uint256 internal constant GAMMA_X1_PART1 = 0x000000000000000000000000000000001971fb45ba2052c3fa2909d7c243f31b;
-    uint256 internal constant GAMMA_X1_PART2 = 0x0cc39b1b00b455d7dd149972e30ca15e39eda43db06be877d31d36f7576fcead;
-    uint256 internal constant GAMMA_Y0_PART1 = 0x000000000000000000000000000000000d23af41f9532a91c986aec729d996bd;
-    uint256 internal constant GAMMA_Y0_PART2 = 0x9f206fd8fdb66e5eb72411ddb3af3a628ee78555ffafb8d4f670fbb12eb13183;
-    uint256 internal constant GAMMA_Y1_PART1 = 0x00000000000000000000000000000000091a47c6445008e031a1287c5b473092;
-    uint256 internal constant GAMMA_Y1_PART2 = 0xffd575bc8f693425318d72f3f071aa602ea76c75029231309633689420c35133;
+    uint256 internal constant GAMMA_X0_PART1 = 0x0000000000000000000000000000000007096db3def0f79181e9158abd519288;
+    uint256 internal constant GAMMA_X0_PART2 = 0xa1778ead6981f415cdcbb16cd1ee05623c7a039eb207fc3c0852be3d17e3966d;
+    uint256 internal constant GAMMA_X1_PART1 = 0x000000000000000000000000000000000e49e51619f20c24db58848c4df7ee8c;
+    uint256 internal constant GAMMA_X1_PART2 = 0xc6cbfbb10be3822342815908dc82e68b3a965e295980772d1dedc3f0a3706ee8;
+    uint256 internal constant GAMMA_Y0_PART1 = 0x0000000000000000000000000000000005b45be412d083cc5777ed65a72a8872;
+    uint256 internal constant GAMMA_Y0_PART2 = 0x977bc8f68308abcbeeee2a8436ac25499ed831d9d0de4f26b90d283a9bd99e39;
+    uint256 internal constant GAMMA_Y1_PART1 = 0x0000000000000000000000000000000007f69e1e80f708cb985652ac4e4ebb05;
+    uint256 internal constant GAMMA_Y1_PART2 = 0x02a826e55601f5e62bd1959df20ba54461dc96070f7ba31870fbc901bc67014d;
 
+    //-η: G2serde(Affine { x: 0x0b807a006fc6e027e137ccbc336107d9456823fe958c93483c217c10d4eaeacb591b9279bd76371643795da0dd0653b917bef7541a7e3ff19d34572b53dda5d4d6ee2f33b6330468b287dcf203c6f8aa37aac68c97c6a0856ab9bb7a898c994f, y: 0x16e02f4df24cf3cde7d5e065b84e512c0e554f887dc9782edb1c1078ea4c170485c630eecec33929e8e58c58182d0bc0085856174af605a951e32e9c278d634f939270a91676d4435ca92ceca4a1621b60609e1525ccafa2e18adfab2ec8cc89 })
     // -[η]_2 (negated for pairing)
-    uint256 internal constant ETA_X0_PART1 = 0x0000000000000000000000000000000018c088d70cd70c0765b2e2ae6f467127;
-    uint256 internal constant ETA_X0_PART2 = 0x98883bb35959203dfc5a0c4b051b44ac0eac62062262f23e3469dd9aaa33ad1a;
-    uint256 internal constant ETA_X1_PART1 = 0x000000000000000000000000000000000434d7a5b5b90ecf4251f64b6f2e6870;
-    uint256 internal constant ETA_X1_PART2 = 0x94ca41e3d894fcf2122f031a2ecb15273f3bf96401f224b7c88a55a7bf4429ab;
-    uint256 internal constant ETA_Y0_PART1 = 0x00000000000000000000000000000000170d592138767d9b0914668154d93dc5;
-    uint256 internal constant ETA_Y0_PART2 = 0xcf3f6d9a11ae7a2a640a30ec7c280ecb9faa7afb81583aa45acd72065ebb3b08;
-    uint256 internal constant ETA_Y1_PART1 = 0x000000000000000000000000000000000a5d27148877cac0c3da5a3d6db6d742;
-    uint256 internal constant ETA_Y1_PART2 = 0x3c02c4b80e55ddcd9f1f0f6f3ad6efacf470049dc702d95934b944b4ffe434b1;
+    uint256 internal constant ETA_X0_PART1 = 0x000000000000000000000000000000000b807a006fc6e027e137ccbc336107d9;
+    uint256 internal constant ETA_X0_PART2 = 0x456823fe958c93483c217c10d4eaeacb591b9279bd76371643795da0dd0653b9;
+    uint256 internal constant ETA_X1_PART1 = 0x0000000000000000000000000000000017bef7541a7e3ff19d34572b53dda5d4;
+    uint256 internal constant ETA_X1_PART2 = 0xd6ee2f33b6330468b287dcf203c6f8aa37aac68c97c6a0856ab9bb7a898c994f;
+    uint256 internal constant ETA_Y0_PART1 = 0x0000000000000000000000000000000016e02f4df24cf3cde7d5e065b84e512c;
+    uint256 internal constant ETA_Y0_PART2 = 0x0e554f887dc9782edb1c1078ea4c170485c630eecec33929e8e58c58182d0bc0;
+    uint256 internal constant ETA_Y1_PART1 = 0x00000000000000000000000000000000085856174af605a951e32e9c278d634f;
+    uint256 internal constant ETA_Y1_PART2 = 0x939270a91676d4435ca92ceca4a1621b60609e1525ccafa2e18adfab2ec8cc89;
 
+    //-δ: G2serde(Affine { x: 0x0a3498dcd378d26363b751ff71f1f58a9d9dd025fa977a634510d19acc61f55816fefece39902b606ff8014af4d2e3870194c5e9ef224b979cf5a605776dc16576f92dd0b61666d12d3c6429089dd0780ecefe64f6069ce5d30b3f8963affc32, y: 0x109f105c11fda7392c890e14a39b21e3bd47b8a20b358b96459f02a14ccd8e62de4cefdfd773772d60ff9636fe0dfbc3095a6688e4ba51aa4c2b5aa10e789c3c80fa53a93f81fa668a1df7313c969b6d90d0027397bc1d1f9cb660c15fc9dc4c })
     // -[δ]_2 (negated for pairing)
-    uint256 internal constant DELTA_X0_PART1 = 0x0000000000000000000000000000000002dafaf366fe4efbfa3ae62f2628107a;
-    uint256 internal constant DELTA_X0_PART2 = 0xb2964d57017e76286440a248bfd9c5280692f91b8a0b4a208682869a09ea961a;
-    uint256 internal constant DELTA_X1_PART1 = 0x00000000000000000000000000000000085abf7fb1783276d6391983b14552d9;
-    uint256 internal constant DELTA_X1_PART2 = 0xfbf41c2fdcaeb410a3479a160b5625135a0cdc22c3f8dde5d832afc8e18ef48f;
-    uint256 internal constant DELTA_Y0_PART1 = 0x0000000000000000000000000000000015546f9df8fcbdd8c8ff00eef8f39a0b;
-    uint256 internal constant DELTA_Y0_PART2 = 0x6f373addfac73d84c1b2e25e46db314b15e1fab23c7233c631a96b39a9e65cd6;
-    uint256 internal constant DELTA_Y1_PART1 = 0x00000000000000000000000000000000140e8fc4f79c587b729aaac3993a6a2a;
-    uint256 internal constant DELTA_Y1_PART2 = 0xdadcfd8fd5f1dbbec5ec9c6d22fa93a87f22b91b81d1ac93653b641462a8f76e;
+    uint256 internal constant DELTA_X0_PART1 = 0x000000000000000000000000000000000a3498dcd378d26363b751ff71f1f58a;
+    uint256 internal constant DELTA_X0_PART2 = 0x9d9dd025fa977a634510d19acc61f55816fefece39902b606ff8014af4d2e387;
+    uint256 internal constant DELTA_X1_PART1 = 0x000000000000000000000000000000000194c5e9ef224b979cf5a605776dc165;
+    uint256 internal constant DELTA_X1_PART2 = 0x76f92dd0b61666d12d3c6429089dd0780ecefe64f6069ce5d30b3f8963affc32;
+    uint256 internal constant DELTA_Y0_PART1 = 0x00000000000000000000000000000000109f105c11fda7392c890e14a39b21e3;
+    uint256 internal constant DELTA_Y0_PART2 = 0xbd47b8a20b358b96459f02a14ccd8e62de4cefdfd773772d60ff9636fe0dfbc3;
+    uint256 internal constant DELTA_Y1_PART1 = 0x00000000000000000000000000000000095a6688e4ba51aa4c2b5aa10e789c3c;
+    uint256 internal constant DELTA_Y1_PART2 = 0x80fa53a93f81fa668a1df7313c969b6d90d0027397bc1d1f9cb660c15fc9dc4c;
 
+    //-x: G2serde(Affine { x: 0x17732d828fdb5fa9bb7054347a59e152aa77e64cb3c5de0d66a48eb2b640870dd0c4dc3e4ad0403bf981c5e847291d08165027557b65b14245e41cfb21a12361cf8f53eae0fc357ecf8a88bfef16cc425e7e8d31083143ee0974445659ebb697, y: 0x0603ad615c84be8302fa9ddee34b781f8109d381bb73eefa8ae2dc639649bdab671dac1a0a77110a99cf00521147d4a50a08340d7810455c3d5281ff00965999c28f95734739cf434acc09443e699ba2f7c65ac31373085ca5006eb28dca886c })
     // -[x]_2 (negated for pairing)
-    uint256 internal constant X_X0_PART1 = 0x0000000000000000000000000000000014fa34c2e9eaec2194553203d61eb265;
-    uint256 internal constant X_X0_PART2 = 0x51bdde2c2189ececf9ed8d04582f73b704be8dd8735d2881edc77ba51c755d02;
-    uint256 internal constant X_X1_PART1 = 0x000000000000000000000000000000000b7480ac2a19a906d2e0a8b3f3d211ae;
-    uint256 internal constant X_X1_PART2 = 0x2d2e35e522f57d7f050e61311e189d4b2808593c2ab50305cd7e920b5dd91280;
-    uint256 internal constant X_Y0_PART1 = 0x0000000000000000000000000000000018fb2883ed8ef151c425dba2f2bd804a;
-    uint256 internal constant X_Y0_PART2 = 0x7c4d535f208047eceaac25b4b0b61f4665bf5273cd418f96a4bbe6f981490ed9;
-    uint256 internal constant X_Y1_PART1 = 0x00000000000000000000000000000000028b91a0839a4d74a42548a470a8a5c4;
-    uint256 internal constant X_Y1_PART2 = 0xcdbf743dd63d939c2f9c5e666da50a636cbd6acda2b68cc5cbf7d582386f6376;
+    uint256 internal constant X_X0_PART1 = 0x0000000000000000000000000000000017732d828fdb5fa9bb7054347a59e152;
+    uint256 internal constant X_X0_PART2 = 0xaa77e64cb3c5de0d66a48eb2b640870dd0c4dc3e4ad0403bf981c5e847291d08;
+    uint256 internal constant X_X1_PART1 = 0x00000000000000000000000000000000165027557b65b14245e41cfb21a12361;
+    uint256 internal constant X_X1_PART2 = 0xcf8f53eae0fc357ecf8a88bfef16cc425e7e8d31083143ee0974445659ebb697;
+    uint256 internal constant X_Y0_PART1 = 0x000000000000000000000000000000000603ad615c84be8302fa9ddee34b781f;
+    uint256 internal constant X_Y0_PART2 = 0x8109d381bb73eefa8ae2dc639649bdab671dac1a0a77110a99cf00521147d4a5;
+    uint256 internal constant X_Y1_PART1 = 0x000000000000000000000000000000000a08340d7810455c3d5281ff00965999;
+    uint256 internal constant X_Y1_PART2 = 0xc28f95734739cf434acc09443e699ba2f7c65ac31373085ca5006eb28dca886c;
 
+    //-y: G2serde(Affine { x: 0x079784b6b1a87c108a740b944ea3d92a34202f52a1de2fe3ea4d1541af9491bb23fed3c8711314a96e07005f311e4e6a08cb2c812bace1cdf283376f882e9f91f4bfea537b23587c44ac32de2f2d8a891da9f8830d3e689241b0aa1fc6329058, y: 0x0c8f5038c96d3d4a06e5e476bce0f9484ed9f0011c5b3f8f0cc319cb86baf026b995c4f33f294754798a437cc608cc4001ce32568d11e0d4f87d7a85a844295e8ac68f7d22c80195e9cd66b8e19c43cb781e2592515198bad1f7a1eecaeef57d })
     // -[y]_2 (negated for pairing)
-    uint256 internal constant Y_X0_PART1 = 0x0000000000000000000000000000000011f6c6b43b6b6ca21f9b1378fbf25f28;
-    uint256 internal constant Y_X0_PART2 = 0x21ba93c2c28bc7373f707497c005764d9959591e631ff60443388d8e367ca990;
-    uint256 internal constant Y_X1_PART1 = 0x0000000000000000000000000000000001aedff7d3eec751b593ba1d20efec12;
-    uint256 internal constant Y_X1_PART2 = 0x2c57a9f6aa16bc05b13769f94fa299cc336446bfad690ca17bde00bb7ec28f58;
-    uint256 internal constant Y_Y0_PART1 = 0x0000000000000000000000000000000005c4dedbad98d18a48661c6c48a334eb;
-    uint256 internal constant Y_Y0_PART2 = 0xf7451a68b148f3362e6d6b5b5d9bf656f5e1f26bb43a80f4878fb8b72957b519;
-    uint256 internal constant Y_Y1_PART1 = 0x0000000000000000000000000000000019701d0f9998a1a2d75448f850a3c380;
-    uint256 internal constant Y_Y1_PART2 = 0x3b2bc410f121c5a683fb36593ec1b18747380eeb44f4406c1770f82b3a5fd51a;
+    uint256 internal constant Y_X0_PART1 = 0x00000000000000000000000000000000079784b6b1a87c108a740b944ea3d92a;
+    uint256 internal constant Y_X0_PART2 = 0x34202f52a1de2fe3ea4d1541af9491bb23fed3c8711314a96e07005f311e4e6a;
+    uint256 internal constant Y_X1_PART1 = 0x0000000000000000000000000000000008cb2c812bace1cdf283376f882e9f91;
+    uint256 internal constant Y_X1_PART2 = 0xf4bfea537b23587c44ac32de2f2d8a891da9f8830d3e689241b0aa1fc6329058;
+    uint256 internal constant Y_Y0_PART1 = 0x000000000000000000000000000000000c8f5038c96d3d4a06e5e476bce0f948;
+    uint256 internal constant Y_Y0_PART2 = 0x4ed9f0011c5b3f8f0cc319cb86baf026b995c4f33f294754798a437cc608cc40;
+    uint256 internal constant Y_Y1_PART1 = 0x0000000000000000000000000000000001ce32568d11e0d4f87d7a85a844295e;
+    uint256 internal constant Y_Y1_PART2 = 0x8ac68f7d22c80195e9cd66b8e19c43cb781e2592515198bad1f7a1eecaeef57d;
 
     /// @notice Load verification keys to memory in runtime.
     /// @dev The constants are loaded into memory in a specific layout declared in the constants starting from
@@ -472,29 +485,53 @@ contract Verifier is IVerifier {
     /// NOTE: Function may corrupt the memory state if some memory was used before this function was called.
     function _loadVerificationKey() internal pure virtual {
         assembly {
+            /*
+            "lagrange_KL": {
+                "x": "0x11018a9b67e60290cb9fe932b998651f1203fcdedf861280abcac156f2ffd1366b392a08934c2b9b049ca3ddf6b44358",
+                "y": "0x0f0d92fa6d759b9600258018ae7763e08b66edba1ab33fd567828789a3d9a764c836db47e893545149229fa333ea485b"
+            }
+            */
             // preproccessed KL commitment vk
-            mstore(VK_POLY_KXLX_X_PART1, 0x0000000000000000000000000000000013d25bb3f810de6e1dcf435f7561fdb1)
-            mstore(VK_POLY_KXLX_X_PART2, 0x627678dae6390a7b01155b74c45a42573788dd405ee72d93ca771aac3125197f)
-            mstore(VK_POLY_KXLX_Y_PART1, 0x0000000000000000000000000000000000de773cd3e222498dc98712a3fa6a60)
-            mstore(VK_POLY_KXLX_Y_PART2, 0xef5559e0ee1fc5ad82792cf4671c7a20acb8150725fbf9f6bda2bba017e1fd66)
+            mstore(VK_POLY_KXLX_X_PART1, 0x0000000000000000000000000000000011018a9b67e60290cb9fe932b998651f)
+            mstore(VK_POLY_KXLX_X_PART2, 0x1203fcdedf861280abcac156f2ffd1366b392a08934c2b9b049ca3ddf6b44358)
+            mstore(VK_POLY_KXLX_Y_PART1, 0x000000000000000000000000000000000f0d92fa6d759b9600258018ae7763e0)
+            mstore(VK_POLY_KXLX_Y_PART2, 0x8b66edba1ab33fd567828789a3d9a764c836db47e893545149229fa333ea485b)
 
+            /*
+            "G": {
+                "x": "0x1007876202a43775254ed802a9ebed25ea1aab54fd30a20504e9ee8742fa40046bbae8cdc0c52aea3e1424ad5a349d9a",
+                "y": "0x15691a58a3323804f644e7aac6e641c9f7a12bbe04de03450e9fb19441147e38c30d8f2ca1f0c175d7f18b4665809749"
+            }
+            */
             // [1]_1 (Generator/Identity point)
-            mstore(VK_IDENTITY_X_PART1, 0x00000000000000000000000000000000028f8a44ae00ff0e6660d2cee552f153)
-            mstore(VK_IDENTITY_X_PART2, 0x745dbd5d8239a8b21eb337a0344fdf5fd9fe1dfaa6a8248c5a4d44b2ba3e0fe0)
-            mstore(VK_IDENTITY_Y_PART1, 0x000000000000000000000000000000000dfd148cd714beb02387ccaa7f37dad6)
-            mstore(VK_IDENTITY_Y_PART2, 0xad58e6704246d96d642b0764c104967e8914c8822ecc689a90bfeb47db5a114e)
+            mstore(VK_IDENTITY_X_PART1, 0x000000000000000000000000000000001007876202a43775254ed802a9ebed25)
+            mstore(VK_IDENTITY_X_PART2, 0xea1aab54fd30a20504e9ee8742fa40046bbae8cdc0c52aea3e1424ad5a349d9a)
+            mstore(VK_IDENTITY_Y_PART1, 0x0000000000000000000000000000000015691a58a3323804f644e7aac6e641c9)
+            mstore(VK_IDENTITY_Y_PART2, 0xf7a12bbe04de03450e9fb19441147e38c30d8f2ca1f0c175d7f18b4665809749)
 
+            /*
+            "x": {
+                "x": "0x0b5eee9e5578a8d8ab2af3e083bb817ef6f0b490ba44184c80dc24109b69266f69befb70ee6f91009c5b283a0a6d801c",
+                "y": "0x064ac370da0b6beb2bbe69080918d19a283e721b166e402b071be1ef6662adf274d47aa5f4e58852fde3492b80f7f670"
+            },
+            */
             // [x]_1 (Polynomial evaluation point)
-            mstore(VK_POLY_X_X_PART1, 0x0000000000000000000000000000000017f979d9641d6c78c2b2f276567c9aa9)
-            mstore(VK_POLY_X_X_PART2, 0x373f99a477cee235ed39228d7c7a478038eba172ec9f30f05b341f8659e2f717)
-            mstore(VK_POLY_X_Y_PART1, 0x000000000000000000000000000000000d62461a124444f79d00ea8ee1c4a04d)
-            mstore(VK_POLY_X_Y_PART2, 0x2329a34bbfd42609292ffdd40d46efc2e5507d50c6e1dda06d2c11938aae6a82)
+            mstore(VK_POLY_X_X_PART1, 0x000000000000000000000000000000000b5eee9e5578a8d8ab2af3e083bb817e)
+            mstore(VK_POLY_X_X_PART2, 0xf6f0b490ba44184c80dc24109b69266f69befb70ee6f91009c5b283a0a6d801c)
+            mstore(VK_POLY_X_Y_PART1, 0x00000000000000000000000000000000064ac370da0b6beb2bbe69080918d19a)
+            mstore(VK_POLY_X_Y_PART2, 0x283e721b166e402b071be1ef6662adf274d47aa5f4e58852fde3492b80f7f670)
 
+            /*
+            "y": {
+                "x": "0x05c875c0b8d3534624ee5bb6e9ecab3d62a3c960033d6ae5a4b78d673cec996c26f81564c79d3e16a4c4791c155d9f39",
+                "y": "0x19484450d4bb901517dbecdfc09eef7216ad83df49df0ad0690d6a70607842521e8c9daa6e7896dfd822982ea0b36edb"
+            }
+            */
             // [y]_1 (Polynomial evaluation point)
-            mstore(VK_POLY_Y_X_PART1, 0x00000000000000000000000000000000006490a3bc4eff19e3d5866686a5a611)
-            mstore(VK_POLY_Y_X_PART2, 0xa311af5dadf553088a95cb809ae08d66f4c63a230f7e2471b6df2ee036cc7b96)
-            mstore(VK_POLY_Y_Y_PART1, 0x00000000000000000000000000000000196f181f0cbf214e203c0fcb6cd574fb)
-            mstore(VK_POLY_Y_Y_PART2, 0x42625bd95f626ea8629a0dcc327fda7d6dbf8218d78a510891d095b266344af3)
+            mstore(VK_POLY_Y_X_PART1, 0x0000000000000000000000000000000005c875c0b8d3534624ee5bb6e9ecab3d)
+            mstore(VK_POLY_Y_X_PART2, 0x62a3c960033d6ae5a4b78d673cec996c26f81564c79d3e16a4c4791c155d9f39)
+            mstore(VK_POLY_Y_Y_PART1, 0x0000000000000000000000000000000019484450d4bb901517dbecdfc09eef72)
+            mstore(VK_POLY_Y_Y_PART2, 0x16ad83df49df0ad0690d6a70607842521e8c9daa6e7896dfd822982ea0b36edb)
         }
     }
 
@@ -556,7 +593,7 @@ contract Verifier is IVerifier {
                 mstore(0x80, s)
                 // BLS12-381 G1MSM at address 0x0c
                 if iszero(staticcall(gas(), 0x0c, 0, 0xa0, dest, 0x80)) {
-                    revertWithMessage(32, "g1pointMulIntoDest: G1MSM failed")
+                    revertWithMessage(30, "g1pointMulIntoDest: G1MSM failed")
                 }
             }
 
@@ -572,7 +609,7 @@ contract Verifier is IVerifier {
                 mstore(0xe0, mload(add(p2, 0x60)))
                 //  BLS12-381 G1ADDat address 0x0b
                 if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
-                    revertWithMessage(32, "g1pointAddIntoDest: G1ADD failed")
+                    revertWithMessage(30, "g1pointAddIntoDest: G1ADD failed")
                 }
             }
 
@@ -585,15 +622,13 @@ contract Verifier is IVerifier {
                 mstore(0x80, s)
                 let success := staticcall(gas(), 0x0c, 0, 0xa0, 0, 0x80)
 
-                if iszero(success) { revertWithMessage(24, "g1pointMulAndAddIntoDest") }
-
                 mstore(0x80, mload(dest))
                 mstore(0xa0, mload(add(dest, 0x20)))
                 mstore(0xc0, mload(add(dest, 0x40)))
                 mstore(0xe0, mload(add(dest, 0x60)))
                 success := and(success, staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80))
 
-                if iszero(success) { revertWithMessage(24, "g1pointMulAndAddIntoDest") }
+                if iszero(success) { revertWithMessage(22, "g1pointMulAndAddIntoDest") }
             }
 
             /// @dev Performs a point subtraction operation and updates the first point with the result.
@@ -628,6 +663,8 @@ contract Verifier is IVerifier {
                 case 1 {
                     // Need to borrow from high part
                     neg_y_low := sub(Q_MOD_PART2, y_low)
+                    neg_y_low := add(neg_y_low, not(0)) // Add 2^256
+                    neg_y_low := add(neg_y_low, 1)
                     borrow := 1
                 }
                 default { neg_y_low := sub(Q_MOD_PART2, y_low) }
@@ -644,6 +681,56 @@ contract Verifier is IVerifier {
                 }
             }
 
+            /// @dev Performs a point subtraction operation and updates dest with the result.
+            function g1pointSubIntoDest(p1, p2, dest) {
+                // We'll use the fact that for BLS12-381 with 48-byte coordinates,
+                // the precompile expects the full 384-bit representation
+
+                // Copy p1 to memory
+                mstore(0x00, mload(p1))
+                mstore(0x20, mload(add(p1, 0x20)))
+                mstore(0x40, mload(add(p1, 0x40)))
+                mstore(0x60, mload(add(p1, 0x60)))
+
+                // Copy p2's x-coordinate
+                mstore(0x80, mload(p2))
+                mstore(0xa0, mload(add(p2, 0x20)))
+
+                // For the y-coordinate, we need to negate it
+                // In BLS12-381, -y = q - y where q is the field modulus
+                let y_low := mload(add(p2, 0x60))
+                let y_high := mload(add(p2, 0x40))
+
+                // Perform q - y
+                let neg_y_low, neg_y_high
+
+                // Since we're working with 384-bit numbers split into two 256-bit parts,
+                // and the high 128 bits of the high part are always zero for valid field elements
+                let borrow := 0
+
+                // Subtract low part
+                switch lt(Q_MOD_PART2, y_low)
+                case 1 {
+                    // Need to borrow from high part
+                    neg_y_low := sub(Q_MOD_PART2, y_low)
+                    neg_y_low := add(neg_y_low, not(0)) // Add 2^256
+                    neg_y_low := add(neg_y_low, 1)
+                    borrow := 1
+                }
+                default { neg_y_low := sub(Q_MOD_PART2, y_low) }
+
+                // Subtract high part with borrow
+                neg_y_high := sub(sub(Q_MOD_PART1, y_high), borrow)
+
+                mstore(0xc0, neg_y_high)
+                mstore(0xe0, neg_y_low)
+
+                // Perform the addition
+                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
+                    revertWithMessage(28, "pointSubAssign: G1ADD failed")
+                }
+            }
+
             /*//////////////////////////////////////////////////////////////
                                         Transcript helpers
                 //////////////////////////////////////////////////////////////*/
@@ -655,8 +742,8 @@ contract Verifier is IVerifier {
                 let newState0 := keccak256(TRANSCRIPT_BEGIN_SLOT, 0x64)
                 mstore8(TRANSCRIPT_DST_BYTE_SLOT, 0x01)
                 let newState1 := keccak256(TRANSCRIPT_BEGIN_SLOT, 0x64)
-                mstore(TRANSCRIPT_STATE_0_SLOT, newState0)
                 mstore(TRANSCRIPT_STATE_1_SLOT, newState1)
+                mstore(TRANSCRIPT_STATE_0_SLOT, newState0)
             }
 
             /// @dev Retrieves a transcript challenge.
@@ -885,12 +972,15 @@ contract Verifier is IVerifier {
                 let isValidSmax
                 {
                     isValidSmax :=
-                        and(and(iszero(and(smax, sub(smax, 1))), iszero(lt(smax, 64))), iszero(gt(smax, 2048)))
+                        or(
+                            or(or(eq(smax, 64), eq(smax, 128)), or(eq(smax, 256), eq(smax, 512))),
+                            or(eq(smax, 1024), eq(smax, 2048))
+                        )
                     mstore(PARAM_SMAX, smax)
                 }
 
                 // Revert if smax is not valid
-                if iszero(isValidSmax) { revertWithMessage(26, "loadProof: smax is invalid") }
+                if iszero(isValidSmax) { revertWithMessage(27, "loadProof: smax is invalid") }
             }
 
             /*//////////////////////////////////////////////////////////////
@@ -1053,7 +1143,7 @@ contract Verifier is IVerifier {
             // lagrange_K0_eval computation
             function computeLagrangeK0Eval() {
                 let chi := mload(CHALLENGE_CHI_SLOT)
-                let m_i := CONSTANT_MI
+                let m_i := CONSTANT_MI // 256
 
                 // For k0_evals = [1, 0, 0, ..., 0], the polynomial evaluation becomes:
                 // lagrange_K0_eval = L_0(chi) where L_0 is the 0th Lagrange basis polynomial
@@ -1061,7 +1151,7 @@ contract Verifier is IVerifier {
                 // This is mathematically equivalent to: (chi^m_i - 1) / (m_i * (chi - 1))
 
                 // Safety check: χ cannot be 1
-                if eq(chi, 1) { revertWithMessage(18, "chi cannot be eq 1") }
+                if eq(chi, 1) { revert(0, 0) }
 
                 // Compute χ^m_i mod R_MOD
                 let chi_mi := modexp(chi, m_i)
@@ -1074,7 +1164,7 @@ contract Verifier is IVerifier {
                 let denominator := mulmod(m_i, chi_1, R_MOD)
 
                 // Check denominator is not zero
-                if iszero(denominator) { revertWithMessage(15, "denomiator eq 0") }
+                if iszero(denominator) { revert(0, 0) }
 
                 // Compute modular inverse using Fermat's little theorem
                 let inv_denominator := modexp(denominator, sub(R_MOD, 2))
@@ -1089,7 +1179,8 @@ contract Verifier is IVerifier {
                 let chi := mload(CHALLENGE_CHI_SLOT)
                 let offset := calldataload(0x84)
 
-                let n := 128
+                let n := 64
+                let omega := OMEGA_64
 
                 // Compute chi^128 - 1
                 let chi_n := modexp(chi, n)
@@ -1105,7 +1196,7 @@ contract Verifier is IVerifier {
                             mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
                             leave
                         }
-                        omega_power := mulmod(omega_power, OMEGA_128, R_MOD)
+                        omega_power := mulmod(omega_power, omega, R_MOD)
                     }
                 }
 
@@ -1137,10 +1228,10 @@ contract Verifier is IVerifier {
 
                     // For small i, use repeated multiplication
                     if lt(i, 16) {
-                        for { let k := 0 } lt(k, i) { k := add(k, 1) } { omega_i := mulmod(omega_i, OMEGA_128, R_MOD) }
+                        for { let k := 0 } lt(k, i) { k := add(k, 1) } { omega_i := mulmod(omega_i, omega, R_MOD) }
                     }
                     // For larger i, use modexp
-                    if iszero(lt(i, 16)) { omega_i := modexp(OMEGA_128, i) }
+                    if iszero(lt(i, 16)) { omega_i := modexp(omega, i) }
 
                     // Compute contribution
                     let denominator := addmod(chi, sub(R_MOD, omega_i), R_MOD)
@@ -1173,7 +1264,7 @@ contract Verifier is IVerifier {
             ///
             /// where
             ///
-            /// [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
+            /// [LHS_A]_1 := V_{x,y}[U]_1 - [W]_1 + κ1([V]_1 - V_{x,y}[G]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
             ///
             ///
             /// and where
@@ -1225,7 +1316,7 @@ contract Verifier is IVerifier {
                     mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT),
                     BUFFER_AGGREGATED_POLY_X_SLOT_PART1
                 )
-                // V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
+                // V_{x,y}[U]_1 - [W]_1 + κ1 * ([V]_1 - V_{x,y}[1]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
                 g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
             }
 
@@ -1233,6 +1324,7 @@ contract Verifier is IVerifier {
             function prepareLHSB() {
                 let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
                 let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
+                let A_pub := mload(INTERMEDIARY_SCALAR_APUB_SLOT)
 
                 // 1+κ2κ1^4
                 let coeff1 := addmod(1, mulmod(kappa2, modexp(kappa1, 4), R_MOD), R_MOD)
@@ -1348,6 +1440,10 @@ contract Verifier is IVerifier {
                 case 512 { omega_smax_inv := OMEGA_SMAX_512_MINUS_1 }
                 case 1024 { omega_smax_inv := OMEGA_SMAX_1024_MINUS_1 }
                 case 2048 { omega_smax_inv := OMEGA_SMAX_2048_MINUS_1 }
+                default {
+                    // This should never happen if loadProof validation is correct
+                    revertWithMessage(25, "Invalid smax for omega")
+                }
             }
 
             /// @dev [LHS]_1 := [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)

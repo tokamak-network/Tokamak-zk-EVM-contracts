@@ -5,11 +5,12 @@ import {RLP} from "./library/RLP.sol";
 
 /**
  * @title MerklePatriciaTrie
- * @dev Full implementation of Ethereum's Merkle Patricia Trie matching MerkleStateManager
+ * @dev Full implementation of Ethereum's Merkle Patricia Trie with proper RLP decoding
  */
 contract MerklePatriciaTrie {
     using RLP for bytes;
     using RLP for bytes[];
+    using RLP for RLP.RLPItem;
 
     // Empty trie hash (keccak256(RLP([])))
     bytes32 public constant EMPTY_TRIE_HASH = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421;
@@ -183,8 +184,8 @@ contract MerklePatriciaTrie {
             bytes memory leafKey = _hexPrefix(remainingKey, true);
 
             bytes[] memory items = new bytes[](2);
-            items[0] = leafKey.encode();
-            items[1] = value.encode();
+            items[0] = leafKey;
+            items[1] = value;
 
             return _putNode(items.encodeList());
         }
@@ -204,7 +205,7 @@ contract MerklePatriciaTrie {
                     // Update existing leaf
                     bytes[] memory newLeaf = new bytes[](2);
                     newLeaf[0] = encodedPath;
-                    newLeaf[1] = value.encode();
+                    newLeaf[1] = value;
                     return _putNode(newLeaf.encodeList());
                 }
 
@@ -224,11 +225,11 @@ contract MerklePatriciaTrie {
 
                 // Insert new value
                 if (keyIndex + matchingLen == key.length) {
-                    branch = _insertBranch(branch, 16, value.encode());
+                    branch = _insertBranch(branch, 16, value);
                 } else {
                     uint8 newBranchKey = uint8(key[keyIndex + matchingLen]);
-                    branch = _insert(bytes32(0), key, value, keyIndex + matchingLen + 1);
-                    branch = _insertBranch(branch, newBranchKey, _getNode(branch));
+                    bytes32 newNode = _insert(bytes32(0), key, value, keyIndex + matchingLen + 1);
+                    branch = _insertBranch(branch, newBranchKey, _getNode(newNode));
                 }
 
                 if (matchingLen > 0) {
@@ -278,7 +279,7 @@ contract MerklePatriciaTrie {
             // Branch node
             if (keyIndex == key.length) {
                 // Insert at branch value
-                nodeList[16] = value.encode();
+                nodeList[16] = value;
                 return _putNode(nodeList.encodeList());
             }
 
@@ -344,10 +345,10 @@ contract MerklePatriciaTrie {
     /**
      * @dev Create leaf node
      */
-    function _createLeaf(bytes memory path, bytes memory value) private pure returns (bytes memory) {
+    function _createLeaf(bytes memory path, bytes memory value) private returns (bytes memory) {
         bytes memory leafKey = _hexPrefix(path, true);
         bytes[] memory items = new bytes[](2);
-        items[0] = leafKey.encode();
+        items[0] = leafKey;
         items[1] = value;
         return items.encodeList();
     }
@@ -358,7 +359,7 @@ contract MerklePatriciaTrie {
     function _createExtension(bytes memory path, bytes32 next) private returns (bytes32) {
         bytes memory extKey = _hexPrefix(path, false);
         bytes[] memory items = new bytes[](2);
-        items[0] = extKey.encode();
+        items[0] = extKey;
         items[1] = abi.encode(next);
         return _putNode(items.encodeList());
     }
@@ -407,49 +408,10 @@ contract MerklePatriciaTrie {
     }
 
     /**
-     * @dev Decode RLP list (simplified version)
+     * @dev Decode RLP list using the proper decoder
      */
     function _decodeList(bytes memory rlpData) private pure returns (bytes[] memory) {
-        // This is a simplified decoder - full implementation would be more complex
-        // For production, use a complete RLP decoder library
-
-        uint8 prefix = uint8(rlpData[0]);
-        require(prefix >= 0xc0, "Not a list");
-
-        uint256 length;
-        uint256 dataOffset;
-
-        if (prefix <= 0xf7) {
-            length = prefix - 0xc0;
-            dataOffset = 1;
-        } else {
-            uint256 lenLen = prefix - 0xf7;
-            assembly ("memory-safe") {
-                length := mload(add(rlpData, add(1, lenLen)))
-            }
-            dataOffset = 1 + lenLen;
-        }
-
-        // Count items (simplified)
-        uint256 itemCount = 0;
-        uint256 offset = dataOffset;
-        while (offset < dataOffset + length) {
-            itemCount++;
-            // Skip item (simplified - assumes single byte items for counting)
-            if (uint8(rlpData[offset]) < 0x80) {
-                offset += 1;
-            } else if (uint8(rlpData[offset]) <= 0xb7) {
-                offset += 1 + (uint8(rlpData[offset]) - 0x80);
-            } else {
-                revert("Complex RLP not fully implemented");
-            }
-        }
-
-        bytes[] memory items = new bytes[](itemCount);
-        // Decode items (simplified)
-        // Full implementation would properly decode each item
-
-        return items;
+        return rlpData.decode();
     }
 
     /**

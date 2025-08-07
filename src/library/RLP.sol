@@ -12,7 +12,7 @@ library RLP {
         } else if (item.length <= 55) {
             bytes memory result = new bytes(item.length + 1);
             result[0] = bytes1(uint8(0x80 + item.length));
-            for (uint i = 0; i < item.length; i++) {
+            for (uint256 i = 0; i < item.length; i++) {
                 result[i + 1] = item[i];
             }
             return result;
@@ -20,50 +20,50 @@ library RLP {
             return encodeLongItem(item);
         }
     }
-    
+
     function encodeLongItem(bytes memory item) private pure returns (bytes memory) {
         uint256 length = item.length;
         uint256 lenLen = 0;
         uint256 temp = length;
-        
+
         while (temp != 0) {
             lenLen++;
             temp /= 256;
         }
-        
+
         bytes memory result = new bytes(1 + lenLen + length);
         result[0] = bytes1(uint8(0xb7 + lenLen));
-        
-        for (uint i = 0; i < lenLen; i++) {
+
+        for (uint256 i = 0; i < lenLen; i++) {
             result[lenLen - i] = bytes1(uint8(length / (256 ** i)));
         }
-        
-        for (uint i = 0; i < length; i++) {
+
+        for (uint256 i = 0; i < length; i++) {
             result[i + 1 + lenLen] = item[i];
         }
-        
+
         return result;
     }
-    
+
     function encodeList(bytes[] memory items) internal pure returns (bytes memory) {
         uint256 totalLen = 0;
-        for (uint i = 0; i < items.length; i++) {
+        for (uint256 i = 0; i < items.length; i++) {
             totalLen += items[i].length;
         }
-        
+
         bytes memory list = new bytes(totalLen);
         uint256 offset = 0;
-        for (uint i = 0; i < items.length; i++) {
-            for (uint j = 0; j < items[i].length; j++) {
+        for (uint256 i = 0; i < items.length; i++) {
+            for (uint256 j = 0; j < items[i].length; j++) {
                 list[offset + j] = items[i][j];
             }
             offset += items[i].length;
         }
-        
+
         if (totalLen <= 55) {
             bytes memory result = new bytes(totalLen + 1);
             result[0] = bytes1(uint8(0xc0 + totalLen));
-            for (uint i = 0; i < totalLen; i++) {
+            for (uint256 i = 0; i < totalLen; i++) {
                 result[i + 1] = list[i];
             }
             return result;
@@ -71,27 +71,27 @@ library RLP {
             return encodeLongList(list, totalLen);
         }
     }
-    
+
     function encodeLongList(bytes memory list, uint256 length) private pure returns (bytes memory) {
         uint256 lenLen = 0;
         uint256 temp = length;
-        
+
         while (temp != 0) {
             lenLen++;
             temp /= 256;
         }
-        
+
         bytes memory result = new bytes(1 + lenLen + length);
         result[0] = bytes1(uint8(0xf7 + lenLen));
-        
-        for (uint i = 0; i < lenLen; i++) {
+
+        for (uint256 i = 0; i < lenLen; i++) {
             result[lenLen - i] = bytes1(uint8(length / (256 ** i)));
         }
-        
-        for (uint i = 0; i < length; i++) {
+
+        for (uint256 i = 0; i < length; i++) {
             result[i + 1 + lenLen] = list[i];
         }
-        
+
         return result;
     }
 }

@@ -19,15 +19,12 @@ interface IZKRollupBridge {
         uint256 id;
         address targetContract;
         bytes32 computationType; // e.g., keccak256("TON_TRANSFER")
-
         // MPT
-        address mptContract;  // Dedicated MPT instance for this channel
+        address mptContract; // Dedicated MPT instance for this channel
         bytes32 currentStateRoot;
-        uint256[] contractSlots;  // Contract storage slots to track
-        
+        uint256[] contractSlots; // Contract storage slots to track
         // MT
         bytes32[] zkMerkleRoots; // Multiple trees for different state components
-
         // Participants
         User[] participants;
         mapping(address => address) l2PublicKeys;
@@ -95,10 +92,7 @@ interface IZKRollupBridge {
 
     function depositToken(uint256 _channelId, address _token, uint256 _amount) external;
 
-    function withdrawAfterClose(
-        uint256 channelId,
-        uint256 claimedBalance
-    ) external;
+    function withdrawAfterClose(uint256 channelId, uint256 claimedBalance) external;
 
     function initializeChannelState(uint256 channelId) external;
 

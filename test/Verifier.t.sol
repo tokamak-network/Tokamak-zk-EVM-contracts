@@ -30,7 +30,6 @@ contract testTokamakVerifier is Test {
         // preprocessedPart1: First 16 bytes (32 hex chars) of each preprocessed committment coordinate
         // preprocessedPart2: last 32 bytes (64 hex chars) of each preprocessed committment coordinate
 
-
         // PREPROCESSED PART 1 (First 16 bytes - 32 hex chars)
         preprocessedPart1.push(0x042df2d7ba82218503dbadeaa9e87792);
         preprocessedPart1.push(0x0801f08b0423c3bb6cc7640b59e2ad81);

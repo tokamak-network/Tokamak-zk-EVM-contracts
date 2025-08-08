@@ -7,7 +7,6 @@ interface IZKRollupBridge {
     struct Signature {
         uint256 R_x;
         uint256 R_y;
-        uint256 s;
     }
 
     struct User {
@@ -18,30 +17,27 @@ interface IZKRollupBridge {
     struct Channel {
         uint256 id;
         address targetContract;
-        bytes32 computationType; // e.g., keccak256("TON_TRANSFER")
-        // MPT
-        address mptContract; // Dedicated MPT instance for this channel
-        bytes32 currentStateRoot;
-        uint256[] contractSlots; // Contract storage slots to track
-        // MT
-        bytes32[] zkMerkleRoots; // Multiple trees for different state components
+        // Merkle Tree
+        address merkleTreeContract; // MerkleTreeWrapper instance for this channel
+        bytes32 initialStateRoot; // Root after initialization
+        bytes32 finalStateRoot; // Root after closing
         // Participants
         User[] participants;
-        mapping(address => address) l2PublicKeys;
+        mapping(address => address) l2PublicKeys; // L1 => L2 address mapping
         mapping(address => bool) isParticipant;
-        mapping(address => uint256) tokenTotalDeposits;
-        mapping(address => mapping(address => uint256)) tokenDeposits; // token => user => amount
+        // Deposits
+        mapping(address => uint256) tokenDeposits; //  user => amount
+        uint256 tokenTotalDeposits; // total deposited
         // Channel state
         ChannelState state;
         uint256 openTimestamp;
         uint256 closeTimestamp;
         uint256 timeout;
         address leader;
-        // Commitments for preprocessing
+        // ZK Proof commitments
         uint128[] preprocessedPart1;
         uint256[] preprocessedPart2;
-        // Final state
-        bytes32 finalStateRoot;
+        // Closing process
         bytes32 aggregatedProofHash;
         uint256 requiredSignatures;
         uint256 receivedSignatures;
@@ -79,10 +75,8 @@ interface IZKRollupBridge {
 
     function openChannel(
         address targetContract,
-        bytes32 computationType,
         address[] calldata participants,
         address[] calldata l2PublicKeys,
-        uint256[] calldata contractSlots,
         uint128[] calldata preprocessedPart1,
         uint256[] calldata preprocessedPart2,
         uint256 timeout
@@ -92,7 +86,12 @@ interface IZKRollupBridge {
 
     function depositToken(uint256 _channelId, address _token, uint256 _amount) external;
 
-    function withdrawAfterClose(uint256 channelId, uint256 claimedBalance) external;
+    function withdrawAfterClose(
+        uint256 channelId,
+        uint256 claimedBalance,
+        uint256 leafIndex,
+        bytes32[] calldata merkleProof
+    ) external;
 
     function initializeChannelState(uint256 channelId) external;
 
@@ -103,5 +102,11 @@ interface IZKRollupBridge {
     function getChannelInfo(uint256 channelId)
         external
         view
-        returns (address, ChannelState, uint256, bytes32[] memory);
+        returns (
+            address targetContract,
+            ChannelState state,
+            uint256 participantCount,
+            bytes32 initialRoot,
+            bytes32 finalRoot
+        );
 }

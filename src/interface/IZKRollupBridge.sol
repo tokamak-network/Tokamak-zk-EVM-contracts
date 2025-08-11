@@ -43,6 +43,8 @@ interface IZKRollupBridge {
         uint256 receivedSignatures;
         mapping(address => bool) hasSigned;
         mapping(address => bool) hasWithdrawn;
+        // Group/threshold signature support
+        bytes32 groupPublicKey;
     }
 
     // ============= ENUM =============
@@ -79,7 +81,8 @@ interface IZKRollupBridge {
         address[] calldata l2PublicKeys,
         uint128[] calldata preprocessedPart1,
         uint256[] calldata preprocessedPart2,
-        uint256 timeout
+        uint256 timeout,
+        bytes32 groupPublicKey
     ) external returns (uint256 channelId);
 
     function depositETH(uint256 _channelId) external payable;

@@ -7,13 +7,13 @@ import {Poseidon2} from "@poseidon/src/Poseidon2.sol";
 /**
  * @title MerkleTreeManager
  * @dev Unified incremental merkle tree for tracking user balances with RLC
+ * FIXED: rootSequence is now updated after each insertion to maintain RLC chain
  */
 contract MerkleTreeManager {
     // Constants
     uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
     uint256 public constant BLS_FIELD_MODULUS = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     uint256 public constant BALANCE_SLOT = 0;
-    bytes32 public constant ZERO_ELEMENT = bytes32(0x0d823319708ab99ec915efd4f7e03d11ca1790918e8f04cd14100aceca2aa9ff);
     uint32 public constant ROOT_HISTORY_SIZE = 30;
 
     // Structs
@@ -60,7 +60,7 @@ contract MerkleTreeManager {
     // Events
     event Initialized(bytes32 initialRoot);
     event UsersAdded(uint256 count, bytes32 newRoot);
-    event LeafInserted(uint32 leafIndex, bytes32 leaf);
+    event LeafInserted(uint32 leafIndex, bytes32 leaf, bytes32 newRoot);
 
     constructor(address _poseidonHasher, uint32 _depth) {
         if (_depth == 0) revert DepthTooSmall(_depth);
@@ -87,6 +87,7 @@ contract MerkleTreeManager {
 
     /**
      * @dev Add all users with their initial balances
+     * FIXED: Now properly maintains RLC chain by updating rootSequence after each insertion
      */
     function addUsers(address[] calldata l1Addresses, uint256[] calldata balances) external {
         if (l1Addresses.length != balances.length) revert LengthMismatch();
@@ -98,32 +99,31 @@ contract MerkleTreeManager {
             address l2Addr = l1ToL2[l1Addr];
             if (l2Addr == address(0)) revert L2AddressNotSet();
 
-            // Compute RLC leaf
+            // FIXED: Compute RLC leaf using current state of rootSequence
             bytes32 leaf = _computeLeaf(uint256(uint160(l2Addr)), balances[i]);
 
-            // Insert into tree
-            uint32 leafIndex = _insert(leaf);
+            // Insert into tree and get new root
+            (uint32 leafIndex, bytes32 newRoot) = _insertAndGetRoot(leaf);
+
+            // FIXED: Update rootSequence immediately after each insertion
+            rootSequence.push(newRoot);
+            nonce++;
 
             // Store user data
             users.push(UserData({l1Address: l1Addr, l2Address: l2Addr, balance: balances[i]}));
-
             userIndex[l1Addr] = i;
 
-            emit LeafInserted(leafIndex, leaf);
+            emit LeafInserted(leafIndex, leaf, newRoot);
         }
 
-        // Update root sequence
-        bytes32 newRoot = getLatestRoot();
-        rootSequence.push(newRoot);
-        nonce++;
-
-        emit UsersAdded(l1Addresses.length, newRoot);
+        emit UsersAdded(l1Addresses.length, getLatestRoot());
     }
 
     /**
-     * @dev Insert a leaf into the tree
+     * @dev Insert a leaf into the tree and return both index and new root
+     * FIXED: Returns the new root so we can update rootSequence immediately
      */
-    function _insert(bytes32 _leaf) internal returns (uint32 index) {
+    function _insertAndGetRoot(bytes32 _leaf) internal returns (uint32 index, bytes32 newRoot) {
         uint32 _nextLeafIndex = nextLeafIndex;
         if (_nextLeafIndex == uint32(2) ** depth) {
             revert MerkleTreeFull(_nextLeafIndex);
@@ -152,7 +152,7 @@ contract MerkleTreeManager {
         roots[newRootIndex] = currentHash;
         nextLeafIndex = _nextLeafIndex + 1;
 
-        return _nextLeafIndex;
+        return (_nextLeafIndex, currentHash);
     }
 
     /**
@@ -167,9 +167,11 @@ contract MerkleTreeManager {
 
     /**
      * @dev Compute RLC leaf value
+     * FIXED: Now correctly uses the most recent root in the sequence
      */
     function _computeLeaf(uint256 l2Addr, uint256 balance) private view returns (bytes32) {
-        uint256 prevRoot = (nonce == 0) ? BALANCE_SLOT : uint256(rootSequence[rootSequence.length - 1]);
+        // Use the most recent root in the sequence
+        uint256 prevRoot = (rootSequence.length == 0) ? BALANCE_SLOT : uint256(rootSequence[rootSequence.length - 1]);
 
         // Compute gamma = Poseidon2(prevRoot, l2Addr)
         uint256 gamma = uint256(
@@ -311,6 +313,21 @@ contract MerkleTreeManager {
      */
     function getCurrentRoot() external view returns (bytes32) {
         return getLatestRoot();
+    }
+
+    /**
+     * @dev Get root at specific index in sequence
+     */
+    function getRootAtIndex(uint256 index) external view returns (bytes32) {
+        require(index < rootSequence.length, "Index out of bounds");
+        return rootSequence[index];
+    }
+
+    /**
+     * @dev Get the length of root sequence
+     */
+    function getRootSequenceLength() external view returns (uint256) {
+        return rootSequence.length;
     }
 
     /**

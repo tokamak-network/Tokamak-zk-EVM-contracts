@@ -65,7 +65,8 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         address[] calldata l2PublicKeys,
         uint128[] calldata preprocessedPart1,
         uint256[] calldata preprocessedPart2,
-        uint256 timeout
+        uint256 timeout,
+        bytes32 groupPublicKey
     ) external onlyAuthorized returns (uint256 channelId) {
         require(!isChannelLeader[msg.sender], "Channel limit reached");
         require(
@@ -93,6 +94,7 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         channel.preprocessedPart1 = preprocessedPart1;
         channel.preprocessedPart2 = preprocessedPart2;
         channel.state = ChannelState.Initialized;
+        channel.groupPublicKey = groupPublicKey;
 
         // Register participants and their public keys
         for (uint256 i = 0; i < participants.length; ++i) {

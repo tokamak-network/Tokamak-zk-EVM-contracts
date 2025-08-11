@@ -115,7 +115,8 @@ contract ZKRollupBridgeTest is Test {
             l2PublicKeys,
             preprocessedPart1,
             preprocessedPart2,
-            1 days
+            1 days,
+            bytes32(0)
         );
         
         assertEq(channelId, 0);
@@ -211,7 +212,7 @@ contract ZKRollupBridgeTest is Test {
         assertTrue(initialRoot != bytes32(0));
     }
     
-    function testInitializeChannelStateNotLeader() public {
+    function testInitialize_ChannelStateNotLeader() public {
         uint256 channelId = _createChannel();
         
         vm.prank(user1);
@@ -380,7 +381,8 @@ contract ZKRollupBridgeTest is Test {
             l2PublicKeys,
             preprocessedPart1,
             preprocessedPart2,
-            1 days
+            1 days,
+            bytes32(0)
         );
         
         vm.stopPrank();
@@ -410,7 +412,8 @@ contract ZKRollupBridgeTest is Test {
             l2PublicKeys,
             preprocessedPart1,
             preprocessedPart2,
-            1 days
+            1 days,
+            bytes32(0)
         );
         
         vm.stopPrank();
@@ -517,7 +520,8 @@ contract ZKRollupBridgeTest is Test {
             l2PublicKeys,
             preprocessedPart1,
             preprocessedPart2,
-            timeout
+            timeout,
+            bytes32(0)
         );
         
         vm.stopPrank();

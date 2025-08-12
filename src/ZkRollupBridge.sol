@@ -182,10 +182,10 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         for (uint256 i = 0; i < channel.participants.length; ++i) {
             address l1Address = channel.participants[i].l1Address;
             address l2Address = channel.participants[i].l2PublicKey;
-            
+
             // Set address pair
             merkleTree.setAddressPair(l1Address, l2Address);
-            
+
             // Prepare arrays for batch addition
             l1Addresses[i] = l1Address;
             balances[i] = channel.tokenDeposits[l1Address];

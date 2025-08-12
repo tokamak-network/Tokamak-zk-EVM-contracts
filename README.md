@@ -6,19 +6,61 @@ This repository implements the core smart contracts for the Tokamak zkEVM rollup
 
 ## Architecture
 
-![Alt text](./images/image.png)
+![Alt text](./images/workflow.png)
 
-## System Components 
+## Overview
+
+This repository contains the smart contracts and documentation for a ZK-Rollup bridge that enables secure off-chain computation with on-chain settlement. The system uses Random Linear Combination (RLC) encoding with Poseidon2 hashing to ensure tamper-evident balance tracking and employs zero-knowledge proofs for comprehensive computation verification.
+
+## Key Features
+
+- **🔐 Cryptographic Security**: RLC encoding creates tamper-evident balance commitments
+- **⚡ Gas Efficiency**: Batch processing and incremental Merkle tree updates
+- **🌳 ZK-Friendly**: Poseidon2 hash function optimized for zero-knowledge circuits
+- **👥 Multi-Party**: Supports 3-50 participants with threshold signature consensus
+- **🛡️ Comprehensive Verification**: 4-layer verification including ZK-SNARK validation
+- **💰 Balance Conservation**: Mathematical guarantees preventing fund creation/destruction
+
+## Architecture
 
 ### Core Components
-The system consists of four main components working in harmony. The state channel layer handles all private transactions and state management within isolated channels. The zkSNARK proving system generates cryptographic proofs of valid state transitions. The Layer 1 smart contracts verify these proofs and maintain channel commitments. 
 
-### Channel Structure
+- **`ZKRollupBridge.sol`**: Main bridge contract managing channels and verification
+- **`MerkleTreeManager.sol`**: Incremental Merkle tree with RLC leaf encoding
+- **`IZKRollupBridge.sol`**: Interface definitions and data structures
 
-Each state channel is identified by a unique 32-byte identifier and managed by a designated leader address. The channel maintains a Merkle tree containing all account states, with the root hash serving as a cryptographic commitment to the entire channel state. A transaction queue ensures ordered processing, while a monotonically increasing nonce prevents replay attacks.
+### Workflow Phases
 
-### Role Definitions
-The system defines two distinct roles with specific responsibilities. Channel leaders administer state transitions, add users to the channel, and submit proofs to Layer 1. Channel participants submit transactions, monitor their account states, and must sign when a new state transition occurs (to avoid full trust on leaders).
+1. **Channel Opening**: Authorization and participant registration with preprocessing
+2. **Deposit Period**: Secure fund collection with balance tracking
+3. **State Initialization**: On-chain RLC computation and initial root storage
+4. **Off-Chain Computation**: High-throughput L2 processing with consensus
+5. **Closure Initiation**: Threshold-signed submission of computation results
+6. **Verification**: 4-layer validation including ZK proof verification
+7. **Settlement**: Cryptographically verified fund distribution
+8. **Cleanup**: Challenge period and storage optimization
+
+## Security Model
+
+### Cryptographic Guarantees
+- **Balance Integrity**: RLC chaining prevents undetected manipulation
+- **State Consistency**: Merkle roots link all state transitions
+- **Consensus Security**: 2/3+ threshold signatures required
+- **ZK Privacy**: Computation verification without revealing details
+
+### Economic Security
+- **Deposit Protection**: Funds locked until valid closure proof
+- **Conservation Laws**: Mathematical balance sum verification
+- **Challenge Period**: 7-day finality window for dispute resolution
+
+
+## Requirements
+
+- Solidity ^0.8.23
+- OpenZeppelin Contracts
+- Poseidon2 hash function library
+- ZK-SNARK verifier contract
+
 
 ## Getting Started
 

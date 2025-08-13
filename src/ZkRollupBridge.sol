@@ -203,7 +203,15 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
 
     // ========== Proof submission and Signing ==========
 
-    function submitAggregatedProof(uint256 channelId, bytes32 aggregatedProofHash, bytes32 finalStateRoot) external {
+    function submitAggregatedProof(
+        uint256 channelId,
+        bytes32 aggregatedProofHash,
+        bytes32 finalStateRoot,
+        uint128[] calldata proofPart1,
+        uint256[] calldata proofPart2,
+        uint256[] calldata publicInputs,
+        uint256 smax
+    ) external {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state");
         require(msg.sender == channel.leader, "Only leader can submit");
@@ -211,6 +219,14 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         channel.aggregatedProofHash = aggregatedProofHash;
         channel.finalStateRoot = finalStateRoot;
         channel.state = ChannelState.Closing;
+
+        // Verify the aggregated ZK proof
+        require(
+            zkVerifier.verify(
+                proofPart1, proofPart2, channel.preprocessedPart1, channel.preprocessedPart2, publicInputs, smax
+            ),
+            "Invalid ZK proof"
+        );
 
         emit ProofAggregated(channelId, aggregatedProofHash);
     }
@@ -237,25 +253,11 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
 
     // ========== Channel Closing ==========
 
-    function closeChannel(
-        uint256 channelId,
-        uint128[] calldata proofPart1,
-        uint256[] calldata proofPart2,
-        uint256[] calldata publicInputs,
-        uint256 smax
-    ) external nonReentrant {
+    function closeChannel(uint256 channelId) external {
         Channel storage channel = channels[channelId];
         require(msg.sender == channel.leader || msg.sender == owner(), "unauthorized caller");
         require(channel.state == ChannelState.Closing, "Not in closing state");
         require(channel.receivedSignatures >= channel.requiredSignatures, "Insufficient signatures");
-
-        // Verify the aggregated ZK proof
-        require(
-            zkVerifier.verify(
-                proofPart1, proofPart2, channel.preprocessedPart1, channel.preprocessedPart2, publicInputs, smax
-            ),
-            "Invalid ZK proof"
-        );
 
         // Clear storage and close channel
         channel.state = ChannelState.Closed;

@@ -98,9 +98,19 @@ interface IZKRollupBridge {
 
     function initializeChannelState(uint256 channelId) external;
 
-    function submitAggregatedProof(uint256 channelId, bytes32 aggregatedProofHash, bytes32 finalStateRoot) external;
+    function submitAggregatedProof(
+        uint256 channelId,
+        bytes32 aggregatedProofHash,
+        bytes32 finalStateRoot,
+        uint128[] calldata proofPart1,
+        uint256[] calldata proofPart2,
+        uint256[] calldata publicInputs,
+        uint256 smax
+    ) external;
 
     function signAggregatedProof(uint256 channelId, Signature calldata signature) external;
+
+    function closeChannel(uint256 channelId) external;
 
     function getChannelInfo(uint256 channelId)
         external

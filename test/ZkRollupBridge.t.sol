@@ -218,17 +218,14 @@ contract ZKRollupBridgeTest is Test {
         bytes32 proofHash = keccak256("proof");
         bytes32 finalRoot = keccak256("finalRoot");
 
-        vm.prank(leader);
+        uint128[] memory proofPart1 = new uint128[](1);
+        uint256[] memory proofPart2 = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](1);
 
+        vm.prank(leader);
         vm.expectEmit(true, true, false, false);
         emit ProofAggregated(channelId, proofHash);
-
-        bridge.submitAggregatedProof(channelId, proofHash, finalRoot);
-
-        (, IZKRollupBridge.ChannelState state,,, bytes32 storedFinalRoot) = bridge.getChannelInfo(channelId);
-
-        assertEq(uint8(state), uint8(IZKRollupBridge.ChannelState.Closing));
-        assertEq(storedFinalRoot, finalRoot);
+        bridge.submitAggregatedProof(channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0);
     }
 
     // ========== Signature Tests ==========
@@ -252,16 +249,12 @@ contract ZKRollupBridgeTest is Test {
     function testCloseChannel() public {
         uint256 channelId = _getSignedChannel();
 
-        uint128[] memory proofPart1 = new uint128[](1);
-        uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
-
         vm.prank(leader);
 
         vm.expectEmit(true, false, false, false);
         emit ChannelClosed(channelId);
 
-        bridge.closeChannel(channelId, proofPart1, proofPart2, publicInputs, 0);
+        bridge.closeChannel(channelId);
 
         (, IZKRollupBridge.ChannelState state,,,) = bridge.getChannelInfo(channelId);
 
@@ -269,17 +262,20 @@ contract ZKRollupBridgeTest is Test {
     }
 
     function testCloseChannelInvalidProof() public {
-        uint256 channelId = _getSignedChannel();
+        uint256 channelId = _initializeChannel();
 
-        verifier.setShouldVerify(false);
+        bytes32 proofHash = keccak256("proof");
+        bytes32 finalRoot = keccak256("finalRoot");
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
         uint256[] memory publicInputs = new uint256[](1);
 
+        verifier.setShouldVerify(false);
+
         vm.prank(leader);
         vm.expectRevert("Invalid ZK proof");
-        bridge.closeChannel(channelId, proofPart1, proofPart2, publicInputs, 0);
+        bridge.submitAggregatedProof(channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0);
     }
 
     // ========== Withdrawal Tests ==========
@@ -412,8 +408,12 @@ contract ZKRollupBridgeTest is Test {
         bytes32 proofHash = keccak256("proof");
         bytes32 finalRoot = keccak256("finalRoot");
 
+        uint128[] memory proofPart1 = new uint128[](1);
+        uint256[] memory proofPart2 = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](1);
+
         vm.prank(leader);
-        bridge.submitAggregatedProof(channelId, proofHash, finalRoot);
+        bridge.submitAggregatedProof(channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0);
 
         return channelId;
     }
@@ -436,12 +436,8 @@ contract ZKRollupBridgeTest is Test {
     function _getClosedChannel() internal returns (uint256) {
         uint256 channelId = _getSignedChannel();
 
-        uint128[] memory proofPart1 = new uint128[](1);
-        uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
-
         vm.prank(leader);
-        bridge.closeChannel(channelId, proofPart1, proofPart2, publicInputs, 0);
+        bridge.closeChannel(channelId);
 
         return channelId;
     }
@@ -513,8 +509,13 @@ contract ZKRollupBridgeTest is Test {
         bytes32 proofHash = keccak256("proof");
         bytes32 finalRoot = keccak256("finalRoot");
 
+        // 6. Close channel
+        uint128[] memory proofPart1 = new uint128[](1);
+        uint256[] memory proofPart2 = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](1);
+
         vm.prank(leader);
-        bridge.submitAggregatedProof(channelId, proofHash, finalRoot);
+        bridge.submitAggregatedProof(channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0);
 
         // 5. Collect signatures
         IZKRollupBridge.Signature memory sig = IZKRollupBridge.Signature({R_x: 1, R_y: 2});
@@ -525,13 +526,8 @@ contract ZKRollupBridgeTest is Test {
         vm.prank(user2);
         bridge.signAggregatedProof(channelId, sig);
 
-        // 6. Close channel
-        uint128[] memory proofPart1 = new uint128[](1);
-        uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
-
         vm.prank(leader);
-        bridge.closeChannel(channelId, proofPart1, proofPart2, publicInputs, 0);
+        bridge.closeChannel(channelId);
 
         // 7. Wait for challenge period
         vm.warp(block.timestamp + bridge.CHALLENGE_PERIOD() + 1);

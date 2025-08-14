@@ -42,6 +42,7 @@ contract MockERC20 is ERC20 {
 contract ZKRollupBridgeTest is Test {
     ZKRollupBridge public bridge;
     MockVerifier public verifier;
+    MerkleTreeManager public mtmanager;
     MockERC20 public token;
     Poseidon2 public poseidon;
 
@@ -72,7 +73,9 @@ contract ZKRollupBridgeTest is Test {
 
         verifier = new MockVerifier();
         poseidon = new Poseidon2();
-        bridge = new ZKRollupBridge(address(verifier), address(poseidon));
+        mtmanager = new MerkleTreeManager(address(poseidon), 6);
+        bridge = new ZKRollupBridge(address(verifier), address(mtmanager));
+        mtmanager.setBridge(address(bridge));
         token = new MockERC20();
 
         // Setup initial state

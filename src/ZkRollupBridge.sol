@@ -7,7 +7,7 @@ import "@openzeppelin/token/ERC20/IERC20.sol";
 import "@openzeppelin/access/Ownable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IZKRollupBridge} from "./interface/IZKRollupBridge.sol";
-import "./merkleTree/MerkleTreeManager.sol";
+import {IMerkleTreeManager} from "./interface/IMerkleTreeManager.sol";
 import {Poseidon2} from "@poseidon/src/Poseidon2.sol";
 
 interface ITargetContract {
@@ -32,25 +32,22 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     uint256 public constant SIGNATURE_THRESHOLD_PERCENT = 67; // 2/3 threshold
     address public constant ETH_TOKEN_ADDRESS = address(1);
     uint256 public constant BALANCE_SLOT = 0;
-    uint32 public constant MERKLE_TREE_DEPTH = 6;
 
     // ========== MAPPINGS ==========
     mapping(uint256 => Channel) public channels;
     mapping(address => bool) public authorizedChannelCreators;
     mapping(address => bool) public isChannelLeader;
 
-    // Poseidon hasher address
-    address public immutable poseidonHasher;
-
     uint256 public nextChannelId;
 
     // ========== CONTRACTS ==========
     IVerifier public immutable zkVerifier;
+    IMerkleTreeManager public immutable mtmanager;
 
     // ========== CONSTRUCTOR ==========
-    constructor(address _zkVerifier, address _poseidonHasher) Ownable(msg.sender) {
+    constructor(address _zkVerifier, address _mtmanager) Ownable(msg.sender) {
         zkVerifier = IVerifier(_zkVerifier);
-        poseidonHasher = _poseidonHasher;
+        mtmanager = IMerkleTreeManager(_mtmanager);
     }
 
     // ========== Channel Opening ==========
@@ -84,8 +81,6 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         Channel storage channel = channels[channelId];
 
         // Deploy new MerkleTreeManager instance for this channel
-        MerkleTreeManager merkleTree = new MerkleTreeManager(poseidonHasher, MERKLE_TREE_DEPTH);
-        channel.merkleTreeContract = address(merkleTree);
         channel.id = channelId;
         channel.targetContract = targetContract;
         channel.leader = msg.sender;
@@ -171,12 +166,11 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Initialized, "Invalid state");
         require(msg.sender == channel.leader, "Not leader");
-
-        MerkleTreeManager merkleTree = MerkleTreeManager(channel.merkleTreeContract);
-
         // Prepare arrays
         address[] memory l1Addresses = new address[](channel.participants.length);
         uint256[] memory balances = new uint256[](channel.participants.length);
+
+        mtmanager.initializeChannel(channelId);
 
         // Single loop to set up mappings and prepare data
         for (uint256 i = 0; i < channel.participants.length; ++i) {
@@ -184,7 +178,7 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
             address l2Address = channel.participants[i].l2PublicKey;
 
             // Set address pair
-            merkleTree.setAddressPair(l1Address, l2Address);
+            mtmanager.setAddressPair(channelId, l1Address, l2Address);
 
             // Prepare arrays for batch addition
             l1Addresses[i] = l1Address;
@@ -192,10 +186,10 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         }
 
         // Add all users to the merkle tree
-        merkleTree.addUsers(l1Addresses, balances);
+        mtmanager.addUsers(channelId, l1Addresses, balances);
 
         // Store the initial merkle root
-        channel.initialStateRoot = merkleTree.getCurrentRoot();
+        channel.initialStateRoot = mtmanager.getCurrentRoot(channelId);
         channel.state = ChannelState.Open;
 
         emit StateInitialized(channelId, channel.initialStateRoot);
@@ -286,21 +280,19 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
         require(channel.isParticipant[msg.sender], "Not a participant");
 
-        MerkleTreeManager merkleTree = MerkleTreeManager(channel.merkleTreeContract);
-
         // Get user's L2 address
-        address l2Address = merkleTree.getL2Address(msg.sender);
+        address l2Address = mtmanager.getL2Address(channelId, msg.sender);
         require(l2Address != address(0), "L2 address not found");
 
         // Get the previous root (last root before final state)
-        bytes32 prevRoot = merkleTree.getLastRootInSequence();
+        bytes32 prevRoot = mtmanager.getLastRootInSequence(channelId);
 
         // Compute the leaf value for the claimed balance
-        bytes32 leafValue = merkleTree.computeLeafForVerification(l2Address, claimedBalance, prevRoot);
+        bytes32 leafValue = mtmanager.computeLeafForVerification(l2Address, claimedBalance, prevRoot);
 
         // Verify the merkle proof against the final state root
         require(
-            merkleTree.verifyProof(merkleProof, leafValue, leafIndex, channel.finalStateRoot), "Invalid merkle proof"
+            mtmanager.verifyProof(channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot), "Invalid merkle proof"
         );
 
         channel.hasWithdrawn[msg.sender] = true;

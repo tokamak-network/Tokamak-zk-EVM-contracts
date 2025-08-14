@@ -17,8 +17,6 @@ interface IZKRollupBridge {
     struct Channel {
         uint256 id;
         address targetContract;
-        // Merkle Tree
-        address merkleTreeContract; // MerkleTreeWrapper instance for this channel
         bytes32 initialStateRoot; // Root after initialization
         bytes32 finalStateRoot; // Root after closing
         // Participants

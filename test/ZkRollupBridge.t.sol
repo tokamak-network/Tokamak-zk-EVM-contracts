@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
-import "../src/ZKRollupBridge.sol";
+import "../src/ZkRollupBridge.sol";
 import "../src/interface/IZkRollupBridge.sol";
 import "../src/interface/IVerifier.sol";
 import {Verifier} from "../src/verifier/Verifier.sol";

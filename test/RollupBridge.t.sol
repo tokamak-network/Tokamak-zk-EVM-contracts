@@ -2,8 +2,8 @@
 pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
-import "../src/ZkRollupBridge.sol";
-import "../src/interface/IZkRollupBridge.sol";
+import "../src/RollupBridge.sol";
+import "../src/interface/IRollupBridge.sol";
 import "../src/interface/IVerifier.sol";
 import {Verifier} from "../src/verifier/Verifier.sol";
 import "../src/merkleTree/MerkleTreeManager.sol";
@@ -41,10 +41,10 @@ contract MockERC20 is ERC20 {
     }
 }
 
-contract ZkRollupBridgeTest is Test {
+contract RollupBridgeTest is Test {
     using RLP for bytes;
 
-    ZkRollupBridge public bridge;
+    RollupBridge public bridge;
     MockVerifier public verifier;
     MerkleTreeManager public mtmanager;
     MockERC20 public token;
@@ -78,7 +78,7 @@ contract ZkRollupBridgeTest is Test {
         verifier = new MockVerifier();
         poseidon = new Poseidon2();
         mtmanager = new MerkleTreeManager(address(poseidon), 6);
-        bridge = new ZkRollupBridge(address(verifier), address(mtmanager));
+        bridge = new RollupBridge(address(verifier), address(mtmanager));
         mtmanager.setBridge(address(bridge));
         token = new MockERC20();
 
@@ -162,11 +162,11 @@ contract ZkRollupBridgeTest is Test {
 
         assertEq(channelId, 0);
 
-        (address targetContract, IZkRollupBridge.ChannelState state, uint256 participantCount,,) =
+        (address targetContract, IRollupBridge.ChannelState state, uint256 participantCount,,) =
             bridge.getChannelInfo(channelId);
 
         assertEq(targetContract, bridge.ETH_TOKEN_ADDRESS());
-        assertEq(uint8(state), uint8(IZkRollupBridge.ChannelState.Initialized));
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Initialized));
         assertEq(participantCount, 3);
 
         vm.stopPrank();
@@ -234,9 +234,9 @@ contract ZkRollupBridgeTest is Test {
         vm.prank(leader);
         bridge.initializeChannelState(channelId);
 
-        (, IZkRollupBridge.ChannelState state,, bytes32 initialRoot,) = bridge.getChannelInfo(channelId);
+        (, IRollupBridge.ChannelState state,, bytes32 initialRoot,) = bridge.getChannelInfo(channelId);
 
-        assertEq(uint8(state), uint8(IZkRollupBridge.ChannelState.Open));
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Open));
         assertTrue(initialRoot != bytes32(0));
     }
 
@@ -430,7 +430,7 @@ contract ZkRollupBridgeTest is Test {
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
         MerkleTreeManager mtmanager2 = new MerkleTreeManager(address(poseidon), 6);
-        ZkRollupBridge realBridge = new ZkRollupBridge(address(realVerifier), address(mtmanager2));
+        RollupBridge realBridge = new RollupBridge(address(realVerifier), address(mtmanager2));
         mtmanager2.setBridge(address(realBridge));
 
         // Setup for real bridge
@@ -522,7 +522,7 @@ contract ZkRollupBridgeTest is Test {
     function testSignAggregatedProof() public {
         uint256 channelId = _submitProof();
 
-        IZkRollupBridge.Signature memory sig = IZkRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
 
         vm.prank(user1);
         bridge.signAggregatedProof(channelId, sig);
@@ -545,9 +545,9 @@ contract ZkRollupBridgeTest is Test {
 
         bridge.closeChannel(channelId);
 
-        (, IZkRollupBridge.ChannelState state,,,) = bridge.getChannelInfo(channelId);
+        (, IRollupBridge.ChannelState state,,,) = bridge.getChannelInfo(channelId);
 
-        assertEq(uint8(state), uint8(IZkRollupBridge.ChannelState.Closed));
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
     }
 
     function testCloseChannelInvalidProof() public {
@@ -731,7 +731,7 @@ contract ZkRollupBridgeTest is Test {
     function _getSignedChannel() internal returns (uint256) {
         uint256 channelId = _submitProof();
 
-        IZkRollupBridge.Signature memory sig = IZkRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
 
         // Get required signatures (2/3 of participants)
         vm.prank(user1);
@@ -837,7 +837,7 @@ contract ZkRollupBridgeTest is Test {
         );
 
         // 5. Collect signatures
-        IZkRollupBridge.Signature memory sig = IZkRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
 
         vm.prank(user1);
         bridge.signAggregatedProof(channelId, sig);

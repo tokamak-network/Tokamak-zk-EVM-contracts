@@ -10,28 +10,40 @@ import {IZKRollupBridge} from "./interface/IZKRollupBridge.sol";
 import {IMerkleTreeManager} from "./interface/IMerkleTreeManager.sol";
 import {Poseidon2} from "@poseidon/src/Poseidon2.sol";
 
-interface ITargetContract {
-    function balanceOf(address account) external view returns (uint256);
-}
-
-// ==================== Main Bridge Contract ====================
-
+/**
+ * @title ZKRollupBridge
+ * @author Tokamak Ooo project
+ * @notice Main bridge contract for managing zkRollup channels
+ * @dev This contract manages the lifecycle of zkRollup channels including:
+ *      - Channel creation and participant management
+ *      - Deposit handling for ETH and ERC20 tokens
+ *      - Merkle Trees State initialization
+ *      - ZK proof submission and verification
+ *      - Signature collection from participants
+ *      - Channel closure and withdrawal processing
+ * 
+ * The contract uses a multi-signature approach where 2/3 of participants must sign
+ * to approve state transitions. Each channel operates independently with its own
+ * Merkle tree managed by the MerkleTreeManager contract.
+ */
 contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     using ECDSA for bytes32;
 
+    /**
+     * @dev Authorized channel creators only
+     */
     modifier onlyAuthorized() {
         require(authorizedChannelCreators[msg.sender], "Not authorized");
         _;
     }
 
     // ========== CONSTANTS ==========
-    uint256 public constant LOCK_TIMEOUT = 7 days;
     uint256 public constant CHALLENGE_PERIOD = 14 days;
     uint256 public constant MIN_PARTICIPANTS = 3;
     uint256 public constant MAX_PARTICIPANTS = 50;
     uint256 public constant SIGNATURE_THRESHOLD_PERCENT = 67; // 2/3 threshold
+    uint256 public constant NATIVE_TOKEN_TRANSFER_GAS_LIMIT = 1_000_000;
     address public constant ETH_TOKEN_ADDRESS = address(1);
-    uint256 public constant BALANCE_SLOT = 0;
 
     // ========== MAPPINGS ==========
     mapping(uint256 => Channel) public channels;
@@ -52,10 +64,33 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
 
     // ========== Channel Opening ==========
 
+    /**
+     * @notice Authorizes an address to create new channels
+     * @param creator Address to authorize for channel creation
+     * @dev Only callable by the contract owner
+     */
     function authorizeCreator(address creator) external onlyOwner {
         authorizedChannelCreators[creator] = true;
     }
 
+    /**
+     * @notice Opens a new zkRollup channel with specified participants
+     * @param targetContract Address of the token contract (or ETH_TOKEN_ADDRESS for ETH)
+     * @param participants Array of L1 addresses that will participate in the channel
+     * @param l2PublicKeys Array of corresponding L2 public keys for each participant
+     * @param preprocessedPart1 First part of preprocessed verification data
+     * @param preprocessedPart2 Second part of preprocessed verification data
+     * @param timeout Duration in seconds for which the channel will remain open
+     * @param groupPublicKey Aggregated public key for the channel group
+     * @return channelId Unique identifier for the created channel
+     * @dev Requirements:
+     *      - Caller must be authorized to create channels
+     *      - Caller cannot already be a channel leader
+     *      - Number of participants must be between MIN_PARTICIPANTS and MAX_PARTICIPANTS
+     *      - Arrays must have matching lengths
+     *      - Timeout must be between 1 hour and 7 days
+     *      - No duplicate participants allowed
+     */
     function openChannel(
         address targetContract,
         address[] calldata participants,
@@ -80,7 +115,6 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         isChannelLeader[msg.sender] = true;
         Channel storage channel = channels[channelId];
 
-        // Deploy new MerkleTreeManager instance for this channel
         channel.id = channelId;
         channel.targetContract = targetContract;
         channel.leader = msg.sender;
@@ -95,7 +129,6 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         for (uint256 i = 0; i < participants.length; ++i) {
             address participant = participants[i];
             require(!channel.isParticipant[participant], "Duplicate participant");
-            require(participant.code.length == 0, "Participant must be EOA");
 
             // Create and push User struct
             channel.participants.push(User({l1Address: participant, l2PublicKey: l2PublicKeys[i]}));
@@ -117,6 +150,15 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
 
     // ========== Deposit Functions ==========
 
+    /**
+     * @notice Deposits ETH into a channel
+     * @param _channelId ID of the channel to deposit into
+     * @dev Requirements:
+     *      - Channel must be in Initialized state
+     *      - Caller must be a participant in the channel
+     *      - Value must be greater than 0
+     *      - Channel must be configured for ETH deposits
+     */
     function depositETH(uint256 _channelId) external payable nonReentrant {
         Channel storage channel = channels[_channelId];
         require(channel.state == ChannelState.Initialized, "Invalid channel state");
@@ -130,6 +172,18 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         emit Deposited(_channelId, msg.sender, ETH_TOKEN_ADDRESS, msg.value);
     }
 
+    /**
+     * @notice Deposits ERC20 tokens into a channel
+     * @param _channelId ID of the channel to deposit into
+     * @param _token Address of the ERC20 token contract
+     * @param _amount Amount of tokens to deposit
+     * @dev Requirements:
+     *      - Channel must be in Initialized state
+     *      - Caller must be a participant in the channel
+     *      - Token must match the channel's target contract
+     *      - Amount must be greater than 0
+     *      - Caller must have approved this contract for the token amount
+     */
     function depositToken(uint256 _channelId, address _token, uint256 _amount) external nonReentrant {
         Channel storage channel = channels[_channelId];
         require(channel.state == ChannelState.Initialized, "Invalid channel state");
@@ -147,8 +201,13 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         emit Deposited(_channelId, msg.sender, _token, _amount);
     }
 
-    /// @dev Transfers tokens from the depositor address to the smart contract address.
-    /// @return The difference between the contract balance before and after the transferring of funds.
+    /**
+     * @dev Internal function to handle token transfers with balance checking
+     * @param _from Address to transfer tokens from
+     * @param _token ERC20 token contract
+     * @param _amount Amount to transfer
+     * @return The actual amount transferred (handles fee-on-transfer tokens)
+     */
     function _depositToken(address _from, IERC20 _token, uint256 _amount) internal returns (uint256) {
         uint256 balanceBefore = _token.balanceOf(address(this));
         _token.transferFrom(_from, address(this), _amount);
@@ -160,7 +219,14 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     // ========== MPT state management ==========
 
     /**
-     * @dev Initialize channel state with MerkleTreeWrapper
+     * @notice Initializes the Merkle tree state for a channel with deposited balances
+     * @param channelId ID of the channel to initialize
+     * @dev This function:
+     *      - Initializes a new Merkle tree for the channel
+     *      - Sets up L1 to L2 address mappings
+     *      - Adds all participants with their deposited balances to the tree
+     *      - Transitions channel state from Initialized to Open
+     *      Only callable by the channel leader
      */
     function initializeChannelState(uint256 channelId) external nonReentrant {
         Channel storage channel = channels[channelId];
@@ -197,6 +263,21 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
 
     // ========== Proof submission and Signing ==========
 
+    /**
+     * @notice Submits an aggregated ZK proof for channel state transition
+     * @param channelId ID of the channel
+     * @param aggregatedProofHash Hash of the aggregated proof data
+     * @param finalStateRoot New Merkle root representing the final state
+     * @param proofPart1 First part of the ZK proof data
+     * @param proofPart2 Second part of the ZK proof data
+     * @param publicInputs Public inputs for the ZK proof verification
+     * @param smax Maximum value for the proof verification
+     * @dev Requirements:
+     *      - Channel must be in Open or Active state
+     *      - Only the channel leader can submit proofs
+     *      - The ZK proof must be valid according to the verifier
+     *      Transitions channel to Closing state upon successful submission
+     */
     function submitAggregatedProof(
         uint256 channelId,
         bytes32 aggregatedProofHash,
@@ -225,6 +306,16 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         emit ProofAggregated(channelId, aggregatedProofHash);
     }
 
+    /**
+     * @notice Allows participants to sign the aggregated proof
+     * @param channelId ID of the channel
+     * @param signature EdDSA signature from the participant
+     * @dev Requirements:
+     *      - Channel must be in Closing state
+     *      - Caller must be a participant
+     *      - Caller must not have already signed
+     *      - Signature must be valid
+     */
     function signAggregatedProof(uint256 channelId, Signature calldata signature) external {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Closing, "Not in closing state");
@@ -247,6 +338,15 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
 
     // ========== Channel Closing ==========
 
+    /**
+     * @notice Closes a channel after sufficient signatures are collected
+     * @param channelId ID of the channel to close
+     * @dev Requirements:
+     *      - Caller must be the channel leader or contract owner
+     *      - Channel must be in Closing state
+     *      - Required number of signatures must be collected
+     *      Transitions channel to Closed state
+     */
     function closeChannel(uint256 channelId) external {
         Channel storage channel = channels[channelId];
         require(msg.sender == channel.leader || msg.sender == owner(), "unauthorized caller");
@@ -263,11 +363,16 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     // ========== Withdraw Functions ==========
 
     /**
-     * @dev Withdraw after channel closure with merkle proof
-     * @param channelId The channel ID
-     * @param claimedBalance The claimed final balance
-     * @param leafIndex The index of the user's leaf in the merkle tree
-     * @param merkleProof Array of sibling hashes for the merkle proof
+     * @notice Withdraws funds after channel closure using a Merkle proof
+     * @param channelId ID of the channel to withdraw from
+     * @param claimedBalance The final balance being claimed
+     * @param leafIndex Index of the user's leaf in the Merkle tree
+     * @param merkleProof Array of sibling hashes for Merkle proof verification
+     * @dev Requirements:
+     *      - Channel must be in Closed state
+     *      - Caller must be a participant who hasn't withdrawn yet
+     *      - Merkle proof must be valid for the claimed balance
+     *      Transfers the verified balance to the caller
      */
     function withdrawAfterClose(
         uint256 channelId,
@@ -295,20 +400,48 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
             mtmanager.verifyProof(channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot), "Invalid merkle proof"
         );
 
+        // CEI pattern respected
         channel.hasWithdrawn[msg.sender] = true;
 
         // Process withdrawal with the verified balance
         if (channel.targetContract == ETH_TOKEN_ADDRESS) {
-            (bool success,) = msg.sender.call{value: claimedBalance}("");
+            bool success;
+            uint256 gasLimit = NATIVE_TOKEN_TRANSFER_GAS_LIMIT;
+            // use an assembly call to avoid loading large data into memory 
+            // input mem[in...(in+insize)]
+            // output area mem[out...(out+outsize)]
+            assembly {
+                success := call(
+                    gasLimit,
+                    caller(),
+                    claimedBalance,
+                    0, // in
+                    0, // insize
+                    0, // out
+                    0 // outsize
+                )
+            }
             require(success, "ETH transfer failed");
+
         } else {
             IERC20(channel.targetContract).transfer(msg.sender, claimedBalance);
         }
 
         emit Withdrawn(channelId, msg.sender, channel.targetContract, claimedBalance);
     }
+
     // ====== Delete Channel Functions ======
 
+    /**
+     * @notice Deletes a channel after the challenge period has passed
+     * @param channelId ID of the channel to delete
+     * @return bool True if deletion was successful
+     * @dev Requirements:
+     *      - Caller must be the owner or channel leader
+     *      - Channel must be in Closed state
+     *      - Challenge period must have elapsed
+     *      Removes all channel data and frees the leader to create new channels
+     */
     function deleteChannel(uint256 channelId) external returns (bool) {
         Channel storage channel = channels[channelId];
         require(msg.sender == owner() || msg.sender == channel.leader, "only owner or leader");
@@ -324,6 +457,14 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
 
     // ========== Helper Functions ==========
 
+    /**
+     * @dev Verifies an EdDSA signature (placeholder implementation)
+     * @param message Message that was signed
+     * @param signature The EdDSA signature components
+     * @param publicKey Public key to verify against
+     * @return bool True if signature is valid
+     * @notice This is a simplified implementation. Production version should implement proper EdDSA verification
+     */
     function _verifyEdDSA(bytes32 message, Signature calldata signature, address publicKey)
         internal
         pure
@@ -337,43 +478,17 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         return true;
     }
 
-    /**
-     * @dev Read contract storage helper
-     */
-    function _readContractStorage(address target, uint256 slot) internal view returns (bytes32 value) {
-        assembly ("memory-safe") {
-            value := sload(slot)
-        }
-
-        // For external contracts, we need to use staticcall
-        if (target != address(this)) {
-            (bool success, bytes memory data) = target.staticcall(abi.encodeWithSignature("storageAt(uint256)", slot));
-
-            if (success && data.length > 0) {
-                value = abi.decode(data, (bytes32));
-            }
-        }
-    }
-
-    /**
-     * @dev Get contract bytecode
-     */
-    function _getContractCode(address target) internal view returns (bytes memory) {
-        uint256 size;
-        assembly ("memory-safe") {
-            size := extcodesize(target)
-        }
-
-        bytes memory code = new bytes(size);
-        assembly ("memory-safe") {
-            extcodecopy(target, add(code, 0x20), 0, size)
-        }
-
-        return code;
-    }
-
     // ========== View Functions ==========
 
+    /**
+     * @notice Retrieves comprehensive information about a channel
+     * @param channelId ID of the channel to query
+     * @return targetContract Address of the token contract for this channel
+     * @return state Current state of the channel
+     * @return participantCount Number of participants in the channel
+     * @return initialRoot Initial Merkle tree root
+     * @return finalRoot Final Merkle tree root after state transitions
+     */
     function getChannelInfo(uint256 channelId)
         external
         view

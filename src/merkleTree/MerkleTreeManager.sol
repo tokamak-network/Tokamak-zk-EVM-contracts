@@ -25,7 +25,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
         require(msg.sender == bridge, "Only bridge can call");
         _;
     }
-    
+
     // Immutable configuration
     Poseidon2 public immutable poseidonHasher;
     uint32 public immutable depth;
@@ -45,7 +45,6 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     mapping(uint256 => bytes32[]) private channelRootSequence; // channelId => rootSequence
     mapping(uint256 => uint256) public nonce; // channelId => nonce
     mapping(uint256 => bool) public channelInitialized; // channelId => initialized
-
 
     // Errors
     error LeftValueOutOfRange(bytes32 left);
@@ -83,10 +82,10 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     function setBridge(address _bridge) external onlyOwner {
         require(!bridgeSet, "Bridge already set");
         require(_bridge != address(0), "Invalid bridge address");
-        
+
         bridge = _bridge;
         bridgeSet = true;
-        
+
         emit BridgeSet(_bridge);
     }
 
@@ -95,15 +94,15 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
      */
     function initializeChannel(uint256 channelId) external onlyBridge {
         if (channelInitialized[channelId]) revert ChannelAlreadyInitialized(channelId);
-        
+
         // Initialize with zero tree
         roots[channelId][0] = zeros(depth);
-        
+
         // First root in sequence is the slot number (0)
         channelRootSequence[channelId].push(bytes32(BALANCE_SLOT));
-        
+
         channelInitialized[channelId] = true;
-        
+
         emit ChannelInitialized(channelId, bytes32(BALANCE_SLOT));
     }
 
@@ -118,7 +117,10 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     /**
      * @dev Add all users with their initial balances to a specific channel
      */
-    function addUsers(uint256 channelId, address[] calldata l1Addresses, uint256[] calldata balances) external onlyBridge {
+    function addUsers(uint256 channelId, address[] calldata l1Addresses, uint256[] calldata balances)
+        external
+        onlyBridge
+    {
         if (!channelInitialized[channelId]) revert ChannelNotInitialized(channelId);
         if (l1Addresses.length != balances.length) revert LengthMismatch();
         if (channelUsers[channelId].length != 0) revert UsersAlreadyAdded(channelId);
@@ -140,11 +142,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
             nonce[channelId]++;
 
             // Store user data
-            channelUsers[channelId].push(UserData({
-                l1Address: l1Addr,
-                l2Address: l2Addr,
-                balance: balances[i]
-            }));
+            channelUsers[channelId].push(UserData({l1Address: l1Addr, l2Address: l2Addr, balance: balances[i]}));
             userIndex[channelId][l1Addr] = i;
 
             emit LeafInserted(channelId, leafIndex, leaf, newRoot);
@@ -203,7 +201,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
      */
     function _computeLeaf(uint256 channelId, uint256 l2Addr, uint256 balance) private view returns (bytes32) {
         bytes32[] storage rootSequence = channelRootSequence[channelId];
-        
+
         // Use the most recent root in the sequence
         uint256 prevRoot = (rootSequence.length == 0) ? BALANCE_SLOT : uint256(rootSequence[rootSequence.length - 1]);
 
@@ -226,15 +224,13 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     /**
      * @dev Verify a merkle proof for a specific channel
      */
-    function verifyProof(
-        uint256 channelId,
-        bytes32[] calldata proof,
-        bytes32 leaf,
-        uint256 leafIndex,
-        bytes32 root
-    ) external view returns (bool) {
+    function verifyProof(uint256 channelId, bytes32[] calldata proof, bytes32 leaf, uint256 leafIndex, bytes32 root)
+        external
+        view
+        returns (bool)
+    {
         if (!channelInitialized[channelId]) revert ChannelNotInitialized(channelId);
-        
+
         bytes32 computedHash = leaf;
         uint256 index = leafIndex;
 
@@ -253,17 +249,16 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     /**
      * @dev Compute leaf value for verification
      */
-    function computeLeafForVerification(
-        address l2Address,
-        uint256 balance,
-        bytes32 prevRoot
-    ) external view returns (bytes32) {
+    function computeLeafForVerification(address l2Address, uint256 balance, bytes32 prevRoot)
+        external
+        view
+        returns (bytes32)
+    {
         uint256 l2Addr = uint256(uint160(l2Address));
 
         // Compute gamma
-        uint256 gamma = uint256(
-            Field.toBytes32(poseidonHasher.hash_2(Field.toField(prevRoot), Field.toField(bytes32(l2Addr))))
-        );
+        uint256 gamma =
+            uint256(Field.toBytes32(poseidonHasher.hash_2(Field.toField(prevRoot), Field.toField(bytes32(l2Addr)))));
 
         // Compute RLC
         uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, BLS_FIELD_MODULUS), BLS_FIELD_MODULUS);
@@ -308,10 +303,10 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
      */
     function getBalance(uint256 channelId, address l1Address) external view returns (uint256) {
         if (!channelInitialized[channelId]) revert ChannelNotInitialized(channelId);
-        
+
         uint256 idx = userIndex[channelId][l1Address];
         UserData[] storage users = channelUsers[channelId];
-        
+
         if (idx >= users.length || users[idx].l1Address != l1Address) {
             return 0;
         }
@@ -330,7 +325,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
      */
     function getLastRootInSequence(uint256 channelId) external view returns (bytes32) {
         if (!channelInitialized[channelId]) revert ChannelNotInitialized(channelId);
-        
+
         bytes32[] storage rootSequence = channelRootSequence[channelId];
         if (rootSequence.length == 0) revert NoRoots();
         return rootSequence[rootSequence.length - 1];
@@ -347,12 +342,13 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     /**
      * @dev Get user addresses in order for a specific channel
      */
-    function getUserAddresses(uint256 channelId) external view returns (
-        address[] memory l1Addresses,
-        address[] memory l2Addresses
-    ) {
+    function getUserAddresses(uint256 channelId)
+        external
+        view
+        returns (address[] memory l1Addresses, address[] memory l2Addresses)
+    {
         if (!channelInitialized[channelId]) revert ChannelNotInitialized(channelId);
-        
+
         UserData[] storage users = channelUsers[channelId];
         l1Addresses = new address[](users.length);
         l2Addresses = new address[](users.length);
@@ -375,7 +371,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
      */
     function getRootAtIndex(uint256 channelId, uint256 index) external view returns (bytes32) {
         if (!channelInitialized[channelId]) revert ChannelNotInitialized(channelId);
-        
+
         bytes32[] storage rootSequence = channelRootSequence[channelId];
         require(index < rootSequence.length, "Index out of bounds");
         return rootSequence[index];

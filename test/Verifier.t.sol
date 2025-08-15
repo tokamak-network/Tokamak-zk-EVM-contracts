@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import {Test} from "forge-std/Test.sol";
-import {Verifier} from "../src/Verifier.sol";
+import {Verifier} from "../src/verifier/Verifier.sol";
 
 import "forge-std/console.sol";
 

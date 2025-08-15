@@ -17,8 +17,6 @@ interface IZKRollupBridge {
     struct Channel {
         uint256 id;
         address targetContract;
-        // Merkle Tree
-        address merkleTreeContract; // MerkleTreeWrapper instance for this channel
         bytes32 initialStateRoot; // Root after initialization
         bytes32 finalStateRoot; // Root after closing
         // Participants
@@ -45,6 +43,8 @@ interface IZKRollupBridge {
         mapping(address => bool) hasWithdrawn;
         // Group/threshold signature support
         bytes32 groupPublicKey;
+        bytes[] initialMPTLeaves;
+        bytes[] finalMPTLeaves;
     }
 
     // ============= ENUM =============
@@ -98,9 +98,21 @@ interface IZKRollupBridge {
 
     function initializeChannelState(uint256 channelId) external;
 
-    function submitAggregatedProof(uint256 channelId, bytes32 aggregatedProofHash, bytes32 finalStateRoot) external;
+    function submitAggregatedProof(
+        uint256 channelId,
+        bytes32 aggregatedProofHash,
+        bytes32 finalStateRoot,
+        uint128[] calldata proofPart1,
+        uint256[] calldata proofPart2,
+        uint256[] calldata publicInputs,
+        uint256 smax,
+        bytes[] calldata initialMPTLeaves,
+        bytes[] calldata finalMPTLeaves
+    ) external;
 
     function signAggregatedProof(uint256 channelId, Signature calldata signature) external;
+
+    function closeChannel(uint256 channelId) external;
 
     function getChannelInfo(uint256 channelId)
         external

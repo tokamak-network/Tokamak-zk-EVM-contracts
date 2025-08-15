@@ -6,13 +6,13 @@ import "@openzeppelin/utils/ReentrancyGuard.sol";
 import "@openzeppelin/token/ERC20/IERC20.sol";
 import "@openzeppelin/access/Ownable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
-import {IZKRollupBridge} from "./interface/IZKRollupBridge.sol";
+import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import {IMerkleTreeManager} from "./interface/IMerkleTreeManager.sol";
 import {Poseidon2} from "@poseidon/src/Poseidon2.sol";
 import "./library/RLP.sol";
 
 /**
- * @title ZKRollupBridge
+ * @title RollupBridge
  * @author Tokamak Ooo project
  * @notice Main bridge contract for managing zkRollup channels
  * @dev This contract manages the lifecycle of zkRollup channels including:
@@ -27,7 +27,7 @@ import "./library/RLP.sol";
  * to approve state transitions. Each channel operates independently with its own
  * Merkle tree managed by the MerkleTreeManager contract.
  */
-contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
+contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     using ECDSA for bytes32;
     using RLP for bytes;
     using RLP for RLP.RLPItem;

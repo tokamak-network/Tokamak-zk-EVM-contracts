@@ -43,6 +43,8 @@ interface IZKRollupBridge {
         mapping(address => bool) hasWithdrawn;
         // Group/threshold signature support
         bytes32 groupPublicKey;
+        bytes[] initialMPTLeaves;
+        bytes[] finalMPTLeaves;
     }
 
     // ============= ENUM =============
@@ -103,7 +105,9 @@ interface IZKRollupBridge {
         uint128[] calldata proofPart1,
         uint256[] calldata proofPart2,
         uint256[] calldata publicInputs,
-        uint256 smax
+        uint256 smax,
+        bytes[] calldata initialMPTLeaves,
+        bytes[] calldata finalMPTLeaves
     ) external;
 
     function signAggregatedProof(uint256 channelId, Signature calldata signature) external;

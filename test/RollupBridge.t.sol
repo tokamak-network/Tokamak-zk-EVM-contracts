@@ -2,8 +2,8 @@
 pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
-import "../src/ZKRollupBridge.sol";
-import "../src/interface/IZKRollupBridge.sol";
+import "../src/RollupBridge.sol";
+import "../src/interface/IRollupBridge.sol";
 import "../src/interface/IVerifier.sol";
 import {Verifier} from "../src/verifier/Verifier.sol";
 import "../src/merkleTree/MerkleTreeManager.sol";
@@ -41,10 +41,10 @@ contract MockERC20 is ERC20 {
     }
 }
 
-contract ZKRollupBridgeTest is Test {
+contract RollupBridgeTest is Test {
     using RLP for bytes;
 
-    ZKRollupBridge public bridge;
+    RollupBridge public bridge;
     MockVerifier public verifier;
     MerkleTreeManager public mtmanager;
     MockERC20 public token;
@@ -78,7 +78,7 @@ contract ZKRollupBridgeTest is Test {
         verifier = new MockVerifier();
         poseidon = new Poseidon2();
         mtmanager = new MerkleTreeManager(address(poseidon), 6);
-        bridge = new ZKRollupBridge(address(verifier), address(mtmanager));
+        bridge = new RollupBridge(address(verifier), address(mtmanager));
         mtmanager.setBridge(address(bridge));
         token = new MockERC20();
 
@@ -105,19 +105,19 @@ contract ZKRollupBridgeTest is Test {
      */
     function _createMockMPTLeaf(uint256 balance) internal pure returns (bytes memory) {
         bytes[] memory accountFields = new bytes[](4);
-        
+
         // nonce = 0
         accountFields[0] = RLP.encode(abi.encodePacked(uint256(0)));
-        
+
         // balance
         accountFields[1] = RLP.encode(abi.encodePacked(balance));
-        
+
         // storageHash (empty storage)
         accountFields[2] = RLP.encode(abi.encodePacked(keccak256("")));
-        
+
         // codeHash (empty code)
         accountFields[3] = RLP.encode(abi.encodePacked(keccak256("")));
-        
+
         return RLP.encodeList(accountFields);
     }
 
@@ -162,11 +162,11 @@ contract ZKRollupBridgeTest is Test {
 
         assertEq(channelId, 0);
 
-        (address targetContract, IZKRollupBridge.ChannelState state, uint256 participantCount,,) =
+        (address targetContract, IRollupBridge.ChannelState state, uint256 participantCount,,) =
             bridge.getChannelInfo(channelId);
 
         assertEq(targetContract, bridge.ETH_TOKEN_ADDRESS());
-        assertEq(uint8(state), uint8(IZKRollupBridge.ChannelState.Initialized));
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Initialized));
         assertEq(participantCount, 3);
 
         vm.stopPrank();
@@ -234,9 +234,9 @@ contract ZKRollupBridgeTest is Test {
         vm.prank(leader);
         bridge.initializeChannelState(channelId);
 
-        (, IZKRollupBridge.ChannelState state,, bytes32 initialRoot,) = bridge.getChannelInfo(channelId);
+        (, IRollupBridge.ChannelState state,, bytes32 initialRoot,) = bridge.getChannelInfo(channelId);
 
-        assertEq(uint8(state), uint8(IZKRollupBridge.ChannelState.Open));
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Open));
         assertTrue(initialRoot != bytes32(0));
     }
 
@@ -267,7 +267,7 @@ contract ZKRollupBridgeTest is Test {
         initialBalances[2] = 3 ether;
 
         uint256[] memory finalBalances = new uint256[](3);
-        finalBalances[0] = 6 ether;  // Changed distribution but same total
+        finalBalances[0] = 6 ether; // Changed distribution but same total
         finalBalances[1] = 0 ether;
         finalBalances[2] = 0 ether;
 
@@ -278,15 +278,7 @@ contract ZKRollupBridgeTest is Test {
         vm.expectEmit(true, true, false, false);
         emit ProofAggregated(channelId, proofHash);
         bridge.submitAggregatedProof(
-            channelId,
-            proofHash,
-            finalRoot,
-            proofPart1,
-            proofPart2,
-            publicInputs,
-            0,
-            initialMPTLeaves,
-            finalMPTLeaves
+            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
         );
     }
 
@@ -302,7 +294,7 @@ contract ZKRollupBridgeTest is Test {
 
         // Create MPT leaves with wrong initial balances
         uint256[] memory wrongInitialBalances = new uint256[](3);
-        wrongInitialBalances[0] = 2 ether;  // Wrong - should be 1 ether
+        wrongInitialBalances[0] = 2 ether; // Wrong - should be 1 ether
         wrongInitialBalances[1] = 2 ether;
         wrongInitialBalances[2] = 3 ether;
 
@@ -317,15 +309,7 @@ contract ZKRollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Initial balance mismatch");
         bridge.submitAggregatedProof(
-            channelId,
-            proofHash,
-            finalRoot,
-            proofPart1,
-            proofPart2,
-            publicInputs,
-            0,
-            initialMPTLeaves,
-            finalMPTLeaves
+            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
         );
     }
 
@@ -348,7 +332,7 @@ contract ZKRollupBridgeTest is Test {
         uint256[] memory wrongFinalBalances = new uint256[](3);
         wrongFinalBalances[0] = 2 ether;
         wrongFinalBalances[1] = 2 ether;
-        wrongFinalBalances[2] = 4 ether;  // Extra ether created!
+        wrongFinalBalances[2] = 4 ether; // Extra ether created!
 
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(wrongFinalBalances);
@@ -356,15 +340,7 @@ contract ZKRollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Balance conservation violated");
         bridge.submitAggregatedProof(
-            channelId,
-            proofHash,
-            finalRoot,
-            proofPart1,
-            proofPart2,
-            publicInputs,
-            0,
-            initialMPTLeaves,
-            finalMPTLeaves
+            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
         );
     }
 
@@ -383,7 +359,7 @@ contract ZKRollupBridgeTest is Test {
         initialBalances[1] = 2 ether;
         initialBalances[2] = 3 ether;
 
-        uint256[] memory finalBalances = new uint256[](2);  // Wrong length!
+        uint256[] memory finalBalances = new uint256[](2); // Wrong length!
         finalBalances[0] = 3 ether;
         finalBalances[1] = 3 ether;
 
@@ -393,15 +369,7 @@ contract ZKRollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Mismatched leaf arrays");
         bridge.submitAggregatedProof(
-            channelId,
-            proofHash,
-            finalRoot,
-            proofPart1,
-            proofPart2,
-            publicInputs,
-            0,
-            initialMPTLeaves,
-            finalMPTLeaves
+            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
         );
     }
 
@@ -433,7 +401,7 @@ contract ZKRollupBridgeTest is Test {
         initialBalances[2] = 3 ether;
 
         uint256[] memory finalBalances = new uint256[](3);
-        finalBalances[0] = 2 ether;  // Redistributed balances
+        finalBalances[0] = 2 ether; // Redistributed balances
         finalBalances[1] = 1 ether;
         finalBalances[2] = 3 ether;
 
@@ -441,25 +409,17 @@ contract ZKRollupBridgeTest is Test {
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
 
         vm.prank(leader);
-        
+
         uint256 gasBefore = gasleft();
         bridge.submitAggregatedProof(
-            channelId,
-            proofHash,
-            finalRoot,
-            proofPart1,
-            proofPart2,
-            publicInputs,
-            0,
-            initialMPTLeaves,
-            finalMPTLeaves
+            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
         );
         uint256 gasAfter = gasleft();
-        
+
         uint256 gasUsed = gasBefore - gasAfter;
-        
+
         console.log("Gas used for submitAggregatedProof:", gasUsed);
-        
+
         // Assert reasonable gas usage (adjust threshold as needed)
         assertTrue(gasUsed < 10000000, "Gas usage too high");
         assertTrue(gasUsed > 50000, "Gas usage suspiciously low");
@@ -470,9 +430,9 @@ contract ZKRollupBridgeTest is Test {
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
         MerkleTreeManager mtmanager2 = new MerkleTreeManager(address(poseidon), 6);
-        ZKRollupBridge realBridge = new ZKRollupBridge(address(realVerifier), address(mtmanager2));
+        RollupBridge realBridge = new RollupBridge(address(realVerifier), address(mtmanager2));
         mtmanager2.setBridge(address(realBridge));
-        
+
         // Setup for real bridge
         realBridge.authorizeCreator(user1);
         vm.stopPrank();
@@ -500,13 +460,7 @@ contract ZKRollupBridgeTest is Test {
         ) = _getRealProofData();
 
         uint256 channelId = realBridge.openChannel(
-            realBridge.ETH_TOKEN_ADDRESS(),
-            participants,
-            l2PublicKeys,
-            prepPart1,
-            prepPart2,
-            1 days,
-            bytes32(0)
+            realBridge.ETH_TOKEN_ADDRESS(), participants, l2PublicKeys, prepPart1, prepPart2, 1 days, bytes32(0)
         );
         vm.stopPrank();
 
@@ -553,11 +507,11 @@ contract ZKRollupBridgeTest is Test {
             finalMPTLeaves
         );
         uint256 gasAfter = gasleft();
-        
+
         uint256 gasUsed = gasBefore - gasAfter;
-        
+
         console.log("Gas used for submitAggregatedProof with real verifier:", gasUsed);
-        
+
         // Assert reasonable gas usage (ZK verification is expensive)
         assertTrue(gasUsed < 10000000, "Gas usage too high");
         assertTrue(gasUsed > 100000, "Gas usage suspiciously low");
@@ -568,7 +522,7 @@ contract ZKRollupBridgeTest is Test {
     function testSignAggregatedProof() public {
         uint256 channelId = _submitProof();
 
-        IZKRollupBridge.Signature memory sig = IZKRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
 
         vm.prank(user1);
         bridge.signAggregatedProof(channelId, sig);
@@ -591,9 +545,9 @@ contract ZKRollupBridgeTest is Test {
 
         bridge.closeChannel(channelId);
 
-        (, IZKRollupBridge.ChannelState state,,,) = bridge.getChannelInfo(channelId);
+        (, IRollupBridge.ChannelState state,,,) = bridge.getChannelInfo(channelId);
 
-        assertEq(uint8(state), uint8(IZKRollupBridge.ChannelState.Closed));
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
     }
 
     function testCloseChannelInvalidProof() public {
@@ -619,15 +573,7 @@ contract ZKRollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Invalid ZK proof");
         bridge.submitAggregatedProof(
-            channelId,
-            proofHash,
-            finalRoot,
-            proofPart1,
-            proofPart2,
-            publicInputs,
-            0,
-            initialMPTLeaves,
-            finalMPTLeaves
+            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
         );
     }
 
@@ -776,15 +722,7 @@ contract ZKRollupBridgeTest is Test {
 
         vm.prank(leader);
         bridge.submitAggregatedProof(
-            channelId,
-            proofHash,
-            finalRoot,
-            proofPart1,
-            proofPart2,
-            publicInputs,
-            0,
-            initialMPTLeaves,
-            finalMPTLeaves
+            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
         );
 
         return channelId;
@@ -793,7 +731,7 @@ contract ZKRollupBridgeTest is Test {
     function _getSignedChannel() internal returns (uint256) {
         uint256 channelId = _submitProof();
 
-        IZKRollupBridge.Signature memory sig = IZKRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
 
         // Get required signatures (2/3 of participants)
         vm.prank(user1);
@@ -895,19 +833,11 @@ contract ZKRollupBridgeTest is Test {
 
         vm.prank(leader);
         bridge.submitAggregatedProof(
-            channelId,
-            proofHash,
-            finalRoot,
-            proofPart1,
-            proofPart2,
-            publicInputs,
-            0,
-            initialMPTLeaves,
-            finalMPTLeaves
+            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
         );
 
         // 5. Collect signatures
-        IZKRollupBridge.Signature memory sig = IZKRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
 
         vm.prank(user1);
         bridge.signAggregatedProof(channelId, sig);
@@ -928,14 +858,18 @@ contract ZKRollupBridgeTest is Test {
         assertTrue(success);
     }
 
-    function _getRealProofData() internal pure returns (
-        uint128[] memory serializedProofPart1,
-        uint256[] memory serializedProofPart2,
-        uint128[] memory preprocessedPart1,
-        uint256[] memory preprocessedPart2,
-        uint256[] memory publicInputs,
-        uint256 smax
-    ) {
+    function _getRealProofData()
+        internal
+        pure
+        returns (
+            uint128[] memory serializedProofPart1,
+            uint256[] memory serializedProofPart2,
+            uint128[] memory preprocessedPart1,
+            uint256[] memory preprocessedPart2,
+            uint256[] memory publicInputs,
+            uint256 smax
+        )
+    {
         // Initialize arrays
         serializedProofPart1 = new uint128[](38);
         serializedProofPart2 = new uint256[](42);

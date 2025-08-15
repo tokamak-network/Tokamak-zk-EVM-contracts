@@ -6,13 +6,13 @@ import "@openzeppelin/utils/ReentrancyGuard.sol";
 import "@openzeppelin/token/ERC20/IERC20.sol";
 import "@openzeppelin/access/Ownable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
-import {IZKRollupBridge} from "./interface/IZKRollupBridge.sol";
+import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import {IMerkleTreeManager} from "./interface/IMerkleTreeManager.sol";
 import {Poseidon2} from "@poseidon/src/Poseidon2.sol";
 import "./library/RLP.sol";
 
 /**
- * @title ZKRollupBridge
+ * @title RollupBridge
  * @author Tokamak Ooo project
  * @notice Main bridge contract for managing zkRollup channels
  * @dev This contract manages the lifecycle of zkRollup channels including:
@@ -22,12 +22,12 @@ import "./library/RLP.sol";
  *      - ZK proof submission and verification
  *      - Signature collection from participants
  *      - Channel closure and withdrawal processing
- * 
+ *
  * The contract uses a multi-signature approach where 2/3 of participants must sign
  * to approve state transitions. Each channel operates independently with its own
  * Merkle tree managed by the MerkleTreeManager contract.
  */
-contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
+contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     using ECDSA for bytes32;
     using RLP for bytes;
     using RLP for RLP.RLPItem;
@@ -267,24 +267,24 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     // ========== Proof submission and Signing ==========
 
     /**
-    * @notice Submits an aggregated ZK proof for channel state transition with MPT leaves verification
-    * @param channelId ID of the channel
-    * @param aggregatedProofHash Hash of the aggregated proof data
-    * @param finalStateRoot New Merkle root representing the final state
-    * @param proofPart1 First part of the ZK proof data
-    * @param proofPart2 Second part of the ZK proof data
-    * @param publicInputs Public inputs for the ZK proof verification
-    * @param smax Maximum value for the proof verification
-    * @param initialMPTLeaves Array of initial MPT leaf values (off-chain state trie leaves representing deposited balances)
-    * @param finalMPTLeaves Array of final MPT leaf values (off-chain state trie leaves after L2 computation)
-    * @dev Requirements:
-    *      - Channel must be in Open or Active state
-    *      - Only the channel leader can submit proofs
-    *      - Sum of balances extracted from initial MPT leaves must equal total deposited amount
-    *      - Sum of balances from final MPT leaves must equal sum from initial MPT leaves (conservation)
-    *      - The ZK proof must be valid according to the verifier
-    *      Transitions channel to Closing state upon successful submission
-    */
+     * @notice Submits an aggregated ZK proof for channel state transition with MPT leaves verification
+     * @param channelId ID of the channel
+     * @param aggregatedProofHash Hash of the aggregated proof data
+     * @param finalStateRoot New Merkle root representing the final state
+     * @param proofPart1 First part of the ZK proof data
+     * @param proofPart2 Second part of the ZK proof data
+     * @param publicInputs Public inputs for the ZK proof verification
+     * @param smax Maximum value for the proof verification
+     * @param initialMPTLeaves Array of initial MPT leaf values (off-chain state trie leaves representing deposited balances)
+     * @param finalMPTLeaves Array of final MPT leaf values (off-chain state trie leaves after L2 computation)
+     * @dev Requirements:
+     *      - Channel must be in Open or Active state
+     *      - Only the channel leader can submit proofs
+     *      - Sum of balances extracted from initial MPT leaves must equal total deposited amount
+     *      - Sum of balances from final MPT leaves must equal sum from initial MPT leaves (conservation)
+     *      - The ZK proof must be valid according to the verifier
+     *      Transitions channel to Closing state upon successful submission
+     */
     function submitAggregatedProof(
         uint256 channelId,
         bytes32 aggregatedProofHash,
@@ -305,27 +305,27 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         // Extract and verify balance conservation from MPT leaves
         uint256 initialBalanceSum = 0;
         uint256 finalBalanceSum = 0;
-        
+
         for (uint256 i = 0; i < initialMPTLeaves.length; ++i) {
             // Extract balance from initial MPT leaf (off-chain state trie format)
             uint256 initialBalance = _extractBalanceFromMPTLeaf(initialMPTLeaves[i]);
             initialBalanceSum += initialBalance;
-            
+
             // Extract balance from final MPT leaf (off-chain state trie format)
             uint256 finalBalance = _extractBalanceFromMPTLeaf(finalMPTLeaves[i]);
             finalBalanceSum += finalBalance;
         }
-        
+
         // Check that initial balance sum matches the total deposited amount
         require(initialBalanceSum == channel.tokenTotalDeposits, "Initial balance mismatch");
-        
+
         // Check balance conservation: no tokens created or destroyed during L2 computation
         require(initialBalanceSum == finalBalanceSum, "Balance conservation violated");
 
         // Store the MPT leaves for later verification during channel closure
         channel.initialMPTLeaves = initialMPTLeaves;
         channel.finalMPTLeaves = finalMPTLeaves;
-        
+
         channel.aggregatedProofHash = aggregatedProofHash;
         channel.finalStateRoot = finalStateRoot;
         channel.state = ChannelState.Closing;
@@ -342,33 +342,33 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
     }
 
     /**
-    * @dev Extracts balance value from an MPT leaf (off-chain state trie format)
-    * @param mptLeaf The MPT leaf data in bytes format (RLP-encoded account data)
-    * @return balance The balance value extracted from the leaf
-    * @notice MPT leaves contain RLP-encoded account data: [nonce, balance, storageHash, codeHash]
-    *         This function decodes the RLP structure and extracts the balance field (index 1)
-    */
+     * @dev Extracts balance value from an MPT leaf (off-chain state trie format)
+     * @param mptLeaf The MPT leaf data in bytes format (RLP-encoded account data)
+     * @return balance The balance value extracted from the leaf
+     * @notice MPT leaves contain RLP-encoded account data: [nonce, balance, storageHash, codeHash]
+     *         This function decodes the RLP structure and extracts the balance field (index 1)
+     */
     function _extractBalanceFromMPTLeaf(bytes calldata mptLeaf) internal pure returns (uint256 balance) {
         require(mptLeaf.length > 0, "Empty MPT leaf");
-        
+
         // Convert calldata to memory for RLP processing
         bytes memory leafData = new bytes(mptLeaf.length);
         for (uint256 i = 0; i < mptLeaf.length; i++) {
             leafData[i] = mptLeaf[i];
         }
-        
+
         // Convert to RLP item
         RLP.RLPItem memory rlpItem = RLP.toRLPItem(leafData);
-        
+
         // Ensure it's a list (account data should be RLP list)
         require(RLP.isList(rlpItem), "MPT leaf is not a list");
-        
+
         // Decode the list - should contain [nonce, balance, storageHash, codeHash]
         RLP.RLPItem[] memory accountFields = RLP.toList(rlpItem);
-        
+
         // Ethereum account format has 4 fields: [nonce, balance, storageHash, codeHash]
         require(accountFields.length >= 2, "Invalid account data format");
-        
+
         // Extract balance (field at index 1)
         balance = RLP.toUint(accountFields[1]);
     }
@@ -464,7 +464,8 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
 
         // Verify the merkle proof against the final state root
         require(
-            mtmanager.verifyProof(channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot), "Invalid merkle proof"
+            mtmanager.verifyProof(channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot),
+            "Invalid merkle proof"
         );
 
         // CEI pattern respected
@@ -474,22 +475,22 @@ contract ZKRollupBridge is IZKRollupBridge, ReentrancyGuard, Ownable {
         if (channel.targetContract == ETH_TOKEN_ADDRESS) {
             bool success;
             uint256 gasLimit = NATIVE_TOKEN_TRANSFER_GAS_LIMIT;
-            // use an assembly call to avoid loading large data into memory 
+            // use an assembly call to avoid loading large data into memory
             // input mem[in...(in+insize)]
             // output area mem[out...(out+outsize)]
             assembly {
-                success := call(
-                    gasLimit,
-                    caller(),
-                    claimedBalance,
-                    0, // in
-                    0, // insize
-                    0, // out
-                    0 // outsize
-                )
+                success :=
+                    call(
+                        gasLimit,
+                        caller(),
+                        claimedBalance,
+                        0, // in
+                        0, // insize
+                        0, // out
+                        0 // outsize
+                    )
             }
             require(success, "ETH transfer failed");
-
         } else {
             IERC20(channel.targetContract).transfer(msg.sender, claimedBalance);
         }

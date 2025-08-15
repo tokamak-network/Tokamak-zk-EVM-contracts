@@ -144,7 +144,7 @@ library RLP {
         assembly {
             destPtr := add(result, 0x20)
             let srcPtr := add(memPtr, offset)
-            
+
             // Copy word by word
             for { let i := 0 } lt(i, payloadLen) { i := add(i, 0x20) } {
                 mstore(add(destPtr, i), mload(add(srcPtr, i)))
@@ -164,7 +164,7 @@ library RLP {
 
         uint256 itemCount = numItems(item);
         RLPItem[] memory result = new RLPItem[](itemCount);
-        
+
         uint256 memPtr = item.memPtr;
         uint256 currPtr = memPtr + _payloadOffset(memPtr);
         uint256 dataLen;
@@ -182,15 +182,15 @@ library RLP {
      */
     function decode(bytes memory data) internal pure returns (bytes[] memory) {
         RLPItem memory rlpItem = toRLPItem(data);
-        
+
         if (isList(rlpItem)) {
             RLPItem[] memory items = toList(rlpItem);
             bytes[] memory result = new bytes[](items.length);
-            
+
             for (uint256 i = 0; i < items.length; i++) {
                 result[i] = toBytes(items[i]);
             }
-            
+
             return result;
         } else {
             // Single item, return as array with one element
@@ -232,7 +232,7 @@ library RLP {
         uint256 count = 0;
         uint256 currPtr = memPtr + _payloadOffset(memPtr);
         uint256 endPtr = memPtr + _itemLength(memPtr);
-        
+
         while (currPtr < endPtr) {
             currPtr += _itemLength(currPtr);
             count++;
@@ -301,7 +301,7 @@ library RLP {
         if (addrBytes.length != 20) {
             revert InvalidRLPData();
         }
-        
+
         address addr;
         assembly {
             addr := div(mload(add(addrBytes, 32)), exp(256, 12))
@@ -338,7 +338,7 @@ library RLP {
         if (data.length != 32) {
             revert InvalidRLPData();
         }
-        
+
         bytes32 result;
         assembly {
             result := mload(add(data, 32))

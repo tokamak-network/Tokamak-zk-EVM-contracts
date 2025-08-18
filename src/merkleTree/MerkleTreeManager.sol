@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Field} from "@poseidon/src/Field.sol";
-import {Poseidon2} from "@poseidon/src/Poseidon2.sol";
+import {Field} from "../poseidon/Field.sol";
+import {Poseidon2} from "../poseidon/Poseidon2.sol";
 import {IMerkleTreeManager} from "../interface/IMerkleTreeManager.sol";
 import "@openzeppelin/access/Ownable.sol";
 
@@ -13,8 +13,7 @@ import "@openzeppelin/access/Ownable.sol";
  */
 contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     // Constants
-    uint256 public constant FIELD_SIZE = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-    uint256 public constant BLS_FIELD_MODULUS = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
+    uint256 public constant FIELD_SIZE = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     uint256 public constant BALANCE_SLOT = 0;
     uint32 public constant ROOT_HISTORY_SIZE = 30;
 
@@ -211,7 +210,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
         );
 
         // Compute RLC: l2Addr + gamma * balance
-        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, BLS_FIELD_MODULUS), BLS_FIELD_MODULUS);
+        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, FIELD_SIZE), FIELD_SIZE);
 
         // Ensure it fits in the merkle tree field
         if (rlc >= FIELD_SIZE) {
@@ -261,7 +260,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
             uint256(Field.toBytes32(poseidonHasher.hash_2(Field.toField(prevRoot), Field.toField(bytes32(l2Addr)))));
 
         // Compute RLC
-        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, BLS_FIELD_MODULUS), BLS_FIELD_MODULUS);
+        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, FIELD_SIZE), FIELD_SIZE);
         if (rlc >= FIELD_SIZE) {
             rlc = rlc % FIELD_SIZE;
         }

@@ -3,7 +3,7 @@ pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
 import "../src/merkleTree/MerkleTreeManager.sol";
-import {Poseidon2} from "@poseidon/src/Poseidon2.sol";
+import {Poseidon2} from "../src/poseidon/Poseidon2.sol";
 
 contract MerkleTreeManagerAccessTest is Test {
     MerkleTreeManager public mtManager;

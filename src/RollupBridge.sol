@@ -8,7 +8,7 @@ import "@openzeppelin/access/Ownable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import {IMerkleTreeManager} from "./interface/IMerkleTreeManager.sol";
-import {Poseidon2} from "@poseidon/src/Poseidon2.sol";
+import {Poseidon2} from "./poseidon/Poseidon2.sol";
 import "./library/RLP.sol";
 
 /**

@@ -5,7 +5,6 @@ libs = ["lib"]
 remappings = [
     "@openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
     "@openzeppelin/=lib/openzeppelin-contracts/contracts/",
-    '@poseidon/=lib/poseidon2-evm/'
 ]
 viaIr = true
 optimizer = true

@@ -9,7 +9,7 @@ import {Verifier} from "../src/verifier/Verifier.sol";
 import "../src/merkleTree/MerkleTreeManager.sol";
 import "../src/library/RLP.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
-import {Poseidon2} from "@poseidon/src/Poseidon2.sol";
+import {Poseidon2} from "../src/poseidon/Poseidon2.sol";
 
 // Mock Contracts
 contract MockVerifier is IVerifier {

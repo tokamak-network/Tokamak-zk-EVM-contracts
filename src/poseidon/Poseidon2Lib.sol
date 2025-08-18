@@ -8,14 +8,14 @@ import {Field} from "./Field.sol";
 library Poseidon2Lib {
     using Field for *;
 
-    uint256 constant t = 3;  // State size: 2 inputs + 1 capacity
-    uint256 constant rFull = 8;  // Full rounds
-    uint256 constant rPartial = 56;  // Partial rounds
-    uint256 constant RATE = 2;  // Rate for sponge
+    uint256 constant t = 3; // State size: 2 inputs + 1 capacity
+    uint256 constant rFull = 8; // Full rounds
+    uint256 constant rPartial = 56; // Partial rounds
+    uint256 constant RATE = 2; // Rate for sponge
 
     struct Constants {
-        Field.Type[192] round_constants;  // Total round constants (actual count from your implementation)
-        Field.Type[3][3] mds_matrix;      // MDS matrix
+        Field.Type[192] round_constants; // Total round constants (actual count from your implementation)
+        Field.Type[3][3] mds_matrix; // MDS matrix
     }
 
     struct Sponge {
@@ -62,7 +62,7 @@ library Poseidon2Lib {
         Field.Type[3][3] memory mds
     ) internal pure returns (Field.Type[3] memory) {
         Field.Type[3] memory state;
-        
+
         // Initialize state with inputs
         for (uint256 i = 0; i < 3; i++) {
             state[i] = inputs[i];
@@ -133,19 +133,20 @@ library Poseidon2Lib {
     /**
      * Matrix multiplication with 3x3 MDS matrix
      */
-    function matrixMultiplication(
-        Field.Type[3] memory input,
-        Field.Type[3][3] memory mds
-    ) private pure returns (Field.Type[3] memory) {
+    function matrixMultiplication(Field.Type[3] memory input, Field.Type[3][3] memory mds)
+        private
+        pure
+        returns (Field.Type[3] memory)
+    {
         Field.Type[3] memory result;
-        
+
         for (uint256 i = 0; i < 3; i++) {
             result[i] = Field.Type.wrap(0);
             for (uint256 j = 0; j < 3; j++) {
                 result[i] = result[i].add(mds[i][j].mul(input[j]));
             }
         }
-        
+
         return result;
     }
 
@@ -176,18 +177,14 @@ library Poseidon2Lib {
         if (is_variable_length) {
             absorb(sponge, Field.Type.wrap(1));
         }
-        
+
         return squeeze(sponge);
     }
 
     /**
      * Initialize sponge
      */
-    function new_poseidon2(Field.Type iv, Constants memory constants)
-        private
-        pure
-        returns (Sponge memory)
-    {
+    function new_poseidon2(Field.Type iv, Constants memory constants) private pure returns (Sponge memory) {
         Sponge memory result = Sponge({
             iv: iv,
             cache: [Field.Type.wrap(0), Field.Type.wrap(0)],
@@ -196,7 +193,7 @@ library Poseidon2Lib {
             squeeze_mode: false,
             constants: constants
         });
-        result.state[RATE] = iv;  // Set capacity element
+        result.state[RATE] = iv; // Set capacity element
         return result;
     }
 
@@ -226,7 +223,7 @@ library Poseidon2Lib {
             }
             self.cache_size = RATE;
         }
-        
+
         Field.Type result = self.cache[0];
         for (uint256 i = 1; i < RATE; i++) {
             if (i < self.cache_size) {
@@ -256,13 +253,8 @@ library Poseidon2Lib {
         }
 
         // Apply permutation
-        self.state = poseidonPermutation(
-            self.state,
-            rFull,
-            rPartial,
-            self.constants.round_constants,
-            self.constants.mds_matrix
-        );
+        self.state =
+            poseidonPermutation(self.state, rFull, rPartial, self.constants.round_constants, self.constants.mds_matrix);
 
         // Return rate elements
         Field.Type[RATE] memory result;

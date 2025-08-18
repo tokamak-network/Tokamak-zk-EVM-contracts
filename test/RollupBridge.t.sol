@@ -451,7 +451,6 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[2] = l2User3;
         l2PublicKeys[3] = l2Leader;
 
-
         // Get real proof data
         (
             uint128[] memory proofPart1,

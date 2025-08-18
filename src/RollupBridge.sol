@@ -345,50 +345,53 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @dev Ultra-optimized assembly function to extract balance from an MPT leaf
      * @param mptLeaf The MPT leaf data in bytes format (RLP-encoded account data)
      * @return extractedBalance The balance value extracted from the leaf
-     * @notice Uses minimal memory and simple revert codes 
+     * @notice Uses minimal memory and simple revert codes
      *         Revert codes: 0x01=empty, 0x02=not list, 0x03=invalid RLP, 0x04=overflow
      *         STILL COSTS 150,000 GAS PER LEAF
      */
-    function _extractBalanceFromMPTLeafAssembly(bytes calldata mptLeaf) 
-        internal pure returns (uint256 extractedBalance) {
+    function _extractBalanceFromMPTLeafAssembly(bytes calldata mptLeaf)
+        internal
+        pure
+        returns (uint256 extractedBalance)
+    {
         assembly {
             let dataPtr := mptLeaf.offset
             let dataLen := mptLeaf.length
-            
+
             // Minimal validation - revert with code 0x01 if empty
-            if iszero(dataLen) { 
+            if iszero(dataLen) {
                 mstore(0, 0x01)
                 revert(0, 0x20)
             }
-            
+
             // Read first byte directly from calldata
             let firstByte := byte(0, calldataload(dataPtr))
-            
+
             // Check if it's a list (>= 0xc0) - revert with code 0x02 if not
-            if lt(firstByte, 0xc0) { 
+            if lt(firstByte, 0xc0) {
                 mstore(0, 0x02)
                 revert(0, 0x20)
             }
-            
+
             // Calculate list content offset
             let contentOffset := 1
-            
+
             // Handle list length encoding
             if gt(firstByte, 0xf7) {
                 // Long list (0xf8+)
                 let lenOfLen := sub(firstByte, 0xf7)
                 contentOffset := add(1, lenOfLen)
             }
-            
+
             // Move to list content
             dataPtr := add(dataPtr, contentOffset)
-            
+
             // Read and skip nonce (first field)
             let nonceHeader := byte(0, calldataload(dataPtr))
-            
+
             // Calculate how many bytes to skip for nonce
             let skipBytes := 1
-            
+
             if gt(nonceHeader, 0x7f) {
                 if lt(nonceHeader, 0xb8) {
                     // Short string (0x80-0xb7)
@@ -401,13 +404,13 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
                     skipBytes := add(add(1, lenOfLen), lengthBytes)
                 }
             }
-            
+
             // Move pointer past nonce to balance field
             dataPtr := add(dataPtr, skipBytes)
-            
+
             // Read balance header
             let balHeader := byte(0, calldataload(dataPtr))
-            
+
             // Extract balance value based on encoding
             switch lt(balHeader, 0x80)
             case 1 {
@@ -424,26 +427,26 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
                     if lt(balHeader, 0xb8) {
                         // Short string (0x81-0xb7)
                         let balLen := sub(balHeader, 0x80)
-                        
+
                         // Read balance value (shift to get correct bytes)
                         let rawData := calldataload(add(dataPtr, 1))
                         extractedBalance := shr(sub(256, mul(8, balLen)), rawData)
                     }
-                    
+
                     if gt(balHeader, 0xb7) {
                         // Long string (0xb8+) - rare for balances
                         let lenOfLen := sub(balHeader, 0xb7)
-                        
+
                         // Read actual length
                         let lengthData := calldataload(add(dataPtr, 1))
                         let balLen := shr(sub(256, mul(8, lenOfLen)), lengthData)
-                        
+
                         // Revert if balance is too large (code 0x04)
                         if gt(balLen, 32) {
                             mstore(0, 0x04)
                             revert(0, 0x20)
                         }
-                        
+
                         // Read balance value
                         let rawData := calldataload(add(add(dataPtr, 1), lenOfLen))
                         extractedBalance := shr(sub(256, mul(8, balLen)), rawData)

@@ -110,11 +110,9 @@ library Field {
             c := 1
             let base := a
             let exponent := exponential
-            
-            for { } gt(exponent, 0) { } {
-                if and(exponent, 1) {
-                    c := mulmod(c, base, PRIME)
-                }
+
+            for {} gt(exponent, 0) {} {
+                if and(exponent, 1) { c := mulmod(c, base, PRIME) }
                 base := mulmod(base, base, PRIME)
                 exponent := shr(1, exponent)
             }

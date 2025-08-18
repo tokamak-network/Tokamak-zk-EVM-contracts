@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import "../src/merkleTree/MerkleTreeManager.sol";
 import {Poseidon2} from "../src/poseidon/Poseidon2.sol";
 
-
 contract MerkleTreeManagerAccessTest is Test {
     MerkleTreeManager public mtManager;
     Poseidon2 public poseidon;

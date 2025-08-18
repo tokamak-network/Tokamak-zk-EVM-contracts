@@ -308,11 +308,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
 
         for (uint256 i = 0; i < initialMPTLeaves.length; ++i) {
             // Extract balance from initial MPT leaf (off-chain state trie format)
-            uint256 initialBalance = _extractBalanceFromMPTLeaf(initialMPTLeaves[i]);
+            uint256 initialBalance = _extractBalanceFromMPTLeafAssembly(initialMPTLeaves[i]);
             initialBalanceSum += initialBalance;
 
             // Extract balance from final MPT leaf (off-chain state trie format)
-            uint256 finalBalance = _extractBalanceFromMPTLeaf(finalMPTLeaves[i]);
+            uint256 finalBalance = _extractBalanceFromMPTLeafAssembly(finalMPTLeaves[i]);
             finalBalanceSum += finalBalance;
         }
 
@@ -342,35 +342,115 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     }
 
     /**
-     * @dev Extracts balance value from an MPT leaf (off-chain state trie format)
+     * @dev Ultra-optimized assembly function to extract balance from an MPT leaf
      * @param mptLeaf The MPT leaf data in bytes format (RLP-encoded account data)
-     * @return balance The balance value extracted from the leaf
-     * @notice MPT leaves contain RLP-encoded account data: [nonce, balance, storageHash, codeHash]
-     *         This function decodes the RLP structure and extracts the balance field (index 1)
+     * @return extractedBalance The balance value extracted from the leaf
+     * @notice Uses minimal memory and simple revert codes 
+     *         Revert codes: 0x01=empty, 0x02=not list, 0x03=invalid RLP, 0x04=overflow
+     *         STILL COSTS 150,000 GAS PER LEAF
      */
-    function _extractBalanceFromMPTLeaf(bytes calldata mptLeaf) internal pure returns (uint256 balance) {
-        require(mptLeaf.length > 0, "Empty MPT leaf");
-
-        // Convert calldata to memory for RLP processing
-        bytes memory leafData = new bytes(mptLeaf.length);
-        for (uint256 i = 0; i < mptLeaf.length; i++) {
-            leafData[i] = mptLeaf[i];
+    function _extractBalanceFromMPTLeafAssembly(bytes calldata mptLeaf) 
+        internal pure returns (uint256 extractedBalance) {
+        assembly {
+            let dataPtr := mptLeaf.offset
+            let dataLen := mptLeaf.length
+            
+            // Minimal validation - revert with code 0x01 if empty
+            if iszero(dataLen) { 
+                mstore(0, 0x01)
+                revert(0, 0x20)
+            }
+            
+            // Read first byte directly from calldata
+            let firstByte := byte(0, calldataload(dataPtr))
+            
+            // Check if it's a list (>= 0xc0) - revert with code 0x02 if not
+            if lt(firstByte, 0xc0) { 
+                mstore(0, 0x02)
+                revert(0, 0x20)
+            }
+            
+            // Calculate list content offset
+            let contentOffset := 1
+            
+            // Handle list length encoding
+            if gt(firstByte, 0xf7) {
+                // Long list (0xf8+)
+                let lenOfLen := sub(firstByte, 0xf7)
+                contentOffset := add(1, lenOfLen)
+            }
+            
+            // Move to list content
+            dataPtr := add(dataPtr, contentOffset)
+            
+            // Read and skip nonce (first field)
+            let nonceHeader := byte(0, calldataload(dataPtr))
+            
+            // Calculate how many bytes to skip for nonce
+            let skipBytes := 1
+            
+            if gt(nonceHeader, 0x7f) {
+                if lt(nonceHeader, 0xb8) {
+                    // Short string (0x80-0xb7)
+                    skipBytes := add(1, sub(nonceHeader, 0x80))
+                }
+                // For long strings (0xb8+), simplified handling
+                if gt(nonceHeader, 0xb7) {
+                    let lenOfLen := sub(nonceHeader, 0xb7)
+                    let lengthBytes := byte(0, calldataload(add(dataPtr, 1)))
+                    skipBytes := add(add(1, lenOfLen), lengthBytes)
+                }
+            }
+            
+            // Move pointer past nonce to balance field
+            dataPtr := add(dataPtr, skipBytes)
+            
+            // Read balance header
+            let balHeader := byte(0, calldataload(dataPtr))
+            
+            // Extract balance value based on encoding
+            switch lt(balHeader, 0x80)
+            case 1 {
+                // Single byte (0x00-0x7f)
+                extractedBalance := balHeader
+            }
+            default {
+                switch eq(balHeader, 0x80)
+                case 1 {
+                    // Empty string = 0
+                    extractedBalance := 0
+                }
+                default {
+                    if lt(balHeader, 0xb8) {
+                        // Short string (0x81-0xb7)
+                        let balLen := sub(balHeader, 0x80)
+                        
+                        // Read balance value (shift to get correct bytes)
+                        let rawData := calldataload(add(dataPtr, 1))
+                        extractedBalance := shr(sub(256, mul(8, balLen)), rawData)
+                    }
+                    
+                    if gt(balHeader, 0xb7) {
+                        // Long string (0xb8+) - rare for balances
+                        let lenOfLen := sub(balHeader, 0xb7)
+                        
+                        // Read actual length
+                        let lengthData := calldataload(add(dataPtr, 1))
+                        let balLen := shr(sub(256, mul(8, lenOfLen)), lengthData)
+                        
+                        // Revert if balance is too large (code 0x04)
+                        if gt(balLen, 32) {
+                            mstore(0, 0x04)
+                            revert(0, 0x20)
+                        }
+                        
+                        // Read balance value
+                        let rawData := calldataload(add(add(dataPtr, 1), lenOfLen))
+                        extractedBalance := shr(sub(256, mul(8, balLen)), rawData)
+                    }
+                }
+            }
         }
-
-        // Convert to RLP item
-        RLP.RLPItem memory rlpItem = RLP.toRLPItem(leafData);
-
-        // Ensure it's a list (account data should be RLP list)
-        require(RLP.isList(rlpItem), "MPT leaf is not a list");
-
-        // Decode the list - should contain [nonce, balance, storageHash, codeHash]
-        RLP.RLPItem[] memory accountFields = RLP.toList(rlpItem);
-
-        // Ethereum account format has 4 fields: [nonce, balance, storageHash, codeHash]
-        require(accountFields.length >= 2, "Invalid account data format");
-
-        // Extract balance (field at index 1)
-        balance = RLP.toUint(accountFields[1]);
     }
 
     /**

@@ -439,15 +439,18 @@ contract RollupBridgeTest is Test {
 
         // Create channel with real bridge
         vm.startPrank(user1);
-        address[] memory participants = new address[](3);
+        address[] memory participants = new address[](4);
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = user3;
+        participants[3] = leader;
 
-        address[] memory l2PublicKeys = new address[](3);
+        address[] memory l2PublicKeys = new address[](4);
         l2PublicKeys[0] = l2User1;
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
+        l2PublicKeys[3] = l2Leader;
+
 
         // Get real proof data
         (
@@ -471,21 +474,25 @@ contract RollupBridgeTest is Test {
         realBridge.depositETH{value: 2 ether}(channelId);
         vm.prank(user3);
         realBridge.depositETH{value: 3 ether}(channelId);
+        vm.prank(leader);
+        realBridge.depositETH{value: 4 ether}(channelId);
 
         // Initialize state
         vm.prank(user1);
         realBridge.initializeChannelState(channelId);
 
         // Create MPT leaves
-        uint256[] memory initialBalances = new uint256[](3);
+        uint256[] memory initialBalances = new uint256[](4);
         initialBalances[0] = 1 ether;
         initialBalances[1] = 2 ether;
         initialBalances[2] = 3 ether;
+        initialBalances[3] = 4 ether;
 
-        uint256[] memory finalBalances = new uint256[](3);
+        uint256[] memory finalBalances = new uint256[](4);
         finalBalances[0] = 2 ether;
         finalBalances[1] = 1 ether;
         finalBalances[2] = 3 ether;
+        finalBalances[3] = 4 ether;
 
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);

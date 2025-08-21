@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
-import "../src/merkleTree/MerkleTreeManager.sol";
+import "../src/merkleTree/MerkleTreeManager2.sol";
 import {IPoseidon2Yul} from "../src/interface/IPoseidon2Yul.sol";
 import {MockPoseidon2Yul} from "./MockPoseidon2Yul.sol";
 

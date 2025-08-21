@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Script} from "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 import {MerkleTreeManager4} from "../src/merkleTree/MerkleTreeManager4.sol";
 import {Poseidon4Yul} from "../lib/poseidon-bls12381-evm/contracts/Poseidon4Yul.sol";
 

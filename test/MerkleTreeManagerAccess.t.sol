@@ -2,13 +2,13 @@
 pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
-import "../src/merkleTree/MerkleTreeManager2.sol";
-import {IPoseidon2Yul} from "../src/interface/IPoseidon2Yul.sol";
-import {MockPoseidon2Yul} from "./MockPoseidon2Yul.sol";
+import "../src/merkleTree/MerkleTreeManager4.sol";
+import {IPoseidon4Yul} from "../src/interface/IPoseidon4Yul.sol";
+import {MockPoseidon4Yul} from "./MockPoseidon4Yul.sol";
 
 contract MerkleTreeManagerAccessTest is Test {
-    MerkleTreeManager public mtManager;
-    IPoseidon2Yul public poseidon;
+    MerkleTreeManager4 public mtManager;
+    IPoseidon4Yul public poseidon;
 
     address public owner = address(1);
     address public bridge = address(2);
@@ -25,10 +25,10 @@ contract MerkleTreeManagerAccessTest is Test {
         vm.startPrank(owner);
 
         // Deploy Poseidon hasher
-        poseidon = new MockPoseidon2Yul();
+        poseidon = new MockPoseidon4Yul();
 
         // Deploy MerkleTreeManager
-        mtManager = new MerkleTreeManager(address(poseidon), 6);
+        mtManager = new MerkleTreeManager4(address(poseidon), 6);
 
         // Set the bridge address
         mtManager.setBridge(bridge);
@@ -98,7 +98,7 @@ contract MerkleTreeManagerAccessTest is Test {
 
     function testOnlyOwnerCanSetBridge() public {
         // Deploy a new MerkleTreeManager without bridge set
-        MerkleTreeManager newMtManager = new MerkleTreeManager(address(poseidon), 6);
+        MerkleTreeManager4 newMtManager = new MerkleTreeManager4(address(poseidon), 6);
 
         // Attacker cannot set bridge
         vm.prank(attacker);
@@ -115,7 +115,7 @@ contract MerkleTreeManagerAccessTest is Test {
 
     function testBridgeCanOnlyBeSetOnce() public {
         // Deploy a new MerkleTreeManager
-        MerkleTreeManager newMtManager = new MerkleTreeManager(address(poseidon), 6);
+        MerkleTreeManager4 newMtManager = new MerkleTreeManager4(address(poseidon), 6);
 
         // Set bridge once
         newMtManager.setBridge(bridge);
@@ -188,14 +188,18 @@ contract MerkleTreeManagerAccessTest is Test {
         assertTrue(seqLength > 0);
 
         // Verify proof function is accessible
-        // Note: with empty proof and matching leaf/root of 0x0, this returns true
+        // Test with actual leaf and root values from the tree
+        bytes32 actualLeaf = mtManager.computeLeafForVerification(l2User1, 1 ether, bytes32(0));
+        bytes32 actualRoot = mtManager.getLatestRoot(CHANNEL_ID);
+        
+        // Test with matching values - this should return true
         bytes32[] memory emptyProof = new bytes32[](0);
-        bool valid = mtManager.verifyProof(CHANNEL_ID, emptyProof, bytes32(0), 0, bytes32(0));
-        assertTrue(valid); // Returns true because computedHash (0) == root (0)
+        bool valid = mtManager.verifyProof(CHANNEL_ID, emptyProof, actualLeaf, 0, actualRoot);
+        assertTrue(valid); // Returns true because computedHash matches root
 
         // Test with non-matching values - this should return false
-        bool invalid = mtManager.verifyProof(CHANNEL_ID, emptyProof, bytes32(uint256(1)), 0, bytes32(0));
-        assertFalse(invalid); // Returns false because computedHash (1) != root (0)
+        bool invalid = mtManager.verifyProof(CHANNEL_ID, emptyProof, bytes32(uint256(1)), 0, actualRoot);
+        assertFalse(invalid); // Returns false because computedHash (1) != root
 
         vm.stopPrank();
     }
@@ -240,7 +244,7 @@ contract MerkleTreeManagerAccessTest is Test {
 
         // 7. Verify that users cannot be added twice even by bridge
         vm.prank(bridge);
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager.UsersAlreadyAdded.selector, CHANNEL_ID));
+        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.UsersAlreadyAdded.selector, CHANNEL_ID));
         mtManager.addUsers(CHANNEL_ID, l1Addresses, balances);
     }
 

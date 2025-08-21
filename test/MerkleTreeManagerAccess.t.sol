@@ -191,7 +191,7 @@ contract MerkleTreeManagerAccessTest is Test {
         // Test with actual leaf and root values from the tree
         bytes32 actualLeaf = mtManager.computeLeafForVerification(l2User1, 1 ether, bytes32(0));
         bytes32 actualRoot = mtManager.getLatestRoot(CHANNEL_ID);
-        
+
         // Test with matching values - this should return true
         bytes32[] memory emptyProof = new bytes32[](0);
         bool valid = mtManager.verifyProof(CHANNEL_ID, emptyProof, actualLeaf, 0, actualRoot);

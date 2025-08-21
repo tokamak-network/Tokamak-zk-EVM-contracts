@@ -6,11 +6,11 @@ import "../src/RollupBridge.sol";
 import "../src/interface/IRollupBridge.sol";
 import "../src/interface/IVerifier.sol";
 import {Verifier} from "../src/verifier/Verifier.sol";
-import "../src/merkleTree/MerkleTreeManager2.sol";
+import "../src/merkleTree/MerkleTreeManager4.sol";
 import "../src/library/RLP.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
-import {IPoseidon2Yul} from "../src/interface/IPoseidon2Yul.sol";
-import {MockPoseidon2Yul} from "./MockPoseidon2Yul.sol";
+import {IPoseidon4Yul} from "../src/interface/IPoseidon4Yul.sol";
+import {MockPoseidon4Yul} from "./MockPoseidon4Yul.sol";
 
 // Mock Contracts
 contract MockVerifier is IVerifier {
@@ -47,9 +47,9 @@ contract RollupBridgeTest is Test {
 
     RollupBridge public bridge;
     MockVerifier public verifier;
-    MerkleTreeManager public mtmanager;
+    MerkleTreeManager4 public mtmanager;
     MockERC20 public token;
-    IPoseidon2Yul public poseidon;
+    IPoseidon4Yul public poseidon;
 
     address public owner = address(1);
     address public leader = address(2);
@@ -77,8 +77,8 @@ contract RollupBridgeTest is Test {
         vm.startPrank(owner);
 
         verifier = new MockVerifier();
-        poseidon = new MockPoseidon2Yul();
-        mtmanager = new MerkleTreeManager(address(poseidon), 6);
+        poseidon = new MockPoseidon4Yul();
+        mtmanager = new MerkleTreeManager4(address(poseidon), 6);
         bridge = new RollupBridge(address(verifier), address(mtmanager));
         mtmanager.setBridge(address(bridge));
         token = new MockERC20();
@@ -430,7 +430,7 @@ contract RollupBridgeTest is Test {
         // Deploy real verifier instead of mock
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
-        MerkleTreeManager mtmanager2 = new MerkleTreeManager(address(poseidon), 6);
+        MerkleTreeManager4 mtmanager2 = new MerkleTreeManager4(address(poseidon), 6);
         RollupBridge realBridge = new RollupBridge(address(realVerifier), address(mtmanager2));
         mtmanager2.setBridge(address(realBridge));
 

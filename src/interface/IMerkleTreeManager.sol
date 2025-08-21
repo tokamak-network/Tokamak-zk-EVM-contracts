@@ -3,7 +3,12 @@ pragma solidity 0.8.23;
 
 /**
  * @title IMerkleTreeManager
- * @dev Interface for the MerkleTreeManager contract - Unified incremental merkle tree for tracking user balances with RLC
+ * @author Tokamak Ooo project
+ * @notice Interface for Merkle tree manager contracts - Unified incremental merkle tree for tracking user balances with RLC
+ * @dev This interface defines the contract for managing Merkle trees that track user balances using
+ *      RLC (Random Linear Combination) for security. The interface is designed to work with both
+ *      binary and quaternary Merkle tree implementations, providing flexibility in tree structure
+ *      while maintaining consistent functionality for balance tracking and proof verification.
  */
 interface IMerkleTreeManager {
     // ============ Structs ============
@@ -52,10 +57,12 @@ interface IMerkleTreeManager {
     // ============ View Functions ============
 
     /**
-     * @dev Hash two nodes together using Poseidon2
+     * @dev Hash two nodes together using the appropriate hasher
      * @param _left The left node
      * @param _right The right node
      * @return The hash of the two nodes
+     * @dev For binary trees, this uses Poseidon2. For quaternary trees, this
+     *      typically uses Poseidon4Yul with the two inputs plus two zero values.
      */
     function hashLeftRight(bytes32 _left, bytes32 _right) external view returns (bytes32);
 

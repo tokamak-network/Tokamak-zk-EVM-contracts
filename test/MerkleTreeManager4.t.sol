@@ -4,7 +4,7 @@ pragma solidity 0.8.23;
 import {Test} from "forge-std/Test.sol";
 import {MerkleTreeManager4} from "../src/merkleTree/MerkleTreeManager4.sol";
 import {IPoseidon4Yul} from "../src/interface/IPoseidon4Yul.sol";
-import {Field} from "@poseidon/Field.sol";
+import {Field} from "../src/poseidon/Field.sol";
 
 contract MockPoseidon4Yul is IPoseidon4Yul {
     // Mock implementation for testing - returns a simple hash of the inputs
@@ -58,7 +58,7 @@ contract MerkleTreeManager4Test is Test {
         merkleTree.setAddressPair(channelId, user3, address(0x333));
     }
     
-    function testConstructor() public {
+    function testConstructor() public view {
         assertEq(address(merkleTree.poseidonHasher()), address(mockPoseidon));
         assertEq(merkleTree.depth(), 4);
         assertEq(merkleTree.bridge(), bridge);
@@ -97,7 +97,7 @@ contract MerkleTreeManager4Test is Test {
         assertEq(merkleTree.getRootSequenceLength(channelId), 4); // Initial + 3 users
     }
     
-    function testHashFour() public {
+    function testHashFour() public view {
         bytes32 a = bytes32(uint256(1));
         bytes32 b = bytes32(uint256(2));
         bytes32 c = bytes32(uint256(3));
@@ -293,7 +293,7 @@ contract MerkleTreeManager4Test is Test {
         merkleTree.addUsers(channelId, l1Addresses3, balances3);
     }
 
-    function testHashFourEdgeCases() public {
+    function testHashFourEdgeCases() public view {
         // Test with zero values
         bytes32 result1 = merkleTree.hashFour(bytes32(0), bytes32(0), bytes32(0), bytes32(0));
         assertTrue(result1 != bytes32(0));
@@ -331,7 +331,7 @@ contract MerkleTreeManager4Test is Test {
         merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)), aboveField);
     }
 
-    function testComputeLeafForVerification() public {
+    function testComputeLeafForVerification() public view {
         // Test with zero balance
         bytes32 leaf1 = merkleTree.computeLeafForVerification(address(0x111), 0, bytes32(0));
         assertTrue(leaf1 != bytes32(0));
@@ -442,7 +442,7 @@ contract MerkleTreeManager4Test is Test {
         merkleTree.getRootAtIndex(channelId, 10);
     }
 
-    function testIsKnownRoot() public {
+    function testIsKnownRoot() public view {
         // Test with zero root
         assertFalse(merkleTree.isKnownRoot(channelId, bytes32(0)));
         
@@ -475,7 +475,7 @@ contract MerkleTreeManager4Test is Test {
         assertEq(zeroBalance, 0);
     }
 
-    function testHashLeftRight() public {
+    function testHashLeftRight() public view {
         // Test the hashLeftRight function (interface compatibility)
         bytes32 left = bytes32(uint256(1));
         bytes32 right = bytes32(uint256(2));
@@ -518,7 +518,7 @@ contract MerkleTreeManager4Test is Test {
         }
     }
 
-    function testFuzzHashFour(uint256[4] memory inputs) public {
+    function testFuzzHashFour(uint256[4] memory inputs) public view {
         // Fuzz test for hashFour function
         vm.assume(inputs[0] < 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001);
         vm.assume(inputs[1] < 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001);

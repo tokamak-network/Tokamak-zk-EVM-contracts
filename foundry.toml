@@ -5,6 +5,12 @@ libs = ["lib"]
 remappings = [
     "@openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
     "@openzeppelin/=lib/openzeppelin-contracts/contracts/",
+    "@poseidon/=lib/poseidon-bls12381-evm/contracts/",
+]
+
+ignored_file_paths = [
+    "lib/tokamak-zk-evm/**/*.sol",
+    "lib/poseidon-bls12381-evm/contracts/Poseidon2Yul.sol"
 ]
 viaIr = true
 optimizer = true

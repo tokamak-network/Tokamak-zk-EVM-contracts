@@ -3,11 +3,12 @@ pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
 import "../src/merkleTree/MerkleTreeManager.sol";
-import {Poseidon2} from "../src/poseidon/Poseidon2.sol";
+import {IPoseidon2Yul} from "../src/interface/IPoseidon2Yul.sol";
+import {MockPoseidon2Yul} from "./MockPoseidon2Yul.sol";
 
 contract MerkleTreeManagerAccessTest is Test {
     MerkleTreeManager public mtManager;
-    Poseidon2 public poseidon;
+    IPoseidon2Yul public poseidon;
 
     address public owner = address(1);
     address public bridge = address(2);
@@ -24,7 +25,7 @@ contract MerkleTreeManagerAccessTest is Test {
         vm.startPrank(owner);
 
         // Deploy Poseidon hasher
-        poseidon = new Poseidon2();
+        poseidon = new MockPoseidon2Yul();
 
         // Deploy MerkleTreeManager
         mtManager = new MerkleTreeManager(address(poseidon), 6);

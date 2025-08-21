@@ -210,7 +210,9 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
         uint256 prevRoot = (rootSequence.length == 0) ? BALANCE_SLOT : uint256(rootSequence[rootSequence.length - 1]);
 
         // Compute gamma = Poseidon2Yul(prevRoot, l2Addr)
-        bytes memory data = abi.encode(Field.toUint256(Field.toField(bytes32(prevRoot))), Field.toUint256(Field.toField(bytes32(l2Addr))));
+        bytes memory data = abi.encode(
+            Field.toUint256(Field.toField(bytes32(prevRoot))), Field.toUint256(Field.toField(bytes32(l2Addr)))
+        );
         (bool success, bytes memory result) = address(poseidonHasher).staticcall(data);
         require(success, "Hash failed");
         uint256 gamma = abi.decode(result, (uint256));
@@ -262,7 +264,8 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
         uint256 l2Addr = uint256(uint160(l2Address));
 
         // Compute gamma using Poseidon2Yul
-        bytes memory data = abi.encode(Field.toUint256(Field.toField(prevRoot)), Field.toUint256(Field.toField(bytes32(l2Addr))));
+        bytes memory data =
+            abi.encode(Field.toUint256(Field.toField(prevRoot)), Field.toUint256(Field.toField(bytes32(l2Addr))));
         (bool success, bytes memory result) = address(poseidonHasher).staticcall(data);
         require(success, "Hash failed");
         uint256 gamma = abi.decode(result, (uint256));

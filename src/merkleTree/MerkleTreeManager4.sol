@@ -14,7 +14,7 @@ import "@openzeppelin/access/Ownable.sol";
  *      providing improved efficiency over binary trees. Each channel maintains its own independent
  *      Merkle tree and state. Uses Poseidon4Yul for hashing 4 inputs simultaneously, which is
  *      more gas-efficient than binary hashing for tree construction and verification.
- *      
+ *
  *      Key features:
  *      - Quaternary tree structure (4 children per node)
  *      - Maximum depth of 16 levels (supports up to 4^16 leaves)
@@ -24,24 +24,24 @@ import "@openzeppelin/access/Ownable.sol";
  */
 contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     // ============ Constants ============
-    
+
     /**
      * @dev Field size for BLS12-381 curve operations
      *      Used in RLC (Random Linear Combination) calculations
      */
     uint256 public constant FIELD_SIZE = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
-    
+
     /**
      * @dev Balance slot identifier for user balance storage
      */
     uint256 public constant BALANCE_SLOT = 0;
-    
+
     /**
      * @dev Maximum number of root history entries to maintain per channel
      *      Provides rollback capability for state recovery
      */
     uint32 public constant ROOT_HISTORY_SIZE = 30;
-    
+
     /**
      * @dev Number of children per internal node in the quaternary tree
      *      This is the key difference from binary trees (which have 2 children)
@@ -49,12 +49,12 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     uint32 public constant CHILDREN_PER_NODE = 4;
 
     // ============ State Variables ============
-    
+
     /**
      * @dev Address of the bridge contract that can call privileged functions
      */
     address public bridge;
-    
+
     /**
      * @dev Flag indicating whether the bridge address has been set
      */
@@ -69,13 +69,13 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     }
 
     // ============ Immutable Configuration ============
-    
+
     /**
      * @dev Poseidon4Yul hasher contract for 4-input hashing operations
      *      Used for tree construction and proof verification
      */
     IPoseidon4Yul public immutable poseidonHasher;
-    
+
     /**
      * @dev Depth of the quaternary Merkle tree
      *      Maximum allowed depth is 16 (supports up to 4^16 leaves)
@@ -83,27 +83,27 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     uint32 public immutable depth;
 
     // ============ Tree Storage (Per Channel) ============
-    
+
     /**
      * @dev Cached subtree hashes for efficient tree construction
      *      channelId => depth level => cached subtree hash
      *      Used to avoid recomputing hashes during leaf insertion
      */
     mapping(uint256 => mapping(uint256 => bytes32)) public cachedSubtrees;
-    
+
     /**
      * @dev Root hashes for each channel, indexed by root sequence number
      *      channelId => rootIndex => root hash
      *      Maintains history of root changes for rollback capability
      */
     mapping(uint256 => mapping(uint256 => bytes32)) public roots;
-    
+
     /**
      * @dev Current root index for each channel
      *      Used to track the latest root in the roots mapping
      */
     mapping(uint256 => uint32) public currentRootIndex;
-    
+
     /**
      * @dev Next leaf index to be inserted for each channel
      *      Increments with each new leaf insertion
@@ -111,19 +111,19 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     mapping(uint256 => uint32) public nextLeafIndex;
 
     // ============ User Data Storage (Per Channel) ============
-    
+
     /**
      * @dev Array of user data for each channel
      *      channelId => array of UserData structs
      */
     mapping(uint256 => UserData[]) private channelUsers;
-    
+
     /**
      * @dev Mapping from L1 address to user index within a channel
      *      channelId => l1Address => index in channelUsers array
      */
     mapping(uint256 => mapping(address => uint256)) public userIndex;
-    
+
     /**
      * @dev Mapping from L1 address to corresponding L2 address
      *      channelId => l1Address => l2Address
@@ -131,19 +131,19 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     mapping(uint256 => mapping(address => address)) public l1ToL2;
 
     // ============ State Tracking (Per Channel) ============
-    
+
     /**
      * @dev Sequence of root hashes for each channel
      *      Used for proof verification and state reconstruction
      */
     mapping(uint256 => bytes32[]) private channelRootSequence;
-    
+
     /**
      * @dev Nonce for each channel, incremented with each state change
      *      Provides uniqueness for state transitions
      */
     mapping(uint256 => uint256) public nonce;
-    
+
     /**
      * @dev Flag indicating whether a channel has been initialized
      *      Prevents double initialization and ensures proper setup
@@ -151,90 +151,90 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     mapping(uint256 => bool) public channelInitialized;
 
     // ============ Errors ============
-    
+
     /**
      * @dev Thrown when a value exceeds the field size limit
      * @param value The value that is out of range
      */
     error ValueOutOfRange(bytes32 value);
-    
+
     /**
      * @dev Thrown when the tree depth is too small (must be > 0)
      * @param depth The invalid depth value
      */
     error DepthTooSmall(uint32 depth);
-    
+
     /**
      * @dev Thrown when the tree depth is too large (must be < 16 for quaternary trees)
      * @param depth The invalid depth value
      */
     error DepthTooLarge(uint32 depth);
-    
+
     /**
      * @dev Thrown when attempting to insert a leaf into a full tree
      * @param nextIndex The index where the next leaf would be inserted
      */
     error MerkleTreeFull(uint32 nextIndex);
-    
+
     /**
      * @dev Thrown when accessing an index that is out of bounds
      * @param index The invalid index value
      */
     error IndexOutOfBounds(uint256 index);
-    
+
     /**
      * @dev Thrown when attempting to initialize an already initialized channel
      * @param channelId The channel ID that is already initialized
      */
     error ChannelAlreadyInitialized(uint256 channelId);
-    
+
     /**
      * @dev Thrown when attempting to perform operations on an uninitialized channel
      * @param channelId The channel ID that is not initialized
      */
     error ChannelNotInitialized(uint256 channelId);
-    
+
     /**
      * @dev Thrown when attempting to add users to a channel that already has users
      * @param channelId The channel ID that already has users
      */
     error UsersAlreadyAdded(uint256 channelId);
-    
+
     /**
      * @dev Thrown when attempting to add a user without setting their L2 address mapping
      */
     error L2AddressNotSet();
-    
+
     /**
      * @dev Thrown when input arrays have mismatched lengths
      */
     error LengthMismatch();
-    
+
     /**
      * @dev Thrown when attempting to access root history on a channel with no roots
      */
     error NoRoots();
-    
+
     /**
      * @dev Thrown when attempting to access user data on a channel with no leaves
      */
     error NoLeaves();
 
     // ============ Events ============
-    
+
     /**
      * @dev Emitted when the bridge address is set
      * @param bridge The address of the bridge contract
      */
     event BridgeSet(address indexed bridge);
-    
+
     /**
      * @dev Emitted when a new channel is initialized
      * @param channelId The ID of the initialized channel
      * @param initialRoot The initial root hash of the channel's Merkle tree
      */
     event ChannelInitialized(uint256 indexed channelId, bytes32 initialRoot);
-    
+
     /**
      * @dev Emitted when users are added to a channel
      * @param channelId The ID of the channel
@@ -242,7 +242,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      * @param newRoot The new root hash after adding users
      */
     event UsersAdded(uint256 indexed channelId, uint256 count, bytes32 newRoot);
-    
+
     /**
      * @dev Emitted when a leaf is inserted into the Merkle tree
      * @param channelId The ID of the channel
@@ -261,7 +261,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      - Depth 2: up to 16 leaves
      *      - Depth 3: up to 64 leaves
      *      - And so on... (4^depth leaves)
-     *      
+     *
      *      For quaternary trees, the maximum practical depth is 15 due to gas constraints.
      *      The depth of 16 would support 4^16 = 4,294,967,296 leaves but would be
      *      prohibitively expensive to construct.
@@ -337,7 +337,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      It computes RLC (Random Linear Combination) leaf values for each user and inserts
      *      them into the quaternary Merkle tree. The function updates the root sequence
      *      and emits events for each leaf insertion.
-     *      
+     *
      *      Requirements:
      *      - Channel must be initialized
      *      - L1 addresses and balances arrays must have matching lengths
@@ -388,7 +388,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      It traverses up the tree from the leaf position, computing new hashes at each level
      *      using the hashFour function. The function caches intermediate results for efficiency
      *      and handles the quaternary tree structure where each node has 4 children.
-     *      
+     *
      *      The insertion process:
      *      1. Determines the child index (0-3) at each level
      *      2. Caches the first child at each level for future use
@@ -406,7 +406,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
 
         for (uint32 i = 0; i < depth; i++) {
             uint32 childIndex = currentIndex % CHILDREN_PER_NODE;
-            
+
             if (childIndex == 0) {
                 // First child - cache the current hash and use zeros for others
                 cachedSubtrees[channelId][i] = currentHash;
@@ -426,7 +426,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
                 bytes32 thirdChild = getThirdChild(channelId, i);
                 currentHash = hashFour(firstChild, secondChild, thirdChild, currentHash);
             }
-            
+
             currentIndex /= CHILDREN_PER_NODE;
         }
 
@@ -492,7 +492,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      It validates that all inputs are within the field size and then calls the
      *      Poseidon4Yul hasher using the call pattern. The function converts inputs
      *      to the appropriate field format and handles the result conversion.
-     *      
+     *
      *      This is more efficient than binary hashing as it processes 4 inputs
      *      in a single hash operation instead of requiring multiple binary hash calls.
      */
@@ -504,7 +504,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
 
         // Use call pattern to interact with Poseidon4Yul
         bytes memory data = abi.encode(
-            Field.toUint256(Field.toField(_a)), 
+            Field.toUint256(Field.toField(_a)),
             Field.toUint256(Field.toField(_b)),
             Field.toUint256(Field.toField(_c)),
             Field.toUint256(Field.toField(_d))
@@ -526,7 +526,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      1. Getting the most recent root from the channel's root sequence
      *      2. Computing gamma = Poseidon4Yul(prevRoot, l2Addr, 0, 0) using 4 inputs
      *      3. Computing RLC = l2Addr + gamma * balance (mod FIELD_SIZE)
-     *      
+     *
      *      The use of 4-input hashing with Poseidon4Yul is more efficient than
      *      multiple binary hash operations.
      */
@@ -538,7 +538,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
 
         // Compute gamma = Poseidon4Yul(prevRoot, l2Addr, 0, 0) - using 4 inputs with last two as zeros
         bytes memory data = abi.encode(
-            Field.toUint256(Field.toField(bytes32(prevRoot))), 
+            Field.toUint256(Field.toField(bytes32(prevRoot))),
             Field.toUint256(Field.toField(bytes32(l2Addr))),
             Field.toUint256(Field.toField(bytes32(0))),
             Field.toUint256(Field.toField(bytes32(0)))
@@ -568,13 +568,13 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      * @return True if the proof is valid, false otherwise
      * @dev This function verifies that a leaf exists in the quaternary Merkle tree by
      *      reconstructing the path from the leaf to the root using the provided proof.
-     *      
+     *
      *      For quaternary trees, each level requires up to 3 sibling hashes:
      *      - First child (index 0): needs 3 siblings
-     *      - Second child (index 1): needs 3 siblings  
+     *      - Second child (index 1): needs 3 siblings
      *      - Third child (index 2): needs 3 siblings
      *      - Fourth child (index 3): needs 3 siblings
-     *      
+     *
      *      The function traverses up the tree, computing hashes at each level using
      *      the hashFour function with the appropriate sibling values and zero hashes
      *      for missing siblings.
@@ -593,11 +593,12 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
         // Traverse up the tree to the root
         for (uint256 level = 0; level < depth; level++) {
             uint256 childIndex = index % CHILDREN_PER_NODE;
-            
+
             if (childIndex == 0) {
                 // First child - use zeros for missing siblings
                 if (proofIndex < proof.length) {
-                    computedHash = hashFour(computedHash, proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2]);
+                    computedHash =
+                        hashFour(computedHash, proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2]);
                     proofIndex += 3;
                 } else {
                     // No proof elements left, use zeros
@@ -606,7 +607,8 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
             } else if (childIndex == 1) {
                 // Second child - need first sibling and zeros for last two
                 if (proofIndex < proof.length) {
-                    computedHash = hashFour(proof[proofIndex], computedHash, proof[proofIndex + 1], proof[proofIndex + 2]);
+                    computedHash =
+                        hashFour(proof[proofIndex], computedHash, proof[proofIndex + 1], proof[proofIndex + 2]);
                     proofIndex += 3;
                 } else {
                     // No proof elements left, use zeros
@@ -615,7 +617,8 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
             } else if (childIndex == 2) {
                 // Third child - need first two siblings and zero for last
                 if (proofIndex < proof.length) {
-                    computedHash = hashFour(proof[proofIndex], proof[proofIndex + 1], computedHash, proof[proofIndex + 2]);
+                    computedHash =
+                        hashFour(proof[proofIndex], proof[proofIndex + 1], computedHash, proof[proofIndex + 2]);
                     proofIndex += 3;
                 } else {
                     // No proof elements left, use zeros
@@ -624,14 +627,15 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
             } else {
                 // Fourth child - need all three siblings
                 if (proofIndex < proof.length) {
-                    computedHash = hashFour(proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2], computedHash);
+                    computedHash =
+                        hashFour(proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2], computedHash);
                     proofIndex += 3;
                 } else {
                     // No proof elements left, use zeros
                     computedHash = hashFour(zeros(level), zeros(level), zeros(level), computedHash);
                 }
             }
-            
+
             index /= CHILDREN_PER_NODE;
         }
 
@@ -648,7 +652,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      but allows external callers to specify a specific previous root. This is useful
      *      for verification scenarios where you need to compute what a leaf value should be
      *      given a specific previous state.
-     *      
+     *
      *      The computation follows the same pattern:
      *      1. Compute gamma = Poseidon4Yul(prevRoot, l2Addr, 0, 0) using 4 inputs
      *      2. Compute RLC = l2Addr + gamma * balance (mod FIELD_SIZE)
@@ -662,7 +666,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
 
         // Compute gamma using Poseidon4Yul with 4 inputs
         bytes memory data = abi.encode(
-            Field.toUint256(Field.toField(prevRoot)), 
+            Field.toUint256(Field.toField(prevRoot)),
             Field.toUint256(Field.toField(bytes32(l2Addr))),
             Field.toUint256(Field.toField(bytes32(0))),
             Field.toUint256(Field.toField(bytes32(0)))
@@ -688,7 +692,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      * @dev This function searches through the root history for a channel to determine
      *      if a specific root hash has been seen before. It's useful for detecting
      *      replay attacks and verifying the authenticity of historical states.
-     *      
+     *
      *      The function searches backwards from the current root index through the
      *      circular buffer of root history.
      */
@@ -859,11 +863,11 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      in the quaternary Merkle tree. These values are used as padding when
      *      constructing the tree and computing hashes at levels where not all
      *      children are present.
-     *      
+     *
      *      The zero hashes are computed using the hashFour function with zero inputs
      *      and are cached for efficiency. They represent the hash of a subtree
      *      filled entirely with zero values at the specified depth.
-     *      
+     *
      *      For quaternary trees, the maximum supported depth is 15 due to gas constraints.
      */
     function zeros(uint256 i) public pure returns (bytes32) {

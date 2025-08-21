@@ -8,7 +8,6 @@ import "@openzeppelin/access/Ownable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import {IMerkleTreeManager} from "./interface/IMerkleTreeManager.sol";
-import {Poseidon2} from "./poseidon/Poseidon2.sol";
 import "./library/RLP.sol";
 
 /**
@@ -18,14 +17,15 @@ import "./library/RLP.sol";
  * @dev This contract manages the lifecycle of zkRollup channels including:
  *      - Channel creation and participant management
  *      - Deposit handling for ETH and ERC20 tokens
- *      - Merkle Trees State initialization
+ *      - Quaternary Merkle Trees State initialization using MerkleTreeManager4
  *      - ZK proof submission and verification
  *      - Signature collection from participants
  *      - Channel closure and withdrawal processing
  *
  * The contract uses a multi-signature approach where 2/3 of participants must sign
  * to approve state transitions. Each channel operates independently with its own
- * Merkle tree managed by the MerkleTreeManager contract.
+ * quaternary Merkle tree managed by the MerkleTreeManager4 contract, which provides
+ * improved efficiency over binary trees by processing 4 inputs per hash operation.
  */
 contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     using ECDSA for bytes32;

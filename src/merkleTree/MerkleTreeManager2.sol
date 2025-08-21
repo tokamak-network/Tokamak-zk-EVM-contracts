@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Field} from "@poseidon/Field.sol";
+import {Field} from "../poseidon/Field.sol";
 import {IPoseidon2Yul} from "../interface/IPoseidon2Yul.sol";
 import {IMerkleTreeManager} from "../interface/IMerkleTreeManager.sol";
 import "@openzeppelin/access/Ownable.sol";

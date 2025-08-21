@@ -6,7 +6,7 @@ import "../src/RollupBridge.sol";
 import "../src/interface/IRollupBridge.sol";
 import "../src/interface/IVerifier.sol";
 import {Verifier} from "../src/verifier/Verifier.sol";
-import "../src/merkleTree/MerkleTreeManager.sol";
+import "../src/merkleTree/MerkleTreeManager2.sol";
 import "../src/library/RLP.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
 import {IPoseidon2Yul} from "../src/interface/IPoseidon2Yul.sol";

@@ -28,7 +28,7 @@ contract MerkleTreeManagerAccessTest is Test {
         poseidon = new MockPoseidon4Yul();
 
         // Deploy MerkleTreeManager
-        mtManager = new MerkleTreeManager4(address(poseidon), 6);
+        mtManager = new MerkleTreeManager4(address(poseidon));
 
         // Set the bridge address
         mtManager.setBridge(bridge);
@@ -98,7 +98,7 @@ contract MerkleTreeManagerAccessTest is Test {
 
     function testOnlyOwnerCanSetBridge() public {
         // Deploy a new MerkleTreeManager without bridge set
-        MerkleTreeManager4 newMtManager = new MerkleTreeManager4(address(poseidon), 6);
+        MerkleTreeManager4 newMtManager = new MerkleTreeManager4(address(poseidon));
 
         // Attacker cannot set bridge
         vm.prank(attacker);
@@ -115,7 +115,7 @@ contract MerkleTreeManagerAccessTest is Test {
 
     function testBridgeCanOnlyBeSetOnce() public {
         // Deploy a new MerkleTreeManager
-        MerkleTreeManager4 newMtManager = new MerkleTreeManager4(address(poseidon), 6);
+        MerkleTreeManager4 newMtManager = new MerkleTreeManager4(address(poseidon));
 
         // Set bridge once
         newMtManager.setBridge(bridge);

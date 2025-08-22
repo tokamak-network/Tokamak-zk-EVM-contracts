@@ -48,6 +48,11 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      */
     uint32 public constant CHILDREN_PER_NODE = 4;
 
+    /**
+     * @dev Number of internal nodes in the quaternary tree
+     */
+    uint32 public constant CONSTANT_DEPTH = 3;
+
     // ============ State Variables ============
 
     /**
@@ -255,7 +260,6 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     /**
      * @notice Constructs a new MerkleTreeManager4 contract
      * @param _poseidonHasher Address of the Poseidon4Yul hasher contract
-     * @param _depth Depth of the quaternary Merkle tree (1-15)
      * @dev The depth determines the maximum number of leaves the tree can hold:
      *      - Depth 1: up to 4 leaves
      *      - Depth 2: up to 16 leaves
@@ -266,12 +270,10 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      The depth of 16 would support 4^16 = 4,294,967,296 leaves but would be
      *      prohibitively expensive to construct.
      */
-    constructor(address _poseidonHasher, uint32 _depth) Ownable(msg.sender) {
-        if (_depth == 0) revert DepthTooSmall(_depth);
-        if (_depth >= 16) revert DepthTooLarge(_depth); // Reduced max depth for quaternary trees
+    constructor(address _poseidonHasher) Ownable(msg.sender) {
 
         poseidonHasher = IPoseidon4Yul(_poseidonHasher);
-        depth = _depth;
+        depth = CONSTANT_DEPTH;
     }
 
     /**

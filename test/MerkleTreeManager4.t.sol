@@ -40,7 +40,7 @@ contract MerkleTreeManager4Test is Test {
 
     function setUp() public {
         mockPoseidon = new MockPoseidon4Yul();
-        merkleTree = new MerkleTreeManager4(address(mockPoseidon), 4); // 4 levels deep
+        merkleTree = new MerkleTreeManager4(address(mockPoseidon));
 
         // Set bridge
         merkleTree.setBridge(bridge);
@@ -60,7 +60,7 @@ contract MerkleTreeManager4Test is Test {
 
     function testConstructor() public view {
         assertEq(address(merkleTree.poseidonHasher()), address(mockPoseidon));
-        assertEq(merkleTree.depth(), 4);
+        assertEq(merkleTree.depth(), 3);
         assertEq(merkleTree.bridge(), bridge);
         assertTrue(merkleTree.bridgeSet());
     }
@@ -72,7 +72,7 @@ contract MerkleTreeManager4Test is Test {
         merkleTree.initializeChannel(newChannelId);
 
         assertTrue(merkleTree.channelInitialized(newChannelId));
-        assertEq(merkleTree.getLatestRoot(newChannelId), merkleTree.zeros(4));
+        assertEq(merkleTree.getLatestRoot(newChannelId), merkleTree.zeros(3));
     }
 
     function testAddUsers() public {
@@ -143,16 +143,6 @@ contract MerkleTreeManager4Test is Test {
         assertTrue(zero1 != zero2);
     }
 
-    function testDepthLimits() public {
-        // Test minimum depth
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.DepthTooSmall.selector, 0));
-        new MerkleTreeManager4(address(mockPoseidon), 0);
-
-        // Test maximum depth (should be < 16 for quaternary trees)
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.DepthTooLarge.selector, 16));
-        new MerkleTreeManager4(address(mockPoseidon), 16);
-    }
-
     function testOnlyBridgeModifier() public {
         address nonBridge = address(0x999);
 
@@ -219,7 +209,7 @@ contract MerkleTreeManager4Test is Test {
 
         // Test setting bridge to zero address (should fail before bridge already set check)
         // We need to create a new instance for this test
-        MerkleTreeManager4 newTree = new MerkleTreeManager4(address(mockPoseidon), 4);
+        MerkleTreeManager4 newTree = new MerkleTreeManager4(address(mockPoseidon));
         vm.expectRevert("Invalid bridge address");
         newTree.setBridge(address(0));
     }
@@ -375,24 +365,24 @@ contract MerkleTreeManager4Test is Test {
 
     function testMerkleTreeFull() public {
         // Create a tree with depth 1 (supports only 4 leaves)
-        MerkleTreeManager4 smallTree = new MerkleTreeManager4(address(mockPoseidon), 1);
+        MerkleTreeManager4 smallTree = new MerkleTreeManager4(address(mockPoseidon));
         smallTree.setBridge(bridge);
 
         vm.prank(bridge);
         smallTree.initializeChannel(999);
 
         // Set address pairs for 5 users (more than the tree can hold)
-        address[] memory l1Addresses = new address[](5);
-        uint256[] memory balances = new uint256[](5);
-        for (uint256 i = 0; i < 5; i++) {
+        address[] memory l1Addresses = new address[](65);
+        uint256[] memory balances = new uint256[](65);
+        for (uint256 i = 0; i < 65; i++) {
             l1Addresses[i] = address(uint160(0x1000 + i));
             balances[i] = 100 + i;
             vm.prank(bridge);
             smallTree.setAddressPair(999, l1Addresses[i], address(uint160(0x2000 + i)));
         }
 
-        // Try to add 5 users to a depth-1 tree (should fail with MerkleTreeFull)
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.MerkleTreeFull.selector, 4));
+        // Try to add 65 users to a depth-1 tree (should fail with MerkleTreeFull)
+        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.MerkleTreeFull.selector, 64));
         vm.prank(bridge);
         smallTree.addUsers(999, l1Addresses, balances);
     }

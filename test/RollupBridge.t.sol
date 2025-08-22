@@ -78,7 +78,7 @@ contract RollupBridgeTest is Test {
 
         verifier = new MockVerifier();
         poseidon = new MockPoseidon4Yul();
-        mtmanager = new MerkleTreeManager4(address(poseidon), 6);
+        mtmanager = new MerkleTreeManager4(address(poseidon));
         bridge = new RollupBridge(address(verifier), address(mtmanager));
         mtmanager.setBridge(address(bridge));
         token = new MockERC20();
@@ -430,7 +430,7 @@ contract RollupBridgeTest is Test {
         // Deploy real verifier instead of mock
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
-        MerkleTreeManager4 mtmanager2 = new MerkleTreeManager4(address(poseidon), 6);
+        MerkleTreeManager4 mtmanager2 = new MerkleTreeManager4(address(poseidon));
         RollupBridge realBridge = new RollupBridge(address(realVerifier), address(mtmanager2));
         mtmanager2.setBridge(address(realBridge));
 

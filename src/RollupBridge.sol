@@ -269,14 +269,15 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     /**
      * @notice Submits an aggregated ZK proof for channel state transition with MPT leaves verification
      * @param channelId ID of the channel
-     * @param aggregatedProofHash Hash of the aggregated proof data
-     * @param finalStateRoot New Merkle root representing the final state
-     * @param proofPart1 First part of the ZK proof data
-     * @param proofPart2 Second part of the ZK proof data
-     * @param publicInputs Public inputs for the ZK proof verification
-     * @param smax Maximum value for the proof verification
-     * @param initialMPTLeaves Array of initial MPT leaf values (off-chain state trie leaves representing deposited balances)
-     * @param finalMPTLeaves Array of final MPT leaf values (off-chain state trie leaves after L2 computation)
+     * @param proofData Struct containing all proof-related data including:
+     *        - aggregatedProofHash: Hash of the aggregated proof data
+     *        - finalStateRoot: New Merkle root representing the final state
+     *        - proofPart1: First part of the ZK proof data
+     *        - proofPart2: Second part of the ZK proof data
+     *        - publicInputs: Public inputs for the ZK proof verification
+     *        - smax: Maximum value for the proof verification
+     *        - initialMPTLeaves: Array of initial MPT leaf values (off-chain state trie leaves representing deposited balances)
+     *        - finalMPTLeaves: Array of final MPT leaf values (off-chain state trie leaves after L2 computation)
      * @dev Requirements:
      *      - Channel must be in Open or Active state
      *      - Only the channel leader can submit proofs
@@ -287,32 +288,25 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      */
     function submitAggregatedProof(
         uint256 channelId,
-        bytes32 aggregatedProofHash,
-        bytes32 finalStateRoot,
-        uint128[] calldata proofPart1,
-        uint256[] calldata proofPart2,
-        uint256[] calldata publicInputs,
-        uint256 smax,
-        bytes[] calldata initialMPTLeaves,
-        bytes[] calldata finalMPTLeaves
+        ProofData calldata proofData
     ) external {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state");
         require(msg.sender == channel.leader, "Only leader can submit");
-        require(initialMPTLeaves.length == finalMPTLeaves.length, "Mismatched leaf arrays");
-        require(initialMPTLeaves.length == channel.participants.length, "Invalid leaf count");
+        require(proofData.initialMPTLeaves.length == proofData.finalMPTLeaves.length, "Mismatched leaf arrays");
+        require(proofData.initialMPTLeaves.length == channel.participants.length, "Invalid leaf count");
 
         // Extract and verify balance conservation from MPT leaves
         uint256 initialBalanceSum = 0;
         uint256 finalBalanceSum = 0;
 
-        for (uint256 i = 0; i < initialMPTLeaves.length; ++i) {
+        for (uint256 i = 0; i < proofData.initialMPTLeaves.length; ++i) {
             // Extract balance from initial MPT leaf (off-chain state trie format)
-            uint256 initialBalance = _extractBalanceFromMPTLeafAssembly(initialMPTLeaves[i]);
+            uint256 initialBalance = _extractBalanceFromMPTLeafAssembly(proofData.initialMPTLeaves[i]);
             initialBalanceSum += initialBalance;
 
             // Extract balance from final MPT leaf (off-chain state trie format)
-            uint256 finalBalance = _extractBalanceFromMPTLeafAssembly(finalMPTLeaves[i]);
+            uint256 finalBalance = _extractBalanceFromMPTLeafAssembly(proofData.finalMPTLeaves[i]);
             finalBalanceSum += finalBalance;
         }
 
@@ -323,22 +317,22 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         require(initialBalanceSum == finalBalanceSum, "Balance conservation violated");
 
         // Store the MPT leaves for later verification during channel closure
-        channel.initialMPTLeaves = initialMPTLeaves;
-        channel.finalMPTLeaves = finalMPTLeaves;
+        channel.initialMPTLeaves = proofData.initialMPTLeaves;
+        channel.finalMPTLeaves = proofData.finalMPTLeaves;
 
-        channel.aggregatedProofHash = aggregatedProofHash;
-        channel.finalStateRoot = finalStateRoot;
+        channel.aggregatedProofHash = proofData.aggregatedProofHash;
+        channel.finalStateRoot = proofData.finalStateRoot;
         channel.state = ChannelState.Closing;
 
         // Verify the aggregated ZK proof
         require(
             zkVerifier.verify(
-                proofPart1, proofPart2, channel.preprocessedPart1, channel.preprocessedPart2, publicInputs, smax
+                proofData.proofPart1, proofData.proofPart2, channel.preprocessedPart1, channel.preprocessedPart2, proofData.publicInputs, proofData.smax
             ),
             "Invalid ZK proof"
         );
 
-        emit ProofAggregated(channelId, aggregatedProofHash);
+        emit ProofAggregated(channelId, proofData.aggregatedProofHash);
     }
 
     /**

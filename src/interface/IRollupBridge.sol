@@ -14,6 +14,17 @@ interface IRollupBridge {
         address l2PublicKey;
     }
 
+    struct ProofData {
+        bytes32 aggregatedProofHash;
+        bytes32 finalStateRoot;
+        uint128[] proofPart1;
+        uint256[] proofPart2;
+        uint256[] publicInputs;
+        uint256 smax;
+        bytes[] initialMPTLeaves;
+        bytes[] finalMPTLeaves;
+    }
+
     struct Channel {
         uint256 id;
         address targetContract;
@@ -100,14 +111,7 @@ interface IRollupBridge {
 
     function submitAggregatedProof(
         uint256 channelId,
-        bytes32 aggregatedProofHash,
-        bytes32 finalStateRoot,
-        uint128[] calldata proofPart1,
-        uint256[] calldata proofPart2,
-        uint256[] calldata publicInputs,
-        uint256 smax,
-        bytes[] calldata initialMPTLeaves,
-        bytes[] calldata finalMPTLeaves
+        ProofData calldata proofData
     ) external;
 
     function signAggregatedProof(uint256 channelId, Signature calldata signature) external;

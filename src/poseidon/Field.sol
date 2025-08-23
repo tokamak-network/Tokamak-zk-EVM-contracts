@@ -4,7 +4,7 @@ pragma solidity >=0.8.8;
 library Field {
     type Type is uint256;
 
-    // BLS12-381 scalar field 
+    // BLS12-381 scalar field
     uint256 constant PRIME = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     uint256 constant PRIME_DIV_2 = 0x39f6d3a994cea741999ce0405809a0d42a9da201ffff2dff7fffffff80000000;
 

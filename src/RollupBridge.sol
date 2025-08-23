@@ -476,7 +476,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         // Emit event for aggregated proof signing
         emit AggregatedProofSigned(channelId, msg.sender, channel.receivedSignatures, channel.requiredSignatures);
     }
-    
+
     /**
      * @dev Verifies that the collected signatures meet the group threshold requirements
      * @param channelId The channel ID to verify
@@ -484,33 +484,33 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      */
     function _verifyGroupThresholdSignature(uint256 channelId) internal view returns (bool) {
         Channel storage channel = channels[channelId];
-        
+
         // Check if we have enough signatures
         if (channel.receivedSignatures < channel.requiredSignatures) {
             return false;
         }
-        
+
         // Validate that the required signatures is not zero
         require(channel.requiredSignatures > 0, "Invalid required signatures");
-        
+
         // Validate that the participant count is valid
         uint256 participantCount = channel.participants.length;
         require(participantCount >= MIN_PARTICIPANTS, "Invalid participant count");
-        
+
         // Verify the threshold calculation matches the stored value
         uint256 calculatedThreshold = (participantCount * SIGNATURE_THRESHOLD_PERCENT) / 100;
         if (calculatedThreshold == 0) {
             calculatedThreshold = 1; // Ensure at least 1 signature is required
         }
         require(channel.requiredSignatures == calculatedThreshold, "Threshold mismatch");
-        
+
         // TODO: Implement proper group threshold signature verification
         // This would involve:
         // 1. Verifying the aggregated signature against the group public key
         // 2. Ensuring the threshold requirement is met
         // 3. Validating that the aggregated signature is cryptographically sound
-        
-        // For now, we'll use a simplified verification that checks the threshold        
+
+        // For now, we'll use a simplified verification that checks the threshold
         // Basic threshold check - ensure we have at least the required number of signatures
         return channel.receivedSignatures >= channel.requiredSignatures;
     }
@@ -713,7 +713,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return initialLeaves Array of initial MPT leaf values
      * @return finalLeaves Array of final MPT leaf values
      */
-    function getMPTLeaves(uint256 channelId) external view returns (bytes[] memory initialLeaves, bytes[] memory finalLeaves) {
+    function getMPTLeaves(uint256 channelId)
+        external
+        view
+        returns (bytes[] memory initialLeaves, bytes[] memory finalLeaves)
+    {
         Channel storage channel = channels[channelId];
         return (channel.initialMPTLeaves, channel.finalMPTLeaves);
     }
@@ -725,7 +729,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return timeout The timeout duration in seconds
      * @return deadline The absolute deadline timestamp
      */
-    function getChannelTimeoutInfo(uint256 channelId) external view returns (uint256 openTimestamp, uint256 timeout, uint256 deadline) {
+    function getChannelTimeoutInfo(uint256 channelId)
+        external
+        view
+        returns (uint256 openTimestamp, uint256 timeout, uint256 deadline)
+    {
         Channel storage channel = channels[channelId];
         return (channel.openTimestamp, channel.timeout, channel.openTimestamp + channel.timeout);
     }
@@ -760,7 +768,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return totalDeposits Total amount deposited in the channel
      * @return targetContract The token contract address (or ETH_TOKEN_ADDRESS for ETH)
      */
-    function getChannelDeposits(uint256 channelId) external view returns (uint256 totalDeposits, address targetContract) {
+    function getChannelDeposits(uint256 channelId)
+        external
+        view
+        returns (uint256 totalDeposits, address targetContract)
+    {
         Channel storage channel = channels[channelId];
         return (channel.tokenTotalDeposits, channel.targetContract);
     }
@@ -796,11 +808,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         Channel storage channel = channels[channelId];
         uint256 participantCount = channel.participants.length;
         participants = new address[](participantCount);
-        
+
         for (uint256 i = 0; i < participantCount; i++) {
             participants[i] = channel.participants[i].l1Address;
         }
-        
+
         return participants;
     }
 
@@ -830,7 +842,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return openTimestamp When the channel was opened
      * @return closeTimestamp When the channel was closed (0 if not closed)
      */
-    function getChannelTimestamps(uint256 channelId) external view returns (uint256 openTimestamp, uint256 closeTimestamp) {
+    function getChannelTimestamps(uint256 channelId)
+        external
+        view
+        returns (uint256 openTimestamp, uint256 closeTimestamp)
+    {
         Channel storage channel = channels[channelId];
         return (channel.openTimestamp, channel.closeTimestamp);
     }
@@ -852,7 +868,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return preprocessedPart1 First part of preprocessed verification data
      * @return preprocessedPart2 Second part of preprocessed verification data
      */
-    function getChannelProofData(uint256 channelId) external view returns (uint128[] memory preprocessedPart1, uint256[] memory preprocessedPart2) {
+    function getChannelProofData(uint256 channelId)
+        external
+        view
+        returns (uint128[] memory preprocessedPart1, uint256[] memory preprocessedPart2)
+    {
         Channel storage channel = channels[channelId];
         return (channel.preprocessedPart1, channel.preprocessedPart2);
     }
@@ -870,17 +890,21 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return leader The channel leader address
      * @return groupPublicKey The group public key
      */
-    function getChannelStats(uint256 channelId) external view returns (
-        uint256 id,
-        address targetContract,
-        ChannelState state,
-        uint256 participantCount,
-        uint256 totalDeposits,
-        uint256 requiredSignatures,
-        uint256 receivedSignatures,
-        address leader,
-        bytes32 groupPublicKey
-    ) {
+    function getChannelStats(uint256 channelId)
+        external
+        view
+        returns (
+            uint256 id,
+            address targetContract,
+            ChannelState state,
+            uint256 participantCount,
+            uint256 totalDeposits,
+            uint256 requiredSignatures,
+            uint256 receivedSignatures,
+            address leader,
+            bytes32 groupPublicKey
+        )
+    {
         Channel storage channel = channels[channelId];
         return (
             channel.id,
@@ -907,6 +931,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @notice Gets the total number of channels created
      * @return Total number of channels
      */
+
     function getTotalChannels() external view returns (uint256) {
         return nextChannelId;
     }

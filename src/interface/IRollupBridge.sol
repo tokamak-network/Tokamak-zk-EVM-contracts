@@ -80,7 +80,9 @@ interface IRollupBridge {
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
-    event AggregatedProofSigned(uint256 indexed channelId, address indexed signer, uint256 signatureCount, uint256 requiredSignatures);
+    event AggregatedProofSigned(
+        uint256 indexed channelId, address indexed signer, uint256 signatureCount, uint256 requiredSignatures
+    );
 
     // =========== FUNCTIONS ===========
 
@@ -134,15 +136,24 @@ interface IRollupBridge {
 
     function getFinalStateRoot(uint256 channelId) external view returns (bytes32);
 
-    function getMPTLeaves(uint256 channelId) external view returns (bytes[] memory initialLeaves, bytes[] memory finalLeaves);
+    function getMPTLeaves(uint256 channelId)
+        external
+        view
+        returns (bytes[] memory initialLeaves, bytes[] memory finalLeaves);
 
-    function getChannelTimeoutInfo(uint256 channelId) external view returns (uint256 openTimestamp, uint256 timeout, uint256 deadline);
+    function getChannelTimeoutInfo(uint256 channelId)
+        external
+        view
+        returns (uint256 openTimestamp, uint256 timeout, uint256 deadline);
 
     function isChannelExpired(uint256 channelId) external view returns (bool);
 
     function getRemainingTime(uint256 channelId) external view returns (uint256);
 
-    function getChannelDeposits(uint256 channelId) external view returns (uint256 totalDeposits, address targetContract);
+    function getChannelDeposits(uint256 channelId)
+        external
+        view
+        returns (uint256 totalDeposits, address targetContract);
 
     function getParticipantDeposit(uint256 channelId, address participant) external view returns (uint256 amount);
 
@@ -154,25 +165,34 @@ interface IRollupBridge {
 
     function getChannelState(uint256 channelId) external view returns (ChannelState state);
 
-    function getChannelTimestamps(uint256 channelId) external view returns (uint256 openTimestamp, uint256 closeTimestamp);
+    function getChannelTimestamps(uint256 channelId)
+        external
+        view
+        returns (uint256 openTimestamp, uint256 closeTimestamp);
 
     function getChannelRoots(uint256 channelId) external view returns (bytes32 initialRoot, bytes32 finalRoot);
 
-    function getChannelProofData(uint256 channelId) external view returns (uint128[] memory preprocessedPart1, uint256[] memory preprocessedPart2);
+    function getChannelProofData(uint256 channelId)
+        external
+        view
+        returns (uint128[] memory preprocessedPart1, uint256[] memory preprocessedPart2);
 
-    function getChannelStats(uint256 channelId) external view returns (
-        uint256 id,
-        address targetContract,
-        ChannelState state,
-        uint256 participantCount,
-        uint256 totalDeposits,
-        uint256 requiredSignatures,
-        uint256 receivedSignatures,
-        address leader,
-        bytes32 groupPublicKey
-    );
+    function getChannelStats(uint256 channelId)
+        external
+        view
+        returns (
+            uint256 id,
+            address targetContract,
+            ChannelState state,
+            uint256 participantCount,
+            uint256 totalDeposits,
+            uint256 requiredSignatures,
+            uint256 receivedSignatures,
+            address leader,
+            bytes32 groupPublicKey
+        );
 
     function isAuthorizedCreator(address creator) external view returns (bool);
-    
-    function getTotalChannels() external view returns (uint256); 
+
+    function getTotalChannels() external view returns (uint256);
 }

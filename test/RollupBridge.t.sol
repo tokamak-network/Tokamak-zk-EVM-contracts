@@ -72,7 +72,9 @@ contract RollupBridgeTest is Test {
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
-    event AggregatedProofSigned(uint256 indexed channelId, address indexed signer, uint256 signatureCount, uint256 requiredSignatures);
+    event AggregatedProofSigned(
+        uint256 indexed channelId, address indexed signer, uint256 signatureCount, uint256 requiredSignatures
+    );
 
     function setUp() public {
         // Deploy contracts
@@ -725,10 +727,10 @@ contract RollupBridgeTest is Test {
         address newLeader = address(0x123);
         vm.prank(owner);
         bridge.authorizeCreator(newLeader);
-        
+
         uint256 channelId2 = _createChannelWithLeader(newLeader);
         _submitProofForChannel(channelId2, newLeader);
-        
+
         IRollupBridge.Signature[] memory signatures2 = new IRollupBridge.Signature[](3);
         signatures2[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
         signatures2[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {IPoseidon4Yul} from "../src/interface/IPoseidon4Yul.sol";
+import {IPoseidon4Yul} from "../../src/interface/IPoseidon4Yul.sol";
 
 /**
  * @title MockPoseidon4Yul

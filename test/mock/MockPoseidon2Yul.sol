@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {IPoseidon2Yul} from "../src/interface/IPoseidon2Yul.sol";
+import {IPoseidon2Yul} from "../../src/interface/IPoseidon2Yul.sol";
 
 contract MockPoseidon2Yul is IPoseidon2Yul {
     // Mock implementation for testing that mimics Poseidon2Yul's fallback behavior

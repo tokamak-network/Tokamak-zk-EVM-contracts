@@ -4,7 +4,7 @@ pragma solidity 0.8.23;
 import "forge-std/Test.sol";
 import "../src/merkleTree/MerkleTreeManager4.sol";
 import {IPoseidon4Yul} from "../src/interface/IPoseidon4Yul.sol";
-import {MockPoseidon4Yul} from "./MockPoseidon4Yul.sol";
+import {MockPoseidon4Yul} from "./mock/MockPoseidon4Yul.sol";
 
 contract MerkleTreeManagerAccessTest is Test {
     MerkleTreeManager4 public mtManager;

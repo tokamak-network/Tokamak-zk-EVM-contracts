@@ -79,7 +79,7 @@ contract RollupBridgeTest is Test {
         verifier = new MockVerifier();
         poseidon = new MockPoseidon4Yul();
         mtmanager = new MerkleTreeManager4(address(poseidon));
-        bridge = new RollupBridge(address(verifier), address(mtmanager));
+        bridge = new RollupBridge(address(verifier), address(mtmanager), address(poseidon));
         mtmanager.setBridge(address(bridge));
         token = new MockERC20();
 
@@ -304,7 +304,10 @@ contract RollupBridgeTest is Test {
         vm.expectEmit(true, true, false, false);
         emit ProofAggregated(channelId, proofHash);
         bridge.submitAggregatedProof(
-            channelId, _createProofData(proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves)
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -335,7 +338,10 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Initial balance mismatch");
         bridge.submitAggregatedProof(
-            channelId, _createProofData(proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves)
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -366,7 +372,10 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Balance conservation violated");
         bridge.submitAggregatedProof(
-            channelId, _createProofData(proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves)
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -395,7 +404,10 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Mismatched leaf arrays");
         bridge.submitAggregatedProof(
-            channelId, _createProofData(proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves)
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -438,7 +450,10 @@ contract RollupBridgeTest is Test {
 
         uint256 gasBefore = gasleft();
         bridge.submitAggregatedProof(
-            channelId, _createProofData(proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves)
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
         uint256 gasAfter = gasleft();
 
@@ -456,7 +471,7 @@ contract RollupBridgeTest is Test {
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
         MerkleTreeManager4 mtmanager2 = new MerkleTreeManager4(address(poseidon));
-        RollupBridge realBridge = new RollupBridge(address(realVerifier), address(mtmanager2));
+        RollupBridge realBridge = new RollupBridge(address(realVerifier), address(mtmanager2), address(poseidon));
         mtmanager2.setBridge(address(realBridge));
 
         // Setup for real bridge
@@ -529,7 +544,9 @@ contract RollupBridgeTest is Test {
         uint256 gasBefore = gasleft();
         realBridge.submitAggregatedProof(
             channelId,
-            _createProofData(proofHash, finalRoot, proofPart1, proofPart2, pubInputs, smaxValue, initialMPTLeaves, finalMPTLeaves)
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, pubInputs, smaxValue, initialMPTLeaves, finalMPTLeaves
+            )
         );
         uint256 gasAfter = gasleft();
 
@@ -547,7 +564,7 @@ contract RollupBridgeTest is Test {
     function testSignAggregatedProof() public {
         uint256 channelId = _submitProof();
 
-        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
 
         vm.prank(user1);
         bridge.signAggregatedProof(channelId, sig);
@@ -598,7 +615,10 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Invalid ZK proof");
         bridge.submitAggregatedProof(
-            channelId, _createProofData(proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves)
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -747,7 +767,10 @@ contract RollupBridgeTest is Test {
 
         vm.prank(leader);
         bridge.submitAggregatedProof(
-            channelId, _createProofData(proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves)
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
 
         return channelId;
@@ -756,7 +779,7 @@ contract RollupBridgeTest is Test {
     function _getSignedChannel() internal returns (uint256) {
         uint256 channelId = _submitProof();
 
-        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
 
         // Get required signatures (2/3 of participants)
         vm.prank(user1);
@@ -858,11 +881,14 @@ contract RollupBridgeTest is Test {
 
         vm.prank(leader);
         bridge.submitAggregatedProof(
-            channelId, _createProofData(proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves)
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
 
         // 5. Collect signatures
-        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
 
         vm.prank(user1);
         bridge.signAggregatedProof(channelId, sig);

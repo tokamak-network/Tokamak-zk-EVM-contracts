@@ -5,8 +5,8 @@ interface IRollupBridge {
     // =========== STRUCTS ===========
 
     struct Signature {
-        uint256 R_x;
-        uint256 R_y;
+        bytes32 R; // Compressed commitment point (R_bytes)
+        uint256 S; // EdDSA signature scalar component (S_bytes as uint256)
     }
 
     struct User {
@@ -109,10 +109,7 @@ interface IRollupBridge {
 
     function initializeChannelState(uint256 channelId) external;
 
-    function submitAggregatedProof(
-        uint256 channelId,
-        ProofData calldata proofData
-    ) external;
+    function submitAggregatedProof(uint256 channelId, ProofData calldata proofData) external;
 
     function signAggregatedProof(uint256 channelId, Signature calldata signature) external;
 

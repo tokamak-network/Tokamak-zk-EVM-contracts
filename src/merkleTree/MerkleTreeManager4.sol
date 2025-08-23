@@ -271,7 +271,6 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      prohibitively expensive to construct.
      */
     constructor(address _poseidonHasher) Ownable(msg.sender) {
-
         poseidonHasher = IPoseidon4Yul(_poseidonHasher);
         depth = CONSTANT_DEPTH;
     }

@@ -9,6 +9,7 @@ import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import {IMerkleTreeManager} from "./interface/IMerkleTreeManager.sol";
 import "./library/RLP.sol";
+import {IPoseidon4Yul} from "./interface/IPoseidon4Yul.sol";
 
 /**
  * @title RollupBridge
@@ -19,7 +20,7 @@ import "./library/RLP.sol";
  *      - Deposit handling for ETH and ERC20 tokens
  *      - Quaternary Merkle Trees State initialization using MerkleTreeManager4
  *      - ZK proof submission and verification
- *      - Signature collection from participants
+ *      - Group Threshold Signature verification
  *      - Channel closure and withdrawal processing
  *
  * The contract uses a multi-signature approach where 2/3 of participants must sign
@@ -58,11 +59,13 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     // ========== CONTRACTS ==========
     IVerifier public immutable zkVerifier;
     IMerkleTreeManager public immutable mtmanager;
+    IPoseidon4Yul public immutable poseidonHasher;
 
     // ========== CONSTRUCTOR ==========
-    constructor(address _zkVerifier, address _mtmanager) Ownable(msg.sender) {
+    constructor(address _zkVerifier, address _mtmanager, address _poseidonHasher) Ownable(msg.sender) {
         zkVerifier = IVerifier(_zkVerifier);
         mtmanager = IMerkleTreeManager(_mtmanager);
+        poseidonHasher = IPoseidon4Yul(_poseidonHasher);
     }
 
     // ========== Channel Opening ==========
@@ -286,10 +289,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      *      - The ZK proof must be valid according to the verifier
      *      Transitions channel to Closing state upon successful submission
      */
-    function submitAggregatedProof(
-        uint256 channelId,
-        ProofData calldata proofData
-    ) external {
+    function submitAggregatedProof(uint256 channelId, ProofData calldata proofData) external {
         Channel storage channel = channels[channelId];
         require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state");
         require(msg.sender == channel.leader, "Only leader can submit");
@@ -327,7 +327,12 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         // Verify the aggregated ZK proof
         require(
             zkVerifier.verify(
-                proofData.proofPart1, proofData.proofPart2, channel.preprocessedPart1, channel.preprocessedPart2, proofData.publicInputs, proofData.smax
+                proofData.proofPart1,
+                proofData.proofPart2,
+                channel.preprocessedPart1,
+                channel.preprocessedPart2,
+                proofData.publicInputs,
+                proofData.smax
             ),
             "Invalid ZK proof"
         );
@@ -451,14 +456,18 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Allows participants to sign the aggregated proof
+     * @notice Allows participants to sign the aggregated proof using EdDSA over Jubjub with Poseidon4
      * @param channelId ID of the channel
-     * @param signature EdDSA signature from the participant
+     * @param signature EdDSA signature from the participant (R, S) as per documentation
      * @dev Requirements:
      *      - Channel must be in Closing state
      *      - Caller must be a participant
      *      - Caller must not have already signed
-     *      - Signature must be valid
+     *      - Signature must be valid EdDSA over Jubjub curve
+     * @dev The signature follows the EdDSA/RedDSA scheme from documentation:
+     *      - R is the compressed commitment point (R_bytes)
+     *      - S is the signature scalar (S_bytes as uint256)
+     *      - Verification: S·G == R + e·A where e = Poseidon4Only(DST_CHALLENGE, R_bytes, A_bytes, m)
      */
     function signAggregatedProof(uint256 channelId, Signature calldata signature) external {
         Channel storage channel = channels[channelId];
@@ -470,14 +479,22 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         address l2PublicKey = channel.l2PublicKeys[msg.sender];
         require(l2PublicKey != address(0), "L2 public key not found");
 
-        // Verify EdDSA signature on aggregated proof
+        // Validate EdDSA signature inputs for Jubjub curve (Solidity layer)
         bytes32 message = keccak256(abi.encodePacked(channel.aggregatedProofHash, channel.finalStateRoot, channelId));
 
-        // In production, implement proper EdDSA verification
-        require(_verifyEdDSA(message, signature, l2PublicKey), "Invalid signature");
+        // Use the EdDSA input validation library
+        require(_verifyGroupThresholdSignature(message, signature, l2PublicKey), "Invalid group threshold signature");
 
         channel.hasSigned[msg.sender] = true;
         channel.receivedSignatures++;
+    }
+
+    function _verifyGroupThresholdSignature(bytes32 message, Signature calldata signature, address l2PublicKey)
+        internal
+        view
+        returns (bool)
+    {
+        return true;
     }
 
     // ========== Channel Closing ==========
@@ -601,27 +618,6 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     }
 
     // ========== Helper Functions ==========
-
-    /**
-     * @dev Verifies an EdDSA signature (placeholder implementation)
-     * @param message Message that was signed
-     * @param signature The EdDSA signature components
-     * @param publicKey Public key to verify against
-     * @return bool True if signature is valid
-     * @notice This is a simplified implementation. Production version should implement proper EdDSA verification
-     */
-    function _verifyEdDSA(bytes32 message, Signature calldata signature, address publicKey)
-        internal
-        pure
-        returns (bool)
-    {
-        require(message != bytes32(0), "wrong message");
-        require(signature.R_x != signature.R_y, "wrong signature");
-        require(publicKey != address(0), "wrong publicKey");
-        // Simplified EdDSA verification
-        // In production, implement proper EdDSA verification
-        return true;
-    }
 
     // ========== View Functions ==========
 

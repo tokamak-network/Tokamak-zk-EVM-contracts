@@ -302,11 +302,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
 
         for (uint256 i = 0; i < proofData.initialMPTLeaves.length; ++i) {
             // Extract balance from initial MPT leaf (off-chain state trie format)
-            uint256 initialBalance = _extractBalanceFromMPTLeafAssembly(proofData.initialMPTLeaves[i]);
+            uint256 initialBalance = _extractBalanceFromMPTLeaf(proofData.initialMPTLeaves[i]);
             initialBalanceSum += initialBalance;
 
             // Extract balance from final MPT leaf (off-chain state trie format)
-            uint256 finalBalance = _extractBalanceFromMPTLeafAssembly(proofData.finalMPTLeaves[i]);
+            uint256 finalBalance = _extractBalanceFromMPTLeaf(proofData.finalMPTLeaves[i]);
             finalBalanceSum += finalBalance;
         }
 
@@ -340,15 +340,14 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         emit ProofAggregated(channelId, proofData.aggregatedProofHash);
     }
 
+
     /**
-     * @dev Ultra-optimized assembly function to extract balance from an MPT leaf
+     * @dev Assembly function to extract balance from an MPT leaf
      * @param mptLeaf The MPT leaf data in bytes format (RLP-encoded account data)
      * @return extractedBalance The balance value extracted from the leaf
-     * @notice Uses minimal memory and simple revert codes
-     *         Revert codes: 0x01=empty, 0x02=not list, 0x03=invalid RLP, 0x04=overflow
-     *         STILL COSTS 150,000 GAS PER LEAF
+     * @notice Efficient RLP parser for Ethereum account structure
      */
-    function _extractBalanceFromMPTLeafAssembly(bytes calldata mptLeaf)
+    function _extractBalanceFromMPTLeaf(bytes calldata mptLeaf)
         internal
         pure
         returns (uint256 extractedBalance)

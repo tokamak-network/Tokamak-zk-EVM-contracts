@@ -1393,4 +1393,142 @@ contract RollupBridgeTest is Test {
 
         smax = 512;
     }
+
+    /**
+     * @dev Test to measure exact gas consumption of MPT leaf verification
+     *      Compares gas usage between 3 and 4 participant channels
+     */
+    function test_MPTVerificationGasUsage() public {
+        console.log("=== MPT Verification Gas Usage Analysis ===");
+        
+        // Test with 3 participants
+        uint256 channelId3 = _setupChannelWithParticipants(3);
+        uint256[] memory balances3 = new uint256[](3);
+        balances3[0] = 1 ether;
+        balances3[1] = 2 ether;
+        balances3[2] = 3 ether;
+        
+        bytes[] memory leaves3 = _createMPTLeaves(balances3);
+        IRollupBridge.ProofData memory proofData3 = _createProofData(
+            keccak256("test3"),
+            bytes32(uint256(0x123)),
+            new uint128[](0),
+            new uint256[](0),
+            new uint256[](0),
+            0,
+            leaves3,
+            leaves3
+        );
+        
+        // Test with 4 participants
+        uint256 channelId4 = _setupChannelWithParticipants(4);
+        uint256[] memory balances4 = new uint256[](4);
+        balances4[0] = 1 ether;
+        balances4[1] = 2 ether;
+        balances4[2] = 3 ether;
+        balances4[3] = 4 ether;
+        
+        bytes[] memory leaves4 = _createMPTLeaves(balances4);
+        IRollupBridge.ProofData memory proofData4 = _createProofData(
+            keccak256("test4"),
+            bytes32(uint256(0x124)),
+            new uint128[](0),
+            new uint256[](0),
+            new uint256[](0),
+            0,
+            leaves4,
+            leaves4
+        );
+        
+        // Measure gas for 3 participants
+        vm.prank(address(uint160(100 + 3)));
+        uint256 gasBefore3 = gasleft();
+        bridge.submitAggregatedProof(channelId3, proofData3);
+        uint256 gasUsed3 = gasBefore3 - gasleft();
+        
+        // Measure gas for 4 participants  
+        vm.prank(address(uint160(100 + 4)));
+        uint256 gasBefore4 = gasleft();
+        bridge.submitAggregatedProof(channelId4, proofData4);
+        uint256 gasUsed4 = gasBefore4 - gasleft();
+        
+        // Calculate MPT verification specific costs
+        uint256 totalMPTLeaves3 = 6; // 3 initial + 3 final
+        uint256 totalMPTLeaves4 = 8; // 4 initial + 4 final
+        
+        // Estimate MPT parsing gas (difference divided by additional leaves)
+        uint256 gasPerLeaf = (gasUsed4 - gasUsed3) / (totalMPTLeaves4 - totalMPTLeaves3);
+        uint256 estimatedMPTGas3 = gasPerLeaf * totalMPTLeaves3;
+        uint256 estimatedMPTGas4 = gasPerLeaf * totalMPTLeaves4;
+        
+        // Results
+        console.log("\n--- Gas Usage Results ---");
+        console.log("3 participants total gas:", gasUsed3);
+        console.log("4 participants total gas:", gasUsed4);
+        console.log("Gas difference:", gasUsed4 - gasUsed3);
+        console.log("\n--- MPT Verification Analysis ---");
+        console.log("Estimated gas per MPT leaf:", gasPerLeaf);
+        console.log("Estimated MPT gas (3 participants):", estimatedMPTGas3);
+        console.log("Estimated MPT gas (4 participants):", estimatedMPTGas4);
+        console.log("MPT verification percentage (3p):", (estimatedMPTGas3 * 100) / gasUsed3, "%");
+        console.log("MPT verification percentage (4p):", (estimatedMPTGas4 * 100) / gasUsed4, "%");
+        
+        // Additional analysis: gas scaling
+        console.log("\n--- Scaling Analysis ---");
+        console.log("Gas increase for +1 participant:", gasUsed4 - gasUsed3);
+        console.log("Percentage increase:", ((gasUsed4 - gasUsed3) * 100) / gasUsed3, "%");
+        
+        // Extrapolate for maximum participants (50)
+        uint256 estimatedGas50 = gasUsed3 + (gasPerLeaf * 100); // 50 * 2 leaves = 100 total
+        console.log("Estimated gas for 50 participants:", estimatedGas50);
+        console.log("Estimated MPT portion for 50p:", (gasPerLeaf * 100 * 100) / estimatedGas50, "%");
+    }
+    
+    /**
+     * @dev Helper to setup channel with specified number of participants
+     */
+    function _setupChannelWithParticipants(uint256 participantCount) internal returns (uint256 channelId) {
+        // Use different leaders to avoid "channel limit reached" error
+        address channelLeader = address(uint160(100 + participantCount));
+        
+        vm.prank(owner);
+        bridge.authorizeCreator(channelLeader);
+        
+        vm.startPrank(channelLeader);
+        
+        address[] memory participants = new address[](participantCount);
+        address[] memory l2PublicKeys = new address[](participantCount);
+        
+        // Create participant addresses
+        for (uint256 i = 0; i < participantCount; i++) {
+            participants[i] = address(uint160(3 + i)); // Start from address(3)
+            l2PublicKeys[i] = address(uint160(13 + i)); // Start from address(13)
+        }
+        
+        channelId = bridge.openChannel(
+            bridge.ETH_TOKEN_ADDRESS(),
+            participants,
+            l2PublicKeys,
+            new uint128[](0),
+            new uint256[](0),
+            1 days,
+            bytes32(0)
+        );
+        
+        // Deposit for each participant
+        for (uint256 i = 0; i < participantCount; i++) {
+            vm.stopPrank();
+            
+            // Fund the participant
+            vm.deal(participants[i], 10 ether);
+            
+            vm.prank(participants[i]);
+            bridge.depositETH{value: (i + 1) * 1 ether}(channelId);
+        }
+        
+        vm.prank(channelLeader);
+        bridge.initializeChannelState(channelId);
+        
+        vm.stopPrank();
+    }
 }

@@ -7,8 +7,11 @@ interface IPoseidon4 {
     /**
      * Main poseidon4 function that takes 4 inputs and returns first element of permutation
      */
-    function poseidon4(Poseidon4Field.Type x, Poseidon4Field.Type y, Poseidon4Field.Type z, Poseidon4Field.Type w) external pure returns (Poseidon4Field.Type);
-    
+    function poseidon4(Poseidon4Field.Type x, Poseidon4Field.Type y, Poseidon4Field.Type z, Poseidon4Field.Type w)
+        external
+        pure
+        returns (Poseidon4Field.Type);
+
     /**
      * Convenience function for uint256 inputs
      */

@@ -57,7 +57,7 @@ contract Poseidon2 {
         Poseidon2Lib.Constants memory constants = Poseidon2Lib.load();
         return Poseidon2Lib.poseidonPermutation(
             inputs,
-            8,  // rFull
+            8, // rFull
             56, // rPartial
             constants.round_constants,
             constants.mds_matrix

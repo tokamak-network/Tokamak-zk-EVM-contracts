@@ -194,7 +194,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
 
         // Use direct function call instead of staticcall
         uint256 hashResult = poseidonHasher.poseidon2Uint256(
-            Poseidon4Field.toUint256(Poseidon4Field.toField(_left)), 
+            Poseidon4Field.toUint256(Poseidon4Field.toField(_left)),
             Poseidon4Field.toUint256(Poseidon4Field.toField(_right))
         );
         return Poseidon4Field.toBytes32(Poseidon4Field.Type.wrap(hashResult));
@@ -211,7 +211,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
 
         // Compute gamma = Poseidon2(prevRoot, l2Addr)
         uint256 gamma = poseidonHasher.poseidon2Uint256(
-            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(prevRoot))), 
+            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(prevRoot))),
             Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(l2Addr)))
         );
 
@@ -263,7 +263,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
 
         // Compute gamma using Poseidon2
         uint256 gamma = poseidonHasher.poseidon2Uint256(
-            Poseidon4Field.toUint256(Poseidon4Field.toField(prevRoot)), 
+            Poseidon4Field.toUint256(Poseidon4Field.toField(prevRoot)),
             Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(l2Addr)))
         );
 

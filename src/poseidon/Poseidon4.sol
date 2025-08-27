@@ -13,7 +13,11 @@ contract Poseidon4 {
     /**
      * Main poseidon4 function matching the npm library implementation
      */
-    function poseidon4(Poseidon4Field.Type x, Poseidon4Field.Type y, Poseidon4Field.Type z, Poseidon4Field.Type w) public pure returns (Poseidon4Field.Type) {
+    function poseidon4(Poseidon4Field.Type x, Poseidon4Field.Type y, Poseidon4Field.Type z, Poseidon4Field.Type w)
+        public
+        pure
+        returns (Poseidon4Field.Type)
+    {
         Poseidon4Field.Type[4] memory inputs;
         inputs[0] = x;
         inputs[1] = y;
@@ -26,7 +30,9 @@ contract Poseidon4 {
      * Convenience function for uint256 inputs
      */
     function poseidon4Uint256(uint256 x, uint256 y, uint256 z, uint256 w) public pure returns (uint256) {
-        Poseidon4Field.Type result = poseidon4(Poseidon4Field.toField(x), Poseidon4Field.toField(y), Poseidon4Field.toField(z), Poseidon4Field.toField(w));
+        Poseidon4Field.Type result = poseidon4(
+            Poseidon4Field.toField(x), Poseidon4Field.toField(y), Poseidon4Field.toField(z), Poseidon4Field.toField(w)
+        );
         return Poseidon4Field.toUint256(result);
     }
 
@@ -38,7 +44,7 @@ contract Poseidon4 {
         Poseidon4Lib.Constants memory constants = Poseidon4Lib.load();
         return Poseidon4Lib.poseidonPermutation(
             inputs,
-            8,  // rFull
+            8, // rFull
             56, // rPartial
             constants.round_constants,
             constants.mds_matrix

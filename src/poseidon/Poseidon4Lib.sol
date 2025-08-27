@@ -23,20 +23,15 @@ library Poseidon4Lib {
     function poseidon4Direct(Poseidon4Field.Type[4] memory inputs) internal pure returns (Poseidon4Field.Type) {
         Poseidon4Field.Type[5] memory state;
         state[0] = Poseidon4Field.Type.wrap(0); // Initialize first element to 0
-        state[1] = inputs[0];          // First input
-        state[2] = inputs[1];          // Second input
-        state[3] = inputs[2];          // Third input
-        state[4] = inputs[3];          // Fourth input
-        
+        state[1] = inputs[0]; // First input
+        state[2] = inputs[1]; // Second input
+        state[3] = inputs[2]; // Third input
+        state[4] = inputs[3]; // Fourth input
+
         Constants memory constants = load();
-        Poseidon4Field.Type[5] memory result = poseidonPermutation(
-            state,
-            rFull,
-            rPartial,
-            constants.round_constants,
-            constants.mds_matrix
-        );
-        
+        Poseidon4Field.Type[5] memory result =
+            poseidonPermutation(state, rFull, rPartial, constants.round_constants, constants.mds_matrix);
+
         return result[0]; // Return first element as per npm library implementation
     }
 

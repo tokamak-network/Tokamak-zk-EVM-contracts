@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.8;
 
@@ -59,18 +58,13 @@ library Poseidon2Lib {
     function poseidon2Direct(Field.Type[2] memory inputs) internal pure returns (Field.Type) {
         Field.Type[3] memory state;
         state[0] = Field.Type.wrap(0); // Initialize first element to 0
-        state[1] = inputs[0];          // First input
-        state[2] = inputs[1];          // Second input
-        
+        state[1] = inputs[0]; // First input
+        state[2] = inputs[1]; // Second input
+
         Constants memory constants = load();
-        Field.Type[3] memory result = poseidonPermutation(
-            state,
-            rFull,
-            rPartial,
-            constants.round_constants,
-            constants.mds_matrix
-        );
-        
+        Field.Type[3] memory result =
+            poseidonPermutation(state, rFull, rPartial, constants.round_constants, constants.mds_matrix);
+
         return result[0]; // Return first element as per TypeScript implementation
     }
 
@@ -152,7 +146,7 @@ library Poseidon2Lib {
 
     /**
      * S-box function: x^5 mod p (correct implementation)
-     * Note: The TypeScript implementation is missing % PRIME in some places, 
+     * Note: The TypeScript implementation is missing % PRIME in some places,
      * but this follows the standard specification
      */
     function sBox(Field.Type x) private pure returns (Field.Type) {
@@ -282,13 +276,8 @@ library Poseidon2Lib {
         }
 
         // Apply permutation to full state
-        self.state = poseidonPermutation(
-            self.state, 
-            rFull, 
-            rPartial, 
-            self.constants.round_constants, 
-            self.constants.mds_matrix
-        );
+        self.state =
+            poseidonPermutation(self.state, rFull, rPartial, self.constants.round_constants, self.constants.mds_matrix);
 
         // Return rate elements
         Field.Type[RATE] memory result;

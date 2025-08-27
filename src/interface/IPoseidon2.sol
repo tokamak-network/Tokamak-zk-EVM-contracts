@@ -8,7 +8,7 @@ interface IPoseidon2 {
      * Main poseidon2 function that takes 2 inputs and returns first element of permutation
      */
     function poseidon2(Field.Type x, Field.Type y) external pure returns (Field.Type);
-    
+
     /**
      * Convenience function for uint256 inputs
      */

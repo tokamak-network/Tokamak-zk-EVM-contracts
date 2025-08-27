@@ -339,18 +339,13 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         emit ProofAggregated(channelId, proofData.aggregatedProofHash);
     }
 
-
     /**
      * @dev Assembly function to extract balance from an MPT leaf
      * @param mptLeaf The MPT leaf data in bytes format (RLP-encoded account data)
      * @return extractedBalance The balance value extracted from the leaf
      * @notice Efficient RLP parser for Ethereum account structure
      */
-    function _extractBalanceFromMPTLeaf(bytes calldata mptLeaf)
-        internal
-        pure
-        returns (uint256 extractedBalance)
-    {
+    function _extractBalanceFromMPTLeaf(bytes calldata mptLeaf) internal pure returns (uint256 extractedBalance) {
         assembly {
             let dataPtr := mptLeaf.offset
             let dataLen := mptLeaf.length

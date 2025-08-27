@@ -14,7 +14,7 @@ library Poseidon2Lib {
     uint256 constant RATE = 2; // Rate for sponge
 
     struct Constants {
-        Field.Type[192] round_constants; // Total round constants (actual count from your implementation)
+        Field.Type[192] round_constants; // Total round constants
         Field.Type[3][3] mds_matrix; // MDS matrix
     }
 
@@ -52,7 +52,25 @@ library Poseidon2Lib {
     }
 
     /**
-     * Core Poseidon permutation matching the off-chain implementation
+     * Direct poseidon2 function matching npm library implementation
+     * Takes 2 inputs and returns first element of permutation
+     */
+    function poseidon2Direct(Field.Type[2] memory inputs) internal pure returns (Field.Type) {
+        Field.Type[3] memory state;
+        state[0] = Field.Type.wrap(0); // Initialize first element to 0
+        state[1] = inputs[0]; // First input
+        state[2] = inputs[1]; // Second input
+
+        Constants memory constants = load();
+        Field.Type[3] memory result =
+            poseidonPermutation(state, rFull, rPartial, constants.round_constants, constants.mds_matrix);
+
+        return result[0]; // Return first element as per TypeScript implementation
+    }
+
+    /**
+     * Core Poseidon permutation matching the npm library implementation
+     * This implements the correct Poseidon2 specification with proper modulo operations
      */
     function poseidonPermutation(
         Field.Type[3] memory inputs,
@@ -61,12 +79,7 @@ library Poseidon2Lib {
         Field.Type[192] memory roundConstants,
         Field.Type[3][3] memory mds
     ) internal pure returns (Field.Type[3] memory) {
-        Field.Type[3] memory state;
-
-        // Initialize state with inputs
-        for (uint256 i = 0; i < 3; i++) {
-            state[i] = inputs[i];
-        }
+        Field.Type[3] memory state = inputs;
 
         uint256 roundConstantsCounter = 0;
         uint256 rFullHalf = _rFull / 2;
@@ -79,7 +92,7 @@ library Poseidon2Lib {
                 roundConstantsCounter++;
             }
 
-            // S-box (x^5)
+            // S-box (x^5) with proper modulo (correct implementation)
             for (uint256 j = 0; j < t; j++) {
                 state[j] = sBox(state[j]);
             }
@@ -96,7 +109,7 @@ library Poseidon2Lib {
                 roundConstantsCounter++;
             }
 
-            // S-box only on first element
+            // S-box only on first element (with proper modulo)
             state[0] = sBox(state[0]);
 
             // MDS matrix multiplication
@@ -111,7 +124,7 @@ library Poseidon2Lib {
                 roundConstantsCounter++;
             }
 
-            // S-box (x^5)
+            // S-box (x^5) with proper modulo (correct implementation)
             for (uint256 j = 0; j < t; j++) {
                 state[j] = sBox(state[j]);
             }
@@ -124,7 +137,17 @@ library Poseidon2Lib {
     }
 
     /**
-     * S-box function: x^5
+     * S-box function: x^5 WITHOUT modulo to match TypeScript bug
+     * Note: This is intentionally incorrect to match the TypeScript implementation
+     */
+    function sBoxNoModulo(Field.Type x) private pure returns (Field.Type) {
+        return x.powNoModulo(5);
+    }
+
+    /**
+     * S-box function: x^5 mod p (correct implementation)
+     * Note: The TypeScript implementation is missing % PRIME in some places,
+     * but this follows the standard specification
      */
     function sBox(Field.Type x) private pure returns (Field.Type) {
         return x.pow(5);
@@ -252,7 +275,7 @@ library Poseidon2Lib {
             self.state[i] = self.state[i].add(self.cache[i]);
         }
 
-        // Apply permutation
+        // Apply permutation to full state
         self.state =
             poseidonPermutation(self.state, rFull, rPartial, self.constants.round_constants, self.constants.mds_matrix);
 
@@ -283,7 +306,7 @@ library Poseidon2Lib {
             Field.Type.wrap(0x409fda22558cfe4d3dd8dce24f69e76f8c2aaeb1dd0f09d65e654c71f32aa23f),
             Field.Type.wrap(0x2a32ec5c4ee5b1837affd09c1f53f5fd55c9cd2061ae93ca8ebad76fc71554d8),
             Field.Type.wrap(0x5848ebeb5923e92555b7124fffba5d6bd571c6f984195eb9cfd3a3e8eb55b1d4),
-            Field.Type.wrap(0x270326ee039df19e651e2cfc740628ca634d24fc6e2559f22d8ccbe292efeeaD),
+            Field.Type.wrap(0x270326ee039df19e651e2cfc740628ca634d24fc6e2559f22d8ccbe292efeead),
             Field.Type.wrap(0x27c6642ac633bc66dc100fe7fcfa54918af895bce012f182a068fc37c182e274),
             Field.Type.wrap(0x1bdfd8b01401c70ad27f57396989129d710e1fb6ab976a459ca18682e26d7ff9),
             Field.Type.wrap(0x491b9ba6983bcf9f05fe4794adb44a30879bf8289662e1f57d90f672414e8a4a),

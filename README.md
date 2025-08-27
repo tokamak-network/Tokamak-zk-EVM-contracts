@@ -47,8 +47,8 @@ The project now features **MerkleTreeManager4**, an implementation that uses **4
 
 #### **Cryptographic Layer**
 - **`Poseidon4Yul.sol`**: 4-input Yul-optimized Poseidon hasher
-- **`IPoseidon4Yul.sol`**: Interface for 4-input hashing operations
-- **`IPoseidon2Yul.sol`**: Interface for 2-input hashing operations
+- **`IPoseidon4.sol`**: Interface for 4-input hashing operations
+- **`IPoseidon2.sol`**: Interface for 2-input hashing operations
 
 #### **Verification Layer**
 - **`Verifier.sol`**: ZK-SNARK proof verification contract
@@ -182,8 +182,8 @@ src/
 │   └── MerkleTreeManager2.sol    # Binary tree (Legacy)
 ├── interface/            # Contract interfaces
 │   ├── IMerkleTreeManager.sol
-│   ├── IPoseidon4Yul.sol
-│   ├── IPoseidon2Yul.sol
+│   ├── IPoseidon4.sol
+│   ├── IPoseidon2.sol
 │   ├── IRollupBridge.sol
 │   └── IVerifier.sol
 ├── poseidon/             # Cryptographic utilities
@@ -248,6 +248,13 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 ## 📚 Documentation
 
 - **Technical Docs**: [docs/](./docs/) directory
+
+## Deployed contracts
+
+### Sepolia contracts
+POSEIDON4_ADDRESS=0xA22A3cE2e3eb5865ACdCA8980F95C8EAA87eF4a1
+MERKLE_TREE_MANAGER4_ADDRESS=0xef249e41F6DC67BdfdBe44f4690cB4527d65CdD2
+ROLLUP_BRIDGE_ADDRESS=0xa9BE9BA80802EaDFFEee5dc1fF46B0ED7da8a19D
 
 ## 📄 License
 

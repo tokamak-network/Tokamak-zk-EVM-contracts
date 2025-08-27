@@ -9,8 +9,8 @@ import {Verifier} from "../src/verifier/Verifier.sol";
 import "../src/merkleTree/MerkleTreeManager4.sol";
 import "../src/library/RLP.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
-import {IPoseidon4Yul} from "../src/interface/IPoseidon4Yul.sol";
-import {MockPoseidon4Yul} from "./mock/MockPoseidon4Yul.sol";
+import {IPoseidon4} from "../src/interface/IPoseidon4.sol";
+import {Poseidon4} from "../src/poseidon/Poseidon4.sol";
 
 // Mock Contracts
 contract MockVerifier is IVerifier {
@@ -49,7 +49,7 @@ contract RollupBridgeTest is Test {
     MockVerifier public verifier;
     MerkleTreeManager4 public mtmanager;
     MockERC20 public token;
-    IPoseidon4Yul public poseidon;
+    Poseidon4 public poseidon;
 
     address public owner = address(1);
     address public leader = address(2);
@@ -81,9 +81,9 @@ contract RollupBridgeTest is Test {
         vm.startPrank(owner);
 
         verifier = new MockVerifier();
-        poseidon = new MockPoseidon4Yul();
+        poseidon = new Poseidon4();
         mtmanager = new MerkleTreeManager4(address(poseidon));
-        bridge = new RollupBridge(address(verifier), address(mtmanager), address(poseidon));
+        bridge = new RollupBridge(address(verifier), address(mtmanager));
         mtmanager.setBridge(address(bridge));
         token = new MockERC20();
 
@@ -475,7 +475,7 @@ contract RollupBridgeTest is Test {
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
         MerkleTreeManager4 mtmanager2 = new MerkleTreeManager4(address(poseidon));
-        RollupBridge realBridge = new RollupBridge(address(realVerifier), address(mtmanager2), address(poseidon));
+        RollupBridge realBridge = new RollupBridge(address(realVerifier), address(mtmanager2));
         mtmanager2.setBridge(address(realBridge));
 
         // Setup for real bridge

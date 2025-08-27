@@ -9,7 +9,6 @@ import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import {IMerkleTreeManager} from "./interface/IMerkleTreeManager.sol";
 import "./library/RLP.sol";
-import {IPoseidon4Yul} from "./interface/IPoseidon4Yul.sol";
 
 /**
  * @title RollupBridge
@@ -59,13 +58,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     // ========== CONTRACTS ==========
     IVerifier public immutable zkVerifier;
     IMerkleTreeManager public immutable mtmanager;
-    IPoseidon4Yul public immutable poseidonHasher;
 
     // ========== CONSTRUCTOR ==========
-    constructor(address _zkVerifier, address _mtmanager, address _poseidonHasher) Ownable(msg.sender) {
+    constructor(address _zkVerifier, address _mtmanager) Ownable(msg.sender) {
         zkVerifier = IVerifier(_zkVerifier);
         mtmanager = IMerkleTreeManager(_mtmanager);
-        poseidonHasher = IPoseidon4Yul(_poseidonHasher);
     }
 
     // ========== Channel Opening ==========
@@ -236,7 +233,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      */
     function initializeChannelState(uint256 channelId) external nonReentrant {
         Channel storage channel = channels[channelId];
-        require(channel.state == ChannelState.Initialized, "Invalid state");
+        require(channel.state == ChannelState.Initialized || channel.state == ChannelState.Open, "Invalid state");
         require(msg.sender == channel.leader, "Not leader");
         // Prepare arrays
         address[] memory l1Addresses = new address[](channel.participants.length);
@@ -262,7 +259,9 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
 
         // Store the initial merkle root
         channel.initialStateRoot = mtmanager.getCurrentRoot(channelId);
-        channel.state = ChannelState.Open;
+        if (channel.state == ChannelState.Initialized) {
+            channel.state = ChannelState.Open;
+        }
 
         emit StateInitialized(channelId, channel.initialStateRoot);
     }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Field} from "../poseidon/Field.sol";
-import {IPoseidon2Yul} from "../interface/IPoseidon2Yul.sol";
+import {Poseidon4Field} from "../poseidon/Poseidon4Field.sol";
+import {IPoseidon2} from "../interface/IPoseidon2.sol";
 import {IMerkleTreeManager} from "../interface/IMerkleTreeManager.sol";
 import "@openzeppelin/access/Ownable.sol";
 
@@ -13,7 +13,7 @@ import "@openzeppelin/access/Ownable.sol";
  */
 contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     // Constants
-    uint256 public constant FIELD_SIZE = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
+    uint256 public constant Poseidon4Field_SIZE = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     uint256 public constant BALANCE_SLOT = 0;
     uint32 public constant ROOT_HISTORY_SIZE = 30;
 
@@ -26,7 +26,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     }
 
     // Immutable configuration
-    IPoseidon2Yul public immutable poseidonHasher;
+    IPoseidon2 public immutable poseidonHasher;
     uint32 public immutable depth;
 
     // Tree storage - per channel
@@ -70,7 +70,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
         if (_depth == 0) revert DepthTooSmall(_depth);
         if (_depth >= 32) revert DepthTooLarge(_depth);
 
-        poseidonHasher = IPoseidon2Yul(_poseidonHasher);
+        poseidonHasher = IPoseidon2(_poseidonHasher);
         depth = _depth;
     }
 
@@ -155,7 +155,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
      */
     function _insertAndGetRoot(uint256 channelId, bytes32 _leaf) internal returns (uint32 index, bytes32 newRoot) {
         uint32 _nextLeafIndex = nextLeafIndex[channelId];
-        if (_nextLeafIndex == uint32(2) ** depth) {
+        if (_nextLeafIndex >= uint32(2) ** depth) {
             revert MerkleTreeFull(_nextLeafIndex);
         }
 
@@ -189,15 +189,15 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
      * @dev Hash two nodes together
      */
     function hashLeftRight(bytes32 _left, bytes32 _right) public view returns (bytes32) {
-        if (uint256(_left) >= FIELD_SIZE) revert LeftValueOutOfRange(_left);
-        if (uint256(_right) >= FIELD_SIZE) revert RightValueOutOfRange(_right);
+        if (uint256(_left) >= Poseidon4Field_SIZE) revert LeftValueOutOfRange(_left);
+        if (uint256(_right) >= Poseidon4Field_SIZE) revert RightValueOutOfRange(_right);
 
-        // Use call pattern to interact with Poseidon2Yul
-        bytes memory data = abi.encode(Field.toUint256(Field.toField(_left)), Field.toUint256(Field.toField(_right)));
-        (bool success, bytes memory result) = address(poseidonHasher).staticcall(data);
-        require(success, "Hash failed");
-        uint256 hashResult = abi.decode(result, (uint256));
-        return Field.toBytes32(Field.Type.wrap(hashResult));
+        // Use direct function call instead of staticcall
+        uint256 hashResult = poseidonHasher.poseidon2Uint256(
+            Poseidon4Field.toUint256(Poseidon4Field.toField(_left)), 
+            Poseidon4Field.toUint256(Poseidon4Field.toField(_right))
+        );
+        return Poseidon4Field.toBytes32(Poseidon4Field.Type.wrap(hashResult));
     }
 
     /**
@@ -209,20 +209,18 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
         // Use the most recent root in the sequence
         uint256 prevRoot = (rootSequence.length == 0) ? BALANCE_SLOT : uint256(rootSequence[rootSequence.length - 1]);
 
-        // Compute gamma = Poseidon2Yul(prevRoot, l2Addr)
-        bytes memory data = abi.encode(
-            Field.toUint256(Field.toField(bytes32(prevRoot))), Field.toUint256(Field.toField(bytes32(l2Addr)))
+        // Compute gamma = Poseidon2(prevRoot, l2Addr)
+        uint256 gamma = poseidonHasher.poseidon2Uint256(
+            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(prevRoot))), 
+            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(l2Addr)))
         );
-        (bool success, bytes memory result) = address(poseidonHasher).staticcall(data);
-        require(success, "Hash failed");
-        uint256 gamma = abi.decode(result, (uint256));
 
         // Compute RLC: l2Addr + gamma * balance
-        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, FIELD_SIZE), FIELD_SIZE);
+        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, Poseidon4Field_SIZE), Poseidon4Field_SIZE);
 
-        // Ensure it fits in the merkle tree field
-        if (rlc >= FIELD_SIZE) {
-            rlc = rlc % FIELD_SIZE;
+        // Ensure it fits in the merkle tree Poseidon4Field
+        if (rlc >= Poseidon4Field_SIZE) {
+            rlc = rlc % Poseidon4Field_SIZE;
         }
 
         return bytes32(rlc);
@@ -263,17 +261,16 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
     {
         uint256 l2Addr = uint256(uint160(l2Address));
 
-        // Compute gamma using Poseidon2Yul
-        bytes memory data =
-            abi.encode(Field.toUint256(Field.toField(prevRoot)), Field.toUint256(Field.toField(bytes32(l2Addr))));
-        (bool success, bytes memory result) = address(poseidonHasher).staticcall(data);
-        require(success, "Hash failed");
-        uint256 gamma = abi.decode(result, (uint256));
+        // Compute gamma using Poseidon2
+        uint256 gamma = poseidonHasher.poseidon2Uint256(
+            Poseidon4Field.toUint256(Poseidon4Field.toField(prevRoot)), 
+            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(l2Addr)))
+        );
 
         // Compute RLC
-        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, FIELD_SIZE), FIELD_SIZE);
-        if (rlc >= FIELD_SIZE) {
-            rlc = rlc % FIELD_SIZE;
+        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, Poseidon4Field_SIZE), Poseidon4Field_SIZE);
+        if (rlc >= Poseidon4Field_SIZE) {
+            rlc = rlc % Poseidon4Field_SIZE;
         }
 
         return bytes32(rlc);

@@ -9,8 +9,8 @@ import {Verifier} from "../src/verifier/Verifier.sol";
 import "../src/merkleTree/MerkleTreeManager4.sol";
 import "../src/library/RLP.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
-import {IPoseidon4Yul} from "../src/interface/IPoseidon4Yul.sol";
-import {MockPoseidon4Yul} from "./MockPoseidon4Yul.sol";
+import {IPoseidon4} from "../src/interface/IPoseidon4.sol";
+import {Poseidon4} from "../src/poseidon/Poseidon4.sol";
 
 // Mock Contracts
 contract MockVerifier is IVerifier {
@@ -49,7 +49,7 @@ contract RollupBridgeTest is Test {
     MockVerifier public verifier;
     MerkleTreeManager4 public mtmanager;
     MockERC20 public token;
-    IPoseidon4Yul public poseidon;
+    Poseidon4 public poseidon;
 
     address public owner = address(1);
     address public leader = address(2);
@@ -70,15 +70,19 @@ contract RollupBridgeTest is Test {
     event ChannelDeleted(uint256 indexed channelId);
     event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
+    event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
+    event AggregatedProofSigned(
+        uint256 indexed channelId, address indexed signer, uint256 signatureCount, uint256 requiredSignatures
+    );
 
     function setUp() public {
         // Deploy contracts
         vm.startPrank(owner);
 
         verifier = new MockVerifier();
-        poseidon = new MockPoseidon4Yul();
-        mtmanager = new MerkleTreeManager4(address(poseidon), 6);
+        poseidon = new Poseidon4();
+        mtmanager = new MerkleTreeManager4(address(poseidon));
         bridge = new RollupBridge(address(verifier), address(mtmanager));
         mtmanager.setBridge(address(bridge));
         token = new MockERC20();
@@ -131,6 +135,31 @@ contract RollupBridgeTest is Test {
             leaves[i] = _createMockMPTLeaf(balances[i]);
         }
         return leaves;
+    }
+
+    /**
+     * @dev Creates ProofData struct for testing
+     */
+    function _createProofData(
+        bytes32 aggregatedProofHash,
+        bytes32 finalStateRoot,
+        uint128[] memory proofPart1,
+        uint256[] memory proofPart2,
+        uint256[] memory publicInputs,
+        uint256 smax,
+        bytes[] memory initialMPTLeaves,
+        bytes[] memory finalMPTLeaves
+    ) internal pure returns (IRollupBridge.ProofData memory) {
+        return IRollupBridge.ProofData({
+            aggregatedProofHash: aggregatedProofHash,
+            finalStateRoot: finalStateRoot,
+            proofPart1: proofPart1,
+            proofPart2: proofPart2,
+            publicInputs: publicInputs,
+            smax: smax,
+            initialMPTLeaves: initialMPTLeaves,
+            finalMPTLeaves: finalMPTLeaves
+        });
     }
 
     // ========== Channel Opening Tests ==========
@@ -279,7 +308,10 @@ contract RollupBridgeTest is Test {
         vm.expectEmit(true, true, false, false);
         emit ProofAggregated(channelId, proofHash);
         bridge.submitAggregatedProof(
-            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -310,7 +342,10 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Initial balance mismatch");
         bridge.submitAggregatedProof(
-            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -341,7 +376,10 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Balance conservation violated");
         bridge.submitAggregatedProof(
-            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -370,7 +408,10 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Mismatched leaf arrays");
         bridge.submitAggregatedProof(
-            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -413,7 +454,10 @@ contract RollupBridgeTest is Test {
 
         uint256 gasBefore = gasleft();
         bridge.submitAggregatedProof(
-            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
         uint256 gasAfter = gasleft();
 
@@ -430,7 +474,7 @@ contract RollupBridgeTest is Test {
         // Deploy real verifier instead of mock
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
-        MerkleTreeManager4 mtmanager2 = new MerkleTreeManager4(address(poseidon), 6);
+        MerkleTreeManager4 mtmanager2 = new MerkleTreeManager4(address(poseidon));
         RollupBridge realBridge = new RollupBridge(address(realVerifier), address(mtmanager2));
         mtmanager2.setBridge(address(realBridge));
 
@@ -504,14 +548,9 @@ contract RollupBridgeTest is Test {
         uint256 gasBefore = gasleft();
         realBridge.submitAggregatedProof(
             channelId,
-            proofHash,
-            finalRoot,
-            proofPart1,
-            proofPart2,
-            pubInputs,
-            smaxValue,
-            initialMPTLeaves,
-            finalMPTLeaves
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, pubInputs, smaxValue, initialMPTLeaves, finalMPTLeaves
+            )
         );
         uint256 gasAfter = gasleft();
 
@@ -529,15 +568,239 @@ contract RollupBridgeTest is Test {
     function testSignAggregatedProof() public {
         uint256 channelId = _submitProof();
 
-        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
+        // Create an array of signatures for the required number of participants
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
 
-        vm.prank(user1);
-        bridge.signAggregatedProof(channelId, sig);
+        // Only the leader or owner can sign aggregated proof
+        vm.prank(leader);
+        bridge.signAggregatedProof(channelId, signatures);
 
-        // Test double signing
+        // Test that non-leader/non-owner cannot sign
         vm.prank(user1);
-        vm.expectRevert("Already signed");
-        bridge.signAggregatedProof(channelId, sig);
+        vm.expectRevert("Not leader or owner");
+        bridge.signAggregatedProof(channelId, signatures);
+    }
+
+    function testSignAggregatedProofEvent() public {
+        uint256 channelId = _submitProof();
+
+        // Create an array of signatures for the required number of participants
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+
+        // Test that the event is emitted correctly
+        vm.prank(leader);
+        vm.expectEmit(true, true, false, true);
+        emit AggregatedProofSigned(channelId, leader, 2, 2);
+        bridge.signAggregatedProof(channelId, signatures);
+    }
+
+    function testSignAggregatedProofWithEmptySignatures() public {
+        uint256 channelId = _submitProof();
+
+        // Test with empty signature array
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](0);
+
+        vm.prank(leader);
+        vm.expectRevert("Invalid group threshold signature");
+        bridge.signAggregatedProof(channelId, signatures);
+    }
+
+    function testSignAggregatedProofWithInsufficientSignatures() public {
+        uint256 channelId = _submitProof();
+
+        // Test with only 1 signature when 2 are required
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+
+        vm.prank(leader);
+        vm.expectRevert("Invalid group threshold signature");
+        bridge.signAggregatedProof(channelId, signatures);
+    }
+
+    function testSignAggregatedProofWithExcessSignatures() public {
+        uint256 channelId = _submitProof();
+
+        // Test with more signatures than required (3 signatures when 2 are required)
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](3);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[2] = IRollupBridge.Signature({R: bytes32(uint256(3)), S: 5});
+
+        vm.prank(leader);
+        bridge.signAggregatedProof(channelId, signatures);
+
+        // Verify that the channel is ready to close
+        assertTrue(bridge.isChannelReadyToClose(channelId));
+    }
+
+    function testSignAggregatedProofAsOwner() public {
+        uint256 channelId = _submitProof();
+
+        // Create an array of signatures for the required number of participants
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+
+        // Test that the owner can also sign aggregated proof
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit AggregatedProofSigned(channelId, owner, 2, 2);
+        bridge.signAggregatedProof(channelId, signatures);
+    }
+
+    function testSignAggregatedProofSignatureCountUpdate() public {
+        uint256 channelId = _submitProof();
+
+        // Create an array of signatures for the required number of participants
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+
+        // Sign the aggregated proof
+        vm.prank(leader);
+        bridge.signAggregatedProof(channelId, signatures);
+
+        // Verify that the channel is ready to close
+        assertTrue(bridge.isChannelReadyToClose(channelId));
+    }
+
+    function testSignAggregatedProofStateTransition() public {
+        uint256 channelId = _submitProof();
+
+        // Verify initial state is Closing
+        IRollupBridge.ChannelState state = bridge.getChannelState(channelId);
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closing));
+
+        // Create an array of signatures for the required number of participants
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+
+        // Sign the aggregated proof
+        vm.prank(leader);
+        bridge.signAggregatedProof(channelId, signatures);
+
+        // Verify that the channel is ready to close
+        assertTrue(bridge.isChannelReadyToClose(channelId));
+
+        // Verify that the channel can now be closed
+        vm.prank(leader);
+        bridge.closeChannel(channelId);
+
+        // Verify final state is Closed
+        state = bridge.getChannelState(channelId);
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
+    }
+
+    function testSignAggregatedProofWrongState() public {
+        uint256 channelId = _createChannel();
+
+        // Try to sign aggregated proof before submitting proof (state is Initialized)
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+
+        vm.prank(leader);
+        vm.expectRevert("Not in closing state");
+        bridge.signAggregatedProof(channelId, signatures);
+    }
+
+    function testSignAggregatedProofDifferentArraySizes() public {
+        uint256 channelId = _submitProof();
+
+        // Test with exactly the required number of signatures
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+
+        vm.prank(leader);
+        bridge.signAggregatedProof(channelId, signatures);
+
+        // Verify success
+        assertTrue(bridge.isChannelReadyToClose(channelId));
+
+        // Test with more signatures than required - use a different leader
+        address newLeader = address(0x123);
+        vm.prank(owner);
+        bridge.authorizeCreator(newLeader);
+
+        uint256 channelId2 = _createChannelWithLeader(newLeader);
+        _submitProofForChannel(channelId2, newLeader);
+
+        IRollupBridge.Signature[] memory signatures2 = new IRollupBridge.Signature[](3);
+        signatures2[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures2[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures2[2] = IRollupBridge.Signature({R: bytes32(uint256(3)), S: 5});
+
+        vm.prank(newLeader);
+        bridge.signAggregatedProof(channelId2, signatures2);
+
+        // Verify success even with excess signatures
+        assertTrue(bridge.isChannelReadyToClose(channelId2));
+    }
+
+    function testSignAggregatedProofVerificationFailure() public {
+        uint256 channelId = _submitProof();
+
+        // Test with insufficient signatures (1 signature when 2 are required)
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+
+        vm.prank(leader);
+        vm.expectRevert("Invalid group threshold signature");
+        bridge.signAggregatedProof(channelId, signatures);
+
+        // Verify that the channel is not ready to close
+        assertFalse(bridge.isChannelReadyToClose(channelId));
+    }
+
+    function testSignAggregatedProofUnauthorizedCaller() public {
+        uint256 channelId = _submitProof();
+
+        // Create an array of signatures for the required number of participants
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+
+        // Test that non-leader/non-owner cannot sign
+        vm.prank(user1);
+        vm.expectRevert("Not leader or owner");
+        bridge.signAggregatedProof(channelId, signatures);
+
+        vm.prank(user2);
+        vm.expectRevert("Not leader or owner");
+        bridge.signAggregatedProof(channelId, signatures);
+
+        vm.prank(user3);
+        vm.expectRevert("Not leader or owner");
+        bridge.signAggregatedProof(channelId, signatures);
+    }
+
+    function testSignAggregatedProofAlreadySigned() public {
+        uint256 channelId = _submitProof();
+
+        // Create an array of signatures for the required number of participants
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+
+        // Sign the aggregated proof
+        vm.prank(leader);
+        bridge.signAggregatedProof(channelId, signatures);
+
+        // Verify that the channel is ready to close
+        assertTrue(bridge.isChannelReadyToClose(channelId));
+
+        // Try to sign again with the same signatures
+        vm.prank(leader);
+        bridge.signAggregatedProof(channelId, signatures);
+
+        // Verify that the channel is still ready to close
+        assertTrue(bridge.isChannelReadyToClose(channelId));
     }
 
     // ========== Channel Closing Tests ==========
@@ -580,7 +843,10 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         vm.expectRevert("Invalid ZK proof");
         bridge.submitAggregatedProof(
-            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
     }
 
@@ -688,6 +954,77 @@ contract RollupBridgeTest is Test {
         return channelId;
     }
 
+    function _createChannelWithLeader(address newLeader) internal returns (uint256) {
+        vm.startPrank(newLeader);
+
+        address[] memory participants = new address[](3);
+        participants[0] = user1;
+        participants[1] = user2;
+        participants[2] = user3;
+
+        address[] memory l2PublicKeys = new address[](3);
+        l2PublicKeys[0] = l2User1;
+        l2PublicKeys[1] = l2User2;
+        l2PublicKeys[2] = l2User3;
+
+        uint128[] memory preprocessedPart1 = new uint128[](1);
+        uint256[] memory preprocessedPart2 = new uint256[](1);
+
+        uint256 channelId = bridge.openChannel(
+            bridge.ETH_TOKEN_ADDRESS(),
+            participants,
+            l2PublicKeys,
+            preprocessedPart1,
+            preprocessedPart2,
+            1 days,
+            bytes32(0)
+        );
+
+        vm.stopPrank();
+
+        return channelId;
+    }
+
+    function _submitProofForChannel(uint256 channelId, address channelLeader) internal {
+        // Make deposits
+        vm.prank(user1);
+        bridge.depositETH{value: 1 ether}(channelId);
+
+        vm.prank(user2);
+        bridge.depositETH{value: 2 ether}(channelId);
+
+        vm.prank(user3);
+        bridge.depositETH{value: 3 ether}(channelId);
+
+        // Initialize state
+        vm.prank(channelLeader);
+        bridge.initializeChannelState(channelId);
+
+        bytes32 proofHash = keccak256("proof");
+        bytes32 finalRoot = keccak256("finalRoot");
+
+        uint128[] memory proofPart1 = new uint128[](1);
+        uint256[] memory proofPart2 = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](1);
+
+        // Create MPT leaves matching the deposited amounts
+        uint256[] memory balances = new uint256[](3);
+        balances[0] = 1 ether;
+        balances[1] = 2 ether;
+        balances[2] = 3 ether;
+
+        bytes[] memory initialMPTLeaves = _createMPTLeaves(balances);
+        bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
+
+        vm.prank(channelLeader);
+        bridge.submitAggregatedProof(
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
+        );
+    }
+
     function _initializeChannel() internal returns (uint256) {
         uint256 channelId = _createChannel();
 
@@ -729,7 +1066,10 @@ contract RollupBridgeTest is Test {
 
         vm.prank(leader);
         bridge.submitAggregatedProof(
-            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
 
         return channelId;
@@ -738,14 +1078,14 @@ contract RollupBridgeTest is Test {
     function _getSignedChannel() internal returns (uint256) {
         uint256 channelId = _submitProof();
 
-        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
+        // Create an array of signatures for the required number of participants
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
 
-        // Get required signatures (2/3 of participants)
-        vm.prank(user1);
-        bridge.signAggregatedProof(channelId, sig);
-
-        vm.prank(user2);
-        bridge.signAggregatedProof(channelId, sig);
+        // Only the leader or owner can sign aggregated proof
+        vm.prank(leader);
+        bridge.signAggregatedProof(channelId, signatures);
 
         return channelId;
     }
@@ -840,16 +1180,18 @@ contract RollupBridgeTest is Test {
 
         vm.prank(leader);
         bridge.submitAggregatedProof(
-            channelId, proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            channelId,
+            _createProofData(
+                proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
+            )
         );
 
         // 5. Collect signatures
-        IRollupBridge.Signature memory sig = IRollupBridge.Signature({R_x: 1, R_y: 2});
+        IRollupBridge.Signature[] memory sig = new IRollupBridge.Signature[](2);
+        sig[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        sig[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
 
-        vm.prank(user1);
-        bridge.signAggregatedProof(channelId, sig);
-
-        vm.prank(user2);
+        vm.prank(leader);
         bridge.signAggregatedProof(channelId, sig);
 
         // 6. Close channel
@@ -1050,5 +1392,143 @@ contract RollupBridgeTest is Test {
         publicInputs[63] = (0x0000000000000000000000000000000000000000000000000000000000000000);
 
         smax = 512;
+    }
+
+    /**
+     * @dev Test to measure exact gas consumption of MPT leaf verification
+     *      Compares gas usage between 3 and 4 participant channels
+     */
+    function test_MPTVerificationGasUsage() public {
+        console.log("=== MPT Verification Gas Usage Analysis ===");
+
+        // Test with 3 participants
+        uint256 channelId3 = _setupChannelWithParticipants(3);
+        uint256[] memory balances3 = new uint256[](3);
+        balances3[0] = 1 ether;
+        balances3[1] = 2 ether;
+        balances3[2] = 3 ether;
+
+        bytes[] memory leaves3 = _createMPTLeaves(balances3);
+        IRollupBridge.ProofData memory proofData3 = _createProofData(
+            keccak256("test3"),
+            bytes32(uint256(0x123)),
+            new uint128[](0),
+            new uint256[](0),
+            new uint256[](0),
+            0,
+            leaves3,
+            leaves3
+        );
+
+        // Test with 4 participants
+        uint256 channelId4 = _setupChannelWithParticipants(4);
+        uint256[] memory balances4 = new uint256[](4);
+        balances4[0] = 1 ether;
+        balances4[1] = 2 ether;
+        balances4[2] = 3 ether;
+        balances4[3] = 4 ether;
+
+        bytes[] memory leaves4 = _createMPTLeaves(balances4);
+        IRollupBridge.ProofData memory proofData4 = _createProofData(
+            keccak256("test4"),
+            bytes32(uint256(0x124)),
+            new uint128[](0),
+            new uint256[](0),
+            new uint256[](0),
+            0,
+            leaves4,
+            leaves4
+        );
+
+        // Measure gas for 3 participants
+        vm.prank(address(uint160(100 + 3)));
+        uint256 gasBefore3 = gasleft();
+        bridge.submitAggregatedProof(channelId3, proofData3);
+        uint256 gasUsed3 = gasBefore3 - gasleft();
+
+        // Measure gas for 4 participants
+        vm.prank(address(uint160(100 + 4)));
+        uint256 gasBefore4 = gasleft();
+        bridge.submitAggregatedProof(channelId4, proofData4);
+        uint256 gasUsed4 = gasBefore4 - gasleft();
+
+        // Calculate MPT verification specific costs
+        uint256 totalMPTLeaves3 = 6; // 3 initial + 3 final
+        uint256 totalMPTLeaves4 = 8; // 4 initial + 4 final
+
+        // Estimate MPT parsing gas (difference divided by additional leaves)
+        uint256 gasPerLeaf = (gasUsed4 - gasUsed3) / (totalMPTLeaves4 - totalMPTLeaves3);
+        uint256 estimatedMPTGas3 = gasPerLeaf * totalMPTLeaves3;
+        uint256 estimatedMPTGas4 = gasPerLeaf * totalMPTLeaves4;
+
+        // Results
+        console.log("\n--- Gas Usage Results ---");
+        console.log("3 participants total gas:", gasUsed3);
+        console.log("4 participants total gas:", gasUsed4);
+        console.log("Gas difference:", gasUsed4 - gasUsed3);
+        console.log("\n--- MPT Verification Analysis ---");
+        console.log("Estimated gas per MPT leaf:", gasPerLeaf);
+        console.log("Estimated MPT gas (3 participants):", estimatedMPTGas3);
+        console.log("Estimated MPT gas (4 participants):", estimatedMPTGas4);
+        console.log("MPT verification percentage (3p):", (estimatedMPTGas3 * 100) / gasUsed3, "%");
+        console.log("MPT verification percentage (4p):", (estimatedMPTGas4 * 100) / gasUsed4, "%");
+
+        // Additional analysis: gas scaling
+        console.log("\n--- Scaling Analysis ---");
+        console.log("Gas increase for +1 participant:", gasUsed4 - gasUsed3);
+        console.log("Percentage increase:", ((gasUsed4 - gasUsed3) * 100) / gasUsed3, "%");
+
+        // Extrapolate for maximum participants (50)
+        uint256 estimatedGas50 = gasUsed3 + (gasPerLeaf * 100); // 50 * 2 leaves = 100 total
+        console.log("Estimated gas for 50 participants:", estimatedGas50);
+        console.log("Estimated MPT portion for 50p:", (gasPerLeaf * 100 * 100) / estimatedGas50, "%");
+    }
+
+    /**
+     * @dev Helper to setup channel with specified number of participants
+     */
+    function _setupChannelWithParticipants(uint256 participantCount) internal returns (uint256 channelId) {
+        // Use different leaders to avoid "channel limit reached" error
+        address channelLeader = address(uint160(100 + participantCount));
+
+        vm.prank(owner);
+        bridge.authorizeCreator(channelLeader);
+
+        vm.startPrank(channelLeader);
+
+        address[] memory participants = new address[](participantCount);
+        address[] memory l2PublicKeys = new address[](participantCount);
+
+        // Create participant addresses
+        for (uint256 i = 0; i < participantCount; i++) {
+            participants[i] = address(uint160(3 + i)); // Start from address(3)
+            l2PublicKeys[i] = address(uint160(13 + i)); // Start from address(13)
+        }
+
+        channelId = bridge.openChannel(
+            bridge.ETH_TOKEN_ADDRESS(),
+            participants,
+            l2PublicKeys,
+            new uint128[](0),
+            new uint256[](0),
+            1 days,
+            bytes32(0)
+        );
+
+        // Deposit for each participant
+        for (uint256 i = 0; i < participantCount; i++) {
+            vm.stopPrank();
+
+            // Fund the participant
+            vm.deal(participants[i], 10 ether);
+
+            vm.prank(participants[i]);
+            bridge.depositETH{value: (i + 1) * 1 ether}(channelId);
+        }
+
+        vm.prank(channelLeader);
+        bridge.initializeChannelState(channelId);
+
+        vm.stopPrank();
     }
 }

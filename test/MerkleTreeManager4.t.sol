@@ -2,34 +2,15 @@
 pragma solidity 0.8.23;
 
 import {Test} from "forge-std/Test.sol";
+import "forge-std/console.sol";
 import {MerkleTreeManager4} from "../src/merkleTree/MerkleTreeManager4.sol";
-import {IPoseidon4Yul} from "../src/interface/IPoseidon4Yul.sol";
-import {Field} from "../src/poseidon/Field.sol";
-
-contract MockPoseidon4Yul is IPoseidon4Yul {
-    // Mock implementation for testing - returns a simple hash of the inputs
-    fallback() external {
-        assembly {
-            let input1 := calldataload(0)
-            let input2 := calldataload(0x20)
-            let input3 := calldataload(0x40)
-            let input4 := calldataload(0x60)
-
-            // Simple hash: input1 + input2 + input3 + input4 + 1 (to avoid zero)
-            let result := addmod(input1, input2, 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001)
-            result := addmod(result, input3, 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001)
-            result := addmod(result, input4, 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001)
-            result := addmod(result, 1, 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001)
-
-            mstore(0, result)
-            return(0, 32)
-        }
-    }
-}
+import {IPoseidon4} from "../src/interface/IPoseidon4.sol";
+import {Poseidon4} from "../src/poseidon/Poseidon4.sol";
+import {Poseidon4Field} from "../src/poseidon/Poseidon4Field.sol";
 
 contract MerkleTreeManager4Test is Test {
     MerkleTreeManager4 public merkleTree;
-    MockPoseidon4Yul public mockPoseidon;
+    Poseidon4 public poseidon;
 
     address public bridge = address(0x123);
     address public user1 = address(0x456);
@@ -39,8 +20,8 @@ contract MerkleTreeManager4Test is Test {
     uint256 public channelId = 1;
 
     function setUp() public {
-        mockPoseidon = new MockPoseidon4Yul();
-        merkleTree = new MerkleTreeManager4(address(mockPoseidon), 4); // 4 levels deep
+        poseidon = new Poseidon4();
+        merkleTree = new MerkleTreeManager4(address(poseidon));
 
         // Set bridge
         merkleTree.setBridge(bridge);
@@ -59,8 +40,8 @@ contract MerkleTreeManager4Test is Test {
     }
 
     function testConstructor() public view {
-        assertEq(address(merkleTree.poseidonHasher()), address(mockPoseidon));
-        assertEq(merkleTree.depth(), 4);
+        assertEq(address(merkleTree.poseidonHasher()), address(poseidon));
+        assertEq(merkleTree.depth(), 3);
         assertEq(merkleTree.bridge(), bridge);
         assertTrue(merkleTree.bridgeSet());
     }
@@ -72,7 +53,7 @@ contract MerkleTreeManager4Test is Test {
         merkleTree.initializeChannel(newChannelId);
 
         assertTrue(merkleTree.channelInitialized(newChannelId));
-        assertEq(merkleTree.getLatestRoot(newChannelId), merkleTree.zeros(4));
+        assertEq(merkleTree.getLatestRoot(newChannelId), merkleTree.zeros(3));
     }
 
     function testAddUsers() public {
@@ -143,16 +124,6 @@ contract MerkleTreeManager4Test is Test {
         assertTrue(zero1 != zero2);
     }
 
-    function testDepthLimits() public {
-        // Test minimum depth
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.DepthTooSmall.selector, 0));
-        new MerkleTreeManager4(address(mockPoseidon), 0);
-
-        // Test maximum depth (should be < 16 for quaternary trees)
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.DepthTooLarge.selector, 16));
-        new MerkleTreeManager4(address(mockPoseidon), 16);
-    }
-
     function testOnlyBridgeModifier() public {
         address nonBridge = address(0x999);
 
@@ -219,7 +190,7 @@ contract MerkleTreeManager4Test is Test {
 
         // Test setting bridge to zero address (should fail before bridge already set check)
         // We need to create a new instance for this test
-        MerkleTreeManager4 newTree = new MerkleTreeManager4(address(mockPoseidon), 4);
+        MerkleTreeManager4 newTree = new MerkleTreeManager4(address(poseidon));
         vm.expectRevert("Invalid bridge address");
         newTree.setBridge(address(0));
     }
@@ -294,12 +265,12 @@ contract MerkleTreeManager4Test is Test {
         bytes32 result1 = merkleTree.hashFour(bytes32(0), bytes32(0), bytes32(0), bytes32(0));
         assertTrue(result1 != bytes32(0));
 
-        // Test with maximum field values
+        // Test with maximum Poseidon4Field values
         bytes32 maxValue = bytes32(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000);
         bytes32 result2 = merkleTree.hashFour(maxValue, maxValue, maxValue, maxValue);
         assertTrue(result2 != bytes32(0));
 
-        // Test with values just below field size
+        // Test with values just below Poseidon4Field size
         bytes32 nearMax = bytes32(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000);
         bytes32 result3 = merkleTree.hashFour(nearMax, nearMax, nearMax, nearMax);
         assertTrue(result3 != bytes32(0));
@@ -312,20 +283,20 @@ contract MerkleTreeManager4Test is Test {
     }
 
     function testHashFourValueOutOfRange() public {
-        // Test with values above field size
-        bytes32 aboveField = bytes32(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000002);
+        // Test with values above Poseidon4Field size
+        bytes32 abovePoseidon4Field = bytes32(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000002);
 
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, aboveField));
-        merkleTree.hashFour(aboveField, bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, abovePoseidon4Field));
+        merkleTree.hashFour(abovePoseidon4Field, bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)));
 
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, aboveField));
-        merkleTree.hashFour(bytes32(uint256(1)), aboveField, bytes32(uint256(1)), bytes32(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, abovePoseidon4Field));
+        merkleTree.hashFour(bytes32(uint256(1)), abovePoseidon4Field, bytes32(uint256(1)), bytes32(uint256(1)));
 
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, aboveField));
-        merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), aboveField, bytes32(uint256(1)));
+        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, abovePoseidon4Field));
+        merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), abovePoseidon4Field, bytes32(uint256(1)));
 
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, aboveField));
-        merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)), aboveField);
+        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, abovePoseidon4Field));
+        merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)), abovePoseidon4Field);
     }
 
     function testComputeLeafForVerification() public view {
@@ -371,30 +342,6 @@ contract MerkleTreeManager4Test is Test {
 
         bool isValid2 = merkleTree.verifyProof(channelId, proof, correctLeaf, 0, wrongRoot);
         assertFalse(isValid2);
-    }
-
-    function testMerkleTreeFull() public {
-        // Create a tree with depth 1 (supports only 4 leaves)
-        MerkleTreeManager4 smallTree = new MerkleTreeManager4(address(mockPoseidon), 1);
-        smallTree.setBridge(bridge);
-
-        vm.prank(bridge);
-        smallTree.initializeChannel(999);
-
-        // Set address pairs for 5 users (more than the tree can hold)
-        address[] memory l1Addresses = new address[](5);
-        uint256[] memory balances = new uint256[](5);
-        for (uint256 i = 0; i < 5; i++) {
-            l1Addresses[i] = address(uint160(0x1000 + i));
-            balances[i] = 100 + i;
-            vm.prank(bridge);
-            smallTree.setAddressPair(999, l1Addresses[i], address(uint160(0x2000 + i)));
-        }
-
-        // Try to add 5 users to a depth-1 tree (should fail with MerkleTreeFull)
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.MerkleTreeFull.selector, 4));
-        vm.prank(bridge);
-        smallTree.addUsers(999, l1Addresses, balances);
     }
 
     function testZerosEdgeCases() public {

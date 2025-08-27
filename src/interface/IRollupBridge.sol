@@ -5,13 +5,24 @@ interface IRollupBridge {
     // =========== STRUCTS ===========
 
     struct Signature {
-        uint256 R_x;
-        uint256 R_y;
+        bytes32 R; // Compressed commitment point (R_bytes)
+        uint256 S; // EdDSA signature scalar component (S_bytes as uint256)
     }
 
     struct User {
         address l1Address;
         address l2PublicKey;
+    }
+
+    struct ProofData {
+        bytes32 aggregatedProofHash;
+        bytes32 finalStateRoot;
+        uint128[] proofPart1;
+        uint256[] proofPart2;
+        uint256[] publicInputs;
+        uint256 smax;
+        bytes[] initialMPTLeaves;
+        bytes[] finalMPTLeaves;
     }
 
     struct Channel {
@@ -39,7 +50,6 @@ interface IRollupBridge {
         bytes32 aggregatedProofHash;
         uint256 requiredSignatures;
         uint256 receivedSignatures;
-        mapping(address => bool) hasSigned;
         mapping(address => bool) hasWithdrawn;
         // Group/threshold signature support
         bytes32 groupPublicKey;
@@ -70,6 +80,9 @@ interface IRollupBridge {
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
+    event AggregatedProofSigned(
+        uint256 indexed channelId, address indexed signer, uint256 signatureCount, uint256 requiredSignatures
+    );
 
     // =========== FUNCTIONS ===========
 
@@ -98,19 +111,9 @@ interface IRollupBridge {
 
     function initializeChannelState(uint256 channelId) external;
 
-    function submitAggregatedProof(
-        uint256 channelId,
-        bytes32 aggregatedProofHash,
-        bytes32 finalStateRoot,
-        uint128[] calldata proofPart1,
-        uint256[] calldata proofPart2,
-        uint256[] calldata publicInputs,
-        uint256 smax,
-        bytes[] calldata initialMPTLeaves,
-        bytes[] calldata finalMPTLeaves
-    ) external;
+    function submitAggregatedProof(uint256 channelId, ProofData calldata proofData) external;
 
-    function signAggregatedProof(uint256 channelId, Signature calldata signature) external;
+    function signAggregatedProof(uint256 channelId, Signature[] calldata signatures) external;
 
     function closeChannel(uint256 channelId) external;
 
@@ -124,4 +127,72 @@ interface IRollupBridge {
             bytes32 initialRoot,
             bytes32 finalRoot
         );
+
+    function isChannelReadyToClose(uint256 channelId) external view returns (bool);
+
+    function getAggregatedProofHash(uint256 channelId) external view returns (bytes32);
+
+    function getGroupPublicKey(uint256 channelId) external view returns (bytes32);
+
+    function getFinalStateRoot(uint256 channelId) external view returns (bytes32);
+
+    function getMPTLeaves(uint256 channelId)
+        external
+        view
+        returns (bytes[] memory initialLeaves, bytes[] memory finalLeaves);
+
+    function getChannelTimeoutInfo(uint256 channelId)
+        external
+        view
+        returns (uint256 openTimestamp, uint256 timeout, uint256 deadline);
+
+    function isChannelExpired(uint256 channelId) external view returns (bool);
+
+    function getRemainingTime(uint256 channelId) external view returns (uint256);
+
+    function getChannelDeposits(uint256 channelId)
+        external
+        view
+        returns (uint256 totalDeposits, address targetContract);
+
+    function getParticipantDeposit(uint256 channelId, address participant) external view returns (uint256 amount);
+
+    function getL2PublicKey(uint256 channelId, address participant) external view returns (address l2PublicKey);
+
+    function getChannelParticipants(uint256 channelId) external view returns (address[] memory participants);
+
+    function getChannelLeader(uint256 channelId) external view returns (address leader);
+
+    function getChannelState(uint256 channelId) external view returns (ChannelState state);
+
+    function getChannelTimestamps(uint256 channelId)
+        external
+        view
+        returns (uint256 openTimestamp, uint256 closeTimestamp);
+
+    function getChannelRoots(uint256 channelId) external view returns (bytes32 initialRoot, bytes32 finalRoot);
+
+    function getChannelProofData(uint256 channelId)
+        external
+        view
+        returns (uint128[] memory preprocessedPart1, uint256[] memory preprocessedPart2);
+
+    function getChannelStats(uint256 channelId)
+        external
+        view
+        returns (
+            uint256 id,
+            address targetContract,
+            ChannelState state,
+            uint256 participantCount,
+            uint256 totalDeposits,
+            uint256 requiredSignatures,
+            uint256 receivedSignatures,
+            address leader,
+            bytes32 groupPublicKey
+        );
+
+    function isAuthorizedCreator(address creator) external view returns (bool);
+
+    function getTotalChannels() external view returns (uint256);
 }

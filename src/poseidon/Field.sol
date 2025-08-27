@@ -4,7 +4,7 @@ pragma solidity >=0.8.8;
 library Field {
     type Type is uint256;
 
-    // BLS12-381 scalar field (matches your off-chain implementation)
+    // BLS12-381 scalar field
     uint256 constant PRIME = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     uint256 constant PRIME_DIV_2 = 0x39f6d3a994cea741999ce0405809a0d42a9da201ffff2dff7fffffff80000000;
 
@@ -104,6 +104,22 @@ library Field {
         }
     }
 
+    function mulNoModulo(Field.Type a, Field.Type b) internal pure returns (Field.Type c) {
+        // Multiply WITHOUT modulo to match TypeScript bug
+        // WARNING: This can overflow and should only be used for compatibility
+        assembly {
+            c := mul(a, b)
+        }
+    }
+
+    function mulNoModulo(Field.Type a, uint256 b) internal pure returns (Field.Type c) {
+        // Multiply WITHOUT modulo to match TypeScript bug
+        // WARNING: This can overflow and should only be used for compatibility
+        assembly {
+            c := mul(a, b)
+        }
+    }
+
     function pow(Field.Type a, uint256 exponential) internal pure returns (Field.Type c) {
         // Compute a^exponential mod PRIME
         assembly {
@@ -114,6 +130,22 @@ library Field {
             for {} gt(exponent, 0) {} {
                 if and(exponent, 1) { c := mulmod(c, base, PRIME) }
                 base := mulmod(base, base, PRIME)
+                exponent := shr(1, exponent)
+            }
+        }
+    }
+
+    function powNoModulo(Field.Type a, uint256 exponential) internal pure returns (Field.Type c) {
+        // Compute a^exponential WITHOUT modulo to match TypeScript bug
+        // WARNING: This can overflow and should only be used for compatibility
+        assembly {
+            c := 1
+            let base := a
+            let exponent := exponential
+
+            for {} gt(exponent, 0) {} {
+                if and(exponent, 1) { c := mul(c, base) }
+                base := mul(base, base)
                 exponent := shr(1, exponent)
             }
         }

@@ -3,12 +3,9 @@ pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
 import "../src/merkleTree/MerkleTreeManager4.sol";
-import {IPoseidon4} from "../src/interface/IPoseidon4.sol";
-import {Poseidon4} from "../src/poseidon/Poseidon4.sol";
 
 contract MerkleTreeManagerAccessTest is Test {
     MerkleTreeManager4 public mtManager;
-    Poseidon4 public poseidon;
 
     address public owner = address(1);
     address public bridge = address(2);
@@ -24,11 +21,8 @@ contract MerkleTreeManagerAccessTest is Test {
     function setUp() public {
         vm.startPrank(owner);
 
-        // Deploy Poseidon hasher
-        poseidon = new Poseidon4();
-
         // Deploy MerkleTreeManager
-        mtManager = new MerkleTreeManager4(address(poseidon));
+        mtManager = new MerkleTreeManager4();
 
         // Set the bridge address
         mtManager.setBridge(bridge);
@@ -98,7 +92,7 @@ contract MerkleTreeManagerAccessTest is Test {
 
     function testOnlyOwnerCanSetBridge() public {
         // Deploy a new MerkleTreeManager without bridge set
-        MerkleTreeManager4 newMtManager = new MerkleTreeManager4(address(poseidon));
+        MerkleTreeManager4 newMtManager = new MerkleTreeManager4();
 
         // Attacker cannot set bridge
         vm.prank(attacker);
@@ -115,7 +109,7 @@ contract MerkleTreeManagerAccessTest is Test {
 
     function testBridgeCanOnlyBeSetOnce() public {
         // Deploy a new MerkleTreeManager
-        MerkleTreeManager4 newMtManager = new MerkleTreeManager4(address(poseidon));
+        MerkleTreeManager4 newMtManager = new MerkleTreeManager4();
 
         // Set bridge once
         newMtManager.setBridge(bridge);

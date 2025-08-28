@@ -4,13 +4,9 @@ pragma solidity 0.8.23;
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 import {MerkleTreeManager4} from "../src/merkleTree/MerkleTreeManager4.sol";
-import {IPoseidon4} from "../src/interface/IPoseidon4.sol";
-import {Poseidon4} from "../src/poseidon/Poseidon4.sol";
-import {Poseidon4Field} from "../src/poseidon/Poseidon4Field.sol";
 
 contract MerkleTreeManager4Test is Test {
     MerkleTreeManager4 public merkleTree;
-    Poseidon4 public poseidon;
 
     address public bridge = address(0x123);
     address public user1 = address(0x456);
@@ -20,8 +16,7 @@ contract MerkleTreeManager4Test is Test {
     uint256 public channelId = 1;
 
     function setUp() public {
-        poseidon = new Poseidon4();
-        merkleTree = new MerkleTreeManager4(address(poseidon));
+        merkleTree = new MerkleTreeManager4();
 
         // Set bridge
         merkleTree.setBridge(bridge);
@@ -40,7 +35,6 @@ contract MerkleTreeManager4Test is Test {
     }
 
     function testConstructor() public view {
-        assertEq(address(merkleTree.poseidonHasher()), address(poseidon));
         assertEq(merkleTree.depth(), 3);
         assertEq(merkleTree.bridge(), bridge);
         assertTrue(merkleTree.bridgeSet());
@@ -117,7 +111,8 @@ contract MerkleTreeManager4Test is Test {
         bytes32 zero1 = merkleTree.zeros(1);
         bytes32 zero2 = merkleTree.zeros(2);
 
-        assertTrue(zero0 != bytes32(0));
+        // With keccak256 implementation, zeros(0) = 0, but zeros(1+) are non-zero
+        assertEq(zero0, bytes32(0));
         assertTrue(zero1 != bytes32(0));
         assertTrue(zero2 != bytes32(0));
         assertTrue(zero0 != zero1);
@@ -190,7 +185,7 @@ contract MerkleTreeManager4Test is Test {
 
         // Test setting bridge to zero address (should fail before bridge already set check)
         // We need to create a new instance for this test
-        MerkleTreeManager4 newTree = new MerkleTreeManager4(address(poseidon));
+        MerkleTreeManager4 newTree = new MerkleTreeManager4();
         vm.expectRevert("Invalid bridge address");
         newTree.setBridge(address(0));
     }
@@ -282,21 +277,22 @@ contract MerkleTreeManager4Test is Test {
         assertTrue(result4 != result1);
     }
 
-    function testHashFourValueOutOfRange() public {
-        // Test with values above Poseidon4Field size
-        bytes32 abovePoseidon4Field = bytes32(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000002);
+    function testHashFourValueOutOfRange() public view {
+        // Test with maximum uint256 values (keccak256 can handle any value)
+        bytes32 maxValue = bytes32(type(uint256).max);
 
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, abovePoseidon4Field));
-        merkleTree.hashFour(abovePoseidon4Field, bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)));
+        // These should all succeed with keccak256
+        bytes32 result1 = merkleTree.hashFour(maxValue, bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)));
+        assertTrue(result1 != bytes32(0));
 
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, abovePoseidon4Field));
-        merkleTree.hashFour(bytes32(uint256(1)), abovePoseidon4Field, bytes32(uint256(1)), bytes32(uint256(1)));
+        bytes32 result2 = merkleTree.hashFour(bytes32(uint256(1)), maxValue, bytes32(uint256(1)), bytes32(uint256(1)));
+        assertTrue(result2 != bytes32(0));
 
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, abovePoseidon4Field));
-        merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), abovePoseidon4Field, bytes32(uint256(1)));
+        bytes32 result3 = merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), maxValue, bytes32(uint256(1)));
+        assertTrue(result3 != bytes32(0));
 
-        vm.expectRevert(abi.encodeWithSelector(MerkleTreeManager4.ValueOutOfRange.selector, abovePoseidon4Field));
-        merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)), abovePoseidon4Field);
+        bytes32 result4 = merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)), maxValue);
+        assertTrue(result4 != bytes32(0));
     }
 
     function testComputeLeafForVerification() public view {
@@ -346,9 +342,14 @@ contract MerkleTreeManager4Test is Test {
 
     function testZerosEdgeCases() public {
         // Test zeros function with valid depths
+        // With keccak256 implementation, zeros(0) = 0, but zeros(1+) are non-zero
         for (uint256 i = 0; i <= 15; i++) {
             bytes32 zero = merkleTree.zeros(i);
-            assertTrue(zero != bytes32(0));
+            if (i == 0) {
+                assertEq(zero, bytes32(0));
+            } else {
+                assertTrue(zero != bytes32(0));
+            }
         }
 
         // Test zeros function with invalid depth

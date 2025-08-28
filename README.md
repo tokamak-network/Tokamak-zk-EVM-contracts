@@ -14,7 +14,7 @@ This repository implements the core smart contracts for the Tokamak zkEVM rollup
 
 ## Overview
 
-This repository contains the smart contracts and documentation for a ZK-Rollup bridge that enables secure off-chain computation with on-chain settlement. The system uses **Quaternary Merkle Trees** with **Poseidon4Yul** hashing and **Random Linear Combination (RLC)** encoding to ensure tamper-evident balance tracking and employs zero-knowledge proofs for comprehensive computation verification.
+This repository contains the smart contracts and documentation for a ZK-Rollup bridge that enables secure off-chain computation with on-chain settlement. The system uses **Quaternary Merkle Trees** with  **Random Linear Combination (RLC)** encoding to ensure tamper-evident balance tracking and employs zero-knowledge proofs for comprehensive computation verification.
 
 ### **Latest Innovation: Quaternary Merkle Trees**
 
@@ -28,7 +28,6 @@ The project now features **MerkleTreeManager4**, an implementation that uses **4
 
 - **🔐 Cryptographic Security**: RLC encoding creates tamper-evident balance commitments
 - **⚡ Gas Efficiency**: Quaternary tree structure with batch processing and incremental updates
-- **🌳 ZK-Friendly**: Poseidon4Yul hash function optimized for zero-knowledge circuits
 - **👥 Multi-Party**: Supports 3-50 participants with threshold signature consensus
 - **🛡️ Comprehensive Verification**: 4-layer verification including ZK-SNARK validation
 - **💰 Balance Conservation**: Mathematical guarantees preventing fund creation/destruction
@@ -48,17 +47,11 @@ The project now features **MerkleTreeManager4**, an implementation that uses **4
 - **`MerkleTreeManager2.sol`**: Binary Merkle tree for backward compatibility
 - **`IMerkleTreeManager.sol`**: Unified interface for both tree implementations
 
-#### **Cryptographic Layer**
-- **`Poseidon4Yul.sol`**: 4-input Yul-optimized Poseidon hasher
-- **`IPoseidon4.sol`**: Interface for 4-input hashing operations
-- **`IPoseidon2.sol`**: Interface for 2-input hashing operations
-
 #### **Verification Layer**
 - **`Verifier.sol`**: ZK-SNARK proof verification contract
 - **`IVerifier.sol`**: Verifier interface
 
 #### **Utility Layer**
-- **`Field.sol`**: Field arithmetic for cryptographic operations
 - **`RLP.sol`**: Recursive Length Prefix encoding utilities
 
 ### Workflow Phases

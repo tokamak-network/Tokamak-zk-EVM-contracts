@@ -7,7 +7,6 @@
 ## Key Features
 
 - **Quaternary Tree Structure**: Each internal node has exactly 4 children instead of 2
-- **Poseidon4Yul Hashing**: Uses the Yul-optimized Poseidon4 hash function for efficient hashing
 - **Multi-Channel Support**: Maintains separate Merkle trees for different channels
 - **RLC (Random Linear Combination)**: Implements RLC for leaf computation using the previous root
 - **Incremental Updates**: Supports adding leaves incrementally while maintaining the tree structure
@@ -23,37 +22,16 @@ Level 2:              [E][F][G][H] [I][J][K][L] [M][N][O][P] [Q][R][S][T]
 Level 3: [U][V][W][X] [Y][Z][AA][BB] [CC][DD][EE][FF] [GG][HH][II][JJ] ...
 ```
 
-### Hash Function
-
-The contract uses `Poseidon4Yul` which takes 4 inputs and produces a single hash output:
-
-```solidity
-function hashFour(bytes32 _a, bytes32 _b, bytes32 _c, bytes32 _d) public view returns (bytes32)
-```
-
 ### Leaf Computation
 
 Leaves are computed using RLC (Random Linear Combination):
 
 ```
-gamma = Poseidon4Yul(prevRoot, l2Addr, 0, 0)
+gamma = keccak(prevRoot, l2Addr, 0, 0)
 leaf = l2Addr + gamma * balance (mod FIELD_SIZE)
 ```
 
 ## Usage
-
-### Deployment
-
-```solidity
-// Deploy Poseidon4Yul hasher
-Poseidon4Yul poseidonHasher = new Poseidon4Yul();
-
-// Deploy MerkleTreeManager4 with desired depth
-        MerkleTreeManager4 merkleTree = new MerkleTreeManager4();
-
-// Set bridge address
-merkleTree.setBridge(bridgeAddress);
-```
 
 ### Initializing a Channel
 
@@ -67,15 +45,6 @@ merkleTree.initializeChannel(channelId);
 ```solidity
 // Map L1 addresses to L2 addresses
 merkleTree.setAddressPair(channelId, l1Address, l2Address);
-```
-
-### Adding Users
-
-```solidity
-// Add users with their initial balances
-address[] memory l1Addresses = [user1, user2, user3];
-uint256[] memory balances = [100, 200, 300];
-merkleTree.addUsers(channelId, l1Addresses, balances);
 ```
 
 ### Verifying Proofs
@@ -98,7 +67,7 @@ bool isValid = merkleTree.verifyProof(channelId, proof, leaf, leafIndex, root);
 |--------|-----------------------------------|--------------------------------------|
 | Children per node | 2 | 4 |
 | Tree height | log₂(n) | log₄(n) |
-| Hash function | Poseidon2Yul | Poseidon4Yul |
+| Hash function | keccak | keccak |
 | Max depth | 32 | 16 |
 | Max leaves (depth 4) | 16 | 256 |
 

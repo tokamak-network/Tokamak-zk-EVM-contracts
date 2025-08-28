@@ -33,15 +33,18 @@ The project now features **MerkleTreeManager4**, an implementation that uses **4
 - **🛡️ Comprehensive Verification**: 4-layer verification including ZK-SNARK validation
 - **💰 Balance Conservation**: Mathematical guarantees preventing fund creation/destruction
 - **🔄 State Rollback**: Root history tracking for state recovery and verification
+- **🔧 Upgradeable Architecture**: UUPS proxy pattern for seamless contract upgrades
 
 ## Core Components
 
 #### **Bridge Layer**
-- **`RollupBridge.sol`**: Main bridge contract managing channels, deposits, and verification
+- **`RollupBridgeUpgradeable.sol`**: **UUPS upgradeable** main bridge contract managing channels, deposits, and verification
+- **`RollupBridge.sol`**: Legacy non-upgradeable version (deprecated)
 - **`IRollupBridge.sol`**: Interface definitions and data structures
 
 #### **Merkle Tree Layer**
-- **`MerkleTreeManager4.sol`**: **Quaternary Merkle tree** with RLC leaf encoding (Primary)
+- **`MerkleTreeManager4Upgradeable.sol`**: **UUPS upgradeable** quaternary Merkle tree with RLC leaf encoding (Primary)
+- **`MerkleTreeManager4.sol`**: Legacy non-upgradeable version (deprecated)
 - **`MerkleTreeManager2.sol`**: Binary Merkle tree for backward compatibility
 - **`IMerkleTreeManager.sol`**: Unified interface for both tree implementations
 
@@ -178,21 +181,19 @@ forge test --match-test testConstructor
 ```
 src/
 ├── merkleTree/           # Merkle tree implementations
-│   ├── MerkleTreeManager4.sol    # Quaternary tree (Primary)
-│   └── MerkleTreeManager2.sol    # Binary tree (Legacy)
+│   ├── MerkleTreeManager4Upgradeable.sol  # UUPS upgradeable quaternary tree (Primary)
+│   ├── MerkleTreeManager4.sol             # Legacy quaternary tree
+│   └── MerkleTreeManager2.sol             # Binary tree (Legacy)
 ├── interface/            # Contract interfaces
 │   ├── IMerkleTreeManager.sol
-│   ├── IPoseidon4.sol
-│   ├── IPoseidon2.sol
 │   ├── IRollupBridge.sol
 │   └── IVerifier.sol
-├── poseidon/             # Cryptographic utilities
-│   └── Field.sol
 ├── verifier/             # ZK proof verification
 │   └── Verifier.sol
 ├── library/              # Utility libraries
 │   └── RLP.sol
-└── RollupBridge.sol      # Main bridge contract
+├── RollupBridgeUpgradeable.sol  # UUPS upgradeable bridge contract (Primary)
+└── RollupBridge.sol             # Legacy non-upgradeable bridge
 
 test/
 ├── MerkleTreeManager4.t.sol      # Quaternary tree tests
@@ -201,6 +202,11 @@ test/
 ├── MockPoseidon4Yul.sol         # 4-input hasher mock
 └── MockPoseidon2Yul.sol         # 2-input hasher mock
 ```
+
+## Test contract addresses 
+
+- Bridge proxy: 0x9C688e3262421F8383A5c9C96aBa3e66F207e611
+- Merkle Tree Manager Proxy: 0x83F163507A788df0EfBfbb08Bc1A185685163d6b
 
 
 ## 📊 Performance & Gas Optimization
@@ -249,12 +255,115 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 - **Technical Docs**: [docs/](./docs/) directory
 
-## Deployed contracts
+## 📦 Deployment
 
-### Sepolia contracts
-POSEIDON4_ADDRESS=0xA22A3cE2e3eb5865ACdCA8980F95C8EAA87eF4a1
-MERKLE_TREE_MANAGER4_ADDRESS=0xef249e41F6DC67BdfdBe44f4690cB4527d65CdD2
-ROLLUP_BRIDGE_ADDRESS=0xa9BE9BA80802EaDFFEee5dc1fF46B0ED7da8a19D
+### UUPS Upgradeable Deployment
+
+The contracts are deployed using the **UUPS (Universal Upgradeable Proxy Standard)** pattern for seamless upgrades while preserving state.
+
+#### Deployment Scripts
+
+```bash
+# Deploy upgradeable contracts
+./script/deploy-upgradeable.sh
+
+# Upgrade existing contracts (owner only)
+./script/upgrade-contracts.sh
+```
+
+#### Environment Setup
+
+Create `.env` file based on `script/env-upgradeable.template`:
+
+```bash
+# Network Configuration
+RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
+CHAIN_ID=11155111
+PRIVATE_KEY=0x...
+
+# Contract Configuration
+ZK_VERIFIER_ADDRESS=0x...
+DEPLOYER_ADDRESS=0x...
+TREE_DEPTH=20
+
+# Verification
+VERIFY_CONTRACTS=true
+ETHERSCAN_API_KEY=YOUR_API_KEY
+```
+
+### Deployed Contracts (Sepolia)
+
+#### 🔗 Main Contracts (Proxy Addresses - Use These for Interactions)
+```
+MerkleTreeManager4 (Proxy): 0x83f163507a788df0efbfbb08bc1a185685163d6b
+RollupBridge (Proxy): 0x9c688e3262421f8383a5c9c96aba3e66f207e611
+```
+
+#### 🏗️ Implementation Contracts (For Upgrades Only)
+```
+MerkleTreeManager4Upgradeable: 0x4e6f45b00525fa7ce112c46e731e21271f119589
+RollupBridgeUpgradeable: 0xa0719a492c62588e54f839d8b8342d1b170b6cf3
+```
+
+#### 📋 Legacy Contracts (Deprecated)
+```
+POSEIDON4_ADDRESS: 0xA22A3cE2e3eb5865ACdCA8980F95C8EAA87eF4a1
+MERKLE_TREE_MANAGER4_ADDRESS: 0xef249e41F6DC67BdfdBe44f4690cB4527d65CdD2
+ROLLUP_BRIDGE_ADDRESS: 0xa9BE9BA80802EaDFFEee5dc1fF46B0ED7da8a19D
+```
+
+### 🔍 Contract Verification on Etherscan
+
+#### Automatic Verification
+Contracts are automatically verified during deployment when `VERIFY_CONTRACTS=true`.
+
+#### Manual Verification
+```bash
+# Verify implementation contracts
+forge verify-contract 0x4e6f45b00525fa7ce112c46e731e21271f119589 \
+  src/merkleTree/MerkleTreeManager4Upgradeable.sol:MerkleTreeManager4Upgradeable \
+  --chain sepolia --etherscan-api-key $ETHERSCAN_API_KEY
+
+forge verify-contract 0xa0719a492c62588e54f839d8b8342d1b170b6cf3 \
+  src/RollupBridgeUpgradeable.sol:RollupBridgeUpgradeable \
+  --chain sepolia --etherscan-api-key $ETHERSCAN_API_KEY
+
+# Verify proxy contracts
+forge verify-contract 0x83f163507a788df0efbfbb08bc1a185685163d6b \
+  lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy \
+  --constructor-args $(cast abi-encode "constructor(address,bytes)" 0x4e6f45b00525fa7ce112c46e731e21271f119589 0x) \
+  --chain sepolia --etherscan-api-key $ETHERSCAN_API_KEY
+```
+
+#### Setting Up Proxy on Etherscan
+1. Go to your **proxy address** on Etherscan (e.g., `0x83f163507a788df0efbfbb08bc1a185685163d6b`)
+2. Click **"Contract"** → **"More Options"** → **"Is this a proxy?"**
+3. Select **"Verify"** and enter your **implementation address**
+4. Etherscan will automatically detect the proxy pattern and link the ABI
+
+### 🔄 Upgrading Contracts
+
+#### Prerequisites
+- Must be contract owner
+- New implementation must be compatible
+- Test upgrade on testnet first
+
+#### Upgrade Process
+```bash
+# Deploy new implementation
+forge create src/merkleTree/MerkleTreeManager4Upgradeable.sol:MerkleTreeManager4Upgradeable --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+
+# Upgrade proxy to new implementation
+cast send 0x83f163507a788df0efbfbb08bc1a185685163d6b \
+  "upgradeTo(address)" NEW_IMPLEMENTATION_ADDRESS \
+  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+```
+
+#### Safety Features
+- **Storage Layout Compatibility**: Automated checks prevent storage collisions
+- **Initialization Protection**: Prevents re-initialization attacks
+- **Owner-Only Upgrades**: Only contract owner can perform upgrades
+- **Atomic Deployment**: MEV-protected deployment with immediate initialization
 
 ## 📄 License
 

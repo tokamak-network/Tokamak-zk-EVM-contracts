@@ -10,7 +10,6 @@ import "../src/merkleTree/MerkleTreeManager4.sol";
 import "../src/library/RLP.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
 
-
 // Mock Contracts
 contract MockVerifier is IVerifier {
     bool public shouldVerify = true;

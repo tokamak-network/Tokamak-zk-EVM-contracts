@@ -339,8 +339,6 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         emit ProofAggregated(channelId, proofData.aggregatedProofHash);
     }
 
-
-
     /**
      * @notice Allows participants to sign the aggregated proof
      * @param channelId ID of the channel

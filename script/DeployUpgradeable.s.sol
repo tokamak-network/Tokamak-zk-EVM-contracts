@@ -7,19 +7,19 @@ import "../src/merkleTree/MerkleTreeManager4Upgradeable.sol";
 import "../src/RollupBridgeUpgradeable.sol";
 
 contract DeployUpgradeableScript is Script {
-    // Implementation addresses  
+    // Implementation addresses
     address public merkleTreeManagerImpl;
     address public rollupBridgeImpl;
-    
+
     // Proxy addresses (main contracts)
     address public merkleTreeManager;
     address public rollupBridge;
-    
+
     // Environment variables
     address public zkVerifier;
     address public deployer;
     uint256 public treeDepth;
-    
+
     // Verification settings
     bool public shouldVerify;
     string public etherscanApiKey;
@@ -30,7 +30,7 @@ contract DeployUpgradeableScript is Script {
         zkVerifier = vm.envAddress("ZK_VERIFIER_ADDRESS");
         deployer = vm.envAddress("DEPLOYER_ADDRESS");
         treeDepth = vm.envOr("TREE_DEPTH", uint256(20)); // Default to 20
-        
+
         // Load verification settings
         shouldVerify = vm.envBool("VERIFY_CONTRACTS");
         etherscanApiKey = vm.envString("ETHERSCAN_API_KEY");
@@ -64,20 +64,16 @@ contract DeployUpgradeableScript is Script {
 
         // Step 2: Deploy MerkleTreeManager4 proxy with immediate initialization (atomic)
         console.log("\n[STEP2] Deploying MerkleTreeManager4 proxy with atomic initialization...");
-        bytes memory merkleTreeInitData = abi.encodeCall(
-            MerkleTreeManager4Upgradeable.initialize,
-            (uint32(treeDepth), deployer)
-        );
+        bytes memory merkleTreeInitData =
+            abi.encodeCall(MerkleTreeManager4Upgradeable.initialize, (uint32(treeDepth), deployer));
         ERC1967Proxy merkleTreeProxy = new ERC1967Proxy(merkleTreeManagerImpl, merkleTreeInitData);
         merkleTreeManager = address(merkleTreeProxy);
         console.log("[SUCCESS] MerkleTreeManager4 proxy deployed and initialized at:", merkleTreeManager);
 
         // Step 3: Deploy RollupBridge proxy with immediate initialization (atomic)
         console.log("\n[STEP3] Deploying RollupBridge proxy with atomic initialization...");
-        bytes memory rollupBridgeInitData = abi.encodeCall(
-            RollupBridgeUpgradeable.initialize,
-            (zkVerifier, merkleTreeManager, deployer)
-        );
+        bytes memory rollupBridgeInitData =
+            abi.encodeCall(RollupBridgeUpgradeable.initialize, (zkVerifier, merkleTreeManager, deployer));
         ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
         rollupBridge = address(rollupBridgeProxy);
         console.log("[SUCCESS] RollupBridge proxy deployed and initialized at:", rollupBridge);
@@ -129,7 +125,7 @@ contract DeployUpgradeableScript is Script {
         bytes32 implementationSlot = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
         address merkleTreeImplFromProxy = address(uint160(uint256(vm.load(merkleTreeManager, implementationSlot))));
         address rollupBridgeImplFromProxy = address(uint160(uint256(vm.load(rollupBridge, implementationSlot))));
-        
+
         require(merkleTreeImplFromProxy == merkleTreeManagerImpl, "MerkleTreeManager4 proxy implementation mismatch");
         require(rollupBridgeImplFromProxy == rollupBridgeImpl, "RollupBridge proxy implementation mismatch");
 
@@ -143,7 +139,7 @@ contract DeployUpgradeableScript is Script {
         }
 
         console.log("[INFO] Starting contract verification...");
-        
+
         console.log("[INFO] The following contracts will be verified:");
         console.log("  - MerkleTreeManager4Upgradeable implementation:", merkleTreeManagerImpl);
         console.log("  - MerkleTreeManager4 proxy:", merkleTreeManager);
@@ -199,10 +195,24 @@ contract DeployUpgradeableScript is Script {
             console.log("\n[VERIFICATION COMMANDS]");
             console.log("Contracts will be verified automatically with --verify flag");
             console.log("Manual verification commands:");
-            console.log("  forge verify-contract", merkleTreeManagerImpl, "src/merkleTree/MerkleTreeManager4Upgradeable.sol:MerkleTreeManager4Upgradeable");
-            console.log("  forge verify-contract", rollupBridgeImpl, "src/RollupBridgeUpgradeable.sol:RollupBridgeUpgradeable");
-            console.log("  forge verify-contract", merkleTreeManager, "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy");
-            console.log("  forge verify-contract", rollupBridge, "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy");
+            console.log(
+                "  forge verify-contract",
+                merkleTreeManagerImpl,
+                "src/merkleTree/MerkleTreeManager4Upgradeable.sol:MerkleTreeManager4Upgradeable"
+            );
+            console.log(
+                "  forge verify-contract", rollupBridgeImpl, "src/RollupBridgeUpgradeable.sol:RollupBridgeUpgradeable"
+            );
+            console.log(
+                "  forge verify-contract",
+                merkleTreeManager,
+                "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy"
+            );
+            console.log(
+                "  forge verify-contract",
+                rollupBridge,
+                "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy"
+            );
         }
     }
 
@@ -210,14 +220,14 @@ contract DeployUpgradeableScript is Script {
     function upgradeMerkleTreeManager(address proxyAddress, address newImplementation) public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        
+
         console.log("Upgrading MerkleTreeManager4...");
         console.log("Proxy address:", proxyAddress);
         console.log("New implementation:", newImplementation);
-        
+
         MerkleTreeManager4Upgradeable merkleTree = MerkleTreeManager4Upgradeable(proxyAddress);
         merkleTree.upgradeTo(newImplementation);
-        
+
         console.log("[SUCCESS] MerkleTreeManager4 upgraded successfully");
         vm.stopBroadcast();
     }
@@ -226,14 +236,14 @@ contract DeployUpgradeableScript is Script {
     function upgradeRollupBridge(address proxyAddress, address newImplementation) public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        
+
         console.log("Upgrading RollupBridge...");
         console.log("Proxy address:", proxyAddress);
         console.log("New implementation:", newImplementation);
-        
+
         RollupBridgeUpgradeable bridge = RollupBridgeUpgradeable(payable(proxyAddress));
         bridge.upgradeTo(newImplementation);
-        
+
         console.log("[SUCCESS] RollupBridge upgraded successfully");
         vm.stopBroadcast();
     }

@@ -31,12 +31,12 @@ import "./library/RLP.sol";
  *
  * @dev Upgradeable using UUPS pattern for enhanced security and gas efficiency
  */
-contract RollupBridgeUpgradeable is 
-    IRollupBridge, 
+contract RollupBridgeUpgradeable is
+    IRollupBridge,
     Initializable,
-    ReentrancyGuardUpgradeable, 
+    ReentrancyGuardUpgradeable,
     OwnableUpgradeable,
-    UUPSUpgradeable 
+    UUPSUpgradeable
 {
     using ECDSAUpgradeable for bytes32;
     using RLP for bytes;
@@ -63,7 +63,7 @@ contract RollupBridgeUpgradeable is
     address public constant ETH_TOKEN_ADDRESS = address(1);
 
     // ========== STORAGE ==========
-    
+
     /// @custom:storage-location erc7201:tokamak.storage.RollupBridge
     struct RollupBridgeStorage {
         mapping(uint256 => Channel) channels;
@@ -75,7 +75,8 @@ contract RollupBridgeUpgradeable is
     }
 
     // keccak256(abi.encode(uint256(keccak256("tokamak.storage.RollupBridge")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant RollupBridgeStorageLocation = 0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a00;
+    bytes32 private constant RollupBridgeStorageLocation =
+        0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a00;
 
     function _getRollupBridgeStorage() internal pure returns (RollupBridgeStorage storage $) {
         assembly {
@@ -84,7 +85,7 @@ contract RollupBridgeUpgradeable is
     }
 
     // ========== CONSTRUCTOR & INITIALIZER ==========
-    
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -163,14 +164,14 @@ contract RollupBridgeUpgradeable is
      */
     function updateVerifier(address _newVerifier) external onlyOwner {
         require(_newVerifier != address(0), "Invalid verifier address");
-        
+
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         address oldVerifier = address($.zkVerifier);
-        
+
         require(_newVerifier != oldVerifier, "Same verifier address");
-        
+
         $.zkVerifier = IVerifier(_newVerifier);
-        
+
         emit VerifierUpdated(oldVerifier, _newVerifier);
     }
 
@@ -202,7 +203,7 @@ contract RollupBridgeUpgradeable is
         bytes32 groupPublicKey
     ) external onlyAuthorized returns (uint256 channelId) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        
+
         require(!$.isChannelLeader[msg.sender], "Channel limit reached");
         require(
             participants.length >= MIN_PARTICIPANTS && participants.length <= MAX_PARTICIPANTS,

@@ -24,12 +24,7 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgrade
  *
  * @dev Upgradeable using UUPS pattern for enhanced security and gas efficiency
  */
-contract MerkleTreeManager4Upgradeable is 
-    IMerkleTreeManager, 
-    Initializable,
-    OwnableUpgradeable,
-    UUPSUpgradeable 
-{
+contract MerkleTreeManager4Upgradeable is IMerkleTreeManager, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     // ============ Constants ============
 
     /**
@@ -38,29 +33,24 @@ contract MerkleTreeManager4Upgradeable is
      */
     uint256 public constant FIELD_SIZE = type(uint256).max;
 
-
     // ============ Storage ============
-    
+
     /// @custom:storage-location erc7201:tokamak.storage.MerkleTreeManager4
     struct MerkleTreeManager4Storage {
         // Bridge configuration
         address bridge;
         bool bridgeSet;
-        
         // Tree configuration
         uint32 depth;
-        
         // Tree storage (per channel)
         mapping(uint256 => mapping(uint256 => bytes32)) cachedSubtrees;
         mapping(uint256 => mapping(uint256 => bytes32)) roots;
         mapping(uint256 => uint32) currentRootIndex;
         mapping(uint256 => uint32) nextLeafIndex;
-        
         // User data storage (per channel)
         mapping(uint256 => UserData[]) channelUsers;
         mapping(uint256 => mapping(address => uint256)) userIndex;
         mapping(uint256 => mapping(address => address)) l1ToL2;
-        
         // State tracking (per channel)
         mapping(uint256 => bytes32[]) channelRootSequence;
         mapping(uint256 => uint256) nonce;
@@ -68,7 +58,8 @@ contract MerkleTreeManager4Upgradeable is
     }
 
     // keccak256(abi.encode(uint256(keccak256("tokamak.storage.MerkleTreeManager4")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant MerkleTreeManager4StorageLocation = 0x2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a00;
+    bytes32 private constant MerkleTreeManager4StorageLocation =
+        0x2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a00;
 
     function _getMerkleTreeManager4Storage() private pure returns (MerkleTreeManager4Storage storage $) {
         assembly {
@@ -176,7 +167,7 @@ contract MerkleTreeManager4Upgradeable is
     event BridgeSet(address indexed bridge);
 
     // ============ Constructor & Initializer ============
-    
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -272,10 +263,10 @@ contract MerkleTreeManager4Upgradeable is
     function setBridge(address _bridge) external onlyOwner {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
         if ($.bridgeSet) revert BridgeAlreadySet();
-        
+
         $.bridge = _bridge;
         $.bridgeSet = true;
-        
+
         emit BridgeSet(_bridge);
     }
 
@@ -289,7 +280,7 @@ contract MerkleTreeManager4Upgradeable is
      */
     function initializeChannel(uint256 channelId) external onlyBridge {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         if ($.channelInitialized[channelId]) {
             revert ChannelAlreadyInitialized(channelId);
         }
@@ -298,11 +289,11 @@ contract MerkleTreeManager4Upgradeable is
 
         // Initialize tree with zero values
         bytes32 zero = bytes32(0);
-        
+
         // Pre-compute zero subtrees for efficient tree initialization
         bytes32[] memory zeroSubtrees = new bytes32[]($.depth + 1);
         zeroSubtrees[0] = zero;
-        
+
         for (uint256 level = 1; level <= $.depth; level++) {
             bytes32 prevZero = zeroSubtrees[level - 1];
             zeroSubtrees[level] = keccak256(abi.encodePacked(prevZero, prevZero, prevZero, prevZero));
@@ -317,7 +308,7 @@ contract MerkleTreeManager4Upgradeable is
         bytes32 initialRoot = zeroSubtrees[$.depth];
         $.roots[channelId][0] = initialRoot;
         $.channelRootSequence[channelId].push(initialRoot);
-        
+
         emit TreeInitialized(channelId, $.depth);
     }
 
@@ -330,7 +321,7 @@ contract MerkleTreeManager4Upgradeable is
      */
     function setAddressPair(uint256 channelId, address l1Address, address l2Address) external onlyBridge {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         if (!$.channelInitialized[channelId]) {
             revert ChannelNotInitialized(channelId);
         }
@@ -349,17 +340,16 @@ contract MerkleTreeManager4Upgradeable is
      *      All arrays must have the same length
      *      Channel must be initialized and empty
      */
-    function addUsers(
-        uint256 channelId,
-        address[] calldata l1Addresses,
-        uint256[] calldata balances
-    ) external onlyBridge {
+    function addUsers(uint256 channelId, address[] calldata l1Addresses, uint256[] calldata balances)
+        external
+        onlyBridge
+    {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         if (!$.channelInitialized[channelId]) {
             revert ChannelNotInitialized(channelId);
         }
-        
+
         if ($.channelUsers[channelId].length != 0) {
             revert ChannelNotEmpty(channelId);
         }
@@ -394,13 +384,13 @@ contract MerkleTreeManager4Upgradeable is
      */
     function _computeLeaf(UserData memory userData) internal view returns (bytes32) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         // RLC computation: balance + nonce * l2Address
         uint256 leafValue = userData.balance + ($.nonce[0] * uint256(uint160(userData.l2Address)));
-        
+
         // Ensure value is within field range
         leafValue = leafValue % FIELD_SIZE;
-        
+
         return bytes32(leafValue);
     }
 
@@ -411,9 +401,9 @@ contract MerkleTreeManager4Upgradeable is
      */
     function _insertLeaf(uint256 channelId, bytes32 leafHash) internal {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         uint32 leafIndex = $.nextLeafIndex[channelId];
-        
+
         // Check if tree is full
         uint32 maxLeaves = uint32(4 ** $.depth);
         if (leafIndex >= maxLeaves) {
@@ -426,7 +416,7 @@ contract MerkleTreeManager4Upgradeable is
 
         for (uint256 level = 0; level < $.depth; level++) {
             uint32 siblingIndex = currentIndex ^ 3; // XOR with 3 to get the rightmost sibling
-            
+
             if (currentIndex % 4 == 0) {
                 // This is a leftmost node, cache it
                 $.cachedSubtrees[channelId][level] = currentHash;
@@ -437,7 +427,7 @@ contract MerkleTreeManager4Upgradeable is
                 bytes32 child2 = currentIndex % 4 >= 2 ? currentHash : bytes32(0);
                 bytes32 child3 = currentIndex % 4 == 3 ? currentHash : bytes32(0);
                 bytes32 child4 = bytes32(0);
-                
+
                 currentHash = keccak256(abi.encodePacked(left, child2, child3, child4));
                 currentIndex = currentIndex / 4;
             }
@@ -445,7 +435,7 @@ contract MerkleTreeManager4Upgradeable is
 
         // Update tree state
         $.nextLeafIndex[channelId] = leafIndex + 1;
-        
+
         // Store new root
         uint32 newRootIndex = $.currentRootIndex[channelId] + 1;
         $.currentRootIndex[channelId] = newRootIndex;
@@ -464,11 +454,11 @@ contract MerkleTreeManager4Upgradeable is
      */
     function getCurrentRoot(uint256 channelId) external view returns (bytes32) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         if (!$.channelInitialized[channelId]) {
             revert ChannelNotInitialized(channelId);
         }
-        
+
         uint32 rootIndex = $.currentRootIndex[channelId];
         return $.roots[channelId][rootIndex];
     }
@@ -491,16 +481,16 @@ contract MerkleTreeManager4Upgradeable is
      */
     function getLastRootInSequence(uint256 channelId) external view returns (bytes32) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         if (!$.channelInitialized[channelId]) {
             revert ChannelNotInitialized(channelId);
         }
-        
+
         bytes32[] storage sequence = $.channelRootSequence[channelId];
         if (sequence.length == 0) {
             return bytes32(0);
         }
-        
+
         return sequence[sequence.length - 1];
     }
 
@@ -511,16 +501,16 @@ contract MerkleTreeManager4Upgradeable is
      * @param prevRoot The previous root (used as nonce)
      * @return The computed leaf value
      */
-    function computeLeafForVerification(
-        address l2Address,
-        uint256 balance,
-        bytes32 prevRoot
-    ) external pure returns (bytes32) {
+    function computeLeafForVerification(address l2Address, uint256 balance, bytes32 prevRoot)
+        external
+        pure
+        returns (bytes32)
+    {
         // Use prevRoot as nonce for RLC computation
         uint256 nonceValue = uint256(prevRoot) % FIELD_SIZE;
         uint256 leafValue = balance + (nonceValue * uint256(uint160(l2Address)));
         leafValue = leafValue % FIELD_SIZE;
-        
+
         return bytes32(leafValue);
     }
 
@@ -541,7 +531,7 @@ contract MerkleTreeManager4Upgradeable is
         bytes32 root
     ) external view returns (bool) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         if (!$.channelInitialized[channelId]) {
             return false;
         }
@@ -551,7 +541,7 @@ contract MerkleTreeManager4Upgradeable is
 
         for (uint256 i = 0; i < proof.length; i++) {
             bytes32 proofElement = proof[i];
-            
+
             if (index % 4 == 0) {
                 // Left child
                 computedHash = keccak256(abi.encodePacked(computedHash, proofElement, bytes32(0), bytes32(0)));
@@ -565,7 +555,7 @@ contract MerkleTreeManager4Upgradeable is
                 // Right child
                 computedHash = keccak256(abi.encodePacked(proofElement, bytes32(0), bytes32(0), computedHash));
             }
-            
+
             index = index / 4;
         }
 
@@ -590,11 +580,11 @@ contract MerkleTreeManager4Upgradeable is
      */
     function getUserByIndex(uint256 channelId, uint256 index) external view returns (UserData memory) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         if (index >= $.channelUsers[channelId].length) {
             revert IndexOutOfBounds(index);
         }
-        
+
         return $.channelUsers[channelId][index];
     }
 
@@ -616,11 +606,11 @@ contract MerkleTreeManager4Upgradeable is
      */
     function getRootBySequenceIndex(uint256 channelId, uint256 index) external view returns (bytes32) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-        
+
         if (index >= $.channelRootSequence[channelId].length) {
             revert IndexOutOfBounds(index);
         }
-        
+
         return $.channelRootSequence[channelId][index];
     }
 
@@ -635,11 +625,11 @@ contract MerkleTreeManager4Upgradeable is
     function getBalance(uint256 channelId, address l1Address) external view returns (uint256) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
         uint256 index = $.userIndex[channelId][l1Address];
-        
+
         if ($.channelUsers[channelId].length == 0 || index >= $.channelUsers[channelId].length) {
             return 0;
         }
-        
+
         return $.channelUsers[channelId][index].balance;
     }
 
@@ -668,17 +658,17 @@ contract MerkleTreeManager4Upgradeable is
      * @return l1Addresses Array of L1 addresses
      * @return l2Addresses Array of L2 addresses
      */
-    function getUserAddresses(uint256 channelId) 
-        external 
-        view 
-        returns (address[] memory l1Addresses, address[] memory l2Addresses) 
+    function getUserAddresses(uint256 channelId)
+        external
+        view
+        returns (address[] memory l1Addresses, address[] memory l2Addresses)
     {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
         uint256 userCount = $.channelUsers[channelId].length;
-        
+
         l1Addresses = new address[](userCount);
         l2Addresses = new address[](userCount);
-        
+
         for (uint256 i = 0; i < userCount; i++) {
             l1Addresses[i] = $.channelUsers[channelId][i].l1Address;
             l2Addresses[i] = $.channelUsers[channelId][i].l2Address;
@@ -704,13 +694,13 @@ contract MerkleTreeManager4Upgradeable is
     function isKnownRoot(uint256 channelId, bytes32 _root) external view returns (bool) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
         bytes32[] storage sequence = $.channelRootSequence[channelId];
-        
+
         for (uint256 i = 0; i < sequence.length; i++) {
             if (sequence[i] == _root) {
                 return true;
             }
         }
-        
+
         return false;
     }
 

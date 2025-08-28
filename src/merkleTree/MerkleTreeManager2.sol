@@ -370,7 +370,7 @@ contract MerkleTreeManager is IMerkleTreeManager, Ownable {
      */
     function zeros(uint256 i) public pure returns (bytes32) {
         if (i == 0) return bytes32(0);
-        
+
         // Compute zero hash for depth i by hashing two zero hashes from depth i-1
         bytes32 prevZero = zeros(i - 1);
         return keccak256(abi.encodePacked(prevZero, prevZero));

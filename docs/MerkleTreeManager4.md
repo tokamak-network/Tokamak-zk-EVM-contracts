@@ -2,7 +2,7 @@
 
 ## Overview
 
-`MerkleTreeManager4` is an implementation of a quaternary Merkle tree manager that constructs 4-ary Merkle trees instead of binary Merkle trees. It uses the `Poseidon4Yul` hash function to hash 4 inputs at each level, providing more efficient tree construction and verification for certain use cases.
+`MerkleTreeManager4` is an implementation of a quaternary Merkle tree manager that constructs 4-ary Merkle trees instead of binary Merkle trees. It uses the `keccak256` hash function to hash 4 inputs at each level, providing more efficient tree construction and verification for certain use cases.
 
 ## Key Features
 
@@ -49,7 +49,7 @@ leaf = l2Addr + gamma * balance (mod FIELD_SIZE)
 Poseidon4Yul poseidonHasher = new Poseidon4Yul();
 
 // Deploy MerkleTreeManager4 with desired depth
-MerkleTreeManager4 merkleTree = new MerkleTreeManager4(address(poseidonHasher), 4);
+        MerkleTreeManager4 merkleTree = new MerkleTreeManager4();
 
 // Set bridge address
 merkleTree.setBridge(bridgeAddress);

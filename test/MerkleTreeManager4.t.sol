@@ -280,17 +280,17 @@ contract MerkleTreeManager4Test is Test {
     function testHashFourValueOutOfRange() public view {
         // Test with maximum uint256 values (keccak256 can handle any value)
         bytes32 maxValue = bytes32(type(uint256).max);
-        
+
         // These should all succeed with keccak256
         bytes32 result1 = merkleTree.hashFour(maxValue, bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)));
         assertTrue(result1 != bytes32(0));
-        
+
         bytes32 result2 = merkleTree.hashFour(bytes32(uint256(1)), maxValue, bytes32(uint256(1)), bytes32(uint256(1)));
         assertTrue(result2 != bytes32(0));
-        
+
         bytes32 result3 = merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), maxValue, bytes32(uint256(1)));
         assertTrue(result3 != bytes32(0));
-        
+
         bytes32 result4 = merkleTree.hashFour(bytes32(uint256(1)), bytes32(uint256(1)), bytes32(uint256(1)), maxValue);
         assertTrue(result4 != bytes32(0));
     }

@@ -169,7 +169,7 @@ library RLP {
         uint256 memPtr = item.memPtr;
         uint256 currPtr = memPtr + _payloadOffset(memPtr);
         uint256 dataLen;
-        
+
         // Unroll the loop for better gas efficiency
         for (uint256 i = 0; i < itemCount; ++i) {
             dataLen = _itemLength(currPtr);
@@ -260,13 +260,13 @@ library RLP {
         if (byte0 < 0x80) {
             return 0;
         }
-        
+
         // Combine multiple conditions to reduce branching
         if (byte0 < 0xc0) {
             // For strings: 0x80-0xb7 = 1 byte offset, 0xb8-0xbf = variable
             return byte0 < 0xb8 ? 1 : byte0 - 0xb6;
         }
-        
+
         // For lists: 0xc0-0xf7 = 1 byte offset, 0xf8+ = variable
         return byte0 < 0xf8 ? 1 : byte0 - 0xf6;
     }
@@ -285,12 +285,12 @@ library RLP {
         if (byte0 < 0x80) {
             return 1;
         }
-        
+
         // Short strings
         if (byte0 < 0xb8) {
             return byte0 - 0x7f;
         }
-        
+
         // Long strings
         if (byte0 < 0xc0) {
             uint256 stringLenOfLen = byte0 - 0xb7;
@@ -301,12 +301,12 @@ library RLP {
             }
             return len;
         }
-        
+
         // Short lists
         if (byte0 < 0xf8) {
             return byte0 - 0xbf;
         }
-        
+
         // Long lists
         uint256 listLenOfLen = byte0 - 0xf7;
         assembly {
@@ -403,12 +403,12 @@ library RLP {
                         let lenOfLen := sub(balHeader, 0xb7)
                         let lengthData := calldataload(add(dataPtr, 1))
                         let balLen := shr(sub(256, mul(8, lenOfLen)), lengthData)
-                        
+
                         if gt(balLen, 32) {
                             mstore(0, 0x04)
                             revert(0, 0x20)
                         }
-                        
+
                         let rawData := calldataload(add(add(dataPtr, 1), lenOfLen))
                         extractedBalance := shr(sub(256, mul(8, balLen)), rawData)
                     }
@@ -451,13 +451,9 @@ library RLP {
 
             // Parse nonce based on encoding
             switch lt(nonceHeader, 0x80)
-            case 1 {
-                extractedNonce := nonceHeader
-            }
+            case 1 { extractedNonce := nonceHeader }
             default {
-                if eq(nonceHeader, 0x80) {
-                    extractedNonce := 0
-                }
+                if eq(nonceHeader, 0x80) { extractedNonce := 0 }
                 if lt(nonceHeader, 0xb8) {
                     let nonceLen := sub(nonceHeader, 0x80)
                     let rawData := calldataload(add(dataPtr, 1))
@@ -467,12 +463,12 @@ library RLP {
                     let lenOfLen := sub(nonceHeader, 0xb7)
                     let lengthData := calldataload(add(dataPtr, 1))
                     let nonceLen := shr(sub(256, mul(8, lenOfLen)), lengthData)
-                    
+
                     if gt(nonceLen, 32) {
                         mstore(0, 0x04)
                         revert(0, 0x20)
                     }
-                    
+
                     let rawData := calldataload(add(add(dataPtr, 1), lenOfLen))
                     extractedNonce := shr(sub(256, mul(8, nonceLen)), rawData)
                 }

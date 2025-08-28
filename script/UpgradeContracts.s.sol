@@ -9,18 +9,18 @@ contract UpgradeContractsScript is Script {
     // Existing proxy addresses (to be set via environment variables)
     address public merkleTreeManagerProxy;
     address public rollupBridgeProxy;
-    
+
     // New implementation addresses (will be deployed)
     address public newMerkleTreeManagerImpl;
     address public newRollupBridgeImpl;
-    
+
     // Environment variables
     address public deployer;
-    
+
     // Upgrade flags
     bool public upgradeMerkleTree;
     bool public upgradeRollupBridge;
-    
+
     // Verification settings
     bool public shouldVerify;
     string public etherscanApiKey;
@@ -30,14 +30,14 @@ contract UpgradeContractsScript is Script {
         // Load existing proxy addresses
         merkleTreeManagerProxy = vm.envAddress("MERKLE_TREE_PROXY_ADDRESS");
         rollupBridgeProxy = vm.envAddress("ROLLUP_BRIDGE_PROXY_ADDRESS");
-        
+
         // Load deployer (must be owner of contracts)
         deployer = vm.envAddress("DEPLOYER_ADDRESS");
-        
+
         // Load upgrade flags
         upgradeMerkleTree = vm.envBool("UPGRADE_MERKLE_TREE");
         upgradeRollupBridge = vm.envBool("UPGRADE_ROLLUP_BRIDGE");
-        
+
         // Load verification settings
         shouldVerify = vm.envBool("VERIFY_CONTRACTS");
         etherscanApiKey = vm.envString("ETHERSCAN_API_KEY");
@@ -51,7 +51,7 @@ contract UpgradeContractsScript is Script {
         console.log("Upgrade RollupBridge:", upgradeRollupBridge);
         console.log("Chain ID:", chainId);
         console.log("Verify Contracts:", shouldVerify);
-        
+
         require(upgradeMerkleTree || upgradeRollupBridge, "At least one upgrade flag must be true");
     }
 
@@ -91,7 +91,7 @@ contract UpgradeContractsScript is Script {
 
     function _verifyOwnership() internal view {
         console.log("\n[OWNERSHIP] Verifying contract ownership...");
-        
+
         if (upgradeMerkleTree) {
             MerkleTreeManager4Upgradeable merkleTreeManager = MerkleTreeManager4Upgradeable(merkleTreeManagerProxy);
             address currentOwner = merkleTreeManager.owner();
@@ -109,74 +109,74 @@ contract UpgradeContractsScript is Script {
 
     function _upgradeMerkleTreeManager() internal {
         console.log("\n[UPGRADE] Upgrading MerkleTreeManager4...");
-        
+
         // Deploy new implementation
         console.log("Deploying new MerkleTreeManager4Upgradeable implementation...");
         MerkleTreeManager4Upgradeable newImplContract = new MerkleTreeManager4Upgradeable();
         newMerkleTreeManagerImpl = address(newImplContract);
         console.log("New implementation deployed at:", newMerkleTreeManagerImpl);
-        
+
         // Get current implementation for comparison
         bytes32 implementationSlot = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
         address currentImpl = address(uint160(uint256(vm.load(merkleTreeManagerProxy, implementationSlot))));
         console.log("Current implementation:", currentImpl);
         console.log("New implementation:", newMerkleTreeManagerImpl);
-        
+
         require(currentImpl != newMerkleTreeManagerImpl, "Implementation addresses are the same");
-        
+
         // Perform upgrade
         MerkleTreeManager4Upgradeable merkleTreeManager = MerkleTreeManager4Upgradeable(merkleTreeManagerProxy);
         merkleTreeManager.upgradeTo(newMerkleTreeManagerImpl);
-        
+
         console.log("[SUCCESS] MerkleTreeManager4 upgraded successfully");
     }
 
     function _upgradeRollupBridge() internal {
         console.log("\n[UPGRADE] Upgrading RollupBridge...");
-        
+
         // Deploy new implementation
         console.log("Deploying new RollupBridgeUpgradeable implementation...");
         RollupBridgeUpgradeable newImplContract = new RollupBridgeUpgradeable();
         newRollupBridgeImpl = address(newImplContract);
         console.log("New implementation deployed at:", newRollupBridgeImpl);
-        
+
         // Get current implementation for comparison
         bytes32 implementationSlot = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
         address currentImpl = address(uint160(uint256(vm.load(rollupBridgeProxy, implementationSlot))));
         console.log("Current implementation:", currentImpl);
         console.log("New implementation:", newRollupBridgeImpl);
-        
+
         require(currentImpl != newRollupBridgeImpl, "Implementation addresses are the same");
-        
+
         // Perform upgrade
         RollupBridgeUpgradeable rollupBridge = RollupBridgeUpgradeable(payable(rollupBridgeProxy));
         rollupBridge.upgradeTo(newRollupBridgeImpl);
-        
+
         console.log("[SUCCESS] RollupBridge upgraded successfully");
     }
 
     function _verifyUpgrades() internal view {
         bytes32 implementationSlot = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
-        
+
         if (upgradeMerkleTree) {
             address currentImpl = address(uint160(uint256(vm.load(merkleTreeManagerProxy, implementationSlot))));
             require(currentImpl == newMerkleTreeManagerImpl, "MerkleTreeManager4 upgrade verification failed");
-            
+
             // Verify functionality still works
             MerkleTreeManager4Upgradeable merkleTreeManager = MerkleTreeManager4Upgradeable(merkleTreeManagerProxy);
             require(merkleTreeManager.owner() == deployer, "Owner verification failed after upgrade");
-            
+
             console.log("[SUCCESS] MerkleTreeManager4 upgrade verified");
         }
 
         if (upgradeRollupBridge) {
             address currentImpl = address(uint160(uint256(vm.load(rollupBridgeProxy, implementationSlot))));
             require(currentImpl == newRollupBridgeImpl, "RollupBridge upgrade verification failed");
-            
+
             // Verify functionality still works
             RollupBridgeUpgradeable rollupBridge = RollupBridgeUpgradeable(payable(rollupBridgeProxy));
             require(rollupBridge.owner() == deployer, "Owner verification failed after upgrade");
-            
+
             console.log("[SUCCESS] RollupBridge upgrade verified");
         }
     }
@@ -188,7 +188,7 @@ contract UpgradeContractsScript is Script {
         }
 
         console.log("[INFO] Starting contract verification...");
-        
+
         console.log("[INFO] The following new implementations will be verified:");
         if (upgradeMerkleTree) {
             console.log("  - MerkleTreeManager4Upgradeable implementation:", newMerkleTreeManagerImpl);
@@ -204,17 +204,17 @@ contract UpgradeContractsScript is Script {
     function _printUpgradeSummary() internal view {
         console.log("\n[UPGRADE SUMMARY]");
         console.log("========================");
-        
+
         if (upgradeMerkleTree) {
             console.log("MerkleTreeManager4 proxy:", merkleTreeManagerProxy);
             console.log("New MerkleTreeManager4 implementation:", newMerkleTreeManagerImpl);
         }
-        
+
         if (upgradeRollupBridge) {
             console.log("RollupBridge proxy:", rollupBridgeProxy);
             console.log("New RollupBridge implementation:", newRollupBridgeImpl);
         }
-        
+
         console.log("Deployer (Owner):", deployer);
         console.log("Chain ID:", chainId);
         console.log("========================");

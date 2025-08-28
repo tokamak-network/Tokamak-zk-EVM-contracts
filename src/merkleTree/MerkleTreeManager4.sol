@@ -826,7 +826,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     function zeros(uint256 i) public pure returns (bytes32) {
         if (i == 0) return bytes32(0);
         if (i > 15) revert IndexOutOfBounds(i);
-        
+
         // Compute zero hash for depth i by hashing four zero hashes from depth i-1
         bytes32 prevZero = zeros(i - 1);
         return hashFour(prevZero, prevZero, prevZero, prevZero);

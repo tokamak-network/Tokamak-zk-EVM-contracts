@@ -3,12 +3,9 @@ pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
 import "../src/merkleTree/MerkleTreeManager4.sol";
-import {IPoseidon4} from "../src/interface/IPoseidon4.sol";
-import {Poseidon4} from "../src/poseidon/Poseidon4.sol";
 
 contract MerkleTreeManagerAccessTest is Test {
     MerkleTreeManager4 public mtManager;
-    Poseidon4 public poseidon;
 
     address public owner = address(1);
     address public bridge = address(2);

@@ -54,7 +54,7 @@ contract DeployScript is Script {
 
         // Step 2: Deploy MerkleTreeManager4
         console.log("\n[STEP2] Deploying MerkleTreeManager4...");
-        MerkleTreeManager4 merkleTreeContract = new MerkleTreeManager4(poseidon4);
+        MerkleTreeManager4 merkleTreeContract = new MerkleTreeManager4();
         merkleTreeManager4 = address(merkleTreeContract);
         console.log("[SUCCESS] MerkleTreeManager4 deployed at:", merkleTreeManager4);
 
@@ -92,7 +92,6 @@ contract DeployScript is Script {
         // Verify MerkleTreeManager4
         require(merkleTreeManager4 != address(0), "MerkleTreeManager4 deployment failed");
         MerkleTreeManager4 merkleTree = MerkleTreeManager4(merkleTreeManager4);
-        require(address(merkleTree.poseidonHasher()) == poseidon4, "Poseidon4 not set in MerkleTreeManager4");
         require(merkleTree.bridge() == rollupBridge, "Bridge not set in MerkleTreeManager4");
         require(merkleTree.bridgeSet(), "Bridge not properly set");
 
@@ -151,7 +150,6 @@ contract DeployScript is Script {
                 merkleTreeManager4,
                 "src/merkleTree/MerkleTreeManager4.sol:MerkleTreeManager4"
             );
-            console.log("  --constructor-args (hex encoded):", vm.toString(abi.encode(poseidon4)));
             console.log("  forge verify-contract", rollupBridge, "src/RollupBridge.sol:RollupBridge");
             console.log("  --constructor-args (hex encoded):", vm.toString(abi.encode(zkVerifier, merkleTreeManager4)));
         }

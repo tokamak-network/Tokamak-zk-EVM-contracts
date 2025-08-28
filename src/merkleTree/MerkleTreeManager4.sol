@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Poseidon4Field} from "../poseidon/Poseidon4Field.sol";
-import {IPoseidon4} from "../interface/IPoseidon4.sol";
 import {IMerkleTreeManager} from "../interface/IMerkleTreeManager.sol";
 import "@openzeppelin/access/Ownable.sol";
 
@@ -26,10 +24,10 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     // ============ Constants ============
 
     /**
-     * @dev Poseidon4Field size for BLS12-381 curve operations
+     * @dev Field size for keccak256 operations
      *      Used in RLC (Random Linear Combination) calculations
      */
-    uint256 public constant Poseidon4Field_SIZE = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
+    uint256 public constant FIELD_SIZE = type(uint256).max;
 
     /**
      * @dev Balance slot identifier for user balance storage
@@ -75,11 +73,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
 
     // ============ Immutable Configuration ============
 
-    /**
-     * @dev Poseidon4Yul hasher contract for 4-input hashing operations
-     *      Used for tree construction and proof verification
-     */
-    IPoseidon4 public immutable poseidonHasher;
+    // No external hasher needed - using built-in keccak256
 
     /**
      * @dev Depth of the quaternary Merkle tree
@@ -259,7 +253,6 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
 
     /**
      * @notice Constructs a new MerkleTreeManager4 contract
-     * @param _poseidonHasher Address of the Poseidon4Yul hasher contract
      * @dev The depth determines the maximum number of leaves the tree can hold:
      *      - Depth 1: up to 4 leaves
      *      - Depth 2: up to 16 leaves
@@ -270,8 +263,7 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      The depth of 16 would support 4^16 = 4,294,967,296 leaves but would be
      *      prohibitively expensive to construct.
      */
-    constructor(address _poseidonHasher) Ownable(msg.sender) {
-        poseidonHasher = IPoseidon4(_poseidonHasher);
+    constructor() Ownable(msg.sender) {
         depth = CONSTANT_DEPTH;
     }
 
@@ -477,40 +469,27 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      with the two inputs plus two zero values, effectively providing the same
      *      functionality as binary hashing but using the quaternary hasher.
      */
-    function hashLeftRight(bytes32 _left, bytes32 _right) external view returns (bytes32) {
+    function hashLeftRight(bytes32 _left, bytes32 _right) external pure returns (bytes32) {
         // For quaternary trees, we hash with two additional zero values
         return hashFour(_left, _right, bytes32(0), bytes32(0));
     }
 
     /**
-     * @notice Hashes four nodes together using the Poseidon4 hasher
+     * @notice Hashes four nodes together using keccak256
      * @param _a First input value
      * @param _b Second input value
      * @param _c Third input value
      * @param _d Fourth input value
      * @return The hash result of the four inputs
      * @dev This function is the core hashing mechanism for the quaternary Merkle tree.
-     *      It validates that all inputs are within the Poseidon4Field size and then calls the
-     *      Poseidon4 hasher using direct function calls. The function converts inputs
-     *      to the appropriate Poseidon4Field format and handles the result conversion.
+     *      It uses keccak256 to hash four inputs together, which is more gas-efficient
+     *      than the expensive Poseidon4 hasher.
      *
      *      This is more efficient than binary hashing as it processes 4 inputs
      *      in a single hash operation instead of requiring multiple binary hash calls.
      */
-    function hashFour(bytes32 _a, bytes32 _b, bytes32 _c, bytes32 _d) public view returns (bytes32) {
-        if (uint256(_a) >= Poseidon4Field_SIZE) revert ValueOutOfRange(_a);
-        if (uint256(_b) >= Poseidon4Field_SIZE) revert ValueOutOfRange(_b);
-        if (uint256(_c) >= Poseidon4Field_SIZE) revert ValueOutOfRange(_c);
-        if (uint256(_d) >= Poseidon4Field_SIZE) revert ValueOutOfRange(_d);
-
-        // Use direct function call instead of staticcall
-        uint256 hashResult = poseidonHasher.poseidon4Uint256(
-            Poseidon4Field.toUint256(Poseidon4Field.toField(_a)),
-            Poseidon4Field.toUint256(Poseidon4Field.toField(_b)),
-            Poseidon4Field.toUint256(Poseidon4Field.toField(_c)),
-            Poseidon4Field.toUint256(Poseidon4Field.toField(_d))
-        );
-        return Poseidon4Field.toBytes32(Poseidon4Field.Type.wrap(hashResult));
+    function hashFour(bytes32 _a, bytes32 _b, bytes32 _c, bytes32 _d) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_a, _b, _c, _d));
     }
 
     /**
@@ -522,11 +501,11 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      * @dev This private function computes the leaf value using the RLC method, which provides
      *      security against preimage attacks. The computation involves:
      *      1. Getting the most recent root from the channel's root sequence
-     *      2. Computing gamma = Poseidon4Yul(prevRoot, l2Addr, 0, 0) using 4 inputs
-     *      3. Computing RLC = l2Addr + gamma * balance (mod Poseidon4Field_SIZE)
+     *      2. Computing gamma = keccak256(prevRoot, l2Addr, 0, 0) using 4 inputs with last two as zeros
+     *      3. Computing RLC = l2Addr + gamma * balance (mod FIELD_SIZE)
      *
-     *      The use of 4-input hashing with Poseidon4Yul is more efficient than
-     *      multiple binary hash operations.
+     *      The use of 4-input hashing with keccak256 is more gas-efficient than
+     *      the expensive Poseidon4 hasher.
      */
     function _computeLeaf(uint256 channelId, uint256 l2Addr, uint256 balance) private view returns (bytes32) {
         bytes32[] storage rootSequence = channelRootSequence[channelId];
@@ -534,21 +513,11 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
         // Use the most recent root in the sequence
         uint256 prevRoot = (rootSequence.length == 0) ? BALANCE_SLOT : uint256(rootSequence[rootSequence.length - 1]);
 
-        // Compute gamma = Poseidon4(prevRoot, l2Addr, 0, 0) - using 4 inputs with last two as zeros
-        uint256 gamma = poseidonHasher.poseidon4Uint256(
-            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(prevRoot))),
-            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(l2Addr))),
-            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(0))),
-            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(0)))
-        );
+        // Compute gamma = keccak256(prevRoot, l2Addr, 0, 0) - using 4 inputs with last two as zeros
+        bytes32 gamma = keccak256(abi.encodePacked(bytes32(prevRoot), bytes32(l2Addr), bytes32(0), bytes32(0)));
 
-        // Compute RLC: l2Addr + gamma * balance
-        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, Poseidon4Field_SIZE), Poseidon4Field_SIZE);
-
-        // Ensure it fits in the merkle tree Poseidon4Field
-        if (rlc >= Poseidon4Field_SIZE) {
-            rlc = rlc % Poseidon4Field_SIZE;
-        }
+        // Compute RLC: l2Addr + uint256(gamma) * balance (mod FIELD_SIZE)
+        uint256 rlc = addmod(l2Addr, mulmod(uint256(gamma), balance, FIELD_SIZE), FIELD_SIZE);
 
         return bytes32(rlc);
     }
@@ -649,29 +618,21 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      given a specific previous state.
      *
      *      The computation follows the same pattern:
-     *      1. Compute gamma = Poseidon4Yul(prevRoot, l2Addr, 0, 0) using 4 inputs
-     *      2. Compute RLC = l2Addr + gamma * balance (mod Poseidon4Field_SIZE)
+     *      1. Compute gamma = keccak256(prevRoot, l2Addr, 0, 0) using 4 inputs
+     *      2. Compute RLC = l2Addr + uint256(gamma) * balance (mod FIELD_SIZE)
      */
     function computeLeafForVerification(address l2Address, uint256 balance, bytes32 prevRoot)
         external
-        view
+        pure
         returns (bytes32)
     {
         uint256 l2Addr = uint256(uint160(l2Address));
 
-        // Compute gamma using Poseidon4 with 4 inputs
-        uint256 gamma = poseidonHasher.poseidon4Uint256(
-            Poseidon4Field.toUint256(Poseidon4Field.toField(prevRoot)),
-            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(l2Addr))),
-            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(0))),
-            Poseidon4Field.toUint256(Poseidon4Field.toField(bytes32(0)))
-        );
+        // Compute gamma using keccak256 with 4 inputs
+        bytes32 gamma = keccak256(abi.encodePacked(prevRoot, bytes32(l2Addr), bytes32(0), bytes32(0)));
 
         // Compute RLC
-        uint256 rlc = addmod(l2Addr, mulmod(gamma, balance, Poseidon4Field_SIZE), Poseidon4Field_SIZE);
-        if (rlc >= Poseidon4Field_SIZE) {
-            rlc = rlc % Poseidon4Field_SIZE;
-        }
+        uint256 rlc = addmod(l2Addr, mulmod(uint256(gamma), balance, FIELD_SIZE), FIELD_SIZE);
 
         return bytes32(rlc);
     }
@@ -863,22 +824,11 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
      *      For quaternary trees, the maximum supported depth is 15 due to gas constraints.
      */
     function zeros(uint256 i) public pure returns (bytes32) {
-        if (i == 0) return bytes32(0x0d823319708ab99ec915efd4f7e03d11ca1790918e8f04cd14100aceca2aa9ff);
-        else if (i == 1) return bytes32(0x170a9598425eb05eb8dc06986c6afc717811e874326a79576c02d338bdf14f13);
-        else if (i == 2) return bytes32(0x273b1a40397b618dac2fc66ceb71399a3e1a60341e546e053cbfa5995e824caf);
-        else if (i == 3) return bytes32(0x16bf9b1fb2dfa9d88cfb1752d6937a1594d257c2053dff3cb971016bfcffe2a1);
-        else if (i == 4) return bytes32(0x1288271e1f93a29fa6e748b7468a77a9b8fc3db6b216ce5fc2601fc3e9bd6b36);
-        else if (i == 5) return bytes32(0x1d47548adec1068354d163be4ffa348ca89f079b039c9191378584abd79edeca);
-        else if (i == 6) return bytes32(0x0b98a89e6827ef697b8fb2e280a2342d61db1eb5efc229f5f4a77fb333b80bef);
-        else if (i == 7) return bytes32(0x231555e37e6b206f43fdcd4d660c47442d76aab1ef552aef6db45f3f9cf2e955);
-        else if (i == 8) return bytes32(0x03d0dc8c92e2844abcc5fdefe8cb67d93034de0862943990b09c6b8e3fa27a86);
-        else if (i == 9) return bytes32(0x1d51ac275f47f10e592b8e690fd3b28a76106893ac3e60cd7b2a3a443f4e8355);
-        else if (i == 10) return bytes32(0x16b671eb844a8e4e463e820e26560357edee4ecfdbf5d7b0a28799911505088d);
-        else if (i == 11) return bytes32(0x115ea0c2f132c5914d5bb737af6eed04115a3896f0d65e12e761ca560083da15);
-        else if (i == 12) return bytes32(0x139a5b42099806c76efb52da0ec1dde06a836bf6f87ef7ab4bac7d00637e28f0);
-        else if (i == 13) return bytes32(0x0804853482335a6533eb6a4ddfc215a08026db413d247a7695e807e38debea8e);
-        else if (i == 14) return bytes32(0x2f0b264ab5f5630b591af93d93ec2dfed28eef017b251e40905cdf7983689803);
-        else if (i == 15) return bytes32(0x170fc161bf1b9610bf196c173bdae82c4adfd93888dc317f5010822a3ba9ebee);
-        else revert IndexOutOfBounds(i);
+        if (i == 0) return bytes32(0);
+        if (i > 15) revert IndexOutOfBounds(i);
+        
+        // Compute zero hash for depth i by hashing four zero hashes from depth i-1
+        bytes32 prevZero = zeros(i - 1);
+        return hashFour(prevZero, prevZero, prevZero, prevZero);
     }
 }

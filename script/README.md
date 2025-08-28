@@ -47,7 +47,7 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast --verify
 The script automatically:
 
 1. **Deploys Poseidon4** - Cryptographic hashing contract
-2. **Deploys MerkleTreeManager4** - Merkle tree management with Poseidon4 integration
+2. **Deploys MerkleTreeManager4** - Merkle tree management with keccak256 integration
 3. **Deploys RollupBridge** - Main bridge contract connecting to ZK verifier
 4. **Configures contracts** - Sets up proper contract relationships
 5. **Verifies deployment** - Ensures all contracts are properly configured
@@ -57,7 +57,7 @@ The script automatically:
 ```
 Poseidon4 (no deps)
     ↓
-MerkleTreeManager4 (depends on Poseidon4)
+MerkleTreeManager4 (uses built-in keccak256)
     ↓
 RollupBridge (depends on MerkleTreeManager4 + ZK Verifier)
 ```
@@ -102,7 +102,7 @@ forge script script/Deploy.s.sol --rpc-url $MAINNET_RPC --broadcast --verify --s
 
 The deployment script automatically verifies:
 - ✅ All contracts deployed successfully
-- ✅ Poseidon4 set in MerkleTreeManager4
+- ✅ MerkleTreeManager4 uses built-in keccak256
 - ✅ RollupBridge set in MerkleTreeManager4
 - ✅ MerkleTreeManager4 set in RollupBridge
 

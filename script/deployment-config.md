@@ -47,7 +47,7 @@ forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast --verify --slow
 ### 3. Verify Deployment
 The script will automatically verify:
 - All contracts are deployed successfully
-- Poseidon4 is set in MerkleTreeManager4
+- MerkleTreeManager4 uses built-in keccak256 (no external hasher needed)
 - RollupBridge is set in MerkleTreeManager4
 - MerkleTreeManager4 is set in RollupBridge
 
@@ -61,7 +61,7 @@ After deployment, you may need to:
 
 The deployment order is:
 1. **Poseidon4** - No dependencies
-2. **MerkleTreeManager4** - Depends on Poseidon4
+2. **MerkleTreeManager4** - Uses built-in keccak256
 3. **RollupBridge** - Depends on MerkleTreeManager4 and ZK Verifier
 
 ## Gas Estimation

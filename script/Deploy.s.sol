@@ -2,13 +2,11 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import "../src/poseidon/Poseidon4.sol";
 import "../src/merkleTree/MerkleTreeManager4.sol";
 import "../src/RollupBridge.sol";
 
 contract DeployScript is Script {
     // Deployment addresses
-    address public poseidon4;
     address public merkleTreeManager4;
     address public rollupBridge;
 
@@ -46,12 +44,6 @@ contract DeployScript is Script {
 
         console.log("\n[START] Starting deployment...");
 
-        // Step 1: Deploy Poseidon4
-        console.log("\n[STEP1] Deploying Poseidon4...");
-        Poseidon4 poseidon4Contract = new Poseidon4();
-        poseidon4 = address(poseidon4Contract);
-        console.log("[SUCCESS] Poseidon4 deployed at:", poseidon4);
-
         // Step 2: Deploy MerkleTreeManager4
         console.log("\n[STEP2] Deploying MerkleTreeManager4...");
         MerkleTreeManager4 merkleTreeContract = new MerkleTreeManager4();
@@ -86,8 +78,6 @@ contract DeployScript is Script {
     }
 
     function _verifyDeployment() internal view {
-        // Verify Poseidon4
-        require(poseidon4 != address(0), "Poseidon4 deployment failed");
 
         // Verify MerkleTreeManager4
         require(merkleTreeManager4 != address(0), "MerkleTreeManager4 deployment failed");
@@ -115,7 +105,6 @@ contract DeployScript is Script {
         // This function provides guidance on what will be verified
 
         console.log("[INFO] The following contracts will be verified:");
-        console.log("  - Poseidon4:", poseidon4);
         console.log("  - MerkleTreeManager4:", merkleTreeManager4);
         console.log("  - RollupBridge:", rollupBridge);
 
@@ -126,7 +115,6 @@ contract DeployScript is Script {
     function _printDeploymentSummary() internal view {
         console.log("\n[DEPLOYMENT SUMMARY]");
         console.log("========================");
-        console.log("Poseidon4:", poseidon4);
         console.log("MerkleTreeManager4:", merkleTreeManager4);
         console.log("RollupBridge:", rollupBridge);
         console.log("ZK Verifier:", zkVerifier);
@@ -144,7 +132,6 @@ contract DeployScript is Script {
             console.log("\n[VERIFICATION]");
             console.log("Contracts will be verified automatically with --verify flag");
             console.log("Manual verification commands:");
-            console.log("  forge verify-contract", poseidon4, "src/poseidon/Poseidon4.sol:Poseidon4");
             console.log(
                 "  forge verify-contract",
                 merkleTreeManager4,

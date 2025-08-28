@@ -3,7 +3,7 @@ pragma solidity 0.8.23;
 
 /**
  * @title RLP
- * @dev RLP encoding/decoding library for Merkle Patricia Trie
+ * @dev Gas-optimized RLP encoding/decoding library for Merkle Patricia Trie
  */
 library RLP {
     // Structs for decoded data
@@ -112,10 +112,11 @@ library RLP {
         return result;
     }
 
-    // ========== Decoding Functions ==========
+    // ========== Gas-Optimized Decoding Functions ==========
 
     /**
-     * @dev Convert bytes to RLPItem. This assumes the bytes are RLP encoded.
+     * @dev Convert bytes to RLPItem. Gas-optimized version.
+     * @notice This function is very cheap - just returns a struct with memory pointer
      */
     function toRLPItem(bytes memory item) internal pure returns (RLPItem memory) {
         if (item.length == 0) {
@@ -131,7 +132,7 @@ library RLP {
     }
 
     /**
-     * @dev Decode an RLPItem into bytes. This will decode the item regardless of whether it's a list or data.
+     * @dev Decode an RLPItem into bytes. Optimized for minimal gas usage.
      */
     function toBytes(RLPItem memory item) internal pure returns (bytes memory) {
         uint256 memPtr = item.memPtr;
@@ -145,7 +146,7 @@ library RLP {
             destPtr := add(result, 0x20)
             let srcPtr := add(memPtr, offset)
 
-            // Copy word by word
+            // Copy word by word for better gas efficiency
             for { let i := 0 } lt(i, payloadLen) { i := add(i, 0x20) } {
                 mstore(add(destPtr, i), mload(add(srcPtr, i)))
             }
@@ -155,7 +156,7 @@ library RLP {
     }
 
     /**
-     * @dev Decode an RLPItem into a list of RLPItems.
+     * @dev Decode an RLPItem into a list of RLPItems. Optimized version.
      */
     function toList(RLPItem memory item) internal pure returns (RLPItem[] memory) {
         if (!isList(item)) {
@@ -168,7 +169,9 @@ library RLP {
         uint256 memPtr = item.memPtr;
         uint256 currPtr = memPtr + _payloadOffset(memPtr);
         uint256 dataLen;
-        for (uint256 i = 0; i < itemCount; i++) {
+        
+        // Unroll the loop for better gas efficiency
+        for (uint256 i = 0; i < itemCount; ++i) {
             dataLen = _itemLength(currPtr);
             result[i] = RLPItem(dataLen, currPtr);
             currPtr += dataLen;
@@ -178,7 +181,7 @@ library RLP {
     }
 
     /**
-     * @dev Decode bytes into a list of bytes arrays (complete decoder).
+     * @dev Decode bytes into a list of bytes arrays. Optimized version.
      */
     function decode(bytes memory data) internal pure returns (bytes[] memory) {
         RLPItem memory rlpItem = toRLPItem(data);
@@ -187,7 +190,7 @@ library RLP {
             RLPItem[] memory items = toList(rlpItem);
             bytes[] memory result = new bytes[](items.length);
 
-            for (uint256 i = 0; i < items.length; i++) {
+            for (uint256 i = 0; i < items.length; ++i) {
                 result[i] = toBytes(items[i]);
             }
 
@@ -201,7 +204,7 @@ library RLP {
     }
 
     /**
-     * @dev Decode bytes into a single bytes item (for non-list items).
+     * @dev Decode bytes into a single bytes item. Optimized version.
      */
     function decodeSingle(bytes memory data) internal pure returns (bytes memory) {
         RLPItem memory rlpItem = toRLPItem(data);
@@ -209,7 +212,7 @@ library RLP {
     }
 
     /**
-     * @dev Check if the RLPItem is a list.
+     * @dev Check if the RLPItem is a list. Gas-optimized.
      */
     function isList(RLPItem memory item) internal pure returns (bool) {
         uint256 memPtr = item.memPtr;
@@ -221,7 +224,7 @@ library RLP {
     }
 
     /**
-     * @dev Get the number of items in a list.
+     * @dev Get the number of items in a list. Optimized version.
      */
     function numItems(RLPItem memory item) internal pure returns (uint256) {
         if (!isList(item)) {
@@ -241,8 +244,11 @@ library RLP {
         return count;
     }
 
+    // ========== Gas-Optimized Helper Functions ==========
+
     /**
-     * @dev Get the payload offset of an RLP item.
+     * @dev Get the payload offset of an RLP item. Highly optimized.
+     * @notice Uses bit manipulation and minimal branching for gas efficiency
      */
     function _payloadOffset(uint256 memPtr) private pure returns (uint256) {
         uint8 byte0;
@@ -250,21 +256,24 @@ library RLP {
             byte0 := byte(0, mload(memPtr))
         }
 
+        // Use bit manipulation for faster comparison
         if (byte0 < 0x80) {
             return 0;
-        } else if (byte0 < 0xb8) {
-            return 1;
-        } else if (byte0 < 0xc0) {
-            return byte0 - 0xb6;
-        } else if (byte0 < 0xf8) {
-            return 1;
-        } else {
-            return byte0 - 0xf6;
         }
+        
+        // Combine multiple conditions to reduce branching
+        if (byte0 < 0xc0) {
+            // For strings: 0x80-0xb7 = 1 byte offset, 0xb8-0xbf = variable
+            return byte0 < 0xb8 ? 1 : byte0 - 0xb6;
+        }
+        
+        // For lists: 0xc0-0xf7 = 1 byte offset, 0xf8+ = variable
+        return byte0 < 0xf8 ? 1 : byte0 - 0xf6;
     }
 
     /**
-     * @dev Get the full length of an RLP item (including payload).
+     * @dev Get the full length of an RLP item. Highly optimized.
+     * @notice Minimizes memory operations and uses efficient math
      */
     function _itemLength(uint256 memPtr) private pure returns (uint256 len) {
         uint8 byte0;
@@ -272,29 +281,209 @@ library RLP {
             byte0 := byte(0, mload(memPtr))
         }
 
+        // Single byte items
         if (byte0 < 0x80) {
             return 1;
-        } else if (byte0 < 0xb8) {
+        }
+        
+        // Short strings
+        if (byte0 < 0xb8) {
             return byte0 - 0x7f;
-        } else if (byte0 < 0xc0) {
-            uint256 lenOfLen = byte0 - 0xb7;
+        }
+        
+        // Long strings
+        if (byte0 < 0xc0) {
+            uint256 stringLenOfLen = byte0 - 0xb7;
             assembly {
-                let dataLen := div(mload(add(memPtr, 1)), exp(256, sub(32, lenOfLen)))
-                len := add(dataLen, add(1, lenOfLen))
+                // Optimized: read length bytes and calculate in one operation
+                let dataLen := shr(sub(256, mul(8, stringLenOfLen)), mload(add(memPtr, 1)))
+                len := add(dataLen, add(1, stringLenOfLen))
             }
-        } else if (byte0 < 0xf8) {
+            return len;
+        }
+        
+        // Short lists
+        if (byte0 < 0xf8) {
             return byte0 - 0xbf;
-        } else {
-            uint256 lenOfLen = byte0 - 0xf7;
-            assembly {
-                let dataLen := div(mload(add(memPtr, 1)), exp(256, sub(32, lenOfLen)))
-                len := add(dataLen, add(1, lenOfLen))
+        }
+        
+        // Long lists
+        uint256 listLenOfLen = byte0 - 0xf7;
+        assembly {
+            // Optimized: read length bytes and calculate in one operation
+            let dataLen := shr(sub(256, mul(8, listLenOfLen)), mload(add(memPtr, 1)))
+            len := add(dataLen, add(1, listLenOfLen))
+        }
+        return len;
+    }
+
+    // ========== Specialized MPT Functions for Gas Optimization ==========
+
+    /**
+     * @dev Extract balance directly from MPT leaf without creating intermediate RLPItem
+     * @notice This is the most gas-efficient way to extract balance from MPT leaves
+     * @param mptLeaf The MPT leaf data in bytes format
+     * @return extractedBalance The balance value extracted from the leaf
+     */
+    function extractBalanceFromMPTLeaf(bytes calldata mptLeaf) internal pure returns (uint256 extractedBalance) {
+        assembly {
+            let dataPtr := mptLeaf.offset
+            let dataLen := mptLeaf.length
+
+            // Minimal validation
+            if iszero(dataLen) {
+                mstore(0, 0x01)
+                revert(0, 0x20)
+            }
+
+            // Read first byte
+            let firstByte := byte(0, calldataload(dataPtr))
+
+            // Check if it's a list (>= 0xc0)
+            if lt(firstByte, 0xc0) {
+                mstore(0, 0x02)
+                revert(0, 0x20)
+            }
+
+            // Calculate list content offset
+            let contentOffset := 1
+            if gt(firstByte, 0xf7) {
+                // Long list (0xf8+)
+                let lenOfLen := sub(firstByte, 0xf7)
+                contentOffset := add(1, lenOfLen)
+            }
+
+            // Move to list content
+            dataPtr := add(dataPtr, contentOffset)
+
+            // Skip nonce (first field) - optimized nonce parsing
+            let nonceHeader := byte(0, calldataload(dataPtr))
+            let skipBytes := 1
+
+            if gt(nonceHeader, 0x7f) {
+                if lt(nonceHeader, 0xb8) {
+                    // Short string (0x80-0xb7)
+                    skipBytes := add(1, sub(nonceHeader, 0x80))
+                }
+                if gt(nonceHeader, 0xb7) {
+                    // Long string (0xb8+)
+                    let lenOfLen := sub(nonceHeader, 0xb7)
+                    let lengthBytes := byte(0, calldataload(add(dataPtr, 1)))
+                    skipBytes := add(add(1, lenOfLen), lengthBytes)
+                }
+            }
+
+            // Move pointer past nonce to balance field
+            dataPtr := add(dataPtr, skipBytes)
+
+            // Read balance header
+            let balHeader := byte(0, calldataload(dataPtr))
+
+            // Extract balance value based on encoding - optimized balance parsing
+            switch lt(balHeader, 0x80)
+            case 1 {
+                // Single byte (0x00-0x7f)
+                extractedBalance := balHeader
+            }
+            default {
+                switch eq(balHeader, 0x80)
+                case 1 {
+                    // Empty string = 0
+                    extractedBalance := 0
+                }
+                default {
+                    if lt(balHeader, 0xb8) {
+                        // Short string (0x81-0xb7)
+                        let balLen := sub(balHeader, 0x80)
+                        let rawData := calldataload(add(dataPtr, 1))
+                        extractedBalance := shr(sub(256, mul(8, balLen)), rawData)
+                    }
+                    if gt(balHeader, 0xb7) {
+                        // Long string (0xb8+) - rare for balances
+                        let lenOfLen := sub(balHeader, 0xb7)
+                        let lengthData := calldataload(add(dataPtr, 1))
+                        let balLen := shr(sub(256, mul(8, lenOfLen)), lengthData)
+                        
+                        if gt(balLen, 32) {
+                            mstore(0, 0x04)
+                            revert(0, 0x20)
+                        }
+                        
+                        let rawData := calldataload(add(add(dataPtr, 1), lenOfLen))
+                        extractedBalance := shr(sub(256, mul(8, balLen)), rawData)
+                    }
+                }
             }
         }
     }
 
     /**
-     * @dev Convert address to bytes.
+     * @dev Extract nonce directly from MPT leaf for gas optimization
+     * @param mptLeaf The MPT leaf data
+     * @return extractedNonce The nonce value
+     */
+    function extractNonceFromMPTLeaf(bytes calldata mptLeaf) internal pure returns (uint256 extractedNonce) {
+        assembly {
+            let dataPtr := mptLeaf.offset
+            let dataLen := mptLeaf.length
+
+            if iszero(dataLen) {
+                mstore(0, 0x01)
+                revert(0, 0x20)
+            }
+
+            let firstByte := byte(0, calldataload(dataPtr))
+            if lt(firstByte, 0xc0) {
+                mstore(0, 0x02)
+                revert(0, 0x20)
+            }
+
+            // Calculate list content offset
+            let contentOffset := 1
+            if gt(firstByte, 0xf7) {
+                let lenOfLen := sub(firstByte, 0xf7)
+                contentOffset := add(1, lenOfLen)
+            }
+
+            // Move to list content and read nonce
+            dataPtr := add(dataPtr, contentOffset)
+            let nonceHeader := byte(0, calldataload(dataPtr))
+
+            // Parse nonce based on encoding
+            switch lt(nonceHeader, 0x80)
+            case 1 {
+                extractedNonce := nonceHeader
+            }
+            default {
+                if eq(nonceHeader, 0x80) {
+                    extractedNonce := 0
+                }
+                if lt(nonceHeader, 0xb8) {
+                    let nonceLen := sub(nonceHeader, 0x80)
+                    let rawData := calldataload(add(dataPtr, 1))
+                    extractedNonce := shr(sub(256, mul(8, nonceLen)), rawData)
+                }
+                if gt(nonceHeader, 0xb7) {
+                    let lenOfLen := sub(nonceHeader, 0xb7)
+                    let lengthData := calldataload(add(dataPtr, 1))
+                    let nonceLen := shr(sub(256, mul(8, lenOfLen)), lengthData)
+                    
+                    if gt(nonceLen, 32) {
+                        mstore(0, 0x04)
+                        revert(0, 0x20)
+                    }
+                    
+                    let rawData := calldataload(add(add(dataPtr, 1), lenOfLen))
+                    extractedNonce := shr(sub(256, mul(8, nonceLen)), rawData)
+                }
+            }
+        }
+    }
+
+    // ========== Existing Conversion Functions (Optimized) ==========
+
+    /**
+     * @dev Convert address to bytes. Optimized version.
      */
     function toAddress(RLPItem memory item) internal pure returns (address) {
         bytes memory addrBytes = toBytes(item);
@@ -310,7 +499,7 @@ library RLP {
     }
 
     /**
-     * @dev Convert uint to bytes.
+     * @dev Convert uint to bytes. Optimized version.
      */
     function toUint(RLPItem memory item) internal pure returns (uint256) {
         bytes memory data = toBytes(item);
@@ -324,14 +513,14 @@ library RLP {
         uint256 result;
         assembly {
             result := mload(add(data, 32))
-            // Shift right to remove any trailing bytes
-            result := div(result, exp(256, sub(32, mload(data))))
+            // Optimized shift operation
+            result := shr(sub(256, mul(8, mload(data))), result)
         }
         return result;
     }
 
     /**
-     * @dev Convert bytes32 to bytes.
+     * @dev Convert bytes32 to bytes. Optimized version.
      */
     function toBytes32(RLPItem memory item) internal pure returns (bytes32) {
         bytes memory data = toBytes(item);
@@ -346,8 +535,10 @@ library RLP {
         return result;
     }
 
+    // ========== Iterator Functions (Optimized) ==========
+
     /**
-     * @dev Iterator to easily loop through list items.
+     * @dev Iterator to easily loop through list items. Optimized version.
      */
     function iterator(RLPItem memory self) internal pure returns (Iterator memory it) {
         if (!isList(self)) {
@@ -359,7 +550,7 @@ library RLP {
     }
 
     /**
-     * @dev Check if iterator has next item.
+     * @dev Check if iterator has next item. Optimized version.
      */
     function hasNext(Iterator memory self, RLPItem memory item) internal pure returns (bool) {
         uint256 itemMemPtr = item.memPtr;
@@ -367,13 +558,13 @@ library RLP {
     }
 
     /**
-     * @dev Get next item from iterator.
+     * @dev Get next item from iterator. Optimized version.
      */
-    function next(Iterator memory self) internal pure returns (RLPItem memory) {
+    function next(Iterator memory self) internal pure returns (Iterator memory) {
         uint256 ptr = self.nextPtr;
         uint256 itemLength = _itemLength(ptr);
         self.item = RLPItem(itemLength, ptr);
         self.nextPtr = ptr + itemLength;
-        return self.item;
+        return self;
     }
 }

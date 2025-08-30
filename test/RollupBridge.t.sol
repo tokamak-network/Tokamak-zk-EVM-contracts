@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
-import "../src/RollupBridgeV2.sol";
+import "../src/RollupBridge.sol";
 import "../src/interface/IRollupBridge.sol";
 import "../src/interface/IVerifier.sol";
 import {Verifier} from "../src/verifier/Verifier.sol";
@@ -43,7 +43,7 @@ contract MockERC20 is ERC20 {
 contract RollupBridgeTest is Test {
     using RLP for bytes;
 
-    RollupBridgeV2 public bridge;
+    RollupBridge public bridge;
     MockVerifier public verifier;
     MockERC20 public token;
 
@@ -81,14 +81,14 @@ contract RollupBridgeTest is Test {
         verifier = new MockVerifier();
         token = new MockERC20();
 
-        // Deploy RollupBridgeV2 with proxy
-        RollupBridgeV2 implementation = new RollupBridgeV2();
+        // Deploy RollupBridge with proxy
+        RollupBridge implementation = new RollupBridge();
         bytes memory initData = abi.encodeCall(
-            RollupBridgeV2.initialize,
+            RollupBridge.initialize,
             (address(verifier), address(0), owner) // No MerkleTreeManager needed
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
-        bridge = RollupBridgeV2(address(proxy));
+        bridge = RollupBridge(address(proxy));
 
         // Setup initial state
         bridge.authorizeCreator(leader);
@@ -585,12 +585,12 @@ contract RollupBridgeTest is Test {
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
 
-        // Deploy RollupBridgeV2 with real verifier
-        RollupBridgeV2 realImplementation = new RollupBridgeV2();
+        // Deploy RollupBridge with real verifier
+        RollupBridge realImplementation = new RollupBridge();
         bytes memory realInitData =
-            abi.encodeCall(RollupBridgeV2.initialize, (address(realVerifier), address(0), owner));
+            abi.encodeCall(RollupBridge.initialize, (address(realVerifier), address(0), owner));
         ERC1967Proxy realProxy = new ERC1967Proxy(address(realImplementation), realInitData);
-        RollupBridgeV2 realBridge = RollupBridgeV2(address(realProxy));
+        RollupBridge realBridge = RollupBridge(address(realProxy));
 
         // Setup for real bridge
         realBridge.authorizeCreator(user1);

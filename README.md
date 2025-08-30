@@ -289,7 +289,8 @@ ETHERSCAN_API_KEY=YOUR_API_KEY
 #### 🔗 Main Contracts (Proxy Addresses - Use These for Interactions)
 ```
 MerkleTreeManager4 (Proxy): 0x83f163507a788df0efbfbb08bc1a185685163d6b
-RollupBridge (Proxy): 0x9c688e3262421f8383a5c9c96aba3e66f207e611
+RollupBridgeV1 (Proxy): 0x9c688e3262421f8383a5c9c96aba3e66f207e611
+RollupBridgeV2 (Proxy): 
 ```
 
 #### 🏗️ Implementation Contracts (For Upgrades Only)
@@ -298,12 +299,6 @@ MerkleTreeManager4Upgradeable: 0x4e6f45b00525fa7ce112c46e731e21271f119589
 RollupBridgeUpgradeable: 0xa0719a492c62588e54f839d8b8342d1b170b6cf3
 ```
 
-#### 📋 Legacy Contracts (Deprecated)
-```
-POSEIDON4_ADDRESS: 0xA22A3cE2e3eb5865ACdCA8980F95C8EAA87eF4a1
-MERKLE_TREE_MANAGER4_ADDRESS: 0xef249e41F6DC67BdfdBe44f4690cB4527d65CdD2
-ROLLUP_BRIDGE_ADDRESS: 0xa9BE9BA80802EaDFFEee5dc1fF46B0ED7da8a19D
-```
 
 ### 🔍 Contract Verification on Etherscan
 

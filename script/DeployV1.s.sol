@@ -3,8 +3,8 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../src/merkleTree/MerkleTreeManager4Upgradeable.sol";
-import "../src/RollupBridgeUpgradeable.sol";
+import "../src/merkleTree/MerkleTreeManagerV1.sol";
+import "../src/RollupBridgeV1.sol";
 
 contract DeployUpgradeableScript is Script {
     // Implementation addresses
@@ -54,18 +54,17 @@ contract DeployUpgradeableScript is Script {
 
         // Step 1: Deploy implementations
         console.log("\n[STEP1] Deploying implementation contracts...");
-        MerkleTreeManager4Upgradeable merkleTreeManagerImplContract = new MerkleTreeManager4Upgradeable();
+        MerkleTreeManagerV1 merkleTreeManagerImplContract = new MerkleTreeManagerV1();
         merkleTreeManagerImpl = address(merkleTreeManagerImplContract);
-        console.log("[SUCCESS] MerkleTreeManager4Upgradeable implementation deployed at:", merkleTreeManagerImpl);
+        console.log("[SUCCESS] MerkleTreeManagerV1 implementation deployed at:", merkleTreeManagerImpl);
 
-        RollupBridgeUpgradeable rollupBridgeImplContract = new RollupBridgeUpgradeable();
+        RollupBridgeV1 rollupBridgeImplContract = new RollupBridgeV1();
         rollupBridgeImpl = address(rollupBridgeImplContract);
-        console.log("[SUCCESS] RollupBridgeUpgradeable implementation deployed at:", rollupBridgeImpl);
+        console.log("[SUCCESS] RollupBridgeV1 implementation deployed at:", rollupBridgeImpl);
 
         // Step 2: Deploy MerkleTreeManager4 proxy with immediate initialization (atomic)
         console.log("\n[STEP2] Deploying MerkleTreeManager4 proxy with atomic initialization...");
-        bytes memory merkleTreeInitData =
-            abi.encodeCall(MerkleTreeManager4Upgradeable.initialize, (uint32(treeDepth), deployer));
+        bytes memory merkleTreeInitData = abi.encodeCall(MerkleTreeManagerV1.initialize, (uint32(treeDepth), deployer));
         ERC1967Proxy merkleTreeProxy = new ERC1967Proxy(merkleTreeManagerImpl, merkleTreeInitData);
         merkleTreeManager = address(merkleTreeProxy);
         console.log("[SUCCESS] MerkleTreeManager4 proxy deployed and initialized at:", merkleTreeManager);
@@ -73,14 +72,14 @@ contract DeployUpgradeableScript is Script {
         // Step 3: Deploy RollupBridge proxy with immediate initialization (atomic)
         console.log("\n[STEP3] Deploying RollupBridge proxy with atomic initialization...");
         bytes memory rollupBridgeInitData =
-            abi.encodeCall(RollupBridgeUpgradeable.initialize, (zkVerifier, merkleTreeManager, deployer));
+            abi.encodeCall(RollupBridgeV1.initialize, (zkVerifier, merkleTreeManager, deployer));
         ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
         rollupBridge = address(rollupBridgeProxy);
         console.log("[SUCCESS] RollupBridge proxy deployed and initialized at:", rollupBridge);
 
         // Step 4: Configure MerkleTreeManager4 with RollupBridge
         console.log("\n[STEP4] Configuring MerkleTreeManager4...");
-        MerkleTreeManager4Upgradeable merkleTree = MerkleTreeManager4Upgradeable(merkleTreeManager);
+        MerkleTreeManagerV1 merkleTree = MerkleTreeManagerV1(merkleTreeManager);
         merkleTree.setBridge(rollupBridge);
         console.log("[SUCCESS] Bridge address set in MerkleTreeManager4");
 
@@ -110,13 +109,13 @@ contract DeployUpgradeableScript is Script {
         require(rollupBridge != address(0), "RollupBridge proxy deployment failed");
 
         // Verify MerkleTreeManager4 proxy configuration
-        MerkleTreeManager4Upgradeable merkleTree = MerkleTreeManager4Upgradeable(merkleTreeManager);
+        MerkleTreeManagerV1 merkleTree = MerkleTreeManagerV1(merkleTreeManager);
         require(merkleTree.bridge() == rollupBridge, "Bridge not set in MerkleTreeManager4");
         require(merkleTree.bridgeSet(), "Bridge not properly set");
         require(merkleTree.owner() == deployer, "Owner not set correctly in MerkleTreeManager4");
 
         // Verify RollupBridge proxy configuration
-        RollupBridgeUpgradeable bridge = RollupBridgeUpgradeable(payable(rollupBridge));
+        RollupBridgeV1 bridge = RollupBridgeV1(payable(rollupBridge));
         require(address(bridge.mtmanager()) == merkleTreeManager, "MerkleTreeManager4 not set in RollupBridge");
         require(address(bridge.zkVerifier()) == zkVerifier, "ZK Verifier not set correctly in RollupBridge");
         require(bridge.owner() == deployer, "Owner not set correctly in RollupBridge");
@@ -141,9 +140,9 @@ contract DeployUpgradeableScript is Script {
         console.log("[INFO] Starting contract verification...");
 
         console.log("[INFO] The following contracts will be verified:");
-        console.log("  - MerkleTreeManager4Upgradeable implementation:", merkleTreeManagerImpl);
+        console.log("  - MerkleTreeManagerV1 implementation:", merkleTreeManagerImpl);
         console.log("  - MerkleTreeManager4 proxy:", merkleTreeManager);
-        console.log("  - RollupBridgeUpgradeable implementation:", rollupBridgeImpl);
+        console.log("  - RollupBridgeV1 implementation:", rollupBridgeImpl);
         console.log("  - RollupBridge proxy:", rollupBridge);
 
         console.log("[INFO] Use --verify flag with forge script for automatic verification");
@@ -153,9 +152,9 @@ contract DeployUpgradeableScript is Script {
     function _printDeploymentSummary() internal view {
         console.log("\n[DEPLOYMENT SUMMARY]");
         console.log("========================");
-        console.log("MerkleTreeManager4Upgradeable implementation:", merkleTreeManagerImpl);
+        console.log("MerkleTreeManagerV1 implementation:", merkleTreeManagerImpl);
         console.log("MerkleTreeManager4 proxy:", merkleTreeManager);
-        console.log("RollupBridgeUpgradeable implementation:", rollupBridgeImpl);
+        console.log("RollupBridgeV1 implementation:", rollupBridgeImpl);
         console.log("RollupBridge proxy:", rollupBridge);
         console.log("ZK Verifier:", zkVerifier);
         console.log("Deployer (Owner):", deployer);
@@ -175,8 +174,8 @@ contract DeployUpgradeableScript is Script {
         console.log("  RollupBridge (proxy):", rollupBridge);
         console.log("");
         console.log("Implementation contracts (for upgrades only):");
-        console.log("  MerkleTreeManager4Upgradeable implementation:", merkleTreeManagerImpl);
-        console.log("  RollupBridgeUpgradeable implementation:", rollupBridgeImpl);
+        console.log("  MerkleTreeManagerV1 implementation:", merkleTreeManagerImpl);
+        console.log("  RollupBridgeV1 implementation:", rollupBridgeImpl);
 
         console.log("\n[UPGRADE INSTRUCTIONS]");
         console.log("To upgrade contracts (owner only):");
@@ -198,11 +197,9 @@ contract DeployUpgradeableScript is Script {
             console.log(
                 "  forge verify-contract",
                 merkleTreeManagerImpl,
-                "src/merkleTree/MerkleTreeManager4Upgradeable.sol:MerkleTreeManager4Upgradeable"
+                "src/merkleTree/MerkleTreeManagerV1.sol:MerkleTreeManagerV1"
             );
-            console.log(
-                "  forge verify-contract", rollupBridgeImpl, "src/RollupBridgeUpgradeable.sol:RollupBridgeUpgradeable"
-            );
+            console.log("  forge verify-contract", rollupBridgeImpl, "src/RollupBridgeV1.sol:RollupBridgeV1");
             console.log(
                 "  forge verify-contract",
                 merkleTreeManager,
@@ -225,7 +222,7 @@ contract DeployUpgradeableScript is Script {
         console.log("Proxy address:", proxyAddress);
         console.log("New implementation:", newImplementation);
 
-        MerkleTreeManager4Upgradeable merkleTree = MerkleTreeManager4Upgradeable(proxyAddress);
+        MerkleTreeManagerV1 merkleTree = MerkleTreeManagerV1(proxyAddress);
         merkleTree.upgradeTo(newImplementation);
 
         console.log("[SUCCESS] MerkleTreeManager4 upgraded successfully");
@@ -241,7 +238,7 @@ contract DeployUpgradeableScript is Script {
         console.log("Proxy address:", proxyAddress);
         console.log("New implementation:", newImplementation);
 
-        RollupBridgeUpgradeable bridge = RollupBridgeUpgradeable(payable(proxyAddress));
+        RollupBridgeV1 bridge = RollupBridgeV1(payable(proxyAddress));
         bridge.upgradeTo(newImplementation);
 
         console.log("[SUCCESS] RollupBridge upgraded successfully");

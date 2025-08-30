@@ -24,7 +24,7 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgrade
  *
  * @dev Upgradeable using UUPS pattern for enhanced security and gas efficiency
  */
-contract MerkleTreeManager4Upgradeable is IMerkleTreeManager, Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract MerkleTreeManagerV1 is IMerkleTreeManager, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     // ============ Constants ============
 
     /**

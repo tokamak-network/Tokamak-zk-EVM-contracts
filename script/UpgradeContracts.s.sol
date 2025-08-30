@@ -2,8 +2,8 @@
 pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
-import "../src/merkleTree/MerkleTreeManager4Upgradeable.sol";
-import "../src/RollupBridgeUpgradeable.sol";
+import "../src/merkleTree/MerkleTreeManagerV1.sol";
+import "../src/RollupBridgeV1.sol";
 
 contract UpgradeContractsScript is Script {
     // Existing proxy addresses (to be set via environment variables)
@@ -93,14 +93,14 @@ contract UpgradeContractsScript is Script {
         console.log("\n[OWNERSHIP] Verifying contract ownership...");
 
         if (upgradeMerkleTree) {
-            MerkleTreeManager4Upgradeable merkleTreeManager = MerkleTreeManager4Upgradeable(merkleTreeManagerProxy);
+            MerkleTreeManagerV1 merkleTreeManager = MerkleTreeManagerV1(merkleTreeManagerProxy);
             address currentOwner = merkleTreeManager.owner();
             require(currentOwner == deployer, "Deployer is not owner of MerkleTreeManager4");
             console.log("[SUCCESS] Deployer is owner of MerkleTreeManager4");
         }
 
         if (upgradeRollupBridge) {
-            RollupBridgeUpgradeable rollupBridge = RollupBridgeUpgradeable(payable(rollupBridgeProxy));
+            RollupBridgeV1 rollupBridge = RollupBridgeV1(payable(rollupBridgeProxy));
             address currentOwner = rollupBridge.owner();
             require(currentOwner == deployer, "Deployer is not owner of RollupBridge");
             console.log("[SUCCESS] Deployer is owner of RollupBridge");
@@ -111,8 +111,8 @@ contract UpgradeContractsScript is Script {
         console.log("\n[UPGRADE] Upgrading MerkleTreeManager4...");
 
         // Deploy new implementation
-        console.log("Deploying new MerkleTreeManager4Upgradeable implementation...");
-        MerkleTreeManager4Upgradeable newImplContract = new MerkleTreeManager4Upgradeable();
+        console.log("Deploying new MerkleTreeManagerV1 implementation...");
+        MerkleTreeManagerV1 newImplContract = new MerkleTreeManagerV1();
         newMerkleTreeManagerImpl = address(newImplContract);
         console.log("New implementation deployed at:", newMerkleTreeManagerImpl);
 
@@ -125,7 +125,7 @@ contract UpgradeContractsScript is Script {
         require(currentImpl != newMerkleTreeManagerImpl, "Implementation addresses are the same");
 
         // Perform upgrade
-        MerkleTreeManager4Upgradeable merkleTreeManager = MerkleTreeManager4Upgradeable(merkleTreeManagerProxy);
+        MerkleTreeManagerV1 merkleTreeManager = MerkleTreeManagerV1(merkleTreeManagerProxy);
         merkleTreeManager.upgradeTo(newMerkleTreeManagerImpl);
 
         console.log("[SUCCESS] MerkleTreeManager4 upgraded successfully");
@@ -135,8 +135,8 @@ contract UpgradeContractsScript is Script {
         console.log("\n[UPGRADE] Upgrading RollupBridge...");
 
         // Deploy new implementation
-        console.log("Deploying new RollupBridgeUpgradeable implementation...");
-        RollupBridgeUpgradeable newImplContract = new RollupBridgeUpgradeable();
+        console.log("Deploying new RollupBridgeV1 implementation...");
+        RollupBridgeV1 newImplContract = new RollupBridgeV1();
         newRollupBridgeImpl = address(newImplContract);
         console.log("New implementation deployed at:", newRollupBridgeImpl);
 
@@ -149,7 +149,7 @@ contract UpgradeContractsScript is Script {
         require(currentImpl != newRollupBridgeImpl, "Implementation addresses are the same");
 
         // Perform upgrade
-        RollupBridgeUpgradeable rollupBridge = RollupBridgeUpgradeable(payable(rollupBridgeProxy));
+        RollupBridgeV1 rollupBridge = RollupBridgeV1(payable(rollupBridgeProxy));
         rollupBridge.upgradeTo(newRollupBridgeImpl);
 
         console.log("[SUCCESS] RollupBridge upgraded successfully");
@@ -163,7 +163,7 @@ contract UpgradeContractsScript is Script {
             require(currentImpl == newMerkleTreeManagerImpl, "MerkleTreeManager4 upgrade verification failed");
 
             // Verify functionality still works
-            MerkleTreeManager4Upgradeable merkleTreeManager = MerkleTreeManager4Upgradeable(merkleTreeManagerProxy);
+            MerkleTreeManagerV1 merkleTreeManager = MerkleTreeManagerV1(merkleTreeManagerProxy);
             require(merkleTreeManager.owner() == deployer, "Owner verification failed after upgrade");
 
             console.log("[SUCCESS] MerkleTreeManager4 upgrade verified");
@@ -174,7 +174,7 @@ contract UpgradeContractsScript is Script {
             require(currentImpl == newRollupBridgeImpl, "RollupBridge upgrade verification failed");
 
             // Verify functionality still works
-            RollupBridgeUpgradeable rollupBridge = RollupBridgeUpgradeable(payable(rollupBridgeProxy));
+            RollupBridgeV1 rollupBridge = RollupBridgeV1(payable(rollupBridgeProxy));
             require(rollupBridge.owner() == deployer, "Owner verification failed after upgrade");
 
             console.log("[SUCCESS] RollupBridge upgrade verified");
@@ -191,10 +191,10 @@ contract UpgradeContractsScript is Script {
 
         console.log("[INFO] The following new implementations will be verified:");
         if (upgradeMerkleTree) {
-            console.log("  - MerkleTreeManager4Upgradeable implementation:", newMerkleTreeManagerImpl);
+            console.log("  - MerkleTreeManagerV1 implementation:", newMerkleTreeManagerImpl);
         }
         if (upgradeRollupBridge) {
-            console.log("  - RollupBridgeUpgradeable implementation:", newRollupBridgeImpl);
+            console.log("  - RollupBridgeV1 implementation:", newRollupBridgeImpl);
         }
 
         console.log("[INFO] Use --verify flag with forge script for automatic verification");
@@ -239,15 +239,11 @@ contract UpgradeContractsScript is Script {
                 console.log(
                     "  forge verify-contract",
                     newMerkleTreeManagerImpl,
-                    "src/merkleTree/MerkleTreeManager4Upgradeable.sol:MerkleTreeManager4Upgradeable"
+                    "src/merkleTree/MerkleTreeManagerV1.sol:MerkleTreeManagerV1"
                 );
             }
             if (upgradeRollupBridge) {
-                console.log(
-                    "  forge verify-contract",
-                    newRollupBridgeImpl,
-                    "src/RollupBridgeUpgradeable.sol:RollupBridgeUpgradeable"
-                );
+                console.log("  forge verify-contract", newRollupBridgeImpl, "src/RollupBridgeV1.sol:RollupBridgeV1");
             }
         }
     }

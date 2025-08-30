@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import "@openzeppelin/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/utils/ReentrancyGuard.sol";
-import "@openzeppelin/token/ERC20/IERC20.sol";
-import "@openzeppelin/access/Ownable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/utils/cryptography/ECDSAUpgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import {IMerkleTreeManager} from "./interface/IMerkleTreeManager.sol";
 import "./library/RLP.sol";
 
 /**
- * @title RollupBridge
+ * @title RollupBridgeUpgradeable
  * @author Tokamak Ooo project
- * @notice Main bridge contract for managing zkRollup channels
+ * @notice Upgradeable main bridge contract for managing zkRollup channels
  * @dev This contract manages the lifecycle of zkRollup channels including:
  *      - Channel creation and participant management
  *      - Deposit handling for ETH and ERC20 tokens
@@ -26,9 +28,17 @@ import "./library/RLP.sol";
  * to approve state transitions. Each channel operates independently with its own
  * quaternary Merkle tree managed by the MerkleTreeManager4 contract, which provides
  * improved efficiency over binary trees by processing 4 inputs per hash operation.
+ *
+ * @dev Upgradeable using UUPS pattern for enhanced security and gas efficiency
  */
-contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
-    using ECDSA for bytes32;
+contract RollupBridgeV1 is
+    IRollupBridge,
+    Initializable,
+    ReentrancyGuardUpgradeable,
+    OwnableUpgradeable,
+    UUPSUpgradeable
+{
+    using ECDSAUpgradeable for bytes32;
     using RLP for bytes;
     using RLP for RLP.RLPItem;
 
@@ -36,9 +46,13 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @dev Authorized channel creators only
      */
     modifier onlyAuthorized() {
-        require(authorizedChannelCreators[msg.sender], "Not authorized");
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        require($.authorizedChannelCreators[msg.sender], "Not authorized");
         _;
     }
+
+    // ========== EVENTS ==========
+    event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
 
     // ========== CONSTANTS ==========
     uint256 public constant CHALLENGE_PERIOD = 14 days;
@@ -48,21 +62,86 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
     uint256 public constant NATIVE_TOKEN_TRANSFER_GAS_LIMIT = 1_000_000;
     address public constant ETH_TOKEN_ADDRESS = address(1);
 
-    // ========== MAPPINGS ==========
-    mapping(uint256 => Channel) public channels;
-    mapping(address => bool) public authorizedChannelCreators;
-    mapping(address => bool) public isChannelLeader;
+    // ========== STORAGE ==========
 
-    uint256 public nextChannelId;
+    /// @custom:storage-location erc7201:tokamak.storage.RollupBridge
+    struct RollupBridgeStorage {
+        mapping(uint256 => Channel) channels;
+        mapping(address => bool) authorizedChannelCreators;
+        mapping(address => bool) isChannelLeader;
+        uint256 nextChannelId;
+        IVerifier zkVerifier;
+        IMerkleTreeManager mtmanager;
+    }
 
-    // ========== CONTRACTS ==========
-    IVerifier public immutable zkVerifier;
-    IMerkleTreeManager public immutable mtmanager;
+    // keccak256(abi.encode(uint256(keccak256("tokamak.storage.RollupBridge")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant RollupBridgeStorageLocation =
+        0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a00;
 
-    // ========== CONSTRUCTOR ==========
-    constructor(address _zkVerifier, address _mtmanager) Ownable(msg.sender) {
-        zkVerifier = IVerifier(_zkVerifier);
-        mtmanager = IMerkleTreeManager(_mtmanager);
+    function _getRollupBridgeStorage() internal pure returns (RollupBridgeStorage storage $) {
+        assembly {
+            $.slot := RollupBridgeStorageLocation
+        }
+    }
+
+    // ========== CONSTRUCTOR & INITIALIZER ==========
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * @notice Initializes the upgradeable RollupBridge contract
+     * @param _zkVerifier Address of the ZK verifier contract
+     * @param _mtmanager Address of the Merkle tree manager contract
+     * @param _owner Address of the contract owner
+     */
+    function initialize(address _zkVerifier, address _mtmanager, address _owner) public initializer {
+        __ReentrancyGuard_init();
+        __Ownable_init_unchained();
+        _transferOwnership(_owner);
+        __UUPSUpgradeable_init();
+
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        $.zkVerifier = IVerifier(_zkVerifier);
+        $.mtmanager = IMerkleTreeManager(_mtmanager);
+    }
+
+    /**
+     * @dev Authorizes upgrades - only owner can upgrade
+     * @param newImplementation Address of the new implementation
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // ========== GETTER FUNCTIONS FOR STORAGE ==========
+
+    function zkVerifier() public view returns (IVerifier) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.zkVerifier;
+    }
+
+    function mtmanager() public view returns (IMerkleTreeManager) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.mtmanager;
+    }
+
+    function nextChannelId() public view returns (uint256) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.nextChannelId;
+    }
+
+    // Note: Cannot expose full Channel struct due to nested mappings
+    // Use specific getter functions instead
+
+    function authorizedChannelCreators(address creator) public view returns (bool) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.authorizedChannelCreators[creator];
+    }
+
+    function isChannelLeader(address leader) public view returns (bool) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.isChannelLeader[leader];
     }
 
     // ========== Channel Opening ==========
@@ -73,7 +152,27 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @dev Only callable by the contract owner
      */
     function authorizeCreator(address creator) external onlyOwner {
-        authorizedChannelCreators[creator] = true;
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        $.authorizedChannelCreators[creator] = true;
+    }
+
+    /**
+     * @notice Updates the ZK verifier contract address
+     * @param _newVerifier Address of the new verifier contract
+     * @dev Only callable by the contract owner
+     *      This allows updating the verifier if bugs are found or improvements are made
+     */
+    function updateVerifier(address _newVerifier) external onlyOwner {
+        require(_newVerifier != address(0), "Invalid verifier address");
+
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        address oldVerifier = address($.zkVerifier);
+
+        require(_newVerifier != oldVerifier, "Same verifier address");
+
+        $.zkVerifier = IVerifier(_newVerifier);
+
+        emit VerifierUpdated(oldVerifier, _newVerifier);
     }
 
     /**
@@ -103,7 +202,9 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         uint256 timeout,
         bytes32 groupPublicKey
     ) external onlyAuthorized returns (uint256 channelId) {
-        require(!isChannelLeader[msg.sender], "Channel limit reached");
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+
+        require(!$.isChannelLeader[msg.sender], "Channel limit reached");
         require(
             participants.length >= MIN_PARTICIPANTS && participants.length <= MAX_PARTICIPANTS,
             "Invalid participant number"
@@ -112,11 +213,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         require(timeout >= 1 hours && timeout <= 7 days, "Invalid timeout");
 
         unchecked {
-            channelId = nextChannelId++;
+            channelId = $.nextChannelId++;
         }
 
-        isChannelLeader[msg.sender] = true;
-        Channel storage channel = channels[channelId];
+        $.isChannelLeader[msg.sender] = true;
+        Channel storage channel = $.channels[channelId];
 
         channel.id = channelId;
         channel.targetContract = targetContract;
@@ -163,7 +264,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      *      - Channel must be configured for ETH deposits
      */
     function depositETH(uint256 _channelId) external payable nonReentrant {
-        Channel storage channel = channels[_channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[_channelId];
         require(channel.state == ChannelState.Initialized, "Invalid channel state");
         require(channel.isParticipant[msg.sender], "Not a participant");
         require(msg.value > 0, "Deposit must be greater than 0");
@@ -188,14 +290,15 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      *      - Caller must have approved this contract for the token amount
      */
     function depositToken(uint256 _channelId, address _token, uint256 _amount) external nonReentrant {
-        Channel storage channel = channels[_channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[_channelId];
         require(channel.state == ChannelState.Initialized, "Invalid channel state");
         require(channel.isParticipant[msg.sender], "Not a participant");
         require(_token != ETH_TOKEN_ADDRESS && _token == channel.targetContract, "Token must be ERC20 target contract");
 
         // Transfer tokens from user to this contract
         require(_amount != 0, "amount must be greater than 0"); // empty deposit
-        uint256 amount = _depositToken(msg.sender, IERC20(_token), _amount);
+        uint256 amount = _depositToken(msg.sender, IERC20Upgradeable(_token), _amount);
         require(amount == _amount, "non ERC20 standard transfer logic"); // The token has non-standard transfer logic
 
         channel.tokenDeposits[msg.sender] += _amount;
@@ -211,7 +314,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @param _amount Amount to transfer
      * @return The actual amount transferred (handles fee-on-transfer tokens)
      */
-    function _depositToken(address _from, IERC20 _token, uint256 _amount) internal returns (uint256) {
+    function _depositToken(address _from, IERC20Upgradeable _token, uint256 _amount) internal returns (uint256) {
         uint256 balanceBefore = _token.balanceOf(address(this));
         _token.transferFrom(_from, address(this), _amount);
         uint256 balanceAfter = _token.balanceOf(address(this));
@@ -232,14 +335,15 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      *      Only callable by the channel leader
      */
     function initializeChannelState(uint256 channelId) external nonReentrant {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         require(channel.state == ChannelState.Initialized || channel.state == ChannelState.Open, "Invalid state");
         require(msg.sender == channel.leader, "Not leader");
         // Prepare arrays
         address[] memory l1Addresses = new address[](channel.participants.length);
         uint256[] memory balances = new uint256[](channel.participants.length);
 
-        mtmanager.initializeChannel(channelId);
+        $.mtmanager.initializeChannel(channelId);
 
         // Single loop to set up mappings and prepare data
         for (uint256 i = 0; i < channel.participants.length; ++i) {
@@ -247,7 +351,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
             address l2Address = channel.participants[i].l2PublicKey;
 
             // Set address pair
-            mtmanager.setAddressPair(channelId, l1Address, l2Address);
+            $.mtmanager.setAddressPair(channelId, l1Address, l2Address);
 
             // Prepare arrays for batch addition
             l1Addresses[i] = l1Address;
@@ -255,10 +359,10 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         }
 
         // Add all users to the merkle tree
-        mtmanager.addUsers(channelId, l1Addresses, balances);
+        $.mtmanager.addUsers(channelId, l1Addresses, balances);
 
         // Store the initial merkle root
-        channel.initialStateRoot = mtmanager.getCurrentRoot(channelId);
+        channel.initialStateRoot = $.mtmanager.getCurrentRoot(channelId);
         if (channel.state == ChannelState.Initialized) {
             channel.state = ChannelState.Open;
         }
@@ -289,7 +393,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      *      Transitions channel to Closing state upon successful submission
      */
     function submitAggregatedProof(uint256 channelId, ProofData calldata proofData) external {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state");
         require(msg.sender == channel.leader, "Only leader can submit");
         require(proofData.initialMPTLeaves.length == proofData.finalMPTLeaves.length, "Mismatched leaf arrays");
@@ -325,7 +430,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
 
         // Verify the aggregated ZK proof
         require(
-            zkVerifier.verify(
+            $.zkVerifier.verify(
                 proofData.proofPart1,
                 proofData.proofPart2,
                 channel.preprocessedPart1,
@@ -349,7 +454,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      *      - Group threshold signature must be valid
      */
     function signAggregatedProof(uint256 channelId, Signature[] calldata signatures) external {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         require(channel.state == ChannelState.Closing, "Not in closing state");
         require(msg.sender == channel.leader || msg.sender == owner(), "Not leader or owner");
 
@@ -367,7 +473,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return True if the group threshold signature verification passes
      */
     function _verifyGroupThresholdSignature(uint256 channelId) internal view returns (bool) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
 
         // Check if we have enough signatures
         if (channel.receivedSignatures < channel.requiredSignatures) {
@@ -411,7 +518,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      *      Transitions channel to Closed state
      */
     function closeChannel(uint256 channelId) external {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         require(msg.sender == channel.leader || msg.sender == owner(), "unauthorized caller");
         require(channel.state == ChannelState.Closing, "Not in closing state");
         require(channel.receivedSignatures >= channel.requiredSignatures, "Insufficient signatures");
@@ -443,24 +551,25 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         uint256 leafIndex,
         bytes32[] calldata merkleProof
     ) external nonReentrant {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         require(channel.state == ChannelState.Closed, "Not closed");
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
         require(channel.isParticipant[msg.sender], "Not a participant");
 
         // Get user's L2 address
-        address l2Address = mtmanager.getL2Address(channelId, msg.sender);
+        address l2Address = $.mtmanager.getL2Address(channelId, msg.sender);
         require(l2Address != address(0), "L2 address not found");
 
         // Get the previous root (last root before final state)
-        bytes32 prevRoot = mtmanager.getLastRootInSequence(channelId);
+        bytes32 prevRoot = $.mtmanager.getLastRootInSequence(channelId);
 
         // Compute the leaf value for the claimed balance
-        bytes32 leafValue = mtmanager.computeLeafForVerification(l2Address, claimedBalance, prevRoot);
+        bytes32 leafValue = $.mtmanager.computeLeafForVerification(l2Address, claimedBalance, prevRoot);
 
         // Verify the merkle proof against the final state root
         require(
-            mtmanager.verifyProof(channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot),
+            $.mtmanager.verifyProof(channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot),
             "Invalid merkle proof"
         );
 
@@ -488,7 +597,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
             }
             require(success, "ETH transfer failed");
         } else {
-            IERC20(channel.targetContract).transfer(msg.sender, claimedBalance);
+            IERC20Upgradeable(channel.targetContract).transfer(msg.sender, claimedBalance);
         }
 
         emit Withdrawn(channelId, msg.sender, channel.targetContract, claimedBalance);
@@ -507,13 +616,14 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      *      Removes all channel data and frees the leader to create new channels
      */
     function deleteChannel(uint256 channelId) external returns (bool) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         require(msg.sender == owner() || msg.sender == channel.leader, "only owner or leader");
         require(channel.state == ChannelState.Closed, "Channel not closed");
         require(block.timestamp >= channel.closeTimestamp + CHALLENGE_PERIOD);
 
-        delete channels[channelId];
-        isChannelLeader[msg.sender] = false;
+        delete $.channels[channelId];
+        $.isChannelLeader[msg.sender] = false;
 
         emit ChannelDeleted(channelId);
         return true;
@@ -541,7 +651,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
             bytes32 finalRoot
         )
     {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return (
             channel.targetContract,
             channel.state,
@@ -557,7 +668,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return True if the channel has enough signatures to be closed
      */
     function isChannelReadyToClose(uint256 channelId) external view returns (bool) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return channel.receivedSignatures >= channel.requiredSignatures;
     }
 
@@ -567,7 +679,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return The aggregated proof hash to be signed
      */
     function getAggregatedProofHash(uint256 channelId) external view returns (bytes32) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return channel.aggregatedProofHash;
     }
 
@@ -577,7 +690,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return The group public key for signature verification
      */
     function getGroupPublicKey(uint256 channelId) external view returns (bytes32) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return channel.groupPublicKey;
     }
 
@@ -587,7 +701,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return The final state root after proof aggregation
      */
     function getFinalStateRoot(uint256 channelId) external view returns (bytes32) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return channel.finalStateRoot;
     }
 
@@ -602,7 +717,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         view
         returns (bytes[] memory initialLeaves, bytes[] memory finalLeaves)
     {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return (channel.initialMPTLeaves, channel.finalMPTLeaves);
     }
 
@@ -618,7 +734,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         view
         returns (uint256 openTimestamp, uint256 timeout, uint256 deadline)
     {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return (channel.openTimestamp, channel.timeout, channel.openTimestamp + channel.timeout);
     }
 
@@ -628,7 +745,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return True if the channel has expired, false otherwise
      */
     function isChannelExpired(uint256 channelId) external view returns (bool) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return block.timestamp > (channel.openTimestamp + channel.timeout);
     }
 
@@ -638,7 +756,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return Remaining time in seconds (0 if expired)
      */
     function getRemainingTime(uint256 channelId) external view returns (uint256) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         uint256 deadline = channel.openTimestamp + channel.timeout;
         if (block.timestamp >= deadline) {
             return 0;
@@ -657,7 +776,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         view
         returns (uint256 totalDeposits, address targetContract)
     {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return (channel.tokenTotalDeposits, channel.targetContract);
     }
 
@@ -668,7 +788,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return amount The amount deposited by the participant
      */
     function getParticipantDeposit(uint256 channelId, address participant) external view returns (uint256 amount) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return channel.tokenDeposits[participant];
     }
 
@@ -679,7 +800,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return l2PublicKey The L2 public key for the participant
      */
     function getL2PublicKey(uint256 channelId, address participant) external view returns (address l2PublicKey) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return channel.l2PublicKeys[participant];
     }
 
@@ -689,7 +811,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return participants Array of participant addresses
      */
     function getChannelParticipants(uint256 channelId) external view returns (address[] memory participants) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         uint256 participantCount = channel.participants.length;
         participants = new address[](participantCount);
 
@@ -706,7 +829,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return leader The address of the channel leader
      */
     function getChannelLeader(uint256 channelId) external view returns (address leader) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return channel.leader;
     }
 
@@ -716,7 +840,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return state The current state of the channel
      */
     function getChannelState(uint256 channelId) external view returns (ChannelState state) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return channel.state;
     }
 
@@ -731,7 +856,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         view
         returns (uint256 openTimestamp, uint256 closeTimestamp)
     {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return (channel.openTimestamp, channel.closeTimestamp);
     }
 
@@ -742,7 +868,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return finalRoot The final state root (bytes32(0) if not set)
      */
     function getChannelRoots(uint256 channelId) external view returns (bytes32 initialRoot, bytes32 finalRoot) {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return (channel.initialStateRoot, channel.finalStateRoot);
     }
 
@@ -757,7 +884,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
         view
         returns (uint128[] memory preprocessedPart1, uint256[] memory preprocessedPart2)
     {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return (channel.preprocessedPart1, channel.preprocessedPart2);
     }
 
@@ -789,7 +917,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
             bytes32 groupPublicKey
         )
     {
-        Channel storage channel = channels[channelId];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
         return (
             channel.id,
             channel.targetContract,
@@ -809,14 +938,23 @@ contract RollupBridge is IRollupBridge, ReentrancyGuard, Ownable {
      * @return True if the address is authorized, false otherwise
      */
     function isAuthorizedCreator(address creator) external view returns (bool) {
-        return authorizedChannelCreators[creator];
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.authorizedChannelCreators[creator];
     }
+
     /**
      * @notice Gets the total number of channels created
      * @return Total number of channels
      */
-
     function getTotalChannels() external view returns (uint256) {
-        return nextChannelId;
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.nextChannelId;
     }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[44] private __gap;
 }

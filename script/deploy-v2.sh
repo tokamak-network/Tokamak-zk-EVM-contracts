@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# UUPS Upgradeable Contract Deployment Script
-# Usage: ./deploy-upgradeable.sh <network>
-# Example: ./deploy-upgradeable.sh sepolia
+# RollupBridgeV2 Deployment Script
+# Usage: ./deploy-v2.sh <network>
+# Example: ./deploy-v2.sh sepolia
 
 set -e
 
@@ -45,21 +45,15 @@ NETWORK=$1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-print_status "Starting UUPS upgradeable deployment on $NETWORK"
+print_status "Starting RollupBridgeV2 deployment on $NETWORK"
 
 # Check if .env file exists
 ENV_FILE="$PROJECT_ROOT/.env"
 if [ ! -f "$ENV_FILE" ]; then
     print_error ".env file not found in project root"
-    echo "Please create a .env file with the following variables:"
-    echo "PRIVATE_KEY=your_private_key"
-    echo "ZK_VERIFIER_ADDRESS=verifier_contract_address"
-    echo "DEPLOYER_ADDRESS=deployer_address"
-    echo "RPC_URL=your_rpc_url"
-    echo "ETHERSCAN_API_KEY=your_etherscan_api_key"
-    echo "VERIFY_CONTRACTS=true"
-    echo "CHAIN_ID=chain_id"
-    echo "TREE_DEPTH=20"
+    echo "Please create a .env file using the template:"
+    echo "cp script/env-v2.template .env"
+    echo "Then edit .env with your configuration"
     exit 1
 fi
 
@@ -88,13 +82,12 @@ fi
 
 print_success "All required environment variables are set"
 
-# Set default values for optional variables
-export TREE_DEPTH=${TREE_DEPTH:-20}
+# Set default values for optional variables  
 export VERIFY_CONTRACTS=${VERIFY_CONTRACTS:-true}
 export ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY:-""}
 
 # Build the forge command
-FORGE_CMD="forge script script/DeployUpgradeable.s.sol:DeployUpgradeableScript"
+FORGE_CMD="forge script script/DeployV2.s.sol:DeployV2Script"
 FORGE_CMD="$FORGE_CMD --rpc-url $RPC_URL"
 FORGE_CMD="$FORGE_CMD --broadcast"
 FORGE_CMD="$FORGE_CMD --slow" # Add delay between transactions
@@ -113,7 +106,7 @@ echo "  RPC URL: $RPC_URL"
 echo "  Chain ID: $CHAIN_ID"
 echo "  Deployer: $DEPLOYER_ADDRESS"
 echo "  ZK Verifier: $ZK_VERIFIER_ADDRESS"
-echo "  Tree Depth: $TREE_DEPTH"
+echo "  Contract: RollupBridgeV2 (with embedded Merkle operations)"
 echo "  Verify Contracts: $VERIFY_CONTRACTS"
 
 # Confirm deployment
@@ -137,7 +130,7 @@ if eval $FORGE_CMD; then
     print_success "Deployment completed successfully!"
     
     # Extract deployment addresses from broadcast files
-    BROADCAST_DIR="$PROJECT_ROOT/broadcast/DeployUpgradeable.s.sol/$CHAIN_ID"
+    BROADCAST_DIR="$PROJECT_ROOT/broadcast/DeployV2.s.sol/$CHAIN_ID"
     LATEST_RUN="$BROADCAST_DIR/run-latest.json"
     
     if [ -f "$LATEST_RUN" ]; then

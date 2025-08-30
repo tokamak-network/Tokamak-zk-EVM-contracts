@@ -1,0 +1,84 @@
+# Environment Configuration for RollupBridgeV2 Deployment
+# Copy this file to .env and fill in your values
+
+# ===========================================
+# REQUIRED CONFIGURATION
+# ===========================================
+
+# Private key for deployment (without 0x prefix)
+PRIVATE_KEY=your_private_key_here
+
+# Address of the deployed ZK verifier contract (optional - will deploy new one if not provided)
+# ZK_VERIFIER_ADDRESS=0x1234567890123456789012345678901234567890
+
+# Address that will own the upgradeable contracts (can perform upgrades)
+DEPLOYER_ADDRESS=0x1234567890123456789012345678901234567890
+
+# RPC endpoint for the target network
+RPC_URL=https://your-rpc-endpoint-here
+
+# Chain ID of the target network
+CHAIN_ID=11155111
+
+# ===========================================
+# OPTIONAL CONFIGURATION
+# ===========================================
+
+# Whether to verify contracts on block explorer (default: true)
+VERIFY_CONTRACTS=true
+
+# Etherscan API key for contract verification (required if VERIFY_CONTRACTS=true)
+ETHERSCAN_API_KEY=your_etherscan_api_key_here
+
+# ===========================================
+# ROLLUPBRIDGE V2 FEATURES
+# ===========================================
+#
+# RollupBridgeV2 includes the following optimizations:
+# - Embedded Merkle tree operations (no external MerkleTreeManager needed)
+# - 39-55% gas reduction for initializeChannelState
+# - 19,915 bytes contract size (optimized)
+# - 100% functional equivalence with V1
+# - Fixed quaternary Merkle tree depth (no configuration needed)
+#
+# ===========================================
+# NETWORK-SPECIFIC EXAMPLES
+# ===========================================
+
+# Ethereum Sepolia Testnet
+# CHAIN_ID=11155111
+# RPC_URL=https://sepolia.infura.io/v3/YOUR_PROJECT_ID
+
+# Ethereum Mainnet
+# CHAIN_ID=1
+# RPC_URL=https://mainnet.infura.io/v3/YOUR_PROJECT_ID
+
+# Arbitrum One
+# CHAIN_ID=42161
+# RPC_URL=https://arb1.arbitrum.io/rpc
+
+# Arbitrum Sepolia
+# CHAIN_ID=421614
+# RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
+
+# Optimism
+# CHAIN_ID=10
+# RPC_URL=https://mainnet.optimism.io
+
+# Polygon
+# CHAIN_ID=137
+# RPC_URL=https://polygon-rpc.com
+
+# ===========================================
+# SECURITY NOTES
+# ===========================================
+# 
+# 1. NEVER commit your .env file to version control
+# 2. Use a dedicated deployer account with minimal funds
+# 3. Consider using a hardware wallet for mainnet deployments
+# 4. The DEPLOYER_ADDRESS will be the initial owner of the contract
+# 5. Owners can upgrade contracts - consider transferring to a multisig
+# 6. Store your deployment addresses safely after deployment
+# 7. RollupBridgeV2 is gas-optimized with embedded Merkle operations
+#
+# ===========================================

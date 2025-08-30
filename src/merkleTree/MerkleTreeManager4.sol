@@ -178,14 +178,13 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     // ============ Getter Functions for Storage ============
 
     // ============ Public Test Functions ============
-    
+
     /**
      * @dev Public wrapper for testing the 4-input hash function
      */
     function hashFour(bytes32 a, bytes32 b, bytes32 c, bytes32 d) public pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, b, c, d));
     }
-    
 
     function bridge() public view returns (address) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();

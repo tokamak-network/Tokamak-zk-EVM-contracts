@@ -177,16 +177,13 @@ contract BasicUpgradeableTest is Test {
 
         // Deploy proxies
         merkleTreeManagerProxy = new ERC1967Proxy(
-            address(merkleTreeManagerImpl),
-            abi.encodeCall(MerkleTreeManagerV1.initialize, (TREE_DEPTH, owner))
+            address(merkleTreeManagerImpl), abi.encodeCall(MerkleTreeManagerV1.initialize, (TREE_DEPTH, owner))
         );
         merkleTreeManager = MerkleTreeManagerV1(address(merkleTreeManagerProxy));
 
         rollupBridgeProxy = new ERC1967Proxy(
             address(rollupBridgeImpl),
-            abi.encodeCall(
-                RollupBridgeV1.initialize, (address(verifier), address(merkleTreeManagerProxy), owner)
-            )
+            abi.encodeCall(RollupBridgeV1.initialize, (address(verifier), address(merkleTreeManagerProxy), owner))
         );
         rollupBridge = RollupBridgeV1(payable(address(rollupBridgeProxy)));
 
@@ -339,8 +336,7 @@ contract BasicUpgradeableTest is Test {
         // Upgrade to V2 using upgradeTo (without calling)
         merkleTreeManager.upgradeTo(address(merkleTreeManagerV2Impl));
 
-        MerkleTreeManagerV1V2 merkleTreeManagerV2 =
-            MerkleTreeManagerV1V2(address(merkleTreeManagerProxy));
+        MerkleTreeManagerV1V2 merkleTreeManagerV2 = MerkleTreeManagerV1V2(address(merkleTreeManagerProxy));
 
         // Check state preservation
         assertEq(merkleTreeManagerV2.owner(), owner);
@@ -488,8 +484,7 @@ contract BasicUpgradeableTest is Test {
         merkleTreeManager.upgradeTo(address(merkleTreeManagerV2Impl));
 
         RollupBridgeV1V2 rollupBridgeV2 = RollupBridgeV1V2(payable(address(rollupBridgeProxy)));
-        MerkleTreeManagerV1V2 merkleTreeManagerV2 =
-            MerkleTreeManagerV1V2(address(merkleTreeManagerProxy));
+        MerkleTreeManagerV1V2 merkleTreeManagerV2 = MerkleTreeManagerV1V2(address(merkleTreeManagerProxy));
 
         // Authorize user1 as creator
         rollupBridgeV2.authorizeCreator(user1);

@@ -4,8 +4,7 @@ pragma solidity 0.8.23;
 import {Test, console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import "../src/RollupBridgeV1.sol";
-import "../src/merkleTree/MerkleTreeManagerV1.sol";
+import "../src/RollupBridge.sol";
 import "../src/verifier/Verifier.sol";
 
 import {IERC20Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
@@ -47,10 +46,10 @@ contract MockVerifier is IVerifier {
 }
 
 /**
- * @title RollupBridgeV1V2
+ * @title RollupBridgeV2
  * @dev V2 implementation for upgrade testing - adds new functionality
  */
-contract RollupBridgeV1V2 is RollupBridgeV1 {
+contract RollupBridgeV2 is RollupBridge {
     // Additional events for V2
     event EmergencyPauseActivated();
     event BatchVerifierUpdate(address[] oldVerifiers, address[] newVerifiers);
@@ -109,31 +108,6 @@ contract RollupBridgeV1V2 is RollupBridgeV1 {
     }
 }
 
-/**
- * @title MerkleTreeManagerV1V2
- * @dev V2 implementation for upgrade testing - adds new functionality
- */
-contract MerkleTreeManagerV1V2 is MerkleTreeManagerV1 {
-    /**
-     * @notice New function added in V2
-     * @return version The contract version
-     */
-    function version() external pure returns (string memory) {
-        return "2.0.0";
-    }
-
-    /**
-     * @notice New batch operation functionality
-     * @param channelId ID of the channel
-     * @param operations Array of operation types
-     */
-    function batchOperations(uint256 channelId, uint8[] calldata operations) external onlyOwner {
-        // Batch operations logic would go here
-        emit BatchOperationsExecuted(channelId, operations.length);
-    }
-
-    event BatchOperationsExecuted(uint256 indexed channelId, uint256 operationCount);
-}
 
 /**
  * @title BasicUpgradeableTest
@@ -149,15 +123,12 @@ contract BasicUpgradeableTest is Test {
 
     // Contract instances
     ERC1967Proxy public rollupBridgeProxy;
-    ERC1967Proxy public merkleTreeManagerProxy;
     MockERC20Upgradeable public token;
     MockVerifier public verifier;
 
-    RollupBridgeV1 public rollupBridge;
-    MerkleTreeManagerV1 public merkleTreeManager;
+    RollupBridge public rollupBridge;
 
     // Test data
-    uint32 public constant TREE_DEPTH = 4;
     address public constant ETH_TOKEN_ADDRESS = address(1);
 
     event ChannelOpened(uint256 indexed channelId, address indexed targetContract);
@@ -171,24 +142,15 @@ contract BasicUpgradeableTest is Test {
         // Deploy mock contracts
         verifier = new MockVerifier();
 
-        // Deploy implementation contracts
-        RollupBridgeV1 rollupBridgeImpl = new RollupBridgeV1();
-        MerkleTreeManagerV1 merkleTreeManagerImpl = new MerkleTreeManagerV1();
+        // Deploy implementation contract
+        RollupBridge rollupBridgeImpl = new RollupBridge();
 
-        // Deploy proxies
-        merkleTreeManagerProxy = new ERC1967Proxy(
-            address(merkleTreeManagerImpl), abi.encodeCall(MerkleTreeManagerV1.initialize, (TREE_DEPTH, owner))
-        );
-        merkleTreeManager = MerkleTreeManagerV1(address(merkleTreeManagerProxy));
-
+        // Deploy proxy
         rollupBridgeProxy = new ERC1967Proxy(
             address(rollupBridgeImpl),
-            abi.encodeCall(RollupBridgeV1.initialize, (address(verifier), address(merkleTreeManagerProxy), owner))
+            abi.encodeCall(RollupBridge.initialize, (address(verifier), address(0), owner))
         );
-        rollupBridge = RollupBridgeV1(payable(address(rollupBridgeProxy)));
-
-        // Set bridge in merkle tree manager
-        merkleTreeManager.setBridge(address(rollupBridgeProxy));
+        rollupBridge = RollupBridge(payable(address(rollupBridgeProxy)));
 
         // Deploy and setup mock ERC20
         MockERC20Upgradeable tokenImpl = new MockERC20Upgradeable();
@@ -216,22 +178,12 @@ contract BasicUpgradeableTest is Test {
         // Check RollupBridge initialization
         assertEq(rollupBridge.owner(), owner);
         assertEq(address(rollupBridge.zkVerifier()), address(verifier));
-        assertEq(address(rollupBridge.mtmanager()), address(merkleTreeManagerProxy));
         assertEq(rollupBridge.nextChannelId(), 0);
-
-        // Check MerkleTreeManager initialization
-        assertEq(merkleTreeManager.owner(), owner);
-        assertEq(merkleTreeManager.depth(), TREE_DEPTH);
-        assertEq(merkleTreeManager.bridge(), address(rollupBridgeProxy));
-        assertTrue(merkleTreeManager.bridgeSet());
     }
 
     function test_CannotInitializeTwice() public {
         vm.expectRevert();
-        rollupBridge.initialize(address(verifier), address(merkleTreeManagerProxy), owner);
-
-        vm.expectRevert();
-        merkleTreeManager.initialize(TREE_DEPTH, owner);
+        rollupBridge.initialize(address(verifier), address(0), owner);
     }
 
     // ============ Basic Functionality Tests ============
@@ -299,18 +251,17 @@ contract BasicUpgradeableTest is Test {
         uint256 initialChannelId = rollupBridge.nextChannelId();
 
         // Deploy new implementation
-        RollupBridgeV1V2 rollupBridgeV2Impl = new RollupBridgeV1V2();
+        RollupBridgeV2 rollupBridgeV2Impl = new RollupBridgeV2();
 
         vm.prank(owner);
         // Upgrade to V2 using upgradeTo (without calling)
         rollupBridge.upgradeTo(address(rollupBridgeV2Impl));
 
-        RollupBridgeV1V2 rollupBridgeV2 = RollupBridgeV1V2(payable(address(rollupBridgeProxy)));
+        RollupBridgeV2 rollupBridgeV2 = RollupBridgeV2(payable(address(rollupBridgeProxy)));
 
         // Check state preservation
         assertEq(rollupBridgeV2.owner(), owner);
         assertEq(address(rollupBridgeV2.zkVerifier()), address(verifier));
-        assertEq(address(rollupBridgeV2.mtmanager()), address(merkleTreeManagerProxy));
         assertTrue(rollupBridgeV2.isAuthorizedCreator(user1));
         assertEq(rollupBridgeV2.nextChannelId(), initialChannelId);
 
@@ -319,59 +270,20 @@ contract BasicUpgradeableTest is Test {
 
         vm.prank(owner);
         vm.expectEmit(false, false, false, true);
-        emit RollupBridgeV1V2.EmergencyPauseActivated();
+        emit RollupBridgeV2.EmergencyPauseActivated();
         rollupBridgeV2.emergencyPause();
     }
 
-    function test_UpgradeMerkleTreeManager() public {
-        // Store initial state
-        uint32 initialDepth = merkleTreeManager.depth();
-        address initialBridge = merkleTreeManager.bridge();
-        bool initialBridgeSet = merkleTreeManager.bridgeSet();
-
-        // Deploy new implementation
-        MerkleTreeManagerV1V2 merkleTreeManagerV2Impl = new MerkleTreeManagerV1V2();
-
-        vm.prank(owner);
-        // Upgrade to V2 using upgradeTo (without calling)
-        merkleTreeManager.upgradeTo(address(merkleTreeManagerV2Impl));
-
-        MerkleTreeManagerV1V2 merkleTreeManagerV2 = MerkleTreeManagerV1V2(address(merkleTreeManagerProxy));
-
-        // Check state preservation
-        assertEq(merkleTreeManagerV2.owner(), owner);
-        assertEq(merkleTreeManagerV2.depth(), initialDepth);
-        assertEq(merkleTreeManagerV2.bridge(), initialBridge);
-        assertEq(merkleTreeManagerV2.bridgeSet(), initialBridgeSet);
-
-        // Test new functionality
-        assertEq(merkleTreeManagerV2.version(), "2.0.0");
-
-        uint8[] memory operations = new uint8[](3);
-        operations[0] = 1;
-        operations[1] = 2;
-        operations[2] = 3;
-
-        vm.prank(owner);
-        vm.expectEmit(true, false, false, true);
-        emit MerkleTreeManagerV1V2.BatchOperationsExecuted(0, 3);
-        merkleTreeManagerV2.batchOperations(0, operations);
-    }
 
     // ============ Access Control Tests ============
 
     function test_OnlyOwnerCanUpgrade() public {
-        RollupBridgeV1V2 rollupBridgeV2Impl = new RollupBridgeV1V2();
+        RollupBridgeV2 rollupBridgeV2Impl = new RollupBridgeV2();
 
         vm.prank(attacker);
         vm.expectRevert();
         rollupBridge.upgradeTo(address(rollupBridgeV2Impl));
 
-        MerkleTreeManagerV1V2 merkleTreeManagerV2Impl = new MerkleTreeManagerV1V2();
-
-        vm.prank(attacker);
-        vm.expectRevert();
-        merkleTreeManager.upgradeTo(address(merkleTreeManagerV2Impl));
     }
 
     // ============ Storage Layout Tests ============
@@ -436,12 +348,12 @@ contract BasicUpgradeableTest is Test {
         bool isLeader = rollupBridge.isChannelLeader(user1);
 
         // Upgrade contract
-        RollupBridgeV1V2 rollupBridgeV2Impl = new RollupBridgeV1V2();
+        RollupBridgeV2 rollupBridgeV2Impl = new RollupBridgeV2();
 
         vm.prank(owner);
         rollupBridge.upgradeTo(address(rollupBridgeV2Impl));
 
-        RollupBridgeV1V2 rollupBridgeV2 = RollupBridgeV1V2(payable(address(rollupBridgeProxy)));
+        RollupBridgeV2 rollupBridgeV2 = RollupBridgeV2(payable(address(rollupBridgeProxy)));
 
         // Verify all state preserved after upgrade
         (
@@ -475,16 +387,13 @@ contract BasicUpgradeableTest is Test {
     // ============ Integration Tests ============
 
     function test_FullChannelLifecycleAfterUpgrade() public {
-        // Upgrade both contracts first
-        RollupBridgeV1V2 rollupBridgeV2Impl = new RollupBridgeV1V2();
-        MerkleTreeManagerV1V2 merkleTreeManagerV2Impl = new MerkleTreeManagerV1V2();
+        // Upgrade contract first
+        RollupBridgeV2 rollupBridgeV2Impl = new RollupBridgeV2();
 
         vm.startPrank(owner);
         rollupBridge.upgradeTo(address(rollupBridgeV2Impl));
-        merkleTreeManager.upgradeTo(address(merkleTreeManagerV2Impl));
 
-        RollupBridgeV1V2 rollupBridgeV2 = RollupBridgeV1V2(payable(address(rollupBridgeProxy)));
-        MerkleTreeManagerV1V2 merkleTreeManagerV2 = MerkleTreeManagerV1V2(address(merkleTreeManagerProxy));
+        RollupBridgeV2 rollupBridgeV2 = RollupBridgeV2(payable(address(rollupBridgeProxy)));
 
         // Authorize user1 as creator
         rollupBridgeV2.authorizeCreator(user1);
@@ -540,13 +449,8 @@ contract BasicUpgradeableTest is Test {
         (, IRollupBridge.ChannelState state,,,) = rollupBridgeV2.getChannelInfo(channelId);
         assertEq(uint256(state), uint256(IRollupBridge.ChannelState.Open));
 
-        // Verify Merkle tree manager has users
-        assertEq(merkleTreeManagerV2.getUserCount(channelId), 3);
-        assertTrue(merkleTreeManagerV2.channelInitialized(channelId));
-
         // Test new V2 functionality
         assertEq(rollupBridgeV2.version(), "2.0.0");
-        assertEq(merkleTreeManagerV2.version(), "2.0.0");
     }
 
     // ============ Verifier Update Tests ============
@@ -617,12 +521,12 @@ contract BasicUpgradeableTest is Test {
 
     function test_VerifierUpdateAfterUpgrade() public {
         // First upgrade the contract
-        RollupBridgeV1V2 rollupBridgeV2Impl = new RollupBridgeV1V2();
+        RollupBridgeV2 rollupBridgeV2Impl = new RollupBridgeV2();
 
         vm.prank(owner);
         rollupBridge.upgradeTo(address(rollupBridgeV2Impl));
 
-        RollupBridgeV1V2 rollupBridgeV2 = RollupBridgeV1V2(payable(address(rollupBridgeProxy)));
+        RollupBridgeV2 rollupBridgeV2 = RollupBridgeV2(payable(address(rollupBridgeProxy)));
 
         // Then update verifier on upgraded contract
         MockVerifier newVerifier = new MockVerifier();
@@ -642,12 +546,12 @@ contract BasicUpgradeableTest is Test {
 
     function test_V2VerifierEnhancements() public {
         // Upgrade to V2 first
-        RollupBridgeV1V2 rollupBridgeV2Impl = new RollupBridgeV1V2();
+        RollupBridgeV2 rollupBridgeV2Impl = new RollupBridgeV2();
 
         vm.prank(owner);
         rollupBridge.upgradeTo(address(rollupBridgeV2Impl));
 
-        RollupBridgeV1V2 rollupBridgeV2 = RollupBridgeV1V2(payable(address(rollupBridgeProxy)));
+        RollupBridgeV2 rollupBridgeV2 = RollupBridgeV2(payable(address(rollupBridgeProxy)));
 
         // Test V2 verifier info function
         (address currentVerifier, bool isValid) = rollupBridgeV2.getVerifierInfo();
@@ -674,7 +578,7 @@ contract BasicUpgradeableTest is Test {
     // ============ Gas Usage Tests ============
 
     function test_UpgradeGasCost() public {
-        RollupBridgeV1V2 rollupBridgeV2Impl = new RollupBridgeV1V2();
+        RollupBridgeV2 rollupBridgeV2Impl = new RollupBridgeV2();
 
         uint256 gasBefore = gasleft();
 

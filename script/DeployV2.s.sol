@@ -3,15 +3,15 @@ pragma solidity ^0.8.23;
 
 import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../src/RollupBridgeV2.sol";
+import "../src/RollupBridge.sol";
 import "../src/verifier/Verifier.sol";
 
 contract DeployV2Script is Script {
     // Implementation addresses
-    address public rollupBridgeV2Impl;
+    address public rollupBridgeImpl;
 
     // Proxy addresses (main contracts)
-    address public rollupBridgeV2;
+    address public rollupBridge;
 
     // Environment variables
     address public zkVerifier;
@@ -55,25 +55,25 @@ contract DeployV2Script is Script {
             console.log("Using existing Verifier at:", zkVerifier);
         }
 
-        // Deploy RollupBridgeV2 implementation
-        console.log("Deploying RollupBridgeV2 implementation...");
-        RollupBridgeV2 rollupBridgeV2Implementation = new RollupBridgeV2();
-        rollupBridgeV2Impl = address(rollupBridgeV2Implementation);
-        console.log("RollupBridgeV2 implementation deployed at:", rollupBridgeV2Impl);
+        // Deploy RollupBridge implementation
+        console.log("Deploying RollupBridge implementation...");
+        RollupBridge rollupBridgeImplementation = new RollupBridge();
+        rollupBridgeImpl = address(rollupBridgeImplementation);
+        console.log("RollupBridge implementation deployed at:", rollupBridgeImpl);
 
-        // Deploy RollupBridgeV2 proxy
-        console.log("Deploying RollupBridgeV2 proxy...");
+        // Deploy RollupBridge proxy
+        console.log("Deploying RollupBridge proxy...");
         bytes memory rollupBridgeInitData = abi.encodeCall(
-            RollupBridgeV2.initialize,
+            RollupBridge.initialize,
             (zkVerifier, address(0), deployer) // No external MerkleTreeManager needed
         );
 
-        ERC1967Proxy rollupBridgeV2Proxy = new ERC1967Proxy(rollupBridgeV2Impl, rollupBridgeInitData);
-        rollupBridgeV2 = address(rollupBridgeV2Proxy);
-        console.log("RollupBridgeV2 proxy deployed at:", rollupBridgeV2);
+        ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
+        rollupBridge = address(rollupBridgeProxy);
+        console.log("RollupBridge proxy deployed at:", rollupBridge);
 
         // Authorize the deployer as a channel creator
-        RollupBridgeV2(rollupBridgeV2).authorizeCreator(deployer);
+        RollupBridge(rollupBridge).authorizeCreator(deployer);
         console.log("Authorized deployer as channel creator");
 
         vm.stopBroadcast();
@@ -81,8 +81,8 @@ contract DeployV2Script is Script {
         // Log final addresses
         console.log("\n=== DEPLOYMENT SUMMARY ===");
         console.log("ZK Verifier:", zkVerifier);
-        console.log("RollupBridgeV2 Implementation:", rollupBridgeV2Impl);
-        console.log("RollupBridgeV2 Proxy:", rollupBridgeV2);
+        console.log("RollupBridge Implementation:", rollupBridgeImpl);
+        console.log("RollupBridge Proxy:", rollupBridge);
         console.log("Deployer (Owner):", deployer);
 
         // Verify contracts if requested
@@ -109,13 +109,13 @@ contract DeployV2Script is Script {
             vm.ffi(verifierCmd);
         }
 
-        // Verify RollupBridgeV2 Implementation
-        console.log("Verifying RollupBridgeV2 Implementation...");
+        // Verify RollupBridge Implementation
+        console.log("Verifying RollupBridge Implementation...");
         string[] memory rollupCmd = new string[](6);
         rollupCmd[0] = "forge";
         rollupCmd[1] = "verify-contract";
-        rollupCmd[2] = vm.toString(rollupBridgeV2Impl);
-        rollupCmd[3] = "src/RollupBridgeV2.sol:RollupBridgeV2";
+        rollupCmd[2] = vm.toString(rollupBridgeImpl);
+        rollupCmd[3] = "src/RollupBridge.sol:RollupBridge";
         rollupCmd[4] = "--etherscan-api-key";
         rollupCmd[5] = etherscanApiKey;
         vm.ffi(rollupCmd);

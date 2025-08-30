@@ -74,7 +74,6 @@ contract RollupBridgeV2 is
         mapping(address => bool) isChannelLeader;
         uint256 nextChannelId;
         IVerifier zkVerifier;
-        
         // ========== EMBEDDED MERKLE STORAGE ==========
         mapping(uint256 => mapping(uint256 => bytes32)) cachedSubtrees;
         mapping(uint256 => mapping(uint256 => bytes32)) roots;
@@ -120,7 +119,6 @@ contract RollupBridgeV2 is
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.zkVerifier;
     }
-
 
     function nextChannelId() public view returns (uint256) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
@@ -217,8 +215,10 @@ contract RollupBridgeV2 is
             channel.participants.push(User({l1Address: participant, l2PublicKey: l2PublicKeys[i]}));
             channel.isParticipant[participant] = true;
             channel.l2PublicKeys[participant] = l2PublicKeys[i];
-            
-            unchecked { ++i; }
+
+            unchecked {
+                ++i;
+            }
         }
 
         channel.requiredSignatures = (participantsLength * SIGNATURE_THRESHOLD_PERCENT) / 100;
@@ -289,22 +289,22 @@ contract RollupBridgeV2 is
 
         // Step 1: Initialize empty tree (matching MerkleTreeManager4.initializeChannel)
         $.channelInitialized[channelId] = true;
-        
+
         // Pre-compute zero subtrees for efficient tree initialization
         bytes32 zero = bytes32(0);
         bytes32[] memory zeroSubtrees = new bytes32[](TREE_DEPTH + 1);
         zeroSubtrees[0] = zero;
-        
+
         for (uint256 level = 1; level <= TREE_DEPTH; level++) {
             bytes32 prevZero = zeroSubtrees[level - 1];
             zeroSubtrees[level] = keccak256(abi.encodePacked(prevZero, prevZero, prevZero, prevZero));
         }
-        
+
         // Cache the zero subtrees for this channel
         for (uint256 level = 0; level <= TREE_DEPTH; level++) {
             $.cachedSubtrees[channelId][level] = zeroSubtrees[level];
         }
-        
+
         // Set initial root
         bytes32 initialRoot = zeroSubtrees[TREE_DEPTH];
         $.roots[channelId][0] = initialRoot;
@@ -319,9 +319,11 @@ contract RollupBridgeV2 is
             // Set address pair (embedded - no external call)
             $.l1ToL2[channelId][l1Address] = l2Address;
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
-        
+
         // Step 3: Insert leaves using the same logic as MerkleTreeManager4._insertLeaf
         for (uint256 i = 0; i < participantsLength;) {
             User storage participant = channel.participants[i];
@@ -333,7 +335,9 @@ contract RollupBridgeV2 is
             bytes32 leaf = _computeLeaf($, uint256(uint160(l2Address)), balance);
             _insertLeaf($, channelId, leaf);
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         // Store final result - get current root after all insertions
@@ -347,7 +351,11 @@ contract RollupBridgeV2 is
 
     // ========== EMBEDDED MERKLE OPERATIONS ==========
 
-    function _computeLeaf(RollupBridgeStorage storage $, uint256 l2Addr, uint256 balance) internal view returns (bytes32) {
+    function _computeLeaf(RollupBridgeStorage storage $, uint256 l2Addr, uint256 balance)
+        internal
+        view
+        returns (bytes32)
+    {
         // RLC computation matching MerkleTreeManager4: balance + (nonce * l2Address)
         // Use global nonce from channel 0 like MerkleTreeManager4
         uint256 nonceValue = $.nonce[0] % FIELD_SIZE;
@@ -435,8 +443,10 @@ contract RollupBridgeV2 is
 
             uint256 finalBalance = RLP.extractBalanceFromMPTLeaf(proofData.finalMPTLeaves[i]);
             finalBalanceSum += finalBalance;
-            
-            unchecked { ++i; }
+
+            unchecked {
+                ++i;
+            }
         }
 
         require(initialBalanceSum == channel.tokenTotalDeposits, "Initial balance mismatch");
@@ -531,7 +541,10 @@ contract RollupBridgeV2 is
         bytes32 prevRoot = rootSequence[rootSequence.length - 1];
         bytes32 leafValue = _computeLeafPure(prevRoot, uint256(uint160(l2Address)), claimedBalance);
 
-        require(_verifyProof($, channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot), "Invalid merkle proof");
+        require(
+            _verifyProof($, channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot),
+            "Invalid merkle proof"
+        );
 
         channel.hasWithdrawn[msg.sender] = true;
 
@@ -568,28 +581,32 @@ contract RollupBridgeV2 is
 
             if (childIndex == 0) {
                 if (proofIndex < proof.length) {
-                    computedHash = _hashFour(computedHash, proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2]);
+                    computedHash =
+                        _hashFour(computedHash, proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2]);
                     proofIndex += 3;
                 } else {
                     computedHash = _hashFour(computedHash, _zeros(level), _zeros(level), _zeros(level));
                 }
             } else if (childIndex == 1) {
                 if (proofIndex < proof.length) {
-                    computedHash = _hashFour(proof[proofIndex], computedHash, proof[proofIndex + 1], proof[proofIndex + 2]);
+                    computedHash =
+                        _hashFour(proof[proofIndex], computedHash, proof[proofIndex + 1], proof[proofIndex + 2]);
                     proofIndex += 3;
                 } else {
                     computedHash = _hashFour(_zeros(level), computedHash, _zeros(level), _zeros(level));
                 }
             } else if (childIndex == 2) {
                 if (proofIndex < proof.length) {
-                    computedHash = _hashFour(proof[proofIndex], proof[proofIndex + 1], computedHash, proof[proofIndex + 2]);
+                    computedHash =
+                        _hashFour(proof[proofIndex], proof[proofIndex + 1], computedHash, proof[proofIndex + 2]);
                     proofIndex += 3;
                 } else {
                     computedHash = _hashFour(_zeros(level), _zeros(level), computedHash, _zeros(level));
                 }
             } else {
                 if (proofIndex < proof.length) {
-                    computedHash = _hashFour(proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2], computedHash);
+                    computedHash =
+                        _hashFour(proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2], computedHash);
                     proofIndex += 3;
                 } else {
                     computedHash = _hashFour(_zeros(level), _zeros(level), _zeros(level), computedHash);
@@ -756,7 +773,9 @@ contract RollupBridgeV2 is
 
         for (uint256 i = 0; i < participantCount;) {
             participants[i] = channel.participants[i].l1Address;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return participants;
     }

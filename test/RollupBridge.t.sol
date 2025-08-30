@@ -78,7 +78,7 @@ contract RollupBridgeTest is Test {
 
         verifier = new MockVerifier();
         token = new MockERC20();
-        
+
         // Deploy RollupBridgeV2 with proxy
         RollupBridgeV2 implementation = new RollupBridgeV2();
         bytes memory initData = abi.encodeCall(
@@ -475,13 +475,11 @@ contract RollupBridgeTest is Test {
         // Deploy real verifier instead of mock
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
-        
+
         // Deploy RollupBridgeV2 with real verifier
         RollupBridgeV2 realImplementation = new RollupBridgeV2();
-        bytes memory realInitData = abi.encodeCall(
-            RollupBridgeV2.initialize,
-            (address(realVerifier), address(0), owner)
-        );
+        bytes memory realInitData =
+            abi.encodeCall(RollupBridgeV2.initialize, (address(realVerifier), address(0), owner));
         ERC1967Proxy realProxy = new ERC1967Proxy(address(realImplementation), realInitData);
         RollupBridgeV2 realBridge = RollupBridgeV2(address(realProxy));
 

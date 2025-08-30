@@ -243,11 +243,7 @@ contract UpgradeContractsScript is Script {
                 );
             }
             if (upgradeRollupBridge) {
-                console.log(
-                    "  forge verify-contract",
-                    newRollupBridgeImpl,
-                    "src/RollupBridgeV1.sol:RollupBridgeV1"
-                );
+                console.log("  forge verify-contract", newRollupBridgeImpl, "src/RollupBridgeV1.sol:RollupBridgeV1");
             }
         }
     }

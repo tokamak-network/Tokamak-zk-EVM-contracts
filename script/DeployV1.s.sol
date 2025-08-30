@@ -64,8 +64,7 @@ contract DeployUpgradeableScript is Script {
 
         // Step 2: Deploy MerkleTreeManager4 proxy with immediate initialization (atomic)
         console.log("\n[STEP2] Deploying MerkleTreeManager4 proxy with atomic initialization...");
-        bytes memory merkleTreeInitData =
-            abi.encodeCall(MerkleTreeManagerV1.initialize, (uint32(treeDepth), deployer));
+        bytes memory merkleTreeInitData = abi.encodeCall(MerkleTreeManagerV1.initialize, (uint32(treeDepth), deployer));
         ERC1967Proxy merkleTreeProxy = new ERC1967Proxy(merkleTreeManagerImpl, merkleTreeInitData);
         merkleTreeManager = address(merkleTreeProxy);
         console.log("[SUCCESS] MerkleTreeManager4 proxy deployed and initialized at:", merkleTreeManager);
@@ -200,9 +199,7 @@ contract DeployUpgradeableScript is Script {
                 merkleTreeManagerImpl,
                 "src/merkleTree/MerkleTreeManagerV1.sol:MerkleTreeManagerV1"
             );
-            console.log(
-                "  forge verify-contract", rollupBridgeImpl, "src/RollupBridgeV1.sol:RollupBridgeV1"
-            );
+            console.log("  forge verify-contract", rollupBridgeImpl, "src/RollupBridgeV1.sol:RollupBridgeV1");
             console.log(
                 "  forge verify-contract",
                 merkleTreeManager,

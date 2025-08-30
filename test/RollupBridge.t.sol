@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
-import "../src/RollupBridgeV2.sol";
+import "../src/RollupBridge.sol";
 import "../src/interface/IRollupBridge.sol";
 import "../src/interface/IVerifier.sol";
 import {Verifier} from "../src/verifier/Verifier.sol";
@@ -43,12 +43,13 @@ contract MockERC20 is ERC20 {
 contract RollupBridgeTest is Test {
     using RLP for bytes;
 
-    RollupBridgeV2 public bridge;
+    RollupBridge public bridge;
     MockVerifier public verifier;
     MockERC20 public token;
 
     address public owner = address(1);
     address public leader = address(2);
+    address public leader2 = address(22);
     address public user1 = address(3);
     address public user2 = address(4);
     address public user3 = address(5);
@@ -59,6 +60,7 @@ contract RollupBridgeTest is Test {
     address public l2User3 = address(15);
 
     uint256 public constant INITIAL_BALANCE = 1000 ether;
+    uint256 public constant INITIAL_TOKEN_BALANCE = 1000 * 10 ** 18;
 
     event ChannelOpened(uint256 indexed channelId, address indexed targetContract);
     event ProofAggregated(uint256 indexed channelId, bytes32 proofHash);
@@ -79,27 +81,31 @@ contract RollupBridgeTest is Test {
         verifier = new MockVerifier();
         token = new MockERC20();
 
-        // Deploy RollupBridgeV2 with proxy
-        RollupBridgeV2 implementation = new RollupBridgeV2();
+        // Deploy RollupBridge with proxy
+        RollupBridge implementation = new RollupBridge();
         bytes memory initData = abi.encodeCall(
-            RollupBridgeV2.initialize,
+            RollupBridge.initialize,
             (address(verifier), address(0), owner) // No MerkleTreeManager needed
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
-        bridge = RollupBridgeV2(address(proxy));
+        bridge = RollupBridge(address(proxy));
 
         // Setup initial state
         bridge.authorizeCreator(leader);
+        bridge.authorizeCreator(leader2);
 
         // Fund test accounts
         vm.deal(leader, INITIAL_BALANCE);
+        vm.deal(leader2, INITIAL_BALANCE);
         vm.deal(user1, INITIAL_BALANCE);
         vm.deal(user2, INITIAL_BALANCE);
         vm.deal(user3, INITIAL_BALANCE);
 
-        token.mint(user1, INITIAL_BALANCE);
-        token.mint(user2, INITIAL_BALANCE);
-        token.mint(user3, INITIAL_BALANCE);
+        token.mint(leader, INITIAL_TOKEN_BALANCE);
+        token.mint(leader2, INITIAL_TOKEN_BALANCE);
+        token.mint(user1, INITIAL_TOKEN_BALANCE);
+        token.mint(user2, INITIAL_TOKEN_BALANCE);
+        token.mint(user3, INITIAL_TOKEN_BALANCE);
 
         vm.stopPrank();
     }
@@ -269,6 +275,94 @@ contract RollupBridgeTest is Test {
 
         assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Open));
         assertTrue(initialRoot != bytes32(0));
+    }
+
+    /**
+     * @notice Tests that initializeChannelState produces different root hashes for channels
+     *         with the same participants but different deposit amounts
+     * @dev This test verifies the fix for the bug where different deposits produced identical hashes
+     */
+    function testInitializeChannelStateDifferentDeposits() public {
+        // Verify leader is authorized
+        assertTrue(bridge.isAuthorizedCreator(leader), "Leader should be authorized from setup");
+        assertTrue(bridge.isAuthorizedCreator(leader2), "Leader2 should be authorized from setup");
+
+        // Simple approach: Create two channels with the same leader but different deposits
+        address[] memory participants = new address[](3);
+        participants[0] = leader;
+        participants[1] = user1;
+        participants[2] = user2;
+
+        address[] memory l2PublicKeys = new address[](3);
+        l2PublicKeys[0] = leader;
+        l2PublicKeys[1] = user1;
+        l2PublicKeys[2] = user2;
+
+        // Create Channel 1
+        vm.prank(leader);
+        uint256 channelId1 = bridge.openChannel(
+            address(token), participants, l2PublicKeys, new uint128[](1), new uint256[](1), 1 days, bytes32(0)
+        );
+
+        // Create Channel 2
+        vm.prank(leader2);
+        uint256 channelId2 = bridge.openChannel(
+            address(token), participants, l2PublicKeys, new uint128[](1), new uint256[](1), 1 days, bytes32(0)
+        );
+
+        // Make DIFFERENT deposits in each channel
+        // Channel 1
+        vm.startPrank(leader);
+        token.approve(address(bridge), 10 * 10 ** 18);
+        bridge.depositToken(channelId1, address(token), 10 * 10 ** 18);
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        token.approve(address(bridge), 15 * 10 ** 18);
+        bridge.depositToken(channelId1, address(token), 15 * 10 ** 18);
+        vm.stopPrank();
+
+        // Channel 2
+        vm.startPrank(leader);
+        token.approve(address(bridge), 10 * 10 ** 18);
+        bridge.depositToken(channelId2, address(token), 10 * 10 ** 18);
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        token.approve(address(bridge), 10 * 10 ** 18);
+        bridge.depositToken(channelId2, address(token), 10 * 10 ** 18);
+        vm.stopPrank();
+
+        // Initialize both channels with their respective leaders
+        vm.prank(leader);
+        bridge.initializeChannelState(channelId1);
+
+        vm.prank(leader2);
+        bridge.initializeChannelState(channelId2);
+
+        // Get the initial root hashes
+        (,,, bytes32 rootHash1,) = bridge.getChannelInfo(channelId1);
+        (,,, bytes32 rootHash2,) = bridge.getChannelInfo(channelId2);
+
+        // Verify both roots are non-zero
+        assertTrue(rootHash1 != bytes32(0), "Channel 1 root should not be zero");
+        assertTrue(rootHash2 != bytes32(0), "Channel 2 root should not be zero");
+
+        // CRITICAL: The root hashes MUST be different despite same participants
+        assertTrue(rootHash1 != rootHash2, "Root hashes should be different for different deposit amounts");
+
+        console.log("Channel 1 deposits: [leader: 10 tokens, user1: 15 tokens]");
+        console.log("Channel 1 root hash:", vm.toString(rootHash1));
+        console.log("Channel 2 deposits: [leader: 10 tokens, user1: 10 tokens]");
+        console.log("Channel 2 root hash:", vm.toString(rootHash2));
+        console.log("Root hashes are different:", rootHash1 != rootHash2);
+
+        // Additional verification: Check individual deposit amounts
+        assertEq(bridge.getParticipantDeposit(channelId1, leader), 10 * 10 ** 18, "Channel 1 leader deposit");
+        assertEq(bridge.getParticipantDeposit(channelId1, user1), 15 * 10 ** 18, "Channel 1 user1 deposit");
+
+        assertEq(bridge.getParticipantDeposit(channelId2, leader), 10 * 10 ** 18, "Channel 2 leader deposit");
+        assertEq(bridge.getParticipantDeposit(channelId2, user1), 10 * 10 ** 18, "Channel 2 user1 deposit");
     }
 
     function testInitialize_ChannelStateNotLeader() public {
@@ -476,12 +570,11 @@ contract RollupBridgeTest is Test {
         vm.startPrank(owner);
         Verifier realVerifier = new Verifier();
 
-        // Deploy RollupBridgeV2 with real verifier
-        RollupBridgeV2 realImplementation = new RollupBridgeV2();
-        bytes memory realInitData =
-            abi.encodeCall(RollupBridgeV2.initialize, (address(realVerifier), address(0), owner));
+        // Deploy RollupBridge with real verifier
+        RollupBridge realImplementation = new RollupBridge();
+        bytes memory realInitData = abi.encodeCall(RollupBridge.initialize, (address(realVerifier), address(0), owner));
         ERC1967Proxy realProxy = new ERC1967Proxy(address(realImplementation), realInitData);
-        RollupBridgeV2 realBridge = RollupBridgeV2(address(realProxy));
+        RollupBridge realBridge = RollupBridge(address(realProxy));
 
         // Setup for real bridge
         realBridge.authorizeCreator(user1);

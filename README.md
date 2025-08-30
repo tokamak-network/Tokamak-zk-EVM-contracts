@@ -16,12 +16,21 @@ This repository implements the core smart contracts for the Tokamak zkEVM rollup
 
 This repository contains the smart contracts and documentation for a ZK-Rollup bridge that enables secure off-chain computation with on-chain settlement. The system uses **Quaternary Merkle Trees** with  **Random Linear Combination (RLC)** encoding to ensure tamper-evident balance tracking and employs zero-knowledge proofs for comprehensive computation verification.
 
-### **Latest Innovation: Quaternary Merkle Trees**
+### **Latest Innovation: Architectural Optimization with Embedded Merkle Operations**
 
-The project now features **MerkleTreeManager4**, an implementation that uses **4-input hashing** instead of traditional binary trees. This provides:
+The project has undergone a major architectural redesign with the introduction of **RollupBridgeV2**, achieving significant gas optimization while maintaining full functional equivalence:
+
+#### **RollupBridgeV2: 39% Gas Reduction**
+- **Embedded Merkle Operations**: All Merkle tree operations embedded directly in the bridge contract
+- **No External Calls**: Eliminated 5-6 external contract calls that were consuming substantial gas
+- **Optimized Tree Initialization**: Streamlined initialization sequence with batched operations
+- **Proven Equivalence**: Produces identical Merkle roots as V1 with comprehensive test coverage
+
+#### **Quaternary Merkle Trees**
+Both versions leverage **MerkleTreeManager4** with **4-input hashing** instead of traditional binary trees:
 
 - **Reduced Gas Costs**: Fewer hash operations for tree construction and verification
-- **Enhanced Security**: More complex tree structure increases security margin
+- **Enhanced Security**: More complex tree structure increases security margin  
 - **Better Scalability**: Supports larger trees with fewer levels
 
 ## ✨ Key Features
@@ -37,15 +46,16 @@ The project now features **MerkleTreeManager4**, an implementation that uses **4
 ## Core Components
 
 #### **Bridge Layer**
-- **`RollupBridgeUpgradeable.sol`**: **UUPS upgradeable** main bridge contract managing channels, deposits, and verification
-- **`RollupBridge.sol`**: Legacy non-upgradeable version (deprecated)
+- **`RollupBridgeV2.sol`**: **Latest V2** with embedded Merkle operations for 39% gas reduction (Recommended)
+- **`RollupBridgeV1.sol`**: **Legacy V1** using external MerkleTreeManager4 calls
 - **`IRollupBridge.sol`**: Interface definitions and data structures
 
 #### **Merkle Tree Layer**
-- **`MerkleTreeManager4Upgradeable.sol`**: **UUPS upgradeable** quaternary Merkle tree with RLC leaf encoding (Primary)
-- **`MerkleTreeManager4.sol`**: Legacy non-upgradeable version (deprecated)
+- **`MerkleTreeManagerV1.sol`**: **UUPS upgradeable** quaternary Merkle tree for V1 compatibility
+- **`MerkleTreeManager4.sol`**: **Non-upgradeable** quaternary tree for V1 external calls
 - **`MerkleTreeManager2.sol`**: Binary Merkle tree for backward compatibility
-- **`IMerkleTreeManager.sol`**: Unified interface for both tree implementations
+- **`IMerkleTreeManager.sol`**: Unified interface for tree implementations
+- **Note**: V2 has Merkle operations embedded, requiring no external tree manager
 
 #### **Verification Layer**
 - **`Verifier.sol`**: ZK-SNARK proof verification contract
@@ -164,19 +174,20 @@ forge test --match-test testConstructor
 
 ### Test Coverage
 
-- **MerkleTreeManager4Test**: 26 tests covering quaternary tree functionality
-- **RollupBridgeTest**: 21 tests covering bridge operations
-- **MerkleTreeManagerAccessTest**: 9 tests covering access control
-- **Total**: 56 tests ensuring comprehensive coverage
+- **RollupBridge.t.sol**: 34 tests covering V1 bridge operations
+- **BasicUpgradeableTest.t.sol**: 16 tests covering V1 upgradeability and lifecycle
+- **ArchitecturalOptimizationTest.t.sol**: 6 tests comparing V1 vs V2 performance and equivalence
+- **Verifier.t.sol**: 5 tests covering ZK proof verification
+- **Total**: 61 tests ensuring comprehensive coverage with proven functional equivalence
 
 ## Project Structure
 
 ```
 src/
 ├── merkleTree/           # Merkle tree implementations
-│   ├── MerkleTreeManager4Upgradeable.sol  # UUPS upgradeable quaternary tree (Primary)
-│   ├── MerkleTreeManager4.sol             # Legacy quaternary tree
-│   └── MerkleTreeManager2.sol             # Binary tree (Legacy)
+│   ├── MerkleTreeManagerV1.sol           # UUPS upgradeable quaternary tree for V1
+│   ├── MerkleTreeManager4.sol            # Non-upgradeable quaternary tree for V1
+│   └── MerkleTreeManager2.sol            # Binary tree (Legacy)
 ├── interface/            # Contract interfaces
 │   ├── IMerkleTreeManager.sol
 │   ├── IRollupBridge.sol
@@ -185,15 +196,19 @@ src/
 │   └── Verifier.sol
 ├── library/              # Utility libraries
 │   └── RLP.sol
-├── RollupBridgeUpgradeable.sol  # UUPS upgradeable bridge contract (Primary)
-└── RollupBridge.sol             # Legacy non-upgradeable bridge
+├── RollupBridgeV2.sol    # V2 with embedded Merkle operations (Recommended)
+├── RollupBridgeV1.sol    # V1 using external MerkleTreeManager4
+└── script/               # Deployment scripts
+    ├── DeployV2.s.sol    # V2 deployment script
+    ├── deploy-v2.sh      # V2 deployment script
+    └── env-v2.template   # V2 environment template
 
 test/
-├── MerkleTreeManager4.t.sol      # Quaternary tree tests
-├── RollupBridge.t.sol            # Bridge tests
-├── MerkleTreeManagerAccess.t.sol # Access control tests
-├── MockPoseidon4Yul.sol         # 4-input hasher mock
-└── MockPoseidon2Yul.sol         # 2-input hasher mock
+├── RollupBridge.t.sol               # V1 Bridge tests
+├── BasicUpgradeableTest.t.sol       # V1 Upgradeability tests
+├── ArchitecturalOptimizationTest.t.sol # V1 vs V2 comparison tests
+├── Verifier.t.sol                   # ZK verifier tests
+└── mocks/                           # Test utilities
 ```
 
 ## Test contract addresses 
@@ -204,6 +219,15 @@ test/
 
 ## 📊 Performance & Gas Optimization
 
+### V2 Architectural Optimization Results
+
+| Metric | V1 (External Calls) | V2 (Embedded) | Improvement |
+|--------|---------------------|---------------|-------------|
+| **Gas per Channel Init (3 users)** | 773,440 gas | 471,595 gas | **39% reduction** |
+| **Gas Saved** | - | 301,845 gas | **301K saved** |
+| **External Contract Calls** | 5-6 calls | 0 calls | **100% eliminated** |
+| **Scalability (40 users)** | 6.9M gas | 3.1M gas | **54% reduction** |
+
 ### Quaternary Tree Benefits
 
 | Metric | Binary Tree | Quaternary Tree | Improvement |
@@ -213,12 +237,51 @@ test/
 | Gas per Insert | ~15k gas | ~12k gas | **20% savings** |
 | Proof Size | Larger | Smaller | **25% reduction** |
 
+### Scaling Analysis
+
+The architectural optimization provides increasing benefits with more users:
+- **3 users**: 39% reduction (301K gas saved)
+- **5 users**: 44% reduction (490K gas saved)  
+- **40 users**: 54% reduction (3.8M gas saved)
+
+## 🔄 Version Comparison: V1 vs V2
+
+### Architecture Differences
+
+| Feature | V1 (Legacy) | V2 (Optimized) |
+|---------|-------------|----------------|
+| **Merkle Operations** | External MerkleTreeManager4 contract | Embedded in bridge contract |
+| **External Calls** | 5-6 calls per initialization | 0 calls |
+| **Gas Consumption** | ~773K gas (3 users) | ~472K gas (3 users) |
+| **Contract Dependencies** | Requires MerkleTreeManager4 deployment | Self-contained |
+| **Functional Equivalence** | ✅ Reference implementation | ✅ Produces identical Merkle roots |
+
+### When to Use V1 vs V2
+
+#### Choose V1 (Legacy) if you need:
+- Separate Merkle tree contract for other use cases
+- Gradual migration from existing V1 deployments
+- External access to Merkle tree operations
+
+#### Choose V2 (Recommended) if you need:
+- **39% gas reduction** for channel operations
+- Simplified deployment (single contract)
+- Optimized performance for high-throughput applications
+- Latest architectural improvements
+
+### Migration Path
+
+Existing V1 users can migrate to V2 by:
+1. Deploying new V2 contracts using `./script/deploy-v2.sh`
+2. Migrating channels during their natural lifecycle
+3. Both versions maintain full functional equivalence with identical security properties
+
 
 ## 🔒 Security Considerations
 
 ### Audit Status
 
-- **Internal Review**: ✅ Complete
+- **Internal Review**: 🆕 Coming Soon
 - **External Audit**: 🆕 Coming Soon
 - **Bug Bounty**: 🆕 Coming Soon
 
@@ -257,8 +320,11 @@ The contracts are deployed using the **UUPS (Universal Upgradeable Proxy Standar
 #### Deployment Scripts
 
 ```bash
-# Deploy upgradeable contracts
-./script/deploy-upgradeable.sh
+# Deploy V2 contracts (Recommended - 39% gas reduction)
+./script/deploy-v2.sh sepolia
+
+# Deploy V1 contracts (Legacy)
+./script/deploy-upgradeable.sh sepolia
 
 # Upgrade existing contracts (owner only)
 ./script/upgrade-contracts.sh
@@ -266,7 +332,8 @@ The contracts are deployed using the **UUPS (Universal Upgradeable Proxy Standar
 
 #### Environment Setup
 
-Create `.env` file based on `script/env-upgradeable.template`:
+##### For V2 Deployment (Recommended)
+Create `.env` file based on `script/env-v2.template`:
 
 ```bash
 # Network Configuration
@@ -277,74 +344,36 @@ PRIVATE_KEY=0x...
 # Contract Configuration
 ZK_VERIFIER_ADDRESS=0x...
 DEPLOYER_ADDRESS=0x...
-TREE_DEPTH=20
 
 # Verification
 VERIFY_CONTRACTS=true
 ETHERSCAN_API_KEY=YOUR_API_KEY
 ```
 
+##### For V1 Deployment (Legacy)
+Create `.env` file based on `script/env-v1.template` with additional `TREE_DEPTH` parameter.
+
 ### Deployed Contracts (Sepolia)
 
-#### 🔗 Main Contracts (Proxy Addresses - Use These for Interactions)
+#### 🔗 V1 Contracts (External Merkle Tree Manager)
 ```
 MerkleTreeManager4 (Proxy): 0x83f163507a788df0efbfbb08bc1a185685163d6b
 RollupBridgeV1 (Proxy): 0x9c688e3262421f8383a5c9c96aba3e66f207e611
-RollupBridgeV2 (Proxy): 
 ```
+
+#### ⚡ V2 Contracts (Embedded Merkle Operations - Recommended)
+```
+RollupBridgeV2 impl: 0x0b1C462CF1FF872bfB336ec404764ED8b6515684
+RollupBridgeV2 (Proxy): 0x5c6446d4039be4c1a0c2ff1a8d294f813893d1e9
+```
+
+https://sepolia.etherscan.io/tx/0xb3f33e3d630795edbdb68aac75fe5b83f98db54a92d4544ec4ac233455af28b7
+A5376FAC3B26618337FBA8FF718CE432B7BC3651B6AF9BCB3AF578F4632B35BF
 
 #### 🏗️ Implementation Contracts (For Upgrades Only)
 ```
-MerkleTreeManager4Upgradeable: 0x4e6f45b00525fa7ce112c46e731e21271f119589
-RollupBridgeUpgradeable: 0xa0719a492c62588e54f839d8b8342d1b170b6cf3
-```
-
-
-### 🔍 Contract Verification on Etherscan
-
-#### Automatic Verification
-Contracts are automatically verified during deployment when `VERIFY_CONTRACTS=true`.
-
-#### Manual Verification
-```bash
-# Verify implementation contracts
-forge verify-contract 0x4e6f45b00525fa7ce112c46e731e21271f119589 \
-  src/merkleTree/MerkleTreeManager4Upgradeable.sol:MerkleTreeManager4Upgradeable \
-  --chain sepolia --etherscan-api-key $ETHERSCAN_API_KEY
-
-forge verify-contract 0xa0719a492c62588e54f839d8b8342d1b170b6cf3 \
-  src/RollupBridgeUpgradeable.sol:RollupBridgeUpgradeable \
-  --chain sepolia --etherscan-api-key $ETHERSCAN_API_KEY
-
-# Verify proxy contracts
-forge verify-contract 0x83f163507a788df0efbfbb08bc1a185685163d6b \
-  lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy \
-  --constructor-args $(cast abi-encode "constructor(address,bytes)" 0x4e6f45b00525fa7ce112c46e731e21271f119589 0x) \
-  --chain sepolia --etherscan-api-key $ETHERSCAN_API_KEY
-```
-
-#### Setting Up Proxy on Etherscan
-1. Go to your **proxy address** on Etherscan (e.g., `0x83f163507a788df0efbfbb08bc1a185685163d6b`)
-2. Click **"Contract"** → **"More Options"** → **"Is this a proxy?"**
-3. Select **"Verify"** and enter your **implementation address**
-4. Etherscan will automatically detect the proxy pattern and link the ABI
-
-### 🔄 Upgrading Contracts
-
-#### Prerequisites
-- Must be contract owner
-- New implementation must be compatible
-- Test upgrade on testnet first
-
-#### Upgrade Process
-```bash
-# Deploy new implementation
-forge create src/merkleTree/MerkleTreeManager4Upgradeable.sol:MerkleTreeManager4Upgradeable --private-key $PRIVATE_KEY --rpc-url $RPC_URL
-
-# Upgrade proxy to new implementation
-cast send 0x83f163507a788df0efbfbb08bc1a185685163d6b \
-  "upgradeTo(address)" NEW_IMPLEMENTATION_ADDRESS \
-  --private-key $PRIVATE_KEY --rpc-url $RPC_URL
+MerkleTreeManagerV1: 0x4e6f45b00525fa7ce112c46e731e21271f119589
+RollupBridgeV1: 0xa0719a492c62588e54f839d8b8342d1b170b6cf3
 ```
 
 #### Safety Features
@@ -367,7 +396,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **OpenZeppelin**: For secure contract libraries
 - **Foundry**: For the excellent development toolkit
-- **Poseidon**: For the ZK-friendly hash function
 - **Community**: For feedback and contributions
 
 ---

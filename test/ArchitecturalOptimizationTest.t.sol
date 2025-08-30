@@ -43,7 +43,7 @@ contract ArchitecturalOptimizationTest is Test {
 
         // Setup permissions
         bridge.authorizeCreator(leader);
-        
+
         // Mint tokens for testing
         token.mint(user1, DEPOSIT_AMOUNT * 10);
         token.mint(user2, DEPOSIT_AMOUNT * 10);

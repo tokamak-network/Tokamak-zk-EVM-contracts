@@ -358,10 +358,10 @@ contract RollupBridge is
             require(rootSequence.length > 0 && currentNonce <= rootSequence.length, "Invalid root sequence access");
             prevRoot = rootSequence[currentNonce - 1];
         }
-        
+
         // Compute gamma = L2hash(prevRoot, l2Addr) using keccak256
         bytes32 gamma = keccak256(abi.encodePacked(prevRoot, bytes32(l2Addr)));
-        
+
         // RLC formula: L2AddrF + gamma * value (matching MTManager.ts line 106)
         // Use unchecked to handle potential overflow (wrapping is acceptable for hash computation)
         uint256 leafValue;
@@ -375,7 +375,7 @@ contract RollupBridge is
         // RLC computation matching MTManager.ts RLCForUserStorage
         // Compute gamma = L2hash(prevRoot, l2Addr) using keccak256
         bytes32 gamma = keccak256(abi.encodePacked(prevRoot, bytes32(l2Addr)));
-        
+
         // RLC formula: L2AddrF + gamma * value (matching MTManager.ts line 106)
         // Use unchecked to handle potential overflow (wrapping is acceptable for hash computation)
         uint256 leafValue;

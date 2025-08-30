@@ -106,7 +106,6 @@ contract RollupBridgeTest is Test {
         token.mint(user1, INITIAL_TOKEN_BALANCE);
         token.mint(user2, INITIAL_TOKEN_BALANCE);
         token.mint(user3, INITIAL_TOKEN_BALANCE);
-        
 
         vm.stopPrank();
     }
@@ -287,7 +286,7 @@ contract RollupBridgeTest is Test {
         // Verify leader is authorized
         assertTrue(bridge.isAuthorizedCreator(leader), "Leader should be authorized from setup");
         assertTrue(bridge.isAuthorizedCreator(leader2), "Leader2 should be authorized from setup");
-    
+
         // Simple approach: Create two channels with the same leader but different deposits
         address[] memory participants = new address[](3);
         participants[0] = leader;
@@ -302,28 +301,16 @@ contract RollupBridgeTest is Test {
         // Create Channel 1
         vm.prank(leader);
         uint256 channelId1 = bridge.openChannel(
-            address(token),
-            participants,
-            l2PublicKeys,
-            new uint128[](1),
-            new uint256[](1),
-            1 days,
-            bytes32(0)
+            address(token), participants, l2PublicKeys, new uint128[](1), new uint256[](1), 1 days, bytes32(0)
         );
 
-        // Create Channel 2 
+        // Create Channel 2
         vm.prank(leader2);
         uint256 channelId2 = bridge.openChannel(
-            address(token),
-            participants,
-            l2PublicKeys,
-            new uint128[](1),
-            new uint256[](1),
-            1 days,
-            bytes32(0)
+            address(token), participants, l2PublicKeys, new uint128[](1), new uint256[](1), 1 days, bytes32(0)
         );
 
-        // Make DIFFERENT deposits in each channel 
+        // Make DIFFERENT deposits in each channel
         // Channel 1
         vm.startPrank(leader);
         token.approve(address(bridge), 10 * 10 ** 18);
@@ -334,7 +321,6 @@ contract RollupBridgeTest is Test {
         token.approve(address(bridge), 15 * 10 ** 18);
         bridge.depositToken(channelId1, address(token), 15 * 10 ** 18);
         vm.stopPrank();
-
 
         // Channel 2
         vm.startPrank(leader);
@@ -347,22 +333,21 @@ contract RollupBridgeTest is Test {
         bridge.depositToken(channelId2, address(token), 10 * 10 ** 18);
         vm.stopPrank();
 
-
         // Initialize both channels with their respective leaders
         vm.prank(leader);
         bridge.initializeChannelState(channelId1);
-        
+
         vm.prank(leader2);
         bridge.initializeChannelState(channelId2);
 
         // Get the initial root hashes
-        (,, , bytes32 rootHash1,) = bridge.getChannelInfo(channelId1);
-        (,, , bytes32 rootHash2,) = bridge.getChannelInfo(channelId2);
+        (,,, bytes32 rootHash1,) = bridge.getChannelInfo(channelId1);
+        (,,, bytes32 rootHash2,) = bridge.getChannelInfo(channelId2);
 
         // Verify both roots are non-zero
         assertTrue(rootHash1 != bytes32(0), "Channel 1 root should not be zero");
         assertTrue(rootHash2 != bytes32(0), "Channel 2 root should not be zero");
-        
+
         // CRITICAL: The root hashes MUST be different despite same participants
         assertTrue(rootHash1 != rootHash2, "Root hashes should be different for different deposit amounts");
 
@@ -375,7 +360,7 @@ contract RollupBridgeTest is Test {
         // Additional verification: Check individual deposit amounts
         assertEq(bridge.getParticipantDeposit(channelId1, leader), 10 * 10 ** 18, "Channel 1 leader deposit");
         assertEq(bridge.getParticipantDeposit(channelId1, user1), 15 * 10 ** 18, "Channel 1 user1 deposit");
-        
+
         assertEq(bridge.getParticipantDeposit(channelId2, leader), 10 * 10 ** 18, "Channel 2 leader deposit");
         assertEq(bridge.getParticipantDeposit(channelId2, user1), 10 * 10 ** 18, "Channel 2 user1 deposit");
     }
@@ -587,8 +572,7 @@ contract RollupBridgeTest is Test {
 
         // Deploy RollupBridge with real verifier
         RollupBridge realImplementation = new RollupBridge();
-        bytes memory realInitData =
-            abi.encodeCall(RollupBridge.initialize, (address(realVerifier), address(0), owner));
+        bytes memory realInitData = abi.encodeCall(RollupBridge.initialize, (address(realVerifier), address(0), owner));
         ERC1967Proxy realProxy = new ERC1967Proxy(address(realImplementation), realInitData);
         RollupBridge realBridge = RollupBridge(address(realProxy));
 

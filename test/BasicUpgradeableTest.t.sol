@@ -108,7 +108,6 @@ contract RollupBridgeV2 is RollupBridge {
     }
 }
 
-
 /**
  * @title BasicUpgradeableTest
  * @dev Basic test suite for UUPS upgradeable contracts using ERC1967Proxy directly
@@ -147,8 +146,7 @@ contract BasicUpgradeableTest is Test {
 
         // Deploy proxy
         rollupBridgeProxy = new ERC1967Proxy(
-            address(rollupBridgeImpl),
-            abi.encodeCall(RollupBridge.initialize, (address(verifier), address(0), owner))
+            address(rollupBridgeImpl), abi.encodeCall(RollupBridge.initialize, (address(verifier), address(0), owner))
         );
         rollupBridge = RollupBridge(payable(address(rollupBridgeProxy)));
 
@@ -274,7 +272,6 @@ contract BasicUpgradeableTest is Test {
         rollupBridgeV2.emergencyPause();
     }
 
-
     // ============ Access Control Tests ============
 
     function test_OnlyOwnerCanUpgrade() public {
@@ -283,7 +280,6 @@ contract BasicUpgradeableTest is Test {
         vm.prank(attacker);
         vm.expectRevert();
         rollupBridge.upgradeTo(address(rollupBridgeV2Impl));
-
     }
 
     // ============ Storage Layout Tests ============

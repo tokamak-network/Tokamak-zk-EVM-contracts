@@ -212,7 +212,7 @@ contract BasicUpgradeableTest is Test {
 
     // ============ Deployment Tests ============
 
-    function test_InitialDeployment() public {
+    function test_InitialDeployment() public view {
         // Check RollupBridge initialization
         assertEq(rollupBridge.owner(), owner);
         assertEq(address(rollupBridge.zkVerifier()), address(verifier));

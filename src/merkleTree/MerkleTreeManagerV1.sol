@@ -415,8 +415,6 @@ contract MerkleTreeManagerV1 is IMerkleTreeManager, Initializable, OwnableUpgrad
         uint32 currentIndex = leafIndex;
 
         for (uint256 level = 0; level < $.depth; level++) {
-            uint32 siblingIndex = currentIndex ^ 3; // XOR with 3 to get the rightmost sibling
-
             if (currentIndex % 4 == 0) {
                 // This is a leftmost node, cache it
                 $.cachedSubtrees[channelId][level] = currentHash;

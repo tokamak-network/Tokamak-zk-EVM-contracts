@@ -23,13 +23,6 @@ import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
  * @dev Upgradeable using UUPS pattern for enhanced security and gas efficiency
  */
 contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
-    // ============ Constants ============
-
-    /**
-     * @dev Field size for keccak256 operations
-     *      Used in RLC (Random Linear Combination) calculations
-     */
-    uint256 public constant FIELD_SIZE = type(uint256).max;
 
     // ============ Storage ============
 
@@ -357,8 +350,11 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
             $.userIndex[channelId][l1Addresses[i]] = i;
 
             // Insert leaf into the tree
-            _insertLeaf(channelId, _computeLeaf(userData));
+            _insertLeaf(channelId, _computeLeaf(channelId, userData));
         }
+        
+        // Increment nonce after processing the channel (matching MTManager.ts line 89)
+        $.nonce[channelId]++;
 
         emit UsersAdded(channelId, l1Addresses.length);
     }
@@ -366,19 +362,37 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
     // ============ Tree Operations ============
 
     /**
-     * @dev Computes a leaf hash from user data using RLC
+     * @dev Computes a leaf hash from user data using RLC (matching MTManager.ts)
+     * @param channelId The channel ID for proper nonce management
      * @param userData The user data to hash
      * @return The computed leaf hash
      */
-    function _computeLeaf(UserData memory userData) internal view returns (bytes32) {
+    function _computeLeaf(uint256 channelId, UserData memory userData) internal view returns (bytes32) {
         MerkleTreeManager4Storage storage $ = _getMerkleTreeManager4Storage();
-
-        // RLC computation: balance + nonce * l2Address
-        uint256 leafValue = userData.balance + ($.nonce[0] * uint256(uint160(userData.l2Address)));
-
-        // Ensure value is within field range
-        leafValue = leafValue % FIELD_SIZE;
-
+        
+        // RLC computation matching MTManager.ts RLCForUserStorage
+        // Get previous root: if nonce == 0, use slot (channelId), else use last root
+        bytes32 prevRoot;
+        uint256 currentNonce = $.nonce[channelId];
+        if (currentNonce == 0) {
+            prevRoot = bytes32(channelId); // Use channelId as slot (matching MTManager.ts line 104)
+        } else {
+            bytes32[] storage rootSequence = $.channelRootSequence[channelId];
+            require(rootSequence.length > 0 && currentNonce <= rootSequence.length, "Invalid root sequence access");
+            prevRoot = rootSequence[currentNonce - 1];
+        }
+        
+        // Compute gamma = L2hash(prevRoot, l2Addr) using keccak256
+        uint256 l2Addr = uint256(uint160(userData.l2Address));
+        bytes32 gamma = keccak256(abi.encodePacked(prevRoot, bytes32(l2Addr)));
+        
+        // RLC formula: L2AddrF + gamma * value (matching MTManager.ts line 106)
+        // Use unchecked to handle potential overflow (wrapping is acceptable for hash computation)
+        uint256 leafValue;
+        unchecked {
+            leafValue = l2Addr + uint256(gamma) * userData.balance;
+        }
+        
         return bytes32(leafValue);
     }
 
@@ -403,8 +417,6 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
         uint32 currentIndex = leafIndex;
 
         for (uint256 level = 0; level < $.depth; level++) {
-            uint32 siblingIndex = currentIndex ^ 3; // XOR with 3 to get the rightmost sibling
-
             if (currentIndex % 4 == 0) {
                 // This is a leftmost node, cache it
                 $.cachedSubtrees[channelId][level] = currentHash;
@@ -494,10 +506,18 @@ contract MerkleTreeManager4 is IMerkleTreeManager, Ownable {
         pure
         returns (bytes32)
     {
-        // Use prevRoot as nonce for RLC computation
-        uint256 nonceValue = uint256(prevRoot) % FIELD_SIZE;
-        uint256 leafValue = balance + (nonceValue * uint256(uint160(l2Address)));
-        leafValue = leafValue % FIELD_SIZE;
+        // RLC computation matching MTManager.ts RLCForUserStorage
+        uint256 l2Addr = uint256(uint160(l2Address));
+        
+        // Compute gamma = L2hash(prevRoot, l2Addr) using keccak256
+        bytes32 gamma = keccak256(abi.encodePacked(prevRoot, bytes32(l2Addr)));
+        
+        // RLC formula: L2AddrF + gamma * value (matching MTManager.ts line 106)
+        // Use unchecked to handle potential overflow (wrapping is acceptable for hash computation)
+        uint256 leafValue;
+        unchecked {
+            leafValue = l2Addr + uint256(gamma) * balance;
+        }
 
         return bytes32(leafValue);
     }

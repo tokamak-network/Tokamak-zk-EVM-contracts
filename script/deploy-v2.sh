@@ -91,6 +91,7 @@ FORGE_CMD="forge script script/DeployV2.s.sol:DeployV2Script"
 FORGE_CMD="$FORGE_CMD --rpc-url $RPC_URL"
 FORGE_CMD="$FORGE_CMD --broadcast"
 FORGE_CMD="$FORGE_CMD --slow" # Add delay between transactions
+FORGE_CMD="$FORGE_CMD --ffi" # Enable FFI for contract verification
 
 # Add verification if enabled and API key is provided
 if [ "$VERIFY_CONTRACTS" = "true" ] && [ -n "$ETHERSCAN_API_KEY" ]; then

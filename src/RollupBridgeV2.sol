@@ -59,7 +59,6 @@ contract RollupBridgeV2 is
     address public constant ETH_TOKEN_ADDRESS = address(1);
 
     // ========== EMBEDDED MERKLE CONSTANTS ==========
-    uint256 public constant FIELD_SIZE = type(uint256).max;
     uint256 public constant BALANCE_SLOT = 0;
     uint32 public constant ROOT_HISTORY_SIZE = 30;
     uint32 public constant CHILDREN_PER_NODE = 4;
@@ -310,35 +309,27 @@ contract RollupBridgeV2 is
         $.roots[channelId][0] = initialRoot;
         $.channelRootSequence[channelId].push(initialRoot);
 
-        // Step 2: Set address pairs (matching MerkleTreeManager4.setAddressPair)
-        for (uint256 i = 0; i < participantsLength;) {
-            User storage participant = channel.participants[i];
-            address l1Address = participant.l1Address;
-            address l2Address = participant.l2PublicKey;
-
-            // Set address pair (embedded - no external call)
-            $.l1ToL2[channelId][l1Address] = l2Address;
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        // Step 3: Insert leaves using the same logic as MerkleTreeManager4._insertLeaf
+        // Step 2 & 3: Set address pairs and insert leaves in one optimized loop
         for (uint256 i = 0; i < participantsLength;) {
             User storage participant = channel.participants[i];
             address l1Address = participant.l1Address;
             address l2Address = participant.l2PublicKey;
             uint256 balance = channel.tokenDeposits[l1Address];
 
-            // Compute and insert leaf (matching MerkleTreeManager4 logic exactly)
-            bytes32 leaf = _computeLeaf($, uint256(uint160(l2Address)), balance);
+            // Set address pair (embedded - no external call)
+            $.l1ToL2[channelId][l1Address] = l2Address;
+
+            // Compute and insert leaf (matching MTManager.ts RLCForUserStorage logic exactly)
+            bytes32 leaf = _computeLeaf($, channelId, uint256(uint160(l2Address)), balance);
             _insertLeaf($, channelId, leaf);
 
             unchecked {
                 ++i;
             }
         }
+
+        // Increment nonce after processing the channel (matching MTManager.ts line 89)
+        $.nonce[channelId]++;
 
         // Store final result - get current root after all insertions
         channel.initialStateRoot = $.roots[channelId][$.currentRootIndex[channelId]];
@@ -351,24 +342,46 @@ contract RollupBridgeV2 is
 
     // ========== EMBEDDED MERKLE OPERATIONS ==========
 
-    function _computeLeaf(RollupBridgeStorage storage $, uint256 l2Addr, uint256 balance)
+    function _computeLeaf(RollupBridgeStorage storage $, uint256 channelId, uint256 l2Addr, uint256 balance)
         internal
         view
         returns (bytes32)
     {
-        // RLC computation matching MerkleTreeManager4: balance + (nonce * l2Address)
-        // Use global nonce from channel 0 like MerkleTreeManager4
-        uint256 nonceValue = $.nonce[0] % FIELD_SIZE;
-        uint256 leafValue = balance + (nonceValue * l2Addr);
-        leafValue = leafValue % FIELD_SIZE;
+        // RLC computation matching MTManager.ts RLCForUserStorage
+        // Get previous root: if nonce == 0, use slot (channelId), else use last root
+        bytes32 prevRoot;
+        uint256 currentNonce = $.nonce[channelId];
+        if (currentNonce == 0) {
+            prevRoot = bytes32(channelId); // Use channelId as slot (matching MTManager.ts line 104)
+        } else {
+            bytes32[] storage rootSequence = $.channelRootSequence[channelId];
+            require(rootSequence.length > 0 && currentNonce <= rootSequence.length, "Invalid root sequence access");
+            prevRoot = rootSequence[currentNonce - 1];
+        }
+        
+        // Compute gamma = L2hash(prevRoot, l2Addr) using keccak256
+        bytes32 gamma = keccak256(abi.encodePacked(prevRoot, bytes32(l2Addr)));
+        
+        // RLC formula: L2AddrF + gamma * value (matching MTManager.ts line 106)
+        // Use unchecked to handle potential overflow (wrapping is acceptable for hash computation)
+        uint256 leafValue;
+        unchecked {
+            leafValue = l2Addr + uint256(gamma) * balance;
+        }
         return bytes32(leafValue);
     }
 
     function _computeLeafPure(bytes32 prevRoot, uint256 l2Addr, uint256 balance) internal pure returns (bytes32) {
-        // Use prevRoot as nonce for RLC computation (matching MerkleTreeManager4)
-        uint256 nonceValue = uint256(prevRoot) % FIELD_SIZE;
-        uint256 leafValue = balance + (nonceValue * l2Addr);
-        leafValue = leafValue % FIELD_SIZE;
+        // RLC computation matching MTManager.ts RLCForUserStorage
+        // Compute gamma = L2hash(prevRoot, l2Addr) using keccak256
+        bytes32 gamma = keccak256(abi.encodePacked(prevRoot, bytes32(l2Addr)));
+        
+        // RLC formula: L2AddrF + gamma * value (matching MTManager.ts line 106)
+        // Use unchecked to handle potential overflow (wrapping is acceptable for hash computation)
+        uint256 leafValue;
+        unchecked {
+            leafValue = l2Addr + uint256(gamma) * balance;
+        }
         return bytes32(leafValue);
     }
 

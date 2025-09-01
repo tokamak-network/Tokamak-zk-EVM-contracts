@@ -20,7 +20,7 @@ This repository contains the smart contracts and documentation for a ZK-Rollup b
 
 The project has undergone a major architectural redesign with the introduction of **RollupBridgeV2**, achieving significant gas optimization while maintaining full functional equivalence:
 
-#### **RollupBridgeV2: 39% Gas Reduction**
+#### **RollupBridgeV2:
 - **Embedded Merkle Operations**: All Merkle tree operations embedded directly in the bridge contract
 - **No External Calls**: Eliminated 5-6 external contract calls that were consuming substantial gas
 - **Optimized Tree Initialization**: Streamlined initialization sequence with batched operations
@@ -46,16 +46,8 @@ Both versions leverage **MerkleTreeManager4** with **4-input hashing** instead o
 ## Core Components
 
 #### **Bridge Layer**
-- **`RollupBridgeV2.sol`**: **Latest V2** with embedded Merkle operations for 39% gas reduction (Recommended)
-- **`RollupBridgeV1.sol`**: **Legacy V1** using external MerkleTreeManager4 calls
+- **`RollupBridge.sol`**: **Latest V2** with embedded Merkle operations for 39% gas reduction
 - **`IRollupBridge.sol`**: Interface definitions and data structures
-
-#### **Merkle Tree Layer**
-- **`MerkleTreeManagerV1.sol`**: **UUPS upgradeable** quaternary Merkle tree for V1 compatibility
-- **`MerkleTreeManager4.sol`**: **Non-upgradeable** quaternary tree for V1 external calls
-- **`MerkleTreeManager2.sol`**: Binary Merkle tree for backward compatibility
-- **`IMerkleTreeManager.sol`**: Unified interface for tree implementations
-- **Note**: V2 has Merkle operations embedded, requiring no external tree manager
 
 #### **Verification Layer**
 - **`Verifier.sol`**: ZK-SNARK proof verification contract

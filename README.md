@@ -150,9 +150,11 @@ The project includes comprehensive test coverage for all components:
 forge test
 
 # Run specific test contracts
-forge test --match-contract MerkleTreeManager4Test
 forge test --match-contract RollupBridgeTest
-forge test --match-contract MerkleTreeManagerAccessTest
+forge test --match-contract WithdrawalsTest
+forge test --match-contract BasicUpgradeableTest
+forge test --match-contract ArchitecturalOptimizationTest
+
 
 # Run with gas reporting
 forge test --gas-report

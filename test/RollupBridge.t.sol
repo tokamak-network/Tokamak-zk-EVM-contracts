@@ -155,7 +155,8 @@ contract RollupBridgeTest is Test {
         uint256[] memory publicInputs,
         uint256 smax,
         bytes[] memory initialMPTLeaves,
-        bytes[] memory finalMPTLeaves
+        bytes[] memory finalMPTLeaves,
+        bytes32[] memory participantRoots
     ) internal pure returns (IRollupBridge.ProofData memory) {
         return IRollupBridge.ProofData({
             aggregatedProofHash: aggregatedProofHash,
@@ -165,8 +166,50 @@ contract RollupBridgeTest is Test {
             publicInputs: publicInputs,
             smax: smax,
             initialMPTLeaves: initialMPTLeaves,
-            finalMPTLeaves: finalMPTLeaves
+            finalMPTLeaves: finalMPTLeaves,
+            participantRoots: participantRoots
         });
+    }
+
+    /**
+     * @dev Creates mock participant roots for testing
+     */
+    function _createMockParticipantRoots(uint256 count) internal pure returns (bytes32[] memory) {
+        bytes32[] memory participantRoots = new bytes32[](count);
+        for (uint256 i = 0; i < count; i++) {
+            // Generate deterministic mock roots based on participant index
+            participantRoots[i] = keccak256(abi.encodePacked("participant_root", i));
+        }
+        return participantRoots;
+    }
+
+    /**
+     * @dev Creates ProofData struct for testing with mock participantRoots (for backwards compatibility)
+     */
+    function _createProofDataSimple(
+        bytes32 aggregatedProofHash,
+        bytes32 finalStateRoot,
+        uint128[] memory proofPart1,
+        uint256[] memory proofPart2,
+        uint256[] memory publicInputs,
+        uint256 smax,
+        bytes[] memory initialMPTLeaves,
+        bytes[] memory finalMPTLeaves
+    ) internal pure returns (IRollupBridge.ProofData memory) {
+        // Generate mock participant roots based on number of MPT leaves (assumes equal initial/final)
+        uint256 participantCount = initialMPTLeaves.length;
+        bytes32[] memory participantRoots = _createMockParticipantRoots(participantCount);
+        return _createProofData(
+            aggregatedProofHash,
+            finalStateRoot,
+            proofPart1,
+            proofPart2,
+            publicInputs,
+            smax,
+            initialMPTLeaves,
+            finalMPTLeaves,
+            participantRoots
+        );
     }
 
     // ========== Channel Opening Tests ==========
@@ -404,7 +447,7 @@ contract RollupBridgeTest is Test {
         emit ProofAggregated(channelId, proofHash);
         bridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
             )
         );
@@ -438,7 +481,7 @@ contract RollupBridgeTest is Test {
         vm.expectRevert("Initial balance mismatch");
         bridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
             )
         );
@@ -472,7 +515,7 @@ contract RollupBridgeTest is Test {
         vm.expectRevert("Balance conservation violated");
         bridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
             )
         );
@@ -504,7 +547,7 @@ contract RollupBridgeTest is Test {
         vm.expectRevert("Mismatched leaf arrays");
         bridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
             )
         );
@@ -550,7 +593,7 @@ contract RollupBridgeTest is Test {
         uint256 gasBefore = gasleft();
         bridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
             )
         );
@@ -646,7 +689,7 @@ contract RollupBridgeTest is Test {
         uint256 gasBefore = gasleft();
         realBridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, pubInputs, smaxValue, initialMPTLeaves, finalMPTLeaves
             )
         );
@@ -942,26 +985,10 @@ contract RollupBridgeTest is Test {
         vm.expectRevert("Invalid ZK proof");
         bridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
             )
         );
-    }
-
-    // ========== Withdrawal Tests ==========
-
-    function testWithdrawAfterClose() public {
-        uint256 channelId = _getClosedChannel();
-        uint256 claimedBalance = 1 ether;
-        uint256 leafIndex = 0;
-        bytes32[] memory proof = new bytes32[](0);
-
-        // This would fail in real scenario without proper merkle proof
-        // For testing, we'd need to mock the MerkleTreeManager verification
-
-        vm.prank(user1);
-        vm.expectRevert(); // Will revert due to merkle proof verification
-        bridge.withdrawAfterClose(channelId, claimedBalance, leafIndex, proof);
     }
 
     // ========== Channel Deletion Tests ==========
@@ -1117,7 +1144,7 @@ contract RollupBridgeTest is Test {
         vm.prank(channelLeader);
         bridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
             )
         );
@@ -1165,7 +1192,7 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         bridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
             )
         );
@@ -1279,7 +1306,7 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         bridge.submitAggregatedProof(
             channelId,
-            _createProofData(
+            _createProofDataSimple(
                 proofHash, finalRoot, proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
             )
         );
@@ -1507,7 +1534,7 @@ contract RollupBridgeTest is Test {
         balances3[2] = 3 ether;
 
         bytes[] memory leaves3 = _createMPTLeaves(balances3);
-        IRollupBridge.ProofData memory proofData3 = _createProofData(
+        IRollupBridge.ProofData memory proofData3 = _createProofDataSimple(
             keccak256("test3"),
             bytes32(uint256(0x123)),
             new uint128[](0),
@@ -1527,7 +1554,7 @@ contract RollupBridgeTest is Test {
         balances4[3] = 4 ether;
 
         bytes[] memory leaves4 = _createMPTLeaves(balances4);
-        IRollupBridge.ProofData memory proofData4 = _createProofData(
+        IRollupBridge.ProofData memory proofData4 = _createProofDataSimple(
             keccak256("test4"),
             bytes32(uint256(0x124)),
             new uint128[](0),

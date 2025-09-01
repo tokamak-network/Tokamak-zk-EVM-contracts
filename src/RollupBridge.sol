@@ -549,18 +549,18 @@ contract RollupBridge is
         console.log("claimedBalance:", claimedBalance);
         console.log("leafIndex:", leafIndex);
         console.log("msg.sender:", msg.sender);
-        
+
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
-        
+
         console.log("Channel state:", uint256(channel.state));
         console.log("Expected state (Closed):", uint256(ChannelState.Closed));
-        
+
         require(channel.state == ChannelState.Closed, "Not closed");
-        
+
         console.log("hasWithdrawn[msg.sender]:", channel.hasWithdrawn[msg.sender]);
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
-        
+
         console.log("isParticipant[msg.sender]:", channel.isParticipant[msg.sender]);
         require(channel.isParticipant[msg.sender], "Not a participant");
 
@@ -581,7 +581,6 @@ contract RollupBridge is
         // Use participant-specific root for leaf computation
         bytes32 participantRoot = channel.participantRoots[participantIndex];
         bytes32 leafValue = _computeLeafPure(participantRoot, uint256(uint160(l2Address)), claimedBalance);
-        
 
         require(
             _verifyProof($, channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot),

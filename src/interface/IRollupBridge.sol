@@ -23,6 +23,7 @@ interface IRollupBridge {
         uint256 smax;
         bytes[] initialMPTLeaves;
         bytes[] finalMPTLeaves;
+        bytes32[] participantRoots; // Root used for each participant's leaf computation
     }
 
     struct Channel {
@@ -55,6 +56,7 @@ interface IRollupBridge {
         bytes32 groupPublicKey;
         bytes[] initialMPTLeaves;
         bytes[] finalMPTLeaves;
+        bytes32[] participantRoots; // Root used for each participant's leaf computation
     }
 
     // ============= ENUM =============

@@ -7,6 +7,7 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgra
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "forge-std/console.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import "./library/RLP.sol";
@@ -445,6 +446,7 @@ contract RollupBridge is
         require(msg.sender == channel.leader, "Only leader can submit");
         require(proofData.initialMPTLeaves.length == proofData.finalMPTLeaves.length, "Mismatched leaf arrays");
         require(proofData.initialMPTLeaves.length == channel.participants.length, "Invalid leaf count");
+        require(proofData.participantRoots.length == channel.participants.length, "Invalid participant roots count");
 
         uint256 initialBalanceSum = 0;
         uint256 finalBalanceSum = 0;
@@ -467,6 +469,7 @@ contract RollupBridge is
 
         channel.initialMPTLeaves = proofData.initialMPTLeaves;
         channel.finalMPTLeaves = proofData.finalMPTLeaves;
+        channel.participantRoots = proofData.participantRoots;
         channel.aggregatedProofHash = proofData.aggregatedProofHash;
         channel.finalStateRoot = proofData.finalStateRoot;
         channel.state = ChannelState.Closing;
@@ -541,18 +544,44 @@ contract RollupBridge is
         uint256 leafIndex,
         bytes32[] calldata merkleProof
     ) external nonReentrant {
+        console.log("=== withdrawAfterClose called ===");
+        console.log("channelId:", channelId);
+        console.log("claimedBalance:", claimedBalance);
+        console.log("leafIndex:", leafIndex);
+        console.log("msg.sender:", msg.sender);
+        
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
+        
+        console.log("Channel state:", uint256(channel.state));
+        console.log("Expected state (Closed):", uint256(ChannelState.Closed));
+        
         require(channel.state == ChannelState.Closed, "Not closed");
+        
+        console.log("hasWithdrawn[msg.sender]:", channel.hasWithdrawn[msg.sender]);
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
+        
+        console.log("isParticipant[msg.sender]:", channel.isParticipant[msg.sender]);
         require(channel.isParticipant[msg.sender], "Not a participant");
 
         address l2Address = $.l1ToL2[channelId][msg.sender];
         require(l2Address != address(0), "L2 address not found");
 
-        bytes32[] storage rootSequence = $.channelRootSequence[channelId];
-        bytes32 prevRoot = rootSequence[rootSequence.length - 1];
-        bytes32 leafValue = _computeLeafPure(prevRoot, uint256(uint160(l2Address)), claimedBalance);
+        // Find participant index to get their specific root
+        uint256 participantIndex = type(uint256).max;
+        for (uint256 i = 0; i < channel.participants.length; i++) {
+            if (channel.participants[i].l1Address == msg.sender) {
+                participantIndex = i;
+                break;
+            }
+        }
+        require(participantIndex != type(uint256).max, "Participant not found");
+        require(participantIndex < channel.participantRoots.length, "Participant root not found");
+
+        // Use participant-specific root for leaf computation
+        bytes32 participantRoot = channel.participantRoots[participantIndex];
+        bytes32 leafValue = _computeLeafPure(participantRoot, uint256(uint160(l2Address)), claimedBalance);
+        
 
         require(
             _verifyProof($, channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot),

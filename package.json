@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "dependencies": {
+    "ethers": "^6.14.1",
+    "fs": "^0.0.1-security",
+    "msgpackr": "^1.11.3"
+  }
+}
+  

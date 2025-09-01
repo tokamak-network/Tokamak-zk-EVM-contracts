@@ -205,12 +205,6 @@ test/
 └── mocks/                           # Test utilities
 ```
 
-## Test contract addresses 
-
-- Bridge proxy: 0x9C688e3262421F8383A5c9C96aBa3e66F207e611
-- Merkle Tree Manager Proxy: 0x83F163507A788df0EfBfbb08Bc1A185685163d6b
-
-
 ## 📊 Performance & Gas Optimization
 
 ### V2 Architectural Optimization Results
@@ -359,15 +353,6 @@ RollupBridgeV1 (Proxy): 0x9c688e3262421f8383a5c9c96aba3e66f207e611
 ```
 RollupBridgeV2 impl: 0x0b1C462CF1FF872bfB336ec404764ED8b6515684
 RollupBridgeV2 (Proxy): 0x5c6446d4039be4c1a0c2ff1a8d294f813893d1e9
-```
-
-https://sepolia.etherscan.io/tx/0xb3f33e3d630795edbdb68aac75fe5b83f98db54a92d4544ec4ac233455af28b7
-A5376FAC3B26618337FBA8FF718CE432B7BC3651B6AF9BCB3AF578F4632B35BF
-
-#### 🏗️ Implementation Contracts (For Upgrades Only)
-```
-MerkleTreeManagerV1: 0x4e6f45b00525fa7ce112c46e731e21271f119589
-RollupBridgeV1: 0xa0719a492c62588e54f839d8b8342d1b170b6cf3
 ```
 
 #### Safety Features

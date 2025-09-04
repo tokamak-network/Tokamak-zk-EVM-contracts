@@ -16,18 +16,17 @@ This repository implements the core smart contracts for the Tokamak zkEVM rollup
 
 This repository contains the smart contracts and documentation for a ZK-Rollup bridge that enables secure off-chain computation with on-chain settlement. The system uses **Quaternary Merkle Trees** with  **Random Linear Combination (RLC)** encoding to ensure tamper-evident balance tracking and employs zero-knowledge proofs for comprehensive computation verification.
 
-### **Latest Innovation: Architectural Optimization with Embedded Merkle Operations**
+### Architectural Optimization with Embedded Merkle Operations**
 
-The project has undergone a major architectural redesign with the introduction of **RollupBridgeV2**, achieving significant gas optimization while maintaining full functional equivalence:
 
-#### **RollupBridgeV2:
+#### **RollupBridge**:
 - **Embedded Merkle Operations**: All Merkle tree operations embedded directly in the bridge contract
 - **No External Calls**: Eliminated 5-6 external contract calls that were consuming substantial gas
 - **Optimized Tree Initialization**: Streamlined initialization sequence with batched operations
 - **Proven Equivalence**: Produces identical Merkle roots as V1 with comprehensive test coverage
 
 #### **Quaternary Merkle Trees**
-Both versions leverage **MerkleTreeManager4** with **4-input hashing** instead of traditional binary trees:
+The leverage **MerkleTreeManager4** with **4-input hashing** instead of traditional binary trees:
 
 - **Reduced Gas Costs**: Fewer hash operations for tree construction and verification
 - **Enhanced Security**: More complex tree structure increases security margin  
@@ -291,16 +290,9 @@ Create `.env` file based on `script/env-v1.template` with additional `TREE_DEPTH
 
 ### Deployed Contracts (Sepolia)
 
-#### 🔗 V1 Contracts (External Merkle Tree Manager)
 ```
-MerkleTreeManager4 (Proxy): 0x83f163507a788df0efbfbb08bc1a185685163d6b
-RollupBridgeV1 (Proxy): 0x9c688e3262421f8383a5c9c96aba3e66f207e611
-```
-
-#### ⚡ V2 Contracts (Embedded Merkle Operations - Recommended)
-```
-RollupBridgeV2 impl: 0x0b1C462CF1FF872bfB336ec404764ED8b6515684
-RollupBridgeV2 (Proxy): 0x5c6446d4039be4c1a0c2ff1a8d294f813893d1e9
+RollupBridge impl: 0x0b1C462CF1FF872bfB336ec404764ED8b6515684
+RollupBridge (Proxy): 0x5c6446d4039be4c1a0c2ff1a8d294f813893d1e9
 ```
 
 #### Safety Features

@@ -218,15 +218,16 @@ contract BasicUpgradeableTest is Test {
         vm.expectEmit(true, true, false, true);
         emit ChannelOpened(0, ETH_TOKEN_ADDRESS);
 
-        uint256 channelId = rollupBridge.openChannel(
-            ETH_TOKEN_ADDRESS,
-            participants,
-            l2PublicKeys,
-            preprocessedPart1,
-            preprocessedPart2,
-            1 hours,
-            bytes32(uint256(123)) // groupPublicKey
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: ETH_TOKEN_ADDRESS,
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 hours,
+            groupPublicKey: bytes32(uint256(123))
+        });
+        uint256 channelId = rollupBridge.openChannel(params);
 
         assertEq(channelId, 0);
         assertTrue(rollupBridge.isChannelLeader(user1));
@@ -312,15 +313,16 @@ contract BasicUpgradeableTest is Test {
         preprocessedPart2[0] = 300;
         preprocessedPart2[1] = 400;
 
-        uint256 channelId = rollupBridge.openChannel(
-            address(token),
-            participants,
-            l2PublicKeys,
-            preprocessedPart1,
-            preprocessedPart2,
-            2 hours,
-            bytes32(uint256(456))
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: address(token),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 2 hours,
+            groupPublicKey: bytes32(uint256(456))
+        });
+        uint256 channelId = rollupBridge.openChannel(params);
 
         // Approve and deposit tokens
         token.approve(address(rollupBridgeProxy), 100 ether);
@@ -415,15 +417,16 @@ contract BasicUpgradeableTest is Test {
         uint256[] memory preprocessedPart2 = new uint256[](1);
         preprocessedPart2[0] = 1;
 
-        uint256 channelId = rollupBridgeV2.openChannel(
-            ETH_TOKEN_ADDRESS,
-            participants,
-            l2PublicKeys,
-            preprocessedPart1,
-            preprocessedPart2,
-            1 hours,
-            bytes32(uint256(789))
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: ETH_TOKEN_ADDRESS,
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 hours,
+            groupPublicKey: bytes32(uint256(789))
+        });
+        uint256 channelId = rollupBridgeV2.openChannel(params);
 
         // Deposit ETH
         rollupBridgeV2.depositETH{value: 1 ether}(channelId);

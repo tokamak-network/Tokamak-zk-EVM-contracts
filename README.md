@@ -178,86 +178,34 @@ forge test --match-test testConstructor
 
 ```
 src/
-├── merkleTree/           # Merkle tree implementations
-│   ├── MerkleTreeManagerV1.sol           # UUPS upgradeable quaternary tree for V1
-│   ├── MerkleTreeManager4.sol            # Non-upgradeable quaternary tree for V1
-│   └── MerkleTreeManager2.sol            # Binary tree (Legacy)
 ├── interface/            # Contract interfaces
-│   ├── IMerkleTreeManager.sol
-│   ├── IRollupBridge.sol
-│   └── IVerifier.sol
+│   ├── IRollupBridge.sol # Bridge contract interface
+│   └── IVerifier.sol     # ZK verifier interface
 ├── verifier/             # ZK proof verification
-│   └── Verifier.sol
+│   └── Verifier.sol      # ZK-SNARK proof verifier
 ├── library/              # Utility libraries
-│   └── RLP.sol
-├── RollupBridgeV2.sol    # V2 with embedded Merkle operations (Recommended)
-├── RollupBridgeV1.sol    # V1 using external MerkleTreeManager4
-└── script/               # Deployment scripts
-    ├── DeployV2.s.sol    # V2 deployment script
-    ├── deploy-v2.sh      # V2 deployment script
-    └── env-v2.template   # V2 environment template
+│   └── RLP.sol           # Recursive Length Prefix encoding
+└── RollupBridge.sol      # Main rollup bridge contract
+
+script/                   # Deployment scripts
+├── DeployV2.s.sol        # V2 deployment script
+├── deploy-v2.sh          # V2 deployment script
+├── env-v2.template       # V2 environment template
+└── UpgradeContracts.s.sol # Contract upgrade script
 
 test/
-├── RollupBridge.t.sol               # V1 Bridge tests
-├── BasicUpgradeableTest.t.sol       # V1 Upgradeability tests
-├── ArchitecturalOptimizationTest.t.sol # V1 vs V2 comparison tests
-├── Verifier.t.sol                   # ZK verifier tests
-└── mocks/                           # Test utilities
+├── RollupBridge.t.sol                  # Bridge contract tests
+├── BasicUpgradeableTest.t.sol          # Upgradeability tests
+├── ArchitecturalOptimizationTest.t.sol # Performance comparison tests
+├── Verifier.t.sol                      # ZK verifier tests
+├── Withdrawals.t.sol                   # Withdrawal functionality tests
+├── js-scripts/                         # JavaScript utilities
+│   ├── generateProof.js                # Proof generation utility
+│   ├── merkleTree.js                   # Merkle tree implementation
+│   └── simpleQuaternaryTree.js         # Quaternary tree implementation
+└── mock/                               # Test utilities and mocks
 ```
 
-## 📊 Performance & Gas Optimization
-
-### V2 Architectural Optimization Results
-
-| Metric | V1 (External Calls) | V2 (Embedded) | Improvement |
-|--------|---------------------|---------------|-------------|
-| **Gas per Channel Init (3 users)** | 773,440 gas | 471,595 gas | **39% reduction** |
-| **Gas Saved** | - | 301,845 gas | **301K saved** |
-| **External Contract Calls** | 5-6 calls | 0 calls | **100% eliminated** |
-| **Scalability (40 users)** | 6.9M gas | 3.1M gas | **54% reduction** |
-
-### Quaternary Tree Benefits
-
-| Metric | Binary Tree | Quaternary Tree | Improvement |
-|--------|-------------|-----------------|-------------|
-| Hash Operations | 2 inputs/hash | 4 inputs/hash | **2x fewer** |
-| Tree Depth | 32 levels | 16 levels | **50% reduction** |
-| Gas per Insert | ~15k gas | ~12k gas | **20% savings** |
-| Proof Size | Larger | Smaller | **25% reduction** |
-
-### Scaling Analysis
-
-The architectural optimization provides increasing benefits with more users:
-- **3 users**: 39% reduction (301K gas saved)
-- **5 users**: 44% reduction (490K gas saved)  
-- **40 users**: 54% reduction (3.8M gas saved)
-
-## 🔄 Version Comparison: V1 vs V2
-
-### Architecture Differences
-
-| Feature | V1 (Legacy) | V2 (Optimized) |
-|---------|-------------|----------------|
-| **Merkle Operations** | External MerkleTreeManager4 contract | Embedded in bridge contract |
-| **External Calls** | 5-6 calls per initialization | 0 calls |
-| **Gas Consumption** | ~773K gas (3 users) | ~472K gas (3 users) |
-| **Contract Dependencies** | Requires MerkleTreeManager4 deployment | Self-contained |
-| **Functional Equivalence** | ✅ Reference implementation | ✅ Produces identical Merkle roots |
-
-### When to Use V1 vs V2
-
-#### Choose V1 (Legacy) if you need:
-- Separate Merkle tree contract for other use cases
-- Gradual migration from existing V1 deployments
-- External access to Merkle tree operations
-
-#### Choose V2 (Recommended) if you need:
-- **39% gas reduction** for channel operations
-- Simplified deployment (single contract)
-- Optimized performance for high-throughput applications
-- Latest architectural improvements
-
-### Migration Path
 
 Existing V1 users can migrate to V2 by:
 1. Deploying new V2 contracts using `./script/deploy-v2.sh`

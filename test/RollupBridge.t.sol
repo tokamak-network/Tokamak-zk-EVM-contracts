@@ -230,15 +230,16 @@ contract RollupBridgeTest is Test {
         uint128[] memory preprocessedPart1 = new uint128[](1);
         uint256[] memory preprocessedPart2 = new uint256[](1);
 
-        uint256 channelId = bridge.openChannel(
-            bridge.ETH_TOKEN_ADDRESS(),
-            participants,
-            l2PublicKeys,
-            preprocessedPart1,
-            preprocessedPart2,
-            1 days,
-            bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 days,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId = bridge.openChannel(params);
 
         assertEq(channelId, 0);
 
@@ -343,15 +344,29 @@ contract RollupBridgeTest is Test {
 
         // Create Channel 1
         vm.prank(leader);
-        uint256 channelId1 = bridge.openChannel(
-            address(token), participants, l2PublicKeys, new uint128[](1), new uint256[](1), 1 days, bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params1 = IRollupBridge.ChannelParams({
+            targetContract: address(token),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: new uint128[](1),
+            preprocessedPart2: new uint256[](1),
+            timeout: 1 days,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId1 = bridge.openChannel(params1);
 
         // Create Channel 2
         vm.prank(leader2);
-        uint256 channelId2 = bridge.openChannel(
-            address(token), participants, l2PublicKeys, new uint128[](1), new uint256[](1), 1 days, bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params2 = IRollupBridge.ChannelParams({
+            targetContract: address(token),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: new uint128[](1),
+            preprocessedPart2: new uint256[](1),
+            timeout: 1 days,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId2 = bridge.openChannel(params2);
 
         // Make DIFFERENT deposits in each channel
         // Channel 1
@@ -647,9 +662,16 @@ contract RollupBridgeTest is Test {
             uint256 smaxValue
         ) = _getRealProofData();
 
-        uint256 channelId = realBridge.openChannel(
-            realBridge.ETH_TOKEN_ADDRESS(), participants, l2PublicKeys, prepPart1, prepPart2, 1 days, bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: realBridge.ETH_TOKEN_ADDRESS(),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: prepPart1,
+            preprocessedPart2: prepPart2,
+            timeout: 1 days,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId = realBridge.openChannel(params);
         vm.stopPrank();
 
         // Make deposits
@@ -1039,15 +1061,16 @@ contract RollupBridgeTest is Test {
         uint128[] memory preprocessedPart1 = new uint128[](1);
         uint256[] memory preprocessedPart2 = new uint256[](1);
 
-        uint256 channelId = bridge.openChannel(
-            bridge.ETH_TOKEN_ADDRESS(),
-            participants,
-            l2PublicKeys,
-            preprocessedPart1,
-            preprocessedPart2,
-            1 days,
-            bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 days,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId = bridge.openChannel(params);
 
         vm.stopPrank();
 
@@ -1070,9 +1093,16 @@ contract RollupBridgeTest is Test {
         uint128[] memory preprocessedPart1 = new uint128[](1);
         uint256[] memory preprocessedPart2 = new uint256[](1);
 
-        uint256 channelId = bridge.openChannel(
-            address(token), participants, l2PublicKeys, preprocessedPart1, preprocessedPart2, 1 days, bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: address(token),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 days,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId = bridge.openChannel(params);
 
         vm.stopPrank();
 
@@ -1095,15 +1125,16 @@ contract RollupBridgeTest is Test {
         uint128[] memory preprocessedPart1 = new uint128[](1);
         uint256[] memory preprocessedPart2 = new uint256[](1);
 
-        uint256 channelId = bridge.openChannel(
-            bridge.ETH_TOKEN_ADDRESS(),
-            participants,
-            l2PublicKeys,
-            preprocessedPart1,
-            preprocessedPart2,
-            1 days,
-            bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 days,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId = bridge.openChannel(params);
 
         vm.stopPrank();
 
@@ -1254,15 +1285,16 @@ contract RollupBridgeTest is Test {
         uint128[] memory preprocessedPart1 = new uint128[](1);
         uint256[] memory preprocessedPart2 = new uint256[](1);
 
-        bridge.openChannel(
-            bridge.ETH_TOKEN_ADDRESS(),
-            participants,
-            l2PublicKeys,
-            preprocessedPart1,
-            preprocessedPart2,
-            timeout,
-            bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: timeout,
+            groupPublicKey: bytes32(0)
+        });
+        bridge.openChannel(params);
 
         vm.stopPrank();
     }
@@ -1630,15 +1662,16 @@ contract RollupBridgeTest is Test {
             l2PublicKeys[i] = address(uint160(13 + i)); // Start from address(13)
         }
 
-        channelId = bridge.openChannel(
-            bridge.ETH_TOKEN_ADDRESS(),
-            participants,
-            l2PublicKeys,
-            new uint128[](0),
-            new uint256[](0),
-            1 days,
-            bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: new uint128[](0),
+            preprocessedPart2: new uint256[](0),
+            timeout: 1 days,
+            groupPublicKey: bytes32(0)
+        });
+        channelId = bridge.openChannel(params);
 
         // Deposit for each participant
         for (uint256 i = 0; i < participantCount; i++) {

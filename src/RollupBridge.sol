@@ -155,13 +155,14 @@ contract RollupBridge is
 
     /**
      * @notice Opens a new channel with specified participants
-     * @param targetContract Address of the token contract (or ETH_TOKEN_ADDRESS for ETH)
-     * @param participants Array of L1 addresses that will participate in the channel
-     * @param l2PublicKeys Array of corresponding L2 public keys for each participant
-     * @param preprocessedPart1 First part of preprocessed verification data
-     * @param preprocessedPart2 Second part of preprocessed verification data
-     * @param timeout Duration in seconds for which the channel will remain open
-     * @param groupPublicKey Aggregated public key for the channel group
+     * @param params ChannelParams struct containing:
+     *      - targetContract: Address of the token contract (or ETH_TOKEN_ADDRESS for ETH)
+     *      - participants: Array of L1 addresses that will participate in the channel
+     *      - l2PublicKeys: Array of corresponding L2 public keys for each participant
+     *      - preprocessedPart1: First part of preprocessed verification data
+     *      - preprocessedPart2: Second part of preprocessed verification data
+     *      - timeout: Duration in seconds for which the channel will remain open
+     *      - groupPublicKey: Aggregated public key for the channel group
      * @return channelId Unique identifier for the created channel
      * @dev Requirements:
      *      - Caller must be authorized to create channels
@@ -171,24 +172,16 @@ contract RollupBridge is
      *      - Timeout must be between 1 hour and 7 days
      *      - No duplicate participants allowed
      */
-    function openChannel(
-        address targetContract,
-        address[] calldata participants,
-        address[] calldata l2PublicKeys,
-        uint128[] calldata preprocessedPart1,
-        uint256[] calldata preprocessedPart2,
-        uint256 timeout,
-        bytes32 groupPublicKey
-    ) external onlyAuthorized returns (uint256 channelId) {
+    function openChannel(ChannelParams calldata params) external onlyAuthorized returns (uint256 channelId) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
 
         require(!$.isChannelLeader[msg.sender], "Channel limit reached");
         require(
-            participants.length >= MIN_PARTICIPANTS && participants.length <= MAX_PARTICIPANTS,
+            params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= MAX_PARTICIPANTS,
             "Invalid participant number"
         );
-        require(participants.length == l2PublicKeys.length, "Mismatched arrays");
-        require(timeout >= 1 hours && timeout <= 7 days, "Invalid timeout");
+        require(params.participants.length == params.l2PublicKeys.length, "Mismatched arrays");
+        require(params.timeout >= 1 hours && params.timeout <= 7 days, "Invalid timeout");
 
         unchecked {
             channelId = $.nextChannelId++;
@@ -198,23 +191,23 @@ contract RollupBridge is
         Channel storage channel = $.channels[channelId];
 
         channel.id = channelId;
-        channel.targetContract = targetContract;
+        channel.targetContract = params.targetContract;
         channel.leader = msg.sender;
         channel.openTimestamp = block.timestamp;
-        channel.timeout = timeout;
-        channel.preprocessedPart1 = preprocessedPart1;
-        channel.preprocessedPart2 = preprocessedPart2;
+        channel.timeout = params.timeout;
+        channel.preprocessedPart1 = params.preprocessedPart1;
+        channel.preprocessedPart2 = params.preprocessedPart2;
         channel.state = ChannelState.Initialized;
-        channel.groupPublicKey = groupPublicKey;
+        channel.groupPublicKey = params.groupPublicKey;
 
-        uint256 participantsLength = participants.length;
+        uint256 participantsLength = params.participants.length;
         for (uint256 i = 0; i < participantsLength;) {
-            address participant = participants[i];
+            address participant = params.participants[i];
             require(!channel.isParticipant[participant], "Duplicate participant");
 
-            channel.participants.push(User({l1Address: participant, l2PublicKey: l2PublicKeys[i]}));
+            channel.participants.push(User({l1Address: participant, l2PublicKey: params.l2PublicKeys[i]}));
             channel.isParticipant[participant] = true;
-            channel.l2PublicKeys[participant] = l2PublicKeys[i];
+            channel.l2PublicKeys[participant] = params.l2PublicKeys[i];
 
             unchecked {
                 ++i;
@@ -226,7 +219,7 @@ contract RollupBridge is
             channel.requiredSignatures = 1;
         }
 
-        emit ChannelOpened(channelId, targetContract);
+        emit ChannelOpened(channelId, params.targetContract);
     }
 
     // ========== DEPOSIT FUNCTIONS ==========

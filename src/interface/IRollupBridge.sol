@@ -14,6 +14,16 @@ interface IRollupBridge {
         address l2PublicKey;
     }
 
+    struct ChannelParams {
+        address targetContract;
+        address[] participants;
+        address[] l2PublicKeys;
+        uint128[] preprocessedPart1;
+        uint256[] preprocessedPart2;
+        uint256 timeout;
+        bytes32 groupPublicKey;
+    }
+
     struct ProofData {
         bytes32 aggregatedProofHash;
         bytes32 finalStateRoot;
@@ -90,15 +100,7 @@ interface IRollupBridge {
 
     function authorizeCreator(address creator) external;
 
-    function openChannel(
-        address targetContract,
-        address[] calldata participants,
-        address[] calldata l2PublicKeys,
-        uint128[] calldata preprocessedPart1,
-        uint256[] calldata preprocessedPart2,
-        uint256 timeout,
-        bytes32 groupPublicKey
-    ) external returns (uint256 channelId);
+    function openChannel(ChannelParams calldata params) external returns (uint256 channelId);
 
     function depositETH(uint256 _channelId) external payable;
 

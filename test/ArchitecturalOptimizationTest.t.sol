@@ -78,9 +78,16 @@ contract ArchitecturalOptimizationTest is Test {
         uint256[] memory preprocessedPart2 = new uint256[](1);
         preprocessedPart2[0] = 1;
 
-        uint256 channelId = bridge.openChannel(
-            address(token), participants, l2PublicKeys, preprocessedPart1, preprocessedPart2, 1 hours, bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: address(token),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 hours,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId = bridge.openChannel(params);
 
         vm.stopPrank();
 
@@ -126,9 +133,16 @@ contract ArchitecturalOptimizationTest is Test {
         uint256[] memory preprocessedPart2 = new uint256[](1);
         preprocessedPart2[0] = 1;
 
-        uint256 channelId = bridge.openChannel(
-            address(token), participants, l2PublicKeys, preprocessedPart1, preprocessedPart2, 1 hours, bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: address(token),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 hours,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId = bridge.openChannel(params);
 
         vm.stopPrank();
 
@@ -181,9 +195,16 @@ contract ArchitecturalOptimizationTest is Test {
         preprocessedPart2[0] = 1;
 
         // Create first channel with leader
-        uint256 channelId1 = bridge.openChannel(
-            address(token), participants1, l2PublicKeys1, preprocessedPart1, preprocessedPart2, 1 hours, bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params1 = IRollupBridge.ChannelParams({
+            targetContract: address(token),
+            participants: participants1,
+            l2PublicKeys: l2PublicKeys1,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 hours,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId1 = bridge.openChannel(params1);
 
         vm.stopPrank();
 
@@ -200,9 +221,16 @@ contract ArchitecturalOptimizationTest is Test {
         l2PublicKeys2[1] = l2User2;
         l2PublicKeys2[2] = l2User3;
 
-        uint256 channelId2 = bridge.openChannel(
-            address(token), participants2, l2PublicKeys2, preprocessedPart1, preprocessedPart2, 1 hours, bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params2 = IRollupBridge.ChannelParams({
+            targetContract: address(token),
+            participants: participants2,
+            l2PublicKeys: l2PublicKeys2,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 hours,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId2 = bridge.openChannel(params2);
 
         vm.stopPrank();
 
@@ -230,9 +258,16 @@ contract ArchitecturalOptimizationTest is Test {
         uint256[] memory preprocessedPart2 = new uint256[](1);
         preprocessedPart2[0] = 1;
 
-        uint256 channelId = bridge.openChannel(
-            address(1), participants, l2PublicKeys, preprocessedPart1, preprocessedPart2, 1 hours, bytes32(0)
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: address(1),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: 1 hours,
+            groupPublicKey: bytes32(0)
+        });
+        uint256 channelId = bridge.openChannel(params);
 
         vm.stopPrank();
 

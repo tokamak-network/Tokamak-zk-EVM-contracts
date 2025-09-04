@@ -123,15 +123,16 @@ contract WithdrawalsTest is Test {
         preprocessedPart2[0] = 1;
 
         vm.prank(leader);
-        channelId = rollupBridge.openChannel(
-            ETH_TOKEN_ADDRESS,
-            participants,
-            l2PublicKeys,
-            preprocessedPart1,
-            preprocessedPart2,
-            CHANNEL_TIMEOUT,
-            bytes32("mockGroupPublicKey")
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: ETH_TOKEN_ADDRESS,
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: CHANNEL_TIMEOUT,
+            groupPublicKey: bytes32("mockGroupPublicKey")
+        });
+        channelId = rollupBridge.openChannel(params);
     }
 
     function _createTokenChannel() internal returns (uint256 channelId) {
@@ -152,15 +153,16 @@ contract WithdrawalsTest is Test {
         preprocessedPart2[0] = 1;
 
         vm.prank(leader);
-        channelId = rollupBridge.openChannel(
-            address(testToken),
-            participants,
-            l2PublicKeys,
-            preprocessedPart1,
-            preprocessedPart2,
-            CHANNEL_TIMEOUT,
-            bytes32("mockGroupPublicKey")
-        );
+        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
+            targetContract: address(testToken),
+            participants: participants,
+            l2PublicKeys: l2PublicKeys,
+            preprocessedPart1: preprocessedPart1,
+            preprocessedPart2: preprocessedPart2,
+            timeout: CHANNEL_TIMEOUT,
+            groupPublicKey: bytes32("mockGroupPublicKey")
+        });
+        channelId = rollupBridge.openChannel(params);
     }
 
     function _makeDeposits(uint256 channelId, bool isETH) internal {

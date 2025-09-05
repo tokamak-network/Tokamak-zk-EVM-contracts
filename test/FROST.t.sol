@@ -7,7 +7,7 @@ import {FROST} from "../src/library/FROST.sol";
 contract FROSTTest is Test {
     function setUp() public {}
 
-    function test_Verify() public {
+    function test_Verify() public view {
         bytes32 message = 0x4141414141414141414141414141414141414141414141414141414141414141;
 
         uint256 px = 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09;

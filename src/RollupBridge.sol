@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.29;
 
 import "lib/openzeppelin-contracts-upgradeable/contracts/utils/cryptography/ECDSAUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
@@ -11,6 +11,7 @@ import "forge-std/console.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import "./library/RLP.sol";
+import {FROST} from "../src/library/FROST.sol";
 
 /**
  * @title RollupBridgeUpgradeable
@@ -489,16 +490,16 @@ contract RollupBridge is
         require(msg.sender == channel.leader || msg.sender == owner(), "Not leader or owner");
 
         channel.receivedSignatures = signatures.length;
-        require(_verifyGroupThresholdSignature(channelId), "Invalid group threshold signature");
+        require(_verifyGroupThresholdSignature(channelId, signatures), "Invalid group threshold signature");
 
         emit AggregatedProofSigned(channelId, msg.sender, channel.receivedSignatures, channel.requiredSignatures);
     }
 
-    function _verifyGroupThresholdSignature(uint256 channelId) internal view returns (bool) {
+    function _verifyGroupThresholdSignature(uint256 channelId, Signature[] calldata signatures) internal view returns (bool) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
 
-        if (channel.receivedSignatures < channel.requiredSignatures) {
+        if (signatures.length < channel.requiredSignatures) {
             return false;
         }
 
@@ -513,7 +514,38 @@ contract RollupBridge is
         }
         require(channel.requiredSignatures == calculatedThreshold, "Threshold mismatch");
 
-        return channel.receivedSignatures >= channel.requiredSignatures;
+        uint256 validSignatures = 0;
+        address[MAX_PARTICIPANTS] memory signersSeen;
+        uint256 signersCount = 0;
+
+        for (uint256 i = 0; i < signatures.length && i < MAX_PARTICIPANTS; ) {
+            Signature calldata sig = signatures[i];
+
+            address signer = FROST.verify(sig.message, sig.px, sig.py, sig.rx, sig.ry, sig.z);
+            
+            if (signer != address(0) && channel.isParticipant[signer]) {
+                bool alreadySeen = false;
+                for (uint256 j = 0; j < signersCount; ) {
+                    if (signersSeen[j] == signer) {
+                        alreadySeen = true;
+                        break;
+                    }
+                    unchecked { ++j; }
+                }
+                
+                if (!alreadySeen) {
+                    signersSeen[signersCount] = signer;
+                    unchecked { 
+                        ++signersCount;
+                        ++validSignatures;
+                    }
+                }
+            }
+            
+            unchecked { ++i; }
+        }
+
+        return validSignatures >= channel.requiredSignatures;
     }
 
     // ========== CHANNEL CLOSURE ==========

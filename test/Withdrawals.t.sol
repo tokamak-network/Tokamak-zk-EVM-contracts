@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.29;
 
 import {Test, console} from "forge-std/Test.sol";
 import {RollupBridge} from "../src/RollupBridge.sol";
@@ -40,9 +40,9 @@ contract WithdrawalsTest is Test {
     // Test participants
     address public owner = makeAddr("owner");
     address public leader = makeAddr("leader");
-    address public participant1 = makeAddr("participant1");
-    address public participant2 = makeAddr("participant2");
-    address public participant3 = makeAddr("participant3");
+    address public participant1 = 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0; // Address that FROST signature 1 recovers to
+    address public participant2 = 0x012C2171f631e27C4bA9f7f8262af2a48956939A; // Address that FROST signature 2 recovers to
+    address public participant3 = makeAddr("participant3"); // Third participant
 
     // L2 addresses (mock public keys)
     address public l2Address1 = makeAddr("l2Address1");
@@ -237,8 +237,23 @@ contract WithdrawalsTest is Test {
 
         // Sign aggregated proof (mock signatures)
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature(bytes32("R1"), 1);
-        signatures[1] = IRollupBridge.Signature(bytes32("R2"), 2);
+        // Use working FROST signatures that recover to participant1 and participant2
+        signatures[0] = IRollupBridge.Signature({
+            message: 0x08f58e86bd753e86f2e0172081576b4c58909be5c2e70a8e30439d3a12d091be,
+            px: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            py: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e,
+            rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
+            ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
+            z: 0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25
+        });
+        signatures[1] = IRollupBridge.Signature({
+            message: 0xf181af880934e45f67ee731b14466fe1703faca88e8a553f1aa2989589ffd1f7,
+            px: 0x18ee3d20e527b1f5efc00df490c6d3f772f5202f18e709525cc20ead7f14f2a3,
+            py: 0x385d237650154f9cc778ddc9f7a89c195fa787adee8fc66d60ab4b50cd46b81c,
+            rx: 0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c,
+            ry: 0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2,
+            z: 0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0
+        });
 
         vm.prank(leader);
         rollupBridge.signAggregatedProof(channelId, signatures);

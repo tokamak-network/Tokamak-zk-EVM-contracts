@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.29;
 
 interface IRollupBridge {
     // =========== STRUCTS ===========
 
     struct Signature {
-        bytes32 R; // Compressed commitment point (R_bytes)
-        uint256 S; // EdDSA signature scalar component (S_bytes as uint256)
+        bytes32 message; 
+        uint256 px;
+        uint256 py;
+        uint256 rx;
+        uint256 ry;
+        uint256 z;
     }
 
     struct User {

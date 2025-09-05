@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
 import "../src/RollupBridge.sol";
@@ -8,6 +8,7 @@ import "../src/interface/IVerifier.sol";
 import {Verifier} from "../src/verifier/Verifier.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/library/RLP.sol";
+import "../src/library/FROST.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
 
 // Mock Contracts
@@ -50,9 +51,9 @@ contract RollupBridgeTest is Test {
     address public owner = address(1);
     address public leader = address(2);
     address public leader2 = address(22);
-    address public user1 = address(3);
-    address public user2 = address(4);
-    address public user3 = address(5);
+    address public user1 = 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0; // Address that FROST signature 1 recovers to
+    address public user2 = 0x012C2171f631e27C4bA9f7f8262af2a48956939A; // Address that FROST signature 2 recovers to
+    address public user3 = 0x600a717398129Dcd4B725C573AcBC8D292b1c75d; // Third participant address
 
     address public l2Leader = address(12);
     address public l2User1 = address(13);
@@ -80,6 +81,20 @@ contract RollupBridgeTest is Test {
 
         verifier = new MockVerifier();
         token = new MockERC20();
+        
+        // Test the original FROST signature and create a second one
+        console.log("=== Testing FROST Signatures ===");
+        
+        // Original signature from FROST.t.sol - recovers to known address
+        address recovered1 = FROST.verify(
+            0x4141414141414141414141414141414141414141414141414141414141414141,
+            0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
+            0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF,
+            0x501DCFE29D881AA855BF25979BD79F751AA9536AF7A389403CD345B02D1E6F25,
+            0x839AD3B762F50FE560F4688A15A1CAED522919F33928567F95BC48CBD9B8C771,
+            0x4FDEA9858F3E6484F1F0D64E7C17879C25F68DA8BD0E82B063CF7410DDF5A886
+        );
+        console.log("Signature 1 recovers to:", recovered1);        
 
         // Deploy RollupBridge with proxy
         RollupBridge implementation = new RollupBridge();
@@ -108,6 +123,53 @@ contract RollupBridgeTest is Test {
         token.mint(user3, INITIAL_TOKEN_BALANCE);
 
         vm.stopPrank();
+    }
+
+    // ========== Helper Functions for FROST Signatures ==========
+
+    /**
+     * @dev Creates a FROST signature that verifies against user1 (0xd96b35D012879d89cfBA6fE215F1015863a6f6d0)
+     */
+    function _createFROSTSignature() internal pure returns (IRollupBridge.Signature memory) {
+        // Return Vector 1 signature data - recovers to 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0 (user1)
+        return IRollupBridge.Signature({
+            message: 0x08f58e86bd753e86f2e0172081576b4c58909be5c2e70a8e30439d3a12d091be,
+            px: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            py: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e,
+            rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
+            ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
+            z: 0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25
+        });
+    }
+
+    /**
+     * @dev Creates a FROST signature that verifies against user2 (0x012C2171f631e27C4bA9f7f8262af2a48956939A)
+     */
+    function _createFROSTSignature2() internal pure returns (IRollupBridge.Signature memory) {
+        // Return Vector 2 signature data - recovers to 0x012C2171f631e27C4bA9f7f8262af2a48956939A (user2)
+        return IRollupBridge.Signature({
+            message: 0xf181af880934e45f67ee731b14466fe1703faca88e8a553f1aa2989589ffd1f7,
+            px: 0x18ee3d20e527b1f5efc00df490c6d3f772f5202f18e709525cc20ead7f14f2a3,
+            py: 0x385d237650154f9cc778ddc9f7a89c195fa787adee8fc66d60ab4b50cd46b81c,
+            rx: 0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c,
+            ry: 0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2,
+            z: 0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0
+        });
+    }
+
+        /**
+     * @dev Creates a FROST signature that verifies against user3 (0x600a717398129Dcd4B725C573AcBC8D292b1c75d)
+     */
+    function _createFROSTSignature3() internal pure returns (IRollupBridge.Signature memory) {
+        // Return Vector 3 signature data - recovers to 0x600a717398129Dcd4B725C573AcBC8D292b1c75d (user2)
+        return IRollupBridge.Signature({
+            message: 0x24ab3ddcdbbf8e85eb90094c7e6ba68424c257fd4163ced18a96a7cdae7adeb2,
+            px: 0x30fd2ddac207ff03aa501680af9b56376fd52d4c9eedb1346abcb39319207792,
+            py: 0x08fb00eb23b2d2fe4b2017ec9a1cf2234d22db33647dba0e89868aefef875754,
+            rx: 0x4bb5218f6f8a1bcf96325014bcb1518f309b9d708d5c4ce3e3d97a39c2601abc,
+            ry: 0xe022a9af92ba338676bc2f521092b6ca4a4fefa6ebd53925386c5a2bdc6a75b4,
+            z: 0xc748959792ecdca491f2eebb210c12c07a39427baf77ec9db2ecaa97fa01cfc2
+        });
     }
 
     // ========== Helper Functions for MPT Leaves ==========
@@ -731,10 +793,10 @@ contract RollupBridgeTest is Test {
     function testSignAggregatedProof() public {
         uint256 channelId = _submitProof();
 
-        // Create an array of signatures for the required number of participants
+        // Create FROST signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
         // Only the leader or owner can sign aggregated proof
         vm.prank(leader);
@@ -749,15 +811,29 @@ contract RollupBridgeTest is Test {
     function testSignAggregatedProofEvent() public {
         uint256 channelId = _submitProof();
 
-        // Create an array of signatures for the required number of participants
+        // Create FROST signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
-        // Test that the event is emitted correctly
+        // Test successful signature aggregation and event emission
         vm.prank(leader);
         vm.expectEmit(true, true, false, true);
         emit AggregatedProofSigned(channelId, leader, 2, 2);
+        bridge.signAggregatedProof(channelId, signatures);
+    }
+
+    function testSignAggregatedProofWithDuplicateSignatures() public {
+        uint256 channelId = _submitProof();
+
+        // Create duplicate signatures from the same signer
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature(); // Duplicate signature - should be ignored
+
+        // Test should fail because we only have 1 unique signer (duplicates ignored) but need 2
+        vm.prank(leader);
+        vm.expectRevert("Invalid group threshold signature");
         bridge.signAggregatedProof(channelId, signatures);
     }
 
@@ -775,9 +851,8 @@ contract RollupBridgeTest is Test {
     function testSignAggregatedProofWithInsufficientSignatures() public {
         uint256 channelId = _submitProof();
 
-        // Test with only 1 signature when 2 are required
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        // Test with 0 signatures when 1 is required
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](0);
 
         vm.prank(leader);
         vm.expectRevert("Invalid group threshold signature");
@@ -789,9 +864,9 @@ contract RollupBridgeTest is Test {
 
         // Test with more signatures than required (3 signatures when 2 are required)
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](3);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
-        signatures[2] = IRollupBridge.Signature({R: bytes32(uint256(3)), S: 5});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
+        signatures[2] = _createFROSTSignature3();
 
         vm.prank(leader);
         bridge.signAggregatedProof(channelId, signatures);
@@ -805,8 +880,8 @@ contract RollupBridgeTest is Test {
 
         // Create an array of signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
         // Test that the owner can also sign aggregated proof
         vm.prank(owner);
@@ -820,8 +895,8 @@ contract RollupBridgeTest is Test {
 
         // Create an array of signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
         // Sign the aggregated proof
         vm.prank(leader);
@@ -840,8 +915,8 @@ contract RollupBridgeTest is Test {
 
         // Create an array of signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
         // Sign the aggregated proof
         vm.prank(leader);
@@ -864,8 +939,8 @@ contract RollupBridgeTest is Test {
 
         // Try to sign aggregated proof before submitting proof (state is Initialized)
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
         vm.prank(leader);
         vm.expectRevert("Not in closing state");
@@ -877,8 +952,8 @@ contract RollupBridgeTest is Test {
 
         // Test with exactly the required number of signatures
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
         vm.prank(leader);
         bridge.signAggregatedProof(channelId, signatures);
@@ -895,9 +970,9 @@ contract RollupBridgeTest is Test {
         _submitProofForChannel(channelId2, newLeader);
 
         IRollupBridge.Signature[] memory signatures2 = new IRollupBridge.Signature[](3);
-        signatures2[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures2[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
-        signatures2[2] = IRollupBridge.Signature({R: bytes32(uint256(3)), S: 5});
+        signatures2[0] = _createFROSTSignature();
+        signatures2[1] = _createFROSTSignature2();
+        signatures2[2] = _createFROSTSignature3();
 
         vm.prank(newLeader);
         bridge.signAggregatedProof(channelId2, signatures2);
@@ -911,7 +986,7 @@ contract RollupBridgeTest is Test {
 
         // Test with insufficient signatures (1 signature when 2 are required)
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
+        signatures[0] = _createFROSTSignature();
 
         vm.prank(leader);
         vm.expectRevert("Invalid group threshold signature");
@@ -926,8 +1001,8 @@ contract RollupBridgeTest is Test {
 
         // Create an array of signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
         // Test that non-leader/non-owner cannot sign
         vm.prank(user1);
@@ -948,8 +1023,8 @@ contract RollupBridgeTest is Test {
 
         // Create an array of signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
         // Sign the aggregated proof
         vm.prank(leader);
@@ -1236,8 +1311,8 @@ contract RollupBridgeTest is Test {
 
         // Create an array of signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        signatures[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        signatures[0] = _createFROSTSignature();
+        signatures[1] = _createFROSTSignature2();
 
         // Only the leader or owner can sign aggregated proof
         vm.prank(leader);
@@ -1345,8 +1420,8 @@ contract RollupBridgeTest is Test {
 
         // 5. Collect signatures
         IRollupBridge.Signature[] memory sig = new IRollupBridge.Signature[](2);
-        sig[0] = IRollupBridge.Signature({R: bytes32(uint256(1)), S: 3});
-        sig[1] = IRollupBridge.Signature({R: bytes32(uint256(2)), S: 4});
+        sig[0] = _createFROSTSignature();
+        sig[1] = _createFROSTSignature2();
 
         vm.prank(leader);
         bridge.signAggregatedProof(channelId, sig);

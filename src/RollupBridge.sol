@@ -11,7 +11,7 @@ import "forge-std/console.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import "./library/RLP.sol";
-import {FROST} from "../src/library/FROST.sol";
+import {ZecFrost} from "./library/ZecFrost.sol";
 
 /**
  * @title RollupBridgeUpgradeable
@@ -521,7 +521,7 @@ contract RollupBridge is
         for (uint256 i = 0; i < signatures.length && i < MAX_PARTICIPANTS; ) {
             Signature calldata sig = signatures[i];
 
-            address signer = FROST.verify(sig.message, sig.px, sig.py, sig.rx, sig.ry, sig.z);
+            address signer = ZecFrost.verify(sig.message, sig.px, sig.py, sig.rx, sig.ry, sig.z);
             
             if (signer != address(0) && channel.isParticipant[signer]) {
                 bool alreadySeen = false;

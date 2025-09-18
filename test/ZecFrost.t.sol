@@ -2,9 +2,9 @@
 pragma solidity 0.8.29;
 
 import {Test, console} from "forge-std/Test.sol";
-import {FROST} from "../src/library/FROST.sol";
+import {ZecFrost} from "../src/library/ZecFrost.sol";
 
-contract FROSTTest is Test {
+contract ZecFrostTest is Test {
     function setUp() public {}
 
     function test_Verify() public view {
@@ -26,7 +26,7 @@ contract FROSTTest is Test {
         }
 
         uint256 gasStart = gasleft();
-        address result = FROST.verify(message, px, py, rx, ry, z);
+        address result = ZecFrost.verify(message, px, py, rx, ry, z);
         uint256 gasUsed = gasStart - gasleft();
 
         console.log("Gas used by FROST.verify:", gasUsed);
@@ -54,7 +54,7 @@ contract FROSTTest is Test {
 
         uint256 z = 0x4242424242424242424242424242424242424242424242424242424242424242;
 
-        assertEq(FROST.verify(message, px, py, rx, ry, z), address(0));
-        assertFalse(FROST.isValidPublicKey(px, py));
+        assertEq(ZecFrost.verify(message, px, py, rx, ry, z), address(0));
+        assertFalse(ZecFrost.isValidPublicKey(px, py));
     }
 }

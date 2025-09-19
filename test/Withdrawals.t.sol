@@ -5,7 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {RollupBridge} from "../src/RollupBridge.sol";
 import {IRollupBridge} from "../src/interface/IRollupBridge.sol";
 import {IVerifier} from "../src/interface/IVerifier.sol";
-import {IZecFrost} from "../src/interface/IZecFrost.sol";
+import {ZecFrost} from "../src/library/ZecFrost.sol";
 import {RLP} from "../src/library/RLP.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -23,17 +23,6 @@ contract MockVerifier is IVerifier {
     }
 }
 
-contract MockZecFrost is IZecFrost {
-    function verify(bytes32 message, uint256 pkx, uint256 pky, uint256 rx, uint256 ry, uint256 z)
-        external
-        view
-        returns (address recovered)
-    {
-        // For testing purposes, just return the derived address from the public key
-        return address(uint160(uint256(keccak256(abi.encodePacked(pkx, pky)))));
-    }
-}
-
 contract MockERC20 is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
         _mint(msg.sender, 1000000 * 10 ** 18);
@@ -47,6 +36,7 @@ contract MockERC20 is ERC20 {
 contract WithdrawalsTest is Test {
     RollupBridge public rollupBridge;
     MockVerifier public mockVerifier;
+    ZecFrost public mockZecFrost;
     MockERC20 public testToken;
 
     // Test participants
@@ -85,7 +75,7 @@ contract WithdrawalsTest is Test {
         RollupBridge implementation = new RollupBridge();
 
         // Deploy proxy
-        MockZecFrost mockZecFrost = new MockZecFrost();
+        mockZecFrost = new ZecFrost();
         bytes memory initData = abi.encodeWithSelector(
             RollupBridge.initialize.selector, address(mockVerifier), address(mockZecFrost), owner
         );
@@ -140,8 +130,8 @@ contract WithdrawalsTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: CHANNEL_TIMEOUT,
-            pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
-            pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         channelId = rollupBridge.openChannel(params);
     }
@@ -171,8 +161,8 @@ contract WithdrawalsTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: CHANNEL_TIMEOUT,
-            pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
-            pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         channelId = rollupBridge.openChannel(params);
     }

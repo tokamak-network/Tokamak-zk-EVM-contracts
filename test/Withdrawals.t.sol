@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {RollupBridge} from "../src/RollupBridge.sol";
 import {IRollupBridge} from "../src/interface/IRollupBridge.sol";
 import {IVerifier} from "../src/interface/IVerifier.sol";
+import {IZecFrost} from "../src/interface/IZecFrost.sol";
 import {RLP} from "../src/library/RLP.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -19,6 +20,17 @@ contract MockVerifier is IVerifier {
         uint256
     ) external pure returns (bool) {
         return true; // Always return true for testing
+    }
+}
+
+contract MockZecFrost is IZecFrost {
+    function verify(bytes32 message, uint256 pkx, uint256 pky, uint256 rx, uint256 ry, uint256 z)
+        external
+        view
+        returns (address recovered)
+    {
+        // For testing purposes, just return the derived address from the public key
+        return address(uint160(uint256(keccak256(abi.encodePacked(pkx, pky)))));
     }
 }
 
@@ -73,11 +85,9 @@ contract WithdrawalsTest is Test {
         RollupBridge implementation = new RollupBridge();
 
         // Deploy proxy
+        MockZecFrost mockZecFrost = new MockZecFrost();
         bytes memory initData = abi.encodeWithSelector(
-            RollupBridge.initialize.selector,
-            address(mockVerifier),
-            address(0), // unused parameter
-            owner
+            RollupBridge.initialize.selector, address(mockVerifier), address(mockZecFrost), owner
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
@@ -130,7 +140,8 @@ contract WithdrawalsTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: CHANNEL_TIMEOUT,
-            groupPublicKey: bytes32("mockGroupPublicKey")
+            pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
+            pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
         channelId = rollupBridge.openChannel(params);
     }
@@ -160,7 +171,8 @@ contract WithdrawalsTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: CHANNEL_TIMEOUT,
-            groupPublicKey: bytes32("mockGroupPublicKey")
+            pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
+            pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
         channelId = rollupBridge.openChannel(params);
     }
@@ -235,28 +247,16 @@ contract WithdrawalsTest is Test {
         vm.prank(leader);
         rollupBridge.submitAggregatedProof(channelId, proofData);
 
-        // Sign aggregated proof (mock signatures)
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        // Use working FROST signatures that recover to participant1 and participant2
-        signatures[0] = IRollupBridge.Signature({
+        // Sign aggregated proof
+        IRollupBridge.Signature memory signature = IRollupBridge.Signature({
             message: 0x08f58e86bd753e86f2e0172081576b4c58909be5c2e70a8e30439d3a12d091be,
-            px: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            py: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e,
             rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
             ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
             z: 0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25
         });
-        signatures[1] = IRollupBridge.Signature({
-            message: 0xf181af880934e45f67ee731b14466fe1703faca88e8a553f1aa2989589ffd1f7,
-            px: 0x18ee3d20e527b1f5efc00df490c6d3f772f5202f18e709525cc20ead7f14f2a3,
-            py: 0x385d237650154f9cc778ddc9f7a89c195fa787adee8fc66d60ab4b50cd46b81c,
-            rx: 0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c,
-            ry: 0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2,
-            z: 0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0
-        });
 
         vm.prank(leader);
-        rollupBridge.signAggregatedProof(channelId, signatures);
+        rollupBridge.signAggregatedProof(channelId, signature);
 
         // Close channel
         vm.prank(leader);

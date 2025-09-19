@@ -6,6 +6,7 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 
 import "../src/RollupBridge.sol";
 import "../src/verifier/Verifier.sol";
+import "../src/interface/IZecFrost.sol";
 
 import {IERC20Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
 import {ERC20Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
@@ -42,6 +43,17 @@ contract MockVerifier is IVerifier {
         uint256
     ) external pure returns (bool) {
         return true;
+    }
+}
+
+contract MockZecFrost is IZecFrost {
+    function verify(bytes32 message, uint256 pkx, uint256 pky, uint256 rx, uint256 ry, uint256 z)
+        external
+        view
+        returns (address recovered)
+    {
+        // For testing purposes, just return the derived address from the public key
+        return address(uint160(uint256(keccak256(abi.encodePacked(pkx, pky)))));
     }
 }
 
@@ -146,7 +158,8 @@ contract BasicUpgradeableTest is Test {
 
         // Deploy proxy
         rollupBridgeProxy = new ERC1967Proxy(
-            address(rollupBridgeImpl), abi.encodeCall(RollupBridge.initialize, (address(verifier), address(0), owner))
+            address(rollupBridgeImpl),
+            abi.encodeCall(RollupBridge.initialize, (address(verifier), address(new MockZecFrost()), owner))
         );
         rollupBridge = RollupBridge(payable(address(rollupBridgeProxy)));
 
@@ -225,7 +238,8 @@ contract BasicUpgradeableTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: 1 hours,
-            groupPublicKey: bytes32(uint256(123))
+            pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
+            pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
         uint256 channelId = rollupBridge.openChannel(params);
 
@@ -320,7 +334,8 @@ contract BasicUpgradeableTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: 2 hours,
-            groupPublicKey: bytes32(uint256(456))
+            pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
+            pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
         uint256 channelId = rollupBridge.openChannel(params);
 
@@ -424,7 +439,8 @@ contract BasicUpgradeableTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: 1 hours,
-            groupPublicKey: bytes32(uint256(789))
+            pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
+            pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
         uint256 channelId = rollupBridgeV2.openChannel(params);
 

@@ -5,10 +5,12 @@ import "forge-std/Test.sol";
 import "../src/RollupBridge.sol";
 import "../src/interface/IRollupBridge.sol";
 import "../src/interface/IVerifier.sol";
+import "../src/interface/IZecFrost.sol";
+import {ZecFrost} from "../src/library/ZecFrost.sol";
+
 import {Verifier} from "../src/verifier/Verifier.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/library/RLP.sol";
-import "../src/library/ZecFrost.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
 
 // Mock Contracts
@@ -52,8 +54,8 @@ contract RollupBridgeTest is Test {
     address public leader = address(2);
     address public leader2 = address(22);
     address public user1 = 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0; // Address that ZecFrost signature 1 recovers to
-    address public user2 = 0x012C2171f631e27C4bA9f7f8262af2a48956939A; // Address that ZecFrost signature 2 recovers to
-    address public user3 = 0x600a717398129Dcd4B725C573AcBC8D292b1c75d; // Third participant address
+    address public user2 = address(3);
+    address public user3 = address(4);
 
     address public l2Leader = address(12);
     address public l2User1 = address(13);
@@ -71,9 +73,7 @@ contract RollupBridgeTest is Test {
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
-    event AggregatedProofSigned(
-        uint256 indexed channelId, address indexed signer, uint256 signatureCount, uint256 requiredSignatures
-    );
+    event AggregatedProofSigned(uint256 indexed channelId, address indexed signer);
 
     function setUp() public {
         // Deploy contracts
@@ -81,27 +81,11 @@ contract RollupBridgeTest is Test {
 
         verifier = new MockVerifier();
         token = new MockERC20();
-        
-        // Test the original ZecFrost signature and create a second one
-        console.log("=== Testing ZecFrost Signatures ===");
-        
-        // Original signature from ZecFrost.t.sol - recovers to known address
-        address recovered1 = ZecFrost.verify(
-            0x4141414141414141414141414141414141414141414141414141414141414141,
-            0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
-            0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF,
-            0x501DCFE29D881AA855BF25979BD79F751AA9536AF7A389403CD345B02D1E6F25,
-            0x839AD3B762F50FE560F4688A15A1CAED522919F33928567F95BC48CBD9B8C771,
-            0x4FDEA9858F3E6484F1F0D64E7C17879C25F68DA8BD0E82B063CF7410DDF5A886
-        );
-        console.log("Signature 1 recovers to:", recovered1);        
 
+        ZecFrost zecFrost = new ZecFrost();
         // Deploy RollupBridge with proxy
         RollupBridge implementation = new RollupBridge();
-        bytes memory initData = abi.encodeCall(
-            RollupBridge.initialize,
-            (address(verifier), address(0), owner) // No MerkleTreeManager needed
-        );
+        bytes memory initData = abi.encodeCall(RollupBridge.initialize, (address(verifier), address(zecFrost), owner));
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         bridge = RollupBridge(address(proxy));
 
@@ -134,8 +118,6 @@ contract RollupBridgeTest is Test {
         // Return Vector 1 signature data - recovers to 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0 (user1)
         return IRollupBridge.Signature({
             message: 0x08f58e86bd753e86f2e0172081576b4c58909be5c2e70a8e30439d3a12d091be,
-            px: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            py: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e,
             rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
             ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
             z: 0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25
@@ -145,30 +127,13 @@ contract RollupBridgeTest is Test {
     /**
      * @dev Creates a ZecFrost signature that verifies against user2 (0x012C2171f631e27C4bA9f7f8262af2a48956939A)
      */
-    function _createZecFrostSignature2() internal pure returns (IRollupBridge.Signature memory) {
+    function _createWrongZecFrostSignature() internal pure returns (IRollupBridge.Signature memory) {
         // Return Vector 2 signature data - recovers to 0x012C2171f631e27C4bA9f7f8262af2a48956939A (user2)
         return IRollupBridge.Signature({
             message: 0xf181af880934e45f67ee731b14466fe1703faca88e8a553f1aa2989589ffd1f7,
-            px: 0x18ee3d20e527b1f5efc00df490c6d3f772f5202f18e709525cc20ead7f14f2a3,
-            py: 0x385d237650154f9cc778ddc9f7a89c195fa787adee8fc66d60ab4b50cd46b81c,
             rx: 0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c,
             ry: 0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2,
             z: 0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0
-        });
-    }
-
-        /**
-     * @dev Creates a ZecFrost signature that verifies against user3 (0x600a717398129Dcd4B725C573AcBC8D292b1c75d)
-     */
-    function _createZecFrostSignature3() internal pure returns (IRollupBridge.Signature memory) {
-        // Return Vector 3 signature data - recovers to 0x600a717398129Dcd4B725C573AcBC8D292b1c75d (user2)
-        return IRollupBridge.Signature({
-            message: 0x24ab3ddcdbbf8e85eb90094c7e6ba68424c257fd4163ced18a96a7cdae7adeb2,
-            px: 0x30fd2ddac207ff03aa501680af9b56376fd52d4c9eedb1346abcb39319207792,
-            py: 0x08fb00eb23b2d2fe4b2017ec9a1cf2234d22db33647dba0e89868aefef875754,
-            rx: 0x4bb5218f6f8a1bcf96325014bcb1518f309b9d708d5c4ce3e3d97a39c2601abc,
-            ry: 0xe022a9af92ba338676bc2f521092b6ca4a4fefa6ebd53925386c5a2bdc6a75b4,
-            z: 0xc748959792ecdca491f2eebb210c12c07a39427baf77ec9db2ecaa97fa01cfc2
         });
     }
 
@@ -299,7 +264,8 @@ contract RollupBridgeTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: 1 days,
-            groupPublicKey: bytes32(0)
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         uint256 channelId = bridge.openChannel(params);
 
@@ -413,7 +379,8 @@ contract RollupBridgeTest is Test {
             preprocessedPart1: new uint128[](1),
             preprocessedPart2: new uint256[](1),
             timeout: 1 days,
-            groupPublicKey: bytes32(0)
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         uint256 channelId1 = bridge.openChannel(params1);
 
@@ -426,7 +393,8 @@ contract RollupBridgeTest is Test {
             preprocessedPart1: new uint128[](1),
             preprocessedPart2: new uint256[](1),
             timeout: 1 days,
-            groupPublicKey: bytes32(0)
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         uint256 channelId2 = bridge.openChannel(params2);
 
@@ -692,7 +660,9 @@ contract RollupBridgeTest is Test {
 
         // Deploy RollupBridge with real verifier
         RollupBridge realImplementation = new RollupBridge();
-        bytes memory realInitData = abi.encodeCall(RollupBridge.initialize, (address(realVerifier), address(0), owner));
+        ZecFrost realzecFrost = new ZecFrost();
+        bytes memory realInitData =
+            abi.encodeCall(RollupBridge.initialize, (address(realVerifier), address(realzecFrost), owner));
         ERC1967Proxy realProxy = new ERC1967Proxy(address(realImplementation), realInitData);
         RollupBridge realBridge = RollupBridge(address(realProxy));
 
@@ -731,7 +701,8 @@ contract RollupBridgeTest is Test {
             preprocessedPart1: prepPart1,
             preprocessedPart2: prepPart2,
             timeout: 1 days,
-            groupPublicKey: bytes32(0)
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         uint256 channelId = realBridge.openChannel(params);
         vm.stopPrank();
@@ -796,16 +767,15 @@ contract RollupBridgeTest is Test {
         // Create ZecFrost signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
 
         // Only the leader or owner can sign aggregated proof
         vm.prank(leader);
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
 
         // Test that non-leader/non-owner cannot sign
         vm.prank(user1);
         vm.expectRevert("Not leader or owner");
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
     }
 
     function testSignAggregatedProofEvent() public {
@@ -814,65 +784,24 @@ contract RollupBridgeTest is Test {
         // Create ZecFrost signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
 
         // Test successful signature aggregation and event emission
         vm.prank(leader);
         vm.expectEmit(true, true, false, true);
-        emit AggregatedProofSigned(channelId, leader, 2, 2);
-        bridge.signAggregatedProof(channelId, signatures);
-    }
-
-    function testSignAggregatedProofWithDuplicateSignatures() public {
-        uint256 channelId = _submitProof();
-
-        // Create duplicate signatures from the same signer
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature(); // Duplicate signature - should be ignored
-
-        // Test should fail because we only have 1 unique signer (duplicates ignored) but need 2
-        vm.prank(leader);
-        vm.expectRevert("Invalid group threshold signature");
-        bridge.signAggregatedProof(channelId, signatures);
+        emit AggregatedProofSigned(channelId, leader);
+        bridge.signAggregatedProof(channelId, signatures[0]);
     }
 
     function testSignAggregatedProofWithEmptySignatures() public {
         uint256 channelId = _submitProof();
 
-        // Test with empty signature array
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](0);
+        // Test with default/empty signature (all fields are zero)
+        IRollupBridge.Signature memory emptySignature =
+            IRollupBridge.Signature({message: bytes32(0), rx: 0, ry: 0, z: 0});
 
         vm.prank(leader);
         vm.expectRevert("Invalid group threshold signature");
-        bridge.signAggregatedProof(channelId, signatures);
-    }
-
-    function testSignAggregatedProofWithInsufficientSignatures() public {
-        uint256 channelId = _submitProof();
-
-        // Test with 0 signatures when 1 is required
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](0);
-
-        vm.prank(leader);
-        vm.expectRevert("Invalid group threshold signature");
-        bridge.signAggregatedProof(channelId, signatures);
-    }
-
-    function testSignAggregatedProofWithExcessSignatures() public {
-        uint256 channelId = _submitProof();
-
-        // Test with more signatures than required (3 signatures when 2 are required)
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](3);
-        signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
-        signatures[2] = _createZecFrostSignature3();
-
-        vm.prank(leader);
-        bridge.signAggregatedProof(channelId, signatures);
-
-        // Verify that the channel is ready to close
-        assertTrue(bridge.isChannelReadyToClose(channelId));
+        bridge.signAggregatedProof(channelId, emptySignature);
     }
 
     function testSignAggregatedProofAsOwner() public {
@@ -881,29 +810,12 @@ contract RollupBridgeTest is Test {
         // Create an array of signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
 
         // Test that the owner can also sign aggregated proof
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
-        emit AggregatedProofSigned(channelId, owner, 2, 2);
-        bridge.signAggregatedProof(channelId, signatures);
-    }
-
-    function testSignAggregatedProofSignatureCountUpdate() public {
-        uint256 channelId = _submitProof();
-
-        // Create an array of signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
-
-        // Sign the aggregated proof
-        vm.prank(leader);
-        bridge.signAggregatedProof(channelId, signatures);
-
-        // Verify that the channel is ready to close
-        assertTrue(bridge.isChannelReadyToClose(channelId));
+        emit AggregatedProofSigned(channelId, owner);
+        bridge.signAggregatedProof(channelId, signatures[0]);
     }
 
     function testSignAggregatedProofStateTransition() public {
@@ -916,11 +828,10 @@ contract RollupBridgeTest is Test {
         // Create an array of signatures for the required number of participants
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
 
         // Sign the aggregated proof
         vm.prank(leader);
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
 
         // Verify that the channel is ready to close
         assertTrue(bridge.isChannelReadyToClose(channelId));
@@ -940,57 +851,22 @@ contract RollupBridgeTest is Test {
         // Try to sign aggregated proof before submitting proof (state is Initialized)
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
 
         vm.prank(leader);
         vm.expectRevert("Not in closing state");
-        bridge.signAggregatedProof(channelId, signatures);
-    }
-
-    function testSignAggregatedProofDifferentArraySizes() public {
-        uint256 channelId = _submitProof();
-
-        // Test with exactly the required number of signatures
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
-        signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
-
-        vm.prank(leader);
-        bridge.signAggregatedProof(channelId, signatures);
-
-        // Verify success
-        assertTrue(bridge.isChannelReadyToClose(channelId));
-
-        // Test with more signatures than required - use a different leader
-        address newLeader = address(0x123);
-        vm.prank(owner);
-        bridge.authorizeCreator(newLeader);
-
-        uint256 channelId2 = _createChannelWithLeader(newLeader);
-        _submitProofForChannel(channelId2, newLeader);
-
-        IRollupBridge.Signature[] memory signatures2 = new IRollupBridge.Signature[](3);
-        signatures2[0] = _createZecFrostSignature();
-        signatures2[1] = _createZecFrostSignature2();
-        signatures2[2] = _createZecFrostSignature3();
-
-        vm.prank(newLeader);
-        bridge.signAggregatedProof(channelId2, signatures2);
-
-        // Verify success even with excess signatures
-        assertTrue(bridge.isChannelReadyToClose(channelId2));
+        bridge.signAggregatedProof(channelId, signatures[0]);
     }
 
     function testSignAggregatedProofVerificationFailure() public {
         uint256 channelId = _submitProof();
 
-        // Test with insufficient signatures (1 signature when 2 are required)
+        // Test with wrong signatures
         IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
-        signatures[0] = _createZecFrostSignature();
+        signatures[0] = _createWrongZecFrostSignature();
 
         vm.prank(leader);
         vm.expectRevert("Invalid group threshold signature");
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
 
         // Verify that the channel is not ready to close
         assertFalse(bridge.isChannelReadyToClose(channelId));
@@ -1000,42 +876,40 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Create an array of signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
         signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
 
         // Test that non-leader/non-owner cannot sign
         vm.prank(user1);
         vm.expectRevert("Not leader or owner");
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
 
         vm.prank(user2);
         vm.expectRevert("Not leader or owner");
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
 
         vm.prank(user3);
         vm.expectRevert("Not leader or owner");
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
     }
 
     function testSignAggregatedProofAlreadySigned() public {
         uint256 channelId = _submitProof();
 
         // Create an array of signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
         signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
 
         // Sign the aggregated proof
         vm.prank(leader);
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
 
         // Verify that the channel is ready to close
         assertTrue(bridge.isChannelReadyToClose(channelId));
 
         // Try to sign again with the same signatures
         vm.prank(leader);
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
 
         // Verify that the channel is still ready to close
         assertTrue(bridge.isChannelReadyToClose(channelId));
@@ -1143,7 +1017,8 @@ contract RollupBridgeTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: 1 days,
-            groupPublicKey: bytes32(0)
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         uint256 channelId = bridge.openChannel(params);
 
@@ -1175,7 +1050,8 @@ contract RollupBridgeTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: 1 days,
-            groupPublicKey: bytes32(0)
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         uint256 channelId = bridge.openChannel(params);
 
@@ -1207,7 +1083,8 @@ contract RollupBridgeTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: 1 days,
-            groupPublicKey: bytes32(0)
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         uint256 channelId = bridge.openChannel(params);
 
@@ -1310,13 +1187,12 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Create an array of signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
         signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
 
         // Only the leader or owner can sign aggregated proof
         vm.prank(leader);
-        bridge.signAggregatedProof(channelId, signatures);
+        bridge.signAggregatedProof(channelId, signatures[0]);
 
         return channelId;
     }
@@ -1367,7 +1243,8 @@ contract RollupBridgeTest is Test {
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2,
             timeout: timeout,
-            groupPublicKey: bytes32(0)
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         bridge.openChannel(params);
 
@@ -1419,12 +1296,11 @@ contract RollupBridgeTest is Test {
         );
 
         // 5. Collect signatures
-        IRollupBridge.Signature[] memory sig = new IRollupBridge.Signature[](2);
+        IRollupBridge.Signature[] memory sig = new IRollupBridge.Signature[](1);
         sig[0] = _createZecFrostSignature();
-        sig[1] = _createZecFrostSignature2();
 
         vm.prank(leader);
-        bridge.signAggregatedProof(channelId, sig);
+        bridge.signAggregatedProof(channelId, sig[0]);
 
         // 6. Close channel
         vm.prank(leader);
@@ -1744,7 +1620,8 @@ contract RollupBridgeTest is Test {
             preprocessedPart1: new uint128[](0),
             preprocessedPart2: new uint256[](0),
             timeout: 1 days,
-            groupPublicKey: bytes32(0)
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
         channelId = bridge.openChannel(params);
 
@@ -1763,23 +1640,5 @@ contract RollupBridgeTest is Test {
         bridge.initializeChannelState(channelId);
 
         vm.stopPrank();
-    }
-
-    function testGasUsageSignAggregatedProofWith3Signatures() public {
-        uint256 channelId = _submitProof();
-        
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](3);
-        signatures[0] = _createZecFrostSignature();
-        signatures[1] = _createZecFrostSignature2();
-        signatures[2] = _createZecFrostSignature3();
-        
-        vm.prank(leader);
-        uint256 gasBefore = gasleft();
-        bridge.signAggregatedProof(channelId, signatures);
-        uint256 gasUsed = gasBefore - gasleft();
-        
-        console.log("Gas used for signAggregatedProof with 3 signatures:", gasUsed);
-        
-        assertGt(gasUsed, 0, "Gas should be consumed");
     }
 }

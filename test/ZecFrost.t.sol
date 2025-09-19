@@ -5,9 +5,13 @@ import {Test, console} from "forge-std/Test.sol";
 import {ZecFrost} from "../src/library/ZecFrost.sol";
 
 contract ZecFrostTest is Test {
-    function setUp() public {}
+    ZecFrost zecFrost;
 
-    function test_Verify() public view {
+    function setUp() public {
+        zecFrost = new ZecFrost();
+    }
+
+    function test_Verify01() public view {
         bytes32 message = 0x4141414141414141414141414141414141414141414141414141414141414141;
 
         uint256 px = 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09;
@@ -26,7 +30,7 @@ contract ZecFrostTest is Test {
         }
 
         uint256 gasStart = gasleft();
-        address result = ZecFrost.verify(message, px, py, rx, ry, z);
+        address result = zecFrost.verify(message, px, py, rx, ry, z);
         uint256 gasUsed = gasStart - gasleft();
 
         console.log("Gas used by FROST.verify:", gasUsed);
@@ -54,7 +58,7 @@ contract ZecFrostTest is Test {
 
         uint256 z = 0x4242424242424242424242424242424242424242424242424242424242424242;
 
-        assertEq(ZecFrost.verify(message, px, py, rx, ry, z), address(0));
-        assertFalse(ZecFrost.isValidPublicKey(px, py));
+        assertEq(zecFrost.verify(message, px, py, rx, ry, z), address(0));
+        assertFalse(zecFrost.isValidPublicKey(px, py));
     }
 }

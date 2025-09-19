@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.29;
 
 import "lib/openzeppelin-contracts-upgradeable/contracts/utils/cryptography/ECDSAUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
@@ -11,6 +11,7 @@ import "forge-std/console.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import "./library/RLP.sol";
+import {IZecFrost} from "./interface/IZecFrost.sol";
 
 /**
  * @title RollupBridgeUpgradeable
@@ -55,7 +56,6 @@ contract RollupBridge is
     uint256 public constant CHALLENGE_PERIOD = 14 days;
     uint256 public constant MIN_PARTICIPANTS = 3;
     uint256 public constant MAX_PARTICIPANTS = 50;
-    uint256 public constant SIGNATURE_THRESHOLD_PERCENT = 67;
     uint256 public constant NATIVE_TOKEN_TRANSFER_GAS_LIMIT = 1_000_000;
     address public constant ETH_TOKEN_ADDRESS = address(1);
 
@@ -73,7 +73,8 @@ contract RollupBridge is
         mapping(address => bool) authorizedChannelCreators;
         mapping(address => bool) isChannelLeader;
         uint256 nextChannelId;
-        IVerifier zkVerifier;
+        IVerifier zkVerifier; // on-chain zkSNARK verifier contract
+        IZecFrost zecFrost; // on-chain sig verifier contract
         // ========== EMBEDDED MERKLE STORAGE ==========
         mapping(uint256 => mapping(uint256 => bytes32)) cachedSubtrees;
         mapping(uint256 => mapping(uint256 => bytes32)) roots;
@@ -101,7 +102,7 @@ contract RollupBridge is
         _disableInitializers();
     }
 
-    function initialize(address _zkVerifier, address, address _owner) public initializer {
+    function initialize(address _zkVerifier, address _zecFrost, address _owner) public initializer {
         __ReentrancyGuard_init();
         __Ownable_init_unchained();
         _transferOwnership(_owner);
@@ -109,6 +110,7 @@ contract RollupBridge is
 
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         $.zkVerifier = IVerifier(_zkVerifier);
+        $.zecFrost = IZecFrost(_zecFrost);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -118,6 +120,11 @@ contract RollupBridge is
     function zkVerifier() public view returns (IVerifier) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.zkVerifier;
+    }
+
+    function zecFrost() public view returns (IZecFrost) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.zecFrost;
     }
 
     function nextChannelId() public view returns (uint256) {
@@ -198,7 +205,6 @@ contract RollupBridge is
         channel.preprocessedPart1 = params.preprocessedPart1;
         channel.preprocessedPart2 = params.preprocessedPart2;
         channel.state = ChannelState.Initialized;
-        channel.groupPublicKey = params.groupPublicKey;
 
         uint256 participantsLength = params.participants.length;
         for (uint256 i = 0; i < participantsLength;) {
@@ -214,12 +220,20 @@ contract RollupBridge is
             }
         }
 
-        channel.requiredSignatures = (participantsLength * SIGNATURE_THRESHOLD_PERCENT) / 100;
-        if (channel.requiredSignatures == 0) {
-            channel.requiredSignatures = 1;
-        }
+        // store public key and generate signer address
+        channel.pkx = params.pkx;
+        channel.pky = params.pky;
+        address signerAddr = _deriveAddressFromPubkey(params.pkx, params.pky);
+        channel.signerAddr = signerAddr;
 
         emit ChannelOpened(channelId, params.targetContract);
+    }
+
+    /// @dev Derive an Ethereum-style address from the uncompressed public key (x||y).
+    ///      Equivalent to address(uint160(uint256(keccak256(abi.encodePacked(pkx, pky))))).
+    function _deriveAddressFromPubkey(uint256 pkx, uint256 pky) internal pure returns (address) {
+        bytes32 h = keccak256(abi.encodePacked(pkx, pky));
+        return address(uint160(uint256(h)));
     }
 
     // ========== DEPOSIT FUNCTIONS ==========
@@ -482,38 +496,20 @@ contract RollupBridge is
         emit ProofAggregated(channelId, proofData.aggregatedProofHash);
     }
 
-    function signAggregatedProof(uint256 channelId, Signature[] calldata signatures) external {
+    function signAggregatedProof(uint256 channelId, Signature calldata signature) external {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         require(channel.state == ChannelState.Closing, "Not in closing state");
         require(msg.sender == channel.leader || msg.sender == owner(), "Not leader or owner");
 
-        channel.receivedSignatures = signatures.length;
-        require(_verifyGroupThresholdSignature(channelId), "Invalid group threshold signature");
+        address recovered =
+            $.zecFrost.verify(signature.message, channel.pkx, channel.pky, signature.rx, signature.ry, signature.z);
 
-        emit AggregatedProofSigned(channelId, msg.sender, channel.receivedSignatures, channel.requiredSignatures);
-    }
+        require(recovered == channel.signerAddr, "Invalid group threshold signature");
 
-    function _verifyGroupThresholdSignature(uint256 channelId) internal view returns (bool) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
+        channel.sigVerified = true;
 
-        if (channel.receivedSignatures < channel.requiredSignatures) {
-            return false;
-        }
-
-        require(channel.requiredSignatures > 0, "Invalid required signatures");
-
-        uint256 participantCount = channel.participants.length;
-        require(participantCount >= MIN_PARTICIPANTS, "Invalid participant count");
-
-        uint256 calculatedThreshold = (participantCount * SIGNATURE_THRESHOLD_PERCENT) / 100;
-        if (calculatedThreshold == 0) {
-            calculatedThreshold = 1;
-        }
-        require(channel.requiredSignatures == calculatedThreshold, "Threshold mismatch");
-
-        return channel.receivedSignatures >= channel.requiredSignatures;
+        emit AggregatedProofSigned(channelId, msg.sender);
     }
 
     // ========== CHANNEL CLOSURE ==========
@@ -523,7 +519,7 @@ contract RollupBridge is
         Channel storage channel = $.channels[channelId];
         require(msg.sender == channel.leader || msg.sender == owner(), "unauthorized caller");
         require(channel.state == ChannelState.Closing, "Not in closing state");
-        require(channel.receivedSignatures >= channel.requiredSignatures, "Insufficient signatures");
+        require(channel.sigVerified, "signature not verified");
 
         channel.state = ChannelState.Closed;
         channel.closeTimestamp = block.timestamp;
@@ -537,24 +533,11 @@ contract RollupBridge is
         uint256 leafIndex,
         bytes32[] calldata merkleProof
     ) external nonReentrant {
-        console.log("=== withdrawAfterClose called ===");
-        console.log("channelId:", channelId);
-        console.log("claimedBalance:", claimedBalance);
-        console.log("leafIndex:", leafIndex);
-        console.log("msg.sender:", msg.sender);
-
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
 
-        console.log("Channel state:", uint256(channel.state));
-        console.log("Expected state (Closed):", uint256(ChannelState.Closed));
-
         require(channel.state == ChannelState.Closed, "Not closed");
-
-        console.log("hasWithdrawn[msg.sender]:", channel.hasWithdrawn[msg.sender]);
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
-
-        console.log("isParticipant[msg.sender]:", channel.isParticipant[msg.sender]);
         require(channel.isParticipant[msg.sender], "Not a participant");
 
         address l2Address = $.l1ToL2[channelId][msg.sender];
@@ -719,22 +702,16 @@ contract RollupBridge is
         );
     }
 
-    function isChannelReadyToClose(uint256 channelId) external view returns (bool) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return channel.receivedSignatures >= channel.requiredSignatures;
-    }
-
     function getAggregatedProofHash(uint256 channelId) external view returns (bytes32) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         return channel.aggregatedProofHash;
     }
 
-    function getGroupPublicKey(uint256 channelId) external view returns (bytes32) {
+    function getGroupPublicKey(uint256 channelId) external view returns (address) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
-        return channel.groupPublicKey;
+        return channel.signerAddr;
     }
 
     function getFinalStateRoot(uint256 channelId) external view returns (bytes32) {
@@ -861,10 +838,7 @@ contract RollupBridge is
             ChannelState state,
             uint256 participantCount,
             uint256 totalDeposits,
-            uint256 requiredSignatures,
-            uint256 receivedSignatures,
-            address leader,
-            bytes32 groupPublicKey
+            address leader
         )
     {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
@@ -875,10 +849,7 @@ contract RollupBridge is
             channel.state,
             channel.participants.length,
             channel.tokenTotalDeposits,
-            channel.requiredSignatures,
-            channel.receivedSignatures,
-            channel.leader,
-            channel.groupPublicKey
+            channel.leader
         );
     }
 
@@ -890,6 +861,12 @@ contract RollupBridge is
     function getTotalChannels() external view returns (uint256) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.nextChannelId;
+    }
+
+    function isChannelReadyToClose(uint256 channelId) external view returns (bool) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        return channel.state == ChannelState.Closing && channel.sigVerified;
     }
 
     uint256[44] private __gap;

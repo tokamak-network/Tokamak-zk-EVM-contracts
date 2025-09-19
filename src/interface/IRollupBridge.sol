@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity 0.8.29;
 
 interface IRollupBridge {
     // =========== STRUCTS ===========
 
     struct Signature {
-        bytes32 R; // Compressed commitment point (R_bytes)
-        uint256 S; // EdDSA signature scalar component (S_bytes as uint256)
+        bytes32 message;
+        uint256 rx;
+        uint256 ry;
+        uint256 z;
     }
 
     struct User {
@@ -21,7 +23,8 @@ interface IRollupBridge {
         uint128[] preprocessedPart1;
         uint256[] preprocessedPart2;
         uint256 timeout;
-        bytes32 groupPublicKey;
+        uint256 pkx;
+        uint256 pky;
     }
 
     struct ProofData {
@@ -59,11 +62,11 @@ interface IRollupBridge {
         uint256[] preprocessedPart2;
         // Closing process
         bytes32 aggregatedProofHash;
-        uint256 requiredSignatures;
-        uint256 receivedSignatures;
         mapping(address => bool) hasWithdrawn;
-        // Group/threshold signature support
-        bytes32 groupPublicKey;
+        uint256 pkx; // signer public key X (secp256k1)
+        uint256 pky; // signer public key Y (secp256k1)
+        address signerAddr; // keccak256(pkx||pky) last 20 bytes
+        bool sigVerified;
         bytes[] initialMPTLeaves;
         bytes[] finalMPTLeaves;
         bytes32[] participantRoots; // Root used for each participant's leaf computation
@@ -92,9 +95,7 @@ interface IRollupBridge {
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
-    event AggregatedProofSigned(
-        uint256 indexed channelId, address indexed signer, uint256 signatureCount, uint256 requiredSignatures
-    );
+    event AggregatedProofSigned(uint256 indexed channelId, address indexed signer);
 
     // =========== FUNCTIONS ===========
 
@@ -117,7 +118,7 @@ interface IRollupBridge {
 
     function submitAggregatedProof(uint256 channelId, ProofData calldata proofData) external;
 
-    function signAggregatedProof(uint256 channelId, Signature[] calldata signatures) external;
+    function signAggregatedProof(uint256 channelId, Signature calldata signature) external;
 
     function closeChannel(uint256 channelId) external;
 
@@ -136,7 +137,7 @@ interface IRollupBridge {
 
     function getAggregatedProofHash(uint256 channelId) external view returns (bytes32);
 
-    function getGroupPublicKey(uint256 channelId) external view returns (bytes32);
+    function getGroupPublicKey(uint256 channelId) external view returns (address);
 
     function getFinalStateRoot(uint256 channelId) external view returns (bytes32);
 
@@ -190,10 +191,7 @@ interface IRollupBridge {
             ChannelState state,
             uint256 participantCount,
             uint256 totalDeposits,
-            uint256 requiredSignatures,
-            uint256 receivedSignatures,
-            address leader,
-            bytes32 groupPublicKey
+            address leader
         );
 
     function isAuthorizedCreator(address creator) external view returns (bool);

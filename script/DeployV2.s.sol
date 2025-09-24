@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/RollupBridge.sol";
 import "../src/verifier/Verifier.sol";
+import "../src/library/ZecFrost.sol";
 
 contract DeployV2Script is Script {
     // Implementation addresses
@@ -15,6 +16,7 @@ contract DeployV2Script is Script {
 
     // Environment variables
     address public zkVerifier;
+    address public zecFrost;
     address public deployer;
 
     // Verification settings
@@ -34,6 +36,13 @@ contract DeployV2Script is Script {
             zkVerifier = verifier;
         } catch {
             console.log("No ZK_VERIFIER_ADDRESS provided, will deploy new Verifier");
+        }
+
+        // ZecFrost can be provided or we deploy a new one
+        try vm.envAddress("ZEC_FROST_ADDRESS") returns (address frost) {
+            zecFrost = frost;
+        } catch {
+            console.log("No ZEC_FROST_ADDRESS provided, will deploy new ZecFrost");
         }
     }
 
@@ -55,6 +64,16 @@ contract DeployV2Script is Script {
             console.log("Using existing Verifier at:", zkVerifier);
         }
 
+        // Deploy ZecFrost if not provided
+        if (zecFrost == address(0)) {
+            console.log("Deploying ZecFrost...");
+            ZecFrost zecFrostContract = new ZecFrost();
+            zecFrost = address(zecFrostContract);
+            console.log("ZecFrost deployed at:", zecFrost);
+        } else {
+            console.log("Using existing ZecFrost at:", zecFrost);
+        }
+
         // Deploy RollupBridge implementation
         console.log("Deploying RollupBridge implementation...");
         RollupBridge rollupBridgeImplementation = new RollupBridge();
@@ -65,7 +84,7 @@ contract DeployV2Script is Script {
         console.log("Deploying RollupBridge proxy...");
         bytes memory rollupBridgeInitData = abi.encodeCall(
             RollupBridge.initialize,
-            (zkVerifier, address(0), deployer) // No external MerkleTreeManager needed
+            (zkVerifier, zecFrost, deployer) // Include ZecFrost contract
         );
 
         ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
@@ -81,6 +100,7 @@ contract DeployV2Script is Script {
         // Log final addresses
         console.log("\n=== DEPLOYMENT SUMMARY ===");
         console.log("ZK Verifier:", zkVerifier);
+        console.log("ZecFrost:", zecFrost);
         console.log("RollupBridge Implementation:", rollupBridgeImpl);
         console.log("RollupBridge Proxy:", rollupBridge);
         console.log("Deployer (Owner):", deployer);
@@ -107,6 +127,21 @@ contract DeployV2Script is Script {
             verifierCmd[4] = "--etherscan-api-key";
             verifierCmd[5] = etherscanApiKey;
             vm.ffi(verifierCmd);
+        }
+
+        try vm.parseAddress(vm.envString("ZEC_FROST_ADDRESS")) {
+            console.log("Skipping ZecFrost verification (pre-existing)");
+        } catch {
+            // Verify ZecFrost
+            console.log("Verifying ZecFrost...");
+            string[] memory zecFrostCmd = new string[](6);
+            zecFrostCmd[0] = "forge";
+            zecFrostCmd[1] = "verify-contract";
+            zecFrostCmd[2] = vm.toString(zecFrost);
+            zecFrostCmd[3] = "src/library/ZecFrost.sol:ZecFrost";
+            zecFrostCmd[4] = "--etherscan-api-key";
+            zecFrostCmd[5] = etherscanApiKey;
+            vm.ffi(zecFrostCmd);
         }
 
         // Verify RollupBridge Implementation

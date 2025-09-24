@@ -51,6 +51,7 @@ contract RollupBridge is
 
     // ========== EVENTS ==========
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
+    event TargetContractAllowed(address indexed targetContract, bool allowed);
 
     // ========== CONSTANTS ==========
     uint256 public constant CHALLENGE_PERIOD = 14 days;
@@ -72,6 +73,7 @@ contract RollupBridge is
         mapping(uint256 => Channel) channels;
         mapping(address => bool) authorizedChannelCreators;
         mapping(address => bool) isChannelLeader;
+        mapping(address => bool) allowedTargetContracts;
         uint256 nextChannelId;
         IVerifier zkVerifier; // on-chain zkSNARK verifier contract
         IZecFrost zecFrost; // on-chain sig verifier contract
@@ -142,6 +144,11 @@ contract RollupBridge is
         return $.isChannelLeader[leader];
     }
 
+    function isAllowedTargetContract(address targetContract) public view returns (bool) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.allowedTargetContracts[targetContract];
+    }
+
     // ========== ADMIN FUNCTIONS ==========
 
     function authorizeCreator(address creator) external onlyOwner {
@@ -156,6 +163,13 @@ contract RollupBridge is
         require(_newVerifier != oldVerifier, "Same verifier address");
         $.zkVerifier = IVerifier(_newVerifier);
         emit VerifierUpdated(oldVerifier, _newVerifier);
+    }
+
+    function setAllowedTargetContract(address targetContract, bool allowed) external onlyOwner {
+        require(targetContract != address(0), "Invalid target contract address");
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        $.allowedTargetContracts[targetContract] = allowed;
+        emit TargetContractAllowed(targetContract, allowed);
     }
 
     // ========== CHANNEL MANAGEMENT ==========
@@ -189,6 +203,10 @@ contract RollupBridge is
         );
         require(params.participants.length == params.l2PublicKeys.length, "Mismatched arrays");
         require(params.timeout >= 1 hours && params.timeout <= 7 days, "Invalid timeout");
+        require(
+            params.targetContract == ETH_TOKEN_ADDRESS || $.allowedTargetContracts[params.targetContract],
+            "Target contract not allowed"
+        );
 
         unchecked {
             channelId = $.nextChannelId++;
@@ -261,7 +279,7 @@ contract RollupBridge is
 
         require(_amount != 0, "amount must be greater than 0");
         uint256 amount = _depositToken(msg.sender, IERC20Upgradeable(_token), _amount);
-        require(amount == _amount, "non ERC20 standard transfer logic");
+        require(amount > 0, "Wrong transfer logic");
 
         channel.tokenDeposits[msg.sender] += _amount;
         channel.tokenTotalDeposits += _amount;

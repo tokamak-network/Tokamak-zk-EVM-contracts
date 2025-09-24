@@ -291,8 +291,8 @@ Create `.env` file based on `script/env-v1.template` with additional `TREE_DEPTH
 ### Deployed Contracts (Sepolia)
 
 ```
-RollupBridge impl: 0x0b1C462CF1FF872bfB336ec404764ED8b6515684
-RollupBridge (Proxy): 0x5c6446d4039be4c1a0c2ff1a8d294f813893d1e9
+RollupBridge impl: 0xc187f00581a4192ed069fd9AE8D466201a836F44
+RollupBridge (Proxy): 0x56899c29E9E118D704CB9B418AC572C4EaD429C7
 ```
 
 #### Safety Features

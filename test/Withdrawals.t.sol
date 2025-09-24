@@ -84,8 +84,11 @@ contract WithdrawalsTest is Test {
         rollupBridge = RollupBridge(address(proxy));
 
         // Authorize leader to create channels
-        vm.prank(owner);
+        vm.startPrank(owner);
         rollupBridge.authorizeCreator(leader);
+        // Allow the token contract for testing
+        rollupBridge.setAllowedTargetContract(address(testToken), true);
+        vm.stopPrank();
 
         // Fund participants with ETH and tokens
         vm.deal(participant1, 10 ether);

@@ -4,9 +4,9 @@ pragma solidity 0.8.29;
 import {Test, console2} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import "../src/RollupBridge.sol";
-import "../src/verifier/Verifier.sol";
-import "../src/interface/IZecFrost.sol";
+import "../../src/RollupBridge.sol";
+import "../../src/verifier/Verifier.sol";
+import "../../src/interface/IZecFrost.sol";
 
 import {IERC20Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
 import {ERC20Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";

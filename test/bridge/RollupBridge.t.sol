@@ -2,15 +2,15 @@
 pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
-import "../src/RollupBridge.sol";
-import "../src/interface/IRollupBridge.sol";
-import "../src/interface/IVerifier.sol";
-import "../src/interface/IZecFrost.sol";
-import {ZecFrost} from "../src/library/ZecFrost.sol";
+import "../../src/RollupBridge.sol";
+import "../../src/interface/IRollupBridge.sol";
+import "../../src/interface/IVerifier.sol";
+import "../../src/interface/IZecFrost.sol";
+import {ZecFrost} from "../../src/library/ZecFrost.sol";
 
-import {Verifier} from "../src/verifier/Verifier.sol";
+import {Verifier} from "../../src/verifier/Verifier.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../src/library/RLP.sol";
+import "../../src/library/RLP.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
 
 // Mock Contracts

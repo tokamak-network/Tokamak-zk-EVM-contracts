@@ -4,6 +4,7 @@ pragma solidity 0.8.29;
 import "lib/openzeppelin-contracts-upgradeable/contracts/utils/cryptography/ECDSAUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
@@ -151,6 +152,48 @@ contract RollupBridge is
         return $.allowedTargetContracts[targetContract];
     }
 
+    function debugTokenInfo(address token, address user) external view returns (
+        uint256 userBalance,
+        uint256 userAllowance,
+        uint256 contractBalance,
+        bool isContract,
+        string memory name,
+        string memory symbol,
+        uint8 decimals
+    ) {
+        IERC20Upgradeable tokenContract = IERC20Upgradeable(token);
+        
+        userBalance = tokenContract.balanceOf(user);
+        userAllowance = tokenContract.allowance(user, address(this));
+        contractBalance = tokenContract.balanceOf(address(this));
+        
+        // Check if it's a contract
+        uint32 size;
+        assembly {
+            size := extcodesize(token)
+        }
+        isContract = size > 0;
+        
+        // Try to get token info (might fail for non-standard tokens)
+        try IERC20MetadataUpgradeable(token).name() returns (string memory _name) {
+            name = _name;
+        } catch {
+            name = "Unknown";
+        }
+        
+        try IERC20MetadataUpgradeable(token).symbol() returns (string memory _symbol) {
+            symbol = _symbol;
+        } catch {
+            symbol = "Unknown";
+        }
+        
+        try IERC20MetadataUpgradeable(token).decimals() returns (uint8 _decimals) {
+            decimals = _decimals;
+        } catch {
+            decimals = 18; // Default
+        }
+    }
+
     // ========== ADMIN FUNCTIONS ==========
 
     function authorizeCreator(address creator) external onlyOwner {
@@ -280,20 +323,54 @@ contract RollupBridge is
         require(_token != ETH_TOKEN_ADDRESS && _token == channel.targetContract, "Token must be ERC20 target contract");
 
         require(_amount != 0, "amount must be greater than 0");
-        uint256 amount = _depositToken(msg.sender, IERC20Upgradeable(_token), _amount);
-        require(amount > 0, "Wrong transfer logic");
+        uint256 actualAmount = _depositToken(msg.sender, IERC20Upgradeable(_token), _amount);
 
-        channel.tokenDeposits[msg.sender] += _amount;
-        channel.tokenTotalDeposits += _amount;
+        channel.tokenDeposits[msg.sender] += actualAmount;
+        channel.tokenTotalDeposits += actualAmount;
 
-        emit Deposited(_channelId, msg.sender, _token, _amount);
+        emit Deposited(_channelId, msg.sender, _token, actualAmount);
     }
 
     function _depositToken(address _from, IERC20Upgradeable _token, uint256 _amount) internal returns (uint256) {
+        // Check that user has sufficient balance
+        uint256 userBalance = _token.balanceOf(_from);
+        require(userBalance >= _amount, string(abi.encodePacked("Insufficient token balance: ", _toString(userBalance), " < ", _toString(_amount))));
+        
+        // Check that user has approved sufficient allowance
+        uint256 userAllowance = _token.allowance(_from, address(this));
+        require(userAllowance >= _amount, string(abi.encodePacked("Insufficient token allowance: ", _toString(userAllowance), " < ", _toString(_amount))));
+        
         uint256 balanceBefore = _token.balanceOf(address(this));
+        
+        // Use SafeERC20's safeTransferFrom - this will handle USDT's void return properly
         _token.safeTransferFrom(_from, address(this), _amount);
+        
         uint256 balanceAfter = _token.balanceOf(address(this));
-        return balanceAfter - balanceBefore;
+        
+        // Handle fee-on-transfer tokens like USDT (though fees are currently disabled)
+        uint256 actualAmount = balanceAfter - balanceBefore;
+        require(actualAmount > 0, "No tokens transferred");
+        
+        return actualAmount;
+    }
+
+    function _toString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
     }
 
     // ========== OPTIMIZED INITIALIZATION ==========

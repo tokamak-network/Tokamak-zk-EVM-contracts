@@ -656,7 +656,6 @@ contract RollupBridgeTest is Test {
         assertTrue(gasUsed > 50000, "Gas usage suspiciously low");
     }
 
-
     // ========== Signature Tests ==========
 
     function testSignAggregatedProof() public {

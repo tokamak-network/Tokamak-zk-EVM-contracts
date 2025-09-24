@@ -47,9 +47,9 @@ contract MockVerifier is IVerifier {
 }
 
 contract MockZecFrost is IZecFrost {
-    function verify(bytes32 message, uint256 pkx, uint256 pky, uint256 rx, uint256 ry, uint256 z)
+    function verify(bytes32, /*message*/ uint256 pkx, uint256 pky, uint256, /*rx*/ uint256, /*ry*/ uint256 /*z*/ )
         external
-        view
+        pure
         returns (address recovered)
     {
         // For testing purposes, just return the derived address from the public key

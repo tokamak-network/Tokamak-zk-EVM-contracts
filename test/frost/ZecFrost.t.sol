@@ -2,7 +2,7 @@
 pragma solidity 0.8.29;
 
 import {Test, console} from "forge-std/Test.sol";
-import {ZecFrost} from "../src/library/ZecFrost.sol";
+import {ZecFrost} from "../../src/library/ZecFrost.sol";
 
 contract ZecFrostTest is Test {
     ZecFrost zecFrost;

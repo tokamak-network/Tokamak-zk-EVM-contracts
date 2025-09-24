@@ -4,6 +4,7 @@ pragma solidity 0.8.29;
 import "lib/openzeppelin-contracts-upgradeable/contracts/utils/cryptography/ECDSAUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
@@ -40,6 +41,7 @@ contract RollupBridge is
     UUPSUpgradeable
 {
     using ECDSAUpgradeable for bytes32;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
     using RLP for bytes;
     using RLP for RLP.RLPItem;
 
@@ -289,7 +291,7 @@ contract RollupBridge is
 
     function _depositToken(address _from, IERC20Upgradeable _token, uint256 _amount) internal returns (uint256) {
         uint256 balanceBefore = _token.balanceOf(address(this));
-        _token.transferFrom(_from, address(this), _amount);
+        _token.safeTransferFrom(_from, address(this), _amount);
         uint256 balanceAfter = _token.balanceOf(address(this));
         return balanceAfter - balanceBefore;
     }
@@ -591,7 +593,8 @@ contract RollupBridge is
             }
             require(success, "ETH transfer failed");
         } else {
-            IERC20Upgradeable(channel.targetContract).transfer(msg.sender, claimedBalance);
+            // we use safeTransfer to make it compatible with custom tokens s.a USDT
+            IERC20Upgradeable(channel.targetContract).safeTransfer(msg.sender, claimedBalance);
         }
 
         emit Withdrawn(channelId, msg.sender, channel.targetContract, claimedBalance);

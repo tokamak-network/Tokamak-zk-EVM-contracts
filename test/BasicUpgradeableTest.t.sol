@@ -175,6 +175,9 @@ contract BasicUpgradeableTest is Test {
         token.mint(user2, 1000 ether);
         token.mint(user3, 1000 ether);
 
+        // Allow the token contract for testing
+        rollupBridge.setAllowedTargetContract(address(token), true);
+
         vm.stopPrank();
 
         // Give users ETH

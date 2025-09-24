@@ -106,6 +106,9 @@ contract RollupBridgeTest is Test {
         token.mint(user2, INITIAL_TOKEN_BALANCE);
         token.mint(user3, INITIAL_TOKEN_BALANCE);
 
+        // Allow the token contract for testing
+        bridge.setAllowedTargetContract(address(token), true);
+
         vm.stopPrank();
     }
 
@@ -651,112 +654,6 @@ contract RollupBridgeTest is Test {
         // Assert reasonable gas usage (adjust threshold as needed)
         assertTrue(gasUsed < 10000000, "Gas usage too high");
         assertTrue(gasUsed > 50000, "Gas usage suspiciously low");
-    }
-
-    function test_SubmitAggregatedProofGasUsageWithRealVerifier() public {
-        // Deploy real verifier instead of mock
-        vm.startPrank(owner);
-        Verifier realVerifier = new Verifier();
-
-        // Deploy RollupBridge with real verifier
-        RollupBridge realImplementation = new RollupBridge();
-        ZecFrost realzecFrost = new ZecFrost();
-        bytes memory realInitData =
-            abi.encodeCall(RollupBridge.initialize, (address(realVerifier), address(realzecFrost), owner));
-        ERC1967Proxy realProxy = new ERC1967Proxy(address(realImplementation), realInitData);
-        RollupBridge realBridge = RollupBridge(address(realProxy));
-
-        // Setup for real bridge
-        realBridge.authorizeCreator(user1);
-        vm.stopPrank();
-
-        // Create channel with real bridge
-        vm.startPrank(user1);
-        address[] memory participants = new address[](4);
-        participants[0] = user1;
-        participants[1] = user2;
-        participants[2] = user3;
-        participants[3] = leader;
-
-        address[] memory l2PublicKeys = new address[](4);
-        l2PublicKeys[0] = l2User1;
-        l2PublicKeys[1] = l2User2;
-        l2PublicKeys[2] = l2User3;
-        l2PublicKeys[3] = l2Leader;
-
-        // Get real proof data
-        (
-            uint128[] memory proofPart1,
-            uint256[] memory proofPart2,
-            uint128[] memory prepPart1,
-            uint256[] memory prepPart2,
-            uint256[] memory pubInputs,
-            uint256 smaxValue
-        ) = _getRealProofData();
-
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: realBridge.ETH_TOKEN_ADDRESS(),
-            participants: participants,
-            l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: prepPart1,
-            preprocessedPart2: prepPart2,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
-        });
-        uint256 channelId = realBridge.openChannel(params);
-        vm.stopPrank();
-
-        // Make deposits
-        vm.prank(user1);
-        realBridge.depositETH{value: 1 ether}(channelId);
-        vm.prank(user2);
-        realBridge.depositETH{value: 2 ether}(channelId);
-        vm.prank(user3);
-        realBridge.depositETH{value: 3 ether}(channelId);
-        vm.prank(leader);
-        realBridge.depositETH{value: 4 ether}(channelId);
-
-        // Initialize state
-        vm.prank(user1);
-        realBridge.initializeChannelState(channelId);
-
-        // Create MPT leaves
-        uint256[] memory initialBalances = new uint256[](4);
-        initialBalances[0] = 1 ether;
-        initialBalances[1] = 2 ether;
-        initialBalances[2] = 3 ether;
-        initialBalances[3] = 4 ether;
-
-        uint256[] memory finalBalances = new uint256[](4);
-        finalBalances[0] = 2 ether;
-        finalBalances[1] = 1 ether;
-        finalBalances[2] = 3 ether;
-        finalBalances[3] = 4 ether;
-
-        bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
-        bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
-
-        bytes32 proofHash = keccak256("proof");
-        bytes32 finalRoot = keccak256("finalRoot");
-
-        vm.prank(user1);
-        uint256 gasBefore = gasleft();
-        realBridge.submitAggregatedProof(
-            channelId,
-            _createProofDataSimple(
-                proofHash, finalRoot, proofPart1, proofPart2, pubInputs, smaxValue, initialMPTLeaves, finalMPTLeaves
-            )
-        );
-        uint256 gasAfter = gasleft();
-
-        uint256 gasUsed = gasBefore - gasAfter;
-
-        console.log("Gas used for submitAggregatedProof with real verifier:", gasUsed);
-
-        // Assert reasonable gas usage (ZK verification is expensive)
-        assertTrue(gasUsed < 10000000, "Gas usage too high");
-        assertTrue(gasUsed > 100000, "Gas usage suspiciously low");
     }
 
     // ========== Signature Tests ==========

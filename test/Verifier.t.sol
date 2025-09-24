@@ -30,7 +30,7 @@ contract testTokamakVerifier is Test {
         // preprocessedPart1: First 16 bytes (32 hex chars) of each preprocessed committment coordinate
         // preprocessedPart2: last 32 bytes (64 hex chars) of each preprocessed committment coordinate
 
-         // PREPROCESSED PART 1 (First 16 bytes - 32 hex chars)
+        // PREPROCESSED PART 1 (First 16 bytes - 32 hex chars)
         preprocessedPart1.push(0x1186b2f2b6871713b10bc24ef04a9a39);
         preprocessedPart1.push(0x02b36b71d4948be739d14bb0e8f4a887);
         preprocessedPart1.push(0x18e54aba379045c9f5c18d8aefeaa8cc);
@@ -81,7 +81,6 @@ contract testTokamakVerifier is Test {
         serializedProofPart1.push(0x0f776ce8b238fc163c0b1aa8113d0908);
         serializedProofPart1.push(0x004fd73b11ac3d8956b72d5b0d6093b1);
         serializedProofPart1.push(0x081eb0d1bd168c6d30235d758caa900f);
-
 
         // SERIALIZED PROOF PART 2 (Last 32 bytes - 64 hex chars)
         serializedProofPart2.push(0xd107861dd8cac07bc427c136bc12f424521b3e3aaab440fdcdd66a902e22c0a4);

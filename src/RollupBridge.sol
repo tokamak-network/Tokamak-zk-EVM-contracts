@@ -661,6 +661,7 @@ contract RollupBridge is
         );
 
         channel.hasWithdrawn[msg.sender] = true;
+        channel.withdrawAmount[msg.sender] = claimedBalance;
 
         if (channel.targetContract == ETH_TOKEN_ADDRESS) {
             bool success;

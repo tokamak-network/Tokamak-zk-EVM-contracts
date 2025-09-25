@@ -918,6 +918,12 @@ contract RollupBridge is
         return (channel.initialStateRoot, channel.finalStateRoot);
     }
 
+    function getChannelParticipantRoots(uint256 channelId) external view returns(bytes32[] memory participantRoots) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        return (channel.participantRoots);
+    }
+
     function getChannelProofData(uint256 channelId)
         external
         view

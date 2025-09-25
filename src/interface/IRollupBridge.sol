@@ -63,6 +63,7 @@ interface IRollupBridge {
         // Closing process
         bytes32 aggregatedProofHash;
         mapping(address => bool) hasWithdrawn;
+        mapping(address => uint256) withdrawAmount;
         uint256 pkx; // signer public key X (secp256k1)
         uint256 pky; // signer public key Y (secp256k1)
         address signerAddr; // keccak256(pkx||pky) last 20 bytes

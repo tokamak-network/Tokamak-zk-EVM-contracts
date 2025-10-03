@@ -20,8 +20,6 @@ interface IRollupBridge {
         address targetContract;
         address[] participants;
         address[] l2PublicKeys;
-        uint128[] preprocessedPart1;
-        uint256[] preprocessedPart2;
         uint256 timeout;
         uint256 pkx;
         uint256 pky;

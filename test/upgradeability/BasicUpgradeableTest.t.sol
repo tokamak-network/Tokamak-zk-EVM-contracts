@@ -176,7 +176,7 @@ contract BasicUpgradeableTest is Test {
         token.mint(user3, 1000 ether);
 
         // Allow the token contract for testing
-        rollupBridge.setAllowedTargetContract(address(token), true);
+        rollupBridge.setAllowedTargetContract(address(token), new uint128[](0), new uint256[](0), true);
 
         vm.stopPrank();
 
@@ -222,14 +222,6 @@ contract BasicUpgradeableTest is Test {
         l2PublicKeys[1] = makeAddr("l2user2");
         l2PublicKeys[2] = makeAddr("l2user3");
 
-        uint128[] memory preprocessedPart1 = new uint128[](2);
-        preprocessedPart1[0] = 1;
-        preprocessedPart1[1] = 2;
-
-        uint256[] memory preprocessedPart2 = new uint256[](2);
-        preprocessedPart2[0] = 3;
-        preprocessedPart2[1] = 4;
-
         // Open channel
         vm.expectEmit(true, true, false, true);
         emit ChannelOpened(0, ETH_TOKEN_ADDRESS);
@@ -238,8 +230,6 @@ contract BasicUpgradeableTest is Test {
             targetContract: ETH_TOKEN_ADDRESS,
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 hours,
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
@@ -322,20 +312,10 @@ contract BasicUpgradeableTest is Test {
         l2PublicKeys[1] = makeAddr("l2user2");
         l2PublicKeys[2] = makeAddr("l2user3");
 
-        uint128[] memory preprocessedPart1 = new uint128[](2);
-        preprocessedPart1[0] = 100;
-        preprocessedPart1[1] = 200;
-
-        uint256[] memory preprocessedPart2 = new uint256[](2);
-        preprocessedPart2[0] = 300;
-        preprocessedPart2[1] = 400;
-
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: address(token),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 2 hours,
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
@@ -429,18 +409,10 @@ contract BasicUpgradeableTest is Test {
         l2PublicKeys[1] = makeAddr("l2user2");
         l2PublicKeys[2] = makeAddr("l2user3");
 
-        uint128[] memory preprocessedPart1 = new uint128[](1);
-        preprocessedPart1[0] = 1;
-
-        uint256[] memory preprocessedPart2 = new uint256[](1);
-        preprocessedPart2[0] = 1;
-
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: ETH_TOKEN_ADDRESS,
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 hours,
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF

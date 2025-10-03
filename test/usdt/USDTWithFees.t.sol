@@ -21,7 +21,7 @@ contract USDTWithFeesMock {
 
     address public owner;
     bool public paused = false;
-    
+
     // Fee parameters - SET TO NON-ZERO VALUES TO SIMULATE FEES
     uint256 public basisPointsRate = 10; // 0.1% fee (10 basis points)
     uint256 public maximumFee = 1000000; // 1 USDT max fee (1,000,000 units with 6 decimals)
@@ -50,7 +50,7 @@ contract USDTWithFeesMock {
     function approve(address spender, uint256 value) public {
         // USDT has approval race condition protection
         require(!(value != 0 && allowed[msg.sender][spender] != 0), "Must approve 0 first");
-        
+
         allowed[msg.sender][spender] = value;
         emit Approval(msg.sender, spender, value);
     }
@@ -66,58 +66,58 @@ contract USDTWithFeesMock {
     function transfer(address to, uint256 value) public {
         require(!paused, "Contract paused");
         require(!isBlackListed[msg.sender], "Sender blacklisted");
-        
+
         uint256 fee = (value * basisPointsRate) / 10000;
         if (fee > maximumFee) {
             fee = maximumFee;
         }
-        
+
         uint256 sendAmount = value - fee;
-        
+
         require(balances[msg.sender] >= value, "Insufficient balance");
         balances[msg.sender] -= value;
         balances[to] += sendAmount;
-        
+
         if (fee > 0) {
             balances[owner] += fee;
             emit Transfer(msg.sender, owner, fee);
         }
-        
+
         emit Transfer(msg.sender, to, sendAmount);
         // NOTE: NO RETURN VALUE
     }
 
-    // USDT's transferFrom function with fee logic - NO RETURN VALUE  
+    // USDT's transferFrom function with fee logic - NO RETURN VALUE
     function transferFrom(address from, address to, uint256 value) public {
         require(!paused, "Contract paused");
         require(!isBlackListed[from], "From address blacklisted");
-        
+
         uint256 _allowance = allowed[from][msg.sender];
         require(_allowance >= value, "Insufficient allowance");
-        
+
         uint256 fee = (value * basisPointsRate) / 10000;
         if (fee > maximumFee) {
             fee = maximumFee;
         }
-        
+
         uint256 sendAmount = value - fee;
-        
+
         require(balances[from] >= value, "Insufficient balance");
-        
+
         // Update allowance (USDT uses MAX_UINT pattern)
         uint256 MAX_UINT = type(uint256).max;
         if (_allowance < MAX_UINT) {
             allowed[from][msg.sender] = _allowance - value;
         }
-        
+
         balances[from] -= value;
         balances[to] += sendAmount;
-        
+
         if (fee > 0) {
             balances[owner] += fee;
             emit Transfer(from, owner, fee);
         }
-        
+
         emit Transfer(from, to, sendAmount);
         // NOTE: NO RETURN VALUE
     }
@@ -176,7 +176,7 @@ contract USDTWithFeesTest is Test {
 
         // Setup permissions
         bridge.authorizeCreator(leader);
-        bridge.setAllowedTargetContract(address(usdt), true);
+        bridge.setAllowedTargetContract(address(usdt), new uint128[](0), new uint256[](0), true);
 
         // Mint USDT tokens (extra for high fee test)
         usdt.mint(user1, 3000e6); // 3000 USDT to support large deposit test
@@ -195,7 +195,7 @@ contract USDTWithFeesTest is Test {
         console.log("Testing USDT deposit with fees enabled");
         console.log("Fee rate:", usdt.basisPointsRate(), "basis points");
         console.log("Max fee:", usdt.maximumFee(), "units");
-        
+
         // Create a channel with USDT as target contract
         vm.startPrank(leader);
 
@@ -219,8 +219,6 @@ contract USDTWithFeesTest is Test {
             targetContract: address(usdt),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 hours,
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
@@ -231,60 +229,60 @@ contract USDTWithFeesTest is Test {
 
         // Test USDT deposit with fees
         uint256 depositAmount = 100e6; // 100 USDT
-        
+
         // Calculate expected fee
         uint256 expectedFee = (depositAmount * usdt.basisPointsRate()) / 10000;
         if (expectedFee > usdt.maximumFee()) {
             expectedFee = usdt.maximumFee();
         }
         uint256 expectedReceived = depositAmount - expectedFee;
-        
+
         console.log("Deposit amount:", depositAmount);
         console.log("Expected fee:", expectedFee);
         console.log("Expected received by bridge:", expectedReceived);
-        
+
         vm.startPrank(user1);
-        
+
         // Approve bridge to spend USDT (need to approve 0 first due to USDT's protection)
         if (usdt.allowance(user1, address(bridge)) > 0) {
             usdt.approve(address(bridge), 0);
         }
         usdt.approve(address(bridge), depositAmount);
-        
+
         // Check balances before deposit
         uint256 userBalanceBefore = usdt.balanceOf(user1);
         uint256 bridgeBalanceBefore = usdt.balanceOf(address(bridge));
         uint256 ownerBalanceBefore = usdt.balanceOf(owner);
-        
+
         console.log("User balance before:", userBalanceBefore);
         console.log("Bridge balance before:", bridgeBalanceBefore);
         console.log("Owner balance before:", ownerBalanceBefore);
-        
+
         // Deposit USDT
         bridge.depositToken(channelId, address(usdt), depositAmount);
-        
+
         // Check balances after deposit
         uint256 userBalanceAfter = usdt.balanceOf(user1);
         uint256 bridgeBalanceAfter = usdt.balanceOf(address(bridge));
         uint256 ownerBalanceAfter = usdt.balanceOf(owner);
-        
+
         console.log("User balance after:", userBalanceAfter);
         console.log("Bridge balance after:", bridgeBalanceAfter);
         console.log("Owner balance after:", ownerBalanceAfter);
-        
+
         uint256 actualFeeCollected = ownerBalanceAfter - ownerBalanceBefore;
         uint256 actualReceived = bridgeBalanceAfter - bridgeBalanceBefore;
-        
+
         console.log("Actual fee collected:", actualFeeCollected);
         console.log("Actual received by bridge:", actualReceived);
-        
+
         vm.stopPrank();
 
         // Verify fee-on-transfer behavior
         assertEq(userBalanceBefore - userBalanceAfter, depositAmount, "User should lose full deposit amount");
         assertEq(actualFeeCollected, expectedFee, "Owner should receive expected fee");
         assertEq(actualReceived, expectedReceived, "Bridge should receive amount minus fee");
-        
+
         // Verify the contract recorded the actual transferred amount (not the requested amount)
         uint256 recordedDeposit = bridge.getParticipantDeposit(channelId, user1);
         console.log("Recorded deposit in contract:", recordedDeposit);
@@ -293,85 +291,77 @@ contract USDTWithFeesTest is Test {
 
     function testUSDTDepositWithHighFees() public {
         console.log("Testing USDT deposit with high fees");
-        
+
         // Set higher fees for this test
         vm.prank(owner);
         usdt.setParams(500, 50e6); // 5% fee, max 50 USDT
-        
+
         console.log("New fee rate:", usdt.basisPointsRate(), "basis points");
         console.log("New max fee:", usdt.maximumFee(), "units");
-        
+
         // Create channel
         vm.startPrank(leader);
-        
+
         address[] memory participants = new address[](3);
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = user3;
-        
+
         address[] memory l2PublicKeys = new address[](3);
         l2PublicKeys[0] = makeAddr("l2user1");
         l2PublicKeys[1] = makeAddr("l2user2");
         l2PublicKeys[2] = makeAddr("l2user3");
-        
-        uint128[] memory preprocessedPart1 = new uint128[](1);
-        preprocessedPart1[0] = 1;
-        
-        uint256[] memory preprocessedPart2 = new uint256[](1);
-        preprocessedPart2[0] = 1;
-        
+
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: address(usdt),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 hours,
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
-        
+
         uint256 channelId = bridge.openChannel(params);
         vm.stopPrank();
 
         // Test with large deposit that hits max fee
         uint256 depositAmount = 2000e6; // 2000 USDT
-        
+
         // Calculate expected fee (should hit max fee)
         uint256 calculatedFee = (depositAmount * usdt.basisPointsRate()) / 10000; // 5% of 2000 = 100 USDT
         uint256 expectedFee = calculatedFee > usdt.maximumFee() ? usdt.maximumFee() : calculatedFee;
         uint256 expectedReceived = depositAmount - expectedFee;
-        
+
         console.log("Large deposit amount:", depositAmount);
         console.log("Calculated fee (5%):", calculatedFee);
         console.log("Expected fee (capped at max):", expectedFee);
         console.log("Expected received by bridge:", expectedReceived);
-        
+
         vm.startPrank(user1);
-        
+
         // Approve and deposit
         if (usdt.allowance(user1, address(bridge)) > 0) {
             usdt.approve(address(bridge), 0);
         }
         usdt.approve(address(bridge), depositAmount);
-        
+
         uint256 bridgeBalanceBefore = usdt.balanceOf(address(bridge));
         uint256 ownerBalanceBefore = usdt.balanceOf(owner);
-        
+
         bridge.depositToken(channelId, address(usdt), depositAmount);
-        
+
         uint256 actualFeeCollected = usdt.balanceOf(owner) - ownerBalanceBefore;
         uint256 actualReceived = usdt.balanceOf(address(bridge)) - bridgeBalanceBefore;
-        
+
         console.log("Actual fee collected:", actualFeeCollected);
         console.log("Actual received by bridge:", actualReceived);
-        
+
         vm.stopPrank();
 
         // Verify max fee was applied
         assertEq(actualFeeCollected, expectedFee, "Should collect capped fee amount");
         assertEq(actualReceived, expectedReceived, "Bridge should receive correct amount after max fee");
-        
+
         // Verify recorded deposit
         uint256 recordedDeposit = bridge.getParticipantDeposit(channelId, user1);
         assertEq(recordedDeposit, actualReceived, "Contract should record actual received amount");

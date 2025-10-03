@@ -176,7 +176,7 @@ contract USDTWithFeesTest is Test {
 
         // Setup permissions
         bridge.authorizeCreator(leader);
-        bridge.setAllowedTargetContract(address(usdt), true);
+        bridge.setAllowedTargetContract(address(usdt), new uint128[](0), new uint256[](0), true);
 
         // Mint USDT tokens (extra for high fee test)
         usdt.mint(user1, 3000e6); // 3000 USDT to support large deposit test
@@ -219,8 +219,6 @@ contract USDTWithFeesTest is Test {
             targetContract: address(usdt),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 hours,
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
@@ -314,18 +312,11 @@ contract USDTWithFeesTest is Test {
         l2PublicKeys[1] = makeAddr("l2user2");
         l2PublicKeys[2] = makeAddr("l2user3");
         
-        uint128[] memory preprocessedPart1 = new uint128[](1);
-        preprocessedPart1[0] = 1;
-        
-        uint256[] memory preprocessedPart2 = new uint256[](1);
-        preprocessedPart2[0] = 1;
         
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: address(usdt),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 hours,
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF

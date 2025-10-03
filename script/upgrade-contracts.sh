@@ -47,7 +47,6 @@ show_usage() {
     echo ""
     echo "Required environment variables:"
     echo "  PRIVATE_KEY                   - Private key for deployment"
-    echo "  MERKLE_TREE_PROXY_ADDRESS    - Address of MerkleTreeManager4 proxy"
     echo "  ROLLUP_BRIDGE_PROXY_ADDRESS  - Address of RollupBridge proxy"
     echo "  DEPLOYER_ADDRESS             - Address of contract owner"
     echo "  RPC_URL                      - RPC endpoint"
@@ -137,9 +136,6 @@ source "$ENV_FILE"
 # Validate required environment variables
 required_vars=("PRIVATE_KEY" "DEPLOYER_ADDRESS" "RPC_URL" "CHAIN_ID")
 
-if [ "$UPGRADE_MERKLE_TREE" = true ]; then
-    required_vars+=("MERKLE_TREE_PROXY_ADDRESS")
-fi
 
 if [ "$UPGRADE_ROLLUP_BRIDGE" = true ]; then
     required_vars+=("ROLLUP_BRIDGE_PROXY_ADDRESS")
@@ -190,10 +186,6 @@ echo "  Network: $NETWORK"
 echo "  RPC URL: $RPC_URL"
 echo "  Chain ID: $CHAIN_ID"
 echo "  Deployer (Owner): $DEPLOYER_ADDRESS"
-
-if [ "$UPGRADE_MERKLE_TREE" = true ]; then
-    echo "  MerkleTreeManager4 proxy: $MERKLE_TREE_PROXY_ADDRESS"
-fi
 
 if [ "$UPGRADE_ROLLUP_BRIDGE" = true ]; then
     echo "  RollupBridge proxy: $ROLLUP_BRIDGE_PROXY_ADDRESS"

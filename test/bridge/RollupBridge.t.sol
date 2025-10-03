@@ -257,7 +257,6 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
 
-
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: bridge.ETH_TOKEN_ADDRESS(),
             participants: participants,
@@ -896,7 +895,6 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
 
-
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: bridge.ETH_TOKEN_ADDRESS(),
             participants: participants,
@@ -925,7 +923,6 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
 
-
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: address(token),
             participants: participants,
@@ -953,7 +950,6 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[0] = l2User1;
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
-
 
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: bridge.ETH_TOKEN_ADDRESS(),
@@ -1109,7 +1105,6 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[0] = l2User1;
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
-
 
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: bridge.ETH_TOKEN_ADDRESS(),

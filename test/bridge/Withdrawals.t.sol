@@ -119,7 +119,6 @@ contract WithdrawalsTest is Test {
         l2PublicKeys[1] = l2Address2;
         l2PublicKeys[2] = l2Address3;
 
-
         vm.prank(leader);
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: ETH_TOKEN_ADDRESS,
@@ -142,7 +141,6 @@ contract WithdrawalsTest is Test {
         l2PublicKeys[0] = l2Address1;
         l2PublicKeys[1] = l2Address2;
         l2PublicKeys[2] = l2Address3;
-
 
         vm.prank(leader);
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({

@@ -107,7 +107,7 @@ contract RollupBridgeTest is Test {
         token.mint(user3, INITIAL_TOKEN_BALANCE);
 
         // Allow the token contract for testing
-        bridge.setAllowedTargetContract(address(token), true);
+        bridge.setAllowedTargetContract(address(token), new uint128[](0), new uint256[](0), true);
 
         vm.stopPrank();
     }
@@ -257,15 +257,11 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
 
-        uint128[] memory preprocessedPart1 = new uint128[](1);
-        uint256[] memory preprocessedPart2 = new uint256[](1);
 
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: bridge.ETH_TOKEN_ADDRESS(),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -379,8 +375,6 @@ contract RollupBridgeTest is Test {
             targetContract: address(token),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: new uint128[](1),
-            preprocessedPart2: new uint256[](1),
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -393,8 +387,6 @@ contract RollupBridgeTest is Test {
             targetContract: address(token),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: new uint128[](1),
-            preprocessedPart2: new uint256[](1),
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -904,15 +896,11 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
 
-        uint128[] memory preprocessedPart1 = new uint128[](1);
-        uint256[] memory preprocessedPart2 = new uint256[](1);
 
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: bridge.ETH_TOKEN_ADDRESS(),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -937,15 +925,11 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
 
-        uint128[] memory preprocessedPart1 = new uint128[](1);
-        uint256[] memory preprocessedPart2 = new uint256[](1);
 
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: address(token),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -970,15 +954,11 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
 
-        uint128[] memory preprocessedPart1 = new uint128[](1);
-        uint256[] memory preprocessedPart2 = new uint256[](1);
 
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: bridge.ETH_TOKEN_ADDRESS(),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -1130,15 +1110,11 @@ contract RollupBridgeTest is Test {
         l2PublicKeys[1] = l2User2;
         l2PublicKeys[2] = l2User3;
 
-        uint128[] memory preprocessedPart1 = new uint128[](1);
-        uint256[] memory preprocessedPart2 = new uint256[](1);
 
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: bridge.ETH_TOKEN_ADDRESS(),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
             timeout: timeout,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -1514,8 +1490,6 @@ contract RollupBridgeTest is Test {
             targetContract: bridge.ETH_TOKEN_ADDRESS(),
             participants: participants,
             l2PublicKeys: l2PublicKeys,
-            preprocessedPart1: new uint128[](0),
-            preprocessedPart2: new uint256[](0),
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e

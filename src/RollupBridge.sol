@@ -210,7 +210,12 @@ contract RollupBridge is
         emit VerifierUpdated(oldVerifier, _newVerifier);
     }
 
-    function setAllowedTargetContract(address targetContract, bool allowed) external onlyOwner {
+    function setAllowedTargetContract(
+        address targetContract, 
+        uint128[] memory preprocessedPart1, 
+        uint256[] memory preprocessedPart2, 
+        bool allowed
+    ) external onlyOwner {
         require(targetContract != address(0), "Invalid target contract address");
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         $.allowedTargetContracts[targetContract] = allowed;
@@ -225,10 +230,9 @@ contract RollupBridge is
      *      - targetContract: Address of the token contract (or ETH_TOKEN_ADDRESS for ETH)
      *      - participants: Array of L1 addresses that will participate in the channel
      *      - l2PublicKeys: Array of corresponding L2 public keys for each participant
-     *      - preprocessedPart1: First part of preprocessed verification data
-     *      - preprocessedPart2: Second part of preprocessed verification data
      *      - timeout: Duration in seconds for which the channel will remain open
-     *      - groupPublicKey: Aggregated public key for the channel group
+     *      - pkx: X coordinate of the aggregated public key for the channel group
+     *      - pky: Y coordinate of the aggregated public key for the channel group
      * @return channelId Unique identifier for the created channel
      * @dev Requirements:
      *      - Caller must be authorized to create channels
@@ -265,8 +269,6 @@ contract RollupBridge is
         channel.leader = msg.sender;
         channel.openTimestamp = block.timestamp;
         channel.timeout = params.timeout;
-        channel.preprocessedPart1 = params.preprocessedPart1;
-        channel.preprocessedPart2 = params.preprocessedPart2;
         channel.state = ChannelState.Initialized;
 
         uint256 participantsLength = params.participants.length;
@@ -744,6 +746,8 @@ contract RollupBridge is
 
         delete $.channels[channelId];
         $.isChannelLeader[msg.sender] = false;
+        // user must be approved again
+        $.authorizedChannelCreators[msg.sender] = false;
 
         emit ChannelDeleted(channelId);
         return true;

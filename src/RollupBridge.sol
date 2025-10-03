@@ -76,7 +76,8 @@ contract RollupBridge is
         mapping(uint256 => Channel) channels;
         mapping(address => bool) authorizedChannelCreators;
         mapping(address => bool) isChannelLeader;
-        mapping(address => bool) allowedTargetContracts;
+        mapping(address => IRollupBridge.TargetContract) allowedTargetContracts;
+        mapping(address => bool) isTargetContractAllowed;
         uint256 nextChannelId;
         IVerifier zkVerifier; // on-chain zkSNARK verifier contract
         IZecFrost zecFrost; // on-chain sig verifier contract
@@ -149,6 +150,12 @@ contract RollupBridge is
 
     function isAllowedTargetContract(address targetContract) public view returns (bool) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.isTargetContractAllowed[targetContract];
+    }
+
+    function getTargetContractData(address targetContract) public view returns (IRollupBridge.TargetContract memory) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        require($.isTargetContractAllowed[targetContract], "Target contract not allowed");
         return $.allowedTargetContracts[targetContract];
     }
 
@@ -222,7 +229,23 @@ contract RollupBridge is
     ) external onlyOwner {
         require(targetContract != address(0), "Invalid target contract address");
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        $.allowedTargetContracts[targetContract] = allowed;
+
+        if (allowed) {
+            // Store the target contract with its preprocessed data
+            require(preprocessedPart1.length > 0, "preprocessedPart1 cannot be empty when allowing");
+            require(preprocessedPart2.length > 0, "preprocessedPart2 cannot be empty when allowing");
+
+            $.allowedTargetContracts[targetContract] = IRollupBridge.TargetContract({
+                contractAddress: targetContract,
+                preprocessedPart1: preprocessedPart1, // Store full array
+                preprocessedPart2: preprocessedPart2 // Store full array
+            });
+        } else {
+            // Clear the target contract data when disallowing
+            delete $.allowedTargetContracts[targetContract];
+        }
+
+        $.isTargetContractAllowed[targetContract] = allowed;
         emit TargetContractAllowed(targetContract, allowed);
     }
 
@@ -257,7 +280,7 @@ contract RollupBridge is
         require(params.participants.length == params.l2PublicKeys.length, "Mismatched arrays");
         require(params.timeout >= 1 hours && params.timeout <= 7 days, "Invalid timeout");
         require(
-            params.targetContract == ETH_TOKEN_ADDRESS || $.allowedTargetContracts[params.targetContract],
+            params.targetContract == ETH_TOKEN_ADDRESS || $.isTargetContractAllowed[params.targetContract],
             "Target contract not allowed"
         );
 
@@ -592,12 +615,17 @@ contract RollupBridge is
         channel.finalStateRoot = proofData.finalStateRoot;
         channel.state = ChannelState.Closing;
 
+        // Retrieve preprocessed data from stored TargetContract
+        IRollupBridge.TargetContract memory targetContractData = $.allowedTargetContracts[channel.targetContract];
+        uint128[] memory preprocessedPart1 = targetContractData.preprocessedPart1;
+        uint256[] memory preprocessedPart2 = targetContractData.preprocessedPart2;
+
         require(
             $.zkVerifier.verify(
                 proofData.proofPart1,
                 proofData.proofPart2,
-                channel.preprocessedPart1,
-                channel.preprocessedPart2,
+                preprocessedPart1,
+                preprocessedPart2,
                 proofData.publicInputs,
                 proofData.smax
             ),
@@ -947,7 +975,12 @@ contract RollupBridge is
     {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
-        return (channel.preprocessedPart1, channel.preprocessedPart2);
+
+        // Retrieve preprocessed data from stored TargetContract
+        IRollupBridge.TargetContract memory targetContractData = $.allowedTargetContracts[channel.targetContract];
+
+        preprocessedPart1 = targetContractData.preprocessedPart1;
+        preprocessedPart2 = targetContractData.preprocessedPart2;
     }
 
     function getChannelStats(uint256 channelId)

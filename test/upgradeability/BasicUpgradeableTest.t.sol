@@ -176,7 +176,17 @@ contract BasicUpgradeableTest is Test {
         token.mint(user3, 1000 ether);
 
         // Allow the token contract for testing
-        rollupBridge.setAllowedTargetContract(address(token), new uint128[](0), new uint256[](0), true);
+        uint128[] memory preprocessedPart1 = new uint128[](4);
+        preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
+        preprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
+        preprocessedPart1[2] = 0x18e54aba379045c9f5c18d8aefeaa8cc;
+        preprocessedPart1[3] = 0x08df3e052d4b1c0840d73edcea3f85e7;
+        uint256[] memory preprocessedPart2 = new uint256[](4);
+        preprocessedPart2[0] = 0x7e084b3358f7f1404f0a4ee1acc6d254997032f77fd77593fab7c896b7cfce1e;
+        preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
+        preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
+        preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
+        rollupBridge.setAllowedTargetContract(address(token), preprocessedPart1, preprocessedPart2, true);
 
         vm.stopPrank();
 

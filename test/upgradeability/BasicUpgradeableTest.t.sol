@@ -222,7 +222,6 @@ contract BasicUpgradeableTest is Test {
         l2PublicKeys[1] = makeAddr("l2user2");
         l2PublicKeys[2] = makeAddr("l2user3");
 
-
         // Open channel
         vm.expectEmit(true, true, false, true);
         emit ChannelOpened(0, ETH_TOKEN_ADDRESS);
@@ -312,7 +311,6 @@ contract BasicUpgradeableTest is Test {
         l2PublicKeys[0] = makeAddr("l2user1");
         l2PublicKeys[1] = makeAddr("l2user2");
         l2PublicKeys[2] = makeAddr("l2user3");
-
 
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: address(token),
@@ -410,7 +408,6 @@ contract BasicUpgradeableTest is Test {
         l2PublicKeys[0] = makeAddr("l2user1");
         l2PublicKeys[1] = makeAddr("l2user2");
         l2PublicKeys[2] = makeAddr("l2user3");
-
 
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: ETH_TOKEN_ADDRESS,

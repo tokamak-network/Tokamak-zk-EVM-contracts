@@ -152,41 +152,45 @@ contract RollupBridge is
         return $.allowedTargetContracts[targetContract];
     }
 
-    function debugTokenInfo(address token, address user) external view returns (
-        uint256 userBalance,
-        uint256 userAllowance,
-        uint256 contractBalance,
-        bool isContract,
-        string memory name,
-        string memory symbol,
-        uint8 decimals
-    ) {
+    function debugTokenInfo(address token, address user)
+        external
+        view
+        returns (
+            uint256 userBalance,
+            uint256 userAllowance,
+            uint256 contractBalance,
+            bool isContract,
+            string memory name,
+            string memory symbol,
+            uint8 decimals
+        )
+    {
         IERC20Upgradeable tokenContract = IERC20Upgradeable(token);
-        
+
         userBalance = tokenContract.balanceOf(user);
         userAllowance = tokenContract.allowance(user, address(this));
         contractBalance = tokenContract.balanceOf(address(this));
-        
+
         // Check if it's a contract
         uint32 size;
         assembly {
             size := extcodesize(token)
         }
         isContract = size > 0;
-        
+
         // Try to get token info (might fail for non-standard tokens)
         try IERC20MetadataUpgradeable(token).name() returns (string memory _name) {
             name = _name;
         } catch {
             name = "Unknown";
         }
-        
+
         try IERC20MetadataUpgradeable(token).symbol() returns (string memory _symbol) {
             symbol = _symbol;
         } catch {
             symbol = "Unknown";
         }
-        
+
         try IERC20MetadataUpgradeable(token).decimals() returns (uint8 _decimals) {
             decimals = _decimals;
         } catch {
@@ -211,9 +215,9 @@ contract RollupBridge is
     }
 
     function setAllowedTargetContract(
-        address targetContract, 
-        uint128[] memory preprocessedPart1, 
-        uint256[] memory preprocessedPart2, 
+        address targetContract,
+        uint128[] memory preprocessedPart1,
+        uint256[] memory preprocessedPart2,
         bool allowed
     ) external onlyOwner {
         require(targetContract != address(0), "Invalid target contract address");
@@ -336,23 +340,31 @@ contract RollupBridge is
     function _depositToken(address _from, IERC20Upgradeable _token, uint256 _amount) internal returns (uint256) {
         // Check that user has sufficient balance
         uint256 userBalance = _token.balanceOf(_from);
-        require(userBalance >= _amount, string(abi.encodePacked("Insufficient token balance: ", _toString(userBalance), " < ", _toString(_amount))));
-        
+        require(
+            userBalance >= _amount,
+            string(abi.encodePacked("Insufficient token balance: ", _toString(userBalance), " < ", _toString(_amount)))
+        );
+
         // Check that user has approved sufficient allowance
         uint256 userAllowance = _token.allowance(_from, address(this));
-        require(userAllowance >= _amount, string(abi.encodePacked("Insufficient token allowance: ", _toString(userAllowance), " < ", _toString(_amount))));
-        
+        require(
+            userAllowance >= _amount,
+            string(
+                abi.encodePacked("Insufficient token allowance: ", _toString(userAllowance), " < ", _toString(_amount))
+            )
+        );
+
         uint256 balanceBefore = _token.balanceOf(address(this));
-        
+
         // Use SafeERC20's safeTransferFrom - this will handle USDT's void return properly
         _token.safeTransferFrom(_from, address(this), _amount);
-        
+
         uint256 balanceAfter = _token.balanceOf(address(this));
-        
+
         // Handle fee-on-transfer tokens like USDT (though fees are currently disabled)
         uint256 actualAmount = balanceAfter - balanceBefore;
         require(actualAmount > 0, "No tokens transferred");
-        
+
         return actualAmount;
     }
 
@@ -922,7 +934,7 @@ contract RollupBridge is
         return (channel.initialStateRoot, channel.finalStateRoot);
     }
 
-    function getChannelParticipantRoots(uint256 channelId) external view returns(bytes32[] memory participantRoots) {
+    function getChannelParticipantRoots(uint256 channelId) external view returns (bytes32[] memory participantRoots) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         return (channel.participantRoots);

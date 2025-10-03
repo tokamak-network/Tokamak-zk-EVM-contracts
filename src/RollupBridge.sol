@@ -229,22 +229,22 @@ contract RollupBridge is
     ) external onlyOwner {
         require(targetContract != address(0), "Invalid target contract address");
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        
+
         if (allowed) {
             // Store the target contract with its preprocessed data
             require(preprocessedPart1.length > 0, "preprocessedPart1 cannot be empty when allowing");
             require(preprocessedPart2.length > 0, "preprocessedPart2 cannot be empty when allowing");
-            
+
             $.allowedTargetContracts[targetContract] = IRollupBridge.TargetContract({
                 contractAddress: targetContract,
                 preprocessedPart1: preprocessedPart1, // Store full array
-                preprocessedPart2: preprocessedPart2  // Store full array
+                preprocessedPart2: preprocessedPart2 // Store full array
             });
         } else {
             // Clear the target contract data when disallowing
             delete $.allowedTargetContracts[targetContract];
         }
-        
+
         $.isTargetContractAllowed[targetContract] = allowed;
         emit TargetContractAllowed(targetContract, allowed);
     }
@@ -975,10 +975,10 @@ contract RollupBridge is
     {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
-        
+
         // Retrieve preprocessed data from stored TargetContract
         IRollupBridge.TargetContract memory targetContractData = $.allowedTargetContracts[channel.targetContract];
-        
+
         preprocessedPart1 = targetContractData.preprocessedPart1;
         preprocessedPart2 = targetContractData.preprocessedPart2;
     }

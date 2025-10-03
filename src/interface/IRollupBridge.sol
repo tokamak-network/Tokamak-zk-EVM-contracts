@@ -16,6 +16,12 @@ interface IRollupBridge {
         address l2PublicKey;
     }
 
+    struct TargetContract {
+        address contractAddress;
+        uint128[] preprocessedPart1;
+        uint256[] preprocessedPart2;
+    }
+
     struct ChannelParams {
         address targetContract;
         address[] participants;
@@ -55,9 +61,7 @@ interface IRollupBridge {
         uint256 closeTimestamp;
         uint256 timeout;
         address leader;
-        // ZK Proof commitments
-        uint128[] preprocessedPart1;
-        uint256[] preprocessedPart2;
+        // ZK Proof commitments removed - now retrieved from TargetContract
         // Closing process
         bytes32 aggregatedProofHash;
         mapping(address => bool) hasWithdrawn;

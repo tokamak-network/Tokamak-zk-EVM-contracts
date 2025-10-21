@@ -91,10 +91,6 @@ contract DeployV2Script is Script {
         rollupBridge = address(rollupBridgeProxy);
         console.log("RollupBridge proxy deployed at:", rollupBridge);
 
-        // Authorize the deployer as a channel creator
-        RollupBridge(rollupBridge).authorizeCreator(deployer);
-        console.log("Authorized deployer as channel creator");
-
         // Configure WTON target contract
         console.log("Configuring WTON target contract...");
         _configureWTONContract(rollupBridge);

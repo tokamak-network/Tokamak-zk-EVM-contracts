@@ -213,12 +213,7 @@ contract BasicUpgradeableTest is Test {
     // ============ Basic Functionality Tests ============
 
     function test_BasicChannelFlow() public {
-        vm.startPrank(owner);
 
-        // Authorize user1 as creator
-        rollupBridge.authorizeCreator(user1);
-
-        vm.stopPrank();
         vm.startPrank(user1);
 
         // Prepare channel data
@@ -244,7 +239,7 @@ contract BasicUpgradeableTest is Test {
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
-        uint256 channelId = rollupBridge.openChannel(params);
+        uint256 channelId = rollupBridge.openChannel{value: rollupBridge.LEADER_BOND_REQUIRED()}(params);
 
         assertEq(channelId, 0);
         assertTrue(rollupBridge.isChannelLeader(user1));
@@ -259,11 +254,6 @@ contract BasicUpgradeableTest is Test {
     // ============ Manual Upgrade Tests ============
 
     function test_UpgradeRollupBridge() public {
-        // Store initial state
-        vm.prank(owner);
-        rollupBridge.authorizeCreator(user1);
-
-        assertTrue(rollupBridge.isAuthorizedCreator(user1));
         uint256 initialChannelId = rollupBridge.nextChannelId();
 
         // Deploy new implementation
@@ -278,7 +268,6 @@ contract BasicUpgradeableTest is Test {
         // Check state preservation
         assertEq(rollupBridgeV2.owner(), owner);
         assertEq(address(rollupBridgeV2.zkVerifier()), address(verifier));
-        assertTrue(rollupBridgeV2.isAuthorizedCreator(user1));
         assertEq(rollupBridgeV2.nextChannelId(), initialChannelId);
 
         // Test new functionality
@@ -303,11 +292,6 @@ contract BasicUpgradeableTest is Test {
     // ============ Storage Layout Tests ============
 
     function test_StorageLayoutPreservation() public {
-        // Setup initial state with complex data
-        vm.startPrank(owner);
-        rollupBridge.authorizeCreator(user1);
-        rollupBridge.authorizeCreator(user2);
-        vm.stopPrank();
 
         // Create a channel with deposits
         vm.startPrank(user1);
@@ -330,7 +314,7 @@ contract BasicUpgradeableTest is Test {
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
-        uint256 channelId = rollupBridge.openChannel(params);
+        uint256 channelId = rollupBridge.openChannel{value: rollupBridge.LEADER_BOND_REQUIRED()}(params);
 
         // Approve and deposit tokens
         token.approve(address(rollupBridgeProxy), 100 ether);
@@ -349,8 +333,6 @@ contract BasicUpgradeableTest is Test {
 
         uint256 deposit = rollupBridge.getParticipantDeposit(channelId, user1);
         uint256 nextChannelId = rollupBridge.nextChannelId();
-        bool isAuthorizedUser1 = rollupBridge.isAuthorizedCreator(user1);
-        bool isAuthorizedUser2 = rollupBridge.isAuthorizedCreator(user2);
         bool isLeader = rollupBridge.isChannelLeader(user1);
 
         // Upgrade contract
@@ -378,8 +360,6 @@ contract BasicUpgradeableTest is Test {
 
         assertEq(rollupBridgeV2.getParticipantDeposit(channelId, user1), deposit);
         assertEq(rollupBridgeV2.nextChannelId(), nextChannelId);
-        assertEq(rollupBridgeV2.isAuthorizedCreator(user1), isAuthorizedUser1);
-        assertEq(rollupBridgeV2.isAuthorizedCreator(user2), isAuthorizedUser2);
         assertEq(rollupBridgeV2.isChannelLeader(user1), isLeader);
 
         // Verify contracts still work after upgrade
@@ -401,8 +381,6 @@ contract BasicUpgradeableTest is Test {
 
         RollupBridgeV2 rollupBridgeV2 = RollupBridgeV2(payable(address(rollupBridgeProxy)));
 
-        // Authorize user1 as creator
-        rollupBridgeV2.authorizeCreator(user1);
         vm.stopPrank();
 
         // Test full channel lifecycle with upgraded contracts
@@ -427,7 +405,7 @@ contract BasicUpgradeableTest is Test {
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
-        uint256 channelId = rollupBridgeV2.openChannel(params);
+        uint256 channelId = rollupBridgeV2.openChannel{value: rollupBridgeV2.LEADER_BOND_REQUIRED()}(params);
 
         // Deposit ETH
         rollupBridgeV2.depositETH{value: 1 ether}(channelId);
@@ -502,9 +480,6 @@ contract BasicUpgradeableTest is Test {
     }
 
     function test_VerifierUpdatePreservesState() public {
-        // Setup initial state
-        vm.prank(owner);
-        rollupBridge.authorizeCreator(user1);
 
         // Deploy new verifier
         MockVerifier newVerifier = new MockVerifier();
@@ -514,7 +489,6 @@ contract BasicUpgradeableTest is Test {
         rollupBridge.updateVerifier(address(newVerifier));
 
         // Verify state is preserved
-        assertTrue(rollupBridge.isAuthorizedCreator(user1));
         assertEq(rollupBridge.nextChannelId(), 0);
         assertEq(rollupBridge.owner(), owner);
     }

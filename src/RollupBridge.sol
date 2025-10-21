@@ -2,18 +2,16 @@
 pragma solidity 0.8.29;
 
 import "lib/openzeppelin-contracts-upgradeable/contracts/utils/cryptography/ECDSAUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/IERC20MetadataUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "forge-std/console.sol";
 import {IVerifier} from "./interface/IVerifier.sol";
 import {IRollupBridge} from "./interface/IRollupBridge.sol";
 import "./library/RLP.sol";
 import {IZecFrost} from "./interface/IZecFrost.sol";
+import "./DisputeLogic.sol";
 
 /**
  * @title RollupBridgeUpgradeable
@@ -36,21 +34,13 @@ import {IZecFrost} from "./interface/IZecFrost.sol";
  */
 contract RollupBridge is
     IRollupBridge,
-    Initializable,
-    ReentrancyGuardUpgradeable,
-    OwnableUpgradeable,
+    DisputeLogic,
     UUPSUpgradeable
 {
     using ECDSAUpgradeable for bytes32;
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using RLP for bytes;
     using RLP for RLP.RLPItem;
-
-    modifier onlyAuthorized() {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        require($.authorizedChannelCreators[msg.sender], "Not authorized");
-        _;
-    }
 
     // ========== EVENTS ==========
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
@@ -68,13 +58,13 @@ contract RollupBridge is
     uint32 public constant ROOT_HISTORY_SIZE = 30;
     uint32 public constant CHILDREN_PER_NODE = 4;
     uint32 public constant TREE_DEPTH = 3;
+    uint256 public constant LEADER_BOND_REQUIRED = 1 ether; // Leader must deposit this amount to open channel
 
     // ========== STORAGE ==========
 
     /// @custom:storage-location erc7201:tokamak.storage.RollupBridge
     struct RollupBridgeStorage {
         mapping(uint256 => Channel) channels;
-        mapping(address => bool) authorizedChannelCreators;
         mapping(address => bool) isChannelLeader;
         mapping(address => IRollupBridge.TargetContract) allowedTargetContracts;
         mapping(address => bool) isTargetContractAllowed;
@@ -136,11 +126,6 @@ contract RollupBridge is
     function nextChannelId() public view returns (uint256) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.nextChannelId;
-    }
-
-    function authorizedChannelCreators(address creator) public view returns (bool) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        return $.authorizedChannelCreators[creator];
     }
 
     function isChannelLeader(address leader) public view returns (bool) {
@@ -207,11 +192,6 @@ contract RollupBridge is
 
     // ========== ADMIN FUNCTIONS ==========
 
-    function authorizeCreator(address creator) external onlyOwner {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        $.authorizedChannelCreators[creator] = true;
-    }
-
     function updateVerifier(address _newVerifier) external onlyOwner {
         require(_newVerifier != address(0), "Invalid verifier address");
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
@@ -263,22 +243,25 @@ contract RollupBridge is
      * @return channelId Unique identifier for the created channel
      * @dev Requirements:
      *      - Caller must be authorized to create channels
+     *      - Caller must send LEADER_BOND_REQUIRED ETH as leader bond
      *      - Caller cannot already be a channel leader
      *      - Number of participants must be between MIN_PARTICIPANTS and MAX_PARTICIPANTS
      *      - Arrays must have matching lengths
      *      - Timeout must be between 1 hour and 7 days
      *      - No duplicate participants allowed
      */
-    function openChannel(ChannelParams calldata params) external onlyAuthorized returns (uint256 channelId) {
+    function openChannel(ChannelParams calldata params) external payable returns (uint256 channelId) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
 
+        // Leader must deposit bond as collateral for their responsibilities
+        require(msg.value == LEADER_BOND_REQUIRED, "Leader bond required");
         require(!$.isChannelLeader[msg.sender], "Channel limit reached");
         require(
             params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= MAX_PARTICIPANTS,
             "Invalid participant number"
         );
         require(params.participants.length == params.l2PublicKeys.length, "Mismatched arrays");
-        require(params.timeout >= 1 hours && params.timeout <= 7 days, "Invalid timeout");
+        require(params.timeout >= 1 hours && params.timeout <= 365 days, "Invalid timeout");
         require(
             params.targetContract == ETH_TOKEN_ADDRESS || $.isTargetContractAllowed[params.targetContract],
             "Target contract not allowed"
@@ -294,18 +277,35 @@ contract RollupBridge is
         channel.id = channelId;
         channel.targetContract = params.targetContract;
         channel.leader = msg.sender;
+        channel.leaderBond = msg.value; // Store the leader bond
+        channel.leaderBondSlashed = false;
         channel.openTimestamp = block.timestamp;
         channel.timeout = params.timeout;
         channel.state = ChannelState.Initialized;
 
         uint256 participantsLength = params.participants.length;
+        // Check for L2 address collisions first
+        for (uint256 i = 0; i < participantsLength;) {
+            for (uint256 j = i + 1; j < participantsLength;) {
+                require(params.l2PublicKeys[i] != params.l2PublicKeys[j], "L2 address collision detected");
+                unchecked { ++j; }
+            }
+            unchecked { ++i; }
+        }
+
         for (uint256 i = 0; i < participantsLength;) {
             address participant = params.participants[i];
+            address l2PublicKey = params.l2PublicKeys[i];
+            
             require(!channel.isParticipant[participant], "Duplicate participant");
+            require(l2PublicKey != address(0), "Invalid L2 address");
 
-            channel.participants.push(User({l1Address: participant, l2PublicKey: params.l2PublicKeys[i]}));
+            // Register L2 address to track usage and prevent future collisions
+            require(validateAndRegisterL2Address(channelId, participant, l2PublicKey), "L2 address registration failed");
+
+            channel.participants.push(User({l1Address: participant, l2PublicKey: l2PublicKey}));
             channel.isParticipant[participant] = true;
-            channel.l2PublicKeys[participant] = params.l2PublicKeys[i];
+            channel.l2PublicKeys[participant] = l2PublicKey;
 
             unchecked {
                 ++i;
@@ -423,7 +423,7 @@ contract RollupBridge is
     function initializeChannelState(uint256 channelId) external nonReentrant {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
-        require(channel.state == ChannelState.Initialized || channel.state == ChannelState.Open, "Invalid state");
+        require(channel.state == ChannelState.Initialized, "Invalid state");
         require(msg.sender == channel.leader, "Not leader");
 
         uint256 participantsLength = channel.participants.length;
@@ -475,9 +475,8 @@ contract RollupBridge is
 
         // Store final result - get current root after all insertions
         channel.initialStateRoot = $.roots[channelId][$.currentRootIndex[channelId]];
-        if (channel.state == ChannelState.Initialized) {
-            channel.state = ChannelState.Open;
-        }
+        channel.state = ChannelState.Open;
+        
 
         emit StateInitialized(channelId, channel.initialStateRoot);
     }
@@ -524,6 +523,7 @@ contract RollupBridge is
         unchecked {
             leafValue = l2Addr + uint256(gamma) * balance;
         }
+        
         return bytes32(leafValue);
     }
 
@@ -620,17 +620,20 @@ contract RollupBridge is
         uint128[] memory preprocessedPart1 = targetContractData.preprocessedPart1;
         uint256[] memory preprocessedPart2 = targetContractData.preprocessedPart2;
 
-        require(
-            $.zkVerifier.verify(
-                proofData.proofPart1,
-                proofData.proofPart2,
-                preprocessedPart1,
-                preprocessedPart2,
-                proofData.publicInputs,
-                proofData.smax
-            ),
-            "Invalid ZK proof"
+        bool proofValid = $.zkVerifier.verify(
+            proofData.proofPart1,
+            proofData.proofPart2,
+            preprocessedPart1,
+            preprocessedPart2,
+            proofData.publicInputs,
+            proofData.smax
         );
+        
+        if (!proofValid) {
+            // Slash the leader's bond for submitting invalid proof
+            _slashLeaderBond(channelId, "Invalid ZK proof");
+            revert("Invalid ZK proof - leader bond slashed");
+        }
 
         emit ProofAggregated(channelId, proofData.aggregatedProofHash);
     }
@@ -659,7 +662,45 @@ contract RollupBridge is
         require(msg.sender == channel.leader || msg.sender == owner(), "unauthorized caller");
         require(channel.state == ChannelState.Closing, "Not in closing state");
         require(channel.sigVerified, "signature not verified");
+        
+        // Require that the channel timeout has been reached
+        require(
+            block.timestamp >= channel.openTimestamp + channel.timeout,
+            "Channel timeout not reached"
+        );
 
+        channel.state = ChannelState.Dispute;
+        channel.closeTimestamp = block.timestamp;
+
+        emit ChannelClosed(channelId);
+    }
+
+    /*
+    Proof verification failure management
+    */
+    function emergencyCloseExpiredChannel(uint256 channelId) external {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        require(msg.sender == owner(), "unauthorized caller");
+        require(
+            channel.state == ChannelState.Open || channel.state == ChannelState.Active,
+            "Channel must be in Open or Active state"
+        );
+        require(
+            block.timestamp >= channel.openTimestamp + channel.timeout,
+            "Channel timeout not reached"
+        );
+
+        // Slash leader bond for failing to submit proof on time
+        if (!channel.leaderBondSlashed && channel.leaderBond > 0) {
+            _slashLeaderBond(channelId, "Failed to submit proof before timeout");
+        }
+
+        // Enable emergency mode to allow participants to withdraw their original deposits
+        // Since no proof was provided, we revert to initial deposit amounts
+        _enableEmergencyMode(channelId, "Channel expired without proof submission");
+
+        // Emergency close sets channel to Closed state directly
         channel.state = ChannelState.Closed;
         channel.closeTimestamp = block.timestamp;
 
@@ -678,6 +719,7 @@ contract RollupBridge is
         require(channel.state == ChannelState.Closed, "Not closed");
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
         require(channel.isParticipant[msg.sender], "Not a participant");
+        require(!this.isEmergencyModeEnabled(channelId), "Emergency mode enabled - use emergency withdrawal");
 
         address l2Address = $.l1ToL2[channelId][msg.sender];
         require(l2Address != address(0), "L2 address not found");
@@ -730,6 +772,20 @@ contract RollupBridge is
     ) internal view returns (bool) {
         if (!$.channelInitialized[channelId]) return false;
 
+        // Catch any arithmetic errors and return false
+        try this._verifyProofInternal(proof, leaf, leafIndex, root) returns (bool result) {
+            return result;
+        } catch {
+            return false;
+        }
+    }
+
+    function _verifyProofInternal(
+        bytes32[] calldata proof,
+        bytes32 leaf,
+        uint256 leafIndex,
+        bytes32 root
+    ) external view returns (bool) {
         bytes32 computedHash = leaf;
         uint256 index = leafIndex;
         uint256 proofIndex = 0;
@@ -738,7 +794,7 @@ contract RollupBridge is
             uint256 childIndex = index % CHILDREN_PER_NODE;
 
             if (childIndex == 0) {
-                if (proofIndex < proof.length) {
+                if (proofIndex + 2 < proof.length) {
                     computedHash =
                         _hashFour(computedHash, proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2]);
                     proofIndex += 3;
@@ -746,7 +802,7 @@ contract RollupBridge is
                     computedHash = _hashFour(computedHash, _zeros(level), _zeros(level), _zeros(level));
                 }
             } else if (childIndex == 1) {
-                if (proofIndex < proof.length) {
+                if (proofIndex + 2 < proof.length) {
                     computedHash =
                         _hashFour(proof[proofIndex], computedHash, proof[proofIndex + 1], proof[proofIndex + 2]);
                     proofIndex += 3;
@@ -754,7 +810,7 @@ contract RollupBridge is
                     computedHash = _hashFour(_zeros(level), computedHash, _zeros(level), _zeros(level));
                 }
             } else if (childIndex == 2) {
-                if (proofIndex < proof.length) {
+                if (proofIndex + 2 < proof.length) {
                     computedHash =
                         _hashFour(proof[proofIndex], proof[proofIndex + 1], computedHash, proof[proofIndex + 2]);
                     proofIndex += 3;
@@ -762,7 +818,7 @@ contract RollupBridge is
                     computedHash = _hashFour(_zeros(level), _zeros(level), computedHash, _zeros(level));
                 }
             } else {
-                if (proofIndex < proof.length) {
+                if (proofIndex + 2 < proof.length) {
                     computedHash =
                         _hashFour(proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2], computedHash);
                     proofIndex += 3;
@@ -777,21 +833,24 @@ contract RollupBridge is
         return computedHash == root;
     }
 
-    function deleteChannel(uint256 channelId) external returns (bool) {
+    function finalizeChannel(uint256 channelId) external returns (bool) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         require(msg.sender == owner() || msg.sender == channel.leader, "only owner or leader");
-        require(channel.state == ChannelState.Closed, "Channel not closed");
-        require(block.timestamp >= channel.closeTimestamp + CHALLENGE_PERIOD);
+        require(channel.state == ChannelState.Dispute, "Channel not in dispute period");
+        require(block.timestamp >= channel.closeTimestamp + CHALLENGE_PERIOD, "Challenge period not expired");
+        
+        // Check that no unresolved disputes exist or all disputes have been rejected
+        require(!_hasResolvedDisputesAgainstLeader(channelId), "Unresolved disputes or disputes resolved against leader");
 
-        delete $.channels[channelId];
+        // Transition from Dispute to Closed state (finalize channel for withdrawals)
+        channel.state = ChannelState.Closed;
         $.isChannelLeader[msg.sender] = false;
-        // user must be approved again
-        $.authorizedChannelCreators[msg.sender] = false;
 
-        emit ChannelDeleted(channelId);
+        emit ChannelFinalized(channelId);
         return true;
     }
+
 
     // ========== COMPATIBILITY FUNCTIONS FOR EXTERNAL INTERFACES ==========
 
@@ -1007,11 +1066,6 @@ contract RollupBridge is
         );
     }
 
-    function isAuthorizedCreator(address creator) external view returns (bool) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        return $.authorizedChannelCreators[creator];
-    }
-
     function getTotalChannels() external view returns (uint256) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.nextChannelId;
@@ -1021,6 +1075,195 @@ contract RollupBridge is
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         return channel.state == ChannelState.Closing && channel.sigVerified;
+    }
+
+    // ========== DISPUTE LOGIC IMPLEMENTATIONS ==========
+
+
+    function _getChannelParticipants(uint256 channelId) internal view override returns (address[] memory) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        uint256 participantCount = channel.participants.length;
+        address[] memory participants = new address[](participantCount);
+
+        for (uint256 i = 0; i < participantCount; i++) {
+            participants[i] = channel.participants[i].l1Address;
+        }
+        return participants;
+    }
+
+
+    function _getParticipantDeposit(uint256 channelId, address participant) internal view override returns (uint256) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.channels[channelId].tokenDeposits[participant];
+    }
+
+    function _isParticipant(uint256 channelId, address participant) internal view override returns (bool) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.channels[channelId].isParticipant[participant];
+    }
+
+
+    function _getChannelState(uint256 channelId) internal view override returns (IRollupBridge.ChannelState) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.channels[channelId].state;
+    }
+
+    function _getChannelCloseTimestamp(uint256 channelId) internal view override returns (uint256) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.channels[channelId].closeTimestamp;
+    }
+
+    function _getChallengePeriod() internal view override returns (uint256) {
+        return CHALLENGE_PERIOD;
+    }
+
+    function _getChannelLeader(uint256 channelId) internal view override returns (address) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.channels[channelId].leader;
+    }
+
+    function _hasWithdrawn(uint256 channelId, address participant) internal view override returns (bool) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.channels[channelId].hasWithdrawn[participant];
+    }
+
+    // Public function for testing withdrawal status
+    function hasUserWithdrawn(uint256 channelId, address participant) external view returns (bool) {
+        return _hasWithdrawn(channelId, participant);
+    }
+
+    /**
+     * @notice Check if channel has unresolved disputes or disputes resolved against leader
+     * @param channelId The channel ID to check
+     * @return hasBlockingDisputes True if there are disputes preventing finalization
+     */
+    function _hasResolvedDisputesAgainstLeader(uint256 channelId) internal view returns (bool hasBlockingDisputes) {
+        // Use the DisputeLogic function to check for blocking disputes
+        return this.hasResolvedDisputesAgainstLeader(channelId);
+    }
+
+
+    function _executeEmergencyTransfer(
+        uint256 channelId,
+        address participant,
+        uint256 amount
+    ) internal override {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        
+        if (channel.targetContract == ETH_TOKEN_ADDRESS) {
+            // Transfer ETH
+            (bool success,) = participant.call{value: amount}("");
+            require(success, "ETH transfer failed");
+        } else {
+            // Transfer ERC20 token
+            IERC20Upgradeable(channel.targetContract).safeTransfer(participant, amount);
+        }
+    }
+
+    // ========== EMERGENCY MODE HELPERS ==========
+    
+    /**
+     * @notice Internal function to enable emergency mode
+     * @param channelId The channel ID
+     * @param reason The reason for emergency mode
+     */
+    function _enableEmergencyMode(uint256 channelId, string memory reason) internal {
+        DisputeLogicStorage storage $dispute = _getDisputeLogicStorage();
+        
+        $dispute.emergencyMode[channelId] = true;
+        
+        // Set emergency withdrawable amounts based on current deposits
+        address[] memory participants = _getChannelParticipants(channelId);
+        for (uint256 i = 0; i < participants.length; i++) {
+            address participant = participants[i];
+            uint256 deposit = _getParticipantDeposit(channelId, participant);
+            $dispute.emergencyWithdrawable[channelId][participant] = deposit;
+        }
+        
+        emit EmergencyModeEnabled(channelId, reason);
+    }
+
+    // ========== LEADER BOND SLASHING ==========
+
+    /**
+     * @notice Slashes the leader's bond for misconduct
+     * @param channelId The channel ID
+     * @param reason The reason for slashing
+     */
+    function _slashLeaderBond(uint256 channelId, string memory reason) internal {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        
+        require(!channel.leaderBondSlashed, "Leader bond already slashed");
+        require(channel.leaderBond > 0, "No leader bond to slash");
+        
+        channel.leaderBondSlashed = true;
+        
+        emit LeaderBondSlashed(channelId, channel.leader, channel.leaderBond, reason);
+    }
+
+    /**
+     * @notice Allows participants to dispute leader for not submitting proof on time
+     * @param channelId The channel where leader failed to submit proof
+     */
+    function disputeLeaderTimeout(uint256 channelId) external {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        
+        require(channel.isParticipant[msg.sender], "Not a participant");
+        require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state");
+        require(
+            block.timestamp >= channel.openTimestamp + channel.timeout,
+            "Timeout not reached"
+        );
+        
+        // Slash leader bond for timeout
+        _slashLeaderBond(channelId, "Failed to submit proof on time");
+        
+        // Enable emergency withdrawals for participants
+        _enableEmergencyWithdrawals(channelId);
+    }
+
+    /**
+     * @notice Enables emergency withdrawals when leader fails
+     * @param channelId The channel ID
+     */
+    function _enableEmergencyWithdrawals(uint256 channelId) internal {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        
+        // Set channel to emergency state - participants can withdraw their deposits
+        channel.state = ChannelState.Closed;
+        channel.closeTimestamp = block.timestamp;
+        
+        emit EmergencyWithdrawalsEnabled(channelId);
+    }
+
+    /**
+     * @notice Allows leader to reclaim bond after successful channel completion
+     * @param channelId The channel ID
+     */
+    function reclaimLeaderBond(uint256 channelId) external nonReentrant {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        
+        require(msg.sender == channel.leader, "Not the leader");
+        require(channel.state == ChannelState.Closed, "Channel not closed");
+        require(!channel.leaderBondSlashed, "Bond was slashed");
+        require(channel.leaderBond > 0, "No bond to reclaim");
+        
+        // Check for resolved disputes against the leader
+        require(!this.hasResolvedDisputesAgainstLeader(channelId), "Disputes resolved against leader");
+        
+        uint256 bondAmount = channel.leaderBond;
+        channel.leaderBond = 0; // Prevent re-entrancy
+        
+        (bool success,) = msg.sender.call{value: bondAmount}("");
+        require(success, "Bond transfer failed");
+        
+        emit LeaderBondReclaimed(channelId, msg.sender, bondAmount);
     }
 
     uint256[44] private __gap;

@@ -80,6 +80,9 @@ contract RollupBridge is
         mapping(uint256 => bytes32[]) channelRootSequence;
         mapping(uint256 => uint256) nonce;
         mapping(uint256 => bool) channelInitialized;
+        // ========== SLASHED BOND MANAGEMENT ==========
+        address treasury; // Address to receive slashed bonds
+        uint256 totalSlashedBonds; // Total amount of slashed bonds available for withdrawal
     }
 
     bytes32 private constant RollupBridgeStorageLocation =
@@ -1199,9 +1202,13 @@ contract RollupBridge is
         require(!channel.leaderBondSlashed, "Leader bond already slashed");
         require(channel.leaderBond > 0, "No leader bond to slash");
         
+        uint256 bondAmount = channel.leaderBond;
         channel.leaderBondSlashed = true;
         
-        emit LeaderBondSlashed(channelId, channel.leader, channel.leaderBond, reason);
+        // Add slashed bond to total for later withdrawal
+        $.totalSlashedBonds += bondAmount;
+        
+        emit LeaderBondSlashed(channelId, channel.leader, bondAmount, reason);
     }
 
     /**
@@ -1266,5 +1273,58 @@ contract RollupBridge is
         emit LeaderBondReclaimed(channelId, msg.sender, bondAmount);
     }
 
-    uint256[44] private __gap;
+    // ========== SLASHED BOND MANAGEMENT ==========
+
+    /**
+     * @notice Sets the treasury address for receiving slashed bonds
+     * @param _treasury The new treasury address
+     */
+    function setTreasuryAddress(address _treasury) external onlyOwner {
+        require(_treasury != address(0), "Treasury cannot be zero address");
+        
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        address oldTreasury = $.treasury;
+        $.treasury = _treasury;
+        
+        emit TreasuryAddressUpdated(oldTreasury, _treasury);
+    }
+
+    /**
+     * @notice Withdraws all accumulated slashed bonds to the treasury
+     * @dev Only callable by owner, sends funds to treasury address
+     */
+    function withdrawSlashedBonds() external onlyOwner nonReentrant {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        
+        require($.treasury != address(0), "Treasury address not set");
+        require($.totalSlashedBonds > 0, "No slashed bonds to withdraw");
+        
+        uint256 amount = $.totalSlashedBonds;
+        $.totalSlashedBonds = 0; // Prevent re-entrancy
+        
+        (bool success,) = $.treasury.call{value: amount}("");
+        require(success, "Slashed bond transfer failed");
+        
+        emit SlashedBondsWithdrawn($.treasury, amount);
+    }
+
+    /**
+     * @notice Gets the current treasury address
+     * @return The treasury address
+     */
+    function getTreasuryAddress() external view returns (address) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.treasury;
+    }
+
+    /**
+     * @notice Gets the total amount of slashed bonds available for withdrawal
+     * @return The total slashed bond amount
+     */
+    function getTotalSlashedBonds() external view returns (uint256) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.totalSlashedBonds;
+    }
+
+    uint256[42] private __gap;
 }

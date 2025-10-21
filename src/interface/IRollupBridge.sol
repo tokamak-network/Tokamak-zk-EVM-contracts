@@ -105,6 +105,8 @@ interface IRollupBridge {
     event LeaderBondSlashed(uint256 indexed channelId, address indexed leader, uint256 bondAmount, string reason);
     event LeaderBondReclaimed(uint256 indexed channelId, address indexed leader, uint256 bondAmount);
     event EmergencyWithdrawalsEnabled(uint256 indexed channelId);
+    event TreasuryAddressUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event SlashedBondsWithdrawn(address indexed treasury, uint256 amount);
 
     // =========== FUNCTIONS ===========
 
@@ -202,4 +204,12 @@ interface IRollupBridge {
         );
 
     function getTotalChannels() external view returns (uint256);
+
+    function setTreasuryAddress(address _treasury) external;
+
+    function withdrawSlashedBonds() external;
+
+    function getTreasuryAddress() external view returns (address);
+
+    function getTotalSlashedBonds() external view returns (uint256);
 }

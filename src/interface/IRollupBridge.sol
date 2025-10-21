@@ -61,6 +61,8 @@ interface IRollupBridge {
         uint256 closeTimestamp;
         uint256 timeout;
         address leader;
+        uint256 leaderBond; // ETH bond deposited by leader as collateral
+        bool leaderBondSlashed; // Whether leader bond has been slashed
         // ZK Proof commitments removed - now retrieved from TargetContract
         // Closing process
         bytes32 aggregatedProofHash;
@@ -83,6 +85,7 @@ interface IRollupBridge {
         Open,
         Active,
         Closing,
+        Dispute,
         Closed
     }
 
@@ -93,18 +96,19 @@ interface IRollupBridge {
     event StateConverted(uint256 indexed channelId, bytes32[] zkRoots);
     event ProofAggregated(uint256 indexed channelId, bytes32 proofHash);
     event ChannelClosed(uint256 indexed channelId);
-    event ChannelDeleted(uint256 indexed channelId);
+    event ChannelFinalized(uint256 indexed channelId);
     event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
     event AggregatedProofSigned(uint256 indexed channelId, address indexed signer);
+    event LeaderBondSlashed(uint256 indexed channelId, address indexed leader, uint256 bondAmount, string reason);
+    event LeaderBondReclaimed(uint256 indexed channelId, address indexed leader, uint256 bondAmount);
+    event EmergencyWithdrawalsEnabled(uint256 indexed channelId);
 
     // =========== FUNCTIONS ===========
 
-    function authorizeCreator(address creator) external;
-
-    function openChannel(ChannelParams calldata params) external returns (uint256 channelId);
+    function openChannel(ChannelParams calldata params) external payable returns (uint256 channelId);
 
     function depositETH(uint256 _channelId) external payable;
 
@@ -196,8 +200,6 @@ interface IRollupBridge {
             uint256 totalDeposits,
             address leader
         );
-
-    function isAuthorizedCreator(address creator) external view returns (bool);
 
     function getTotalChannels() external view returns (uint256);
 }

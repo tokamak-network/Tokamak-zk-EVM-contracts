@@ -213,7 +213,6 @@ contract BasicUpgradeableTest is Test {
     // ============ Basic Functionality Tests ============
 
     function test_BasicChannelFlow() public {
-
         vm.startPrank(user1);
 
         // Prepare channel data
@@ -292,7 +291,6 @@ contract BasicUpgradeableTest is Test {
     // ============ Storage Layout Tests ============
 
     function test_StorageLayoutPreservation() public {
-
         // Create a channel with deposits
         vm.startPrank(user1);
 
@@ -480,7 +478,6 @@ contract BasicUpgradeableTest is Test {
     }
 
     function test_VerifierUpdatePreservesState() public {
-
         // Deploy new verifier
         MockVerifier newVerifier = new MockVerifier();
 

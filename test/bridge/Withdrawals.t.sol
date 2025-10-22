@@ -249,10 +249,10 @@ contract WithdrawalsTest is Test {
         // Close channel
         // Advance time past the channel timeout (1 days)
         vm.warp(block.timestamp + CHANNEL_TIMEOUT + 1);
-        
+
         vm.prank(leader);
         rollupBridge.closeChannel(channelId);
-        
+
         // Wait for challenge period to expire and finalize the channel
         vm.warp(block.timestamp + rollupBridge.CHALLENGE_PERIOD() + 1);
         vm.prank(leader);

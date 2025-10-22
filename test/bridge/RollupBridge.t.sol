@@ -361,10 +361,10 @@ contract RollupBridgeTest is Test {
     function testInitializeChannelStateDifferentDeposits() public {
         // Simplified test: just verify that ETH channels with different deposits create different root hashes
         // Use ETH instead of tokens to match working patterns exactly
-        
+
         // Create first channel
         uint256 channelId1 = _createChannel();
-        
+
         // Make specific deposits - Set 1: [1, 2, 0]
         vm.prank(user1);
         bridge.depositETH{value: 1 ether}(channelId1);
@@ -380,12 +380,12 @@ contract RollupBridgeTest is Test {
         // Simple approach: just verify the root hashes are different after initialization
         // No need to complete full lifecycle for this test
 
-        // Create second channel with different leader to avoid "Channel limit reached"  
+        // Create second channel with different leader to avoid "Channel limit reached"
         uint256 channelId2 = _createChannelWithLeader(leader2);
         vm.prank(user1);
         bridge.depositETH{value: 1 ether}(channelId2);
         vm.prank(user2);
-        bridge.depositETH{value: 1 ether}(channelId2);  // Different amount
+        bridge.depositETH{value: 1 ether}(channelId2); // Different amount
         // user3 makes no deposit
 
         // Initialize and get root hash 2
@@ -396,7 +396,6 @@ contract RollupBridgeTest is Test {
         // The root hashes should be different for different deposit amounts
         assertTrue(rootHash1 != rootHash2, "Root hashes should be different for different deposit amounts");
     }
-
 
     function testInitialize_ChannelStateNotLeader() public {
         uint256 channelId = _createChannel();
@@ -678,7 +677,7 @@ contract RollupBridgeTest is Test {
         // Verify that the channel can now be closed
         // Advance time past the channel timeout (1 days)
         vm.warp(block.timestamp + 1 days + 1);
-        
+
         vm.prank(leader);
         bridge.closeChannel(channelId);
 
@@ -1132,7 +1131,7 @@ contract RollupBridgeTest is Test {
         // 6. Close channel
         // Advance time past the channel timeout (1 days)
         vm.warp(block.timestamp + 1 days + 1);
-        
+
         vm.prank(leader);
         bridge.closeChannel(channelId);
 
@@ -1428,7 +1427,7 @@ contract RollupBridgeTest is Test {
     function _setupChannelWithParticipants(uint256 participantCount) internal returns (uint256 channelId) {
         // Use different leaders to avoid "channel limit reached" error
         address channelLeader = address(uint160(100 + participantCount));
-        
+
         // Fund the leader
         vm.deal(channelLeader, 10 ether);
 

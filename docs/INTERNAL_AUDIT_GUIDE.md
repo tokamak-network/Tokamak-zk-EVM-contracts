@@ -18,12 +18,6 @@ The leader bond system requires a fixed 1 ETH deposit from channel leaders, whic
 
 When leader bonds are slashed, the funds are not immediately distributed but instead accumulate in the contract for later withdrawal by the treasury. This design prevents immediate redistribution that could complicate accounting and introduces a controlled process for managing slashed funds. The treasury withdrawal mechanism requires owner intervention, which is intentional centralization that enables proper fund management and prevents automated distributions that might be exploited.
 
-### Proof Verification and Computational Requirements
-
-The bridge accepts preprocessed proof components and public inputs without performing extensive validation of their mathematical correctness during submission. This apparent lack of validation is intentional, as the actual proof verification occurs in the designated verifier contract, and the bridge serves primarily as a coordination layer. The separation of concerns between proof coordination and verification is a deliberate architectural choice that should not be considered a validation gap.
-
-The system allows participants to submit proofs with varying computational complexity, and the gas consumption for proof verification can be substantial. High gas usage during proof operations is expected behavior given the cryptographic complexity involved, and should not be flagged as a denial-of-service vector unless the consumption exceeds reasonable bounds for legitimate operations.
-
 ### Emergency Mode and Withdrawal Patterns
 
 Emergency mode can be activated automatically through dispute resolution or manually by the contract owner, creating dual pathways for participant protection. This redundancy is intentional and provides both automated responses to detected issues and manual intervention capabilities for unforeseen circumstances. The ability for the owner to manually enable emergency mode should not be considered excessive centralization, as it serves as a critical safety mechanism when automated systems may be insufficient.

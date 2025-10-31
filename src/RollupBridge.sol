@@ -442,8 +442,10 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
             channel.state == ChannelState.Open || channel.state == ChannelState.Active,
             "Channel must be in Open or Active state"
         );
-        require(block.timestamp >= channel.openTimestamp + channel.timeout + PROOF_SUBMISSION_DEADLINE, 
-                "Proof submission deadline not reached");
+        require(
+            block.timestamp >= channel.openTimestamp + channel.timeout + PROOF_SUBMISSION_DEADLINE,
+            "Proof submission deadline not reached"
+        );
 
         // Slash leader bond for failing to submit proof on time
         if (!channel.leaderBondSlashed && channel.leaderBond > 0) {
@@ -460,7 +462,6 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
 
         emit ChannelClosed(channelId);
     }
-
 
     /**
      * @notice Withdraws funds after channel closure using Merkle proof
@@ -536,8 +537,10 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
 
         require(channel.isParticipant[msg.sender], "Not a participant");
         require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state");
-        require(block.timestamp >= channel.openTimestamp + channel.timeout + PROOF_SUBMISSION_DEADLINE, 
-                "Proof submission deadline not reached");
+        require(
+            block.timestamp >= channel.openTimestamp + channel.timeout + PROOF_SUBMISSION_DEADLINE,
+            "Proof submission deadline not reached"
+        );
 
         // Slash leader bond for timeout
         _slashLeaderBond(channelId, "Failed to submit proof on time");
@@ -645,7 +648,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         require($.totalSlashedBonds > 0, "No slashed bonds to withdraw");
 
         uint256 amount = $.totalSlashedBonds;
-        $.totalSlashedBonds = 0; 
+        $.totalSlashedBonds = 0;
 
         (bool success,) = $.treasury.call{value: amount}("");
         require(success, "Slashed bond transfer failed");

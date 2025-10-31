@@ -83,10 +83,8 @@ contract WithdrawalsTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         rollupBridge = RollupBridge(address(proxy));
 
-        // Authorize leader to create channels
-        vm.startPrank(owner);
-        rollupBridge.authorizeCreator(leader);
         // Allow the token contract for testing
+        vm.startPrank(owner);
         uint128[] memory preprocessedPart1 = new uint128[](4);
         preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
         preprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
@@ -101,6 +99,7 @@ contract WithdrawalsTest is Test {
         vm.stopPrank();
 
         // Fund participants with ETH and tokens
+        vm.deal(leader, 10 ether);
         vm.deal(participant1, 10 ether);
         vm.deal(participant2, 10 ether);
         vm.deal(participant3, 10 ether);
@@ -129,7 +128,7 @@ contract WithdrawalsTest is Test {
         l2PublicKeys[1] = l2Address2;
         l2PublicKeys[2] = l2Address3;
 
-        vm.prank(leader);
+        vm.startPrank(leader);
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: ETH_TOKEN_ADDRESS,
             participants: participants,
@@ -138,7 +137,8 @@ contract WithdrawalsTest is Test {
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
-        channelId = rollupBridge.openChannel(params);
+        channelId = rollupBridge.openChannel{value: rollupBridge.LEADER_BOND_REQUIRED()}(params);
+        vm.stopPrank();
     }
 
     function _createTokenChannel() internal returns (uint256 channelId) {
@@ -152,7 +152,7 @@ contract WithdrawalsTest is Test {
         l2PublicKeys[1] = l2Address2;
         l2PublicKeys[2] = l2Address3;
 
-        vm.prank(leader);
+        vm.startPrank(leader);
         IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
             targetContract: address(testToken),
             participants: participants,
@@ -161,7 +161,8 @@ contract WithdrawalsTest is Test {
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
-        channelId = rollupBridge.openChannel(params);
+        channelId = rollupBridge.openChannel{value: rollupBridge.LEADER_BOND_REQUIRED()}(params);
+        vm.stopPrank();
     }
 
     function _makeDeposits(uint256 channelId, bool isETH) internal {
@@ -231,6 +232,9 @@ contract WithdrawalsTest is Test {
         proofData.initialMPTLeaves = _createMPTLeaves(balances);
         proofData.finalMPTLeaves = _createMPTLeaves(balances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + CHANNEL_TIMEOUT + 1);
+
         vm.prank(leader);
         rollupBridge.submitAggregatedProof(channelId, proofData);
 
@@ -246,8 +250,9 @@ contract WithdrawalsTest is Test {
         rollupBridge.signAggregatedProof(channelId, signature);
 
         // Close channel
+        // Close and finalize channel directly (no challenge period needed when signature verified)
         vm.prank(leader);
-        rollupBridge.closeChannel(channelId);
+        rollupBridge.closeAndFinalizeChannel(channelId);
     }
 
     function _getWithdrawalProof(uint256 channelId, address userL2Address, bytes32 finalStateRoot)

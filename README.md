@@ -1,7 +1,7 @@
 # Tokamak zkEVM Contracts
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Solidity](https://img.shields.io/badge/Solidity-0.8.23-blue.svg)](https://soliditylang.org/)
+[![Solidity](https://img.shields.io/badge/Solidity-0.8.29-blue.svg)](https://soliditylang.org/)
 [![Foundry](https://img.shields.io/badge/Foundry-✓-green.svg)](https://getfoundry.sh/)
 
 Our rollup enables on-demand state channels that hold private L2s. State channels are in charge of aggregating proofs and managing state root.
@@ -41,11 +41,15 @@ The leverage **MerkleTreeManager4** with **4-input hashing** instead of traditio
 - **💰 Balance Conservation**: Mathematical guarantees preventing fund creation/destruction
 - **🔄 State Rollback**: Root history tracking for state recovery and verification
 - **🔧 Upgradeable Architecture**: UUPS proxy pattern for seamless contract upgrades
+- **⚖️ Dispute Resolution**: Automated dispute system with 14-day timeout and emergency mechanisms
+- **🏦 Treasury Management**: Slashed bond recovery system preventing permanent fund loss
+- **🔒 Leader Bond System**: 1 ETH bond requirement with slashing protection for participants
 
 ## Core Components
 
 #### **Bridge Layer**
 - **`RollupBridge.sol`**: **Latest V2** with embedded Merkle operations for 39% gas reduction
+- **`DisputeLogic.sol`**: Dispute resolution and slashing mechanisms
 - **`IRollupBridge.sol`**: Interface definitions and data structures
 
 #### **Verification Layer**
@@ -57,14 +61,15 @@ The leverage **MerkleTreeManager4** with **4-input hashing** instead of traditio
 
 ### Workflow Phases
 
-1. **🔓 Channel Opening**: Authorization and participant registration with preprocessing
+1. **🔓 Channel Opening**: Authorization and participant registration with leader bond (1 ETH)
 2. **💰 Deposit Period**: Secure fund collection with balance tracking
 3. **🌱 State Initialization**: On-chain RLC computation and initial root storage
 4. **⚡ Off-Chain Computation**: High-throughput L2 processing with consensus
-5. **🚪 Closure Initiation**: Threshold-signed submission of computation results
-6. **✅ Verification**: 4-layer validation including ZK proof verification
-7. **💸 Settlement**: Cryptographically verified fund distribution
-8. **🧹 Cleanup**: Challenge period and storage optimization
+5. **🚪 Closure Initiation**: Threshold-signed submission of computation results (Channel → Dispute state)
+6. **⚖️ Dispute Period**: 14-day challenge window for dispute resolution
+7. **🔒 Finalization**: Channel transition to Closed state after dispute period
+8. **💸 Settlement**: Cryptographically verified fund distribution
+9. **🧹 Cleanup**: Storage optimization and bond reclamation
 
 ## 🔐 Security Model
 
@@ -80,6 +85,50 @@ The leverage **MerkleTreeManager4** with **4-input hashing** instead of traditio
 - **Conservation Laws**: Mathematical balance sum verification
 - **Challenge Period**: 14-day finality window for dispute resolution
 - **Root History**: Rollback capability for state recovery
+- **Leader Bond System**: 1 ETH bond ensures leader accountability with slashing for misconduct
+- **Treasury Management**: Slashed bonds recoverable by treasury to prevent permanent loss
+- **Emergency Mode**: Automatic activation on proven leader misconduct with emergency withdrawals
+
+## ⚖️ Dispute System Architecture
+
+The Tokamak zkEVM bridge implements a sophisticated dispute resolution system that ensures channel integrity and protects participants from malicious leader behavior.
+
+### Two-Phase Channel Closure
+
+The system employs a two-phase closure mechanism that provides a dispute window for validation:
+
+1. **Closure Initiation**: `closeChannel()` transitions channel from `Open` to `Dispute` state
+2. **Dispute Period**: 14-day window where participants can raise disputes against the leader
+3. **Finalization**: `finalizeChannel()` transitions channel from `Dispute` to `Closed` state (only if no valid disputes exist)
+
+### Leader Bond System
+
+Channel leaders must post a **1 ETH bond** that serves as economic security:
+- **Bond Requirement**: Leaders deposit 1 ETH when opening channels
+- **Slashing Protection**: Bond is slashed if leader misconduct is proven through disputes
+- **Reclamation**: Leaders can reclaim bonds after successful channel finalization
+
+### Dispute Resolution Process
+
+Participants can challenge leader behavior during the dispute period:
+- **Raising Disputes**: Any participant can dispute the leader with evidence
+- **Automatic Timeout**: Disputes automatically expire after 14 days if unresolved
+- **Manual Resolution**: Contract owner can manually resolve disputes based on evidence
+- **Emergency Mode**: Proven leader misconduct triggers emergency mode with immediate participant protection
+
+### Treasury Management
+
+The system includes mechanisms to recover slashed leader bonds:
+- **Treasury Address**: Configurable address for receiving slashed bonds
+- **Slashed Bond Recovery**: `withdrawSlashedBonds()` allows treasury to recover accumulated slashed bonds
+- **Fund Protection**: Prevents permanent loss of slashed leader bonds in the contract
+
+### Security Features
+
+- **L2 Address Collision Prevention**: Prevents participants from using conflicting L2 addresses
+- **Emergency Withdrawals**: Participants can withdraw original deposits when emergency mode is activated
+- **State Transition Protection**: Channels cannot be finalized while valid disputes exist
+- **Economic Incentives**: Leader bonds ensure accountability while protecting participant deposits
 
 ## 🚀 Getting Started
 
@@ -150,6 +199,7 @@ forge test
 
 # Run specific test contracts
 forge test --match-contract RollupBridgeTest
+forge test --match-contract DisputeLogicTest
 forge test --match-contract WithdrawalsTest
 forge test --match-contract BasicUpgradeableTest
 forge test --match-contract ArchitecturalOptimizationTest
@@ -167,11 +217,13 @@ forge test --match-test testConstructor
 
 ### Test Coverage
 
-- **RollupBridge.t.sol**: 34 tests covering V1 bridge operations
-- **BasicUpgradeableTest.t.sol**: 16 tests covering V1 upgradeability and lifecycle
+- **RollupBridge.t.sol**: 34 tests covering bridge operations and state transitions
+- **DisputeLogic.t.sol**: 51 tests covering dispute resolution, slashing, and emergency mechanisms
+- **Withdrawals.t.sol**: 16 tests covering withdrawal functionality and two-phase closure
+- **BasicUpgradeableTest.t.sol**: 16 tests covering upgradeability and lifecycle
 - **ArchitecturalOptimizationTest.t.sol**: 6 tests comparing V1 vs V2 performance and equivalence
 - **Verifier.t.sol**: 5 tests covering ZK proof verification
-- **Total**: 61 tests ensuring comprehensive coverage with proven functional equivalence
+- **Total**: 128 tests ensuring comprehensive coverage with proven functional equivalence
 
 ## Project Structure
 
@@ -184,6 +236,7 @@ src/
 │   └── Verifier.sol      # ZK-SNARK proof verifier
 ├── library/              # Utility libraries
 │   └── RLP.sol           # Recursive Length Prefix encoding
+├── DisputeLogic.sol      # Dispute resolution and slashing logic
 └── RollupBridge.sol      # Main rollup bridge contract
 
 script/                   # Deployment scripts
@@ -193,11 +246,13 @@ script/                   # Deployment scripts
 └── UpgradeContracts.s.sol # Contract upgrade script
 
 test/
+├── bridge/                             # Bridge-specific tests
+│   ├── DisputeLogic.t.sol              # Dispute system tests
+│   └── Withdrawals.t.sol               # Withdrawal functionality tests
 ├── RollupBridge.t.sol                  # Bridge contract tests
 ├── BasicUpgradeableTest.t.sol          # Upgradeability tests
 ├── ArchitecturalOptimizationTest.t.sol # Performance comparison tests
 ├── Verifier.t.sol                      # ZK verifier tests
-├── Withdrawals.t.sol                   # Withdrawal functionality tests
 ├── js-scripts/                         # JavaScript utilities
 │   ├── generateProof.js                # Proof generation utility
 │   ├── merkleTree.js                   # Merkle tree implementation
@@ -244,6 +299,8 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ## 📚 Documentation
 
+- **Dispute System**: [DISPUTE_SYSTEM.md](./DISPUTE_SYSTEM.md) - Comprehensive dispute resolution architecture
+- **Internal Audit Guide**: [INTERNAL_AUDIT_GUIDE.md](./INTERNAL_AUDIT_GUIDE.md) - Security audit guidelines and expected behaviors
 - **Technical Docs**: [docs/](./docs/) directory
 
 ## 📦 Deployment
@@ -291,8 +348,8 @@ Create `.env` file based on `script/env-v1.template` with additional `TREE_DEPTH
 ### Deployed Contracts (Sepolia)
 
 ```
-RollupBridge impl: 0xb8BB46Fe63551AC633C23B542b1668Cca31B9753
-RollupBridge (Proxy): 0x12A4db45153672d11D0c18453Fd86B2f5394Ee11
+RollupBridge impl: 0x04c548f7981236Bbe18B70C6298545cA03Ce68a8
+RollupBridge (Proxy): 0x43D25e32b81523BBE9E2dDCFD9493ccD0dBB0c6e
 ```
 
 #### Safety Features

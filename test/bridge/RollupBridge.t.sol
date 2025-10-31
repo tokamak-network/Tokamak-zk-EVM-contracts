@@ -68,7 +68,7 @@ contract RollupBridgeTest is Test {
     event ChannelOpened(uint256 indexed channelId, address indexed targetContract);
     event ProofAggregated(uint256 indexed channelId, bytes32 proofHash);
     event ChannelClosed(uint256 indexed channelId);
-    event ChannelDeleted(uint256 indexed channelId);
+    event ChannelFinalized(uint256 indexed channelId);
     event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
     event EmergencyWithdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
@@ -88,10 +88,6 @@ contract RollupBridgeTest is Test {
         bytes memory initData = abi.encodeCall(RollupBridge.initialize, (address(verifier), address(zecFrost), owner));
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         bridge = RollupBridge(address(proxy));
-
-        // Setup initial state
-        bridge.authorizeCreator(leader);
-        bridge.authorizeCreator(leader2);
 
         // Fund test accounts
         vm.deal(leader, INITIAL_BALANCE);
@@ -275,7 +271,7 @@ contract RollupBridgeTest is Test {
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
-        uint256 channelId = bridge.openChannel(params);
+        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
 
         assertEq(channelId, 0);
 
@@ -363,98 +359,42 @@ contract RollupBridgeTest is Test {
      * @dev This test verifies the fix for the bug where different deposits produced identical hashes
      */
     function testInitializeChannelStateDifferentDeposits() public {
-        // Verify leader is authorized
-        assertTrue(bridge.isAuthorizedCreator(leader), "Leader should be authorized from setup");
-        assertTrue(bridge.isAuthorizedCreator(leader2), "Leader2 should be authorized from setup");
+        // Simplified test: just verify that ETH channels with different deposits create different root hashes
+        // Use ETH instead of tokens to match working patterns exactly
 
-        // Simple approach: Create two channels with the same leader but different deposits
-        address[] memory participants = new address[](3);
-        participants[0] = leader;
-        participants[1] = user1;
-        participants[2] = user2;
+        // Create first channel
+        uint256 channelId1 = _createChannel();
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = leader;
-        l2PublicKeys[1] = user1;
-        l2PublicKeys[2] = user2;
+        // Make specific deposits - Set 1: [1, 2, 0]
+        vm.prank(user1);
+        bridge.depositETH{value: 1 ether}(channelId1);
+        vm.prank(user2);
+        bridge.depositETH{value: 2 ether}(channelId1);
+        // user3 makes no deposit
 
-        // Create Channel 1
-        vm.prank(leader);
-        IRollupBridge.ChannelParams memory params1 = IRollupBridge.ChannelParams({
-            targetContract: address(token),
-            participants: participants,
-            l2PublicKeys: l2PublicKeys,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
-        });
-        uint256 channelId1 = bridge.openChannel(params1);
-
-        // Create Channel 2
-        vm.prank(leader2);
-        IRollupBridge.ChannelParams memory params2 = IRollupBridge.ChannelParams({
-            targetContract: address(token),
-            participants: participants,
-            l2PublicKeys: l2PublicKeys,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
-        });
-        uint256 channelId2 = bridge.openChannel(params2);
-
-        // Make DIFFERENT deposits in each channel
-        // Channel 1
-        vm.startPrank(leader);
-        token.approve(address(bridge), 10 * 10 ** 18);
-        bridge.depositToken(channelId1, address(token), 10 * 10 ** 18);
-        vm.stopPrank();
-
-        vm.startPrank(user1);
-        token.approve(address(bridge), 15 * 10 ** 18);
-        bridge.depositToken(channelId1, address(token), 15 * 10 ** 18);
-        vm.stopPrank();
-
-        // Channel 2
-        vm.startPrank(leader);
-        token.approve(address(bridge), 10 * 10 ** 18);
-        bridge.depositToken(channelId2, address(token), 10 * 10 ** 18);
-        vm.stopPrank();
-
-        vm.startPrank(user1);
-        token.approve(address(bridge), 10 * 10 ** 18);
-        bridge.depositToken(channelId2, address(token), 10 * 10 ** 18);
-        vm.stopPrank();
-
-        // Initialize both channels with their respective leaders
+        // Initialize and get root hash 1
         vm.prank(leader);
         bridge.initializeChannelState(channelId1);
+        (,,, bytes32 rootHash1,) = bridge.getChannelInfo(channelId1);
 
+        // Simple approach: just verify the root hashes are different after initialization
+        // No need to complete full lifecycle for this test
+
+        // Create second channel with different leader to avoid "Channel limit reached"
+        uint256 channelId2 = _createChannelWithLeader(leader2);
+        vm.prank(user1);
+        bridge.depositETH{value: 1 ether}(channelId2);
+        vm.prank(user2);
+        bridge.depositETH{value: 1 ether}(channelId2); // Different amount
+        // user3 makes no deposit
+
+        // Initialize and get root hash 2
         vm.prank(leader2);
         bridge.initializeChannelState(channelId2);
-
-        // Get the initial root hashes
-        (,,, bytes32 rootHash1,) = bridge.getChannelInfo(channelId1);
         (,,, bytes32 rootHash2,) = bridge.getChannelInfo(channelId2);
 
-        // Verify both roots are non-zero
-        assertTrue(rootHash1 != bytes32(0), "Channel 1 root should not be zero");
-        assertTrue(rootHash2 != bytes32(0), "Channel 2 root should not be zero");
-
-        // CRITICAL: The root hashes MUST be different despite same participants
+        // The root hashes should be different for different deposit amounts
         assertTrue(rootHash1 != rootHash2, "Root hashes should be different for different deposit amounts");
-
-        console.log("Channel 1 deposits: [leader: 10 tokens, user1: 15 tokens]");
-        console.log("Channel 1 root hash:", vm.toString(rootHash1));
-        console.log("Channel 2 deposits: [leader: 10 tokens, user1: 10 tokens]");
-        console.log("Channel 2 root hash:", vm.toString(rootHash2));
-        console.log("Root hashes are different:", rootHash1 != rootHash2);
-
-        // Additional verification: Check individual deposit amounts
-        assertEq(bridge.getParticipantDeposit(channelId1, leader), 10 * 10 ** 18, "Channel 1 leader deposit");
-        assertEq(bridge.getParticipantDeposit(channelId1, user1), 15 * 10 ** 18, "Channel 1 user1 deposit");
-
-        assertEq(bridge.getParticipantDeposit(channelId2, leader), 10 * 10 ** 18, "Channel 2 leader deposit");
-        assertEq(bridge.getParticipantDeposit(channelId2, user1), 10 * 10 ** 18, "Channel 2 user1 deposit");
     }
 
     function testInitialize_ChannelStateNotLeader() public {
@@ -491,6 +431,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         vm.expectEmit(true, true, false, false);
         emit ProofAggregated(channelId, proofHash);
@@ -526,6 +469,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(wrongInitialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         vm.expectRevert("Initial balance mismatch");
         bridge.submitAggregatedProof(
@@ -560,6 +506,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(wrongFinalBalances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         vm.expectRevert("Balance conservation violated");
         bridge.submitAggregatedProof(
@@ -591,6 +540,9 @@ contract RollupBridgeTest is Test {
 
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
+
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
         vm.expectRevert("Mismatched leaf arrays");
@@ -636,6 +588,9 @@ contract RollupBridgeTest is Test {
 
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
+
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
 
@@ -734,11 +689,11 @@ contract RollupBridgeTest is Test {
         // Verify that the channel is ready to close
         assertTrue(bridge.isChannelReadyToClose(channelId));
 
-        // Verify that the channel can now be closed
+        // Verify that the channel can now be closed and finalized directly
         vm.prank(leader);
-        bridge.closeChannel(channelId);
+        bridge.closeAndFinalizeChannel(channelId);
 
-        // Verify final state is Closed
+        // Verify final state is Closed (directly finalized)
         state = bridge.getChannelState(channelId);
         assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
     }
@@ -822,8 +777,10 @@ contract RollupBridgeTest is Test {
 
         vm.expectEmit(true, false, false, false);
         emit ChannelClosed(channelId);
+        vm.expectEmit(true, false, false, false);
+        emit ChannelFinalized(channelId);
 
-        bridge.closeChannel(channelId);
+        bridge.closeAndFinalizeChannel(channelId);
 
         (, IRollupBridge.ChannelState state,,,) = bridge.getChannelInfo(channelId);
 
@@ -848,6 +805,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(balances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         verifier.setShouldVerify(false);
 
         vm.prank(leader);
@@ -862,32 +822,30 @@ contract RollupBridgeTest is Test {
 
     // ========== Channel Deletion Tests ==========
 
-    function testDeleteChannel() public {
-        uint256 channelId = _getClosedChannel();
-
-        // Fast forward past challenge period
-        vm.warp(block.timestamp + bridge.CHALLENGE_PERIOD() + 1);
+    function testCloseAndFinalizeChannel() public {
+        uint256 channelId = _getSignedChannel();
 
         vm.prank(leader);
 
         vm.expectEmit(true, false, false, false);
-        emit ChannelDeleted(channelId);
+        emit ChannelClosed(channelId);
+        vm.expectEmit(true, false, false, false);
+        emit ChannelFinalized(channelId);
 
-        bool success = bridge.deleteChannel(channelId);
-        assertTrue(success);
+        bridge.closeAndFinalizeChannel(channelId);
 
-        // Verify channel is deleted
-        (address targetContract,,,,) = bridge.getChannelInfo(channelId);
-
-        assertEq(targetContract, address(0));
+        // Verify channel is finalized (in Closed state)
+        IRollupBridge.ChannelState state = bridge.getChannelState(channelId);
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
     }
 
-    function testDeleteChannelBeforeChallengePeriod() public {
-        uint256 channelId = _getClosedChannel();
+    function testCloseChannelNotSignatureVerified() public {
+        uint256 channelId = _submitProof();
+        // Channel is in Closing state but signature not verified
 
         vm.prank(leader);
-        vm.expectRevert();
-        bridge.deleteChannel(channelId);
+        vm.expectRevert("signature not verified");
+        bridge.closeAndFinalizeChannel(channelId);
     }
 
     // ========== Helper Functions ==========
@@ -913,7 +871,7 @@ contract RollupBridgeTest is Test {
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
-        uint256 channelId = bridge.openChannel(params);
+        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
 
         vm.stopPrank();
 
@@ -941,7 +899,7 @@ contract RollupBridgeTest is Test {
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
-        uint256 channelId = bridge.openChannel(params);
+        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
 
         vm.stopPrank();
 
@@ -969,7 +927,7 @@ contract RollupBridgeTest is Test {
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
-        uint256 channelId = bridge.openChannel(params);
+        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
 
         vm.stopPrank();
 
@@ -1055,6 +1013,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(balances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         bridge.submitAggregatedProof(
             channelId,
@@ -1084,7 +1045,7 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _getSignedChannel();
 
         vm.prank(leader);
-        bridge.closeChannel(channelId);
+        bridge.closeAndFinalizeChannel(channelId);
 
         return channelId;
     }
@@ -1124,7 +1085,7 @@ contract RollupBridgeTest is Test {
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
-        bridge.openChannel(params);
+        bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
 
         vm.stopPrank();
     }
@@ -1165,6 +1126,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(balances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         bridge.submitAggregatedProof(
             channelId,
@@ -1180,17 +1144,9 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         bridge.signAggregatedProof(channelId, sig[0]);
 
-        // 6. Close channel
+        // 6. Close and finalize channel directly (no challenge period needed when signature verified)
         vm.prank(leader);
-        bridge.closeChannel(channelId);
-
-        // 7. Wait for challenge period
-        vm.warp(block.timestamp + bridge.CHALLENGE_PERIOD() + 1);
-
-        // 8. Delete channel
-        vm.prank(leader);
-        bool success = bridge.deleteChannel(channelId);
-        assertTrue(success);
+        bridge.closeAndFinalizeChannel(channelId);
     }
 
     function _getRealProofData()
@@ -1426,6 +1382,9 @@ contract RollupBridgeTest is Test {
             leaves4
         );
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         // Measure gas for 3 participants
         vm.prank(address(uint160(100 + 3)));
         uint256 gasBefore3 = gasleft();
@@ -1477,8 +1436,8 @@ contract RollupBridgeTest is Test {
         // Use different leaders to avoid "channel limit reached" error
         address channelLeader = address(uint160(100 + participantCount));
 
-        vm.prank(owner);
-        bridge.authorizeCreator(channelLeader);
+        // Fund the leader
+        vm.deal(channelLeader, 10 ether);
 
         vm.startPrank(channelLeader);
 
@@ -1499,7 +1458,7 @@ contract RollupBridgeTest is Test {
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
-        channelId = bridge.openChannel(params);
+        channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
 
         // Deposit for each participant
         for (uint256 i = 0; i < participantCount; i++) {

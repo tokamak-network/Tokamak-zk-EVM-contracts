@@ -174,8 +174,6 @@ contract USDTWithFeesTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         bridge = RollupBridge(address(proxy));
 
-        // Setup permissions
-        bridge.authorizeCreator(leader);
         uint128[] memory preprocessedPart1 = new uint128[](4);
         preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
         preprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
@@ -196,6 +194,7 @@ contract USDTWithFeesTest is Test {
         vm.stopPrank();
 
         // Fund accounts with ETH
+        vm.deal(leader, 10 ether);
         vm.deal(user1, 10 ether);
         vm.deal(user2, 10 ether);
         vm.deal(user3, 10 ether);
@@ -234,7 +233,7 @@ contract USDTWithFeesTest is Test {
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
 
-        uint256 channelId = bridge.openChannel(params);
+        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
         vm.stopPrank();
 
         // Test USDT deposit with fees
@@ -331,7 +330,7 @@ contract USDTWithFeesTest is Test {
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
         });
 
-        uint256 channelId = bridge.openChannel(params);
+        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
         vm.stopPrank();
 
         // Test with large deposit that hits max fee

@@ -797,7 +797,7 @@ contract RollupBridgeTest is Test {
         verifier.setShouldVerify(false);
 
         vm.prank(leader);
-        vm.expectRevert("Invalid ZK proof - leader bond slashed");
+        vm.expectRevert("Invalid ZK proof");
         bridge.submitAggregatedProof(
             channelId,
             _createProofDataSimple(

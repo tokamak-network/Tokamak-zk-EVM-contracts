@@ -47,6 +47,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
 
     // ========== CONSTANTS ==========
     uint256 public constant CHALLENGE_PERIOD = 14 days;
+    uint256 public constant PROOF_SUBMISSION_DEADLINE = 7 days; // Leader has 7 days after timeout to submit proof
     uint256 public constant MIN_PARTICIPANTS = 3;
     uint256 public constant MAX_PARTICIPANTS = 50;
     uint256 public constant NATIVE_TOKEN_TRANSFER_GAS_LIMIT = 1_000_000;
@@ -321,16 +322,18 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
     }
 
     /**
-     * @notice Submits aggregated proof for the channel
+     * @notice Submits aggregated proof for the channel after timeout period
      * @param channelId The channel ID
      * @param proofData The proof data structure containing ZK proof and state information
-     * @dev Only the channel leader can submit proofs
+     * @dev Only the channel leader can submit proofs, and only after the channel timeout has passed
+     *      Leader has PROOF_SUBMISSION_DEADLINE (7 days) after timeout to submit proof or bond gets slashed
      */
     function submitAggregatedProof(uint256 channelId, ProofData calldata proofData) external {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state");
         require(msg.sender == channel.leader, "Only leader can submit");
+        require(block.timestamp >= channel.openTimestamp + channel.timeout, "Channel timeout not reached");
         require(proofData.initialMPTLeaves.length == proofData.finalMPTLeaves.length, "Mismatched leaf arrays");
         require(proofData.initialMPTLeaves.length == channel.participants.length, "Invalid leaf count");
         require(proofData.participantRoots.length == channel.participants.length, "Invalid participant roots count");
@@ -405,30 +408,31 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
     }
 
     /**
-     * @notice Closes a channel and starts the challenge period
-     * @param channelId The channel ID to close
+     * @notice Closes and finalizes a channel directly if signature is verified
+     * @param channelId The channel ID to close and finalize
      * @dev Only the channel leader or contract owner can close
+     *      Channel goes directly to Closed state, skipping Dispute state
      */
-    function closeChannel(uint256 channelId) external {
+    function closeAndFinalizeChannel(uint256 channelId) external {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         require(msg.sender == channel.leader || msg.sender == owner(), "unauthorized caller");
         require(channel.state == ChannelState.Closing, "Not in closing state");
         require(channel.sigVerified, "signature not verified");
 
-        // Require that the channel timeout has been reached
-        require(block.timestamp >= channel.openTimestamp + channel.timeout, "Channel timeout not reached");
-
-        channel.state = ChannelState.Dispute;
+        // Transition directly to Closed state (no challenge period needed when signature is verified)
+        channel.state = ChannelState.Closed;
         channel.closeTimestamp = block.timestamp;
+        $.isChannelLeader[channel.leader] = false;
 
         emit ChannelClosed(channelId);
+        emit ChannelFinalized(channelId);
     }
 
     /**
      * @notice Emergency close for expired channels without proof submission
      * @param channelId The channel ID to emergency close
-     * @dev Only contract owner can emergency close
+     * @dev Only contract owner can emergency close, and only after proof submission deadline has passed
      */
     function emergencyCloseExpiredChannel(uint256 channelId) external {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
@@ -438,7 +442,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
             channel.state == ChannelState.Open || channel.state == ChannelState.Active,
             "Channel must be in Open or Active state"
         );
-        require(block.timestamp >= channel.openTimestamp + channel.timeout, "Channel timeout not reached");
+        require(block.timestamp >= channel.openTimestamp + channel.timeout + PROOF_SUBMISSION_DEADLINE, 
+                "Proof submission deadline not reached");
 
         // Slash leader bond for failing to submit proof on time
         if (!channel.leaderBondSlashed && channel.leaderBond > 0) {
@@ -456,26 +461,6 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         emit ChannelClosed(channelId);
     }
 
-    /**
-     * @notice Finalizes a channel after the challenge period
-     * @param channelId The channel ID to finalize
-     * @return success True if finalization was successful
-     * @dev Only channel leader or contract owner can finalize
-     */
-    function finalizeChannel(uint256 channelId) external returns (bool) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        require(msg.sender == owner() || msg.sender == channel.leader, "only owner or leader");
-        require(channel.state == ChannelState.Dispute, "Channel not in dispute period");
-        require(block.timestamp >= channel.closeTimestamp + CHALLENGE_PERIOD, "Challenge period not expired");
-
-        // Transition from Dispute to Closed state (finalize channel for withdrawals)
-        channel.state = ChannelState.Closed;
-        $.isChannelLeader[msg.sender] = false;
-
-        emit ChannelFinalized(channelId);
-        return true;
-    }
 
     /**
      * @notice Withdraws funds after channel closure using Merkle proof
@@ -541,9 +526,9 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
     }
 
     /**
-     * @notice Handles leader bond slashing when proof is not submitted on time
+     * @notice Handles leader bond slashing when proof is not submitted within deadline
      * @param channelId The channel where leader failed to submit proof
-     * @dev Only participants can call this function
+     * @dev Only participants can call this function, and only after proof submission deadline has passed
      */
     function handleProofTimeout(uint256 channelId) external {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
@@ -551,7 +536,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
 
         require(channel.isParticipant[msg.sender], "Not a participant");
         require(channel.state == ChannelState.Open || channel.state == ChannelState.Active, "Invalid state");
-        require(block.timestamp >= channel.openTimestamp + channel.timeout, "Timeout not reached");
+        require(block.timestamp >= channel.openTimestamp + channel.timeout + PROOF_SUBMISSION_DEADLINE, 
+                "Proof submission deadline not reached");
 
         // Slash leader bond for timeout
         _slashLeaderBond(channelId, "Failed to submit proof on time");
@@ -659,7 +645,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         require($.totalSlashedBonds > 0, "No slashed bonds to withdraw");
 
         uint256 amount = $.totalSlashedBonds;
-        $.totalSlashedBonds = 0; // Prevent re-entrancy
+        $.totalSlashedBonds = 0; 
 
         (bool success,) = $.treasury.call{value: amount}("");
         require(success, "Slashed bond transfer failed");

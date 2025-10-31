@@ -431,6 +431,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         vm.expectEmit(true, true, false, false);
         emit ProofAggregated(channelId, proofHash);
@@ -466,6 +469,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(wrongInitialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         vm.expectRevert("Initial balance mismatch");
         bridge.submitAggregatedProof(
@@ -500,6 +506,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(wrongFinalBalances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         vm.expectRevert("Balance conservation violated");
         bridge.submitAggregatedProof(
@@ -531,6 +540,9 @@ contract RollupBridgeTest is Test {
 
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
+
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
         vm.expectRevert("Mismatched leaf arrays");
@@ -576,6 +588,9 @@ contract RollupBridgeTest is Test {
 
         bytes[] memory initialMPTLeaves = _createMPTLeaves(initialBalances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(finalBalances);
+
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
 
@@ -674,16 +689,13 @@ contract RollupBridgeTest is Test {
         // Verify that the channel is ready to close
         assertTrue(bridge.isChannelReadyToClose(channelId));
 
-        // Verify that the channel can now be closed
-        // Advance time past the channel timeout (1 days)
-        vm.warp(block.timestamp + 1 days + 1);
-
+        // Verify that the channel can now be closed and finalized directly
         vm.prank(leader);
-        bridge.closeChannel(channelId);
+        bridge.closeAndFinalizeChannel(channelId);
 
-        // Verify final state is Dispute (ready for dispute period)
+        // Verify final state is Closed (directly finalized)
         state = bridge.getChannelState(channelId);
-        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Dispute));
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
     }
 
     function testSignAggregatedProofWrongState() public {
@@ -761,19 +773,18 @@ contract RollupBridgeTest is Test {
     function testCloseChannel() public {
         uint256 channelId = _getSignedChannel();
 
-        // Advance time past the channel timeout (1 days)
-        vm.warp(block.timestamp + 1 days + 1);
-
         vm.prank(leader);
 
         vm.expectEmit(true, false, false, false);
         emit ChannelClosed(channelId);
+        vm.expectEmit(true, false, false, false);
+        emit ChannelFinalized(channelId);
 
-        bridge.closeChannel(channelId);
+        bridge.closeAndFinalizeChannel(channelId);
 
         (, IRollupBridge.ChannelState state,,,) = bridge.getChannelInfo(channelId);
 
-        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Dispute));
+        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
     }
 
     function testCloseChannelInvalidProof() public {
@@ -794,6 +805,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(balances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         verifier.setShouldVerify(false);
 
         vm.prank(leader);
@@ -808,31 +822,30 @@ contract RollupBridgeTest is Test {
 
     // ========== Channel Deletion Tests ==========
 
-    function testDeleteChannel() public {
-        uint256 channelId = _getClosedChannel();
-
-        // Fast forward past challenge period
-        vm.warp(block.timestamp + bridge.CHALLENGE_PERIOD() + 1);
+    function testCloseAndFinalizeChannel() public {
+        uint256 channelId = _getSignedChannel();
 
         vm.prank(leader);
 
         vm.expectEmit(true, false, false, false);
+        emit ChannelClosed(channelId);
+        vm.expectEmit(true, false, false, false);
         emit ChannelFinalized(channelId);
 
-        bool success = bridge.finalizeChannel(channelId);
-        assertTrue(success);
+        bridge.closeAndFinalizeChannel(channelId);
 
         // Verify channel is finalized (in Closed state)
         IRollupBridge.ChannelState state = bridge.getChannelState(channelId);
         assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
     }
 
-    function testFinalizeChannelBeforeChallengePeriod() public {
-        uint256 channelId = _getClosedChannel();
+    function testCloseChannelNotSignatureVerified() public {
+        uint256 channelId = _submitProof();
+        // Channel is in Closing state but signature not verified
 
         vm.prank(leader);
-        vm.expectRevert();
-        bridge.finalizeChannel(channelId);
+        vm.expectRevert("signature not verified");
+        bridge.closeAndFinalizeChannel(channelId);
     }
 
     // ========== Helper Functions ==========
@@ -1000,6 +1013,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(balances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         bridge.submitAggregatedProof(
             channelId,
@@ -1028,11 +1044,8 @@ contract RollupBridgeTest is Test {
     function _getClosedChannel() internal returns (uint256) {
         uint256 channelId = _getSignedChannel();
 
-        // Advance time past the channel timeout (1 days)
-        vm.warp(block.timestamp + 1 days + 1);
-
         vm.prank(leader);
-        bridge.closeChannel(channelId);
+        bridge.closeAndFinalizeChannel(channelId);
 
         return channelId;
     }
@@ -1113,6 +1126,9 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves = _createMPTLeaves(balances);
         bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
+
         vm.prank(leader);
         bridge.submitAggregatedProof(
             channelId,
@@ -1128,20 +1144,9 @@ contract RollupBridgeTest is Test {
         vm.prank(leader);
         bridge.signAggregatedProof(channelId, sig[0]);
 
-        // 6. Close channel
-        // Advance time past the channel timeout (1 days)
-        vm.warp(block.timestamp + 1 days + 1);
-
+        // 6. Close and finalize channel directly (no challenge period needed when signature verified)
         vm.prank(leader);
-        bridge.closeChannel(channelId);
-
-        // 7. Wait for challenge period
-        vm.warp(block.timestamp + bridge.CHALLENGE_PERIOD() + 1);
-
-        // 8. Finalize channel
-        vm.prank(leader);
-        bool success = bridge.finalizeChannel(channelId);
-        assertTrue(success);
+        bridge.closeAndFinalizeChannel(channelId);
     }
 
     function _getRealProofData()
@@ -1376,6 +1381,9 @@ contract RollupBridgeTest is Test {
             leaves4,
             leaves4
         );
+
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + 1 days + 1);
 
         // Measure gas for 3 participants
         vm.prank(address(uint160(100 + 3)));

@@ -232,6 +232,9 @@ contract WithdrawalsTest is Test {
         proofData.initialMPTLeaves = _createMPTLeaves(balances);
         proofData.finalMPTLeaves = _createMPTLeaves(balances);
 
+        // Advance time past the channel timeout to allow proof submission
+        vm.warp(block.timestamp + CHANNEL_TIMEOUT + 1);
+
         vm.prank(leader);
         rollupBridge.submitAggregatedProof(channelId, proofData);
 
@@ -247,16 +250,9 @@ contract WithdrawalsTest is Test {
         rollupBridge.signAggregatedProof(channelId, signature);
 
         // Close channel
-        // Advance time past the channel timeout (1 days)
-        vm.warp(block.timestamp + CHANNEL_TIMEOUT + 1);
-
+        // Close and finalize channel directly (no challenge period needed when signature verified)
         vm.prank(leader);
-        rollupBridge.closeChannel(channelId);
-
-        // Wait for challenge period to expire and finalize the channel
-        vm.warp(block.timestamp + rollupBridge.CHALLENGE_PERIOD() + 1);
-        vm.prank(leader);
-        rollupBridge.finalizeChannel(channelId);
+        rollupBridge.closeAndFinalizeChannel(channelId);
     }
 
     function _getWithdrawalProof(uint256 channelId, address userL2Address, bytes32 finalStateRoot)

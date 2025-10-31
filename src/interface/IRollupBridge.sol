@@ -129,7 +129,7 @@ interface IRollupBridge {
 
     function signAggregatedProof(uint256 channelId, Signature calldata signature) external;
 
-    function closeChannel(uint256 channelId) external;
+    function closeAndFinalizeChannel(uint256 channelId) external;
 
     function getChannelInfo(uint256 channelId)
         external

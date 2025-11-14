@@ -3,8 +3,9 @@ pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
 import "../../src/RollupBridge.sol";
-import "../../src/interface/IRollupBridge.sol";
-import "../../src/interface/IVerifier.sol";
+import "../../src/verifier/TokamakVerifier.sol";
+import "../../src/verifier/Groth16Verifier64Leaves.sol";
+import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
@@ -123,7 +124,7 @@ contract USDTWithFeesMock {
     }
 }
 
-contract MockVerifier is IVerifier {
+contract MockVerifier is ITokamakVerifier {
     function verify(
         uint128[] calldata,
         uint256[] calldata,
@@ -157,6 +158,9 @@ contract USDTWithFeesTest is Test {
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
     address public user3 = makeAddr("user3");
+    
+    // L2 addresses
+    address public l2User1 = makeAddr("l2User1");
 
     address constant ETH_TOKEN_ADDRESS = address(1);
 
@@ -170,9 +174,12 @@ contract USDTWithFeesTest is Test {
 
         // Deploy RollupBridge with proxy
         RollupBridge implementation = new RollupBridge();
-        bytes memory initData = abi.encodeCall(RollupBridge.initialize, (address(verifier), address(zecFrost), owner));
+        Groth16Verifier64Leaves groth16Verifier = new Groth16Verifier64Leaves();
+        bytes memory initData = abi.encodeCall(RollupBridge.initialize, (address(verifier), address(zecFrost), address(groth16Verifier), owner));
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         bridge = RollupBridge(address(proxy));
+        
+        // No need for MerkleTreeManager anymore - using direct Groth16 verification
 
         uint128[] memory preprocessedPart1 = new uint128[](4);
         preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
@@ -184,7 +191,7 @@ contract USDTWithFeesTest is Test {
         preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
         preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
-        bridge.setAllowedTargetContract(address(usdt), preprocessedPart1, preprocessedPart2, true);
+        bridge.setAllowedTargetContract(address(usdt), preprocessedPart1, preprocessedPart2, bytes1(0x00), true);
 
         // Mint USDT tokens (extra for high fee test)
         usdt.mint(user1, 3000e6); // 3000 USDT to support large deposit test
@@ -213,21 +220,12 @@ contract USDTWithFeesTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = makeAddr("l2user1");
-        l2PublicKeys[1] = makeAddr("l2user2");
-        l2PublicKeys[2] = makeAddr("l2user3");
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = address(usdt);
 
-        uint128[] memory preprocessedPart1 = new uint128[](1);
-        preprocessedPart1[0] = 1;
-
-        uint256[] memory preprocessedPart2 = new uint256[](1);
-        preprocessedPart2[0] = 1;
-
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: address(usdt),
+        RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
             participants: participants,
-            l2PublicKeys: l2PublicKeys,
             timeout: 1 hours,
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
@@ -268,7 +266,7 @@ contract USDTWithFeesTest is Test {
         console.log("Owner balance before:", ownerBalanceBefore);
 
         // Deposit USDT
-        bridge.depositToken(channelId, address(usdt), depositAmount);
+        bridge.depositToken(channelId, address(usdt), depositAmount, bytes32(uint256(uint160(l2User1))));
 
         // Check balances after deposit
         uint256 userBalanceAfter = usdt.balanceOf(user1);
@@ -293,7 +291,7 @@ contract USDTWithFeesTest is Test {
         assertEq(actualReceived, expectedReceived, "Bridge should receive amount minus fee");
 
         // Verify the contract recorded the actual transferred amount (not the requested amount)
-        uint256 recordedDeposit = bridge.getParticipantDeposit(channelId, user1);
+        uint256 recordedDeposit = bridge.getParticipantTokenDeposit(channelId, user1, address(usdt));
         console.log("Recorded deposit in contract:", recordedDeposit);
         assertEq(recordedDeposit, actualReceived, "Contract should record actual received amount");
     }
@@ -316,15 +314,12 @@ contract USDTWithFeesTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = makeAddr("l2user1");
-        l2PublicKeys[1] = makeAddr("l2user2");
-        l2PublicKeys[2] = makeAddr("l2user3");
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = address(usdt);
 
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: address(usdt),
+        RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
             participants: participants,
-            l2PublicKeys: l2PublicKeys,
             timeout: 1 hours,
             pkx: 0x4F6340CFDD930A6F54E730188E3071D150877FA664945FB6F120C18B56CE1C09,
             pky: 0x802A5E67C00A70D85B9A088EAC7CF5B9FB46AC5C0B2BD7D1E189FAC210F6B7EF
@@ -357,7 +352,7 @@ contract USDTWithFeesTest is Test {
         uint256 bridgeBalanceBefore = usdt.balanceOf(address(bridge));
         uint256 ownerBalanceBefore = usdt.balanceOf(owner);
 
-        bridge.depositToken(channelId, address(usdt), depositAmount);
+        bridge.depositToken(channelId, address(usdt), depositAmount, bytes32(uint256(uint160(l2User1))));
 
         uint256 actualFeeCollected = usdt.balanceOf(owner) - ownerBalanceBefore;
         uint256 actualReceived = usdt.balanceOf(address(bridge)) - bridgeBalanceBefore;
@@ -372,7 +367,7 @@ contract USDTWithFeesTest is Test {
         assertEq(actualReceived, expectedReceived, "Bridge should receive correct amount after max fee");
 
         // Verify recorded deposit
-        uint256 recordedDeposit = bridge.getParticipantDeposit(channelId, user1);
+        uint256 recordedDeposit = bridge.getParticipantTokenDeposit(channelId, user1, address(usdt));
         assertEq(recordedDeposit, actualReceived, "Contract should record actual received amount");
     }
 }

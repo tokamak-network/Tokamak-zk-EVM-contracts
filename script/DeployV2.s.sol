@@ -4,7 +4,8 @@ pragma solidity ^0.8.29;
 import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/RollupBridge.sol";
-import "../src/verifier/Verifier.sol";
+import "../src/verifier/TokamakVerifier.sol";
+import "../src/verifier/Groth16Verifier64Leaves.sol";
 import "../src/library/ZecFrost.sol";
 
 contract DeployV2Script is Script {
@@ -54,15 +55,21 @@ contract DeployV2Script is Script {
         console.log("Deploying with account:", deployer);
         console.log("Account balance:", deployer.balance);
 
-        // Deploy ZK Verifier if not provided
+        // Deploy Tokamak Verifier if not provided
         if (zkVerifier == address(0)) {
-            console.log("Deploying Verifier...");
-            Verifier verifierContract = new Verifier();
+            console.log("Deploying TokamakVerifier...");
+            TokamakVerifier verifierContract = new TokamakVerifier();
             zkVerifier = address(verifierContract);
-            console.log("Verifier deployed at:", zkVerifier);
+            console.log("TokamakVerifier deployed at:", zkVerifier);
         } else {
-            console.log("Using existing Verifier at:", zkVerifier);
+            console.log("Using existing TokamakVerifier at:", zkVerifier);
         }
+
+        // Deploy Groth16 Verifier
+        console.log("Deploying Groth16Verifier...");
+        Groth16Verifier64Leaves groth16VerifierContract = new Groth16Verifier64Leaves();
+        address groth16Verifier = address(groth16VerifierContract);
+        console.log("Groth16Verifier deployed at:", groth16Verifier);
 
         // Deploy ZecFrost if not provided
         if (zecFrost == address(0)) {
@@ -82,9 +89,10 @@ contract DeployV2Script is Script {
 
         // Deploy RollupBridge proxy
         console.log("Deploying RollupBridge proxy...");
+        
         bytes memory rollupBridgeInitData = abi.encodeCall(
             RollupBridge.initialize,
-            (zkVerifier, zecFrost, deployer) // Include ZecFrost contract
+            (zkVerifier, zecFrost, groth16Verifier, deployer)
         );
 
         ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
@@ -103,7 +111,8 @@ contract DeployV2Script is Script {
 
         // Log final addresses
         console.log("\n=== DEPLOYMENT SUMMARY ===");
-        console.log("ZK Verifier:", zkVerifier);
+        console.log("Tokamak Verifier:", zkVerifier);
+        console.log("Groth16 Verifier:", groth16Verifier);
         console.log("ZecFrost:", zecFrost);
         console.log("RollupBridge Implementation:", rollupBridgeImpl);
         console.log("RollupBridge Proxy:", rollupBridge);
@@ -180,7 +189,7 @@ contract DeployV2Script is Script {
         wtonPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
         RollupBridge(bridgeAddress).setAllowedTargetContract(
-            wtonAddress, wtonPreprocessedPart1, wtonPreprocessedPart2, true
+            wtonAddress, wtonPreprocessedPart1, wtonPreprocessedPart2, bytes1(0x00), true
         );
 
         console.log("WTON target contract configured:", wtonAddress);
@@ -204,7 +213,7 @@ contract DeployV2Script is Script {
         usdtPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
         RollupBridge(bridgeAddress).setAllowedTargetContract(
-            usdtAddress, usdtPreprocessedPart1, usdtPreprocessedPart2, true
+            usdtAddress, usdtPreprocessedPart1, usdtPreprocessedPart2, bytes1(0x01), true
         );
 
         console.log("USDT target contract configured:", usdtAddress);

@@ -3,18 +3,19 @@ pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
 import "../../src/RollupBridge.sol";
-import "../../src/interface/IRollupBridge.sol";
-import "../../src/interface/IVerifier.sol";
+import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
+import "../../src/interface/IGroth16Verifier64Leaves.sol";
 import {ZecFrost} from "../../src/library/ZecFrost.sol";
 
-import {Verifier} from "../../src/verifier/Verifier.sol";
+import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
+import {Groth16Verifier64Leaves} from "../../src/verifier/Groth16Verifier64Leaves.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../../src/library/RLP.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
 
 // Mock Contracts
-contract MockVerifier is IVerifier {
+contract MockTokamakVerifier is ITokamakVerifier {
     bool public shouldVerify = true;
 
     function setShouldVerify(bool _should) external {
@@ -28,6 +29,23 @@ contract MockVerifier is IVerifier {
         uint256[] calldata,
         uint256[] calldata,
         uint256
+    ) external view override returns (bool) {
+        return shouldVerify;
+    }
+}
+
+contract MockGroth16Verifier is IGroth16Verifier64Leaves {
+    bool public shouldVerify = true;
+
+    function setShouldVerify(bool _should) external {
+        shouldVerify = _should;
+    }
+
+    function verifyProof(
+        uint[4] calldata,
+        uint[8] calldata,
+        uint[4] calldata,
+        uint[129] calldata
     ) external view override returns (bool) {
         return shouldVerify;
     }
@@ -47,7 +65,8 @@ contract RollupBridgeTest is Test {
     using RLP for bytes;
 
     RollupBridge public bridge;
-    MockVerifier public verifier;
+    MockTokamakVerifier public tokamakVerifier;
+    MockGroth16Verifier public groth16Verifier;
     MockERC20 public token;
 
     address public owner = address(1);
@@ -79,13 +98,16 @@ contract RollupBridgeTest is Test {
         // Deploy contracts
         vm.startPrank(owner);
 
-        verifier = new MockVerifier();
+        tokamakVerifier = new MockTokamakVerifier();
+        groth16Verifier = new MockGroth16Verifier();
         token = new MockERC20();
 
         ZecFrost zecFrost = new ZecFrost();
+        
         // Deploy RollupBridge with proxy
         RollupBridge implementation = new RollupBridge();
-        bytes memory initData = abi.encodeCall(RollupBridge.initialize, (address(verifier), address(zecFrost), owner));
+        
+        bytes memory initData = abi.encodeCall(RollupBridge.initialize, (address(tokamakVerifier), address(zecFrost), address(groth16Verifier), owner));
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         bridge = RollupBridge(address(proxy));
 
@@ -113,7 +135,7 @@ contract RollupBridgeTest is Test {
         preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
         preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
-        bridge.setAllowedTargetContract(address(token), preprocessedPart1, preprocessedPart2, true);
+        bridge.setAllowedTargetContract(address(token), preprocessedPart1, preprocessedPart2, bytes1(0x00), true);
 
         vm.stopPrank();
     }
@@ -123,9 +145,9 @@ contract RollupBridgeTest is Test {
     /**
      * @dev Creates a ZecFrost signature that verifies against user1 (0xd96b35D012879d89cfBA6fE215F1015863a6f6d0)
      */
-    function _createZecFrostSignature() internal pure returns (IRollupBridge.Signature memory) {
+    function _createZecFrostSignature() internal pure returns (RollupBridge.Signature memory) {
         // Return Vector 1 signature data - recovers to 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0 (user1)
-        return IRollupBridge.Signature({
+        return RollupBridge.Signature({
             message: 0x08f58e86bd753e86f2e0172081576b4c58909be5c2e70a8e30439d3a12d091be,
             rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
             ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
@@ -136,13 +158,48 @@ contract RollupBridgeTest is Test {
     /**
      * @dev Creates a ZecFrost signature that verifies against user2 (0x012C2171f631e27C4bA9f7f8262af2a48956939A)
      */
-    function _createWrongZecFrostSignature() internal pure returns (IRollupBridge.Signature memory) {
+    function _createWrongZecFrostSignature() internal pure returns (RollupBridge.Signature memory) {
         // Return Vector 2 signature data - recovers to 0x012C2171f631e27C4bA9f7f8262af2a48956939A (user2)
-        return IRollupBridge.Signature({
+        return RollupBridge.Signature({
             message: 0xf181af880934e45f67ee731b14466fe1703faca88e8a553f1aa2989589ffd1f7,
             rx: 0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c,
             ry: 0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2,
             z: 0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0
+        });
+    }
+
+    // ========== Helper Functions for Channel Creation ==========
+
+    function _createChannelParams() internal view returns (RollupBridge.ChannelParams memory) {
+        address[] memory participants = new address[](3);
+        participants[0] = user1;
+        participants[1] = user2;
+        participants[2] = user3;
+
+
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = address(token);
+        
+        return RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
+            participants: participants,
+            timeout: 1 days,
+            pkx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
+            pky: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e
+        });
+    }
+
+    function _createGroth16Proof(bytes32 merkleRoot) internal pure returns (RollupBridge.ChannelInitializationProof memory) {
+        // Mock Groth16 proof data
+        uint[4] memory pA = [uint(1), uint(2), uint(3), uint(4)];
+        uint[8] memory pB = [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)];
+        uint[4] memory pC = [uint(13), uint(14), uint(15), uint(16)];
+        
+        return RollupBridge.ChannelInitializationProof({
+            pA: pA,
+            pB: pB,
+            pC: pC,
+            merkleRoot: merkleRoot
         });
     }
 
@@ -193,8 +250,8 @@ contract RollupBridgeTest is Test {
         bytes[] memory initialMPTLeaves,
         bytes[] memory finalMPTLeaves,
         bytes32[] memory participantRoots
-    ) internal pure returns (IRollupBridge.ProofData memory) {
-        return IRollupBridge.ProofData({
+    ) internal pure returns (RollupBridge.ProofData memory) {
+        return RollupBridge.ProofData({
             aggregatedProofHash: aggregatedProofHash,
             finalStateRoot: finalStateRoot,
             proofPart1: proofPart1,
@@ -231,7 +288,7 @@ contract RollupBridgeTest is Test {
         uint256 smax,
         bytes[] memory initialMPTLeaves,
         bytes[] memory finalMPTLeaves
-    ) internal pure returns (IRollupBridge.ProofData memory) {
+    ) internal pure returns (RollupBridge.ProofData memory) {
         // Generate mock participant roots based on number of MPT leaves (assumes equal initial/final)
         uint256 participantCount = initialMPTLeaves.length;
         bytes32[] memory participantRoots = _createMockParticipantRoots(participantCount);
@@ -258,15 +315,12 @@ contract RollupBridgeTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = l2User1;
-        l2PublicKeys[1] = l2User2;
-        l2PublicKeys[2] = l2User3;
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
 
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+        RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
             participants: participants,
-            l2PublicKeys: l2PublicKeys,
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -275,11 +329,12 @@ contract RollupBridgeTest is Test {
 
         assertEq(channelId, 0);
 
-        (address targetContract, IRollupBridge.ChannelState state, uint256 participantCount,,) =
+        (address[] memory allowedTokensReturned, RollupBridge.ChannelState state, uint256 participantCount,,) =
             bridge.getChannelInfo(channelId);
 
-        assertEq(targetContract, bridge.ETH_TOKEN_ADDRESS());
-        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Initialized));
+        assertEq(allowedTokensReturned.length, 1);
+        assertEq(allowedTokensReturned[0], bridge.ETH_TOKEN_ADDRESS());
+        assertEq(uint8(state), uint8(RollupBridge.ChannelState.Initialized));
         assertEq(participantCount, 3);
 
         vm.stopPrank();
@@ -296,7 +351,7 @@ contract RollupBridgeTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Deposited(channelId, user1, bridge.ETH_TOKEN_ADDRESS(), depositAmount);
 
-        bridge.depositETH{value: depositAmount}(channelId);
+        bridge.depositETH{value: depositAmount}(channelId, bytes32(uint256(uint160(l2User1))));
 
         vm.stopPrank();
     }
@@ -307,7 +362,7 @@ contract RollupBridgeTest is Test {
         vm.prank(address(999));
         vm.deal(address(999), 1 ether);
         vm.expectRevert("Not a participant");
-        bridge.depositETH{value: 1 ether}(channelId);
+        bridge.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
     }
 
     function testDepositToken() public {
@@ -321,7 +376,7 @@ contract RollupBridgeTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Deposited(channelId, user1, address(token), depositAmount);
 
-        bridge.depositToken(channelId, address(token), depositAmount);
+        bridge.depositToken(channelId, address(token), depositAmount, bytes32(uint256(uint160(l2User1))));
 
         assertEq(token.balanceOf(address(bridge)), depositAmount);
 
@@ -335,21 +390,28 @@ contract RollupBridgeTest is Test {
 
         // Make deposits
         vm.prank(user1);
-        bridge.depositETH{value: 1 ether}(channelId);
+        bridge.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
 
         vm.prank(user2);
-        bridge.depositETH{value: 2 ether}(channelId);
+        bridge.depositETH{value: 2 ether}(channelId, bytes32(uint256(uint160(l2User2))));
 
         vm.prank(user3);
-        bridge.depositETH{value: 3 ether}(channelId);
+        bridge.depositETH{value: 3 ether}(channelId, bytes32(uint256(uint160(l2User3))));
 
         // Initialize state
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
+            pA: [uint(1), uint(2), uint(3), uint(4)],
+            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
+            pC: [uint(13), uint(14), uint(15), uint(16)],
+            merkleRoot: mockMerkleRoot
+        });
         vm.prank(leader);
-        bridge.initializeChannelState(channelId);
+        bridge.initializeChannelState(channelId, mockProof);
 
-        (, IRollupBridge.ChannelState state,, bytes32 initialRoot,) = bridge.getChannelInfo(channelId);
+        (, RollupBridge.ChannelState state,, bytes32 initialRoot,) = bridge.getChannelInfo(channelId);
 
-        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Open));
+        assertEq(uint8(state), uint8(RollupBridge.ChannelState.Open));
         assertTrue(initialRoot != bytes32(0));
     }
 
@@ -367,14 +429,21 @@ contract RollupBridgeTest is Test {
 
         // Make specific deposits - Set 1: [1, 2, 0]
         vm.prank(user1);
-        bridge.depositETH{value: 1 ether}(channelId1);
+        bridge.depositETH{value: 1 ether}(channelId1, bytes32(uint256(uint160(l2User1))));
         vm.prank(user2);
-        bridge.depositETH{value: 2 ether}(channelId1);
+        bridge.depositETH{value: 2 ether}(channelId1, bytes32(uint256(uint160(l2User2))));
         // user3 makes no deposit
 
         // Initialize and get root hash 1
+        bytes32 mockMerkleRoot1 = keccak256(abi.encodePacked("mockRoot1"));
+        RollupBridge.ChannelInitializationProof memory mockProof1 = RollupBridge.ChannelInitializationProof({
+            pA: [uint(1), uint(2), uint(3), uint(4)],
+            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
+            pC: [uint(13), uint(14), uint(15), uint(16)],
+            merkleRoot: mockMerkleRoot1
+        });
         vm.prank(leader);
-        bridge.initializeChannelState(channelId1);
+        bridge.initializeChannelState(channelId1, mockProof1);
         (,,, bytes32 rootHash1,) = bridge.getChannelInfo(channelId1);
 
         // Simple approach: just verify the root hashes are different after initialization
@@ -383,14 +452,21 @@ contract RollupBridgeTest is Test {
         // Create second channel with different leader to avoid "Channel limit reached"
         uint256 channelId2 = _createChannelWithLeader(leader2);
         vm.prank(user1);
-        bridge.depositETH{value: 1 ether}(channelId2);
+        bridge.depositETH{value: 1 ether}(channelId2, bytes32(uint256(uint160(l2User1))));
         vm.prank(user2);
-        bridge.depositETH{value: 1 ether}(channelId2); // Different amount
+        bridge.depositETH{value: 1 ether}(channelId2, bytes32(uint256(uint160(l2User2)))); // Different amount
         // user3 makes no deposit
 
         // Initialize and get root hash 2
+        bytes32 mockMerkleRoot2 = keccak256(abi.encodePacked("mockRoot2"));
+        RollupBridge.ChannelInitializationProof memory mockProof2 = RollupBridge.ChannelInitializationProof({
+            pA: [uint(1), uint(2), uint(3), uint(4)],
+            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
+            pC: [uint(13), uint(14), uint(15), uint(16)],
+            merkleRoot: mockMerkleRoot2
+        });
         vm.prank(leader2);
-        bridge.initializeChannelState(channelId2);
+        bridge.initializeChannelState(channelId2, mockProof2);
         (,,, bytes32 rootHash2,) = bridge.getChannelInfo(channelId2);
 
         // The root hashes should be different for different deposit amounts
@@ -400,9 +476,16 @@ contract RollupBridgeTest is Test {
     function testInitialize_ChannelStateNotLeader() public {
         uint256 channelId = _createChannel();
 
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
+            pA: [uint(1), uint(2), uint(3), uint(4)],
+            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
+            pC: [uint(13), uint(14), uint(15), uint(16)],
+            merkleRoot: mockMerkleRoot
+        });
         vm.prank(user1);
         vm.expectRevert("Not leader");
-        bridge.initializeChannelState(channelId);
+        bridge.initializeChannelState(channelId, mockProof);
     }
 
     // ========== Proof Submission Tests ==========
@@ -618,7 +701,7 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Create ZecFrost signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        RollupBridge.Signature[] memory signatures = new RollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
 
         // Only the leader or owner can sign aggregated proof
@@ -635,7 +718,7 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Create ZecFrost signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        RollupBridge.Signature[] memory signatures = new RollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
 
         // Test successful signature aggregation and event emission
@@ -649,8 +732,8 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Test with default/empty signature (all fields are zero)
-        IRollupBridge.Signature memory emptySignature =
-            IRollupBridge.Signature({message: bytes32(0), rx: 0, ry: 0, z: 0});
+        RollupBridge.Signature memory emptySignature =
+            RollupBridge.Signature({message: bytes32(0), rx: 0, ry: 0, z: 0});
 
         vm.prank(leader);
         vm.expectRevert("Invalid group threshold signature");
@@ -661,7 +744,7 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Create an array of signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        RollupBridge.Signature[] memory signatures = new RollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
 
         // Test that the owner can also sign aggregated proof
@@ -675,11 +758,11 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Verify initial state is Closing
-        IRollupBridge.ChannelState state = bridge.getChannelState(channelId);
-        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closing));
+        RollupBridge.ChannelState state = bridge.getChannelState(channelId);
+        assertEq(uint8(state), uint8(RollupBridge.ChannelState.Closing));
 
         // Create an array of signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        RollupBridge.Signature[] memory signatures = new RollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
 
         // Sign the aggregated proof
@@ -695,14 +778,14 @@ contract RollupBridgeTest is Test {
 
         // Verify final state is Closed (directly finalized)
         state = bridge.getChannelState(channelId);
-        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
+        assertEq(uint8(state), uint8(RollupBridge.ChannelState.Closed));
     }
 
     function testSignAggregatedProofWrongState() public {
         uint256 channelId = _createChannel();
 
         // Try to sign aggregated proof before submitting proof (state is Initialized)
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](2);
+        RollupBridge.Signature[] memory signatures = new RollupBridge.Signature[](2);
         signatures[0] = _createZecFrostSignature();
 
         vm.prank(leader);
@@ -714,7 +797,7 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Test with wrong signatures
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
+        RollupBridge.Signature[] memory signatures = new RollupBridge.Signature[](1);
         signatures[0] = _createWrongZecFrostSignature();
 
         vm.prank(leader);
@@ -729,7 +812,7 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Create an array of signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
+        RollupBridge.Signature[] memory signatures = new RollupBridge.Signature[](1);
         signatures[0] = _createZecFrostSignature();
 
         // Test that non-leader/non-owner cannot sign
@@ -750,7 +833,7 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Create an array of signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
+        RollupBridge.Signature[] memory signatures = new RollupBridge.Signature[](1);
         signatures[0] = _createZecFrostSignature();
 
         // Sign the aggregated proof
@@ -782,9 +865,9 @@ contract RollupBridgeTest is Test {
 
         bridge.closeAndFinalizeChannel(channelId);
 
-        (, IRollupBridge.ChannelState state,,,) = bridge.getChannelInfo(channelId);
+        (, RollupBridge.ChannelState state,,,) = bridge.getChannelInfo(channelId);
 
-        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
+        assertEq(uint8(state), uint8(RollupBridge.ChannelState.Closed));
     }
 
     function testCloseChannelInvalidProof() public {
@@ -808,7 +891,7 @@ contract RollupBridgeTest is Test {
         // Advance time past the channel timeout to allow proof submission
         vm.warp(block.timestamp + 1 days + 1);
 
-        verifier.setShouldVerify(false);
+        tokamakVerifier.setShouldVerify(false);
 
         vm.prank(leader);
         vm.expectRevert("Invalid ZK proof");
@@ -835,8 +918,8 @@ contract RollupBridgeTest is Test {
         bridge.closeAndFinalizeChannel(channelId);
 
         // Verify channel is finalized (in Closed state)
-        IRollupBridge.ChannelState state = bridge.getChannelState(channelId);
-        assertEq(uint8(state), uint8(IRollupBridge.ChannelState.Closed));
+        RollupBridge.ChannelState state = bridge.getChannelState(channelId);
+        assertEq(uint8(state), uint8(RollupBridge.ChannelState.Closed));
     }
 
     function testCloseChannelNotSignatureVerified() public {
@@ -858,15 +941,12 @@ contract RollupBridgeTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = l2User1;
-        l2PublicKeys[1] = l2User2;
-        l2PublicKeys[2] = l2User3;
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
 
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+        RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
             participants: participants,
-            l2PublicKeys: l2PublicKeys,
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -886,15 +966,12 @@ contract RollupBridgeTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = l2User1;
-        l2PublicKeys[1] = l2User2;
-        l2PublicKeys[2] = l2User3;
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = address(token);
 
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: address(token),
+        RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
             participants: participants,
-            l2PublicKeys: l2PublicKeys,
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -914,15 +991,12 @@ contract RollupBridgeTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = l2User1;
-        l2PublicKeys[1] = l2User2;
-        l2PublicKeys[2] = l2User3;
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
 
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+        RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
             participants: participants,
-            l2PublicKeys: l2PublicKeys,
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -937,17 +1011,24 @@ contract RollupBridgeTest is Test {
     function _submitProofForChannel(uint256 channelId, address channelLeader) internal {
         // Make deposits
         vm.prank(user1);
-        bridge.depositETH{value: 1 ether}(channelId);
+        bridge.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
 
         vm.prank(user2);
-        bridge.depositETH{value: 2 ether}(channelId);
+        bridge.depositETH{value: 2 ether}(channelId, bytes32(uint256(uint160(l2User2))));
 
         vm.prank(user3);
-        bridge.depositETH{value: 3 ether}(channelId);
+        bridge.depositETH{value: 3 ether}(channelId, bytes32(uint256(uint160(l2User3))));
 
         // Initialize state
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
+            pA: [uint(1), uint(2), uint(3), uint(4)],
+            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
+            pC: [uint(13), uint(14), uint(15), uint(16)],
+            merkleRoot: mockMerkleRoot
+        });
         vm.prank(channelLeader);
-        bridge.initializeChannelState(channelId);
+        bridge.initializeChannelState(channelId, mockProof);
 
         bytes32 proofHash = keccak256("proof");
         bytes32 finalRoot = keccak256("finalRoot");
@@ -979,17 +1060,24 @@ contract RollupBridgeTest is Test {
 
         // Make deposits
         vm.prank(user1);
-        bridge.depositETH{value: 1 ether}(channelId);
+        bridge.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
 
         vm.prank(user2);
-        bridge.depositETH{value: 2 ether}(channelId);
+        bridge.depositETH{value: 2 ether}(channelId, bytes32(uint256(uint160(l2User2))));
 
         vm.prank(user3);
-        bridge.depositETH{value: 3 ether}(channelId);
+        bridge.depositETH{value: 3 ether}(channelId, bytes32(uint256(uint160(l2User3))));
 
         // Initialize state
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
+            pA: [uint(1), uint(2), uint(3), uint(4)],
+            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
+            pC: [uint(13), uint(14), uint(15), uint(16)],
+            merkleRoot: mockMerkleRoot
+        });
         vm.prank(leader);
-        bridge.initializeChannelState(channelId);
+        bridge.initializeChannelState(channelId, mockProof);
 
         return channelId;
     }
@@ -1031,7 +1119,7 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Create an array of signatures for the required number of participants
-        IRollupBridge.Signature[] memory signatures = new IRollupBridge.Signature[](1);
+        RollupBridge.Signature[] memory signatures = new RollupBridge.Signature[](1);
         signatures[0] = _createZecFrostSignature();
 
         // Only the leader or owner can sign aggregated proof
@@ -1059,7 +1147,7 @@ contract RollupBridgeTest is Test {
 
         vm.deal(user1, amount);
         vm.prank(user1);
-        bridge.depositETH{value: amount}(channelId);
+        bridge.depositETH{value: amount}(channelId, bytes32(uint256(uint160(l2User1))));
     }
 
     function testFuzzTimeout(uint256 timeout) public {
@@ -1072,15 +1160,12 @@ contract RollupBridgeTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = l2User1;
-        l2PublicKeys[1] = l2User2;
-        l2PublicKeys[2] = l2User3;
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
 
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+        RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
             participants: participants,
-            l2PublicKeys: l2PublicKeys,
             timeout: timeout,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -1098,17 +1183,24 @@ contract RollupBridgeTest is Test {
 
         // 2. Make deposits
         vm.prank(user1);
-        bridge.depositETH{value: 1 ether}(channelId);
+        bridge.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
 
         vm.prank(user2);
-        bridge.depositETH{value: 2 ether}(channelId);
+        bridge.depositETH{value: 2 ether}(channelId, bytes32(uint256(uint160(l2User2))));
 
         vm.prank(user3);
-        bridge.depositETH{value: 3 ether}(channelId);
+        bridge.depositETH{value: 3 ether}(channelId, bytes32(uint256(uint160(l2User3))));
 
         // 3. Initialize state
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
+            pA: [uint(1), uint(2), uint(3), uint(4)],
+            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
+            pC: [uint(13), uint(14), uint(15), uint(16)],
+            merkleRoot: mockMerkleRoot
+        });
         vm.prank(leader);
-        bridge.initializeChannelState(channelId);
+        bridge.initializeChannelState(channelId, mockProof);
 
         // 4. Submit proof with MPT leaves
         bytes32 proofHash = keccak256("proof");
@@ -1138,7 +1230,7 @@ contract RollupBridgeTest is Test {
         );
 
         // 5. Collect signatures
-        IRollupBridge.Signature[] memory sig = new IRollupBridge.Signature[](1);
+        RollupBridge.Signature[] memory sig = new RollupBridge.Signature[](1);
         sig[0] = _createZecFrostSignature();
 
         vm.prank(leader);
@@ -1351,7 +1443,7 @@ contract RollupBridgeTest is Test {
         balances3[2] = 3 ether;
 
         bytes[] memory leaves3 = _createMPTLeaves(balances3);
-        IRollupBridge.ProofData memory proofData3 = _createProofDataSimple(
+        RollupBridge.ProofData memory proofData3 = _createProofDataSimple(
             keccak256("test3"),
             bytes32(uint256(0x123)),
             new uint128[](0),
@@ -1371,7 +1463,7 @@ contract RollupBridgeTest is Test {
         balances4[3] = 4 ether;
 
         bytes[] memory leaves4 = _createMPTLeaves(balances4);
-        IRollupBridge.ProofData memory proofData4 = _createProofDataSimple(
+        RollupBridge.ProofData memory proofData4 = _createProofDataSimple(
             keccak256("test4"),
             bytes32(uint256(0x124)),
             new uint128[](0),
@@ -1442,18 +1534,16 @@ contract RollupBridgeTest is Test {
         vm.startPrank(channelLeader);
 
         address[] memory participants = new address[](participantCount);
-        address[] memory l2PublicKeys = new address[](participantCount);
-
-        // Create participant addresses
         for (uint256 i = 0; i < participantCount; i++) {
             participants[i] = address(uint160(3 + i)); // Start from address(3)
-            l2PublicKeys[i] = address(uint160(13 + i)); // Start from address(13)
         }
 
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: bridge.ETH_TOKEN_ADDRESS(),
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+
+        RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
             participants: participants,
-            l2PublicKeys: l2PublicKeys,
             timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
@@ -1468,11 +1558,18 @@ contract RollupBridgeTest is Test {
             vm.deal(participants[i], 10 ether);
 
             vm.prank(participants[i]);
-            bridge.depositETH{value: (i + 1) * 1 ether}(channelId);
+            bridge.depositETH{value: (i + 1) * 1 ether}(channelId, bytes32(uint256(13 + i))); // Use different MPT keys
         }
 
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
+            pA: [uint(1), uint(2), uint(3), uint(4)],
+            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
+            pC: [uint(13), uint(14), uint(15), uint(16)],
+            merkleRoot: mockMerkleRoot
+        });
         vm.prank(channelLeader);
-        bridge.initializeChannelState(channelId);
+        bridge.initializeChannelState(channelId, mockProof);
 
         vm.stopPrank();
     }

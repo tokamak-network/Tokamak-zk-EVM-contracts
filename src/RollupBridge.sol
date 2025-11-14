@@ -7,13 +7,14 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "forge-std/console.sol";
-import {IVerifier} from "./interface/IVerifier.sol";
-import {IRollupBridge} from "./interface/IRollupBridge.sol";
+import {ITokamakVerifier} from "./interface/ITokamakVerifier.sol";
 import "./library/RLP.sol";
 import {IZecFrost} from "./interface/IZecFrost.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import "./library/RollupBridgeLib.sol";
+import "./interface/IGroth16Verifier64Leaves.sol";
 
 /**
  * @title RollupBridgeUpgradeable
@@ -22,43 +23,133 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializab
  * @dev This contract manages the lifecycle of zkRollup channels including:
  *      - Channel creation and participant management
  *      - Deposit handling for ETH and ERC20 tokens
- *      - Quaternary Merkle Trees State initialization using MerkleTreeManager4
+ *      - Merkle tree state verification using Groth16 proofs
  *      - ZK proof submission and verification
  *      - Group Threshold Signature verification
  *      - Channel closure and withdrawal processing
  *
  * The contract uses a multi-signature approach where 2/3 of participants must sign
  * to approve state transitions. Each channel operates independently with its own
- * quaternary Merkle tree managed by the MerkleTreeManager4 contract, which provides
- * improved efficiency over binary trees by processing 4 inputs per hash operation.
+ * quaternary Merkle tree verified by Groth16 proofs, which provides
+ * cryptographically secure state verification with zero-knowledge properties.
  *
  * @dev Upgradeable using UUPS pattern for enhanced security and gas efficiency
  */
-contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     using ECDSAUpgradeable for bytes32;
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using RLP for bytes;
     using RLP for RLP.RLPItem;
 
+    // ========== ENUMS ==========
+    enum ChannelState {
+        None,
+        Initialized,
+        Open,
+        Active,
+        Closing,
+        Closed
+    }
+
+    // ========== STRUCTS ==========
+    struct Signature {
+        bytes32 message;
+        uint256 rx;
+        uint256 ry;
+        uint256 z;
+    }
+
+
+    struct ChannelParams {
+        address[] allowedTokens;
+        address[] participants;
+        uint256 timeout;
+        uint256 pkx;
+        uint256 pky;
+    }
+
+    struct ProofData {
+        bytes32 aggregatedProofHash;
+        bytes32 finalStateRoot;
+        uint128[] proofPart1;
+        uint256[] proofPart2;
+        uint256[] publicInputs;
+        uint256 smax;
+        bytes[] initialMPTLeaves;
+        bytes[] finalMPTLeaves;
+        bytes32[] participantRoots;
+    }
+
+    struct ChannelInitializationProof {
+        uint[4] pA;
+        uint[8] pB;
+        uint[4] pC;
+        bytes32 merkleRoot;
+    }
+
+    struct TargetContract {
+        address contractAddress;
+        uint128[] preprocessedPart1;
+        uint256[] preprocessedPart2;
+        bytes1 storageSlot;
+    }
+
+    struct Channel {
+        uint256 id;
+        address[] allowedTokens;
+        mapping(address => bool) isTokenAllowed;
+        mapping(address => mapping(address => uint256)) tokenDeposits; // token => participant => amount
+        mapping(address => uint256) tokenTotalDeposits; // token => total amount
+        bytes32 initialStateRoot;
+        bytes32 finalStateRoot;
+        address[] participants;
+        mapping(address => mapping(address => uint256)) l2MptKeys; // participant => token => L2 MPT key
+        mapping(address => bool) isParticipant;
+        ChannelState state;
+        uint256 openTimestamp;
+        uint256 closeTimestamp;
+        uint256 timeout;
+        address leader;
+        uint256 leaderBond;
+        bool leaderBondSlashed;
+        bytes32 aggregatedProofHash;
+        mapping(address => bool) hasWithdrawn;
+        mapping(address => mapping(address => uint256)) withdrawAmount; // token => participant => amount
+        uint256 pkx;
+        uint256 pky;
+        address signerAddr;
+        bool sigVerified;
+        bytes[] initialMPTLeaves;
+        bytes[] finalMPTLeaves;
+        bytes32[] participantRoots;
+    }
+
     // ========== EVENTS ==========
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event TargetContractAllowed(address indexed targetContract, bool allowed);
     event L2AddressCollisionPrevented(uint256 indexed channelId, address l2Address, address attemptedUser);
+    event ChannelOpened(uint256 indexed channelId, address[] allowedTokens);
+    event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
+    event ChannelClosed(uint256 indexed channelId);
+    event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
+    event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
+    event AggregatedProofSigned(uint256 indexed channelId, address indexed signer);
+    event LeaderBondSlashed(uint256 indexed channelId, address indexed leader, uint256 bondAmount, string reason);
+    event LeaderBondReclaimed(uint256 indexed channelId, address indexed leader, uint256 bondAmount);
+    event TreasuryAddressUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event SlashedBondsWithdrawn(address indexed treasury, uint256 amount);
+    event ProofAggregated(uint256 indexed channelId, bytes32 proofHash);
+    event ChannelFinalized(uint256 indexed channelId);
+    event EmergencyWithdrawalsEnabled(uint256 indexed channelId);
 
     // ========== CONSTANTS ==========
-    uint256 public constant CHALLENGE_PERIOD = 14 days;
     uint256 public constant PROOF_SUBMISSION_DEADLINE = 7 days; // Leader has 7 days after timeout to submit proof
     uint256 public constant MIN_PARTICIPANTS = 3;
-    uint256 public constant MAX_PARTICIPANTS = 50;
+    uint256 public constant MAX_PARTICIPANTS = 64;
     uint256 public constant NATIVE_TOKEN_TRANSFER_GAS_LIMIT = 1_000_000;
     address public constant ETH_TOKEN_ADDRESS = address(1);
 
-    // ========== EMBEDDED MERKLE CONSTANTS ==========
-    uint256 public constant BALANCE_SLOT = 0;
-    uint32 public constant ROOT_HISTORY_SIZE = 30;
-    uint32 public constant CHILDREN_PER_NODE = 4;
-    uint32 public constant TREE_DEPTH = 3;
-    uint256 public constant LEADER_BOND_REQUIRED = 1 ether; // Leader must deposit this amount to open channel
+    uint256 public constant LEADER_BOND_REQUIRED = 0.001 ether; // Leader must deposit this amount to open channel
 
     // ========== STORAGE ==========
 
@@ -66,20 +157,12 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
     struct RollupBridgeStorage {
         mapping(uint256 => Channel) channels;
         mapping(address => bool) isChannelLeader;
-        mapping(address => IRollupBridge.TargetContract) allowedTargetContracts;
+        mapping(address => TargetContract) allowedTargetContracts;
         mapping(address => bool) isTargetContractAllowed;
         uint256 nextChannelId;
-        IVerifier zkVerifier; // on-chain zkSNARK verifier contract
+        ITokamakVerifier zkVerifier; // on-chain zkSNARK verifier contract
         IZecFrost zecFrost; // on-chain sig verifier contract
-        // ========== EMBEDDED MERKLE STORAGE ==========
-        mapping(uint256 => mapping(uint256 => bytes32)) cachedSubtrees;
-        mapping(uint256 => mapping(uint256 => bytes32)) roots;
-        mapping(uint256 => uint32) currentRootIndex;
-        mapping(uint256 => uint32) nextLeafIndex;
-        mapping(uint256 => mapping(address => address)) l1ToL2;
-        mapping(uint256 => bytes32[]) channelRootSequence;
-        mapping(uint256 => uint256) nonce;
-        mapping(uint256 => bool) channelInitialized;
+        IGroth16Verifier64Leaves groth16Verifier; // Groth16 proof verifier contract
         // ========== L2 ADDRESS COLLISION PREVENTION ==========
         mapping(uint256 => mapping(address => bool)) usedL2Addresses; // channelId => l2Address => used
         mapping(address => mapping(uint256 => address)) l2ToL1Mapping; // l2Address => channelId => l1Address
@@ -102,27 +185,29 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
      * @notice Initializes the RollupBridge contract
      * @param _zkVerifier Address of the ZK verifier contract
      * @param _zecFrost Address of the ZecFrost signature verifier contract
+     * @param _groth16Verifier Address of the Groth16 verifier contract
      * @param _owner Address that will own the contract
      */
-    function initialize(address _zkVerifier, address _zecFrost, address _owner) public initializer {
+    function initialize(address _zkVerifier, address _zecFrost, address _groth16Verifier, address _owner) public initializer {
         __ReentrancyGuard_init();
         __Ownable_init_unchained();
         _transferOwnership(_owner);
         __UUPSUpgradeable_init();
 
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        $.zkVerifier = IVerifier(_zkVerifier);
+        $.zkVerifier = ITokamakVerifier(_zkVerifier);
         $.zecFrost = IZecFrost(_zecFrost);
+        $.groth16Verifier = IGroth16Verifier64Leaves(_groth16Verifier);
     }
 
     // ========== EXTERNAL FUNCTIONS ==========
 
     /**
-     * @notice Opens a new channel with specified participants
+     * @notice Opens a new multi-token channel with specified participants and allowed tokens
      * @param params ChannelParams struct containing:
-     *      - targetContract: Address of the token contract (or ETH_TOKEN_ADDRESS for ETH)
+     *      - allowedTokens: Array of token contract addresses that can be deposited in this channel
+     *                      (use ETH_TOKEN_ADDRESS for ETH). Each token must be pre-approved via setAllowedTargetContract
      *      - participants: Array of L1 addresses that will participate in the channel
-     *      - l2PublicKeys: Array of corresponding L2 public keys for each participant
      *      - timeout: Duration in seconds for which the channel will remain open
      *      - pkx: X coordinate of the aggregated public key for the channel group
      *      - pky: Y coordinate of the aggregated public key for the channel group
@@ -131,10 +216,13 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
      *      - Caller must be authorized to create channels
      *      - Caller must send LEADER_BOND_REQUIRED ETH as leader bond
      *      - Caller cannot already be a channel leader
-     *      - Number of participants must be between MIN_PARTICIPANTS and MAX_PARTICIPANTS
-     *      - Arrays must have matching lengths
+     *      - Must specify at least one allowed token
+     *      - All specified tokens must be pre-approved via setAllowedTargetContract
+     *      - Maximum participants = 64 / number_of_allowed_tokens (circuit capacity constraint)
+     *      - Number of participants must be between 1 and calculated maximum
      *      - Timeout must be between 1 hour and 7 days
-     *      - No duplicate participants allowed
+     *      - No duplicate participants or tokens allowed
+     * @dev Each participant can deposit different tokens and must provide token-specific L2 MPT keys
      */
     function openChannel(ChannelParams calldata params) external payable returns (uint256 channelId) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
@@ -142,16 +230,34 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         // Leader must deposit bond as collateral for their responsibilities
         require(msg.value == LEADER_BOND_REQUIRED, "Leader bond required");
         require(!$.isChannelLeader[msg.sender], "Channel limit reached");
-        require(
-            params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= MAX_PARTICIPANTS,
-            "Invalid participant number"
-        );
-        require(params.participants.length == params.l2PublicKeys.length, "Mismatched arrays");
+        require(params.allowedTokens.length > 0, "Must specify at least one token");
+        require(params.allowedTokens.length <= 4, "Maximum 4 tokens allowed");
         require(params.timeout >= 1 hours && params.timeout <= 365 days, "Invalid timeout");
+
+        // Calculate maximum participants based on number of tokens
+        // 64 circuit capacity / number_of_tokens = max participants
+        uint256 maxParticipants = MAX_PARTICIPANTS / params.allowedTokens.length;
         require(
-            params.targetContract == ETH_TOKEN_ADDRESS || $.isTargetContractAllowed[params.targetContract],
-            "Target contract not allowed"
+            params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= maxParticipants,
+            "Invalid participant number for token count"
         );
+
+        // Validate all tokens are allowed
+        uint256 tokensLength = params.allowedTokens.length;
+        for (uint256 i = 0; i < tokensLength;) {
+            address token = params.allowedTokens[i];
+            require(
+                token == ETH_TOKEN_ADDRESS || $.isTargetContractAllowed[token],
+                "Token not allowed"
+            );
+            
+            // Check for duplicate tokens
+            for (uint256 j = i + 1; j < tokensLength;) {
+                require(params.allowedTokens[j] != token, "Duplicate token");
+                unchecked { ++j; }
+            }
+            unchecked { ++i; }
+        }
 
         unchecked {
             channelId = $.nextChannelId++;
@@ -161,41 +267,28 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         Channel storage channel = $.channels[channelId];
 
         channel.id = channelId;
-        channel.targetContract = params.targetContract;
         channel.leader = msg.sender;
-        channel.leaderBond = msg.value; // Store the leader bond
+        channel.leaderBond = msg.value;
         channel.leaderBondSlashed = false;
         channel.openTimestamp = block.timestamp;
         channel.timeout = params.timeout;
         channel.state = ChannelState.Initialized;
 
-        uint256 participantsLength = params.participants.length;
-        // Check for L2 address collisions first
-        for (uint256 i = 0; i < participantsLength;) {
-            for (uint256 j = i + 1; j < participantsLength;) {
-                require(params.l2PublicKeys[i] != params.l2PublicKeys[j], "L2 address collision detected");
-                unchecked {
-                    ++j;
-                }
-            }
-            unchecked {
-                ++i;
-            }
+        // Store allowed tokens
+        for (uint256 i = 0; i < tokensLength;) {
+            channel.allowedTokens.push(params.allowedTokens[i]);
+            channel.isTokenAllowed[params.allowedTokens[i]] = true;
+            unchecked { ++i; }
         }
 
+        uint256 participantsLength = params.participants.length;
         for (uint256 i = 0; i < participantsLength;) {
             address participant = params.participants[i];
-            address l2PublicKey = params.l2PublicKeys[i];
 
             require(!channel.isParticipant[participant], "Duplicate participant");
-            require(l2PublicKey != address(0), "Invalid L2 address");
 
-            // Register L2 address to track usage and prevent future collisions
-            require(validateAndRegisterL2Address(channelId, participant, l2PublicKey), "L2 address registration failed");
-
-            channel.participants.push(User({l1Address: participant, l2PublicKey: l2PublicKey}));
+            channel.participants.push(participant);
             channel.isParticipant[participant] = true;
-            channel.l2PublicKeys[participant] = l2PublicKey;
 
             unchecked {
                 ++i;
@@ -205,27 +298,32 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         // store public key and generate signer address
         channel.pkx = params.pkx;
         channel.pky = params.pky;
-        address signerAddr = _deriveAddressFromPubkey(params.pkx, params.pky);
+        address signerAddr = RollupBridgeLib.deriveAddressFromPubkey(params.pkx, params.pky);
         channel.signerAddr = signerAddr;
 
-        emit ChannelOpened(channelId, params.targetContract);
+        emit ChannelOpened(channelId, params.allowedTokens);
     }
 
     /**
      * @notice Deposits ETH into a channel
      * @param _channelId The ID of the channel to deposit into
+     * @param _mptKey The MPT key for the participant (single bytes32)
      * @dev Only participants can deposit, channel must be in Initialized state
      */
-    function depositETH(uint256 _channelId) external payable nonReentrant {
+    function depositETH(uint256 _channelId, bytes32 _mptKey) external payable nonReentrant {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[_channelId];
         require(channel.state == ChannelState.Initialized, "Invalid channel state");
         require(channel.isParticipant[msg.sender], "Not a participant");
         require(msg.value > 0, "Deposit must be greater than 0");
-        require(channel.targetContract == ETH_TOKEN_ADDRESS, "Token must be set to ETH");
+        require(channel.isTokenAllowed[ETH_TOKEN_ADDRESS], "ETH not allowed in this channel");
+        require(_mptKey != bytes32(0), "Invalid MPT key");
+        
+        // Store the L2 MPT key for this participant and token
+        channel.l2MptKeys[msg.sender][ETH_TOKEN_ADDRESS] = uint256(_mptKey);
 
-        channel.tokenDeposits[msg.sender] += msg.value;
-        channel.tokenTotalDeposits += msg.value;
+        channel.tokenDeposits[ETH_TOKEN_ADDRESS][msg.sender] += msg.value;
+        channel.tokenTotalDeposits[ETH_TOKEN_ADDRESS] += msg.value;
 
         emit Deposited(_channelId, msg.sender, ETH_TOKEN_ADDRESS, msg.value);
     }
@@ -235,87 +333,108 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
      * @param _channelId The ID of the channel to deposit into
      * @param _token The token contract address (must match channel's target contract)
      * @param _amount The amount of tokens to deposit
+     * @param _mptKey The MPT key for the participant (single bytes32)
      * @dev Only participants can deposit, channel must be in Initialized state
      */
-    function depositToken(uint256 _channelId, address _token, uint256 _amount) external nonReentrant {
+    function depositToken(uint256 _channelId, address _token, uint256 _amount, bytes32 _mptKey) external nonReentrant {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[_channelId];
         require(channel.state == ChannelState.Initialized, "Invalid channel state");
         require(channel.isParticipant[msg.sender], "Not a participant");
-        require(_token != ETH_TOKEN_ADDRESS && _token == channel.targetContract, "Token must be ERC20 target contract");
+        require(_token != ETH_TOKEN_ADDRESS, "Use depositETH for ETH deposits");
+        require(channel.isTokenAllowed[_token], "Token not allowed in this channel");
+        require(_mptKey != bytes32(0), "Invalid MPT key");
+        
+        // Store the L2 MPT key for this participant and token
+        channel.l2MptKeys[msg.sender][_token] = uint256(_mptKey);
 
         require(_amount != 0, "amount must be greater than 0");
-        uint256 actualAmount = _depositToken(msg.sender, IERC20Upgradeable(_token), _amount);
+        uint256 actualAmount = RollupBridgeLib.depositToken(msg.sender, IERC20Upgradeable(_token), _amount);
 
-        channel.tokenDeposits[msg.sender] += actualAmount;
-        channel.tokenTotalDeposits += actualAmount;
+        channel.tokenDeposits[_token][msg.sender] += actualAmount;
+        channel.tokenTotalDeposits[_token] += actualAmount;
 
         emit Deposited(_channelId, msg.sender, _token, actualAmount);
     }
 
     /**
-     * @notice Gas-optimized channel initialization with embedded Merkle operations
+     * @notice Initializes channel state with Groth16 proof verification
      * @param channelId ID of the channel to initialize
-     * @dev 39-44% gas savings through:
-     *      - All Merkle operations embedded (no external calls)
-     *      - Single optimized loop with batched operations
-     *      - Direct storage access patterns
+     * @param proof Groth16 proof data containing pA, pB, pC components and merkle root
+     * @dev The proof verifies that the provided merkle root correctly represents
+     *      the channel participants and their deposit balances
      */
-    function initializeChannelState(uint256 channelId) external nonReentrant {
+    function initializeChannelState(uint256 channelId, ChannelInitializationProof calldata proof) external nonReentrant {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         require(channel.state == ChannelState.Initialized, "Invalid state");
         require(msg.sender == channel.leader, "Not leader");
 
         uint256 participantsLength = channel.participants.length;
+        uint256 tokensLength = channel.allowedTokens.length;
+        uint256 totalEntries = participantsLength * tokensLength;
+        require(totalEntries <= 64, "Too many participant-token combinations for circuit");
 
-        // Step 1: Initialize empty tree (matching MerkleTreeManager4.initializeChannel)
-        $.channelInitialized[channelId] = true;
-
-        // Pre-compute zero subtrees for efficient tree initialization
-        bytes32 zero = bytes32(0);
-        bytes32[] memory zeroSubtrees = new bytes32[](TREE_DEPTH + 1);
-        zeroSubtrees[0] = zero;
-
-        for (uint256 level = 1; level <= TREE_DEPTH; level++) {
-            bytes32 prevZero = zeroSubtrees[level - 1];
-            zeroSubtrees[level] = keccak256(abi.encodePacked(prevZero, prevZero, prevZero, prevZero));
-        }
-
-        // Cache the zero subtrees for this channel
-        for (uint256 level = 0; level <= TREE_DEPTH; level++) {
-            $.cachedSubtrees[channelId][level] = zeroSubtrees[level];
-        }
-
-        // Set initial root
-        bytes32 initialRoot = zeroSubtrees[TREE_DEPTH];
-        $.roots[channelId][0] = initialRoot;
-        $.channelRootSequence[channelId].push(initialRoot);
-
-        // Step 2 & 3: Set address pairs and insert leaves in one optimized loop
+        // Build public signals array for Groth16 verification
+        uint256[129] memory publicSignals;
+        
+        // Fill merkle keys (L2 MPT keys) and storage values (balances)
+        // Each participant has entries for each token type
+        uint256 entryIndex = 0;
         for (uint256 i = 0; i < participantsLength;) {
-            User storage participant = channel.participants[i];
-            address l1Address = participant.l1Address;
-            address l2Address = participant.l2PublicKey;
-            uint256 balance = channel.tokenDeposits[l1Address];
+            address l1Address = channel.participants[i];
+            
+            for (uint256 j = 0; j < tokensLength;) {
+                address token = channel.allowedTokens[j];
+                uint256 balance = channel.tokenDeposits[token][l1Address];
+                uint256 l2MptKey = channel.l2MptKeys[l1Address][token];
+                
+                // If participant has deposited this token, they must have provided MPT key during deposit
+                if (balance > 0) {
+                    require(l2MptKey != 0, "Participant MPT key not set for token");
+                }
 
-            // Set address pair (embedded - no external call)
-            $.l1ToL2[channelId][l1Address] = l2Address;
+                // Add to public signals: 
+                // - first 64 are merkle_keys (L2 MPT keys)
+                // - next 64 are storage_values (balances)
+                publicSignals[entryIndex] = l2MptKey;  // L2 MPT key for specific token
+                publicSignals[entryIndex + 64] = balance;  // storage value
 
-            // Compute and insert leaf (matching MTManager.ts RLCForUserStorage logic exactly)
-            bytes32 leaf = _computeLeaf($, channelId, uint256(uint160(l2Address)), balance);
-            _insertLeaf($, channelId, leaf);
+                unchecked {
+                    ++j;
+                    ++entryIndex;
+                }
+            }
 
             unchecked {
                 ++i;
             }
         }
 
-        // Increment nonce after processing the channel (matching MTManager.ts line 89)
-        $.nonce[channelId]++;
+        // Pad remaining slots with zeros (circuit expects exactly 64 entries)
+        for (uint256 i = totalEntries; i < 64;) {
+            publicSignals[i] = 0;        // merkle key (L2 MPT key)
+            publicSignals[i + 64] = 0;   // storage value
+            unchecked {
+                ++i;
+            }
+        }
 
-        // Store final result - get current root after all insertions
-        channel.initialStateRoot = $.roots[channelId][$.currentRootIndex[channelId]];
+        // The 129th element is the computed merkle root (output of the circuit)
+        publicSignals[128] = uint256(proof.merkleRoot);
+
+        // Verify the Groth16 proof
+        bool proofValid = $.groth16Verifier.verifyProof(
+            proof.pA,
+            proof.pB,
+            proof.pC,
+            publicSignals
+        );
+        
+        require(proofValid, "Invalid Groth16 proof");
+
+        // Store the verified merkle root and update state
+        channel.initialStateRoot = proof.merkleRoot;
         channel.state = ChannelState.Open;
 
         emit StateInitialized(channelId, channel.initialStateRoot);
@@ -340,6 +459,9 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
 
         uint256 initialBalanceSum = 0;
         uint256 finalBalanceSum = 0;
+        
+        // Get first token for simplified single-token proof verification (TODO: handle multiple tokens properly)
+        address firstToken = channel.allowedTokens.length > 0 ? channel.allowedTokens[0] : ETH_TOKEN_ADDRESS;
 
         uint256 leavesLength = proofData.initialMPTLeaves.length;
         for (uint256 i = 0; i < leavesLength;) {
@@ -348,13 +470,18 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
 
             uint256 finalBalance = RLP.extractBalanceFromMPTLeaf(proofData.finalMPTLeaves[i]);
             finalBalanceSum += finalBalance;
+            
+            // Store the withdrawable amount for each participant (using first token for now)
+            address participantAddress = channel.participants[i];
+            channel.withdrawAmount[firstToken][participantAddress] = finalBalance;
 
             unchecked {
                 ++i;
             }
         }
 
-        require(initialBalanceSum == channel.tokenTotalDeposits, "Initial balance mismatch");
+        // For now, verify against first token total deposits (TODO: handle multiple tokens properly)
+        require(initialBalanceSum == channel.tokenTotalDeposits[firstToken], "Initial balance mismatch");
         require(initialBalanceSum == finalBalanceSum, "Balance conservation violated");
 
         channel.initialMPTLeaves = proofData.initialMPTLeaves;
@@ -364,8 +491,8 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         channel.finalStateRoot = proofData.finalStateRoot;
         channel.state = ChannelState.Closing;
 
-        // Retrieve preprocessed data from stored TargetContract
-        IRollupBridge.TargetContract memory targetContractData = $.allowedTargetContracts[channel.targetContract];
+        // Retrieve preprocessed data from stored TargetContract (using first token for now)
+        TargetContract memory targetContractData = $.allowedTargetContracts[firstToken];
         uint128[] memory preprocessedPart1 = targetContractData.preprocessedPart1;
         uint256[] memory preprocessedPart2 = targetContractData.preprocessedPart2;
 
@@ -464,18 +591,14 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
     }
 
     /**
-     * @notice Withdraws funds after channel closure using Merkle proof
+     * @notice Withdraws funds after channel closure
      * @param channelId The channel ID
-     * @param claimedBalance The amount to withdraw
-     * @param leafIndex The leaf index in the Merkle tree
-     * @param merkleProof The Merkle proof for the withdrawal
      * @dev Only participants can withdraw once per channel
+     *      The withdrawable amount was determined during proof verification
      */
     function withdrawAfterClose(
         uint256 channelId,
-        uint256 claimedBalance,
-        uint256 leafIndex,
-        bytes32[] calldata merkleProof
+        address token
     ) external nonReentrant {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
@@ -483,47 +606,29 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         require(channel.state == ChannelState.Closed, "Not closed");
         require(!channel.hasWithdrawn[msg.sender], "Already withdrawn");
         require(channel.isParticipant[msg.sender], "Not a participant");
-        require(!this.isEmergencyModeEnabled(channelId), "Emergency mode enabled - use emergency withdrawal");
+        require(channel.isTokenAllowed[token], "Token not allowed in this channel");
 
-        address l2Address = $.l1ToL2[channelId][msg.sender];
-        require(l2Address != address(0), "L2 address not found");
-
-        // Find participant index to get their specific root
-        uint256 participantIndex = type(uint256).max;
-        for (uint256 i = 0; i < channel.participants.length; i++) {
-            if (channel.participants[i].l1Address == msg.sender) {
-                participantIndex = i;
-                break;
-            }
-        }
-        require(participantIndex != type(uint256).max, "Participant not found");
-        require(participantIndex < channel.participantRoots.length, "Participant root not found");
-
-        // Use participant-specific root for leaf computation
-        bytes32 participantRoot = channel.participantRoots[participantIndex];
-        bytes32 leafValue = _computeLeafPure(participantRoot, uint256(uint160(l2Address)), claimedBalance);
-
-        require(
-            _verifyProof($, channelId, merkleProof, leafValue, leafIndex, channel.finalStateRoot),
-            "Invalid merkle proof"
-        );
+        // Get the withdrawable amount that was verified and stored during proof submission
+        uint256 withdrawAmount = channel.withdrawAmount[token][msg.sender];
+        require(withdrawAmount > 0, "No withdrawable amount or already withdrawn");
 
         channel.hasWithdrawn[msg.sender] = true;
-        channel.withdrawAmount[msg.sender] = claimedBalance;
+        // Clear the withdrawable amount to prevent re-withdrawal
+        channel.withdrawAmount[token][msg.sender] = 0;
 
-        if (channel.targetContract == ETH_TOKEN_ADDRESS) {
+        if (token == ETH_TOKEN_ADDRESS) {
             bool success;
             uint256 gasLimit = NATIVE_TOKEN_TRANSFER_GAS_LIMIT;
             assembly {
-                success := call(gasLimit, caller(), claimedBalance, 0, 0, 0, 0)
+                success := call(gasLimit, caller(), withdrawAmount, 0, 0, 0, 0)
             }
             require(success, "ETH transfer failed");
         } else {
             // we use safeTransfer to make it compatible with custom tokens s.a USDT
-            IERC20Upgradeable(channel.targetContract).safeTransfer(msg.sender, claimedBalance);
+            IERC20Upgradeable(token).safeTransfer(msg.sender, withdrawAmount);
         }
 
-        emit Withdrawn(channelId, msg.sender, channel.targetContract, claimedBalance);
+        emit Withdrawn(channelId, msg.sender, token, withdrawAmount);
     }
 
     /**
@@ -582,8 +687,19 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         address oldVerifier = address($.zkVerifier);
         require(_newVerifier != oldVerifier, "Same verifier address");
-        $.zkVerifier = IVerifier(_newVerifier);
+        $.zkVerifier = ITokamakVerifier(_newVerifier);
         emit VerifierUpdated(oldVerifier, _newVerifier);
+    }
+
+    /**
+     * @notice Updates the Groth16 verifier contract
+     * @param _newGroth16Verifier Address of the new Groth16 verifier
+     * @dev Only contract owner can update the Groth16 verifier
+     */
+    function updateGroth16Verifier(address _newGroth16Verifier) external onlyOwner {
+        require(_newGroth16Verifier != address(0), "Invalid Groth16Verifier address");
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        $.groth16Verifier = IGroth16Verifier64Leaves(_newGroth16Verifier);
     }
 
     /**
@@ -598,6 +714,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         address targetContract,
         uint128[] memory preprocessedPart1,
         uint256[] memory preprocessedPart2,
+        bytes1 _storageSlot,
         bool allowed
     ) external onlyOwner {
         require(targetContract != address(0), "Invalid target contract address");
@@ -608,10 +725,11 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
             require(preprocessedPart1.length > 0, "preprocessedPart1 cannot be empty when allowing");
             require(preprocessedPart2.length > 0, "preprocessedPart2 cannot be empty when allowing");
 
-            $.allowedTargetContracts[targetContract] = IRollupBridge.TargetContract({
+            $.allowedTargetContracts[targetContract] = TargetContract({
                 contractAddress: targetContract,
                 preprocessedPart1: preprocessedPart1, // Store full array
-                preprocessedPart2: preprocessedPart2 // Store full array
+                preprocessedPart2: preprocessedPart2, // Store full array
+                storageSlot: _storageSlot
             });
         } else {
             // Clear the target contract data when disallowing
@@ -714,91 +832,6 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         }
     }
 
-    /**
-     * @notice Internal verification function exposed for external calls
-     * @param proof The Merkle proof
-     * @param leaf The leaf to verify
-     * @param leafIndex The index of the leaf
-     * @param root The Merkle root
-     * @return True if the proof is valid
-     */
-    function _verifyProofInternal(bytes32[] calldata proof, bytes32 leaf, uint256 leafIndex, bytes32 root)
-        external
-        view
-        returns (bool)
-    {
-        bytes32 computedHash = leaf;
-        uint256 index = leafIndex;
-        uint256 proofIndex = 0;
-
-        for (uint256 level = 0; level < TREE_DEPTH; level++) {
-            uint256 childIndex = index % CHILDREN_PER_NODE;
-
-            if (childIndex == 0) {
-                if (proofIndex + 2 < proof.length) {
-                    computedHash =
-                        _hashFour(computedHash, proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2]);
-                    proofIndex += 3;
-                } else {
-                    computedHash = _hashFour(computedHash, _zeros(level), _zeros(level), _zeros(level));
-                }
-            } else if (childIndex == 1) {
-                if (proofIndex + 2 < proof.length) {
-                    computedHash =
-                        _hashFour(proof[proofIndex], computedHash, proof[proofIndex + 1], proof[proofIndex + 2]);
-                    proofIndex += 3;
-                } else {
-                    computedHash = _hashFour(_zeros(level), computedHash, _zeros(level), _zeros(level));
-                }
-            } else if (childIndex == 2) {
-                if (proofIndex + 2 < proof.length) {
-                    computedHash =
-                        _hashFour(proof[proofIndex], proof[proofIndex + 1], computedHash, proof[proofIndex + 2]);
-                    proofIndex += 3;
-                } else {
-                    computedHash = _hashFour(_zeros(level), _zeros(level), computedHash, _zeros(level));
-                }
-            } else {
-                if (proofIndex + 2 < proof.length) {
-                    computedHash =
-                        _hashFour(proof[proofIndex], proof[proofIndex + 1], proof[proofIndex + 2], computedHash);
-                    proofIndex += 3;
-                } else {
-                    computedHash = _hashFour(_zeros(level), _zeros(level), _zeros(level), computedHash);
-                }
-            }
-
-            index /= CHILDREN_PER_NODE;
-        }
-
-        return computedHash == root;
-    }
-
-    /**
-     * @notice Checks if emergency mode is enabled for a channel
-     * @param channelId The channel ID to check
-     * @return False (emergency mode has been removed)
-     */
-    function isEmergencyModeEnabled(uint256 channelId) external pure returns (bool) {
-        // Since we removed emergency mode, this always returns false
-        return false;
-    }
-
-    /**
-     * @notice Computes leaf for verification purposes
-     * @param l2Address The L2 address
-     * @param balance The balance amount
-     * @param prevRoot The previous root
-     * @return The computed leaf hash
-     */
-    function computeLeafForVerification(address l2Address, uint256 balance, bytes32 prevRoot)
-        external
-        pure
-        returns (bytes32)
-    {
-        return _computeLeafPure(prevRoot, uint256(uint160(l2Address)), balance);
-    }
-
     // ========== INTERNAL FUNCTIONS ==========
 
     /**
@@ -817,263 +850,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /**
-     * @notice Derives an Ethereum-style address from the uncompressed public key (x||y)
-     * @param pkx The x coordinate of the public key
-     * @param pky The y coordinate of the public key
-     * @return The derived Ethereum address
-     */
-    function _deriveAddressFromPubkey(uint256 pkx, uint256 pky) internal pure returns (address) {
-        bytes32 h = keccak256(abi.encodePacked(pkx, pky));
-        return address(uint160(uint256(h)));
-    }
 
-    /**
-     * @notice Internal function to handle token deposits with fee-on-transfer support
-     * @param _from The address depositing tokens
-     * @param _token The token contract
-     * @param _amount The amount to deposit
-     * @return The actual amount deposited (after any fees)
-     */
-    function _depositToken(address _from, IERC20Upgradeable _token, uint256 _amount) internal returns (uint256) {
-        // Check that user has sufficient balance
-        uint256 userBalance = _token.balanceOf(_from);
-        require(
-            userBalance >= _amount,
-            string(abi.encodePacked("Insufficient token balance: ", _toString(userBalance), " < ", _toString(_amount)))
-        );
-
-        // Check that user has approved sufficient allowance
-        uint256 userAllowance = _token.allowance(_from, address(this));
-        require(
-            userAllowance >= _amount,
-            string(
-                abi.encodePacked("Insufficient token allowance: ", _toString(userAllowance), " < ", _toString(_amount))
-            )
-        );
-
-        uint256 balanceBefore = _token.balanceOf(address(this));
-
-        // Use SafeERC20's safeTransferFrom - this will handle USDT's void return properly
-        _token.safeTransferFrom(_from, address(this), _amount);
-
-        uint256 balanceAfter = _token.balanceOf(address(this));
-
-        // Handle fee-on-transfer tokens like USDT (though fees are currently disabled)
-        uint256 actualAmount = balanceAfter - balanceBefore;
-        require(actualAmount > 0, "No tokens transferred");
-
-        return actualAmount;
-    }
-
-    /**
-     * @notice Converts uint256 to string
-     * @param value The value to convert
-     * @return The string representation
-     */
-    function _toString(uint256 value) internal pure returns (string memory) {
-        if (value == 0) {
-            return "0";
-        }
-        uint256 temp = value;
-        uint256 digits;
-        while (temp != 0) {
-            digits++;
-            temp /= 10;
-        }
-        bytes memory buffer = new bytes(digits);
-        while (value != 0) {
-            digits -= 1;
-            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
-            value /= 10;
-        }
-        return string(buffer);
-    }
-
-    /**
-     * @notice Computes leaf hash using channel state and nonce
-     * @param $ Storage pointer
-     * @param channelId The channel ID
-     * @param l2Addr The L2 address as uint256
-     * @param balance The balance amount
-     * @return The computed leaf hash
-     */
-    function _computeLeaf(RollupBridgeStorage storage $, uint256 channelId, uint256 l2Addr, uint256 balance)
-        internal
-        view
-        returns (bytes32)
-    {
-        // RLC computation matching MTManager.ts RLCForUserStorage
-        // Get previous root: if nonce == 0, use slot (channelId), else use last root
-        bytes32 prevRoot;
-        uint256 currentNonce = $.nonce[channelId];
-        if (currentNonce == 0) {
-            prevRoot = bytes32(channelId); // Use channelId as slot (matching MTManager.ts line 104)
-        } else {
-            bytes32[] storage rootSequence = $.channelRootSequence[channelId];
-            require(rootSequence.length > 0 && currentNonce <= rootSequence.length, "Invalid root sequence access");
-            prevRoot = rootSequence[currentNonce - 1];
-        }
-
-        // Compute gamma = L2hash(prevRoot, l2Addr) using keccak256
-        bytes32 gamma = keccak256(abi.encodePacked(prevRoot, bytes32(l2Addr)));
-
-        // RLC formula: L2AddrF + gamma * value (matching MTManager.ts line 106)
-        // Use unchecked to handle potential overflow (wrapping is acceptable for hash computation)
-        uint256 leafValue;
-        unchecked {
-            leafValue = l2Addr + uint256(gamma) * balance;
-        }
-        return bytes32(leafValue);
-    }
-
-    /**
-     * @notice Pure version of leaf computation for verification
-     * @param prevRoot The previous root
-     * @param l2Addr The L2 address as uint256
-     * @param balance The balance amount
-     * @return The computed leaf hash
-     */
-    function _computeLeafPure(bytes32 prevRoot, uint256 l2Addr, uint256 balance) internal pure returns (bytes32) {
-        // RLC computation matching MTManager.ts RLCForUserStorage
-        // Compute gamma = L2hash(prevRoot, l2Addr) using keccak256
-        bytes32 gamma = keccak256(abi.encodePacked(prevRoot, bytes32(l2Addr)));
-
-        // RLC formula: L2AddrF + gamma * value (matching MTManager.ts line 106)
-        // Use unchecked to handle potential overflow (wrapping is acceptable for hash computation)
-        uint256 leafValue;
-        unchecked {
-            leafValue = l2Addr + uint256(gamma) * balance;
-        }
-
-        return bytes32(leafValue);
-    }
-
-    /**
-     * @notice Inserts a leaf into the quaternary Merkle tree
-     * @param $ Storage pointer
-     * @param channelId The channel ID
-     * @param leafHash The leaf hash to insert
-     */
-    function _insertLeaf(RollupBridgeStorage storage $, uint256 channelId, bytes32 leafHash) internal {
-        uint32 leafIndex = $.nextLeafIndex[channelId];
-
-        // Check if tree is full
-        uint32 maxLeaves = uint32(4 ** TREE_DEPTH);
-        require(leafIndex < maxLeaves, "MerkleTreeFull");
-
-        // Update the cached subtrees and compute new root (matching MerkleTreeManager4 exactly)
-        bytes32 currentHash = leafHash;
-        uint32 currentIndex = leafIndex;
-
-        for (uint256 level = 0; level < TREE_DEPTH; level++) {
-            if (currentIndex % 4 == 0) {
-                // This is a leftmost node, cache it
-                $.cachedSubtrees[channelId][level] = currentHash;
-                break;
-            } else {
-                // Compute parent hash using 4 children
-                bytes32 left = $.cachedSubtrees[channelId][level];
-                bytes32 child2 = currentIndex % 4 >= 2 ? currentHash : bytes32(0);
-                bytes32 child3 = currentIndex % 4 == 3 ? currentHash : bytes32(0);
-                bytes32 child4 = bytes32(0);
-
-                currentHash = keccak256(abi.encodePacked(left, child2, child3, child4));
-                currentIndex = currentIndex / 4;
-            }
-        }
-
-        // Update tree state
-        $.nextLeafIndex[channelId] = leafIndex + 1;
-
-        // Store new root
-        uint32 newRootIndex = $.currentRootIndex[channelId] + 1;
-        $.currentRootIndex[channelId] = newRootIndex;
-        $.roots[channelId][newRootIndex] = currentHash;
-        $.channelRootSequence[channelId].push(currentHash);
-    }
-
-    /**
-     * @notice Hashes four bytes32 values together
-     * @param _a First value
-     * @param _b Second value
-     * @param _c Third value
-     * @param _d Fourth value
-     * @return The keccak256 hash of the concatenated values
-     */
-    function _hashFour(bytes32 _a, bytes32 _b, bytes32 _c, bytes32 _d) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_a, _b, _c, _d));
-    }
-
-    /**
-     * @notice Generates zero hash for a given level
-     * @param i The level
-     * @return The zero hash for that level
-     */
-    function _zeros(uint256 i) internal pure returns (bytes32) {
-        // Match MerkleTreeManager4's zeros function
-        bytes32 zero = bytes32(0);
-        for (uint256 j = 0; j < i; j++) {
-            zero = keccak256(abi.encodePacked(zero, zero, zero, zero));
-        }
-        return zero;
-    }
-
-    /**
-     * @notice Verifies a Merkle proof for a given leaf
-     * @param $ Storage pointer
-     * @param channelId The channel ID
-     * @param proof The Merkle proof
-     * @param leaf The leaf to verify
-     * @param leafIndex The index of the leaf
-     * @param root The Merkle root
-     * @return True if the proof is valid
-     */
-    function _verifyProof(
-        RollupBridgeStorage storage $,
-        uint256 channelId,
-        bytes32[] calldata proof,
-        bytes32 leaf,
-        uint256 leafIndex,
-        bytes32 root
-    ) internal view returns (bool) {
-        if (!$.channelInitialized[channelId]) return false;
-
-        // Catch any arithmetic errors and return false
-        try this._verifyProofInternal(proof, leaf, leafIndex, root) returns (bool result) {
-            return result;
-        } catch {
-            return false;
-        }
-    }
-
-    /**
-     * @notice Validates and registers L2 addresses to prevent collisions
-     * @param channelId The channel ID
-     * @param l1Address The L1 address of the participant
-     * @param l2Address The proposed L2 address
-     * @return success True if validation passed and address was registered
-     */
-    function validateAndRegisterL2Address(uint256 channelId, address l1Address, address l2Address)
-        internal
-        returns (bool success)
-    {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-
-        require(l2Address != address(0), "Invalid L2 address");
-
-        // Check if L2 address is already used in this channel
-        if ($.usedL2Addresses[channelId][l2Address]) {
-            emit L2AddressCollisionPrevented(channelId, l2Address, l1Address);
-            return false;
-        }
-
-        // Register the L2 address
-        $.usedL2Addresses[channelId][l2Address] = true;
-        $.l2ToL1Mapping[l2Address][channelId] = l1Address;
-
-        return true;
-    }
 
     /**
      * @notice Slashes the leader's bond for misconduct
@@ -1123,20 +900,21 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         address[] memory participants = new address[](participantCount);
 
         for (uint256 i = 0; i < participantCount; i++) {
-            participants[i] = channel.participants[i].l1Address;
+            participants[i] = channel.participants[i];
         }
         return participants;
     }
 
     /**
-     * @notice Gets participant deposit amount
+     * @notice Gets participant deposit amount for a specific token
      * @param channelId The channel ID
      * @param participant The participant address
+     * @param token The token address
      * @return The deposit amount
      */
-    function _getParticipantDeposit(uint256 channelId, address participant) internal view returns (uint256) {
+    function _getParticipantTokenDeposit(uint256 channelId, address participant, address token) internal view returns (uint256) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        return $.channels[channelId].tokenDeposits[participant];
+        return $.channels[channelId].tokenDeposits[token][participant];
     }
 
     /**
@@ -1155,7 +933,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
      * @param channelId The channel ID
      * @return The channel state
      */
-    function _getChannelState(uint256 channelId) internal view returns (IRollupBridge.ChannelState) {
+    function _getChannelState(uint256 channelId) internal view returns (ChannelState) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.channels[channelId].state;
     }
@@ -1168,14 +946,6 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
     function _getChannelCloseTimestamp(uint256 channelId) internal view returns (uint256) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.channels[channelId].closeTimestamp;
-    }
-
-    /**
-     * @notice Gets the challenge period duration
-     * @return The challenge period in seconds
-     */
-    function _getChallengePeriod() internal pure returns (uint256) {
-        return CHALLENGE_PERIOD;
     }
 
     /**
@@ -1205,7 +975,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
      * @notice Gets the ZK verifier contract
      * @return The verifier contract interface
      */
-    function zkVerifier() public view returns (IVerifier) {
+    function zkVerifier() public view returns (ITokamakVerifier) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.zkVerifier;
     }
@@ -1253,75 +1023,35 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
      * @param targetContract The target contract address
      * @return The target contract data structure
      */
-    function getTargetContractData(address targetContract) public view returns (IRollupBridge.TargetContract memory) {
+    function getTargetContractData(address targetContract) public view returns (TargetContract memory) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         require($.isTargetContractAllowed[targetContract], "Target contract not allowed");
         return $.allowedTargetContracts[targetContract];
     }
 
-    /**
-     * @notice Gets the current Merkle root for a channel
-     * @param channelId The channel ID
-     * @return The current root hash
-     */
-    function getCurrentRoot(uint256 channelId) external view returns (bytes32) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        if (!$.channelInitialized[channelId]) return bytes32(0);
-        return $.roots[channelId][$.currentRootIndex[channelId]];
-    }
 
     /**
-     * @notice Gets the L2 address mapped to an L1 address
+     * @notice Gets the channel state
      * @param channelId The channel ID
-     * @param l1Address The L1 address
-     * @return The corresponding L2 address
-     */
-    function getL2Address(uint256 channelId, address l1Address) external view returns (address) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        return $.l1ToL2[channelId][l1Address];
-    }
-
-    /**
-     * @notice Gets the last root in the sequence for a channel
-     * @param channelId The channel ID
-     * @return The last root hash
-     */
-    function getLastRootInSequence(uint256 channelId) external view returns (bytes32) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        bytes32[] storage rootSequence = $.channelRootSequence[channelId];
-        require(rootSequence.length > 0, "NoRoots");
-        return rootSequence[rootSequence.length - 1];
-    }
-
-    /**
-     * @notice Gets basic channel information
-     * @param channelId The channel ID
-     * @return targetContract The target contract address
      * @return state The channel state
-     * @return participantCount Number of participants
-     * @return initialRoot The initial state root
-     * @return finalRoot The final state root
      */
-    function getChannelInfo(uint256 channelId)
-        external
-        view
-        returns (
-            address targetContract,
-            ChannelState state,
-            uint256 participantCount,
-            bytes32 initialRoot,
-            bytes32 finalRoot
-        )
-    {
+    function getChannelState(uint256 channelId) external view returns (ChannelState) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
-        return (
-            channel.targetContract,
-            channel.state,
-            channel.participants.length,
-            channel.initialStateRoot,
-            channel.finalStateRoot
-        );
+        return channel.state;
+    }
+
+    /**
+     * @notice Gets a participant's deposit amount for a specific token
+     * @param channelId The channel ID
+     * @param participant The participant address
+     * @param token The token address
+     * @return amount The deposit amount
+     */
+    function getParticipantTokenDeposit(uint256 channelId, address participant, address token) external view returns (uint256) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        return channel.tokenDeposits[token][participant];
     }
 
     /**
@@ -1336,42 +1066,53 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
     }
 
     /**
-     * @notice Gets the group public key address for a channel
+     * @notice Gets channel root hashes
      * @param channelId The channel ID
-     * @return The signer address derived from group public key
+     * @return initialRoot The initial state root
+     * @return finalRoot The final state root
      */
-    function getGroupPublicKey(uint256 channelId) external view returns (address) {
+    function getChannelRoots(uint256 channelId) external view returns (bytes32 initialRoot, bytes32 finalRoot) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
-        return channel.signerAddr;
+        return (channel.initialStateRoot, channel.finalStateRoot);
     }
 
-    /**
-     * @notice Gets the final state root for a channel
-     * @param channelId The channel ID
-     * @return The final state root
-     */
-    function getFinalStateRoot(uint256 channelId) external view returns (bytes32) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return channel.finalStateRoot;
-    }
+
 
     /**
-     * @notice Gets the MPT leaves for a channel
+     * @notice Gets basic channel information
      * @param channelId The channel ID
-     * @return initialLeaves The initial MPT leaves
-     * @return finalLeaves The final MPT leaves
+     * @return allowedTokens Array of allowed token addresses
+     * @return state The channel state
+     * @return participantCount Number of participants
+     * @return initialRoot The initial state root
+     * @return finalRoot The final state root
      */
-    function getMPTLeaves(uint256 channelId)
+    function getChannelInfo(uint256 channelId)
         external
         view
-        returns (bytes[] memory initialLeaves, bytes[] memory finalLeaves)
+        returns (
+            address[] memory allowedTokens,
+            ChannelState state,
+            uint256 participantCount,
+            bytes32 initialRoot,
+            bytes32 finalRoot
+        )
     {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
-        return (channel.initialMPTLeaves, channel.finalMPTLeaves);
+        return (
+            channel.allowedTokens,
+            channel.state,
+            channel.participants.length,
+            channel.initialStateRoot,
+            channel.finalStateRoot
+        );
     }
+
+
+
+
 
     /**
      * @notice Gets timeout information for a channel
@@ -1401,58 +1142,9 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         return block.timestamp > (channel.openTimestamp + channel.timeout);
     }
 
-    /**
-     * @notice Gets the remaining time before channel expires
-     * @param channelId The channel ID
-     * @return The remaining time in seconds (0 if expired)
-     */
-    function getRemainingTime(uint256 channelId) external view returns (uint256) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        uint256 deadline = channel.openTimestamp + channel.timeout;
-        if (block.timestamp >= deadline) return 0;
-        return deadline - block.timestamp;
-    }
 
-    /**
-     * @notice Gets deposit information for a channel
-     * @param channelId The channel ID
-     * @return totalDeposits The total deposits in the channel
-     * @return targetContract The target contract address
-     */
-    function getChannelDeposits(uint256 channelId)
-        external
-        view
-        returns (uint256 totalDeposits, address targetContract)
-    {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return (channel.tokenTotalDeposits, channel.targetContract);
-    }
 
-    /**
-     * @notice Gets a participant's deposit amount
-     * @param channelId The channel ID
-     * @param participant The participant address
-     * @return amount The deposit amount
-     */
-    function getParticipantDeposit(uint256 channelId, address participant) external view returns (uint256 amount) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return channel.tokenDeposits[participant];
-    }
 
-    /**
-     * @notice Gets a participant's L2 public key
-     * @param channelId The channel ID
-     * @param participant The participant address
-     * @return l2PublicKey The L2 public key
-     */
-    function getL2PublicKey(uint256 channelId, address participant) external view returns (address l2PublicKey) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return channel.l2PublicKeys[participant];
-    }
 
     /**
      * @notice Gets all participants in a channel
@@ -1466,7 +1158,7 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         participants = new address[](participantCount);
 
         for (uint256 i = 0; i < participantCount;) {
-            participants[i] = channel.participants[i].l1Address;
+            participants[i] = channel.participants[i];
             unchecked {
                 ++i;
             }
@@ -1474,66 +1166,10 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         return participants;
     }
 
-    /**
-     * @notice Gets the channel leader
-     * @param channelId The channel ID
-     * @return leader The leader address
-     */
-    function getChannelLeader(uint256 channelId) external view returns (address leader) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return channel.leader;
-    }
 
-    /**
-     * @notice Gets the channel state
-     * @param channelId The channel ID
-     * @return state The channel state
-     */
-    function getChannelState(uint256 channelId) external view returns (ChannelState state) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return channel.state;
-    }
 
-    /**
-     * @notice Gets channel timestamps
-     * @param channelId The channel ID
-     * @return openTimestamp When the channel was opened
-     * @return closeTimestamp When the channel was closed
-     */
-    function getChannelTimestamps(uint256 channelId)
-        external
-        view
-        returns (uint256 openTimestamp, uint256 closeTimestamp)
-    {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return (channel.openTimestamp, channel.closeTimestamp);
-    }
 
-    /**
-     * @notice Gets channel root hashes
-     * @param channelId The channel ID
-     * @return initialRoot The initial state root
-     * @return finalRoot The final state root
-     */
-    function getChannelRoots(uint256 channelId) external view returns (bytes32 initialRoot, bytes32 finalRoot) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return (channel.initialStateRoot, channel.finalStateRoot);
-    }
 
-    /**
-     * @notice Gets participant-specific roots for a channel
-     * @param channelId The channel ID
-     * @return participantRoots Array of participant roots
-     */
-    function getChannelParticipantRoots(uint256 channelId) external view returns (bytes32[] memory participantRoots) {
-        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        Channel storage channel = $.channels[channelId];
-        return (channel.participantRoots);
-    }
 
     /**
      * @notice Gets preprocessed proof data for a channel
@@ -1549,8 +1185,9 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
 
-        // Retrieve preprocessed data from stored TargetContract
-        IRollupBridge.TargetContract memory targetContractData = $.allowedTargetContracts[channel.targetContract];
+        // Retrieve preprocessed data from stored TargetContract (using first token for now)
+        address firstToken = channel.allowedTokens.length > 0 ? channel.allowedTokens[0] : ETH_TOKEN_ADDRESS;
+        TargetContract memory targetContractData = $.allowedTargetContracts[firstToken];
 
         preprocessedPart1 = targetContractData.preprocessedPart1;
         preprocessedPart2 = targetContractData.preprocessedPart2;
@@ -1560,10 +1197,9 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
      * @notice Gets comprehensive channel statistics
      * @param channelId The channel ID
      * @return id The channel ID
-     * @return targetContract The target contract address
+     * @return allowedTokens Array of allowed token addresses
      * @return state The channel state
      * @return participantCount Number of participants
-     * @return totalDeposits Total deposits in the channel
      * @return leader The leader address
      */
     function getChannelStats(uint256 channelId)
@@ -1571,10 +1207,9 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         view
         returns (
             uint256 id,
-            address targetContract,
+            address[] memory allowedTokens,
             ChannelState state,
             uint256 participantCount,
-            uint256 totalDeposits,
             address leader
         )
     {
@@ -1582,10 +1217,9 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
         Channel storage channel = $.channels[channelId];
         return (
             channel.id,
-            channel.targetContract,
+            channel.allowedTokens,
             channel.state,
             channel.participants.length,
-            channel.tokenTotalDeposits,
             channel.leader
         );
     }
@@ -1636,6 +1270,18 @@ contract RollupBridge is IRollupBridge, ReentrancyGuardUpgradeable, OwnableUpgra
     function getTotalSlashedBonds() external view returns (uint256) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.totalSlashedBonds;
+    }
+
+    /**
+     * @notice Gets the withdrawable amount for a participant in a channel for a specific token
+     * @param channelId The channel ID
+     * @param participant The participant address
+     * @param token The token address
+     * @return The withdrawable amount
+     */
+    function getWithdrawableAmount(uint256 channelId, address participant, address token) external view returns (uint256) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.channels[channelId].withdrawAmount[token][participant];
     }
 
     uint256[42] private __gap;

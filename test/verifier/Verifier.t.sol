@@ -2,14 +2,14 @@
 pragma solidity 0.8.29;
 
 import {Test} from "forge-std/Test.sol";
-import {Verifier} from "../../src/verifier/Verifier.sol";
+import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
 
 import "forge-std/console.sol";
 
 contract testTokamakVerifier is Test {
     address owner;
 
-    Verifier verifier;
+    TokamakVerifier verifier;
 
     uint128[] public serializedProofPart1;
     uint256[] public serializedProofPart2;
@@ -19,7 +19,7 @@ contract testTokamakVerifier is Test {
     uint256 public smax;
 
     function setUp() public virtual {
-        verifier = new Verifier();
+        verifier = new TokamakVerifier();
 
         owner = makeAddr("owner");
         vm.startPrank(owner);

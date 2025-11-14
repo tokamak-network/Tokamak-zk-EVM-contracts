@@ -37,7 +37,7 @@ contract Groth16Verifier64LeavesTest is Test {
     }
 
     function testValidProof64() public view {
-        // Test data from test/64_leaves/proof.json and public.json 
+        // Test data from test/64_leaves/proof.json and public.json
         // This proof is generated for BLS12-381 curve with 64-leaf Merkle tree
 
         // pi_a - G1 point (x_PART1, x_PART2, y_PART1, y_PART2)
@@ -189,7 +189,7 @@ contract Groth16Verifier64LeavesTest is Test {
     }
 
     function testGasConsumption64() public view {
-        // Test data from test/64_leaves/proof.json and public.json 
+        // Test data from test/64_leaves/proof.json and public.json
         // This test measures gas consumption for BLS12-381 Groth16 verification
 
         // pi_a - G1 point (x_PART1, x_PART2, y_PART1, y_PART2)
@@ -339,9 +339,9 @@ contract Groth16Verifier64LeavesTest is Test {
         uint256 gasStart = gasleft();
         bool result = verifier.verifyProof(_pA, _pB, _pC, _pubSignals);
         uint256 gasEnd = gasleft();
-        
+
         uint256 gasUsed = gasStart - gasEnd;
-        
+
         // Log the gas consumption
         console.log("=== BLS12-381 Groth16 Verification Gas Report ===");
         console.log("Gas used for proof verification:", gasUsed);
@@ -350,9 +350,8 @@ contract Groth16Verifier64LeavesTest is Test {
         console.log("Public signals: 129");
         console.log("Curve: BLS12-381");
         console.log("Protocol: Groth16");
-        
+
         // Assert the proof is valid
         assertTrue(result, "Valid proof should pass verification");
     }
-
 }

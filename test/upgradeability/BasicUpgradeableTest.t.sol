@@ -64,12 +64,11 @@ contract MockZecFrost is IZecFrost {
  * @dev Mock Groth16 verifier for testing - always returns true
  */
 contract MockGroth16Verifier is IGroth16Verifier64Leaves {
-    function verifyProof(
-        uint[4] calldata,
-        uint[8] calldata,
-        uint[4] calldata,
-        uint[129] calldata
-    ) external pure returns (bool) {
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[129] calldata)
+        external
+        pure
+        returns (bool)
+    {
         return true;
     }
 }
@@ -148,7 +147,7 @@ contract BasicUpgradeableTest is Test {
     address public user2 = makeAddr("user2");
     address public user3 = makeAddr("user3");
     address public attacker = makeAddr("attacker");
-    
+
     // L2 addresses for deposits
     address public l2User1 = makeAddr("l2User1");
     address public l2User2 = makeAddr("l2User2");
@@ -184,7 +183,10 @@ contract BasicUpgradeableTest is Test {
         // Deploy proxy
         rollupBridgeProxy = new ERC1967Proxy(
             address(rollupBridgeImpl),
-            abi.encodeCall(RollupBridge.initialize, (address(verifier), address(new MockZecFrost()), address(groth16Verifier), owner))
+            abi.encodeCall(
+                RollupBridge.initialize,
+                (address(verifier), address(new MockZecFrost()), address(groth16Verifier), owner)
+            )
         );
         rollupBridge = RollupBridge(payable(address(rollupBridgeProxy)));
 
@@ -246,15 +248,13 @@ contract BasicUpgradeableTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-
-
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = ETH_TOKEN_ADDRESS;
 
         // Open channel
         vm.expectEmit(true, false, false, true);
         emit ChannelOpened(0, allowedTokens);
-        
+
         RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
@@ -372,7 +372,7 @@ contract BasicUpgradeableTest is Test {
         ) = rollupBridgeV2.getChannelInfo(channelId);
 
         assertEq(newAllowedTokens.length, preUpgradeAllowedTokens.length);
-        for (uint i = 0; i < preUpgradeAllowedTokens.length; i++) {
+        for (uint256 i = 0; i < preUpgradeAllowedTokens.length; i++) {
             assertEq(newAllowedTokens[i], preUpgradeAllowedTokens[i]);
         }
         assertEq(uint256(newState), uint256(state));
@@ -441,9 +441,9 @@ contract BasicUpgradeableTest is Test {
         // Initialize channel state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
         RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
         vm.prank(user1);

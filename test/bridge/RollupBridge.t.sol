@@ -41,12 +41,12 @@ contract MockGroth16Verifier is IGroth16Verifier64Leaves {
         shouldVerify = _should;
     }
 
-    function verifyProof(
-        uint[4] calldata,
-        uint[8] calldata,
-        uint[4] calldata,
-        uint[129] calldata
-    ) external view override returns (bool) {
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[129] calldata)
+        external
+        view
+        override
+        returns (bool)
+    {
         return shouldVerify;
     }
 }
@@ -103,11 +103,13 @@ contract RollupBridgeTest is Test {
         token = new MockERC20();
 
         ZecFrost zecFrost = new ZecFrost();
-        
+
         // Deploy RollupBridge with proxy
         RollupBridge implementation = new RollupBridge();
-        
-        bytes memory initData = abi.encodeCall(RollupBridge.initialize, (address(tokamakVerifier), address(zecFrost), address(groth16Verifier), owner));
+
+        bytes memory initData = abi.encodeCall(
+            RollupBridge.initialize, (address(tokamakVerifier), address(zecFrost), address(groth16Verifier), owner)
+        );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         bridge = RollupBridge(address(proxy));
 
@@ -176,10 +178,9 @@ contract RollupBridgeTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
-        
+
         return RollupBridge.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
@@ -189,18 +190,18 @@ contract RollupBridgeTest is Test {
         });
     }
 
-    function _createGroth16Proof(bytes32 merkleRoot) internal pure returns (RollupBridge.ChannelInitializationProof memory) {
+    function _createGroth16Proof(bytes32 merkleRoot)
+        internal
+        pure
+        returns (RollupBridge.ChannelInitializationProof memory)
+    {
         // Mock Groth16 proof data
-        uint[4] memory pA = [uint(1), uint(2), uint(3), uint(4)];
-        uint[8] memory pB = [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)];
-        uint[4] memory pC = [uint(13), uint(14), uint(15), uint(16)];
-        
-        return RollupBridge.ChannelInitializationProof({
-            pA: pA,
-            pB: pB,
-            pC: pC,
-            merkleRoot: merkleRoot
-        });
+        uint256[4] memory pA = [uint256(1), uint256(2), uint256(3), uint256(4)];
+        uint256[8] memory pB =
+            [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)];
+        uint256[4] memory pC = [uint256(13), uint256(14), uint256(15), uint256(16)];
+
+        return RollupBridge.ChannelInitializationProof({pA: pA, pB: pB, pC: pC, merkleRoot: merkleRoot});
     }
 
     // ========== Helper Functions for MPT Leaves ==========
@@ -401,9 +402,9 @@ contract RollupBridgeTest is Test {
         // Initialize state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
         RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
         vm.prank(leader);
@@ -437,9 +438,9 @@ contract RollupBridgeTest is Test {
         // Initialize and get root hash 1
         bytes32 mockMerkleRoot1 = keccak256(abi.encodePacked("mockRoot1"));
         RollupBridge.ChannelInitializationProof memory mockProof1 = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot1
         });
         vm.prank(leader);
@@ -460,9 +461,9 @@ contract RollupBridgeTest is Test {
         // Initialize and get root hash 2
         bytes32 mockMerkleRoot2 = keccak256(abi.encodePacked("mockRoot2"));
         RollupBridge.ChannelInitializationProof memory mockProof2 = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot2
         });
         vm.prank(leader2);
@@ -478,9 +479,9 @@ contract RollupBridgeTest is Test {
 
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
         RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
         vm.prank(user1);
@@ -732,8 +733,7 @@ contract RollupBridgeTest is Test {
         uint256 channelId = _submitProof();
 
         // Test with default/empty signature (all fields are zero)
-        RollupBridge.Signature memory emptySignature =
-            RollupBridge.Signature({message: bytes32(0), rx: 0, ry: 0, z: 0});
+        RollupBridge.Signature memory emptySignature = RollupBridge.Signature({message: bytes32(0), rx: 0, ry: 0, z: 0});
 
         vm.prank(leader);
         vm.expectRevert("Invalid group threshold signature");
@@ -1022,9 +1022,9 @@ contract RollupBridgeTest is Test {
         // Initialize state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
         RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
         vm.prank(channelLeader);
@@ -1071,9 +1071,9 @@ contract RollupBridgeTest is Test {
         // Initialize state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
         RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
         vm.prank(leader);
@@ -1194,9 +1194,9 @@ contract RollupBridgeTest is Test {
         // 3. Initialize state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
         RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
         vm.prank(leader);
@@ -1563,9 +1563,9 @@ contract RollupBridgeTest is Test {
 
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
         RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
         vm.prank(channelLeader);

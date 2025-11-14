@@ -79,12 +79,12 @@ contract WithdrawalsTest is Test {
 
         // Deploy proxy
         mockZecFrost = new ZecFrost();
-        
+
         bytes memory initData = abi.encodeWithSelector(
-            RollupBridge.initialize.selector, 
-            address(mockTokamakVerifier), 
-            address(mockZecFrost), 
-            address(groth16Verifier), 
+            RollupBridge.initialize.selector,
+            address(mockTokamakVerifier),
+            address(mockZecFrost),
+            address(groth16Verifier),
             owner
         );
 
@@ -103,7 +103,9 @@ contract WithdrawalsTest is Test {
         preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
         preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
-        rollupBridge.setAllowedTargetContract(address(testToken), preprocessedPart1, preprocessedPart2, bytes1(0x00), true);
+        rollupBridge.setAllowedTargetContract(
+            address(testToken), preprocessedPart1, preprocessedPart2, bytes1(0x00), true
+        );
         vm.stopPrank();
 
         // Fund participants with ETH and tokens
@@ -131,13 +133,11 @@ contract WithdrawalsTest is Test {
         participants[1] = participant2;
         participants[2] = participant3;
 
-
-        
         vm.startPrank(leader);
-        
+
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = ETH_TOKEN_ADDRESS;
-        
+
         RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
@@ -155,12 +155,11 @@ contract WithdrawalsTest is Test {
         participants[1] = participant2;
         participants[2] = participant3;
 
-
         vm.startPrank(leader);
-        
+
         address[] memory allowedTokensForToken = new address[](1);
         allowedTokensForToken[0] = address(testToken);
-        
+
         RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
             allowedTokens: allowedTokensForToken,
             participants: participants,
@@ -173,44 +172,45 @@ contract WithdrawalsTest is Test {
     }
 
     // ========== Groth16 Proof Generation using FFI ==========
-    
+
     struct Groth16ProofResult {
-        uint[4] pA;
-        uint[8] pB;
-        uint[4] pC;
+        uint256[4] pA;
+        uint256[8] pB;
+        uint256[4] pC;
         bytes32 merkleRoot;
     }
 
-    function generateGroth16Proof(
-        uint256[] memory mptKeys,
-        uint256[] memory balances
-    ) internal pure returns (Groth16ProofResult memory result) {
+    function generateGroth16Proof(uint256[] memory mptKeys, uint256[] memory balances)
+        internal
+        pure
+        returns (Groth16ProofResult memory result)
+    {
         require(mptKeys.length == balances.length, "Mismatched arrays");
         require(mptKeys.length <= 3, "Too many participants for test");
-        
+
         // For testing purposes, return mock values
         // In a real implementation, this would generate actual Groth16 proofs
-        result.pA = [uint(1), uint(2), uint(3), uint(4)];
-        result.pB = [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)];
-        result.pC = [uint(13), uint(14), uint(15), uint(16)];
-        
+        result.pA = [uint256(1), uint256(2), uint256(3), uint256(4)];
+        result.pB = [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)];
+        result.pC = [uint256(13), uint256(14), uint256(15), uint256(16)];
+
         // Generate a deterministic merkle root based on the inputs
         result.merkleRoot = keccak256(abi.encodePacked(mptKeys, balances));
-        
+
         return result;
     }
-    
+
     function _createMPTLeaves(uint256[] memory balances) internal pure returns (bytes[] memory) {
         bytes[] memory leaves = new bytes[](balances.length);
-        for (uint i = 0; i < balances.length; i++) {
+        for (uint256 i = 0; i < balances.length; i++) {
             leaves[i] = abi.encode(balances[i]);
         }
         return leaves;
     }
 
     // ========== Test Functions ==========
-    
-    // TODO: Re-enable this test after completing Groth16 integration  
+
+    // TODO: Re-enable this test after completing Groth16 integration
     /* function testWithdrawAfterChannelCloseWithGroth16() public {
         // This test needs additional setup for the new Groth16 architecture
         // 1. Create a token channel
@@ -347,13 +347,19 @@ contract WithdrawalsTest is Test {
             rollupBridge.depositETH{value: DEPOSIT_AMOUNT}(channelId, bytes32(uint256(uint160(l2Address1))));
         } else {
             vm.prank(participant1);
-            rollupBridge.depositToken(channelId, address(testToken), DEPOSIT_AMOUNT, bytes32(uint256(uint160(l2Address1))));
+            rollupBridge.depositToken(
+                channelId, address(testToken), DEPOSIT_AMOUNT, bytes32(uint256(uint160(l2Address1)))
+            );
 
             vm.prank(participant2);
-            rollupBridge.depositToken(channelId, address(testToken), DEPOSIT_AMOUNT, bytes32(uint256(uint160(l2Address1))));
+            rollupBridge.depositToken(
+                channelId, address(testToken), DEPOSIT_AMOUNT, bytes32(uint256(uint160(l2Address1)))
+            );
 
             vm.prank(participant3);
-            rollupBridge.depositToken(channelId, address(testToken), DEPOSIT_AMOUNT, bytes32(uint256(uint160(l2Address1))));
+            rollupBridge.depositToken(
+                channelId, address(testToken), DEPOSIT_AMOUNT, bytes32(uint256(uint160(l2Address1)))
+            );
         }
     }
 
@@ -361,9 +367,9 @@ contract WithdrawalsTest is Test {
         // Initialize channel state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
         RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
-            pA: [uint(1), uint(2), uint(3), uint(4)],
-            pB: [uint(5), uint(6), uint(7), uint(8), uint(9), uint(10), uint(11), uint(12)],
-            pC: [uint(13), uint(14), uint(15), uint(16)],
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
         vm.prank(leader);

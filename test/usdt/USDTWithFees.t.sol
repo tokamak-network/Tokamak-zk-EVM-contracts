@@ -158,7 +158,7 @@ contract USDTWithFeesTest is Test {
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
     address public user3 = makeAddr("user3");
-    
+
     // L2 addresses
     address public l2User1 = makeAddr("l2User1");
 
@@ -175,10 +175,12 @@ contract USDTWithFeesTest is Test {
         // Deploy RollupBridge with proxy
         RollupBridge implementation = new RollupBridge();
         Groth16Verifier64Leaves groth16Verifier = new Groth16Verifier64Leaves();
-        bytes memory initData = abi.encodeCall(RollupBridge.initialize, (address(verifier), address(zecFrost), address(groth16Verifier), owner));
+        bytes memory initData = abi.encodeCall(
+            RollupBridge.initialize, (address(verifier), address(zecFrost), address(groth16Verifier), owner)
+        );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         bridge = RollupBridge(address(proxy));
-        
+
         // No need for MerkleTreeManager anymore - using direct Groth16 verification
 
         uint128[] memory preprocessedPart1 = new uint128[](4);

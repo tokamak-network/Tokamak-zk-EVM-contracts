@@ -44,7 +44,9 @@ library RollupBridgeLib {
         uint256 userAllowance = _token.allowance(_from, address(this));
         require(
             userAllowance >= _amount,
-            string(abi.encodePacked("Insufficient token allowance: ", toString(userAllowance), " < ", toString(_amount)))
+            string(
+                abi.encodePacked("Insufficient token allowance: ", toString(userAllowance), " < ", toString(_amount))
+            )
         );
 
         uint256 balanceBefore = _token.balanceOf(address(this));

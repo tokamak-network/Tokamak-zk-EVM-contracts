@@ -151,7 +151,7 @@ contract AccurateUSDTTest is Test {
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
     address public user3 = makeAddr("user3");
-    
+
     // L2 addresses
     address public l2User1 = makeAddr("l2User1");
 
@@ -168,10 +168,12 @@ contract AccurateUSDTTest is Test {
         // Deploy RollupBridge with proxy
         RollupBridge implementation = new RollupBridge();
         Groth16Verifier64Leaves groth16Verifier = new Groth16Verifier64Leaves();
-        bytes memory initData = abi.encodeCall(RollupBridge.initialize, (address(verifier), address(zecFrost), address(groth16Verifier), owner));
+        bytes memory initData = abi.encodeCall(
+            RollupBridge.initialize, (address(verifier), address(zecFrost), address(groth16Verifier), owner)
+        );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         bridge = RollupBridge(address(proxy));
-        
+
         // No need for MerkleTreeManager anymore - using direct Groth16 verification
 
         uint128[] memory preprocessedPart1 = new uint128[](4);
@@ -211,11 +213,9 @@ contract AccurateUSDTTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-
-
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(usdt);
-        
+
         RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
@@ -271,7 +271,9 @@ contract AccurateUSDTTest is Test {
                 "Bridge balance should increase by deposit amount"
             );
             assertEq(
-                bridge.getParticipantTokenDeposit(channelId, user1, address(usdt)), depositAmount, "Deposit should be recorded correctly"
+                bridge.getParticipantTokenDeposit(channelId, user1, address(usdt)),
+                depositAmount,
+                "Deposit should be recorded correctly"
             );
         } catch Error(string memory reason) {
             console.log("Deposit failed with reason:", reason);

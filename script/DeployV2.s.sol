@@ -89,11 +89,9 @@ contract DeployV2Script is Script {
 
         // Deploy RollupBridge proxy
         console.log("Deploying RollupBridge proxy...");
-        
-        bytes memory rollupBridgeInitData = abi.encodeCall(
-            RollupBridge.initialize,
-            (zkVerifier, zecFrost, groth16Verifier, deployer)
-        );
+
+        bytes memory rollupBridgeInitData =
+            abi.encodeCall(RollupBridge.initialize, (zkVerifier, zecFrost, groth16Verifier, deployer));
 
         ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
         rollupBridge = address(rollupBridgeProxy);

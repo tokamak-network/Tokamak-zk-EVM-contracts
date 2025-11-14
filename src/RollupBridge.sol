@@ -59,7 +59,6 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         uint256 z;
     }
 
-
     struct ChannelParams {
         address[] allowedTokens;
         address[] participants;
@@ -81,9 +80,9 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
     }
 
     struct ChannelInitializationProof {
-        uint[4] pA;
-        uint[8] pB;
-        uint[4] pC;
+        uint256[4] pA;
+        uint256[8] pB;
+        uint256[4] pC;
         bytes32 merkleRoot;
     }
 
@@ -188,7 +187,10 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
      * @param _groth16Verifier Address of the Groth16 verifier contract
      * @param _owner Address that will own the contract
      */
-    function initialize(address _zkVerifier, address _zecFrost, address _groth16Verifier, address _owner) public initializer {
+    function initialize(address _zkVerifier, address _zecFrost, address _groth16Verifier, address _owner)
+        public
+        initializer
+    {
         __ReentrancyGuard_init();
         __Ownable_init_unchained();
         _transferOwnership(_owner);
@@ -246,17 +248,18 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         uint256 tokensLength = params.allowedTokens.length;
         for (uint256 i = 0; i < tokensLength;) {
             address token = params.allowedTokens[i];
-            require(
-                token == ETH_TOKEN_ADDRESS || $.isTargetContractAllowed[token],
-                "Token not allowed"
-            );
-            
+            require(token == ETH_TOKEN_ADDRESS || $.isTargetContractAllowed[token], "Token not allowed");
+
             // Check for duplicate tokens
             for (uint256 j = i + 1; j < tokensLength;) {
                 require(params.allowedTokens[j] != token, "Duplicate token");
-                unchecked { ++j; }
+                unchecked {
+                    ++j;
+                }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         unchecked {
@@ -278,7 +281,9 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         for (uint256 i = 0; i < tokensLength;) {
             channel.allowedTokens.push(params.allowedTokens[i]);
             channel.isTokenAllowed[params.allowedTokens[i]] = true;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         uint256 participantsLength = params.participants.length;
@@ -318,7 +323,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         require(msg.value > 0, "Deposit must be greater than 0");
         require(channel.isTokenAllowed[ETH_TOKEN_ADDRESS], "ETH not allowed in this channel");
         require(_mptKey != bytes32(0), "Invalid MPT key");
-        
+
         // Store the L2 MPT key for this participant and token
         channel.l2MptKeys[msg.sender][ETH_TOKEN_ADDRESS] = uint256(_mptKey);
 
@@ -344,7 +349,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         require(_token != ETH_TOKEN_ADDRESS, "Use depositETH for ETH deposits");
         require(channel.isTokenAllowed[_token], "Token not allowed in this channel");
         require(_mptKey != bytes32(0), "Invalid MPT key");
-        
+
         // Store the L2 MPT key for this participant and token
         channel.l2MptKeys[msg.sender][_token] = uint256(_mptKey);
 
@@ -364,7 +369,10 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
      * @dev The proof verifies that the provided merkle root correctly represents
      *      the channel participants and their deposit balances
      */
-    function initializeChannelState(uint256 channelId, ChannelInitializationProof calldata proof) external nonReentrant {
+    function initializeChannelState(uint256 channelId, ChannelInitializationProof calldata proof)
+        external
+        nonReentrant
+    {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         require(channel.state == ChannelState.Initialized, "Invalid state");
@@ -377,28 +385,28 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
 
         // Build public signals array for Groth16 verification
         uint256[129] memory publicSignals;
-        
+
         // Fill merkle keys (L2 MPT keys) and storage values (balances)
         // Each participant has entries for each token type
         uint256 entryIndex = 0;
         for (uint256 i = 0; i < participantsLength;) {
             address l1Address = channel.participants[i];
-            
+
             for (uint256 j = 0; j < tokensLength;) {
                 address token = channel.allowedTokens[j];
                 uint256 balance = channel.tokenDeposits[token][l1Address];
                 uint256 l2MptKey = channel.l2MptKeys[l1Address][token];
-                
+
                 // If participant has deposited this token, they must have provided MPT key during deposit
                 if (balance > 0) {
                     require(l2MptKey != 0, "Participant MPT key not set for token");
                 }
 
-                // Add to public signals: 
+                // Add to public signals:
                 // - first 64 are merkle_keys (L2 MPT keys)
                 // - next 64 are storage_values (balances)
-                publicSignals[entryIndex] = l2MptKey;  // L2 MPT key for specific token
-                publicSignals[entryIndex + 64] = balance;  // storage value
+                publicSignals[entryIndex] = l2MptKey; // L2 MPT key for specific token
+                publicSignals[entryIndex + 64] = balance; // storage value
 
                 unchecked {
                     ++j;
@@ -413,8 +421,8 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
 
         // Pad remaining slots with zeros (circuit expects exactly 64 entries)
         for (uint256 i = totalEntries; i < 64;) {
-            publicSignals[i] = 0;        // merkle key (L2 MPT key)
-            publicSignals[i + 64] = 0;   // storage value
+            publicSignals[i] = 0; // merkle key (L2 MPT key)
+            publicSignals[i + 64] = 0; // storage value
             unchecked {
                 ++i;
             }
@@ -424,13 +432,8 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         publicSignals[128] = uint256(proof.merkleRoot);
 
         // Verify the Groth16 proof
-        bool proofValid = $.groth16Verifier.verifyProof(
-            proof.pA,
-            proof.pB,
-            proof.pC,
-            publicSignals
-        );
-        
+        bool proofValid = $.groth16Verifier.verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
+
         require(proofValid, "Invalid Groth16 proof");
 
         // Store the verified merkle root and update state
@@ -459,7 +462,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
 
         uint256 initialBalanceSum = 0;
         uint256 finalBalanceSum = 0;
-        
+
         // Get first token for simplified single-token proof verification (TODO: handle multiple tokens properly)
         address firstToken = channel.allowedTokens.length > 0 ? channel.allowedTokens[0] : ETH_TOKEN_ADDRESS;
 
@@ -470,7 +473,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
 
             uint256 finalBalance = RLP.extractBalanceFromMPTLeaf(proofData.finalMPTLeaves[i]);
             finalBalanceSum += finalBalance;
-            
+
             // Store the withdrawable amount for each participant (using first token for now)
             address participantAddress = channel.participants[i];
             channel.withdrawAmount[firstToken][participantAddress] = finalBalance;
@@ -596,10 +599,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
      * @dev Only participants can withdraw once per channel
      *      The withdrawable amount was determined during proof verification
      */
-    function withdrawAfterClose(
-        uint256 channelId,
-        address token
-    ) external nonReentrant {
+    function withdrawAfterClose(uint256 channelId, address token) external nonReentrant {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
 
@@ -850,8 +850,6 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-
-
     /**
      * @notice Slashes the leader's bond for misconduct
      * @param channelId The channel ID
@@ -912,7 +910,11 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
      * @param token The token address
      * @return The deposit amount
      */
-    function _getParticipantTokenDeposit(uint256 channelId, address participant, address token) internal view returns (uint256) {
+    function _getParticipantTokenDeposit(uint256 channelId, address participant, address token)
+        internal
+        view
+        returns (uint256)
+    {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.channels[channelId].tokenDeposits[token][participant];
     }
@@ -1029,7 +1031,6 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         return $.allowedTargetContracts[targetContract];
     }
 
-
     /**
      * @notice Gets the channel state
      * @param channelId The channel ID
@@ -1048,7 +1049,11 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
      * @param token The token address
      * @return amount The deposit amount
      */
-    function getParticipantTokenDeposit(uint256 channelId, address participant, address token) external view returns (uint256) {
+    function getParticipantTokenDeposit(uint256 channelId, address participant, address token)
+        external
+        view
+        returns (uint256)
+    {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
         return channel.tokenDeposits[token][participant];
@@ -1076,8 +1081,6 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         Channel storage channel = $.channels[channelId];
         return (channel.initialStateRoot, channel.finalStateRoot);
     }
-
-
 
     /**
      * @notice Gets basic channel information
@@ -1110,10 +1113,6 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         );
     }
 
-
-
-
-
     /**
      * @notice Gets timeout information for a channel
      * @param channelId The channel ID
@@ -1142,10 +1141,6 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         return block.timestamp > (channel.openTimestamp + channel.timeout);
     }
 
-
-
-
-
     /**
      * @notice Gets all participants in a channel
      * @param channelId The channel ID
@@ -1165,11 +1160,6 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         }
         return participants;
     }
-
-
-
-
-
 
     /**
      * @notice Gets preprocessed proof data for a channel
@@ -1215,13 +1205,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
     {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         Channel storage channel = $.channels[channelId];
-        return (
-            channel.id,
-            channel.allowedTokens,
-            channel.state,
-            channel.participants.length,
-            channel.leader
-        );
+        return (channel.id, channel.allowedTokens, channel.state, channel.participants.length, channel.leader);
     }
 
     /**
@@ -1279,7 +1263,11 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
      * @param token The token address
      * @return The withdrawable amount
      */
-    function getWithdrawableAmount(uint256 channelId, address participant, address token) external view returns (uint256) {
+    function getWithdrawableAmount(uint256 channelId, address participant, address token)
+        external
+        view
+        returns (uint256)
+    {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.channels[channelId].withdrawAmount[token][participant];
     }

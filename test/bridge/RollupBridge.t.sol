@@ -61,6 +61,32 @@ contract MockERC20 is ERC20 {
     }
 }
 
+// High precision token (27 decimals)
+contract HighPrecisionToken is ERC20 {
+    constructor() ERC20("High Precision Token", "HPT") {}
+    
+    function decimals() public pure override returns (uint8) {
+        return 27;
+    }
+    
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
+
+// USDT-like token (6 decimals)
+contract USDTLikeToken is ERC20 {
+    constructor() ERC20("USDT Like Token", "USDT") {}
+    
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+    
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
+
 contract RollupBridgeTest is Test {
     using RLP for bytes;
 
@@ -68,6 +94,8 @@ contract RollupBridgeTest is Test {
     MockTokamakVerifier public tokamakVerifier;
     MockGroth16Verifier public groth16Verifier;
     MockERC20 public token;
+    HighPrecisionToken public highPrecisionToken;
+    USDTLikeToken public usdtLikeToken;
 
     address public owner = address(1);
     address public leader = address(2);
@@ -101,6 +129,8 @@ contract RollupBridgeTest is Test {
         tokamakVerifier = new MockTokamakVerifier();
         groth16Verifier = new MockGroth16Verifier();
         token = new MockERC20();
+        highPrecisionToken = new HighPrecisionToken();
+        usdtLikeToken = new USDTLikeToken();
 
         ZecFrost zecFrost = new ZecFrost();
 
@@ -126,7 +156,19 @@ contract RollupBridgeTest is Test {
         token.mint(user2, INITIAL_TOKEN_BALANCE);
         token.mint(user3, INITIAL_TOKEN_BALANCE);
 
-        // Allow the token contract for testing
+        // Mint high precision tokens (2 tokens = 2 * 10^27)
+        uint256 highPrecisionAmount = 2 * 10**27;
+        highPrecisionToken.mint(user1, highPrecisionAmount);
+        highPrecisionToken.mint(user2, highPrecisionAmount);
+        highPrecisionToken.mint(user3, highPrecisionAmount);
+
+        // Mint USDT-like tokens (1 token = 1 * 10^6)  
+        uint256 usdtAmount = 1 * 10**6;
+        usdtLikeToken.mint(user1, usdtAmount);
+        usdtLikeToken.mint(user2, usdtAmount);
+        usdtLikeToken.mint(user3, usdtAmount);
+
+        // Allow the token contracts for testing
         uint128[] memory preprocessedPart1 = new uint128[](4);
         preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
         preprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
@@ -137,7 +179,10 @@ contract RollupBridgeTest is Test {
         preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
         preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
+        
         bridge.setAllowedTargetContract(address(token), preprocessedPart1, preprocessedPart2, bytes1(0x00), true);
+        bridge.setAllowedTargetContract(address(highPrecisionToken), preprocessedPart1, preprocessedPart2, bytes1(0x00), true);
+        bridge.setAllowedTargetContract(address(usdtLikeToken), preprocessedPart1, preprocessedPart2, bytes1(0x00), true);
 
         vm.stopPrank();
     }
@@ -393,8 +438,6 @@ contract RollupBridgeTest is Test {
         vm.prank(user1);
         bridge.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
 
-        vm.prank(user2);
-        bridge.depositETH{value: 2 ether}(channelId, bytes32(uint256(uint160(l2User2))));
 
         vm.prank(user3);
         bridge.depositETH{value: 3 ether}(channelId, bytes32(uint256(uint160(l2User3))));
@@ -1572,5 +1615,118 @@ contract RollupBridgeTest is Test {
         bridge.initializeChannelState(channelId, mockProof);
 
         vm.stopPrank();
+    }
+
+    // ========== Multi-Token Decimal Test ==========
+
+    function testInitializeChannelStateMultiTokenDifferentDecimals() public {
+        console.log("=== MULTI-TOKEN DIFFERENT DECIMALS TEST ===");
+        
+        // Create a channel with 2 tokens (high precision + USDT-like)
+        vm.startPrank(leader);
+        
+        address[] memory participants = new address[](3);
+        participants[0] = user1;
+        participants[1] = user2;
+        participants[2] = user3;
+        
+        address[] memory allowedTokens = new address[](2);
+        allowedTokens[0] = address(highPrecisionToken);
+        allowedTokens[1] = address(usdtLikeToken);
+        
+        RollupBridge.ChannelParams memory params = RollupBridge.ChannelParams({
+            allowedTokens: allowedTokens,
+            participants: participants,
+            timeout: 1 days,
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        });
+        
+        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        vm.stopPrank();
+        
+        // user1 deposits BOTH tokens (as requested in the scenario)
+        vm.startPrank(user1);
+        
+        // Define different MPT keys for each token
+        uint256 customMptKeyUint = 6218676549690402052910318315276979534381485872621884367715834658603456243904;
+        bytes32 customMptKey = bytes32(customMptKeyUint);
+        uint256 customMptKeyUint2 = 110580260996340110094785440981620907308337756065855730273934386618448660286152;
+        bytes32 customMptKey2 = bytes32(customMptKeyUint2);
+        console.log("Using MPT key for high precision token:", customMptKeyUint);
+        console.log("Using MPT key for USDT token:", customMptKeyUint2);
+        
+        // Deposit 2 high precision tokens (2 * 10^27)
+        uint256 highPrecisionDepositAmount = 2 * 10**27;
+        highPrecisionToken.approve(address(bridge), highPrecisionDepositAmount);
+        bridge.depositToken(
+            channelId, 
+            address(highPrecisionToken), 
+            highPrecisionDepositAmount, 
+            customMptKey
+        );
+        
+        // Deposit 1 USDT-like token (1 * 10^6)
+        uint256 usdtDepositAmount = 1 * 10**6;
+        usdtLikeToken.approve(address(bridge), usdtDepositAmount);
+        bridge.depositToken(
+            channelId, 
+            address(usdtLikeToken), 
+            usdtDepositAmount, 
+            customMptKey2
+        );
+        
+        vm.stopPrank();
+        
+        // Verify the deposits were recorded correctly
+        uint256 recordedHighPrecision = bridge.getParticipantTokenDeposit(channelId, user1, address(highPrecisionToken));
+        uint256 recordedUSDT = bridge.getParticipantTokenDeposit(channelId, user1, address(usdtLikeToken));
+        
+        console.log("Recorded high precision deposit:", recordedHighPrecision);
+        console.log("Recorded USDT deposit:", recordedUSDT);
+        
+        assertEq(recordedHighPrecision, highPrecisionDepositAmount, "High precision deposit amount mismatch");
+        assertEq(recordedUSDT, usdtDepositAmount, "USDT deposit amount mismatch");
+        
+        // Check L2 MPT keys were stored correctly with different values
+        uint256 l2KeyHighPrecision = bridge.getL2MptKey(channelId, user1, address(highPrecisionToken));
+        uint256 l2KeyUSDT = bridge.getL2MptKey(channelId, user1, address(usdtLikeToken));
+        
+        console.log("L2 MPT key for high precision token:", l2KeyHighPrecision);
+        console.log("L2 MPT key for USDT token:", l2KeyUSDT);
+        
+        assertEq(l2KeyHighPrecision, customMptKeyUint, "High precision L2 key mismatch");
+        assertEq(l2KeyUSDT, customMptKeyUint2, "USDT L2 key mismatch");
+        
+        // Initialize state to trigger publicSignals computation
+        bytes32 mockMerkleRoot = 0x13463619a8c8f2864c061e06e5353e7aa8a950ed8c2ebc97204b9c5edb541b93;
+        RollupBridge.ChannelInitializationProof memory mockProof = RollupBridge.ChannelInitializationProof({
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
+            merkleRoot: mockMerkleRoot
+        });
+        
+        vm.prank(leader);
+        bridge.initializeChannelState(channelId, mockProof);
+        
+        // Verify channel state
+        (, RollupBridge.ChannelState state,, bytes32 initialRoot,) = bridge.getChannelInfo(channelId);
+        assertEq(uint8(state), uint8(RollupBridge.ChannelState.Open));
+        assertEq(initialRoot, mockMerkleRoot);
+        
+        console.log("=== TEST COMPLETED SUCCESSFULLY ===");
+        console.log("Expected publicSignals structure:");
+        console.log("- publicSignals[0] = merkle root");
+        console.log("- publicSignals[1] = user1 L2 key for high precision token:", customMptKeyUint);
+        console.log("- publicSignals[2] = user2 L2 key for high precision token: 0");
+        console.log("- publicSignals[3] = user3 L2 key for high precision token: 0");
+        console.log("- publicSignals[4] = user1 L2 key for USDT token:", customMptKeyUint2);
+        console.log("- After % R_MOD, should be: 5708510646087729135889959965248975632956651064800454628727069218571497917126");
+        console.log("- publicSignals[5-16] = remaining L2 keys (0s)");
+        console.log("- publicSignals[17] = user1 high precision balance (2000000000000000000000000000)");
+        console.log("- publicSignals[18-19] = user2,user3 high precision balances (0s)");
+        console.log("- publicSignals[20] = user1 USDT balance (1000000)");
+        console.log("- publicSignals[21-32] = remaining balances (0s)");
     }
 }

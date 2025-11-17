@@ -150,6 +150,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
 
     uint256 public constant LEADER_BOND_REQUIRED = 0.001 ether; // Leader must deposit this amount to open channel
 
+    uint256 constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     // ========== STORAGE ==========
 
     /// @custom:storage-location erc7201:tokamak.storage.RollupBridge
@@ -388,17 +389,31 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
 
         // First element is the merkle root
         publicSignals[0] = uint256(proof.merkleRoot);
+        console.log("=== INITIALIZE CHANNEL STATE DEBUG ===");
+        console.log("Channel ID:", channelId);
+        console.log("Participants length:", participantsLength);
+        console.log("Tokens length:", tokensLength);
+        console.log("Total entries (participants * tokens):", totalEntries);
+        console.log("Merkle root (publicSignals[0]):", uint256(proof.merkleRoot));
+        console.log("R_MOD:", R_MOD);
 
         // Fill merkle keys (L2 MPT keys) and storage values (balances)
-        // Each participant has entries for each token type
+        // Organized by token first, then participant (correct circuit format)
         uint256 entryIndex = 0;
-        for (uint256 i = 0; i < participantsLength;) {
-            address l1Address = channel.participants[i];
+        for (uint256 j = 0; j < tokensLength;) {
+            address token = channel.allowedTokens[j];
+            console.log("--- Token", j);
+            console.log("Token address:", token);
 
-            for (uint256 j = 0; j < tokensLength;) {
-                address token = channel.allowedTokens[j];
+            for (uint256 i = 0; i < participantsLength;) {
+                address l1Address = channel.participants[i];
                 uint256 balance = channel.tokenDeposits[token][l1Address];
                 uint256 l2MptKey = channel.l2MptKeys[l1Address][token];
+
+                console.log("  Participant", i);
+                console.log("  L1 Address:", l1Address);
+                console.log("  Raw balance:", balance);
+                console.log("  Raw L2 MPT key:", l2MptKey);
 
                 // If participant has deposited this token, they must have provided MPT key during deposit
                 if (balance > 0) {
@@ -408,31 +423,65 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
                 // Add to public signals:
                 // - indices 1-16 are merkle_keys (L2 MPT keys)
                 // - indices 17-32 are storage_values (balances)
-                publicSignals[entryIndex + 1] = l2MptKey; // L2 MPT key for specific token
-                publicSignals[entryIndex + 17] = balance; // storage value
+                uint256 modedL2MptKey = l2MptKey % R_MOD;
+                uint256 modedBalance = balance % R_MOD;
+                
+                publicSignals[entryIndex + 1] = modedL2MptKey; // L2 MPT key for specific token
+                publicSignals[entryIndex + 17] = modedBalance; // storage value
+
+                console.log("  Entry index:", entryIndex);
+                console.log("  L2 MPT key % R_MOD:", modedL2MptKey);
+                console.log("  Balance % R_MOD:", modedBalance);
+                console.log("  publicSignals index for L2 key:", entryIndex + 1);
+                console.log("  publicSignals index for balance:", entryIndex + 17);
+                console.log("  publicSignals L2 key value:", publicSignals[entryIndex + 1]);
+                console.log("  publicSignals balance value:", publicSignals[entryIndex + 17]);
 
                 unchecked {
-                    ++j;
+                    ++i;
                     ++entryIndex;
                 }
             }
 
             unchecked {
-                ++i;
+                ++j;
             }
         }
 
+        console.log("=== PADDING PHASE ===");
         // Pad remaining slots with zeros (circuit expects exactly 16 entries)
         for (uint256 i = totalEntries; i < 16;) {
             publicSignals[i + 1] = 0; // merkle key (L2 MPT key)
             publicSignals[i + 17] = 0; // storage value
+            console.log("Padding entry:", i);
+            console.log("  Setting publicSignals[", i + 1, "] = 0");
+            console.log("  Setting publicSignals[", i + 17, "] = 0");
             unchecked {
                 ++i;
             }
         }
 
+        console.log("=== FINAL PUBLIC SIGNALS ARRAY ===");
+        for (uint256 i = 0; i < 33; i++) {
+            console.log("publicSignals[%d] = %d", i, publicSignals[i]);
+        }
+
         // Verify the Groth16 proof
+        console.log("=== GROTH16 PROOF VERIFICATION ===");
+        console.log("Calling verifyProof with:");
+        console.log("pA[0]:", proof.pA[0]);
+        console.log("pA[1]:", proof.pA[1]);
+        console.log("pA[2]:", proof.pA[2]);
+        console.log("pA[3]:", proof.pA[3]);
+        
         bool proofValid = $.groth16Verifier.verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
+        
+        console.log("Proof verification result:", proofValid);
+        if (!proofValid) {
+            console.log("PROOF VERIFICATION FAILED!");
+        } else {
+            console.log("PROOF VERIFICATION PASSED!");
+        }
 
         require(proofValid, "Invalid Groth16 proof");
 

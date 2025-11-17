@@ -1281,5 +1281,50 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         return $.channels[channelId].withdrawAmount[token][participant];
     }
 
+    /**
+     * @notice Gets the L2 MPT key for a participant and token in a channel
+     * @param channelId The channel ID
+     * @param participant The participant address
+     * @param token The token address
+     * @return The L2 MPT key
+     */
+    function getL2MptKey(uint256 channelId, address participant, address token)
+        external
+        view
+        returns (uint256)
+    {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.channels[channelId].l2MptKeys[participant][token];
+    }
+
+    /**
+     * @notice Gets all L2 MPT keys for a specific token in a channel
+     * @param channelId The channel ID
+     * @param token The token address
+     * @return participants Array of participant addresses
+     * @return l2MptKeys Array of corresponding L2 MPT keys
+     */
+    function getL2MptKeysList(uint256 channelId, address token)
+        external
+        view
+        returns (address[] memory participants, uint256[] memory l2MptKeys)
+    {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        Channel storage channel = $.channels[channelId];
+        
+        uint256 participantCount = channel.participants.length;
+        participants = new address[](participantCount);
+        l2MptKeys = new uint256[](participantCount);
+        
+        for (uint256 i = 0; i < participantCount;) {
+            address participant = channel.participants[i];
+            participants[i] = participant;
+            l2MptKeys[i] = channel.l2MptKeys[participant][token];
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     uint256[42] private __gap;
 }

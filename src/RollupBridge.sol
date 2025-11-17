@@ -14,7 +14,7 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuar
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "./library/RollupBridgeLib.sol";
-import "./interface/IGroth16Verifier64Leaves.sol";
+import "./interface/IGroth16Verifier16Leaves.sol";
 
 /**
  * @title RollupBridgeUpgradeable
@@ -144,7 +144,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
     // ========== CONSTANTS ==========
     uint256 public constant PROOF_SUBMISSION_DEADLINE = 7 days; // Leader has 7 days after timeout to submit proof
     uint256 public constant MIN_PARTICIPANTS = 3;
-    uint256 public constant MAX_PARTICIPANTS = 64;
+    uint256 public constant MAX_PARTICIPANTS = 16;
     uint256 public constant NATIVE_TOKEN_TRANSFER_GAS_LIMIT = 1_000_000;
     address public constant ETH_TOKEN_ADDRESS = address(1);
 
@@ -161,7 +161,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         uint256 nextChannelId;
         ITokamakVerifier zkVerifier; // on-chain zkSNARK verifier contract
         IZecFrost zecFrost; // on-chain sig verifier contract
-        IGroth16Verifier64Leaves groth16Verifier; // Groth16 proof verifier contract
+        IGroth16Verifier16Leaves groth16Verifier; // Groth16 proof verifier contract
         // ========== L2 ADDRESS COLLISION PREVENTION ==========
         mapping(uint256 => mapping(address => bool)) usedL2Addresses; // channelId => l2Address => used
         mapping(address => mapping(uint256 => address)) l2ToL1Mapping; // l2Address => channelId => l1Address
@@ -199,7 +199,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         $.zkVerifier = ITokamakVerifier(_zkVerifier);
         $.zecFrost = IZecFrost(_zecFrost);
-        $.groth16Verifier = IGroth16Verifier64Leaves(_groth16Verifier);
+        $.groth16Verifier = IGroth16Verifier16Leaves(_groth16Verifier);
     }
 
     // ========== EXTERNAL FUNCTIONS ==========
@@ -220,7 +220,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
      *      - Caller cannot already be a channel leader
      *      - Must specify at least one allowed token
      *      - All specified tokens must be pre-approved via setAllowedTargetContract
-     *      - Maximum participants = 64 / number_of_allowed_tokens (circuit capacity constraint)
+     *      - Maximum participants = 16 / number_of_allowed_tokens (circuit capacity constraint)
      *      - Number of participants must be between 1 and calculated maximum
      *      - Timeout must be between 1 hour and 7 days
      *      - No duplicate participants or tokens allowed
@@ -237,7 +237,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         require(params.timeout >= 1 hours && params.timeout <= 365 days, "Invalid timeout");
 
         // Calculate maximum participants based on number of tokens
-        // 64 circuit capacity / number_of_tokens = max participants
+        // 16 circuit capacity / number_of_tokens = max participants
         uint256 maxParticipants = MAX_PARTICIPANTS / params.allowedTokens.length;
         require(
             params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= maxParticipants,
@@ -381,10 +381,13 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
         uint256 participantsLength = channel.participants.length;
         uint256 tokensLength = channel.allowedTokens.length;
         uint256 totalEntries = participantsLength * tokensLength;
-        require(totalEntries <= 64, "Too many participant-token combinations for circuit");
+        require(totalEntries <= 16, "Too many participant-token combinations for circuit");
 
         // Build public signals array for Groth16 verification
-        uint256[129] memory publicSignals;
+        uint256[33] memory publicSignals;
+
+        // First element is the merkle root
+        publicSignals[0] = uint256(proof.merkleRoot);
 
         // Fill merkle keys (L2 MPT keys) and storage values (balances)
         // Each participant has entries for each token type
@@ -403,10 +406,10 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
                 }
 
                 // Add to public signals:
-                // - first 64 are merkle_keys (L2 MPT keys)
-                // - next 64 are storage_values (balances)
-                publicSignals[entryIndex] = l2MptKey; // L2 MPT key for specific token
-                publicSignals[entryIndex + 64] = balance; // storage value
+                // - indices 1-16 are merkle_keys (L2 MPT keys)
+                // - indices 17-32 are storage_values (balances)
+                publicSignals[entryIndex + 1] = l2MptKey; // L2 MPT key for specific token
+                publicSignals[entryIndex + 17] = balance; // storage value
 
                 unchecked {
                     ++j;
@@ -419,17 +422,14 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
             }
         }
 
-        // Pad remaining slots with zeros (circuit expects exactly 64 entries)
-        for (uint256 i = totalEntries; i < 64;) {
-            publicSignals[i] = 0; // merkle key (L2 MPT key)
-            publicSignals[i + 64] = 0; // storage value
+        // Pad remaining slots with zeros (circuit expects exactly 16 entries)
+        for (uint256 i = totalEntries; i < 16;) {
+            publicSignals[i + 1] = 0; // merkle key (L2 MPT key)
+            publicSignals[i + 17] = 0; // storage value
             unchecked {
                 ++i;
             }
         }
-
-        // The 129th element is the computed merkle root (output of the circuit)
-        publicSignals[128] = uint256(proof.merkleRoot);
 
         // Verify the Groth16 proof
         bool proofValid = $.groth16Verifier.verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
@@ -699,7 +699,7 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
     function updateGroth16Verifier(address _newGroth16Verifier) external onlyOwner {
         require(_newGroth16Verifier != address(0), "Invalid Groth16Verifier address");
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
-        $.groth16Verifier = IGroth16Verifier64Leaves(_newGroth16Verifier);
+        $.groth16Verifier = IGroth16Verifier16Leaves(_newGroth16Verifier);
     }
 
     /**
@@ -989,6 +989,15 @@ contract RollupBridge is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpg
     function zecFrost() public view returns (IZecFrost) {
         RollupBridgeStorage storage $ = _getRollupBridgeStorage();
         return $.zecFrost;
+    }
+
+    /**
+     * @notice Gets the ZecFrost signature verifier contract
+     * @return The ZecFrost contract interface
+     */
+    function groth16Verifier() public view returns (IGroth16Verifier16Leaves) {
+        RollupBridgeStorage storage $ = _getRollupBridgeStorage();
+        return $.groth16Verifier;
     }
 
     /**

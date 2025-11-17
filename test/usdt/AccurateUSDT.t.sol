@@ -4,7 +4,7 @@ pragma solidity 0.8.29;
 import "forge-std/Test.sol";
 import "../../src/RollupBridge.sol";
 import "../../src/verifier/TokamakVerifier.sol";
-import "../../src/verifier/Groth16Verifier64Leaves.sol";
+import "../../src/verifier/Groth16Verifier16Leaves.sol";
 import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -167,7 +167,7 @@ contract AccurateUSDTTest is Test {
 
         // Deploy RollupBridge with proxy
         RollupBridge implementation = new RollupBridge();
-        Groth16Verifier64Leaves groth16Verifier = new Groth16Verifier64Leaves();
+        Groth16Verifier16Leaves groth16Verifier = new Groth16Verifier16Leaves();
         bytes memory initData = abi.encodeCall(
             RollupBridge.initialize, (address(verifier), address(zecFrost), address(groth16Verifier), owner)
         );

@@ -6,9 +6,9 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 
 import "../../src/RollupBridge.sol";
 import "../../src/verifier/TokamakVerifier.sol";
-import "../../src/verifier/Groth16Verifier64Leaves.sol";
+import "../../src/verifier/Groth16Verifier16Leaves.sol";
 import "../../src/interface/IZecFrost.sol";
-import "../../src/interface/IGroth16Verifier64Leaves.sol";
+import "../../src/interface/IGroth16Verifier16Leaves.sol";
 
 import {IERC20Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
 import {ERC20Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
@@ -63,8 +63,8 @@ contract MockZecFrost is IZecFrost {
  * @title MockGroth16Verifier
  * @dev Mock Groth16 verifier for testing - always returns true
  */
-contract MockGroth16Verifier is IGroth16Verifier64Leaves {
-    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[129] calldata)
+contract MockGroth16Verifier is IGroth16Verifier16Leaves {
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[33] calldata)
         external
         pure
         returns (bool)

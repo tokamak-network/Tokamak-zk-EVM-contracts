@@ -5,11 +5,11 @@ import "forge-std/Test.sol";
 import "../../src/RollupBridge.sol";
 import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
-import "../../src/interface/IGroth16Verifier64Leaves.sol";
+import "../../src/interface/IGroth16Verifier16Leaves.sol";
 import {ZecFrost} from "../../src/library/ZecFrost.sol";
 
 import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
-import {Groth16Verifier64Leaves} from "../../src/verifier/Groth16Verifier64Leaves.sol";
+import {Groth16Verifier16Leaves} from "../../src/verifier/Groth16Verifier16Leaves.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../../src/library/RLP.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
@@ -34,14 +34,14 @@ contract MockTokamakVerifier is ITokamakVerifier {
     }
 }
 
-contract MockGroth16Verifier is IGroth16Verifier64Leaves {
+contract MockGroth16Verifier is IGroth16Verifier16Leaves {
     bool public shouldVerify = true;
 
     function setShouldVerify(bool _should) external {
         shouldVerify = _should;
     }
 
-    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[129] calldata)
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[33] calldata)
         external
         view
         override

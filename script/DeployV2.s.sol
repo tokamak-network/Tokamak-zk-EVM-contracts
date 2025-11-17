@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/RollupBridge.sol";
 import "../src/verifier/TokamakVerifier.sol";
-import "../src/verifier/Groth16Verifier64Leaves.sol";
+import "../src/verifier/Groth16Verifier16Leaves.sol";
 import "../src/library/ZecFrost.sol";
 
 contract DeployV2Script is Script {
@@ -66,8 +66,8 @@ contract DeployV2Script is Script {
         }
 
         // Deploy Groth16 Verifier
-        console.log("Deploying Groth16Verifier...");
-        Groth16Verifier64Leaves groth16VerifierContract = new Groth16Verifier64Leaves();
+        console.log("Deploying Groth16Verifier16Leaves...");
+        Groth16Verifier16Leaves groth16VerifierContract = new Groth16Verifier16Leaves();
         address groth16Verifier = address(groth16VerifierContract);
         console.log("Groth16Verifier deployed at:", groth16Verifier);
 

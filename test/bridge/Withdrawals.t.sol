@@ -4,8 +4,8 @@ pragma solidity 0.8.29;
 import {Test, console} from "forge-std/Test.sol";
 import {RollupBridge} from "../../src/RollupBridge.sol";
 import {ITokamakVerifier} from "../../src/interface/ITokamakVerifier.sol";
-import {IGroth16Verifier64Leaves} from "../../src/interface/IGroth16Verifier64Leaves.sol";
-import {Groth16Verifier64Leaves} from "../../src/verifier/Groth16Verifier64Leaves.sol";
+import {IGroth16Verifier16Leaves} from "../../src/interface/IGroth16Verifier16Leaves.sol";
+import {Groth16Verifier16Leaves} from "../../src/verifier/Groth16Verifier16Leaves.sol";
 import {ZecFrost} from "../../src/library/ZecFrost.sol";
 import {RLP} from "../../src/library/RLP.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
@@ -37,7 +37,7 @@ contract MockERC20 is ERC20 {
 contract WithdrawalsTest is Test {
     RollupBridge public rollupBridge;
     MockTokamakVerifier public mockTokamakVerifier;
-    Groth16Verifier64Leaves public groth16Verifier; // Real Groth16 verifier
+    Groth16Verifier16Leaves public groth16Verifier; // Real Groth16 verifier
     ZecFrost public mockZecFrost;
     MockERC20 public testToken;
 
@@ -71,7 +71,7 @@ contract WithdrawalsTest is Test {
     function setUp() public {
         // Deploy contracts
         mockTokamakVerifier = new MockTokamakVerifier();
-        groth16Verifier = new Groth16Verifier64Leaves(); // Real Groth16 verifier
+        groth16Verifier = new Groth16Verifier16Leaves(); // Real Groth16 verifier
         testToken = new MockERC20("Test Token", "TEST");
 
         // Deploy RollupBridge implementation

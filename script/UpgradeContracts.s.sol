@@ -2,7 +2,11 @@
 pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
-import "../src/RollupBridge.sol";
+import "../src/RollupBridgeCore.sol";
+import "../src/RollupBridgeDepositManager.sol";
+import "../src/RollupBridgeProofManager.sol";
+import "../src/RollupBridgeWithdrawManager.sol";
+import "../src/RollupBridgeAdminManager.sol";
 
 contract UpgradeContractsScript is Script {
     // Existing proxy addresses (to be set via environment variables)
@@ -69,7 +73,7 @@ contract UpgradeContractsScript is Script {
     function _verifyOwnership() internal view {
         console.log("\n[OWNERSHIP] Verifying contract ownership...");
 
-        RollupBridge rollupBridge = RollupBridge(payable(rollupBridgeProxy));
+        RollupBridgeCore rollupBridge = RollupBridgeCore(payable(rollupBridgeProxy));
         address currentOwner = rollupBridge.owner();
         require(currentOwner == deployer, "Deployer is not owner of RollupBridge");
         console.log("[SUCCESS] Deployer is owner of RollupBridge");
@@ -80,7 +84,7 @@ contract UpgradeContractsScript is Script {
 
         // Deploy new implementation
         console.log("Deploying new RollupBridge implementation...");
-        RollupBridge newImplContract = new RollupBridge();
+        RollupBridgeCore newImplContract = new RollupBridgeCore();
         newRollupBridgeImpl = address(newImplContract);
         console.log("New implementation deployed at:", newRollupBridgeImpl);
 
@@ -93,7 +97,7 @@ contract UpgradeContractsScript is Script {
         require(currentImpl != newRollupBridgeImpl, "Implementation addresses are the same");
 
         // Perform upgrade
-        RollupBridge rollupBridge = RollupBridge(payable(rollupBridgeProxy));
+        RollupBridgeCore rollupBridge = RollupBridgeCore(payable(rollupBridgeProxy));
         rollupBridge.upgradeTo(newRollupBridgeImpl);
 
         console.log("[SUCCESS] RollupBridge upgraded successfully");
@@ -106,7 +110,7 @@ contract UpgradeContractsScript is Script {
         require(currentImpl == newRollupBridgeImpl, "RollupBridge upgrade verification failed");
 
         // Verify functionality still works
-        RollupBridge rollupBridge = RollupBridge(payable(rollupBridgeProxy));
+        RollupBridgeCore rollupBridge = RollupBridgeCore(payable(rollupBridgeProxy));
         require(rollupBridge.owner() == deployer, "Owner verification failed after upgrade");
 
         console.log("[SUCCESS] RollupBridge upgrade verified");

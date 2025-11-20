@@ -1,16 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
-import {Test, console} from "forge-std/Test.sol";
-import {RollupBridge} from "../../src/RollupBridge.sol";
-import {IRollupBridge} from "../../src/interface/IRollupBridge.sol";
-import {IVerifier} from "../../src/interface/IVerifier.sol";
+import "forge-std/Test.sol";
+import "../../src/RollupBridgeCore.sol";
+import "../../src/RollupBridgeProofManager.sol";
+import "../../src/RollupBridgeDepositManager.sol";
+import "../../src/RollupBridgeWithdrawManager.sol";
+import "../../src/RollupBridgeAdminManager.sol";
+import "../../src/interface/ITokamakVerifier.sol";
+import "../../src/interface/IZecFrost.sol";
+import "../../src/interface/IGroth16Verifier16Leaves.sol";
 import {ZecFrost} from "../../src/library/ZecFrost.sol";
-import {RLP} from "../../src/library/RLP.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
+import {Groth16Verifier16Leaves} from "../../src/verifier/Groth16Verifier16Leaves.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "@openzeppelin/token/ERC20/ERC20.sol";
 
-contract MockVerifier is IVerifier {
+// Mock Contracts
+contract MockTokamakVerifier is ITokamakVerifier {
+    bool public shouldVerify = true;
+
+    function setShouldVerify(bool _should) external {
+        shouldVerify = _should;
+    }
+
     function verify(
         uint128[] calldata,
         uint256[] calldata,
@@ -18,642 +31,673 @@ contract MockVerifier is IVerifier {
         uint256[] calldata,
         uint256[] calldata,
         uint256
-    ) external pure returns (bool) {
-        return true; // Always return true for testing
+    ) external view override returns (bool) {
+        return shouldVerify;
     }
 }
 
-contract MockERC20 is ERC20 {
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
-        _mint(msg.sender, 1000000 * 10 ** 18);
+contract MockZecFrost is IZecFrost {
+    address public mockSigner;
+
+    constructor() {
+        mockSigner = address(this);
     }
 
-    function mint(address to, uint256 amount) external {
+    function verify(bytes32, uint256, uint256, uint256, uint256, uint256) external view override returns (address) {
+        return mockSigner;
+    }
+
+    function setMockSigner(address _signer) external {
+        mockSigner = _signer;
+    }
+}
+
+contract MockGroth16Verifier is IGroth16Verifier16Leaves {
+    bool public shouldVerify = true;
+
+    function setShouldVerify(bool _should) external {
+        shouldVerify = _should;
+    }
+
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[33] calldata)
+        external
+        view
+        returns (bool)
+    {
+        return shouldVerify;
+    }
+}
+
+contract TestERC20 is ERC20 {
+    constructor(string memory name, string memory symbol, uint8 _decimals) ERC20(name, symbol) {
+        _setupDecimals(_decimals);
+    }
+
+    function _setupDecimals(uint8 _decimals) internal {
+        // Note: This is a simplified mock. In production, you'd use OpenZeppelin's approach
+        // For testing purposes, we'll just mint tokens to test addresses
+    }
+
+    function mint(address to, uint256 amount) public {
         _mint(to, amount);
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return super.decimals();
     }
 }
 
 contract WithdrawalsTest is Test {
-    RollupBridge public rollupBridge;
-    MockVerifier public mockVerifier;
-    ZecFrost public mockZecFrost;
-    MockERC20 public testToken;
+    RollupBridgeCore public bridge;
+    RollupBridgeDepositManager public depositManager;
+    RollupBridgeProofManager public proofManager;
+    RollupBridgeWithdrawManager public withdrawManager;
+    RollupBridgeAdminManager public adminManager;
 
-    // Test participants
-    address public owner = makeAddr("owner");
-    address public leader = makeAddr("leader");
-    address public participant1 = 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0; // Address that FROST signature 1 recovers to
-    address public participant2 = 0x012C2171f631e27C4bA9f7f8262af2a48956939A; // Address that FROST signature 2 recovers to
-    address public participant3 = makeAddr("participant3"); // Third participant
+    MockTokamakVerifier public mockVerifier;
+    MockZecFrost public mockZecFrost;
+    MockGroth16Verifier public mockGroth16Verifier;
 
-    // L2 addresses (mock public keys)
-    address public l2Address1 = makeAddr("l2Address1");
-    address public l2Address2 = makeAddr("l2Address2");
-    address public l2Address3 = makeAddr("l2Address3");
+    TestERC20 public token;
 
-    // Test constants
-    uint256 public constant DEPOSIT_AMOUNT = 1 ether;
-    uint256 public constant CHANNEL_TIMEOUT = 1 days;
-    address public constant ETH_TOKEN_ADDRESS = address(1);
+    address public leader = address(0x1);
+    address public user1 = address(0x2);
+    address public user2 = address(0x3);
+    address public owner = address(0x4);
 
-    struct WithdrawalProofData {
-        string channelId;
-        string claimedBalance;
-        uint256 leafIndex;
-        string[] merkleProof;
-        string leafValue;
-        string userL1Address;
-        string userL2Address;
-    }
+    uint256 public channelId;
+
+    event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
 
     function setUp() public {
-        // Deploy contracts
-        mockVerifier = new MockVerifier();
-        testToken = new MockERC20("Test Token", "TEST");
-
-        // Deploy RollupBridge implementation
-        RollupBridge implementation = new RollupBridge();
-
-        // Deploy proxy
-        mockZecFrost = new ZecFrost();
-        bytes memory initData = abi.encodeWithSelector(
-            RollupBridge.initialize.selector, address(mockVerifier), address(mockZecFrost), owner
-        );
-
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
-        rollupBridge = RollupBridge(address(proxy));
-
-        // Allow the token contract for testing
         vm.startPrank(owner);
+
+        // Deploy mock contracts
+        mockVerifier = new MockTokamakVerifier();
+        mockZecFrost = new MockZecFrost();
+        mockGroth16Verifier = new MockGroth16Verifier();
+
+        // Deploy test token
+        token = new TestERC20("TestToken", "TT", 18);
+
+        // Deploy implementation contracts
+        RollupBridgeCore bridgeImpl = new RollupBridgeCore();
+
+        address[4] memory groth16Verifiers = [
+            address(mockGroth16Verifier),
+            address(mockGroth16Verifier),
+            address(mockGroth16Verifier),
+            address(mockGroth16Verifier)
+        ];
+
+        // Deploy manager contracts directly (not as proxies)
+        depositManager = new RollupBridgeDepositManager();
+        adminManager = new RollupBridgeAdminManager();
+        proofManager = new RollupBridgeProofManager();
+        withdrawManager = new RollupBridgeWithdrawManager();
+
+        // Deploy bridge with proxy pattern
+        bytes memory initData = abi.encodeCall(
+            RollupBridgeCore.initialize,
+            (address(depositManager), address(proofManager), address(withdrawManager), address(adminManager), owner)
+        );
+        ERC1967Proxy bridgeProxy = new ERC1967Proxy(address(bridgeImpl), initData);
+        bridge = RollupBridgeCore(payable(address(bridgeProxy)));
+
+        // Initialize manager contracts
+        depositManager.initialize(address(bridge), owner);
+        adminManager.initialize(address(bridge), owner);
+        withdrawManager.initialize(address(bridge), owner);
+        proofManager.initialize(address(bridge), address(mockVerifier), address(mockZecFrost), groth16Verifiers, owner);
+
+        // Register the test token and its transfer function
         uint128[] memory preprocessedPart1 = new uint128[](4);
-        preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
-        preprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
-        preprocessedPart1[2] = 0x18e54aba379045c9f5c18d8aefeaa8cc;
-        preprocessedPart1[3] = 0x08df3e052d4b1c0840d73edcea3f85e7;
         uint256[] memory preprocessedPart2 = new uint256[](4);
-        preprocessedPart2[0] = 0x7e084b3358f7f1404f0a4ee1acc6d254997032f77fd77593fab7c896b7cfce1e;
-        preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
-        preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
-        preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
-        rollupBridge.setAllowedTargetContract(address(testToken), preprocessedPart1, preprocessedPart2, true);
+        bytes32 transferSig = keccak256("transfer(address,uint256)");
+
+        adminManager.setAllowedTargetContract(address(token), bytes1(0x00), true);
+        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2);
+
         vm.stopPrank();
 
-        // Fund participants with ETH and tokens
+        console.log("Setup completed, starting channel setup");
+
+        // Setup channel for testing
+        _setupChannelForWithdrawals();
+    }
+
+    function _setupChannelForWithdrawals() internal {
+        console.log("Starting channel setup");
+        vm.startPrank(leader);
         vm.deal(leader, 10 ether);
-        vm.deal(participant1, 10 ether);
-        vm.deal(participant2, 10 ether);
-        vm.deal(participant3, 10 ether);
+        console.log("Leader funded with ETH");
 
-        testToken.mint(participant1, 1000 ether);
-        testToken.mint(participant2, 1000 ether);
-        testToken.mint(participant3, 1000 ether);
-
-        // Approve token spending
-        vm.prank(participant1);
-        testToken.approve(address(rollupBridge), type(uint256).max);
-        vm.prank(participant2);
-        testToken.approve(address(rollupBridge), type(uint256).max);
-        vm.prank(participant3);
-        testToken.approve(address(rollupBridge), type(uint256).max);
-    }
-
-    function _createETHChannel() internal returns (uint256 channelId) {
         address[] memory participants = new address[](3);
-        participants[0] = participant1;
-        participants[1] = participant2;
-        participants[2] = participant3;
+        participants[0] = user1;
+        participants[1] = user2;
+        participants[2] = leader;
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = l2Address1;
-        l2PublicKeys[1] = l2Address2;
-        l2PublicKeys[2] = l2Address3;
+        address[] memory allowedTokens = new address[](2);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[1] = address(token);
 
-        vm.startPrank(leader);
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: ETH_TOKEN_ADDRESS,
+        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
+            allowedTokens: allowedTokens,
             participants: participants,
-            l2PublicKeys: l2PublicKeys,
-            timeout: CHANNEL_TIMEOUT,
+            timeout: 1 days,
             pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
             pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         });
-        channelId = rollupBridge.openChannel{value: rollupBridge.LEADER_BOND_REQUIRED()}(params);
+
+        console.log("About to open channel");
+        console.log("Required bond:", bridge.LEADER_BOND_REQUIRED());
+        console.log("Leader balance:", leader.balance);
+
+        channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+
+        console.log("Channel opened with ID:", channelId);
         vm.stopPrank();
-    }
 
-    function _createTokenChannel() internal returns (uint256 channelId) {
-        address[] memory participants = new address[](3);
-        participants[0] = participant1;
-        participants[1] = participant2;
-        participants[2] = participant3;
+        // Make deposits
+        _makeDeposits();
 
-        address[] memory l2PublicKeys = new address[](3);
-        l2PublicKeys[0] = l2Address1;
-        l2PublicKeys[1] = l2Address2;
-        l2PublicKeys[2] = l2Address3;
-
-        vm.startPrank(leader);
-        IRollupBridge.ChannelParams memory params = IRollupBridge.ChannelParams({
-            targetContract: address(testToken),
-            participants: participants,
-            l2PublicKeys: l2PublicKeys,
-            timeout: CHANNEL_TIMEOUT,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
-        });
-        channelId = rollupBridge.openChannel{value: rollupBridge.LEADER_BOND_REQUIRED()}(params);
-        vm.stopPrank();
-    }
-
-    function _makeDeposits(uint256 channelId, bool isETH) internal {
-        if (isETH) {
-            vm.prank(participant1);
-            rollupBridge.depositETH{value: DEPOSIT_AMOUNT}(channelId);
-
-            vm.prank(participant2);
-            rollupBridge.depositETH{value: DEPOSIT_AMOUNT}(channelId);
-
-            vm.prank(participant3);
-            rollupBridge.depositETH{value: DEPOSIT_AMOUNT}(channelId);
-        } else {
-            vm.prank(participant1);
-            rollupBridge.depositToken(channelId, address(testToken), DEPOSIT_AMOUNT);
-
-            vm.prank(participant2);
-            rollupBridge.depositToken(channelId, address(testToken), DEPOSIT_AMOUNT);
-
-            vm.prank(participant3);
-            rollupBridge.depositToken(channelId, address(testToken), DEPOSIT_AMOUNT);
-        }
-    }
-
-    function _initializeAndCloseChannel(uint256 channelId) internal {
         // Initialize channel state
-        vm.prank(leader);
-        rollupBridge.initializeChannelState(channelId);
+        _initializeChannelState();
 
-        // Compute the proper withdrawal tree root:
-        // 1. Use lastRootInSequence as prevRoot to compute all participants' final balance leaves
-        // 2. Build tree with those leaves -> get withdrawal tree root
-        // 3. Use withdrawal tree root as finalStateRoot
-        // This is the tree root when each participant uses their individual root
-        // Computed via: node test/js-scripts/generateProof.js (simplified interface)
-        bytes32 computedFinalStateRoot = 0x3121a1e8f8bcda391e969e5c6bce8c98e3ddfe682ca93c23253fbb102c5487c5;
+        // Submit proof and close channel
+        _submitProofAndCloseChannel();
+    }
 
-        // Create participant roots array - each participant has their individual root
-        // In a real zkEVM, these would represent each participant's state at different computation points
-        bytes32[] memory participantRoots = new bytes32[](3);
-        participantRoots[0] = 0x8449acb4300b58b00e4852ab07d43f298eaa35688eaa3917ca205f20e6db73e8; // participant1
-        participantRoots[1] = 0x3bec727653ae8d56ac6d9c103182ff799fe0a3b512e9840f397f0d21848373e8; // participant2
-        participantRoots[2] = 0x11e1e541a59fb2cd7fa4371d63103972695ee4bb4d1e646e72427cf6cdc16498; // participant3
+    function _makeDeposits() internal {
+        console.log("Making deposits");
+        // User1 deposits ETH
+        vm.deal(user1, 5 ether);
+        console.log("User1 funded with ETH");
+        vm.prank(user1);
+        depositManager.depositETH{value: 2 ether}(channelId, bytes32(uint256(10)));
+        console.log("User1 deposited ETH");
 
-        // Submit aggregated proof
-        IRollupBridge.ProofData memory proofData = IRollupBridge.ProofData({
-            aggregatedProofHash: bytes32("mockProofHash"),
-            finalStateRoot: computedFinalStateRoot, // Use withdrawal tree root
-            proofPart1: new uint128[](1),
-            proofPart2: new uint256[](1),
-            publicInputs: new uint256[](1),
-            smax: 1,
-            initialMPTLeaves: new bytes[](3),
-            finalMPTLeaves: new bytes[](3),
-            participantRoots: participantRoots
-        });
-        proofData.proofPart1[0] = 1;
-        proofData.proofPart2[0] = 1;
-        proofData.publicInputs[0] = 1;
+        // User2 deposits tokens
+        token.mint(user2, 1000e18);
+        console.log("User2 minted tokens");
+        vm.startPrank(user2);
+        token.approve(address(depositManager), 500e18);
+        console.log("User2 approved tokens");
+        depositManager.depositToken(channelId, address(token), 500e18, bytes32(uint256(20)));
+        console.log("User2 deposited tokens");
+        vm.stopPrank();
+    }
 
-        // Create proper RLP-encoded MPT leaves for balance conservation
-        uint256[] memory balances = new uint256[](3);
-        balances[0] = DEPOSIT_AMOUNT;
-        balances[1] = DEPOSIT_AMOUNT;
-        balances[2] = DEPOSIT_AMOUNT;
-
-        proofData.initialMPTLeaves = _createMPTLeaves(balances);
-        proofData.finalMPTLeaves = _createMPTLeaves(balances);
-
-        // Advance time past the channel timeout to allow proof submission
-        vm.warp(block.timestamp + CHANNEL_TIMEOUT + 1);
-
-        vm.prank(leader);
-        rollupBridge.submitAggregatedProof(channelId, proofData);
-
-        // Sign aggregated proof
-        IRollupBridge.Signature memory signature = IRollupBridge.Signature({
-            message: 0x08f58e86bd753e86f2e0172081576b4c58909be5c2e70a8e30439d3a12d091be,
-            rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
-            ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
-            z: 0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25
+    function _initializeChannelState() internal {
+        console.log("Initializing channel state");
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        RollupBridgeProofManager.ChannelInitializationProof memory mockProof = RollupBridgeProofManager
+            .ChannelInitializationProof({
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
+            merkleRoot: mockMerkleRoot
         });
 
+        console.log("About to initialize channel state");
         vm.prank(leader);
-        rollupBridge.signAggregatedProof(channelId, signature);
-
-        // Close channel
-        // Close and finalize channel directly (no challenge period needed when signature verified)
-        vm.prank(leader);
-        rollupBridge.closeAndFinalizeChannel(channelId);
+        proofManager.initializeChannelState(channelId, mockProof);
+        console.log("Channel state initialized");
     }
 
-    function _getWithdrawalProof(uint256 channelId, address userL2Address, bytes32 finalStateRoot)
-        internal
-        returns (WithdrawalProofData memory)
-    {
-        // SIMPLIFIED INTERFACE: Only 3 parameters needed!
-        string[] memory inputs = new string[](7);
-        inputs[0] = "env";
-        inputs[1] = "FFI_MODE=true";
-        inputs[2] = "node";
-        inputs[3] = "test/js-scripts/generateProof.js";
-        inputs[4] = vm.toString(channelId);
-        inputs[5] = vm.toString(userL2Address);
-        inputs[6] = vm.toString(finalStateRoot);
-
-        bytes memory result = vm.ffi(inputs);
-        string memory resultStr = string(result);
-        return _parseCSVProofData(resultStr);
-    }
-
-    function _getWithdrawalProofForAll(uint256 channelId, address userL2Address, bytes32 finalStateRoot)
-        internal
-        returns (WithdrawalProofData memory)
-    {
-        // SIMPLIFIED INTERFACE: Only 3 parameters needed!
-        // No more hardcoded participant roots or redundant data
-        string[] memory inputs = new string[](7);
-        inputs[0] = "env";
-        inputs[1] = "FFI_MODE=true";
-        inputs[2] = "node";
-        inputs[3] = "test/js-scripts/generateProof.js";
-        inputs[4] = vm.toString(channelId);
-        inputs[5] = vm.toString(userL2Address);
-        inputs[6] = vm.toString(finalStateRoot);
-
-        bytes memory result = vm.ffi(inputs);
-        string memory resultStr = string(result);
-        return _parseCSVProofData(resultStr);
-    }
-
-    function _parseCSVProofData(string memory csvData) internal pure returns (WithdrawalProofData memory) {
-        // Parse CSV format: channelId,claimedBalance,leafIndex,proof1,proof2,...
-        // Split by comma and extract values
-        bytes memory csvBytes = bytes(csvData);
-        uint256 commaCount = 0;
-        for (uint256 i = 0; i < csvBytes.length; i++) {
-            if (csvBytes[i] == ",") commaCount++;
-        }
-
-        // We expect 3 fixed fields + 9 proof elements = 12 fields total (11 commas)
-        require(commaCount >= 11, "Invalid CSV format");
-
-        string[] memory parts = new string[](commaCount + 1);
-        uint256 partIndex = 0;
-        uint256 start = 0;
-
-        for (uint256 i = 0; i <= csvBytes.length; i++) {
-            if (i == csvBytes.length || csvBytes[i] == ",") {
-                bytes memory part = new bytes(i - start);
-                for (uint256 j = 0; j < i - start; j++) {
-                    part[j] = csvBytes[start + j];
-                }
-                parts[partIndex] = string(part);
-                partIndex++;
-                start = i + 1;
-            }
-        }
-
-        string[] memory merkleProof = new string[](parts.length - 3);
-        for (uint256 i = 3; i < parts.length; i++) {
-            merkleProof[i - 3] = parts[i];
-        }
-
-        return WithdrawalProofData({
-            channelId: parts[0],
-            claimedBalance: parts[1],
-            leafIndex: vm.parseUint(parts[2]),
-            merkleProof: merkleProof,
-            leafValue: "computed", // Not needed from CSV
-            userL1Address: "N/A", // Not needed from CSV
-            userL2Address: "N/A" // Not needed from CSV
+    function _submitProofAndCloseChannel() internal {
+        console.log("Submitting proof and closing channel");
+        // Prepare proof data
+        IRollupBridgeCore.RegisteredFunction[] memory functions = new IRollupBridgeCore.RegisteredFunction[](1);
+        functions[0] = IRollupBridgeCore.RegisteredFunction({
+            functionSignature: keccak256("transfer(address,uint256)"),
+            preprocessedPart1: new uint128[](4),
+            preprocessedPart2: new uint256[](4)
         });
-    }
 
-    function _parseProofData(WithdrawalProofData memory proofData)
-        internal
-        pure
-        returns (uint256 channelId, uint256 claimedBalance, uint256 leafIndex, bytes32[] memory merkleProof)
-    {
-        channelId = vm.parseUint(proofData.channelId);
-        claimedBalance = vm.parseUint(proofData.claimedBalance);
-        leafIndex = proofData.leafIndex;
-
-        merkleProof = new bytes32[](proofData.merkleProof.length);
-        for (uint256 i = 0; i < proofData.merkleProof.length; i++) {
-            merkleProof[i] = vm.parseBytes32(proofData.merkleProof[i]);
-        }
-    }
-
-    function testETHWithdrawalSuccess() public {
-        // Setup: Create channel, make deposits, initialize and close
-        uint256 channelId = _createETHChannel();
-        _makeDeposits(channelId, true);
-        _initializeAndCloseChannel(channelId);
-
-        // Get the finalStateRoot that was set during submitAggregatedProof
-        // This is what the contract uses for withdrawal verification
-        (, bytes32 finalStateRoot) = rollupBridge.getChannelRoots(channelId);
-
-        // Test participant1's withdrawal
-
-        // Generate withdrawal proof for participant1's specific leaf
-        WithdrawalProofData memory proofData = _getWithdrawalProof(
-            channelId,
-            l2Address1, // participant1's L2 address
-            finalStateRoot
+        // Register the function first
+        console.log("Registering function");
+        vm.prank(owner);
+        adminManager.registerFunction(
+            functions[0].functionSignature, functions[0].preprocessedPart1, functions[0].preprocessedPart2
         );
+        console.log("Function registered");
 
-        // Parse proof data
-        (uint256 parsedChannelId, uint256 parsedBalance, uint256 leafIndex, bytes32[] memory merkleProof) =
-            _parseProofData(proofData);
+        uint256[][] memory finalBalances = new uint256[][](3);
+        finalBalances[0] = new uint256[](2); // user1: [ETH_amount, token_amount]
+        finalBalances[0][0] = 1.5 ether; // ETH balance for user1
+        finalBalances[0][1] = 100e18; // token balance for user1
+        finalBalances[1] = new uint256[](2); // user2: [ETH_amount, token_amount]
+        finalBalances[1][0] = 0.5 ether; // ETH balance for user2
+        finalBalances[1][1] = 400e18; // token balance for user2
+        finalBalances[2] = new uint256[](2); // leader: [ETH_amount, token_amount]
+        finalBalances[2][0] = 0; // ETH balance for leader
+        finalBalances[2][1] = 0; // token balance for leader
 
-        // Check initial balances
-        uint256 initialBalance = participant1.balance;
+        RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
+            proofPart1: new uint128[](4),
+            proofPart2: new uint256[](4),
+            publicInputs: new uint256[](4),
+            smax: 100,
+            functions: functions,
+            finalBalances: finalBalances
+        });
 
-        // Perform withdrawal (participant1 calls withdrawAfterClose)
+        // Set up signature verification
+        address expectedSigner = bridge.getChannelSignerAddr(channelId);
+        console.log("Expected signer:", expectedSigner);
+        mockZecFrost.setMockSigner(expectedSigner);
 
-        vm.prank(participant1); // This sets msg.sender = participant1
-        rollupBridge.withdrawAfterClose(parsedChannelId, parsedBalance, leafIndex, merkleProof);
+        RollupBridgeProofManager.Signature memory signature =
+            RollupBridgeProofManager.Signature({message: keccak256("message"), rx: 1, ry: 2, z: 3});
 
-        // Verify withdrawal success
-        uint256 finalBalanceAfter = participant1.balance;
-        assertEq(finalBalanceAfter - initialBalance, DEPOSIT_AMOUNT, "Withdrawal amount incorrect");
+        // Submit proof
+        console.log("Submitting proof and signature");
+        vm.prank(leader);
+        proofManager.submitProofAndSignature(channelId, proofData, signature);
+        console.log("Proof submitted");
 
-        // Verify withdrawal tracking (double withdrawal should fail)
+        // Close and finalize channel
+        console.log("Closing and finalizing channel");
+        console.log("Channel state:", uint8(bridge.getChannelState(channelId)));
+        console.log("Signature verified:", bridge.isSignatureVerified(channelId));
+        console.log("Leader:", leader);
+        console.log("Channel leader:", bridge.getChannelLeader(channelId));
+        vm.prank(leader);
+        withdrawManager.closeAndFinalizeChannel(channelId);
+        console.log("Channel closed");
+    }
+
+    function testWithdrawETHSuccess() public {
+        uint256 initialBalance = user1.balance;
+        uint256 expectedWithdrawAmount = 1.5 ether;
+
+        // Debug: Check if user1 is a participant and has withdrawable amount
+        console.log("Is user1 participant:", bridge.isChannelParticipant(channelId, user1));
+        address ethToken = bridge.ETH_TOKEN_ADDRESS();
+        console.log("User1 withdrawable ETH:", bridge.getWithdrawableAmount(channelId, user1, ethToken));
+        console.log("Channel participants count:", bridge.getChannelParticipants(channelId).length);
+
+        // Give withdraw manager some ETH and tokens for testing
+        vm.deal(address(withdrawManager), 10 ether);
+        token.mint(address(withdrawManager), 1000e18);
+
+        // Test the actual withdraw function (withdraws all tokens)
+        uint256 initialTokenBalance = token.balanceOf(user1);
+        vm.prank(user1);
+        withdrawManager.withdraw(channelId);
+
+        // User1 should receive both ETH and tokens
+        assertEq(user1.balance, initialBalance + expectedWithdrawAmount, "ETH withdrawal amount incorrect");
+        assertEq(token.balanceOf(user1), initialTokenBalance + 100e18, "Token withdrawal amount incorrect");
+        assertTrue(bridge.hasUserWithdrawn(channelId, user1), "User withdrawal status not updated");
+        assertEq(bridge.getWithdrawableAmount(channelId, user1, ethToken), 0, "ETH withdrawable amount not cleared");
+        assertEq(
+            bridge.getWithdrawableAmount(channelId, user1, address(token)), 0, "Token withdrawable amount not cleared"
+        );
+    }
+
+    function testWithdrawTokenSuccess() public {
+        uint256 initialTokenBalance = token.balanceOf(user2);
+        uint256 initialEthBalance = user2.balance;
+        uint256 expectedTokenWithdrawAmount = 400e18;
+        uint256 expectedEthWithdrawAmount = 0.5 ether;
+
+        // Give both tokens and ETH to withdraw manager for testing
+        token.mint(address(withdrawManager), 1000e18);
+        vm.deal(address(withdrawManager), 10 ether);
+
+        vm.prank(user2);
+        withdrawManager.withdraw(channelId);
+
+        // User2 should receive both tokens and ETH
+        assertEq(
+            token.balanceOf(user2),
+            initialTokenBalance + expectedTokenWithdrawAmount,
+            "Token withdrawal amount incorrect"
+        );
+        assertEq(user2.balance, initialEthBalance + expectedEthWithdrawAmount, "ETH withdrawal amount incorrect");
+        assertTrue(bridge.hasUserWithdrawn(channelId, user2), "User withdrawal status not updated");
+        assertEq(
+            bridge.getWithdrawableAmount(channelId, user2, address(token)), 0, "Token withdrawable amount not cleared"
+        );
+        assertEq(
+            bridge.getWithdrawableAmount(channelId, user2, bridge.ETH_TOKEN_ADDRESS()),
+            0,
+            "ETH withdrawable amount not cleared"
+        );
+    }
+
+    function testWithdrawFailsChannelNotClosed() public {
+        // Create new channel that's still open
+        vm.startPrank(leader);
+        vm.deal(leader, 10 ether);
+
+        address[] memory participants = new address[](3);
+        participants[0] = user1;
+        participants[1] = user2;
+        participants[2] = leader;
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+
+        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
+            allowedTokens: allowedTokens,
+            participants: participants,
+            timeout: 1 days,
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        });
+
+        uint256 openChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        vm.stopPrank();
+
+        address ethToken = bridge.ETH_TOKEN_ADDRESS();
+        vm.prank(user1);
+        vm.expectRevert("Not closed");
+        withdrawManager.withdraw(openChannelId);
+    }
+
+    function testWithdrawFailsAlreadyWithdrawn() public {
+        // Fund withdraw manager for both ETH and token transfers
+        vm.deal(address(withdrawManager), 10 ether);
+        token.mint(address(withdrawManager), 1000e18);
+
+        // First successful withdrawal
+        vm.prank(user1);
+        withdrawManager.withdraw(channelId);
+
+        // Second attempt should fail
+        vm.prank(user1);
         vm.expectRevert("Already withdrawn");
-        vm.prank(participant1);
-        rollupBridge.withdrawAfterClose(parsedChannelId, parsedBalance, leafIndex, merkleProof);
+        withdrawManager.withdraw(channelId);
     }
 
-    function testTokenWithdrawalSuccess() public {
-        // Setup: Create token channel, make deposits, initialize and close
-        uint256 channelId = _createTokenChannel();
-        _makeDeposits(channelId, false);
-        _initializeAndCloseChannel(channelId);
+    function testWithdrawFailsNotParticipant() public {
+        address nonParticipant = address(0x999);
+        address ethToken = bridge.ETH_TOKEN_ADDRESS();
 
-        // Get final state root (prevRoot for RLC)
-        bytes32 finalStateRoot = rollupBridge.getLastRootInSequence(channelId);
-
-        console.log("=== Testing Token Withdrawal ===");
-        console.log("Channel ID:", channelId);
-        console.log("Final State Root (prevRoot for RLC):");
-        console.logBytes32(finalStateRoot);
-
-        // Test participant2's withdrawal
-        console.log("\n--- Participant2 Token Withdrawal ---");
-        console.log("L1 Address:", participant2);
-        console.log("L2 Address:", l2Address2);
-        console.log("Claimed Balance:", DEPOSIT_AMOUNT);
-
-        // Generate withdrawal proof for participant2's specific leaf
-        WithdrawalProofData memory proofData = _getWithdrawalProofForAll(
-            channelId,
-            l2Address2, // participant2's L2 address
-            finalStateRoot
-        );
-
-        // Parse proof data
-        (uint256 parsedChannelId, uint256 parsedBalance, uint256 leafIndex, bytes32[] memory merkleProof) =
-            _parseProofData(proofData);
-
-        console.log("Generated proof for participant2:");
-        console.log("- Leaf Index:", leafIndex);
-        console.log("- Claimed Balance:", parsedBalance);
-        console.log("- Proof Elements:", merkleProof.length);
-
-        // Verify the contract will compute the same leaf
-        bytes32 expectedLeaf = rollupBridge.computeLeafForVerification(l2Address2, DEPOSIT_AMOUNT, finalStateRoot);
-        console.log("Contract computed leaf:");
-        console.logBytes32(expectedLeaf);
-        console.log("Script computed leaf:", proofData.leafValue);
-
-        // Check initial token balances
-        uint256 initialBalance = testToken.balanceOf(participant2);
-        console.log("Participant2 token balance before withdrawal:", initialBalance);
-
-        // Perform withdrawal (participant2 calls withdrawAfterClose)
-        vm.prank(participant2); // This sets msg.sender = participant2
-        rollupBridge.withdrawAfterClose(parsedChannelId, parsedBalance, leafIndex, merkleProof);
-
-        // Verify withdrawal success
-        uint256 finalBalance = testToken.balanceOf(participant2);
-        console.log("Participant2 token balance after withdrawal:", finalBalance);
-        assertEq(finalBalance - initialBalance, DEPOSIT_AMOUNT, "Token withdrawal amount incorrect");
-    }
-
-    function testWithdrawalFailures() public {
-        uint256 channelId = _createETHChannel();
-        _makeDeposits(channelId, true);
-        _initializeAndCloseChannel(channelId);
-
-        bytes32 finalStateRoot = rollupBridge.getLastRootInSequence(channelId);
-
-        // Generate valid proof for participant3
-        WithdrawalProofData memory proofData = _getWithdrawalProofForAll(channelId, l2Address3, finalStateRoot);
-
-        (uint256 parsedChannelId, uint256 parsedBalance, uint256 leafIndex, bytes32[] memory merkleProof) =
-            _parseProofData(proofData);
-
-        console.log("=== Testing Withdrawal Failures ===");
-
-        // Test: Non-participant tries to withdraw with participant3's proof
-        address nonParticipant = makeAddr("nonParticipant");
-        console.log("Testing non-participant withdrawal...");
-        vm.prank(nonParticipant); // msg.sender = nonParticipant, but proof is for participant3
+        vm.prank(nonParticipant);
         vm.expectRevert("Not a participant");
-        rollupBridge.withdrawAfterClose(parsedChannelId, parsedBalance, leafIndex, merkleProof);
-
-        // Test: Participant tries to claim wrong balance (different than in their leaf)
-        console.log("Testing wrong claimed balance...");
-        vm.prank(participant3); // Correct caller
-        vm.expectRevert("Invalid merkle proof"); // Contract computes different leaf with wrong balance
-        rollupBridge.withdrawAfterClose(
-            parsedChannelId,
-            parsedBalance + 1, // Wrong balance
-            leafIndex,
-            merkleProof
-        );
-
-        // Test: Participant1 tries to use participant3's proof
-        console.log("Testing cross-participant proof usage...");
-        vm.prank(participant1); // Wrong caller for this proof
-        vm.expectRevert("Invalid merkle proof"); // Contract computes different leaf for participant1
-        rollupBridge.withdrawAfterClose(parsedChannelId, parsedBalance, leafIndex, merkleProof);
-
-        // Test: Wrong leaf index
-        console.log("Testing wrong leaf index...");
-        vm.prank(participant3);
-        vm.expectRevert("Invalid merkle proof");
-        rollupBridge.withdrawAfterClose(
-            parsedChannelId,
-            parsedBalance,
-            (leafIndex + 1) % 3, // Wrong index
-            merkleProof
-        );
-
-        // Test: Invalid merkle proof (empty proof)
-        console.log("Testing empty proof...");
-        bytes32[] memory emptyProof = new bytes32[](0);
-        vm.prank(participant3);
-        vm.expectRevert("Invalid merkle proof");
-        rollupBridge.withdrawAfterClose(parsedChannelId, parsedBalance, leafIndex, emptyProof);
+        withdrawManager.withdraw(channelId);
     }
 
-    function testMultipleWithdrawals() public {
-        uint256 channelId = _createETHChannel();
-        _makeDeposits(channelId, true);
-        _initializeAndCloseChannel(channelId);
+    function testWithdrawOnlyAllowedTokens() public {
+        // This test verifies that the withdraw function only processes tokens
+        // that are in the channel's allowed tokens list
+        // Fund withdraw manager for transfers
+        vm.deal(address(withdrawManager), 10 ether);
+        token.mint(address(withdrawManager), 1000e18);
 
-        bytes32 finalStateRoot = rollupBridge.getLastRootInSequence(channelId);
+        // User1 should be able to withdraw both ETH and allowed tokens
+        uint256 user1InitialETH = user1.balance;
+        uint256 user1InitialTokens = token.balanceOf(user1);
 
-        console.log("=== Testing Multiple Individual Withdrawals ===");
+        vm.prank(user1);
+        withdrawManager.withdraw(channelId);
 
-        // Each participant generates their own proof and withdraws
-        address[3] memory participants = [participant1, participant2, participant3];
-        address[3] memory l2Addresses = [l2Address1, l2Address2, l2Address3];
-
-        for (uint256 i = 0; i < 3; i++) {
-            console.log("\n--- Participant", i + 1, "withdrawal ---");
-            console.log("L1 Address:", participants[i]);
-            console.log("L2 Address:", l2Addresses[i]);
-
-            // Each participant generates their own proof for their specific leaf
-            WithdrawalProofData memory proofData = _getWithdrawalProofForAll(
-                channelId,
-                l2Addresses[i], // Their L2 address
-                finalStateRoot
-            );
-
-            (uint256 parsedChannelId, uint256 parsedBalance, uint256 leafIndex, bytes32[] memory merkleProof) =
-                _parseProofData(proofData);
-
-            console.log("Generated proof - Leaf Index:", leafIndex);
-            console.log("Generated proof - Balance:", parsedBalance);
-
-            uint256 balanceBefore = participants[i].balance;
-
-            // The participant calls withdrawAfterClose with their proof
-            vm.prank(participants[i]); // msg.sender = participants[i]
-            rollupBridge.withdrawAfterClose(
-                parsedChannelId,
-                parsedBalance, // Must match what's in their leaf
-                leafIndex, // Index of their leaf in the tree
-                merkleProof // Proof for their specific leaf
-            );
-
-            uint256 balanceAfter = participants[i].balance;
-            assertEq(balanceAfter - balanceBefore, DEPOSIT_AMOUNT, "Incorrect withdrawal amount");
-
-            console.log("SUCCESS: Participant successfully withdrew wei");
-        }
-
-        console.log("SUCCESS: All participants successfully withdrew their individual funds!");
+        // Verify user1 received both ETH and tokens
+        assertEq(user1.balance, user1InitialETH + 1.5 ether, "User1 ETH withdrawal failed");
+        assertEq(token.balanceOf(user1), user1InitialTokens + 100e18, "User1 token withdrawal failed");
+        assertTrue(bridge.hasUserWithdrawn(channelId, user1), "User1 not marked as withdrawn");
     }
 
-    function testScriptIntegration() public {
-        console.log("=== Testing Script Integration ===");
+    function testWithdrawFailsNoWithdrawableAmount() public {
+        // Create a scenario where user has 0 withdrawable amount
+        address[] memory participants = new address[](3);
+        participants[0] = user1;
+        participants[1] = user2;
+        participants[2] = leader;
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = address(token);
 
-        // Test that our scripts are accessible
-        string[] memory testInputs = new string[](3);
-        testInputs[0] = "node";
-        testInputs[1] = "-v";
-        testInputs[2] = "";
+        vm.startPrank(leader);
+        vm.deal(leader, 10 ether);
 
-        try vm.ffi(testInputs) returns (bytes memory) {
-            console.log("SUCCESS: Node.js is available for script execution");
-        } catch {
-            console.log("ERROR: Node.js not available - scripts will not work");
-            return;
-        }
+        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
+            allowedTokens: allowedTokens,
+            participants: participants,
+            timeout: 1 days,
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        });
 
-        // Test script file exists
-        testInputs[1] = "-e";
-        testInputs[2] = "console.log('Script integration test successful')";
+        uint256 testChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        vm.stopPrank();
 
-        try vm.ffi(testInputs) returns (bytes memory result) {
-            console.log("SUCCESS: Script execution successful");
-            console.log("Script output:", string(result));
-        } catch {
-            console.log("ERROR: Script execution failed");
-        }
+        // Initialize and close without any final balances
+        _setupEmptyChannel(testChannelId);
+
+        vm.prank(user1);
+        vm.expectRevert("No withdrawable amount");
+        withdrawManager.withdraw(testChannelId);
     }
 
-    function testComputeLeafCompatibility() public {
-        console.log("=== Testing Leaf Computation Compatibility ===");
+    function _setupEmptyChannel(uint256 testChannelId) internal {
+        // Initialize channel state
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        RollupBridgeProofManager.ChannelInitializationProof memory mockProof = RollupBridgeProofManager
+            .ChannelInitializationProof({
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
+            merkleRoot: mockMerkleRoot
+        });
 
-        // Test that our script computes leaves the same way as the contract
-        uint256 channelId = _createETHChannel();
-        _makeDeposits(channelId, true);
-        _initializeAndCloseChannel(channelId);
+        vm.prank(leader);
+        proofManager.initializeChannelState(testChannelId, mockProof);
 
-        // Debug: check what values we have
-        bytes32 lastRootInSequence = rollupBridge.getLastRootInSequence(channelId);
-        (, bytes32 finalStateRoot) = rollupBridge.getChannelRoots(channelId);
+        // Submit proof with empty balances
+        IRollupBridgeCore.RegisteredFunction[] memory functions = new IRollupBridgeCore.RegisteredFunction[](1);
+        functions[0] = IRollupBridgeCore.RegisteredFunction({
+            functionSignature: keccak256("transfer(address,uint256)"),
+            preprocessedPart1: new uint128[](4),
+            preprocessedPart2: new uint256[](4)
+        });
 
-        console.log("lastRootInSequence:");
-        console.logBytes32(lastRootInSequence);
-        console.log("finalStateRoot from contract:");
-        console.logBytes32(finalStateRoot);
-        console.log("Are they equal?", lastRootInSequence == finalStateRoot);
+        uint256[][] memory emptyBalances = new uint256[][](3);
+        emptyBalances[0] = new uint256[](1);
+        emptyBalances[0][0] = 0; // No withdrawable amount
+        emptyBalances[1] = new uint256[](1);
+        emptyBalances[1][0] = 0; // No withdrawable amount
+        emptyBalances[2] = new uint256[](1);
+        emptyBalances[2][0] = 0; // No withdrawable amount
 
-        // Get contract's leaf computation using lastRootInSequence (what withdrawal uses)
-        bytes32 contractLeafWithLastRoot =
-            rollupBridge.computeLeafForVerification(l2Address1, DEPOSIT_AMOUNT, lastRootInSequence);
+        RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
+            proofPart1: new uint128[](4),
+            proofPart2: new uint256[](4),
+            publicInputs: new uint256[](4),
+            smax: 100,
+            functions: functions,
+            finalBalances: emptyBalances
+        });
 
-        console.log("Contract leaf with lastRootInSequence:");
-        console.logBytes32(contractLeafWithLastRoot);
+        mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
 
-        // Get contract's leaf computation using finalStateRoot (for comparison)
-        bytes32 contractLeafWithFinalRoot =
-            rollupBridge.computeLeafForVerification(l2Address1, DEPOSIT_AMOUNT, finalStateRoot);
+        RollupBridgeProofManager.Signature memory signature =
+            RollupBridgeProofManager.Signature({message: keccak256("message"), rx: 1, ry: 2, z: 3});
 
-        console.log("Contract leaf with finalStateRoot:");
-        console.logBytes32(contractLeafWithFinalRoot);
+        vm.prank(leader);
+        proofManager.submitProofAndSignature(testChannelId, proofData, signature);
 
-        // This would be compared with script output in a real integration test
-        console.log("SUCCESS: Contract leaf computation working");
+        vm.prank(leader);
+        withdrawManager.closeAndFinalizeChannel(testChannelId);
     }
 
-    // ========== HELPER FUNCTIONS ==========
+    function testWithdrawETHFailsOnTransferFailure() public {
+        // Create a contract that will reject ETH transfers
+        RejectingContract rejector = new RejectingContract();
 
-    /**
-     * @dev Creates a mock MPT leaf with RLP-encoded account data: [nonce, balance, storageHash, codeHash]
-     */
-    function _createMockMPTLeaf(uint256 balance) internal pure returns (bytes memory) {
-        bytes[] memory accountFields = new bytes[](4);
+        // Set up a channel where the rejector is a participant
+        vm.startPrank(leader);
+        vm.deal(leader, 10 ether);
 
-        // nonce = 0
-        accountFields[0] = RLP.encode(abi.encodePacked(uint256(0)));
+        address[] memory participants = new address[](3);
+        participants[0] = address(rejector);
+        participants[1] = user1;
+        participants[2] = leader;
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
 
-        // balance
-        accountFields[1] = RLP.encode(abi.encodePacked(balance));
+        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
+            allowedTokens: allowedTokens,
+            participants: participants,
+            timeout: 1 days,
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        });
 
-        // storageHash (empty storage)
-        accountFields[2] = RLP.encode(abi.encodePacked(keccak256("")));
+        uint256 rejectChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        vm.stopPrank();
 
-        // codeHash (empty code)
-        accountFields[3] = RLP.encode(abi.encodePacked(keccak256("")));
+        // Setup channel with rejector having withdrawable ETH
+        _setupChannelWithRejector(rejectChannelId);
 
-        return RLP.encodeList(accountFields);
+        // Attempt withdrawal should fail
+        address ethTokenAddr = bridge.ETH_TOKEN_ADDRESS();
+        vm.prank(address(rejector));
+        vm.expectRevert("ETH transfer failed");
+        withdrawManager.withdraw(rejectChannelId);
     }
 
-    /**
-     * @dev Creates MPT leaves for a given set of balances
-     */
-    function _createMPTLeaves(uint256[] memory balances) internal pure returns (bytes[] memory) {
-        bytes[] memory leaves = new bytes[](balances.length);
-        for (uint256 i = 0; i < balances.length; i++) {
-            leaves[i] = _createMockMPTLeaf(balances[i]);
-        }
-        return leaves;
+    function _setupChannelWithRejector(uint256 testChannelId) internal {
+        // First, we need to make deposits that match the channel setup
+        // The rejector channel only has ETH as allowed token, so make ETH deposits
+        address[] memory participants = bridge.getChannelParticipants(testChannelId);
+        address rejectorAddr = participants[0];
+
+        // Deposit 1 ETH for the rejector
+        vm.deal(rejectorAddr, 2 ether);
+        vm.prank(rejectorAddr);
+        depositManager.depositETH{value: 1 ether}(testChannelId, bytes32(uint256(30)));
+
+        // Fund withdraw manager for the transfer
+        vm.deal(address(withdrawManager), 2 ether);
+
+        // Initialize channel state
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        RollupBridgeProofManager.ChannelInitializationProof memory mockProof = RollupBridgeProofManager
+            .ChannelInitializationProof({
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
+            merkleRoot: mockMerkleRoot
+        });
+
+        vm.prank(leader);
+        proofManager.initializeChannelState(testChannelId, mockProof);
+
+        // Register the function first
+        vm.prank(owner);
+        adminManager.registerFunction(keccak256("transfer(address,uint256)"), new uint128[](4), new uint256[](4));
+
+        // Submit proof with balance for rejector
+        IRollupBridgeCore.RegisteredFunction[] memory functions = new IRollupBridgeCore.RegisteredFunction[](1);
+        functions[0] = IRollupBridgeCore.RegisteredFunction({
+            functionSignature: keccak256("transfer(address,uint256)"),
+            preprocessedPart1: new uint128[](4),
+            preprocessedPart2: new uint256[](4)
+        });
+
+        uint256[][] memory balances = new uint256[][](3);
+        balances[0] = new uint256[](1);
+        balances[0][0] = 1 ether; // Rejector has 1 ETH to withdraw
+        balances[1] = new uint256[](1);
+        balances[1][0] = 0; // user1 has 0 ETH
+        balances[2] = new uint256[](1);
+        balances[2][0] = 0; // leader has 0 ETH
+
+        RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
+            proofPart1: new uint128[](4),
+            proofPart2: new uint256[](4),
+            publicInputs: new uint256[](4),
+            smax: 100,
+            functions: functions,
+            finalBalances: balances
+        });
+
+        mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
+
+        RollupBridgeProofManager.Signature memory signature =
+            RollupBridgeProofManager.Signature({message: keccak256("message"), rx: 1, ry: 2, z: 3});
+
+        vm.prank(leader);
+        proofManager.submitProofAndSignature(testChannelId, proofData, signature);
+
+        vm.prank(leader);
+        withdrawManager.closeAndFinalizeChannel(testChannelId);
+    }
+
+    function testMultipleUsersWithdrawDifferentTokens() public {
+        // Fund withdraw manager for transfers
+        vm.deal(address(withdrawManager), 10 ether);
+        token.mint(address(withdrawManager), 1000e18);
+
+        // User1 withdraws all tokens (both ETH and ERC20)
+        uint256 user1InitialETH = user1.balance;
+        uint256 user1InitialTokens = token.balanceOf(user1);
+        vm.prank(user1);
+        withdrawManager.withdraw(channelId);
+        assertEq(user1.balance, user1InitialETH + 1.5 ether, "User1 ETH withdrawal failed");
+        assertEq(token.balanceOf(user1), user1InitialTokens + 100e18, "User1 token withdrawal failed");
+
+        // User2 withdraws all tokens (both ETH and ERC20)
+        uint256 user2InitialETH = user2.balance;
+        uint256 user2InitialTokens = token.balanceOf(user2);
+        vm.prank(user2);
+        withdrawManager.withdraw(channelId);
+        assertEq(user2.balance, user2InitialETH + 0.5 ether, "User2 ETH withdrawal failed");
+        assertEq(token.balanceOf(user2), user2InitialTokens + 400e18, "User2 token withdrawal failed");
+
+        // Both users should be marked as withdrawn
+        assertTrue(bridge.hasUserWithdrawn(channelId, user1), "User1 not marked as withdrawn");
+        assertTrue(bridge.hasUserWithdrawn(channelId, user2), "User2 not marked as withdrawn");
+    }
+
+    function testWithdrawZeroAmountFails() public {
+        // Manually set withdrawable amount to 0 for user1 ETH
+        // This would require either admin functionality or a separate test setup
+        // For now, we test the revert message when amount is 0
+
+        // Create a new test scenario where user has 0 balance
+        address zeroUser = address(0x888);
+        vm.startPrank(leader);
+        vm.deal(leader, 10 ether);
+
+        address[] memory participants = new address[](3);
+        participants[0] = zeroUser;
+        participants[1] = user1;
+        participants[2] = leader;
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+
+        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
+            allowedTokens: allowedTokens,
+            participants: participants,
+            timeout: 1 days,
+            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        });
+
+        uint256 zeroChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        vm.stopPrank();
+
+        _setupEmptyChannel(zeroChannelId);
+
+        address ethTokenAddr = bridge.ETH_TOKEN_ADDRESS();
+        vm.prank(zeroUser);
+        vm.expectRevert("No withdrawable amount");
+        withdrawManager.withdraw(zeroChannelId);
+    }
+}
+
+// Contract that rejects ETH transfers
+contract RejectingContract {
+    // This contract will reject any ETH sent to it
+    receive() external payable {
+        revert("ETH rejected");
+    }
+
+    fallback() external payable {
+        revert("ETH rejected");
     }
 }

@@ -1,0 +1,196 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.29;
+
+import "forge-std/Test.sol";
+import "forge-std/console.sol";
+import "../../src/RollupBridgeCore.sol";
+import "../../src/RollupBridgeProofManager.sol";
+import "../../src/RollupBridgeDepositManager.sol";
+import "../../src/interface/ITokamakVerifier.sol";
+import "../../src/interface/IZecFrost.sol";
+import "../../src/interface/IGroth16Verifier16Leaves.sol";
+import "../../src/library/ZecFrost.sol";
+import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
+// Mock contracts for testing
+contract MockTokamakVerifier is ITokamakVerifier {
+    function verify(
+        uint128[] calldata,
+        uint256[] calldata,
+        uint128[] calldata,
+        uint256[] calldata,
+        uint256[] calldata,
+        uint256
+    ) external pure returns (bool) {
+        return true;
+    }
+}
+
+contract MockGroth16Verifier is IGroth16Verifier16Leaves {
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[33] calldata)
+        external
+        pure
+        returns (bool)
+    {
+        return true;
+    }
+}
+
+/**
+ * @title ModularArchitectureTest
+ * @notice Test that demonstrates the working modular architecture
+ */
+contract ModularArchitectureTest is Test {
+    RollupBridgeCore public bridge;
+    RollupBridgeProofManager public proofManager;
+    RollupBridgeDepositManager public depositManager;
+
+    MockTokamakVerifier public tokamakVerifier;
+    MockGroth16Verifier public groth16Verifier;
+    ZecFrost public zecFrost;
+
+    address public owner = makeAddr("owner");
+    address public leader = makeAddr("leader");
+    address public user1 = makeAddr("user1");
+    address public user2 = makeAddr("user2");
+    address public user3 = makeAddr("user3");
+
+    function setUp() public {
+        vm.startPrank(owner);
+
+        // Deploy mock contracts
+        tokamakVerifier = new MockTokamakVerifier();
+        groth16Verifier = new MockGroth16Verifier();
+        zecFrost = new ZecFrost();
+
+        // Deploy manager contracts
+        depositManager = new RollupBridgeDepositManager();
+        proofManager = new RollupBridgeProofManager();
+
+        // Deploy core contract with proxy
+        RollupBridgeCore implementation = new RollupBridgeCore();
+        bytes memory initData = abi.encodeCall(
+            RollupBridgeCore.initialize, (address(depositManager), address(proofManager), address(0), address(0), owner)
+        );
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        bridge = RollupBridgeCore(address(proxy));
+
+        // Initialize manager contracts
+        depositManager.initialize(address(bridge), owner);
+
+        address[4] memory groth16Verifiers =
+            [address(groth16Verifier), address(groth16Verifier), address(groth16Verifier), address(groth16Verifier)];
+
+        proofManager.initialize(address(bridge), address(tokamakVerifier), address(zecFrost), groth16Verifiers, owner);
+
+        // Fund test accounts
+        vm.deal(leader, 10 ether);
+        vm.deal(user1, 10 ether);
+        vm.deal(user2, 10 ether);
+        vm.deal(user3, 10 ether);
+
+        vm.stopPrank();
+    }
+
+    function testModularArchitectureBasic() public view {
+        // Test that all contracts are properly deployed
+        assertEq(bridge.owner(), owner);
+        assertEq(depositManager.owner(), owner);
+        assertEq(proofManager.owner(), owner);
+
+        // Test that managers are properly linked
+        assertEq(address(depositManager.rollupBridge()), address(bridge));
+        assertEq(address(proofManager.rollupBridge()), address(bridge));
+    }
+
+    function testChannelCreationAndDeposits() public {
+        // Create a channel
+        vm.prank(leader);
+
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+
+        address[] memory participants = new address[](3);
+        participants[0] = user1;
+        participants[1] = user2;
+        participants[2] = user3;
+
+        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
+            allowedTokens: allowedTokens,
+            participants: participants,
+            timeout: 1 days,
+            pkx: 1,
+            pky: 2
+        });
+
+        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+
+        // Verify channel creation
+        assertEq(channelId, 0);
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Initialized));
+
+        // Test deposit using DepositManager
+        vm.prank(user1);
+        depositManager.depositETH{value: 1 ether}(channelId, bytes32(uint256(123)));
+
+        // Verify deposit was recorded
+        assertEq(bridge.getParticipantTokenDeposit(channelId, user1, bridge.ETH_TOKEN_ADDRESS()), 1 ether);
+        assertEq(bridge.getL2MptKey(channelId, user1, bridge.ETH_TOKEN_ADDRESS()), 123);
+    }
+
+    function testChannelStateInitialization() public {
+        // Create and deposit to a channel
+        uint256 channelId = _createChannelWithDeposits();
+
+        // Get the actual leader who created the channel
+        address actualLeader = bridge.getChannelLeader(channelId);
+
+        // Initialize channel state using ProofManager (leader is the channel creator)
+        vm.startPrank(actualLeader);
+        proofManager.initializeChannelState(
+            channelId,
+            RollupBridgeProofManager.ChannelInitializationProof({
+                pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+                pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+                pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
+                merkleRoot: keccak256(abi.encodePacked("mockRoot"))
+            })
+        );
+        vm.stopPrank();
+
+        // Verify state transition
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Open));
+    }
+
+    function _createChannelWithDeposits() internal returns (uint256 channelId) {
+        vm.prank(leader);
+
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+
+        address[] memory participants = new address[](3);
+        participants[0] = user1;
+        participants[1] = user2;
+        participants[2] = user3;
+
+        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
+            allowedTokens: allowedTokens,
+            participants: participants,
+            timeout: 1 days,
+            pkx: 1,
+            pky: 2
+        });
+
+        channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+
+        // Add deposits
+        vm.prank(user1);
+        depositManager.depositETH{value: 1 ether}(channelId, bytes32(uint256(123)));
+
+        vm.prank(user2);
+        depositManager.depositETH{value: 2 ether}(channelId, bytes32(uint256(456)));
+
+        vm.prank(user3);
+        depositManager.depositETH{value: 3 ether}(channelId, bytes32(uint256(789)));
+    }
+}

@@ -3,8 +3,19 @@ pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../src/RollupBridge.sol";
-import "../src/verifier/Verifier.sol";
+import "../src/RollupBridgeCore.sol";
+import "../src/RollupBridgeDepositManager.sol";
+import "../src/RollupBridgeProofManager.sol";
+import "../src/RollupBridgeWithdrawManager.sol";
+import "../src/RollupBridgeAdminManager.sol";
+import "../src/verifier/TokamakVerifier.sol";
+import "../src/verifier/Groth16Verifier16Leaves.sol";
+import "../src/verifier/Groth16Verifier32Leaves.sol";
+import "../src/verifier/Groth16Verifier64Leaves.sol";
+import "../src/verifier/Groth16Verifier64LeavesIC.sol";
+import "../src/verifier/Groth16Verifier128Leaves.sol";
+import "../src/verifier/Groth16Verifier128LeavesIC1.sol";
+import "../src/verifier/Groth16Verifier128LeavesIC2.sol";
 import "../src/library/ZecFrost.sol";
 
 contract DeployV2Script is Script {
@@ -54,15 +65,49 @@ contract DeployV2Script is Script {
         console.log("Deploying with account:", deployer);
         console.log("Account balance:", deployer.balance);
 
-        // Deploy ZK Verifier if not provided
+        // Deploy Tokamak Verifier if not provided
         if (zkVerifier == address(0)) {
-            console.log("Deploying Verifier...");
-            Verifier verifierContract = new Verifier();
+            console.log("Deploying TokamakVerifier...");
+            TokamakVerifier verifierContract = new TokamakVerifier();
             zkVerifier = address(verifierContract);
-            console.log("Verifier deployed at:", zkVerifier);
+            console.log("TokamakVerifier deployed at:", zkVerifier);
         } else {
-            console.log("Using existing Verifier at:", zkVerifier);
+            console.log("Using existing TokamakVerifier at:", zkVerifier);
         }
+
+        // Deploy Groth16 Verifiers
+        console.log("Deploying Groth16Verifier16Leaves...");
+        Groth16Verifier16Leaves groth16VerifierContract16 = new Groth16Verifier16Leaves();
+        address groth16Verifier16 = address(groth16VerifierContract16);
+        console.log("Groth16Verifier16Leaves deployed at:", groth16Verifier16);
+
+        console.log("Deploying Groth16Verifier32Leaves...");
+        Groth16Verifier32Leaves groth16VerifierContract32 = new Groth16Verifier32Leaves();
+        address groth16Verifier32 = address(groth16VerifierContract32);
+        console.log("Groth16Verifier32Leaves deployed at:", groth16Verifier32);
+
+        console.log("Deploying Groth16Verifier64LeavesIC...");
+        Groth16Verifier64LeavesIC groth16Verifier64IC = new Groth16Verifier64LeavesIC();
+        console.log("Groth16Verifier64LeavesIC deployed at:", address(groth16Verifier64IC));
+
+        console.log("Deploying Groth16Verifier64Leaves...");
+        Groth16Verifier64Leaves groth16VerifierContract64 = new Groth16Verifier64Leaves(address(groth16Verifier64IC));
+        address groth16Verifier64 = address(groth16VerifierContract64);
+        console.log("Groth16Verifier64Leaves deployed at:", groth16Verifier64);
+
+        console.log("Deploying Groth16Verifier128LeavesIC1...");
+        Groth16Verifier128LeavesIC1 groth16Verifier128IC1 = new Groth16Verifier128LeavesIC1();
+        console.log("Groth16Verifier128LeavesIC1 deployed at:", address(groth16Verifier128IC1));
+
+        console.log("Deploying Groth16Verifier128LeavesIC2...");
+        Groth16Verifier128LeavesIC2 groth16Verifier128IC2 = new Groth16Verifier128LeavesIC2();
+        console.log("Groth16Verifier128LeavesIC2 deployed at:", address(groth16Verifier128IC2));
+
+        console.log("Deploying Groth16Verifier128Leaves...");
+        Groth16Verifier128Leaves groth16VerifierContract128 =
+            new Groth16Verifier128Leaves(address(groth16Verifier128IC1), address(groth16Verifier128IC2));
+        address groth16Verifier128 = address(groth16VerifierContract128);
+        console.log("Groth16Verifier128Leaves deployed at:", groth16Verifier128);
 
         // Deploy ZecFrost if not provided
         if (zecFrost == address(0)) {
@@ -76,16 +121,17 @@ contract DeployV2Script is Script {
 
         // Deploy RollupBridge implementation
         console.log("Deploying RollupBridge implementation...");
-        RollupBridge rollupBridgeImplementation = new RollupBridge();
+        RollupBridgeCore rollupBridgeImplementation = new RollupBridgeCore();
         rollupBridgeImpl = address(rollupBridgeImplementation);
         console.log("RollupBridge implementation deployed at:", rollupBridgeImpl);
 
         // Deploy RollupBridge proxy
         console.log("Deploying RollupBridge proxy...");
-        bytes memory rollupBridgeInitData = abi.encodeCall(
-            RollupBridge.initialize,
-            (zkVerifier, zecFrost, deployer) // Include ZecFrost contract
-        );
+
+        address[4] memory groth16Verifiers =
+            [groth16Verifier16, groth16Verifier32, groth16Verifier64, groth16Verifier128];
+        bytes memory rollupBridgeInitData =
+            abi.encodeCall(RollupBridgeCore.initialize, (address(0), address(0), address(0), address(0), deployer));
 
         ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
         rollupBridge = address(rollupBridgeProxy);
@@ -103,7 +149,11 @@ contract DeployV2Script is Script {
 
         // Log final addresses
         console.log("\n=== DEPLOYMENT SUMMARY ===");
-        console.log("ZK Verifier:", zkVerifier);
+        console.log("Tokamak Verifier:", zkVerifier);
+        console.log("Groth16 Verifier16:", groth16Verifier16);
+        console.log("Groth16 Verifier32:", groth16Verifier32);
+        console.log("Groth16 Verifier64:", groth16Verifier64);
+        console.log("Groth16 Verifier128:", groth16Verifier128);
         console.log("ZecFrost:", zecFrost);
         console.log("RollupBridge Implementation:", rollupBridgeImpl);
         console.log("RollupBridge Proxy:", rollupBridge);
@@ -179,9 +229,11 @@ contract DeployV2Script is Script {
         wtonPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         wtonPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        RollupBridge(bridgeAddress).setAllowedTargetContract(
-            wtonAddress, wtonPreprocessedPart1, wtonPreprocessedPart2, true
-        );
+        RollupBridgeCore(bridgeAddress).setAllowedTargetContract(wtonAddress, bytes1(0x00), true);
+
+        // Register WTON transfer function
+        bytes32 wtonTransferSig = keccak256("transfer(address,uint256)");
+        RollupBridgeCore(bridgeAddress).registerFunction(wtonTransferSig, wtonPreprocessedPart1, wtonPreprocessedPart2);
 
         console.log("WTON target contract configured:", wtonAddress);
     }
@@ -203,9 +255,11 @@ contract DeployV2Script is Script {
         usdtPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         usdtPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        RollupBridge(bridgeAddress).setAllowedTargetContract(
-            usdtAddress, usdtPreprocessedPart1, usdtPreprocessedPart2, true
-        );
+        RollupBridgeCore(bridgeAddress).setAllowedTargetContract(usdtAddress, bytes1(0x01), true);
+
+        // Register USDT transfer function
+        bytes32 usdtTransferSig = keccak256("transfer(address,uint256)");
+        RollupBridgeCore(bridgeAddress).registerFunction(usdtTransferSig, usdtPreprocessedPart1, usdtPreprocessedPart2);
 
         console.log("USDT target contract configured:", usdtAddress);
     }

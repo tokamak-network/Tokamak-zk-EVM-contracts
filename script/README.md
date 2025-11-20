@@ -1,13 +1,13 @@
 # UUPS Upgradeable Contract Deployment Guide
 
-This directory contains deployment and upgrade scripts for the UUPS (Universal Upgradeable Proxy Standard) versions of the Tokamak zkRollup contracts.
+This directory contains deployment and upgrade scripts for the UUPS (Universal Upgradeable Proxy Standard) versions of the Tokamak channel manager contracts.
 
 ## 📁 Files Overview
 
 ### Deployment Scripts
-- **`DeployUpgradeable.s.sol`** - Foundry script for deploying UUPS upgradeable contracts
-- **`deploy-upgradeable.sh`** - Shell script wrapper for easy deployment
-- **`env-upgradeable.template`** - Environment configuration template
+- **`DeployV2.s.sol`** - Foundry script for deploying UUPS upgradeable contracts
+- **`deploy-v2.sh`** - Shell script wrapper for easy deployment
+- **`env-v2.template`** - Environment configuration template
 
 ### Upgrade Scripts  
 - **`UpgradeContracts.s.sol`** - Foundry script for upgrading existing contracts
@@ -29,24 +29,17 @@ nano .env
 
 ```bash
 # Deploy to testnet (e.g., Sepolia)
-./script/deploy-upgradeable.sh sepolia
+./script/deploy-v2.sh sepolia
 
 # Deploy to mainnet
-./script/deploy-upgradeable.sh mainnet
+./script/deploy-v2.sh mainnet
 ```
 
 ### 3. Upgrade Contracts (Later)
 
 ```bash
-# Upgrade both contracts
-./script/upgrade-contracts.sh sepolia --both
-
-# Upgrade only MerkleTreeManager4
-./script/upgrade-contracts.sh sepolia --merkle-tree
-
-# Upgrade only RollupBridge  
-./script/upgrade-contracts.sh sepolia --rollup-bridge
-```
+# Upgrade contracts
+./script/upgrade-contracts.sh sepolia
 
 ## 🔧 Detailed Configuration
 
@@ -97,8 +90,6 @@ UPGRADE_ROLLUP_BRIDGE=true       # Upgrade RollupBridge
 
 | Contract Type | Description | Usage |
 |---------------|-------------|-------|
-| `MerkleTreeManager4Upgradeable` (Implementation) | Contract logic | For upgrades only |
-| `MerkleTreeManager4` (Proxy) | User-facing contract | Main interactions |
 | `RollupBridgeUpgradeable` (Implementation) | Contract logic | For upgrades only |  
 | `RollupBridge` (Proxy) | User-facing contract | Main interactions |
 

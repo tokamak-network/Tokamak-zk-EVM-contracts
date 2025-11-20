@@ -430,9 +430,7 @@ contract RollupBridgeCoreTest is Test {
         bytes[] memory initialMPTLeaves,
         bytes[] memory finalMPTLeaves
     ) internal view returns (RollupBridgeProofManager.ProofData memory) {
-        return _createProofDataFromMPT(
-            proofPart1, proofPart2, publicInputs, smax, finalMPTLeaves
-        );
+        return _createProofDataFromMPT(proofPart1, proofPart2, publicInputs, smax, finalMPTLeaves);
     }
 
     /**
@@ -798,9 +796,7 @@ contract RollupBridgeCoreTest is Test {
         emit AggregatedProofSigned(channelId, leader);
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 6, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 6, initialMPTLeaves, finalMPTLeaves),
             _createZecFrostSignature()
         );
     }
@@ -900,9 +896,7 @@ contract RollupBridgeCoreTest is Test {
         vm.expectRevert("Invalid final balances length");
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves),
             _createZecFrostSignature()
         );
     }
@@ -950,9 +944,7 @@ contract RollupBridgeCoreTest is Test {
         uint256 gasBefore = gasleft();
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves),
             _createZecFrostSignature()
         );
         uint256 gasAfter = gasleft();
@@ -996,9 +988,7 @@ contract RollupBridgeCoreTest is Test {
         emit AggregatedProofSigned(channelId, leader);
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves),
             _createZecFrostSignature()
         );
 
@@ -1035,9 +1025,7 @@ contract RollupBridgeCoreTest is Test {
         vm.expectRevert("Invalid group threshold signature");
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves),
             _createWrongZecFrostSignature()
         );
     }
@@ -1067,9 +1055,7 @@ contract RollupBridgeCoreTest is Test {
         vm.expectRevert("Only leader can submit");
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves),
             _createZecFrostSignature()
         );
     }
@@ -1120,9 +1106,7 @@ contract RollupBridgeCoreTest is Test {
         vm.expectRevert("Invalid ZK proof");
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves),
             _createZecFrostSignature()
         );
     }
@@ -1287,9 +1271,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(channelLeader);
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves),
             _createZecFrostSignature()
         );
     }
@@ -1354,9 +1336,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves),
             _createZecFrostSignature()
         );
 
@@ -1471,9 +1451,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         proofManager.submitProofAndSignature(
             channelId,
-            _createProofDataSimple(
-                proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves
-            ),
+            _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves),
             _createZecFrostSignature()
         );
 

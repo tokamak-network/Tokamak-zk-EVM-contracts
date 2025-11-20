@@ -233,6 +233,5 @@ contract RollupBridgeProofManager is ReentrancyGuardUpgradeable, OwnableUpgradea
         groth16Verifier128 = IGroth16Verifier128Leaves(_newVerifiers[3]);
     }
 
-
     uint256[43] private __gap;
 }

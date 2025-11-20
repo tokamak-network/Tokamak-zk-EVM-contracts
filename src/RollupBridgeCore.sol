@@ -338,7 +338,6 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         }
     }
 
-
     function setChannelSignatureVerified(uint256 channelId, bool verified) external onlyManager {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
         $.channels[channelId].sigVerified = verified;
@@ -400,21 +399,11 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
     function getChannelInfo(uint256 channelId)
         external
         view
-        returns (
-            address[] memory allowedTokens,
-            ChannelState state,
-            uint256 participantCount,
-            bytes32 initialRoot
-        )
+        returns (address[] memory allowedTokens, ChannelState state, uint256 participantCount, bytes32 initialRoot)
     {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
-        return (
-            channel.allowedTokens,
-            channel.state,
-            channel.participants.length,
-            channel.initialStateRoot
-        );
+        return (channel.allowedTokens, channel.state, channel.participants.length, channel.initialStateRoot);
     }
 
     function isSignatureVerified(uint256 channelId) external view returns (bool) {

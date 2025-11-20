@@ -112,7 +112,7 @@ contract RollupBridgeWithdrawManager is ReentrancyGuardUpgradeable, OwnableUpgra
         for (uint256 i = 0; i < allowedTokens.length; i++) {
             address token = allowedTokens[i];
             uint256 withdrawAmount = rollupBridge.getWithdrawableAmount(channelId, msg.sender, token);
-            
+
             if (withdrawAmount > 0) {
                 hasWithdrawableAmount = true;
                 rollupBridge.clearWithdrawableAmount(channelId, msg.sender, token);

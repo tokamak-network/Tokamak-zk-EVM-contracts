@@ -204,7 +204,7 @@ contract DeployV2Script is Script {
         rollupCmd[0] = "forge";
         rollupCmd[1] = "verify-contract";
         rollupCmd[2] = vm.toString(rollupBridgeImpl);
-        rollupCmd[3] = "src/RollupBridge.sol:RollupBridge";
+        rollupCmd[3] = "src/RollupBridgeCore.sol:RollupBridgeCore";
         rollupCmd[4] = "--etherscan-api-key";
         rollupCmd[5] = etherscanApiKey;
         vm.ffi(rollupCmd);

@@ -150,14 +150,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     } else {
       // Human-readable output
       console.log('\n✅ Withdrawal proof generated successfully!');
-      console.log('\n📋 Proof Data for withdrawAfterClose:');
+      console.log('\n📋 Proof Data for withdraw:');
       console.log(`channelId: ${proofData.channelId}`);
       console.log(`claimedBalance: ${proofData.claimedBalance}`);
       console.log(`leafIndex: ${proofData.leafIndex}`);
       console.log(`merkleProof: [${proofData.merkleProof.map(p => `"${p}"`).join(', ')}]`);
       
       console.log('\n🔧 Smart Contract Call:');
-      console.log('withdrawAfterClose(');
+      console.log('withdraw(');
       console.log(`  ${proofData.channelId}, // channelId`);
       console.log(`  ${proofData.claimedBalance}, // claimedBalance`);
       console.log(`  ${proofData.leafIndex}, // leafIndex`);

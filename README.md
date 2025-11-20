@@ -47,10 +47,13 @@ The leverage **MerkleTreeManager4** with **4-input hashing** instead of traditio
 
 ## Core Components
 
-#### **Bridge Layer**
-- **`RollupBridge.sol`**: **Latest V2** with embedded Merkle operations for 39% gas reduction
-- **`DisputeLogic.sol`**: Dispute resolution and slashing mechanisms
-- **`IRollupBridge.sol`**: Interface definitions and data structures
+#### **Modular Bridge Architecture**
+- **`RollupBridgeCore.sol`**: Core state management and channel operations
+- **`RollupBridgeDepositManager.sol`**: Deposit handling and token management
+- **`RollupBridgeProofManager.sol`**: ZK proof submission and verification
+- **`RollupBridgeWithdrawManager.sol`**: Withdrawal processing and finalization
+- **`RollupBridgeAdminManager.sol`**: Administrative functions and treasury management
+- **`IRollupBridgeCore.sol`**: Core interface definitions and data structures
 
 #### **Verification Layer**
 - **`Verifier.sol`**: ZK-SNARK proof verification contract
@@ -217,47 +220,54 @@ forge test --match-test testConstructor
 
 ### Test Coverage
 
-- **RollupBridge.t.sol**: 34 tests covering bridge operations and state transitions
-- **DisputeLogic.t.sol**: 51 tests covering dispute resolution, slashing, and emergency mechanisms
-- **Withdrawals.t.sol**: 16 tests covering withdrawal functionality and two-phase closure
-- **BasicUpgradeableTest.t.sol**: 16 tests covering upgradeability and lifecycle
-- **ArchitecturalOptimizationTest.t.sol**: 6 tests comparing V1 vs V2 performance and equivalence
-- **Verifier.t.sol**: 5 tests covering ZK proof verification
-- **Total**: 128 tests ensuring comprehensive coverage with proven functional equivalence
+- **RollupBridge.t.sol**: Comprehensive tests covering modular bridge operations and state transitions
+- **Withdrawals.t.sol**: 10 tests covering withdrawal functionality with automatic token withdrawal
+- **ModularArchitectureTest.t.sol**: Tests covering modular architecture interactions
+- **Groth16Verifier*.t.sol**: Tests covering Groth16 verification for different tree sizes (16, 32, 64, 128 leaves)
+- **Verifier.t.sol**: Tests covering ZK proof verification
+- **Total**: Comprehensive test coverage ensuring security and functionality of modular architecture
 
 ## Project Structure
 
 ```
 src/
-├── interface/            # Contract interfaces
-│   ├── IRollupBridge.sol # Bridge contract interface
-│   └── IVerifier.sol     # ZK verifier interface
-├── verifier/             # ZK proof verification
-│   └── Verifier.sol      # ZK-SNARK proof verifier
-├── library/              # Utility libraries
-│   └── RLP.sol           # Recursive Length Prefix encoding
-├── DisputeLogic.sol      # Dispute resolution and slashing logic
-└── RollupBridge.sol      # Main rollup bridge contract
+├── interface/                    # Contract interfaces
+│   ├── IRollupBridgeCore.sol     # Core bridge interface
+│   ├── IGroth16Verifier*.sol     # Groth16 verifier interfaces
+│   └── ITokamakVerifier.sol      # Tokamak verifier interface
+├── verifier/                     # ZK proof verification
+│   ├── TokamakVerifier.sol       # Main Tokamak verifier
+│   └── Groth16Verifier*.sol      # Groth16 verifiers for different tree sizes
+├── library/                      # Utility libraries
+│   └── RollupBridgeLib.sol       # Bridge utility functions
+├── RollupBridgeCore.sol          # Core state management
+├── RollupBridgeDepositManager.sol # Deposit handling
+├── RollupBridgeProofManager.sol   # Proof management
+├── RollupBridgeWithdrawManager.sol # Withdrawal management
+└── RollupBridgeAdminManager.sol   # Administrative functions
 
 script/                   # Deployment scripts
-├── DeployV2.s.sol        # V2 deployment script
-├── deploy-v2.sh          # V2 deployment script
-├── env-v2.template       # V2 environment template
+├── DeployV2.s.sol        # Modular architecture deployment
+├── TestGroth16Integration.s.sol # Groth16 integration tests
 └── UpgradeContracts.s.sol # Contract upgrade script
 
 test/
 ├── bridge/                             # Bridge-specific tests
-│   ├── DisputeLogic.t.sol              # Dispute system tests
-│   └── Withdrawals.t.sol               # Withdrawal functionality tests
-├── RollupBridge.t.sol                  # Bridge contract tests
-├── BasicUpgradeableTest.t.sol          # Upgradeability tests
-├── ArchitecturalOptimizationTest.t.sol # Performance comparison tests
-├── Verifier.t.sol                      # ZK verifier tests
+│   ├── RollupBridge.t.sol              # Modular bridge tests
+│   ├── Withdrawals.t.sol               # Withdrawal functionality tests
+│   └── ModularArchitectureTest.t.sol   # Modular architecture tests
+├── groth16/                            # Groth16 verifier tests
+│   ├── 16_leaves/                      # 16-leaf tree tests
+│   ├── 32_leaves/                      # 32-leaf tree tests
+│   ├── 64_leaves/                      # 64-leaf tree tests
+│   └── 128_leaves/                     # 128-leaf tree tests
+├── verifier/                           # Verifier tests
+│   └── Verifier.t.sol                  # ZK verifier tests
 ├── js-scripts/                         # JavaScript utilities
-│   ├── generateProof.js                # Proof generation utility
-│   ├── merkleTree.js                   # Merkle tree implementation
-│   └── simpleQuaternaryTree.js         # Quaternary tree implementation
-└── mock/                               # Test utilities and mocks
+│   ├── generateGroth16Proof.js         # Groth16 proof generation
+│   └── generateProof.js                # General proof generation
+└── scripts/                            # Test scripts
+    └── generate_proof.sh               # Proof generation script
 ```
 
 

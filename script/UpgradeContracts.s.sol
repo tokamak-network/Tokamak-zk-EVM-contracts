@@ -156,7 +156,7 @@ contract UpgradeContractsScript is Script {
             console.log("\n[VERIFICATION COMMANDS]");
             console.log("New implementation will be verified automatically with --verify flag");
             console.log("Manual verification command:");
-            console.log("  forge verify-contract", newRollupBridgeImpl, "src/RollupBridge.sol:RollupBridge");
+            console.log("  forge verify-contract", newRollupBridgeImpl, "src/RollupBridgeCore.sol:RollupBridgeCore");
         }
     }
 }

@@ -3,6 +3,8 @@ pragma solidity 0.8.29;
 
 import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {ITokamakVerifier} from "./interface/ITokamakVerifier.sol";
 import {IZecFrost} from "./interface/IZecFrost.sol";
 import "./interface/IGroth16Verifier16Leaves.sol";
@@ -11,7 +13,11 @@ import "./interface/IGroth16Verifier64Leaves.sol";
 import "./interface/IGroth16Verifier128Leaves.sol";
 import "./interface/IRollupBridgeCore.sol";
 
-contract RollupBridgeProofManager is ReentrancyGuardUpgradeable, OwnableUpgradeable {
+contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
     uint256 constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
     struct ChannelInitializationProof {
@@ -62,6 +68,7 @@ contract RollupBridgeProofManager is ReentrancyGuardUpgradeable, OwnableUpgradea
     ) public initializer {
         __ReentrancyGuard_init();
         __Ownable_init_unchained();
+        __UUPSUpgradeable_init();
         _transferOwnership(_owner);
 
         require(_rollupBridge != address(0), "Invalid bridge address");
@@ -276,5 +283,24 @@ contract RollupBridgeProofManager is ReentrancyGuardUpgradeable, OwnableUpgradea
         }
     }
 
-    uint256[43] private __gap;
+    function updateRollupBridge(address _newBridge) external onlyOwner {
+        require(_newBridge != address(0), "Invalid bridge address");
+        rollupBridge = IRollupBridgeCore(_newBridge);
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /**
+     * @notice Returns the address of the current implementation contract
+     * @dev Uses EIP-1967 standard storage slot for implementation address
+     * @return implementation The address of the implementation contract
+     */
+    function getImplementation() external view returns (address implementation) {
+        bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        assembly {
+            implementation := sload(slot)
+        }
+    }
+
+    uint256[41] private __gap;
 }

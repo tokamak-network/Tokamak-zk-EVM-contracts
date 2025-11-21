@@ -21,9 +21,17 @@ import "../src/library/ZecFrost.sol";
 contract DeployV2Script is Script {
     // Implementation addresses
     address public rollupBridgeImpl;
+    address public depositManagerImpl;
+    address public proofManagerImpl;
+    address public withdrawManagerImpl;
+    address public adminManagerImpl;
 
     // Proxy addresses (main contracts)
     address public rollupBridge;
+    address public depositManager;
+    address public proofManager;
+    address public withdrawManager;
+    address public adminManager;
 
     // Environment variables
     address public zkVerifier;
@@ -125,17 +133,72 @@ contract DeployV2Script is Script {
         rollupBridgeImpl = address(rollupBridgeImplementation);
         console.log("RollupBridge implementation deployed at:", rollupBridgeImpl);
 
+        // Deploy manager implementations
+        console.log("Deploying RollupBridgeDepositManager implementation...");
+        RollupBridgeDepositManager depositManagerImplementation = new RollupBridgeDepositManager();
+        depositManagerImpl = address(depositManagerImplementation);
+        console.log("RollupBridgeDepositManager implementation deployed at:", depositManagerImpl);
+
+        console.log("Deploying RollupBridgeProofManager implementation...");
+        RollupBridgeProofManager proofManagerImplementation = new RollupBridgeProofManager();
+        proofManagerImpl = address(proofManagerImplementation);
+        console.log("RollupBridgeProofManager implementation deployed at:", proofManagerImpl);
+
+        console.log("Deploying RollupBridgeWithdrawManager implementation...");
+        RollupBridgeWithdrawManager withdrawManagerImplementation = new RollupBridgeWithdrawManager();
+        withdrawManagerImpl = address(withdrawManagerImplementation);
+        console.log("RollupBridgeWithdrawManager implementation deployed at:", withdrawManagerImpl);
+
+        console.log("Deploying RollupBridgeAdminManager implementation...");
+        RollupBridgeAdminManager adminManagerImplementation = new RollupBridgeAdminManager();
+        adminManagerImpl = address(adminManagerImplementation);
+        console.log("RollupBridgeAdminManager implementation deployed at:", adminManagerImpl);
+
         // Deploy RollupBridge proxy
         console.log("Deploying RollupBridge proxy...");
-
-        address[4] memory groth16Verifiers =
-            [groth16Verifier16, groth16Verifier32, groth16Verifier64, groth16Verifier128];
-        bytes memory rollupBridgeInitData =
-            abi.encodeCall(RollupBridgeCore.initialize, (address(0), address(0), address(0), address(0), deployer));
+        bytes memory rollupBridgeInitData = abi.encodeCall(
+            RollupBridgeCore.initialize, (depositManager, proofManager, withdrawManager, adminManager, deployer)
+        );
 
         ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
         rollupBridge = address(rollupBridgeProxy);
         console.log("RollupBridge proxy deployed at:", rollupBridge);
+
+        // Deploy manager proxies and initialize
+        console.log("Deploying manager proxies...");
+        
+        // Deploy DepositManager proxy
+        bytes memory depositManagerInitData = abi.encodeCall(
+            RollupBridgeDepositManager.initialize, (rollupBridge, deployer)
+        );
+        ERC1967Proxy depositManagerProxy = new ERC1967Proxy(depositManagerImpl, depositManagerInitData);
+        depositManager = address(depositManagerProxy);
+        console.log("RollupBridgeDepositManager proxy deployed at:", depositManager);
+        
+        // Deploy ProofManager proxy
+        address[4] memory groth16Verifiers = [groth16Verifier16, groth16Verifier32, groth16Verifier64, groth16Verifier128];
+        bytes memory proofManagerInitData = abi.encodeCall(
+            RollupBridgeProofManager.initialize, (rollupBridge, zkVerifier, zecFrost, groth16Verifiers, deployer)
+        );
+        ERC1967Proxy proofManagerProxy = new ERC1967Proxy(proofManagerImpl, proofManagerInitData);
+        proofManager = address(proofManagerProxy);
+        console.log("RollupBridgeProofManager proxy deployed at:", proofManager);
+        
+        // Deploy WithdrawManager proxy
+        bytes memory withdrawManagerInitData = abi.encodeCall(
+            RollupBridgeWithdrawManager.initialize, (rollupBridge, deployer)
+        );
+        ERC1967Proxy withdrawManagerProxy = new ERC1967Proxy(withdrawManagerImpl, withdrawManagerInitData);
+        withdrawManager = address(withdrawManagerProxy);
+        console.log("RollupBridgeWithdrawManager proxy deployed at:", withdrawManager);
+        
+        // Deploy AdminManager proxy
+        bytes memory adminManagerInitData = abi.encodeCall(
+            RollupBridgeAdminManager.initialize, (rollupBridge, deployer)
+        );
+        ERC1967Proxy adminManagerProxy = new ERC1967Proxy(adminManagerImpl, adminManagerInitData);
+        adminManager = address(adminManagerProxy);
+        console.log("RollupBridgeAdminManager proxy deployed at:", adminManager);
 
         // Configure WTON target contract
         console.log("Configuring WTON target contract...");
@@ -155,9 +218,19 @@ contract DeployV2Script is Script {
         console.log("Groth16 Verifier64:", groth16Verifier64);
         console.log("Groth16 Verifier128:", groth16Verifier128);
         console.log("ZecFrost:", zecFrost);
+        console.log("\n=== IMPLEMENTATIONS ===");
         console.log("RollupBridge Implementation:", rollupBridgeImpl);
+        console.log("Deposit Manager Implementation:", depositManagerImpl);
+        console.log("Proof Manager Implementation:", proofManagerImpl);
+        console.log("Withdraw Manager Implementation:", withdrawManagerImpl);
+        console.log("Admin Manager Implementation:", adminManagerImpl);
+        console.log("\n=== PROXIES ===");
         console.log("RollupBridge Proxy:", rollupBridge);
-        console.log("Deployer (Owner):", deployer);
+        console.log("Deposit Manager Proxy:", depositManager);
+        console.log("Proof Manager Proxy:", proofManager);
+        console.log("Withdraw Manager Proxy:", withdrawManager);
+        console.log("Admin Manager Proxy:", adminManager);
+        console.log("\nDeployer (Owner):", deployer);
 
         // Verify contracts if requested
         if (shouldVerify && bytes(etherscanApiKey).length > 0) {
@@ -208,6 +281,47 @@ contract DeployV2Script is Script {
         rollupCmd[4] = "--etherscan-api-key";
         rollupCmd[5] = etherscanApiKey;
         vm.ffi(rollupCmd);
+
+        // Verify Manager contracts
+        console.log("Verifying RollupBridgeDepositManager implementation...");
+        string[] memory depositCmd = new string[](6);
+        depositCmd[0] = "forge";
+        depositCmd[1] = "verify-contract";
+        depositCmd[2] = vm.toString(depositManagerImpl);
+        depositCmd[3] = "src/RollupBridgeDepositManager.sol:RollupBridgeDepositManager";
+        depositCmd[4] = "--etherscan-api-key";
+        depositCmd[5] = etherscanApiKey;
+        vm.ffi(depositCmd);
+
+        console.log("Verifying RollupBridgeProofManager implementation...");
+        string[] memory proofCmd = new string[](6);
+        proofCmd[0] = "forge";
+        proofCmd[1] = "verify-contract";
+        proofCmd[2] = vm.toString(proofManagerImpl);
+        proofCmd[3] = "src/RollupBridgeProofManager.sol:RollupBridgeProofManager";
+        proofCmd[4] = "--etherscan-api-key";
+        proofCmd[5] = etherscanApiKey;
+        vm.ffi(proofCmd);
+
+        console.log("Verifying RollupBridgeWithdrawManager implementation...");
+        string[] memory withdrawCmd = new string[](6);
+        withdrawCmd[0] = "forge";
+        withdrawCmd[1] = "verify-contract";
+        withdrawCmd[2] = vm.toString(withdrawManagerImpl);
+        withdrawCmd[3] = "src/RollupBridgeWithdrawManager.sol:RollupBridgeWithdrawManager";
+        withdrawCmd[4] = "--etherscan-api-key";
+        withdrawCmd[5] = etherscanApiKey;
+        vm.ffi(withdrawCmd);
+
+        console.log("Verifying RollupBridgeAdminManager implementation...");
+        string[] memory adminCmd = new string[](6);
+        adminCmd[0] = "forge";
+        adminCmd[1] = "verify-contract";
+        adminCmd[2] = vm.toString(adminManagerImpl);
+        adminCmd[3] = "src/RollupBridgeAdminManager.sol:RollupBridgeAdminManager";
+        adminCmd[4] = "--etherscan-api-key";
+        adminCmd[5] = etherscanApiKey;
+        vm.ffi(adminCmd);
 
         console.log("Contract verification complete!");
     }

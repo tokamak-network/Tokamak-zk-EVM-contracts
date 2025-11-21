@@ -5,9 +5,15 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgra
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "./interface/IRollupBridgeCore.sol";
 
-contract RollupBridgeDepositManager is ReentrancyGuardUpgradeable, OwnableUpgradeable {
+contract RollupBridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     address public constant ETH_TOKEN_ADDRESS = address(1);
@@ -24,6 +30,7 @@ contract RollupBridgeDepositManager is ReentrancyGuardUpgradeable, OwnableUpgrad
     function initialize(address _rollupBridge, address _owner) public initializer {
         __ReentrancyGuard_init();
         __Ownable_init_unchained();
+        __UUPSUpgradeable_init();
         _transferOwnership(_owner);
 
         require(_rollupBridge != address(0), "Invalid bridge address");
@@ -110,5 +117,19 @@ contract RollupBridgeDepositManager is ReentrancyGuardUpgradeable, OwnableUpgrad
         return string(buffer);
     }
 
-    uint256[48] private __gap;
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /**
+     * @notice Returns the address of the current implementation contract
+     * @dev Uses EIP-1967 standard storage slot for implementation address
+     * @return implementation The address of the implementation contract
+     */
+    function getImplementation() external view returns (address implementation) {
+        bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        assembly {
+            implementation := sload(slot)
+        }
+    }
+
+    uint256[47] private __gap;
 }

@@ -204,10 +204,39 @@ contract RollupBridgeCoreTest is Test {
 
         ZecFrost zecFrost = new ZecFrost();
 
-        // Deploy manager contracts first
-        depositManager = new RollupBridgeDepositManager();
-        withdrawManager = new RollupBridgeWithdrawManager();
-        adminManager = new RollupBridgeAdminManager();
+        // Deploy manager implementations
+        RollupBridgeDepositManager depositManagerImpl = new RollupBridgeDepositManager();
+        RollupBridgeWithdrawManager withdrawManagerImpl = new RollupBridgeWithdrawManager();
+        RollupBridgeAdminManager adminManagerImpl = new RollupBridgeAdminManager();
+        RollupBridgeProofManager proofManagerImpl = new RollupBridgeProofManager();
+
+        // Deploy core contract with proxy first
+        RollupBridgeCore implementation = new RollupBridgeCore();
+        bytes memory bridgeInitData = abi.encodeCall(
+            RollupBridgeCore.initialize,
+            (address(0), address(0), address(0), address(0), owner) // Temporary addresses
+        );
+        ERC1967Proxy bridgeProxy = new ERC1967Proxy(address(implementation), bridgeInitData);
+        bridge = RollupBridgeCore(address(bridgeProxy));
+
+        // Deploy manager proxies with bridge address
+        bytes memory depositInitData = abi.encodeCall(
+            RollupBridgeDepositManager.initialize, (address(bridge), owner)
+        );
+        ERC1967Proxy depositProxy = new ERC1967Proxy(address(depositManagerImpl), depositInitData);
+        depositManager = RollupBridgeDepositManager(address(depositProxy));
+
+        bytes memory withdrawInitData = abi.encodeCall(
+            RollupBridgeWithdrawManager.initialize, (address(bridge), owner)
+        );
+        ERC1967Proxy withdrawProxy = new ERC1967Proxy(address(withdrawManagerImpl), withdrawInitData);
+        withdrawManager = RollupBridgeWithdrawManager(payable(address(withdrawProxy)));
+
+        bytes memory adminInitData = abi.encodeCall(
+            RollupBridgeAdminManager.initialize, (address(bridge), owner)
+        );
+        ERC1967Proxy adminProxy = new ERC1967Proxy(address(adminManagerImpl), adminInitData);
+        adminManager = RollupBridgeAdminManager(address(adminProxy));
 
         address[4] memory groth16Verifiers = [
             address(groth16Verifier16),
@@ -215,24 +244,14 @@ contract RollupBridgeCoreTest is Test {
             address(groth16Verifier64),
             address(groth16Verifier128)
         ];
-
-        proofManager = new RollupBridgeProofManager();
-
-        // Deploy RollupBridgeCore with proxy
-        RollupBridgeCore implementation = new RollupBridgeCore();
-
-        bytes memory initData = abi.encodeCall(
-            RollupBridgeCore.initialize,
-            (address(depositManager), address(proofManager), address(withdrawManager), address(adminManager), owner)
+        bytes memory proofInitData = abi.encodeCall(
+            RollupBridgeProofManager.initialize, (address(bridge), address(tokamakVerifier), address(zecFrost), groth16Verifiers, owner)
         );
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
-        bridge = RollupBridgeCore(address(proxy));
+        ERC1967Proxy proofProxy = new ERC1967Proxy(address(proofManagerImpl), proofInitData);
+        proofManager = RollupBridgeProofManager(address(proofProxy));
 
-        // Initialize manager contracts
-        depositManager.initialize(address(bridge), owner);
-        withdrawManager.initialize(address(bridge), owner);
-        adminManager.initialize(address(bridge), owner);
-        proofManager.initialize(address(bridge), address(tokamakVerifier), address(zecFrost), groth16Verifiers, owner);
+        // Update bridge with manager addresses
+        bridge.updateManagerAddresses(address(depositManager), address(proofManager), address(withdrawManager), address(adminManager));
 
         // Fund test accounts
         vm.deal(leader, INITIAL_BALANCE);

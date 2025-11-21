@@ -444,6 +444,19 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         }
     }
 
+    function updateManagerAddresses(
+        address _depositManager,
+        address _proofManager,
+        address _withdrawManager,
+        address _adminManager
+    ) external onlyOwner {
+        RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
+        if (_depositManager != address(0)) $.depositManager = _depositManager;
+        if (_proofManager != address(0)) $.proofManager = _proofManager;
+        if (_withdrawManager != address(0)) $.withdrawManager = _withdrawManager;
+        if (_adminManager != address(0)) $.adminManager = _adminManager;
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     function deriveAddressFromPubkey(uint256 pkx, uint256 pky) internal pure returns (address) {
@@ -464,6 +477,18 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
             return 128;
         } else {
             revert("Too many participant-token combinations");
+        }
+    }
+
+    /**
+     * @notice Returns the address of the current implementation contract
+     * @dev Uses EIP-1967 standard storage slot for implementation address
+     * @return implementation The address of the implementation contract
+     */
+    function getImplementation() external view returns (address implementation) {
+        bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        assembly {
+            implementation := sload(slot)
         }
     }
 

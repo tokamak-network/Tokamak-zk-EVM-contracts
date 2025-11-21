@@ -63,25 +63,35 @@ contract ModularArchitectureTest is Test {
         groth16Verifier = new MockGroth16Verifier();
         zecFrost = new ZecFrost();
 
-        // Deploy manager contracts
-        depositManager = new RollupBridgeDepositManager();
-        proofManager = new RollupBridgeProofManager();
+        // Deploy manager implementations
+        RollupBridgeDepositManager depositManagerImpl = new RollupBridgeDepositManager();
+        RollupBridgeProofManager proofManagerImpl = new RollupBridgeProofManager();
 
-        // Deploy core contract with proxy
+        // Deploy core contract with proxy first
         RollupBridgeCore implementation = new RollupBridgeCore();
-        bytes memory initData = abi.encodeCall(
-            RollupBridgeCore.initialize, (address(depositManager), address(proofManager), address(0), address(0), owner)
+        bytes memory bridgeInitData = abi.encodeCall(
+            RollupBridgeCore.initialize, (address(0), address(0), address(0), address(0), owner) // Temporary addresses
         );
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
-        bridge = RollupBridgeCore(address(proxy));
+        ERC1967Proxy bridgeProxy = new ERC1967Proxy(address(implementation), bridgeInitData);
+        bridge = RollupBridgeCore(address(bridgeProxy));
 
-        // Initialize manager contracts
-        depositManager.initialize(address(bridge), owner);
+        // Deploy manager proxies with bridge address
+        bytes memory depositInitData = abi.encodeCall(
+            RollupBridgeDepositManager.initialize, (address(bridge), owner)
+        );
+        ERC1967Proxy depositProxy = new ERC1967Proxy(address(depositManagerImpl), depositInitData);
+        depositManager = RollupBridgeDepositManager(address(depositProxy));
 
         address[4] memory groth16Verifiers =
             [address(groth16Verifier), address(groth16Verifier), address(groth16Verifier), address(groth16Verifier)];
+        bytes memory proofInitData = abi.encodeCall(
+            RollupBridgeProofManager.initialize, (address(bridge), address(tokamakVerifier), address(zecFrost), groth16Verifiers, owner)
+        );
+        ERC1967Proxy proofProxy = new ERC1967Proxy(address(proofManagerImpl), proofInitData);
+        proofManager = RollupBridgeProofManager(address(proofProxy));
 
-        proofManager.initialize(address(bridge), address(tokamakVerifier), address(zecFrost), groth16Verifiers, owner);
+        // Update bridge with manager addresses
+        bridge.updateManagerAddresses(address(depositManager), address(proofManager), address(0), address(0));
 
         // Fund test accounts
         vm.deal(leader, 10 ether);
@@ -101,6 +111,29 @@ contract ModularArchitectureTest is Test {
         // Test that managers are properly linked
         assertEq(address(depositManager.rollupBridge()), address(bridge));
         assertEq(address(proofManager.rollupBridge()), address(bridge));
+    }
+
+    function testGetImplementationAddress() public view {
+        // Test that getImplementation() returns the correct implementation addresses
+        address bridgeImpl = bridge.getImplementation();
+        address depositImpl = depositManager.getImplementation();
+        address proofImpl = proofManager.getImplementation();
+
+        // Verify that implementation addresses are not zero and not the proxy addresses
+        assertTrue(bridgeImpl != address(0), "Bridge implementation should not be zero");
+        assertTrue(depositImpl != address(0), "Deposit manager implementation should not be zero");
+        assertTrue(proofImpl != address(0), "Proof manager implementation should not be zero");
+
+        assertTrue(bridgeImpl != address(bridge), "Implementation should not equal proxy address");
+        assertTrue(depositImpl != address(depositManager), "Implementation should not equal proxy address");
+        assertTrue(proofImpl != address(proofManager), "Implementation should not equal proxy address");
+
+        console.log("Bridge proxy:", address(bridge));
+        console.log("Bridge implementation:", bridgeImpl);
+        console.log("Deposit manager proxy:", address(depositManager));
+        console.log("Deposit manager implementation:", depositImpl);
+        console.log("Proof manager proxy:", address(proofManager));
+        console.log("Proof manager implementation:", proofImpl);
     }
 
     function testChannelCreationAndDeposits() public {

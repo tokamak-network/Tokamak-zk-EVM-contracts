@@ -2,11 +2,17 @@
 pragma solidity 0.8.29;
 
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {ITokamakVerifier} from "./interface/ITokamakVerifier.sol";
 import "./interface/IGroth16Verifier16Leaves.sol";
 import "./interface/IRollupBridgeCore.sol";
 
-contract RollupBridgeAdminManager is OwnableUpgradeable {
+contract RollupBridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
     IRollupBridgeCore public rollupBridge;
 
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
@@ -24,6 +30,7 @@ contract RollupBridgeAdminManager is OwnableUpgradeable {
 
     function initialize(address _rollupBridge, address _owner) public initializer {
         __Ownable_init_unchained();
+        __UUPSUpgradeable_init();
         _transferOwnership(_owner);
 
         require(_rollupBridge != address(0), "Invalid bridge address");
@@ -97,5 +104,19 @@ contract RollupBridgeAdminManager is OwnableUpgradeable {
         rollupBridge = IRollupBridgeCore(_newBridge);
     }
 
-    uint256[48] private __gap;
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /**
+     * @notice Returns the address of the current implementation contract
+     * @dev Uses EIP-1967 standard storage slot for implementation address
+     * @return implementation The address of the implementation contract
+     */
+    function getImplementation() external view returns (address implementation) {
+        bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        assembly {
+            implementation := sload(slot)
+        }
+    }
+
+    uint256[47] private __gap;
 }

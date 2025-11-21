@@ -239,7 +239,6 @@ src/
 │   ├── TokamakVerifier.sol       # Main Tokamak verifier
 │   └── Groth16Verifier*.sol      # Groth16 verifiers for different tree sizes
 ├── library/                      # Utility libraries
-│   └── RollupBridgeLib.sol       # Bridge utility functions
 ├── RollupBridgeCore.sol          # Core state management
 ├── RollupBridgeDepositManager.sol # Deposit handling
 ├── RollupBridgeProofManager.sol   # Proof management

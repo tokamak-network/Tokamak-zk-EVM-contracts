@@ -9,7 +9,6 @@ import "./interface/IGroth16Verifier16Leaves.sol";
 import "./interface/IGroth16Verifier32Leaves.sol";
 import "./interface/IGroth16Verifier64Leaves.sol";
 import "./interface/IGroth16Verifier128Leaves.sol";
-import "./library/RollupBridgeLib.sol";
 import "./interface/IRollupBridgeCore.sol";
 
 contract RollupBridgeProofManager is ReentrancyGuardUpgradeable, OwnableUpgradeable {
@@ -132,7 +131,7 @@ contract RollupBridgeProofManager is ReentrancyGuardUpgradeable, OwnableUpgradea
             }
         }
 
-        bool proofValid = RollupBridgeLib.verifyGroth16Proof(
+        bool proofValid = verifyGroth16Proof(
             treeSize,
             groth16Verifier16,
             groth16Verifier32,
@@ -231,6 +230,50 @@ contract RollupBridgeProofManager is ReentrancyGuardUpgradeable, OwnableUpgradea
         groth16Verifier32 = IGroth16Verifier32Leaves(_newVerifiers[1]);
         groth16Verifier64 = IGroth16Verifier64Leaves(_newVerifiers[2]);
         groth16Verifier128 = IGroth16Verifier128Leaves(_newVerifiers[3]);
+    }
+
+    function verifyGroth16Proof(
+        uint256 treeSize,
+        IGroth16Verifier16Leaves verifier16,
+        IGroth16Verifier32Leaves verifier32,
+        IGroth16Verifier64Leaves verifier64,
+        IGroth16Verifier128Leaves verifier128,
+        uint256[4] calldata pA,
+        uint256[8] calldata pB,
+        uint256[4] calldata pC,
+        uint256[] memory publicSignals
+    ) internal view returns (bool) {
+        if (treeSize == 16) {
+            require(publicSignals.length == 33, "Invalid public signals length for 16 leaves");
+            uint256[33] memory signals16;
+            for (uint256 i = 0; i < 33; i++) {
+                signals16[i] = publicSignals[i];
+            }
+            return verifier16.verifyProof(pA, pB, pC, signals16);
+        } else if (treeSize == 32) {
+            require(publicSignals.length == 65, "Invalid public signals length for 32 leaves");
+            uint256[65] memory signals32;
+            for (uint256 i = 0; i < 65; i++) {
+                signals32[i] = publicSignals[i];
+            }
+            return verifier32.verifyProof(pA, pB, pC, signals32);
+        } else if (treeSize == 64) {
+            require(publicSignals.length == 129, "Invalid public signals length for 64 leaves");
+            uint256[129] memory signals64;
+            for (uint256 i = 0; i < 129; i++) {
+                signals64[i] = publicSignals[i];
+            }
+            return verifier64.verifyProof(pA, pB, pC, signals64);
+        } else if (treeSize == 128) {
+            require(publicSignals.length == 257, "Invalid public signals length for 128 leaves");
+            uint256[257] memory signals128;
+            for (uint256 i = 0; i < 257; i++) {
+                signals128[i] = publicSignals[i];
+            }
+            return verifier128.verifyProof(pA, pB, pC, signals128);
+        } else {
+            revert("Invalid tree size");
+        }
     }
 
     uint256[43] private __gap;

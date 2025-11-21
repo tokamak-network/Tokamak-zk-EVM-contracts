@@ -5,7 +5,6 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgra
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
-import "./library/RollupBridgeLib.sol";
 import "./interface/IRollupBridgeCore.sol";
 
 contract RollupBridgeDepositManager is ReentrancyGuardUpgradeable, OwnableUpgradeable {
@@ -59,7 +58,25 @@ contract RollupBridgeDepositManager is ReentrancyGuardUpgradeable, OwnableUpgrad
         require(_mptKey != bytes32(0), "Invalid MPT key");
         require(_amount != 0, "amount must be greater than 0");
 
-        uint256 actualAmount = RollupBridgeLib.depositToken(msg.sender, IERC20Upgradeable(_token), _amount);
+        uint256 userBalance = IERC20Upgradeable(_token).balanceOf(msg.sender);
+        require(
+            userBalance >= _amount,
+            string(abi.encodePacked("Insufficient token balance: ", toString(userBalance), " < ", toString(_amount)))
+        );
+
+        uint256 userAllowance = IERC20Upgradeable(_token).allowance(msg.sender, address(this));
+        require(
+            userAllowance >= _amount,
+            string(
+                abi.encodePacked("Insufficient token allowance: ", toString(userAllowance), " < ", toString(_amount))
+            )
+        );
+
+        uint256 balanceBefore = IERC20Upgradeable(_token).balanceOf(address(this));
+        IERC20Upgradeable(_token).safeTransferFrom(msg.sender, address(this), _amount);
+        uint256 balanceAfter = IERC20Upgradeable(_token).balanceOf(address(this));
+        uint256 actualAmount = balanceAfter - balanceBefore;
+        require(actualAmount > 0, "No tokens transferred");
 
         rollupBridge.setChannelL2MptKey(_channelId, msg.sender, _token, uint256(_mptKey));
         rollupBridge.updateChannelTokenDeposits(_channelId, _token, msg.sender, actualAmount);
@@ -71,6 +88,26 @@ contract RollupBridgeDepositManager is ReentrancyGuardUpgradeable, OwnableUpgrad
     function updateRollupBridge(address _newBridge) external onlyOwner {
         require(_newBridge != address(0), "Invalid bridge address");
         rollupBridge = IRollupBridgeCore(_newBridge);
+    }
+
+
+    function toString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
     }
 
     uint256[48] private __gap;

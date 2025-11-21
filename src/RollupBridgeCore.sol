@@ -6,7 +6,6 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgrade
 import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import "./library/RollupBridgeLib.sol";
 
 contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     using ECDSAUpgradeable for bytes32;
@@ -134,8 +133,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         require(params.allowedTokens.length <= 4, "Maximum 4 tokens allowed");
         require(params.timeout >= 1 hours && params.timeout <= 365 days, "Invalid timeout");
 
-        uint256 requiredTreeSize =
-            RollupBridgeLib.determineTreeSize(params.participants.length, params.allowedTokens.length);
+        uint256 requiredTreeSize = determineTreeSize(params.participants.length, params.allowedTokens.length);
 
         require(
             params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= MAX_PARTICIPANTS,
@@ -196,7 +194,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
 
         channel.pkx = params.pkx;
         channel.pky = params.pky;
-        address signerAddr = RollupBridgeLib.deriveAddressFromPubkey(params.pkx, params.pky);
+        address signerAddr = deriveAddressFromPubkey(params.pkx, params.pky);
         channel.signerAddr = signerAddr;
 
         emit ChannelOpened(channelId, params.allowedTokens);
@@ -447,6 +445,27 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    function deriveAddressFromPubkey(uint256 pkx, uint256 pky) internal pure returns (address) {
+        bytes32 h = keccak256(abi.encodePacked(pkx, pky));
+        return address(uint160(uint256(h)));
+    }
+
+    function determineTreeSize(uint256 participantCount, uint256 tokenCount) internal pure returns (uint256) {
+        uint256 totalLeaves = participantCount * tokenCount;
+
+        if (totalLeaves <= 16) {
+            return 16;
+        } else if (totalLeaves <= 32) {
+            return 32;
+        } else if (totalLeaves <= 64) {
+            return 64;
+        } else if (totalLeaves <= 128) {
+            return 128;
+        } else {
+            revert("Too many participant-token combinations");
+        }
+    }
 
     uint256[42] private __gap;
 }

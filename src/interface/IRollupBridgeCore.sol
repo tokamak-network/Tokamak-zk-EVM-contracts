@@ -81,4 +81,78 @@ interface IRollupBridgeCore {
     function clearWithdrawableAmount(uint256 channelId, address participant, address token) external;
     function reclaimLeaderBondInternal(uint256 channelId) external returns (uint256 bondAmount);
     function addSlashedBonds(uint256 amount) external;
+
+    // === DASHBOARD FUNCTIONS ===
+    function getTotalChannels() external view returns (uint256);
+    function getChannelStats() external view returns (
+        uint256 openChannels,
+        uint256 activeChannels, 
+        uint256 closingChannels,
+        uint256 closedChannels
+    );
+    function getUserTotalBalance(address user) external view returns (
+        address[] memory tokens,
+        uint256[] memory balances
+    );
+    function batchGetChannelStates(uint256[] calldata channelIds) 
+        external 
+        view 
+        returns (ChannelState[] memory states);
+    
+    // === MEDIUM PRIORITY UX FUNCTIONS ===
+    function getUserAnalytics(address user) external view returns (
+        uint256 totalChannelsJoined,
+        uint256 activeChannelsCount,
+        uint256 totalTokenTypes,
+        uint256 channelsAsLeader
+    );
+    function getChannelHistory(address user) external view returns (
+        uint256[] memory channelIds,
+        ChannelState[] memory states,
+        uint256[] memory joinTimestamps,
+        bool[] memory isLeaderFlags
+    );
+    function canUserDeposit(address user, uint256 channelId, address token, uint256 amount) 
+        external 
+        view 
+        returns (bool canDeposit, string memory reason);
+    function canUserWithdraw(address user, uint256 channelId) 
+        external 
+        view 
+        returns (bool canWithdraw, string memory reason);
+    
+    // === LOW PRIORITY ADVANCED FUNCTIONS ===
+    function getSystemAnalytics() external view returns (
+        uint256 totalChannelsCreated,
+        uint256 totalValueLocked,
+        uint256 totalUniqueUsers,
+        uint256 averageChannelSize,
+        uint256 totalSlashedAmount
+    );
+    function getChannelLiveMetrics(uint256 channelId) external view returns (
+        uint256 activeParticipants,
+        uint256 totalDeposits,
+        uint256 averageDepositSize,
+        uint256 timeActive,
+        uint256 lastActivityTime
+    );
+    function searchChannelsByParticipant(
+        address participant,
+        ChannelState state,
+        uint256 limit,
+        uint256 offset
+    ) external view returns (
+        uint256[] memory channelIds,
+        uint256 totalMatches
+    );
+    function searchChannelsByToken(
+        address token,
+        uint256 minTotalDeposits,
+        uint256 limit,
+        uint256 offset
+    ) external view returns (
+        uint256[] memory channelIds,
+        uint256[] memory totalDeposits,
+        uint256 totalMatches
+    );
 }

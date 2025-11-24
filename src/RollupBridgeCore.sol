@@ -41,7 +41,6 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
     struct Channel {
         uint256 id;
         address[] allowedTokens;
-        mapping(address => bool) isTokenAllowed;
         mapping(address => mapping(address => uint256)) tokenDeposits;
         mapping(address => uint256) tokenTotalDeposits;
         bytes32 initialStateRoot;
@@ -129,7 +128,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         require(msg.value == LEADER_BOND_REQUIRED, "Leader bond required");
         require(!$.isChannelLeader[msg.sender], "Channel limit reached");
         require(params.allowedTokens.length > 0, "Must specify at least one token");
-        require(params.allowedTokens.length <= 64, "Maximum 4 tokens allowed");
+        require(params.allowedTokens.length <= 64, "Maximum 64 tokens allowed");
         require(params.timeout >= 1 hours && params.timeout <= 365 days, "Invalid timeout");
 
         uint256 requiredTreeSize = determineTreeSize(params.participants.length, params.allowedTokens.length);
@@ -173,7 +172,6 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         uint256 tokensLength = params.allowedTokens.length;
         for (uint256 i = 0; i < tokensLength;) {
             channel.allowedTokens.push(params.allowedTokens[i]);
-            channel.isTokenAllowed[params.allowedTokens[i]] = true;
             unchecked {
                 ++i;
             }
@@ -210,9 +208,18 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         return $.channels[channelId].isParticipant[participant];
     }
 
+    function _isTokenAllowed(Channel storage channel, address token) private view returns (bool) {
+        for (uint256 i = 0; i < channel.allowedTokens.length; i++) {
+            if (channel.allowedTokens[i] == token) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function isTokenAllowedInChannel(uint256 channelId, address token) external view returns (bool) {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        return $.channels[channelId].isTokenAllowed[token];
+        return _isTokenAllowed($.channels[channelId], token);
     }
 
     function getChannelLeader(uint256 channelId) external view returns (address) {
@@ -692,7 +699,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
             return (false, "User is not a participant in this channel");
         }
         
-        if (!channel.isTokenAllowed[token]) {
+        if (!_isTokenAllowed(channel, token)) {
             return (false, "Token is not allowed in this channel");
         }
         
@@ -933,7 +940,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         // First pass: count matches
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
-            if (channel.id > 0 && channel.isTokenAllowed[token]) {
+            if (channel.id > 0 && _isTokenAllowed(channel, token)) {
                 if (channel.tokenTotalDeposits[token] >= minTotalDeposits) {
                     totalMatches++;
                 }
@@ -950,7 +957,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         
         for (uint256 i = 0; i < $.nextChannelId && resultIndex < resultSize; i++) {
             Channel storage channel = $.channels[i];
-            if (channel.id > 0 && channel.isTokenAllowed[token]) {
+            if (channel.id > 0 && _isTokenAllowed(channel, token)) {
                 if (channel.tokenTotalDeposits[token] >= minTotalDeposits) {
                     if (currentMatch >= offset) {
                         channelIds[resultIndex] = channel.id;

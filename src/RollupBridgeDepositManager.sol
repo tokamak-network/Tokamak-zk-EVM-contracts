@@ -37,23 +37,6 @@ contract RollupBridgeDepositManager is Initializable, ReentrancyGuardUpgradeable
         rollupBridge = IRollupBridgeCore(_rollupBridge);
     }
 
-    function depositETH(uint256 _channelId, bytes32 _mptKey) external payable nonReentrant {
-        require(
-            rollupBridge.getChannelState(_channelId) == IRollupBridgeCore.ChannelState.Initialized,
-            "Invalid channel state"
-        );
-        require(rollupBridge.isChannelParticipant(_channelId, msg.sender), "Not a participant");
-        require(msg.value > 0, "Deposit must be greater than 0");
-        require(rollupBridge.isTokenAllowedInChannel(_channelId, ETH_TOKEN_ADDRESS), "ETH not allowed in this channel");
-        require(_mptKey != bytes32(0), "Invalid MPT key");
-
-        rollupBridge.setChannelL2MptKey(_channelId, msg.sender, ETH_TOKEN_ADDRESS, uint256(_mptKey));
-        rollupBridge.updateChannelTokenDeposits(_channelId, ETH_TOKEN_ADDRESS, msg.sender, msg.value);
-        rollupBridge.updateChannelTotalDeposits(_channelId, ETH_TOKEN_ADDRESS, msg.value);
-
-        emit Deposited(_channelId, msg.sender, ETH_TOKEN_ADDRESS, msg.value);
-    }
-
     function depositToken(uint256 _channelId, address _token, uint256 _amount, bytes32 _mptKey) external nonReentrant {
         require(
             rollupBridge.getChannelState(_channelId) == IRollupBridgeCore.ChannelState.Initialized,

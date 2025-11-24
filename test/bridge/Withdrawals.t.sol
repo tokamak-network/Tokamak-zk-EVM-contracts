@@ -197,9 +197,8 @@ contract WithdrawalsTest is Test {
         participants[1] = user2;
         participants[2] = leader;
 
-        address[] memory allowedTokens = new address[](2);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
-        allowedTokens[1] = address(token);
+        address[] memory allowedTokens = new address[](1);
+        allowedTokens[0] = address(token);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
@@ -230,12 +229,15 @@ contract WithdrawalsTest is Test {
 
     function _makeDeposits() internal {
         console.log("Making deposits");
-        // User1 deposits ETH
-        vm.deal(user1, 5 ether);
-        console.log("User1 funded with ETH");
-        vm.prank(user1);
-        depositManager.depositETH{value: 2 ether}(channelId, bytes32(uint256(10)));
-        console.log("User1 deposited ETH");
+        // User1 deposits tokens
+        token.mint(user1, 1000e18);
+        console.log("User1 minted tokens");
+        vm.startPrank(user1);
+        token.approve(address(depositManager), 2e18);
+        console.log("User1 approved tokens");
+        depositManager.depositToken(channelId, address(token), 2e18, bytes32(uint256(10)));
+        console.log("User1 deposited tokens");
+        vm.stopPrank();
 
         // User2 deposits tokens
         token.mint(user2, 1000e18);
@@ -284,15 +286,12 @@ contract WithdrawalsTest is Test {
         console.log("Function registered");
 
         uint256[][] memory finalBalances = new uint256[][](3);
-        finalBalances[0] = new uint256[](2); // user1: [ETH_amount, token_amount]
-        finalBalances[0][0] = 1.5 ether; // ETH balance for user1
-        finalBalances[0][1] = 100e18; // token balance for user1
-        finalBalances[1] = new uint256[](2); // user2: [ETH_amount, token_amount]
-        finalBalances[1][0] = 0.5 ether; // ETH balance for user2
-        finalBalances[1][1] = 400e18; // token balance for user2
-        finalBalances[2] = new uint256[](2); // leader: [ETH_amount, token_amount]
-        finalBalances[2][0] = 0; // ETH balance for leader
-        finalBalances[2][1] = 0; // token balance for leader
+        finalBalances[0] = new uint256[](1); // user1: [token_amount]
+        finalBalances[0][0] = 102e18; // token balance for user1 (2e18 deposited + 100e18 from scenario)
+        finalBalances[1] = new uint256[](1); // user2: [token_amount]
+        finalBalances[1][0] = 400e18; // token balance for user2 (500e18 - 100e18 transferred to user1)
+        finalBalances[2] = new uint256[](1); // leader: [token_amount]  
+        finalBalances[2][0] = 0; // token balance for leader
 
         RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
             proofPart1: new uint128[](4),
@@ -328,63 +327,49 @@ contract WithdrawalsTest is Test {
         console.log("Channel closed");
     }
 
-    function testWithdrawETHSuccess() public {
-        uint256 initialBalance = user1.balance;
-        uint256 expectedWithdrawAmount = 1.5 ether;
+    function testWithdrawTokenSuccess() public {
+        uint256 expectedWithdrawAmount = 102e18;
 
         // Debug: Check if user1 is a participant and has withdrawable amount
         console.log("Is user1 participant:", bridge.isChannelParticipant(channelId, user1));
-        address ethToken = bridge.ETH_TOKEN_ADDRESS();
-        console.log("User1 withdrawable ETH:", bridge.getWithdrawableAmount(channelId, user1, ethToken));
+        console.log("User1 withdrawable tokens:", bridge.getWithdrawableAmount(channelId, user1, address(token)));
         console.log("Channel participants count:", bridge.getChannelParticipants(channelId).length);
 
-        // Give withdraw manager some ETH and tokens for testing
-        vm.deal(address(withdrawManager), 10 ether);
+        // Give withdraw manager tokens for testing
         token.mint(address(withdrawManager), 1000e18);
 
-        // Test the actual withdraw function (withdraws all tokens)
+        // Test the actual withdraw function
         uint256 initialTokenBalance = token.balanceOf(user1);
         vm.prank(user1);
         withdrawManager.withdraw(channelId);
 
-        // User1 should receive both ETH and tokens
-        assertEq(user1.balance, initialBalance + expectedWithdrawAmount, "ETH withdrawal amount incorrect");
-        assertEq(token.balanceOf(user1), initialTokenBalance + 100e18, "Token withdrawal amount incorrect");
+        // User1 should receive tokens
+        assertEq(token.balanceOf(user1), initialTokenBalance + expectedWithdrawAmount, "Token withdrawal amount incorrect");
         assertTrue(bridge.hasUserWithdrawn(channelId, user1), "User withdrawal status not updated");
-        assertEq(bridge.getWithdrawableAmount(channelId, user1, ethToken), 0, "ETH withdrawable amount not cleared");
         assertEq(
             bridge.getWithdrawableAmount(channelId, user1, address(token)), 0, "Token withdrawable amount not cleared"
         );
     }
 
-    function testWithdrawTokenSuccess() public {
+    function testWithdrawTokenUser2Success() public {
         uint256 initialTokenBalance = token.balanceOf(user2);
-        uint256 initialEthBalance = user2.balance;
         uint256 expectedTokenWithdrawAmount = 400e18;
-        uint256 expectedEthWithdrawAmount = 0.5 ether;
 
-        // Give both tokens and ETH to withdraw manager for testing
+        // Give tokens to withdraw manager for testing
         token.mint(address(withdrawManager), 1000e18);
-        vm.deal(address(withdrawManager), 10 ether);
 
         vm.prank(user2);
         withdrawManager.withdraw(channelId);
 
-        // User2 should receive both tokens and ETH
+        // User2 should receive tokens
         assertEq(
             token.balanceOf(user2),
             initialTokenBalance + expectedTokenWithdrawAmount,
             "Token withdrawal amount incorrect"
         );
-        assertEq(user2.balance, initialEthBalance + expectedEthWithdrawAmount, "ETH withdrawal amount incorrect");
         assertTrue(bridge.hasUserWithdrawn(channelId, user2), "User withdrawal status not updated");
         assertEq(
             bridge.getWithdrawableAmount(channelId, user2, address(token)), 0, "Token withdrawable amount not cleared"
-        );
-        assertEq(
-            bridge.getWithdrawableAmount(channelId, user2, bridge.ETH_TOKEN_ADDRESS()),
-            0,
-            "ETH withdrawable amount not cleared"
         );
     }
 
@@ -398,7 +383,7 @@ contract WithdrawalsTest is Test {
         participants[1] = user2;
         participants[2] = leader;
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(token);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
@@ -411,7 +396,7 @@ contract WithdrawalsTest is Test {
         uint256 openChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
         vm.stopPrank();
 
-        address ethToken = bridge.ETH_TOKEN_ADDRESS();
+        address ethToken = address(token);
         vm.prank(user1);
         vm.expectRevert("Not closed");
         withdrawManager.withdraw(openChannelId);
@@ -434,7 +419,7 @@ contract WithdrawalsTest is Test {
 
     function testWithdrawFailsNotParticipant() public {
         address nonParticipant = address(0x999);
-        address ethToken = bridge.ETH_TOKEN_ADDRESS();
+        address ethToken = address(token);
 
         vm.prank(nonParticipant);
         vm.expectRevert("Not a participant");
@@ -448,16 +433,14 @@ contract WithdrawalsTest is Test {
         vm.deal(address(withdrawManager), 10 ether);
         token.mint(address(withdrawManager), 1000e18);
 
-        // User1 should be able to withdraw both ETH and allowed tokens
-        uint256 user1InitialETH = user1.balance;
+        // User1 should be able to withdraw allowed tokens
         uint256 user1InitialTokens = token.balanceOf(user1);
 
         vm.prank(user1);
         withdrawManager.withdraw(channelId);
 
-        // Verify user1 received both ETH and tokens
-        assertEq(user1.balance, user1InitialETH + 1.5 ether, "User1 ETH withdrawal failed");
-        assertEq(token.balanceOf(user1), user1InitialTokens + 100e18, "User1 token withdrawal failed");
+        // Verify user1 received tokens
+        assertEq(token.balanceOf(user1), user1InitialTokens + 102e18, "User1 token withdrawal failed");
         assertTrue(bridge.hasUserWithdrawn(channelId, user1), "User1 not marked as withdrawn");
     }
 
@@ -543,8 +526,8 @@ contract WithdrawalsTest is Test {
         withdrawManager.closeAndFinalizeChannel(testChannelId);
     }
 
-    function testWithdrawETHFailsOnTransferFailure() public {
-        // Create a contract that will reject ETH transfers
+    function testWithdrawTokenFailsOnTransferFailure() public {
+        // Create a contract that will reject token transfers (insufficient balance)
         RejectingContract rejector = new RejectingContract();
 
         // Set up a channel where the rejector is a participant
@@ -556,7 +539,7 @@ contract WithdrawalsTest is Test {
         participants[1] = user1;
         participants[2] = leader;
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(token);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
@@ -569,26 +552,28 @@ contract WithdrawalsTest is Test {
         uint256 rejectChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
         vm.stopPrank();
 
-        // Setup channel with rejector having withdrawable ETH
+        // Setup channel with rejector having withdrawable tokens
         _setupChannelWithRejector(rejectChannelId);
 
         // Attempt withdrawal should fail
-        address ethTokenAddr = bridge.ETH_TOKEN_ADDRESS();
+        address tokenAddr = address(token);
         vm.prank(address(rejector));
-        vm.expectRevert("ETH transfer failed");
+        vm.expectRevert(); // ERC20InsufficientBalance error will be thrown
         withdrawManager.withdraw(rejectChannelId);
     }
 
     function _setupChannelWithRejector(uint256 testChannelId) internal {
         // First, we need to make deposits that match the channel setup
-        // The rejector channel only has ETH as allowed token, so make ETH deposits
+        // The rejector channel only has token as allowed token, so make token deposits
         address[] memory participants = bridge.getChannelParticipants(testChannelId);
         address rejectorAddr = participants[0];
 
-        // Deposit 1 ETH for the rejector
-        vm.deal(rejectorAddr, 2 ether);
-        vm.prank(rejectorAddr);
-        depositManager.depositETH{value: 1 ether}(testChannelId, bytes32(uint256(30)));
+        // Deposit tokens for the rejector
+        token.mint(rejectorAddr, 1000e18);
+        vm.startPrank(rejectorAddr);
+        token.approve(address(depositManager), 1e18);
+        depositManager.depositToken(testChannelId, address(token), 1e18, bytes32(uint256(30)));
+        vm.stopPrank();
 
         // Fund withdraw manager for the transfer
         vm.deal(address(withdrawManager), 2 ether);
@@ -652,20 +637,16 @@ contract WithdrawalsTest is Test {
         vm.deal(address(withdrawManager), 10 ether);
         token.mint(address(withdrawManager), 1000e18);
 
-        // User1 withdraws all tokens (both ETH and ERC20)
-        uint256 user1InitialETH = user1.balance;
+        // User1 withdraws all tokens
         uint256 user1InitialTokens = token.balanceOf(user1);
         vm.prank(user1);
         withdrawManager.withdraw(channelId);
-        assertEq(user1.balance, user1InitialETH + 1.5 ether, "User1 ETH withdrawal failed");
-        assertEq(token.balanceOf(user1), user1InitialTokens + 100e18, "User1 token withdrawal failed");
+        assertEq(token.balanceOf(user1), user1InitialTokens + 102e18, "User1 token withdrawal failed");
 
-        // User2 withdraws all tokens (both ETH and ERC20)
-        uint256 user2InitialETH = user2.balance;
+        // User2 withdraws all tokens  
         uint256 user2InitialTokens = token.balanceOf(user2);
         vm.prank(user2);
         withdrawManager.withdraw(channelId);
-        assertEq(user2.balance, user2InitialETH + 0.5 ether, "User2 ETH withdrawal failed");
         assertEq(token.balanceOf(user2), user2InitialTokens + 400e18, "User2 token withdrawal failed");
 
         // Both users should be marked as withdrawn
@@ -688,7 +669,7 @@ contract WithdrawalsTest is Test {
         participants[1] = user1;
         participants[2] = leader;
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(token);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
@@ -703,7 +684,7 @@ contract WithdrawalsTest is Test {
 
         _setupEmptyChannel(zeroChannelId);
 
-        address ethTokenAddr = bridge.ETH_TOKEN_ADDRESS();
+        address ethTokenAddr = address(token);
         vm.prank(zeroUser);
         vm.expectRevert("No withdrawable amount");
         withdrawManager.withdraw(zeroChannelId);

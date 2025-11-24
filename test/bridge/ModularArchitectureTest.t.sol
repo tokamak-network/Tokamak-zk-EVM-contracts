@@ -6,11 +6,13 @@ import "forge-std/console.sol";
 import "../../src/RollupBridgeCore.sol";
 import "../../src/RollupBridgeProofManager.sol";
 import "../../src/RollupBridgeDepositManager.sol";
+import "../../src/RollupBridgeAdminManager.sol";
 import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
 import "../../src/interface/IGroth16Verifier16Leaves.sol";
 import "../../src/library/ZecFrost.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "@openzeppelin/token/ERC20/ERC20.sol";
 
 // Mock contracts for testing
 contract MockTokamakVerifier is ITokamakVerifier {
@@ -36,6 +38,16 @@ contract MockGroth16Verifier is IGroth16Verifier16Leaves {
     }
 }
 
+contract TestToken is ERC20 {
+    constructor() ERC20("Test Token", "TEST") {
+        _mint(msg.sender, 1000000 ether);
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
+
 /**
  * @title ModularArchitectureTest
  * @notice Test that demonstrates the working modular architecture
@@ -44,10 +56,12 @@ contract ModularArchitectureTest is Test {
     RollupBridgeCore public bridge;
     RollupBridgeProofManager public proofManager;
     RollupBridgeDepositManager public depositManager;
+    RollupBridgeAdminManager public adminManager;
 
     MockTokamakVerifier public tokamakVerifier;
     MockGroth16Verifier public groth16Verifier;
     ZecFrost public zecFrost;
+    TestToken public testToken;
 
     address public owner = makeAddr("owner");
     address public leader = makeAddr("leader");
@@ -62,10 +76,12 @@ contract ModularArchitectureTest is Test {
         tokamakVerifier = new MockTokamakVerifier();
         groth16Verifier = new MockGroth16Verifier();
         zecFrost = new ZecFrost();
+        testToken = new TestToken();
 
         // Deploy manager implementations
         RollupBridgeDepositManager depositManagerImpl = new RollupBridgeDepositManager();
         RollupBridgeProofManager proofManagerImpl = new RollupBridgeProofManager();
+        RollupBridgeAdminManager adminManagerImpl = new RollupBridgeAdminManager();
 
         // Deploy core contract with proxy first
         RollupBridgeCore implementation = new RollupBridgeCore();
@@ -90,14 +106,33 @@ contract ModularArchitectureTest is Test {
         ERC1967Proxy proofProxy = new ERC1967Proxy(address(proofManagerImpl), proofInitData);
         proofManager = RollupBridgeProofManager(address(proofProxy));
 
+        bytes memory adminInitData = abi.encodeCall(
+            RollupBridgeAdminManager.initialize, (address(bridge), owner)
+        );
+        ERC1967Proxy adminProxy = new ERC1967Proxy(address(adminManagerImpl), adminInitData);
+        adminManager = RollupBridgeAdminManager(address(adminProxy));
+
         // Update bridge with manager addresses
-        bridge.updateManagerAddresses(address(depositManager), address(proofManager), address(0), address(0));
+        bridge.updateManagerAddresses(address(depositManager), address(proofManager), address(0), address(adminManager));
+
+        // Register the test token and its transfer function
+        uint128[] memory preprocessedPart1 = new uint128[](4);
+        uint256[] memory preprocessedPart2 = new uint256[](4);
+        bytes32 transferSig = keccak256("transfer(address,uint256)");
+
+        adminManager.setAllowedTargetContract(address(testToken), bytes1(0x00), true);
+        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2);
 
         // Fund test accounts
         vm.deal(leader, 10 ether);
         vm.deal(user1, 10 ether);
         vm.deal(user2, 10 ether);
         vm.deal(user3, 10 ether);
+        
+        // Mint test tokens for users
+        testToken.mint(user1, 1000 ether);
+        testToken.mint(user2, 1000 ether);
+        testToken.mint(user3, 1000 ether);
 
         vm.stopPrank();
     }
@@ -141,7 +176,7 @@ contract ModularArchitectureTest is Test {
         vm.prank(leader);
 
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(testToken);
 
         address[] memory participants = new address[](3);
         participants[0] = user1;
@@ -163,12 +198,14 @@ contract ModularArchitectureTest is Test {
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Initialized));
 
         // Test deposit using DepositManager
-        vm.prank(user1);
-        depositManager.depositETH{value: 1 ether}(channelId, bytes32(uint256(123)));
+        vm.startPrank(user1);
+        testToken.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, address(testToken), 1 ether, bytes32(uint256(123)));
+        vm.stopPrank();
 
         // Verify deposit was recorded
-        assertEq(bridge.getParticipantTokenDeposit(channelId, user1, bridge.ETH_TOKEN_ADDRESS()), 1 ether);
-        assertEq(bridge.getL2MptKey(channelId, user1, bridge.ETH_TOKEN_ADDRESS()), 123);
+        assertEq(bridge.getParticipantTokenDeposit(channelId, user1, address(testToken)), 1 ether);
+        assertEq(bridge.getL2MptKey(channelId, user1, address(testToken)), 123);
     }
 
     function testChannelStateInitialization() public {
@@ -199,7 +236,7 @@ contract ModularArchitectureTest is Test {
         vm.prank(leader);
 
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(testToken);
 
         address[] memory participants = new address[](3);
         participants[0] = user1;
@@ -217,13 +254,19 @@ contract ModularArchitectureTest is Test {
         channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
 
         // Add deposits
-        vm.prank(user1);
-        depositManager.depositETH{value: 1 ether}(channelId, bytes32(uint256(123)));
+        vm.startPrank(user1);
+        testToken.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, address(testToken), 1 ether, bytes32(uint256(123)));
+        vm.stopPrank();
 
-        vm.prank(user2);
-        depositManager.depositETH{value: 2 ether}(channelId, bytes32(uint256(456)));
+        vm.startPrank(user2);
+        testToken.approve(address(depositManager), 2 ether);
+        depositManager.depositToken(channelId, address(testToken), 2 ether, bytes32(uint256(456)));
+        vm.stopPrank();
 
-        vm.prank(user3);
-        depositManager.depositETH{value: 3 ether}(channelId, bytes32(uint256(789)));
+        vm.startPrank(user3);
+        testToken.approve(address(depositManager), 3 ether);
+        depositManager.depositToken(channelId, address(testToken), 3 ether, bytes32(uint256(789)));
+        vm.stopPrank();
     }
 }

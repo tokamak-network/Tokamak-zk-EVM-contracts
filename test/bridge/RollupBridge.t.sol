@@ -578,7 +578,7 @@ contract RollupBridgeCoreTest is Test {
         participants[2] = user3;
 
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(token);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
@@ -596,7 +596,7 @@ contract RollupBridgeCoreTest is Test {
         address[] memory channelParticipants = bridge.getChannelParticipants(channelId);
 
         assertEq(allowedTokensReturned.length, 1);
-        assertEq(allowedTokensReturned[0], bridge.ETH_TOKEN_ADDRESS());
+        assertEq(allowedTokensReturned[0], address(token));
         assertEq(uint8(state), uint8(RollupBridgeCore.ChannelState.Initialized));
         assertEq(channelParticipants.length, 3);
 
@@ -605,28 +605,31 @@ contract RollupBridgeCoreTest is Test {
 
     // ========== Deposit Tests ==========
 
-    function testDepositETH() public {
+    function testDepositTokenBasic() public {
         uint256 channelId = _createChannel();
         uint256 depositAmount = 1 ether;
 
         vm.startPrank(user1);
 
+        // Approve and deposit token
+        token.approve(address(depositManager), depositAmount);
+        
         vm.expectEmit(true, true, true, true);
-        emit Deposited(channelId, user1, bridge.ETH_TOKEN_ADDRESS(), depositAmount);
-
-        // Note: depositETH is now in RollupBridgeDepositManager
-        depositManager.depositETH{value: depositAmount}(channelId, bytes32(uint256(uint160(l2User1))));
+        emit Deposited(channelId, user1, address(token), depositAmount);
+        depositManager.depositToken(channelId, address(token), depositAmount, bytes32(uint256(uint160(l2User1))));
 
         vm.stopPrank();
     }
 
-    function testDepositETHNotParticipant() public {
+    function testDepositTokenNotParticipant() public {
         uint256 channelId = _createChannel();
 
-        vm.prank(address(999));
-        vm.deal(address(999), 1 ether);
+        vm.startPrank(address(999));
+        token.mint(address(999), 1 ether);
+        token.approve(address(depositManager), 1 ether);
         vm.expectRevert("Not a participant");
-        depositManager.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
     }
 
     function testDepositToken() public {
@@ -653,11 +656,15 @@ contract RollupBridgeCoreTest is Test {
         uint256 channelId = _createChannel();
 
         // Make deposits using DepositManager
-        vm.prank(user1);
-        depositManager.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
+        vm.startPrank(user1);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
 
-        vm.prank(user3);
-        depositManager.depositETH{value: 3 ether}(channelId, bytes32(uint256(uint160(l2User3))));
+        vm.startPrank(user3);
+        token.approve(address(depositManager), 3 ether);
+        depositManager.depositToken(channelId, address(token), 3 ether, bytes32(uint256(uint160(l2User3))));
+        vm.stopPrank();
 
         // Initialize state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
@@ -690,17 +697,22 @@ contract RollupBridgeCoreTest is Test {
      * @dev This test verifies the fix for the bug where different deposits produced identical hashes
      */
     function testInitializeChannelStateDifferentDeposits() public {
-        // Simplified test: just verify that ETH channels with different deposits create different root hashes
-        // Use ETH instead of tokens to match working patterns exactly
+        // Simplified test: just verify that token channels with different deposits create different root hashes
+        // Use tokens to match working patterns exactly
 
         // Create first channel
         uint256 channelId1 = _createChannel();
 
         // Make specific deposits - Set 1: [1, 2, 0]
-        vm.prank(user1);
-        depositManager.depositETH{value: 1 ether}(channelId1, bytes32(uint256(uint160(l2User1))));
-        vm.prank(user2);
-        depositManager.depositETH{value: 2 ether}(channelId1, bytes32(uint256(uint160(l2User2))));
+        vm.startPrank(user1);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId1, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
+        
+        vm.startPrank(user2);
+        token.approve(address(depositManager), 2 ether);
+        depositManager.depositToken(channelId1, address(token), 2 ether, bytes32(uint256(uint160(l2User2))));
+        vm.stopPrank();
         // user3 makes no deposit
 
         // Initialize and get root hash 1
@@ -728,10 +740,15 @@ contract RollupBridgeCoreTest is Test {
 
         // Create second channel with different leader to avoid "Channel limit reached"
         uint256 channelId2 = _createChannelWithLeader(leader2);
-        vm.prank(user1);
-        depositManager.depositETH{value: 1 ether}(channelId2, bytes32(uint256(uint160(l2User1))));
-        vm.prank(user2);
-        depositManager.depositETH{value: 1 ether}(channelId2, bytes32(uint256(uint160(l2User2)))); // Different amount
+        vm.startPrank(user1);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId2, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
+        
+        vm.startPrank(user2);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId2, address(token), 1 ether, bytes32(uint256(uint160(l2User2)))); // Same amount this time
+        vm.stopPrank();
         // user3 makes no deposit
 
         // Initialize and get root hash 2
@@ -1175,7 +1192,7 @@ contract RollupBridgeCoreTest is Test {
         participants[2] = user3;
 
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(token);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
@@ -1225,7 +1242,7 @@ contract RollupBridgeCoreTest is Test {
         participants[2] = user3;
 
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(token);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
@@ -1243,14 +1260,20 @@ contract RollupBridgeCoreTest is Test {
 
     function _submitProofForChannel(uint256 channelId, address channelLeader) internal {
         // Make deposits
-        vm.prank(user1);
-        depositManager.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
+        vm.startPrank(user1);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
 
-        vm.prank(user2);
-        depositManager.depositETH{value: 2 ether}(channelId, bytes32(uint256(uint160(l2User2))));
+        vm.startPrank(user2);
+        token.approve(address(depositManager), 2 ether);
+        depositManager.depositToken(channelId, address(token), 2 ether, bytes32(uint256(uint160(l2User2))));
+        vm.stopPrank();
 
-        vm.prank(user3);
-        depositManager.depositETH{value: 3 ether}(channelId, bytes32(uint256(uint160(l2User3))));
+        vm.startPrank(user3);
+        token.approve(address(depositManager), 3 ether);
+        depositManager.depositToken(channelId, address(token), 3 ether, bytes32(uint256(uint160(l2User3))));
+        vm.stopPrank();
 
         // Initialize state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
@@ -1299,14 +1322,20 @@ contract RollupBridgeCoreTest is Test {
         uint256 channelId = _createChannel();
 
         // Make deposits
-        vm.prank(user1);
-        depositManager.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
+        vm.startPrank(user1);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
 
-        vm.prank(user2);
-        depositManager.depositETH{value: 2 ether}(channelId, bytes32(uint256(uint160(l2User2))));
+        vm.startPrank(user2);
+        token.approve(address(depositManager), 2 ether);
+        depositManager.depositToken(channelId, address(token), 2 ether, bytes32(uint256(uint160(l2User2))));
+        vm.stopPrank();
 
-        vm.prank(user3);
-        depositManager.depositETH{value: 3 ether}(channelId, bytes32(uint256(uint160(l2User3))));
+        vm.startPrank(user3);
+        token.approve(address(depositManager), 3 ether);
+        depositManager.depositToken(channelId, address(token), 3 ether, bytes32(uint256(uint160(l2User3))));
+        vm.stopPrank();
 
         // Initialize state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
@@ -1384,8 +1413,10 @@ contract RollupBridgeCoreTest is Test {
         uint256 channelId = _createChannel();
 
         vm.deal(user1, amount);
-        vm.prank(user1);
-        depositManager.depositETH{value: amount}(channelId, bytes32(uint256(uint160(l2User1))));
+        vm.startPrank(user1);
+        token.approve(address(depositManager), amount);
+        depositManager.depositToken(channelId, address(token), amount, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
     }
 
     function testFuzzTimeout(uint256 timeout) public {
@@ -1399,7 +1430,7 @@ contract RollupBridgeCoreTest is Test {
         participants[2] = user3;
 
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(token);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
@@ -1420,14 +1451,20 @@ contract RollupBridgeCoreTest is Test {
         uint256 channelId = _createChannel();
 
         // 2. Make deposits
-        vm.prank(user1);
-        depositManager.depositETH{value: 1 ether}(channelId, bytes32(uint256(uint160(l2User1))));
+        vm.startPrank(user1);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
 
-        vm.prank(user2);
-        depositManager.depositETH{value: 2 ether}(channelId, bytes32(uint256(uint160(l2User2))));
+        vm.startPrank(user2);
+        token.approve(address(depositManager), 2 ether);
+        depositManager.depositToken(channelId, address(token), 2 ether, bytes32(uint256(uint160(l2User2))));
+        vm.stopPrank();
 
-        vm.prank(user3);
-        depositManager.depositETH{value: 3 ether}(channelId, bytes32(uint256(uint160(l2User3))));
+        vm.startPrank(user3);
+        token.approve(address(depositManager), 3 ether);
+        depositManager.depositToken(channelId, address(token), 3 ether, bytes32(uint256(uint160(l2User3))));
+        vm.stopPrank();
 
         // 3. Initialize state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
@@ -1683,7 +1720,7 @@ contract RollupBridgeCoreTest is Test {
         }
 
         address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
+        allowedTokens[0] = address(token);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
@@ -1701,8 +1738,10 @@ contract RollupBridgeCoreTest is Test {
             // Fund the participant
             vm.deal(participants[i], 10 ether);
 
-            vm.prank(participants[i]);
-            depositManager.depositETH{value: (i + 1) * 1 ether}(channelId, bytes32(uint256(13 + i))); // Use different MPT keys
+            vm.startPrank(participants[i]);
+            token.approve(address(depositManager), (i + 1) * 1 ether);
+            depositManager.depositToken(channelId, address(token), (i + 1) * 1 ether, bytes32(uint256(13 + i))); // Use different MPT keys
+            vm.stopPrank();
         }
 
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
@@ -1856,8 +1895,8 @@ contract RollupBridgeCoreTest is Test {
 
         // Use 3 tokens
         address[] memory allowedTokens = new address[](3);
-        allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
-        allowedTokens[1] = address(token);
+        allowedTokens[0] = address(token);
+        allowedTokens[1] = address(usdtLikeToken);
         allowedTokens[2] = address(highPrecisionToken);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
@@ -1892,7 +1931,7 @@ contract RollupBridgeCoreTest is Test {
         _testTreeSizeScenario(16, 1, 16, "16 participants x 1 token = 16 leaves -> 16-leaf tree");
         _testTreeSizeScenario(10, 3, 32, "10 participants x 3 tokens = 30 leaves -> 32-leaf tree");
         _testTreeSizeScenario(21, 3, 64, "21 participants x 3 tokens = 63 leaves -> 64-leaf tree");
-        _testTreeSizeScenario(32, 4, 128, "32 participants x 4 tokens = 128 leaves -> 128-leaf tree");
+        _testTreeSizeScenario(42, 3, 128, "42 participants x 3 tokens = 126 leaves -> 128-leaf tree");
     }
 
     function _testTreeSizeScenario(
@@ -1912,12 +1951,11 @@ contract RollupBridgeCoreTest is Test {
             participants[i] = address(uint160(2000 + i)); // Generate unique addresses
         }
 
-        // Create tokens array
+        // Create tokens array (max 3 unique tokens available)
         address[] memory allowedTokens = new address[](tokenCount);
-        if (tokenCount >= 1) allowedTokens[0] = bridge.ETH_TOKEN_ADDRESS();
-        if (tokenCount >= 2) allowedTokens[1] = address(token);
+        if (tokenCount >= 1) allowedTokens[0] = address(token);
+        if (tokenCount >= 2) allowedTokens[1] = address(usdtLikeToken);
         if (tokenCount >= 3) allowedTokens[2] = address(highPrecisionToken);
-        if (tokenCount >= 4) allowedTokens[3] = address(usdtLikeToken);
 
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,

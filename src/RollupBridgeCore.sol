@@ -64,10 +64,9 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         uint256 requiredTreeSize;
     }
 
-    uint256 public constant MIN_PARTICIPANTS = 3;
+    uint256 public constant MIN_PARTICIPANTS = 1;
     uint256 public constant MAX_PARTICIPANTS = 128;
     uint256 public constant LEADER_BOND_REQUIRED = 0.001 ether;
-    address public constant ETH_TOKEN_ADDRESS = address(1);
 
     /// @custom:storage-location erc7201:tokamak.storage.RollupBridgeCore
     struct RollupBridgeCoreStorage {
@@ -130,7 +129,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         require(msg.value == LEADER_BOND_REQUIRED, "Leader bond required");
         require(!$.isChannelLeader[msg.sender], "Channel limit reached");
         require(params.allowedTokens.length > 0, "Must specify at least one token");
-        require(params.allowedTokens.length <= 4, "Maximum 4 tokens allowed");
+        require(params.allowedTokens.length <= 64, "Maximum 4 tokens allowed");
         require(params.timeout >= 1 hours && params.timeout <= 365 days, "Invalid timeout");
 
         uint256 requiredTreeSize = determineTreeSize(params.participants.length, params.allowedTokens.length);
@@ -142,7 +141,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
 
         for (uint256 i = 0; i < params.allowedTokens.length;) {
             address token = params.allowedTokens[i];
-            require(token == ETH_TOKEN_ADDRESS || $.isTargetContractAllowed[token], "Token not allowed");
+            require($.isTargetContractAllowed[token], "Token not allowed");
 
             for (uint256 j = i + 1; j < params.allowedTokens.length;) {
                 require(params.allowedTokens[j] != token, "Duplicate token");
@@ -470,12 +469,14 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
 
     /**
      * @notice Get comprehensive channel statistics
+     * @return initializedChannels Number of initialized channels
      * @return openChannels Number of open channels
      * @return activeChannels Number of active channels  
      * @return closingChannels Number of closing channels
      * @return closedChannels Number of closed channels
      */
     function getChannelStats() external view returns (
+        uint256 initializedChannels,
         uint256 openChannels,
         uint256 activeChannels, 
         uint256 closingChannels,
@@ -487,7 +488,8 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
             Channel storage channel = $.channels[i];
             if (channel.id > 0) { // Channel exists
                 ChannelState state = channel.state;
-                if (state == ChannelState.Open) openChannels++;
+                if (state == ChannelState.Initialized) initializedChannels++;
+                else if (state == ChannelState.Open) openChannels++;
                 else if (state == ChannelState.Active) activeChannels++;
                 else if (state == ChannelState.Closing) closingChannels++;
                 else if (state == ChannelState.Closed) closedChannels++;

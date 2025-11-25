@@ -143,32 +143,29 @@ contract WithdrawalsTest is Test {
         bridge = RollupBridgeCore(payable(address(bridgeProxy)));
 
         // Deploy manager contracts as proxies
-        bytes memory depositInitData = abi.encodeCall(
-            RollupBridgeDepositManager.initialize, (address(bridge), owner)
-        );
+        bytes memory depositInitData = abi.encodeCall(RollupBridgeDepositManager.initialize, (address(bridge), owner));
         ERC1967Proxy depositProxy = new ERC1967Proxy(address(depositManagerImpl), depositInitData);
         depositManager = RollupBridgeDepositManager(address(depositProxy));
 
-        bytes memory adminInitData = abi.encodeCall(
-            RollupBridgeAdminManager.initialize, (address(bridge), owner)
-        );
+        bytes memory adminInitData = abi.encodeCall(RollupBridgeAdminManager.initialize, (address(bridge), owner));
         ERC1967Proxy adminProxy = new ERC1967Proxy(address(adminManagerImpl), adminInitData);
         adminManager = RollupBridgeAdminManager(address(adminProxy));
 
         bytes memory proofInitData = abi.encodeCall(
-            RollupBridgeProofManager.initialize, (address(bridge), address(mockVerifier), address(mockZecFrost), groth16Verifiers, owner)
+            RollupBridgeProofManager.initialize,
+            (address(bridge), address(mockVerifier), address(mockZecFrost), groth16Verifiers, owner)
         );
         ERC1967Proxy proofProxy = new ERC1967Proxy(address(proofManagerImpl), proofInitData);
         proofManager = RollupBridgeProofManager(address(proofProxy));
 
-        bytes memory withdrawInitData = abi.encodeCall(
-            RollupBridgeWithdrawManager.initialize, (address(bridge), owner)
-        );
+        bytes memory withdrawInitData = abi.encodeCall(RollupBridgeWithdrawManager.initialize, (address(bridge), owner));
         ERC1967Proxy withdrawProxy = new ERC1967Proxy(address(withdrawManagerImpl), withdrawInitData);
         withdrawManager = RollupBridgeWithdrawManager(payable(address(withdrawProxy)));
 
         // Update bridge with manager addresses
-        bridge.updateManagerAddresses(address(depositManager), address(proofManager), address(withdrawManager), address(adminManager));
+        bridge.updateManagerAddresses(
+            address(depositManager), address(proofManager), address(withdrawManager), address(adminManager)
+        );
 
         // Register the test token and its transfer function
         uint128[] memory preprocessedPart1 = new uint128[](4);
@@ -200,18 +197,18 @@ contract WithdrawalsTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
-            allowedTokens: allowedTokens,
-            participants: participants,
-            timeout: 1 days
-        });
+        RollupBridgeCore.ChannelParams memory params =
+            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         console.log("About to open channel");
-        console.log("Required bond:", bridge.LEADER_BOND_REQUIRED());
         console.log("Leader balance:", leader.balance);
 
-        channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
-        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
+        channelId = bridge.openChannel(params);
+        bridge.setChannelPublicKey(
+            channelId,
+            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        );
 
         console.log("Channel opened with ID:", channelId);
         vm.stopPrank();
@@ -289,7 +286,7 @@ contract WithdrawalsTest is Test {
         finalBalances[0][0] = 102e18; // token balance for user1 (2e18 deposited + 100e18 from scenario)
         finalBalances[1] = new uint256[](1); // user2: [token_amount]
         finalBalances[1][0] = 400e18; // token balance for user2 (500e18 - 100e18 transferred to user1)
-        finalBalances[2] = new uint256[](1); // leader: [token_amount]  
+        finalBalances[2] = new uint256[](1); // leader: [token_amount]
         finalBalances[2][0] = 0; // token balance for leader
 
         RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
@@ -297,8 +294,7 @@ contract WithdrawalsTest is Test {
             proofPart2: new uint256[](4),
             publicInputs: new uint256[](4),
             smax: 100,
-            functions: functions,
-            finalBalances: finalBalances
+            functions: functions
         });
 
         // Set up signature verification
@@ -309,20 +305,26 @@ contract WithdrawalsTest is Test {
         RollupBridgeProofManager.Signature memory signature =
             RollupBridgeProofManager.Signature({message: keccak256("message"), rx: 1, ry: 2, z: 3});
 
+        // Advance time to pass the timeout
+        vm.warp(block.timestamp + 1 days + 1);
+        console.log("Time advanced past timeout");
+        
         // Submit proof
         console.log("Submitting proof and signature");
         vm.prank(leader);
-        proofManager.submitProofAndSignature(channelId, proofData, signature);
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), signature);
         console.log("Proof submitted");
 
-        // Close and finalize channel
-        console.log("Closing and finalizing channel");
-        console.log("Channel state:", uint8(bridge.getChannelState(channelId)));
-        console.log("Signature verified:", bridge.isSignatureVerified(channelId));
-        console.log("Leader:", leader);
-        console.log("Channel leader:", bridge.getChannelLeader(channelId));
-        vm.prank(leader);
-        withdrawManager.closeAndFinalizeChannel(channelId);
+        // Verify final balances to close channel
+        console.log("Verifying final balances");
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
+            RollupBridgeProofManager.ChannelFinalizationProof({
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
+        });
+        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
+
         console.log("Channel closed");
     }
 
@@ -340,11 +342,12 @@ contract WithdrawalsTest is Test {
         // Test the actual withdraw function
         uint256 initialTokenBalance = token.balanceOf(user1);
         vm.prank(user1);
-        withdrawManager.withdraw(channelId);
+        withdrawManager.withdraw(channelId, address(token));
 
         // User1 should receive tokens
-        assertEq(token.balanceOf(user1), initialTokenBalance + expectedWithdrawAmount, "Token withdrawal amount incorrect");
-        assertTrue(bridge.hasUserWithdrawn(channelId, user1), "User withdrawal status not updated");
+        assertEq(
+            token.balanceOf(user1), initialTokenBalance + expectedWithdrawAmount, "Token withdrawal amount incorrect"
+        );
         assertEq(
             bridge.getWithdrawableAmount(channelId, user1, address(token)), 0, "Token withdrawable amount not cleared"
         );
@@ -358,7 +361,7 @@ contract WithdrawalsTest is Test {
         token.mint(address(withdrawManager), 1000e18);
 
         vm.prank(user2);
-        withdrawManager.withdraw(channelId);
+        withdrawManager.withdraw(channelId, address(token));
 
         // User2 should receive tokens
         assertEq(
@@ -366,7 +369,6 @@ contract WithdrawalsTest is Test {
             initialTokenBalance + expectedTokenWithdrawAmount,
             "Token withdrawal amount incorrect"
         );
-        assertTrue(bridge.hasUserWithdrawn(channelId, user2), "User withdrawal status not updated");
         assertEq(
             bridge.getWithdrawableAmount(channelId, user2, address(token)), 0, "Token withdrawable amount not cleared"
         );
@@ -384,44 +386,42 @@ contract WithdrawalsTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
-            allowedTokens: allowedTokens,
-            participants: participants,
-            timeout: 1 days
-        });
+        RollupBridgeCore.ChannelParams memory params =
+            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
-        uint256 openChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
-        bridge.setChannelPublicKey(openChannelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
+        uint256 openChannelId = bridge.openChannel(params);
+        bridge.setChannelPublicKey(
+            openChannelId,
+            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        );
         vm.stopPrank();
 
-        address ethToken = address(token);
         vm.prank(user1);
         vm.expectRevert("Not closed");
-        withdrawManager.withdraw(openChannelId);
+        withdrawManager.withdraw(openChannelId, address(token));
     }
 
-    function testWithdrawFailsAlreadyWithdrawn() public {
+    function testWithdrawFailsNoWithdrawableAmountForToken() public {
         // Fund withdraw manager for both ETH and token transfers
         vm.deal(address(withdrawManager), 10 ether);
         token.mint(address(withdrawManager), 1000e18);
 
         // First successful withdrawal
         vm.prank(user1);
-        withdrawManager.withdraw(channelId);
+        withdrawManager.withdraw(channelId, address(token));
 
-        // Second attempt should fail
+        // Second attempt should fail - no more tokens to withdraw
         vm.prank(user1);
-        vm.expectRevert("Already withdrawn");
-        withdrawManager.withdraw(channelId);
+        vm.expectRevert("No withdrawable amount for this token");
+        withdrawManager.withdraw(channelId, address(token));
     }
 
     function testWithdrawFailsNotParticipant() public {
         address nonParticipant = address(0x999);
-        address ethToken = address(token);
-
         vm.prank(nonParticipant);
         vm.expectRevert("Not a participant");
-        withdrawManager.withdraw(channelId);
+        withdrawManager.withdraw(channelId, address(token));
     }
 
     function testWithdrawOnlyAllowedTokens() public {
@@ -435,11 +435,10 @@ contract WithdrawalsTest is Test {
         uint256 user1InitialTokens = token.balanceOf(user1);
 
         vm.prank(user1);
-        withdrawManager.withdraw(channelId);
+        withdrawManager.withdraw(channelId, address(token));
 
         // Verify user1 received tokens
         assertEq(token.balanceOf(user1), user1InitialTokens + 102e18, "User1 token withdrawal failed");
-        assertTrue(bridge.hasUserWithdrawn(channelId, user1), "User1 not marked as withdrawn");
     }
 
     function testWithdrawFailsNoWithdrawableAmount() public {
@@ -454,22 +453,23 @@ contract WithdrawalsTest is Test {
         vm.startPrank(leader);
         vm.deal(leader, 10 ether);
 
-        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
-            allowedTokens: allowedTokens,
-            participants: participants,
-            timeout: 1 days
-        });
+        RollupBridgeCore.ChannelParams memory params =
+            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
-        uint256 testChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
-        bridge.setChannelPublicKey(testChannelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
+        uint256 testChannelId = bridge.openChannel(params);
+        bridge.setChannelPublicKey(
+            testChannelId,
+            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        );
         vm.stopPrank();
 
         // Initialize and close without any final balances
         _setupEmptyChannel(testChannelId);
 
         vm.prank(user1);
-        vm.expectRevert("No withdrawable amount");
-        withdrawManager.withdraw(testChannelId);
+        vm.expectRevert("No withdrawable amount for this token");
+        withdrawManager.withdraw(testChannelId, address(token));
     }
 
     function _setupEmptyChannel(uint256 testChannelId) internal {
@@ -507,8 +507,7 @@ contract WithdrawalsTest is Test {
             proofPart2: new uint256[](4),
             publicInputs: new uint256[](4),
             smax: 100,
-            functions: functions,
-            finalBalances: emptyBalances
+            functions: functions
         });
 
         mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
@@ -516,11 +515,20 @@ contract WithdrawalsTest is Test {
         RollupBridgeProofManager.Signature memory signature =
             RollupBridgeProofManager.Signature({message: keccak256("message"), rx: 1, ry: 2, z: 3});
 
-        vm.prank(leader);
-        proofManager.submitProofAndSignature(testChannelId, proofData, signature);
+        // Advance time to pass the timeout
+        vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        withdrawManager.closeAndFinalizeChannel(testChannelId);
+        proofManager.submitProofAndSignature(testChannelId, _wrapProofInArray(proofData), signature);
+
+        // Verify final balances to close channel
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
+            RollupBridgeProofManager.ChannelFinalizationProof({
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
+        });
+        proofManager.verifyFinalBalancesGroth16(testChannelId, emptyBalances, finalizationProof);
     }
 
     function testWithdrawTokenFailsOnTransferFailure() public {
@@ -538,24 +546,24 @@ contract WithdrawalsTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
-            allowedTokens: allowedTokens,
-            participants: participants,
-            timeout: 1 days
-        });
+        RollupBridgeCore.ChannelParams memory params =
+            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
-        uint256 rejectChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
-        bridge.setChannelPublicKey(rejectChannelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
+        uint256 rejectChannelId = bridge.openChannel(params);
+        bridge.setChannelPublicKey(
+            rejectChannelId,
+            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        );
         vm.stopPrank();
 
         // Setup channel with rejector having withdrawable tokens
         _setupChannelWithRejector(rejectChannelId);
 
         // Attempt withdrawal should fail
-        address tokenAddr = address(token);
         vm.prank(address(rejector));
         vm.expectRevert(); // ERC20InsufficientBalance error will be thrown
-        withdrawManager.withdraw(rejectChannelId);
+        withdrawManager.withdraw(rejectChannelId, address(token));
     }
 
     function _setupChannelWithRejector(uint256 testChannelId) internal {
@@ -612,8 +620,7 @@ contract WithdrawalsTest is Test {
             proofPart2: new uint256[](4),
             publicInputs: new uint256[](4),
             smax: 100,
-            functions: functions,
-            finalBalances: balances
+            functions: functions
         });
 
         mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
@@ -621,11 +628,20 @@ contract WithdrawalsTest is Test {
         RollupBridgeProofManager.Signature memory signature =
             RollupBridgeProofManager.Signature({message: keccak256("message"), rx: 1, ry: 2, z: 3});
 
-        vm.prank(leader);
-        proofManager.submitProofAndSignature(testChannelId, proofData, signature);
+        // Advance time to pass the timeout
+        vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        withdrawManager.closeAndFinalizeChannel(testChannelId);
+        proofManager.submitProofAndSignature(testChannelId, _wrapProofInArray(proofData), signature);
+
+        // Verify final balances to close channel
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
+            RollupBridgeProofManager.ChannelFinalizationProof({
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
+        });
+        proofManager.verifyFinalBalancesGroth16(testChannelId, balances, finalizationProof);
     }
 
     function testMultipleUsersWithdrawDifferentTokens() public {
@@ -636,18 +652,18 @@ contract WithdrawalsTest is Test {
         // User1 withdraws all tokens
         uint256 user1InitialTokens = token.balanceOf(user1);
         vm.prank(user1);
-        withdrawManager.withdraw(channelId);
+        withdrawManager.withdraw(channelId, address(token));
         assertEq(token.balanceOf(user1), user1InitialTokens + 102e18, "User1 token withdrawal failed");
 
-        // User2 withdraws all tokens  
+        // User2 withdraws all tokens
         uint256 user2InitialTokens = token.balanceOf(user2);
         vm.prank(user2);
-        withdrawManager.withdraw(channelId);
+        withdrawManager.withdraw(channelId, address(token));
         assertEq(token.balanceOf(user2), user2InitialTokens + 400e18, "User2 token withdrawal failed");
 
-        // Both users should be marked as withdrawn
-        assertTrue(bridge.hasUserWithdrawn(channelId, user1), "User1 not marked as withdrawn");
-        assertTrue(bridge.hasUserWithdrawn(channelId, user2), "User2 not marked as withdrawn");
+        // Both users should have no more withdrawable tokens
+        assertEq(bridge.getWithdrawableAmount(channelId, user1, address(token)), 0, "User1 withdrawable amount not cleared");
+        assertEq(bridge.getWithdrawableAmount(channelId, user2, address(token)), 0, "User2 withdrawable amount not cleared");
     }
 
     function testWithdrawZeroAmountFails() public {
@@ -667,22 +683,32 @@ contract WithdrawalsTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
-            allowedTokens: allowedTokens,
-            participants: participants,
-            timeout: 1 days
-        });
+        RollupBridgeCore.ChannelParams memory params =
+            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
-        uint256 zeroChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
-        bridge.setChannelPublicKey(zeroChannelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
+        uint256 zeroChannelId = bridge.openChannel(params);
+        bridge.setChannelPublicKey(
+            zeroChannelId,
+            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        );
         vm.stopPrank();
 
         _setupEmptyChannel(zeroChannelId);
 
-        address ethTokenAddr = address(token);
         vm.prank(zeroUser);
-        vm.expectRevert("No withdrawable amount");
-        withdrawManager.withdraw(zeroChannelId);
+        vm.expectRevert("No withdrawable amount for this token");
+        withdrawManager.withdraw(zeroChannelId, address(token));
+    }
+
+    function _wrapProofInArray(RollupBridgeProofManager.ProofData memory proof)
+        internal
+        pure
+        returns (RollupBridgeProofManager.ProofData[] memory)
+    {
+        RollupBridgeProofManager.ProofData[] memory proofs = new RollupBridgeProofManager.ProofData[](1);
+        proofs[0] = proof;
+        return proofs;
     }
 }
 

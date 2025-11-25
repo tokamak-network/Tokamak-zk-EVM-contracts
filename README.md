@@ -8,42 +8,36 @@ Our rollup enables on-demand state channels that hold private L2s. State channel
 
 This repository implements the core smart contracts for the Tokamak zkEVM rollup solution, providing Layer 2 privacy with Ethereum-equivalent functionality through zero-knowledge proofs.
 
-## Architecture
-
-![Alt text](./images/workflow.png)
-
 ## Overview
 
-This repository contains the smart contracts and documentation for a ZK-Rollup bridge that enables secure off-chain computation with on-chain settlement. The system uses **Quaternary Merkle Trees** with  **Random Linear Combination (RLC)** encoding to ensure tamper-evident balance tracking and employs zero-knowledge proofs for comprehensive computation verification.
+This repository contains the smart contracts and documentation for a ZK-Rollup bridge that enables secure off-chain computation with on-chain settlement. The system uses zero-knowledge proofs (Groth16) for computation verification and manages state channels with configurable Merkle tree sizes based on participant and token count.
 
-### Architectural Optimization with Embedded Merkle Operations**
+### Modular Architecture Design
 
+#### **RollupBridge Components**:
+- **Modular Design**: Separated concerns across specialized manager contracts
+- **Upgradeable Contracts**: UUPS proxy pattern for all core components
+- **Gas Optimization**: Streamlined operations with efficient state management
+- **Scalable Verification**: Dynamic tree size selection based on channel requirements
 
-#### **RollupBridge**:
-- **Embedded Merkle Operations**: All Merkle tree operations embedded directly in the bridge contract
-- **No External Calls**: Eliminated 5-6 external contract calls that were consuming substantial gas
-- **Optimized Tree Initialization**: Streamlined initialization sequence with batched operations
-- **Proven Equivalence**: Produces identical Merkle roots as V1 with comprehensive test coverage
+#### **Dynamic Merkle Tree Sizing**
+The system automatically selects optimal Merkle tree sizes based on channel requirements:
 
-#### **Quaternary Merkle Trees**
-The leverage **MerkleTreeManager4** with **4-input hashing** instead of traditional binary trees:
-
-- **Reduced Gas Costs**: Fewer hash operations for tree construction and verification
-- **Enhanced Security**: More complex tree structure increases security margin  
-- **Better Scalability**: Supports larger trees with fewer levels
+- **Adaptive Sizing**: Tree sizes of 16, 32, 64, or 128 leaves based on participant × token count
+- **Groth16 Verification**: Specialized verifiers for each tree size
+- **Efficient Proofs**: Optimized proof verification for different channel scales
 
 ## ✨ Key Features
 
-- **🔐 Cryptographic Security**: RLC encoding creates tamper-evident balance commitments
-- **⚡ Gas Efficiency**: Quaternary tree structure with batch processing and incremental updates
-- **👥 Multi-Party**: Supports 3-50 participants with threshold signature consensus
-- **🛡️ Comprehensive Verification**: 4-layer verification including ZK-SNARK validation
-- **💰 Balance Conservation**: Mathematical guarantees preventing fund creation/destruction
-- **🔄 State Rollback**: Root history tracking for state recovery and verification
-- **🔧 Upgradeable Architecture**: UUPS proxy pattern for seamless contract upgrades
-- **⚖️ Dispute Resolution**: Automated dispute system with 14-day timeout and emergency mechanisms
-- **🏦 Treasury Management**: Slashed bond recovery system preventing permanent fund loss
-- **🔒 Leader Bond System**: 1 ETH bond requirement with slashing protection for participants
+- **Cryptographic Security**: Groth16 zero-knowledge proofs ensure computation integrity
+- **Gas Efficiency**: Dynamic tree sizing with optimized state management
+- **Multi-Party**: Supports 1-128 participants with configurable token sets
+- **Comprehensive Verification**: Multi-layer verification including ZK-SNARK validation
+- **Balance Conservation**: Mathematical guarantees preventing fund creation/destruction
+- **State Management**: Secure state transitions with proper authorization
+- **🔧pgradeable Architecture**: UUPS proxy pattern for seamless contract upgrades
+- **Granular Withdrawals**: Per-token withdrawal system allowing multiple withdrawals
+- **Secure Channel Management**: Channel leader controls with proper authorization
 
 ## Core Components
 
@@ -51,89 +45,65 @@ The leverage **MerkleTreeManager4** with **4-input hashing** instead of traditio
 - **`RollupBridgeCore.sol`**: Core state management and channel operations
 - **`RollupBridgeDepositManager.sol`**: Deposit handling and token management
 - **`RollupBridgeProofManager.sol`**: ZK proof submission and verification
-- **`RollupBridgeWithdrawManager.sol`**: Withdrawal processing and finalization
-- **`RollupBridgeAdminManager.sol`**: Administrative functions and treasury management
+- **`RollupBridgeWithdrawManager.sol`**: Per-token withdrawal processing and finalization
+- **`RollupBridgeAdminManager.sol`**: Administrative functions and contract management
 - **`IRollupBridgeCore.sol`**: Core interface definitions and data structures
 
 #### **Verification Layer**
-- **`Verifier.sol`**: ZK-SNARK proof verification contract
-- **`IVerifier.sol`**: Verifier interface
+- **`TokamakVerifier.sol`**: Main ZK-SNARK proof verification contract
+- **`Groth16Verifier*.sol`**: Specialized Groth16 verifiers for different tree sizes (16, 32, 64, 128 leaves)
+- **`ZecFrost.sol`**: FROST signature verification library
 
 #### **Utility Layer**
 - **`RLP.sol`**: Recursive Length Prefix encoding utilities
 
 ### Workflow Phases
 
-1. **🔓 Channel Opening**: Authorization and participant registration with leader bond (1 ETH)
-2. **💰 Deposit Period**: Secure fund collection with balance tracking
-3. **🌱 State Initialization**: On-chain RLC computation and initial root storage
-4. **⚡ Off-Chain Computation**: High-throughput L2 processing with consensus
-5. **🚪 Closure Initiation**: Threshold-signed submission of computation results (Channel → Dispute state)
-6. **⚖️ Dispute Period**: 14-day challenge window for dispute resolution
-7. **🔒 Finalization**: Channel transition to Closed state after dispute period
-8. **💸 Settlement**: Cryptographically verified fund distribution
-9. **🧹 Cleanup**: Storage optimization and bond reclamation
+1. **Channel Opening**: Authorization and participant registration with leader assignment
+2. **Public Key Setup**: Channel leader sets cryptographic public key for signatures
+3. **Deposit Period**: Secure fund collection with per-token balance tracking
+4. **State Initialization**: Groth16 proof submission establishing initial state root
+5. **Off-Chain Computation**: High-throughput L2 processing with consensus mechanisms
+6. **Proof Submission**: ZK proof verification of computation results and final balances
+7. **Signature Verification**: FROST signature validation for result authenticity
+8. **Channel Closure**: State transition to Closed with verified final balances
+9. **Settlement**: Cryptographically verified per-token fund distribution
+10. **Cleanup**: Storage optimization and resource reclamation
 
-## 🔐 Security Model
+## Security Model
 
 ### Cryptographic Guarantees
-- **Balance Integrity**: RLC chaining prevents undetected manipulation
-- **State Consistency**: Quaternary Merkle roots link all state transitions
-- **Consensus Security**: 2/3+ threshold signatures required
+- **Balance Integrity**: Merkle tree proofs ensure tamper-evident balance tracking
+- **State Consistency**: Groth16 proofs link all state transitions cryptographically
+- **Consensus Security**: FROST multi-signature consensus mechanisms
 - **ZK Privacy**: Computation verification without revealing details
-- **Tree Security**: 4-input hashing provides stronger collision resistance
+- **Proof Security**: Groth16 zkSNARK provides strong cryptographic guarantees
 
 ### Economic Security
 - **Deposit Protection**: Funds locked until valid closure proof
 - **Conservation Laws**: Mathematical balance sum verification
-- **Challenge Period**: 14-day finality window for dispute resolution
 - **Root History**: Rollback capability for state recovery
-- **Leader Bond System**: 1 ETH bond ensures leader accountability with slashing for misconduct
-- **Treasury Management**: Slashed bonds recoverable by treasury to prevent permanent loss
-- **Emergency Mode**: Automatic activation on proven leader misconduct with emergency withdrawals
+- **Channel Isolation**: Per-channel state prevents cross-contamination
 
-## ⚖️ Dispute System Architecture
+## Withdrawal System
 
-The Tokamak zkEVM bridge implements a sophisticated dispute resolution system that ensures channel integrity and protects participants from malicious leader behavior.
+The system implements a granular, per-token withdrawal mechanism:
 
-### Two-Phase Channel Closure
+### Key Features
+- **Per-Token Withdrawals**: Users can withdraw specific tokens independently
+- **Multiple Withdrawals**: Users can make multiple withdrawals for different tokens
+- **Token-Specific Balances**: Each participant has individual balances per token
+- **Conservation Verification**: Automatic balance conservation checks
+- **No ETH Support**: System focused on ERC20 token withdrawals only
 
-The system employs a two-phase closure mechanism that provides a dispute window for validation:
+### Withdrawal Process
+1. **Channel Closure**: Channel must be in `Closed` state
+2. **Balance Verification**: System verifies withdrawable amounts per token
+3. **Token Selection**: Users specify which token to withdraw
+4. **Transfer Execution**: Secure token transfer using SafeERC20
+5. **State Update**: Withdrawal amounts cleared to prevent double spending
 
-1. **Closure Initiation**: `closeChannel()` transitions channel from `Open` to `Dispute` state
-2. **Dispute Period**: 14-day window where participants can raise disputes against the leader
-3. **Finalization**: `finalizeChannel()` transitions channel from `Dispute` to `Closed` state (only if no valid disputes exist)
-
-### Leader Bond System
-
-Channel leaders must post a **1 ETH bond** that serves as economic security:
-- **Bond Requirement**: Leaders deposit 1 ETH when opening channels
-- **Slashing Protection**: Bond is slashed if leader misconduct is proven through disputes
-- **Reclamation**: Leaders can reclaim bonds after successful channel finalization
-
-### Dispute Resolution Process
-
-Participants can challenge leader behavior during the dispute period:
-- **Raising Disputes**: Any participant can dispute the leader with evidence
-- **Automatic Timeout**: Disputes automatically expire after 14 days if unresolved
-- **Manual Resolution**: Contract owner can manually resolve disputes based on evidence
-- **Emergency Mode**: Proven leader misconduct triggers emergency mode with immediate participant protection
-
-### Treasury Management
-
-The system includes mechanisms to recover slashed leader bonds:
-- **Treasury Address**: Configurable address for receiving slashed bonds
-- **Slashed Bond Recovery**: `withdrawSlashedBonds()` allows treasury to recover accumulated slashed bonds
-- **Fund Protection**: Prevents permanent loss of slashed leader bonds in the contract
-
-### Security Features
-
-- **L2 Address Collision Prevention**: Prevents participants from using conflicting L2 addresses
-- **Emergency Withdrawals**: Participants can withdraw original deposits when emergency mode is activated
-- **State Transition Protection**: Channels cannot be finalized while valid disputes exist
-- **Economic Incentives**: Leader bonds ensure accountability while protecting participant deposits
-
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -159,19 +129,11 @@ Required for additional tooling and dependencies.
 ```bash
 # Using nvm (recommended)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-nvm install 16
-nvm use 16
-
-# Or using your system's package manager
-# macOS with Homebrew
-brew install node@16
-
-# Ubuntu/Debian
-curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-sudo apt-get install -y nodejs
+nvm install 18
+nvm use 18
 
 # Verify installation
-node --version  # Should show v16.x.x
+node --version  # Should show v18.x.x
 npm --version
 ```
 
@@ -179,8 +141,8 @@ npm --version
 
 ```bash
 # Clone the repository
-git clone https://github.com/tokamak-network/Tokamak-zkEVM-contracts.git
-cd Tokamak-zkEVM-contracts
+git clone https://github.com/tokamak-network/Tokamak-Zk-EVM-contracts.git
+cd Tokamak-Zk-EVM-contracts
 
 # Install dependencies
 forge install
@@ -202,11 +164,8 @@ forge test
 
 # Run specific test contracts
 forge test --match-contract RollupBridgeTest
-forge test --match-contract DisputeLogicTest
 forge test --match-contract WithdrawalsTest
-forge test --match-contract BasicUpgradeableTest
-forge test --match-contract ArchitecturalOptimizationTest
-
+forge test --match-contract ModularArchitectureTest
 
 # Run with gas reporting
 forge test --gas-report
@@ -215,74 +174,78 @@ forge test --gas-report
 forge test -vvv
 
 # Run specific test functions
-forge test --match-test testConstructor
+forge test --match-test testChannelCreationAndDeposits
 ```
 
 ### Test Coverage
 
-- **RollupBridge.t.sol**: Comprehensive tests covering modular bridge operations and state transitions
-- **Withdrawals.t.sol**: 10 tests covering withdrawal functionality with automatic token withdrawal
-- **ModularArchitectureTest.t.sol**: Tests covering modular architecture interactions
+- **RollupBridge.t.sol**: 24 tests covering modular bridge operations and state transitions
+- **Withdrawals.t.sol**: 10 tests covering per-token withdrawal functionality
+- **ModularArchitectureTest.t.sol**: 5 tests covering modular architecture interactions
 - **Groth16Verifier*.t.sol**: Tests covering Groth16 verification for different tree sizes (16, 32, 64, 128 leaves)
-- **Verifier.t.sol**: Tests covering ZK proof verification
-- **Total**: Comprehensive test coverage ensuring security and functionality of modular architecture
+- **Verifier.t.sol**: 5 tests covering ZK proof verification
+- **ZecFrost.t.sol**: 2 tests covering FROST signature verification
+- **Total**: 52 comprehensive tests ensuring security and functionality
 
 ## Project Structure
 
 ```
 src/
-├── interface/                    # Contract interfaces
-│   ├── IRollupBridgeCore.sol     # Core bridge interface
-│   ├── IGroth16Verifier*.sol     # Groth16 verifier interfaces
-│   └── ITokamakVerifier.sol      # Tokamak verifier interface
-├── verifier/                     # ZK proof verification
-│   ├── TokamakVerifier.sol       # Main Tokamak verifier
-│   └── Groth16Verifier*.sol      # Groth16 verifiers for different tree sizes
-├── library/                      # Utility libraries
-├── RollupBridgeCore.sol          # Core state management
-├── RollupBridgeDepositManager.sol # Deposit handling
-├── RollupBridgeProofManager.sol   # Proof management
-├── RollupBridgeWithdrawManager.sol # Withdrawal management
-└── RollupBridgeAdminManager.sol   # Administrative functions
-
-script/                   # Deployment scripts
-├── DeployV2.s.sol        # Modular architecture deployment
-├── TestGroth16Integration.s.sol # Groth16 integration tests
-└── UpgradeContracts.s.sol # Contract upgrade script
+├── interface/                         # Contract interfaces
+│   ├── IRollupBridgeCore.sol          # Core bridge interface
+│   ├── IGroth16Verifier*.sol          # Groth16 verifier interfaces
+│   ├── ITokamakVerifier.sol           # Tokamak verifier interface
+│   └── IZecFrost.sol                  # FROST signature interface
+├── verifier/                          # ZK proof verification
+│   ├── TokamakVerifier.sol            # Main Tokamak verifier
+│   ├── Groth16Verifier*.sol           # Groth16 verifiers for different tree sizes
+│   └── Verifier.sol                   # Base verifier contract
+├── library/                           # Utility libraries
+│   ├── RLP.sol                        # RLP encoding utilities
+│   └── ZecFrost.sol                   # FROST signature library
+├── RollupBridgeCore.sol               # Core state management
+├── RollupBridgeDepositManager.sol     # Deposit handling
+├── RollupBridgeProofManager.sol       # Proof management
+├── RollupBridgeWithdrawManager.sol    # Per-token withdrawal management
+└── RollupBridgeAdminManager.sol       # Administrative functions
 
 test/
-├── bridge/                             # Bridge-specific tests
-│   ├── RollupBridge.t.sol              # Modular bridge tests
-│   ├── Withdrawals.t.sol               # Withdrawal functionality tests
-│   └── ModularArchitectureTest.t.sol   # Modular architecture tests
-├── groth16/                            # Groth16 verifier tests
-│   ├── 16_leaves/                      # 16-leaf tree tests
-│   ├── 32_leaves/                      # 32-leaf tree tests
-│   ├── 64_leaves/                      # 64-leaf tree tests
-│   └── 128_leaves/                     # 128-leaf tree tests
-├── verifier/                           # Verifier tests
-│   └── Verifier.t.sol                  # ZK verifier tests
-├── js-scripts/                         # JavaScript utilities
-│   ├── generateGroth16Proof.js         # Groth16 proof generation
-│   └── generateProof.js                # General proof generation
-└── scripts/                            # Test scripts
-    └── generate_proof.sh               # Proof generation script
+├── bridge/                            # Bridge-specific tests
+│   ├── RollupBridge.t.sol             # Modular bridge tests (24 tests)
+│   ├── Withdrawals.t.sol              # Withdrawal functionality tests (10 tests)
+│   └── ModularArchitectureTest.t.sol  # Modular architecture tests (5 tests)
+├── groth16/                           # Groth16 verifier tests
+│   ├── 16_leaves/                     # 16-leaf tree tests (2 tests)
+│   ├── 32_leaves/                     # 32-leaf tree tests (2 tests)
+│   ├── 64_leaves/                     # 64-leaf tree tests (1 test)
+│   └── 128_leaves/                    # 128-leaf tree tests (1 test)
+├── verifier/                          # Verifier tests
+│   └── Verifier.t.sol                 # ZK verifier tests (5 tests)
+├── frost/                             # FROST signature tests
+│   └── ZecFrost.t.sol                 # FROST tests (2 tests)
+├── js-scripts/                        # JavaScript utilities
+│   ├── generateGroth16Proof.js        # Groth16 proof generation
+│   ├── generateProof.js               # General proof generation
+│   └── merkleTree.js                  # Merkle tree utilities
+└── scripts/                           # Test scripts
+    └── generate_proof.sh              # Proof generation script
 ```
-
-
-Existing V1 users can migrate to V2 by:
-1. Deploying new V2 contracts using `./script/deploy-v2.sh`
-2. Migrating channels during their natural lifecycle
-3. Both versions maintain full functional equivalence with identical security properties
-
 
 ## 🔒 Security Considerations
 
 ### Audit Status
 
-- **Internal Review**: 🆕 Coming Soon
-- **External Audit**: 🆕 Coming Soon
-- **Bug Bounty**: 🆕 Coming Soon
+- **Internal Review**: 🔄 In Progress
+- **External Audit**: 📋 Planned
+- **Bug Bounty**: 📋 Planned
+
+### Security Features
+
+- **UUPS Upgradeable**: Safe upgrade mechanism with storage protection
+- **Multi-signature Consensus**: Threshold signature requirements
+- **Balance Conservation**: Mathematical guarantees preventing fund loss
+- **Per-token Isolation**: Independent token balance management
+- **Access Control**: Proper role-based permissions
 
 ## 🤝 Contributing
 
@@ -306,11 +269,11 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 - Include tests for all new functionality
 - Ensure gas optimization where possible
 
-## 📚 Documentation
+## Documentation
 
-- **Dispute System**: [DISPUTE_SYSTEM.md](./DISPUTE_SYSTEM.md) - Comprehensive dispute resolution architecture
-- **Internal Audit Guide**: [INTERNAL_AUDIT_GUIDE.md](./INTERNAL_AUDIT_GUIDE.md) - Security audit guidelines and expected behaviors
 - **Technical Docs**: [docs/](./docs/) directory
+- **Interface Documentation**: Comprehensive NatSpec in contract interfaces
+- **Test Documentation**: Detailed test coverage and examples
 
 ## 📦 Deployment
 
@@ -321,20 +284,16 @@ The contracts are deployed using the **UUPS (Universal Upgradeable Proxy Standar
 #### Deployment Scripts
 
 ```bash
-# Deploy V2 contracts (Recommended - 39% gas reduction)
-./script/deploy-v2.sh sepolia
-
-# Deploy V1 contracts (Legacy)
-./script/deploy-upgradeable.sh sepolia
+# Deploy contracts
+forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast --verify
 
 # Upgrade existing contracts (owner only)
-./script/upgrade-contracts.sh
+forge script script/Upgrade.s.sol --rpc-url $RPC_URL --broadcast
 ```
 
 #### Environment Setup
 
-##### For V2 Deployment (Recommended)
-Create `.env` file based on `script/env-v2.template`:
+Create `.env` file:
 
 ```bash
 # Network Configuration
@@ -343,22 +302,11 @@ CHAIN_ID=11155111
 PRIVATE_KEY=0x...
 
 # Contract Configuration
-ZK_VERIFIER_ADDRESS=0x...
 DEPLOYER_ADDRESS=0x...
 
 # Verification
 VERIFY_CONTRACTS=true
 ETHERSCAN_API_KEY=YOUR_API_KEY
-```
-
-##### For V1 Deployment (Legacy)
-Create `.env` file based on `script/env-v1.template` with additional `TREE_DEPTH` parameter.
-
-### Deployed Contracts (Sepolia)
-
-```
-RollupBridge impl: 0x04c548f7981236Bbe18B70C6298545cA03Ce68a8
-RollupBridge (Proxy): 0x43D25e32b81523BBE9E2dDCFD9493ccD0dBB0c6e
 ```
 
 #### Safety Features
@@ -367,17 +315,17 @@ RollupBridge (Proxy): 0x43D25e32b81523BBE9E2dDCFD9493ccD0dBB0c6e
 - **Owner-Only Upgrades**: Only contract owner can perform upgrades
 - **Atomic Deployment**: MEV-protected deployment with immediate initialization
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## Support
 
 - **Issues**: [GitHub Issues](https://github.com/tokamak-network/Tokamak-zkEVM-contracts/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/tokamak-network/Tokamak-zkEVM-contracts/discussions)
 - **Documentation**: [docs/](./docs/) directory
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **OpenZeppelin**: For secure contract libraries
 - **Foundry**: For the excellent development toolkit
@@ -385,6 +333,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built by the Ooo Tokamak Network team**
+**Built by the Tokamak Network team**
 
 *For more information, visit [tokamak.network](https://tokamak.network)*

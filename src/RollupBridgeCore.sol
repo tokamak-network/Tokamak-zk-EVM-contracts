@@ -14,7 +14,6 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         None,
         Initialized,
         Open,
-        Active,
         Closing,
         Closed
     }
@@ -42,6 +41,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         mapping(address => mapping(address => uint256)) tokenDeposits;
         mapping(address => uint256) tokenTotalDeposits;
         bytes32 initialStateRoot;
+        bytes32 finalStateRoot;
         address[] participants;
         mapping(address => mapping(address => uint256)) l2MptKeys;
         mapping(address => bool) isParticipant;
@@ -50,8 +50,6 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         uint256 closeTimestamp;
         uint256 timeout;
         address leader;
-        uint256 leaderBond;
-        bool leaderBondSlashed;
         mapping(address => bool) hasWithdrawn;
         mapping(address => mapping(address => uint256)) withdrawAmount;
         uint256 pkx;
@@ -63,7 +61,6 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
 
     uint256 public constant MIN_PARTICIPANTS = 1;
     uint256 public constant MAX_PARTICIPANTS = 128;
-    uint256 public constant LEADER_BOND_REQUIRED = 0.001 ether;
 
     /// @custom:storage-location erc7201:tokamak.storage.RollupBridgeCore
     struct RollupBridgeCoreStorage {
@@ -73,8 +70,6 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         mapping(address => bool) isTargetContractAllowed;
         mapping(bytes32 => RegisteredFunction) registeredFunctions;
         uint256 nextChannelId;
-        address treasury;
-        uint256 totalSlashedBonds;
         address depositManager;
         address proofManager;
         address withdrawManager;
@@ -120,10 +115,9 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         $.adminManager = _adminManager;
     }
 
-    function openChannel(ChannelParams calldata params) external payable returns (uint256 channelId) {
+    function openChannel(ChannelParams calldata params) external returns (uint256 channelId) {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
 
-        require(msg.value == LEADER_BOND_REQUIRED, "Leader bond required");
         require(!$.isChannelLeader[msg.sender], "Channel limit reached");
         require(params.allowedTokens.length > 0, "Must specify at least one token");
         require(params.allowedTokens.length <= 64, "Maximum 64 tokens allowed");
@@ -160,8 +154,6 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
 
         channel.id = channelId;
         channel.leader = msg.sender;
-        channel.leaderBond = msg.value;
-        channel.leaderBondSlashed = false;
         channel.openTimestamp = block.timestamp;
         channel.timeout = params.timeout;
         channel.state = ChannelState.Initialized;
@@ -187,19 +179,18 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
             }
         }
 
-
         emit ChannelOpened(channelId, params.allowedTokens);
     }
 
     function setChannelPublicKey(uint256 channelId, uint256 pkx, uint256 pky) external {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
-        
-        require(channel.id != 0, "Channel does not exist");
+
+        require(channel.leader != address(0), "Channel does not exist");
         require(msg.sender == channel.leader, "Only channel leader can set public key");
         require(channel.state == ChannelState.Initialized, "Can only set public key for initialized channel");
         require(channel.pkx == 0 && channel.pky == 0, "Public key already set");
-        
+
         channel.pkx = pkx;
         channel.pky = pky;
         address signerAddr = deriveAddressFromPubkey(pkx, pky);
@@ -281,6 +272,17 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         return $.channels[channelId].signerAddr;
     }
 
+    function getChannelFinalStateRoot(uint256 channelId) external view returns (bytes32) {
+        RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
+        return $.channels[channelId].finalStateRoot;
+    }
+
+    function getChannelTimeout(uint256 channelId) external view returns (uint256 openTimestamp, uint256 timeout) {
+        RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
+        Channel storage channel = $.channels[channelId];
+        return (channel.openTimestamp, channel.timeout);
+    }
+
     function getRegisteredFunction(bytes32 functionSignature) external view returns (RegisteredFunction memory) {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
         return $.registeredFunctions[functionSignature];
@@ -322,6 +324,11 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
     function setChannelInitialStateRoot(uint256 channelId, bytes32 stateRoot) external onlyManager {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
         $.channels[channelId].initialStateRoot = stateRoot;
+    }
+
+    function setChannelFinalStateRoot(uint256 channelId, bytes32 stateRoot) external onlyManager {
+        RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
+        $.channels[channelId].finalStateRoot = stateRoot;
     }
 
     function setChannelState(uint256 channelId, ChannelState state) external onlyManager {
@@ -388,25 +395,10 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         delete $.registeredFunctions[functionSignature];
     }
 
-    function setTreasuryAddress(address treasury) external onlyManager {
-        RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        $.treasury = treasury;
-    }
-
     // Additional view functions
     function nextChannelId() external view returns (uint256) {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
         return $.nextChannelId;
-    }
-
-    function getTreasuryAddress() external view returns (address) {
-        RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        return $.treasury;
-    }
-
-    function getTotalSlashedBonds() external view returns (uint256) {
-        RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        return $.totalSlashedBonds;
     }
 
     function getChannelInfo(uint256 channelId)
@@ -485,28 +477,32 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
 
     /**
      * @notice Get comprehensive channel statistics
-     * @return initializedChannels Number of initialized channels
      * @return openChannels Number of open channels
-     * @return activeChannels Number of active channels  
+     * @return activeChannels Number of active channels (same as open)
      * @return closingChannels Number of closing channels
      * @return closedChannels Number of closed channels
      */
-    function getChannelStats() external view returns (
-        uint256 initializedChannels,
-        uint256 openChannels,
-        uint256 activeChannels, 
-        uint256 closingChannels,
-        uint256 closedChannels
-    ) {
+    function getChannelStats()
+        external
+        view
+        returns (
+            uint256 openChannels,
+            uint256 activeChannels,
+            uint256 closingChannels,
+            uint256 closedChannels
+        )
+    {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        
+
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
-            if (channel.id > 0) { // Channel exists
+            if (channel.id > 0) {
+                // Channel exists
                 ChannelState state = channel.state;
-                if (state == ChannelState.Initialized) initializedChannels++;
-                else if (state == ChannelState.Open) openChannels++;
-                else if (state == ChannelState.Active) activeChannels++;
+                if (state == ChannelState.Open) {
+                    openChannels++;
+                    activeChannels++;
+                }
                 else if (state == ChannelState.Closing) closingChannels++;
                 else if (state == ChannelState.Closed) closedChannels++;
             }
@@ -519,16 +515,17 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @return tokens Array of token addresses the user has deposited
      * @return balances Array of corresponding balances
      */
-    function getUserTotalBalance(address user) external view returns (
-        address[] memory tokens,
-        uint256[] memory balances
-    ) {
+    function getUserTotalBalance(address user)
+        external
+        view
+        returns (address[] memory tokens, uint256[] memory balances)
+    {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        
+
         // First pass: collect unique tokens
         address[] memory allTokens = new address[](1000); // Max estimate
         uint256 tokenCount = 0;
-        
+
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
             if (channel.id > 0 && channel.isParticipant[user]) {
@@ -548,11 +545,11 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
                 }
             }
         }
-        
+
         // Second pass: calculate balances
         tokens = new address[](tokenCount);
         balances = new uint256[](tokenCount);
-        
+
         for (uint256 i = 0; i < tokenCount; i++) {
             tokens[i] = allTokens[i];
             for (uint256 j = 0; j < $.nextChannelId; j++) {
@@ -569,14 +566,14 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @param channelIds Array of channel IDs to query
      * @return states Array of corresponding channel states
      */
-    function batchGetChannelStates(uint256[] calldata channelIds) 
-        external 
-        view 
-        returns (ChannelState[] memory states) 
+    function batchGetChannelStates(uint256[] calldata channelIds)
+        external
+        view
+        returns (ChannelState[] memory states)
     {
         states = new ChannelState[](channelIds.length);
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        
+
         for (uint256 i = 0; i < channelIds.length; i++) {
             states[i] = $.channels[channelIds[i]].state;
         }
@@ -592,31 +589,35 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @return totalTokenTypes Number of different token types the user has deposited
      * @return channelsAsLeader Number of channels where user is the leader
      */
-    function getUserAnalytics(address user) external view returns (
-        uint256 totalChannelsJoined,
-        uint256 activeChannelsCount,
-        uint256 totalTokenTypes,
-        uint256 channelsAsLeader
-    ) {
+    function getUserAnalytics(address user)
+        external
+        view
+        returns (
+            uint256 totalChannelsJoined,
+            uint256 activeChannelsCount,
+            uint256 totalTokenTypes,
+            uint256 channelsAsLeader
+        )
+    {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        
+
         // Track unique tokens
         address[] memory userTokens = new address[](1000);
         uint256 tokenCount = 0;
-        
+
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
             if (channel.id > 0 && channel.isParticipant[user]) {
                 totalChannelsJoined++;
-                
-                if (channel.state == ChannelState.Active) {
+
+                if (channel.state == ChannelState.Open) {
                     activeChannelsCount++;
                 }
-                
+
                 if (channel.leader == user) {
                     channelsAsLeader++;
                 }
-                
+
                 // Count unique tokens
                 for (uint256 j = 0; j < channel.allowedTokens.length; j++) {
                     address token = channel.allowedTokens[j];
@@ -636,7 +637,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
                 }
             }
         }
-        
+
         totalTokenTypes = tokenCount;
     }
 
@@ -648,14 +649,18 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @return joinTimestamps Array of when the user joined each channel
      * @return isLeaderFlags Array indicating if user was leader in each channel
      */
-    function getChannelHistory(address user) external view returns (
-        uint256[] memory channelIds,
-        ChannelState[] memory states,
-        uint256[] memory joinTimestamps,
-        bool[] memory isLeaderFlags
-    ) {
+    function getChannelHistory(address user)
+        external
+        view
+        returns (
+            uint256[] memory channelIds,
+            ChannelState[] memory states,
+            uint256[] memory joinTimestamps,
+            bool[] memory isLeaderFlags
+        )
+    {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        
+
         // First pass: count user's channels
         uint256 userChannelCount = 0;
         for (uint256 i = 0; i < $.nextChannelId; i++) {
@@ -663,13 +668,13 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
                 userChannelCount++;
             }
         }
-        
+
         // Second pass: collect data
         channelIds = new uint256[](userChannelCount);
         states = new ChannelState[](userChannelCount);
         joinTimestamps = new uint256[](userChannelCount);
         isLeaderFlags = new bool[](userChannelCount);
-        
+
         uint256 index = 0;
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
@@ -692,34 +697,34 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @return canDeposit Whether the user can deposit
      * @return reason Reason if cannot deposit
      */
-    function canUserDeposit(address user, uint256 channelId, address token, uint256 amount) 
-        external 
-        view 
-        returns (bool canDeposit, string memory reason) 
+    function canUserDeposit(address user, uint256 channelId, address token, uint256 amount)
+        external
+        view
+        returns (bool canDeposit, string memory reason)
     {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
-        
+
         if (channel.id == 0) {
             return (false, "Channel does not exist");
         }
-        
+
         if (!channel.isParticipant[user]) {
             return (false, "User is not a participant in this channel");
         }
-        
+
         if (!_isTokenAllowed(channel, token)) {
             return (false, "Token is not allowed in this channel");
         }
-        
-        if (channel.state != ChannelState.Open && channel.state != ChannelState.Active) {
+
+        if (channel.state != ChannelState.Open) {
             return (false, "Channel is not open for deposits");
         }
-        
+
         if (amount == 0) {
             return (false, "Deposit amount must be greater than 0");
         }
-        
+
         return (true, "");
     }
 
@@ -730,30 +735,30 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @return canWithdraw Whether the user can withdraw
      * @return reason Reason if cannot withdraw
      */
-    function canUserWithdraw(address user, uint256 channelId) 
-        external 
-        view 
-        returns (bool canWithdraw, string memory reason) 
+    function canUserWithdraw(address user, uint256 channelId)
+        external
+        view
+        returns (bool canWithdraw, string memory reason)
     {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
-        
+
         if (channel.id == 0) {
             return (false, "Channel does not exist");
         }
-        
+
         if (!channel.isParticipant[user]) {
             return (false, "User is not a participant in this channel");
         }
-        
+
         if (channel.state != ChannelState.Closed) {
             return (false, "Channel is not closed");
         }
-        
+
         if (channel.hasWithdrawn[user]) {
             return (false, "User has already withdrawn from this channel");
         }
-        
+
         return (true, "");
     }
 
@@ -765,32 +770,33 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @return totalValueLocked Total value locked across all channels and tokens
      * @return totalUniqueUsers Number of unique users who have participated
      * @return averageChannelSize Average number of participants per channel
-     * @return totalSlashedAmount Total amount that has been slashed
      */
-    function getSystemAnalytics() external view returns (
-        uint256 totalChannelsCreated,
-        uint256 totalValueLocked,
-        uint256 totalUniqueUsers,
-        uint256 averageChannelSize,
-        uint256 totalSlashedAmount
-    ) {
+    function getSystemAnalytics()
+        external
+        view
+        returns (
+            uint256 totalChannelsCreated,
+            uint256 totalValueLocked,
+            uint256 totalUniqueUsers,
+            uint256 averageChannelSize
+        )
+    {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        
+
         totalChannelsCreated = $.nextChannelId;
-        totalSlashedAmount = $.totalSlashedBonds;
-        
+
         // Track unique users and calculate TVL
         address[] memory allUsers = new address[](10000); // Max estimate
         uint256 userCount = 0;
         uint256 totalParticipants = 0;
         uint256 channelCount = 0;
-        
+
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
             if (channel.id > 0) {
                 channelCount++;
                 totalParticipants += channel.participants.length;
-                
+
                 // Count unique users
                 for (uint256 j = 0; j < channel.participants.length; j++) {
                     address user = channel.participants[j];
@@ -806,7 +812,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
                         userCount++;
                     }
                 }
-                
+
                 // Calculate TVL for this channel
                 for (uint256 j = 0; j < channel.allowedTokens.length; j++) {
                     address token = channel.allowedTokens[j];
@@ -814,7 +820,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
                 }
             }
         }
-        
+
         totalUniqueUsers = userCount;
         averageChannelSize = channelCount > 0 ? totalParticipants / channelCount : 0;
     }
@@ -828,28 +834,32 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @return timeActive How long the channel has been active (in seconds)
      * @return lastActivityTime Timestamp of last deposit activity
      */
-    function getChannelLiveMetrics(uint256 channelId) external view returns (
-        uint256 activeParticipants,
-        uint256 totalDeposits,
-        uint256 averageDepositSize,
-        uint256 timeActive,
-        uint256 lastActivityTime
-    ) {
+    function getChannelLiveMetrics(uint256 channelId)
+        external
+        view
+        returns (
+            uint256 activeParticipants,
+            uint256 totalDeposits,
+            uint256 averageDepositSize,
+            uint256 timeActive,
+            uint256 lastActivityTime
+        )
+    {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
-        
+
         if (channel.id == 0) {
             return (0, 0, 0, 0, 0);
         }
-        
+
         uint256 totalDepositValue = 0;
         uint256 depositCount = 0;
-        
+
         // Count active participants and calculate metrics
         for (uint256 i = 0; i < channel.participants.length; i++) {
             address participant = channel.participants[i];
             bool hasDeposits = false;
-            
+
             for (uint256 j = 0; j < channel.allowedTokens.length; j++) {
                 address token = channel.allowedTokens[j];
                 uint256 deposit = channel.tokenDeposits[participant][token];
@@ -859,17 +869,17 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
                     depositCount++;
                 }
             }
-            
+
             if (hasDeposits) {
                 activeParticipants++;
             }
         }
-        
+
         totalDeposits = depositCount;
         averageDepositSize = depositCount > 0 ? totalDepositValue / depositCount : 0;
-        timeActive = channel.state == ChannelState.Closed ? 
-            channel.closeTimestamp - channel.openTimestamp :
-            block.timestamp - channel.openTimestamp;
+        timeActive = channel.state == ChannelState.Closed
+            ? channel.closeTimestamp - channel.openTimestamp
+            : block.timestamp - channel.openTimestamp;
         lastActivityTime = channel.openTimestamp; // Use openTimestamp as activity time
     }
 
@@ -882,17 +892,13 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @return channelIds Array of matching channel IDs
      * @return totalMatches Total number of matches (for pagination)
      */
-    function searchChannelsByParticipant(
-        address participant,
-        ChannelState state,
-        uint256 limit,
-        uint256 offset
-    ) external view returns (
-        uint256[] memory channelIds,
-        uint256 totalMatches
-    ) {
+    function searchChannelsByParticipant(address participant, ChannelState state, uint256 limit, uint256 offset)
+        external
+        view
+        returns (uint256[] memory channelIds, uint256 totalMatches)
+    {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        
+
         // First pass: count matches
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
@@ -902,14 +908,14 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
                 }
             }
         }
-        
+
         // Second pass: collect results with pagination
         uint256 resultSize = totalMatches > limit ? limit : totalMatches;
         channelIds = new uint256[](resultSize);
-        
+
         uint256 currentMatch = 0;
         uint256 resultIndex = 0;
-        
+
         for (uint256 i = 0; i < $.nextChannelId && resultIndex < resultSize; i++) {
             Channel storage channel = $.channels[i];
             if (channel.id > 0 && channel.isParticipant[participant]) {
@@ -934,18 +940,13 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
      * @return totalDeposits Array of total deposits for each channel
      * @return totalMatches Total number of matches (for pagination)
      */
-    function searchChannelsByToken(
-        address token,
-        uint256 minTotalDeposits,
-        uint256 limit,
-        uint256 offset
-    ) external view returns (
-        uint256[] memory channelIds,
-        uint256[] memory totalDeposits,
-        uint256 totalMatches
-    ) {
+    function searchChannelsByToken(address token, uint256 minTotalDeposits, uint256 limit, uint256 offset)
+        external
+        view
+        returns (uint256[] memory channelIds, uint256[] memory totalDeposits, uint256 totalMatches)
+    {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
-        
+
         // First pass: count matches
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
@@ -955,15 +956,15 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
                 }
             }
         }
-        
+
         // Second pass: collect results with pagination
         uint256 resultSize = totalMatches > limit ? limit : totalMatches;
         channelIds = new uint256[](resultSize);
         totalDeposits = new uint256[](resultSize);
-        
+
         uint256 currentMatch = 0;
         uint256 resultIndex = 0;
-        
+
         for (uint256 i = 0; i < $.nextChannelId && resultIndex < resultSize; i++) {
             Channel storage channel = $.channels[i];
             if (channel.id > 0 && _isTokenAllowed(channel, token)) {

@@ -18,6 +18,7 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
     constructor() {
         _disableInitializers();
     }
+
     uint256 constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
     struct ChannelInitializationProof {
@@ -27,13 +28,18 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         bytes32 merkleRoot;
     }
 
+    struct ChannelFinalizationProof {
+        uint256[4] pA;
+        uint256[8] pB;
+        uint256[4] pC;
+    }
+
     struct ProofData {
         uint128[] proofPart1;
         uint256[] proofPart2;
         uint256[] publicInputs;
         uint256 smax;
         IRollupBridgeCore.RegisteredFunction[] functions;
-        uint256[][] finalBalances;
     }
 
     struct Signature {
@@ -52,7 +58,8 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
     IGroth16Verifier128Leaves public groth16Verifier128;
 
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
-    event AggregatedProofSigned(uint256 indexed channelId, address indexed signer);
+    event TokamakZkSnarkProofsVerified(uint256 indexed channelId, address indexed signer);
+    event FinalBalancesGroth16Verified(uint256 indexed channelId, bytes32 finalStateRoot);
 
     modifier onlyBridge() {
         require(msg.sender == address(rollupBridge), "Only bridge can call");
@@ -158,55 +165,36 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         emit StateInitialized(channelId, proof.merkleRoot);
     }
 
-    function submitProofAndSignature(uint256 channelId, ProofData calldata proofData, Signature calldata signature)
+    function submitProofAndSignature(uint256 channelId, ProofData[] calldata proofs, Signature calldata signature)
         external
     {
-        require(
-            rollupBridge.getChannelState(channelId) == IRollupBridgeCore.ChannelState.Open
-                || rollupBridge.getChannelState(channelId) == IRollupBridgeCore.ChannelState.Active,
-            "Invalid state"
-        );
+        require(rollupBridge.getChannelState(channelId) == IRollupBridgeCore.ChannelState.Open, "Invalid state");
         require(msg.sender == rollupBridge.getChannelLeader(channelId), "Only leader can submit");
+        require(proofs.length > 0 && proofs.length <= 5, "Must provide 1-5 proofs");
 
-        address[] memory participants = rollupBridge.getChannelParticipants(channelId);
-        address[] memory allowedTokens = rollupBridge.getChannelAllowedTokens(channelId);
-
-        require(proofData.functions.length > 0 && proofData.functions.length <= 5, "Must provide 1-5 functions");
-        require(proofData.finalBalances.length == participants.length, "Invalid final balances length");
-
-        for (uint256 i = 0; i < proofData.finalBalances.length; i++) {
-            require(proofData.finalBalances[i].length == allowedTokens.length, "Invalid token balances length");
-        }
+        // Safety check: ensure timeout has passed
+        (uint256 openTimestamp, uint256 timeout) = rollupBridge.getChannelTimeout(channelId);
+        require(block.timestamp >= openTimestamp + timeout, "Timeout has not passed yet");
 
         // Consolidated loop: validate functions and verify ZK proofs
-        for (uint256 i = 0; i < proofData.functions.length; i++) {
-            bytes32 funcSig = proofData.functions[i].functionSignature;
+        for (uint256 i = 0; i < proofs.length; i++) {
+            ProofData calldata currentProof = proofs[i];
+            require(currentProof.functions.length == 1, "Each proof must contain exactly one function");
+
+            bytes32 funcSig = currentProof.functions[0].functionSignature;
             IRollupBridgeCore.RegisteredFunction memory registeredFunc = rollupBridge.getRegisteredFunction(funcSig);
             require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
 
             bool proofValid = zkVerifier.verify(
-                proofData.proofPart1,
-                proofData.proofPart2,
+                currentProof.proofPart1,
+                currentProof.proofPart2,
                 registeredFunc.preprocessedPart1,
                 registeredFunc.preprocessedPart2,
-                proofData.publicInputs,
-                proofData.smax
+                currentProof.publicInputs,
+                currentProof.smax
             );
 
             require(proofValid, "Invalid ZK proof");
-        }
-
-        // Validate token balance conservation
-        for (uint256 tokenIdx = 0; tokenIdx < allowedTokens.length; tokenIdx++) {
-            address token = allowedTokens[tokenIdx];
-            uint256 totalFinalBalance = 0;
-
-            for (uint256 participantIdx = 0; participantIdx < participants.length; participantIdx++) {
-                totalFinalBalance += proofData.finalBalances[participantIdx][tokenIdx];
-            }
-
-            uint256 totalDeposited = rollupBridge.getChannelTotalDeposits(channelId, token);
-            require(totalFinalBalance == totalDeposited, "Balance conservation violated for token");
         }
 
         (uint256 pkx, uint256 pky) = rollupBridge.getChannelPublicKey(channelId);
@@ -215,11 +203,107 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         address recovered = zecFrost.verify(signature.message, pkx, pky, signature.rx, signature.ry, signature.z);
         require(recovered == signerAddr, "Invalid group threshold signature");
 
-        rollupBridge.setChannelWithdrawAmounts(channelId, participants, allowedTokens, proofData.finalBalances);
+        // Extract finalStateRoot from the first slot of the last proof's publicInputs
+        ProofData calldata lastProof = proofs[proofs.length - 1];
+        require(lastProof.publicInputs.length > 0, "Public inputs cannot be empty");
+        bytes32 finalStateRoot = bytes32(lastProof.publicInputs[0]);
+
+        rollupBridge.setChannelFinalStateRoot(channelId, finalStateRoot);
         rollupBridge.setChannelSignatureVerified(channelId, true);
         rollupBridge.setChannelState(channelId, IRollupBridgeCore.ChannelState.Closing);
 
-        emit AggregatedProofSigned(channelId, msg.sender);
+        emit TokamakZkSnarkProofsVerified(channelId, msg.sender);
+    }
+
+    function verifyFinalBalancesGroth16(
+        uint256 channelId,
+        uint256[][] calldata finalBalances,
+        ChannelFinalizationProof calldata groth16Proof
+    ) external {
+        require(rollupBridge.getChannelState(channelId) == IRollupBridgeCore.ChannelState.Closing, "Invalid state");
+        require(rollupBridge.isSignatureVerified(channelId), "signature not verified");
+
+        address[] memory participants = rollupBridge.getChannelParticipants(channelId);
+        address[] memory allowedTokens = rollupBridge.getChannelAllowedTokens(channelId);
+
+        require(finalBalances.length == participants.length, "Invalid final balances length");
+
+        for (uint256 i = 0; i < finalBalances.length; i++) {
+            require(finalBalances[i].length == allowedTokens.length, "Invalid token balances length");
+        }
+
+        // Validate token balance conservation
+        for (uint256 tokenIdx = 0; tokenIdx < allowedTokens.length; tokenIdx++) {
+            address token = allowedTokens[tokenIdx];
+            uint256 totalFinalBalance = 0;
+
+            for (uint256 participantIdx = 0; participantIdx < participants.length; participantIdx++) {
+                totalFinalBalance += finalBalances[participantIdx][tokenIdx];
+            }
+
+            uint256 totalDeposited = rollupBridge.getChannelTotalDeposits(channelId, token);
+            require(totalFinalBalance == totalDeposited, "Balance conservation violated for token");
+        }
+
+        // Step 1: Get the final state root stored
+        bytes32 finalStateRoot = rollupBridge.getChannelFinalStateRoot(channelId);
+
+        // Step 2: Get each participant's L2MPTkey for each token
+        uint256 treeSize = rollupBridge.getChannelTreeSize(channelId);
+        uint256[] memory publicSignals = new uint256[](1 + 2 * treeSize);
+
+        // Set final state root as first public signal
+        publicSignals[0] = uint256(finalStateRoot);
+
+        // Step 4: Construct the publicSignals for the Groth16 verifier
+        uint256 entryIndex = 0;
+        for (uint256 i = 0; i < participants.length; i++) {
+            address participant = participants[i];
+
+            for (uint256 j = 0; j < allowedTokens.length; j++) {
+                address token = allowedTokens[j];
+
+                // Get L2 MPT key for this participant-token pair
+                uint256 l2MptKey = rollupBridge.getL2MptKey(channelId, participant, token);
+
+                if (entryIndex < treeSize) {
+                    // Set L2 MPT key
+                    publicSignals[1 + entryIndex] = l2MptKey;
+                    // Set final balance
+                    publicSignals[1 + treeSize + entryIndex] = finalBalances[i][j];
+                    entryIndex++;
+                }
+            }
+        }
+
+        // Fill remaining entries with zero
+        for (uint256 i = entryIndex; i < treeSize; i++) {
+            publicSignals[1 + i] = 0;
+            publicSignals[1 + treeSize + i] = 0;
+        }
+
+        // Step 5: Verify the groth16 proof passed as a parameter
+        bool proofValid = verifyGroth16Proof(
+            treeSize,
+            groth16Verifier16,
+            groth16Verifier32,
+            groth16Verifier64,
+            groth16Verifier128,
+            groth16Proof.pA,
+            groth16Proof.pB,
+            groth16Proof.pC,
+            publicSignals
+        );
+
+        // Step 6: Assert that the verifier returns true
+        require(proofValid, "Invalid Groth16 proof");
+
+        // Set withdraw amounts if proof is valid
+        rollupBridge.setChannelWithdrawAmounts(channelId, participants, allowedTokens, finalBalances);
+        rollupBridge.setChannelCloseTimestamp(channelId, block.timestamp);
+        rollupBridge.setChannelState(channelId, IRollupBridgeCore.ChannelState.Closed);
+
+        emit FinalBalancesGroth16Verified(channelId, finalStateRoot);
     }
 
     function updateVerifier(address _newVerifier) external onlyOwner {

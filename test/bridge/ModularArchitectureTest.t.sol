@@ -86,29 +86,27 @@ contract ModularArchitectureTest is Test {
         // Deploy core contract with proxy first
         RollupBridgeCore implementation = new RollupBridgeCore();
         bytes memory bridgeInitData = abi.encodeCall(
-            RollupBridgeCore.initialize, (address(0), address(0), address(0), address(0), owner) // Temporary addresses
+            RollupBridgeCore.initialize,
+            (address(0), address(0), address(0), address(0), owner) // Temporary addresses
         );
         ERC1967Proxy bridgeProxy = new ERC1967Proxy(address(implementation), bridgeInitData);
         bridge = RollupBridgeCore(address(bridgeProxy));
 
         // Deploy manager proxies with bridge address
-        bytes memory depositInitData = abi.encodeCall(
-            RollupBridgeDepositManager.initialize, (address(bridge), owner)
-        );
+        bytes memory depositInitData = abi.encodeCall(RollupBridgeDepositManager.initialize, (address(bridge), owner));
         ERC1967Proxy depositProxy = new ERC1967Proxy(address(depositManagerImpl), depositInitData);
         depositManager = RollupBridgeDepositManager(address(depositProxy));
 
         address[4] memory groth16Verifiers =
             [address(groth16Verifier), address(groth16Verifier), address(groth16Verifier), address(groth16Verifier)];
         bytes memory proofInitData = abi.encodeCall(
-            RollupBridgeProofManager.initialize, (address(bridge), address(tokamakVerifier), address(zecFrost), groth16Verifiers, owner)
+            RollupBridgeProofManager.initialize,
+            (address(bridge), address(tokamakVerifier), address(zecFrost), groth16Verifiers, owner)
         );
         ERC1967Proxy proofProxy = new ERC1967Proxy(address(proofManagerImpl), proofInitData);
         proofManager = RollupBridgeProofManager(address(proofProxy));
 
-        bytes memory adminInitData = abi.encodeCall(
-            RollupBridgeAdminManager.initialize, (address(bridge), owner)
-        );
+        bytes memory adminInitData = abi.encodeCall(RollupBridgeAdminManager.initialize, (address(bridge), owner));
         ERC1967Proxy adminProxy = new ERC1967Proxy(address(adminManagerImpl), adminInitData);
         adminManager = RollupBridgeAdminManager(address(adminProxy));
 
@@ -128,7 +126,7 @@ contract ModularArchitectureTest is Test {
         vm.deal(user1, 10 ether);
         vm.deal(user2, 10 ether);
         vm.deal(user3, 10 ether);
-        
+
         // Mint test tokens for users
         testToken.mint(user1, 1000 ether);
         testToken.mint(user2, 1000 ether);
@@ -173,7 +171,7 @@ contract ModularArchitectureTest is Test {
 
     function testChannelCreationAndDeposits() public {
         // Create a channel
-        vm.prank(leader);
+        vm.startPrank(leader);
 
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(testToken);
@@ -183,14 +181,12 @@ contract ModularArchitectureTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
-            allowedTokens: allowedTokens,
-            participants: participants,
-            timeout: 1 days
-        });
+        RollupBridgeCore.ChannelParams memory params =
+            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
-        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
+        vm.stopPrank();
 
         // Verify channel creation
         assertEq(channelId, 0);
@@ -232,7 +228,7 @@ contract ModularArchitectureTest is Test {
     }
 
     function _createChannelWithDeposits() internal returns (uint256 channelId) {
-        vm.prank(leader);
+        vm.startPrank(leader);
 
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(testToken);
@@ -242,14 +238,12 @@ contract ModularArchitectureTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
-            allowedTokens: allowedTokens,
-            participants: participants,
-            timeout: 1 days
-        });
+        RollupBridgeCore.ChannelParams memory params =
+            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
-        channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
+        vm.stopPrank();
 
         // Add deposits
         vm.startPrank(user1);

@@ -156,9 +156,8 @@ contract DeployV2Script is Script {
 
         // Deploy RollupBridge proxy with temporary zero addresses
         console.log("Deploying RollupBridge proxy...");
-        bytes memory rollupBridgeInitData = abi.encodeCall(
-            RollupBridgeCore.initialize, (address(0), address(0), address(0), address(0), deployer)
-        );
+        bytes memory rollupBridgeInitData =
+            abi.encodeCall(RollupBridgeCore.initialize, (address(0), address(0), address(0), address(0), deployer));
 
         ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
         rollupBridge = address(rollupBridgeProxy);
@@ -166,43 +165,43 @@ contract DeployV2Script is Script {
 
         // Deploy manager proxies and initialize
         console.log("Deploying manager proxies...");
-        
+
         // Deploy DepositManager proxy
-        bytes memory depositManagerInitData = abi.encodeCall(
-            RollupBridgeDepositManager.initialize, (rollupBridge, deployer)
-        );
+        bytes memory depositManagerInitData =
+            abi.encodeCall(RollupBridgeDepositManager.initialize, (rollupBridge, deployer));
         ERC1967Proxy depositManagerProxy = new ERC1967Proxy(depositManagerImpl, depositManagerInitData);
         depositManager = address(depositManagerProxy);
         console.log("RollupBridgeDepositManager proxy deployed at:", depositManager);
-        
+
         // Deploy ProofManager proxy
-        address[4] memory groth16Verifiers = [groth16Verifier16, groth16Verifier32, groth16Verifier64, groth16Verifier128];
+        address[4] memory groth16Verifiers =
+            [groth16Verifier16, groth16Verifier32, groth16Verifier64, groth16Verifier128];
         bytes memory proofManagerInitData = abi.encodeCall(
             RollupBridgeProofManager.initialize, (rollupBridge, zkVerifier, zecFrost, groth16Verifiers, deployer)
         );
         ERC1967Proxy proofManagerProxy = new ERC1967Proxy(proofManagerImpl, proofManagerInitData);
         proofManager = address(proofManagerProxy);
         console.log("RollupBridgeProofManager proxy deployed at:", proofManager);
-        
+
         // Deploy WithdrawManager proxy
-        bytes memory withdrawManagerInitData = abi.encodeCall(
-            RollupBridgeWithdrawManager.initialize, (rollupBridge, deployer)
-        );
+        bytes memory withdrawManagerInitData =
+            abi.encodeCall(RollupBridgeWithdrawManager.initialize, (rollupBridge, deployer));
         ERC1967Proxy withdrawManagerProxy = new ERC1967Proxy(withdrawManagerImpl, withdrawManagerInitData);
         withdrawManager = address(withdrawManagerProxy);
         console.log("RollupBridgeWithdrawManager proxy deployed at:", withdrawManager);
-        
+
         // Deploy AdminManager proxy
-        bytes memory adminManagerInitData = abi.encodeCall(
-            RollupBridgeAdminManager.initialize, (rollupBridge, deployer)
-        );
+        bytes memory adminManagerInitData =
+            abi.encodeCall(RollupBridgeAdminManager.initialize, (rollupBridge, deployer));
         ERC1967Proxy adminManagerProxy = new ERC1967Proxy(adminManagerImpl, adminManagerInitData);
         adminManager = address(adminManagerProxy);
         console.log("RollupBridgeAdminManager proxy deployed at:", adminManager);
 
         // Update bridge with correct manager addresses
         console.log("Updating bridge with manager addresses...");
-        RollupBridgeCore(rollupBridge).updateManagerAddresses(depositManager, proofManager, withdrawManager, adminManager);
+        RollupBridgeCore(rollupBridge).updateManagerAddresses(
+            depositManager, proofManager, withdrawManager, adminManager
+        );
 
         // Configure WTON target contract
         console.log("Configuring WTON target contract...");
@@ -355,7 +354,11 @@ contract DeployV2Script is Script {
                     console.log(string.concat("Verification failed for ", contractName, ", retrying in 15 seconds..."));
                     vm.sleep(retryDelay);
                 } else {
-                    console.log(string.concat("Verification failed for ", contractName, " after ", vm.toString(maxRetries), " attempts"));
+                    console.log(
+                        string.concat(
+                            "Verification failed for ", contractName, " after ", vm.toString(maxRetries), " attempts"
+                        )
+                    );
                 }
             }
         }
@@ -382,7 +385,9 @@ contract DeployV2Script is Script {
 
         // Register WTON transfer function
         bytes32 wtonTransferSig = keccak256("transferWTON(address,uint256)");
-        RollupBridgeAdminManager(adminManagerAddress).registerFunction(wtonTransferSig, wtonPreprocessedPart1, wtonPreprocessedPart2);
+        RollupBridgeAdminManager(adminManagerAddress).registerFunction(
+            wtonTransferSig, wtonPreprocessedPart1, wtonPreprocessedPart2
+        );
 
         console.log("WTON target contract configured:", wtonAddress);
     }
@@ -408,7 +413,9 @@ contract DeployV2Script is Script {
 
         // Register WTON transfer function
         bytes32 tonTransferSig = keccak256("transferTON(address,uint256)");
-        RollupBridgeAdminManager(adminManagerAddress).registerFunction(tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2);
+        RollupBridgeAdminManager(adminManagerAddress).registerFunction(
+            tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2
+        );
 
         console.log("TON target contract configured:", tonAddress);
     }
@@ -434,7 +441,9 @@ contract DeployV2Script is Script {
 
         // Register USDT transfer function
         bytes32 usdtTransferSig = keccak256("transfer(address,uint256)");
-        RollupBridgeAdminManager(adminManagerAddress).registerFunction(usdtTransferSig, usdtPreprocessedPart1, usdtPreprocessedPart2);
+        RollupBridgeAdminManager(adminManagerAddress).registerFunction(
+            usdtTransferSig, usdtPreprocessedPart1, usdtPreprocessedPart2
+        );
 
         console.log("USDT target contract configured:", usdtAddress);
     }

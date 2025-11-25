@@ -9,11 +9,17 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgrade
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "./interface/IRollupBridgeCore.sol";
 
-contract RollupBridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+contract RollupBridgeDepositManager is
+    Initializable,
+    ReentrancyGuardUpgradeable,
+    OwnableUpgradeable,
+    UUPSUpgradeable
+{
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
+
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     address public constant ETH_TOKEN_ADDRESS = address(1);
@@ -79,7 +85,6 @@ contract RollupBridgeDepositManager is Initializable, ReentrancyGuardUpgradeable
         require(_newBridge != address(0), "Invalid bridge address");
         rollupBridge = IRollupBridgeCore(_newBridge);
     }
-
 
     function toString(uint256 value) internal pure returns (string memory) {
         if (value == 0) {

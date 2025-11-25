@@ -13,6 +13,7 @@ contract RollupBridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgr
     constructor() {
         _disableInitializers();
     }
+
     IRollupBridgeCore public rollupBridge;
 
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);

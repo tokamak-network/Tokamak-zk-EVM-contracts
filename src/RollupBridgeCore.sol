@@ -485,12 +485,7 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
     function getChannelStats()
         external
         view
-        returns (
-            uint256 openChannels,
-            uint256 activeChannels,
-            uint256 closingChannels,
-            uint256 closedChannels
-        )
+        returns (uint256 openChannels, uint256 activeChannels, uint256 closingChannels, uint256 closedChannels)
     {
         RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
 
@@ -502,9 +497,11 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
                 if (state == ChannelState.Open) {
                     openChannels++;
                     activeChannels++;
+                } else if (state == ChannelState.Closing) {
+                    closingChannels++;
+                } else if (state == ChannelState.Closed) {
+                    closedChannels++;
                 }
-                else if (state == ChannelState.Closing) closingChannels++;
-                else if (state == ChannelState.Closed) closedChannels++;
             }
         }
     }

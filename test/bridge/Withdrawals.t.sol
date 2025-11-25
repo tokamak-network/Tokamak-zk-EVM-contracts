@@ -308,7 +308,7 @@ contract WithdrawalsTest is Test {
         // Advance time to pass the timeout
         vm.warp(block.timestamp + 1 days + 1);
         console.log("Time advanced past timeout");
-        
+
         // Submit proof
         console.log("Submitting proof and signature");
         vm.prank(leader);
@@ -317,8 +317,8 @@ contract WithdrawalsTest is Test {
 
         // Verify final balances to close channel
         console.log("Verifying final balances");
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
-            RollupBridgeProofManager.ChannelFinalizationProof({
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+            .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
@@ -522,8 +522,8 @@ contract WithdrawalsTest is Test {
         proofManager.submitProofAndSignature(testChannelId, _wrapProofInArray(proofData), signature);
 
         // Verify final balances to close channel
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
-            RollupBridgeProofManager.ChannelFinalizationProof({
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+            .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
@@ -635,8 +635,8 @@ contract WithdrawalsTest is Test {
         proofManager.submitProofAndSignature(testChannelId, _wrapProofInArray(proofData), signature);
 
         // Verify final balances to close channel
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
-            RollupBridgeProofManager.ChannelFinalizationProof({
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+            .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
@@ -662,8 +662,12 @@ contract WithdrawalsTest is Test {
         assertEq(token.balanceOf(user2), user2InitialTokens + 400e18, "User2 token withdrawal failed");
 
         // Both users should have no more withdrawable tokens
-        assertEq(bridge.getWithdrawableAmount(channelId, user1, address(token)), 0, "User1 withdrawable amount not cleared");
-        assertEq(bridge.getWithdrawableAmount(channelId, user2, address(token)), 0, "User2 withdrawable amount not cleared");
+        assertEq(
+            bridge.getWithdrawableAmount(channelId, user1, address(token)), 0, "User1 withdrawable amount not cleared"
+        );
+        assertEq(
+            bridge.getWithdrawableAmount(channelId, user2, address(token)), 0, "User2 withdrawable amount not cleared"
+        );
     }
 
     function testWithdrawZeroAmountFails() public {

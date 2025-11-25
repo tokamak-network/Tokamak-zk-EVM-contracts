@@ -46,8 +46,6 @@ contract RollupBridgeWithdrawManager is
         rollupBridge = IRollupBridgeCore(_rollupBridge);
     }
 
-
-
     function withdraw(uint256 channelId, address token) external nonReentrant {
         require(rollupBridge.getChannelState(channelId) == IRollupBridgeCore.ChannelState.Closed, "Not closed");
         require(rollupBridge.isChannelParticipant(channelId, msg.sender), "Not a participant");
@@ -64,8 +62,6 @@ contract RollupBridgeWithdrawManager is
 
         emit Withdrawn(channelId, msg.sender, token, withdrawAmount);
     }
-
-
 
     function updateRollupBridge(address _newBridge) external onlyOwner {
         require(_newBridge != address(0), "Invalid bridge address");

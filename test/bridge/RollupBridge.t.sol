@@ -438,7 +438,7 @@ contract RollupBridgeCoreTest is Test {
         uint256[] memory proofPart2,
         uint256[] memory publicInputs,
         uint256 smax,
-        bytes[] memory /* initialMPTLeaves */,
+        bytes[] memory, /* initialMPTLeaves */
         bytes[] memory finalMPTLeaves
     ) internal pure returns (RollupBridgeProofManager.ProofData memory, uint256[][] memory) {
         return _createProofDataFromMPT(proofPart1, proofPart2, publicInputs, smax, finalMPTLeaves);
@@ -797,7 +797,6 @@ contract RollupBridgeCoreTest is Test {
     function testSubmitProofAndSignatureWithBalanceChanges() public {
         uint256 channelId = _initializeChannel();
 
-
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
         uint256[] memory publicInputs = new uint256[](1);
@@ -822,14 +821,13 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         vm.expectEmit(true, true, false, false);
         emit TokamakZkSnarkProofsVerified(channelId, leader);
-        (RollupBridgeProofManager.ProofData memory proofData, ) =
+        (RollupBridgeProofManager.ProofData memory proofData,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 6, initialMPTLeaves, finalMPTLeaves);
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignature());
     }
 
     function testSubmitProofAndSignatureBalanceMismatch() public {
         uint256 channelId = _initializeChannel();
-
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
@@ -852,25 +850,24 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         (RollupBridgeProofManager.ProofData memory proofData, uint256[][] memory finalBalancesArray) =
             _createProofDataViolatingConservation(proofPart1, proofPart2, publicInputs, 0);
-        
+
         // submitProofAndSignature should succeed since it no longer validates final balances
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignature());
-        
+
         // verifyFinalBalancesGroth16 should fail with balance conservation error
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
-            RollupBridgeProofManager.ChannelFinalizationProof({
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+            .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
-        
+
         vm.expectRevert("Balance conservation violated for token");
         proofManager.verifyFinalBalancesGroth16(channelId, finalBalancesArray, finalizationProof);
     }
 
     function testSubmitProofAndSignatureConservationViolation() public {
         uint256 channelId = _initializeChannel();
-
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
@@ -893,25 +890,24 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         (RollupBridgeProofManager.ProofData memory proofData, uint256[][] memory finalBalances) =
             _createProofDataViolatingConservation(proofPart1, proofPart2, publicInputs, 0);
-        
+
         // submitProofAndSignature should succeed since it no longer validates final balances
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignature());
-        
+
         // verifyFinalBalancesGroth16 should fail with balance conservation error
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
-            RollupBridgeProofManager.ChannelFinalizationProof({
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+            .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
-        
+
         vm.expectRevert("Balance conservation violated for token");
         proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
     }
 
     function testSubmitProofAndSignatureMismatchedArrays() public {
         uint256 channelId = _initializeChannel();
-
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
@@ -933,34 +929,33 @@ contract RollupBridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (RollupBridgeProofManager.ProofData memory proofData, ) =
+        (RollupBridgeProofManager.ProofData memory proofData,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        
+
         // submitProofAndSignature should succeed since it no longer validates final balances
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignature());
-        
+
         // Create a mismatched final balances array (wrong length)
         uint256[][] memory mismatchedFinalBalances = new uint256[][](2); // Should be 3
         mismatchedFinalBalances[0] = new uint256[](1);
         mismatchedFinalBalances[0][0] = 3 ether;
         mismatchedFinalBalances[1] = new uint256[](1);
         mismatchedFinalBalances[1][0] = 3 ether;
-        
+
         // verifyFinalBalancesGroth16 should fail with array length error
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
-            RollupBridgeProofManager.ChannelFinalizationProof({
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+            .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
-        
+
         vm.expectRevert("Invalid final balances length");
         proofManager.verifyFinalBalancesGroth16(channelId, mismatchedFinalBalances, finalizationProof);
     }
 
     function testSubmitProofAndSignatureGasUsage() public {
         uint256 channelId = _initializeChannel();
-
 
         uint128[] memory proofPart1 = new uint128[](10); // Larger proof data
         uint256[] memory proofPart2 = new uint256[](10);
@@ -997,7 +992,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
 
         uint256 gasBefore = gasleft();
-        (RollupBridgeProofManager.ProofData memory proofDataLocal, ) =
+        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
         uint256 gasAfter = gasleft();
@@ -1015,7 +1010,6 @@ contract RollupBridgeCoreTest is Test {
 
     function testSubmitProofAndSignature() public {
         uint256 channelId = _initializeChannel();
-
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
@@ -1037,7 +1031,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         vm.expectEmit(true, true, false, false);
         emit TokamakZkSnarkProofsVerified(channelId, leader);
-        (RollupBridgeProofManager.ProofData memory proofDataLocal, ) =
+        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
 
@@ -1051,7 +1045,6 @@ contract RollupBridgeCoreTest is Test {
 
     function testSubmitProofAndSignatureInvalidSignature() public {
         uint256 channelId = _initializeChannel();
-
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
@@ -1070,7 +1063,7 @@ contract RollupBridgeCoreTest is Test {
         // Test with invalid signature
         vm.prank(leader);
         vm.expectRevert("Invalid group threshold signature");
-        (RollupBridgeProofManager.ProofData memory proofDataLocal, ) =
+        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
         proofManager.submitProofAndSignature(
             channelId, _wrapProofInArray(proofDataLocal), _createWrongZecFrostSignature()
@@ -1079,7 +1072,6 @@ contract RollupBridgeCoreTest is Test {
 
     function testSubmitProofAndSignatureUnauthorized() public {
         uint256 channelId = _initializeChannel();
-
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
@@ -1098,7 +1090,7 @@ contract RollupBridgeCoreTest is Test {
         // Test unauthorized caller
         vm.prank(user1);
         vm.expectRevert("Only leader can submit");
-        (RollupBridgeProofManager.ProofData memory proofDataLocal, ) =
+        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
     }
@@ -1107,7 +1099,7 @@ contract RollupBridgeCoreTest is Test {
 
     function testCloseChannel() public {
         uint256 channelId = _getSignedChannel();
-        
+
         // Channel should be in Closing state after submitProofAndSignature
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Closing));
 
@@ -1121,8 +1113,8 @@ contract RollupBridgeCoreTest is Test {
         finalBalances[2][0] = 3 ether;
 
         // Create finalization proof
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
-            RollupBridgeProofManager.ChannelFinalizationProof({
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+            .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
@@ -1137,7 +1129,6 @@ contract RollupBridgeCoreTest is Test {
 
     function testCloseChannelInvalidProof() public {
         uint256 channelId = _initializeChannel();
-
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
@@ -1158,7 +1149,7 @@ contract RollupBridgeCoreTest is Test {
 
         vm.prank(leader);
         vm.expectRevert("Invalid ZK proof");
-        (RollupBridgeProofManager.ProofData memory proofDataLocal, ) =
+        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
     }
@@ -1167,7 +1158,7 @@ contract RollupBridgeCoreTest is Test {
 
     function testCloseAndFinalizeChannel() public {
         uint256 channelId = _getSignedChannel();
-        
+
         // Channel should be in Closing state after submitProofAndSignature
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Closing));
 
@@ -1181,8 +1172,8 @@ contract RollupBridgeCoreTest is Test {
         finalBalances[2][0] = 3 ether;
 
         // Create finalization proof
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
-            RollupBridgeProofManager.ChannelFinalizationProof({
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+            .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
@@ -1213,8 +1204,8 @@ contract RollupBridgeCoreTest is Test {
         finalBalances[2][0] = 3 ether;
 
         // Create finalization proof
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = 
-            RollupBridgeProofManager.ChannelFinalizationProof({
+        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+            .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
@@ -1340,7 +1331,6 @@ contract RollupBridgeCoreTest is Test {
             })
         );
 
-
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
         uint256[] memory publicInputs = new uint256[](1);
@@ -1355,7 +1345,7 @@ contract RollupBridgeCoreTest is Test {
         bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
 
         vm.prank(channelLeader);
-        (RollupBridgeProofManager.ProofData memory proofDataLocal, ) =
+        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
     }
@@ -1404,7 +1394,6 @@ contract RollupBridgeCoreTest is Test {
     function _submitProof() internal returns (uint256) {
         uint256 channelId = _initializeChannel();
 
-
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
         uint256[] memory publicInputs = new uint256[](1);
@@ -1422,7 +1411,7 @@ contract RollupBridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (RollupBridgeProofManager.ProofData memory proofDataLocal, ) =
+        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
 
@@ -1438,7 +1427,6 @@ contract RollupBridgeCoreTest is Test {
         uint256 channelId = _getSignedChannel();
 
         vm.prank(leader);
-
 
         return channelId;
     }
@@ -1541,12 +1529,11 @@ contract RollupBridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (RollupBridgeProofManager.ProofData memory proofDataLocal, ) =
+        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
 
         // Channel is now in Closing state with signature verified
-
     }
 
     function _getRealProofData()

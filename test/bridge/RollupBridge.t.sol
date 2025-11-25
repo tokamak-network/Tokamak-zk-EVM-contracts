@@ -354,9 +354,7 @@ contract RollupBridgeCoreTest is Test {
         return RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
-            pky: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e
+            timeout: 1 days
         });
     }
 
@@ -583,11 +581,10 @@ contract RollupBridgeCoreTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
         uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
 
         assertEq(channelId, 0);
 
@@ -1197,11 +1194,10 @@ contract RollupBridgeCoreTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
         uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
 
         vm.stopPrank();
 
@@ -1222,11 +1218,10 @@ contract RollupBridgeCoreTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
         uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
 
         vm.stopPrank();
 
@@ -1247,11 +1242,10 @@ contract RollupBridgeCoreTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
         uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
 
         vm.stopPrank();
 
@@ -1435,11 +1429,10 @@ contract RollupBridgeCoreTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: timeout,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: timeout
         });
-        bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
 
         vm.stopPrank();
     }
@@ -1725,11 +1718,10 @@ contract RollupBridgeCoreTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
         channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
 
         // Deposit for each participant
         for (uint256 i = 0; i < participantCount; i++) {
@@ -1785,12 +1777,11 @@ contract RollupBridgeCoreTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
 
         uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
         vm.stopPrank();
 
         // user1 deposits BOTH tokens (as requested in the scenario)
@@ -1902,13 +1893,12 @@ contract RollupBridgeCoreTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
 
         // Open the channel
         uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
 
         // Verify the channel was created successfully
         assertEq(channelId, 0);
@@ -1960,13 +1950,12 @@ contract RollupBridgeCoreTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
 
         // Open the channel
         uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
 
         // Verify the tree size selection
         uint256 actualTreeSize = bridge.getChannelTreeSize(channelId);

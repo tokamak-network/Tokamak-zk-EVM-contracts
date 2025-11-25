@@ -23,8 +23,6 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
         address[] allowedTokens;
         address[] participants;
         uint256 timeout;
-        uint256 pkx;
-        uint256 pky;
     }
 
     struct TargetContract {
@@ -189,12 +187,23 @@ contract RollupBridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUP
             }
         }
 
-        channel.pkx = params.pkx;
-        channel.pky = params.pky;
-        address signerAddr = deriveAddressFromPubkey(params.pkx, params.pky);
-        channel.signerAddr = signerAddr;
 
         emit ChannelOpened(channelId, params.allowedTokens);
+    }
+
+    function setChannelPublicKey(uint256 channelId, uint256 pkx, uint256 pky) external {
+        RollupBridgeCoreStorage storage $ = _getRollupBridgeCoreStorage();
+        Channel storage channel = $.channels[channelId];
+        
+        require(channel.id != 0, "Channel does not exist");
+        require(msg.sender == channel.leader, "Only channel leader can set public key");
+        require(channel.state == ChannelState.Initialized, "Can only set public key for initialized channel");
+        require(channel.pkx == 0 && channel.pky == 0, "Public key already set");
+        
+        channel.pkx = pkx;
+        channel.pky = pky;
+        address signerAddr = deriveAddressFromPubkey(pkx, pky);
+        channel.signerAddr = signerAddr;
     }
 
     // Manager interface functions

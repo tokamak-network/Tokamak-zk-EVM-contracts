@@ -186,12 +186,11 @@ contract ModularArchitectureTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 1,
-            pky: 2
+            timeout: 1 days
         });
 
         uint256 channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 1, 2);
 
         // Verify channel creation
         assertEq(channelId, 0);
@@ -246,12 +245,11 @@ contract ModularArchitectureTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 1,
-            pky: 2
+            timeout: 1 days
         });
 
         channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 1, 2);
 
         // Add deposits
         vm.startPrank(user1);

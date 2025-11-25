@@ -203,9 +203,7 @@ contract WithdrawalsTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
 
         console.log("About to open channel");
@@ -213,6 +211,7 @@ contract WithdrawalsTest is Test {
         console.log("Leader balance:", leader.balance);
 
         channelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(channelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
 
         console.log("Channel opened with ID:", channelId);
         vm.stopPrank();
@@ -388,12 +387,11 @@ contract WithdrawalsTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
 
         uint256 openChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(openChannelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
         vm.stopPrank();
 
         address ethToken = address(token);
@@ -459,12 +457,11 @@ contract WithdrawalsTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
 
         uint256 testChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(testChannelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
         vm.stopPrank();
 
         // Initialize and close without any final balances
@@ -544,12 +541,11 @@ contract WithdrawalsTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
 
         uint256 rejectChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(rejectChannelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
         vm.stopPrank();
 
         // Setup channel with rejector having withdrawable tokens
@@ -674,12 +670,11 @@ contract WithdrawalsTest is Test {
         RollupBridgeCore.ChannelParams memory params = RollupBridgeCore.ChannelParams({
             allowedTokens: allowedTokens,
             participants: participants,
-            timeout: 1 days,
-            pkx: 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            pky: 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+            timeout: 1 days
         });
 
         uint256 zeroChannelId = bridge.openChannel{value: bridge.LEADER_BOND_REQUIRED()}(params);
+        bridge.setChannelPublicKey(zeroChannelId, 0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638, 0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e);
         vm.stopPrank();
 
         _setupEmptyChannel(zeroChannelId);

@@ -3,11 +3,11 @@ pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../src/RollupBridgeCore.sol";
-import "../src/RollupBridgeDepositManager.sol";
-import "../src/RollupBridgeProofManager.sol";
-import "../src/RollupBridgeWithdrawManager.sol";
-import "../src/RollupBridgeAdminManager.sol";
+import "../src/BridgeCore.sol";
+import "../src/BridgeDepositManager.sol";
+import "../src/BridgeProofManager.sol";
+import "../src/BridgeWithdrawManager.sol";
+import "../src/BridgeAdminManager.sol";
 import "../src/verifier/TokamakVerifier.sol";
 import "../src/verifier/Groth16Verifier16Leaves.sol";
 import "../src/verifier/Groth16Verifier32Leaves.sol";
@@ -127,79 +127,79 @@ contract DeployV2Script is Script {
             console.log("Using existing ZecFrost at:", zecFrost);
         }
 
-        // Deploy RollupBridge implementation
-        console.log("Deploying RollupBridge implementation...");
-        RollupBridgeCore rollupBridgeImplementation = new RollupBridgeCore();
+        // Deploy Bridge implementation
+        console.log("Deploying Bridge implementation...");
+        BridgeCore rollupBridgeImplementation = new BridgeCore();
         rollupBridgeImpl = address(rollupBridgeImplementation);
-        console.log("RollupBridge implementation deployed at:", rollupBridgeImpl);
+        console.log("Bridge implementation deployed at:", rollupBridgeImpl);
 
         // Deploy manager implementations
-        console.log("Deploying RollupBridgeDepositManager implementation...");
-        RollupBridgeDepositManager depositManagerImplementation = new RollupBridgeDepositManager();
+        console.log("Deploying BridgeDepositManager implementation...");
+        BridgeDepositManager depositManagerImplementation = new BridgeDepositManager();
         depositManagerImpl = address(depositManagerImplementation);
-        console.log("RollupBridgeDepositManager implementation deployed at:", depositManagerImpl);
+        console.log("BridgeDepositManager implementation deployed at:", depositManagerImpl);
 
-        console.log("Deploying RollupBridgeProofManager implementation...");
-        RollupBridgeProofManager proofManagerImplementation = new RollupBridgeProofManager();
+        console.log("Deploying BridgeProofManager implementation...");
+        BridgeProofManager proofManagerImplementation = new BridgeProofManager();
         proofManagerImpl = address(proofManagerImplementation);
-        console.log("RollupBridgeProofManager implementation deployed at:", proofManagerImpl);
+        console.log("BridgeProofManager implementation deployed at:", proofManagerImpl);
 
-        console.log("Deploying RollupBridgeWithdrawManager implementation...");
-        RollupBridgeWithdrawManager withdrawManagerImplementation = new RollupBridgeWithdrawManager();
+        console.log("Deploying BridgeWithdrawManager implementation...");
+        BridgeWithdrawManager withdrawManagerImplementation = new BridgeWithdrawManager();
         withdrawManagerImpl = address(withdrawManagerImplementation);
-        console.log("RollupBridgeWithdrawManager implementation deployed at:", withdrawManagerImpl);
+        console.log("BridgeWithdrawManager implementation deployed at:", withdrawManagerImpl);
 
-        console.log("Deploying RollupBridgeAdminManager implementation...");
-        RollupBridgeAdminManager adminManagerImplementation = new RollupBridgeAdminManager();
+        console.log("Deploying BridgeAdminManager implementation...");
+        BridgeAdminManager adminManagerImplementation = new BridgeAdminManager();
         adminManagerImpl = address(adminManagerImplementation);
-        console.log("RollupBridgeAdminManager implementation deployed at:", adminManagerImpl);
+        console.log("BridgeAdminManager implementation deployed at:", adminManagerImpl);
 
-        // Deploy RollupBridge proxy with temporary zero addresses
-        console.log("Deploying RollupBridge proxy...");
+        // Deploy Bridge proxy with temporary zero addresses
+        console.log("Deploying Bridge proxy...");
         bytes memory rollupBridgeInitData =
-            abi.encodeCall(RollupBridgeCore.initialize, (address(0), address(0), address(0), address(0), deployer));
+            abi.encodeCall(BridgeCore.initialize, (address(0), address(0), address(0), address(0), deployer));
 
         ERC1967Proxy rollupBridgeProxy = new ERC1967Proxy(rollupBridgeImpl, rollupBridgeInitData);
         rollupBridge = address(rollupBridgeProxy);
-        console.log("RollupBridge proxy deployed at:", rollupBridge);
+        console.log("Bridge proxy deployed at:", rollupBridge);
 
         // Deploy manager proxies and initialize
         console.log("Deploying manager proxies...");
 
         // Deploy DepositManager proxy
         bytes memory depositManagerInitData =
-            abi.encodeCall(RollupBridgeDepositManager.initialize, (rollupBridge, deployer));
+            abi.encodeCall(BridgeDepositManager.initialize, (rollupBridge, deployer));
         ERC1967Proxy depositManagerProxy = new ERC1967Proxy(depositManagerImpl, depositManagerInitData);
         depositManager = address(depositManagerProxy);
-        console.log("RollupBridgeDepositManager proxy deployed at:", depositManager);
+        console.log("BridgeDepositManager proxy deployed at:", depositManager);
 
         // Deploy ProofManager proxy
         address[4] memory groth16Verifiers =
             [groth16Verifier16, groth16Verifier32, groth16Verifier64, groth16Verifier128];
         bytes memory proofManagerInitData = abi.encodeCall(
-            RollupBridgeProofManager.initialize, (rollupBridge, zkVerifier, zecFrost, groth16Verifiers, deployer)
+            BridgeProofManager.initialize, (rollupBridge, zkVerifier, zecFrost, groth16Verifiers, deployer)
         );
         ERC1967Proxy proofManagerProxy = new ERC1967Proxy(proofManagerImpl, proofManagerInitData);
         proofManager = address(proofManagerProxy);
-        console.log("RollupBridgeProofManager proxy deployed at:", proofManager);
+        console.log("BridgeProofManager proxy deployed at:", proofManager);
 
         // Deploy WithdrawManager proxy
         bytes memory withdrawManagerInitData =
-            abi.encodeCall(RollupBridgeWithdrawManager.initialize, (rollupBridge, deployer));
+            abi.encodeCall(BridgeWithdrawManager.initialize, (rollupBridge, deployer));
         ERC1967Proxy withdrawManagerProxy = new ERC1967Proxy(withdrawManagerImpl, withdrawManagerInitData);
         withdrawManager = address(withdrawManagerProxy);
-        console.log("RollupBridgeWithdrawManager proxy deployed at:", withdrawManager);
+        console.log("BridgeWithdrawManager proxy deployed at:", withdrawManager);
 
         // Deploy AdminManager proxy
         bytes memory adminManagerInitData =
-            abi.encodeCall(RollupBridgeAdminManager.initialize, (rollupBridge, deployer));
+            abi.encodeCall(BridgeAdminManager.initialize, (rollupBridge, deployer));
         ERC1967Proxy adminManagerProxy = new ERC1967Proxy(adminManagerImpl, adminManagerInitData);
         adminManager = address(adminManagerProxy);
-        console.log("RollupBridgeAdminManager proxy deployed at:", adminManager);
+        console.log("BridgeAdminManager proxy deployed at:", adminManager);
 
         // Update bridge with correct manager addresses
         console.log("Updating bridge with manager addresses...");
-        RollupBridgeCore(rollupBridge).updateManagerAddresses(
+        BridgeCore(rollupBridge).updateManagerAddresses(
             depositManager, proofManager, withdrawManager, adminManager
         );
 
@@ -226,13 +226,13 @@ contract DeployV2Script is Script {
         console.log("Groth16 Verifier128:", groth16Verifier128);
         console.log("ZecFrost:", zecFrost);
         console.log("\n=== IMPLEMENTATIONS ===");
-        console.log("RollupBridge Implementation:", rollupBridgeImpl);
+        console.log("Bridge Implementation:", rollupBridgeImpl);
         console.log("Deposit Manager Implementation:", depositManagerImpl);
         console.log("Proof Manager Implementation:", proofManagerImpl);
         console.log("Withdraw Manager Implementation:", withdrawManagerImpl);
         console.log("Admin Manager Implementation:", adminManagerImpl);
         console.log("\n=== PROXIES ===");
-        console.log("RollupBridge Proxy:", rollupBridge);
+        console.log("Bridge Proxy:", rollupBridge);
         console.log("Deposit Manager Proxy:", depositManager);
         console.log("Proof Manager Proxy:", proofManager);
         console.log("Withdraw Manager Proxy:", withdrawManager);
@@ -286,57 +286,57 @@ contract DeployV2Script is Script {
             _verifyWithRetry(zecFrostCmd, "ZecFrost");
         }
 
-        // Verify RollupBridge Implementation
-        console.log("Verifying RollupBridge Implementation...");
+        // Verify Bridge Implementation
+        console.log("Verifying Bridge Implementation...");
         string[] memory rollupCmd = new string[](6);
         rollupCmd[0] = "forge";
         rollupCmd[1] = "verify-contract";
         rollupCmd[2] = vm.toString(rollupBridgeImpl);
-        rollupCmd[3] = "src/RollupBridgeCore.sol:RollupBridgeCore";
+        rollupCmd[3] = "src/BridgeCore.sol:BridgeCore";
         rollupCmd[4] = "--etherscan-api-key";
         rollupCmd[5] = etherscanApiKey;
-        _verifyWithRetry(rollupCmd, "RollupBridgeCore");
+        _verifyWithRetry(rollupCmd, "BridgeCore");
 
         // Verify Manager contracts
-        console.log("Verifying RollupBridgeDepositManager implementation...");
+        console.log("Verifying BridgeDepositManager implementation...");
         string[] memory depositCmd = new string[](6);
         depositCmd[0] = "forge";
         depositCmd[1] = "verify-contract";
         depositCmd[2] = vm.toString(depositManagerImpl);
-        depositCmd[3] = "src/RollupBridgeDepositManager.sol:RollupBridgeDepositManager";
+        depositCmd[3] = "src/BridgeDepositManager.sol:BridgeDepositManager";
         depositCmd[4] = "--etherscan-api-key";
         depositCmd[5] = etherscanApiKey;
-        _verifyWithRetry(depositCmd, "RollupBridgeDepositManager");
+        _verifyWithRetry(depositCmd, "BridgeDepositManager");
 
-        console.log("Verifying RollupBridgeProofManager implementation...");
+        console.log("Verifying BridgeProofManager implementation...");
         string[] memory proofCmd = new string[](6);
         proofCmd[0] = "forge";
         proofCmd[1] = "verify-contract";
         proofCmd[2] = vm.toString(proofManagerImpl);
-        proofCmd[3] = "src/RollupBridgeProofManager.sol:RollupBridgeProofManager";
+        proofCmd[3] = "src/BridgeProofManager.sol:BridgeProofManager";
         proofCmd[4] = "--etherscan-api-key";
         proofCmd[5] = etherscanApiKey;
-        _verifyWithRetry(proofCmd, "RollupBridgeProofManager");
+        _verifyWithRetry(proofCmd, "BridgeProofManager");
 
-        console.log("Verifying RollupBridgeWithdrawManager implementation...");
+        console.log("Verifying BridgeWithdrawManager implementation...");
         string[] memory withdrawCmd = new string[](6);
         withdrawCmd[0] = "forge";
         withdrawCmd[1] = "verify-contract";
         withdrawCmd[2] = vm.toString(withdrawManagerImpl);
-        withdrawCmd[3] = "src/RollupBridgeWithdrawManager.sol:RollupBridgeWithdrawManager";
+        withdrawCmd[3] = "src/BridgeWithdrawManager.sol:BridgeWithdrawManager";
         withdrawCmd[4] = "--etherscan-api-key";
         withdrawCmd[5] = etherscanApiKey;
-        _verifyWithRetry(withdrawCmd, "RollupBridgeWithdrawManager");
+        _verifyWithRetry(withdrawCmd, "BridgeWithdrawManager");
 
-        console.log("Verifying RollupBridgeAdminManager implementation...");
+        console.log("Verifying BridgeAdminManager implementation...");
         string[] memory adminCmd = new string[](6);
         adminCmd[0] = "forge";
         adminCmd[1] = "verify-contract";
         adminCmd[2] = vm.toString(adminManagerImpl);
-        adminCmd[3] = "src/RollupBridgeAdminManager.sol:RollupBridgeAdminManager";
+        adminCmd[3] = "src/BridgeAdminManager.sol:BridgeAdminManager";
         adminCmd[4] = "--etherscan-api-key";
         adminCmd[5] = etherscanApiKey;
-        _verifyWithRetry(adminCmd, "RollupBridgeAdminManager");
+        _verifyWithRetry(adminCmd, "BridgeAdminManager");
 
         console.log("Contract verification complete!");
     }
@@ -381,11 +381,11 @@ contract DeployV2Script is Script {
         wtonPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         wtonPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        RollupBridgeAdminManager(adminManagerAddress).setAllowedTargetContract(wtonAddress, bytes1(0x00), true);
+        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(wtonAddress, bytes1(0x00), true);
 
         // Register WTON transfer function
         bytes32 wtonTransferSig = keccak256("transferWTON(address,uint256)");
-        RollupBridgeAdminManager(adminManagerAddress).registerFunction(
+        BridgeAdminManager(adminManagerAddress).registerFunction(
             wtonTransferSig, wtonPreprocessedPart1, wtonPreprocessedPart2
         );
 
@@ -409,11 +409,11 @@ contract DeployV2Script is Script {
         tonPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         tonPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        RollupBridgeAdminManager(adminManagerAddress).setAllowedTargetContract(tonAddress, bytes1(0x00), true);
+        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(tonAddress, bytes1(0x00), true);
 
         // Register WTON transfer function
         bytes32 tonTransferSig = keccak256("transferTON(address,uint256)");
-        RollupBridgeAdminManager(adminManagerAddress).registerFunction(
+        BridgeAdminManager(adminManagerAddress).registerFunction(
             tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2
         );
 
@@ -437,11 +437,11 @@ contract DeployV2Script is Script {
         usdtPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         usdtPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        RollupBridgeAdminManager(adminManagerAddress).setAllowedTargetContract(usdtAddress, bytes1(0x01), true);
+        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(usdtAddress, bytes1(0x01), true);
 
         // Register USDT transfer function
         bytes32 usdtTransferSig = keccak256("transfer(address,uint256)");
-        RollupBridgeAdminManager(adminManagerAddress).registerFunction(
+        BridgeAdminManager(adminManagerAddress).registerFunction(
             usdtTransferSig, usdtPreprocessedPart1, usdtPreprocessedPart2
         );
 

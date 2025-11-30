@@ -7,9 +7,9 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuar
 import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import "./interface/IRollupBridgeCore.sol";
+import "./interface/IBridgeCore.sol";
 
-contract RollupBridgeDepositManager is
+contract BridgeDepositManager is
     Initializable,
     ReentrancyGuardUpgradeable,
     OwnableUpgradeable,
@@ -24,33 +24,33 @@ contract RollupBridgeDepositManager is
 
     address public constant ETH_TOKEN_ADDRESS = address(1);
 
-    IRollupBridgeCore public rollupBridge;
+    IBridgeCore public bridge;
 
     event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
 
     modifier onlyBridge() {
-        require(msg.sender == address(rollupBridge), "Only bridge can call");
+        require(msg.sender == address(bridge), "Only bridge can call");
         _;
     }
 
-    function initialize(address _rollupBridge, address _owner) public initializer {
+    function initialize(address _bridgeCore, address _owner) public initializer {
         __ReentrancyGuard_init();
         __Ownable_init_unchained();
         __UUPSUpgradeable_init();
         _transferOwnership(_owner);
 
-        require(_rollupBridge != address(0), "Invalid bridge address");
-        rollupBridge = IRollupBridgeCore(_rollupBridge);
+        require(_bridgeCore != address(0), "Invalid bridge address");
+        bridge = IBridgeCore(_bridgeCore);
     }
 
     function depositToken(uint256 _channelId, address _token, uint256 _amount, bytes32 _mptKey) external nonReentrant {
         require(
-            rollupBridge.getChannelState(_channelId) == IRollupBridgeCore.ChannelState.Initialized,
+            bridge.getChannelState(_channelId) == IBridgeCore.ChannelState.Initialized,
             "Invalid channel state"
         );
-        require(rollupBridge.isChannelParticipant(_channelId, msg.sender), "Not a participant");
+        require(bridge.isChannelParticipant(_channelId, msg.sender), "Not a participant");
         require(_token != ETH_TOKEN_ADDRESS, "Use depositETH for ETH deposits");
-        require(rollupBridge.isTokenAllowedInChannel(_channelId, _token), "Token not allowed in this channel");
+        require(bridge.isTokenAllowedInChannel(_channelId, _token), "Token not allowed in this channel");
         require(_mptKey != bytes32(0), "Invalid MPT key");
         require(_amount != 0, "amount must be greater than 0");
 
@@ -74,16 +74,16 @@ contract RollupBridgeDepositManager is
         uint256 actualAmount = balanceAfter - balanceBefore;
         require(actualAmount > 0, "No tokens transferred");
 
-        rollupBridge.setChannelL2MptKey(_channelId, msg.sender, _token, uint256(_mptKey));
-        rollupBridge.updateChannelTokenDeposits(_channelId, _token, msg.sender, actualAmount);
-        rollupBridge.updateChannelTotalDeposits(_channelId, _token, actualAmount);
+        bridge.setChannelL2MptKey(_channelId, msg.sender, _token, uint256(_mptKey));
+        bridge.updateChannelTokenDeposits(_channelId, _token, msg.sender, actualAmount);
+        bridge.updateChannelTotalDeposits(_channelId, _token, actualAmount);
 
         emit Deposited(_channelId, msg.sender, _token, actualAmount);
     }
 
-    function updateRollupBridge(address _newBridge) external onlyOwner {
+    function updateBridge(address _newBridge) external onlyOwner {
         require(_newBridge != address(0), "Invalid bridge address");
-        rollupBridge = IRollupBridgeCore(_newBridge);
+        bridge = IBridgeCore(_newBridge);
     }
 
     function toString(uint256 value) internal pure returns (string memory) {

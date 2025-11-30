@@ -11,9 +11,9 @@ import "./interface/IGroth16Verifier16Leaves.sol";
 import "./interface/IGroth16Verifier32Leaves.sol";
 import "./interface/IGroth16Verifier64Leaves.sol";
 import "./interface/IGroth16Verifier128Leaves.sol";
-import "./interface/IRollupBridgeCore.sol";
+import "./interface/IBridgeCore.sol";
 
-contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -39,7 +39,7 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         uint256[] proofPart2;
         uint256[] publicInputs;
         uint256 smax;
-        IRollupBridgeCore.RegisteredFunction[] functions;
+        IBridgeCore.RegisteredFunction[] functions;
     }
 
     struct Signature {
@@ -49,7 +49,7 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         uint256 z;
     }
 
-    IRollupBridgeCore public rollupBridge;
+    IBridgeCore public bridge;
     ITokamakVerifier public zkVerifier;
     IZecFrost public zecFrost;
     IGroth16Verifier16Leaves public groth16Verifier16;
@@ -57,17 +57,19 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
     IGroth16Verifier64Leaves public groth16Verifier64;
     IGroth16Verifier128Leaves public groth16Verifier128;
 
+
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
     event TokamakZkSnarkProofsVerified(uint256 indexed channelId, address indexed signer);
     event FinalBalancesGroth16Verified(uint256 indexed channelId, bytes32 finalStateRoot);
+    event ProofSigned(uint256 indexed channelId, address indexed signer, bytes32 finalStateRoot);
 
     modifier onlyBridge() {
-        require(msg.sender == address(rollupBridge), "Only bridge can call");
+        require(msg.sender == address(bridge), "Only bridge can call");
         _;
     }
 
     function initialize(
-        address _rollupBridge,
+        address _bridgeCore,
         address _zkVerifier,
         address _zecFrost,
         address[4] memory _groth16Verifiers,
@@ -78,8 +80,8 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         __UUPSUpgradeable_init();
         _transferOwnership(_owner);
 
-        require(_rollupBridge != address(0), "Invalid bridge address");
-        rollupBridge = IRollupBridgeCore(_rollupBridge);
+        require(_bridgeCore != address(0), "Invalid bridge address");
+        bridge = IBridgeCore(_bridgeCore);
         zkVerifier = ITokamakVerifier(_zkVerifier);
         zecFrost = IZecFrost(_zecFrost);
         groth16Verifier16 = IGroth16Verifier16Leaves(_groth16Verifiers[0]);
@@ -92,12 +94,12 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         external
         nonReentrant
     {
-        require(rollupBridge.getChannelState(channelId) == IRollupBridgeCore.ChannelState.Initialized, "Invalid state");
-        require(msg.sender == rollupBridge.getChannelLeader(channelId), "Not leader");
+        require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Initialized, "Invalid state");
+        require(msg.sender == bridge.getChannelLeader(channelId), "Not leader");
 
-        address[] memory participants = rollupBridge.getChannelParticipants(channelId);
-        address[] memory allowedTokens = rollupBridge.getChannelAllowedTokens(channelId);
-        uint256 treeSize = rollupBridge.getChannelTreeSize(channelId);
+        address[] memory participants = bridge.getChannelParticipants(channelId);
+        address[] memory allowedTokens = bridge.getChannelAllowedTokens(channelId);
+        uint256 treeSize = bridge.getChannelTreeSize(channelId);
 
         uint256 totalEntries = participants.length * allowedTokens.length;
         require(totalEntries <= treeSize, "Too many participant-token combinations for circuit");
@@ -113,8 +115,8 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
 
             for (uint256 i = 0; i < participants.length;) {
                 address l1Address = participants[i];
-                uint256 balance = rollupBridge.getParticipantTokenDeposit(channelId, l1Address, token);
-                uint256 l2MptKey = rollupBridge.getL2MptKey(channelId, l1Address, token);
+                uint256 balance = bridge.getParticipantTokenDeposit(channelId, l1Address, token);
+                uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address, token);
 
                 if (balance > 0) {
                     require(l2MptKey != 0, "Participant MPT key not set for token");
@@ -159,8 +161,8 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
 
         require(proofValid, "Invalid Groth16 proof");
 
-        rollupBridge.setChannelInitialStateRoot(channelId, proof.merkleRoot);
-        rollupBridge.setChannelState(channelId, IRollupBridgeCore.ChannelState.Open);
+        bridge.setChannelInitialStateRoot(channelId, proof.merkleRoot);
+        bridge.setChannelState(channelId, IBridgeCore.ChannelState.Open);
 
         emit StateInitialized(channelId, proof.merkleRoot);
     }
@@ -168,21 +170,66 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
     function submitProofAndSignature(uint256 channelId, ProofData[] calldata proofs, Signature calldata signature)
         external
     {
-        require(rollupBridge.getChannelState(channelId) == IRollupBridgeCore.ChannelState.Open, "Invalid state");
-        require(msg.sender == rollupBridge.getChannelLeader(channelId), "Only leader can submit");
+        require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Open, "Invalid state");
         require(proofs.length > 0 && proofs.length <= 5, "Must provide 1-5 proofs");
 
         // Safety check: ensure timeout has passed
-        (uint256 openTimestamp, uint256 timeout) = rollupBridge.getChannelTimeout(channelId);
+        (uint256 openTimestamp, uint256 timeout) = bridge.getChannelTimeout(channelId);
         require(block.timestamp >= openTimestamp + timeout, "Timeout has not passed yet");
 
-        // Consolidated loop: validate functions and verify ZK proofs
+        // Extract finalStateRoot from the first slot of the last proof's publicInputs
+        ProofData calldata lastProof = proofs[proofs.length - 1];
+        require(lastProof.publicInputs.length > 0, "Public inputs cannot be empty");
+        bytes32 finalStateRoot = bytes32(lastProof.publicInputs[0]);
+        bytes32 initialStateRoot = bridge.getChannelInitialStateRoot(channelId);
+
+        // STEP 1: mverify order of proofs
+        // Validate proof chain and state root consistency
+        bytes32 expectedPrevRoot = initialStateRoot;
+        
+        for (uint256 i = 0; i < proofs.length; i++) {
+            ProofData calldata currentProof = proofs[i];
+            require(currentProof.publicInputs.length >= 12, "Invalid public inputs length");
+            
+            // Extract input state root (rows 8 & 9) and output state root (rows 10 & 11)
+            bytes32 inputStateRoot = _concatenateStateRoot(
+                currentProof.publicInputs[8], 
+                currentProof.publicInputs[9]
+            );
+            bytes32 outputStateRoot = _concatenateStateRoot(
+                currentProof.publicInputs[10], 
+                currentProof.publicInputs[11]
+            );
+            
+            // For first proof, input state root should match the stored initial state root
+            // For subsequent proofs, input state root should match previous proof's output state root
+            require(inputStateRoot == expectedPrevRoot, "State root chain broken");
+            
+            // Update expected previous root for next iteration
+            expectedPrevRoot = outputStateRoot;
+        }
+        
+        // Final verification: last proof's output state root should match the final state root
+        require(expectedPrevRoot == finalStateRoot, "Final state root mismatch");
+
+        // STEP2: Signature verification
+        // Verify that signature commits to the specific channel and final state root from the proof
+        bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, finalStateRoot));
+        require(signature.message == commitmentHash, "Signature must commit to proof content");
+
+        (uint256 pkx, uint256 pky) = bridge.getChannelPublicKey(channelId);
+        address signerAddr = bridge.getChannelSignerAddr(channelId);
+        address recovered = zecFrost.verify(signature.message, pkx, pky, signature.rx, signature.ry, signature.z);
+        require(recovered == signerAddr, "Invalid group threshold signature");
+
+        // STEP3: zk-SNARK proof verification
+        // Only after signature validation, verify ZK proofs
         for (uint256 i = 0; i < proofs.length; i++) {
             ProofData calldata currentProof = proofs[i];
             require(currentProof.functions.length == 1, "Each proof must contain exactly one function");
 
             bytes32 funcSig = currentProof.functions[0].functionSignature;
-            IRollupBridgeCore.RegisteredFunction memory registeredFunc = rollupBridge.getRegisteredFunction(funcSig);
+            IBridgeCore.RegisteredFunction memory registeredFunc = bridge.getRegisteredFunction(funcSig);
             require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
 
             bool proofValid = zkVerifier.verify(
@@ -197,22 +244,14 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
             require(proofValid, "Invalid ZK proof");
         }
 
-        (uint256 pkx, uint256 pky) = rollupBridge.getChannelPublicKey(channelId);
-        address signerAddr = rollupBridge.getChannelSignerAddr(channelId);
-
-        address recovered = zecFrost.verify(signature.message, pkx, pky, signature.rx, signature.ry, signature.z);
-        require(recovered == signerAddr, "Invalid group threshold signature");
-
-        // Extract finalStateRoot from the first slot of the last proof's publicInputs
-        ProofData calldata lastProof = proofs[proofs.length - 1];
-        require(lastProof.publicInputs.length > 0, "Public inputs cannot be empty");
-        bytes32 finalStateRoot = bytes32(lastProof.publicInputs[0]);
-
-        rollupBridge.setChannelFinalStateRoot(channelId, finalStateRoot);
-        rollupBridge.setChannelSignatureVerified(channelId, true);
-        rollupBridge.setChannelState(channelId, IRollupBridgeCore.ChannelState.Closing);
+        // STEP4: Channel state update
+        // Atomically update state only after all validations pass
+        bridge.setChannelFinalStateRoot(channelId, finalStateRoot);
+        bridge.setChannelSignatureVerified(channelId, true);
+        bridge.setChannelState(channelId, IBridgeCore.ChannelState.Closing);
 
         emit TokamakZkSnarkProofsVerified(channelId, msg.sender);
+        emit ProofSigned(channelId, msg.sender, finalStateRoot);
     }
 
     function verifyFinalBalancesGroth16(
@@ -220,11 +259,11 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         uint256[][] calldata finalBalances,
         ChannelFinalizationProof calldata groth16Proof
     ) external {
-        require(rollupBridge.getChannelState(channelId) == IRollupBridgeCore.ChannelState.Closing, "Invalid state");
-        require(rollupBridge.isSignatureVerified(channelId), "signature not verified");
+        require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Closing, "Invalid state");
+        require(bridge.isSignatureVerified(channelId), "signature not verified");
 
-        address[] memory participants = rollupBridge.getChannelParticipants(channelId);
-        address[] memory allowedTokens = rollupBridge.getChannelAllowedTokens(channelId);
+        address[] memory participants = bridge.getChannelParticipants(channelId);
+        address[] memory allowedTokens = bridge.getChannelAllowedTokens(channelId);
 
         require(finalBalances.length == participants.length, "Invalid final balances length");
 
@@ -241,15 +280,15 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
                 totalFinalBalance += finalBalances[participantIdx][tokenIdx];
             }
 
-            uint256 totalDeposited = rollupBridge.getChannelTotalDeposits(channelId, token);
+            uint256 totalDeposited = bridge.getChannelTotalDeposits(channelId, token);
             require(totalFinalBalance == totalDeposited, "Balance conservation violated for token");
         }
 
         // Step 1: Get the final state root stored
-        bytes32 finalStateRoot = rollupBridge.getChannelFinalStateRoot(channelId);
+        bytes32 finalStateRoot = bridge.getChannelFinalStateRoot(channelId);
 
         // Step 2: Get each participant's L2MPTkey for each token
-        uint256 treeSize = rollupBridge.getChannelTreeSize(channelId);
+        uint256 treeSize = bridge.getChannelTreeSize(channelId);
         uint256[] memory publicSignals = new uint256[](1 + 2 * treeSize);
 
         // Set final state root as first public signal
@@ -264,7 +303,7 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
                 address token = allowedTokens[j];
 
                 // Get L2 MPT key for this participant-token pair
-                uint256 l2MptKey = rollupBridge.getL2MptKey(channelId, participant, token);
+                uint256 l2MptKey = bridge.getL2MptKey(channelId, participant, token);
 
                 if (entryIndex < treeSize) {
                     // Set L2 MPT key
@@ -299,9 +338,9 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         require(proofValid, "Invalid Groth16 proof");
 
         // Set withdraw amounts if proof is valid
-        rollupBridge.setChannelWithdrawAmounts(channelId, participants, allowedTokens, finalBalances);
-        rollupBridge.setChannelCloseTimestamp(channelId, block.timestamp);
-        rollupBridge.setChannelState(channelId, IRollupBridgeCore.ChannelState.Closed);
+        bridge.setChannelWithdrawAmounts(channelId, participants, allowedTokens, finalBalances);
+        bridge.setChannelCloseTimestamp(channelId, block.timestamp);
+        bridge.setChannelState(channelId, IBridgeCore.ChannelState.Closed);
 
         emit FinalBalancesGroth16Verified(channelId, finalStateRoot);
     }
@@ -367,9 +406,13 @@ contract RollupBridgeProofManager is Initializable, ReentrancyGuardUpgradeable, 
         }
     }
 
-    function updateRollupBridge(address _newBridge) external onlyOwner {
+    function updateBridge(address _newBridge) external onlyOwner {
         require(_newBridge != address(0), "Invalid bridge address");
-        rollupBridge = IRollupBridgeCore(_newBridge);
+        bridge = IBridgeCore(_newBridge);
+    }
+
+    function _concatenateStateRoot(uint256 part1, uint256 part2) internal pure returns (bytes32) {
+        return bytes32((part1 << 128) | part2);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

@@ -332,14 +332,16 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant FR_MASK = 0x1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
     // n
-    uint256 internal constant CONSTANT_N = 1024;
+    uint256 internal constant CONSTANT_N = 2048;
     // ω_64
     uint256 internal constant OMEGA_64 = 0x0e4840ac57f86f5e293b1d67bc8de5d9a12a70a615d0b8e4d2fc5e69ac5db47f;
+    // ω_2048
+    uint256 internal constant OMEGA_512 = 0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
     // m_i
-    uint256 internal constant CONSTANT_MI = 1024;
+    uint256 internal constant CONSTANT_MI = 2048;
 
     // ω_{m_i}^{-1}
-    uint256 internal constant OMEGA_MI_1 = 0x2bcd9508a3dad316105f067219141f4450a32c41aa67e0beb0ad80034eb71aa6;
+    uint256 internal constant OMEGA_MI_1 = 0x394fda0d65ba213edeae67bc36f376e13cc5bb329aa58ff53dc9e5600f6fb2ac;
 
     // ω_smax_64^{-1}
     uint256 internal constant OMEGA_SMAX_64_MINUS_1 = 0x199cdaee7b3c79d6566009b5882952d6a41e85011d426b52b891fa3f982b68c5;
@@ -485,15 +487,15 @@ contract TokamakVerifier is ITokamakVerifier {
         assembly {
             /*
             "lagrange_KL": {
-                "x": "0x03689a8e363b698896c0a973e3c471ced0b93696e2366fb2cf69ae4c9094b5e9991b069814ace3702ed81ff4d5e1d1cb",
-                "y": "0x0da7bd666ee533222c3d2c2542188d1c16ebaf4ab4c1fd8258bb2fef5e8dfb97bc8a9527bc325ef3ea3466c9be9d2809"
+                "x": "0x04f1e1a2ec023aef31bde5b77da1e69ddf5f0bc762904ccee1e8b0131e517246ccf938b28f294dcaca7dbd0c36ff3607",
+                "y": "0x13440b9abcae5c5c5749fbc390065d1edea2da1ca7a4f63960dc958c9f32d289c3df14028dc7262642cc1466d6745bef"
             }
             */
             // preproccessed KL commitment vk
-            mstore(VK_POLY_KXLX_X_PART1, 0x0000000000000000000000000000000003689a8e363b698896c0a973e3c471ce)
-            mstore(VK_POLY_KXLX_X_PART2, 0xd0b93696e2366fb2cf69ae4c9094b5e9991b069814ace3702ed81ff4d5e1d1cb)
-            mstore(VK_POLY_KXLX_Y_PART1, 0x000000000000000000000000000000000da7bd666ee533222c3d2c2542188d1c)
-            mstore(VK_POLY_KXLX_Y_PART2, 0x16ebaf4ab4c1fd8258bb2fef5e8dfb97bc8a9527bc325ef3ea3466c9be9d2809)
+            mstore(VK_POLY_KXLX_X_PART1, 0x0000000000000000000000000000000004f1e1a2ec023aef31bde5b77da1e69d)
+            mstore(VK_POLY_KXLX_X_PART2, 0xdf5f0bc762904ccee1e8b0131e517246ccf938b28f294dcaca7dbd0c36ff3607)
+            mstore(VK_POLY_KXLX_Y_PART1, 0x0000000000000000000000000000000013440b9abcae5c5c5749fbc390065d1e)
+            mstore(VK_POLY_KXLX_Y_PART2, 0xdea2da1ca7a4f63960dc958c9f32d289c3df14028dc7262642cc1466d6745bef)
 
             /*
             "G": {
@@ -1173,22 +1175,26 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(INTERMEDIARY_SCALAR_KO_SLOT, r)
             }
 
+
+            // A_pub = A(chi)
+            // A(chi) = sum_0^{l-1}(a_j * M_j(chi)) 
             function computeAPUB() {
                 let chi := mload(CHALLENGE_CHI_SLOT)
                 let offset := calldataload(0x84)
 
-                let n := 64
-                let omega := OMEGA_64
+                let n := 512
+                let omega := OMEGA_512
+                let numPublicInputs := 512
 
-                // Compute chi^128 - 1
+                // Compute chi^512 - 1
                 let chi_n := modexp(chi, n)
                 let chi_n_1 := addmod(chi_n, sub(R_MOD, 1), R_MOD)
 
-                // Check if chi is a 128th root of unity
+                // Check if chi is a 512th root of unity
                 if iszero(chi_n_1) {
                     // Special case: find and return the corresponding value
                     let omega_power := 1
-                    for { let i := 0 } lt(i, n) { i := add(i, 1) } {
+                    for { let i := 0 } lt(i, numPublicInputs) { i := add(i, 1) } {
                         if eq(chi, omega_power) {
                             let val := calldataload(add(add(offset, 0x24), mul(i, 0x20)))
                             mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
@@ -1206,7 +1212,7 @@ contract TokamakVerifier is ITokamakVerifier {
                 let nonZeroCount := 0
                 let tempOffset := 0x2000 // Temporary storage location
 
-                for { let i := 0 } lt(i, n) { i := add(i, 1) } {
+                for { let i := 0 } lt(i, numPublicInputs) { i := add(i, 1) } {
                     let val := calldataload(add(add(offset, 0x24), mul(i, 0x20)))
                     if val {
                         // Store index and value
@@ -1239,15 +1245,20 @@ contract TokamakVerifier is ITokamakVerifier {
                         leave
                     }
 
-                    let inv_denominator := modexp(denominator, sub(R_MOD, 2))
+                    // Compute full denominator: (chi - ω^j) * n
+                    let denominator_full := mulmod(denominator, n, R_MOD)
+                    let inv_denominator_full := modexp(denominator_full, sub(R_MOD, 2))
+                    
+                    // Compute numerator: a_j * ω^j * (chi^n - 1)
                     let numerator := mulmod(val, omega_i, R_MOD)
-                    let contribution := mulmod(numerator, inv_denominator, R_MOD)
+                    numerator := mulmod(numerator, chi_n_1, R_MOD)
+                    
+                    let contribution := mulmod(numerator, inv_denominator_full, R_MOD)
                     weightedSum := addmod(weightedSum, contribution, R_MOD)
                 }
 
-                // Final result: (chi^n - 1) * weightedSum / n
-                let result := mulmod(chi_n_1, weightedSum, R_MOD)
-                result := mulmod(result, inv_n, R_MOD)
+                // Result is the weighted sum (no additional factors needed)
+                let result := weightedSum
 
                 mstore(INTERMEDIARY_SCALAR_APUB_SLOT, result)
             }
@@ -1707,7 +1718,7 @@ contract TokamakVerifier is ITokamakVerifier {
             computeLagrangeK0Eval()
             computeAPUB()
 
-            // Step4: computation of the final polynomial commitments
+            // Step4: computation of the final polynomial commitments - COMMENTED OUT FOR DEBUGGING
             prepareLHSA()
             prepareLHSB()
             prepareLHSC()
@@ -1715,9 +1726,11 @@ contract TokamakVerifier is ITokamakVerifier {
             prepareRHS2()
             prepareAggregatedCommitment()
 
-            // Step5: final pairing
+            // Step5: final pairing - COMMENTED OUT FOR DEBUGGING
             finalPairing()
             final_result := true
+            
+            // DEBUG: Return A_pub instead of final result
             mstore(0x00, final_result)
             return(0x00, 0x20)
         }

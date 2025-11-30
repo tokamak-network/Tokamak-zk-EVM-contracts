@@ -6,15 +6,15 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgrade
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {ITokamakVerifier} from "./interface/ITokamakVerifier.sol";
 import "./interface/IGroth16Verifier16Leaves.sol";
-import "./interface/IRollupBridgeCore.sol";
+import "./interface/IBridgeCore.sol";
 
-contract RollupBridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
-    IRollupBridgeCore public rollupBridge;
+    IBridgeCore public bridge;
 
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event TargetContractAllowed(address indexed targetContract, bool allowed);
@@ -25,23 +25,23 @@ contract RollupBridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgr
     event TreasuryAddressUpdated(address indexed oldTreasury, address indexed newTreasury);
 
     modifier onlyBridge() {
-        require(msg.sender == address(rollupBridge), "Only bridge can call");
+        require(msg.sender == address(bridge), "Only bridge can call");
         _;
     }
 
-    function initialize(address _rollupBridge, address _owner) public initializer {
+    function initialize(address _bridgeCore, address _owner) public initializer {
         __Ownable_init_unchained();
         __UUPSUpgradeable_init();
         _transferOwnership(_owner);
 
-        require(_rollupBridge != address(0), "Invalid bridge address");
-        rollupBridge = IRollupBridgeCore(_rollupBridge);
+        require(_bridgeCore != address(0), "Invalid bridge address");
+        bridge = IBridgeCore(_bridgeCore);
     }
 
     function setAllowedTargetContract(address targetContract, bytes1 _storageSlot, bool allowed) external onlyOwner {
         require(targetContract != address(0), "Invalid target contract address");
 
-        rollupBridge.setAllowedTargetContract(targetContract, _storageSlot, allowed);
+        bridge.setAllowedTargetContract(targetContract, _storageSlot, allowed);
         emit TargetContractAllowed(targetContract, allowed);
     }
 
@@ -54,18 +54,18 @@ contract RollupBridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgr
         require(preprocessedPart1.length > 0, "preprocessedPart1 cannot be empty");
         require(preprocessedPart2.length > 0, "preprocessedPart2 cannot be empty");
 
-        rollupBridge.registerFunction(functionSignature, preprocessedPart1, preprocessedPart2);
+        bridge.registerFunction(functionSignature, preprocessedPart1, preprocessedPart2);
         emit FunctionRegistered(functionSignature, preprocessedPart1.length, preprocessedPart2.length);
     }
 
     function unregisterFunction(bytes32 functionSignature) external onlyOwner {
         require(functionSignature != bytes32(0), "Invalid function signature");
 
-        IRollupBridgeCore.RegisteredFunction memory registeredFunc =
-            rollupBridge.getRegisteredFunction(functionSignature);
+        IBridgeCore.RegisteredFunction memory registeredFunc =
+            bridge.getRegisteredFunction(functionSignature);
         require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
 
-        rollupBridge.unregisterFunction(functionSignature);
+        bridge.unregisterFunction(functionSignature);
         emit FunctionUnregistered(functionSignature);
     }
 
@@ -76,33 +76,33 @@ contract RollupBridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgr
         // This would need to be implemented to get the old treasury address
         address oldTreasury = address(0); // Placeholder
 
-        rollupBridge.setTreasuryAddress(_treasury);
+        bridge.setTreasuryAddress(_treasury);
         emit TreasuryAddressUpdated(oldTreasury, _treasury);
     }
 
     function getRegisteredFunction(bytes32 functionSignature)
         external
         view
-        returns (IRollupBridgeCore.RegisteredFunction memory)
+        returns (IBridgeCore.RegisteredFunction memory)
     {
-        return rollupBridge.getRegisteredFunction(functionSignature);
+        return bridge.getRegisteredFunction(functionSignature);
     }
 
     function isAllowedTargetContract(address targetContract) external view returns (bool) {
-        return rollupBridge.isAllowedTargetContract(targetContract);
+        return bridge.isAllowedTargetContract(targetContract);
     }
 
     function getTargetContractData(address targetContract)
         external
         view
-        returns (IRollupBridgeCore.TargetContract memory)
+        returns (IBridgeCore.TargetContract memory)
     {
-        return rollupBridge.getTargetContractData(targetContract);
+        return bridge.getTargetContractData(targetContract);
     }
 
-    function updateRollupBridge(address _newBridge) external onlyOwner {
+    function updateBridge(address _newBridge) external onlyOwner {
         require(_newBridge != address(0), "Invalid bridge address");
-        rollupBridge = IRollupBridgeCore(_newBridge);
+        bridge = IBridgeCore(_newBridge);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

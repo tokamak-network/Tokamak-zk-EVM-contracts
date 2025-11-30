@@ -2,11 +2,11 @@
 pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
-import "../../src/RollupBridgeCore.sol";
-import "../../src/RollupBridgeProofManager.sol";
-import "../../src/RollupBridgeDepositManager.sol";
-import "../../src/RollupBridgeWithdrawManager.sol";
-import "../../src/RollupBridgeAdminManager.sol";
+import "../../src/BridgeCore.sol";
+import "../../src/BridgeProofManager.sol";
+import "../../src/BridgeDepositManager.sol";
+import "../../src/BridgeWithdrawManager.sol";
+import "../../src/BridgeAdminManager.sol";
 import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
 import "../../src/interface/IGroth16Verifier16Leaves.sol";
@@ -88,11 +88,11 @@ contract TestERC20 is ERC20 {
 }
 
 contract WithdrawalsTest is Test {
-    RollupBridgeCore public bridge;
-    RollupBridgeDepositManager public depositManager;
-    RollupBridgeProofManager public proofManager;
-    RollupBridgeWithdrawManager public withdrawManager;
-    RollupBridgeAdminManager public adminManager;
+    BridgeCore public bridge;
+    BridgeDepositManager public depositManager;
+    BridgeProofManager public proofManager;
+    BridgeWithdrawManager public withdrawManager;
+    BridgeAdminManager public adminManager;
 
     MockTokamakVerifier public mockVerifier;
     MockZecFrost public mockZecFrost;
@@ -121,11 +121,11 @@ contract WithdrawalsTest is Test {
         token = new TestERC20("TestToken", "TT", 18);
 
         // Deploy implementation contracts
-        RollupBridgeCore bridgeImpl = new RollupBridgeCore();
-        RollupBridgeDepositManager depositManagerImpl = new RollupBridgeDepositManager();
-        RollupBridgeAdminManager adminManagerImpl = new RollupBridgeAdminManager();
-        RollupBridgeProofManager proofManagerImpl = new RollupBridgeProofManager();
-        RollupBridgeWithdrawManager withdrawManagerImpl = new RollupBridgeWithdrawManager();
+        BridgeCore bridgeImpl = new BridgeCore();
+        BridgeDepositManager depositManagerImpl = new BridgeDepositManager();
+        BridgeAdminManager adminManagerImpl = new BridgeAdminManager();
+        BridgeProofManager proofManagerImpl = new BridgeProofManager();
+        BridgeWithdrawManager withdrawManagerImpl = new BridgeWithdrawManager();
 
         address[4] memory groth16Verifiers = [
             address(mockGroth16Verifier),
@@ -136,31 +136,31 @@ contract WithdrawalsTest is Test {
 
         // Deploy bridge with proxy pattern first
         bytes memory bridgeInitData = abi.encodeCall(
-            RollupBridgeCore.initialize,
+            BridgeCore.initialize,
             (address(0), address(0), address(0), address(0), owner) // Temporary addresses
         );
         ERC1967Proxy bridgeProxy = new ERC1967Proxy(address(bridgeImpl), bridgeInitData);
-        bridge = RollupBridgeCore(payable(address(bridgeProxy)));
+        bridge = BridgeCore(payable(address(bridgeProxy)));
 
         // Deploy manager contracts as proxies
-        bytes memory depositInitData = abi.encodeCall(RollupBridgeDepositManager.initialize, (address(bridge), owner));
+        bytes memory depositInitData = abi.encodeCall(BridgeDepositManager.initialize, (address(bridge), owner));
         ERC1967Proxy depositProxy = new ERC1967Proxy(address(depositManagerImpl), depositInitData);
-        depositManager = RollupBridgeDepositManager(address(depositProxy));
+        depositManager = BridgeDepositManager(address(depositProxy));
 
-        bytes memory adminInitData = abi.encodeCall(RollupBridgeAdminManager.initialize, (address(bridge), owner));
+        bytes memory adminInitData = abi.encodeCall(BridgeAdminManager.initialize, (address(bridge), owner));
         ERC1967Proxy adminProxy = new ERC1967Proxy(address(adminManagerImpl), adminInitData);
-        adminManager = RollupBridgeAdminManager(address(adminProxy));
+        adminManager = BridgeAdminManager(address(adminProxy));
 
         bytes memory proofInitData = abi.encodeCall(
-            RollupBridgeProofManager.initialize,
+            BridgeProofManager.initialize,
             (address(bridge), address(mockVerifier), address(mockZecFrost), groth16Verifiers, owner)
         );
         ERC1967Proxy proofProxy = new ERC1967Proxy(address(proofManagerImpl), proofInitData);
-        proofManager = RollupBridgeProofManager(address(proofProxy));
+        proofManager = BridgeProofManager(address(proofProxy));
 
-        bytes memory withdrawInitData = abi.encodeCall(RollupBridgeWithdrawManager.initialize, (address(bridge), owner));
+        bytes memory withdrawInitData = abi.encodeCall(BridgeWithdrawManager.initialize, (address(bridge), owner));
         ERC1967Proxy withdrawProxy = new ERC1967Proxy(address(withdrawManagerImpl), withdrawInitData);
-        withdrawManager = RollupBridgeWithdrawManager(payable(address(withdrawProxy)));
+        withdrawManager = BridgeWithdrawManager(payable(address(withdrawProxy)));
 
         // Update bridge with manager addresses
         bridge.updateManagerAddresses(
@@ -197,8 +197,8 @@ contract WithdrawalsTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         console.log("About to open channel");
         console.log("Leader balance:", leader.balance);
@@ -249,7 +249,7 @@ contract WithdrawalsTest is Test {
     function _initializeChannelState() internal {
         console.log("Initializing channel state");
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
-        RollupBridgeProofManager.ChannelInitializationProof memory mockProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager
             .ChannelInitializationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -266,8 +266,8 @@ contract WithdrawalsTest is Test {
     function _submitProofAndCloseChannel() internal {
         console.log("Submitting proof and closing channel");
         // Prepare proof data
-        IRollupBridgeCore.RegisteredFunction[] memory functions = new IRollupBridgeCore.RegisteredFunction[](1);
-        functions[0] = IRollupBridgeCore.RegisteredFunction({
+        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
+        functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: keccak256("transfer(address,uint256)"),
             preprocessedPart1: new uint128[](4),
             preprocessedPart2: new uint256[](4)
@@ -289,10 +289,14 @@ contract WithdrawalsTest is Test {
         finalBalances[2] = new uint256[](1); // leader: [token_amount]
         finalBalances[2][0] = 0; // token balance for leader
 
-        RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
+        _setWithdrawalsTestStateRoots(publicInputs);
+        
+        BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: new uint128[](4),
             proofPart2: new uint256[](4),
-            publicInputs: new uint256[](4),
+            publicInputs: publicInputs,
             smax: 100,
             functions: functions
         });
@@ -302,8 +306,9 @@ contract WithdrawalsTest is Test {
         console.log("Expected signer:", expectedSigner);
         mockZecFrost.setMockSigner(expectedSigner);
 
-        RollupBridgeProofManager.Signature memory signature =
-            RollupBridgeProofManager.Signature({message: keccak256("message"), rx: 1, ry: 2, z: 3});
+        bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, bytes32(uint256(keccak256("finalStateRoot")))));
+        BridgeProofManager.Signature memory signature =
+            BridgeProofManager.Signature({message: commitmentHash, rx: 1, ry: 2, z: 3});
 
         // Advance time to pass the timeout
         vm.warp(block.timestamp + 1 days + 1);
@@ -317,7 +322,7 @@ contract WithdrawalsTest is Test {
 
         // Verify final balances to close channel
         console.log("Verifying final balances");
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
             .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -386,8 +391,8 @@ contract WithdrawalsTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         uint256 openChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -453,8 +458,8 @@ contract WithdrawalsTest is Test {
         vm.startPrank(leader);
         vm.deal(leader, 10 ether);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         uint256 testChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -475,7 +480,7 @@ contract WithdrawalsTest is Test {
     function _setupEmptyChannel(uint256 testChannelId) internal {
         // Initialize channel state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
-        RollupBridgeProofManager.ChannelInitializationProof memory mockProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager
             .ChannelInitializationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -487,8 +492,8 @@ contract WithdrawalsTest is Test {
         proofManager.initializeChannelState(testChannelId, mockProof);
 
         // Submit proof with empty balances
-        IRollupBridgeCore.RegisteredFunction[] memory functions = new IRollupBridgeCore.RegisteredFunction[](1);
-        functions[0] = IRollupBridgeCore.RegisteredFunction({
+        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
+        functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: keccak256("transfer(address,uint256)"),
             preprocessedPart1: new uint128[](4),
             preprocessedPart2: new uint256[](4)
@@ -502,18 +507,23 @@ contract WithdrawalsTest is Test {
         emptyBalances[2] = new uint256[](1);
         emptyBalances[2][0] = 0; // No withdrawable amount
 
-        RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
+        _setWithdrawalsTestStateRoots(publicInputs);
+        
+        BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: new uint128[](4),
             proofPart2: new uint256[](4),
-            publicInputs: new uint256[](4),
+            publicInputs: publicInputs,
             smax: 100,
             functions: functions
         });
 
         mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
 
-        RollupBridgeProofManager.Signature memory signature =
-            RollupBridgeProofManager.Signature({message: keccak256("message"), rx: 1, ry: 2, z: 3});
+        bytes32 commitmentHash = keccak256(abi.encodePacked(testChannelId, bytes32(uint256(keccak256("finalStateRoot")))));
+        BridgeProofManager.Signature memory signature =
+            BridgeProofManager.Signature({message: commitmentHash, rx: 1, ry: 2, z: 3});
 
         // Advance time to pass the timeout
         vm.warp(block.timestamp + 1 days + 1);
@@ -522,7 +532,7 @@ contract WithdrawalsTest is Test {
         proofManager.submitProofAndSignature(testChannelId, _wrapProofInArray(proofData), signature);
 
         // Verify final balances to close channel
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
             .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -546,8 +556,8 @@ contract WithdrawalsTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         uint256 rejectChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -584,7 +594,7 @@ contract WithdrawalsTest is Test {
 
         // Initialize channel state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
-        RollupBridgeProofManager.ChannelInitializationProof memory mockProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager
             .ChannelInitializationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -600,8 +610,8 @@ contract WithdrawalsTest is Test {
         adminManager.registerFunction(keccak256("transfer(address,uint256)"), new uint128[](4), new uint256[](4));
 
         // Submit proof with balance for rejector
-        IRollupBridgeCore.RegisteredFunction[] memory functions = new IRollupBridgeCore.RegisteredFunction[](1);
-        functions[0] = IRollupBridgeCore.RegisteredFunction({
+        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
+        functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: keccak256("transfer(address,uint256)"),
             preprocessedPart1: new uint128[](4),
             preprocessedPart2: new uint256[](4)
@@ -615,18 +625,23 @@ contract WithdrawalsTest is Test {
         balances[2] = new uint256[](1);
         balances[2][0] = 0; // leader has 0 ETH
 
-        RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
+        _setWithdrawalsTestStateRoots(publicInputs);
+        
+        BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: new uint128[](4),
             proofPart2: new uint256[](4),
-            publicInputs: new uint256[](4),
+            publicInputs: publicInputs,
             smax: 100,
             functions: functions
         });
 
         mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
 
-        RollupBridgeProofManager.Signature memory signature =
-            RollupBridgeProofManager.Signature({message: keccak256("message"), rx: 1, ry: 2, z: 3});
+        bytes32 commitmentHash = keccak256(abi.encodePacked(testChannelId, bytes32(uint256(keccak256("finalStateRoot")))));
+        BridgeProofManager.Signature memory signature =
+            BridgeProofManager.Signature({message: commitmentHash, rx: 1, ry: 2, z: 3});
 
         // Advance time to pass the timeout
         vm.warp(block.timestamp + 1 days + 1);
@@ -635,7 +650,7 @@ contract WithdrawalsTest is Test {
         proofManager.submitProofAndSignature(testChannelId, _wrapProofInArray(proofData), signature);
 
         // Verify final balances to close channel
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
             .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -687,8 +702,8 @@ contract WithdrawalsTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         uint256 zeroChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -705,15 +720,35 @@ contract WithdrawalsTest is Test {
         withdrawManager.withdraw(zeroChannelId, address(token));
     }
 
-    function _wrapProofInArray(RollupBridgeProofManager.ProofData memory proof)
+    function _wrapProofInArray(BridgeProofManager.ProofData memory proof)
         internal
         pure
-        returns (RollupBridgeProofManager.ProofData[] memory)
+        returns (BridgeProofManager.ProofData[] memory)
     {
-        RollupBridgeProofManager.ProofData[] memory proofs = new RollupBridgeProofManager.ProofData[](1);
+        BridgeProofManager.ProofData[] memory proofs = new BridgeProofManager.ProofData[](1);
         proofs[0] = proof;
         return proofs;
     }
+
+    function _setWithdrawalsTestStateRoots(uint256[] memory publicInputs) internal pure {
+        if (publicInputs.length >= 12) {
+            // Use the same mock root that's used in channel initialization for input
+            bytes32 mockRoot = keccak256(abi.encodePacked("mockRoot"));
+            uint256 inputRootHigh = uint256(mockRoot) >> 128;
+            uint256 inputRootLow = uint256(mockRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+            
+            // Use the finalStateRoot (which is set in publicInputs[0]) for output
+            bytes32 finalStateRoot = bytes32(publicInputs[0]);
+            uint256 outputRootHigh = uint256(finalStateRoot) >> 128;
+            uint256 outputRootLow = uint256(finalStateRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+            
+            publicInputs[8] = inputRootHigh;   // input state root high
+            publicInputs[9] = inputRootLow;    // input state root low
+            publicInputs[10] = outputRootHigh; // output state root high (matches publicInputs[0])
+            publicInputs[11] = outputRootLow;  // output state root low
+        }
+    }
+
 }
 
 // Contract that rejects ETH transfers

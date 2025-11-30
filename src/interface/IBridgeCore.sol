@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
-interface IRollupBridgeCore {
+interface IBridgeCore {
     enum ChannelState {
         None,
         Initialized,
@@ -38,6 +38,7 @@ interface IRollupBridgeCore {
     function getChannelPublicKey(uint256 channelId) external view returns (uint256 pkx, uint256 pky);
     function getChannelSignerAddr(uint256 channelId) external view returns (address);
     function getChannelFinalStateRoot(uint256 channelId) external view returns (bytes32);
+    function getChannelInitialStateRoot(uint256 channelId) external view returns (bytes32);
     function getRegisteredFunction(bytes32 functionSignature) external view returns (RegisteredFunction memory);
     function isAllowedTargetContract(address targetContract) external view returns (bool);
     function getTargetContractData(address targetContract) external view returns (TargetContract memory);

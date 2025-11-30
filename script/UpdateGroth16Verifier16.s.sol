@@ -3,7 +3,7 @@ pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
 import "../src/verifier/Groth16Verifier16Leaves.sol";
-import "../src/RollupBridgeProofManager.sol";
+import "../src/BridgeProofManager.sol";
 
 contract UpdateGroth16Verifier16Script is Script {
     function run() public {
@@ -23,8 +23,8 @@ contract UpdateGroth16Verifier16Script is Script {
         Groth16Verifier16Leaves newVerifier16 = new Groth16Verifier16Leaves();
         console.log("New Groth16Verifier16Leaves deployed at:", address(newVerifier16));
 
-        // Get the RollupBridgeProofManager instance
-        RollupBridgeProofManager proofManager = RollupBridgeProofManager(proofManagerAddress);
+        // Get the BridgeProofManager instance
+        BridgeProofManager proofManager = BridgeProofManager(proofManagerAddress);
 
         // Get current verifier addresses to maintain the other verifiers unchanged
         console.log("\n2. Getting current verifier addresses...");

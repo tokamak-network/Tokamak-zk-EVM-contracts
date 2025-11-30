@@ -2,11 +2,11 @@
 pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
-import "../../src/RollupBridgeCore.sol";
-import "../../src/RollupBridgeProofManager.sol";
-import "../../src/RollupBridgeDepositManager.sol";
-import "../../src/RollupBridgeWithdrawManager.sol";
-import "../../src/RollupBridgeAdminManager.sol";
+import "../../src/BridgeCore.sol";
+import "../../src/BridgeProofManager.sol";
+import "../../src/BridgeDepositManager.sol";
+import "../../src/BridgeWithdrawManager.sol";
+import "../../src/BridgeAdminManager.sol";
 import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
 import "../../src/interface/IGroth16Verifier16Leaves.sol";
@@ -14,6 +14,51 @@ import "../../src/interface/IGroth16Verifier32Leaves.sol";
 import "../../src/interface/IGroth16Verifier64Leaves.sol";
 import "../../src/interface/IGroth16Verifier128Leaves.sol";
 import {ZecFrost} from "../../src/library/ZecFrost.sol";
+
+// Mock Contracts
+contract MockZecFrost is IZecFrost {
+    address public mockSigner;
+    
+    // Mapping of signature vectors to their recovered addresses
+    mapping(bytes32 => address) private signatureVectorToSigner;
+
+    constructor() {
+        mockSigner = address(this);
+        
+        // Vector 1 signature (valid) - recovers to user1 (0xd96b35D012879d89cfBA6fE215F1015863a6f6d0)
+        bytes32 vector1Key = keccak256(abi.encodePacked(
+            uint256(0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d),
+            uint256(0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e),
+            uint256(0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25)
+        ));
+        signatureVectorToSigner[vector1Key] = 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0;
+        
+        // Vector 2 signature (invalid) - recovers to user2 (0x012C2171f631e27C4bA9f7f8262af2a48956939A)
+        bytes32 vector2Key = keccak256(abi.encodePacked(
+            uint256(0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c),
+            uint256(0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2),
+            uint256(0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0)
+        ));
+        signatureVectorToSigner[vector2Key] = 0x012C2171f631e27C4bA9f7f8262af2a48956939A;
+    }
+
+    function verify(bytes32, uint256, uint256, uint256 rx, uint256 ry, uint256 z) external view override returns (address) {
+        // Check if this is one of our known signature vectors
+        bytes32 vectorKey = keccak256(abi.encodePacked(rx, ry, z));
+        address vectorSigner = signatureVectorToSigner[vectorKey];
+        
+        if (vectorSigner != address(0)) {
+            return vectorSigner;
+        }
+        
+        // Fall back to mock signer for unknown vectors
+        return mockSigner;
+    }
+
+    function setMockSigner(address _signer) external {
+        mockSigner = _signer;
+    }
+}
 
 import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
 import {Groth16Verifier16Leaves} from "../../src/verifier/Groth16Verifier16Leaves.sol";
@@ -148,15 +193,16 @@ contract USDTLikeToken is ERC20 {
     }
 }
 
-contract RollupBridgeCoreTest is Test {
+contract BridgeCoreTest is Test {
     using RLP for bytes;
 
-    RollupBridgeCore public bridge;
-    RollupBridgeProofManager public proofManager;
-    RollupBridgeDepositManager public depositManager;
-    RollupBridgeWithdrawManager public withdrawManager;
-    RollupBridgeAdminManager public adminManager;
+    BridgeCore public bridge;
+    BridgeProofManager public proofManager;
+    BridgeDepositManager public depositManager;
+    BridgeWithdrawManager public withdrawManager;
+    BridgeAdminManager public adminManager;
     MockTokamakVerifier public tokamakVerifier;
+    MockZecFrost public mockZecFrost;
     MockGroth16Verifier public groth16Verifier16;
     MockGroth16Verifier32 public groth16Verifier32;
     MockGroth16Verifier64 public groth16Verifier64;
@@ -194,6 +240,7 @@ contract RollupBridgeCoreTest is Test {
         vm.startPrank(owner);
 
         tokamakVerifier = new MockTokamakVerifier();
+        mockZecFrost = new MockZecFrost();
         groth16Verifier16 = new MockGroth16Verifier();
         groth16Verifier32 = new MockGroth16Verifier32();
         groth16Verifier64 = new MockGroth16Verifier64();
@@ -202,35 +249,33 @@ contract RollupBridgeCoreTest is Test {
         highPrecisionToken = new HighPrecisionToken();
         usdtLikeToken = new USDTLikeToken();
 
-        ZecFrost zecFrost = new ZecFrost();
-
         // Deploy manager implementations
-        RollupBridgeDepositManager depositManagerImpl = new RollupBridgeDepositManager();
-        RollupBridgeWithdrawManager withdrawManagerImpl = new RollupBridgeWithdrawManager();
-        RollupBridgeAdminManager adminManagerImpl = new RollupBridgeAdminManager();
-        RollupBridgeProofManager proofManagerImpl = new RollupBridgeProofManager();
+        BridgeDepositManager depositManagerImpl = new BridgeDepositManager();
+        BridgeWithdrawManager withdrawManagerImpl = new BridgeWithdrawManager();
+        BridgeAdminManager adminManagerImpl = new BridgeAdminManager();
+        BridgeProofManager proofManagerImpl = new BridgeProofManager();
 
         // Deploy core contract with proxy first
-        RollupBridgeCore implementation = new RollupBridgeCore();
+        BridgeCore implementation = new BridgeCore();
         bytes memory bridgeInitData = abi.encodeCall(
-            RollupBridgeCore.initialize,
+            BridgeCore.initialize,
             (address(0), address(0), address(0), address(0), owner) // Temporary addresses
         );
         ERC1967Proxy bridgeProxy = new ERC1967Proxy(address(implementation), bridgeInitData);
-        bridge = RollupBridgeCore(address(bridgeProxy));
+        bridge = BridgeCore(address(bridgeProxy));
 
         // Deploy manager proxies with bridge address
-        bytes memory depositInitData = abi.encodeCall(RollupBridgeDepositManager.initialize, (address(bridge), owner));
+        bytes memory depositInitData = abi.encodeCall(BridgeDepositManager.initialize, (address(bridge), owner));
         ERC1967Proxy depositProxy = new ERC1967Proxy(address(depositManagerImpl), depositInitData);
-        depositManager = RollupBridgeDepositManager(address(depositProxy));
+        depositManager = BridgeDepositManager(address(depositProxy));
 
-        bytes memory withdrawInitData = abi.encodeCall(RollupBridgeWithdrawManager.initialize, (address(bridge), owner));
+        bytes memory withdrawInitData = abi.encodeCall(BridgeWithdrawManager.initialize, (address(bridge), owner));
         ERC1967Proxy withdrawProxy = new ERC1967Proxy(address(withdrawManagerImpl), withdrawInitData);
-        withdrawManager = RollupBridgeWithdrawManager(payable(address(withdrawProxy)));
+        withdrawManager = BridgeWithdrawManager(payable(address(withdrawProxy)));
 
-        bytes memory adminInitData = abi.encodeCall(RollupBridgeAdminManager.initialize, (address(bridge), owner));
+        bytes memory adminInitData = abi.encodeCall(BridgeAdminManager.initialize, (address(bridge), owner));
         ERC1967Proxy adminProxy = new ERC1967Proxy(address(adminManagerImpl), adminInitData);
-        adminManager = RollupBridgeAdminManager(address(adminProxy));
+        adminManager = BridgeAdminManager(address(adminProxy));
 
         address[4] memory groth16Verifiers = [
             address(groth16Verifier16),
@@ -239,16 +284,18 @@ contract RollupBridgeCoreTest is Test {
             address(groth16Verifier128)
         ];
         bytes memory proofInitData = abi.encodeCall(
-            RollupBridgeProofManager.initialize,
-            (address(bridge), address(tokamakVerifier), address(zecFrost), groth16Verifiers, owner)
+            BridgeProofManager.initialize,
+            (address(bridge), address(tokamakVerifier), address(mockZecFrost), groth16Verifiers, owner)
         );
         ERC1967Proxy proofProxy = new ERC1967Proxy(address(proofManagerImpl), proofInitData);
-        proofManager = RollupBridgeProofManager(address(proofProxy));
+        proofManager = BridgeProofManager(address(proofProxy));
 
         // Update bridge with manager addresses
         bridge.updateManagerAddresses(
             address(depositManager), address(proofManager), address(withdrawManager), address(adminManager)
         );
+
+        // Configure mock ZecFrost - we'll set the actual expected signer later in tests
 
         // Fund test accounts
         vm.deal(leader, INITIAL_BALANCE);
@@ -303,7 +350,7 @@ contract RollupBridgeCoreTest is Test {
     /**
      * @dev Creates a ZecFrost signature that verifies against user1 (0xd96b35D012879d89cfBA6fE215F1015863a6f6d0)
      */
-    // Using RollupBridgeProofManager.Signature directly
+    // Using BridgeProofManager.Signature directly
 
     struct TestChannelInitializationProof {
         uint256[4] pA;
@@ -312,12 +359,20 @@ contract RollupBridgeCoreTest is Test {
         bytes32 merkleRoot;
     }
 
-    // Using RollupBridgeProofManager.ProofData and IRollupBridgeCore.RegisteredFunction directly
+    // Using BridgeProofManager.ProofData and IBridgeCore.RegisteredFunction directly
 
-    function _createZecFrostSignature() internal pure returns (RollupBridgeProofManager.Signature memory) {
+    function _createZecFrostSignature() internal pure returns (BridgeProofManager.Signature memory) {
+        return _createZecFrostSignatureForChannel(1); // Default test channel ID
+    }
+    
+    function _createZecFrostSignatureForChannel(uint256 channelId) internal pure returns (BridgeProofManager.Signature memory) {
+        // Create commitment hash for the given channel and standard finalStateRoot
+        bytes32 finalStateRoot = bytes32(uint256(keccak256("finalStateRoot")));
+        bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, finalStateRoot));
+        
         // Return Vector 1 signature data - recovers to 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0 (user1)
-        return RollupBridgeProofManager.Signature({
-            message: 0x08f58e86bd753e86f2e0172081576b4c58909be5c2e70a8e30439d3a12d091be,
+        return BridgeProofManager.Signature({
+            message: commitmentHash,
             rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
             ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
             z: 0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25
@@ -327,10 +382,18 @@ contract RollupBridgeCoreTest is Test {
     /**
      * @dev Creates a ZecFrost signature that verifies against user2 (0x012C2171f631e27C4bA9f7f8262af2a48956939A)
      */
-    function _createWrongZecFrostSignature() internal pure returns (RollupBridgeProofManager.Signature memory) {
+    function _createWrongZecFrostSignature() internal pure returns (BridgeProofManager.Signature memory) {
+        return _createWrongZecFrostSignatureForChannel(1); // Default test channel ID
+    }
+    
+    function _createWrongZecFrostSignatureForChannel(uint256 channelId) internal pure returns (BridgeProofManager.Signature memory) {
+        // Create commitment hash for the given channel and finalStateRoot
+        bytes32 finalStateRoot = bytes32(uint256(keccak256("finalStateRoot")));
+        bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, finalStateRoot));
+        
         // Return Vector 2 signature data - recovers to 0x012C2171f631e27C4bA9f7f8262af2a48956939A (user2)
-        return RollupBridgeProofManager.Signature({
-            message: 0xf181af880934e45f67ee731b14466fe1703faca88e8a553f1aa2989589ffd1f7,
+        return BridgeProofManager.Signature({
+            message: commitmentHash,
             rx: 0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c,
             ry: 0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2,
             z: 0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0
@@ -339,7 +402,7 @@ contract RollupBridgeCoreTest is Test {
 
     // ========== Helper Functions for Channel Creation ==========
 
-    function _createChannelParams() internal view returns (RollupBridgeCore.ChannelParams memory) {
+    function _createChannelParams() internal view returns (BridgeCore.ChannelParams memory) {
         address[] memory participants = new address[](3);
         participants[0] = user1;
         participants[1] = user2;
@@ -349,7 +412,7 @@ contract RollupBridgeCoreTest is Test {
         allowedTokens[0] = address(token);
 
         return
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
     }
 
     function _createGroth16Proof(bytes32 merkleRoot) internal pure returns (TestChannelInitializationProof memory) {
@@ -404,10 +467,10 @@ contract RollupBridgeCoreTest is Test {
         uint256[] memory proofPart2,
         uint256[] memory publicInputs,
         uint256 smax,
-        IRollupBridgeCore.RegisteredFunction[] memory functions,
+        IBridgeCore.RegisteredFunction[] memory functions,
         uint256[][] memory finalBalances
-    ) internal pure returns (RollupBridgeProofManager.ProofData memory, uint256[][] memory) {
-        RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
+    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
+        BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: proofPart1,
             proofPart2: proofPart2,
             publicInputs: publicInputs,
@@ -440,8 +503,29 @@ contract RollupBridgeCoreTest is Test {
         uint256 smax,
         bytes[] memory, /* initialMPTLeaves */
         bytes[] memory finalMPTLeaves
-    ) internal pure returns (RollupBridgeProofManager.ProofData memory, uint256[][] memory) {
+    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
+        // Set proper state root values for bridge tests to pass state root chain validation
+        _setTestStateRoots(publicInputs);
         return _createProofDataFromMPT(proofPart1, proofPart2, publicInputs, smax, finalMPTLeaves);
+    }
+
+    function _setTestStateRoots(uint256[] memory publicInputs) internal pure {
+        if (publicInputs.length >= 12) {
+            // Use the same mock root that's used in channel initialization for input
+            bytes32 mockRoot = keccak256(abi.encodePacked("mockRoot"));
+            uint256 inputRootHigh = uint256(mockRoot) >> 128;
+            uint256 inputRootLow = uint256(mockRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+            
+            // Use the finalStateRoot (which is set in publicInputs[0]) for output
+            bytes32 finalStateRoot = bytes32(publicInputs[0]);
+            uint256 outputRootHigh = uint256(finalStateRoot) >> 128;
+            uint256 outputRootLow = uint256(finalStateRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+            
+            publicInputs[8] = inputRootHigh;   // input state root high
+            publicInputs[9] = inputRootLow;    // input state root low
+            publicInputs[10] = outputRootHigh; // output state root high (matches publicInputs[0])
+            publicInputs[11] = outputRootLow;  // output state root low
+        }
     }
 
     /**
@@ -454,9 +538,9 @@ contract RollupBridgeCoreTest is Test {
         uint256[] memory publicInputs,
         uint256 smax,
         bytes[] memory finalMPTLeaves
-    ) internal pure returns (RollupBridgeProofManager.ProofData memory, uint256[][] memory) {
+    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
         // Create a single transfer function for compatibility - manually construct to avoid external calls
-        IRollupBridgeCore.RegisteredFunction[] memory functions = new IRollupBridgeCore.RegisteredFunction[](1);
+        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
         bytes32 transferSig = keccak256("transfer(address,uint256)");
 
         // Manually create the RegisteredFunction to avoid getRegisteredFunction call
@@ -472,7 +556,7 @@ contract RollupBridgeCoreTest is Test {
         preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        functions[0] = IRollupBridgeCore.RegisteredFunction({
+        functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: transferSig,
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2
@@ -499,7 +583,7 @@ contract RollupBridgeCoreTest is Test {
             }
         }
 
-        RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
+        BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: proofPart1,
             proofPart2: proofPart2,
             publicInputs: publicInputs,
@@ -518,9 +602,11 @@ contract RollupBridgeCoreTest is Test {
         uint256[] memory proofPart2,
         uint256[] memory publicInputs,
         uint256 smax
-    ) internal pure returns (RollupBridgeProofManager.ProofData memory, uint256[][] memory) {
+    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
+        // Set proper state root values for bridge tests to pass state root chain validation
+        _setTestStateRoots(publicInputs);
         // Create a single transfer function for compatibility
-        IRollupBridgeCore.RegisteredFunction[] memory functions = new IRollupBridgeCore.RegisteredFunction[](1);
+        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
         bytes32 transferSig = keccak256("transfer(address,uint256)");
 
         uint128[] memory preprocessedPart1 = new uint128[](4);
@@ -535,7 +621,7 @@ contract RollupBridgeCoreTest is Test {
         preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        functions[0] = IRollupBridgeCore.RegisteredFunction({
+        functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: transferSig,
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2
@@ -550,7 +636,7 @@ contract RollupBridgeCoreTest is Test {
         finalBalances[1][0] = 2 ether;
         finalBalances[2][0] = 3 ether;
 
-        RollupBridgeProofManager.ProofData memory proofData = RollupBridgeProofManager.ProofData({
+        BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: proofPart1,
             proofPart2: proofPart2,
             publicInputs: publicInputs,
@@ -574,8 +660,8 @@ contract RollupBridgeCoreTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -585,13 +671,13 @@ contract RollupBridgeCoreTest is Test {
 
         assertEq(channelId, 0);
 
-        RollupBridgeCore.ChannelState state = bridge.getChannelState(channelId);
+        BridgeCore.ChannelState state = bridge.getChannelState(channelId);
         address[] memory allowedTokensReturned = bridge.getChannelAllowedTokens(channelId);
         address[] memory channelParticipants = bridge.getChannelParticipants(channelId);
 
         assertEq(allowedTokensReturned.length, 1);
         assertEq(allowedTokensReturned[0], address(token));
-        assertEq(uint8(state), uint8(RollupBridgeCore.ChannelState.Initialized));
+        assertEq(uint8(state), uint8(BridgeCore.ChannelState.Initialized));
         assertEq(channelParticipants.length, 3);
 
         vm.stopPrank();
@@ -671,7 +757,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         proofManager.initializeChannelState(
             channelId,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: mockProof.pA,
                 pB: mockProof.pB,
                 pC: mockProof.pC,
@@ -680,9 +766,9 @@ contract RollupBridgeCoreTest is Test {
         );
 
         // Check state using individual getters since getChannelInfo doesn't exist
-        RollupBridgeCore.ChannelState state = bridge.getChannelState(channelId);
+        BridgeCore.ChannelState state = bridge.getChannelState(channelId);
 
-        assertEq(uint8(state), uint8(RollupBridgeCore.ChannelState.Open));
+        assertEq(uint8(state), uint8(BridgeCore.ChannelState.Open));
     }
 
     /**
@@ -720,7 +806,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         proofManager.initializeChannelState(
             channelId1,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: mockProof1.pA,
                 pB: mockProof1.pB,
                 pC: mockProof1.pC,
@@ -756,7 +842,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader2);
         proofManager.initializeChannelState(
             channelId2,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: mockProof2.pA,
                 pB: mockProof2.pB,
                 pC: mockProof2.pC,
@@ -783,7 +869,7 @@ contract RollupBridgeCoreTest is Test {
         vm.expectRevert("Not leader");
         proofManager.initializeChannelState(
             channelId,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: mockProof.pA,
                 pB: mockProof.pB,
                 pC: mockProof.pC,
@@ -799,7 +885,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         // Create MPT leaves matching the deposited amounts (1, 2, 3 ether)
         uint256[] memory initialBalances = new uint256[](3);
@@ -821,9 +908,9 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         vm.expectEmit(true, true, false, false);
         emit TokamakZkSnarkProofsVerified(channelId, leader);
-        (RollupBridgeProofManager.ProofData memory proofData,) =
+        (BridgeProofManager.ProofData memory proofData,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 6, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignature());
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId));
     }
 
     function testSubmitProofAndSignatureBalanceMismatch() public {
@@ -831,7 +918,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         // Create MPT leaves with wrong initial balances
         uint256[] memory wrongInitialBalances = new uint256[](3);
@@ -848,14 +936,14 @@ contract RollupBridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (RollupBridgeProofManager.ProofData memory proofData, uint256[][] memory finalBalancesArray) =
+        (BridgeProofManager.ProofData memory proofData, uint256[][] memory finalBalancesArray) =
             _createProofDataViolatingConservation(proofPart1, proofPart2, publicInputs, 0);
 
-        // submitProofAndSignature should succeed since it no longer validates final balances
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignature());
+        // submitProof should succeed since it no longer validates final balances
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId));
 
         // verifyFinalBalancesGroth16 should fail with balance conservation error
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
             .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -871,7 +959,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         // Create MPT leaves with correct initial but wrong final balances
         uint256[] memory initialBalances = new uint256[](3);
@@ -888,14 +977,14 @@ contract RollupBridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (RollupBridgeProofManager.ProofData memory proofData, uint256[][] memory finalBalances) =
+        (BridgeProofManager.ProofData memory proofData, uint256[][] memory finalBalances) =
             _createProofDataViolatingConservation(proofPart1, proofPart2, publicInputs, 0);
 
-        // submitProofAndSignature should succeed since it no longer validates final balances
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignature());
+        // submitProof should succeed since it no longer validates final balances
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId));
 
         // verifyFinalBalancesGroth16 should fail with balance conservation error
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
             .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -911,7 +1000,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         uint256[] memory initialBalances = new uint256[](3);
         initialBalances[0] = 1 ether;
@@ -929,11 +1019,11 @@ contract RollupBridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (RollupBridgeProofManager.ProofData memory proofData,) =
+        (BridgeProofManager.ProofData memory proofData,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
 
-        // submitProofAndSignature should succeed since it no longer validates final balances
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignature());
+        // submitProof should succeed since it no longer validates final balances
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId));
 
         // Create a mismatched final balances array (wrong length)
         uint256[][] memory mismatchedFinalBalances = new uint256[][](2); // Should be 3
@@ -943,7 +1033,7 @@ contract RollupBridgeCoreTest is Test {
         mismatchedFinalBalances[1][0] = 3 ether;
 
         // verifyFinalBalancesGroth16 should fail with array length error
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
             .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -959,7 +1049,7 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](10); // Larger proof data
         uint256[] memory proofPart2 = new uint256[](10);
-        uint256[] memory publicInputs = new uint256[](5);
+        uint256[] memory publicInputs = new uint256[](512);
 
         // Fill with some data to simulate realistic proof sizes
         for (uint256 i = 0; i < proofPart1.length; i++) {
@@ -971,6 +1061,8 @@ contract RollupBridgeCoreTest is Test {
         for (uint256 i = 0; i < publicInputs.length; i++) {
             publicInputs[i] = i + 1;
         }
+        // Override first element for final state root
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         // Create MPT leaves matching the deposited amounts (1, 2, 3 ether)
         uint256[] memory initialBalances = new uint256[](3);
@@ -992,14 +1084,14 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
 
         uint256 gasBefore = gasleft();
-        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
+        (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
         uint256 gasAfter = gasleft();
 
         uint256 gasUsed = gasBefore - gasAfter;
 
-        console.log("Gas used for submitProofAndSignature:", gasUsed);
+        console.log("Gas used for submitProof and signProof:", gasUsed);
 
         // Assert reasonable gas usage (adjust threshold as needed)
         assertTrue(gasUsed < 10000000, "Gas usage too high");
@@ -1013,7 +1105,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         // Create MPT leaves matching the deposited amounts
         uint256[] memory balances = new uint256[](3);
@@ -1031,13 +1124,13 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         vm.expectEmit(true, true, false, false);
         emit TokamakZkSnarkProofsVerified(channelId, leader);
-        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
+        (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
 
         // Verify channel goes to Closing state after proof and signature
-        RollupBridgeCore.ChannelState state = bridge.getChannelState(channelId);
-        assertEq(uint8(state), uint8(RollupBridgeCore.ChannelState.Closing));
+        BridgeCore.ChannelState state = bridge.getChannelState(channelId);
+        assertEq(uint8(state), uint8(BridgeCore.ChannelState.Closing));
 
         // Verify signature is verified
         assertTrue(bridge.isSignatureVerified(channelId));
@@ -1048,7 +1141,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         uint256[] memory balances = new uint256[](3);
         balances[0] = 1 ether;
@@ -1061,13 +1155,11 @@ contract RollupBridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         // Test with invalid signature
-        vm.prank(leader);
-        vm.expectRevert("Invalid group threshold signature");
-        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
+        (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(
-            channelId, _wrapProofInArray(proofDataLocal), _createWrongZecFrostSignature()
-        );
+        
+        vm.expectRevert("Invalid group threshold signature");
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createWrongZecFrostSignatureForChannel(channelId));
     }
 
     function testSubmitProofAndSignatureUnauthorized() public {
@@ -1075,7 +1167,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         uint256[] memory balances = new uint256[](3);
         balances[0] = 1 ether;
@@ -1087,12 +1180,13 @@ contract RollupBridgeCoreTest is Test {
 
         vm.warp(block.timestamp + 1 days + 1);
 
-        // Test unauthorized caller
-        vm.prank(user1);
-        vm.expectRevert("Only leader can submit");
-        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
+        // Test with wrong signature that doesn't match the expected signer  
+        (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
+            
+        vm.prank(user1);
+        vm.expectRevert("Invalid group threshold signature");
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createWrongZecFrostSignatureForChannel(channelId));
     }
 
     // ========== Channel Closing Tests ==========
@@ -1100,8 +1194,8 @@ contract RollupBridgeCoreTest is Test {
     function testCloseChannel() public {
         uint256 channelId = _getSignedChannel();
 
-        // Channel should be in Closing state after submitProofAndSignature
-        assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Closing));
+        // Channel should be in Closing state after submitProof and signProof
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Closing));
 
         // Prepare final balances for verifyFinalBalancesGroth16
         uint256[][] memory finalBalances = new uint256[][](3);
@@ -1113,7 +1207,7 @@ contract RollupBridgeCoreTest is Test {
         finalBalances[2][0] = 3 ether;
 
         // Create finalization proof
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
             .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -1123,8 +1217,8 @@ contract RollupBridgeCoreTest is Test {
         // Call verifyFinalBalancesGroth16 to close the channel
         proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
 
-        (, RollupBridgeCore.ChannelState state,,) = bridge.getChannelInfo(channelId);
-        assertEq(uint8(state), uint8(RollupBridgeCore.ChannelState.Closed));
+        (, BridgeCore.ChannelState state,,) = bridge.getChannelInfo(channelId);
+        assertEq(uint8(state), uint8(BridgeCore.ChannelState.Closed));
     }
 
     function testCloseChannelInvalidProof() public {
@@ -1132,7 +1226,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         uint256[] memory balances = new uint256[](3);
         balances[0] = 1 ether;
@@ -1149,9 +1244,9 @@ contract RollupBridgeCoreTest is Test {
 
         vm.prank(leader);
         vm.expectRevert("Invalid ZK proof");
-        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
+        (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
     }
 
     // ========== Channel Deletion Tests ==========
@@ -1159,8 +1254,8 @@ contract RollupBridgeCoreTest is Test {
     function testCloseAndFinalizeChannel() public {
         uint256 channelId = _getSignedChannel();
 
-        // Channel should be in Closing state after submitProofAndSignature
-        assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Closing));
+        // Channel should be in Closing state after submitProof and signProof
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Closing));
 
         // Prepare final balances for verifyFinalBalancesGroth16
         uint256[][] memory finalBalances = new uint256[][](3);
@@ -1172,7 +1267,7 @@ contract RollupBridgeCoreTest is Test {
         finalBalances[2][0] = 3 ether;
 
         // Create finalization proof
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
             .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -1183,8 +1278,8 @@ contract RollupBridgeCoreTest is Test {
         proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
 
         // Verify channel is finalized (in Closed state)
-        RollupBridgeCore.ChannelState state = bridge.getChannelState(channelId);
-        assertEq(uint8(state), uint8(RollupBridgeCore.ChannelState.Closed));
+        BridgeCore.ChannelState state = bridge.getChannelState(channelId);
+        assertEq(uint8(state), uint8(BridgeCore.ChannelState.Closed));
     }
 
     function testCloseChannelFromClosingState() public {
@@ -1192,7 +1287,7 @@ contract RollupBridgeCoreTest is Test {
         // Channel is in Closing state with signature verified
 
         // Verify it's in Closing state
-        assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Closing));
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Closing));
 
         // Prepare final balances for verifyFinalBalancesGroth16
         uint256[][] memory finalBalances = new uint256[][](3);
@@ -1204,7 +1299,7 @@ contract RollupBridgeCoreTest is Test {
         finalBalances[2][0] = 3 ether;
 
         // Create finalization proof
-        RollupBridgeProofManager.ChannelFinalizationProof memory finalizationProof = RollupBridgeProofManager
+        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
             .ChannelFinalizationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
@@ -1215,7 +1310,7 @@ contract RollupBridgeCoreTest is Test {
         proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
 
         // Verify it's now Closed
-        assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Closed));
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Closed));
     }
 
     // ========== Helper Functions ==========
@@ -1231,8 +1326,8 @@ contract RollupBridgeCoreTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1256,8 +1351,8 @@ contract RollupBridgeCoreTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1281,8 +1376,8 @@ contract RollupBridgeCoreTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1323,7 +1418,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(channelLeader);
         proofManager.initializeChannelState(
             channelId,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: mockProof.pA,
                 pB: mockProof.pB,
                 pC: mockProof.pC,
@@ -1333,7 +1428,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         // Create MPT leaves matching the deposited amounts
         uint256[] memory balances = new uint256[](3);
@@ -1345,13 +1441,17 @@ contract RollupBridgeCoreTest is Test {
         bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
 
         vm.prank(channelLeader);
-        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
+        (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
     }
 
     function _initializeChannel() internal returns (uint256) {
         uint256 channelId = _createChannel();
+        
+        // Configure MockZecFrost to accept the channel's expected signer
+        address expectedSigner = bridge.getChannelSignerAddr(channelId);
+        mockZecFrost.setMockSigner(expectedSigner);
 
         // Make deposits
         vm.startPrank(user1);
@@ -1380,7 +1480,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         proofManager.initializeChannelState(
             channelId,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: mockProof.pA,
                 pB: mockProof.pB,
                 pC: mockProof.pC,
@@ -1396,7 +1496,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         // Create MPT leaves matching the deposited amounts
         uint256[] memory balances = new uint256[](3);
@@ -1411,9 +1512,9 @@ contract RollupBridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
+        (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
 
         return channelId;
     }
@@ -1458,8 +1559,8 @@ contract RollupBridgeCoreTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: timeout});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: timeout});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1503,7 +1604,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         proofManager.initializeChannelState(
             channelId,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: mockProof.pA,
                 pB: mockProof.pB,
                 pC: mockProof.pC,
@@ -1515,7 +1616,8 @@ contract RollupBridgeCoreTest is Test {
 
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        uint256[] memory publicInputs = new uint256[](1);
+        uint256[] memory publicInputs = new uint256[](512);
+        publicInputs[0] = uint256(keccak256("finalStateRoot"));
 
         uint256[] memory balances = new uint256[](3);
         balances[0] = 1 ether;
@@ -1529,12 +1631,52 @@ contract RollupBridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (RollupBridgeProofManager.ProofData memory proofDataLocal,) =
+        (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignature());
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
 
         // Channel is now in Closing state with signature verified
     }
+
+    function testSignatureCommitmentProtection() public {
+        uint256 channelId = _initializeChannel();
+        uint128[] memory proofPart1 = new uint128[](1);
+        uint256[] memory proofPart2 = new uint256[](1);
+        
+        // Malicious proof with different final state root  
+        uint256[] memory maliciousPublicInputs = new uint256[](512);
+        maliciousPublicInputs[0] = uint256(keccak256("maliciousStateRoot"));
+        
+        uint256[] memory balances = new uint256[](3);
+        balances[0] = 1 ether;
+        balances[1] = 2 ether;
+        balances[2] = 3 ether;
+        bytes[] memory initialMPTLeaves = _createMPTLeaves(balances);
+        bytes[] memory finalMPTLeaves = _createMPTLeaves(balances);
+
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // Try to submit malicious proof with signature meant for legitimate proof
+        (BridgeProofManager.ProofData memory maliciousProof,) =
+            _createProofDataSimple(proofPart1, proofPart2, maliciousPublicInputs, 0, initialMPTLeaves, finalMPTLeaves);
+        
+        // Create signature for legitimate proof (different finalStateRoot)
+        bytes32 legitimateCommitmentHash = keccak256(abi.encodePacked(channelId, bytes32(uint256(keccak256("legitimateStateRoot")))));
+        BridgeProofManager.Signature memory legitimateSignature = BridgeProofManager.Signature({
+            message: legitimateCommitmentHash,
+            rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
+            ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
+            z: 0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25
+        });
+        
+        // This should fail because signature doesn't match proof content
+        vm.expectRevert("Signature must commit to proof content");
+        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(maliciousProof), legitimateSignature);
+
+        // Verify channel state unchanged
+        require(bridge.getChannelState(channelId) == BridgeCore.ChannelState.Open);
+    }
+
 
     function _getRealProofData()
         internal
@@ -1553,7 +1695,7 @@ contract RollupBridgeCoreTest is Test {
         serializedProofPart2 = new uint256[](42);
         preprocessedPart1 = new uint128[](4);
         preprocessedPart2 = new uint256[](4);
-        publicInputs = new uint256[](64);
+        publicInputs = new uint256[](512);
 
         // PREPROCESSED PART 1 (First 16 bytes - 32 hex chars)
         preprocessedPart1[0] = (0x042df2d7ba82218503dbadeaa9e87792);
@@ -1743,8 +1885,8 @@ contract RollupBridgeCoreTest is Test {
         address[] memory allowedTokens = new address[](1);
         allowedTokens[0] = address(token);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
         channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1775,7 +1917,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(channelLeader);
         proofManager.initializeChannelState(
             channelId,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: mockProof.pA,
                 pB: mockProof.pB,
                 pC: mockProof.pC,
@@ -1803,8 +1945,8 @@ contract RollupBridgeCoreTest is Test {
         allowedTokens[0] = address(highPrecisionToken);
         allowedTokens[1] = address(usdtLikeToken);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -1869,7 +2011,7 @@ contract RollupBridgeCoreTest is Test {
         vm.prank(leader);
         proofManager.initializeChannelState(
             channelId,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: mockProof.pA,
                 pB: mockProof.pB,
                 pC: mockProof.pC,
@@ -1878,8 +2020,8 @@ contract RollupBridgeCoreTest is Test {
         );
 
         // Verify channel state
-        (, RollupBridgeCore.ChannelState state,, bytes32 initialRoot) = bridge.getChannelInfo(channelId);
-        assertEq(uint8(state), uint8(RollupBridgeCore.ChannelState.Open));
+        (, BridgeCore.ChannelState state,, bytes32 initialRoot) = bridge.getChannelInfo(channelId);
+        assertEq(uint8(state), uint8(BridgeCore.ChannelState.Open));
         assertEq(initialRoot, mockMerkleRoot);
 
         console.log("=== TEST COMPLETED SUCCESSFULLY ===");
@@ -1920,8 +2062,8 @@ contract RollupBridgeCoreTest is Test {
         allowedTokens[1] = address(usdtLikeToken);
         allowedTokens[2] = address(highPrecisionToken);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         // Open the channel
         uint256 channelId = bridge.openChannel(params);
@@ -1935,11 +2077,11 @@ contract RollupBridgeCoreTest is Test {
         assertEq(channelId, 0);
 
         // Get channel info to verify participants and tokens
-        (address[] memory returnedTokens, RollupBridgeCore.ChannelState state, uint256 participantCount,) =
+        (address[] memory returnedTokens, BridgeCore.ChannelState state, uint256 participantCount,) =
             bridge.getChannelInfo(channelId);
 
         assertEq(returnedTokens.length, 3);
-        assertEq(uint8(state), uint8(RollupBridgeCore.ChannelState.Initialized));
+        assertEq(uint8(state), uint8(BridgeCore.ChannelState.Initialized));
         assertEq(participantCount, 33);
 
         // Verify that the contract selected the 128-leaf tree
@@ -1978,8 +2120,8 @@ contract RollupBridgeCoreTest is Test {
         if (tokenCount >= 2) allowedTokens[1] = address(usdtLikeToken);
         if (tokenCount >= 3) allowedTokens[2] = address(highPrecisionToken);
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         // Open the channel
         uint256 channelId = bridge.openChannel(params);
@@ -1996,12 +2138,12 @@ contract RollupBridgeCoreTest is Test {
         vm.stopPrank();
     }
 
-    function _wrapProofInArray(RollupBridgeProofManager.ProofData memory proof)
+    function _wrapProofInArray(BridgeProofManager.ProofData memory proof)
         internal
         pure
-        returns (RollupBridgeProofManager.ProofData[] memory)
+        returns (BridgeProofManager.ProofData[] memory)
     {
-        RollupBridgeProofManager.ProofData[] memory proofs = new RollupBridgeProofManager.ProofData[](1);
+        BridgeProofManager.ProofData[] memory proofs = new BridgeProofManager.ProofData[](1);
         proofs[0] = proof;
         return proofs;
     }

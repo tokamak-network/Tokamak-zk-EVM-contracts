@@ -3,10 +3,10 @@ pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import "../../src/RollupBridgeCore.sol";
-import "../../src/RollupBridgeProofManager.sol";
-import "../../src/RollupBridgeDepositManager.sol";
-import "../../src/RollupBridgeAdminManager.sol";
+import "../../src/BridgeCore.sol";
+import "../../src/BridgeProofManager.sol";
+import "../../src/BridgeDepositManager.sol";
+import "../../src/BridgeAdminManager.sol";
 import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
 import "../../src/interface/IGroth16Verifier16Leaves.sol";
@@ -53,10 +53,10 @@ contract TestToken is ERC20 {
  * @notice Test that demonstrates the working modular architecture
  */
 contract ModularArchitectureTest is Test {
-    RollupBridgeCore public bridge;
-    RollupBridgeProofManager public proofManager;
-    RollupBridgeDepositManager public depositManager;
-    RollupBridgeAdminManager public adminManager;
+    BridgeCore public bridge;
+    BridgeProofManager public proofManager;
+    BridgeDepositManager public depositManager;
+    BridgeAdminManager public adminManager;
 
     MockTokamakVerifier public tokamakVerifier;
     MockGroth16Verifier public groth16Verifier;
@@ -79,36 +79,36 @@ contract ModularArchitectureTest is Test {
         testToken = new TestToken();
 
         // Deploy manager implementations
-        RollupBridgeDepositManager depositManagerImpl = new RollupBridgeDepositManager();
-        RollupBridgeProofManager proofManagerImpl = new RollupBridgeProofManager();
-        RollupBridgeAdminManager adminManagerImpl = new RollupBridgeAdminManager();
+        BridgeDepositManager depositManagerImpl = new BridgeDepositManager();
+        BridgeProofManager proofManagerImpl = new BridgeProofManager();
+        BridgeAdminManager adminManagerImpl = new BridgeAdminManager();
 
         // Deploy core contract with proxy first
-        RollupBridgeCore implementation = new RollupBridgeCore();
+        BridgeCore implementation = new BridgeCore();
         bytes memory bridgeInitData = abi.encodeCall(
-            RollupBridgeCore.initialize,
+            BridgeCore.initialize,
             (address(0), address(0), address(0), address(0), owner) // Temporary addresses
         );
         ERC1967Proxy bridgeProxy = new ERC1967Proxy(address(implementation), bridgeInitData);
-        bridge = RollupBridgeCore(address(bridgeProxy));
+        bridge = BridgeCore(address(bridgeProxy));
 
         // Deploy manager proxies with bridge address
-        bytes memory depositInitData = abi.encodeCall(RollupBridgeDepositManager.initialize, (address(bridge), owner));
+        bytes memory depositInitData = abi.encodeCall(BridgeDepositManager.initialize, (address(bridge), owner));
         ERC1967Proxy depositProxy = new ERC1967Proxy(address(depositManagerImpl), depositInitData);
-        depositManager = RollupBridgeDepositManager(address(depositProxy));
+        depositManager = BridgeDepositManager(address(depositProxy));
 
         address[4] memory groth16Verifiers =
             [address(groth16Verifier), address(groth16Verifier), address(groth16Verifier), address(groth16Verifier)];
         bytes memory proofInitData = abi.encodeCall(
-            RollupBridgeProofManager.initialize,
+            BridgeProofManager.initialize,
             (address(bridge), address(tokamakVerifier), address(zecFrost), groth16Verifiers, owner)
         );
         ERC1967Proxy proofProxy = new ERC1967Proxy(address(proofManagerImpl), proofInitData);
-        proofManager = RollupBridgeProofManager(address(proofProxy));
+        proofManager = BridgeProofManager(address(proofProxy));
 
-        bytes memory adminInitData = abi.encodeCall(RollupBridgeAdminManager.initialize, (address(bridge), owner));
+        bytes memory adminInitData = abi.encodeCall(BridgeAdminManager.initialize, (address(bridge), owner));
         ERC1967Proxy adminProxy = new ERC1967Proxy(address(adminManagerImpl), adminInitData);
-        adminManager = RollupBridgeAdminManager(address(adminProxy));
+        adminManager = BridgeAdminManager(address(adminProxy));
 
         // Update bridge with manager addresses
         bridge.updateManagerAddresses(address(depositManager), address(proofManager), address(0), address(adminManager));
@@ -142,8 +142,8 @@ contract ModularArchitectureTest is Test {
         assertEq(proofManager.owner(), owner);
 
         // Test that managers are properly linked
-        assertEq(address(depositManager.rollupBridge()), address(bridge));
-        assertEq(address(proofManager.rollupBridge()), address(bridge));
+        assertEq(address(depositManager.bridge()), address(bridge));
+        assertEq(address(proofManager.bridge()), address(bridge));
     }
 
     function testGetImplementationAddress() public view {
@@ -181,8 +181,8 @@ contract ModularArchitectureTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
@@ -190,7 +190,7 @@ contract ModularArchitectureTest is Test {
 
         // Verify channel creation
         assertEq(channelId, 0);
-        assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Initialized));
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Initialized));
 
         // Test deposit using DepositManager
         vm.startPrank(user1);
@@ -214,7 +214,7 @@ contract ModularArchitectureTest is Test {
         vm.startPrank(actualLeader);
         proofManager.initializeChannelState(
             channelId,
-            RollupBridgeProofManager.ChannelInitializationProof({
+            BridgeProofManager.ChannelInitializationProof({
                 pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
                 pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
                 pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
@@ -224,7 +224,7 @@ contract ModularArchitectureTest is Test {
         vm.stopPrank();
 
         // Verify state transition
-        assertEq(uint8(bridge.getChannelState(channelId)), uint8(RollupBridgeCore.ChannelState.Open));
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Open));
     }
 
     function _createChannelWithDeposits() internal returns (uint256 channelId) {
@@ -238,8 +238,8 @@ contract ModularArchitectureTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        RollupBridgeCore.ChannelParams memory params =
-            RollupBridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
 
         channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);

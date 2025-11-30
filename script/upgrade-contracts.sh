@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# UUPS Contract Upgrade Script
-# Usage: ./upgrade-contracts.sh <network> [options]
-# Example: ./upgrade-contracts.sh sepolia --merkle-tree --rollup-bridge
+# Bridge Contracts Upgrade Script
+# Usage: ./upgrade-contracts.sh <network>
+# Example: ./upgrade-contracts.sh sepolia
 
 set -e
 
@@ -32,25 +32,33 @@ print_error() {
 
 # Function to show usage
 show_usage() {
-    echo "Usage: $0 <network> [options]"
+    echo "Usage: $0 <network>"
+    echo ""
+    echo "This script upgrades ALL 5 bridge contracts simultaneously:"
+    echo "  - BridgeCore (main bridge logic)"
+    echo "  - BridgeDepositManager (handles deposits)"
+    echo "  - BridgeProofManager (handles proofs and state)"
+    echo "  - BridgeWithdrawManager (handles withdrawals)"
+    echo "  - BridgeAdminManager (handles administration)"
     echo ""
     echo "Options:"
-    echo "  --merkle-tree      Upgrade MerkleTreeManager4 contract"
-    echo "  --rollup-bridge    Upgrade RollupBridge contract"
-    echo "  --both             Upgrade both contracts (default if no specific option given)"
     echo "  --help             Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0 sepolia --both"
-    echo "  $0 mainnet --merkle-tree"
-    echo "  $0 arbitrum --rollup-bridge"
+    echo "  $0 sepolia"
+    echo "  $0 mainnet"
+    echo "  $0 arbitrum"
     echo ""
     echo "Required environment variables:"
-    echo "  PRIVATE_KEY                   - Private key for deployment"
-    echo "  ROLLUP_BRIDGE_PROXY_ADDRESS  - Address of RollupBridge proxy"
-    echo "  DEPLOYER_ADDRESS             - Address of contract owner"
-    echo "  RPC_URL                      - RPC endpoint"
-    echo "  CHAIN_ID                     - Chain ID"
+    echo "  PRIVATE_KEY                                     - Private key for deployment"
+    echo "  ROLLUP_BRIDGE_CORE_PROXY_ADDRESS               - Address of BridgeCore proxy"
+    echo "  ROLLUP_BRIDGE_DEPOSIT_MANAGER_PROXY_ADDRESS     - Address of DepositManager proxy"
+    echo "  ROLLUP_BRIDGE_PROOF_MANAGER_PROXY_ADDRESS       - Address of ProofManager proxy"
+    echo "  ROLLUP_BRIDGE_WITHDRAW_MANAGER_PROXY_ADDRESS    - Address of WithdrawManager proxy"
+    echo "  ROLLUP_BRIDGE_ADMIN_MANAGER_PROXY_ADDRESS       - Address of AdminManager proxy"
+    echo "  DEPLOYER_ADDRESS                               - Address of contract owner"
+    echo "  RPC_URL                                        - RPC endpoint"
+    echo "  CHAIN_ID                                       - Chain ID"
     echo ""
     echo "Optional environment variables:"
     echo "  VERIFY_CONTRACTS             - Verify contracts (default: true)"
@@ -73,51 +81,26 @@ fi
 NETWORK=$1
 shift
 
-# Parse options
-UPGRADE_MERKLE_TREE=false
-UPGRADE_ROLLUP_BRIDGE=false
-DEFAULT_BOTH=true
-
+# Parse options (only --help is supported)
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --merkle-tree)
-            UPGRADE_MERKLE_TREE=true
-            DEFAULT_BOTH=false
-            shift
-            ;;
-        --rollup-bridge)
-            UPGRADE_ROLLUP_BRIDGE=true
-            DEFAULT_BOTH=false
-            shift
-            ;;
-        --both)
-            UPGRADE_MERKLE_TREE=true
-            UPGRADE_ROLLUP_BRIDGE=true
-            DEFAULT_BOTH=false
-            shift
-            ;;
         --help|-h)
             show_usage
             exit 0
             ;;
         *)
             print_error "Unknown option: $1"
+            print_error "This script only accepts a network name. Use --help for usage."
             show_usage
             exit 1
             ;;
     esac
 done
 
-# If no specific upgrade options were given, upgrade both
-if [ "$DEFAULT_BOTH" = true ]; then
-    UPGRADE_MERKLE_TREE=true
-    UPGRADE_ROLLUP_BRIDGE=true
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-print_status "Starting UUPS contract upgrade on $NETWORK"
+print_status "Starting Bridge Contracts upgrade on $NETWORK"
 
 # Check if .env file exists
 ENV_FILE="$PROJECT_ROOT/.env"
@@ -134,12 +117,17 @@ print_success "Found .env file"
 source "$ENV_FILE"
 
 # Validate required environment variables
-required_vars=("PRIVATE_KEY" "DEPLOYER_ADDRESS" "RPC_URL" "CHAIN_ID")
-
-
-if [ "$UPGRADE_ROLLUP_BRIDGE" = true ]; then
-    required_vars+=("ROLLUP_BRIDGE_PROXY_ADDRESS")
-fi
+required_vars=(
+    "PRIVATE_KEY" 
+    "DEPLOYER_ADDRESS" 
+    "RPC_URL" 
+    "CHAIN_ID"
+    "ROLLUP_BRIDGE_CORE_PROXY_ADDRESS"
+    "ROLLUP_BRIDGE_DEPOSIT_MANAGER_PROXY_ADDRESS"
+    "ROLLUP_BRIDGE_PROOF_MANAGER_PROXY_ADDRESS"
+    "ROLLUP_BRIDGE_WITHDRAW_MANAGER_PROXY_ADDRESS"
+    "ROLLUP_BRIDGE_ADMIN_MANAGER_PROXY_ADDRESS"
+)
 
 missing_vars=()
 
@@ -163,10 +151,6 @@ print_success "All required environment variables are set"
 export VERIFY_CONTRACTS=${VERIFY_CONTRACTS:-true}
 export ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY:-""}
 
-# Set upgrade flags
-export UPGRADE_MERKLE_TREE=$UPGRADE_MERKLE_TREE
-export UPGRADE_ROLLUP_BRIDGE=$UPGRADE_ROLLUP_BRIDGE
-
 # Build the forge command
 FORGE_CMD="forge script script/UpgradeContracts.s.sol:UpgradeContractsScript"
 FORGE_CMD="$FORGE_CMD --rpc-url $RPC_URL"
@@ -186,29 +170,32 @@ echo "  Network: $NETWORK"
 echo "  RPC URL: $RPC_URL"
 echo "  Chain ID: $CHAIN_ID"
 echo "  Deployer (Owner): $DEPLOYER_ADDRESS"
-
-if [ "$UPGRADE_ROLLUP_BRIDGE" = true ]; then
-    echo "  RollupBridge proxy: $ROLLUP_BRIDGE_PROXY_ADDRESS"
-fi
-
-echo "  Upgrade MerkleTree: $UPGRADE_MERKLE_TREE"
-echo "  Upgrade RollupBridge: $UPGRADE_ROLLUP_BRIDGE"
+echo ""
+echo "  Bridge Contract Proxies:"
+echo "    BridgeCore: $ROLLUP_BRIDGE_CORE_PROXY_ADDRESS"
+echo "    DepositManager: $ROLLUP_BRIDGE_DEPOSIT_MANAGER_PROXY_ADDRESS"
+echo "    ProofManager: $ROLLUP_BRIDGE_PROOF_MANAGER_PROXY_ADDRESS"
+echo "    WithdrawManager: $ROLLUP_BRIDGE_WITHDRAW_MANAGER_PROXY_ADDRESS"
+echo "    AdminManager: $ROLLUP_BRIDGE_ADMIN_MANAGER_PROXY_ADDRESS"
+echo ""
 echo "  Verify Contracts: $VERIFY_CONTRACTS"
 
 # Confirmation with extra warning for mainnet
 echo ""
 if [[ "$NETWORK" =~ ^(mainnet|ethereum|eth)$ ]]; then
-    print_warning "⚠️  MAINNET UPGRADE DETECTED ⚠️"
-    print_warning "This will upgrade contracts on MAINNET!"
+    print_warning "⚠️  MAINNET BRIDGE UPGRADE DETECTED ⚠️"
+    print_warning "This will upgrade ALL 5 bridge contracts on MAINNET!"
     print_warning "Make sure you have tested on testnet first!"
+    print_warning "This affects BridgeCore, DepositManager, ProofManager, WithdrawManager, and AdminManager"
     echo ""
-    read -p "Are you absolutely sure you want to upgrade on MAINNET? Type 'YES' to continue: " -r
+    read -p "Are you absolutely sure you want to upgrade ALL bridge contracts on MAINNET? Type 'YES' to continue: " -r
     if [[ $REPLY != "YES" ]]; then
         print_warning "Upgrade cancelled"
         exit 0
     fi
 else
-    read -p "Do you want to proceed with the upgrade? (y/N): " -n 1 -r
+    print_warning "This will upgrade ALL 5 bridge contracts simultaneously"
+    read -p "Do you want to proceed with the bridge contracts upgrade? (y/N): " -n 1 -r
     echo ""
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         print_warning "Upgrade cancelled"
@@ -240,7 +227,7 @@ if eval $FORGE_CMD; then
             echo "=== UPGRADE SUMMARY ==="
             
             # Try to extract addresses from the broadcast file
-            echo "New implementation contracts:"
+            echo "New bridge implementation contracts:"
             jq -r '.transactions[] | select(.transactionType == "CREATE" or .transactionType == "CREATE2") | "  \(.contractName // "Contract"): \(.contractAddress)"' "$LATEST_RUN" 2>/dev/null || {
                 print_warning "Could not parse implementation addresses automatically"
                 echo "Please check the broadcast file: $LATEST_RUN"
@@ -263,16 +250,19 @@ if eval $FORGE_CMD; then
     
     echo ""
     print_success "Next steps:"
-    echo "1. Test all contract functionality thoroughly"
-    echo "2. Verify that all state is preserved correctly"
-    echo "3. Monitor contracts for any issues"
-    echo "4. Update any off-chain systems if needed"
+    echo "1. Test ALL bridge contract functionality thoroughly"
+    echo "   - Test deposits, proofs, withdrawals, and admin functions"
+    echo "   - Verify cross-contract interactions work correctly"
+    echo "2. Verify that all state is preserved correctly across all contracts"
+    echo "3. Monitor ALL 5 contracts for any issues"
+    echo "4. Update any off-chain systems with new implementation addresses"
     echo "5. Announce the upgrade to users if appropriate"
     
     print_warning "Important reminders:"
-    echo "- Proxy addresses remain the same for user interactions"
-    echo "- Only implementation addresses have changed"
-    echo "- All existing state should be preserved"
+    echo "- ALL 5 proxy addresses remain the same for user interactions"
+    echo "- ALL 5 implementation addresses have changed simultaneously"
+    echo "- All existing state should be preserved across all contracts"
+    echo "- Contract interdependencies should remain intact"
     
 else
     print_error "Upgrade failed!"

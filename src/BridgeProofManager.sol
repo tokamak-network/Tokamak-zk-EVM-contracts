@@ -96,6 +96,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Initialized, "Invalid state");
         require(msg.sender == bridge.getChannelLeader(channelId), "Not leader");
+        require(bridge.isChannelPublicKeySet(channelId), "Channel leader must set public key first");
 
         address[] memory participants = bridge.getChannelParticipants(channelId);
         address[] memory allowedTokens = bridge.getChannelAllowedTokens(channelId);

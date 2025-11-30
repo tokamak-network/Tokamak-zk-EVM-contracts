@@ -80,6 +80,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a00;
 
     event ChannelOpened(uint256 indexed channelId, address[] allowedTokens);
+    event ChannelPublicKeySet(uint256 indexed channelId, uint256 pkx, uint256 pky, address signerAddr);
 
     modifier onlyManager() {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
@@ -197,6 +198,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         channel.pky = pky;
         address signerAddr = deriveAddressFromPubkey(pkx, pky);
         channel.signerAddr = signerAddr;
+
+        emit ChannelPublicKeySet(channelId, pkx, pky, signerAddr);
     }
 
     // Manager setter functions
@@ -425,6 +428,12 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
         return (channel.pkx, channel.pky);
+    }
+
+    function isChannelPublicKeySet(uint256 channelId) external view returns (bool) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        Channel storage channel = $.channels[channelId];
+        return channel.pkx != 0 && channel.pky != 0;
     }
 
     function getChannelSignerAddr(uint256 channelId) external view returns (address) {

@@ -36,6 +36,7 @@ interface IBridgeCore {
     function getL2MptKey(uint256 channelId, address participant, address token) external view returns (uint256);
     function getChannelTotalDeposits(uint256 channelId, address token) external view returns (uint256);
     function getChannelPublicKey(uint256 channelId) external view returns (uint256 pkx, uint256 pky);
+    function isChannelPublicKeySet(uint256 channelId) external view returns (bool);
     function getChannelSignerAddr(uint256 channelId) external view returns (address);
     function getChannelFinalStateRoot(uint256 channelId) external view returns (bytes32);
     function getChannelInitialStateRoot(uint256 channelId) external view returns (bytes32);

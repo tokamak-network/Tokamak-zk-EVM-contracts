@@ -49,6 +49,7 @@ contract BridgeDepositManager is
             "Invalid channel state"
         );
         require(bridge.isChannelParticipant(_channelId, msg.sender), "Not a participant");
+        require(bridge.isChannelPublicKeySet(_channelId), "Channel leader must set public key first");
         require(_token != ETH_TOKEN_ADDRESS, "Use depositETH for ETH deposits");
         require(bridge.isTokenAllowedInChannel(_channelId, _token), "Token not allowed in this channel");
         require(_mptKey != bytes32(0), "Invalid MPT key");

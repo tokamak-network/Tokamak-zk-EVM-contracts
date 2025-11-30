@@ -50,12 +50,8 @@ contract DeployV2Script is Script {
         etherscanApiKey = vm.envOr("ETHERSCAN_API_KEY", string(""));
         chainId = vm.envOr("CHAIN_ID", string("31337"));
 
-        // ZK Verifier can be provided or we deploy a new one
-        try vm.envAddress("ZK_VERIFIER_ADDRESS") returns (address verifier) {
-            zkVerifier = verifier;
-        } catch {
-            console.log("No ZK_VERIFIER_ADDRESS provided, will deploy new Verifier");
-        }
+        // Always deploy a new TokamakVerifier
+        console.log("Will deploy new TokamakVerifier (forced deployment)");
 
         // ZecFrost can be provided or we deploy a new one
         try vm.envAddress("ZEC_FROST_ADDRESS") returns (address frost) {
@@ -73,15 +69,11 @@ contract DeployV2Script is Script {
         console.log("Deploying with account:", deployer);
         console.log("Account balance:", deployer.balance);
 
-        // Deploy Tokamak Verifier if not provided
-        if (zkVerifier == address(0)) {
-            console.log("Deploying TokamakVerifier...");
-            TokamakVerifier verifierContract = new TokamakVerifier();
-            zkVerifier = address(verifierContract);
-            console.log("TokamakVerifier deployed at:", zkVerifier);
-        } else {
-            console.log("Using existing TokamakVerifier at:", zkVerifier);
-        }
+        // Always deploy a new TokamakVerifier
+        console.log("Deploying new TokamakVerifier...");
+        TokamakVerifier verifierContract = new TokamakVerifier();
+        zkVerifier = address(verifierContract);
+        console.log("TokamakVerifier deployed at:", zkVerifier);
 
         // Deploy Groth16 Verifiers
         console.log("Deploying Groth16Verifier16Leaves...");
@@ -217,6 +209,9 @@ contract DeployV2Script is Script {
 
         vm.stopBroadcast();
 
+        console.log("\n=== DEPLOYMENT COMPLETE ===");
+        console.log("All contracts deployed successfully!");
+
         // Log final addresses
         console.log("\n=== DEPLOYMENT SUMMARY ===");
         console.log("Tokamak Verifier:", zkVerifier);
@@ -239,35 +234,50 @@ contract DeployV2Script is Script {
         console.log("Admin Manager Proxy:", adminManager);
         console.log("\nDeployer (Owner):", deployer);
 
-        // Verify contracts if requested
+        // Post-deployment verification
         if (shouldVerify && bytes(etherscanApiKey).length > 0) {
+            console.log("\n=== STARTING CONTRACT VERIFICATION ===");
+            console.log("Note: Verification happens AFTER all contracts are deployed");
             console.log("Waiting 30 seconds before verification to allow Etherscan indexing...");
             vm.sleep(30000); // Wait 30 seconds
             verifyContracts();
         } else {
-            console.log("Skipping contract verification (VERIFY_CONTRACTS=false or no API key)");
+            console.log("\n=== SKIPPING CONTRACT VERIFICATION ===");
+            if (!shouldVerify) {
+                console.log("Reason: VERIFY_CONTRACTS=false");
+            }
+            if (bytes(etherscanApiKey).length == 0) {
+                console.log("Reason: No ETHERSCAN_API_KEY provided");
+            }
         }
     }
 
     function verifyContracts() internal {
         console.log("\n=== VERIFYING CONTRACTS ===");
+        console.log("IMPORTANT: All contracts have been deployed. Now starting verification process.");
+        
+        // Ensure all required contracts are deployed before verification
+        require(rollupBridgeImpl != address(0), "Bridge implementation not deployed");
+        require(depositManagerImpl != address(0), "Deposit manager implementation not deployed");
+        require(proofManagerImpl != address(0), "Proof manager implementation not deployed");
+        require(withdrawManagerImpl != address(0), "Withdraw manager implementation not deployed");
+        require(adminManagerImpl != address(0), "Admin manager implementation not deployed");
+        require(rollupBridge != address(0), "Bridge proxy not deployed");
+        require(depositManager != address(0), "Deposit manager proxy not deployed");
+        require(proofManager != address(0), "Proof manager proxy not deployed");
+        require(withdrawManager != address(0), "Withdraw manager proxy not deployed");
+        require(adminManager != address(0), "Admin manager proxy not deployed");
 
-        // Only verify if we deployed a new TokamakVerifier (not using existing)
-        bool deployedNewVerifier = false;
-        try vm.parseAddress(vm.envString("ZK_VERIFIER_ADDRESS")) {
-            console.log("Skipping TokamakVerifier verification (pre-existing)");
-        } catch {
-            deployedNewVerifier = true;
-            console.log("Verifying TokamakVerifier...");
-            string[] memory verifierCmd = new string[](6);
-            verifierCmd[0] = "forge";
-            verifierCmd[1] = "verify-contract";
-            verifierCmd[2] = vm.toString(zkVerifier);
-            verifierCmd[3] = "src/verifier/TokamakVerifier.sol:TokamakVerifier";
-            verifierCmd[4] = "--etherscan-api-key";
-            verifierCmd[5] = etherscanApiKey;
-            _verifyWithRetry(verifierCmd, "TokamakVerifier");
-        }
+        // Always verify TokamakVerifier since we always deploy a new one
+        console.log("Verifying TokamakVerifier...");
+        string[] memory verifierCmd = new string[](6);
+        verifierCmd[0] = "forge";
+        verifierCmd[1] = "verify-contract";
+        verifierCmd[2] = vm.toString(zkVerifier);
+        verifierCmd[3] = "src/verifier/TokamakVerifier.sol:TokamakVerifier";
+        verifierCmd[4] = "--etherscan-api-key";
+        verifierCmd[5] = etherscanApiKey;
+        _verifyWithRetry(verifierCmd, "TokamakVerifier");
 
         // Only verify if we deployed a new ZecFrost (not using existing)
         bool deployedNewZecFrost = false;

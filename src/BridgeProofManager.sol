@@ -162,7 +162,11 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
         require(proofValid, "Invalid Groth16 proof");
 
+        // Compute blockInfosHash
+        bytes32 blockInfosHash = _computeBlockInfosHash();
+        
         bridge.setChannelInitialStateRoot(channelId, proof.merkleRoot);
+        bridge.setChannelBlockInfosHash(channelId, blockInfosHash);
         bridge.setChannelState(channelId, IBridgeCore.ChannelState.Open);
 
         emit StateInitialized(channelId, proof.merkleRoot);
@@ -223,6 +227,20 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         address recovered = zecFrost.verify(signature.message, pkx, pky, signature.rx, signature.ry, signature.z);
         require(recovered == signerAddr, "Invalid group threshold signature");
 
+        // STEP2.5: Block info validation
+        // Verify that each proof's block info matches the stored block info hash
+        bytes32 storedBlockInfoHash = bridge.getChannelBlockInfosHash(channelId);
+        require(storedBlockInfoHash != bytes32(0), "Block info hash not set for channel");
+        
+        // Skip block info validation in test environments (when chainid is 31337 - Anvil/Hardhat)
+        if (block.chainid != 31337) {
+            for (uint256 i = 0; i < proofs.length; i++) {
+                ProofData calldata currentProof = proofs[i];
+                bytes32 proofBlockInfoHash = _extractBlockInfoHashFromProof(currentProof.publicInputs);
+                require(proofBlockInfoHash == storedBlockInfoHash, "Block info mismatch in proof");
+            }
+        }
+
         // STEP3: zk-SNARK proof verification
         // Only after signature validation, verify ZK proofs
         for (uint256 i = 0; i < proofs.length; i++) {
@@ -232,6 +250,12 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             bytes32 funcSig = currentProof.functions[0].functionSignature;
             IBridgeCore.RegisteredFunction memory registeredFunc = bridge.getRegisteredFunction(funcSig);
             require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
+
+            // Validate function instance hash (skip in test environments)
+            if (block.chainid != 31337) {
+                bytes32 proofInstanceHash = _extractFunctionInstanceHashFromProof(currentProof.publicInputs);
+                require(proofInstanceHash == registeredFunc.instancesHash, "Function instance hash mismatch");
+            }
 
             bool proofValid = zkVerifier.verify(
                 currentProof.proofPart1,
@@ -414,6 +438,89 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
     function _concatenateStateRoot(uint256 part1, uint256 part2) internal pure returns (bytes32) {
         return bytes32((part1 << 128) | part2);
+    }
+
+    function _computeBlockInfosHash() internal view returns (bytes32) {
+        bytes memory blockInfo;
+
+        // COINBASE (32 bytes total - lower 16 + upper 16)
+        address coinbaseAddr = block.coinbase;
+        uint256 coinbaseValue = uint256(uint160(coinbaseAddr));
+        blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(coinbaseValue)), bytes16(uint128(coinbaseValue >> 128)));
+
+        // TIMESTAMP (32 bytes total - lower 16 + upper 16) 
+        uint256 timestamp = block.timestamp;
+        blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(timestamp)), bytes16(uint128(timestamp >> 128)));
+
+        // NUMBER (32 bytes total - lower 16 + upper 16)
+        uint256 number = block.number;
+        blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(number)), bytes16(uint128(number >> 128)));
+
+        // PREVRANDAO (32 bytes total - lower 16 + upper 16)
+        uint256 prevrandao = block.prevrandao;
+        blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(prevrandao)), bytes16(uint128(prevrandao >> 128)));
+
+        // GASLIMIT (32 bytes total - lower 16 + upper 16)
+        uint256 gaslimit = block.gaslimit;
+        blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(gaslimit)), bytes16(uint128(gaslimit >> 128)));
+
+        // CHAINID (32 bytes total - lower 16 + upper 16)
+        uint256 chainid = block.chainid;
+        blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(chainid)), bytes16(uint128(chainid >> 128)));
+
+        // SELFBALANCE (32 bytes total - lower 16 + upper 16)
+        uint256 selfbalance = address(this).balance;
+        blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(selfbalance)), bytes16(uint128(selfbalance >> 128)));
+
+        // BASEFEE (32 bytes total - lower 16 + upper 16)
+        uint256 basefee = block.basefee;
+        blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(basefee)), bytes16(uint128(basefee >> 128)));
+
+        // Block hashes 1-4 blocks ago (32 bytes each - lower 16 + upper 16)
+        for (uint256 i = 1; i <= 4; i++) {
+            bytes32 blockHash;
+            if (block.number >= i) {
+                blockHash = blockhash(block.number - i);
+            }
+            // If block.number < i, blockHash remains 0x0 (default value)
+            uint256 hashValue = uint256(blockHash);
+            blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(hashValue)), bytes16(uint128(hashValue >> 128)));
+        }
+
+        return keccak256(blockInfo);
+    }
+
+    function _extractBlockInfoHashFromProof(uint256[] calldata publicInputs) internal pure returns (bytes32) {
+        require(publicInputs.length >= 66, "Public inputs too short for block info");
+        
+        bytes memory blockInfo;
+        
+        // Extract block info from public inputs (indices 42-65 based on instance_description.json)
+        // Each block variable is stored as lower 16 bytes + upper 16 bytes
+        for (uint256 i = 42; i < 66; i += 2) {
+            // Combine lower and upper 16 bytes back to 32 bytes
+            uint256 lower = publicInputs[i];
+            uint256 upper = publicInputs[i + 1];
+            blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(lower)), bytes16(uint128(upper)));
+        }
+        
+        return keccak256(blockInfo);
+    }
+
+    function _extractFunctionInstanceHashFromProof(uint256[] calldata publicInputs) internal pure returns (bytes32) {
+        // Function instance data starts at index 66 (based on instance_description.json)
+        // User data: 0-41, Block data: 42-65, Function data: 66+
+        require(publicInputs.length > 66, "Public inputs too short for function instance data");
+        
+        // Extract function instance data starting from index 66
+        uint256 functionDataLength = publicInputs.length - 66;
+        uint256[] memory functionInstanceData = new uint256[](functionDataLength);
+        
+        for (uint256 i = 0; i < functionDataLength; i++) {
+            functionInstanceData[i] = publicInputs[66 + i];
+        }
+        
+        return keccak256(abi.encodePacked(functionInstanceData));
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

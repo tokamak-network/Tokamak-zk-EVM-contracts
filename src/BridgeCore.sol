@@ -33,6 +33,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         bytes32 functionSignature;
         uint128[] preprocessedPart1;
         uint256[] preprocessedPart2;
+        bytes32 instancesHash;
     }
 
     struct Channel {
@@ -57,6 +58,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         address signerAddr;
         bool sigVerified;
         uint256 requiredTreeSize;
+        bytes32 blockInfosHash;
     }
 
     uint256 public constant MIN_PARTICIPANTS = 1;
@@ -282,14 +284,16 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function registerFunction(
         bytes32 functionSignature,
         uint128[] memory preprocessedPart1,
-        uint256[] memory preprocessedPart2
+        uint256[] memory preprocessedPart2,
+        bytes32 instancesHash
     ) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
         $.registeredFunctions[functionSignature] = RegisteredFunction({
             functionSignature: functionSignature,
             preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2
+            preprocessedPart2: preprocessedPart2,
+            instancesHash: instancesHash
         });
     }
 
@@ -311,6 +315,11 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function setChannelCloseTimestamp(uint256 channelId, uint256 timestamp) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         $.channels[channelId].closeTimestamp = timestamp;
+    }
+
+    function setChannelBlockInfosHash(uint256 channelId, bytes32 blockInfosHash) external onlyManager {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        $.channels[channelId].blockInfosHash = blockInfosHash;
     }
 
     // ========== INTERNAL FUNCTIONS ==========
@@ -505,6 +514,11 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function hasUserWithdrawn(uint256 channelId, address participant) external view returns (bool) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].hasWithdrawn[participant];
+    }
+
+    function getChannelBlockInfosHash(uint256 channelId) external view returns (bytes32) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.channels[channelId].blockInfosHash;
     }
 
     /**

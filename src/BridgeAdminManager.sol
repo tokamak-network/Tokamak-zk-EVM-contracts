@@ -19,7 +19,7 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event TargetContractAllowed(address indexed targetContract, bool allowed);
     event FunctionRegistered(
-        bytes32 indexed functionSignature, uint256 preprocessedPart1Length, uint256 preprocessedPart2Length
+        bytes32 indexed functionSignature, uint256 preprocessedPart1Length, uint256 preprocessedPart2Length, bytes32 instancesHash
     );
     event FunctionUnregistered(bytes32 indexed functionSignature);
     event TreasuryAddressUpdated(address indexed oldTreasury, address indexed newTreasury);
@@ -48,14 +48,15 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
     function registerFunction(
         bytes32 functionSignature,
         uint128[] memory preprocessedPart1,
-        uint256[] memory preprocessedPart2
+        uint256[] memory preprocessedPart2,
+        bytes32 instancesHash
     ) external onlyOwner {
         require(functionSignature != bytes32(0), "Invalid function signature");
         require(preprocessedPart1.length > 0, "preprocessedPart1 cannot be empty");
         require(preprocessedPart2.length > 0, "preprocessedPart2 cannot be empty");
 
-        bridge.registerFunction(functionSignature, preprocessedPart1, preprocessedPart2);
-        emit FunctionRegistered(functionSignature, preprocessedPart1.length, preprocessedPart2.length);
+        bridge.registerFunction(functionSignature, preprocessedPart1, preprocessedPart2, instancesHash);
+        emit FunctionRegistered(functionSignature, preprocessedPart1.length, preprocessedPart2.length, instancesHash);
     }
 
     function unregisterFunction(bytes32 functionSignature) external onlyOwner {

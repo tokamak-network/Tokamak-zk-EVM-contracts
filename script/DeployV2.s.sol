@@ -396,7 +396,7 @@ contract DeployV2Script is Script {
         // Register WTON transfer function
         bytes32 wtonTransferSig = keccak256("transferWTON(address,uint256)");
         BridgeAdminManager(adminManagerAddress).registerFunction(
-            wtonTransferSig, wtonPreprocessedPart1, wtonPreprocessedPart2
+            wtonTransferSig, wtonPreprocessedPart1, wtonPreprocessedPart2, keccak256("wton_instance_hash")
         );
 
         console.log("WTON target contract configured:", wtonAddress);
@@ -424,7 +424,7 @@ contract DeployV2Script is Script {
         // Register WTON transfer function
         bytes32 tonTransferSig = keccak256("transferTON(address,uint256)");
         BridgeAdminManager(adminManagerAddress).registerFunction(
-            tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2
+            tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2, keccak256("ton_instance_hash")
         );
 
         console.log("TON target contract configured:", tonAddress);
@@ -452,7 +452,7 @@ contract DeployV2Script is Script {
         // Register USDT transfer function
         bytes32 usdtTransferSig = keccak256("transfer(address,uint256)");
         BridgeAdminManager(adminManagerAddress).registerFunction(
-            usdtTransferSig, usdtPreprocessedPart1, usdtPreprocessedPart2
+            usdtTransferSig, usdtPreprocessedPart1, usdtPreprocessedPart2, keccak256("usdt_instance_hash")
         );
 
         console.log("USDT target contract configured:", usdtAddress);

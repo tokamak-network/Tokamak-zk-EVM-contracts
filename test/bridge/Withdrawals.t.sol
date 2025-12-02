@@ -173,7 +173,7 @@ contract WithdrawalsTest is Test {
         bytes32 transferSig = keccak256("transfer(address,uint256)");
 
         adminManager.setAllowedTargetContract(address(token), bytes1(0x00), true);
-        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2);
+        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
 
         vm.stopPrank();
 
@@ -270,14 +270,15 @@ contract WithdrawalsTest is Test {
         functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: keccak256("transfer(address,uint256)"),
             preprocessedPart1: new uint128[](4),
-            preprocessedPart2: new uint256[](4)
+            preprocessedPart2: new uint256[](4),
+            instancesHash: keccak256("test_instance_hash")
         });
 
         // Register the function first
         console.log("Registering function");
         vm.prank(owner);
         adminManager.registerFunction(
-            functions[0].functionSignature, functions[0].preprocessedPart1, functions[0].preprocessedPart2
+            functions[0].functionSignature, functions[0].preprocessedPart1, functions[0].preprocessedPart2, functions[0].instancesHash
         );
         console.log("Function registered");
 
@@ -496,7 +497,8 @@ contract WithdrawalsTest is Test {
         functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: keccak256("transfer(address,uint256)"),
             preprocessedPart1: new uint128[](4),
-            preprocessedPart2: new uint256[](4)
+            preprocessedPart2: new uint256[](4),
+            instancesHash: keccak256("test_instance_hash")
         });
 
         uint256[][] memory emptyBalances = new uint256[][](3);
@@ -607,14 +609,15 @@ contract WithdrawalsTest is Test {
 
         // Register the function first
         vm.prank(owner);
-        adminManager.registerFunction(keccak256("transfer(address,uint256)"), new uint128[](4), new uint256[](4));
+        adminManager.registerFunction(keccak256("transfer(address,uint256)"), new uint128[](4), new uint256[](4), keccak256("test_instance_hash"));
 
         // Submit proof with balance for rejector
         IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
         functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: keccak256("transfer(address,uint256)"),
             preprocessedPart1: new uint128[](4),
-            preprocessedPart2: new uint256[](4)
+            preprocessedPart2: new uint256[](4),
+            instancesHash: keccak256("test_instance_hash")
         });
 
         uint256[][] memory balances = new uint256[][](3);

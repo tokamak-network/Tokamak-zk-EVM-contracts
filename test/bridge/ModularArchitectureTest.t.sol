@@ -119,7 +119,7 @@ contract ModularArchitectureTest is Test {
         bytes32 transferSig = keccak256("transfer(address,uint256)");
 
         adminManager.setAllowedTargetContract(address(testToken), bytes1(0x00), true);
-        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2);
+        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
 
         // Fund test accounts
         vm.deal(leader, 10 ether);

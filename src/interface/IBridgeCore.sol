@@ -19,6 +19,7 @@ interface IBridgeCore {
         bytes32 functionSignature;
         uint128[] preprocessedPart1;
         uint256[] preprocessedPart2;
+        bytes32 instancesHash;
     }
 
     // View functions
@@ -51,6 +52,7 @@ interface IBridgeCore {
     function hasUserWithdrawn(uint256 channelId, address participant) external view returns (bool);
     function isSignatureVerified(uint256 channelId) external view returns (bool);
     function getTreasuryAddress() external view returns (address);
+    function getChannelBlockInfosHash(uint256 channelId) external view returns (bytes32);
 
     // Setter functions (only callable by managers)
     function updateChannelTokenDeposits(uint256 channelId, address token, address participant, uint256 amount)
@@ -72,13 +74,15 @@ interface IBridgeCore {
     function registerFunction(
         bytes32 functionSignature,
         uint128[] memory preprocessedPart1,
-        uint256[] memory preprocessedPart2
+        uint256[] memory preprocessedPart2,
+        bytes32 instancesHash
     ) external;
     function unregisterFunction(bytes32 functionSignature) external;
     function setTreasuryAddress(address treasury) external;
     function enableEmergencyWithdrawals(uint256 channelId) external;
     function markUserWithdrawn(uint256 channelId, address participant) external;
     function clearWithdrawableAmount(uint256 channelId, address participant, address token) external;
+    function setChannelBlockInfosHash(uint256 channelId, bytes32 blockInfosHash) external;
 
     // === DASHBOARD FUNCTIONS ===
     function getTotalChannels() external view returns (uint256);

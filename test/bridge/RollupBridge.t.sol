@@ -340,7 +340,7 @@ contract BridgeCoreTest is Test {
 
         // Register transfer function
         bytes32 transferSig = keccak256("transfer(address,uint256)");
-        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2);
+        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
 
         vm.stopPrank();
     }
@@ -528,6 +528,7 @@ contract BridgeCoreTest is Test {
         }
     }
 
+
     /**
      * @dev Helper function to create a simple proof data for tests that still use old MPT structure
      * Converts old MPT-based calls to new function-based structure
@@ -559,7 +560,8 @@ contract BridgeCoreTest is Test {
         functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: transferSig,
             preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2
+            preprocessedPart2: preprocessedPart2,
+            instancesHash: keccak256("test_instance_hash")
         });
 
         // Create final balances array - we'll decode the intended values from the leaf count pattern
@@ -624,7 +626,8 @@ contract BridgeCoreTest is Test {
         functions[0] = IBridgeCore.RegisteredFunction({
             functionSignature: transferSig,
             preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2
+            preprocessedPart2: preprocessedPart2,
+            instancesHash: keccak256("test_instance_hash")
         });
 
         // Create final balances that violate conservation (total 7 instead of 6)

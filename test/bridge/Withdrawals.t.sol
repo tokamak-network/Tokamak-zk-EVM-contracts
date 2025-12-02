@@ -170,7 +170,7 @@ contract WithdrawalsTest is Test {
         // Register the test token and its transfer function
         uint128[] memory preprocessedPart1 = new uint128[](4);
         uint256[] memory preprocessedPart2 = new uint256[](4);
-        bytes32 transferSig = keccak256("transfer(address,uint256)");
+        bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
 
         adminManager.setAllowedTargetContract(address(token), bytes1(0x00), true);
         adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
@@ -265,20 +265,12 @@ contract WithdrawalsTest is Test {
 
     function _submitProofAndCloseChannel() internal {
         console.log("Submitting proof and closing channel");
-        // Prepare proof data
-        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
-        functions[0] = IBridgeCore.RegisteredFunction({
-            functionSignature: keccak256("transfer(address,uint256)"),
-            preprocessedPart1: new uint128[](4),
-            preprocessedPart2: new uint256[](4),
-            instancesHash: keccak256("test_instance_hash")
-        });
-
         // Register the function first
         console.log("Registering function");
+        bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
         vm.prank(owner);
         adminManager.registerFunction(
-            functions[0].functionSignature, functions[0].preprocessedPart1, functions[0].preprocessedPart2, functions[0].instancesHash
+            transferSig, new uint128[](4), new uint256[](4), keccak256("test_instance_hash")
         );
         console.log("Function registered");
 
@@ -298,8 +290,7 @@ contract WithdrawalsTest is Test {
             proofPart1: new uint128[](4),
             proofPart2: new uint256[](4),
             publicInputs: publicInputs,
-            smax: 100,
-            functions: functions
+            smax: 100
         });
 
         // Set up signature verification
@@ -493,13 +484,6 @@ contract WithdrawalsTest is Test {
         proofManager.initializeChannelState(testChannelId, mockProof);
 
         // Submit proof with empty balances
-        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
-        functions[0] = IBridgeCore.RegisteredFunction({
-            functionSignature: keccak256("transfer(address,uint256)"),
-            preprocessedPart1: new uint128[](4),
-            preprocessedPart2: new uint256[](4),
-            instancesHash: keccak256("test_instance_hash")
-        });
 
         uint256[][] memory emptyBalances = new uint256[][](3);
         emptyBalances[0] = new uint256[](1);
@@ -517,8 +501,7 @@ contract WithdrawalsTest is Test {
             proofPart1: new uint128[](4),
             proofPart2: new uint256[](4),
             publicInputs: publicInputs,
-            smax: 100,
-            functions: functions
+            smax: 100
         });
 
         mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
@@ -609,16 +592,9 @@ contract WithdrawalsTest is Test {
 
         // Register the function first
         vm.prank(owner);
-        adminManager.registerFunction(keccak256("transfer(address,uint256)"), new uint128[](4), new uint256[](4), keccak256("test_instance_hash"));
+        adminManager.registerFunction(bytes32(bytes4(keccak256("transfer(address,uint256)"))), new uint128[](4), new uint256[](4), keccak256("test_instance_hash"));
 
         // Submit proof with balance for rejector
-        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
-        functions[0] = IBridgeCore.RegisteredFunction({
-            functionSignature: keccak256("transfer(address,uint256)"),
-            preprocessedPart1: new uint128[](4),
-            preprocessedPart2: new uint256[](4),
-            instancesHash: keccak256("test_instance_hash")
-        });
 
         uint256[][] memory balances = new uint256[][](3);
         balances[0] = new uint256[](1);
@@ -636,8 +612,7 @@ contract WithdrawalsTest is Test {
             proofPart1: new uint128[](4),
             proofPart2: new uint256[](4),
             publicInputs: publicInputs,
-            smax: 100,
-            functions: functions
+            smax: 100
         });
 
         mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
@@ -749,6 +724,11 @@ contract WithdrawalsTest is Test {
             publicInputs[9] = inputRootLow;    // input state root low
             publicInputs[10] = outputRootHigh; // output state root high (matches publicInputs[0])
             publicInputs[11] = outputRootLow;  // output state root low
+        }
+        
+        // Set function signature at index 18 (transfer function selector: 0xa9059cbb)
+        if (publicInputs.length >= 19) {
+            publicInputs[18] = 0xa9059cbb; // transfer(address,uint256) function selector
         }
     }
 

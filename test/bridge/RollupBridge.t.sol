@@ -338,8 +338,8 @@ contract BridgeCoreTest is Test {
         adminManager.setAllowedTargetContract(address(highPrecisionToken), bytes1(0x00), true);
         adminManager.setAllowedTargetContract(address(usdtLikeToken), bytes1(0x00), true);
 
-        // Register transfer function
-        bytes32 transferSig = keccak256("transfer(address,uint256)");
+        // Register transfer function using 4-byte selector (standard format)
+        bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
         adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
 
         vm.stopPrank();
@@ -467,15 +467,13 @@ contract BridgeCoreTest is Test {
         uint256[] memory proofPart2,
         uint256[] memory publicInputs,
         uint256 smax,
-        IBridgeCore.RegisteredFunction[] memory functions,
         uint256[][] memory finalBalances
     ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
         BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: proofPart1,
             proofPart2: proofPart2,
             publicInputs: publicInputs,
-            smax: smax,
-            functions: functions
+            smax: smax
         });
         return (proofData, finalBalances);
     }
@@ -526,6 +524,11 @@ contract BridgeCoreTest is Test {
             publicInputs[10] = outputRootHigh; // output state root high (matches publicInputs[0])
             publicInputs[11] = outputRootLow;  // output state root low
         }
+        
+        // Set function signature at index 18 (transfer function selector: 0xa9059cbb)
+        if (publicInputs.length >= 19) {
+            publicInputs[18] = 0xa9059cbb; // transfer(address,uint256) function selector
+        }
     }
 
 
@@ -540,29 +543,9 @@ contract BridgeCoreTest is Test {
         uint256 smax,
         bytes[] memory finalMPTLeaves
     ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
-        // Create a single transfer function for compatibility - manually construct to avoid external calls
-        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
-        bytes32 transferSig = keccak256("transfer(address,uint256)");
-
-        // Manually create the RegisteredFunction to avoid getRegisteredFunction call
-        uint128[] memory preprocessedPart1 = new uint128[](4);
-        preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
-        preprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
-        preprocessedPart1[2] = 0x18e54aba379045c9f5c18d8aefeaa8cc;
-        preprocessedPart1[3] = 0x08df3e052d4b1c0840d73edcea3f85e7;
-
-        uint256[] memory preprocessedPart2 = new uint256[](4);
-        preprocessedPart2[0] = 0x7e084b3358f7f1404f0a4ee1acc6d254997032f77fd77593fab7c896b7cfce1e;
-        preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
-        preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
-        preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
-
-        functions[0] = IBridgeCore.RegisteredFunction({
-            functionSignature: transferSig,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
-            instancesHash: keccak256("test_instance_hash")
-        });
+        // Set proper state root values and function signature for bridge tests
+        _setTestStateRoots(publicInputs);
+        
 
         // Create final balances array - we'll decode the intended values from the leaf count pattern
         uint256 participantCount = finalMPTLeaves.length;
@@ -589,8 +572,7 @@ contract BridgeCoreTest is Test {
             proofPart1: proofPart1,
             proofPart2: proofPart2,
             publicInputs: publicInputs,
-            smax: smax,
-            functions: functions
+            smax: smax
         });
 
         return (proofData, finalBalances);
@@ -607,28 +589,6 @@ contract BridgeCoreTest is Test {
     ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
         // Set proper state root values for bridge tests to pass state root chain validation
         _setTestStateRoots(publicInputs);
-        // Create a single transfer function for compatibility
-        IBridgeCore.RegisteredFunction[] memory functions = new IBridgeCore.RegisteredFunction[](1);
-        bytes32 transferSig = keccak256("transfer(address,uint256)");
-
-        uint128[] memory preprocessedPart1 = new uint128[](4);
-        preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
-        preprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
-        preprocessedPart1[2] = 0x18e54aba379045c9f5c18d8aefeaa8cc;
-        preprocessedPart1[3] = 0x08df3e052d4b1c0840d73edcea3f85e7;
-
-        uint256[] memory preprocessedPart2 = new uint256[](4);
-        preprocessedPart2[0] = 0x7e084b3358f7f1404f0a4ee1acc6d254997032f77fd77593fab7c896b7cfce1e;
-        preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
-        preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
-        preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
-
-        functions[0] = IBridgeCore.RegisteredFunction({
-            functionSignature: transferSig,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2,
-            instancesHash: keccak256("test_instance_hash")
-        });
 
         // Create final balances that violate conservation (total 7 instead of 6)
         uint256[][] memory finalBalances = new uint256[][](3);
@@ -643,8 +603,7 @@ contract BridgeCoreTest is Test {
             proofPart1: proofPart1,
             proofPart2: proofPart2,
             publicInputs: publicInputs,
-            smax: smax,
-            functions: functions
+            smax: smax
         });
 
         return (proofData, finalBalances);

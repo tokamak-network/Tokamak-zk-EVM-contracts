@@ -39,7 +39,6 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         uint256[] proofPart2;
         uint256[] publicInputs;
         uint256 smax;
-        IBridgeCore.RegisteredFunction[] functions;
     }
 
     struct Signature {
@@ -245,9 +244,11 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Only after signature validation, verify ZK proofs
         for (uint256 i = 0; i < proofs.length; i++) {
             ProofData calldata currentProof = proofs[i];
-            require(currentProof.functions.length == 1, "Each proof must contain exactly one function");
+            require(currentProof.publicInputs.length >= 19, "Public inputs too short for function signature");
 
-            bytes32 funcSig = currentProof.functions[0].functionSignature;
+            // Extract function signature from publicInputs at row 18 (0-indexed)
+            // Row 18: Selector for a function to call (complete 4-byte selector)
+            bytes32 funcSig = _extractFunctionSignatureFromProof(currentProof.publicInputs);
             IBridgeCore.RegisteredFunction memory registeredFunc = bridge.getRegisteredFunction(funcSig);
             require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
 
@@ -505,6 +506,19 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         }
         
         return keccak256(blockInfo);
+    }
+
+    function _extractFunctionSignatureFromProof(uint256[] calldata publicInputs) internal pure returns (bytes32) {
+        // Function signature is located at row 18 (0-indexed) in the user data section
+        // Row 18: Selector for a function to call (complete 4-byte selector)
+        require(publicInputs.length >= 19, "Public inputs too short for function signature");
+        
+        // Extract the function selector from index 18
+        // The value is already a complete 4-byte selector stored as uint256
+        uint256 selectorValue = publicInputs[18];
+        bytes4 selector = bytes4(uint32(selectorValue));
+        
+        return bytes32(selector);
     }
 
     function _extractFunctionInstanceHashFromProof(uint256[] calldata publicInputs) internal pure returns (bytes32) {

@@ -3,7 +3,7 @@
   "dependencies": {
     "ethers": "^6.14.1",
     "fs": "^0.0.1-security",
+    "js-sha3": "^0.9.3",
     "msgpackr": "^1.11.3"
   }
 }
-  

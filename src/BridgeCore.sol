@@ -223,7 +223,17 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         onlyManager
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        $.channels[channelId].l2MptKeys[participant][token] = mptKey;
+        Channel storage channel = $.channels[channelId];
+        
+        // Check if the mptKey is already used by another participant for the same token
+        for (uint256 i = 0; i < channel.participants.length; i++) {
+            address existingParticipant = channel.participants[i];
+            if (existingParticipant != participant && channel.l2MptKeys[existingParticipant][token] == mptKey && mptKey != 0) {
+                revert("L2MPTKey already in use by another participant");
+            }
+        }
+        
+        channel.l2MptKeys[participant][token] = mptKey;
     }
 
     function setChannelInitialStateRoot(uint256 channelId, bytes32 stateRoot) external onlyManager {
@@ -485,6 +495,26 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function nextChannelId() external view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.nextChannelId;
+    }
+
+    function getProofManager() external view returns (address) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.proofManager;
+    }
+
+    function getDepositManager() external view returns (address) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.depositManager;
+    }
+
+    function getWithdrawManager() external view returns (address) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.withdrawManager;
+    }
+
+    function getAdminManager() external view returns (address) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.adminManager;
     }
 
     function getChannelInfo(uint256 channelId)

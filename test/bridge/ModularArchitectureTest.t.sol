@@ -173,16 +173,13 @@ contract ModularArchitectureTest is Test {
         // Create a channel
         vm.startPrank(leader);
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(testToken);
-
         address[] memory participants = new address[](3);
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = user3;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, timeout: 1 days});
 
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
@@ -191,16 +188,17 @@ contract ModularArchitectureTest is Test {
         // Verify channel creation
         assertEq(channelId, 0);
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Initialized));
+        assertEq(bridge.getChannelTargetContract(channelId), address(testToken));
 
         // Test deposit using DepositManager
         vm.startPrank(user1);
         testToken.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, address(testToken), 1 ether, bytes32(uint256(123)));
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(123)));
         vm.stopPrank();
 
         // Verify deposit was recorded
-        assertEq(bridge.getParticipantTokenDeposit(channelId, user1, address(testToken)), 1 ether);
-        assertEq(bridge.getL2MptKey(channelId, user1, address(testToken)), 123);
+        assertEq(bridge.getParticipantDeposit(channelId, user1), 1 ether);
+        assertEq(bridge.getL2MptKey(channelId, user1), 123);
     }
 
     function testChannelStateInitialization() public {
@@ -230,16 +228,13 @@ contract ModularArchitectureTest is Test {
     function _createChannelWithDeposits() internal returns (uint256 channelId) {
         vm.startPrank(leader);
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(testToken);
-
         address[] memory participants = new address[](3);
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = user3;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, timeout: 1 days});
 
         channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
@@ -248,17 +243,17 @@ contract ModularArchitectureTest is Test {
         // Add deposits
         vm.startPrank(user1);
         testToken.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, address(testToken), 1 ether, bytes32(uint256(123)));
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(123)));
         vm.stopPrank();
 
         vm.startPrank(user2);
         testToken.approve(address(depositManager), 2 ether);
-        depositManager.depositToken(channelId, address(testToken), 2 ether, bytes32(uint256(456)));
+        depositManager.depositToken(channelId, 2 ether, bytes32(uint256(456)));
         vm.stopPrank();
 
         vm.startPrank(user3);
         testToken.approve(address(depositManager), 3 ether);
-        depositManager.depositToken(channelId, address(testToken), 3 ether, bytes32(uint256(789)));
+        depositManager.depositToken(channelId, 3 ether, bytes32(uint256(789)));
         vm.stopPrank();
     }
 }

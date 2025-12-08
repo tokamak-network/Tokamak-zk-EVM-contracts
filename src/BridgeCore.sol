@@ -19,7 +19,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     }
 
     struct ChannelParams {
-        address[] allowedTokens;
+        address targetContract;
         address[] participants;
         uint256 timeout;
     }
@@ -27,6 +27,12 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     struct TargetContract {
         address contractAddress;
         bytes1 storageSlot;
+    }
+
+    struct PreAllocatedLeaf {
+        bytes32 key;
+        uint256 value;
+        bool isActive;
     }
 
     struct RegisteredFunction {
@@ -38,13 +44,13 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
     struct Channel {
         uint256 id;
-        address[] allowedTokens;
-        mapping(address => mapping(address => uint256)) tokenDeposits;
-        mapping(address => uint256) tokenTotalDeposits;
+        address targetContract;
+        mapping(address => uint256) userDeposits;
+        uint256 totalDeposits;
         bytes32 initialStateRoot;
         bytes32 finalStateRoot;
         address[] participants;
-        mapping(address => mapping(address => uint256)) l2MptKeys;
+        mapping(address => uint256) l2MptKeys;
         mapping(address => bool) isParticipant;
         ChannelState state;
         uint256 openTimestamp;
@@ -52,13 +58,14 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         uint256 timeout;
         address leader;
         mapping(address => bool) hasWithdrawn;
-        mapping(address => mapping(address => uint256)) withdrawAmount;
+        mapping(address => uint256) withdrawAmount;
         uint256 pkx;
         uint256 pky;
         address signerAddr;
         bool sigVerified;
         uint256 requiredTreeSize;
         bytes32 blockInfosHash;
+        uint256 preAllocatedLeavesCount;
     }
 
     uint256 public constant MIN_PARTICIPANTS = 1;
@@ -76,13 +83,17 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         address proofManager;
         address withdrawManager;
         address adminManager;
+        mapping(address => mapping(bytes32 => PreAllocatedLeaf)) preAllocatedLeaves;
+        mapping(address => bytes32[]) targetContractPreAllocatedKeys;
     }
 
     bytes32 private constant BridgeCoreStorageLocation =
         0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a00;
 
-    event ChannelOpened(uint256 indexed channelId, address[] allowedTokens);
+    event ChannelOpened(uint256 indexed channelId, address targetContract);
     event ChannelPublicKeySet(uint256 indexed channelId, uint256 pkx, uint256 pky, address signerAddr);
+    event PreAllocatedLeafSet(address indexed targetContract, bytes32 indexed mptKey, uint256 value);
+    event PreAllocatedLeafRemoved(address indexed targetContract, bytes32 indexed mptKey);
 
     modifier onlyManager() {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
@@ -123,32 +134,24 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function openChannel(ChannelParams calldata params) external returns (uint256 channelId) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
-        require(!$.isChannelLeader[msg.sender], "Channel limit reached");
-        require(params.allowedTokens.length > 0, "Must specify at least one token");
-        require(params.allowedTokens.length <= 64, "Maximum 64 tokens allowed");
+        //disabled for testing
+        //require(!$.isChannelLeader[msg.sender], "Channel limit reached");
+        require(params.targetContract != address(0), "Target contract cannot be zero address");
+        require($.isTargetContractAllowed[params.targetContract], "Target contract not allowed");
         require(params.timeout >= 1 hours && params.timeout <= 365 days, "Invalid timeout");
 
-        uint256 requiredTreeSize = determineTreeSize(params.participants.length, params.allowedTokens.length);
-
+        // Get number of pre-allocated leaves for this target contract
+        uint256 preAllocatedCount = $.targetContractPreAllocatedKeys[params.targetContract].length;
+        
+        // Calculate maximum allowed participants considering pre-allocated leaves
+        uint256 maxAllowedParticipants = MAX_PARTICIPANTS - preAllocatedCount;
+        
         require(
-            params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= MAX_PARTICIPANTS,
-            "Invalid participant count"
+            params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= maxAllowedParticipants,
+            "Invalid participant count considering pre-allocated leaves"
         );
 
-        for (uint256 i = 0; i < params.allowedTokens.length;) {
-            address token = params.allowedTokens[i];
-            require($.isTargetContractAllowed[token], "Token not allowed");
-
-            for (uint256 j = i + 1; j < params.allowedTokens.length;) {
-                require(params.allowedTokens[j] != token, "Duplicate token");
-                unchecked {
-                    ++j;
-                }
-            }
-            unchecked {
-                ++i;
-            }
-        }
+        uint256 requiredTreeSize = determineTreeSize(params.participants.length + preAllocatedCount, 1);
 
         unchecked {
             channelId = $.nextChannelId++;
@@ -158,19 +161,13 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         Channel storage channel = $.channels[channelId];
 
         channel.id = channelId;
+        channel.targetContract = params.targetContract;
         channel.leader = msg.sender;
         channel.openTimestamp = block.timestamp;
         channel.timeout = params.timeout;
         channel.state = ChannelState.Initialized;
         channel.requiredTreeSize = requiredTreeSize;
-
-        uint256 tokensLength = params.allowedTokens.length;
-        for (uint256 i = 0; i < tokensLength;) {
-            channel.allowedTokens.push(params.allowedTokens[i]);
-            unchecked {
-                ++i;
-            }
-        }
+        channel.preAllocatedLeavesCount = preAllocatedCount;
 
         uint256 participantsLength = params.participants.length;
         for (uint256 i = 0; i < participantsLength;) {
@@ -184,7 +181,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
             }
         }
 
-        emit ChannelOpened(channelId, params.allowedTokens);
+        emit ChannelOpened(channelId, params.targetContract);
     }
 
     function setChannelPublicKey(uint256 channelId, uint256 pkx, uint256 pky) external {
@@ -205,35 +202,35 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     }
 
     // Manager setter functions
-    function updateChannelTokenDeposits(uint256 channelId, address token, address participant, uint256 amount)
+    function updateChannelUserDeposits(uint256 channelId, address participant, uint256 amount)
         external
         onlyManager
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        $.channels[channelId].tokenDeposits[token][participant] += amount;
+        $.channels[channelId].userDeposits[participant] += amount;
     }
 
-    function updateChannelTotalDeposits(uint256 channelId, address token, uint256 amount) external onlyManager {
+    function updateChannelTotalDeposits(uint256 channelId, uint256 amount) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        $.channels[channelId].tokenTotalDeposits[token] += amount;
+        $.channels[channelId].totalDeposits += amount;
     }
 
-    function setChannelL2MptKey(uint256 channelId, address participant, address token, uint256 mptKey)
+    function setChannelL2MptKey(uint256 channelId, address participant, uint256 mptKey)
         external
         onlyManager
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
         
-        // Check if the mptKey is already used by another participant for the same token
+        // Check if the mptKey is already used by another participant
         for (uint256 i = 0; i < channel.participants.length; i++) {
             address existingParticipant = channel.participants[i];
-            if (existingParticipant != participant && channel.l2MptKeys[existingParticipant][token] == mptKey && mptKey != 0) {
+            if (existingParticipant != participant && channel.l2MptKeys[existingParticipant] == mptKey && mptKey != 0) {
                 revert("L2MPTKey already in use by another participant");
             }
         }
         
-        channel.l2MptKeys[participant][token] = mptKey;
+        channel.l2MptKeys[participant] = mptKey;
     }
 
     function setChannelInitialStateRoot(uint256 channelId, bytes32 stateRoot) external onlyManager {
@@ -257,19 +254,15 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function setChannelWithdrawAmounts(
         uint256 channelId,
         address[] memory participants,
-        address[] memory tokens,
-        uint256[][] memory amounts
+        uint256[] memory amounts
     ) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
 
         for (uint256 participantIdx = 0; participantIdx < participants.length; participantIdx++) {
             address participant = participants[participantIdx];
-            for (uint256 tokenIdx = 0; tokenIdx < tokens.length; tokenIdx++) {
-                address token = tokens[tokenIdx];
-                uint256 finalBalance = amounts[participantIdx][tokenIdx];
-                channel.withdrawAmount[token][participant] = finalBalance;
-            }
+            uint256 finalBalance = amounts[participantIdx];
+            channel.withdrawAmount[participant] = finalBalance;
         }
     }
 
@@ -317,9 +310,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         $.channels[channelId].hasWithdrawn[participant] = true;
     }
 
-    function clearWithdrawableAmount(uint256 channelId, address participant, address token) external onlyManager {
+    function clearWithdrawableAmount(uint256 channelId, address participant) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        $.channels[channelId].withdrawAmount[token][participant] = 0;
+        $.channels[channelId].withdrawAmount[participant] = 0;
     }
 
     function setChannelCloseTimestamp(uint256 channelId, uint256 timestamp) external onlyManager {
@@ -332,6 +325,121 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         $.channels[channelId].blockInfosHash = blockInfosHash;
     }
 
+    // ========== PRE-ALLOCATED LEAVES MANAGEMENT ==========
+
+    /**
+     * @notice Set a pre-allocated leaf value for a target contract
+     * @dev Only managers can call this function
+     * @param targetContract The target contract address
+     * @param key The MPT key for the pre-allocated leaf
+     * @param value The value for the pre-allocated leaf
+     */
+    function setPreAllocatedLeaf(address targetContract, bytes32 key, uint256 value) external onlyManager {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        
+        require($.isTargetContractAllowed[targetContract], "Target contract not allowed");
+        require(key != bytes32(0), "MPT key cannot be zero");
+
+        PreAllocatedLeaf storage leaf = $.preAllocatedLeaves[targetContract][key];
+        
+        // If this is a new pre-allocated leaf, add it to the keys array
+        if (!leaf.isActive) {
+            $.targetContractPreAllocatedKeys[targetContract].push(key);
+        }
+        
+        leaf.key = key;
+        leaf.value = value;
+        leaf.isActive = true;
+
+        emit PreAllocatedLeafSet(targetContract, key, value);
+    }
+
+    /**
+     * @notice Remove a pre-allocated leaf for a target contract
+     * @dev Only managers can call this function
+     * @param targetContract The target contract address
+     * @param key The MPT key to remove
+     */
+    function removePreAllocatedLeaf(address targetContract, bytes32 key) external onlyManager {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        
+        PreAllocatedLeaf storage leaf = $.preAllocatedLeaves[targetContract][key];
+        require(leaf.isActive, "Pre-allocated leaf does not exist");
+
+        // Remove from the keys array
+        bytes32[] storage keys = $.targetContractPreAllocatedKeys[targetContract];
+        for (uint256 i = 0; i < keys.length; i++) {
+            if (keys[i] == key) {
+                keys[i] = keys[keys.length - 1];
+                keys.pop();
+                break;
+            }
+        }
+
+        // Remove the leaf
+        delete $.preAllocatedLeaves[targetContract][key];
+
+        emit PreAllocatedLeafRemoved(targetContract, key);
+    }
+
+    /**
+     * @notice Get a pre-allocated leaf value
+     * @param targetContract The target contract address
+     * @param key The MPT key
+     * @return value The value of the pre-allocated leaf
+     * @return exists Whether the leaf exists
+     */
+    function getPreAllocatedLeaf(address targetContract, bytes32 key) 
+        external 
+        view 
+        returns (uint256 value, bool exists) 
+    {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        PreAllocatedLeaf storage leaf = $.preAllocatedLeaves[targetContract][key];
+        return (leaf.value, leaf.isActive);
+    }
+
+    /**
+     * @notice Get all pre-allocated MPT keys for a target contract
+     * @param targetContract The target contract address
+     * @return keys Array of MPT keys
+     */
+    function getPreAllocatedKeys(address targetContract) external view returns (bytes32[] memory keys) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.targetContractPreAllocatedKeys[targetContract];
+    }
+
+    /**
+     * @notice Get the number of pre-allocated leaves for a target contract
+     * @param targetContract The target contract address
+     * @return count Number of pre-allocated leaves
+     */
+    function getPreAllocatedLeavesCount(address targetContract) external view returns (uint256 count) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.targetContractPreAllocatedKeys[targetContract].length;
+    }
+
+    /**
+     * @notice Get maximum allowed participants for a target contract considering pre-allocated leaves
+     * @param targetContract The target contract address
+     * @return maxParticipants Maximum number of participants allowed
+     */
+    function getMaxAllowedParticipants(address targetContract) external view returns (uint256 maxParticipants) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        uint256 preAllocatedCount = $.targetContractPreAllocatedKeys[targetContract].length;
+        return MAX_PARTICIPANTS - preAllocatedCount;
+    }
+
+    /**
+     * @notice Get the number of pre-allocated leaves for a specific channel
+     * @param channelId The channel ID
+     * @return count Number of pre-allocated leaves in the channel
+     */
+    function getChannelPreAllocatedLeavesCount(uint256 channelId) external view returns (uint256 count) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.channels[channelId].preAllocatedLeavesCount;
+    }
+
     // ========== INTERNAL FUNCTIONS ==========
 
     function _getBridgeCoreStorage() internal pure returns (BridgeCoreStorage storage $) {
@@ -340,13 +448,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         }
     }
 
-    function _isTokenAllowed(Channel storage channel, address token) private view returns (bool) {
-        for (uint256 i = 0; i < channel.allowedTokens.length; i++) {
-            if (channel.allowedTokens[i] == token) {
-                return true;
-            }
-        }
-        return false;
+    function _isTargetContractValid(Channel storage channel, address targetContract) private view returns (bool) {
+        return channel.targetContract == targetContract;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -356,8 +459,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return address(uint160(uint256(h)));
     }
 
-    function determineTreeSize(uint256 participantCount, uint256 tokenCount) internal pure returns (uint256) {
-        uint256 totalLeaves = participantCount * tokenCount;
+    function determineTreeSize(uint256 participantCount, uint256 contractCount) internal pure returns (uint256) {
+        uint256 totalLeaves = participantCount * contractCount;
 
         if (totalLeaves <= 16) {
             return 16;
@@ -368,7 +471,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         } else if (totalLeaves <= 128) {
             return 128;
         } else {
-            revert("Too many participant-token combinations");
+            revert("Too many participant-contract combinations");
         }
     }
 
@@ -399,9 +502,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].isParticipant[participant];
     }
 
-    function isTokenAllowedInChannel(uint256 channelId, address token) external view returns (bool) {
+    function getChannelTargetContract(uint256 channelId) external view returns (address) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return _isTokenAllowed($.channels[channelId], token);
+        return $.channels[channelId].targetContract;
     }
 
     function getChannelLeader(uint256 channelId) external view returns (address) {
@@ -414,33 +517,28 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].participants;
     }
 
-    function getChannelAllowedTokens(uint256 channelId) external view returns (address[] memory) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.channels[channelId].allowedTokens;
-    }
-
     function getChannelTreeSize(uint256 channelId) external view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].requiredTreeSize;
     }
 
-    function getParticipantTokenDeposit(uint256 channelId, address participant, address token)
+    function getParticipantDeposit(uint256 channelId, address participant)
         external
         view
         returns (uint256)
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.channels[channelId].tokenDeposits[token][participant];
+        return $.channels[channelId].userDeposits[participant];
     }
 
-    function getL2MptKey(uint256 channelId, address participant, address token) external view returns (uint256) {
+    function getL2MptKey(uint256 channelId, address participant) external view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.channels[channelId].l2MptKeys[participant][token];
+        return $.channels[channelId].l2MptKeys[participant];
     }
 
-    function getChannelTotalDeposits(uint256 channelId, address token) external view returns (uint256) {
+    function getChannelTotalDeposits(uint256 channelId) external view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.channels[channelId].tokenTotalDeposits[token];
+        return $.channels[channelId].totalDeposits;
     }
 
     function getChannelPublicKey(uint256 channelId) external view returns (uint256 pkx, uint256 pky) {
@@ -497,34 +595,14 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.nextChannelId;
     }
 
-    function getProofManager() external view returns (address) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.proofManager;
-    }
-
-    function getDepositManager() external view returns (address) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.depositManager;
-    }
-
-    function getWithdrawManager() external view returns (address) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.withdrawManager;
-    }
-
-    function getAdminManager() external view returns (address) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.adminManager;
-    }
-
     function getChannelInfo(uint256 channelId)
         external
         view
-        returns (address[] memory allowedTokens, ChannelState state, uint256 participantCount, bytes32 initialRoot)
+        returns (address targetContract, ChannelState state, uint256 participantCount, bytes32 initialRoot)
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
-        return (channel.allowedTokens, channel.state, channel.participants.length, channel.initialStateRoot);
+        return (channel.targetContract, channel.state, channel.participants.length, channel.initialStateRoot);
     }
 
     function isSignatureVerified(uint256 channelId) external view returns (bool) {
@@ -532,13 +610,13 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].sigVerified;
     }
 
-    function getWithdrawableAmount(uint256 channelId, address participant, address token)
+    function getWithdrawableAmount(uint256 channelId, address participant)
         external
         view
         returns (uint256)
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.channels[channelId].withdrawAmount[token][participant];
+        return $.channels[channelId].withdrawAmount[participant];
     }
 
     function hasUserWithdrawn(uint256 channelId, address participant) external view returns (bool) {
@@ -606,52 +684,50 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Get a user's total balance across all channels and tokens
+     * @notice Get a user's total balance across all channels and target contracts
      * @param user The user address
-     * @return tokens Array of token addresses the user has deposited
+     * @return targetContracts Array of target contract addresses the user has deposited to
      * @return balances Array of corresponding balances
      */
     function getUserTotalBalance(address user)
         external
         view
-        returns (address[] memory tokens, uint256[] memory balances)
+        returns (address[] memory targetContracts, uint256[] memory balances)
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
-        // First pass: collect unique tokens
-        address[] memory allTokens = new address[](1000); // Max estimate
-        uint256 tokenCount = 0;
+        // First pass: collect unique target contracts
+        address[] memory allTargetContracts = new address[](1000); // Max estimate
+        uint256 contractCount = 0;
 
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
             if (channel.id > 0 && channel.isParticipant[user]) {
-                for (uint256 j = 0; j < channel.allowedTokens.length; j++) {
-                    address token = channel.allowedTokens[j];
-                    bool isNewToken = true;
-                    for (uint256 k = 0; k < tokenCount; k++) {
-                        if (allTokens[k] == token) {
-                            isNewToken = false;
-                            break;
-                        }
+                address targetContract = channel.targetContract;
+                bool isNewContract = true;
+                for (uint256 k = 0; k < contractCount; k++) {
+                    if (allTargetContracts[k] == targetContract) {
+                        isNewContract = false;
+                        break;
                     }
-                    if (isNewToken) {
-                        allTokens[tokenCount] = token;
-                        tokenCount++;
-                    }
+                }
+                if (isNewContract) {
+                    allTargetContracts[contractCount] = targetContract;
+                    contractCount++;
                 }
             }
         }
 
         // Second pass: calculate balances
-        tokens = new address[](tokenCount);
-        balances = new uint256[](tokenCount);
+        targetContracts = new address[](contractCount);
+        balances = new uint256[](contractCount);
 
-        for (uint256 i = 0; i < tokenCount; i++) {
-            tokens[i] = allTokens[i];
+        for (uint256 i = 0; i < contractCount; i++) {
+            targetContracts[i] = allTargetContracts[i];
             for (uint256 j = 0; j < $.nextChannelId; j++) {
                 Channel storage channel = $.channels[j];
-                if (channel.id > 0 && channel.isParticipant[user]) {
-                    balances[i] += channel.tokenDeposits[user][tokens[i]];
+                if (channel.id > 0 && channel.isParticipant[user] && channel.targetContract == targetContracts[i]) {
+                    balances[i] += channel.userDeposits[user];
                 }
             }
         }
@@ -682,7 +758,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
      * @param user The user address
      * @return totalChannelsJoined Number of channels the user has joined
      * @return activeChannelsCount Number of active channels the user is in
-     * @return totalTokenTypes Number of different token types the user has deposited
+     * @return totalContractTypes Number of different target contract types the user has deposited to
      * @return channelsAsLeader Number of channels where user is the leader
      */
     function getUserAnalytics(address user)
@@ -691,15 +767,15 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         returns (
             uint256 totalChannelsJoined,
             uint256 activeChannelsCount,
-            uint256 totalTokenTypes,
+            uint256 totalContractTypes,
             uint256 channelsAsLeader
         )
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
-        // Track unique tokens
-        address[] memory userTokens = new address[](1000);
-        uint256 tokenCount = 0;
+        // Track unique target contracts
+        address[] memory userContracts = new address[](1000);
+        uint256 contractCount = 0;
 
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
@@ -714,27 +790,25 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
                     channelsAsLeader++;
                 }
 
-                // Count unique tokens
-                for (uint256 j = 0; j < channel.allowedTokens.length; j++) {
-                    address token = channel.allowedTokens[j];
-                    if (channel.tokenDeposits[user][token] > 0) {
-                        bool isNewToken = true;
-                        for (uint256 k = 0; k < tokenCount; k++) {
-                            if (userTokens[k] == token) {
-                                isNewToken = false;
-                                break;
-                            }
+                // Count unique target contracts where user has deposits
+                if (channel.userDeposits[user] > 0) {
+                    address targetContract = channel.targetContract;
+                    bool isNewContract = true;
+                    for (uint256 k = 0; k < contractCount; k++) {
+                        if (userContracts[k] == targetContract) {
+                            isNewContract = false;
+                            break;
                         }
-                        if (isNewToken) {
-                            userTokens[tokenCount] = token;
-                            tokenCount++;
-                        }
+                    }
+                    if (isNewContract) {
+                        userContracts[contractCount] = targetContract;
+                        contractCount++;
                     }
                 }
             }
         }
 
-        totalTokenTypes = tokenCount;
+        totalContractTypes = contractCount;
     }
 
     /**
@@ -788,12 +862,11 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
      * @notice Check if a user can make a deposit
      * @param user The user address
      * @param channelId The channel ID
-     * @param token The token address
      * @param amount The amount to deposit
      * @return canDeposit Whether the user can deposit
      * @return reason Reason if cannot deposit
      */
-    function canUserDeposit(address user, uint256 channelId, address token, uint256 amount)
+    function canUserDeposit(address user, uint256 channelId, uint256 amount)
         external
         view
         returns (bool canDeposit, string memory reason)
@@ -807,10 +880,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         if (!channel.isParticipant[user]) {
             return (false, "User is not a participant in this channel");
-        }
-
-        if (!_isTokenAllowed(channel, token)) {
-            return (false, "Token is not allowed in this channel");
         }
 
         if (channel.state != ChannelState.Open) {
@@ -910,10 +979,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
                 }
 
                 // Calculate TVL for this channel
-                for (uint256 j = 0; j < channel.allowedTokens.length; j++) {
-                    address token = channel.allowedTokens[j];
-                    totalValueLocked += channel.tokenTotalDeposits[token];
-                }
+                totalValueLocked += channel.totalDeposits;
             }
         }
 
@@ -954,20 +1020,12 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         // Count active participants and calculate metrics
         for (uint256 i = 0; i < channel.participants.length; i++) {
             address participant = channel.participants[i];
-            bool hasDeposits = false;
-
-            for (uint256 j = 0; j < channel.allowedTokens.length; j++) {
-                address token = channel.allowedTokens[j];
-                uint256 deposit = channel.tokenDeposits[participant][token];
-                if (deposit > 0) {
-                    hasDeposits = true;
-                    totalDepositValue += deposit;
-                    depositCount++;
-                }
-            }
-
-            if (hasDeposits) {
+            uint256 deposit = channel.userDeposits[participant];
+            
+            if (deposit > 0) {
                 activeParticipants++;
+                totalDepositValue += deposit;
+                depositCount++;
             }
         }
 
@@ -1027,8 +1085,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Search channels by token address
-     * @param token The token address to search for
+     * @notice Search channels by target contract address
+     * @param targetContract The target contract address to search for
      * @param minTotalDeposits Minimum total deposits required
      * @param limit Maximum number of results to return
      * @param offset Offset for pagination
@@ -1036,7 +1094,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
      * @return totalDeposits Array of total deposits for each channel
      * @return totalMatches Total number of matches (for pagination)
      */
-    function searchChannelsByToken(address token, uint256 minTotalDeposits, uint256 limit, uint256 offset)
+    function searchChannelsByTargetContract(address targetContract, uint256 minTotalDeposits, uint256 limit, uint256 offset)
         external
         view
         returns (uint256[] memory channelIds, uint256[] memory totalDeposits, uint256 totalMatches)
@@ -1046,8 +1104,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         // First pass: count matches
         for (uint256 i = 0; i < $.nextChannelId; i++) {
             Channel storage channel = $.channels[i];
-            if (channel.id > 0 && _isTokenAllowed(channel, token)) {
-                if (channel.tokenTotalDeposits[token] >= minTotalDeposits) {
+            if (channel.id > 0 && channel.targetContract == targetContract) {
+                if (channel.totalDeposits >= minTotalDeposits) {
                     totalMatches++;
                 }
             }
@@ -1063,11 +1121,11 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         for (uint256 i = 0; i < $.nextChannelId && resultIndex < resultSize; i++) {
             Channel storage channel = $.channels[i];
-            if (channel.id > 0 && _isTokenAllowed(channel, token)) {
-                if (channel.tokenTotalDeposits[token] >= minTotalDeposits) {
+            if (channel.id > 0 && channel.targetContract == targetContract) {
+                if (channel.totalDeposits >= minTotalDeposits) {
                     if (currentMatch >= offset) {
                         channelIds[resultIndex] = channel.id;
-                        totalDeposits[resultIndex] = channel.tokenTotalDeposits[token];
+                        totalDeposits[resultIndex] = channel.totalDeposits;
                         resultIndex++;
                     }
                     currentMatch++;

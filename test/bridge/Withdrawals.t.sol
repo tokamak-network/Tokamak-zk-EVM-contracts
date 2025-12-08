@@ -194,11 +194,9 @@ contract WithdrawalsTest is Test {
         participants[1] = user2;
         participants[2] = leader;
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
 
         console.log("About to open channel");
         console.log("Leader balance:", leader.balance);
@@ -231,7 +229,7 @@ contract WithdrawalsTest is Test {
         vm.startPrank(user1);
         token.approve(address(depositManager), 2e18);
         console.log("User1 approved tokens");
-        depositManager.depositToken(channelId, address(token), 2e18, bytes32(uint256(10)));
+        depositManager.depositToken(channelId, 2e18, bytes32(uint256(10)));
         console.log("User1 deposited tokens");
         vm.stopPrank();
 
@@ -241,7 +239,7 @@ contract WithdrawalsTest is Test {
         vm.startPrank(user2);
         token.approve(address(depositManager), 500e18);
         console.log("User2 approved tokens");
-        depositManager.depositToken(channelId, address(token), 500e18, bytes32(uint256(20)));
+        depositManager.depositToken(channelId, 500e18, bytes32(uint256(20)));
         console.log("User2 deposited tokens");
         vm.stopPrank();
     }
@@ -274,13 +272,10 @@ contract WithdrawalsTest is Test {
         );
         console.log("Function registered");
 
-        uint256[][] memory finalBalances = new uint256[][](3);
-        finalBalances[0] = new uint256[](1); // user1: [token_amount]
-        finalBalances[0][0] = 102e18; // token balance for user1 (2e18 deposited + 100e18 from scenario)
-        finalBalances[1] = new uint256[](1); // user2: [token_amount]
-        finalBalances[1][0] = 400e18; // token balance for user2 (500e18 - 100e18 transferred to user1)
-        finalBalances[2] = new uint256[](1); // leader: [token_amount]
-        finalBalances[2][0] = 0; // token balance for leader
+        uint256[] memory finalBalances = new uint256[](3);
+        finalBalances[0] = 102e18; // token balance for user1 (2e18 deposited + 100e18 from scenario)
+        finalBalances[1] = 400e18; // token balance for user2 (500e18 - 100e18 transferred to user1)
+        finalBalances[2] = 0; // token balance for leader
 
         uint256[] memory publicInputs = new uint256[](512);
         publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
@@ -330,7 +325,7 @@ contract WithdrawalsTest is Test {
 
         // Debug: Check if user1 is a participant and has withdrawable amount
         console.log("Is user1 participant:", bridge.isChannelParticipant(channelId, user1));
-        console.log("User1 withdrawable tokens:", bridge.getWithdrawableAmount(channelId, user1, address(token)));
+        console.log("User1 withdrawable tokens:", bridge.getWithdrawableAmount(channelId, user1));
         console.log("Channel participants count:", bridge.getChannelParticipants(channelId).length);
 
         // Give withdraw manager tokens for testing
@@ -339,14 +334,14 @@ contract WithdrawalsTest is Test {
         // Test the actual withdraw function
         uint256 initialTokenBalance = token.balanceOf(user1);
         vm.prank(user1);
-        withdrawManager.withdraw(channelId, address(token));
+        withdrawManager.withdraw(channelId);
 
         // User1 should receive tokens
         assertEq(
             token.balanceOf(user1), initialTokenBalance + expectedWithdrawAmount, "Token withdrawal amount incorrect"
         );
         assertEq(
-            bridge.getWithdrawableAmount(channelId, user1, address(token)), 0, "Token withdrawable amount not cleared"
+            bridge.getWithdrawableAmount(channelId, user1), 0, "Token withdrawable amount not cleared"
         );
     }
 
@@ -358,7 +353,7 @@ contract WithdrawalsTest is Test {
         token.mint(address(withdrawManager), 1000e18);
 
         vm.prank(user2);
-        withdrawManager.withdraw(channelId, address(token));
+        withdrawManager.withdraw(channelId);
 
         // User2 should receive tokens
         assertEq(
@@ -367,7 +362,7 @@ contract WithdrawalsTest is Test {
             "Token withdrawal amount incorrect"
         );
         assertEq(
-            bridge.getWithdrawableAmount(channelId, user2, address(token)), 0, "Token withdrawable amount not cleared"
+            bridge.getWithdrawableAmount(channelId, user2), 0, "Token withdrawable amount not cleared"
         );
     }
 
@@ -380,11 +375,9 @@ contract WithdrawalsTest is Test {
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = leader;
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
 
         uint256 openChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -396,7 +389,7 @@ contract WithdrawalsTest is Test {
 
         vm.prank(user1);
         vm.expectRevert("Not closed");
-        withdrawManager.withdraw(openChannelId, address(token));
+        withdrawManager.withdraw(openChannelId);
     }
 
     function testWithdrawFailsNoWithdrawableAmountForToken() public {
@@ -406,19 +399,19 @@ contract WithdrawalsTest is Test {
 
         // First successful withdrawal
         vm.prank(user1);
-        withdrawManager.withdraw(channelId, address(token));
+        withdrawManager.withdraw(channelId);
 
         // Second attempt should fail - no more tokens to withdraw
         vm.prank(user1);
         vm.expectRevert("No withdrawable amount for this token");
-        withdrawManager.withdraw(channelId, address(token));
+        withdrawManager.withdraw(channelId);
     }
 
     function testWithdrawFailsNotParticipant() public {
         address nonParticipant = address(0x999);
         vm.prank(nonParticipant);
         vm.expectRevert("Not a participant");
-        withdrawManager.withdraw(channelId, address(token));
+        withdrawManager.withdraw(channelId);
     }
 
     function testWithdrawOnlyAllowedTokens() public {
@@ -432,7 +425,7 @@ contract WithdrawalsTest is Test {
         uint256 user1InitialTokens = token.balanceOf(user1);
 
         vm.prank(user1);
-        withdrawManager.withdraw(channelId, address(token));
+        withdrawManager.withdraw(channelId);
 
         // Verify user1 received tokens
         assertEq(token.balanceOf(user1), user1InitialTokens + 102e18, "User1 token withdrawal failed");
@@ -444,14 +437,12 @@ contract WithdrawalsTest is Test {
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = leader;
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         vm.startPrank(leader);
         vm.deal(leader, 10 ether);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
 
         uint256 testChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -466,7 +457,7 @@ contract WithdrawalsTest is Test {
 
         vm.prank(user1);
         vm.expectRevert("No withdrawable amount for this token");
-        withdrawManager.withdraw(testChannelId, address(token));
+        withdrawManager.withdraw(testChannelId);
     }
 
     function _setupEmptyChannel(uint256 testChannelId) internal {
@@ -485,13 +476,10 @@ contract WithdrawalsTest is Test {
 
         // Submit proof with empty balances
 
-        uint256[][] memory emptyBalances = new uint256[][](3);
-        emptyBalances[0] = new uint256[](1);
-        emptyBalances[0][0] = 0; // No withdrawable amount
-        emptyBalances[1] = new uint256[](1);
-        emptyBalances[1][0] = 0; // No withdrawable amount
-        emptyBalances[2] = new uint256[](1);
-        emptyBalances[2][0] = 0; // No withdrawable amount
+        uint256[] memory emptyBalances = new uint256[](3);
+        emptyBalances[0] = 0; // No withdrawable amount
+        emptyBalances[1] = 0; // No withdrawable amount
+        emptyBalances[2] = 0; // No withdrawable amount
 
         uint256[] memory publicInputs = new uint256[](512);
         publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
@@ -538,11 +526,9 @@ contract WithdrawalsTest is Test {
         participants[0] = address(rejector);
         participants[1] = user1;
         participants[2] = leader;
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
 
         uint256 rejectChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -558,7 +544,7 @@ contract WithdrawalsTest is Test {
         // Attempt withdrawal should fail
         vm.prank(address(rejector));
         vm.expectRevert(); // ERC20InsufficientBalance error will be thrown
-        withdrawManager.withdraw(rejectChannelId, address(token));
+        withdrawManager.withdraw(rejectChannelId);
     }
 
     function _setupChannelWithRejector(uint256 testChannelId) internal {
@@ -571,7 +557,7 @@ contract WithdrawalsTest is Test {
         token.mint(rejectorAddr, 1000e18);
         vm.startPrank(rejectorAddr);
         token.approve(address(depositManager), 1e18);
-        depositManager.depositToken(testChannelId, address(token), 1e18, bytes32(uint256(30)));
+        depositManager.depositToken(testChannelId, 1e18, bytes32(uint256(30)));
         vm.stopPrank();
 
         // Fund withdraw manager for the transfer
@@ -596,13 +582,10 @@ contract WithdrawalsTest is Test {
 
         // Submit proof with balance for rejector
 
-        uint256[][] memory balances = new uint256[][](3);
-        balances[0] = new uint256[](1);
-        balances[0][0] = 1 ether; // Rejector has 1 ETH to withdraw
-        balances[1] = new uint256[](1);
-        balances[1][0] = 0; // user1 has 0 ETH
-        balances[2] = new uint256[](1);
-        balances[2][0] = 0; // leader has 0 ETH
+        uint256[] memory balances = new uint256[](3);
+        balances[0] = 1 ether; // Rejector has 1 ETH to withdraw
+        balances[1] = 0; // user1 has 0 ETH
+        balances[2] = 0; // leader has 0 ETH
 
         uint256[] memory publicInputs = new uint256[](512);
         publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
@@ -645,21 +628,21 @@ contract WithdrawalsTest is Test {
         // User1 withdraws all tokens
         uint256 user1InitialTokens = token.balanceOf(user1);
         vm.prank(user1);
-        withdrawManager.withdraw(channelId, address(token));
+        withdrawManager.withdraw(channelId);
         assertEq(token.balanceOf(user1), user1InitialTokens + 102e18, "User1 token withdrawal failed");
 
         // User2 withdraws all tokens
         uint256 user2InitialTokens = token.balanceOf(user2);
         vm.prank(user2);
-        withdrawManager.withdraw(channelId, address(token));
+        withdrawManager.withdraw(channelId);
         assertEq(token.balanceOf(user2), user2InitialTokens + 400e18, "User2 token withdrawal failed");
 
         // Both users should have no more withdrawable tokens
         assertEq(
-            bridge.getWithdrawableAmount(channelId, user1, address(token)), 0, "User1 withdrawable amount not cleared"
+            bridge.getWithdrawableAmount(channelId, user1), 0, "User1 withdrawable amount not cleared"
         );
         assertEq(
-            bridge.getWithdrawableAmount(channelId, user2, address(token)), 0, "User2 withdrawable amount not cleared"
+            bridge.getWithdrawableAmount(channelId, user2), 0, "User2 withdrawable amount not cleared"
         );
     }
 
@@ -677,11 +660,9 @@ contract WithdrawalsTest is Test {
         participants[0] = zeroUser;
         participants[1] = user1;
         participants[2] = leader;
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
 
         uint256 zeroChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -695,7 +676,7 @@ contract WithdrawalsTest is Test {
 
         vm.prank(zeroUser);
         vm.expectRevert("No withdrawable amount for this token");
-        withdrawManager.withdraw(zeroChannelId, address(token));
+        withdrawManager.withdraw(zeroChannelId);
     }
 
     function _wrapProofInArray(BridgeProofManager.ProofData memory proof)

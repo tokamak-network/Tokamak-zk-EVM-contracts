@@ -403,10 +403,10 @@ contract DeployV2Script is Script {
     }
 
     function _configureTONContract(address adminManagerAddress) internal {
-        // WTON contract address
+        // TON contract address
         address tonAddress = 0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
 
-        // WTON preprocess data from WTON_preprocess.json
+        // TON preprocess data from WTON_preprocess.json
         uint128[] memory tonPreprocessedPart1 = new uint128[](4);
         tonPreprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
         tonPreprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
@@ -421,13 +421,17 @@ contract DeployV2Script is Script {
 
         BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(tonAddress, bytes1(0x00), true);
 
-        // Register WTON transfer function
+        // Setup TON pre-allocated leaf for decimals (slot 0x07 with value 18)
+        BridgeAdminManager(adminManagerAddress).setupTonTransferPreAllocatedLeaf(tonAddress);
+
+        // Register TON transfer function
         bytes32 tonTransferSig = keccak256("transferTON(address,uint256)");
         BridgeAdminManager(adminManagerAddress).registerFunction(
             tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2, keccak256("ton_instance_hash")
         );
 
         console.log("TON target contract configured:", tonAddress);
+        console.log("TON pre-allocated leaf (0x07 decimals) configured for:", tonAddress);
     }
 
     function _configureUSDTContract(address adminManagerAddress) internal {

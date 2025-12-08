@@ -98,53 +98,60 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         require(bridge.isChannelPublicKeySet(channelId), "Channel leader must set public key first");
 
         address[] memory participants = bridge.getChannelParticipants(channelId);
-        address[] memory allowedTokens = bridge.getChannelAllowedTokens(channelId);
+        address targetContract = bridge.getChannelTargetContract(channelId);
         uint256 treeSize = bridge.getChannelTreeSize(channelId);
+        uint256 preAllocatedCount = bridge.getChannelPreAllocatedLeavesCount(channelId);
 
-        uint256 totalEntries = participants.length * allowedTokens.length;
-        require(totalEntries <= treeSize, "Too many participant-token combinations for circuit");
+        uint256 totalEntries = participants.length + preAllocatedCount;
+        require(totalEntries <= treeSize, "Too many entries for circuit");
 
         uint256 publicSignalsLength = treeSize * 2 + 1;
         uint256[] memory publicSignals = new uint256[](publicSignalsLength);
 
         publicSignals[0] = uint256(proof.merkleRoot);
 
-        uint256 entryIndex = 0;
-        for (uint256 j = 0; j < allowedTokens.length;) {
-            address token = allowedTokens[j];
+        uint256 currentIndex = 1; // Start after merkle root
 
-            for (uint256 i = 0; i < participants.length;) {
-                address l1Address = participants[i];
-                uint256 balance = bridge.getParticipantTokenDeposit(channelId, l1Address, token);
-                uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address, token);
-
-                if (balance > 0) {
-                    require(l2MptKey != 0, "Participant MPT key not set for token");
+        // Add pre-allocated leaves data FIRST
+        if (preAllocatedCount > 0) {
+            bytes32[] memory preAllocatedKeys = bridge.getPreAllocatedKeys(targetContract);
+            for (uint256 i = 0; i < preAllocatedKeys.length; i++) {
+                bytes32 key = preAllocatedKeys[i];
+                (uint256 value, bool exists) = bridge.getPreAllocatedLeaf(targetContract, key);
+                
+                if (exists) {
+                    uint256 modedKey = uint256(key) % R_MOD;
+                    uint256 modedValue = value % R_MOD;
+                    
+                    publicSignals[currentIndex] = modedKey;
+                    publicSignals[currentIndex + treeSize] = modedValue;
+                    currentIndex++;
                 }
-
-                uint256 modedL2MptKey = l2MptKey % R_MOD;
-                uint256 modedBalance = balance % R_MOD;
-
-                publicSignals[entryIndex + 1] = modedL2MptKey;
-                publicSignals[entryIndex + 1 + treeSize] = modedBalance;
-
-                unchecked {
-                    ++i;
-                    ++entryIndex;
-                }
-            }
-
-            unchecked {
-                ++j;
             }
         }
 
-        for (uint256 i = totalEntries; i < treeSize;) {
-            publicSignals[i + 1] = 0;
-            publicSignals[i + 1 + treeSize] = 0;
-            unchecked {
-                ++i;
+        // Add participant data AFTER pre-allocated leaves
+        for (uint256 i = 0; i < participants.length; i++) {
+            address l1Address = participants[i];
+            uint256 balance = bridge.getParticipantDeposit(channelId, l1Address);
+            uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address);
+
+            if (balance > 0) {
+                require(l2MptKey != 0, "Participant MPT key not set");
             }
+
+            uint256 modedL2MptKey = l2MptKey % R_MOD;
+            uint256 modedBalance = balance % R_MOD;
+
+            publicSignals[currentIndex] = modedL2MptKey;
+            publicSignals[currentIndex + treeSize] = modedBalance;
+            currentIndex++;
+        }
+
+        // Fill remaining entries with zeros
+        for (uint256 i = currentIndex; i <= treeSize; i++) {
+            publicSignals[i] = 0;
+            publicSignals[i + treeSize] = 0;
         }
 
         bool proofValid = verifyGroth16Proof(
@@ -282,69 +289,74 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
     function verifyFinalBalancesGroth16(
         uint256 channelId,
-        uint256[][] calldata finalBalances,
+        uint256[] calldata finalBalances,
         ChannelFinalizationProof calldata groth16Proof
     ) external {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Closing, "Invalid state");
         require(bridge.isSignatureVerified(channelId), "signature not verified");
 
         address[] memory participants = bridge.getChannelParticipants(channelId);
-        address[] memory allowedTokens = bridge.getChannelAllowedTokens(channelId);
-
         require(finalBalances.length == participants.length, "Invalid final balances length");
 
-        for (uint256 i = 0; i < finalBalances.length; i++) {
-            require(finalBalances[i].length == allowedTokens.length, "Invalid token balances length");
+        // Validate balance conservation for the single target contract
+        uint256 totalFinalBalance = 0;
+        for (uint256 participantIdx = 0; participantIdx < participants.length; participantIdx++) {
+            totalFinalBalance += finalBalances[participantIdx];
         }
 
-        // Validate token balance conservation
-        for (uint256 tokenIdx = 0; tokenIdx < allowedTokens.length; tokenIdx++) {
-            address token = allowedTokens[tokenIdx];
-            uint256 totalFinalBalance = 0;
-
-            for (uint256 participantIdx = 0; participantIdx < participants.length; participantIdx++) {
-                totalFinalBalance += finalBalances[participantIdx][tokenIdx];
-            }
-
-            uint256 totalDeposited = bridge.getChannelTotalDeposits(channelId, token);
-            require(totalFinalBalance == totalDeposited, "Balance conservation violated for token");
-        }
+        uint256 totalDeposited = bridge.getChannelTotalDeposits(channelId);
+        require(totalFinalBalance == totalDeposited, "Balance conservation violated");
 
         // Step 1: Get the final state root stored
         bytes32 finalStateRoot = bridge.getChannelFinalStateRoot(channelId);
 
-        // Step 2: Get each participant's L2MPTkey for each token
+        // Step 2: Get tree size and target contract
         uint256 treeSize = bridge.getChannelTreeSize(channelId);
+        address targetContract = bridge.getChannelTargetContract(channelId);
+        uint256 preAllocatedCount = bridge.getPreAllocatedLeavesCount(targetContract);
+        
         uint256[] memory publicSignals = new uint256[](1 + 2 * treeSize);
 
         // Set final state root as first public signal
         publicSignals[0] = uint256(finalStateRoot);
 
-        // Step 4: Construct the publicSignals for the Groth16 verifier
-        uint256 entryIndex = 0;
+        uint256 currentIndex = 1;
+
+        // Step 3: Add pre-allocated leaves data FIRST
+        if (preAllocatedCount > 0) {
+            bytes32[] memory preAllocatedKeys = bridge.getPreAllocatedKeys(targetContract);
+            for (uint256 i = 0; i < preAllocatedKeys.length; i++) {
+                bytes32 key = preAllocatedKeys[i];
+                (uint256 value, bool exists) = bridge.getPreAllocatedLeaf(targetContract, key);
+                require(exists, "Pre-allocated leaf not found");
+                
+                // Set pre-allocated MPT key and value
+                publicSignals[currentIndex] = uint256(key);
+                publicSignals[currentIndex + treeSize] = value;
+                currentIndex++;
+            }
+        }
+
+        // Step 4: Add participant data AFTER pre-allocated leaves
         for (uint256 i = 0; i < participants.length; i++) {
             address participant = participants[i];
 
-            for (uint256 j = 0; j < allowedTokens.length; j++) {
-                address token = allowedTokens[j];
+            // Get L2 MPT key for this participant
+            uint256 l2MptKey = bridge.getL2MptKey(channelId, participant);
 
-                // Get L2 MPT key for this participant-token pair
-                uint256 l2MptKey = bridge.getL2MptKey(channelId, participant, token);
-
-                if (entryIndex < treeSize) {
-                    // Set L2 MPT key
-                    publicSignals[1 + entryIndex] = l2MptKey;
-                    // Set final balance
-                    publicSignals[1 + treeSize + entryIndex] = finalBalances[i][j];
-                    entryIndex++;
-                }
+            if (currentIndex < treeSize + 1) {
+                // Set L2 MPT key
+                publicSignals[currentIndex] = l2MptKey;
+                // Set final balance
+                publicSignals[currentIndex + treeSize] = finalBalances[i];
+                currentIndex++;
             }
         }
 
         // Fill remaining entries with zero
-        for (uint256 i = entryIndex; i < treeSize; i++) {
-            publicSignals[1 + i] = 0;
-            publicSignals[1 + treeSize + i] = 0;
+        for (uint256 i = currentIndex; i < treeSize + 1; i++) {
+            publicSignals[i] = 0;
+            publicSignals[i + treeSize] = 0;
         }
 
         // Step 5: Verify the groth16 proof passed as a parameter
@@ -364,7 +376,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         require(proofValid, "Invalid Groth16 proof");
 
         // Set withdraw amounts if proof is valid
-        bridge.setChannelWithdrawAmounts(channelId, participants, allowedTokens, finalBalances);
+        bridge.setChannelWithdrawAmounts(channelId, participants, finalBalances);
         bridge.setChannelCloseTimestamp(channelId, block.timestamp);
         bridge.setChannelState(channelId, IBridgeCore.ChannelState.Closed);
 

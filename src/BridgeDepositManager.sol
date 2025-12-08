@@ -22,8 +22,6 @@ contract BridgeDepositManager is
 
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    address public constant ETH_TOKEN_ADDRESS = address(1);
-
     IBridgeCore public bridge;
 
     event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
@@ -43,25 +41,27 @@ contract BridgeDepositManager is
         bridge = IBridgeCore(_bridgeCore);
     }
 
-    function depositToken(uint256 _channelId, address _token, uint256 _amount, bytes32 _mptKey) external nonReentrant {
+    function depositToken(uint256 _channelId, uint256 _amount, bytes32 _mptKey) external nonReentrant {
         require(
             bridge.getChannelState(_channelId) == IBridgeCore.ChannelState.Initialized,
             "Invalid channel state"
         );
         require(bridge.isChannelParticipant(_channelId, msg.sender), "Not a participant");
         require(bridge.isChannelPublicKeySet(_channelId), "Channel leader must set public key first");
-        require(_token != ETH_TOKEN_ADDRESS, "Use depositETH for ETH deposits");
-        require(bridge.isTokenAllowedInChannel(_channelId, _token), "Token not allowed in this channel");
         require(_mptKey != bytes32(0), "Invalid MPT key");
         require(_amount != 0, "amount must be greater than 0");
 
-        uint256 userBalance = IERC20Upgradeable(_token).balanceOf(msg.sender);
+        address targetContract = bridge.getChannelTargetContract(_channelId);
+        require(targetContract != address(0), "Invalid target contract");
+        require(bridge.isAllowedTargetContract(targetContract), "Target contract not allowed");
+
+        uint256 userBalance = IERC20Upgradeable(targetContract).balanceOf(msg.sender);
         require(
             userBalance >= _amount,
             string(abi.encodePacked("Insufficient token balance: ", toString(userBalance), " < ", toString(_amount)))
         );
 
-        uint256 userAllowance = IERC20Upgradeable(_token).allowance(msg.sender, address(this));
+        uint256 userAllowance = IERC20Upgradeable(targetContract).allowance(msg.sender, address(this));
         require(
             userAllowance >= _amount,
             string(
@@ -69,17 +69,17 @@ contract BridgeDepositManager is
             )
         );
 
-        uint256 balanceBefore = IERC20Upgradeable(_token).balanceOf(address(this));
-        IERC20Upgradeable(_token).safeTransferFrom(msg.sender, address(this), _amount);
-        uint256 balanceAfter = IERC20Upgradeable(_token).balanceOf(address(this));
+        uint256 balanceBefore = IERC20Upgradeable(targetContract).balanceOf(address(this));
+        IERC20Upgradeable(targetContract).safeTransferFrom(msg.sender, address(this), _amount);
+        uint256 balanceAfter = IERC20Upgradeable(targetContract).balanceOf(address(this));
         uint256 actualAmount = balanceAfter - balanceBefore;
         require(actualAmount > 0, "No tokens transferred");
 
-        bridge.setChannelL2MptKey(_channelId, msg.sender, _token, uint256(_mptKey));
-        bridge.updateChannelTokenDeposits(_channelId, _token, msg.sender, actualAmount);
-        bridge.updateChannelTotalDeposits(_channelId, _token, actualAmount);
+        bridge.setChannelL2MptKey(_channelId, msg.sender, uint256(_mptKey));
+        bridge.updateChannelUserDeposits(_channelId, msg.sender, actualAmount);
+        bridge.updateChannelTotalDeposits(_channelId, actualAmount);
 
-        emit Deposited(_channelId, msg.sender, _token, actualAmount);
+        emit Deposited(_channelId, msg.sender, targetContract, actualAmount);
     }
 
     function updateBridge(address _newBridge) external onlyOwner {

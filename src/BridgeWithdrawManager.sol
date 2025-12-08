@@ -46,21 +46,23 @@ contract BridgeWithdrawManager is
         bridge = IBridgeCore(_bridgeCore);
     }
 
-    function withdraw(uint256 channelId, address token) external nonReentrant {
+    function withdraw(uint256 channelId) external nonReentrant {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Closed, "Not closed");
         require(bridge.isChannelParticipant(channelId, msg.sender), "Not a participant");
-        require(bridge.isTokenAllowedInChannel(channelId, token), "Token not allowed in channel");
 
-        uint256 withdrawAmount = bridge.getWithdrawableAmount(channelId, msg.sender, token);
-        require(withdrawAmount > 0, "No withdrawable amount for this token");
+        address targetContract = bridge.getChannelTargetContract(channelId);
+        require(targetContract != address(0), "Invalid target contract");
 
-        // Clear the withdrawable amount for this specific token
-        bridge.clearWithdrawableAmount(channelId, msg.sender, token);
+        uint256 withdrawAmount = bridge.getWithdrawableAmount(channelId, msg.sender);
+        require(withdrawAmount > 0, "No withdrawable amount");
+
+        // Clear the withdrawable amount
+        bridge.clearWithdrawableAmount(channelId, msg.sender);
 
         // Transfer the token
-        IERC20Upgradeable(token).safeTransfer(msg.sender, withdrawAmount);
+        IERC20Upgradeable(targetContract).safeTransfer(msg.sender, withdrawAmount);
 
-        emit Withdrawn(channelId, msg.sender, token, withdrawAmount);
+        emit Withdrawn(channelId, msg.sender, targetContract, withdrawAmount);
     }
 
     function updateBridge(address _newBridge) external onlyOwner {

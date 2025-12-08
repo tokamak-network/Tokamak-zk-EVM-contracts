@@ -70,17 +70,6 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         emit FunctionUnregistered(functionSignature);
     }
 
-    function setTreasuryAddress(address _treasury) external onlyOwner {
-        require(_treasury != address(0), "Treasury cannot be zero address");
-
-        // Get current treasury address for event
-        // This would need to be implemented to get the old treasury address
-        address oldTreasury = address(0); // Placeholder
-
-        bridge.setTreasuryAddress(_treasury);
-        emit TreasuryAddressUpdated(oldTreasury, _treasury);
-    }
-
     function getRegisteredFunction(bytes32 functionSignature)
         external
         view
@@ -104,6 +93,73 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
     function updateBridge(address _newBridge) external onlyOwner {
         require(_newBridge != address(0), "Invalid bridge address");
         bridge = IBridgeCore(_newBridge);
+    }
+
+    // ========== PRE-ALLOCATED LEAVES MANAGEMENT ==========
+
+    /**
+     * @notice Set a pre-allocated leaf for a target contract
+     * @param targetContract The target contract address
+     * @param key The MPT key for the pre-allocated leaf
+     * @param value The value for the pre-allocated leaf
+     */
+    function setPreAllocatedLeaf(address targetContract, bytes32 key, uint256 value) external onlyOwner {
+        bridge.setPreAllocatedLeaf(targetContract, key, value);
+    }
+
+    /**
+     * @notice Remove a pre-allocated leaf for a target contract
+     * @param targetContract The target contract address
+     * @param key The MPT key to remove
+     */
+    function removePreAllocatedLeaf(address targetContract, bytes32 key) external onlyOwner {
+        bridge.removePreAllocatedLeaf(targetContract, key);
+    }
+
+    /**
+     * @notice Setup TON transfer pre-allocated leaf (convenience function)
+     * @dev Sets up the standard 0x07 slot with decimals value 18 for TON transfers
+     * @param tonContractAddress The TON contract address
+     */
+    function setupTonTransferPreAllocatedLeaf(address tonContractAddress) external onlyOwner {
+        // TON transfer uses slot 0x07 with decimals value 18
+        bytes32 tonDecimalsSlot = bytes32(uint256(0x07));
+        uint256 tonDecimalsValue = 18;
+        
+        bridge.setPreAllocatedLeaf(tonContractAddress, tonDecimalsSlot, tonDecimalsValue);
+    }
+
+    /**
+     * @notice Get pre-allocated leaf information
+     * @param targetContract The target contract address
+     * @param key The key
+     * @return value The value of the pre-allocated leaf
+     * @return exists Whether the leaf exists
+     */
+    function getPreAllocatedLeaf(address targetContract, bytes32 key) 
+        external 
+        view 
+        returns (uint256 value, bool exists) 
+    {
+        return bridge.getPreAllocatedLeaf(targetContract, key);
+    }
+
+    /**
+     * @notice Get all pre-allocated MPT keys for a target contract
+     * @param targetContract The target contract address
+     * @return keys Array of MPT keys
+     */
+    function getPreAllocatedKeys(address targetContract) external view returns (bytes32[] memory keys) {
+        return bridge.getPreAllocatedKeys(targetContract);
+    }
+
+    /**
+     * @notice Get the maximum allowed participants for a target contract
+     * @param targetContract The target contract address
+     * @return maxParticipants Maximum number of participants allowed
+     */
+    function getMaxAllowedParticipants(address targetContract) external view returns (uint256 maxParticipants) {
+        return bridge.getMaxAllowedParticipants(targetContract);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

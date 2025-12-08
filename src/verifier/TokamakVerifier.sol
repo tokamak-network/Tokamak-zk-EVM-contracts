@@ -333,9 +333,7 @@ contract TokamakVerifier is ITokamakVerifier {
 
     // n
     uint256 internal constant CONSTANT_N = 2048;
-    // ω_64
-    uint256 internal constant OMEGA_64 = 0x0e4840ac57f86f5e293b1d67bc8de5d9a12a70a615d0b8e4d2fc5e69ac5db47f;
-    // ω_2048
+    // ω_512
     uint256 internal constant OMEGA_512 = 0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
     // m_i
     uint256 internal constant CONSTANT_MI = 2048;

@@ -408,11 +408,8 @@ contract BridgeCoreTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
-
         return
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
     }
 
     function _createGroth16Proof(bytes32 merkleRoot) internal pure returns (TestChannelInitializationProof memory) {
@@ -467,8 +464,8 @@ contract BridgeCoreTest is Test {
         uint256[] memory proofPart2,
         uint256[] memory publicInputs,
         uint256 smax,
-        uint256[][] memory finalBalances
-    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
+        uint256[] memory finalBalances
+    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[] memory) {
         BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: proofPart1,
             proofPart2: proofPart2,
@@ -501,7 +498,7 @@ contract BridgeCoreTest is Test {
         uint256 smax,
         bytes[] memory, /* initialMPTLeaves */
         bytes[] memory finalMPTLeaves
-    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
+    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[] memory) {
         // Set proper state root values for bridge tests to pass state root chain validation
         _setTestStateRoots(publicInputs);
         return _createProofDataFromMPT(proofPart1, proofPart2, publicInputs, smax, finalMPTLeaves);
@@ -542,29 +539,25 @@ contract BridgeCoreTest is Test {
         uint256[] memory publicInputs,
         uint256 smax,
         bytes[] memory finalMPTLeaves
-    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
+    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[] memory) {
         // Set proper state root values and function signature for bridge tests
         _setTestStateRoots(publicInputs);
         
 
         // Create final balances array - we'll decode the intended values from the leaf count pattern
         uint256 participantCount = finalMPTLeaves.length;
-        uint256[][] memory finalBalances = new uint256[][](participantCount);
-
-        for (uint256 i = 0; i < participantCount; i++) {
-            finalBalances[i] = new uint256[](1); // Single token (ETH)
-        }
+        uint256[] memory finalBalances = new uint256[](participantCount);
 
         // Simple pattern based on participant count to avoid stack too deep
         if (smax == 6 && participantCount == 3) {
             // testSubmitAggregatedProof expects redistribution (6,0,0)
-            finalBalances[0][0] = 6 ether;
-            finalBalances[1][0] = 0 ether;
-            finalBalances[2][0] = 0 ether;
+            finalBalances[0] = 6 ether;
+            finalBalances[1] = 0 ether;
+            finalBalances[2] = 0 ether;
         } else {
             // Default: each participant gets (i+1) ether to match deposit pattern
             for (uint256 i = 0; i < participantCount; i++) {
-                finalBalances[i][0] = (i + 1) * 1 ether;
+                finalBalances[i] = (i + 1) * 1 ether;
             }
         }
 
@@ -586,18 +579,15 @@ contract BridgeCoreTest is Test {
         uint256[] memory proofPart2,
         uint256[] memory publicInputs,
         uint256 smax
-    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[][] memory) {
+    ) internal pure returns (BridgeProofManager.ProofData memory, uint256[] memory) {
         // Set proper state root values for bridge tests to pass state root chain validation
         _setTestStateRoots(publicInputs);
 
         // Create final balances that violate conservation (total 7 instead of 6)
-        uint256[][] memory finalBalances = new uint256[][](3);
-        for (uint256 i = 0; i < 3; i++) {
-            finalBalances[i] = new uint256[](1);
-        }
-        finalBalances[0][0] = 2 ether; // Total will be 2+2+3=7 ether, violating conservation
-        finalBalances[1][0] = 2 ether;
-        finalBalances[2][0] = 3 ether;
+        uint256[] memory finalBalances = new uint256[](3);
+        finalBalances[0] = 2 ether; // Total will be 2+2+3=7 ether, violating conservation
+        finalBalances[1] = 2 ether;
+        finalBalances[2] = 3 ether;
 
         BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: proofPart1,
@@ -619,11 +609,9 @@ contract BridgeCoreTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -634,11 +622,10 @@ contract BridgeCoreTest is Test {
         assertEq(channelId, 0);
 
         BridgeCore.ChannelState state = bridge.getChannelState(channelId);
-        address[] memory allowedTokensReturned = bridge.getChannelAllowedTokens(channelId);
+        address targetContractReturned = bridge.getChannelTargetContract(channelId);
         address[] memory channelParticipants = bridge.getChannelParticipants(channelId);
 
-        assertEq(allowedTokensReturned.length, 1);
-        assertEq(allowedTokensReturned[0], address(token));
+        assertEq(targetContractReturned, address(token));
         assertEq(uint8(state), uint8(BridgeCore.ChannelState.Initialized));
         assertEq(channelParticipants.length, 3);
 
@@ -658,7 +645,7 @@ contract BridgeCoreTest is Test {
 
         vm.expectEmit(true, true, true, true);
         emit Deposited(channelId, user1, address(token), depositAmount);
-        depositManager.depositToken(channelId, address(token), depositAmount, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId, depositAmount, bytes32(uint256(uint160(l2User1))));
 
         vm.stopPrank();
     }
@@ -670,7 +657,7 @@ contract BridgeCoreTest is Test {
         token.mint(address(999), 1 ether);
         token.approve(address(depositManager), 1 ether);
         vm.expectRevert("Not a participant");
-        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
         vm.stopPrank();
     }
 
@@ -685,7 +672,7 @@ contract BridgeCoreTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Deposited(channelId, user1, address(token), depositAmount);
 
-        depositManager.depositToken(channelId, address(token), depositAmount, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId, depositAmount, bytes32(uint256(uint160(l2User1))));
 
         assertEq(token.balanceOf(address(depositManager)), depositAmount);
 
@@ -700,12 +687,12 @@ contract BridgeCoreTest is Test {
         // Make deposits using DepositManager
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
         vm.stopPrank();
 
         vm.startPrank(user3);
         token.approve(address(depositManager), 3 ether);
-        depositManager.depositToken(channelId, address(token), 3 ether, bytes32(uint256(uint160(l2User3))));
+        depositManager.depositToken(channelId, 3 ether, bytes32(uint256(uint160(l2User3))));
         vm.stopPrank();
 
         // Initialize state
@@ -748,12 +735,12 @@ contract BridgeCoreTest is Test {
         // Make specific deposits - Set 1: [1, 2, 0]
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId1, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId1, 1 ether, bytes32(uint256(uint160(l2User1))));
         vm.stopPrank();
 
         vm.startPrank(user2);
         token.approve(address(depositManager), 2 ether);
-        depositManager.depositToken(channelId1, address(token), 2 ether, bytes32(uint256(uint160(l2User2))));
+        depositManager.depositToken(channelId1, 2 ether, bytes32(uint256(uint160(l2User2))));
         vm.stopPrank();
         // user3 makes no deposit
 
@@ -784,12 +771,12 @@ contract BridgeCoreTest is Test {
         uint256 channelId2 = _createChannelWithLeader(leader2);
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId2, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId2, 1 ether, bytes32(uint256(uint160(l2User1))));
         vm.stopPrank();
 
         vm.startPrank(user2);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId2, address(token), 1 ether, bytes32(uint256(uint160(l2User2)))); // Same amount this time
+        depositManager.depositToken(channelId2, 1 ether, bytes32(uint256(uint160(l2User2)))); // Same amount this time
         vm.stopPrank();
         // user3 makes no deposit
 
@@ -898,7 +885,7 @@ contract BridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (BridgeProofManager.ProofData memory proofData, uint256[][] memory finalBalancesArray) =
+        (BridgeProofManager.ProofData memory proofData, uint256[] memory finalBalancesArray) =
             _createProofDataViolatingConservation(proofPart1, proofPart2, publicInputs, 0);
 
         // submitProof should succeed since it no longer validates final balances
@@ -912,7 +899,7 @@ contract BridgeCoreTest is Test {
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
 
-        vm.expectRevert("Balance conservation violated for token");
+        vm.expectRevert("Balance conservation violated");
         proofManager.verifyFinalBalancesGroth16(channelId, finalBalancesArray, finalizationProof);
     }
 
@@ -939,7 +926,7 @@ contract BridgeCoreTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
 
         vm.prank(leader);
-        (BridgeProofManager.ProofData memory proofData, uint256[][] memory finalBalances) =
+        (BridgeProofManager.ProofData memory proofData, uint256[] memory finalBalances) =
             _createProofDataViolatingConservation(proofPart1, proofPart2, publicInputs, 0);
 
         // submitProof should succeed since it no longer validates final balances
@@ -953,7 +940,7 @@ contract BridgeCoreTest is Test {
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
 
-        vm.expectRevert("Balance conservation violated for token");
+        vm.expectRevert("Balance conservation violated");
         proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
     }
 
@@ -988,11 +975,9 @@ contract BridgeCoreTest is Test {
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId));
 
         // Create a mismatched final balances array (wrong length)
-        uint256[][] memory mismatchedFinalBalances = new uint256[][](2); // Should be 3
-        mismatchedFinalBalances[0] = new uint256[](1);
-        mismatchedFinalBalances[0][0] = 3 ether;
-        mismatchedFinalBalances[1] = new uint256[](1);
-        mismatchedFinalBalances[1][0] = 3 ether;
+        uint256[] memory mismatchedFinalBalances = new uint256[](2); // Should be 3
+        mismatchedFinalBalances[0] = 3 ether;
+        mismatchedFinalBalances[1] = 3 ether;
 
         // verifyFinalBalancesGroth16 should fail with array length error
         BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
@@ -1160,13 +1145,10 @@ contract BridgeCoreTest is Test {
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Closing));
 
         // Prepare final balances for verifyFinalBalancesGroth16
-        uint256[][] memory finalBalances = new uint256[][](3);
-        finalBalances[0] = new uint256[](1); // user1
-        finalBalances[0][0] = 1 ether;
-        finalBalances[1] = new uint256[](1); // user2
-        finalBalances[1][0] = 2 ether;
-        finalBalances[2] = new uint256[](1); // user3 (leader)
-        finalBalances[2][0] = 3 ether;
+        uint256[] memory finalBalances = new uint256[](3);
+        finalBalances[0] = 1 ether; // user1
+        finalBalances[1] = 2 ether; // user2
+        finalBalances[2] = 3 ether; // user3 (leader)
 
         // Create finalization proof
         BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
@@ -1220,13 +1202,10 @@ contract BridgeCoreTest is Test {
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Closing));
 
         // Prepare final balances for verifyFinalBalancesGroth16
-        uint256[][] memory finalBalances = new uint256[][](3);
-        finalBalances[0] = new uint256[](1); // user1
-        finalBalances[0][0] = 1 ether;
-        finalBalances[1] = new uint256[](1); // user2
-        finalBalances[1][0] = 2 ether;
-        finalBalances[2] = new uint256[](1); // user3 (leader)
-        finalBalances[2][0] = 3 ether;
+        uint256[] memory finalBalances = new uint256[](3);
+        finalBalances[0] = 1 ether; // user1
+        finalBalances[1] = 2 ether; // user2
+        finalBalances[2] = 3 ether; // user3 (leader)
 
         // Create finalization proof
         BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
@@ -1252,13 +1231,10 @@ contract BridgeCoreTest is Test {
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Closing));
 
         // Prepare final balances for verifyFinalBalancesGroth16
-        uint256[][] memory finalBalances = new uint256[][](3);
-        finalBalances[0] = new uint256[](1); // user1
-        finalBalances[0][0] = 1 ether;
-        finalBalances[1] = new uint256[](1); // user2
-        finalBalances[1][0] = 2 ether;
-        finalBalances[2] = new uint256[](1); // user3 (leader)
-        finalBalances[2][0] = 3 ether;
+        uint256[] memory finalBalances = new uint256[](3);
+        finalBalances[0] = 1 ether; // user1
+        finalBalances[1] = 2 ether; // user2
+        finalBalances[2] = 3 ether; // user3 (leader)
 
         // Create finalization proof
         BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
@@ -1285,11 +1261,9 @@ contract BridgeCoreTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1310,11 +1284,9 @@ contract BridgeCoreTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1335,11 +1307,9 @@ contract BridgeCoreTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1356,17 +1326,17 @@ contract BridgeCoreTest is Test {
         // Make deposits
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
         vm.stopPrank();
 
         vm.startPrank(user2);
         token.approve(address(depositManager), 2 ether);
-        depositManager.depositToken(channelId, address(token), 2 ether, bytes32(uint256(uint160(l2User2))));
+        depositManager.depositToken(channelId, 2 ether, bytes32(uint256(uint160(l2User2))));
         vm.stopPrank();
 
         vm.startPrank(user3);
         token.approve(address(depositManager), 3 ether);
-        depositManager.depositToken(channelId, address(token), 3 ether, bytes32(uint256(uint160(l2User3))));
+        depositManager.depositToken(channelId, 3 ether, bytes32(uint256(uint160(l2User3))));
         vm.stopPrank();
 
         // Initialize state
@@ -1418,17 +1388,17 @@ contract BridgeCoreTest is Test {
         // Make deposits
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
         vm.stopPrank();
 
         vm.startPrank(user2);
         token.approve(address(depositManager), 2 ether);
-        depositManager.depositToken(channelId, address(token), 2 ether, bytes32(uint256(uint160(l2User2))));
+        depositManager.depositToken(channelId, 2 ether, bytes32(uint256(uint160(l2User2))));
         vm.stopPrank();
 
         vm.startPrank(user3);
         token.approve(address(depositManager), 3 ether);
-        depositManager.depositToken(channelId, address(token), 3 ether, bytes32(uint256(uint160(l2User3))));
+        depositManager.depositToken(channelId, 3 ether, bytes32(uint256(uint160(l2User3))));
         vm.stopPrank();
 
         // Initialize state
@@ -1504,7 +1474,7 @@ contract BridgeCoreTest is Test {
         vm.deal(user1, amount);
         vm.startPrank(user1);
         token.approve(address(depositManager), amount);
-        depositManager.depositToken(channelId, address(token), amount, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId, amount, bytes32(uint256(uint160(l2User1))));
         vm.stopPrank();
     }
 
@@ -1518,11 +1488,9 @@ contract BridgeCoreTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: timeout});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: timeout});
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1542,17 +1510,17 @@ contract BridgeCoreTest is Test {
         // 2. Make deposits
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, address(token), 1 ether, bytes32(uint256(uint160(l2User1))));
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
         vm.stopPrank();
 
         vm.startPrank(user2);
         token.approve(address(depositManager), 2 ether);
-        depositManager.depositToken(channelId, address(token), 2 ether, bytes32(uint256(uint160(l2User2))));
+        depositManager.depositToken(channelId, 2 ether, bytes32(uint256(uint160(l2User2))));
         vm.stopPrank();
 
         vm.startPrank(user3);
         token.approve(address(depositManager), 3 ether);
-        depositManager.depositToken(channelId, address(token), 3 ether, bytes32(uint256(uint160(l2User3))));
+        depositManager.depositToken(channelId, 3 ether, bytes32(uint256(uint160(l2User3))));
         vm.stopPrank();
 
         // 3. Initialize state
@@ -1844,11 +1812,9 @@ contract BridgeCoreTest is Test {
             participants[i] = address(uint160(3 + i)); // Start from address(3)
         }
 
-        address[] memory allowedTokens = new address[](1);
-        allowedTokens[0] = address(token);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
         channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
             channelId,
@@ -1865,7 +1831,7 @@ contract BridgeCoreTest is Test {
 
             vm.startPrank(participants[i]);
             token.approve(address(depositManager), (i + 1) * 1 ether);
-            depositManager.depositToken(channelId, address(token), (i + 1) * 1 ether, bytes32(uint256(13 + i))); // Use different MPT keys
+            depositManager.depositToken(channelId, (i + 1) * 1 ether, bytes32(uint256(13 + i))); // Use different MPT keys
             vm.stopPrank();
         }
 
@@ -1890,119 +1856,6 @@ contract BridgeCoreTest is Test {
         vm.stopPrank();
     }
 
-    // ========== Multi-Token Decimal Test ==========
-
-    function testInitializeChannelStateMultiTokenDifferentDecimals() public {
-        console.log("=== MULTI-TOKEN DIFFERENT DECIMALS TEST ===");
-
-        // Create a channel with 2 tokens (high precision + USDT-like)
-        vm.startPrank(leader);
-
-        address[] memory participants = new address[](3);
-        participants[0] = user1;
-        participants[1] = user2;
-        participants[2] = user3;
-
-        address[] memory allowedTokens = new address[](2);
-        allowedTokens[0] = address(highPrecisionToken);
-        allowedTokens[1] = address(usdtLikeToken);
-
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
-
-        uint256 channelId = bridge.openChannel(params);
-        bridge.setChannelPublicKey(
-            channelId,
-            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
-        );
-        vm.stopPrank();
-
-        // user1 deposits BOTH tokens (as requested in the scenario)
-        vm.startPrank(user1);
-
-        // Define different MPT keys for each token
-        uint256 customMptKeyUint = 6218676549690402052910318315276979534381485872621884367715834658603456243904;
-        bytes32 customMptKey = bytes32(customMptKeyUint);
-        uint256 customMptKeyUint2 = 110580260996340110094785440981620907308337756065855730273934386618448660286152;
-        bytes32 customMptKey2 = bytes32(customMptKeyUint2);
-        console.log("Using MPT key for high precision token:", customMptKeyUint);
-        console.log("Using MPT key for USDT token:", customMptKeyUint2);
-
-        // Deposit 2 high precision tokens (2 * 10^27)
-        uint256 highPrecisionDepositAmount = 2 * 10 ** 27;
-        highPrecisionToken.approve(address(depositManager), highPrecisionDepositAmount);
-        depositManager.depositToken(channelId, address(highPrecisionToken), highPrecisionDepositAmount, customMptKey);
-
-        // Deposit 1 USDT-like token (1 * 10^6)
-        uint256 usdtDepositAmount = 1 * 10 ** 6;
-        usdtLikeToken.approve(address(depositManager), usdtDepositAmount);
-        depositManager.depositToken(channelId, address(usdtLikeToken), usdtDepositAmount, customMptKey2);
-
-        vm.stopPrank();
-
-        // Verify the deposits were recorded correctly
-        uint256 recordedHighPrecision = bridge.getParticipantTokenDeposit(channelId, user1, address(highPrecisionToken));
-        uint256 recordedUSDT = bridge.getParticipantTokenDeposit(channelId, user1, address(usdtLikeToken));
-
-        console.log("Recorded high precision deposit:", recordedHighPrecision);
-        console.log("Recorded USDT deposit:", recordedUSDT);
-
-        assertEq(recordedHighPrecision, highPrecisionDepositAmount, "High precision deposit amount mismatch");
-        assertEq(recordedUSDT, usdtDepositAmount, "USDT deposit amount mismatch");
-
-        // Check L2 MPT keys were stored correctly with different values
-        uint256 l2KeyHighPrecision = bridge.getL2MptKey(channelId, user1, address(highPrecisionToken));
-        uint256 l2KeyUSDT = bridge.getL2MptKey(channelId, user1, address(usdtLikeToken));
-
-        console.log("L2 MPT key for high precision token:", l2KeyHighPrecision);
-        console.log("L2 MPT key for USDT token:", l2KeyUSDT);
-
-        assertEq(l2KeyHighPrecision, customMptKeyUint, "High precision L2 key mismatch");
-        assertEq(l2KeyUSDT, customMptKeyUint2, "USDT L2 key mismatch");
-
-        // Initialize state to trigger publicSignals computation
-        bytes32 mockMerkleRoot = 0x13463619a8c8f2864c061e06e5353e7aa8a950ed8c2ebc97204b9c5edb541b93;
-        TestChannelInitializationProof memory mockProof = TestChannelInitializationProof({
-            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
-            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
-            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
-            merkleRoot: mockMerkleRoot
-        });
-
-        vm.prank(leader);
-        proofManager.initializeChannelState(
-            channelId,
-            BridgeProofManager.ChannelInitializationProof({
-                pA: mockProof.pA,
-                pB: mockProof.pB,
-                pC: mockProof.pC,
-                merkleRoot: mockProof.merkleRoot
-            })
-        );
-
-        // Verify channel state
-        (, BridgeCore.ChannelState state,, bytes32 initialRoot) = bridge.getChannelInfo(channelId);
-        assertEq(uint8(state), uint8(BridgeCore.ChannelState.Open));
-        assertEq(initialRoot, mockMerkleRoot);
-
-        console.log("=== TEST COMPLETED SUCCESSFULLY ===");
-        console.log("Expected publicSignals structure:");
-        console.log("- publicSignals[0] = merkle root");
-        console.log("- publicSignals[1] = user1 L2 key for high precision token:", customMptKeyUint);
-        console.log("- publicSignals[2] = user2 L2 key for high precision token: 0");
-        console.log("- publicSignals[3] = user3 L2 key for high precision token: 0");
-        console.log("- publicSignals[4] = user1 L2 key for USDT token:", customMptKeyUint2);
-        console.log(
-            "- After % R_MOD, should be: 5708510646087729135889959965248975632956651064800454628727069218571497917126"
-        );
-        console.log("- publicSignals[5-16] = remaining L2 keys (0s)");
-        console.log("- publicSignals[17] = user1 high precision balance (2000000000000000000000000000)");
-        console.log("- publicSignals[18-19] = user2,user3 high precision balances (0s)");
-        console.log("- publicSignals[20] = user1 USDT balance (1000000)");
-        console.log("- publicSignals[21-32] = remaining balances (0s)");
-    }
-
     // ========== Tree Size Selection Tests ==========
 
     function testTreeSize128LeavesSelection() public {
@@ -2018,14 +1871,8 @@ contract BridgeCoreTest is Test {
             participants[i] = address(uint160(1000 + i)); // Generate unique addresses
         }
 
-        // Use 3 tokens
-        address[] memory allowedTokens = new address[](3);
-        allowedTokens[0] = address(token);
-        allowedTokens[1] = address(usdtLikeToken);
-        allowedTokens[2] = address(highPrecisionToken);
-
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
 
         // Open the channel
         uint256 channelId = bridge.openChannel(params);
@@ -2038,25 +1885,19 @@ contract BridgeCoreTest is Test {
         // Verify the channel was created successfully
         assertEq(channelId, 0);
 
-        // Get channel info to verify participants and tokens
-        (address[] memory returnedTokens, BridgeCore.ChannelState state, uint256 participantCount,) =
+        // Get channel info to verify participants and target contract
+        (address targetContract, BridgeCore.ChannelState state, uint256 participantCount,) =
             bridge.getChannelInfo(channelId);
 
-        assertEq(returnedTokens.length, 3);
+        assertEq(targetContract, address(token));
         assertEq(uint8(state), uint8(BridgeCore.ChannelState.Initialized));
         assertEq(participantCount, 33);
 
         // Verify that the contract selected the 128-leaf tree
         uint256 requiredTreeSize = bridge.getChannelTreeSize(channelId);
-        assertEq(requiredTreeSize, 128, "Should select 128-leaf tree for 33 participants x 3 tokens = 99 leaves");
+        assertEq(requiredTreeSize, 64, "Should select 64-leaf tree for 33 participants");
 
         vm.stopPrank();
-
-        // Test additional scenarios to confirm tree size logic
-        _testTreeSizeScenario(16, 1, 16, "16 participants x 1 token = 16 leaves -> 16-leaf tree");
-        _testTreeSizeScenario(10, 3, 32, "10 participants x 3 tokens = 30 leaves -> 32-leaf tree");
-        _testTreeSizeScenario(21, 3, 64, "21 participants x 3 tokens = 63 leaves -> 64-leaf tree");
-        _testTreeSizeScenario(42, 3, 128, "42 participants x 3 tokens = 126 leaves -> 128-leaf tree");
     }
 
     function _testTreeSizeScenario(
@@ -2083,7 +1924,7 @@ contract BridgeCoreTest is Test {
         if (tokenCount >= 3) allowedTokens[2] = address(highPrecisionToken);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({allowedTokens: allowedTokens, participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
 
         // Open the channel
         uint256 channelId = bridge.openChannel(params);

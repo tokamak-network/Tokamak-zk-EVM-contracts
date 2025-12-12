@@ -334,13 +334,16 @@ contract BridgeCoreTest is Test {
         preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        adminManager.setAllowedTargetContract(address(token), bytes1(0x00), true);
-        adminManager.setAllowedTargetContract(address(highPrecisionToken), bytes1(0x00), true);
-        adminManager.setAllowedTargetContract(address(usdtLikeToken), bytes1(0x00), true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        adminManager.setAllowedTargetContract(address(token), emptySlots, true);
+        adminManager.setAllowedTargetContract(address(highPrecisionToken), emptySlots, true);
+        adminManager.setAllowedTargetContract(address(usdtLikeToken), emptySlots, true);
 
-        // Register transfer function using 4-byte selector (standard format)
+        // Register transfer function for each token using 4-byte selector (standard format)
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
-        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
+        adminManager.registerFunction(address(token), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
+        adminManager.registerFunction(address(highPrecisionToken), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
+        adminManager.registerFunction(address(usdtLikeToken), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
 
         vm.stopPrank();
     }

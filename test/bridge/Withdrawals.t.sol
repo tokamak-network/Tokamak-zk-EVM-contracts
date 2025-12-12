@@ -172,8 +172,9 @@ contract WithdrawalsTest is Test {
         uint256[] memory preprocessedPart2 = new uint256[](4);
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
 
-        adminManager.setAllowedTargetContract(address(token), bytes1(0x00), true);
-        adminManager.registerFunction(transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        adminManager.setAllowedTargetContract(address(token), emptySlots, true);
+        adminManager.registerFunction(address(token), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
 
         vm.stopPrank();
 
@@ -268,7 +269,7 @@ contract WithdrawalsTest is Test {
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
         vm.prank(owner);
         adminManager.registerFunction(
-            transferSig, new uint128[](4), new uint256[](4), keccak256("test_instance_hash")
+            address(token), transferSig, new uint128[](4), new uint256[](4), keccak256("test_instance_hash")
         );
         console.log("Function registered");
 
@@ -403,7 +404,7 @@ contract WithdrawalsTest is Test {
 
         // Second attempt should fail - no more tokens to withdraw
         vm.prank(user1);
-        vm.expectRevert("No withdrawable amount for this token");
+        vm.expectRevert("No withdrawable amount");
         withdrawManager.withdraw(channelId);
     }
 
@@ -456,7 +457,7 @@ contract WithdrawalsTest is Test {
         _setupEmptyChannel(testChannelId);
 
         vm.prank(user1);
-        vm.expectRevert("No withdrawable amount for this token");
+        vm.expectRevert("No withdrawable amount");
         withdrawManager.withdraw(testChannelId);
     }
 
@@ -578,7 +579,7 @@ contract WithdrawalsTest is Test {
 
         // Register the function first
         vm.prank(owner);
-        adminManager.registerFunction(bytes32(bytes4(keccak256("transfer(address,uint256)"))), new uint128[](4), new uint256[](4), keccak256("test_instance_hash"));
+        adminManager.registerFunction(address(token), bytes32(bytes4(keccak256("transfer(address,uint256)"))), new uint128[](4), new uint256[](4), keccak256("test_instance_hash"));
 
         // Submit proof with balance for rejector
 
@@ -675,7 +676,7 @@ contract WithdrawalsTest is Test {
         _setupEmptyChannel(zeroChannelId);
 
         vm.prank(zeroUser);
-        vm.expectRevert("No withdrawable amount for this token");
+        vm.expectRevert("No withdrawable amount");
         withdrawManager.withdraw(zeroChannelId);
     }
 

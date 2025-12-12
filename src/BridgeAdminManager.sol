@@ -38,35 +38,38 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         bridge = IBridgeCore(_bridgeCore);
     }
 
-    function setAllowedTargetContract(address targetContract, bytes1 _storageSlot, bool allowed) external onlyOwner {
+    function setAllowedTargetContract(address targetContract, IBridgeCore.PreAllocatedLeaf[] memory storageSlots, bool allowed) external onlyOwner {
         require(targetContract != address(0), "Invalid target contract address");
 
-        bridge.setAllowedTargetContract(targetContract, _storageSlot, allowed);
+        bridge.setAllowedTargetContract(targetContract, storageSlots, allowed);
         emit TargetContractAllowed(targetContract, allowed);
     }
 
     function registerFunction(
+        address targetContract,
         bytes32 functionSignature,
         uint128[] memory preprocessedPart1,
         uint256[] memory preprocessedPart2,
         bytes32 instancesHash
     ) external onlyOwner {
+        require(targetContract != address(0), "Invalid target contract address");
         require(functionSignature != bytes32(0), "Invalid function signature");
         require(preprocessedPart1.length > 0, "preprocessedPart1 cannot be empty");
         require(preprocessedPart2.length > 0, "preprocessedPart2 cannot be empty");
 
-        bridge.registerFunction(functionSignature, preprocessedPart1, preprocessedPart2, instancesHash);
+        bridge.registerFunction(targetContract, functionSignature, preprocessedPart1, preprocessedPart2, instancesHash);
         emit FunctionRegistered(functionSignature, preprocessedPart1.length, preprocessedPart2.length, instancesHash);
     }
 
-    function unregisterFunction(bytes32 functionSignature) external onlyOwner {
+    function unregisterFunction(address targetContract, bytes32 functionSignature) external onlyOwner {
+        require(targetContract != address(0), "Invalid target contract address");
         require(functionSignature != bytes32(0), "Invalid function signature");
 
         IBridgeCore.RegisteredFunction memory registeredFunc =
             bridge.getRegisteredFunction(functionSignature);
         require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
 
-        bridge.unregisterFunction(functionSignature);
+        bridge.unregisterFunction(targetContract, functionSignature);
         emit FunctionUnregistered(functionSignature);
     }
 

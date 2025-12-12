@@ -391,12 +391,13 @@ contract DeployV2Script is Script {
         wtonPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         wtonPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(wtonAddress, bytes1(0x00), true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(wtonAddress, emptySlots, true);
 
         // Register WTON transfer function
         bytes32 wtonTransferSig = keccak256("transferWTON(address,uint256)");
         BridgeAdminManager(adminManagerAddress).registerFunction(
-            wtonTransferSig, wtonPreprocessedPart1, wtonPreprocessedPart2, keccak256("wton_instance_hash")
+            wtonAddress, wtonTransferSig, wtonPreprocessedPart1, wtonPreprocessedPart2, keccak256("wton_instance_hash")
         );
 
         console.log("WTON target contract configured:", wtonAddress);
@@ -419,7 +420,8 @@ contract DeployV2Script is Script {
         tonPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         tonPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(tonAddress, bytes1(0x00), true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(tonAddress, emptySlots, true);
 
         // Setup TON pre-allocated leaf for decimals (slot 0x07 with value 18)
         BridgeAdminManager(adminManagerAddress).setupTonTransferPreAllocatedLeaf(tonAddress);
@@ -427,7 +429,7 @@ contract DeployV2Script is Script {
         // Register TON transfer function
         bytes32 tonTransferSig = keccak256("transferTON(address,uint256)");
         BridgeAdminManager(adminManagerAddress).registerFunction(
-            tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2, keccak256("ton_instance_hash")
+            tonAddress, tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2, keccak256("ton_instance_hash")
         );
 
         console.log("TON target contract configured:", tonAddress);
@@ -451,12 +453,15 @@ contract DeployV2Script is Script {
         usdtPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
         usdtPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
 
-        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(usdtAddress, bytes1(0x01), true);
+        // For USDT, we might want to set up a pre-allocated slot for decimals or other data
+        // For now, using empty slots
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(usdtAddress, emptySlots, true);
 
         // Register USDT transfer function
         bytes32 usdtTransferSig = keccak256("transfer(address,uint256)");
         BridgeAdminManager(adminManagerAddress).registerFunction(
-            usdtTransferSig, usdtPreprocessedPart1, usdtPreprocessedPart2, keccak256("usdt_instance_hash")
+            usdtAddress, usdtTransferSig, usdtPreprocessedPart1, usdtPreprocessedPart2, keccak256("usdt_instance_hash")
         );
 
         console.log("USDT target contract configured:", usdtAddress);

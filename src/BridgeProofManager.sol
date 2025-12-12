@@ -194,7 +194,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         bytes32 finalStateRoot = bytes32(lastProof.publicInputs[0]);
         bytes32 initialStateRoot = bridge.getChannelInitialStateRoot(channelId);
 
-        // STEP 1: mverify order of proofs
+        // STEP 1: verify order of proofs
         // Validate proof chain and state root consistency
         bytes32 expectedPrevRoot = initialStateRoot;
         
@@ -264,6 +264,8 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                 bytes32 proofInstanceHash = _extractFunctionInstanceHashFromProof(currentProof.publicInputs);
                 require(proofInstanceHash == registeredFunc.instancesHash, "Function instance hash mismatch");
             }
+
+            
 
             bool proofValid = zkVerifier.verify(
                 currentProof.proofPart1,

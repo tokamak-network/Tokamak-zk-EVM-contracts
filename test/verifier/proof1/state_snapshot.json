@@ -1,0 +1,36 @@
+{
+  "stateRoot": "0x4f3d75526b4d4b109e87539730a792e485e43e3f03778631a09942dd08cf2e8d",
+  "registeredKeys": [
+    "0x5846aca7f69c5df6171620f9fe93a0b0071057dbeaea943382e36283d98d3164",
+    "0x30cb74383499705597743f7ebc89ac8514034e4525cc903fb79eb32ace584be7",
+    "0x2cba90f17ac312557f5d3eb10891ce57e40bf513a8ae0dbbf153ef6fafd5d9eb"
+  ],
+  "storageEntries": [
+    {
+      "index": 0,
+      "key": "0x5846aca7f69c5df6171620f9fe93a0b0071057dbeaea943382e36283d98d3164",
+      "value": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "index": 1,
+      "key": "0x30cb74383499705597743f7ebc89ac8514034e4525cc903fb79eb32ace584be7",
+      "value": "0x0000000000000000000000000000000000000000000000001bc16d674ec80000"
+    },
+    {
+      "index": 2,
+      "key": "0x2cba90f17ac312557f5d3eb10891ce57e40bf513a8ae0dbbf153ef6fafd5d9eb",
+      "value": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000"
+    }
+  ],
+  "contractAddress": "0xa30fe40285B8f5c0457DbC3B7C8A280373c40044",
+  "userL2Addresses": [],
+  "userStorageSlots": [
+    "0"
+  ],
+  "timestamp": 1765440767208,
+  "userNonces": [
+    "0",
+    "0",
+    "0"
+  ]
+}

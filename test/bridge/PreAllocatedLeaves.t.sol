@@ -56,7 +56,8 @@ contract PreAllocatedLeavesTest is Test {
         vm.startPrank(owner);
 
         // First allow the target contract
-        adminManager.setAllowedTargetContract(address(testToken), bytes1(0x00), true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
 
         // Setup TON transfer pre-allocated leaf
         adminManager.setupTonTransferPreAllocatedLeaf(address(testToken));
@@ -82,7 +83,8 @@ contract PreAllocatedLeavesTest is Test {
         vm.startPrank(owner);
 
         // First allow the target contract
-        adminManager.setAllowedTargetContract(address(testToken), bytes1(0x00), true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
 
         // Set a custom pre-allocated leaf
         bytes32 customKey = bytes32(uint256(0x42));
@@ -105,7 +107,8 @@ contract PreAllocatedLeavesTest is Test {
         vm.startPrank(owner);
 
         // First allow the target contract
-        adminManager.setAllowedTargetContract(address(testToken), bytes1(0x00), true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
 
         // Set multiple pre-allocated leaves
         adminManager.setPreAllocatedLeaf(address(testToken), bytes32(uint256(0x01)), 100);
@@ -127,7 +130,8 @@ contract PreAllocatedLeavesTest is Test {
         vm.startPrank(owner);
 
         // First allow the target contract
-        adminManager.setAllowedTargetContract(address(testToken), bytes1(0x00), true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
 
         // Set a pre-allocated leaf
         bytes32 testKey = bytes32(uint256(0x42));
@@ -155,7 +159,8 @@ contract PreAllocatedLeavesTest is Test {
         vm.startPrank(owner);
 
         // First allow the target contract
-        adminManager.setAllowedTargetContract(address(testToken), bytes1(0x00), true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
 
         // Setup TON transfer pre-allocated leaf (1 leaf)
         adminManager.setupTonTransferPreAllocatedLeaf(address(testToken));
@@ -190,7 +195,8 @@ contract PreAllocatedLeavesTest is Test {
         vm.startPrank(owner);
 
         // First allow the target contract
-        adminManager.setAllowedTargetContract(address(testToken), bytes1(0x00), true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
 
         // Setup TON transfer pre-allocated leaf (1 leaf)
         adminManager.setupTonTransferPreAllocatedLeaf(address(testToken));

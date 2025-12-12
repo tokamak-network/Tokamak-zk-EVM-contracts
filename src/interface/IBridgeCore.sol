@@ -10,16 +10,23 @@ interface IBridgeCore {
         Closed
     }
 
+    struct PreAllocatedLeaf {
+        uint256 value;
+        bytes32 key;
+        bool isActive;
+    }
+
     struct TargetContract {
-        address contractAddress;
-        bytes1 storageSlot;
+        // contractAddress removed - redundant with mapping key
+        PreAllocatedLeaf[] storageSlot;
+        RegisteredFunction[] registeredFunctions;
     }
 
     struct RegisteredFunction {
         bytes32 functionSignature;
+        bytes32 instancesHash;
         uint128[] preprocessedPart1;
         uint256[] preprocessedPart2;
-        bytes32 instancesHash;
     }
 
     // View functions
@@ -68,14 +75,15 @@ interface IBridgeCore {
         uint256[] memory amounts
     ) external;
     function setChannelSignatureVerified(uint256 channelId, bool verified) external;
-    function setAllowedTargetContract(address targetContract, bytes1 storageSlot, bool allowed) external;
+    function setAllowedTargetContract(address targetContract, PreAllocatedLeaf[] memory storageSlots, bool allowed) external;
     function registerFunction(
+        address targetContract,
         bytes32 functionSignature,
         uint128[] memory preprocessedPart1,
         uint256[] memory preprocessedPart2,
         bytes32 instancesHash
     ) external;
-    function unregisterFunction(bytes32 functionSignature) external;
+    function unregisterFunction(address targetContract, bytes32 functionSignature) external;
     function setTreasuryAddress(address treasury) external;
     function enableEmergencyWithdrawals(uint256 channelId) external;
     function markUserWithdrawn(uint256 channelId, address participant) external;

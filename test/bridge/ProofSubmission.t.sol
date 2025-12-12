@@ -178,16 +178,17 @@ contract ProofSubmissionTest is Test {
     MockERC20 public token;
 
     address public owner = address(1);
-    address public leader = address(2);
-    address public leader2 = address(22);
-    address public user1 = 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0; // Address that ZecFrost signature 1 recovers to
-    address public user2 = address(3);
-    address public user3 = address(4);
+    address public user1 = 0xF9Fa94D45C49e879E46Ea783fc133F41709f3bc7; 
+    address public user2 = 0x322acfaA747F3CE5b5899611034FB4433f0Edf34;
+    address public user3 = 0x31Fbd690BF62cd8C60A93F3aD8E96A6085Dc5647;
 
-    address public l2Leader = address(12);
-    address public l2User1 = address(13);
-    address public l2User2 = address(14);
-    address public l2User3 = address(15);
+    uint256 public User1l2MPTKey = 0x5846aca7f69c5df6171620f9fe93a0b0071057dbeaea943382e36283d98d3164;
+    uint256 public User2l2MPTKey = 0x30cb74383499705597743f7ebc89ac8514034e4525cc903fb79eb32ace584be7;
+    uint256 public User3l2MPTKey = 0x2cba90f17ac312557f5d3eb10891ce57e40bf513a8ae0dbbf153ef6fafd5d9eb;
+
+    uint256 public user1DepositValue = 1000000000000000000;
+    uint256 public user2DepositValue = 1000000000000000000;
+    uint256 public user3DepositValue = 1000000000000000000;
 
     function setUp() public {
         // Deploy contracts
@@ -250,38 +251,139 @@ contract ProofSubmissionTest is Test {
         // Configure mock ZecFrost - we'll set the actual expected signer later in tests
 
         // Fund test accounts
-        vm.deal(leader, INITIAL_BALANCE);
-        vm.deal(leader2, INITIAL_BALANCE);
         vm.deal(user1, INITIAL_BALANCE);
         vm.deal(user2, INITIAL_BALANCE);
         vm.deal(user3, INITIAL_BALANCE);
 
-        token.mint(leader, INITIAL_TOKEN_BALANCE);
-        token.mint(leader2, INITIAL_TOKEN_BALANCE);
         token.mint(user1, INITIAL_TOKEN_BALANCE);
         token.mint(user2, INITIAL_TOKEN_BALANCE);
         token.mint(user3, INITIAL_TOKEN_BALANCE);
 
-        // Allow the token contracts for testing
+        // correct preprocess for ton transfer function
         uint128[] memory preprocessedPart1 = new uint128[](4);
-        preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
-        preprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
-        preprocessedPart1[2] = 0x18e54aba379045c9f5c18d8aefeaa8cc;
-        preprocessedPart1[3] = 0x08df3e052d4b1c0840d73edcea3f85e7;
+        preprocessedPart1[0] = 0x0009bbc7b057876cfc754a192e990683;
+        preprocessedPart1[1] = 0x1508f2445c632c43eb3f9df4fc2f1894;
+        preprocessedPart1[2] = 0x155cb5eeafb6e4cf7147420e1ce64b17;
+        preprocessedPart1[3] = 0x150e9343bcaa1cac0acb160871c5c886;
         uint256[] memory preprocessedPart2 = new uint256[](4);
-        preprocessedPart2[0] = 0x7e084b3358f7f1404f0a4ee1acc6d254997032f77fd77593fab7c896b7cfce1e;
-        preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
-        preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
-        preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
+        preprocessedPart2[0] = 0x2516192ae1c6b963f3f8e0a1a88b9d669ddbb70cce11452260f4a7c0e71bdbd7;
+        preprocessedPart2[1] = 0x60754cda6595f02b2696e5fad29df24e0c9343af6ef16804484b7253261564da;
+        preprocessedPart2[2] = 0x6637521519a48e13f11e77f2f3b61bd40ea0a7c2d8d6455b908cd0d943fefa65;
+        preprocessedPart2[3] = 0x5bab1505911b91f98e0a7515340ca6bf507c7b7286aff2c079d64acc3a9a26f8;
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
         adminManager.setAllowedTargetContract(address(token), emptySlots, true);
+
+        // Set pre-allocated leaf with key 0x07 and value 18 (for decimals)
+        adminManager.setPreAllocatedLeaf(address(token), bytes32(uint256(0x07)), 18);
 
         // Register transfer function using 4-byte selector (standard format)
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
         adminManager.registerFunction(address(token), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
 
         vm.stopPrank();
+    }
+
+    // Helper function to set up a channel with 3 participants and deposits
+    function setupChannelWithDeposits() internal returns (uint256 channelId) {
+        // Open channel with user1 as leader
+        vm.startPrank(user1);
+        
+        address[] memory participants = new address[](3);
+        participants[0] = user1;
+        participants[1] = user2;
+        participants[2] = user3;
+        
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            targetContract: address(token),
+            participants: participants,
+            timeout: 7 days
+        });
+        
+        channelId = bridge.openChannel(params);
+        
+        // Set channel public key (required before deposits)
+        uint256 pkx = 0x1234567890123456789012345678901234567890123456789012345678901234;
+        uint256 pky = 0x9876543210987654321098765432109876543210987654321098765432109876;
+        bridge.setChannelPublicKey(channelId, pkx, pky);
+        
+        // User1 deposits
+        token.approve(address(depositManager), user1DepositValue);
+        depositManager.depositToken(channelId, user1DepositValue, bytes32(User1l2MPTKey));
+        vm.stopPrank();
+        
+        // User2 deposits
+        vm.startPrank(user2);
+        token.approve(address(depositManager), user2DepositValue);
+        depositManager.depositToken(channelId, user2DepositValue, bytes32(User2l2MPTKey));
+        vm.stopPrank();
+        
+        // User3 deposits
+        vm.startPrank(user3);
+        token.approve(address(depositManager), user3DepositValue);
+        depositManager.depositToken(channelId, user3DepositValue, bytes32(User3l2MPTKey));
+        vm.stopPrank();
+        
+        // Initialize channel state (as leader)
+        vm.startPrank(user1);
+        
+        // Create initialization proof
+        BridgeProofManager.ChannelInitializationProof memory initProof;
+        
+        // Set mock proof values for groth16 proof
+        initProof.pA[0] = 1;
+        initProof.pA[1] = 2;
+        initProof.pA[2] = 3;
+        initProof.pA[3] = 4;
+        
+        for (uint256 i = 0; i < 8; i++) {
+            initProof.pB[i] = i + 1;
+        }
+        
+        for (uint256 i = 0; i < 4; i++) {
+            initProof.pC[i] = i + 1;
+        }
+        
+        // Set initial state root
+        initProof.merkleRoot = 0x7380218991c8a0feb79bb9715fd26e2a697f6a98de69bdc71426efe52f459cfc;
+        
+        // Initialize channel state
+        proofManager.initializeChannelState(channelId, initProof);
+        
+        vm.stopPrank();
+        
+        return channelId;
+    }
+    
+    // Test function to verify the helper works correctly
+    function testSetupChannelWithDeposits() public {
+        uint256 channelId = setupChannelWithDeposits();
+        
+        // Verify channel is set up correctly
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(IBridgeCore.ChannelState.Open));
+        assertEq(bridge.getChannelLeader(channelId), user1);
+        
+        // Verify participants
+        address[] memory participants = bridge.getChannelParticipants(channelId);
+        assertEq(participants.length, 3);
+        assertEq(participants[0], user1);
+        assertEq(participants[1], user2);
+        assertEq(participants[2], user3);
+        
+        // Verify deposits
+        assertEq(bridge.getParticipantDeposit(channelId, user1), user1DepositValue);
+        assertEq(bridge.getParticipantDeposit(channelId, user2), user2DepositValue);
+        assertEq(bridge.getParticipantDeposit(channelId, user3), user3DepositValue);
+        
+        // Verify L2 MPT keys
+        assertEq(bridge.getL2MptKey(channelId, user1), User1l2MPTKey);
+        assertEq(bridge.getL2MptKey(channelId, user2), User2l2MPTKey);
+        assertEq(bridge.getL2MptKey(channelId, user3), User3l2MPTKey);
+        
+        // Verify pre-allocated leaf was set
+        (uint256 value, bool exists) = adminManager.getPreAllocatedLeaf(address(token), bytes32(uint256(0x07)));
+        assertTrue(exists, "Pre-allocated leaf should exist");
+        assertEq(value, 18, "Pre-allocated leaf value should be 18");
     }
 }
 

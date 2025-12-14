@@ -72,19 +72,33 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         require(targetContract != address(0), "Invalid target contract address");
         require(functionSignature != bytes32(0), "Invalid function signature");
 
-        IBridgeCore.RegisteredFunction memory registeredFunc = bridge.getRegisteredFunction(functionSignature);
-        require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
+        // Get target contract data and check if function exists
+        IBridgeCore.TargetContract memory targetData = bridge.getTargetContractData(targetContract);
+        bool found = false;
+        for (uint256 i = 0; i < targetData.registeredFunctions.length; i++) {
+            if (targetData.registeredFunctions[i].functionSignature == functionSignature) {
+                found = true;
+                break;
+            }
+        }
+        require(found, "Function not registered");
 
         bridge.unregisterFunction(targetContract, functionSignature);
         emit FunctionUnregistered(functionSignature);
     }
 
-    function getRegisteredFunction(bytes32 functionSignature)
+    function getRegisteredFunction(address targetContract, bytes32 functionSignature)
         external
         view
         returns (IBridgeCore.RegisteredFunction memory)
     {
-        return bridge.getRegisteredFunction(functionSignature);
+        IBridgeCore.TargetContract memory targetData = bridge.getTargetContractData(targetContract);
+        for (uint256 i = 0; i < targetData.registeredFunctions.length; i++) {
+            if (targetData.registeredFunctions[i].functionSignature == functionSignature) {
+                return targetData.registeredFunctions[i];
+            }
+        }
+        revert("Function not registered");
     }
 
     function isAllowedTargetContract(address targetContract) external view returns (bool) {

@@ -331,17 +331,20 @@ contract BridgeCoreTest is Test {
         usdtLikeToken.mint(user2, usdtAmount);
         usdtLikeToken.mint(user3, usdtAmount);
 
-        // Allow the token contracts for testing
+        // Use the correct preprocessed data from ProofSubmission.t.sol
         uint128[] memory preprocessedPart1 = new uint128[](4);
-        preprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
-        preprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
-        preprocessedPart1[2] = 0x18e54aba379045c9f5c18d8aefeaa8cc;
-        preprocessedPart1[3] = 0x08df3e052d4b1c0840d73edcea3f85e7;
+        preprocessedPart1[0] = 0x1136c7a73653af0cbdc9fda441a80391;
+        preprocessedPart1[1] = 0x007c86367643476dcdb0e9bcf1617f1c;
+        preprocessedPart1[2] = 0x18c9e2822155742dd5fbd050aa293be5;
+        preprocessedPart1[3] = 0x00b248168d62853defda478a7a46e0a0;
         uint256[] memory preprocessedPart2 = new uint256[](4);
-        preprocessedPart2[0] = 0x7e084b3358f7f1404f0a4ee1acc6d254997032f77fd77593fab7c896b7cfce1e;
-        preprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
-        preprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
-        preprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
+        preprocessedPart2[0] = 0xc4383bb8c86977fc45c94bc42353e37b39907e30b52054990083a85cf5256c22;
+        preprocessedPart2[1] = 0x8fc97f11906d661f0b434c3c49d0ec8b3cac2928f6ff6fac5815686d175d2e87;
+        preprocessedPart2[2] = 0xf84798df0fcfbd79e070d2303170d78e438e4b32975a4ebf6e1ff32863f2cc3e;
+        preprocessedPart2[3] = 0xc6b05d5e144de6e3b25f09093b9ba94c194452d8decf3af3390cfa46df134c0e;
+        
+        // Compute the correct function instance hash from ProofSubmission function instance data
+        bytes32 functionInstanceHash = computeCorrectFunctionInstanceHash();
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
         adminManager.setAllowedTargetContract(address(token), emptySlots, true);
@@ -351,17 +354,17 @@ contract BridgeCoreTest is Test {
         // Register transfer function for each token using 4-byte selector (standard format)
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
         adminManager.registerFunction(
-            address(token), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash")
+            address(token), transferSig, preprocessedPart1, preprocessedPart2, functionInstanceHash
         );
         adminManager.registerFunction(
             address(highPrecisionToken),
             transferSig,
             preprocessedPart1,
             preprocessedPart2,
-            keccak256("test_instance_hash")
+            functionInstanceHash
         );
         adminManager.registerFunction(
-            address(usdtLikeToken), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash")
+            address(usdtLikeToken), transferSig, preprocessedPart1, preprocessedPart2, functionInstanceHash
         );
 
         vm.stopPrank();
@@ -551,10 +554,215 @@ contract BridgeCoreTest is Test {
             publicInputs[11] = outputRootLow; // output state root low
         }
 
-        // Set function signature at index 18 (transfer function selector: 0xa9059cbb)
-        if (publicInputs.length >= 19) {
-            publicInputs[18] = 0xa9059cbb; // transfer(address,uint256) function selector
+        // Set function signature at index 16 (transfer function selector: 0xa9059cbb)
+        if (publicInputs.length >= 17) {
+            publicInputs[16] = 0xa9059cbb; // transfer(address,uint256) function selector
         }
+        // Set function instance data (indices 66-511) to match computeCorrectFunctionInstanceHash
+        _setFunctionInstanceData(publicInputs);
+    }
+
+    function _setFunctionInstanceData(uint256[] memory publicInputs) internal pure {
+        if (publicInputs.length < 512) return; // Need at least 512 elements for function instance data
+        
+        // Call the helper that creates the same function instances array
+        uint256[] memory functionInstances = _getCorrectFunctionInstanceData();
+        
+        // Set the function instance data in publicInputs starting at index 66
+        for (uint256 i = 0; i < 446 && (66 + i) < publicInputs.length; i++) {
+            publicInputs[66 + i] = functionInstances[i];
+        }
+    }
+    
+    function _getCorrectFunctionInstanceData() internal pure returns (uint256[] memory) {
+        // Exact copy of the function instance data from computeCorrectFunctionInstanceHash
+        uint256[] memory functionInstances = new uint256[](446);
+        
+        // All 181 assignments copied from computeCorrectFunctionInstanceHash
+        functionInstances[0] = 0x01;
+        functionInstances[1] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[2] = 0xffffffff;
+        functionInstances[3] = 0xe72f6afd7d1f72623e6b071492d1122b;
+        functionInstances[4] = 0x11dafe5d23e1218086a365b99fbf3d3b;
+        functionInstances[5] = 0x3e26ba5cc220fed7cc3f870e59d292aa;
+        functionInstances[6] = 0x1d523cf1ddab1a1793132e78c866c0c3;
+        functionInstances[7] = 0x00;
+        functionInstances[8] = 0x00;
+        functionInstances[9] = 0x01;
+        functionInstances[10] = 0x00;
+        functionInstances[11] = 0x80;
+        functionInstances[12] = 0x00;
+        functionInstances[13] = 0x00;
+        functionInstances[14] = 0x00;
+        functionInstances[15] = 0x200000;
+        functionInstances[16] = 0x04;
+        functionInstances[17] = 0x00;
+        functionInstances[18] = 0x44;
+        functionInstances[19] = 0x00;
+        functionInstances[20] = 0x010000;
+        functionInstances[21] = 0xe0;
+        functionInstances[22] = 0x00;
+        functionInstances[23] = 0x08000000;
+        functionInstances[24] = 0x20;
+        functionInstances[25] = 0x00;
+        functionInstances[26] = 0x10000000;
+        functionInstances[27] = 0xe0;
+        functionInstances[28] = 0x00;
+        functionInstances[29] = 0x10000000;
+        functionInstances[30] = 0x70a08231;
+        functionInstances[31] = 0x00;
+        functionInstances[32] = 0x100000;
+        functionInstances[33] = 0x095ea7b3;
+        functionInstances[34] = 0x00;
+        functionInstances[35] = 0x100000;
+        functionInstances[36] = 0x23b872dd;
+        functionInstances[37] = 0x00;
+        functionInstances[38] = 0x100000;
+        functionInstances[39] = 0x18160ddd;
+        functionInstances[40] = 0x00;
+        functionInstances[41] = 0x100000;
+        functionInstances[42] = 0x313ce567;
+        functionInstances[43] = 0x00;
+        functionInstances[44] = 0x100000;
+        functionInstances[45] = 0x06fdde03;
+        functionInstances[46] = 0x00;
+        functionInstances[47] = 0x100000;
+        functionInstances[48] = 0x95d89b41;
+        functionInstances[49] = 0x00;
+        functionInstances[50] = 0x100000;
+        functionInstances[51] = 0x39509351;
+        functionInstances[52] = 0x00;
+        functionInstances[53] = 0x100000;
+        functionInstances[54] = 0xa457c2d7;
+        functionInstances[55] = 0x00;
+        functionInstances[56] = 0x100000;
+        functionInstances[57] = 0xa9059cbb;
+        functionInstances[58] = 0x00;
+        functionInstances[59] = 0x100000;
+        functionInstances[60] = 0x04;
+        functionInstances[61] = 0x00;
+        functionInstances[62] = 0x44;
+        functionInstances[63] = 0x00;
+        functionInstances[64] = 0x08;
+        functionInstances[65] = 0x40;
+        functionInstances[66] = 0x00;
+        functionInstances[67] = 0x010000;
+        functionInstances[68] = 0x200000;
+        functionInstances[69] = 0x02;
+        functionInstances[70] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[71] = 0xffffffff;
+        functionInstances[72] = 0x20;
+        functionInstances[73] = 0x00;
+        functionInstances[74] = 0x02;
+        functionInstances[75] = 0x20;
+        functionInstances[76] = 0x00;
+        functionInstances[77] = 0x04;
+        functionInstances[78] = 0x00;
+        functionInstances[79] = 0x01;
+        functionInstances[80] = 0x00;
+        functionInstances[81] = 0x00;
+        functionInstances[82] = 0x00;
+        functionInstances[83] = 0x00;
+        functionInstances[84] = 0x01;
+        functionInstances[85] = 0x00;
+        functionInstances[86] = 0x00;
+        functionInstances[87] = 0x00;
+        functionInstances[88] = 0x00;
+        functionInstances[89] = 0x01;
+        functionInstances[90] = 0x00;
+        functionInstances[91] = 0x00;
+        functionInstances[92] = 0x00;
+        functionInstances[93] = 0x00;
+        functionInstances[94] = 0x01;
+        functionInstances[95] = 0x00;
+        functionInstances[96] = 0x00;
+        functionInstances[97] = 0x00;
+        functionInstances[98] = 0x00;
+        functionInstances[99] = 0x01;
+        functionInstances[100] = 0x00;
+        functionInstances[101] = 0x00;
+        functionInstances[102] = 0x00;
+        functionInstances[103] = 0x00;
+        functionInstances[104] = 0x01;
+        functionInstances[105] = 0x00;
+        functionInstances[106] = 0x00;
+        functionInstances[107] = 0x00;
+        functionInstances[108] = 0x00;
+        functionInstances[109] = 0x01;
+        functionInstances[110] = 0x00;
+        functionInstances[111] = 0x00;
+        functionInstances[112] = 0x00;
+        functionInstances[113] = 0x00;
+        functionInstances[114] = 0x01;
+        functionInstances[115] = 0x00;
+        functionInstances[116] = 0x00;
+        functionInstances[117] = 0x00;
+        functionInstances[118] = 0x00;
+        functionInstances[119] = 0x01;
+        functionInstances[120] = 0x00;
+        functionInstances[121] = 0x00;
+        functionInstances[122] = 0x00;
+        functionInstances[123] = 0x00;
+        functionInstances[124] = 0x01;
+        functionInstances[125] = 0x00;
+        functionInstances[126] = 0x020000;
+        functionInstances[127] = 0x70a08231;
+        functionInstances[128] = 0x00;
+        functionInstances[129] = 0x100000;
+        functionInstances[130] = 0x02;
+        functionInstances[131] = 0x00;
+        functionInstances[132] = 0x04;
+        functionInstances[133] = 0x00;
+        functionInstances[134] = 0x00;
+        functionInstances[135] = 0x40;
+        functionInstances[136] = 0x00;
+        functionInstances[137] = 0x08;
+        functionInstances[138] = 0x00;
+        functionInstances[139] = 0x40;
+        functionInstances[140] = 0x00;
+        functionInstances[141] = 0x10000001;
+        functionInstances[142] = 0x04;
+        functionInstances[143] = 0x00;
+        functionInstances[144] = 0x24;
+        functionInstances[145] = 0x00;
+        functionInstances[146] = 0x08;
+        functionInstances[147] = 0x40;
+        functionInstances[148] = 0x00;
+        functionInstances[149] = 0x200000;
+        functionInstances[150] = 0x020000;
+        functionInstances[151] = 0x095ea7b3;
+        functionInstances[152] = 0x00;
+        functionInstances[153] = 0x100000;
+        functionInstances[154] = 0x23b872dd;
+        functionInstances[155] = 0x00;
+        functionInstances[156] = 0x100000;
+        functionInstances[157] = 0x18160ddd;
+        functionInstances[158] = 0x00;
+        functionInstances[159] = 0x100000;
+        functionInstances[160] = 0x313ce567;
+        functionInstances[161] = 0x00;
+        functionInstances[162] = 0x100000;
+        functionInstances[163] = 0x06fdde03;
+        functionInstances[164] = 0x00;
+        functionInstances[165] = 0x100000;
+        functionInstances[166] = 0x95d89b41;
+        functionInstances[167] = 0x00;
+        functionInstances[168] = 0x100000;
+        functionInstances[169] = 0x39509351;
+        functionInstances[170] = 0x00;
+        functionInstances[171] = 0x100000;
+        functionInstances[172] = 0xa457c2d7;
+        functionInstances[173] = 0x00;
+        functionInstances[174] = 0x100000;
+        functionInstances[175] = 0xa9059cbb;
+        functionInstances[176] = 0x00;
+        functionInstances[177] = 0x100000;
+        functionInstances[178] = 0x04;
+        functionInstances[179] = 0x00;
+        functionInstances[180] = 0x44;
+        
+        // Rest remain zero (indices 181-445 are default initialized to 0)
+        return functionInstances;
     }
 
     /**
@@ -1789,7 +1997,7 @@ contract BridgeCoreTest is Test {
         publicInputs[13] = (0x00000000000000000000000000000000000000000000000000000000fc284778);
         publicInputs[14] = (0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs[15] = (0x0000000000000000000000000000000000000000000000000000000000000000);
-        publicInputs[16] = (0x0000000000000000000000000000000000000000000000000000000000000000);
+        publicInputs[16] = (0x00000000000000000000000000000000000000000000000000000000a9059cbb);
         publicInputs[17] = (0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs[18] = (0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs[19] = (0x0000000000000000000000000000000000000000000000000000000000000000);
@@ -1837,6 +2045,193 @@ contract BridgeCoreTest is Test {
         publicInputs[61] = (0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs[62] = (0x0000000000000000000000000000000000000000000000000000000000000000);
         publicInputs[63] = (0x0000000000000000000000000000000000000000000000000000000000000000);
+
+        // Function instance data (indices 66-511) - from ProofSubmission.t.sol
+        publicInputs[66] = 0x01;
+        publicInputs[67] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[68] = 0xffffffff;
+        publicInputs[69] = 0xe72f6afd7d1f72623e6b071492d1122b;
+        publicInputs[70] = 0x11dafe5d23e1218086a365b99fbf3d3b;
+        publicInputs[71] = 0x3e26ba5cc220fed7cc3f870e59d292aa;
+        publicInputs[72] = 0x1d523cf1ddab1a1793132e78c866c0c3;
+        publicInputs[73] = 0x00;
+        publicInputs[74] = 0x00;
+        publicInputs[75] = 0x01;
+        publicInputs[76] = 0x00;
+        publicInputs[77] = 0x80;
+        publicInputs[78] = 0x00;
+        publicInputs[79] = 0x00;
+        publicInputs[80] = 0x00;
+        publicInputs[81] = 0x200000;
+        publicInputs[82] = 0x04;
+        publicInputs[83] = 0x00;
+        publicInputs[84] = 0x44;
+        publicInputs[85] = 0x00;
+        publicInputs[86] = 0x010000;
+        publicInputs[87] = 0xe0;
+        publicInputs[88] = 0x00;
+        publicInputs[89] = 0x08000000;
+        publicInputs[90] = 0x20;
+        publicInputs[91] = 0x00;
+        publicInputs[92] = 0x10000000;
+        publicInputs[93] = 0xe0;
+        publicInputs[94] = 0x00;
+        publicInputs[95] = 0x10000000;
+        publicInputs[96] = 0x70a08231;
+        publicInputs[97] = 0x00;
+        publicInputs[98] = 0x020000;
+        publicInputs[99] = 0x98650275;
+        publicInputs[100] = 0x00;
+        publicInputs[101] = 0x020000;
+        publicInputs[102] = 0xaa271e1a;
+        publicInputs[103] = 0x00;
+        publicInputs[104] = 0x020000;
+        publicInputs[105] = 0x98650275;
+        publicInputs[106] = 0x00;
+        publicInputs[107] = 0x100000;
+        publicInputs[108] = 0xa457c2d7;
+        publicInputs[109] = 0x00;
+        publicInputs[110] = 0x100000;
+        publicInputs[111] = 0xa9059cbb;
+        publicInputs[112] = 0x00;
+        publicInputs[113] = 0x100000;
+        publicInputs[114] = 0x04;
+        publicInputs[115] = 0x00;
+        publicInputs[116] = 0x44;
+        publicInputs[117] = 0x00;
+        publicInputs[118] = 0x08;
+        publicInputs[119] = 0x40;
+        publicInputs[120] = 0x00;
+        publicInputs[121] = 0x010000;
+        publicInputs[122] = 0x200000;
+        publicInputs[123] = 0x02;
+        publicInputs[124] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[125] = 0xffffffff;
+        publicInputs[126] = 0x20;
+        publicInputs[127] = 0x00;
+        publicInputs[128] = 0x02;
+        publicInputs[129] = 0x20;
+        publicInputs[130] = 0x00;
+        publicInputs[131] = 0x02;
+        publicInputs[132] = 0x00;
+        publicInputs[133] = 0x00;
+        publicInputs[134] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[135] = 0xffffffff;
+        publicInputs[136] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[137] = 0xffffffff;
+        publicInputs[138] = 0x100000;
+        publicInputs[139] = 0x200000;
+        publicInputs[140] = 0x00;
+        publicInputs[141] = 0x00;
+        publicInputs[142] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[143] = 0xffffffff;
+        publicInputs[144] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[145] = 0xffffffff;
+        publicInputs[146] = 0x100000;
+        publicInputs[147] = 0x200000;
+        publicInputs[148] = 0x60;
+        publicInputs[149] = 0x00;
+        publicInputs[150] = 0x02;
+        publicInputs[151] = 0x20;
+        publicInputs[152] = 0x00;
+        publicInputs[153] = 0x02;
+        publicInputs[154] = 0x00;
+        publicInputs[155] = 0x00;
+        publicInputs[156] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[157] = 0xffffffff;
+        publicInputs[158] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[159] = 0xffffffff;
+        publicInputs[160] = 0x20;
+        publicInputs[161] = 0x00;
+        publicInputs[162] = 0x02;
+        publicInputs[163] = 0x20;
+        publicInputs[164] = 0x00;
+        publicInputs[165] = 0x02;
+        publicInputs[166] = 0x1da9;
+        publicInputs[167] = 0x00;
+        publicInputs[168] = 0xffffffff;
+        publicInputs[169] = 0x00;
+        publicInputs[170] = 0x020000;
+        publicInputs[171] = 0x200000;
+        publicInputs[172] = 0x08;
+        publicInputs[173] = 0x00;
+        publicInputs[174] = 0x00;
+        publicInputs[175] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[176] = 0xffffffff;
+        publicInputs[177] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[178] = 0xffffffff;
+        publicInputs[179] = 0x20;
+        publicInputs[180] = 0x00;
+        publicInputs[181] = 0x02;
+        publicInputs[182] = 0x20;
+        publicInputs[183] = 0x00;
+        publicInputs[184] = 0x02;
+        publicInputs[185] = 0x00;
+        publicInputs[186] = 0x00;
+        publicInputs[187] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[188] = 0xffffffff;
+        publicInputs[189] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[190] = 0xffffffff;
+        publicInputs[191] = 0x20;
+        publicInputs[192] = 0x00;
+        publicInputs[193] = 0x02;
+        publicInputs[194] = 0x20;
+        publicInputs[195] = 0x00;
+        publicInputs[196] = 0x02;
+        publicInputs[197] = 0x1acc;
+        publicInputs[198] = 0x00;
+        publicInputs[199] = 0xffffffff;
+        publicInputs[200] = 0x00;
+        publicInputs[201] = 0x02;
+        publicInputs[202] = 0x010000;
+        publicInputs[203] = 0x200000;
+        publicInputs[204] = 0x00;
+        publicInputs[205] = 0x00;
+        publicInputs[206] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[207] = 0xffffffff;
+        publicInputs[208] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[209] = 0xffffffff;
+        publicInputs[210] = 0x20;
+        publicInputs[211] = 0x00;
+        publicInputs[212] = 0x02;
+        publicInputs[213] = 0x20;
+        publicInputs[214] = 0x00;
+        publicInputs[215] = 0x02;
+        publicInputs[216] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[217] = 0xffffffff;
+        publicInputs[218] = 0xffffffffffffffffffffffffffffffff;
+        publicInputs[219] = 0xffffffff;
+        publicInputs[220] = 0x20;
+        publicInputs[221] = 0x00;
+        publicInputs[222] = 0x02;
+        publicInputs[223] = 0x08;
+        publicInputs[224] = 0x07;
+        publicInputs[225] = 0x00;
+        publicInputs[226] = 0x15;
+        publicInputs[227] = 0x00;
+        publicInputs[228] = 0x0100;
+        publicInputs[229] = 0x00;
+        publicInputs[230] = 0x01;
+        publicInputs[231] = 0x00;
+        publicInputs[232] = 0x10;
+        publicInputs[233] = 0xff;
+        publicInputs[234] = 0x00;
+        publicInputs[235] = 0x200000;
+        publicInputs[236] = 0x200000;
+        publicInputs[237] = 0x01;
+        publicInputs[238] = 0x00;
+        publicInputs[239] = 0x200000;
+        publicInputs[240] = 0x200000;
+        publicInputs[241] = 0x200000;
+        publicInputs[242] = 0x200000;
+        publicInputs[243] = 0x20;
+        publicInputs[244] = 0x00;
+        publicInputs[245] = 0x02;
+        publicInputs[246] = 0x08;
+        // Rest are zeros (247-511)
+        for (uint256 i = 247; i <= 511; i++) {
+            publicInputs[i] = 0x00;
+        }
 
         smax = 512;
     }
@@ -1994,5 +2389,194 @@ contract BridgeCoreTest is Test {
         BridgeProofManager.ProofData[] memory proofs = new BridgeProofManager.ProofData[](1);
         proofs[0] = proof;
         return proofs;
+    }
+
+    function computeCorrectFunctionInstanceHash() internal pure returns (bytes32) {
+        uint256[] memory functionInstances = new uint256[](446);
+        
+        functionInstances[0] = 0x01;
+        functionInstances[1] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[2] = 0xffffffff;
+        functionInstances[3] = 0xe72f6afd7d1f72623e6b071492d1122b;
+        functionInstances[4] = 0x11dafe5d23e1218086a365b99fbf3d3b;
+        functionInstances[5] = 0x3e26ba5cc220fed7cc3f870e59d292aa;
+        functionInstances[6] = 0x1d523cf1ddab1a1793132e78c866c0c3;
+        functionInstances[7] = 0x00;
+        functionInstances[8] = 0x00;
+        functionInstances[9] = 0x01;
+        functionInstances[10] = 0x00;
+        functionInstances[11] = 0x80;
+        functionInstances[12] = 0x00;
+        functionInstances[13] = 0x00;
+        functionInstances[14] = 0x00;
+        functionInstances[15] = 0x200000;
+        functionInstances[16] = 0x04;
+        functionInstances[17] = 0x00;
+        functionInstances[18] = 0x44;
+        functionInstances[19] = 0x00;
+        functionInstances[20] = 0x010000;
+        functionInstances[21] = 0xe0;
+        functionInstances[22] = 0x00;
+        functionInstances[23] = 0x08000000;
+        functionInstances[24] = 0x20;
+        functionInstances[25] = 0x00;
+        functionInstances[26] = 0x10000000;
+        functionInstances[27] = 0xe0;
+        functionInstances[28] = 0x00;
+        functionInstances[29] = 0x10000000;
+        functionInstances[30] = 0x70a08231;
+        functionInstances[31] = 0x00;
+        functionInstances[32] = 0x020000;
+        functionInstances[33] = 0x98650275;
+        functionInstances[34] = 0x00;
+        functionInstances[35] = 0x020000;
+        functionInstances[36] = 0xaa271e1a;
+        functionInstances[37] = 0x00;
+        functionInstances[38] = 0x020000;
+        functionInstances[39] = 0x98650275;
+        functionInstances[40] = 0x00;
+        functionInstances[41] = 0x100000;
+        functionInstances[42] = 0xa457c2d7;
+        functionInstances[43] = 0x00;
+        functionInstances[44] = 0x100000;
+        functionInstances[45] = 0xa9059cbb;
+        functionInstances[46] = 0x00;
+        functionInstances[47] = 0x100000;
+        functionInstances[48] = 0x04;
+        functionInstances[49] = 0x00;
+        functionInstances[50] = 0x44;
+        functionInstances[51] = 0x00;
+        functionInstances[52] = 0x08;
+        functionInstances[53] = 0x40;
+        functionInstances[54] = 0x00;
+        functionInstances[55] = 0x010000;
+        functionInstances[56] = 0x200000;
+        functionInstances[57] = 0x02;
+        functionInstances[58] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[59] = 0xffffffff;
+        functionInstances[60] = 0x20;
+        functionInstances[61] = 0x00;
+        functionInstances[62] = 0x02;
+        functionInstances[63] = 0x20;
+        functionInstances[64] = 0x00;
+        functionInstances[65] = 0x02;
+        functionInstances[66] = 0x00;
+        functionInstances[67] = 0x00;
+        functionInstances[68] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[69] = 0xffffffff;
+        functionInstances[70] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[71] = 0xffffffff;
+        functionInstances[72] = 0x100000;
+        functionInstances[73] = 0x200000;
+        functionInstances[74] = 0x00;
+        functionInstances[75] = 0x00;
+        functionInstances[76] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[77] = 0xffffffff;
+        functionInstances[78] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[79] = 0xffffffff;
+        functionInstances[80] = 0x100000;
+        functionInstances[81] = 0x200000;
+        functionInstances[82] = 0x60;
+        functionInstances[83] = 0x00;
+        functionInstances[84] = 0x02;
+        functionInstances[85] = 0x20;
+        functionInstances[86] = 0x00;
+        functionInstances[87] = 0x02;
+        functionInstances[88] = 0x00;
+        functionInstances[89] = 0x00;
+        functionInstances[90] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[91] = 0xffffffff;
+        functionInstances[92] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[93] = 0xffffffff;
+        functionInstances[94] = 0x20;
+        functionInstances[95] = 0x00;
+        functionInstances[96] = 0x02;
+        functionInstances[97] = 0x20;
+        functionInstances[98] = 0x00;
+        functionInstances[99] = 0x02;
+        functionInstances[100] = 0x1da9;
+        functionInstances[101] = 0x00;
+        functionInstances[102] = 0xffffffff;
+        functionInstances[103] = 0x00;
+        functionInstances[104] = 0x020000;
+        functionInstances[105] = 0x200000;
+        functionInstances[106] = 0x08;
+        functionInstances[107] = 0x00;
+        functionInstances[108] = 0x00;
+        functionInstances[109] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[110] = 0xffffffff;
+        functionInstances[111] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[112] = 0xffffffff;
+        functionInstances[113] = 0x20;
+        functionInstances[114] = 0x00;
+        functionInstances[115] = 0x02;
+        functionInstances[116] = 0x20;
+        functionInstances[117] = 0x00;
+        functionInstances[118] = 0x02;
+        functionInstances[119] = 0x00;
+        functionInstances[120] = 0x00;
+        functionInstances[121] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[122] = 0xffffffff;
+        functionInstances[123] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[124] = 0xffffffff;
+        functionInstances[125] = 0x20;
+        functionInstances[126] = 0x00;
+        functionInstances[127] = 0x02;
+        functionInstances[128] = 0x20;
+        functionInstances[129] = 0x00;
+        functionInstances[130] = 0x02;
+        functionInstances[131] = 0x1acc;
+        functionInstances[132] = 0x00;
+        functionInstances[133] = 0xffffffff;
+        functionInstances[134] = 0x00;
+        functionInstances[135] = 0x02;
+        functionInstances[136] = 0x010000;
+        functionInstances[137] = 0x200000;
+        functionInstances[138] = 0x00;
+        functionInstances[139] = 0x00;
+        functionInstances[140] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[141] = 0xffffffff;
+        functionInstances[142] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[143] = 0xffffffff;
+        functionInstances[144] = 0x20;
+        functionInstances[145] = 0x00;
+        functionInstances[146] = 0x02;
+        functionInstances[147] = 0x20;
+        functionInstances[148] = 0x00;
+        functionInstances[149] = 0x02;
+        functionInstances[150] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[151] = 0xffffffff;
+        functionInstances[152] = 0xffffffffffffffffffffffffffffffff;
+        functionInstances[153] = 0xffffffff;
+        functionInstances[154] = 0x20;
+        functionInstances[155] = 0x00;
+        functionInstances[156] = 0x02;
+        functionInstances[157] = 0x08;
+        functionInstances[158] = 0x07;
+        functionInstances[159] = 0x00;
+        functionInstances[160] = 0x15;
+        functionInstances[161] = 0x00;
+        functionInstances[162] = 0x0100;
+        functionInstances[163] = 0x00;
+        functionInstances[164] = 0x01;
+        functionInstances[165] = 0x00;
+        functionInstances[166] = 0x10;
+        functionInstances[167] = 0xff;
+        functionInstances[168] = 0x00;
+        functionInstances[169] = 0x200000;
+        functionInstances[170] = 0x200000;
+        functionInstances[171] = 0x01;
+        functionInstances[172] = 0x00;
+        functionInstances[173] = 0x200000;
+        functionInstances[174] = 0x200000;
+        functionInstances[175] = 0x200000;
+        functionInstances[176] = 0x200000;
+        functionInstances[177] = 0x20;
+        functionInstances[178] = 0x00;
+        functionInstances[179] = 0x02;
+        functionInstances[180] = 0x08;
+        // Rest are zeros (181-445)
+        
+        return keccak256(abi.encodePacked(functionInstances));
     }
 }

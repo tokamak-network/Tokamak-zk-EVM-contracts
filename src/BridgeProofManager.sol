@@ -271,8 +271,21 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             // Extract function signature from publicInputs at row 16 (0-indexed)
             // Row 18: Selector for a function to call (complete 4-byte selector)
             bytes32 funcSig = _extractFunctionSignatureFromProof(currentProof.publicInputs);
-            IBridgeCore.RegisteredFunction memory registeredFunc = bridge.getRegisteredFunction(funcSig);
-            require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
+            
+            // Get target contract data and find the registered function
+            address targetContract = bridge.getChannelTargetContract(channelId);
+            IBridgeCore.TargetContract memory targetData = bridge.getTargetContractData(targetContract);
+            
+            IBridgeCore.RegisteredFunction memory registeredFunc;
+            bool found = false;
+            for (uint256 j = 0; j < targetData.registeredFunctions.length; j++) {
+                if (targetData.registeredFunctions[j].functionSignature == funcSig) {
+                    registeredFunc = targetData.registeredFunctions[j];
+                    found = true;
+                    break;
+                }
+            }
+            require(found, "Function not registered");
 
             // Validate function instance hash
             bytes32 proofInstanceHash = _extractFunctionInstanceHashFromProof(currentProof.publicInputs);

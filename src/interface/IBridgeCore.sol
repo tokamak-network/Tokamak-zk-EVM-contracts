@@ -44,7 +44,6 @@ interface IBridgeCore {
     function getChannelSignerAddr(uint256 channelId) external view returns (address);
     function getChannelFinalStateRoot(uint256 channelId) external view returns (bytes32);
     function getChannelInitialStateRoot(uint256 channelId) external view returns (bytes32);
-    function getRegisteredFunction(bytes32 functionSignature) external view returns (RegisteredFunction memory);
     function isAllowedTargetContract(address targetContract) external view returns (bool);
     function getTargetContractData(address targetContract) external view returns (TargetContract memory);
     function getChannelTimeout(uint256 channelId) external view returns (uint256 openTimestamp, uint256 timeout);

@@ -172,10 +172,15 @@ contract WithdrawalsTest is Test {
         uint256[] memory preprocessedPart2 = new uint256[](4);
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
 
+        // Compute function instance hash from mock proof data (indices 66+ should be zeros)
+        uint256[] memory mockFunctionData = new uint256[](446); // 512 - 66 = 446
+        // All zeros for mock data
+        bytes32 functionInstanceHash = keccak256(abi.encodePacked(mockFunctionData));
+
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
         adminManager.setAllowedTargetContract(address(token), emptySlots, true);
         adminManager.registerFunction(
-            address(token), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash")
+            address(token), transferSig, preprocessedPart1, preprocessedPart2, functionInstanceHash
         );
 
         vm.stopPrank();
@@ -264,14 +269,6 @@ contract WithdrawalsTest is Test {
 
     function _submitProofAndCloseChannel() internal {
         console.log("Submitting proof and closing channel");
-        // Register the function first
-        console.log("Registering function");
-        bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
-        vm.prank(owner);
-        adminManager.registerFunction(
-            address(token), transferSig, new uint128[](4), new uint256[](4), keccak256("test_instance_hash")
-        );
-        console.log("Function registered");
 
         uint256[] memory finalBalances = new uint256[](3);
         finalBalances[0] = 102e18; // token balance for user1 (2e18 deposited + 100e18 from scenario)
@@ -572,14 +569,16 @@ contract WithdrawalsTest is Test {
         vm.prank(leader);
         proofManager.initializeChannelState(testChannelId, mockProof);
 
-        // Register the function first
+        // Register the function first with correct function instance hash
+        uint256[] memory mockFunctionData = new uint256[](446); // 512 - 66 = 446
+        bytes32 functionInstanceHash = keccak256(abi.encodePacked(mockFunctionData));
         vm.prank(owner);
         adminManager.registerFunction(
             address(token),
             bytes32(bytes4(keccak256("transfer(address,uint256)"))),
             new uint128[](4),
             new uint256[](4),
-            keccak256("test_instance_hash")
+            functionInstanceHash
         );
 
         // Submit proof with balance for rejector
@@ -706,9 +705,9 @@ contract WithdrawalsTest is Test {
             publicInputs[11] = outputRootLow; // output state root low
         }
 
-        // Set function signature at index 18 (transfer function selector: 0xa9059cbb)
-        if (publicInputs.length >= 19) {
-            publicInputs[18] = 0xa9059cbb; // transfer(address,uint256) function selector
+        // Set function signature at index 16 (transfer function selector: 0xa9059cbb)
+        if (publicInputs.length >= 17) {
+            publicInputs[16] = 0xa9059cbb; // transfer(address,uint256) function selector
         }
     }
 }

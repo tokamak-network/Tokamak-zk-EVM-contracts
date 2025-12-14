@@ -94,8 +94,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         mapping(uint256 => Channel) channels;
         mapping(address => bool) isChannelLeader;
         mapping(address => TargetContract) allowedTargetContracts;
-        // isTargetContractAllowed removed - check if allowedTargetContracts[addr].storageSlot.length > 0 or registeredFunctions.length > 0
-        mapping(bytes32 => RegisteredFunction) registeredFunctions; // Keep for backward compatibility during migration
         uint256 nextChannelId;
         address depositManager;
         address proofManager;
@@ -324,14 +322,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
 
-        // Store in global registry for backward compatibility
-        $.registeredFunctions[functionSignature] = RegisteredFunction({
-            functionSignature: functionSignature,
-            instancesHash: instancesHash,
-            preprocessedPart1: preprocessedPart1,
-            preprocessedPart2: preprocessedPart2
-        });
-
         // Also add to target contract's registered functions
         TargetContract storage target = $.allowedTargetContracts[targetContract];
 
@@ -368,9 +358,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
         require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
-
-        // Delete from global registry
-        delete $.registeredFunctions[functionSignature];
 
         // Remove from target contract's registered functions
         TargetContract storage target = $.allowedTargetContracts[targetContract];
@@ -669,11 +656,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
         return (channel.openTimestamp, channel.timeout);
-    }
-
-    function getRegisteredFunction(bytes32 functionSignature) external view returns (RegisteredFunction memory) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.registeredFunctions[functionSignature];
     }
 
     function isAllowedTargetContract(address targetContract) external view returns (bool) {

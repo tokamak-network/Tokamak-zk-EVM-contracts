@@ -48,6 +48,17 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         uint256 z;
     }
 
+    struct BlockInfos {
+        uint256 blockNumber;
+        uint256 timestamp;
+        uint256 prevrandao;
+        uint256 gaslimit;
+        uint256 basefee;
+        address coinbase;
+        uint256 chainId;
+        uint256 selfbalance;
+    }
+
     IBridgeCore public bridge;
     ITokamakVerifier public zkVerifier;
     IZecFrost public zecFrost;
@@ -57,7 +68,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     IGroth16Verifier128Leaves public groth16Verifier128;
 
 
-    event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot);
+    event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot, BlockInfos blockInfos);
     event TokamakZkSnarkProofsVerified(uint256 indexed channelId, address indexed signer);
     event FinalBalancesGroth16Verified(uint256 indexed channelId, bytes32 finalStateRoot);
     event ProofSigned(uint256 indexed channelId, address indexed signer, bytes32 finalStateRoot);
@@ -169,13 +180,23 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         require(proofValid, "Invalid Groth16 proof");
 
         // Compute blockInfosHash
+        BlockInfos memory blockInfos = BlockInfos({
+            blockNumber: block.number,
+            timestamp: block.timestamp,
+            prevrandao: block.prevrandao,
+            gaslimit: block.gaslimit,
+            basefee: block.basefee,
+            coinbase: block.coinbase,
+            chainId: block.chainid,
+            selfbalance: address(this).balance
+        });
         bytes32 blockInfosHash = _computeBlockInfosHash();
         
         bridge.setChannelInitialStateRoot(channelId, proof.merkleRoot);
         bridge.setChannelBlockInfosHash(channelId, blockInfosHash);
         bridge.setChannelState(channelId, IBridgeCore.ChannelState.Open);
 
-        emit StateInitialized(channelId, proof.merkleRoot);
+        emit StateInitialized(channelId, proof.merkleRoot, blockInfos);
     }
 
     function submitProofAndSignature(uint256 channelId, ProofData[] calldata proofs, Signature calldata signature)
@@ -188,10 +209,10 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         (uint256 openTimestamp, uint256 timeout) = bridge.getChannelTimeout(channelId);
         require(block.timestamp >= openTimestamp + timeout, "Timeout has not passed yet");
 
-        // Extract finalStateRoot from the first slot of the last proof's publicInputs
+        // Extract finalStateRoot from the last proof's output state root (indices 10-11)
         ProofData calldata lastProof = proofs[proofs.length - 1];
-        require(lastProof.publicInputs.length > 0, "Public inputs cannot be empty");
-        bytes32 finalStateRoot = bytes32(lastProof.publicInputs[0]);
+        require(lastProof.publicInputs.length >= 12, "Invalid public inputs length");
+        bytes32 finalStateRoot = _concatenateStateRoot(lastProof.publicInputs[10], lastProof.publicInputs[11]);
         bytes32 initialStateRoot = bridge.getChannelInitialStateRoot(channelId);
 
         // STEP 1: verify order of proofs
@@ -253,19 +274,15 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             ProofData calldata currentProof = proofs[i];
             require(currentProof.publicInputs.length >= 19, "Public inputs too short for function signature");
 
-            // Extract function signature from publicInputs at row 18 (0-indexed)
+            // Extract function signature from publicInputs at row 16 (0-indexed)
             // Row 18: Selector for a function to call (complete 4-byte selector)
             bytes32 funcSig = _extractFunctionSignatureFromProof(currentProof.publicInputs);
             IBridgeCore.RegisteredFunction memory registeredFunc = bridge.getRegisteredFunction(funcSig);
             require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
 
-            // Validate function instance hash (skip in test environments)
-            if (block.chainid != 31337) {
-                bytes32 proofInstanceHash = _extractFunctionInstanceHashFromProof(currentProof.publicInputs);
-                require(proofInstanceHash == registeredFunc.instancesHash, "Function instance hash mismatch");
-            }
-
-            
+            // Validate function instance hash
+            bytes32 proofInstanceHash = _extractFunctionInstanceHashFromProof(currentProof.publicInputs);
+            require(proofInstanceHash == registeredFunc.instancesHash, "Function instance hash mismatch");
 
             bool proofValid = zkVerifier.verify(
                 currentProof.proofPart1,
@@ -456,22 +473,27 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     }
 
     function _computeBlockInfosHash() internal view returns (bytes32) {
+        require(block.number > 0, "Block number must be greater than 0");
+        
         bytes memory blockInfo;
+        uint256 targetBlockNumber = block.number ;
 
         // COINBASE (32 bytes total - lower 16 + upper 16)
         address coinbaseAddr = block.coinbase;
         uint256 coinbaseValue = uint256(uint160(coinbaseAddr));
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(coinbaseValue)), bytes16(uint128(coinbaseValue >> 128)));
 
-        // TIMESTAMP (32 bytes total - lower 16 + upper 16) 
+        // TIMESTAMP (32 bytes total - lower 16 + upper 16)
+        // MISMATCH WARNING: This is current block timestamp, not block n-1!
         uint256 timestamp = block.timestamp;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(timestamp)), bytes16(uint128(timestamp >> 128)));
 
-        // NUMBER (32 bytes total - lower 16 + upper 16)
-        uint256 number = block.number;
+        // NUMBER (32 bytes total - lower 16 + upper 16) - Use n-1
+        uint256 number = targetBlockNumber;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(number)), bytes16(uint128(number >> 128)));
 
         // PREVRANDAO (32 bytes total - lower 16 + upper 16)
+        // MISMATCH WARNING: This is current block prevrandao, not block n-1!
         uint256 prevrandao = block.prevrandao;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(prevrandao)), bytes16(uint128(prevrandao >> 128)));
 
@@ -484,15 +506,18 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(chainid)), bytes16(uint128(chainid >> 128)));
 
         // SELFBALANCE (32 bytes total - lower 16 + upper 16)
+        // MISMATCH WARNING: This is current balance, not block n-1!
         uint256 selfbalance = address(this).balance;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(selfbalance)), bytes16(uint128(selfbalance >> 128)));
 
         // BASEFEE (32 bytes total - lower 16 + upper 16)
+        // MISMATCH WARNING: This is current basefee, not block n-1!
         uint256 basefee = block.basefee;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(basefee)), bytes16(uint128(basefee >> 128)));
 
-        // Block hashes 1-4 blocks ago (32 bytes each - lower 16 + upper 16)
-        for (uint256 i = 1; i <= 4; i++) {
+        // Block hashes 2-5 blocks ago from current block (32 bytes each - lower 16 + upper 16)
+        // Since we're hashing for block n-1, these are blocks (n-2), (n-3), (n-4), (n-5)
+        for (uint256 i = 2; i <= 5; i++) {
             bytes32 blockHash;
             if (block.number >= i) {
                 blockHash = blockhash(block.number - i);
@@ -529,7 +554,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         
         // Extract the function selector from index 18
         // The value is already a complete 4-byte selector stored as uint256
-        uint256 selectorValue = publicInputs[18];
+        uint256 selectorValue = publicInputs[16];
         bytes4 selector = bytes4(uint32(selectorValue));
         
         return bytes32(selector);

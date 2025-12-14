@@ -67,7 +67,6 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     IGroth16Verifier64Leaves public groth16Verifier64;
     IGroth16Verifier128Leaves public groth16Verifier128;
 
-
     event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot, BlockInfos blockInfos);
     event TokamakZkSnarkProofsVerified(uint256 indexed channelId, address indexed signer);
     event FinalBalancesGroth16Verified(uint256 indexed channelId, bytes32 finalStateRoot);
@@ -129,11 +128,11 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             for (uint256 i = 0; i < preAllocatedKeys.length; i++) {
                 bytes32 key = preAllocatedKeys[i];
                 (uint256 value, bool exists) = bridge.getPreAllocatedLeaf(targetContract, key);
-                
+
                 if (exists) {
                     uint256 modedKey = uint256(key) % R_MOD;
                     uint256 modedValue = value % R_MOD;
-                    
+
                     publicSignals[currentIndex] = modedKey;
                     publicSignals[currentIndex + treeSize] = modedValue;
                     currentIndex++;
@@ -191,7 +190,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             selfbalance: address(this).balance
         });
         bytes32 blockInfosHash = _computeBlockInfosHash();
-        
+
         bridge.setChannelInitialStateRoot(channelId, proof.merkleRoot);
         bridge.setChannelBlockInfosHash(channelId, blockInfosHash);
         bridge.setChannelState(channelId, IBridgeCore.ChannelState.Open);
@@ -218,29 +217,24 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // STEP 1: verify order of proofs
         // Validate proof chain and state root consistency
         bytes32 expectedPrevRoot = initialStateRoot;
-        
+
         for (uint256 i = 0; i < proofs.length; i++) {
             ProofData calldata currentProof = proofs[i];
             require(currentProof.publicInputs.length >= 12, "Invalid public inputs length");
-            
+
             // Extract input state root (rows 8 & 9) and output state root (rows 10 & 11)
-            bytes32 inputStateRoot = _concatenateStateRoot(
-                currentProof.publicInputs[8], 
-                currentProof.publicInputs[9]
-            );
-            bytes32 outputStateRoot = _concatenateStateRoot(
-                currentProof.publicInputs[10], 
-                currentProof.publicInputs[11]
-            );
-            
+            bytes32 inputStateRoot = _concatenateStateRoot(currentProof.publicInputs[8], currentProof.publicInputs[9]);
+            bytes32 outputStateRoot =
+                _concatenateStateRoot(currentProof.publicInputs[10], currentProof.publicInputs[11]);
+
             // For first proof, input state root should match the stored initial state root
             // For subsequent proofs, input state root should match previous proof's output state root
             require(inputStateRoot == expectedPrevRoot, "State root chain broken");
-            
+
             // Update expected previous root for next iteration
             expectedPrevRoot = outputStateRoot;
         }
-        
+
         // Final verification: last proof's output state root should match the final state root
         require(expectedPrevRoot == finalStateRoot, "Final state root mismatch");
 
@@ -258,7 +252,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Verify that each proof's block info matches the stored block info hash
         bytes32 storedBlockInfoHash = bridge.getChannelBlockInfosHash(channelId);
         require(storedBlockInfoHash != bytes32(0), "Block info hash not set for channel");
-        
+
         // Skip block info validation in test environments (when chainid is 31337 - Anvil/Hardhat)
         if (block.chainid != 31337) {
             for (uint256 i = 0; i < proofs.length; i++) {
@@ -333,7 +327,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         uint256 treeSize = bridge.getChannelTreeSize(channelId);
         address targetContract = bridge.getChannelTargetContract(channelId);
         uint256 preAllocatedCount = bridge.getPreAllocatedLeavesCount(targetContract);
-        
+
         uint256[] memory publicSignals = new uint256[](1 + 2 * treeSize);
 
         // Set final state root as first public signal
@@ -348,7 +342,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                 bytes32 key = preAllocatedKeys[i];
                 (uint256 value, bool exists) = bridge.getPreAllocatedLeaf(targetContract, key);
                 require(exists, "Pre-allocated leaf not found");
-                
+
                 // Set pre-allocated MPT key and value
                 publicSignals[currentIndex] = uint256(key);
                 publicSignals[currentIndex + treeSize] = value;
@@ -474,9 +468,9 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
     function _computeBlockInfosHash() internal view returns (bytes32) {
         require(block.number > 0, "Block number must be greater than 0");
-        
+
         bytes memory blockInfo;
-        uint256 targetBlockNumber = block.number ;
+        uint256 targetBlockNumber = block.number;
 
         // COINBASE (32 bytes total - lower 16 + upper 16)
         address coinbaseAddr = block.coinbase;
@@ -532,9 +526,9 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
     function _extractBlockInfoHashFromProof(uint256[] calldata publicInputs) internal pure returns (bytes32) {
         require(publicInputs.length >= 66, "Public inputs too short for block info");
-        
+
         bytes memory blockInfo;
-        
+
         // Extract block info from public inputs (indices 42-65 based on instance_description.json)
         // Each block variable is stored as lower 16 bytes + upper 16 bytes
         for (uint256 i = 42; i < 66; i += 2) {
@@ -543,7 +537,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             uint256 upper = publicInputs[i + 1];
             blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(lower)), bytes16(uint128(upper)));
         }
-        
+
         return keccak256(blockInfo);
     }
 
@@ -551,12 +545,12 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Function signature is located at row 18 (0-indexed) in the user data section
         // Row 18: Selector for a function to call (complete 4-byte selector)
         require(publicInputs.length >= 19, "Public inputs too short for function signature");
-        
+
         // Extract the function selector from index 18
         // The value is already a complete 4-byte selector stored as uint256
         uint256 selectorValue = publicInputs[16];
         bytes4 selector = bytes4(uint32(selectorValue));
-        
+
         return bytes32(selector);
     }
 
@@ -564,15 +558,15 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Function instance data starts at index 66 (based on instance_description.json)
         // User data: 0-41, Block data: 42-65, Function data: 66+
         require(publicInputs.length > 66, "Public inputs too short for function instance data");
-        
+
         // Extract function instance data starting from index 66
         uint256 functionDataLength = publicInputs.length - 66;
         uint256[] memory functionInstanceData = new uint256[](functionDataLength);
-        
+
         for (uint256 i = 0; i < functionDataLength; i++) {
             functionInstanceData[i] = publicInputs[66 + i];
         }
-        
+
         return keccak256(abi.encodePacked(functionInstanceData));
     }
 

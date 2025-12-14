@@ -5,69 +5,65 @@ import "forge-std/Test.sol";
 
 // Simple contract that replicates the _extractFunctionInstanceHashFromProof logic
 contract HashTester {
-    function extractFunctionInstanceHashFromProof(uint256[] calldata publicInputs) 
-        external 
-        pure 
-        returns (bytes32) 
-    {
+    function extractFunctionInstanceHashFromProof(uint256[] calldata publicInputs) external pure returns (bytes32) {
         // Function instance data starts at index 66 (based on instance_description.json)
         // User data: 0-41, Block data: 42-65, Function data: 66+
         require(publicInputs.length > 66, "Public inputs too short for function instance data");
-        
+
         // Extract function instance data starting from index 66
         uint256 functionDataLength = publicInputs.length - 66;
         uint256[] memory functionInstanceData = new uint256[](functionDataLength);
-        
+
         for (uint256 i = 0; i < functionDataLength; i++) {
             functionInstanceData[i] = publicInputs[66 + i];
         }
-        
+
         return keccak256(abi.encodePacked(functionInstanceData));
     }
 }
 
 contract FunctionInstanceHashTest is Test {
     HashTester public hashTester;
-    
+
     // Expected hash computed by our JavaScript script using proper keccak256
     bytes32 constant EXPECTED_HASH = 0x01da72b21088e36f4c987d7796856fa1351ea79d94a9c6bfbcc4c36813f9e1af;
-    
+
     function setUp() public {
         hashTester = new HashTester();
     }
-    
+
     function test_extractFunctionInstanceHashFromProof() public {
         // Load the public inputs from the JSON file
         // This data is from test/verifier/proof1/a_pub_function.json
         uint256[] memory publicInputs = _loadPublicInputsFromJSON();
-        
+
         // Call the function under test
         bytes32 computedHash = hashTester.extractFunctionInstanceHashFromProof(publicInputs);
-        
+
         // Verify it matches our expected hash from the JavaScript script
         assertEq(computedHash, EXPECTED_HASH, "Function instance hash mismatch");
-        
+
         console.log("Expected hash: %s", vm.toString(EXPECTED_HASH));
         console.log("Computed hash: %s", vm.toString(computedHash));
         console.log("Hash verification: PASSED");
     }
-    
+
     function test_extractFunctionInstanceHashFromProof_TooShort() public {
         // Test with insufficient public inputs (should revert)
         uint256[] memory shortInputs = new uint256[](65); // Less than 66 required
-        
+
         vm.expectRevert("Public inputs too short for function instance data");
         hashTester.extractFunctionInstanceHashFromProof(shortInputs);
     }
-    
+
     function test_extractFunctionInstanceHashFromProof_EmptyFunctionData() public {
         // Test with exactly 66 elements (no function data)
         uint256[] memory exactInputs = new uint256[](66);
-        
+
         vm.expectRevert("Public inputs too short for function instance data");
         hashTester.extractFunctionInstanceHashFromProof(exactInputs);
     }
-    
+
     function test_extractFunctionInstanceHashFromProof_SingleFunctionElement() public {
         // Test with exactly 67 elements (one function data element)
         uint256[] memory inputs = new uint256[](67);
@@ -75,19 +71,19 @@ contract FunctionInstanceHashTest is Test {
             inputs[i] = 0; // Fill user and block data with zeros
         }
         inputs[66] = 0x12345678; // Single function data element
-        
+
         // Calculate expected hash for single element
         bytes32 expected = keccak256(abi.encodePacked(uint256(0x12345678)));
-        
+
         bytes32 computed = hashTester.extractFunctionInstanceHashFromProof(inputs);
         assertEq(computed, expected, "Single element hash mismatch");
     }
-    
+
     // Helper function to load public inputs from the JSON data
     // This manually creates the array from test/verifier/proof1/a_pub_function.json
     function _loadPublicInputsFromJSON() internal pure returns (uint256[] memory) {
         uint256[] memory inputs = new uint256[](448); // Total length from JSON
-        
+
         // Manually populate the array with values from the JSON file
         // User data (0-41) and Block data (42-65)
         inputs[0] = 0x01;
@@ -156,7 +152,7 @@ contract FunctionInstanceHashTest is Test {
         inputs[63] = 0x20;
         inputs[64] = 0x00;
         inputs[65] = 0x02;
-        
+
         // Function data starts at index 66 (from the JSON file)
         // First 10 function data elements for reference:
         inputs[66] = 0x00;
@@ -169,7 +165,7 @@ contract FunctionInstanceHashTest is Test {
         inputs[73] = 0x200000;
         inputs[74] = 0x00;
         inputs[75] = 0x00;
-        
+
         // Continue with the remaining function data (indexes 76-447)
         // Most are 0x00, with some specific values scattered throughout
         inputs[76] = 0xffffffffffffffffffffffffffffffff;
@@ -275,29 +271,29 @@ contract FunctionInstanceHashTest is Test {
         inputs[176] = 0x00;
         inputs[177] = 0x02;
         inputs[178] = 0x08;
-        
+
         // The remaining entries (179-447) are all 0x00
         for (uint256 i = 179; i < 448; i++) {
             inputs[i] = 0x00;
         }
-        
+
         return inputs;
     }
-    
+
     function test_extractFunctionSignature() public view {
         // Test function signature extraction from actual data
         uint256[] memory publicInputs = _loadPublicInputsFromJSON();
-        
+
         // From instance.json, at index 18 we have "0xa30fe402"
         // This should be extracted as the function signature
         bytes32 expectedSig = 0xa30fe40200000000000000000000000000000000000000000000000000000000;
-        
+
         // Note: We can't directly test the internal function from BridgeProofManager,
         // but we can verify the expected value matches what we see in the JSON
         uint256 actualValue = publicInputs[18];
         bytes4 selector = bytes4(uint32(actualValue));
         bytes32 extractedSig = bytes32(selector);
-        
+
         assertEq(extractedSig, expectedSig, "Function signature extraction mismatch");
         console.log("Function signature at index 18: %s", vm.toString(extractedSig));
     }

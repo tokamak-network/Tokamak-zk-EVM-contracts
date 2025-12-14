@@ -9,12 +9,7 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgra
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "./interface/IBridgeCore.sol";
 
-contract BridgeWithdrawManager is
-    Initializable,
-    ReentrancyGuardUpgradeable,
-    OwnableUpgradeable,
-    UUPSUpgradeable
-{
+contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();

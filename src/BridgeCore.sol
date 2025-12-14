@@ -55,39 +55,32 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     struct Channel {
         // Slot 1
         uint256 id;
-        
         // Slot 2: pack addresses and small values (20 + 20 + 1 + 1 + 14 bytes = 56 bytes)
-        address targetContract;    // 20 bytes
-        address leader;            // 20 bytes  
-        ChannelState state;        // 1 byte
-        bool sigVerified;          // 1 byte
+        address targetContract; // 20 bytes
+        address leader; // 20 bytes
+        ChannelState state; // 1 byte
+        bool sigVerified; // 1 byte
         // 14 bytes available for future use
-        
+
         // Slot 3: signer and counts (20 + 8 + 4 bytes = 32 bytes)
-        address signerAddr;        // 20 bytes
-        uint64 requiredTreeSize;   // 8 bytes (enough for tree size)
+        address signerAddr; // 20 bytes
+        uint64 requiredTreeSize; // 8 bytes (enough for tree size)
         uint32 preAllocatedLeavesCount; // 4 bytes (max 4.2B leaves)
-        
         // Slot 4-5: timestamps (each 128 bits is enough until year 10^38)
-        uint128 openTimestamp;     // 16 bytes
-        uint128 timeout;           // 16 bytes
-        uint128 closeTimestamp;    // 16 bytes
-        uint128 _reserved;         // 16 bytes for future use
-        
+        uint128 openTimestamp; // 16 bytes
+        uint128 timeout; // 16 bytes
+        uint128 closeTimestamp; // 16 bytes
+        uint128 _reserved; // 16 bytes for future use
         // Slots 6-7: state roots
         bytes32 initialStateRoot;
         bytes32 finalStateRoot;
-        
         // Slot 8: block info
         bytes32 blockInfosHash;
-        
         // Slots 9-10: public key
         uint256 pkx;
         uint256 pky;
-        
-        // Slot 11: total deposits  
+        // Slot 11: total deposits
         uint256 totalDeposits;
-        
         // Dynamic storage (mappings and arrays)
         address[] participants;
         mapping(address => UserChannelData) userData;
@@ -167,10 +160,10 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         // Get number of active pre-allocated leaves for this target contract
         uint256 preAllocatedCount = _getActivePreAllocatedCount(params.targetContract);
-        
+
         // Calculate maximum allowed participants considering pre-allocated leaves
         uint256 maxAllowedParticipants = MAX_PARTICIPANTS - preAllocatedCount;
-        
+
         require(
             params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= maxAllowedParticipants,
             "Invalid participant count considering pre-allocated leaves"
@@ -227,10 +220,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     }
 
     // Manager setter functions
-    function updateChannelUserDeposits(uint256 channelId, address participant, uint256 amount)
-        external
-        onlyManager
-    {
+    function updateChannelUserDeposits(uint256 channelId, address participant, uint256 amount) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         $.channels[channelId].userData[participant].deposit += amount;
     }
@@ -240,21 +230,21 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         $.channels[channelId].totalDeposits += amount;
     }
 
-    function setChannelL2MptKey(uint256 channelId, address participant, uint256 mptKey)
-        external
-        onlyManager
-    {
+    function setChannelL2MptKey(uint256 channelId, address participant, uint256 mptKey) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
-        
+
         // Check if the mptKey is already used by another participant
         for (uint256 i = 0; i < channel.participants.length; i++) {
             address existingParticipant = channel.participants[i];
-            if (existingParticipant != participant && channel.userData[existingParticipant].l2MptKey == mptKey && mptKey != 0) {
+            if (
+                existingParticipant != participant && channel.userData[existingParticipant].l2MptKey == mptKey
+                    && mptKey != 0
+            ) {
                 revert("L2MPTKey already in use by another participant");
             }
         }
-        
+
         channel.userData[participant].l2MptKey = mptKey;
     }
 
@@ -276,11 +266,10 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         }
     }
 
-    function setChannelWithdrawAmounts(
-        uint256 channelId,
-        address[] memory participants,
-        uint256[] memory amounts
-    ) external onlyManager {
+    function setChannelWithdrawAmounts(uint256 channelId, address[] memory participants, uint256[] memory amounts)
+        external
+        onlyManager
+    {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
 
@@ -296,27 +285,28 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         $.channels[channelId].sigVerified = verified;
     }
 
-    function setAllowedTargetContract(address targetContract, PreAllocatedLeaf[] memory storageSlots, bool allowed) external onlyManager {
+    function setAllowedTargetContract(address targetContract, PreAllocatedLeaf[] memory storageSlots, bool allowed)
+        external
+        onlyManager
+    {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
         if (allowed) {
             // Clear existing storage slots
             delete $.allowedTargetContracts[targetContract].storageSlot;
-            
+
             // Add new storage slots
             for (uint256 i = 0; i < storageSlots.length; i++) {
                 $.allowedTargetContracts[targetContract].storageSlot.push(storageSlots[i]);
             }
-            
+
             // If no storage slots provided and no functions registered, add a dummy entry
             // to mark the contract as allowed
             if (storageSlots.length == 0 && $.allowedTargetContracts[targetContract].registeredFunctions.length == 0) {
                 // Push a dummy inactive leaf to mark as allowed
-                $.allowedTargetContracts[targetContract].storageSlot.push(PreAllocatedLeaf({
-                    value: 0,
-                    key: bytes32(0),
-                    isActive: false
-                }));
+                $.allowedTargetContracts[targetContract].storageSlot.push(
+                    PreAllocatedLeaf({value: 0, key: bytes32(0), isActive: false})
+                );
             }
         } else {
             delete $.allowedTargetContracts[targetContract];
@@ -331,9 +321,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         bytes32 instancesHash
     ) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        
+
         require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
-        
+
         // Store in global registry for backward compatibility
         $.registeredFunctions[functionSignature] = RegisteredFunction({
             functionSignature: functionSignature,
@@ -341,10 +331,10 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
             preprocessedPart1: preprocessedPart1,
             preprocessedPart2: preprocessedPart2
         });
-        
+
         // Also add to target contract's registered functions
         TargetContract storage target = $.allowedTargetContracts[targetContract];
-        
+
         // Check if function already exists for this target
         bool functionExists = false;
         for (uint256 i = 0; i < target.registeredFunctions.length; i++) {
@@ -360,30 +350,32 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
                 break;
             }
         }
-        
+
         // If function doesn't exist, add it
         if (!functionExists) {
-            target.registeredFunctions.push(RegisteredFunction({
-                functionSignature: functionSignature,
-                instancesHash: instancesHash,
-                preprocessedPart1: preprocessedPart1,
-                preprocessedPart2: preprocessedPart2
-            }));
+            target.registeredFunctions.push(
+                RegisteredFunction({
+                    functionSignature: functionSignature,
+                    instancesHash: instancesHash,
+                    preprocessedPart1: preprocessedPart1,
+                    preprocessedPart2: preprocessedPart2
+                })
+            );
         }
     }
 
     function unregisterFunction(address targetContract, bytes32 functionSignature) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        
+
         require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
-        
+
         // Delete from global registry
         delete $.registeredFunctions[functionSignature];
-        
+
         // Remove from target contract's registered functions
         TargetContract storage target = $.allowedTargetContracts[targetContract];
         uint256 functionsLength = target.registeredFunctions.length;
-        
+
         for (uint256 i = 0; i < functionsLength; i++) {
             if (target.registeredFunctions[i].functionSignature == functionSignature) {
                 // Move the last element to this position and pop
@@ -427,17 +419,17 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
      */
     function setPreAllocatedLeaf(address targetContract, bytes32 key, uint256 value) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        
+
         require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
         require(key != bytes32(0), "MPT key cannot be zero");
 
         PreAllocatedLeaf storage leaf = $.preAllocatedLeaves[targetContract][key];
-        
+
         // If this is a new pre-allocated leaf, add it to the keys array
         if (!leaf.isActive) {
             $.targetContractPreAllocatedKeys[targetContract].push(key);
         }
-        
+
         leaf.key = key;
         leaf.value = value;
         leaf.isActive = true;
@@ -453,7 +445,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
      */
     function removePreAllocatedLeaf(address targetContract, bytes32 key) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        
+
         PreAllocatedLeaf storage leaf = $.preAllocatedLeaves[targetContract][key];
         require(leaf.isActive, "Pre-allocated leaf does not exist");
 
@@ -480,10 +472,10 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
      * @return value The value of the pre-allocated leaf
      * @return exists Whether the leaf exists
      */
-    function getPreAllocatedLeaf(address targetContract, bytes32 key) 
-        external 
-        view 
-        returns (uint256 value, bool exists) 
+    function getPreAllocatedLeaf(address targetContract, bytes32 key)
+        external
+        view
+        returns (uint256 value, bool exists)
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         PreAllocatedLeaf storage leaf = $.preAllocatedLeaves[targetContract][key];
@@ -536,7 +528,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
             $.slot := BridgeCoreStorageLocation
         }
     }
-    
+
     function _isTargetContractAllowed(address targetContract) internal view returns (bool) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         TargetContract storage target = $.allowedTargetContracts[targetContract];
@@ -544,7 +536,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         // (including dummy inactive entries used just to mark as allowed)
         return target.storageSlot.length > 0 || target.registeredFunctions.length > 0;
     }
-    
+
     function _getActivePreAllocatedCount(address targetContract) internal view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         uint256 count = 0;
@@ -631,11 +623,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].requiredTreeSize;
     }
 
-    function getParticipantDeposit(uint256 channelId, address participant)
-        external
-        view
-        returns (uint256)
-    {
+    function getParticipantDeposit(uint256 channelId, address participant) external view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].userData[participant].deposit;
     }
@@ -697,7 +685,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
         return $.allowedTargetContracts[targetContract];
     }
-    
+
     /**
      * @notice Get registered functions for a specific target contract
      * @param targetContract The target contract address
@@ -729,11 +717,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].sigVerified;
     }
 
-    function getWithdrawableAmount(uint256 channelId, address participant)
-        external
-        view
-        returns (uint256)
-    {
+    function getWithdrawableAmount(uint256 channelId, address participant) external view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].userData[participant].withdrawAmount;
     }
@@ -845,7 +829,10 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
             targetContracts[i] = allTargetContracts[i];
             for (uint256 j = 0; j < $.nextChannelId; j++) {
                 Channel storage channel = $.channels[j];
-                if (channel.id > 0 && channel.userData[user].isParticipant && channel.targetContract == targetContracts[i]) {
+                if (
+                    channel.id > 0 && channel.userData[user].isParticipant
+                        && channel.targetContract == targetContracts[i]
+                ) {
                     balances[i] += channel.userData[user].deposit;
                 }
             }
@@ -1140,7 +1127,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         for (uint256 i = 0; i < channel.participants.length; i++) {
             address participant = channel.participants[i];
             uint256 deposit = channel.userData[participant].deposit;
-            
+
             if (deposit > 0) {
                 activeParticipants++;
                 totalDepositValue += deposit;
@@ -1213,11 +1200,12 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
      * @return totalDeposits Array of total deposits for each channel
      * @return totalMatches Total number of matches (for pagination)
      */
-    function searchChannelsByTargetContract(address targetContract, uint256 minTotalDeposits, uint256 limit, uint256 offset)
-        external
-        view
-        returns (uint256[] memory channelIds, uint256[] memory totalDeposits, uint256 totalMatches)
-    {
+    function searchChannelsByTargetContract(
+        address targetContract,
+        uint256 minTotalDeposits,
+        uint256 limit,
+        uint256 offset
+    ) external view returns (uint256[] memory channelIds, uint256[] memory totalDeposits, uint256 totalMatches) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
         // First pass: count matches

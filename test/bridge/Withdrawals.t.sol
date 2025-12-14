@@ -174,7 +174,9 @@ contract WithdrawalsTest is Test {
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
         adminManager.setAllowedTargetContract(address(token), emptySlots, true);
-        adminManager.registerFunction(address(token), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
+        adminManager.registerFunction(
+            address(token), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash")
+        );
 
         vm.stopPrank();
 
@@ -194,7 +196,6 @@ contract WithdrawalsTest is Test {
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = leader;
-
 
         BridgeCore.ChannelParams memory params =
             BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
@@ -248,8 +249,7 @@ contract WithdrawalsTest is Test {
     function _initializeChannelState() internal {
         console.log("Initializing channel state");
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
-        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager
-            .ChannelInitializationProof({
+        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager.ChannelInitializationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
@@ -281,7 +281,7 @@ contract WithdrawalsTest is Test {
         uint256[] memory publicInputs = new uint256[](512);
         publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
         _setWithdrawalsTestStateRoots(publicInputs);
-        
+
         BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: new uint128[](4),
             proofPart2: new uint256[](4),
@@ -341,9 +341,7 @@ contract WithdrawalsTest is Test {
         assertEq(
             token.balanceOf(user1), initialTokenBalance + expectedWithdrawAmount, "Token withdrawal amount incorrect"
         );
-        assertEq(
-            bridge.getWithdrawableAmount(channelId, user1), 0, "Token withdrawable amount not cleared"
-        );
+        assertEq(bridge.getWithdrawableAmount(channelId, user1), 0, "Token withdrawable amount not cleared");
     }
 
     function testWithdrawTokenUser2Success() public {
@@ -362,9 +360,7 @@ contract WithdrawalsTest is Test {
             initialTokenBalance + expectedTokenWithdrawAmount,
             "Token withdrawal amount incorrect"
         );
-        assertEq(
-            bridge.getWithdrawableAmount(channelId, user2), 0, "Token withdrawable amount not cleared"
-        );
+        assertEq(bridge.getWithdrawableAmount(channelId, user2), 0, "Token withdrawable amount not cleared");
     }
 
     function testWithdrawFailsChannelNotClosed() public {
@@ -464,8 +460,7 @@ contract WithdrawalsTest is Test {
     function _setupEmptyChannel(uint256 testChannelId) internal {
         // Initialize channel state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
-        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager
-            .ChannelInitializationProof({
+        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager.ChannelInitializationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
@@ -485,7 +480,7 @@ contract WithdrawalsTest is Test {
         uint256[] memory publicInputs = new uint256[](512);
         publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
         _setWithdrawalsTestStateRoots(publicInputs);
-        
+
         BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: new uint128[](4),
             proofPart2: new uint256[](4),
@@ -495,7 +490,8 @@ contract WithdrawalsTest is Test {
 
         mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
 
-        bytes32 commitmentHash = keccak256(abi.encodePacked(testChannelId, bytes32(uint256(keccak256("finalStateRoot")))));
+        bytes32 commitmentHash =
+            keccak256(abi.encodePacked(testChannelId, bytes32(uint256(keccak256("finalStateRoot")))));
         BridgeProofManager.Signature memory signature =
             BridgeProofManager.Signature({message: commitmentHash, rx: 1, ry: 2, z: 3});
 
@@ -566,8 +562,7 @@ contract WithdrawalsTest is Test {
 
         // Initialize channel state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
-        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager
-            .ChannelInitializationProof({
+        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager.ChannelInitializationProof({
             pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
@@ -579,7 +574,13 @@ contract WithdrawalsTest is Test {
 
         // Register the function first
         vm.prank(owner);
-        adminManager.registerFunction(address(token), bytes32(bytes4(keccak256("transfer(address,uint256)"))), new uint128[](4), new uint256[](4), keccak256("test_instance_hash"));
+        adminManager.registerFunction(
+            address(token),
+            bytes32(bytes4(keccak256("transfer(address,uint256)"))),
+            new uint128[](4),
+            new uint256[](4),
+            keccak256("test_instance_hash")
+        );
 
         // Submit proof with balance for rejector
 
@@ -591,7 +592,7 @@ contract WithdrawalsTest is Test {
         uint256[] memory publicInputs = new uint256[](512);
         publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
         _setWithdrawalsTestStateRoots(publicInputs);
-        
+
         BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
             proofPart1: new uint128[](4),
             proofPart2: new uint256[](4),
@@ -601,7 +602,8 @@ contract WithdrawalsTest is Test {
 
         mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
 
-        bytes32 commitmentHash = keccak256(abi.encodePacked(testChannelId, bytes32(uint256(keccak256("finalStateRoot")))));
+        bytes32 commitmentHash =
+            keccak256(abi.encodePacked(testChannelId, bytes32(uint256(keccak256("finalStateRoot")))));
         BridgeProofManager.Signature memory signature =
             BridgeProofManager.Signature({message: commitmentHash, rx: 1, ry: 2, z: 3});
 
@@ -639,12 +641,8 @@ contract WithdrawalsTest is Test {
         assertEq(token.balanceOf(user2), user2InitialTokens + 400e18, "User2 token withdrawal failed");
 
         // Both users should have no more withdrawable tokens
-        assertEq(
-            bridge.getWithdrawableAmount(channelId, user1), 0, "User1 withdrawable amount not cleared"
-        );
-        assertEq(
-            bridge.getWithdrawableAmount(channelId, user2), 0, "User2 withdrawable amount not cleared"
-        );
+        assertEq(bridge.getWithdrawableAmount(channelId, user1), 0, "User1 withdrawable amount not cleared");
+        assertEq(bridge.getWithdrawableAmount(channelId, user2), 0, "User2 withdrawable amount not cleared");
     }
 
     function testWithdrawZeroAmountFails() public {
@@ -696,24 +694,23 @@ contract WithdrawalsTest is Test {
             bytes32 mockRoot = keccak256(abi.encodePacked("mockRoot"));
             uint256 inputRootHigh = uint256(mockRoot) >> 128;
             uint256 inputRootLow = uint256(mockRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-            
+
             // Use the finalStateRoot (which is set in publicInputs[0]) for output
             bytes32 finalStateRoot = bytes32(publicInputs[0]);
             uint256 outputRootHigh = uint256(finalStateRoot) >> 128;
             uint256 outputRootLow = uint256(finalStateRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-            
-            publicInputs[8] = inputRootHigh;   // input state root high
-            publicInputs[9] = inputRootLow;    // input state root low
+
+            publicInputs[8] = inputRootHigh; // input state root high
+            publicInputs[9] = inputRootLow; // input state root low
             publicInputs[10] = outputRootHigh; // output state root high (matches publicInputs[0])
-            publicInputs[11] = outputRootLow;  // output state root low
+            publicInputs[11] = outputRootLow; // output state root low
         }
-        
+
         // Set function signature at index 18 (transfer function selector: 0xa9059cbb)
         if (publicInputs.length >= 19) {
             publicInputs[18] = 0xa9059cbb; // transfer(address,uint256) function selector
         }
     }
-
 }
 
 // Contract that rejects ETH transfers

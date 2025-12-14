@@ -306,9 +306,13 @@ contract UpgradeContractsScript is Script {
             console.log("New implementations will be verified automatically with --verify flag");
             console.log("Manual verification commands:");
             console.log("  forge verify-contract", newBridgeCoreImpl, "src/BridgeCore.sol:BridgeCore");
-            console.log("  forge verify-contract", newDepositManagerImpl, "src/BridgeDepositManager.sol:BridgeDepositManager");
+            console.log(
+                "  forge verify-contract", newDepositManagerImpl, "src/BridgeDepositManager.sol:BridgeDepositManager"
+            );
             console.log("  forge verify-contract", newProofManagerImpl, "src/BridgeProofManager.sol:BridgeProofManager");
-            console.log("  forge verify-contract", newWithdrawManagerImpl, "src/BridgeWithdrawManager.sol:BridgeWithdrawManager");
+            console.log(
+                "  forge verify-contract", newWithdrawManagerImpl, "src/BridgeWithdrawManager.sol:BridgeWithdrawManager"
+            );
             console.log("  forge verify-contract", newAdminManagerImpl, "src/BridgeAdminManager.sol:BridgeAdminManager");
         }
     }

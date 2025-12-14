@@ -33,10 +33,8 @@ contract PreAllocatedLeavesTest is Test {
 
         // Deploy core contract with proxy
         BridgeCore implementation = new BridgeCore();
-        bytes memory bridgeInitData = abi.encodeCall(
-            BridgeCore.initialize,
-            (address(0), address(0), address(0), address(0), owner)
-        );
+        bytes memory bridgeInitData =
+            abi.encodeCall(BridgeCore.initialize, (address(0), address(0), address(0), address(0), owner));
         ERC1967Proxy bridgeProxy = new ERC1967Proxy(address(implementation), bridgeInitData);
         bridge = BridgeCore(address(bridgeProxy));
 
@@ -175,11 +173,8 @@ contract PreAllocatedLeavesTest is Test {
 
         vm.startPrank(user1);
 
-        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
-            targetContract: address(testToken),
-            participants: participants,
-            timeout: 1 days
-        });
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, timeout: 1 days});
 
         // This should succeed with 127 participants
         uint256 channelId = bridge.openChannel(params);
@@ -211,11 +206,8 @@ contract PreAllocatedLeavesTest is Test {
 
         vm.startPrank(user1);
 
-        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
-            targetContract: address(testToken),
-            participants: participants,
-            timeout: 1 days
-        });
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, timeout: 1 days});
 
         // This should fail
         vm.expectRevert("Invalid participant count considering pre-allocated leaves");

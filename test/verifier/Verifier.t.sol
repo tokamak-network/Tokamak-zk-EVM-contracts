@@ -30,22 +30,21 @@ contract testTokamakVerifier is Test {
         // preprocessedPart1: First 16 bytes (32 hex chars) of each preprocessed committment coordinate
         // preprocessedPart2: last 32 bytes (64 hex chars) of each preprocessed committment coordinate
 
-
         /*
         {
-  "preprocess_entries_part1": [
+    "preprocess_entries_part1": [
     "0x0009bbc7b057876cfc754a192e990683",
     "0x1508f2445c632c43eb3f9df4fc2f1894",
     "0x155cb5eeafb6e4cf7147420e1ce64b17",
     "0x150e9343bcaa1cac0acb160871c5c886"
-  ],
-  "preprocess_entries_part2": [
+    ],
+    "preprocess_entries_part2": [
     "0x2516192ae1c6b963f3f8e0a1a88b9d669ddbb70cce11452260f4a7c0e71bdbd7",
     "0x60754cda6595f02b2696e5fad29df24e0c9343af6ef16804484b7253261564da",
     "0x6637521519a48e13f11e77f2f3b61bd40ea0a7c2d8d6455b908cd0d943fefa65",
     "0x5bab1505911b91f98e0a7515340ca6bf507c7b7286aff2c079d64acc3a9a26f8"
-  ]
-}
+    ]
+        }
         */
 
         // PREPROCESSED PART 1 (First 16 bytes - 32 hex chars)
@@ -144,7 +143,6 @@ contract testTokamakVerifier is Test {
         serializedProofPart2.push(0x447fff7ec6e9996301a21dbae35881d00d3fc12c7226ba85ff28245be34db010);
         serializedProofPart2.push(0x32fe3527e7bac897c0083e5362f707898d66b4ac5c52bd5004afbe7d713bf6c9);
 
-
         // PUBLIC INPUTS (concatenated from instance.json: a_pub_user + a_pub_block + a_pub_function - 512 total)
         publicInputs.push(0x00);
         publicInputs.push(0x00);
@@ -186,7 +184,7 @@ contract testTokamakVerifier is Test {
         publicInputs.push(0x00);
         publicInputs.push(0x00);
         publicInputs.push(0x00);
-        
+
         // a_pub_block (indices 42-65)
         publicInputs.push(0x29dec4629dfb4170647c4ed4efc392cd);
         publicInputs.push(0xf24a01ae);
@@ -213,7 +211,7 @@ contract testTokamakVerifier is Test {
         publicInputs.push(0x00);
         publicInputs.push(0x00);
         publicInputs.push(0x00);
-        
+
         // a_pub_function (indices 66-517) - All the function instance data
         publicInputs.push(0x01);
         publicInputs.push(0xffffffffffffffffffffffffffffffff);
@@ -401,24 +399,28 @@ contract testTokamakVerifier is Test {
             publicInputs.push(0x00);
         }
 
-        
         smax = 256;
     }
 
     function testVerifier() public {
         uint256 gasBefore = gasleft();
-        
+
         // Use low-level call to get the actual bytes returned
         (bool success, bytes memory returnData) = address(verifier).call(
             abi.encodeWithSignature(
                 "verify(uint128[],uint256[],uint128[],uint256[],uint256[],uint256)",
-                serializedProofPart1, serializedProofPart2, preprocessedPart1, preprocessedPart2, publicInputs, smax
+                serializedProofPart1,
+                serializedProofPart2,
+                preprocessedPart1,
+                preprocessedPart2,
+                publicInputs,
+                smax
             )
         );
-        
+
         uint256 gasAfter = gasleft();
         uint256 gasUsed = gasBefore - gasAfter;
-        
+
         console.log("Gas used:", gasUsed);
         assert(success == true);
     }

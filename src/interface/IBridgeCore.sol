@@ -36,10 +36,7 @@ interface IBridgeCore {
     function getChannelLeader(uint256 channelId) external view returns (address);
     function getChannelParticipants(uint256 channelId) external view returns (address[] memory);
     function getChannelTreeSize(uint256 channelId) external view returns (uint256);
-    function getParticipantDeposit(uint256 channelId, address participant)
-        external
-        view
-        returns (uint256);
+    function getParticipantDeposit(uint256 channelId, address participant) external view returns (uint256);
     function getL2MptKey(uint256 channelId, address participant) external view returns (uint256);
     function getChannelTotalDeposits(uint256 channelId) external view returns (uint256);
     function getChannelPublicKey(uint256 channelId) external view returns (uint256 pkx, uint256 pky);
@@ -51,31 +48,25 @@ interface IBridgeCore {
     function isAllowedTargetContract(address targetContract) external view returns (bool);
     function getTargetContractData(address targetContract) external view returns (TargetContract memory);
     function getChannelTimeout(uint256 channelId) external view returns (uint256 openTimestamp, uint256 timeout);
-    function getWithdrawableAmount(uint256 channelId, address participant)
-        external
-        view
-        returns (uint256);
+    function getWithdrawableAmount(uint256 channelId, address participant) external view returns (uint256);
     function hasUserWithdrawn(uint256 channelId, address participant) external view returns (bool);
     function isSignatureVerified(uint256 channelId) external view returns (bool);
     function getTreasuryAddress() external view returns (address);
     function getChannelBlockInfosHash(uint256 channelId) external view returns (bytes32);
 
     // Setter functions (only callable by managers)
-    function updateChannelUserDeposits(uint256 channelId, address participant, uint256 amount)
-        external;
+    function updateChannelUserDeposits(uint256 channelId, address participant, uint256 amount) external;
     function updateChannelTotalDeposits(uint256 channelId, uint256 amount) external;
     function setChannelL2MptKey(uint256 channelId, address participant, uint256 mptKey) external;
     function setChannelInitialStateRoot(uint256 channelId, bytes32 stateRoot) external;
     function setChannelFinalStateRoot(uint256 channelId, bytes32 stateRoot) external;
     function setChannelState(uint256 channelId, ChannelState state) external;
     function setChannelCloseTimestamp(uint256 channelId, uint256 timestamp) external;
-    function setChannelWithdrawAmounts(
-        uint256 channelId,
-        address[] memory participants,
-        uint256[] memory amounts
-    ) external;
+    function setChannelWithdrawAmounts(uint256 channelId, address[] memory participants, uint256[] memory amounts)
+        external;
     function setChannelSignatureVerified(uint256 channelId, bool verified) external;
-    function setAllowedTargetContract(address targetContract, PreAllocatedLeaf[] memory storageSlots, bool allowed) external;
+    function setAllowedTargetContract(address targetContract, PreAllocatedLeaf[] memory storageSlots, bool allowed)
+        external;
     function registerFunction(
         address targetContract,
         bytes32 functionSignature,
@@ -93,7 +84,10 @@ interface IBridgeCore {
     // === PRE-ALLOCATED LEAVES FUNCTIONS ===
     function setPreAllocatedLeaf(address targetContract, bytes32 mptKey, uint256 value) external;
     function removePreAllocatedLeaf(address targetContract, bytes32 mptKey) external;
-    function getPreAllocatedLeaf(address targetContract, bytes32 mptKey) external view returns (uint256 value, bool exists);
+    function getPreAllocatedLeaf(address targetContract, bytes32 mptKey)
+        external
+        view
+        returns (uint256 value, bool exists);
     function getPreAllocatedKeys(address targetContract) external view returns (bytes32[] memory keys);
     function getPreAllocatedLeavesCount(address targetContract) external view returns (uint256 count);
     function getMaxAllowedParticipants(address targetContract) external view returns (uint256 maxParticipants);
@@ -166,8 +160,10 @@ interface IBridgeCore {
         external
         view
         returns (uint256[] memory channelIds, uint256 totalMatches);
-    function searchChannelsByTargetContract(address targetContract, uint256 minTotalDeposits, uint256 limit, uint256 offset)
-        external
-        view
-        returns (uint256[] memory channelIds, uint256[] memory totalDeposits, uint256 totalMatches);
+    function searchChannelsByTargetContract(
+        address targetContract,
+        uint256 minTotalDeposits,
+        uint256 limit,
+        uint256 offset
+    ) external view returns (uint256[] memory channelIds, uint256[] memory totalDeposits, uint256 totalMatches);
 }

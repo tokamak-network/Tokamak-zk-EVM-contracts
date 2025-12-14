@@ -9,12 +9,7 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgrade
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "./interface/IBridgeCore.sol";
 
-contract BridgeDepositManager is
-    Initializable,
-    ReentrancyGuardUpgradeable,
-    OwnableUpgradeable,
-    UUPSUpgradeable
-{
+contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -42,10 +37,7 @@ contract BridgeDepositManager is
     }
 
     function depositToken(uint256 _channelId, uint256 _amount, bytes32 _mptKey) external nonReentrant {
-        require(
-            bridge.getChannelState(_channelId) == IBridgeCore.ChannelState.Initialized,
-            "Invalid channel state"
-        );
+        require(bridge.getChannelState(_channelId) == IBridgeCore.ChannelState.Initialized, "Invalid channel state");
         require(bridge.isChannelParticipant(_channelId, msg.sender), "Not a participant");
         require(bridge.isChannelPublicKeySet(_channelId), "Channel leader must set public key first");
         require(_mptKey != bytes32(0), "Invalid MPT key");

@@ -159,8 +159,7 @@ contract DeployV2Script is Script {
         console.log("Deploying manager proxies...");
 
         // Deploy DepositManager proxy
-        bytes memory depositManagerInitData =
-            abi.encodeCall(BridgeDepositManager.initialize, (rollupBridge, deployer));
+        bytes memory depositManagerInitData = abi.encodeCall(BridgeDepositManager.initialize, (rollupBridge, deployer));
         ERC1967Proxy depositManagerProxy = new ERC1967Proxy(depositManagerImpl, depositManagerInitData);
         depositManager = address(depositManagerProxy);
         console.log("BridgeDepositManager proxy deployed at:", depositManager);
@@ -183,17 +182,14 @@ contract DeployV2Script is Script {
         console.log("BridgeWithdrawManager proxy deployed at:", withdrawManager);
 
         // Deploy AdminManager proxy
-        bytes memory adminManagerInitData =
-            abi.encodeCall(BridgeAdminManager.initialize, (rollupBridge, deployer));
+        bytes memory adminManagerInitData = abi.encodeCall(BridgeAdminManager.initialize, (rollupBridge, deployer));
         ERC1967Proxy adminManagerProxy = new ERC1967Proxy(adminManagerImpl, adminManagerInitData);
         adminManager = address(adminManagerProxy);
         console.log("BridgeAdminManager proxy deployed at:", adminManager);
 
         // Update bridge with correct manager addresses
         console.log("Updating bridge with manager addresses...");
-        BridgeCore(rollupBridge).updateManagerAddresses(
-            depositManager, proofManager, withdrawManager, adminManager
-        );
+        BridgeCore(rollupBridge).updateManagerAddresses(depositManager, proofManager, withdrawManager, adminManager);
 
         // Configure WTON target contract
         console.log("Configuring WTON target contract...");
@@ -255,7 +251,7 @@ contract DeployV2Script is Script {
     function verifyContracts() internal {
         console.log("\n=== VERIFYING CONTRACTS ===");
         console.log("IMPORTANT: All contracts have been deployed. Now starting verification process.");
-        
+
         // Ensure all required contracts are deployed before verification
         require(rollupBridgeImpl != address(0), "Bridge implementation not deployed");
         require(depositManagerImpl != address(0), "Deposit manager implementation not deployed");

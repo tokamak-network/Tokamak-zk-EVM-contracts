@@ -19,7 +19,10 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
     event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
     event TargetContractAllowed(address indexed targetContract, bool allowed);
     event FunctionRegistered(
-        bytes32 indexed functionSignature, uint256 preprocessedPart1Length, uint256 preprocessedPart2Length, bytes32 instancesHash
+        bytes32 indexed functionSignature,
+        uint256 preprocessedPart1Length,
+        uint256 preprocessedPart2Length,
+        bytes32 instancesHash
     );
     event FunctionUnregistered(bytes32 indexed functionSignature);
     event TreasuryAddressUpdated(address indexed oldTreasury, address indexed newTreasury);
@@ -38,7 +41,11 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         bridge = IBridgeCore(_bridgeCore);
     }
 
-    function setAllowedTargetContract(address targetContract, IBridgeCore.PreAllocatedLeaf[] memory storageSlots, bool allowed) external onlyOwner {
+    function setAllowedTargetContract(
+        address targetContract,
+        IBridgeCore.PreAllocatedLeaf[] memory storageSlots,
+        bool allowed
+    ) external onlyOwner {
         require(targetContract != address(0), "Invalid target contract address");
 
         bridge.setAllowedTargetContract(targetContract, storageSlots, allowed);
@@ -65,8 +72,7 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         require(targetContract != address(0), "Invalid target contract address");
         require(functionSignature != bytes32(0), "Invalid function signature");
 
-        IBridgeCore.RegisteredFunction memory registeredFunc =
-            bridge.getRegisteredFunction(functionSignature);
+        IBridgeCore.RegisteredFunction memory registeredFunc = bridge.getRegisteredFunction(functionSignature);
         require(registeredFunc.functionSignature != bytes32(0), "Function not registered");
 
         bridge.unregisterFunction(targetContract, functionSignature);
@@ -85,11 +91,7 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         return bridge.isAllowedTargetContract(targetContract);
     }
 
-    function getTargetContractData(address targetContract)
-        external
-        view
-        returns (IBridgeCore.TargetContract memory)
-    {
+    function getTargetContractData(address targetContract) external view returns (IBridgeCore.TargetContract memory) {
         return bridge.getTargetContractData(targetContract);
     }
 
@@ -128,7 +130,7 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         // TON transfer uses slot 0x07 with decimals value 18
         bytes32 tonDecimalsSlot = bytes32(uint256(0x07));
         uint256 tonDecimalsValue = 18;
-        
+
         bridge.setPreAllocatedLeaf(tonContractAddress, tonDecimalsSlot, tonDecimalsValue);
     }
 
@@ -139,10 +141,10 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
      * @return value The value of the pre-allocated leaf
      * @return exists Whether the leaf exists
      */
-    function getPreAllocatedLeaf(address targetContract, bytes32 key) 
-        external 
-        view 
-        returns (uint256 value, bool exists) 
+    function getPreAllocatedLeaf(address targetContract, bytes32 key)
+        external
+        view
+        returns (uint256 value, bool exists)
     {
         return bridge.getPreAllocatedLeaf(targetContract, key);
     }

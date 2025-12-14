@@ -1173,9 +1173,8 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(INTERMEDIARY_SCALAR_KO_SLOT, r)
             }
 
-
             // A_pub = A(chi)
-            // A(chi) = sum_0^{l-1}(a_j * M_j(chi)) 
+            // A(chi) = sum_0^{l-1}(a_j * M_j(chi))
             function computeAPUB() {
                 let chi := mload(CHALLENGE_CHI_SLOT)
                 let offset := calldataload(0x84)
@@ -1246,11 +1245,11 @@ contract TokamakVerifier is ITokamakVerifier {
                     // Compute full denominator: (chi - ω^j) * n
                     let denominator_full := mulmod(denominator, n, R_MOD)
                     let inv_denominator_full := modexp(denominator_full, sub(R_MOD, 2))
-                    
+
                     // Compute numerator: a_j * ω^j * (chi^n - 1)
                     let numerator := mulmod(val, omega_i, R_MOD)
                     numerator := mulmod(numerator, chi_n_1, R_MOD)
-                    
+
                     let contribution := mulmod(numerator, inv_denominator_full, R_MOD)
                     weightedSum := addmod(weightedSum, contribution, R_MOD)
                 }
@@ -1727,7 +1726,7 @@ contract TokamakVerifier is ITokamakVerifier {
             // Step5: final pairing - COMMENTED OUT FOR DEBUGGING
             finalPairing()
             final_result := true
-            
+
             // DEBUG: Return A_pub instead of final result
             mstore(0x00, final_result)
             return(0x00, 0x20)

@@ -120,7 +120,9 @@ contract ModularArchitectureTest is Test {
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
         adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
-        adminManager.registerFunction(address(testToken), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
+        adminManager.registerFunction(
+            address(testToken), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash")
+        );
 
         // Fund test accounts
         vm.deal(leader, 10 ether);

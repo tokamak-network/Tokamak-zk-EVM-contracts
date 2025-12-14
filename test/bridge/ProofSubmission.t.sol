@@ -40,27 +40,31 @@ contract MockTokamakVerifier is ITokamakVerifier {
 
 contract MockZecFrost is IZecFrost {
     address public mockSigner;
-    
+
     // Mapping of signature vectors to their recovered addresses
     mapping(bytes32 => address) private signatureVectorToSigner;
 
     constructor() {
         mockSigner = address(this);
-        
+
         // Vector 1 signature (valid) - recovers to user1 (0xd96b35D012879d89cfBA6fE215F1015863a6f6d0)
-        bytes32 vector1Key = keccak256(abi.encodePacked(
-            uint256(0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d),
-            uint256(0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e),
-            uint256(0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25)
-        ));
+        bytes32 vector1Key = keccak256(
+            abi.encodePacked(
+                uint256(0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d),
+                uint256(0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e),
+                uint256(0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25)
+            )
+        );
         signatureVectorToSigner[vector1Key] = 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0;
-        
+
         // Vector 2 signature (invalid) - recovers to user2 (0x012C2171f631e27C4bA9f7f8262af2a48956939A)
-        bytes32 vector2Key = keccak256(abi.encodePacked(
-            uint256(0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c),
-            uint256(0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2),
-            uint256(0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0)
-        ));
+        bytes32 vector2Key = keccak256(
+            abi.encodePacked(
+                uint256(0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c),
+                uint256(0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2),
+                uint256(0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0)
+            )
+        );
         signatureVectorToSigner[vector2Key] = 0x012C2171f631e27C4bA9f7f8262af2a48956939A;
     }
 
@@ -143,7 +147,7 @@ contract MockGroth16Verifier128 is IGroth16Verifier128Leaves {
 }
 
 contract MockERC20 is ERC20 {
-    constructor() ERC20("Mock Token" , "MOCK") {
+    constructor() ERC20("Mock Token", "MOCK") {
         _mint(msg.sender, 1000000 * 10 ** 18);
     }
 
@@ -155,7 +159,7 @@ contract MockERC20 is ERC20 {
 contract ProofSubmissionTest is Test {
     uint256 public constant INITIAL_BALANCE = 1000 ether;
     uint256 public constant INITIAL_TOKEN_BALANCE = 1000 * 10 ** 18;
-    
+
     BridgeCore public bridge;
     BridgeProofManager public proofManager;
     BridgeDepositManager public depositManager;
@@ -170,7 +174,7 @@ contract ProofSubmissionTest is Test {
     MockERC20 public token;
 
     address public owner = address(1);
-    address public user1 = 0xF9Fa94D45C49e879E46Ea783fc133F41709f3bc7; 
+    address public user1 = 0xF9Fa94D45C49e879E46Ea783fc133F41709f3bc7;
     address public user2 = 0x322acfaA747F3CE5b5899611034FB4433f0Edf34;
     address public user3 = 0x31Fbd690BF62cd8C60A93F3aD8E96A6085Dc5647;
 
@@ -276,12 +280,14 @@ contract ProofSubmissionTest is Test {
 
         // Compute the function instance hash from the proof's a_pub_function data
         bytes32 functionInstanceHash = computeFunctionInstanceHash();
-        
+
         // Register transfer function using the selector from the proof (0xa9059cbb)
         // This matches index 18 in a_pub_user and index 45 in a_pub_function
         // IMPORTANT: bytes4 to bytes32 conversion pads on the right, not left
         bytes32 transferSig = bytes32(bytes4(uint32(0xa9059cbb)));
-        adminManager.registerFunction(address(token), transferSig, preprocessedPart1, preprocessedPart2, functionInstanceHash);
+        adminManager.registerFunction(
+            address(token), transferSig, preprocessedPart1, preprocessedPart2, functionInstanceHash
+        );
 
         vm.stopPrank();
     }
@@ -293,27 +299,27 @@ contract ProofSubmissionTest is Test {
         for (uint256 i = 0; i < publicInputs.length; i++) {
             savedPublicInputs[i] = publicInputs[i];
         }
-        
+
         // Load the public inputs to get the exact same data structure as the proof
         loadPublicInputs();
-        
+
         // Extract function instance data exactly like _extractFunctionInstanceHashFromProof does
         uint256 functionDataLength = publicInputs.length - 66; // Should be 446 elements (512-66)
         uint256[] memory extractedFunctionData = new uint256[](functionDataLength);
-        
+
         for (uint256 i = 0; i < functionDataLength; i++) {
             extractedFunctionData[i] = publicInputs[66 + i];
         }
-        
+
         // Hash the function instance data
         bytes32 hash = keccak256(abi.encodePacked(extractedFunctionData));
-        
+
         // Restore the original state of publicInputs
         delete publicInputs;
         for (uint256 i = 0; i < savedPublicInputs.length; i++) {
             publicInputs.push(savedPublicInputs[i]);
         }
-        
+
         return hash;
     }
 
@@ -321,105 +327,102 @@ contract ProofSubmissionTest is Test {
     function setupChannelWithDeposits() internal returns (uint256 channelId) {
         // Open channel with user1 as leader
         vm.startPrank(user1);
-        
+
         address[] memory participants = new address[](3);
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = user3;
-        
-        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
-            targetContract: address(token),
-            participants: participants,
-            timeout: 7 days
-        });
-        
+
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 7 days});
+
         channelId = bridge.openChannel(params);
-        
+
         // Set channel public key (required before deposits)
         uint256 pkx = 0x1234567890123456789012345678901234567890123456789012345678901234;
         uint256 pky = 0x9876543210987654321098765432109876543210987654321098765432109876;
         bridge.setChannelPublicKey(channelId, pkx, pky);
-        
+
         // User1 deposits
         token.approve(address(depositManager), user1DepositValue);
         depositManager.depositToken(channelId, user1DepositValue, bytes32(User1l2MPTKey));
         vm.stopPrank();
-        
+
         // User2 deposits
         vm.startPrank(user2);
         token.approve(address(depositManager), user2DepositValue);
         depositManager.depositToken(channelId, user2DepositValue, bytes32(User2l2MPTKey));
         vm.stopPrank();
-        
+
         // User3 deposits
         vm.startPrank(user3);
         token.approve(address(depositManager), user3DepositValue);
         depositManager.depositToken(channelId, user3DepositValue, bytes32(User3l2MPTKey));
         vm.stopPrank();
-        
+
         // Initialize channel state (as leader)
         vm.startPrank(user1);
-        
+
         // Create initialization proof
         BridgeProofManager.ChannelInitializationProof memory initProof;
-        
+
         // Set mock proof values for groth16 proof
         initProof.pA[0] = 1;
         initProof.pA[1] = 2;
         initProof.pA[2] = 3;
         initProof.pA[3] = 4;
-        
+
         for (uint256 i = 0; i < 8; i++) {
             initProof.pB[i] = i + 1;
         }
-        
+
         for (uint256 i = 0; i < 4; i++) {
             initProof.pC[i] = i + 1;
         }
-        
+
         // Set initial state root to match the input state root from the proof (indices 8 & 9)
         // part1 << 128 | part2 = 0x697f6a98de69bdc71426efe52f459cfc << 128 | 0x7380218991c8a0feb79bb9715fd26e2a
         initProof.merkleRoot = 0x697f6a98de69bdc71426efe52f459cfc7380218991c8a0feb79bb9715fd26e2a;
-        
+
         // Initialize channel state
         proofManager.initializeChannelState(channelId, initProof);
-        
+
         vm.stopPrank();
-        
+
         return channelId;
     }
-    
+
     // Test function to verify the helper works correctly
     function testSetupChannelWithDeposits() public {
         uint256 channelId = setupChannelWithDeposits();
-        
+
         // Verify channel is set up correctly
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(IBridgeCore.ChannelState.Open));
         assertEq(bridge.getChannelLeader(channelId), user1);
-        
+
         // Verify participants
         address[] memory participants = bridge.getChannelParticipants(channelId);
         assertEq(participants.length, 3);
         assertEq(participants[0], user1);
         assertEq(participants[1], user2);
         assertEq(participants[2], user3);
-        
+
         // Verify deposits
         assertEq(bridge.getParticipantDeposit(channelId, user1), user1DepositValue);
         assertEq(bridge.getParticipantDeposit(channelId, user2), user2DepositValue);
         assertEq(bridge.getParticipantDeposit(channelId, user3), user3DepositValue);
-        
+
         // Verify L2 MPT keys
         assertEq(bridge.getL2MptKey(channelId, user1), User1l2MPTKey);
         assertEq(bridge.getL2MptKey(channelId, user2), User2l2MPTKey);
         assertEq(bridge.getL2MptKey(channelId, user3), User3l2MPTKey);
-        
+
         // Verify pre-allocated leaf was set
         (uint256 value, bool exists) = adminManager.getPreAllocatedLeaf(address(token), bytes32(uint256(0x07)));
         assertTrue(exists, "Pre-allocated leaf should exist");
         assertEq(value, 18, "Pre-allocated leaf value should be 18");
     }
-    
+
     // Test submitProofAndSignature with real proof data
     function testSubmitProofAndSignatureRealProof() public {
         // First, we need to use the real TokamakVerifier
@@ -427,16 +430,16 @@ contract ProofSubmissionTest is Test {
         TokamakVerifier realVerifier = new TokamakVerifier();
         proofManager.updateVerifier(address(realVerifier));
         vm.stopPrank();
-        
+
         // Set up channel with deposits
         uint256 channelId = setupChannelWithDeposits();
-        
+
         // Fast forward time to pass timeout (7 days + 1 second)
         vm.warp(block.timestamp + 7 days + 1);
-        
+
         // Prepare the proof data from proof.json
         BridgeProofManager.ProofData[] memory proofs = new BridgeProofManager.ProofData[](1);
-        
+
         // Clear and load proof entries part 1 (38 entries) - using dynamic storage arrays
         delete proofPart1;
         proofPart1.push(0x15815614b1d3cfda780a76f38debd7a8);
@@ -477,7 +480,7 @@ contract ProofSubmissionTest is Test {
         proofPart1.push(0x090838093c14b593a824dfe2f491af72);
         proofPart1.push(0x0bf54da2ebdc1f4d8cf126c88c579e2a);
         proofPart1.push(0x04fef23658e5ec9ac987a183ba44f153);
-        
+
         // Clear and load proof entries part 2 (42 entries) - using dynamic storage arrays
         delete proofPart2;
         proofPart2.push(0x218a2513b9f5d2f07da97b9c001c29cfd1def3795cdc67c7a55aae80d6fa1739);
@@ -522,43 +525,43 @@ contract ProofSubmissionTest is Test {
         proofPart2.push(0x6ead56bfcbba4c416108882629c6c61b940ea05f76cce26606537b96506e15e6);
         proofPart2.push(0x447fff7ec6e9996301a21dbae35881d00d3fc12c7226ba85ff28245be34db010);
         proofPart2.push(0x32fe3527e7bac897c0083e5362f707898d66b4ac5c52bd5004afbe7d713bf6c9);
-        
+
         // Load public inputs from instance.json (all 512 values)
         loadPublicInputs();
-        
+
         // The actual state roots in the proof according to instance_description.json:
-        // Index 8: "Initial Merkle tree root hash (lower 16 bytes)" 
+        // Index 8: "Initial Merkle tree root hash (lower 16 bytes)"
         // Index 9: "Initial Merkle tree root hash (upper 16 bytes)"
         // Index 10: "Resulting Merkle tree root hash (lower 16 bytes)"
         // Index 11: "Resulting Merkle tree root hash (upper 16 bytes)"
         bytes32 outputStateRoot = bytes32((publicInputs[10] << 128) | publicInputs[11]);
-                
+
         // Convert storage arrays to memory arrays for proper passing
         uint128[] memory proofPart1Memory = new uint128[](proofPart1.length);
         for (uint256 i = 0; i < proofPart1.length; i++) {
             proofPart1Memory[i] = proofPart1[i];
         }
-        
+
         uint256[] memory proofPart2Memory = new uint256[](proofPart2.length);
         for (uint256 i = 0; i < proofPart2.length; i++) {
             proofPart2Memory[i] = proofPart2[i];
         }
-        
+
         uint256[] memory publicInputsMemory = new uint256[](publicInputs.length);
         for (uint256 i = 0; i < publicInputs.length; i++) {
             publicInputsMemory[i] = publicInputs[i];
         }
-        
+
         proofs[0] = BridgeProofManager.ProofData({
             proofPart1: proofPart1Memory,
             proofPart2: proofPart2Memory,
             publicInputs: publicInputsMemory,
             smax: 256
         });
-        
+
         // Create signature with correct commitment
         bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, outputStateRoot));
-        
+
         // Configure MockZecFrost to return the channel's signer address
         // The signer address is derived from the public key set in setupChannelWithDeposits
         vm.startPrank(owner);
@@ -566,28 +569,28 @@ contract ProofSubmissionTest is Test {
         address expectedSigner = bridge.getChannelSignerAddr(channelId);
         mockZecFrost.setMockSigner(expectedSigner);
         vm.stopPrank();
-        
+
         BridgeProofManager.Signature memory signature = BridgeProofManager.Signature({
             message: commitmentHash,
             rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
             ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
             z: 0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25
         });
-        
+
         // Submit proof and signature
         vm.startPrank(user1);
         proofManager.submitProofAndSignature(channelId, proofs, signature);
         vm.stopPrank();
-        
+
         // Verify that the channel state was updated
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(IBridgeCore.ChannelState.Closing));
         assertTrue(bridge.isSignatureVerified(channelId));
     }
-    
+
     // Helper function to load public inputs from instance.json
     function loadPublicInputs() internal {
         delete publicInputs;
-        
+
         // a_pub_user (indices 0-41)
         publicInputs.push(0x00);
         publicInputs.push(0x00);
@@ -629,7 +632,7 @@ contract ProofSubmissionTest is Test {
         publicInputs.push(0x00);
         publicInputs.push(0x00);
         publicInputs.push(0x00);
-        
+
         // a_pub_block (indices 42-65)
         publicInputs.push(0x29dec4629dfb4170647c4ed4efc392cd);
         publicInputs.push(0xf24a01ae);
@@ -656,7 +659,7 @@ contract ProofSubmissionTest is Test {
         publicInputs.push(0x00);
         publicInputs.push(0x00);
         publicInputs.push(0x00);
-        
+
         // a_pub_function (indices 66-517) - All the function instance data
         publicInputs.push(0x01);
         publicInputs.push(0xffffffffffffffffffffffffffffffff);
@@ -847,7 +850,7 @@ contract ProofSubmissionTest is Test {
 
     function loadFunctionInstance() internal pure returns (uint256[] memory) {
         uint256[] memory functionInstances = new uint256[](446);
-        
+
         functionInstances[0] = 0x01;
         functionInstances[1] = 0xffffffffffffffffffffffffffffffff;
         functionInstances[2] = 0xffffffff;
@@ -1034,4 +1037,3 @@ contract ProofSubmissionTest is Test {
         return functionInstances;
     }
 }
-

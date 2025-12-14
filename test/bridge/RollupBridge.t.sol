@@ -18,39 +18,48 @@ import {ZecFrost} from "../../src/library/ZecFrost.sol";
 // Mock Contracts
 contract MockZecFrost is IZecFrost {
     address public mockSigner;
-    
+
     // Mapping of signature vectors to their recovered addresses
     mapping(bytes32 => address) private signatureVectorToSigner;
 
     constructor() {
         mockSigner = address(this);
-        
+
         // Vector 1 signature (valid) - recovers to user1 (0xd96b35D012879d89cfBA6fE215F1015863a6f6d0)
-        bytes32 vector1Key = keccak256(abi.encodePacked(
-            uint256(0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d),
-            uint256(0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e),
-            uint256(0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25)
-        ));
+        bytes32 vector1Key = keccak256(
+            abi.encodePacked(
+                uint256(0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d),
+                uint256(0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e),
+                uint256(0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25)
+            )
+        );
         signatureVectorToSigner[vector1Key] = 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0;
-        
+
         // Vector 2 signature (invalid) - recovers to user2 (0x012C2171f631e27C4bA9f7f8262af2a48956939A)
-        bytes32 vector2Key = keccak256(abi.encodePacked(
-            uint256(0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c),
-            uint256(0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2),
-            uint256(0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0)
-        ));
+        bytes32 vector2Key = keccak256(
+            abi.encodePacked(
+                uint256(0xc303bb5de5a5962d9af9b45f5e0bdc919de2aac9153b8c353960f50aa3cb950c),
+                uint256(0x6df25261f523a8ea346f49dad49b3b36786e653a129cff327a0fea5839e712a2),
+                uint256(0x27c26d628367261edb63b64eefc48a192a8130e9cd608b75820775684af010b0)
+            )
+        );
         signatureVectorToSigner[vector2Key] = 0x012C2171f631e27C4bA9f7f8262af2a48956939A;
     }
 
-    function verify(bytes32, uint256, uint256, uint256 rx, uint256 ry, uint256 z) external view override returns (address) {
+    function verify(bytes32, uint256, uint256, uint256 rx, uint256 ry, uint256 z)
+        external
+        view
+        override
+        returns (address)
+    {
         // Check if this is one of our known signature vectors
         bytes32 vectorKey = keccak256(abi.encodePacked(rx, ry, z));
         address vectorSigner = signatureVectorToSigner[vectorKey];
-        
+
         if (vectorSigner != address(0)) {
             return vectorSigner;
         }
-        
+
         // Fall back to mock signer for unknown vectors
         return mockSigner;
     }
@@ -341,9 +350,19 @@ contract BridgeCoreTest is Test {
 
         // Register transfer function for each token using 4-byte selector (standard format)
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
-        adminManager.registerFunction(address(token), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
-        adminManager.registerFunction(address(highPrecisionToken), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
-        adminManager.registerFunction(address(usdtLikeToken), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash"));
+        adminManager.registerFunction(
+            address(token), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash")
+        );
+        adminManager.registerFunction(
+            address(highPrecisionToken),
+            transferSig,
+            preprocessedPart1,
+            preprocessedPart2,
+            keccak256("test_instance_hash")
+        );
+        adminManager.registerFunction(
+            address(usdtLikeToken), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash")
+        );
 
         vm.stopPrank();
     }
@@ -367,12 +386,16 @@ contract BridgeCoreTest is Test {
     function _createZecFrostSignature() internal pure returns (BridgeProofManager.Signature memory) {
         return _createZecFrostSignatureForChannel(1); // Default test channel ID
     }
-    
-    function _createZecFrostSignatureForChannel(uint256 channelId) internal pure returns (BridgeProofManager.Signature memory) {
+
+    function _createZecFrostSignatureForChannel(uint256 channelId)
+        internal
+        pure
+        returns (BridgeProofManager.Signature memory)
+    {
         // Create commitment hash for the given channel and standard finalStateRoot
         bytes32 finalStateRoot = bytes32(uint256(keccak256("finalStateRoot")));
         bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, finalStateRoot));
-        
+
         // Return Vector 1 signature data - recovers to 0xd96b35D012879d89cfBA6fE215F1015863a6f6d0 (user1)
         return BridgeProofManager.Signature({
             message: commitmentHash,
@@ -388,12 +411,16 @@ contract BridgeCoreTest is Test {
     function _createWrongZecFrostSignature() internal pure returns (BridgeProofManager.Signature memory) {
         return _createWrongZecFrostSignatureForChannel(1); // Default test channel ID
     }
-    
-    function _createWrongZecFrostSignatureForChannel(uint256 channelId) internal pure returns (BridgeProofManager.Signature memory) {
+
+    function _createWrongZecFrostSignatureForChannel(uint256 channelId)
+        internal
+        pure
+        returns (BridgeProofManager.Signature memory)
+    {
         // Create commitment hash for the given channel and finalStateRoot
         bytes32 finalStateRoot = bytes32(uint256(keccak256("finalStateRoot")));
         bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, finalStateRoot));
-        
+
         // Return Vector 2 signature data - recovers to 0x012C2171f631e27C4bA9f7f8262af2a48956939A (user2)
         return BridgeProofManager.Signature({
             message: commitmentHash,
@@ -411,8 +438,7 @@ contract BridgeCoreTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        return
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
+        return BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
     }
 
     function _createGroth16Proof(bytes32 merkleRoot) internal pure returns (TestChannelInitializationProof memory) {
@@ -513,24 +539,23 @@ contract BridgeCoreTest is Test {
             bytes32 mockRoot = keccak256(abi.encodePacked("mockRoot"));
             uint256 inputRootHigh = uint256(mockRoot) >> 128;
             uint256 inputRootLow = uint256(mockRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-            
+
             // Use the finalStateRoot (which is set in publicInputs[0]) for output
             bytes32 finalStateRoot = bytes32(publicInputs[0]);
             uint256 outputRootHigh = uint256(finalStateRoot) >> 128;
             uint256 outputRootLow = uint256(finalStateRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-            
-            publicInputs[8] = inputRootHigh;   // input state root high
-            publicInputs[9] = inputRootLow;    // input state root low
+
+            publicInputs[8] = inputRootHigh; // input state root high
+            publicInputs[9] = inputRootLow; // input state root low
             publicInputs[10] = outputRootHigh; // output state root high (matches publicInputs[0])
-            publicInputs[11] = outputRootLow;  // output state root low
+            publicInputs[11] = outputRootLow; // output state root low
         }
-        
+
         // Set function signature at index 18 (transfer function selector: 0xa9059cbb)
         if (publicInputs.length >= 19) {
             publicInputs[18] = 0xa9059cbb; // transfer(address,uint256) function selector
         }
     }
-
 
     /**
      * @dev Helper function to create a simple proof data for tests that still use old MPT structure
@@ -545,7 +570,6 @@ contract BridgeCoreTest is Test {
     ) internal pure returns (BridgeProofManager.ProofData memory, uint256[] memory) {
         // Set proper state root values and function signature for bridge tests
         _setTestStateRoots(publicInputs);
-        
 
         // Create final balances array - we'll decode the intended values from the leaf count pattern
         uint256 participantCount = finalMPTLeaves.length;
@@ -611,7 +635,6 @@ contract BridgeCoreTest is Test {
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = user3;
-
 
         BridgeCore.ChannelParams memory params =
             BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
@@ -862,7 +885,9 @@ contract BridgeCoreTest is Test {
         emit TokamakZkSnarkProofsVerified(channelId, leader);
         (BridgeProofManager.ProofData memory proofData,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 6, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId)
+        );
     }
 
     function testSubmitProofAndSignatureBalanceMismatch() public {
@@ -892,7 +917,9 @@ contract BridgeCoreTest is Test {
             _createProofDataViolatingConservation(proofPart1, proofPart2, publicInputs, 0);
 
         // submitProof should succeed since it no longer validates final balances
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId)
+        );
 
         // verifyFinalBalancesGroth16 should fail with balance conservation error
         BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
@@ -933,7 +960,9 @@ contract BridgeCoreTest is Test {
             _createProofDataViolatingConservation(proofPart1, proofPart2, publicInputs, 0);
 
         // submitProof should succeed since it no longer validates final balances
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId)
+        );
 
         // verifyFinalBalancesGroth16 should fail with balance conservation error
         BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
@@ -975,7 +1004,9 @@ contract BridgeCoreTest is Test {
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
 
         // submitProof should succeed since it no longer validates final balances
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofData), _createZecFrostSignatureForChannel(channelId)
+        );
 
         // Create a mismatched final balances array (wrong length)
         uint256[] memory mismatchedFinalBalances = new uint256[](2); // Should be 3
@@ -1036,7 +1067,9 @@ contract BridgeCoreTest is Test {
         uint256 gasBefore = gasleft();
         (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId)
+        );
         uint256 gasAfter = gasleft();
 
         uint256 gasUsed = gasBefore - gasAfter;
@@ -1076,7 +1109,9 @@ contract BridgeCoreTest is Test {
         emit TokamakZkSnarkProofsVerified(channelId, leader);
         (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId)
+        );
 
         // Verify channel goes to Closing state after proof and signature
         BridgeCore.ChannelState state = bridge.getChannelState(channelId);
@@ -1107,9 +1142,11 @@ contract BridgeCoreTest is Test {
         // Test with invalid signature
         (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        
+
         vm.expectRevert("Invalid group threshold signature");
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createWrongZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofDataLocal), _createWrongZecFrostSignatureForChannel(channelId)
+        );
     }
 
     function testSubmitProofAndSignatureUnauthorized() public {
@@ -1130,13 +1167,15 @@ contract BridgeCoreTest is Test {
 
         vm.warp(block.timestamp + 1 days + 1);
 
-        // Test with wrong signature that doesn't match the expected signer  
+        // Test with wrong signature that doesn't match the expected signer
         (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-            
+
         vm.prank(user1);
         vm.expectRevert("Invalid group threshold signature");
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createWrongZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofDataLocal), _createWrongZecFrostSignatureForChannel(channelId)
+        );
     }
 
     // ========== Channel Closing Tests ==========
@@ -1193,7 +1232,9 @@ contract BridgeCoreTest is Test {
         vm.expectRevert("Invalid ZK proof");
         (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId)
+        );
     }
 
     // ========== Channel Deletion Tests ==========
@@ -1264,7 +1305,6 @@ contract BridgeCoreTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-
         BridgeCore.ChannelParams memory params =
             BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
@@ -1287,7 +1327,6 @@ contract BridgeCoreTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-
         BridgeCore.ChannelParams memory params =
             BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
         uint256 channelId = bridge.openChannel(params);
@@ -1309,7 +1348,6 @@ contract BridgeCoreTest is Test {
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = user3;
-
 
         BridgeCore.ChannelParams memory params =
             BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
@@ -1378,12 +1416,14 @@ contract BridgeCoreTest is Test {
         vm.prank(channelLeader);
         (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId)
+        );
     }
 
     function _initializeChannel() internal returns (uint256) {
         uint256 channelId = _createChannel();
-        
+
         // Configure MockZecFrost to accept the channel's expected signer
         address expectedSigner = bridge.getChannelSignerAddr(channelId);
         mockZecFrost.setMockSigner(expectedSigner);
@@ -1449,7 +1489,9 @@ contract BridgeCoreTest is Test {
         vm.prank(leader);
         (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId)
+        );
 
         return channelId;
     }
@@ -1490,7 +1532,6 @@ contract BridgeCoreTest is Test {
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = user3;
-
 
         BridgeCore.ChannelParams memory params =
             BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: timeout});
@@ -1566,7 +1607,9 @@ contract BridgeCoreTest is Test {
         vm.prank(leader);
         (BridgeProofManager.ProofData memory proofDataLocal,) =
             _createProofDataSimple(proofPart1, proofPart2, publicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        proofManager.submitProofAndSignature(channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId));
+        proofManager.submitProofAndSignature(
+            channelId, _wrapProofInArray(proofDataLocal), _createZecFrostSignatureForChannel(channelId)
+        );
 
         // Channel is now in Closing state with signature verified
     }
@@ -1575,11 +1618,11 @@ contract BridgeCoreTest is Test {
         uint256 channelId = _initializeChannel();
         uint128[] memory proofPart1 = new uint128[](1);
         uint256[] memory proofPart2 = new uint256[](1);
-        
-        // Malicious proof with different final state root  
+
+        // Malicious proof with different final state root
         uint256[] memory maliciousPublicInputs = new uint256[](512);
         maliciousPublicInputs[0] = uint256(keccak256("maliciousStateRoot"));
-        
+
         uint256[] memory balances = new uint256[](3);
         balances[0] = 1 ether;
         balances[1] = 2 ether;
@@ -1592,16 +1635,17 @@ contract BridgeCoreTest is Test {
         // Try to submit malicious proof with signature meant for legitimate proof
         (BridgeProofManager.ProofData memory maliciousProof,) =
             _createProofDataSimple(proofPart1, proofPart2, maliciousPublicInputs, 0, initialMPTLeaves, finalMPTLeaves);
-        
+
         // Create signature for legitimate proof (different finalStateRoot)
-        bytes32 legitimateCommitmentHash = keccak256(abi.encodePacked(channelId, bytes32(uint256(keccak256("legitimateStateRoot")))));
+        bytes32 legitimateCommitmentHash =
+            keccak256(abi.encodePacked(channelId, bytes32(uint256(keccak256("legitimateStateRoot")))));
         BridgeProofManager.Signature memory legitimateSignature = BridgeProofManager.Signature({
             message: legitimateCommitmentHash,
             rx: 0x1fb4c0436e9054ae0b237cde3d7a478ce82405b43fdbb5bf1d63c9f8d912dd5d,
             ry: 0x3a7784df441925a8859b9f3baf8d570d488493506437db3ccf230a4b43b27c1e,
             z: 0xc7fdcb364dd8577e47dd479185ca659adbfcd1b8675e5cbb36e5f93ca4e15b25
         });
-        
+
         // This should fail because signature doesn't match proof content
         vm.expectRevert("Signature must commit to proof content");
         proofManager.submitProofAndSignature(channelId, _wrapProofInArray(maliciousProof), legitimateSignature);
@@ -1609,7 +1653,6 @@ contract BridgeCoreTest is Test {
         // Verify channel state unchanged
         require(bridge.getChannelState(channelId) == BridgeCore.ChannelState.Open);
     }
-
 
     function _getRealProofData()
         internal
@@ -1814,7 +1857,6 @@ contract BridgeCoreTest is Test {
         for (uint256 i = 0; i < participantCount; i++) {
             participants[i] = address(uint160(3 + i)); // Start from address(3)
         }
-
 
         BridgeCore.ChannelParams memory params =
             BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});

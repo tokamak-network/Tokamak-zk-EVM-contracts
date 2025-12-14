@@ -60,7 +60,7 @@ contract DeployTokamakVerifierScript is Script {
 
     function verifyContract() internal {
         console.log("\n=== VERIFYING TOKAMAK VERIFIER ===");
-        
+
         // Ensure contract is deployed before verification
         require(tokamakVerifier != address(0), "TokamakVerifier not deployed");
 

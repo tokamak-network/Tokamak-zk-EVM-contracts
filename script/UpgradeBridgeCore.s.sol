@@ -9,7 +9,7 @@ contract UpgradeBridgeCoreScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address proxyAddress = vm.envAddress("ROLLUP_BRIDGE_CORE_PROXY_ADDRESS");
-        
+
         vm.startBroadcast(deployerPrivateKey);
 
         address deployer = vm.addr(deployerPrivateKey);
@@ -25,18 +25,18 @@ contract UpgradeBridgeCoreScript is Script {
 
         // Get the proxy contract and upgrade it
         BridgeCore proxy = BridgeCore(proxyAddress);
-        
+
         // Check current implementation before upgrade
         console.log("Current implementation address:", _getImplementationAddress(proxyAddress));
-        
+
         // Perform the upgrade
         console.log("Upgrading proxy to new implementation...");
         proxy.upgradeTo(newImplAddress);
-        
+
         // Verify the upgrade
         address currentImpl = _getImplementationAddress(proxyAddress);
         console.log("New implementation address:", currentImpl);
-        
+
         require(currentImpl == newImplAddress, "Upgrade failed: implementation address mismatch");
         console.log("Upgrade successful!");
 

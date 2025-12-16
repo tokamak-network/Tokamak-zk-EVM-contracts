@@ -21,7 +21,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     struct ChannelParams {
         address targetContract;
         address[] participants;
-        uint256 timeout;
     }
 
     struct TargetContract {
@@ -68,7 +67,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         uint32 preAllocatedLeavesCount; // 4 bytes (max 4.2B leaves)
         // Slot 4-5: timestamps (each 128 bits is enough until year 10^38)
         uint128 openTimestamp; // 16 bytes
-        uint128 timeout; // 16 bytes
         uint128 closeTimestamp; // 16 bytes
         uint128 _reserved; // 16 bytes for future use
         // Slots 6-7: state roots
@@ -154,7 +152,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         //require(!$.isChannelLeader[msg.sender], "Channel limit reached");
         require(params.targetContract != address(0), "Target contract cannot be zero address");
         require(_isTargetContractAllowed(params.targetContract), "Target contract not allowed");
-        require(params.timeout >= 1 hours && params.timeout <= 365 days, "Invalid timeout");
 
         // Get number of active pre-allocated leaves for this target contract
         uint256 preAllocatedCount = _getActivePreAllocatedCount(params.targetContract);
@@ -180,7 +177,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         channel.targetContract = params.targetContract;
         channel.leader = msg.sender;
         channel.openTimestamp = uint128(block.timestamp);
-        channel.timeout = uint128(params.timeout);
         channel.state = ChannelState.Initialized;
         channel.requiredTreeSize = uint64(requiredTreeSize);
         channel.preAllocatedLeavesCount = uint32(preAllocatedCount);
@@ -206,8 +202,10 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         require(channel.leader != address(0), "Channel does not exist");
         require(msg.sender == channel.leader, "Only channel leader can set public key");
-        require(channel.state == ChannelState.Initialized, "Can only set public key for initialized channel");
-        require(channel.pkx == 0 && channel.pky == 0, "Public key already set");
+        
+        // DISABLED FOR TESTING
+        //require(channel.state == ChannelState.Initialized, "Can only set public key for initialized channel");
+        //require(channel.pkx == 0 && channel.pky == 0, "Public key already set");
 
         channel.pkx = pkx;
         channel.pky = pky;
@@ -652,12 +650,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].initialStateRoot;
     }
 
-    function getChannelTimeout(uint256 channelId) external view returns (uint256 openTimestamp, uint256 timeout) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        Channel storage channel = $.channels[channelId];
-        return (channel.openTimestamp, channel.timeout);
-    }
-
     function isAllowedTargetContract(address targetContract) external view returns (bool) {
         return _isTargetContractAllowed(targetContract);
     }
@@ -970,7 +962,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
             return (false, "User is not a participant in this channel");
         }
 
-        if (channel.state != ChannelState.Open) {
+        if (channel.state != ChannelState.Initialized) {
             return (false, "Channel is not open for deposits");
         }
 

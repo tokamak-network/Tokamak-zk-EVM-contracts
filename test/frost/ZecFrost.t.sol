@@ -61,4 +61,59 @@ contract ZecFrostTest is Test {
         assertEq(zecFrost.verify(message, px, py, rx, ry, z), address(0));
         assertFalse(zecFrost.isValidPublicKey(px, py));
     }
+
+    function test_VerifyCustomParameters() public view {
+        bytes32 message = 0x91be4311c2af6d02623ae6bc08eed804a9394c0ebe344a273cacc4fa06c6e80b;
+        
+        uint256 px = 0x65ceb565a2028bcc940074da00994958c1965a0f801fc1a06811a1195426db0b;
+        uint256 py = 0x767293b33676de95ce3d0acf97e1bb0326fe7e2896d17c4df5d7055b4699445c;
+        
+        uint256 rx = 0x00d1c2066f3cfb50b1882a2f85655c64fa1518edb27585ac64c9c1f853383a04;
+        uint256 ry = 0x475633b801338dcd6167a445926dc0e20f051266e9038be76b433c0004ff2f9c;
+        
+        uint256 z = 0x4ed729ad86526f2599577c051225e9c15c0cd85861872c153b338da05b0bb946;
+
+        address expectedAddr;
+        assembly ("memory-safe") {
+            mstore(0x00, px)
+            mstore(0x20, py)
+            expectedAddr := and(keccak256(0x00, 0x40), sub(shl(160, 1), 1))
+        }
+
+        uint256 gasStart = gasleft();
+        address result = zecFrost.verify(message, px, py, rx, ry, z);
+        uint256 gasUsed = gasStart - gasleft();
+
+        console.log("Gas used by FROST.verify (custom params):", gasUsed);
+        console.log("Expected address:", expectedAddr);
+        console.log("Verified address:", result);
+        console.logBytes32(message);
+
+        assertTrue(zecFrost.isValidPublicKey(px, py), "Public key should be valid");
+        assertEq(result, expectedAddr, "FROST signature should verify to expected address");
+    }
+
+    function test_AddressComputationDiscrepancy() public pure {
+        uint256 px = 0x65ceb565a2028bcc940074da00994958c1965a0f801fc1a06811a1195426db0b;
+        uint256 py = 0x767293b33676de95ce3d0acf97e1bb0326fe7e2896d17c4df5d7055b4699445c;
+
+        // FROST/ZecFrost way: keccak256(px || py) -> truncate to 160 bits
+        address frostAddr;
+        assembly ("memory-safe") {
+            mstore(0x00, px)
+            mstore(0x20, py)
+            frostAddr := and(keccak256(0x00, 0x40), sub(shl(160, 1), 1))
+        }
+
+        // BridgeCore way: keccak256(abi.encodePacked(px, py)) -> truncate to 160 bits
+        bytes32 h = keccak256(abi.encodePacked(px, py));
+        address bridgeCoreAddr = address(uint160(uint256(h)));
+
+        console.log("FROST computed address:", frostAddr);
+        console.log("BridgeCore computed address:", bridgeCoreAddr);
+        console.log("BridgeCore expected (from issue):", address(0x86278a8c51E0789a19F19D84ed17bCdcaB1aC9b4));
+
+        // They should be the same since abi.encodePacked(px, py) == px || py for uint256s
+        assertEq(frostAddr, bridgeCoreAddr, "Address computation should be identical");
+    }
 }

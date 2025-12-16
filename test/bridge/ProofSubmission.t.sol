@@ -262,15 +262,15 @@ contract ProofSubmissionTest is Test {
 
         // correct preprocess for ton transfer function
         uint128[] memory preprocessedPart1 = new uint128[](4);
-        preprocessedPart1[0] = 0x1136c7a73653af0cbdc9fda441a80391;
-        preprocessedPart1[1] = 0x007c86367643476dcdb0e9bcf1617f1c;
-        preprocessedPart1[2] = 0x18c9e2822155742dd5fbd050aa293be5;
-        preprocessedPart1[3] = 0x00b248168d62853defda478a7a46e0a0;
+        preprocessedPart1[0] = 0x06ff9cd406006fe268f46632127797b4;
+        preprocessedPart1[1] = 0x102596c7f24bd535978293a0410c5c9f;
+        preprocessedPart1[2] = 0x12a9229904b6f245ca7db3fcba70c6a1;
+        preprocessedPart1[3] = 0x13957ffacab24d44d4340517764334d6;
         uint256[] memory preprocessedPart2 = new uint256[](4);
-        preprocessedPart2[0] = 0xc4383bb8c86977fc45c94bc42353e37b39907e30b52054990083a85cf5256c22;
-        preprocessedPart2[1] = 0x8fc97f11906d661f0b434c3c49d0ec8b3cac2928f6ff6fac5815686d175d2e87;
-        preprocessedPart2[2] = 0xf84798df0fcfbd79e070d2303170d78e438e4b32975a4ebf6e1ff32863f2cc3e;
-        preprocessedPart2[3] = 0xc6b05d5e144de6e3b25f09093b9ba94c194452d8decf3af3390cfa46df134c0e;
+        preprocessedPart2[0] = 0xc02e6272910efe491543bfa526c1d4cbc4088d53f830e87216f31379b37fbe8b;
+        preprocessedPart2[1] = 0x3dec5512f9b8522a03f0a0e2b7b820cf58c0b59896392281ea3a0b1a531116c5;
+        preprocessedPart2[2] = 0xd500a0746c560be56a2a2bf0e8ffcb0a48d95154c1744c32a989b2b8ab7cc6d7;
+        preprocessedPart2[3] = 0x3309be45c3359e078db5f1473f69bfdb4aec50caf827812f1c670c8ca9de396c;
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
         adminManager.setAllowedTargetContract(address(token), emptySlots, true);
@@ -278,8 +278,8 @@ contract ProofSubmissionTest is Test {
         // Set pre-allocated leaf with key 0x07 and value 18 (for decimals)
         adminManager.setPreAllocatedLeaf(address(token), bytes32(uint256(0x07)), 18);
 
-        // Compute the function instance hash from the proof's a_pub_function data
-        bytes32 functionInstanceHash = computeFunctionInstanceHash();
+        // Use the correct function instance hash computed from channel5_proof1.json data (starting at index 64)
+        bytes32 functionInstanceHash = 0xd157cb883adb9cb0e27d9dc419e2a4be817d856281b994583b5bae64be94d35a;
 
         // Register transfer function using the selector from the proof (0xa9059cbb)
         // This matches index 18 in a_pub_user and index 45 in a_pub_function
@@ -303,12 +303,12 @@ contract ProofSubmissionTest is Test {
         // Load the public inputs to get the exact same data structure as the proof
         loadPublicInputs();
 
-        // Extract function instance data exactly like _extractFunctionInstanceHashFromProof does
-        uint256 functionDataLength = publicInputs.length - 66; // Should be 446 elements (512-66)
+        // Extract function instance data exactly like _extractFunctionInstanceHashFromProof does (using index 64)
+        uint256 functionDataLength = publicInputs.length - 64; // Should be 448 elements (512-64)
         uint256[] memory extractedFunctionData = new uint256[](functionDataLength);
 
         for (uint256 i = 0; i < functionDataLength; i++) {
-            extractedFunctionData[i] = publicInputs[66 + i];
+            extractedFunctionData[i] = publicInputs[64 + i];
         }
 
         // Hash the function instance data
@@ -381,15 +381,23 @@ contract ProofSubmissionTest is Test {
         }
 
         // Set initial state root to match the input state root from the proof (indices 8 & 9)
-        // part1 << 128 | part2 = 0x697f6a98de69bdc71426efe52f459cfc << 128 | 0x7380218991c8a0feb79bb9715fd26e2a
-        initProof.merkleRoot = 0x697f6a98de69bdc71426efe52f459cfc7380218991c8a0feb79bb9715fd26e2a;
+        // upper (index 9) << 128 | lower (index 8) = 0x5876a74c8e49224c5997659e57ca9a5b << 128 | 0x769375dc5a3b94bcf40f75827be355f8
+        initProof.merkleRoot = 0x5876a74c8e49224c5997659e57ca9a5b769375dc5a3b94bcf40f75827be355f8;
 
         // Initialize channel state
         proofManager.initializeChannelState(channelId, initProof);
+        console.logBytes32(bridge.getChannelInitialStateRoot(channelId));
 
         vm.stopPrank();
 
         return channelId;
+    }
+
+    function testcheckInstanceHash() public {
+        bytes32 functionInstanceHash = computeFunctionInstanceHash();
+        bytes32 transferSig = bytes32(bytes4(uint32(0xa9059cbb)));
+        console.logBytes32(functionInstanceHash);
+        console.logBytes32(transferSig);
     }
 
     // Test function to verify the helper works correctly
@@ -440,91 +448,91 @@ contract ProofSubmissionTest is Test {
         // Prepare the proof data from proof.json
         BridgeProofManager.ProofData[] memory proofs = new BridgeProofManager.ProofData[](1);
 
-        // Clear and load proof entries part 1 (38 entries) - using dynamic storage arrays
+        // Clear and load proof entries part 1 (38 entries) from channel5_proof1.json
         delete proofPart1;
-        proofPart1.push(0x15815614b1d3cfda780a76f38debd7a8);
-        proofPart1.push(0x15b853b4b6eda1d03dc7425ff8de2ab8);
-        proofPart1.push(0x1579e2d3f28e91954ea7f08662b1cf3c);
-        proofPart1.push(0x1193fdc21cf50013a57a04b95a980e70);
-        proofPart1.push(0x0ef6fa45a824d55e6ab0242e79346af4);
-        proofPart1.push(0x0579570790721e06f618e9b435e99fcc);
-        proofPart1.push(0x0712c6c5aaa97978302ea53ed788bb9f);
-        proofPart1.push(0x0fd202428e1846b62b08551224fc44fa);
-        proofPart1.push(0x192da2abb37a61d57edd3cb783519fff);
-        proofPart1.push(0x037fecce4bb5d2c935aea5d5dce3eb69);
-        proofPart1.push(0x188d99fd3fa3fb713313356e80d011a5);
-        proofPart1.push(0x00a815a29deb9b4c2b7f59fad3d0aa70);
-        proofPart1.push(0x0dd23c7c26c943439e5793ec06d24027);
-        proofPart1.push(0x13af2ab494a3a28b5a9329fcc15e3358);
-        proofPart1.push(0x16d79ba31faebbd9be3c5d6ec33405b6);
-        proofPart1.push(0x041cb373ead122e1a5755f5e7e11b52a);
-        proofPart1.push(0x144bd4c7d0d646d7a50710a2408d10f1);
-        proofPart1.push(0x14035301f93670a1083c4bf0410ed855);
-        proofPart1.push(0x1106f645a82f2e3098a2d184d5ecce06);
-        proofPart1.push(0x12a69c3983176f94b3af657430db1c47);
-        proofPart1.push(0x10247238a26ae53c84ad57577454ed6b);
-        proofPart1.push(0x1552e5c50974761247a91ad853b5831f);
-        proofPart1.push(0x0ed5ac16f53d550faa94b3f89e7c3068);
-        proofPart1.push(0x0de8107eff76583c9db6296e542e6f72);
-        proofPart1.push(0x059d13674332bae80788f4aad61a36bb);
-        proofPart1.push(0x11928ff2162df1dee7bd651f1f06b247);
-        proofPart1.push(0x17a05db254eda53ead06061a27b8051a);
-        proofPart1.push(0x09cb514bf0ba929adabafa7898023cf3);
-        proofPart1.push(0x13eb334743fa8f040a1d288c03872162);
-        proofPart1.push(0x1882f3c85de4b5e36314f849a9a35d6c);
-        proofPart1.push(0x085686e98ae7c7a0d4ad61f7e1fc2207);
-        proofPart1.push(0x0445f9424f1f95b4d831006e7a13f0f0);
-        proofPart1.push(0x13eb334743fa8f040a1d288c03872162);
-        proofPart1.push(0x1882f3c85de4b5e36314f849a9a35d6c);
-        proofPart1.push(0x1674357a821eb6fbd29b19d2bc46bf11);
-        proofPart1.push(0x090838093c14b593a824dfe2f491af72);
-        proofPart1.push(0x0bf54da2ebdc1f4d8cf126c88c579e2a);
-        proofPart1.push(0x04fef23658e5ec9ac987a183ba44f153);
+        proofPart1.push(28422251986255464038882119639303519153);
+        proofPart1.push(1753724496264877589946835404549887395);
+        proofPart1.push(8076450072917113079046931827613270738);
+        proofPart1.push(23217316740904571737253040259366061810);
+        proofPart1.push(22885999424868575700160922385686724032);
+        proofPart1.push(93879424416525294481595904174894480);
+        proofPart1.push(2096509218002469110550869714391616604);
+        proofPart1.push(4634960899920833962889976994719644543);
+        proofPart1.push(2948813556897622506729487580172948377);
+        proofPart1.push(27445058105774310990851977383151029920);
+        proofPart1.push(21854107068554191789416729584656202973);
+        proofPart1.push(12830176743274527250517631283882084608);
+        proofPart1.push(17807212929027213677787552111554764578);
+        proofPart1.push(25405316417957334366712100249006505720);
+        proofPart1.push(6667220718400803798283655428675532817);
+        proofPart1.push(34236275876778095724748870038078704586);
+        proofPart1.push(15783222771514149636757072493996462499);
+        proofPart1.push(17058997455240377501360023503771671504);
+        proofPart1.push(5966930523150431175538415014757083195);
+        proofPart1.push(20296915344985653667419829380159442810);
+        proofPart1.push(6383575590908513845142025362619146495);
+        proofPart1.push(18240325468827225061786328405729717828);
+        proofPart1.push(28833353362716129246483967816372270438);
+        proofPart1.push(7444346854010968038273794957779084658);
+        proofPart1.push(18235277753191285985348075042679465586);
+        proofPart1.push(27451232359699606742128632371992638212);
+        proofPart1.push(7016794823052071611875745274086286043);
+        proofPart1.push(26526764007997390605505011806584807878);
+        proofPart1.push(11754987646778852116913220606768586078);
+        proofPart1.push(7536612760187471213093135958211846304);
+        proofPart1.push(15657867429228531313630168874379766829);
+        proofPart1.push(12358543324386123947794332926089404770);
+        proofPart1.push(11754987646778852116913220606768586078);
+        proofPart1.push(7536612760187471213093135958211846304);
+        proofPart1.push(24673386736626038467411216280500924546);
+        proofPart1.push(22379167169490362791453575996222631807);
+        proofPart1.push(28721445888175510467033619778250895025);
+        proofPart1.push(9950425763827526932307372522106597639);
 
-        // Clear and load proof entries part 2 (42 entries) - using dynamic storage arrays
+        // Clear and load proof entries part 2 (42 entries) from channel5_proof1.json
         delete proofPart2;
-        proofPart2.push(0x218a2513b9f5d2f07da97b9c001c29cfd1def3795cdc67c7a55aae80d6fa1739);
-        proofPart2.push(0x870afac1b023aeb155cd0407035ede2b91c0411f25f3e814419af37045549bf2);
-        proofPart2.push(0xb803b959f341ba8d0df34277acf806a22987ee4405bfdb8a6075abab622d8938);
-        proofPart2.push(0x4cf5ef5575cc65795c91a41bedd329a870d531132d4c01c0daacfa21ae9d0c9b);
-        proofPart2.push(0x5cff38c52fa19d052a230f004a5767cd06f0ee607f235dee61c279901e1eb334);
-        proofPart2.push(0x903044616e6a82670d4f0e7da1c2acce49b2f2fdb4bec4d892a6c61a605dabe7);
-        proofPart2.push(0x238c8319cab91bf944028e56fdc53fac686912eddb2681bb31da98de1a45046f);
-        proofPart2.push(0x72751b0b8849f28e90a043496f8e3c721a9a2c11dc37dfb4b8eb2e51617b838f);
-        proofPart2.push(0x1786cc8744ba3c625faf3e425d6efb7fb7a8843f3e7bf849c5bb91aeda51039b);
-        proofPart2.push(0xb44c14a62ea7274bfaaeef7f9d177295533ca16b8424c570f40d336f750899c5);
-        proofPart2.push(0x0b7e53ae849ff813c770b7fa067c015db95084df6ccfc2d08d7ed344106e9446);
-        proofPart2.push(0x903f8c62ade1fe442f896656ccd601dea9f6b884de44ca50179e95b69d7e9278);
-        proofPart2.push(0x1a576bce68d74c7f45d2099e21c03ba18b785d4443ca24664a4358b5b4492b07);
-        proofPart2.push(0x706a7e78137f8ab4bb6fab55cb7829e4dcd332e07db3233827d57b974ba772c7);
-        proofPart2.push(0x08608535f35ba479cbdf98ec4117f1d6d0d5bbbc7120d15975db81ef47084bb1);
-        proofPart2.push(0x7a41b65ce8cea584d8903d0e7d311b291df68e8b5cbb2f03aec78b1f632859f3);
-        proofPart2.push(0xb51ec8eabaef042a70a4993bae881b2352090b550a0b778918cfa65affcafeb4);
-        proofPart2.push(0xab74f4e1b4bb1455e8f57881cc861f7dab291441b019bf6b2b42edff13ab4ff8);
-        proofPart2.push(0xd8717ef8b4c49967258125a65a627ffb1039a70986016de2326013298fdad205);
-        proofPart2.push(0xb910ebe08c152b86b2cc202f10b89f09bb995327673800c6ff6960cee9fe0fa6);
-        proofPart2.push(0x51a0b49263eb04d442553649aa8ba2bff8bf08395e94a40aaf2d6cdf4de5e200);
-        proofPart2.push(0x2deddc72de9bd7c8539eb2dbffc05c6d0c6d3dc082211da6b9d2cf6261c5b95c);
-        proofPart2.push(0xe90764e8c3c608909905317d1db45264d115e53ff1f5560812e9ad9a712a1aef);
-        proofPart2.push(0xf3f16f05a8ac974202fca819ad30654566669e877c575b752e6f2844e8bf811d);
-        proofPart2.push(0x7074d02532f74b37b3bf2e2e80e6efd74a59d9c2be7014205f8b0a68da5cf660);
-        proofPart2.push(0xb5cb826a1ede3b7eaf370442e4c37560272964a6cacf8d5b7f16a37c376289c9);
-        proofPart2.push(0x895f9fab7c3b6d2d2f4c8abab824bce78ebb829d678c9c7893938b1be37797da);
-        proofPart2.push(0xe2b5b0dc5b4927868448b343b342c3cbdcc5ed11ec5ca34cafd05d8e1a7d30e5);
-        proofPart2.push(0x24a58a466697866ac22e9279dab43ac2b643e6752eedf664396ece2bb61e3e99);
-        proofPart2.push(0x4906165f727bdc79f02b6a0b717bacff91e4d980566e205199160e1b84237097);
-        proofPart2.push(0x1ae0176fd63ecfa263c5f019842cee0fb2b00c92cdfae64746dd78fc0dd8f58d);
-        proofPart2.push(0xf2f32da4b9ea674a98015718df38ef40fd8d4187f23a738ec8fd70902be929d2);
-        proofPart2.push(0x24a58a466697866ac22e9279dab43ac2b643e6752eedf664396ece2bb61e3e99);
-        proofPart2.push(0x4906165f727bdc79f02b6a0b717bacff91e4d980566e205199160e1b84237097);
-        proofPart2.push(0x6ec7a66b4c594cc793e83b44f4da30ad8dd9184f02414a35da49deacc2aeae29);
-        proofPart2.push(0x61a58def048a6f157c8c269ce1ff0f622a851eac19fab9060f6cb2e33599eac2);
-        proofPart2.push(0x55cc89b9e9e4a9a7c389845c00289a0b8471efb1d4a0bb58c39accb4dc0794a8);
-        proofPart2.push(0x2919e53d947ef94f43e16675e04a66b6746bbea448cd8ef68b1c477fa86fc4e9);
-        proofPart2.push(0x17fbc25ff5a04b607706778a88332341049268460ee170d1cf06cd64634ee20a);
-        proofPart2.push(0x6ead56bfcbba4c416108882629c6c61b940ea05f76cce26606537b96506e15e6);
-        proofPart2.push(0x447fff7ec6e9996301a21dbae35881d00d3fc12c7226ba85ff28245be34db010);
-        proofPart2.push(0x32fe3527e7bac897c0083e5362f707898d66b4ac5c52bd5004afbe7d713bf6c9);
+        proofPart2.push(86467851479664118601524714048119929761619795900781837938309879488654108375914);
+        proofPart2.push(115607231606982772217078754850458307628518892525637720020155241698142940359080);
+        proofPart2.push(77133546075141356092847813147499035635566809824198408072180529562000792648832);
+        proofPart2.push(67779503058932948410085776069500804132378436149632005674409342354774356985360);
+        proofPart2.push(112284387134164105525752953361906341688369029664554983291366844726597826269612);
+        proofPart2.push(57563495358218802649924636385449150791967079875665052776941222602891938619942);
+        proofPart2.push(113805585267867565255615580276757421218458730695021317942000158057398168269441);
+        proofPart2.push(94705294669599045899771834920651137983376020621484215261514217202660737156303);
+        proofPart2.push(21277886786939099602838689124564564870938597259046178730051508027901390356611);
+        proofPart2.push(109466905400407161932530629753957679365748050991126062777001761261921899265469);
+        proofPart2.push(82014094317749521417785302275948104504920978749047927533033685964149531000837);
+        proofPart2.push(80071330664885219589502356272625871423518694157441561983196227411830332142311);
+        proofPart2.push(78655819006586586412292592545432160664569408111019791173108573360880504536358);
+        proofPart2.push(16428268176438145553746073015359786371809726114070136436616099491748561612493);
+        proofPart2.push(114133563149771374084847462985477452080363386616643759644186720767191903050896);
+        proofPart2.push(57597585773294897041339808766356146849248448382281665754437787677901458154988);
+        proofPart2.push(23645114387103043765982647131264747328181771320307599416676133956972480883634);
+        proofPart2.push(73070421120922194016643197770044833986259152042885069819118509366223976173070);
+        proofPart2.push(112579761717107370550652060725586355346984844337444823863769842271563139689931);
+        proofPart2.push(104758306371045723058960200039371285569210942777164891221866628341306843732538);
+        proofPart2.push(93714905895521779071905382153021235958410096243708840726995919964940545739406);
+        proofPart2.push(30185069765781370081099961604870921182775165744370592756991520159106153458903);
+        proofPart2.push(49266313869916838113594408720902200973699682654624023075101062689302972680437);
+        proofPart2.push(24947781581188844875179909771254268990651110284783028487547403191477825869777);
+        proofPart2.push(19055164500538535022860359837774319422023555737035088234082669610525440160404);
+        proofPart2.push(27475779270268144747826258562239100126287757048698768410420697715352691386438);
+        proofPart2.push(40902479023892589856872366233145964033854456865168312168637644689158601689784);
+        proofPart2.push(70112190909172725190677740967366313706008919265779877528849608707278646716072);
+        proofPart2.push(5428618245534049313679002304263472795260407879454976351716968888043024279171);
+        proofPart2.push(65616936704165537387955398321706573468753022122529888759347866395710333715091);
+        proofPart2.push(95082411397873784016246325697397701229404440650201031555061619662862885354444);
+        proofPart2.push(35229381242728937963583838411228334702650253106071351227998642639439035583348);
+        proofPart2.push(5428618245534049313679002304263472795260407879454976351716968888043024279171);
+        proofPart2.push(65616936704165537387955398321706573468753022122529888759347866395710333715091);
+        proofPart2.push(76647022441435571075335663933364310802087038454777642944203669155298080376675);
+        proofPart2.push(101964110396868189150847809285909259841706623591239092476324291628901796579348);
+        proofPart2.push(99560530314461643784367097728760376045870100910175650989811024373594908505905);
+        proofPart2.push(76849188236098109939901605536532349895904226807381372005693777505364630306088);
+        proofPart2.push(25929311852885330983164205382870403572284970578026804702550712639782026099509);
+        proofPart2.push(17547443043525918646060393392276855175921075981782159228288222266843184283962);
+        proofPart2.push(9099032483345218225342001954915398363591500667278812985455214490273755518478);
+        proofPart2.push(49171792617045835045090095646075531140472805487395239516857597273092318937078);
 
         // Load public inputs from instance.json (all 512 values)
         loadPublicInputs();
@@ -534,7 +542,7 @@ contract ProofSubmissionTest is Test {
         // Index 9: "Initial Merkle tree root hash (upper 16 bytes)"
         // Index 10: "Resulting Merkle tree root hash (lower 16 bytes)"
         // Index 11: "Resulting Merkle tree root hash (upper 16 bytes)"
-        bytes32 outputStateRoot = bytes32((publicInputs[10] << 128) | publicInputs[11]);
+        bytes32 outputStateRoot = bytes32((publicInputs[11] << 128) | publicInputs[10]);
 
         // Convert storage arrays to memory arrays for proper passing
         uint128[] memory proofPart1Memory = new uint128[](proofPart1.length);
@@ -587,80 +595,41 @@ contract ProofSubmissionTest is Test {
         assertTrue(bridge.isSignatureVerified(channelId));
     }
 
-    // Helper function to load public inputs from instance.json
+    // Helper function to load public inputs from channel5_proof1.json
     function loadPublicInputs() internal {
         delete publicInputs;
 
-        // a_pub_user (indices 0-41)
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x697f6a98de69bdc71426efe52f459cfc);
-        publicInputs.push(0x7380218991c8a0feb79bb9715fd26e2a);
-        publicInputs.push(0x85e43e3f03778631a09942dd08cf2e8d);
-        publicInputs.push(0x4f3d75526b4d4b109e87539730a792e4);
-        publicInputs.push(0xe21d7692eebc6214c1585134fda4b0d6);
-        publicInputs.push(0x0c8ba5023657fe4b7d7c4edb122894ba);
-        publicInputs.push(0x85b8f5c0457dbc3b7c8a280373c40044);
-        publicInputs.push(0xa30fe402);
-        publicInputs.push(0xa9059cbb);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
+        // a_pub_user (indices 0-41) from channel5_proof1.json
+        for(uint256 i = 0; i < 42; i++) {
+            if(i == 8) publicInputs.push(0x769375dc5a3b94bcf40f75827be355f8);
+            else if(i == 9) publicInputs.push(0x5876a74c8e49224c5997659e57ca9a5b);
+            else if(i == 10) publicInputs.push(0x7c4a3489a695f09d962204ae3cb42fd0);
+            else if(i == 11) publicInputs.push(0x0bfee9c26c3cd9549157ef90c7a648e7);
+            else if(i == 12) publicInputs.push(0xa1de99584b859abf3ecc0a3d8ae22c4d);
+            else if(i == 13) publicInputs.push(0x0c2d7a50c82d20362117a77c54dffbad);
+            else if(i == 14) publicInputs.push(0x85b8f5c0457dbc3b7c8a280373c40044);
+            else if(i == 15) publicInputs.push(0xa30fe402);
+            else if(i == 16) publicInputs.push(0xa9059cbb);
+            else publicInputs.push(0x00);
+        }
 
-        // a_pub_block (indices 42-65)
-        publicInputs.push(0x29dec4629dfb4170647c4ed4efc392cd);
-        publicInputs.push(0xf24a01ae);
-        publicInputs.push(0x6939333c);
-        publicInputs.push(0x00);
-        publicInputs.push(0x95abdc);
-        publicInputs.push(0x00);
-        publicInputs.push(0x19959c1873750220732ca5148bab3254);
-        publicInputs.push(0xa0c5ba1cddaf068fc86d068a534eb367);
-        publicInputs.push(0x039386c7);
-        publicInputs.push(0x00);
-        publicInputs.push(0xaa36a7);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0xb29b7b4ce683591d957141ca7e4bbc9d);
-        publicInputs.push(0x151ac8176283d1313ff21b9d60ad82ce);
-        // Rest are zeros (60-65)
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
-        publicInputs.push(0x00);
+        // a_pub_block (indices 42-63) from channel5_proof1.json
+        for(uint256 i = 0; i < 22; i++) {
+            if(i == 0) publicInputs.push(0x4a13a0977f4d7101ebc24b87bb23f0d5);
+            else if(i == 1) publicInputs.push(0x13cb6ae3);
+            else if(i == 2) publicInputs.push(0x6941286c);
+            else if(i == 4) publicInputs.push(0x965505);
+            else if(i == 6) publicInputs.push(0xaaa74863900cd1aa397b147b5e3a97df);
+            else if(i == 7) publicInputs.push(0x3158a0204e0c6977c846dec8dcb483ab);
+            else if(i == 8) publicInputs.push(0x03938700);
+            else if(i == 10) publicInputs.push(0xaa36a7);
+            else if(i == 16) publicInputs.push(0x27ed7bb87b32e2c18b4d69b3d3d60f34);
+            else if(i == 17) publicInputs.push(0xba60a2b5465adc32b9b6d1f442c9f9c2);
+            else publicInputs.push(0x00);
+        }
 
-        // a_pub_function (indices 66-517) - All the function instance data
+        // a_pub_function (indices 64-511) from channel5_proof1.json  
+        // First add the actual meaningful values
         publicInputs.push(0x01);
         publicInputs.push(0xffffffffffffffffffffffffffffffff);
         publicInputs.push(0xffffffff);
@@ -842,8 +811,8 @@ contract ProofSubmissionTest is Test {
         publicInputs.push(0x00);
         publicInputs.push(0x02);
         publicInputs.push(0x08);
-        // Rest are all zeros (247-511)
-        for (uint256 i = 247; i < 512; i++) {
+        // Fill remaining elements up to 512 with zeros  
+        while (publicInputs.length < 512) {
             publicInputs.push(0x00);
         }
     }

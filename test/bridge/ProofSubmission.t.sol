@@ -334,7 +334,7 @@ contract ProofSubmissionTest is Test {
         participants[2] = user3;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 7 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
 
         channelId = bridge.openChannel(params);
 

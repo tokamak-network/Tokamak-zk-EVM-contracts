@@ -105,7 +105,12 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Initialized, "Invalid state");
         require(msg.sender == bridge.getChannelLeader(channelId), "Not leader");
-        require(bridge.isChannelPublicKeySet(channelId), "Channel leader must set public key first");
+        
+        // Only require public key to be set if frost signature is enabled
+        bool frostEnabled = bridge.isFrostSignatureEnabled(channelId);
+        if (frostEnabled) {
+            require(bridge.isChannelPublicKeySet(channelId), "Channel leader must set public key first");
+        }
 
         address[] memory participants = bridge.getChannelParticipants(channelId);
         address targetContract = bridge.getChannelTargetContract(channelId);
@@ -234,15 +239,20 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Final verification: last proof's output state root should match the final state root
         require(expectedPrevRoot == finalStateRoot, "Final state root mismatch");
 
-        // STEP2: Signature verification
-        // Verify that signature commits to the specific channel and final state root from the proof
-        bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, finalStateRoot));
-        require(signature.message == commitmentHash, "Signature must commit to proof content");
+        // STEP2: Conditional Signature verification
+        // Check if frost signature is enabled for this channel
+        bool frostEnabled = bridge.isFrostSignatureEnabled(channelId);
+        
+        if (frostEnabled) {
+            // Verify that signature commits to the specific channel and final state root from the proof
+            bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, finalStateRoot));
+            require(signature.message == commitmentHash, "Signature must commit to proof content");
 
-        (uint256 pkx, uint256 pky) = bridge.getChannelPublicKey(channelId);
-        address signerAddr = bridge.getChannelSignerAddr(channelId);
-        address recovered = zecFrost.verify(signature.message, pkx, pky, signature.rx, signature.ry, signature.z);
-        require(recovered == signerAddr, "Invalid group threshold signature");
+            (uint256 pkx, uint256 pky) = bridge.getChannelPublicKey(channelId);
+            address signerAddr = bridge.getChannelSignerAddr(channelId);
+            address recovered = zecFrost.verify(signature.message, pkx, pky, signature.rx, signature.ry, signature.z);
+            require(recovered == signerAddr, "Invalid group threshold signature");
+        }
 
         // STEP2.5: Block info validation
         // Verify that each proof's block info matches the stored block info hash
@@ -304,7 +314,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // STEP4: Channel state update
         // Atomically update state only after all validations pass
         bridge.setChannelFinalStateRoot(channelId, finalStateRoot);
-        bridge.setChannelSignatureVerified(channelId, true);
+        bridge.setChannelSignatureVerified(channelId, frostEnabled);
         bridge.setChannelState(channelId, IBridgeCore.ChannelState.Closing);
 
         emit TokamakZkSnarkProofsVerified(channelId, msg.sender);
@@ -317,7 +327,12 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         ChannelFinalizationProof calldata groth16Proof
     ) external {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Closing, "Invalid state");
-        require(bridge.isSignatureVerified(channelId), "signature not verified");
+        
+        // Only require signature verification if frost signature is enabled for this channel
+        bool frostEnabled = bridge.isFrostSignatureEnabled(channelId);
+        if (frostEnabled) {
+            require(bridge.isSignatureVerified(channelId), "signature not verified");
+        }
 
         address[] memory participants = bridge.getChannelParticipants(channelId);
         require(finalBalances.length == participants.length, "Invalid final balances length");

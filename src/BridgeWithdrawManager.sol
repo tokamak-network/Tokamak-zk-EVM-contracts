@@ -8,6 +8,7 @@ import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializab
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
 import "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "./interface/IBridgeCore.sol";
+import "./BridgeDepositManager.sol";
 
 contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -54,8 +55,8 @@ contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, Own
         // Clear the withdrawable amount
         bridge.clearWithdrawableAmount(channelId, msg.sender);
 
-        // Transfer the token
-        IERC20Upgradeable(targetContract).safeTransfer(msg.sender, withdrawAmount);
+        // Transfer the token from deposit manager (where tokens are held)
+        BridgeDepositManager(bridge.depositManager()).transferForWithdrawal(targetContract, msg.sender, withdrawAmount);
 
         emit Withdrawn(channelId, msg.sender, targetContract, withdrawAmount);
     }

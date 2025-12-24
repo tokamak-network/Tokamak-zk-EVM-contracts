@@ -203,7 +203,7 @@ contract WithdrawalsTest is Test {
         participants[2] = leader;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
 
         console.log("About to open channel");
         console.log("Leader balance:", leader.balance);
@@ -371,7 +371,7 @@ contract WithdrawalsTest is Test {
         participants[2] = leader;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
 
         uint256 openChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -436,7 +436,7 @@ contract WithdrawalsTest is Test {
         vm.deal(leader, 10 ether);
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
 
         uint256 testChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -522,7 +522,7 @@ contract WithdrawalsTest is Test {
         participants[2] = leader;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
 
         uint256 rejectChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -660,7 +660,7 @@ contract WithdrawalsTest is Test {
         participants[2] = leader;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
 
         uint256 zeroChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(

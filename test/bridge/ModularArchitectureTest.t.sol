@@ -182,7 +182,7 @@ contract ModularArchitectureTest is Test {
         participants[2] = user3;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, enableFrostSignature: true});
 
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
@@ -237,7 +237,7 @@ contract ModularArchitectureTest is Test {
         participants[2] = user3;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, timeout: 1 days});
+            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, enableFrostSignature: true});
 
         channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
@@ -258,5 +258,35 @@ contract ModularArchitectureTest is Test {
         testToken.approve(address(depositManager), 3 ether);
         depositManager.depositToken(channelId, 3 ether, bytes32(uint256(789)));
         vm.stopPrank();
+    }
+
+    function testChannelWithoutFrostSignature() public {
+        vm.prank(leader);
+        address[] memory participants = new address[](2);
+        participants[0] = user1;
+        participants[1] = user2;
+
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, enableFrostSignature: false});
+
+        uint256 channelId = bridge.openChannel(params);
+
+        // Verify frost signature is disabled for this channel
+        assertFalse(bridge.isFrostSignatureEnabled(channelId));
+        
+        // Verify channel was created successfully
+        assertTrue(bridge.isChannelParticipant(channelId, user1));
+        assertTrue(bridge.isChannelParticipant(channelId, user2));
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(IBridgeCore.ChannelState.Initialized));
+
+        // Test that deposit works without setting public key
+        vm.startPrank(user1);
+        testToken.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(123)));
+        vm.stopPrank();
+
+        // Verify deposit was recorded
+        assertEq(bridge.getParticipantDeposit(channelId, user1), 1 ether);
+        assertEq(bridge.getL2MptKey(channelId, user1), 123);
     }
 }

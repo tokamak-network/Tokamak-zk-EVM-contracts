@@ -39,7 +39,13 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
     function depositToken(uint256 _channelId, uint256 _amount, bytes32 _mptKey) external nonReentrant {
         require(bridge.getChannelState(_channelId) == IBridgeCore.ChannelState.Initialized, "Invalid channel state");
         require(bridge.isChannelParticipant(_channelId, msg.sender), "Not a participant");
-        require(bridge.isChannelPublicKeySet(_channelId), "Channel leader must set public key first");
+        
+        // Only require public key to be set if frost signature is enabled
+        bool frostEnabled = bridge.isFrostSignatureEnabled(_channelId);
+        if (frostEnabled) {
+            require(bridge.isChannelPublicKeySet(_channelId), "Channel leader must set public key first");
+        }
+        
         require(_mptKey != bytes32(0), "Invalid MPT key");
         require(_amount != 0, "amount must be greater than 0");
 
@@ -77,6 +83,15 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
     function updateBridge(address _newBridge) external onlyOwner {
         require(_newBridge != address(0), "Invalid bridge address");
         bridge = IBridgeCore(_newBridge);
+    }
+
+    function transferForWithdrawal(address targetContract, address to, uint256 amount) external {
+        require(msg.sender == address(bridge.withdrawManager()), "Only withdraw manager can call");
+        require(targetContract != address(0), "Invalid target contract");
+        require(to != address(0), "Invalid recipient");
+        require(amount > 0, "Invalid amount");
+
+        IERC20Upgradeable(targetContract).safeTransfer(to, amount);
     }
 
     function toString(uint256 value) internal pure returns (string memory) {

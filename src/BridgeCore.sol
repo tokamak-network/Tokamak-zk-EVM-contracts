@@ -21,6 +21,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     struct ChannelParams {
         address targetContract;
         address[] participants;
+        bool enableFrostSignature;
     }
 
     struct TargetContract {
@@ -54,12 +55,13 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     struct Channel {
         // Slot 1
         uint256 id;
-        // Slot 2: pack addresses and small values (20 + 20 + 1 + 1 + 14 bytes = 56 bytes)
+        // Slot 2: pack addresses and small values (20 + 20 + 1 + 1 + 1 + 13 bytes = 56 bytes)
         address targetContract; // 20 bytes
         address leader; // 20 bytes
         ChannelState state; // 1 byte
         bool sigVerified; // 1 byte
-        // 14 bytes available for future use
+        bool frostSignatureEnabled; // 1 byte
+        // 13 bytes available for future use
 
         // Slot 3: signer and counts (20 + 8 + 4 bytes = 32 bytes)
         address signerAddr; // 20 bytes
@@ -180,6 +182,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         channel.state = ChannelState.Initialized;
         channel.requiredTreeSize = uint64(requiredTreeSize);
         channel.preAllocatedLeavesCount = uint32(preAllocatedCount);
+        channel.frostSignatureEnabled = params.enableFrostSignature;
 
         uint256 participantsLength = params.participants.length;
         for (uint256 i = 0; i < participantsLength;) {
@@ -202,6 +205,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         require(channel.leader != address(0), "Channel does not exist");
         require(msg.sender == channel.leader, "Only channel leader can set public key");
+        require(channel.frostSignatureEnabled, "frost is disabled");
         
         // DISABLED FOR TESTING
         //require(channel.state == ChannelState.Initialized, "Can only set public key for initialized channel");
@@ -578,6 +582,16 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
     // ========== GETTER FUNCTIONS ==========
 
+    function depositManager() external view returns (address) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.depositManager;
+    }
+
+    function withdrawManager() external view returns (address) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.withdrawManager;
+    }
+
     function getChannelState(uint256 channelId) external view returns (ChannelState) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].state;
@@ -704,6 +718,11 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function getChannelBlockInfosHash(uint256 channelId) external view returns (bytes32) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].blockInfosHash;
+    }
+
+    function isFrostSignatureEnabled(uint256 channelId) external view returns (bool) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.channels[channelId].frostSignatureEnabled;
     }
 
     /**

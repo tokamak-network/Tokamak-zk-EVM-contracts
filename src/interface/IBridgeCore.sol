@@ -30,6 +30,8 @@ interface IBridgeCore {
     }
 
     // View functions
+    function depositManager() external view returns (address);
+    function withdrawManager() external view returns (address);
     function getChannelState(uint256 channelId) external view returns (ChannelState);
     function isChannelParticipant(uint256 channelId, address participant) external view returns (bool);
     function getChannelTargetContract(uint256 channelId) external view returns (address);
@@ -52,6 +54,7 @@ interface IBridgeCore {
     function isSignatureVerified(uint256 channelId) external view returns (bool);
     function getTreasuryAddress() external view returns (address);
     function getChannelBlockInfosHash(uint256 channelId) external view returns (bytes32);
+    function isFrostSignatureEnabled(uint256 channelId) external view returns (bool);
 
     // Setter functions (only callable by managers)
     function updateChannelUserDeposits(uint256 channelId, address participant, uint256 amount) external;

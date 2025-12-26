@@ -209,10 +209,10 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Open, "Invalid state");
         require(proofs.length > 0 && proofs.length <= 5, "Must provide 1-5 proofs");
 
-        // Extract finalStateRoot from the last proof's output state root (indices 10-11)
+        // Extract finalStateRoot from the last proof's output state root (indices 0-1)
         ProofData calldata lastProof = proofs[proofs.length - 1];
         require(lastProof.publicInputs.length >= 12, "Invalid public inputs length");
-        bytes32 finalStateRoot = _concatenateStateRoot(lastProof.publicInputs[11], lastProof.publicInputs[10]);
+        bytes32 finalStateRoot = _concatenateStateRoot(lastProof.publicInputs[1], lastProof.publicInputs[0]);
         bytes32 initialStateRoot = bridge.getChannelInitialStateRoot(channelId);
 
         // STEP 1: verify order of proofs
@@ -223,10 +223,10 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             ProofData calldata currentProof = proofs[i];
             require(currentProof.publicInputs.length >= 12, "Invalid public inputs length");
 
-            // Extract input state root (rows 8 & 9) and output state root (rows 10 & 11)
+            // Extract input state root (rows 8 & 9) and output state root (rows 0 & 1)
             bytes32 inputStateRoot = _concatenateStateRoot(currentProof.publicInputs[9], currentProof.publicInputs[8]);
             bytes32 outputStateRoot =
-                _concatenateStateRoot(currentProof.publicInputs[11], currentProof.publicInputs[10]);
+                _concatenateStateRoot(currentProof.publicInputs[1], currentProof.publicInputs[0]);
 
             // For first proof, input state root should match the stored initial state root
             // For subsequent proofs, input state root should match previous proof's output state root
@@ -568,13 +568,13 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     }
 
     function _extractFunctionSignatureFromProof(uint256[] calldata publicInputs) internal pure returns (bytes32) {
-        // Function signature is located at row 18 (0-indexed) in the user data section
-        // Row 18: Selector for a function to call (complete 4-byte selector)
+        // Function signature is located at row 14 (0-indexed) in the user data section
+        // Row 14: Selector for a function to call (complete 4-byte selector)
         require(publicInputs.length >= 19, "Public inputs too short for function signature");
 
-        // Extract the function selector from index 18
+        // Extract the function selector from index 14
         // The value is already a complete 4-byte selector stored as uint256
-        uint256 selectorValue = publicInputs[16];
+        uint256 selectorValue = publicInputs[14];
         bytes4 selector = bytes4(uint32(selectorValue));
 
         return bytes32(selector);

@@ -47,7 +47,8 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
         }
         
         require(_mptKey != bytes32(0), "Invalid MPT key");
-        require(_amount != 0, "amount must be greater than 0");
+        // we allow 0 TON transfers
+        //require(_amount != 0, "amount must be greater than 0");
 
         address targetContract = bridge.getChannelTargetContract(_channelId);
         require(targetContract != address(0), "Invalid target contract");
@@ -67,17 +68,19 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
             )
         );
 
-        uint256 balanceBefore = IERC20Upgradeable(targetContract).balanceOf(address(this));
-        IERC20Upgradeable(targetContract).safeTransferFrom(msg.sender, address(this), _amount);
-        uint256 balanceAfter = IERC20Upgradeable(targetContract).balanceOf(address(this));
-        uint256 actualAmount = balanceAfter - balanceBefore;
-        require(actualAmount > 0, "No tokens transferred");
-
+        if(_amount > 0) {
+            uint256 balanceBefore = IERC20Upgradeable(targetContract).balanceOf(address(this));
+            IERC20Upgradeable(targetContract).safeTransferFrom(msg.sender, address(this), _amount);
+            uint256 balanceAfter = IERC20Upgradeable(targetContract).balanceOf(address(this));
+            uint256 actualAmount = balanceAfter - balanceBefore;
+            require(actualAmount > 0, "No tokens transferred");
+            bridge.updateChannelUserDeposits(_channelId, msg.sender, actualAmount);
+            bridge.updateChannelTotalDeposits(_channelId, actualAmount);
+        }
+        
         bridge.setChannelL2MptKey(_channelId, msg.sender, uint256(_mptKey));
-        bridge.updateChannelUserDeposits(_channelId, msg.sender, actualAmount);
-        bridge.updateChannelTotalDeposits(_channelId, actualAmount);
 
-        emit Deposited(_channelId, msg.sender, targetContract, actualAmount);
+        emit Deposited(_channelId, msg.sender, targetContract, _amount);
     }
 
     function updateBridge(address _newBridge) external onlyOwner {

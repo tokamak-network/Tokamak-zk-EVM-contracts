@@ -1138,7 +1138,8 @@ contract BridgeCoreTest is Test {
         });
 
         vm.expectRevert("Balance conservation violated");
-        proofManager.verifyFinalBalancesGroth16(channelId, finalBalancesArray, finalizationProof);
+        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(channelId));
+        proofManager.verifyFinalBalancesGroth16(channelId, finalBalancesArray, permutation, finalizationProof);
     }
 
     function testSubmitProofAndSignatureConservationViolation() public {
@@ -1181,7 +1182,8 @@ contract BridgeCoreTest is Test {
         });
 
         vm.expectRevert("Balance conservation violated");
-        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
+        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(channelId));
+        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, permutation, finalizationProof);
     }
 
     function testSubmitProofAndSignatureMismatchedArrays() public {
@@ -1230,7 +1232,8 @@ contract BridgeCoreTest is Test {
         });
 
         vm.expectRevert("Invalid final balances length");
-        proofManager.verifyFinalBalancesGroth16(channelId, mismatchedFinalBalances, finalizationProof);
+        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(channelId));
+        proofManager.verifyFinalBalancesGroth16(channelId, mismatchedFinalBalances, permutation, finalizationProof);
     }
 
     function testSubmitProofAndSignatureGasUsage() public {
@@ -1409,7 +1412,8 @@ contract BridgeCoreTest is Test {
         });
 
         // Call verifyFinalBalancesGroth16 to close the channel
-        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
+        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(channelId));
+        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, permutation, finalizationProof);
 
         (, BridgeCore.ChannelState state,,) = bridge.getChannelInfo(channelId);
         assertEq(uint8(state), uint8(BridgeCore.ChannelState.Closed));
@@ -1468,7 +1472,8 @@ contract BridgeCoreTest is Test {
         });
 
         // Call verifyFinalBalancesGroth16 to close the channel
-        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
+        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(channelId));
+        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, permutation, finalizationProof);
 
         // Verify channel is finalized (in Closed state)
         BridgeCore.ChannelState state = bridge.getChannelState(channelId);
@@ -1497,13 +1502,22 @@ contract BridgeCoreTest is Test {
         });
 
         // Call verifyFinalBalancesGroth16 to close the channel
-        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
+        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(channelId));
+        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, permutation, finalizationProof);
 
         // Verify it's now Closed
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Closed));
     }
 
     // ========== Helper Functions ==========
+
+    function _identityPermutation(uint256 size) internal pure returns (uint256[] memory) {
+        uint256[] memory permutation = new uint256[](size);
+        for (uint256 i = 0; i < size; i++) {
+            permutation[i] = i;
+        }
+        return permutation;
+    }
 
     function _createChannel() internal returns (uint256) {
         vm.startPrank(leader);

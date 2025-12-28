@@ -324,6 +324,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     function verifyFinalBalancesGroth16(
         uint256 channelId,
         uint256[] calldata finalBalances,
+        uint256[] calldata permutation,
         ChannelFinalizationProof calldata groth16Proof
     ) external {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Closing, "Invalid state");
@@ -354,12 +355,14 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         address targetContract = bridge.getChannelTargetContract(channelId);
         uint256 preAllocatedCount = bridge.getPreAllocatedLeavesCount(targetContract);
 
+        require(preAllocatedCount + finalBalances.length == permutation.length, "Invalid permutation length");
+
         uint256[] memory publicSignals = new uint256[](1 + 2 * treeSize);
 
         // Set final state root as first public signal
         publicSignals[0] = uint256(finalStateRoot);
 
-        uint256 currentIndex = 1;
+        uint256 currentIndex = 0;
 
         // Step 3: Add pre-allocated leaves data FIRST
         if (preAllocatedCount > 0) {
@@ -370,8 +373,9 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                 require(exists, "Pre-allocated leaf not found");
 
                 // Set pre-allocated MPT key and value
-                publicSignals[currentIndex] = uint256(key);
-                publicSignals[currentIndex + treeSize] = value;
+                uint256 permutedIndex = permutation[currentIndex];
+                publicSignals[1 + permutedIndex] = uint256(key);
+                publicSignals[1 + treeSize + permutedIndex] = value;
                 currentIndex++;
             }
         }
@@ -383,19 +387,12 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             // Get L2 MPT key for this participant
             uint256 l2MptKey = bridge.getL2MptKey(channelId, participant);
 
-            if (currentIndex < treeSize + 1) {
-                // Set L2 MPT key
-                publicSignals[currentIndex] = l2MptKey;
-                // Set final balance
-                publicSignals[currentIndex + treeSize] = finalBalances[i];
-                currentIndex++;
-            }
-        }
-
-        // Fill remaining entries with zero
-        for (uint256 i = currentIndex; i < treeSize + 1; i++) {
-            publicSignals[i] = 0;
-            publicSignals[i + treeSize] = 0;
+            uint256 permutedIndex = permutation[currentIndex];
+            // Set L2 MPT key
+            publicSignals[1 + permutedIndex] = l2MptKey;
+            // Set final balance
+            publicSignals[1 + treeSize + permutedIndex] = finalBalances[i];
+            currentIndex++;
         }
 
         // Step 5: Verify the groth16 proof passed as a parameter

@@ -313,7 +313,8 @@ contract WithdrawalsTest is Test {
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
-        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalizationProof);
+        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(channelId));
+        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, permutation, finalizationProof);
 
         console.log("Channel closed");
     }
@@ -505,7 +506,8 @@ contract WithdrawalsTest is Test {
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
-        proofManager.verifyFinalBalancesGroth16(testChannelId, emptyBalances, finalizationProof);
+        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(testChannelId));
+        proofManager.verifyFinalBalancesGroth16(testChannelId, emptyBalances, permutation, finalizationProof);
     }
 
     function testWithdrawTokenFailsOnTransferFailure() public {
@@ -619,7 +621,8 @@ contract WithdrawalsTest is Test {
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
-        proofManager.verifyFinalBalancesGroth16(testChannelId, balances, finalizationProof);
+        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(testChannelId));
+        proofManager.verifyFinalBalancesGroth16(testChannelId, balances, permutation, finalizationProof);
     }
 
     function testMultipleUsersWithdrawDifferentTokens() public {
@@ -685,6 +688,14 @@ contract WithdrawalsTest is Test {
         BridgeProofManager.ProofData[] memory proofs = new BridgeProofManager.ProofData[](1);
         proofs[0] = proof;
         return proofs;
+    }
+
+    function _identityPermutation(uint256 size) internal pure returns (uint256[] memory) {
+        uint256[] memory permutation = new uint256[](size);
+        for (uint256 i = 0; i < size; i++) {
+            permutation[i] = i;
+        }
+        return permutation;
     }
 
     function _setWithdrawalsTestStateRoots(uint256[] memory publicInputs) internal pure {

@@ -110,6 +110,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     event ChannelPublicKeySet(uint256 indexed channelId, uint256 pkx, uint256 pky, address signerAddr);
     event PreAllocatedLeafSet(address indexed targetContract, bytes32 indexed mptKey, uint256 value);
     event PreAllocatedLeafRemoved(address indexed targetContract, bytes32 indexed mptKey);
+    event ChannelDeleted(uint256 indexed channelId, uint256 cleanupTime);
 
     modifier onlyManager() {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
@@ -397,6 +398,55 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         $.channels[channelId].blockInfosHash = blockInfosHash;
     }
 
+    function cleanupClosedChannel(uint256 channelId) external {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        Channel storage channel = $.channels[channelId];
+        
+        require(channel.leader != address(0), "Channel does not exist");
+        require(channel.state == ChannelState.Closed, "Channel is not closed");
+        require(!$.isChannelLeader[channel.leader], "Channel leader flag inconsistent");
+        
+        for (uint256 i = 0; i < channel.participants.length; i++) {
+            address participant = channel.participants[i];
+            require(
+                channel.userData[participant].hasWithdrawn || 
+                channel.userData[participant].withdrawAmount == 0,
+                "Participant has unprocessed withdrawal"
+            );
+        }
+        
+        delete $.channels[channelId];
+        
+        emit ChannelDeleted(channelId, block.timestamp);
+    }
+
+    function batchCleanupClosedChannels(uint256[] calldata channelIds) external {
+        for (uint256 i = 0; i < channelIds.length; i++) {
+            BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+            Channel storage channel = $.channels[channelIds[i]];
+            
+            if (channel.leader != address(0) && 
+                channel.state == ChannelState.Closed &&
+                !$.isChannelLeader[channel.leader]) {
+                
+                bool allWithdrawn = true;
+                for (uint256 j = 0; j < channel.participants.length; j++) {
+                    address participant = channel.participants[j];
+                    if (!channel.userData[participant].hasWithdrawn && 
+                        channel.userData[participant].withdrawAmount > 0) {
+                        allWithdrawn = false;
+                        break;
+                    }
+                }
+                
+                if (allWithdrawn) {
+                    delete $.channels[channelIds[i]];
+                    emit ChannelDeleted(channelIds[i], block.timestamp);
+                }
+            }
+        }
+    }
+
     // ========== PRE-ALLOCATED LEAVES MANAGEMENT ==========
 
     /**
@@ -540,6 +590,27 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
     function _isTargetContractValid(Channel storage channel, address targetContract) private view returns (bool) {
         return channel.targetContract == targetContract;
+    }
+
+    function _isChannelEligibleForCleanup(Channel storage channel) internal view returns (bool) {
+        if (channel.leader == address(0) || channel.state != ChannelState.Closed) {
+            return false;
+        }
+        
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        if ($.isChannelLeader[channel.leader]) {
+            return false;
+        }
+        
+        for (uint256 i = 0; i < channel.participants.length; i++) {
+            address participant = channel.participants[i];
+            if (!channel.userData[participant].hasWithdrawn && 
+                channel.userData[participant].withdrawAmount > 0) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -720,9 +791,52 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].blockInfosHash;
     }
 
+    function isMarkedChannelLeader(address addr) external view returns (bool) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.isChannelLeader[addr];
+    }
+
     function isFrostSignatureEnabled(uint256 channelId) external view returns (bool) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].frostSignatureEnabled;
+    }
+
+    function getEligibleChannelsForCleanup(uint256 limit, uint256 offset) 
+        external 
+        view 
+        returns (uint256[] memory channelIds, uint256 totalEligible) 
+    {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        
+        for (uint256 i = 0; i < $.nextChannelId; i++) {
+            Channel storage channel = $.channels[i];
+            if (_isChannelEligibleForCleanup(channel)) {
+                totalEligible++;
+            }
+        }
+        
+        uint256 resultSize = totalEligible > limit ? limit : totalEligible;
+        channelIds = new uint256[](resultSize);
+        
+        uint256 currentMatch = 0;
+        uint256 resultIndex = 0;
+        
+        for (uint256 i = 0; i < $.nextChannelId && resultIndex < resultSize; i++) {
+            Channel storage channel = $.channels[i];
+            if (_isChannelEligibleForCleanup(channel)) {
+                if (currentMatch >= offset) {
+                    channelIds[resultIndex] = channel.id;
+                    resultIndex++;
+                }
+                currentMatch++;
+            }
+        }
+    }
+
+    function isChannelEligibleForCleanup(uint256 channelId) external view returns (bool) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        Channel storage channel = $.channels[channelId];
+        return _isChannelEligibleForCleanup(channel);
     }
 
     /**

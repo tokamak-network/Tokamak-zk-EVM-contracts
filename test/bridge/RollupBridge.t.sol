@@ -2593,4 +2593,196 @@ contract BridgeCoreTest is Test {
         
         return keccak256(abi.encodePacked(functionInstances));
     }
+
+    // ========== Channel Cleanup Tests ==========
+
+    function testChannelCleanupAfterAllWithdrawals() public {
+        uint256 channelId = _setupCompleteChannel();
+        
+        // Verify channel is closed and immediately eligible for cleanup
+        assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Closed));
+        assertTrue(bridge.isChannelEligibleForCleanup(channelId), "Should be eligible immediately after all withdrawals");
+        
+        // Test cleanup function
+        bridge.cleanupClosedChannel(channelId);
+        
+        // Verify channel is deleted (id should be 0)
+        (address targetContractAfter, BridgeCore.ChannelState stateAfter,,) = bridge.getChannelInfo(channelId);
+        assertEq(targetContractAfter, address(0), "Channel should be deleted");
+        assertEq(uint8(stateAfter), uint8(BridgeCore.ChannelState.None), "State should be None");
+    }
+
+    function testChannelCleanupRejectsIncompleteWithdrawals() public {
+        vm.startPrank(leader);
+        
+        address[] memory participants = new address[](2);
+        participants[0] = user1;
+        participants[1] = user2;
+
+        BridgeCore.ChannelParams memory params =
+            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
+        uint256 channelId = bridge.openChannel(params);
+        
+        bridge.setChannelPublicKey(
+            channelId,
+            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
+            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
+        );
+        
+        vm.stopPrank();
+        
+        // Make deposits
+        vm.startPrank(user1);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        token.approve(address(depositManager), 2 ether);
+        depositManager.depositToken(channelId, 2 ether, bytes32(uint256(uint160(l2User2))));
+        vm.stopPrank();
+        
+        // Initialize and close the channel
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        TestChannelInitializationProof memory mockProof = TestChannelInitializationProof({
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
+            merkleRoot: mockMerkleRoot
+        });
+        vm.prank(leader);
+        proofManager.initializeChannelState(
+            channelId,
+            BridgeProofManager.ChannelInitializationProof({
+                pA: mockProof.pA,
+                pB: mockProof.pB,
+                pC: mockProof.pC,
+                merkleRoot: mockProof.merkleRoot
+            })
+        );
+        
+        vm.prank(address(proofManager));
+        bridge.setChannelState(channelId, BridgeCore.ChannelState.Closed);
+        
+        vm.prank(address(proofManager));
+        bridge.setChannelCloseTimestamp(channelId, block.timestamp);
+        
+        // Set withdrawable amounts for both users
+        address[] memory withdrawParticipants = new address[](2);
+        withdrawParticipants[0] = user1;
+        withdrawParticipants[1] = user2;
+        uint256[] memory withdrawAmounts = new uint256[](2);
+        withdrawAmounts[0] = 1 ether;
+        withdrawAmounts[1] = 2 ether;
+        
+        vm.prank(address(proofManager));
+        bridge.setChannelWithdrawAmounts(channelId, withdrawParticipants, withdrawAmounts);
+        
+        // Mark only user1 as withdrawn (user2 still hasn't withdrawn but has withdrawAmount > 0)
+        vm.prank(address(withdrawManager));
+        bridge.markUserWithdrawn(channelId, user1);
+        
+        // Try to cleanup with incomplete withdrawals (should fail)
+        vm.expectRevert("Participant has unprocessed withdrawal");
+        bridge.cleanupClosedChannel(channelId);
+    }
+
+    function testBatchChannelCleanup() public {
+        // Setup multiple closed channels
+        uint256 channelId1 = _setupCompleteChannel();
+        uint256 channelId2 = _setupCompleteChannel();
+        
+        // Channels are immediately eligible after all withdrawals complete
+        
+        // Prepare batch cleanup
+        uint256[] memory channelIds = new uint256[](2);
+        channelIds[0] = channelId1;
+        channelIds[1] = channelId2;
+        
+        // Test batch cleanup
+        bridge.batchCleanupClosedChannels(channelIds);
+        
+        // Verify both channels are deleted
+        (address targetContract1,,, ) = bridge.getChannelInfo(channelId1);
+        (address targetContract2,,, ) = bridge.getChannelInfo(channelId2);
+        assertEq(targetContract1, address(0), "Channel 1 should be deleted");
+        assertEq(targetContract2, address(0), "Channel 2 should be deleted");
+    }
+
+    function testGetEligibleChannelsForCleanup() public {
+        _setupCompleteChannel();
+        _setupCompleteChannel();
+        
+        // Both channels should be eligible immediately after all withdrawals
+        (uint256[] memory eligible, uint256 total) = bridge.getEligibleChannelsForCleanup(10, 0);
+        assertEq(total, 2, "Both channels should be eligible immediately");
+        assertEq(eligible.length, 2, "Should return both channels");
+    }
+
+    function _setupCompleteChannel() internal returns (uint256 channelId) {
+        // Use the existing _getClosedChannel helper which works
+        channelId = _createChannel();
+        
+        // Make deposits
+        vm.startPrank(user1);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        token.approve(address(depositManager), 2 ether);
+        depositManager.depositToken(channelId, 2 ether, bytes32(uint256(uint160(l2User2))));
+        vm.stopPrank();
+
+        vm.startPrank(user3);
+        token.approve(address(depositManager), 3 ether);
+        depositManager.depositToken(channelId, 3 ether, bytes32(uint256(uint160(l2User3))));
+        vm.stopPrank();
+        
+        // Initialize state
+        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
+        TestChannelInitializationProof memory mockProof = TestChannelInitializationProof({
+            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
+            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
+            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
+            merkleRoot: mockMerkleRoot
+        });
+        vm.prank(leader);
+        proofManager.initializeChannelState(
+            channelId,
+            BridgeProofManager.ChannelInitializationProof({
+                pA: mockProof.pA,
+                pB: mockProof.pB,
+                pC: mockProof.pC,
+                merkleRoot: mockProof.merkleRoot
+            })
+        );
+        
+        // Directly set the channel to closed state
+        vm.prank(address(proofManager));
+        bridge.setChannelState(channelId, BridgeCore.ChannelState.Closed);
+        
+        vm.prank(address(proofManager));
+        bridge.setChannelCloseTimestamp(channelId, block.timestamp);
+        
+        // Mark all withdrawals as complete
+        vm.prank(address(withdrawManager));
+        bridge.markUserWithdrawn(channelId, user1);
+        vm.prank(address(withdrawManager));
+        bridge.markUserWithdrawn(channelId, user2);
+        vm.prank(address(withdrawManager));
+        bridge.markUserWithdrawn(channelId, user3);
+        
+        return channelId;
+    }
+
+    function _makeDeposits(uint256 channelId, address[] memory participants) internal {
+        for (uint256 i = 0; i < participants.length; i++) {
+            vm.startPrank(participants[i]);
+            uint256 amount = (i + 1) * 1 ether;
+            token.approve(address(depositManager), amount);
+            depositManager.depositToken(channelId, amount, bytes32(uint256(uint160(participants[i]))));
+            vm.stopPrank();
+        }
+    }
 }

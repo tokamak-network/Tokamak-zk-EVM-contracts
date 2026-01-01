@@ -37,6 +37,7 @@ interface IBridgeCore {
     function getChannelTargetContract(uint256 channelId) external view returns (address);
     function getChannelLeader(uint256 channelId) external view returns (address);
     function getChannelParticipants(uint256 channelId) external view returns (address[] memory);
+    function getChannelWhitelisted(uint256 channelId) external view returns (address[] memory);
     function getChannelTreeSize(uint256 channelId) external view returns (uint256);
     function getParticipantDeposit(uint256 channelId, address participant) external view returns (uint256);
     function getL2MptKey(uint256 channelId, address participant) external view returns (uint256);
@@ -82,6 +83,7 @@ interface IBridgeCore {
     function markUserWithdrawn(uint256 channelId, address participant) external;
     function clearWithdrawableAmount(uint256 channelId, address participant) external;
     function setChannelBlockInfosHash(uint256 channelId, bytes32 blockInfosHash) external;
+    function addParticipantOnDeposit(uint256 channelId, address user) external;
 
     // === PRE-ALLOCATED LEAVES FUNCTIONS ===
     function setPreAllocatedLeaf(address targetContract, bytes32 mptKey, uint256 value) external;

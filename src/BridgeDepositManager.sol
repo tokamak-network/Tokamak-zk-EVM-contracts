@@ -78,6 +78,9 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
             bridge.updateChannelTotalDeposits(_channelId, actualAmount);
         }
         
+        // Add user to participants array when they make their first deposit
+        bridge.addParticipantOnDeposit(_channelId, msg.sender);
+        
         bridge.setChannelL2MptKey(_channelId, msg.sender, uint256(_mptKey));
 
         emit Deposited(_channelId, msg.sender, targetContract, _amount);

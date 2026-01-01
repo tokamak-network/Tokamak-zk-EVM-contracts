@@ -20,7 +20,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
     struct ChannelParams {
         address targetContract;
-        address[] participants;
+        address[] whitelisted;
         bool enableFrostSignature;
     }
 
@@ -82,6 +82,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         // Slot 11: total deposits
         uint256 totalDeposits;
         // Dynamic storage (mappings and arrays)
+        address[] whitelisted;
         address[] participants;
         mapping(address => UserChannelData) userData;
     }
@@ -163,11 +164,11 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         uint256 maxAllowedParticipants = MAX_PARTICIPANTS - preAllocatedCount;
 
         require(
-            params.participants.length >= MIN_PARTICIPANTS && params.participants.length <= maxAllowedParticipants,
-            "Invalid participant count considering pre-allocated leaves"
+            params.whitelisted.length >= MIN_PARTICIPANTS && params.whitelisted.length <= maxAllowedParticipants,
+            "Invalid whitelisted count considering pre-allocated leaves"
         );
 
-        uint256 requiredTreeSize = determineTreeSize(params.participants.length + preAllocatedCount, 1);
+        uint256 requiredTreeSize = determineTreeSize(params.whitelisted.length + preAllocatedCount, 1);
 
         unchecked {
             channelId = $.nextChannelId++;
@@ -185,13 +186,13 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         channel.preAllocatedLeavesCount = uint32(preAllocatedCount);
         channel.frostSignatureEnabled = params.enableFrostSignature;
 
-        uint256 participantsLength = params.participants.length;
-        for (uint256 i = 0; i < participantsLength;) {
-            address participant = params.participants[i];
-            require(!channel.userData[participant].isParticipant, "Duplicate participant");
+        uint256 whitelistedLength = params.whitelisted.length;
+        for (uint256 i = 0; i < whitelistedLength;) {
+            address whitelistedUser = params.whitelisted[i];
+            require(!channel.userData[whitelistedUser].isParticipant, "Duplicate whitelisted user");
 
-            channel.participants.push(participant);
-            channel.userData[participant].isParticipant = true;
+            channel.whitelisted.push(whitelistedUser);
+            channel.userData[whitelistedUser].isParticipant = true;
             unchecked {
                 ++i;
             }
@@ -395,6 +396,23 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function setChannelBlockInfosHash(uint256 channelId, bytes32 blockInfosHash) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         $.channels[channelId].blockInfosHash = blockInfosHash;
+    }
+
+    function addParticipantOnDeposit(uint256 channelId, address user) external onlyManager {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        Channel storage channel = $.channels[channelId];
+        
+        require(channel.userData[user].isParticipant, "User not whitelisted");
+        
+        // Check if user is already in participants array
+        for (uint256 i = 0; i < channel.participants.length; i++) {
+            if (channel.participants[i] == user) {
+                return; // User already in participants
+            }
+        }
+        
+        // Add user to participants array
+        channel.participants.push(user);
     }
 
     function cleanupClosedChannel(uint256 channelId) external {
@@ -685,6 +703,11 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function getChannelParticipants(uint256 channelId) external view returns (address[] memory) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].participants;
+    }
+
+    function getChannelWhitelisted(uint256 channelId) external view returns (address[] memory) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.channels[channelId].whitelisted;
     }
 
     function getChannelTreeSize(uint256 channelId) external view returns (uint256) {

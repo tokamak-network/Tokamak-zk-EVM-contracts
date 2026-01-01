@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
-import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
+import {BridgeAdminManager} from "../../src/BridgeAdminManager.sol";
 
 contract RegisterFunctionScript is Script {
     function run() external {

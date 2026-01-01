@@ -3,20 +3,20 @@ pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../src/BridgeCore.sol";
-import "../src/BridgeDepositManager.sol";
-import "../src/BridgeProofManager.sol";
-import "../src/BridgeWithdrawManager.sol";
-import "../src/BridgeAdminManager.sol";
-import "../src/verifier/TokamakVerifier.sol";
-import "../src/verifier/Groth16Verifier16Leaves.sol";
-import "../src/verifier/Groth16Verifier32Leaves.sol";
-import "../src/verifier/Groth16Verifier64Leaves.sol";
-import "../src/verifier/Groth16Verifier64LeavesIC.sol";
-import "../src/verifier/Groth16Verifier128Leaves.sol";
-import "../src/verifier/Groth16Verifier128LeavesIC1.sol";
-import "../src/verifier/Groth16Verifier128LeavesIC2.sol";
-import "../src/library/ZecFrost.sol";
+import "../../src/BridgeCore.sol";
+import "../../src/BridgeDepositManager.sol";
+import "../../src/BridgeProofManager.sol";
+import "../../src/BridgeWithdrawManager.sol";
+import "../../src/BridgeAdminManager.sol";
+import "../../src/verifier/TokamakVerifier.sol";
+import "../../src/verifier/Groth16Verifier16Leaves.sol";
+import "../../src/verifier/Groth16Verifier32Leaves.sol";
+import "../../src/verifier/Groth16Verifier64Leaves.sol";
+import "../../src/verifier/Groth16Verifier64LeavesIC.sol";
+import "../../src/verifier/Groth16Verifier128Leaves.sol";
+import "../../src/verifier/Groth16Verifier128LeavesIC1.sol";
+import "../../src/verifier/Groth16Verifier128LeavesIC2.sol";
+import "../../src/library/ZecFrost.sol";
 
 contract DeployV2Script is Script {
     // Implementation addresses

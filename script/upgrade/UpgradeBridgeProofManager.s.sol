@@ -2,7 +2,7 @@
 pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
-import "../src/BridgeProofManager.sol";
+import "../../src/BridgeProofManager.sol";
 
 contract UpgradeBridgeProofManagerScript is Script {
     // Existing proxy address (to be set via environment variables)
@@ -119,18 +119,20 @@ contract UpgradeBridgeProofManagerScript is Script {
         console.log("[SUCCESS] ProofManager upgrade verified");
     }
 
-    function _verifyContractOnExplorer() internal view {
+    function _verifyContractOnExplorer() internal {
         if (bytes(etherscanApiKey).length == 0) {
             console.log("[WARNING] ETHERSCAN_API_KEY not set, skipping verification");
             return;
         }
 
-        console.log("[INFO] Starting contract verification...");
+        console.log("[INFO] Contract verification will be performed by the shell script...");
         console.log("[INFO] The following new implementation will be verified:");
         console.log("  - ProofManager implementation:", newProofManagerImpl);
 
-        console.log("[INFO] Use --verify flag with forge script for automatic verification");
-        console.log("[INFO] Or verify manually using foundry verify-contract command");
+        // Create a file to store the implementation address for the shell script to use
+        string memory addressFile = string.concat("./upgrade_addresses_", vm.toString(block.timestamp), ".txt");
+        vm.writeFile(addressFile, string.concat("BRIDGE_PROOF_MANAGER_IMPL=", vm.toString(newProofManagerImpl), "\n"));
+        console.log("[INFO] Implementation address saved to:", addressFile);
     }
 
     function _printUpgradeSummary() internal view {

@@ -2,7 +2,7 @@
 pragma solidity 0.8.29;
 
 import {Script, console} from "forge-std/Script.sol";
-import {BridgeCore} from "../src/BridgeCore.sol";
+import {BridgeCore} from "../../src/BridgeCore.sol";
 
 contract SetChannelPublicKeyScript is Script {
     function run() external {

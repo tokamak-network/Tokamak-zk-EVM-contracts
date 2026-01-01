@@ -3,7 +3,7 @@ pragma solidity 0.8.29;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/verifier/Groth16Verifier16Leaves.sol";
+import "../../src/verifier/Groth16Verifier16Leaves.sol";
 
 contract TestGroth16Integration is Script {
     function run() public {

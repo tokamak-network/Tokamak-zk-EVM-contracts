@@ -3,12 +3,12 @@ pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../src/BridgeCore.sol";
+import "../../src/BridgeWithdrawManager.sol";
 
-contract UpgradeBridgeCoreScript is Script {
+contract UpgradeBridgeWithdrawManagerScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address proxyAddress = vm.envAddress("ROLLUP_BRIDGE_CORE_PROXY_ADDRESS");
+        address proxyAddress = vm.envAddress("ROLLUP_BRIDGE_WITHDRAW_MANAGER_PROXY_ADDRESS");
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -17,14 +17,14 @@ contract UpgradeBridgeCoreScript is Script {
         console.log("Account balance:", deployer.balance);
         console.log("Target proxy address:", proxyAddress);
 
-        // Deploy new BridgeCore implementation
-        console.log("Deploying new BridgeCore implementation...");
-        BridgeCore newImplementation = new BridgeCore();
+        // Deploy new BridgeWithdrawManager implementation
+        console.log("Deploying new BridgeWithdrawManager implementation...");
+        BridgeWithdrawManager newImplementation = new BridgeWithdrawManager();
         address newImplAddress = address(newImplementation);
-        console.log("New BridgeCore implementation deployed at:", newImplAddress);
+        console.log("New BridgeWithdrawManager implementation deployed at:", newImplAddress);
 
         // Get the proxy contract and upgrade it
-        BridgeCore proxy = BridgeCore(proxyAddress);
+        BridgeWithdrawManager proxy = BridgeWithdrawManager(proxyAddress);
 
         // Check current implementation before upgrade
         console.log("Current implementation address:", _getImplementationAddress(proxyAddress));
@@ -43,7 +43,7 @@ contract UpgradeBridgeCoreScript is Script {
         vm.stopBroadcast();
 
         console.log("\n=== UPGRADE COMPLETE ===");
-        console.log("BridgeCore proxy:", proxyAddress);
+        console.log("BridgeWithdrawManager proxy:", proxyAddress);
         console.log("New implementation:", newImplAddress);
         console.log("Deployer:", deployer);
     }

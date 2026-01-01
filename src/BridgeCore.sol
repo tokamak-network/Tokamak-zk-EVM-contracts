@@ -208,9 +208,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         require(msg.sender == channel.leader, "Only channel leader can set public key");
         require(channel.frostSignatureEnabled, "frost is disabled");
         
-        // DISABLED FOR TESTING
-        //require(channel.state == ChannelState.Initialized, "Can only set public key for initialized channel");
-        //require(channel.pkx == 0 && channel.pky == 0, "Public key already set");
+        require(channel.state == ChannelState.Initialized, "Can only set public key for initialized channel");
+        require(channel.pkx == 0 && channel.pky == 0, "Public key already set");
 
         channel.pkx = pkx;
         channel.pky = pky;

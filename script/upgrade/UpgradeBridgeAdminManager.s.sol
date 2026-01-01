@@ -165,9 +165,7 @@ contract UpgradeBridgeAdminManagerScript is Script {
             console.log("\n[VERIFICATION COMMANDS]");
             console.log("New implementation will be verified automatically with --verify flag");
             console.log("Manual verification command:");
-            console.log(
-                "  forge verify-contract", newAdminManagerImpl, "src/BridgeAdminManager.sol:BridgeAdminManager"
-            );
+            console.log("  forge verify-contract", newAdminManagerImpl, "src/BridgeAdminManager.sol:BridgeAdminManager");
         }
     }
 }

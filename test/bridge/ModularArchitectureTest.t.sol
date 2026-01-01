@@ -181,8 +181,11 @@ contract ModularArchitectureTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), whitelisted: participants, enableFrostSignature: true});
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            targetContract: address(testToken),
+            whitelisted: participants,
+            enableFrostSignature: true
+        });
 
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
@@ -236,8 +239,11 @@ contract ModularArchitectureTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), whitelisted: participants, enableFrostSignature: true});
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            targetContract: address(testToken),
+            whitelisted: participants,
+            enableFrostSignature: true
+        });
 
         channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
@@ -266,14 +272,17 @@ contract ModularArchitectureTest is Test {
         participants[0] = user1;
         participants[1] = user2;
 
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), whitelisted: participants, enableFrostSignature: false});
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            targetContract: address(testToken),
+            whitelisted: participants,
+            enableFrostSignature: false
+        });
 
         uint256 channelId = bridge.openChannel(params);
 
         // Verify frost signature is disabled for this channel
         assertFalse(bridge.isFrostSignatureEnabled(channelId));
-        
+
         // Verify channel was created successfully
         assertTrue(bridge.isChannelParticipant(channelId, user1));
         assertTrue(bridge.isChannelParticipant(channelId, user2));

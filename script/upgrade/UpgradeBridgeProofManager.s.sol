@@ -164,9 +164,7 @@ contract UpgradeBridgeProofManagerScript is Script {
             console.log("\n[VERIFICATION COMMANDS]");
             console.log("New implementation will be verified automatically with --verify flag");
             console.log("Manual verification command:");
-            console.log(
-                "  forge verify-contract", newProofManagerImpl, "src/BridgeProofManager.sol:BridgeProofManager"
-            );
+            console.log("  forge verify-contract", newProofManagerImpl, "src/BridgeProofManager.sol:BridgeProofManager");
         }
     }
 }

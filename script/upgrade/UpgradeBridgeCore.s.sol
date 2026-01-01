@@ -129,7 +129,7 @@ contract UpgradeBridgeCoreScript is Script {
         console.log("[INFO] Contract verification will be performed by the shell script...");
         console.log("[INFO] The following new implementation will be verified:");
         console.log("  - BridgeCore implementation:", newBridgeCoreImpl);
-        
+
         // Output implementation address in a format the shell script can parse
         console.log("VERIFY_IMPL_ADDRESS:", newBridgeCoreImpl);
     }
@@ -163,9 +163,7 @@ contract UpgradeBridgeCoreScript is Script {
             console.log("\n[VERIFICATION COMMANDS]");
             console.log("New implementation will be verified automatically with --verify flag");
             console.log("Manual verification command:");
-            console.log(
-                "  forge verify-contract", newBridgeCoreImpl, "src/BridgeCore.sol:BridgeCore"
-            );
+            console.log("  forge verify-contract", newBridgeCoreImpl, "src/BridgeCore.sol:BridgeCore");
         }
     }
 }

@@ -11,45 +11,45 @@ import "../../src/interface/IGroth16Verifier128Leaves.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockGroth16Verifier16 is IGroth16Verifier16Leaves {
-    function verifyProof(
-        uint256[4] calldata,
-        uint256[8] calldata,
-        uint256[4] calldata,
-        uint256[33] calldata
-    ) external pure override returns (bool) {
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[33] calldata)
+        external
+        pure
+        override
+        returns (bool)
+    {
         return true;
     }
 }
 
 contract MockGroth16Verifier32 is IGroth16Verifier32Leaves {
-    function verifyProof(
-        uint256[4] calldata,
-        uint256[8] calldata,
-        uint256[4] calldata,
-        uint256[65] calldata
-    ) external pure override returns (bool) {
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[65] calldata)
+        external
+        pure
+        override
+        returns (bool)
+    {
         return true;
     }
 }
 
 contract MockGroth16Verifier64 is IGroth16Verifier64Leaves {
-    function verifyProof(
-        uint256[4] calldata,
-        uint256[8] calldata,
-        uint256[4] calldata,
-        uint256[129] calldata
-    ) external pure override returns (bool) {
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[129] calldata)
+        external
+        pure
+        override
+        returns (bool)
+    {
         return true;
     }
 }
 
 contract MockGroth16Verifier128 is IGroth16Verifier128Leaves {
-    function verifyProof(
-        uint256[4] calldata,
-        uint256[8] calldata,
-        uint256[4] calldata,
-        uint256[257] calldata
-    ) external pure override returns (bool) {
+    function verifyProof(uint256[4] calldata, uint256[8] calldata, uint256[4] calldata, uint256[257] calldata)
+        external
+        pure
+        override
+        returns (bool)
+    {
         return true;
     }
 }
@@ -162,15 +162,10 @@ contract VerifyFinalBalancesInputTest is Test {
         MockGroth16Verifier128 verifier128 = new MockGroth16Verifier128();
 
         BridgeProofManager implementation = new BridgeProofManager();
-        address[4] memory groth16Verifiers = [
-            address(verifier16),
-            address(verifier32),
-            address(verifier64),
-            address(verifier128)
-        ];
+        address[4] memory groth16Verifiers =
+            [address(verifier16), address(verifier32), address(verifier64), address(verifier128)];
         bytes memory initData = abi.encodeCall(
-            BridgeProofManager.initialize,
-            (address(bridge), address(0), address(0), groth16Verifiers, address(this))
+            BridgeProofManager.initialize, (address(bridge), address(0), address(0), groth16Verifiers, address(this))
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         proofManager = BridgeProofManager(address(proxy));
@@ -240,7 +235,9 @@ contract VerifyFinalBalancesInputTest is Test {
         });
 
         (bool ok, bytes memory data) = address(proofManager).call(
-            abi.encodeCall(BridgeProofManager.verifyFinalBalancesGroth16, (channelId, finalBalances, permutation, proof))
+            abi.encodeCall(
+                BridgeProofManager.verifyFinalBalancesGroth16, (channelId, finalBalances, permutation, proof)
+            )
         );
         if (!ok) {
             revert(_decodeRevert(data));

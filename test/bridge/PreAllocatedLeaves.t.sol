@@ -173,8 +173,11 @@ contract PreAllocatedLeavesTest is Test {
 
         vm.startPrank(user1);
 
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), whitelisted: participants, enableFrostSignature: true});
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            targetContract: address(testToken),
+            whitelisted: participants,
+            enableFrostSignature: true
+        });
 
         // This should succeed with 127 participants
         uint256 channelId = bridge.openChannel(params);
@@ -206,8 +209,11 @@ contract PreAllocatedLeavesTest is Test {
 
         vm.startPrank(user1);
 
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), whitelisted: participants, enableFrostSignature: true});
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            targetContract: address(testToken),
+            whitelisted: participants,
+            enableFrostSignature: true
+        });
 
         // This should fail
         vm.expectRevert("Invalid whitelisted count considering pre-allocated leaves");

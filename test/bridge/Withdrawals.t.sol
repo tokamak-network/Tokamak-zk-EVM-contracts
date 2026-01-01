@@ -200,8 +200,11 @@ contract WithdrawalsTest is Test {
         participants[1] = user2;
         participants[2] = leader;
 
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), whitelisted: participants, enableFrostSignature: true});
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            targetContract: address(token),
+            whitelisted: participants,
+            enableFrostSignature: true
+        });
 
         console.log("About to open channel");
         console.log("Leader balance:", leader.balance);
@@ -248,7 +251,7 @@ contract WithdrawalsTest is Test {
         console.log("User2 deposited tokens");
         vm.stopPrank();
 
-        // Leader deposits tokens  
+        // Leader deposits tokens
         token.mint(leader, 1000e18);
         vm.startPrank(leader);
         token.approve(address(depositManager), 1e18);
@@ -376,8 +379,11 @@ contract WithdrawalsTest is Test {
         participants[1] = user2;
         participants[2] = leader;
 
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), whitelisted: participants, enableFrostSignature: true});
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            targetContract: address(token),
+            whitelisted: participants,
+            enableFrostSignature: true
+        });
 
         uint256 openChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -486,7 +492,6 @@ contract WithdrawalsTest is Test {
         proofManager.verifyFinalBalancesGroth16(testChannelId, emptyBalances, permutation, finalizationProof);
     }
 
-
     function testMultipleUsersWithdrawDifferentTokens() public {
         // Fund withdraw manager for transfers
         vm.deal(address(withdrawManager), 10 ether);
@@ -539,9 +544,9 @@ contract WithdrawalsTest is Test {
             uint256 outputRootHigh = uint256(finalStateRoot) >> 128;
             uint256 outputRootLow = uint256(finalStateRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
-            publicInputs[8] = inputRootLow; // input state root low  
+            publicInputs[8] = inputRootLow; // input state root low
             publicInputs[9] = inputRootHigh; // input state root high
-            publicInputs[0] = outputRootLow; // output state root low  
+            publicInputs[0] = outputRootLow; // output state root low
             publicInputs[1] = outputRootHigh; // output state root high
         }
 

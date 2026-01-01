@@ -193,8 +193,11 @@ contract ProofSubmissionTest is Test {
         participants[1] = user2;
         participants[2] = leader;
 
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), whitelisted: participants, enableFrostSignature: true});
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            targetContract: address(token),
+            whitelisted: participants,
+            enableFrostSignature: true
+        });
 
         channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -226,12 +229,12 @@ contract ProofSubmissionTest is Test {
 
     function computeCorrectFunctionInstanceHash() public pure returns (bytes32) {
         uint256[] memory correctData = new uint256[](446);
-        
+
         // Set specific known values that should hash to the correct instance hash
         correctData[0] = 0x01;
         correctData[1] = 0xffffffffffffffffffffffffffffffff;
         correctData[2] = 0xffffffff;
-        
+
         return keccak256(abi.encodePacked(correctData));
     }
 
@@ -239,5 +242,4 @@ contract ProofSubmissionTest is Test {
         bytes32 expectedHash = computeCorrectFunctionInstanceHash();
         console.logBytes32(expectedHash);
     }
-
 }

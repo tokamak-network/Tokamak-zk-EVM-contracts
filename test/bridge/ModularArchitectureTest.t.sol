@@ -182,7 +182,7 @@ contract ModularArchitectureTest is Test {
         participants[2] = user3;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, enableFrostSignature: true});
+            BridgeCore.ChannelParams({targetContract: address(testToken), whitelisted: participants, enableFrostSignature: true});
 
         uint256 channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
@@ -237,7 +237,7 @@ contract ModularArchitectureTest is Test {
         participants[2] = user3;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, enableFrostSignature: true});
+            BridgeCore.ChannelParams({targetContract: address(testToken), whitelisted: participants, enableFrostSignature: true});
 
         channelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(channelId, 1, 2);
@@ -267,7 +267,7 @@ contract ModularArchitectureTest is Test {
         participants[1] = user2;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(testToken), participants: participants, enableFrostSignature: false});
+            BridgeCore.ChannelParams({targetContract: address(testToken), whitelisted: participants, enableFrostSignature: false});
 
         uint256 channelId = bridge.openChannel(params);
 

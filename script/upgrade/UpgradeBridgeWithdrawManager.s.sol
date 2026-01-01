@@ -8,7 +8,7 @@ import "../../src/BridgeWithdrawManager.sol";
 contract UpgradeBridgeWithdrawManagerScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address proxyAddress = vm.envAddress("ROLLUP_BRIDGE_WITHDRAW_MANAGER_PROXY_ADDRESS");
+        address payable proxyAddress = payable(vm.envAddress("ROLLUP_BRIDGE_WITHDRAW_MANAGER_PROXY_ADDRESS"));
 
         vm.startBroadcast(deployerPrivateKey);
 

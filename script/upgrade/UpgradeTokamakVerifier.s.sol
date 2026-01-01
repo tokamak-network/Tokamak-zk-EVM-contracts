@@ -23,22 +23,10 @@ contract UpgradeTokamakVerifierScript is Script {
         address newImplAddress = address(newImplementation);
         console.log("New TokamakVerifier implementation deployed at:", newImplAddress);
 
-        // Get the proxy contract and upgrade it
-        TokamakVerifier proxy = TokamakVerifier(proxyAddress);
+        // Note: TokamakVerifier is not upgradeable, this script just deploys a new instance
+        console.log("Note: TokamakVerifier is not upgradeable");
 
-        // Check current implementation before upgrade
-        console.log("Current implementation address:", _getImplementationAddress(proxyAddress));
-
-        // Perform the upgrade
-        console.log("Upgrading proxy to new implementation...");
-        proxy.upgradeTo(newImplAddress);
-
-        // Verify the upgrade
-        address currentImpl = _getImplementationAddress(proxyAddress);
-        console.log("New implementation address:", currentImpl);
-
-        require(currentImpl == newImplAddress, "Upgrade failed: implementation address mismatch");
-        console.log("Upgrade successful!");
+        console.log("New TokamakVerifier deployed successfully!");
 
         vm.stopBroadcast();
 

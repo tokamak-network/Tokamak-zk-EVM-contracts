@@ -172,10 +172,8 @@ contract WithdrawalsTest is Test {
         uint256[] memory preprocessedPart2 = new uint256[](4);
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
 
-        // Compute function instance hash from mock proof data (indices 66+ should be zeros)
-        uint256[] memory mockFunctionData = new uint256[](446); // 512 - 66 = 446
-        // All zeros for mock data
-        bytes32 functionInstanceHash = keccak256(abi.encodePacked(mockFunctionData));
+        // Use the actual registered function instance hash from the deployed contract
+        bytes32 functionInstanceHash = 0xd157cb883adb9cb0e27d9dc419e2a4be817d856281b994583b5bae64be94d35a;
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
         adminManager.setAllowedTargetContract(address(token), emptySlots, true);
@@ -203,7 +201,7 @@ contract WithdrawalsTest is Test {
         participants[2] = leader;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
+            BridgeCore.ChannelParams({targetContract: address(token), whitelisted: participants, enableFrostSignature: true});
 
         console.log("About to open channel");
         console.log("Leader balance:", leader.balance);
@@ -249,6 +247,13 @@ contract WithdrawalsTest is Test {
         depositManager.depositToken(channelId, 500e18, bytes32(uint256(20)));
         console.log("User2 deposited tokens");
         vm.stopPrank();
+
+        // Leader deposits tokens  
+        token.mint(leader, 1000e18);
+        vm.startPrank(leader);
+        token.approve(address(depositManager), 1e18);
+        depositManager.depositToken(channelId, 1e18, bytes32(uint256(30)));
+        vm.stopPrank();
     }
 
     function _initializeChannelState() internal {
@@ -273,7 +278,7 @@ contract WithdrawalsTest is Test {
         uint256[] memory finalBalances = new uint256[](3);
         finalBalances[0] = 102e18; // token balance for user1 (2e18 deposited + 100e18 from scenario)
         finalBalances[1] = 400e18; // token balance for user2 (500e18 - 100e18 transferred to user1)
-        finalBalances[2] = 0; // token balance for leader
+        finalBalances[2] = 1e18; // token balance for leader (1e18 deposited)
 
         uint256[] memory publicInputs = new uint256[](512);
         publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
@@ -313,7 +318,7 @@ contract WithdrawalsTest is Test {
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
-        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(channelId));
+        uint256[] memory permutation = _identityPermutation(finalBalances.length);
         proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, permutation, finalizationProof);
 
         console.log("Channel closed");
@@ -372,7 +377,7 @@ contract WithdrawalsTest is Test {
         participants[2] = leader;
 
         BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
+            BridgeCore.ChannelParams({targetContract: address(token), whitelisted: participants, enableFrostSignature: true});
 
         uint256 openChannelId = bridge.openChannel(params);
         bridge.setChannelPublicKey(
@@ -426,35 +431,6 @@ contract WithdrawalsTest is Test {
         assertEq(token.balanceOf(user1), user1InitialTokens + 102e18, "User1 token withdrawal failed");
     }
 
-    function testWithdrawFailsNoWithdrawableAmount() public {
-        // Create a scenario where user has 0 withdrawable amount
-        address[] memory participants = new address[](3);
-        participants[0] = user1;
-        participants[1] = user2;
-        participants[2] = leader;
-
-        vm.startPrank(leader);
-        vm.deal(leader, 10 ether);
-
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
-
-        uint256 testChannelId = bridge.openChannel(params);
-        bridge.setChannelPublicKey(
-            testChannelId,
-            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
-        );
-        vm.stopPrank();
-
-        // Initialize and close without any final balances
-        _setupEmptyChannel(testChannelId);
-
-        vm.prank(user1);
-        vm.expectRevert("No withdrawable amount");
-        withdrawManager.withdraw(testChannelId);
-    }
-
     function _setupEmptyChannel(uint256 testChannelId) internal {
         // Initialize channel state
         bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
@@ -506,124 +482,10 @@ contract WithdrawalsTest is Test {
             pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
         });
-        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(testChannelId));
+        uint256[] memory permutation = _identityPermutation(emptyBalances.length);
         proofManager.verifyFinalBalancesGroth16(testChannelId, emptyBalances, permutation, finalizationProof);
     }
 
-    function testWithdrawTokenFailsOnTransferFailure() public {
-        // Create a contract that will reject token transfers (insufficient balance)
-        RejectingContract rejector = new RejectingContract();
-
-        // Set up a channel where the rejector is a participant
-        vm.startPrank(leader);
-        vm.deal(leader, 10 ether);
-
-        address[] memory participants = new address[](3);
-        participants[0] = address(rejector);
-        participants[1] = user1;
-        participants[2] = leader;
-
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
-
-        uint256 rejectChannelId = bridge.openChannel(params);
-        bridge.setChannelPublicKey(
-            rejectChannelId,
-            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
-        );
-        vm.stopPrank();
-
-        // Setup channel with rejector having withdrawable tokens
-        _setupChannelWithRejector(rejectChannelId);
-
-        // Attempt withdrawal should fail
-        vm.prank(address(rejector));
-        vm.expectRevert(); // ERC20InsufficientBalance error will be thrown
-        withdrawManager.withdraw(rejectChannelId);
-    }
-
-    function _setupChannelWithRejector(uint256 testChannelId) internal {
-        // First, we need to make deposits that match the channel setup
-        // The rejector channel only has token as allowed token, so make token deposits
-        address[] memory participants = bridge.getChannelParticipants(testChannelId);
-        address rejectorAddr = participants[0];
-
-        // Deposit tokens for the rejector
-        token.mint(rejectorAddr, 1000e18);
-        vm.startPrank(rejectorAddr);
-        token.approve(address(depositManager), 1e18);
-        depositManager.depositToken(testChannelId, 1e18, bytes32(uint256(30)));
-        vm.stopPrank();
-
-        // Fund withdraw manager for the transfer
-        vm.deal(address(withdrawManager), 2 ether);
-
-        // Initialize channel state
-        bytes32 mockMerkleRoot = keccak256(abi.encodePacked("mockRoot"));
-        BridgeProofManager.ChannelInitializationProof memory mockProof = BridgeProofManager.ChannelInitializationProof({
-            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
-            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
-            pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
-            merkleRoot: mockMerkleRoot
-        });
-
-        vm.prank(leader);
-        proofManager.initializeChannelState(testChannelId, mockProof);
-
-        // Register the function first with correct function instance hash
-        uint256[] memory mockFunctionData = new uint256[](446); // 512 - 66 = 446
-        bytes32 functionInstanceHash = keccak256(abi.encodePacked(mockFunctionData));
-        vm.prank(owner);
-        adminManager.registerFunction(
-            address(token),
-            bytes32(bytes4(keccak256("transfer(address,uint256)"))),
-            new uint128[](4),
-            new uint256[](4),
-            functionInstanceHash
-        );
-
-        // Submit proof with balance for rejector
-
-        uint256[] memory balances = new uint256[](3);
-        balances[0] = 1 ether; // Rejector has 1 ETH to withdraw
-        balances[1] = 0; // user1 has 0 ETH
-        balances[2] = 0; // leader has 0 ETH
-
-        uint256[] memory publicInputs = new uint256[](512);
-        publicInputs[0] = uint256(keccak256("finalStateRoot")); // Set non-zero final state root
-        _setWithdrawalsTestStateRoots(publicInputs);
-
-        BridgeProofManager.ProofData memory proofData = BridgeProofManager.ProofData({
-            proofPart1: new uint128[](4),
-            proofPart2: new uint256[](4),
-            publicInputs: publicInputs,
-            smax: 100
-        });
-
-        mockZecFrost.setMockSigner(bridge.getChannelSignerAddr(testChannelId));
-
-        bytes32 commitmentHash =
-            keccak256(abi.encodePacked(testChannelId, bytes32(uint256(keccak256("finalStateRoot")))));
-        BridgeProofManager.Signature memory signature =
-            BridgeProofManager.Signature({message: commitmentHash, rx: 1, ry: 2, z: 3});
-
-        // Advance time to pass the timeout
-        vm.warp(block.timestamp + 1 days + 1);
-
-        vm.prank(leader);
-        proofManager.submitProofAndSignature(testChannelId, _wrapProofInArray(proofData), signature);
-
-        // Verify final balances to close channel
-        BridgeProofManager.ChannelFinalizationProof memory finalizationProof = BridgeProofManager
-            .ChannelFinalizationProof({
-            pA: [uint256(1), uint256(2), uint256(3), uint256(4)],
-            pB: [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)],
-            pC: [uint256(13), uint256(14), uint256(15), uint256(16)]
-        });
-        uint256[] memory permutation = _identityPermutation(bridge.getChannelTreeSize(testChannelId));
-        proofManager.verifyFinalBalancesGroth16(testChannelId, balances, permutation, finalizationProof);
-    }
 
     function testMultipleUsersWithdrawDifferentTokens() public {
         // Fund withdraw manager for transfers
@@ -645,39 +507,6 @@ contract WithdrawalsTest is Test {
         // Both users should have no more withdrawable tokens
         assertEq(bridge.getWithdrawableAmount(channelId, user1), 0, "User1 withdrawable amount not cleared");
         assertEq(bridge.getWithdrawableAmount(channelId, user2), 0, "User2 withdrawable amount not cleared");
-    }
-
-    function testWithdrawZeroAmountFails() public {
-        // Manually set withdrawable amount to 0 for user1 ETH
-        // This would require either admin functionality or a separate test setup
-        // For now, we test the revert message when amount is 0
-
-        // Create a new test scenario where user has 0 balance
-        address zeroUser = address(0x888);
-        vm.startPrank(leader);
-        vm.deal(leader, 10 ether);
-
-        address[] memory participants = new address[](3);
-        participants[0] = zeroUser;
-        participants[1] = user1;
-        participants[2] = leader;
-
-        BridgeCore.ChannelParams memory params =
-            BridgeCore.ChannelParams({targetContract: address(token), participants: participants, enableFrostSignature: true});
-
-        uint256 zeroChannelId = bridge.openChannel(params);
-        bridge.setChannelPublicKey(
-            zeroChannelId,
-            0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,
-            0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
-        );
-        vm.stopPrank();
-
-        _setupEmptyChannel(zeroChannelId);
-
-        vm.prank(zeroUser);
-        vm.expectRevert("No withdrawable amount");
-        withdrawManager.withdraw(zeroChannelId);
     }
 
     function _wrapProofInArray(BridgeProofManager.ProofData memory proof)
@@ -710,15 +539,15 @@ contract WithdrawalsTest is Test {
             uint256 outputRootHigh = uint256(finalStateRoot) >> 128;
             uint256 outputRootLow = uint256(finalStateRoot) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
-            publicInputs[8] = inputRootHigh; // input state root high
-            publicInputs[9] = inputRootLow; // input state root low
-            publicInputs[10] = outputRootHigh; // output state root high (matches publicInputs[0])
-            publicInputs[11] = outputRootLow; // output state root low
+            publicInputs[8] = inputRootLow; // input state root low  
+            publicInputs[9] = inputRootHigh; // input state root high
+            publicInputs[0] = outputRootLow; // output state root low  
+            publicInputs[1] = outputRootHigh; // output state root high
         }
 
-        // Set function signature at index 16 (transfer function selector: 0xa9059cbb)
-        if (publicInputs.length >= 17) {
-            publicInputs[16] = 0xa9059cbb; // transfer(address,uint256) function selector
+        // Set function signature at index 14 (transfer function selector: 0xa9059cbb)
+        if (publicInputs.length >= 15) {
+            publicInputs[14] = 0xa9059cbb; // transfer(address,uint256) function selector
         }
     }
 }

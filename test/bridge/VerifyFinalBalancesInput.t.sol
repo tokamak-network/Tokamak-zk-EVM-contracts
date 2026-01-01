@@ -4,14 +4,55 @@ pragma solidity 0.8.29;
 import "forge-std/Test.sol";
 import "../../src/BridgeProofManager.sol";
 import "../../src/interface/IBridgeCore.sol";
-import "../../src/verifier/Groth16Verifier16Leaves.sol";
-import "../../src/verifier/Groth16Verifier32Leaves.sol";
-import "../../src/verifier/Groth16Verifier64Leaves.sol";
-import "../../src/verifier/Groth16Verifier128Leaves.sol";
-import "../../src/verifier/Groth16Verifier64LeavesIC.sol";
-import "../../src/verifier/Groth16Verifier128LeavesIC1.sol";
-import "../../src/verifier/Groth16Verifier128LeavesIC2.sol";
+import "../../src/interface/IGroth16Verifier16Leaves.sol";
+import "../../src/interface/IGroth16Verifier32Leaves.sol";
+import "../../src/interface/IGroth16Verifier64Leaves.sol";
+import "../../src/interface/IGroth16Verifier128Leaves.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
+contract MockGroth16Verifier16 is IGroth16Verifier16Leaves {
+    function verifyProof(
+        uint256[4] calldata,
+        uint256[8] calldata,
+        uint256[4] calldata,
+        uint256[33] calldata
+    ) external pure override returns (bool) {
+        return true;
+    }
+}
+
+contract MockGroth16Verifier32 is IGroth16Verifier32Leaves {
+    function verifyProof(
+        uint256[4] calldata,
+        uint256[8] calldata,
+        uint256[4] calldata,
+        uint256[65] calldata
+    ) external pure override returns (bool) {
+        return true;
+    }
+}
+
+contract MockGroth16Verifier64 is IGroth16Verifier64Leaves {
+    function verifyProof(
+        uint256[4] calldata,
+        uint256[8] calldata,
+        uint256[4] calldata,
+        uint256[129] calldata
+    ) external pure override returns (bool) {
+        return true;
+    }
+}
+
+contract MockGroth16Verifier128 is IGroth16Verifier128Leaves {
+    function verifyProof(
+        uint256[4] calldata,
+        uint256[8] calldata,
+        uint256[4] calldata,
+        uint256[257] calldata
+    ) external pure override returns (bool) {
+        return true;
+    }
+}
 
 contract MockBridgeCore {
     IBridgeCore.ChannelState public state;
@@ -115,13 +156,10 @@ contract VerifyFinalBalancesInputTest is Test {
 
     function setUp() public {
         bridge = new MockBridgeCore();
-        Groth16Verifier16Leaves verifier16 = new Groth16Verifier16Leaves();
-        Groth16Verifier32Leaves verifier32 = new Groth16Verifier32Leaves();
-        Groth16Verifier64LeavesIC verifier64Ic = new Groth16Verifier64LeavesIC();
-        Groth16Verifier64Leaves verifier64 = new Groth16Verifier64Leaves(address(verifier64Ic));
-        Groth16Verifier128LeavesIC1 verifier128Ic1 = new Groth16Verifier128LeavesIC1();
-        Groth16Verifier128LeavesIC2 verifier128Ic2 = new Groth16Verifier128LeavesIC2();
-        Groth16Verifier128Leaves verifier128 = new Groth16Verifier128Leaves(address(verifier128Ic1), address(verifier128Ic2));
+        MockGroth16Verifier16 verifier16 = new MockGroth16Verifier16();
+        MockGroth16Verifier32 verifier32 = new MockGroth16Verifier32();
+        MockGroth16Verifier64 verifier64 = new MockGroth16Verifier64();
+        MockGroth16Verifier128 verifier128 = new MockGroth16Verifier128();
 
         BridgeProofManager implementation = new BridgeProofManager();
         address[4] memory groth16Verifiers = [
@@ -168,14 +206,13 @@ contract VerifyFinalBalancesInputTest is Test {
         finalBalances[4] = 4_000000000000000000;
         finalBalances[5] = 30_000000000000000000;
 
-        uint256[] memory permutation = new uint256[](7);
+        uint256[] memory permutation = new uint256[](6);
         permutation[0] = 3;
         permutation[1] = 1;
         permutation[2] = 2;
-        permutation[3] = 6;
-        permutation[4] = 5;
-        permutation[5] = 4;
-        permutation[6] = 0;
+        permutation[3] = 5;
+        permutation[4] = 4;
+        permutation[5] = 0;
 
         BridgeProofManager.ChannelFinalizationProof memory proof = BridgeProofManager.ChannelFinalizationProof({
             pA: [

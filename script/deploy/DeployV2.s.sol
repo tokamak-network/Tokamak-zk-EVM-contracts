@@ -394,5 +394,4 @@ contract DeployV2Script is Script {
         console.log("TON target contract configured:", tonAddress);
         console.log("TON pre-allocated leaf (0x07 decimals) configured for:", tonAddress);
     }
-
 }

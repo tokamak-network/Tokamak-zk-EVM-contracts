@@ -105,7 +105,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Initialized, "Invalid state");
         require(msg.sender == bridge.getChannelLeader(channelId), "Not leader");
-        
+
         // Only require public key to be set if frost signature is enabled
         bool frostEnabled = bridge.isFrostSignatureEnabled(channelId);
         if (frostEnabled) {
@@ -225,8 +225,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
             // Extract input state root (rows 8 & 9) and output state root (rows 0 & 1)
             bytes32 inputStateRoot = _concatenateStateRoot(currentProof.publicInputs[9], currentProof.publicInputs[8]);
-            bytes32 outputStateRoot =
-                _concatenateStateRoot(currentProof.publicInputs[1], currentProof.publicInputs[0]);
+            bytes32 outputStateRoot = _concatenateStateRoot(currentProof.publicInputs[1], currentProof.publicInputs[0]);
 
             // For first proof, input state root should match the stored initial state root
             // For subsequent proofs, input state root should match previous proof's output state root
@@ -242,7 +241,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // STEP2: Conditional Signature verification
         // Check if frost signature is enabled for this channel
         bool frostEnabled = bridge.isFrostSignatureEnabled(channelId);
-        
+
         if (frostEnabled) {
             // Verify that signature commits to the specific channel and final state root from the proof
             bytes32 commitmentHash = keccak256(abi.encodePacked(channelId, finalStateRoot));
@@ -258,9 +257,9 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Verify that each proof's block info matches the stored block info hash
         bytes32 storedBlockInfoHash = bridge.getChannelBlockInfosHash(channelId);
         require(storedBlockInfoHash != bytes32(0), "Block info hash not set for channel");
-    
-    // DISABLED FOR TESTING PURPOSES
-    /*
+
+        // DISABLED FOR TESTING PURPOSES
+        /*
         // Skip block info validation in test environments (when chainid is 31337 - Anvil/Hardhat)
         if (block.chainid != 31337) {
             for (uint256 i = 0; i < proofs.length; i++) {
@@ -269,7 +268,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                 require(proofBlockInfoHash == storedBlockInfoHash, "Block info mismatch in proof");
             }
         }
-    */
+        */
         // STEP3: zk-SNARK proof verification
         // Only after signature validation, verify ZK proofs
         for (uint256 i = 0; i < proofs.length; i++) {
@@ -279,11 +278,11 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             // Extract function signature from publicInputs at row 16 (0-indexed)
             // Row 18: Selector for a function to call (complete 4-byte selector)
             bytes32 funcSig = _extractFunctionSignatureFromProof(currentProof.publicInputs);
-            
+
             // Get target contract data and find the registered function
             address targetContract = bridge.getChannelTargetContract(channelId);
             IBridgeCore.TargetContract memory targetData = bridge.getTargetContractData(targetContract);
-            
+
             IBridgeCore.RegisteredFunction memory registeredFunc;
             bool found = false;
             for (uint256 j = 0; j < targetData.registeredFunctions.length; j++) {
@@ -328,7 +327,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         ChannelFinalizationProof calldata groth16Proof
     ) external {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Closing, "Invalid state");
-        
+
         // Only require signature verification if frost signature is enabled for this channel
         bool frostEnabled = bridge.isFrostSignatureEnabled(channelId);
         if (frostEnabled) {

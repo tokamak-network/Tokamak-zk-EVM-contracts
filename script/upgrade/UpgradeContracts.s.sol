@@ -2,11 +2,11 @@
 pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
-import "../src/BridgeCore.sol";
-import "../src/BridgeDepositManager.sol";
-import "../src/BridgeProofManager.sol";
-import "../src/BridgeWithdrawManager.sol";
-import "../src/BridgeAdminManager.sol";
+import "../../src/BridgeCore.sol";
+import "../../src/BridgeDepositManager.sol";
+import "../../src/BridgeProofManager.sol";
+import "../../src/BridgeWithdrawManager.sol";
+import "../../src/BridgeAdminManager.sol";
 
 contract UpgradeContractsScript is Script {
     // Existing proxy addresses (to be set via environment variables)

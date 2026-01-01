@@ -64,13 +64,13 @@ contract ZecFrostTest is Test {
 
     function test_VerifyCustomParameters() public view {
         bytes32 message = 0x91be4311c2af6d02623ae6bc08eed804a9394c0ebe344a273cacc4fa06c6e80b;
-        
+
         uint256 px = 0x65ceb565a2028bcc940074da00994958c1965a0f801fc1a06811a1195426db0b;
         uint256 py = 0x767293b33676de95ce3d0acf97e1bb0326fe7e2896d17c4df5d7055b4699445c;
-        
+
         uint256 rx = 0x00d1c2066f3cfb50b1882a2f85655c64fa1518edb27585ac64c9c1f853383a04;
         uint256 ry = 0x475633b801338dcd6167a445926dc0e20f051266e9038be76b433c0004ff2f9c;
-        
+
         uint256 z = 0x4ed729ad86526f2599577c051225e9c15c0cd85861872c153b338da05b0bb946;
 
         address expectedAddr;

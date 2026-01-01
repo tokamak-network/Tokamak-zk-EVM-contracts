@@ -2,14 +2,15 @@
 pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
-import "../src/BridgeProofManager.sol";
+import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "../../src/BridgeAdminManager.sol";
 
-contract UpgradeBridgeProofManagerScript is Script {
+contract UpgradeBridgeAdminManagerScript is Script {
     // Existing proxy address (to be set via environment variables)
-    address public proofManagerProxy;
+    address public adminManagerProxy;
 
     // New implementation address (will be deployed)
-    address public newProofManagerImpl;
+    address public newAdminManagerImpl;
 
     // Environment variables
     address public deployer;
@@ -21,7 +22,7 @@ contract UpgradeBridgeProofManagerScript is Script {
 
     function setUp() public {
         // Load existing proxy address
-        proofManagerProxy = vm.envAddress("ROLLUP_BRIDGE_PROOF_MANAGER_PROXY_ADDRESS");
+        adminManagerProxy = vm.envAddress("ROLLUP_BRIDGE_ADMIN_MANAGER_PROXY_ADDRESS");
 
         // Load deployer (must be owner of contract)
         deployer = vm.envAddress("DEPLOYER_ADDRESS");
@@ -32,7 +33,7 @@ contract UpgradeBridgeProofManagerScript is Script {
         chainId = vm.envString("CHAIN_ID");
 
         console.log("Upgrade Configuration:");
-        console.log("Proof Manager proxy:", proofManagerProxy);
+        console.log("Admin Manager proxy:", adminManagerProxy);
         console.log("Deployer (must be owner):", deployer);
         console.log("Chain ID:", chainId);
         console.log("Verify Contract:", shouldVerify);
@@ -43,7 +44,7 @@ contract UpgradeBridgeProofManagerScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        console.log("\n[START] Starting BridgeProofManager upgrade...");
+        console.log("\n[START] Starting BridgeAdminManager upgrade...");
 
         // Verify current ownership
         _verifyOwnership();
@@ -62,21 +63,21 @@ contract UpgradeBridgeProofManagerScript is Script {
             _verifyContractOnExplorer();
         }
 
-        console.log("\n[COMPLETE] BridgeProofManager upgrade completed successfully!");
+        console.log("\n[COMPLETE] BridgeAdminManager upgrade completed successfully!");
         _printUpgradeSummary();
     }
 
     function _verifyOwnership() internal view {
         console.log("\n[OWNERSHIP] Verifying contract ownership...");
 
-        BridgeProofManager proofManager = BridgeProofManager(payable(proofManagerProxy));
-        address proofOwner = proofManager.owner();
-        require(proofOwner == deployer, "Deployer is not owner of ProofManager");
-        console.log("[SUCCESS] Deployer is owner of ProofManager");
+        BridgeAdminManager adminManager = BridgeAdminManager(payable(adminManagerProxy));
+        address adminOwner = adminManager.owner();
+        require(adminOwner == deployer, "Deployer is not owner of BridgeAdminManager");
+        console.log("[SUCCESS] Deployer is owner of BridgeAdminManager");
     }
 
     function _upgradeContract() internal {
-        console.log("\n[UPGRADE] Upgrading BridgeProofManager...");
+        console.log("\n[UPGRADE] Upgrading BridgeAdminManager...");
 
         // Deploy new implementation
         _deployNewImplementation();
@@ -84,63 +85,65 @@ contract UpgradeBridgeProofManagerScript is Script {
         // Perform upgrade
         _performUpgrade();
 
-        console.log("[SUCCESS] BridgeProofManager upgraded successfully");
+        console.log("[SUCCESS] BridgeAdminManager upgraded successfully");
     }
 
     function _deployNewImplementation() internal {
         bytes32 implementationSlot = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
-        // Deploy new BridgeProofManager implementation
-        console.log("Deploying new BridgeProofManager implementation...");
-        BridgeProofManager newProofManagerContract = new BridgeProofManager();
-        newProofManagerImpl = address(newProofManagerContract);
-        address currentProofImpl = address(uint160(uint256(vm.load(proofManagerProxy, implementationSlot))));
-        console.log("Current ProofManager implementation:", currentProofImpl);
-        console.log("New ProofManager implementation:", newProofManagerImpl);
-        require(currentProofImpl != newProofManagerImpl, "ProofManager implementation addresses are the same");
+        // Deploy new BridgeAdminManager implementation
+        console.log("Deploying new BridgeAdminManager implementation...");
+        BridgeAdminManager newAdminManagerContract = new BridgeAdminManager();
+        newAdminManagerImpl = address(newAdminManagerContract);
+        address currentAdminImpl = address(uint160(uint256(vm.load(adminManagerProxy, implementationSlot))));
+        console.log("Current AdminManager implementation:", currentAdminImpl);
+        console.log("New AdminManager implementation:", newAdminManagerImpl);
+        require(currentAdminImpl != newAdminManagerImpl, "AdminManager implementation addresses are the same");
     }
 
     function _performUpgrade() internal {
-        // Upgrade BridgeProofManager
-        console.log("Upgrading BridgeProofManager...");
-        BridgeProofManager proofManager = BridgeProofManager(payable(proofManagerProxy));
-        proofManager.upgradeTo(newProofManagerImpl);
-        console.log("[SUCCESS] BridgeProofManager upgraded");
+        // Upgrade BridgeAdminManager
+        console.log("Upgrading BridgeAdminManager...");
+        BridgeAdminManager adminManager = BridgeAdminManager(payable(adminManagerProxy));
+        adminManager.upgradeTo(newAdminManagerImpl);
+        console.log("[SUCCESS] BridgeAdminManager upgraded");
     }
 
     function _verifyUpgrade() internal view {
         bytes32 implementationSlot = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
-        // Verify BridgeProofManager upgrade
-        address currentProofImpl = address(uint160(uint256(vm.load(proofManagerProxy, implementationSlot))));
-        require(currentProofImpl == newProofManagerImpl, "ProofManager upgrade verification failed");
-        BridgeProofManager proofManager = BridgeProofManager(payable(proofManagerProxy));
-        require(proofManager.owner() == deployer, "ProofManager owner verification failed after upgrade");
-        console.log("[SUCCESS] ProofManager upgrade verified");
+        // Verify BridgeAdminManager upgrade
+        address currentAdminImpl = address(uint160(uint256(vm.load(adminManagerProxy, implementationSlot))));
+        require(currentAdminImpl == newAdminManagerImpl, "AdminManager upgrade verification failed");
+        BridgeAdminManager adminManager = BridgeAdminManager(payable(adminManagerProxy));
+        require(adminManager.owner() == deployer, "AdminManager owner verification failed after upgrade");
+        console.log("[SUCCESS] AdminManager upgrade verified");
     }
 
-    function _verifyContractOnExplorer() internal view {
+    function _verifyContractOnExplorer() internal {
         if (bytes(etherscanApiKey).length == 0) {
             console.log("[WARNING] ETHERSCAN_API_KEY not set, skipping verification");
             return;
         }
 
-        console.log("[INFO] Starting contract verification...");
+        console.log("[INFO] Contract verification will be performed by the shell script...");
         console.log("[INFO] The following new implementation will be verified:");
-        console.log("  - ProofManager implementation:", newProofManagerImpl);
+        console.log("  - AdminManager implementation:", newAdminManagerImpl);
 
-        console.log("[INFO] Use --verify flag with forge script for automatic verification");
-        console.log("[INFO] Or verify manually using foundry verify-contract command");
+        // Create a file to store the implementation address for the shell script to use
+        string memory addressFile = string.concat("./upgrade_addresses_", vm.toString(block.timestamp), ".txt");
+        vm.writeFile(addressFile, string.concat("BRIDGE_ADMIN_MANAGER_IMPL=", vm.toString(newAdminManagerImpl), "\n"));
+        console.log("[INFO] Implementation address saved to:", addressFile);
     }
 
     function _printUpgradeSummary() internal view {
         console.log("\n[UPGRADE SUMMARY]");
         console.log("========================");
         console.log("PROXY ADDRESS (unchanged):");
-        console.log("ProofManager proxy:", proofManagerProxy);
+        console.log("AdminManager proxy:", adminManagerProxy);
         console.log("");
         console.log("NEW IMPLEMENTATION ADDRESS:");
-        console.log("ProofManager implementation:", newProofManagerImpl);
+        console.log("AdminManager implementation:", newAdminManagerImpl);
         console.log("");
         console.log("Deployer (Owner):", deployer);
         console.log("Chain ID:", chainId);
@@ -153,7 +156,7 @@ contract UpgradeBridgeProofManagerScript is Script {
         console.log("4. Test thoroughly before relying on upgraded contract");
 
         console.log("\n[NEXT STEPS]");
-        console.log("1. Test BridgeProofManager functionality");
+        console.log("1. Test BridgeAdminManager functionality");
         console.log("2. Update any off-chain systems with new implementation address");
         console.log("3. Monitor contract for any issues");
         console.log("4. Consider announcing the upgrade to users");
@@ -162,9 +165,7 @@ contract UpgradeBridgeProofManagerScript is Script {
             console.log("\n[VERIFICATION COMMANDS]");
             console.log("New implementation will be verified automatically with --verify flag");
             console.log("Manual verification command:");
-            console.log(
-                "  forge verify-contract", newProofManagerImpl, "src/BridgeProofManager.sol:BridgeProofManager"
-            );
+            console.log("  forge verify-contract", newAdminManagerImpl, "src/BridgeAdminManager.sol:BridgeAdminManager");
         }
     }
 }

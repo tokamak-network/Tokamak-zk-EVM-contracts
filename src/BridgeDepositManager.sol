@@ -39,13 +39,13 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
     function depositToken(uint256 _channelId, uint256 _amount, bytes32 _mptKey) external nonReentrant {
         require(bridge.getChannelState(_channelId) == IBridgeCore.ChannelState.Initialized, "Invalid channel state");
         require(bridge.isChannelParticipant(_channelId, msg.sender), "Not a participant");
-        
+
         // Only require public key to be set if frost signature is enabled
         bool frostEnabled = bridge.isFrostSignatureEnabled(_channelId);
         if (frostEnabled) {
             require(bridge.isChannelPublicKeySet(_channelId), "Channel leader must set public key first");
         }
-        
+
         require(_mptKey != bytes32(0), "Invalid MPT key");
         // we allow 0 TON transfers
         //require(_amount != 0, "amount must be greater than 0");
@@ -68,7 +68,7 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
             )
         );
 
-        if(_amount > 0) {
+        if (_amount > 0) {
             uint256 balanceBefore = IERC20Upgradeable(targetContract).balanceOf(address(this));
             IERC20Upgradeable(targetContract).safeTransferFrom(msg.sender, address(this), _amount);
             uint256 balanceAfter = IERC20Upgradeable(targetContract).balanceOf(address(this));
@@ -77,7 +77,10 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
             bridge.updateChannelUserDeposits(_channelId, msg.sender, actualAmount);
             bridge.updateChannelTotalDeposits(_channelId, actualAmount);
         }
-        
+
+        // Add user to participants array when they make their first deposit
+        bridge.addParticipantOnDeposit(_channelId, msg.sender);
+
         bridge.setChannelL2MptKey(_channelId, msg.sender, uint256(_mptKey));
 
         emit Deposited(_channelId, msg.sender, targetContract, _amount);

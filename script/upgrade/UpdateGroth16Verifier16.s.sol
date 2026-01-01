@@ -2,8 +2,8 @@
 pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
-import "../src/verifier/Groth16Verifier16Leaves.sol";
-import "../src/BridgeProofManager.sol";
+import "../../src/verifier/Groth16Verifier16Leaves.sol";
+import "../../src/BridgeProofManager.sol";
 
 contract UpdateGroth16Verifier16Script is Script {
     function run() public {

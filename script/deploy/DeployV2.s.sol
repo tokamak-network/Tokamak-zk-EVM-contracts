@@ -3,20 +3,20 @@ pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../src/BridgeCore.sol";
-import "../src/BridgeDepositManager.sol";
-import "../src/BridgeProofManager.sol";
-import "../src/BridgeWithdrawManager.sol";
-import "../src/BridgeAdminManager.sol";
-import "../src/verifier/TokamakVerifier.sol";
-import "../src/verifier/Groth16Verifier16Leaves.sol";
-import "../src/verifier/Groth16Verifier32Leaves.sol";
-import "../src/verifier/Groth16Verifier64Leaves.sol";
-import "../src/verifier/Groth16Verifier64LeavesIC.sol";
-import "../src/verifier/Groth16Verifier128Leaves.sol";
-import "../src/verifier/Groth16Verifier128LeavesIC1.sol";
-import "../src/verifier/Groth16Verifier128LeavesIC2.sol";
-import "../src/library/ZecFrost.sol";
+import "../../src/BridgeCore.sol";
+import "../../src/BridgeDepositManager.sol";
+import "../../src/BridgeProofManager.sol";
+import "../../src/BridgeWithdrawManager.sol";
+import "../../src/BridgeAdminManager.sol";
+import "../../src/verifier/TokamakVerifier.sol";
+import "../../src/verifier/Groth16Verifier16Leaves.sol";
+import "../../src/verifier/Groth16Verifier32Leaves.sol";
+import "../../src/verifier/Groth16Verifier64Leaves.sol";
+import "../../src/verifier/Groth16Verifier64LeavesIC.sol";
+import "../../src/verifier/Groth16Verifier128Leaves.sol";
+import "../../src/verifier/Groth16Verifier128LeavesIC1.sol";
+import "../../src/verifier/Groth16Verifier128LeavesIC2.sol";
+import "../../src/library/ZecFrost.sol";
 
 contract DeployV2Script is Script {
     // Implementation addresses
@@ -191,14 +191,6 @@ contract DeployV2Script is Script {
         console.log("Updating bridge with manager addresses...");
         BridgeCore(rollupBridge).updateManagerAddresses(depositManager, proofManager, withdrawManager, adminManager);
 
-        // Configure WTON target contract
-        console.log("Configuring WTON target contract...");
-        _configureWTONContract(adminManager);
-
-        // Configure USDT target contract
-        console.log("Configuring USDT target contract...");
-        _configureUSDTContract(adminManager);
-
         // Configure TON target contract
         console.log("Configuring TON target contract...");
         _configureTONContract(adminManager);
@@ -370,35 +362,6 @@ contract DeployV2Script is Script {
         }
     }
 
-    function _configureWTONContract(address adminManagerAddress) internal {
-        // WTON contract address
-        address wtonAddress = 0x79E0d92670106c85E9067b56B8F674340dCa0Bbd;
-
-        // WTON preprocess data from WTON_preprocess.json
-        uint128[] memory wtonPreprocessedPart1 = new uint128[](4);
-        wtonPreprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
-        wtonPreprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
-        wtonPreprocessedPart1[2] = 0x18e54aba379045c9f5c18d8aefeaa8cc;
-        wtonPreprocessedPart1[3] = 0x08df3e052d4b1c0840d73edcea3f85e7;
-
-        uint256[] memory wtonPreprocessedPart2 = new uint256[](4);
-        wtonPreprocessedPart2[0] = 0x7e084b3358f7f1404f0a4ee1acc6d254997032f77fd77593fab7c896b7cfce1e;
-        wtonPreprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
-        wtonPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
-        wtonPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
-
-        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(wtonAddress, emptySlots, true);
-
-        // Register WTON transfer function
-        bytes32 wtonTransferSig = keccak256("transferWTON(address,uint256)");
-        BridgeAdminManager(adminManagerAddress).registerFunction(
-            wtonAddress, wtonTransferSig, wtonPreprocessedPart1, wtonPreprocessedPart2, keccak256("wton_instance_hash")
-        );
-
-        console.log("WTON target contract configured:", wtonAddress);
-    }
-
     function _configureTONContract(address adminManagerAddress) internal {
         // TON contract address
         address tonAddress = 0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
@@ -430,36 +393,5 @@ contract DeployV2Script is Script {
 
         console.log("TON target contract configured:", tonAddress);
         console.log("TON pre-allocated leaf (0x07 decimals) configured for:", tonAddress);
-    }
-
-    function _configureUSDTContract(address adminManagerAddress) internal {
-        // USDT contract address
-        address usdtAddress = 0x42d3b260c761cD5da022dB56Fe2F89c4A909b04A;
-
-        // USDT preprocess data from USDT_preprocess.json
-        uint128[] memory usdtPreprocessedPart1 = new uint128[](4);
-        usdtPreprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
-        usdtPreprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
-        usdtPreprocessedPart1[2] = 0x18e54aba379045c9f5c18d8aefeaa8cc;
-        usdtPreprocessedPart1[3] = 0x08df3e052d4b1c0840d73edcea3f85e7;
-
-        uint256[] memory usdtPreprocessedPart2 = new uint256[](4);
-        usdtPreprocessedPart2[0] = 0x7e084b3358f7f1404f0a4ee1acc6d254997032f77fd77593fab7c896b7cfce1e;
-        usdtPreprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
-        usdtPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
-        usdtPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
-
-        // For USDT, we might want to set up a pre-allocated slot for decimals or other data
-        // For now, using empty slots
-        IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(usdtAddress, emptySlots, true);
-
-        // Register USDT transfer function
-        bytes32 usdtTransferSig = keccak256("transfer(address,uint256)");
-        BridgeAdminManager(adminManagerAddress).registerFunction(
-            usdtAddress, usdtTransferSig, usdtPreprocessedPart1, usdtPreprocessedPart2, keccak256("usdt_instance_hash")
-        );
-
-        console.log("USDT target contract configured:", usdtAddress);
     }
 }

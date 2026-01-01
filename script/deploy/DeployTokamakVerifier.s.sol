@@ -2,7 +2,7 @@
 pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
-import "../src/verifier/TokamakVerifier.sol";
+import "../../src/verifier/TokamakVerifier.sol";
 
 contract DeployTokamakVerifierScript is Script {
     address public tokamakVerifier;

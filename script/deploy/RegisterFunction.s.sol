@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
-import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
+import {BridgeAdminManager} from "../../src/BridgeAdminManager.sol";
 
 contract RegisterFunctionScript is Script {
     function run() external {
@@ -28,14 +28,8 @@ contract RegisterFunctionScript is Script {
         preprocessPart2[3] = 0x3e984d129c3dab74f9d13ab9ab66d5d826fca5e1f6270242aaa5dedeedf2fe58;
 
         adminManager.unregisterFunction(targetContract, functionSignature);
-        
-        adminManager.registerFunction(
-            targetContract,
-            functionSignature,
-            preprocessPart1,
-            preprocessPart2,
-            instanceHash
-        );
+
+        adminManager.registerFunction(targetContract, functionSignature, preprocessPart1, preprocessPart2, instanceHash);
 
         vm.stopBroadcast();
     }

@@ -43,7 +43,7 @@ fi
 
 NETWORK=$1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 print_status "Starting RollupBridgeV2 deployment on $NETWORK"
 
@@ -87,7 +87,7 @@ export VERIFY_CONTRACTS=${VERIFY_CONTRACTS:-true}
 export ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY:-""}
 
 # Build the forge command
-FORGE_CMD="forge script script/DeployV2.s.sol:DeployV2Script"
+FORGE_CMD="forge script script/deploy/DeployV2.s.sol:DeployV2Script"
 FORGE_CMD="$FORGE_CMD --rpc-url $RPC_URL"
 FORGE_CMD="$FORGE_CMD --broadcast"
 FORGE_CMD="$FORGE_CMD --slow" # Add delay between transactions

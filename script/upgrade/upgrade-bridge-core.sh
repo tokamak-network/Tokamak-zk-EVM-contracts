@@ -11,15 +11,20 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 # Check if .env file exists
-if [ ! -f ".env" ]; then
-    echo -e "${RED}Error: .env file not found${NC}"
+ENV_FILE="$PROJECT_ROOT/.env"
+if [ ! -f "$ENV_FILE" ]; then
+    echo -e "${RED}Error: .env file not found in project root${NC}"
     echo "Please create a .env file with the required environment variables"
     exit 1
 fi
 
 # Source environment variables
-source .env
+source "$ENV_FILE"
 
 # Verify required environment variables
 required_vars=("PRIVATE_KEY" "ROLLUP_BRIDGE_CORE_PROXY_ADDRESS" "DEPLOYER_ADDRESS" "RPC_URL")

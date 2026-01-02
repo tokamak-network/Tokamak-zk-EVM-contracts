@@ -190,10 +190,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         uint256 whitelistedLength = params.whitelisted.length;
         for (uint256 i = 0; i < whitelistedLength;) {
             address whitelistedUser = params.whitelisted[i];
-            // require(!channel.userData[whitelistedUser].isParticipant, "Duplicate whitelisted user");
-            
             channel.isWhiteListed[whitelistedUser] = true;
-            // channel.userData[whitelistedUser].isParticipant = true;
             unchecked {
                 ++i;
             }
@@ -704,11 +701,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].participants;
     }
-
-    // function getChannelWhitelisted(uint256 channelId) external view returns (address[] memory) {
-    //     BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-    //     return $.channels[channelId].whitelisted;
-    // }
 
     function isChannelWhitelisted(uint256 channelId, address addr) external view returns (bool) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();

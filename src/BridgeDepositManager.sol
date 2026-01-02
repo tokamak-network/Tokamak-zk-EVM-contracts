@@ -38,7 +38,6 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
 
     function depositToken(uint256 _channelId, uint256 _amount, bytes32 _mptKey) external nonReentrant {
         require(bridge.getChannelState(_channelId) == IBridgeCore.ChannelState.Initialized, "Invalid channel state");
-        // require(bridge.isChannelParticipant(_channelId, msg.sender), "Not a participant");
         require(bridge.isChannelWhitelisted(_channelId, msg.sender), "Not whitelisted");
 
         // Only require public key to be set if frost signature is enabled
@@ -48,8 +47,6 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
         }
 
         require(_mptKey != bytes32(0), "Invalid MPT key");
-        // we allow 0 TON transfers
-        //require(_amount != 0, "amount must be greater than 0");
 
         address targetContract = bridge.getChannelTargetContract(_channelId);
         require(targetContract != address(0), "Invalid target contract");

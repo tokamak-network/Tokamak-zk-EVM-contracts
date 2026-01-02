@@ -284,8 +284,8 @@ contract ModularArchitectureTest is Test {
         assertFalse(bridge.isFrostSignatureEnabled(channelId));
 
         // Verify channel was created successfully
-        assertTrue(bridge.isChannelParticipant(channelId, user1));
-        assertTrue(bridge.isChannelParticipant(channelId, user2));
+        assertTrue(bridge.isChannelWhitelisted(channelId, user1));
+        assertTrue(bridge.isChannelWhitelisted(channelId, user2));
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(IBridgeCore.ChannelState.Initialized));
 
         // Test that deposit works without setting public key

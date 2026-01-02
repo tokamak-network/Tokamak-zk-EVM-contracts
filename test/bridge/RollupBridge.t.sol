@@ -920,12 +920,16 @@ contract BridgeCoreTest is Test {
 
         BridgeCore.ChannelState state = bridge.getChannelState(channelId);
         address targetContractReturned = bridge.getChannelTargetContract(channelId);
-        address[] memory channelWhitelisted = bridge.getChannelWhitelisted(channelId);
         address[] memory channelParticipants = bridge.getChannelParticipants(channelId);
 
         assertEq(targetContractReturned, address(token));
         assertEq(uint8(state), uint8(BridgeCore.ChannelState.Initialized));
-        assertEq(channelWhitelisted.length, 3);
+        
+        // Check that all participants are whitelisted
+        assertTrue(bridge.isChannelWhitelisted(channelId, user1));
+        assertTrue(bridge.isChannelWhitelisted(channelId, user2));
+        assertTrue(bridge.isChannelWhitelisted(channelId, user3));
+        
         assertEq(channelParticipants.length, 0); // No deposits made yet
 
         vm.stopPrank();
@@ -955,7 +959,7 @@ contract BridgeCoreTest is Test {
         vm.startPrank(address(999));
         token.mint(address(999), 1 ether);
         token.approve(address(depositManager), 1 ether);
-        vm.expectRevert("Not a participant");
+        vm.expectRevert("Not whitelisted");
         depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
         vm.stopPrank();
     }

@@ -238,7 +238,7 @@ contract ProofSubmissionTest is Test {
         return keccak256(abi.encodePacked(correctData));
     }
 
-    function testcheckInstanceHash() public {
+    function testcheckInstanceHash() public pure {
         bytes32 expectedHash = computeCorrectFunctionInstanceHash();
         console.logBytes32(expectedHash);
     }

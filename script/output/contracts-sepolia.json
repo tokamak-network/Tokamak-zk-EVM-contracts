@@ -1,6 +1,6 @@
 {
   "network": "sepolia",
-  "generatedDate": "2026-01-05T12:02:55Z",
+  "generatedDate": "2026-01-05T12:19:39Z",
   "source": "env_addresses",
   "contracts": {
     "TokamakVerifier": {

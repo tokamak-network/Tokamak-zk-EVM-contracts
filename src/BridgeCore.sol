@@ -190,6 +190,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         uint256 whitelistedLength = params.whitelisted.length;
         for (uint256 i = 0; i < whitelistedLength;) {
             address whitelistedUser = params.whitelisted[i];
+            
             channel.isWhiteListed[whitelistedUser] = true;
             unchecked {
                 ++i;

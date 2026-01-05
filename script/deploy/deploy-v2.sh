@@ -55,7 +55,7 @@ generate_contracts_json() {
     )
     
     # Proxy contracts (use proxy address but implementation ABI)
-    # Order MUST match deployment order from DeployV2.s.sol: Bridge, Deposit, Proof, Withdraw, Admin  
+    # Order independent - proxies are dynamically linked to implementations
     local proxy_contracts=(
         "BridgeCore:src/BridgeCore.sol"
         "BridgeDepositManager:src/BridgeDepositManager.sol"
@@ -103,34 +103,36 @@ generate_contracts_json() {
         fi
     done
     
-    # Process proxy contracts - extract proxy addresses from transactions
+    # Process proxy contracts - dynamically link proxies to implementations
     for contract_info in "${proxy_contracts[@]}"; do
         local contract_name="${contract_info%%:*}"
         local source_file="${contract_info##*:}"
         
-        # Get ERC1967Proxy addresses in deployment order (do NOT sort with unique!)
-        local proxy_addresses=($(jq -r '.transactions[] | select(.contractName == "ERC1967Proxy") | .contractAddress' "$broadcast_file" 2>/dev/null))
-        local proxy_address=""
-        
-        case "$contract_name" in
-            "BridgeCore")
-                proxy_address="${proxy_addresses[0]}"
-                ;;
-            "BridgeDepositManager") 
-                proxy_address="${proxy_addresses[1]}"
-                ;;
-            "BridgeProofManager")
-                proxy_address="${proxy_addresses[2]}"
-                ;;
-            "BridgeWithdrawManager")
-                proxy_address="${proxy_addresses[3]}"
-                ;;
-            "BridgeAdminManager")
-                proxy_address="${proxy_addresses[4]}"
-                ;;
-        esac
+        # Get implementation address for the contract
+        local impl_address
+        impl_address=$(jq -r --arg name "$contract_name" \
+            '.transactions[] |
+            select(.transactionType == "CREATE" or .transactionType == "CREATE2") |
+            select(.contractName == $name) |
+            .contractAddress' "$broadcast_file" 2>/dev/null | head -1)
+
+        if [ -z "$impl_address" ] || [ "$impl_address" == "null" ]; then
+            print_warning "Could not find implementation address for $contract_name"
+            continue
+        fi
+
+        # Find the proxy that was deployed with this implementation address
+        # Convert addresses to lowercase for case-insensitive comparison
+        local proxy_address
+        proxy_address=$(jq -r --arg impl_addr "$(echo "$impl_address" | tr '[:upper:]' '[:lower:]')" \
+            '.transactions[] |
+            select(.contractName == "ERC1967Proxy") |
+            # The implementation address is the first argument to the proxy constructor
+            select(try (.arguments[0] | ascii_downcase) == $impl_addr) |
+            .contractAddress' "$broadcast_file" 2>/dev/null | head -1)
         
         if [ -n "$proxy_address" ] && [ "$proxy_address" != "null" ]; then
+            print_status "Linked $contract_name implementation ($impl_address) to proxy ($proxy_address)"
             # Add comma for all but first contract
             if [ "$first_contract" = false ]; then
                 printf ',\n' >> "$output_file"
@@ -148,6 +150,8 @@ generate_contracts_json() {
             # Add proxy contract entry
             printf '    "%s": {\n      "address": "%s",\n      "abi": %s\n    }' \
                 "$contract_name" "$proxy_address" "$abi" >> "$output_file"
+        else
+            print_warning "Could not find proxy address for $contract_name implementation ($impl_address)"
         fi
     done
     

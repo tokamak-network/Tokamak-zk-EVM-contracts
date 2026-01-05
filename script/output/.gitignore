@@ -1,0 +1,5 @@
+# Ignore all generated contract JSON files
+*.json
+
+# But keep this .gitignore file
+!.gitignore

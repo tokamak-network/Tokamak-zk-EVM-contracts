@@ -64,7 +64,7 @@ cd script/upgrade
 ./upgrade-bridge-core.sh
 
 # Run with contract verification
-./upgrade-bridge-core.sh --verify
+./upgrade-bridge-core.sh sepolia --verify
 ```
 
 ### Running Multiple Upgrades
@@ -73,7 +73,7 @@ To upgrade all contracts at once:
 
 ```bash
 cd script/upgrade
-./upgrade-contracts.sh --verify
+./upgrade-contracts.sh sepolia --verify
 ```
 
 ## Important Notes

@@ -30,6 +30,133 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Function to generate comprehensive contracts JSON
+generate_contracts_json() {
+    local broadcast_file="$1"
+    local output_file="$2"
+    local network="$3"
+    
+    if ! command -v jq &> /dev/null; then
+        print_warning "jq not installed - cannot generate contracts JSON"
+        return 1
+    fi
+    
+    # Direct deployment contracts (not proxies)
+    local direct_contracts=(
+        "TokamakVerifier:src/verifier/TokamakVerifier.sol"
+        "Groth16Verifier16Leaves:src/verifier/Groth16Verifier16Leaves.sol"
+        "Groth16Verifier32Leaves:src/verifier/Groth16Verifier32Leaves.sol"
+        "Groth16Verifier64Leaves:src/verifier/Groth16Verifier64Leaves.sol"
+        "Groth16Verifier64LeavesIC:src/verifier/Groth16Verifier64LeavesIC.sol"
+        "Groth16Verifier128Leaves:src/verifier/Groth16Verifier128Leaves.sol"
+        "Groth16Verifier128LeavesIC1:src/verifier/Groth16Verifier128LeavesIC1.sol"
+        "Groth16Verifier128LeavesIC2:src/verifier/Groth16Verifier128LeavesIC2.sol"
+        "ZecFrost:src/library/ZecFrost.sol"
+    )
+    
+    # Proxy contracts (use proxy address but implementation ABI)
+    # Order MUST match deployment order from DeployV2.s.sol: Bridge, Deposit, Proof, Withdraw, Admin  
+    local proxy_contracts=(
+        "BridgeCore:src/BridgeCore.sol"
+        "BridgeDepositManager:src/BridgeDepositManager.sol"
+        "BridgeProofManager:src/BridgeProofManager.sol"
+        "BridgeWithdrawManager:src/BridgeWithdrawManager.sol"
+        "BridgeAdminManager:src/BridgeAdminManager.sol"
+    )
+    
+    # Start building the JSON
+    printf '{\n  "network": "%s",\n  "deploymentDate": "%s",\n  "contracts": {\n' \
+        "$network" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$output_file"
+
+    local first_contract=true
+    
+    # Process direct contracts
+    for contract_info in "${direct_contracts[@]}"; do
+        local contract_name="${contract_info%%:*}"
+        local source_file="${contract_info##*:}"
+        
+        # Get contract address from broadcast file
+        local address=$(jq -r --arg name "$contract_name" '
+            .transactions[] | 
+            select(.transactionType == "CREATE" or .transactionType == "CREATE2") |
+            select(.contractName == $name) |
+            .contractAddress' "$broadcast_file" 2>/dev/null | head -1)
+        
+        if [ "$address" != "null" ] && [ -n "$address" ]; then
+            # Add comma for all but first contract
+            if [ "$first_contract" = false ]; then
+                printf ',\n' >> "$output_file"
+            fi
+            first_contract=false
+            
+            # Get ABI from forge artifacts - fix path
+            local abi_file="$PROJECT_ROOT/out/${contract_name}.sol/${contract_name}.json"
+            local abi="[]"
+            
+            if [ -f "$abi_file" ]; then
+                abi=$(jq -c '.abi' "$abi_file" 2>/dev/null || echo "[]")
+            fi
+            
+            # Add contract entry
+            printf '    "%s": {\n      "address": "%s",\n      "abi": %s\n    }' \
+                "$contract_name" "$address" "$abi" >> "$output_file"
+        fi
+    done
+    
+    # Process proxy contracts - extract proxy addresses from transactions
+    for contract_info in "${proxy_contracts[@]}"; do
+        local contract_name="${contract_info%%:*}"
+        local source_file="${contract_info##*:}"
+        
+        # Get ERC1967Proxy addresses in deployment order (do NOT sort with unique!)
+        local proxy_addresses=($(jq -r '.transactions[] | select(.contractName == "ERC1967Proxy") | .contractAddress' "$broadcast_file" 2>/dev/null))
+        local proxy_address=""
+        
+        case "$contract_name" in
+            "BridgeCore")
+                proxy_address="${proxy_addresses[0]}"
+                ;;
+            "BridgeDepositManager") 
+                proxy_address="${proxy_addresses[1]}"
+                ;;
+            "BridgeProofManager")
+                proxy_address="${proxy_addresses[2]}"
+                ;;
+            "BridgeWithdrawManager")
+                proxy_address="${proxy_addresses[3]}"
+                ;;
+            "BridgeAdminManager")
+                proxy_address="${proxy_addresses[4]}"
+                ;;
+        esac
+        
+        if [ -n "$proxy_address" ] && [ "$proxy_address" != "null" ]; then
+            # Add comma for all but first contract
+            if [ "$first_contract" = false ]; then
+                printf ',\n' >> "$output_file"
+            fi
+            first_contract=false
+            
+            # Get ABI from implementation contract - fix path
+            local abi_file="$PROJECT_ROOT/out/${contract_name}.sol/${contract_name}.json"
+            local abi="[]"
+            
+            if [ -f "$abi_file" ]; then
+                abi=$(jq -c '.abi' "$abi_file" 2>/dev/null || echo "[]")
+            fi
+            
+            # Add proxy contract entry
+            printf '    "%s": {\n      "address": "%s",\n      "abi": %s\n    }' \
+                "$contract_name" "$proxy_address" "$abi" >> "$output_file"
+        fi
+    done
+    
+    # Close the JSON
+    printf '\n  }\n}\n' >> "$output_file"
+
+    print_success "Generated contracts JSON with $(jq '.contracts | length' "$output_file" 2>/dev/null || echo "unknown") contracts"
+}
+
 # Check if network argument is provided
 if [ $# -eq 0 ]; then
     print_error "Please provide a network name"
@@ -161,6 +288,22 @@ if eval $FORGE_CMD; then
         DEPLOYMENT_INFO="$PROJECT_ROOT/deployments-$NETWORK-$(date +%Y%m%d-%H%M%S).json"
         cp "$LATEST_RUN" "$DEPLOYMENT_INFO"
         print_success "Deployment info saved to: $DEPLOYMENT_INFO"
+        
+        # Generate single comprehensive JSON with all contract info
+        print_status "Generating comprehensive deployment JSON with addresses and ABIs..."
+        
+        # Create output directory
+        OUTPUT_DIR="$PROJECT_ROOT/script/output"
+        mkdir -p "$OUTPUT_DIR"
+        
+        CONTRACTS_JSON="$OUTPUT_DIR/contracts-$NETWORK-$(date +%Y%m%d-%H%M%S).json"
+        
+        # Create the deployment artifacts JSON
+        generate_contracts_json "$LATEST_RUN" "$CONTRACTS_JSON" "$NETWORK"
+        
+        if [ -f "$CONTRACTS_JSON" ]; then
+            print_success "All contract information saved to: $CONTRACTS_JSON"
+        fi
         
     else
         print_warning "Broadcast file not found, deployment may have failed"

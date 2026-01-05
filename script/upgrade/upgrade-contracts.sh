@@ -30,6 +30,82 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Function to generate comprehensive contracts JSON for upgrades
+generate_upgrade_contracts_json() {
+    local broadcast_file="$1"
+    local output_file="$2"
+    local network="$3"
+    
+    if ! command -v jq &> /dev/null; then
+        print_warning "jq not installed - cannot generate contracts JSON"
+        return 1
+    fi
+    
+    # Contract names and their corresponding source files for upgrade
+    local contracts=(
+        "BridgeCore:src/BridgeCore.sol"
+        "BridgeDepositManager:src/BridgeDepositManager.sol"
+        "BridgeProofManager:src/BridgeProofManager.sol"
+        "BridgeWithdrawManager:src/BridgeWithdrawManager.sol"
+        "BridgeAdminManager:src/BridgeAdminManager.sol"
+    )
+    
+    # Start building the JSON
+    cat > "$output_file" << EOF
+{
+  "network": "$network",
+  "upgradeDate": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "proxyAddresses": {
+    "BridgeCore": "$ROLLUP_BRIDGE_CORE_PROXY_ADDRESS",
+    "BridgeDepositManager": "$ROLLUP_BRIDGE_DEPOSIT_MANAGER_PROXY_ADDRESS",
+    "BridgeProofManager": "$ROLLUP_BRIDGE_PROOF_MANAGER_PROXY_ADDRESS",
+    "BridgeWithdrawManager": "$ROLLUP_BRIDGE_WITHDRAW_MANAGER_PROXY_ADDRESS",
+    "BridgeAdminManager": "$ROLLUP_BRIDGE_ADMIN_MANAGER_PROXY_ADDRESS"
+  },
+  "newImplementations": {
+EOF
+
+    local first_contract=true
+    
+    # Extract new implementation addresses from broadcast file and match with ABIs
+    for contract_info in "${contracts[@]}"; do
+        local contract_name="${contract_info%%:*}"
+        local source_file="${contract_info##*:}"
+        
+        # Get contract address from broadcast file
+        local address=$(jq -r --arg name "$contract_name" '
+            .transactions[] | 
+            select(.transactionType == "CREATE" or .transactionType == "CREATE2") |
+            select(.contractName == $name) |
+            .contractAddress' "$broadcast_file" 2>/dev/null | head -1)
+        
+        if [ "$address" != "null" ] && [ -n "$address" ]; then
+            # Add comma for all but first contract
+            if [ "$first_contract" = false ]; then
+                echo "    ," >> "$output_file"
+            fi
+            first_contract=false
+            
+            # Get ABI from forge artifacts
+            local abi_file="$PROJECT_ROOT/out/${source_file##*/}/${contract_name}.sol/${contract_name}.json"
+            local abi="[]"
+            
+            if [ -f "$abi_file" ]; then
+                abi=$(jq -c '.abi' "$abi_file" 2>/dev/null || echo "[]")
+            fi
+            
+            # Add contract entry
+            printf '    "%s": {\n      "address": "%s",\n      "abi": %s\n    }' \
+                "$contract_name" "$address" "$abi" >> "$output_file"
+        fi
+    done
+    
+    # Close the JSON
+    printf '\n  }\n}\n' >> "$output_file"
+
+    print_success "Generated upgrade contracts JSON with $(jq '.newImplementations | length' "$output_file" 2>/dev/null || echo "unknown") implementations"
+}
+
 # Function to show usage
 show_usage() {
     echo "Usage: $0 <network>"
@@ -243,6 +319,22 @@ if eval $FORGE_CMD; then
         UPGRADE_INFO="$PROJECT_ROOT/upgrades-$NETWORK-$(date +%Y%m%d-%H%M%S).json"
         cp "$LATEST_RUN" "$UPGRADE_INFO"
         print_success "Upgrade info saved to: $UPGRADE_INFO"
+        
+        # Generate single comprehensive JSON with all contract info
+        print_status "Generating comprehensive upgrade JSON with addresses and ABIs..."
+        
+        # Create output directory
+        OUTPUT_DIR="$PROJECT_ROOT/script/output"
+        mkdir -p "$OUTPUT_DIR"
+        
+        CONTRACTS_JSON="$OUTPUT_DIR/upgrade-contracts-$NETWORK-$(date +%Y%m%d-%H%M%S).json"
+        
+        # Create the upgrade contracts JSON
+        generate_upgrade_contracts_json "$LATEST_RUN" "$CONTRACTS_JSON" "$NETWORK"
+        
+        if [ -f "$CONTRACTS_JSON" ]; then
+            print_success "All upgrade contract information saved to: $CONTRACTS_JSON"
+        fi
         
     else
         print_warning "Broadcast file not found, upgrade may have failed"

@@ -37,6 +37,7 @@ interface IBridgeCore {
     function getChannelTargetContract(uint256 channelId) external view returns (address);
     function getChannelLeader(uint256 channelId) external view returns (address);
     function getChannelParticipants(uint256 channelId) external view returns (address[] memory);
+    function getNextChannelId() external view returns (uint256);
     // function getChannelWhitelisted(uint256 channelId) external view returns (address[] memory);
     function isChannelWhitelisted(uint256 channelId, address addr) external view returns (bool);
     function getChannelTreeSize(uint256 channelId) external view returns (uint256);

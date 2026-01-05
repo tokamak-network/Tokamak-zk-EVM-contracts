@@ -87,7 +87,7 @@ EOF
             first_contract=false
             
             # Get ABI from forge artifacts
-            local abi_file="$PROJECT_ROOT/out/${source_file##*/}/${contract_name}.sol/${contract_name}.json"
+            local abi_file="$PROJECT_ROOT/out/${contract_name}.sol/${contract_name}.json"
             local abi="[]"
             
             if [ -f "$abi_file" ]; then

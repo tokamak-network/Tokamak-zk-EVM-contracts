@@ -30,19 +30,19 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Function to generate comprehensive contracts JSON for upgrades
+# Function to generate comprehensive contracts JSON (same structure as deploy script)
 generate_upgrade_contracts_json() {
-    local broadcast_file="$1"
-    local output_file="$2"
-    local network="$3"
+    local output_file="$1"
+    local network="$2"
     
     if ! command -v jq &> /dev/null; then
         print_warning "jq not installed - cannot generate contracts JSON"
         return 1
     fi
     
-    # Contract names and their corresponding source files for upgrade
-    local contracts=(
+    # Proxy contracts (use proxy address but implementation ABI)
+    # Order independent - addresses come from environment variables
+    local proxy_contracts=(
         "BridgeCore:src/BridgeCore.sol"
         "BridgeDepositManager:src/BridgeDepositManager.sol"
         "BridgeProofManager:src/BridgeProofManager.sol"
@@ -51,42 +51,46 @@ generate_upgrade_contracts_json() {
     )
     
     # Start building the JSON
-    cat > "$output_file" << EOF
-{
-  "network": "$network",
-  "upgradeDate": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "proxyAddresses": {
-    "BridgeCore": "$ROLLUP_BRIDGE_CORE_PROXY_ADDRESS",
-    "BridgeDepositManager": "$ROLLUP_BRIDGE_DEPOSIT_MANAGER_PROXY_ADDRESS",
-    "BridgeProofManager": "$ROLLUP_BRIDGE_PROOF_MANAGER_PROXY_ADDRESS",
-    "BridgeWithdrawManager": "$ROLLUP_BRIDGE_WITHDRAW_MANAGER_PROXY_ADDRESS",
-    "BridgeAdminManager": "$ROLLUP_BRIDGE_ADMIN_MANAGER_PROXY_ADDRESS"
-  },
-  "newImplementations": {
-EOF
+    printf '{\n  "network": "%s",\n  "upgradeDate": "%s",\n  "contracts": {\n' \
+        "$network" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$output_file"
 
     local first_contract=true
     
-    # Extract new implementation addresses from broadcast file and match with ABIs
-    for contract_info in "${contracts[@]}"; do
+    # Process proxy contracts using environment variables
+    for contract_info in "${proxy_contracts[@]}"; do
         local contract_name="${contract_info%%:*}"
         local source_file="${contract_info##*:}"
         
-        # Get contract address from broadcast file
-        local address=$(jq -r --arg name "$contract_name" '
-            .transactions[] | 
-            select(.transactionType == "CREATE" or .transactionType == "CREATE2") |
-            select(.contractName == $name) |
-            .contractAddress' "$broadcast_file" 2>/dev/null | head -1)
+        # Get proxy address from environment variable
+        local proxy_address=""
+        case "$contract_name" in
+            "BridgeCore")
+                proxy_address="$ROLLUP_BRIDGE_CORE_PROXY_ADDRESS"
+                ;;
+            "BridgeDepositManager") 
+                proxy_address="$ROLLUP_BRIDGE_DEPOSIT_MANAGER_PROXY_ADDRESS"
+                ;;
+            "BridgeProofManager")
+                proxy_address="$ROLLUP_BRIDGE_PROOF_MANAGER_PROXY_ADDRESS"
+                ;;
+            "BridgeWithdrawManager")
+                proxy_address="$ROLLUP_BRIDGE_WITHDRAW_MANAGER_PROXY_ADDRESS"
+                ;;
+            "BridgeAdminManager")
+                proxy_address="$ROLLUP_BRIDGE_ADMIN_MANAGER_PROXY_ADDRESS"
+                ;;
+        esac
         
-        if [ "$address" != "null" ] && [ -n "$address" ]; then
+        if [ -n "$proxy_address" ] && [ "$proxy_address" != "null" ]; then
+            print_status "Adding $contract_name proxy address: $proxy_address"
+            
             # Add comma for all but first contract
             if [ "$first_contract" = false ]; then
-                echo "    ," >> "$output_file"
+                printf ',\n' >> "$output_file"
             fi
             first_contract=false
             
-            # Get ABI from forge artifacts
+            # Get ABI from implementation contract
             local abi_file="$PROJECT_ROOT/out/${contract_name}.sol/${contract_name}.json"
             local abi="[]"
             
@@ -94,16 +98,18 @@ EOF
                 abi=$(jq -c '.abi' "$abi_file" 2>/dev/null || echo "[]")
             fi
             
-            # Add contract entry
+            # Add proxy contract entry
             printf '    "%s": {\n      "address": "%s",\n      "abi": %s\n    }' \
-                "$contract_name" "$address" "$abi" >> "$output_file"
+                "$contract_name" "$proxy_address" "$abi" >> "$output_file"
+        else
+            print_warning "Missing proxy address for $contract_name"
         fi
     done
     
     # Close the JSON
     printf '\n  }\n}\n' >> "$output_file"
 
-    print_success "Generated upgrade contracts JSON with $(jq '.newImplementations | length' "$output_file" 2>/dev/null || echo "unknown") implementations"
+    print_success "Generated upgrade contracts JSON with $(jq '.contracts | length' "$output_file" 2>/dev/null || echo "unknown") contracts"
 }
 
 # Function to show usage
@@ -330,7 +336,7 @@ if eval $FORGE_CMD; then
         CONTRACTS_JSON="$OUTPUT_DIR/upgrade-contracts-$NETWORK-$(date +%Y%m%d-%H%M%S).json"
         
         # Create the upgrade contracts JSON
-        generate_upgrade_contracts_json "$LATEST_RUN" "$CONTRACTS_JSON" "$NETWORK"
+        generate_upgrade_contracts_json "$CONTRACTS_JSON" "$NETWORK"
         
         if [ -f "$CONTRACTS_JSON" ]; then
             print_success "All upgrade contract information saved to: $CONTRACTS_JSON"

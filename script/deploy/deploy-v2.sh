@@ -300,13 +300,13 @@ if eval $FORGE_CMD; then
         OUTPUT_DIR="$PROJECT_ROOT/script/output"
         mkdir -p "$OUTPUT_DIR"
         
-        CONTRACTS_JSON="$OUTPUT_DIR/contracts-$NETWORK-$(date +%Y%m%d-%H%M%S).json"
+        CONTRACTS_JSON="$OUTPUT_DIR/contracts-$NETWORK.json"
         
         # Create the deployment artifacts JSON
         generate_contracts_json "$LATEST_RUN" "$CONTRACTS_JSON" "$NETWORK"
         
         if [ -f "$CONTRACTS_JSON" ]; then
-            print_success "All contract information saved to: $CONTRACTS_JSON"
+            print_success "Contract addresses and ABIs saved to: $CONTRACTS_JSON"
         fi
         
     else

@@ -66,7 +66,7 @@ OUTPUT_DIR="$SCRIPT_DIR/output"
 mkdir -p "$OUTPUT_DIR"
 
 # Output file
-OUTPUT_FILE="$OUTPUT_DIR/contracts-$NETWORK-$(date +%Y%m%d-%H%M%S).json"
+OUTPUT_FILE="$OUTPUT_DIR/contracts-$NETWORK.json"
 
 print_status "Generating JSON file: $OUTPUT_FILE"
 

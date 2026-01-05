@@ -40,6 +40,19 @@ generate_upgrade_contracts_json() {
         return 1
     fi
     
+    # Direct deployment contracts (not proxies) - from environment variables
+    local direct_contracts=(
+        "TokamakVerifier:src/verifier/TokamakVerifier.sol"
+        "Groth16Verifier16Leaves:src/verifier/Groth16Verifier16Leaves.sol"
+        "Groth16Verifier32Leaves:src/verifier/Groth16Verifier32Leaves.sol"
+        "Groth16Verifier64Leaves:src/verifier/Groth16Verifier64Leaves.sol"
+        "Groth16Verifier64LeavesIC:src/verifier/Groth16Verifier64LeavesIC.sol"
+        "Groth16Verifier128Leaves:src/verifier/Groth16Verifier128Leaves.sol"
+        "Groth16Verifier128LeavesIC1:src/verifier/Groth16Verifier128LeavesIC1.sol"
+        "Groth16Verifier128LeavesIC2:src/verifier/Groth16Verifier128LeavesIC2.sol"
+        "ZecFrost:src/library/ZecFrost.sol"
+    )
+    
     # Proxy contracts (use proxy address but implementation ABI)
     # Order independent - addresses come from environment variables
     local proxy_contracts=(
@@ -55,6 +68,66 @@ generate_upgrade_contracts_json() {
         "$network" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > "$output_file"
 
     local first_contract=true
+    
+    # Process direct contracts from environment variables
+    for contract_info in "${direct_contracts[@]}"; do
+        local contract_name="${contract_info%%:*}"
+        local source_file="${contract_info##*:}"
+        
+        # Get contract address from environment variable
+        local address=""
+        case "$contract_name" in
+            "TokamakVerifier")
+                address="$ZK_VERIFIER_ADDRESS"
+                ;;
+            "Groth16Verifier16Leaves")
+                address="$Groth16_Verifier16"
+                ;;
+            "Groth16Verifier32Leaves")
+                address="$Groth16_Verifier32"
+                ;;
+            "Groth16Verifier64Leaves")
+                address="$Groth16_Verifier64"
+                ;;
+            "Groth16Verifier64LeavesIC")
+                address="$Groth16_Verifier64_IC"
+                ;;
+            "Groth16Verifier128Leaves")
+                address="$Groth16_Verifier128"
+                ;;
+            "Groth16Verifier128LeavesIC1")
+                address="$Groth16_Verifier128_IC1"
+                ;;
+            "Groth16Verifier128LeavesIC2")
+                address="$Groth16_Verifier128_IC2"
+                ;;
+            "ZecFrost")
+                address="$ZECFROST_ADDRESS"
+                ;;
+        esac
+        
+        if [ -n "$address" ] && [ "$address" != "null" ]; then
+            print_status "Adding $contract_name direct address: $address"
+            
+            # Add comma for all but first contract
+            if [ "$first_contract" = false ]; then
+                printf ',\n' >> "$output_file"
+            fi
+            first_contract=false
+            
+            # Get ABI from contract artifacts
+            local abi_file="$PROJECT_ROOT/out/${contract_name}.sol/${contract_name}.json"
+            local abi="[]"
+            
+            if [ -f "$abi_file" ]; then
+                abi=$(jq -c '.abi' "$abi_file" 2>/dev/null || echo "[]")
+            fi
+            
+            # Add direct contract entry
+            printf '    "%s": {\n      "address": "%s",\n      "abi": %s\n    }' \
+                "$contract_name" "$address" "$abi" >> "$output_file"
+        fi
+    done
     
     # Process proxy contracts using environment variables
     for contract_info in "${proxy_contracts[@]}"; do
@@ -333,13 +406,13 @@ if eval $FORGE_CMD; then
         OUTPUT_DIR="$PROJECT_ROOT/script/output"
         mkdir -p "$OUTPUT_DIR"
         
-        CONTRACTS_JSON="$OUTPUT_DIR/upgrade-contracts-$NETWORK-$(date +%Y%m%d-%H%M%S).json"
+        CONTRACTS_JSON="$OUTPUT_DIR/contracts-$NETWORK.json"
         
         # Create the upgrade contracts JSON
         generate_upgrade_contracts_json "$CONTRACTS_JSON" "$NETWORK"
         
         if [ -f "$CONTRACTS_JSON" ]; then
-            print_success "All upgrade contract information saved to: $CONTRACTS_JSON"
+            print_success "Contract addresses and ABIs saved to: $CONTRACTS_JSON"
         fi
         
     else

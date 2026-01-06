@@ -776,11 +776,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.allowedTargetContracts[targetContract].registeredFunctions;
     }
 
-    function getNextChannelId() external view returns (uint256) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.nextChannelId;
-    }
-
     function getChannelInfo(uint256 channelId)
         external
         view

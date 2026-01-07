@@ -101,10 +101,6 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         revert("Function not registered");
     }
 
-    function isAllowedTargetContract(address targetContract) external view returns (bool) {
-        return bridge.isAllowedTargetContract(targetContract);
-    }
-
     function getTargetContractData(address targetContract) external view returns (IBridgeCore.TargetContract memory) {
         return bridge.getTargetContractData(targetContract);
     }
@@ -161,24 +157,6 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         returns (uint256 value, bool exists)
     {
         return bridge.getPreAllocatedLeaf(targetContract, key);
-    }
-
-    /**
-     * @notice Get all pre-allocated MPT keys for a target contract
-     * @param targetContract The target contract address
-     * @return keys Array of MPT keys
-     */
-    function getPreAllocatedKeys(address targetContract) external view returns (bytes32[] memory keys) {
-        return bridge.getPreAllocatedKeys(targetContract);
-    }
-
-    /**
-     * @notice Get the maximum allowed participants for a target contract
-     * @param targetContract The target contract address
-     * @return maxParticipants Maximum number of participants allowed
-     */
-    function getMaxAllowedParticipants(address targetContract) external view returns (uint256 maxParticipants) {
-        return bridge.getMaxAllowedParticipants(targetContract);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

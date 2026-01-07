@@ -377,11 +377,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         }
     }
 
-    function markUserWithdrawn(uint256 channelId, address participant) external onlyManager {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        $.channels[channelId].userData[participant].hasWithdrawn = true;
-    }
-
     function clearWithdrawableAmount(uint256 channelId, address participant) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         $.channels[channelId].userData[participant].withdrawAmount = 0;
@@ -604,10 +599,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return count;
     }
 
-    function _isTargetContractValid(Channel storage channel, address targetContract) private view returns (bool) {
-        return channel.targetContract == targetContract;
-    }
-
     function _isChannelEligibleForCleanup(Channel storage channel) internal view returns (bool) {
         if (channel.leader == address(0) || channel.state != ChannelState.Closed) {
             return false;
@@ -765,17 +756,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.allowedTargetContracts[targetContract];
     }
 
-    /**
-     * @notice Get registered functions for a specific target contract
-     * @param targetContract The target contract address
-     * @return Array of registered functions
-     */
-    function getTargetContractFunctions(address targetContract) external view returns (RegisteredFunction[] memory) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
-        return $.allowedTargetContracts[targetContract].registeredFunctions;
-    }
-
     function getChannelInfo(uint256 channelId)
         external
         view
@@ -866,117 +846,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         }
     }
 
-    // === DASHBOARD FUNCTIONS ===
-
-    /**
-     * @notice Get the total number of channels created
-     * @return Total number of channels
-     */
     function getTotalChannels() external view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.nextChannelId;
-    }
-
-    /**
-     * @notice Get comprehensive channel statistics
-     * @return openChannels Number of open channels
-     * @return activeChannels Number of active channels (same as open)
-     * @return closingChannels Number of closing channels
-     * @return closedChannels Number of closed channels
-     */
-    function getChannelStats()
-        external
-        view
-        returns (uint256 openChannels, uint256 activeChannels, uint256 closingChannels, uint256 closedChannels)
-    {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-
-        for (uint256 i = 0; i < $.nextChannelId; i++) {
-            Channel storage channel = $.channels[i];
-            if (channel.id > 0) {
-                // Channel exists
-                ChannelState state = channel.state;
-                if (state == ChannelState.Open) {
-                    openChannels++;
-                    activeChannels++;
-                } else if (state == ChannelState.Closing) {
-                    closingChannels++;
-                } else if (state == ChannelState.Closed) {
-                    closedChannels++;
-                }
-            }
-        }
-    }
-
-    /**
-     * @notice Get a user's total balance across all channels and target contracts
-     * @param user The user address
-     * @return targetContracts Array of target contract addresses the user has deposited to
-     * @return balances Array of corresponding balances
-     */
-    function getUserTotalBalance(address user)
-        external
-        view
-        returns (address[] memory targetContracts, uint256[] memory balances)
-    {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-
-        // First pass: collect unique target contracts
-        address[] memory allTargetContracts = new address[](1000); // Max estimate
-        uint256 contractCount = 0;
-
-        for (uint256 i = 0; i < $.nextChannelId; i++) {
-            Channel storage channel = $.channels[i];
-            if (channel.id > 0 && channel.userData[user].isParticipant) {
-                address targetContract = channel.targetContract;
-                bool isNewContract = true;
-                for (uint256 k = 0; k < contractCount; k++) {
-                    if (allTargetContracts[k] == targetContract) {
-                        isNewContract = false;
-                        break;
-                    }
-                }
-                if (isNewContract) {
-                    allTargetContracts[contractCount] = targetContract;
-                    contractCount++;
-                }
-            }
-        }
-
-        // Second pass: calculate balances
-        targetContracts = new address[](contractCount);
-        balances = new uint256[](contractCount);
-
-        for (uint256 i = 0; i < contractCount; i++) {
-            targetContracts[i] = allTargetContracts[i];
-            for (uint256 j = 0; j < $.nextChannelId; j++) {
-                Channel storage channel = $.channels[j];
-                if (
-                    channel.id > 0 && channel.userData[user].isParticipant
-                        && channel.targetContract == targetContracts[i]
-                ) {
-                    balances[i] += channel.userData[user].deposit;
-                }
-            }
-        }
-    }
-
-    /**
-     * @notice Get channel states for multiple channels at once
-     * @param channelIds Array of channel IDs to query
-     * @return states Array of corresponding channel states
-     */
-    function batchGetChannelStates(uint256[] calldata channelIds)
-        external
-        view
-        returns (ChannelState[] memory states)
-    {
-        states = new ChannelState[](channelIds.length);
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-
-        for (uint256 i = 0; i < channelIds.length; i++) {
-            states[i] = $.channels[channelIds[i]].state;
-        }
     }
 
     uint256[42] private __gap;

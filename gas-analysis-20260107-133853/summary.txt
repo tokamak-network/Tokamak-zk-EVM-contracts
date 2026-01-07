@@ -1,0 +1,22 @@
+Tokamak zkEVM Bridge Gas Consumption Summary
+Generated on: Wed Jan  7 13:38:54 +01 2026
+=============================================
+
+  Total gas used: 2193762
+  Average gas per channel: 219376
+  Max gas per channel: 219377
+  Min gas per channel: 219376
+  Max channels per block (30M gas limit): 136
+---
+  Total gas used: 10968820
+  Average gas per channel: 219376
+  Max gas per channel: 219377
+  Min gas per channel: 219376
+  Max channels per block (30M gas limit): 136
+---
+  Total gas used: 21937670
+  Average gas per channel: 219376
+  Max gas per channel: 219377
+  Min gas per channel: 219376
+  Max channels per block (30M gas limit): 136
+---

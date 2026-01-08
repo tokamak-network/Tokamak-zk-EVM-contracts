@@ -97,4 +97,9 @@ interface IBridgeCore {
     function getChannelPreAllocatedLeavesCount(uint256 channelId) external view returns (uint256 count);
 
     function getTotalChannels() external view returns (uint256);
+    
+    function getUserChannels(address user, uint256 limit, uint256 offset)
+        external
+        view
+        returns (uint256[] memory channelIds, uint256 totalCount);
 }

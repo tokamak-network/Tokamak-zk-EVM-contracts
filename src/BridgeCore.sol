@@ -851,5 +851,58 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.nextChannelId;
     }
 
+    /**
+     * @notice Get all channel IDs where the user is a participant
+     * @param user The user address to check
+     * @param limit Maximum number of channels to return (0 for no limit)
+     * @param offset Starting index for pagination
+     * @return channelIds Array of channel IDs where the user participates
+     * @return totalCount Total number of channels the user participates in
+     */
+    function getUserChannels(address user, uint256 limit, uint256 offset)
+        external
+        view
+        returns (uint256[] memory channelIds, uint256 totalCount)
+    {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        uint256 totalChannels = $.nextChannelId;
+        
+        // First pass: count total channels where user participates
+        totalCount = 0;
+        for (uint256 channelId = 0; channelId < totalChannels; channelId++) {
+            Channel storage channel = $.channels[channelId];
+            if (channel.leader != address(0) && channel.isWhiteListed[user]) {
+                totalCount++;
+            }
+        }
+        
+        // Handle empty result
+        if (totalCount == 0 || offset >= totalCount) {
+            return (new uint256[](0), totalCount);
+        }
+        
+        // Calculate actual return size
+        uint256 maxReturn = limit == 0 ? totalCount - offset : limit;
+        uint256 returnSize = maxReturn > (totalCount - offset) ? totalCount - offset : maxReturn;
+        channelIds = new uint256[](returnSize);
+        
+        // Second pass: collect channel IDs with pagination
+        uint256 found = 0;
+        uint256 collected = 0;
+        
+        for (uint256 channelId = 0; channelId < totalChannels && collected < returnSize; channelId++) {
+            Channel storage channel = $.channels[channelId];
+            if (channel.leader != address(0) && channel.isWhiteListed[user]) {
+                if (found >= offset) {
+                    channelIds[collected] = channelId;
+                    collected++;
+                }
+                found++;
+            }
+        }
+        
+        return (channelIds, totalCount);
+    }
+
     uint256[42] private __gap;
 }

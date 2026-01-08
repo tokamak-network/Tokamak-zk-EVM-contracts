@@ -50,11 +50,10 @@ interface IBridgeCore {
     function getChannelInitialStateRoot(uint256 channelId) external view returns (bytes32);
     function isAllowedTargetContract(address targetContract) external view returns (bool);
     function getTargetContractData(address targetContract) external view returns (TargetContract memory);
-    function getChannelTimeout(uint256 channelId) external view returns (uint256 openTimestamp, uint256 timeout);
+    function getChannelInfo(uint256 channelId) external view returns (address targetContract, ChannelState state, uint256 participantCount, bytes32 initialRoot);
     function getWithdrawableAmount(uint256 channelId, address participant) external view returns (uint256);
     function hasUserWithdrawn(uint256 channelId, address participant) external view returns (bool);
     function isSignatureVerified(uint256 channelId) external view returns (bool);
-    function getTreasuryAddress() external view returns (address);
     function getChannelBlockInfosHash(uint256 channelId) external view returns (bytes32);
     function isFrostSignatureEnabled(uint256 channelId) external view returns (bool);
 
@@ -78,11 +77,10 @@ interface IBridgeCore {
         uint256[] memory preprocessedPart2,
         bytes32 instancesHash
     ) external;
+    function cleanupClosedChannel(uint256 channelId) external;
     function unregisterFunction(address targetContract, bytes32 functionSignature) external;
-    function setTreasuryAddress(address treasury) external;
-    function enableEmergencyWithdrawals(uint256 channelId) external;
-    function markUserWithdrawn(uint256 channelId, address participant) external;
     function clearWithdrawableAmount(uint256 channelId, address participant) external;
+    function batchCleanupClosedChannels(uint256[] calldata channelIds) external;
     function setChannelBlockInfosHash(uint256 channelId, bytes32 blockInfosHash) external;
     function addParticipantOnDeposit(uint256 channelId, address user) external;
 
@@ -98,77 +96,10 @@ interface IBridgeCore {
     function getMaxAllowedParticipants(address targetContract) external view returns (uint256 maxParticipants);
     function getChannelPreAllocatedLeavesCount(uint256 channelId) external view returns (uint256 count);
 
-    // === DASHBOARD FUNCTIONS ===
     function getTotalChannels() external view returns (uint256);
-    function getChannelStats()
+    
+    function getUserChannels(address user, uint256 limit, uint256 offset)
         external
         view
-        returns (uint256 openChannels, uint256 activeChannels, uint256 closingChannels, uint256 closedChannels);
-    function getUserTotalBalance(address user)
-        external
-        view
-        returns (address[] memory targetContracts, uint256[] memory balances);
-    function batchGetChannelStates(uint256[] calldata channelIds)
-        external
-        view
-        returns (ChannelState[] memory states);
-
-    // === MEDIUM PRIORITY UX FUNCTIONS ===
-    function getUserAnalytics(address user)
-        external
-        view
-        returns (
-            uint256 totalChannelsJoined,
-            uint256 activeChannelsCount,
-            uint256 totalContractTypes,
-            uint256 channelsAsLeader
-        );
-    function getChannelHistory(address user)
-        external
-        view
-        returns (
-            uint256[] memory channelIds,
-            ChannelState[] memory states,
-            uint256[] memory joinTimestamps,
-            bool[] memory isLeaderFlags
-        );
-    function canUserDeposit(address user, uint256 channelId, uint256 amount)
-        external
-        view
-        returns (bool canDeposit, string memory reason);
-    function canUserWithdraw(address user, uint256 channelId)
-        external
-        view
-        returns (bool canWithdraw, string memory reason);
-
-    // === LOW PRIORITY ADVANCED FUNCTIONS ===
-    function getSystemAnalytics()
-        external
-        view
-        returns (
-            uint256 totalChannelsCreated,
-            uint256 totalValueLocked,
-            uint256 totalUniqueUsers,
-            uint256 averageChannelSize
-        );
-    function getChannelLiveMetrics(uint256 channelId)
-        external
-        view
-        returns (
-            uint256 activeParticipants,
-            uint256 totalDeposits,
-            uint256 averageDepositSize,
-            uint256 timeActive,
-            uint256 lastActivityTime
-        );
-    function searchChannelsByParticipant(address participant, ChannelState state, uint256 limit, uint256 offset)
-        external
-        view
-        returns (uint256[] memory channelIds, uint256 totalMatches);
-    function searchChannelsByTargetContract(
-        address targetContract,
-        uint256 minTotalDeposits,
-        uint256 limit,
-        uint256 offset
-    ) external view returns (uint256[] memory channelIds, uint256[] memory totalDeposits, uint256 totalMatches);
+        returns (uint256[] memory channelIds, uint256 totalCount);
 }

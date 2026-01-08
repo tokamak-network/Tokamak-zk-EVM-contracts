@@ -63,6 +63,8 @@ contract MockBridgeCore {
     bytes32 public finalStateRoot;
     uint256 public treeSize;
     address public targetContract;
+    address public channelLeader;
+    bool public isCleanedUp;
     mapping(address => uint256) public l2MptKeys;
 
     function setConfig(
@@ -148,6 +150,19 @@ contract MockBridgeCore {
     function setChannelState(bytes32, IBridgeCore.ChannelState newState) external {
         state = newState;
     }
+
+    function getChannelLeader(bytes32) external view returns (address) {
+        return isCleanedUp ? address(0) : channelLeader;
+    }
+
+    function cleanupChannel(bytes32) external {
+        isCleanedUp = true;
+    }
+
+    function setChannelLeader(address _leader) external {
+        channelLeader = _leader;
+        isCleanedUp = false;
+    }
 }
 
 contract VerifyFinalBalancesInputTest is Test {
@@ -188,6 +203,9 @@ contract VerifyFinalBalancesInputTest is Test {
             16,
             address(0xBEEF)
         );
+        
+        // Set a channel leader for testing cleanup
+        bridge.setChannelLeader(address(0x123));
     }
 
     function testVerifyFinalBalancesGroth16WithProvidedInputs() public {
@@ -242,7 +260,8 @@ contract VerifyFinalBalancesInputTest is Test {
         if (!ok) {
             revert(_decodeRevert(data));
         }
-        assertEq(uint8(bridge.state()), uint8(IBridgeCore.ChannelState.Closed));
+        // Channel should be cleaned up after verification, so leader should not exist
+        assertEq(bridge.getChannelLeader(channelId), address(0));
     }
 
     function _decodeRevert(bytes memory data) private pure returns (string memory) {

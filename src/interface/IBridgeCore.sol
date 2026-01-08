@@ -6,8 +6,7 @@ interface IBridgeCore {
         None,
         Initialized,
         Open,
-        Closing,
-        Closed
+        Closing
     }
 
     struct PreAllocatedLeaf {
@@ -51,8 +50,8 @@ interface IBridgeCore {
     function isAllowedTargetContract(address targetContract) external view returns (bool);
     function getTargetContractData(address targetContract) external view returns (TargetContract memory);
     function getChannelInfo(bytes32 channelId) external view returns (address targetContract, ChannelState state, uint256 participantCount, bytes32 initialRoot);
-    function getWithdrawableAmount(bytes32 channelId, address participant) external view returns (uint256);
-    function hasUserWithdrawn(bytes32 channelId, address participant) external view returns (bool);
+    function getWithdrawableAmount(bytes32 channelId, address participant, address targetContract) external view returns (uint256);
+    function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract) external view returns (bool);
     function isSignatureVerified(bytes32 channelId) external view returns (bool);
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32);
     function isFrostSignatureEnabled(bytes32 channelId) external view returns (bool);
@@ -77,12 +76,11 @@ interface IBridgeCore {
         uint256[] memory preprocessedPart2,
         bytes32 instancesHash
     ) external;
-    function cleanupClosedChannel(bytes32 channelId) external;
     function unregisterFunction(address targetContract, bytes32 functionSignature) external;
-    function clearWithdrawableAmount(bytes32 channelId, address participant) external;
-    function batchCleanupClosedChannels(bytes32[] calldata channelIds) external;
+    function clearWithdrawableAmount(bytes32 channelId, address participant, address targetContract) external;
     function setChannelBlockInfosHash(bytes32 channelId, bytes32 blockInfosHash) external;
     function addParticipantOnDeposit(bytes32 channelId, address user) external;
+    function cleanupChannel(bytes32 channelId) external;
 
     // === PRE-ALLOCATED LEAVES FUNCTIONS ===
     function setPreAllocatedLeaf(address targetContract, bytes32 mptKey, uint256 value) external;

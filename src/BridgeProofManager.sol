@@ -413,7 +413,9 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Set withdraw amounts if proof is valid
         bridge.setChannelWithdrawAmounts(channelId, participants, finalBalances);
         bridge.setChannelCloseTimestamp(channelId, block.timestamp);
-        bridge.setChannelState(channelId, IBridgeCore.ChannelState.Closed);
+        
+        // Cleanup channel by removing channel leader flag and deleting channel data
+        bridge.cleanupChannel(channelId);
 
         emit FinalBalancesGroth16Verified(channelId, finalStateRoot);
     }

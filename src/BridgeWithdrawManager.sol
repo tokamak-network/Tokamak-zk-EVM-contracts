@@ -39,18 +39,15 @@ contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, Own
         bridge = IBridgeCore(_bridgeCore);
     }
 
-    function withdraw(bytes32 channelId) external nonReentrant {
-        require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Closed, "Not closed");
-        require(bridge.isChannelParticipant(channelId, msg.sender), "Not a participant");
-
-        address targetContract = bridge.getChannelTargetContract(channelId);
+    function withdraw(bytes32 channelId, address targetContract) external nonReentrant {
         require(targetContract != address(0), "Invalid target contract");
-
-        uint256 withdrawAmount = bridge.getWithdrawableAmount(channelId, msg.sender);
+        
+        // Check if there's a withdrawable amount for this specific target contract
+        uint256 withdrawAmount = bridge.getWithdrawableAmount(channelId, msg.sender, targetContract);
         require(withdrawAmount > 0, "No withdrawable amount");
 
         // Clear the withdrawable amount
-        bridge.clearWithdrawableAmount(channelId, msg.sender);
+        bridge.clearWithdrawableAmount(channelId, msg.sender, targetContract);
 
         // Transfer the token from deposit manager (where tokens are held)
         BridgeDepositManager(bridge.depositManager()).transferForWithdrawal(targetContract, msg.sender, withdrawAmount);

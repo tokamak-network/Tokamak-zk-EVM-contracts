@@ -236,7 +236,6 @@ contract BridgeCoreTest is Test {
     uint256 public constant INITIAL_TOKEN_BALANCE = 1000 * 10 ** 18;
 
     event ChannelOpened(bytes32 indexed channelId, address indexed targetContract);
-    event ChannelClosed(bytes32 indexed channelId);
     event ChannelFinalized(bytes32 indexed channelId);
     event Deposited(bytes32 indexed channelId, address indexed user, address token, uint256 amount);
     event Withdrawn(bytes32 indexed channelId, address indexed user, address token, uint256 amount);

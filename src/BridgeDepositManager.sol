@@ -19,7 +19,7 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
 
     IBridgeCore public bridge;
 
-    event Deposited(uint256 indexed channelId, address indexed user, address token, uint256 amount);
+    event Deposited(bytes32 indexed channelId, address indexed user, address token, uint256 amount);
 
     modifier onlyBridge() {
         require(msg.sender == address(bridge), "Only bridge can call");
@@ -36,7 +36,7 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
         bridge = IBridgeCore(_bridgeCore);
     }
 
-    function depositToken(uint256 _channelId, uint256 _amount, bytes32 _mptKey) external nonReentrant {
+    function depositToken(bytes32 _channelId, uint256 _amount, bytes32 _mptKey) external nonReentrant {
         require(bridge.getChannelState(_channelId) == IBridgeCore.ChannelState.Initialized, "Invalid channel state");
         require(bridge.isChannelWhitelisted(_channelId, msg.sender), "Not whitelisted");
 

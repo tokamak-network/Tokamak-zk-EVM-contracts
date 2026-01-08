@@ -93,35 +93,35 @@ contract MockBridgeCore {
         l2MptKeys[participant] = key;
     }
 
-    function getChannelState(uint256) external view returns (IBridgeCore.ChannelState) {
+    function getChannelState(bytes32) external view returns (IBridgeCore.ChannelState) {
         return state;
     }
 
-    function isFrostSignatureEnabled(uint256) external view returns (bool) {
+    function isFrostSignatureEnabled(bytes32) external view returns (bool) {
         return frostEnabled;
     }
 
-    function isSignatureVerified(uint256) external view returns (bool) {
+    function isSignatureVerified(bytes32) external view returns (bool) {
         return signatureVerified;
     }
 
-    function getChannelParticipants(uint256) external view returns (address[] memory) {
+    function getChannelParticipants(bytes32) external view returns (address[] memory) {
         return participants;
     }
 
-    function getChannelTotalDeposits(uint256) external view returns (uint256) {
+    function getChannelTotalDeposits(bytes32) external view returns (uint256) {
         return totalDeposits;
     }
 
-    function getChannelFinalStateRoot(uint256) external view returns (bytes32) {
+    function getChannelFinalStateRoot(bytes32) external view returns (bytes32) {
         return finalStateRoot;
     }
 
-    function getChannelTreeSize(uint256) external view returns (uint256) {
+    function getChannelTreeSize(bytes32) external view returns (uint256) {
         return treeSize;
     }
 
-    function getChannelTargetContract(uint256) external view returns (address) {
+    function getChannelTargetContract(bytes32) external view returns (address) {
         return targetContract;
     }
 
@@ -137,15 +137,15 @@ contract MockBridgeCore {
         return (0, false);
     }
 
-    function getL2MptKey(uint256, address participant) external view returns (uint256) {
+    function getL2MptKey(bytes32, address participant) external view returns (uint256) {
         return l2MptKeys[participant];
     }
 
-    function setChannelWithdrawAmounts(uint256, address[] memory, uint256[] memory) external {}
+    function setChannelWithdrawAmounts(bytes32, address[] memory, uint256[] memory) external {}
 
-    function setChannelCloseTimestamp(uint256, uint256) external {}
+    function setChannelCloseTimestamp(bytes32, uint256) external {}
 
-    function setChannelState(uint256, IBridgeCore.ChannelState newState) external {
+    function setChannelState(bytes32, IBridgeCore.ChannelState newState) external {
         state = newState;
     }
 }
@@ -191,7 +191,7 @@ contract VerifyFinalBalancesInputTest is Test {
     }
 
     function testVerifyFinalBalancesGroth16WithProvidedInputs() public {
-        uint256 channelId = 42;
+        bytes32 channelId = bytes32(uint256(42));
 
         uint256[] memory finalBalances = new uint256[](6);
         finalBalances[0] = 8_000000000000000000;

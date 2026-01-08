@@ -4,13 +4,9 @@
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.29-blue.svg)](https://soliditylang.org/)
 [![Foundry](https://img.shields.io/badge/Foundry-✓-green.svg)](https://getfoundry.sh/)
 
-Our rollup enables on-demand state channels that hold private L2s. State channels are in charge of aggregating proofs and managing state root.
+Our Channel Bridge enables on-demand state channels that hold private L2s. State channels are in charge of aggregating proofs and managing state root.
 
-This repository implements the core smart contracts for the Tokamak zkEVM rollup solution, providing Layer 2 privacy with Ethereum-equivalent functionality through zero-knowledge proofs.
-
-## Overview
-
-This repository contains the smart contracts and documentation for a ZK-Rollup bridge that enables secure off-chain computation with on-chain settlement. The system uses zero-knowledge proofs (Groth16) for computation verification and manages state channels with configurable Merkle tree sizes based on participant and token count.
+This repository implements the core smart contracts for the Tokamak zkEVM Bridge solution, providing Layer 2 privacy with Ethereum-equivalent functionality through zero-knowledge proofs.
 
 ### Modular Architecture Design
 
@@ -27,7 +23,7 @@ The system automatically selects optimal Merkle tree sizes based on channel requ
 - **Groth16 Verification**: Specialized verifiers for each tree size
 - **Efficient Proofs**: Optimized proof verification for different channel scales
 
-## ✨ Key Features
+## Key Features
 
 - **Cryptographic Security**: Groth16 zero-knowledge proofs ensure computation integrity
 - **Gas Efficiency**: Dynamic tree sizing with optimized state management
@@ -42,12 +38,12 @@ The system automatically selects optimal Merkle tree sizes based on channel requ
 ## Core Components
 
 #### **Modular Bridge Architecture**
-- **`RollupBridgeCore.sol`**: Core state management and channel operations
-- **`RollupBridgeDepositManager.sol`**: Deposit handling and token management
-- **`RollupBridgeProofManager.sol`**: ZK proof submission and verification
-- **`RollupBridgeWithdrawManager.sol`**: Per-token withdrawal processing and finalization
-- **`RollupBridgeAdminManager.sol`**: Administrative functions and contract management
-- **`IRollupBridgeCore.sol`**: Core interface definitions and data structures
+- **`BridgeCore.sol`**: Core state management and channel operations
+- **`BridgeDepositManager.sol`**: Deposit handling and token management
+- **`BridgeProofManager.sol`**: ZK proof submission and verification
+- **`BridgeWithdrawManager.sol`**: Per-token withdrawal processing and finalization
+- **`BridgeAdminManager.sol`**: Administrative functions and contract management
+- **`IBridgeCore.sol`**: Core interface definitions and data structures
 
 #### **Verification Layer**
 - **`TokamakVerifier.sol`**: Main ZK-SNARK proof verification contract
@@ -63,7 +59,6 @@ The system automatically selects optimal Merkle tree sizes based on channel requ
 2. **Public Key Setup**: Channel leader sets cryptographic public key for signatures
 3. **Deposit Period**: Secure fund collection with per-token balance tracking
 4. **State Initialization**: Groth16 proof submission establishing initial state root
-5. **Off-Chain Computation**: High-throughput L2 processing with consensus mechanisms
 6. **Proof Submission**: ZK proof verification of computation results and final balances
 7. **Signature Verification**: FROST signature validation for result authenticity
 8. **Channel Closure**: State transition to Closed with verified final balances
@@ -77,31 +72,12 @@ The system automatically selects optimal Merkle tree sizes based on channel requ
 - **State Consistency**: Groth16 proofs link all state transitions cryptographically
 - **Consensus Security**: FROST multi-signature consensus mechanisms
 - **ZK Privacy**: Computation verification without revealing details
-- **Proof Security**: Groth16 zkSNARK provides strong cryptographic guarantees
 
 ### Economic Security
 - **Deposit Protection**: Funds locked until valid closure proof
 - **Conservation Laws**: Mathematical balance sum verification
 - **Root History**: Rollback capability for state recovery
 - **Channel Isolation**: Per-channel state prevents cross-contamination
-
-## Withdrawal System
-
-The system implements a granular, per-token withdrawal mechanism:
-
-### Key Features
-- **Per-Token Withdrawals**: Users can withdraw specific tokens independently
-- **Multiple Withdrawals**: Users can make multiple withdrawals for different tokens
-- **Token-Specific Balances**: Each participant has individual balances per token
-- **Conservation Verification**: Automatic balance conservation checks
-- **No ETH Support**: System focused on ERC20 token withdrawals only
-
-### Withdrawal Process
-1. **Channel Closure**: Channel must be in `Closed` state
-2. **Balance Verification**: System verifies withdrawable amounts per token
-3. **Token Selection**: Users specify which token to withdraw
-4. **Transfer Execution**: Secure token transfer using SafeERC20
-5. **State Update**: Withdrawal amounts cleared to prevent double spending
 
 ## Getting Started
 
@@ -154,7 +130,7 @@ forge build
 forge test
 ```
 
-## 🧪 Testing
+## Testing
 
 The project includes comprehensive test coverage for all components:
 
@@ -192,7 +168,7 @@ forge test --match-test testChannelCreationAndDeposits
 ```
 src/
 ├── interface/                         # Contract interfaces
-│   ├── IRollupBridgeCore.sol          # Core bridge interface
+│   ├── IBridgeCore.sol                # Core bridge interface
 │   ├── IGroth16Verifier*.sol          # Groth16 verifier interfaces
 │   ├── ITokamakVerifier.sol           # Tokamak verifier interface
 │   └── IZecFrost.sol                  # FROST signature interface
@@ -203,26 +179,26 @@ src/
 ├── library/                           # Utility libraries
 │   ├── RLP.sol                        # RLP encoding utilities
 │   └── ZecFrost.sol                   # FROST signature library
-├── RollupBridgeCore.sol               # Core state management
-├── RollupBridgeDepositManager.sol     # Deposit handling
-├── RollupBridgeProofManager.sol       # Proof management
-├── RollupBridgeWithdrawManager.sol    # Per-token withdrawal management
-└── RollupBridgeAdminManager.sol       # Administrative functions
+├── BridgeCore.sol                     # Core state management
+├── BridgeDepositManager.sol           # Deposit handling
+├── BridgeProofManager.sol             # Proof management
+├── BridgeWithdrawManager.sol          # Per-token withdrawal management
+└── BridgeAdminManager.sol             # Administrative functions
 
 test/
 ├── bridge/                            # Bridge-specific tests
-│   ├── RollupBridge.t.sol             # Modular bridge tests (24 tests)
-│   ├── Withdrawals.t.sol              # Withdrawal functionality tests (10 tests)
-│   └── ModularArchitectureTest.t.sol  # Modular architecture tests (5 tests)
+│   ├── Bridge.t.sol                   # Modular bridge tests 
+│   ├── Withdrawals.t.sol              # Withdrawal functionality tests 
+│   └── ModularArchitectureTest.t.sol  # Modular architecture tests 
 ├── groth16/                           # Groth16 verifier tests
-│   ├── 16_leaves/                     # 16-leaf tree tests (2 tests)
-│   ├── 32_leaves/                     # 32-leaf tree tests (2 tests)
-│   ├── 64_leaves/                     # 64-leaf tree tests (1 test)
-│   └── 128_leaves/                    # 128-leaf tree tests (1 test)
+│   ├── 16_leaves/                     # 16-leaf tree tests 
+│   ├── 32_leaves/                     # 32-leaf tree tests 
+│   ├── 64_leaves/                     # 64-leaf tree tests 
+│   └── 128_leaves/                    # 128-leaf tree tests 
 ├── verifier/                          # Verifier tests
-│   └── Verifier.t.sol                 # ZK verifier tests (5 tests)
+│   └── Verifier.t.sol                 # ZK verifier tests 
 ├── frost/                             # FROST signature tests
-│   └── ZecFrost.t.sol                 # FROST tests (2 tests)
+│   └── ZecFrost.t.sol                 # FROST tests
 ├── js-scripts/                        # JavaScript utilities
 │   ├── generateGroth16Proof.js        # Groth16 proof generation
 │   ├── generateProof.js               # General proof generation
@@ -231,23 +207,8 @@ test/
     └── generate_proof.sh              # Proof generation script
 ```
 
-## 🔒 Security Considerations
 
-### Audit Status
-
-- **Internal Review**: 🔄 In Progress
-- **External Audit**: 📋 Planned
-- **Bug Bounty**: 📋 Planned
-
-### Security Features
-
-- **UUPS Upgradeable**: Safe upgrade mechanism with storage protection
-- **Multi-signature Consensus**: Threshold signature requirements
-- **Balance Conservation**: Mathematical guarantees preventing fund loss
-- **Per-token Isolation**: Independent token balance management
-- **Access Control**: Proper role-based permissions
-
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
@@ -272,48 +233,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 ## Documentation
 
 - **Technical Docs**: [docs/](./docs/) directory
-- **Interface Documentation**: Comprehensive NatSpec in contract interfaces
 - **Test Documentation**: Detailed test coverage and examples
-
-## 📦 Deployment
-
-### UUPS Upgradeable Deployment
-
-The contracts are deployed using the **UUPS (Universal Upgradeable Proxy Standard)** pattern for seamless upgrades while preserving state.
-
-#### Deployment Scripts
-
-```bash
-# Deploy contracts
-forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast --verify
-
-# Upgrade existing contracts (owner only)
-forge script script/Upgrade.s.sol --rpc-url $RPC_URL --broadcast
-```
-
-#### Environment Setup
-
-Create `.env` file:
-
-```bash
-# Network Configuration
-RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
-CHAIN_ID=11155111
-PRIVATE_KEY=0x...
-
-# Contract Configuration
-DEPLOYER_ADDRESS=0x...
-
-# Verification
-VERIFY_CONTRACTS=true
-ETHERSCAN_API_KEY=YOUR_API_KEY
-```
-
-#### Safety Features
-- **Storage Layout Compatibility**: Automated checks prevent storage collisions
-- **Initialization Protection**: Prevents re-initialization attacks
-- **Owner-Only Upgrades**: Only contract owner can perform upgrades
-- **Atomic Deployment**: MEV-protected deployment with immediate initialization
 
 ## License
 

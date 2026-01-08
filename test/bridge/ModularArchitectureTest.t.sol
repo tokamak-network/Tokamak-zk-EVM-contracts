@@ -181,18 +181,21 @@ contract ModularArchitectureTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
+        bytes32 channelId = keccak256(abi.encode(address(this), block.timestamp, "testBasicChannelOperations"));
         BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            channelId: channelId,
             targetContract: address(testToken),
             whitelisted: participants,
             enableFrostSignature: true
         });
 
-        uint256 channelId = bridge.openChannel(params);
+        bytes32 returnedChannelId = bridge.openChannel(params);
+        assertEq(returnedChannelId, channelId);
         bridge.setChannelPublicKey(channelId, 1, 2);
         vm.stopPrank();
 
         // Verify channel creation
-        assertEq(channelId, 0);
+        assertEq(returnedChannelId, channelId);
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Initialized));
         assertEq(bridge.getChannelTargetContract(channelId), address(testToken));
 
@@ -209,7 +212,7 @@ contract ModularArchitectureTest is Test {
 
     function testChannelStateInitialization() public {
         // Create and deposit to a channel
-        uint256 channelId = _createChannelWithDeposits();
+        bytes32 channelId = _createChannelWithDeposits();
 
         // Get the actual leader who created the channel
         address actualLeader = bridge.getChannelLeader(channelId);
@@ -231,7 +234,7 @@ contract ModularArchitectureTest is Test {
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(BridgeCore.ChannelState.Open));
     }
 
-    function _createChannelWithDeposits() internal returns (uint256 channelId) {
+    function _createChannelWithDeposits() internal returns (bytes32 channelId) {
         vm.startPrank(leader);
 
         address[] memory participants = new address[](3);
@@ -239,13 +242,16 @@ contract ModularArchitectureTest is Test {
         participants[1] = user2;
         participants[2] = user3;
 
+        channelId = keccak256(abi.encode(address(this), block.timestamp, "createChannelWithDeposits"));
         BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            channelId: channelId,
             targetContract: address(testToken),
             whitelisted: participants,
             enableFrostSignature: true
         });
 
-        channelId = bridge.openChannel(params);
+        bytes32 returnedChannelId = bridge.openChannel(params);
+        assertEq(returnedChannelId, channelId);
         bridge.setChannelPublicKey(channelId, 1, 2);
         vm.stopPrank();
 
@@ -272,13 +278,16 @@ contract ModularArchitectureTest is Test {
         participants[0] = user1;
         participants[1] = user2;
 
+        bytes32 channelId = keccak256(abi.encode(address(this), block.timestamp, "testDisableFrostSignature"));
         BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            channelId: channelId,
             targetContract: address(testToken),
             whitelisted: participants,
             enableFrostSignature: false
         });
 
-        uint256 channelId = bridge.openChannel(params);
+        bytes32 returnedChannelId = bridge.openChannel(params);
+        assertEq(returnedChannelId, channelId);
 
         // Verify frost signature is disabled for this channel
         assertFalse(bridge.isFrostSignatureEnabled(channelId));

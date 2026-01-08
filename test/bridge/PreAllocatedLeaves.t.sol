@@ -173,17 +173,20 @@ contract PreAllocatedLeavesTest is Test {
 
         vm.startPrank(user1);
 
+        bytes32 channelId = keccak256(abi.encode(address(this), block.timestamp, "preAllocTest1"));
         BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            channelId: channelId,
             targetContract: address(testToken),
             whitelisted: participants,
             enableFrostSignature: true
         });
 
         // This should succeed with 127 participants
-        uint256 channelId = bridge.openChannel(params);
+        bytes32 returnedChannelId = bridge.openChannel(params);
+        assertEq(returnedChannelId, channelId);
 
         // Verify the channel has the correct pre-allocated leaves count
-        uint256 preAllocatedCount = bridge.getChannelPreAllocatedLeavesCount(channelId);
+        uint256 preAllocatedCount = bridge.getChannelPreAllocatedLeavesCount(returnedChannelId);
         assertEq(preAllocatedCount, 1, "Channel should have 1 pre-allocated leaf");
 
         vm.stopPrank();
@@ -209,7 +212,9 @@ contract PreAllocatedLeavesTest is Test {
 
         vm.startPrank(user1);
 
+        bytes32 channelId = keccak256(abi.encode(address(this), block.timestamp, "preAllocTest2"));
         BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            channelId: channelId,
             targetContract: address(testToken),
             whitelisted: participants,
             enableFrostSignature: true

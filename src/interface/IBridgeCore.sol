@@ -32,42 +32,42 @@ interface IBridgeCore {
     // View functions
     function depositManager() external view returns (address);
     function withdrawManager() external view returns (address);
-    function getChannelState(uint256 channelId) external view returns (ChannelState);
-    function isChannelParticipant(uint256 channelId, address participant) external view returns (bool);
-    function getChannelTargetContract(uint256 channelId) external view returns (address);
-    function getChannelLeader(uint256 channelId) external view returns (address);
-    function getChannelParticipants(uint256 channelId) external view returns (address[] memory);
-    // function getChannelWhitelisted(uint256 channelId) external view returns (address[] memory);
-    function isChannelWhitelisted(uint256 channelId, address addr) external view returns (bool);
-    function getChannelTreeSize(uint256 channelId) external view returns (uint256);
-    function getParticipantDeposit(uint256 channelId, address participant) external view returns (uint256);
-    function getL2MptKey(uint256 channelId, address participant) external view returns (uint256);
-    function getChannelTotalDeposits(uint256 channelId) external view returns (uint256);
-    function getChannelPublicKey(uint256 channelId) external view returns (uint256 pkx, uint256 pky);
-    function isChannelPublicKeySet(uint256 channelId) external view returns (bool);
-    function getChannelSignerAddr(uint256 channelId) external view returns (address);
-    function getChannelFinalStateRoot(uint256 channelId) external view returns (bytes32);
-    function getChannelInitialStateRoot(uint256 channelId) external view returns (bytes32);
+    function getChannelState(bytes32 channelId) external view returns (ChannelState);
+    function isChannelParticipant(bytes32 channelId, address participant) external view returns (bool);
+    function getChannelTargetContract(bytes32 channelId) external view returns (address);
+    function getChannelLeader(bytes32 channelId) external view returns (address);
+    function getChannelParticipants(bytes32 channelId) external view returns (address[] memory);
+    // function getChannelWhitelisted(bytes32 channelId) external view returns (address[] memory);
+    function isChannelWhitelisted(bytes32 channelId, address addr) external view returns (bool);
+    function getChannelTreeSize(bytes32 channelId) external view returns (uint256);
+    function getParticipantDeposit(bytes32 channelId, address participant) external view returns (uint256);
+    function getL2MptKey(bytes32 channelId, address participant) external view returns (uint256);
+    function getChannelTotalDeposits(bytes32 channelId) external view returns (uint256);
+    function getChannelPublicKey(bytes32 channelId) external view returns (uint256 pkx, uint256 pky);
+    function isChannelPublicKeySet(bytes32 channelId) external view returns (bool);
+    function getChannelSignerAddr(bytes32 channelId) external view returns (address);
+    function getChannelFinalStateRoot(bytes32 channelId) external view returns (bytes32);
+    function getChannelInitialStateRoot(bytes32 channelId) external view returns (bytes32);
     function isAllowedTargetContract(address targetContract) external view returns (bool);
     function getTargetContractData(address targetContract) external view returns (TargetContract memory);
-    function getChannelInfo(uint256 channelId) external view returns (address targetContract, ChannelState state, uint256 participantCount, bytes32 initialRoot);
-    function getWithdrawableAmount(uint256 channelId, address participant) external view returns (uint256);
-    function hasUserWithdrawn(uint256 channelId, address participant) external view returns (bool);
-    function isSignatureVerified(uint256 channelId) external view returns (bool);
-    function getChannelBlockInfosHash(uint256 channelId) external view returns (bytes32);
-    function isFrostSignatureEnabled(uint256 channelId) external view returns (bool);
+    function getChannelInfo(bytes32 channelId) external view returns (address targetContract, ChannelState state, uint256 participantCount, bytes32 initialRoot);
+    function getWithdrawableAmount(bytes32 channelId, address participant) external view returns (uint256);
+    function hasUserWithdrawn(bytes32 channelId, address participant) external view returns (bool);
+    function isSignatureVerified(bytes32 channelId) external view returns (bool);
+    function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32);
+    function isFrostSignatureEnabled(bytes32 channelId) external view returns (bool);
 
     // Setter functions (only callable by managers)
-    function updateChannelUserDeposits(uint256 channelId, address participant, uint256 amount) external;
-    function updateChannelTotalDeposits(uint256 channelId, uint256 amount) external;
-    function setChannelL2MptKey(uint256 channelId, address participant, uint256 mptKey) external;
-    function setChannelInitialStateRoot(uint256 channelId, bytes32 stateRoot) external;
-    function setChannelFinalStateRoot(uint256 channelId, bytes32 stateRoot) external;
-    function setChannelState(uint256 channelId, ChannelState state) external;
-    function setChannelCloseTimestamp(uint256 channelId, uint256 timestamp) external;
-    function setChannelWithdrawAmounts(uint256 channelId, address[] memory participants, uint256[] memory amounts)
+    function updateChannelUserDeposits(bytes32 channelId, address participant, uint256 amount) external;
+    function updateChannelTotalDeposits(bytes32 channelId, uint256 amount) external;
+    function setChannelL2MptKey(bytes32 channelId, address participant, uint256 mptKey) external;
+    function setChannelInitialStateRoot(bytes32 channelId, bytes32 stateRoot) external;
+    function setChannelFinalStateRoot(bytes32 channelId, bytes32 stateRoot) external;
+    function setChannelState(bytes32 channelId, ChannelState state) external;
+    function setChannelCloseTimestamp(bytes32 channelId, uint256 timestamp) external;
+    function setChannelWithdrawAmounts(bytes32 channelId, address[] memory participants, uint256[] memory amounts)
         external;
-    function setChannelSignatureVerified(uint256 channelId, bool verified) external;
+    function setChannelSignatureVerified(bytes32 channelId, bool verified) external;
     function setAllowedTargetContract(address targetContract, PreAllocatedLeaf[] memory storageSlots, bool allowed)
         external;
     function registerFunction(
@@ -77,12 +77,12 @@ interface IBridgeCore {
         uint256[] memory preprocessedPart2,
         bytes32 instancesHash
     ) external;
-    function cleanupClosedChannel(uint256 channelId) external;
+    function cleanupClosedChannel(bytes32 channelId) external;
     function unregisterFunction(address targetContract, bytes32 functionSignature) external;
-    function clearWithdrawableAmount(uint256 channelId, address participant) external;
-    function batchCleanupClosedChannels(uint256[] calldata channelIds) external;
-    function setChannelBlockInfosHash(uint256 channelId, bytes32 blockInfosHash) external;
-    function addParticipantOnDeposit(uint256 channelId, address user) external;
+    function clearWithdrawableAmount(bytes32 channelId, address participant) external;
+    function batchCleanupClosedChannels(bytes32[] calldata channelIds) external;
+    function setChannelBlockInfosHash(bytes32 channelId, bytes32 blockInfosHash) external;
+    function addParticipantOnDeposit(bytes32 channelId, address user) external;
 
     // === PRE-ALLOCATED LEAVES FUNCTIONS ===
     function setPreAllocatedLeaf(address targetContract, bytes32 mptKey, uint256 value) external;
@@ -94,12 +94,7 @@ interface IBridgeCore {
     function getPreAllocatedKeys(address targetContract) external view returns (bytes32[] memory keys);
     function getPreAllocatedLeavesCount(address targetContract) external view returns (uint256 count);
     function getMaxAllowedParticipants(address targetContract) external view returns (uint256 maxParticipants);
-    function getChannelPreAllocatedLeavesCount(uint256 channelId) external view returns (uint256 count);
+    function getChannelPreAllocatedLeavesCount(bytes32 channelId) external view returns (uint256 count);
 
-    function getTotalChannels() external view returns (uint256);
-    
-    function getUserChannels(address user, uint256 limit, uint256 offset)
-        external
-        view
-        returns (uint256[] memory channelIds, uint256 totalCount);
+    function generateChannelId(address leader, bytes32 salt) external pure returns (bytes32 channelId);
 }

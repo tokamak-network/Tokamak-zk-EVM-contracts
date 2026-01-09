@@ -88,7 +88,9 @@ contract SimpleChannelScalabilityTest is Test {
         participants[0] = address(0x1001);
         participants[1] = address(0x1002);
         
+        bytes32 channelId = keccak256(abi.encode(address(this), block.timestamp, gasleft()));
         BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            channelId: channelId,
             targetContract: TARGET_CONTRACT,
             whitelisted: participants,
             enableFrostSignature: false
@@ -110,13 +112,15 @@ contract SimpleChannelScalabilityTest is Test {
         participants[0] = address(0x1001);
         participants[1] = address(0x1002);
         
-        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
-            targetContract: TARGET_CONTRACT,
-            whitelisted: participants,
-            enableFrostSignature: false
-        });
-        
         for (uint256 i = 0; i < count; i++) {
+            bytes32 channelId = keccak256(abi.encode(address(this), i, block.timestamp, gasleft()));
+            BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+                channelId: channelId,
+                targetContract: TARGET_CONTRACT,
+                whitelisted: participants,
+                enableFrostSignature: false
+            });
+            
             address leader = address(uint160(0x9000 + i + block.number + gasleft()));
             vm.startPrank(leader);
             bridgeCore.openChannel(params);

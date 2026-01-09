@@ -184,7 +184,7 @@ contract ProofSubmissionTest is Test {
         vm.stopPrank();
     }
 
-    function setupChannelWithDeposits() public returns (uint256 channelId) {
+    function setupChannelWithDeposits() public returns (bytes32 channelId) {
         vm.startPrank(leader);
         vm.deal(leader, 10 ether);
 
@@ -193,13 +193,16 @@ contract ProofSubmissionTest is Test {
         participants[1] = user2;
         participants[2] = leader;
 
+        channelId = keccak256(abi.encode(address(this), block.timestamp, "proofSubmissionChannel"));
         BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            channelId: channelId,
             targetContract: address(token),
             whitelisted: participants,
             enableFrostSignature: true
         });
 
-        channelId = bridge.openChannel(params);
+        bytes32 returnedChannelId = bridge.openChannel(params);
+        assertEq(returnedChannelId, channelId);
         bridge.setChannelPublicKey(
             channelId,
             0x51909117a840e98bbcf1aae0375c6e85920b641edee21518cb79a19ac347f638,

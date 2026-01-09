@@ -11,7 +11,7 @@ contract SetChannelPublicKeyScript is Script {
         uint256 leaderPrivateKey = vm.envUint("LEADER_PRIVATE_KEY");
 
         // Parameters for setChannelPublicKey
-        uint256 channelId = 5;
+        bytes32 channelId = bytes32(uint256(5));
         uint256 pkx = 0x65ceb565a2028bcc940074da00994958c1965a0f801fc1a06811a1195426db0b;
         uint256 pky = 0x767293b33676de95ce3d0acf97e1bb0326fe7e2896d17c4df5d7055b4699445c;
 
@@ -20,7 +20,7 @@ contract SetChannelPublicKeyScript is Script {
 
         console.log("Bridge Core Proxy:", bridgeCoreProxy);
         console.log("Leader Address:", leader);
-        console.log("Channel ID:", channelId);
+        console.logBytes32(channelId);
         console.log("Public Key X:", pkx);
         console.log("Public Key Y:", pky);
 

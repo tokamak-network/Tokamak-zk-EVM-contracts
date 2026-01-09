@@ -67,10 +67,10 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     IGroth16Verifier64Leaves public groth16Verifier64;
     IGroth16Verifier128Leaves public groth16Verifier128;
 
-    event StateInitialized(uint256 indexed channelId, bytes32 currentStateRoot, BlockInfos blockInfos);
-    event TokamakZkSnarkProofsVerified(uint256 indexed channelId, address indexed signer);
-    event FinalBalancesGroth16Verified(uint256 indexed channelId, bytes32 finalStateRoot);
-    event ProofSigned(uint256 indexed channelId, address indexed signer, bytes32 finalStateRoot);
+    event StateInitialized(bytes32 indexed channelId, bytes32 currentStateRoot, BlockInfos blockInfos);
+    event TokamakZkSnarkProofsVerified(bytes32 indexed channelId, address indexed signer);
+    event FinalBalancesGroth16Verified(bytes32 indexed channelId, bytes32 finalStateRoot);
+    event ProofSigned(bytes32 indexed channelId, address indexed signer, bytes32 finalStateRoot);
 
     modifier onlyBridge() {
         require(msg.sender == address(bridge), "Only bridge can call");
@@ -99,7 +99,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         groth16Verifier128 = IGroth16Verifier128Leaves(_groth16Verifiers[3]);
     }
 
-    function initializeChannelState(uint256 channelId, ChannelInitializationProof calldata proof)
+    function initializeChannelState(bytes32 channelId, ChannelInitializationProof calldata proof)
         external
         nonReentrant
     {
@@ -203,7 +203,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         emit StateInitialized(channelId, proof.merkleRoot, blockInfos);
     }
 
-    function submitProofAndSignature(uint256 channelId, ProofData[] calldata proofs, Signature calldata signature)
+    function submitProofAndSignature(bytes32 channelId, ProofData[] calldata proofs, Signature calldata signature)
         external
     {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Open, "Invalid state");
@@ -321,7 +321,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     }
 
     function verifyFinalBalancesGroth16(
-        uint256 channelId,
+        bytes32 channelId,
         uint256[] calldata finalBalances,
         uint256[] calldata permutation,
         ChannelFinalizationProof calldata groth16Proof
@@ -413,7 +413,9 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Set withdraw amounts if proof is valid
         bridge.setChannelWithdrawAmounts(channelId, participants, finalBalances);
         bridge.setChannelCloseTimestamp(channelId, block.timestamp);
-        bridge.setChannelState(channelId, IBridgeCore.ChannelState.Closed);
+        
+        // Cleanup channel by removing channel leader flag and deleting channel data
+        bridge.cleanupChannel(channelId);
 
         emit FinalBalancesGroth16Verified(channelId, finalStateRoot);
     }

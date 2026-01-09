@@ -18,14 +18,11 @@ contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, Own
 
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    uint256 public constant PROOF_SUBMISSION_DEADLINE = 7 days;
-    uint256 public constant NATIVE_TOKEN_TRANSFER_GAS_LIMIT = 1_000_000;
-
     IBridgeCore public bridge;
 
-    event ChannelClosed(uint256 indexed channelId);
-    event EmergencyWithdrawalsEnabled(uint256 indexed channelId);
-    event Withdrawn(uint256 indexed channelId, address indexed user, address token, uint256 amount);
+    event ChannelClosed(bytes32 indexed channelId);
+    event EmergencyWithdrawalsEnabled(bytes32 indexed channelId);
+    event Withdrawn(bytes32 indexed channelId, address indexed user, address token, uint256 amount);
 
     modifier onlyBridge() {
         require(msg.sender == address(bridge), "Only bridge can call");
@@ -42,18 +39,15 @@ contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, Own
         bridge = IBridgeCore(_bridgeCore);
     }
 
-    function withdraw(uint256 channelId) external nonReentrant {
-        require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Closed, "Not closed");
-        require(bridge.isChannelParticipant(channelId, msg.sender), "Not a participant");
-
-        address targetContract = bridge.getChannelTargetContract(channelId);
+    function withdraw(bytes32 channelId, address targetContract) external nonReentrant {
         require(targetContract != address(0), "Invalid target contract");
-
-        uint256 withdrawAmount = bridge.getWithdrawableAmount(channelId, msg.sender);
+        
+        // Check if there's a withdrawable amount for this specific target contract
+        uint256 withdrawAmount = bridge.getWithdrawableAmount(channelId, msg.sender, targetContract);
         require(withdrawAmount > 0, "No withdrawable amount");
 
         // Clear the withdrawable amount
-        bridge.clearWithdrawableAmount(channelId, msg.sender);
+        bridge.clearWithdrawableAmount(channelId, msg.sender, targetContract);
 
         // Transfer the token from deposit manager (where tokens are held)
         BridgeDepositManager(bridge.depositManager()).transferForWithdrawal(targetContract, msg.sender, withdrawAmount);
@@ -65,8 +59,6 @@ contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, Own
         require(_newBridge != address(0), "Invalid bridge address");
         bridge = IBridgeCore(_newBridge);
     }
-
-    receive() external payable {}
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 

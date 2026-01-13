@@ -403,6 +403,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         // Add user to participants array
         channel.participants.push(user);
+        $.channels[channelId].userData[user].isParticipant = true;
     }
 
     function cleanupChannel(bytes32 channelId) external onlyManager {

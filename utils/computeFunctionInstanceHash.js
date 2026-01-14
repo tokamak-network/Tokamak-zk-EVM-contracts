@@ -23,14 +23,9 @@ function computeFunctionInstanceHash(jsonFilePath) {
             throw new Error('Invalid JSON structure: a_pub_function should be an array');
         }
         
-        // Function instance data starts at index 66 (based on Solidity implementation)
-        // User data: 0-41, Block data: 42-65, Function data: 66+
-        if (publicInputs.length <= 66) {
-            throw new Error('Public inputs too short for function instance data');
-        }
-        
-        // Extract function instance data starting from index 66
-        const functionInstanceData = publicInputs.slice(66);
+        // When working directly with a_pub_function, use all data starting from index 0
+        // (The index 66 offset is only used when working with combined public inputs)
+        const functionInstanceData = publicInputs;
         
         console.log(`Total public inputs: ${publicInputs.length}`);
         console.log(`Function instance data length: ${functionInstanceData.length}`);

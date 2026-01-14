@@ -1,31 +1,38 @@
 {
   "network": "sepolia",
-  "generatedDate": "2026-01-14T08:08:56Z",
-  "source": "env_addresses",
+  "deploymentDate": "2026-01-14T08:09:33Z",
   "contracts": {
     "TokamakVerifier": {
-      "address": "0xf43c2a14a8e5ab3fc8740ea4aabc45010ed9fb52",
+      "address": "0x4bebe8dee97c3a8ce22b390fb42adced4d54d9f2",
       "abi": [{"type":"function","name":"verify","inputs":[{"name":"","type":"uint128[]","internalType":"uint128[]"},{"name":"","type":"uint256[]","internalType":"uint256[]"},{"name":"","type":"uint128[]","internalType":"uint128[]"},{"name":"","type":"uint256[]","internalType":"uint256[]"},{"name":"","type":"uint256[]","internalType":"uint256[]"},{"name":"","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"final_result","type":"bool","internalType":"bool"}],"stateMutability":"view"}]
     },
     "Groth16Verifier16Leaves": {
-      "address": "0x27f453c0f7eac419a390edaae6b0aba64d6490c9",
+      "address": "0x5b2e94af8e42f198db174cec1ecbc9c30cbb29e1",
       "abi": [{"type":"function","name":"verifyProof","inputs":[{"name":"_pA","type":"uint256[4]","internalType":"uint256[4]"},{"name":"_pB","type":"uint256[8]","internalType":"uint256[8]"},{"name":"_pC","type":"uint256[4]","internalType":"uint256[4]"},{"name":"_pubSignals","type":"uint256[33]","internalType":"uint256[33]"}],"outputs":[{"name":"","type":"bool","internalType":"bool"}],"stateMutability":"view"}]
     },
     "Groth16Verifier32Leaves": {
-      "address": "0xcf85a85856237c8b1e9fe43e117ca8245c2abe6a",
+      "address": "0xab9b8879bbb6dc49d3eee21cbdac6defe7a98e87",
       "abi": [{"type":"function","name":"verifyProof","inputs":[{"name":"_pA","type":"uint256[4]","internalType":"uint256[4]"},{"name":"_pB","type":"uint256[8]","internalType":"uint256[8]"},{"name":"_pC","type":"uint256[4]","internalType":"uint256[4]"},{"name":"_pubSignals","type":"uint256[65]","internalType":"uint256[65]"}],"outputs":[{"name":"","type":"bool","internalType":"bool"}],"stateMutability":"view"}]
     },
     "Groth16Verifier64Leaves": {
-      "address": "0x9192ab6cce1ff89393153bd54ce95f7aee0cf831",
+      "address": "0x984ead4e5b25449bacac7706a11bc65e4506f9e7",
       "abi": [{"type":"constructor","inputs":[{"name":"_icContract","type":"address","internalType":"address"}],"stateMutability":"nonpayable"},{"type":"function","name":"icContract","inputs":[],"outputs":[{"name":"","type":"address","internalType":"contract Groth16Verifier64LeavesIC"}],"stateMutability":"view"},{"type":"function","name":"verifyProof","inputs":[{"name":"_pA","type":"uint256[4]","internalType":"uint256[4]"},{"name":"_pB","type":"uint256[8]","internalType":"uint256[8]"},{"name":"_pC","type":"uint256[4]","internalType":"uint256[4]"},{"name":"_pubSignals","type":"uint256[129]","internalType":"uint256[129]"}],"outputs":[{"name":"","type":"bool","internalType":"bool"}],"stateMutability":"view"}]
     },
+    "Groth16Verifier64LeavesIC": {
+      "address": "0x139ac91384ef270d50ff70daffc3956d8f1c9aae",
+      "abi": [{"type":"function","name":"getIC","inputs":[{"name":"index","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"},{"name":"","type":"uint256","internalType":"uint256"},{"name":"","type":"uint256","internalType":"uint256"},{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"}]
+    },
     "Groth16Verifier128Leaves": {
-      "address": "0xdb70a38547f6bcc655786b2cf19d0f34e7b3ebed",
+      "address": "0x9869a1350f93d1af2f0b3c62671277c23f441ed1",
       "abi": [{"type":"constructor","inputs":[{"name":"_icContract1","type":"address","internalType":"address"},{"name":"_icContract2","type":"address","internalType":"address"}],"stateMutability":"nonpayable"},{"type":"function","name":"icContract1","inputs":[],"outputs":[{"name":"","type":"address","internalType":"contract Groth16Verifier128LeavesIC1"}],"stateMutability":"view"},{"type":"function","name":"icContract2","inputs":[],"outputs":[{"name":"","type":"address","internalType":"contract Groth16Verifier128LeavesIC2"}],"stateMutability":"view"},{"type":"function","name":"verifyProof","inputs":[{"name":"_pA","type":"uint256[4]","internalType":"uint256[4]"},{"name":"_pB","type":"uint256[8]","internalType":"uint256[8]"},{"name":"_pC","type":"uint256[4]","internalType":"uint256[4]"},{"name":"_pubSignals","type":"uint256[257]","internalType":"uint256[257]"}],"outputs":[{"name":"","type":"bool","internalType":"bool"}],"stateMutability":"view"}]
     },
-    "ZecFrost": {
-      "address": "0x910eee98a93d54ad52694cbf2b45b1534c8c8d10",
-      "abi": [{"type":"function","name":"isValidPublicKey","inputs":[{"name":"x","type":"uint256","internalType":"uint256"},{"name":"y","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"result","type":"bool","internalType":"bool"}],"stateMutability":"pure"},{"type":"function","name":"measureVerify","inputs":[{"name":"message","type":"bytes32","internalType":"bytes32"},{"name":"px","type":"uint256","internalType":"uint256"},{"name":"py","type":"uint256","internalType":"uint256"},{"name":"rx","type":"uint256","internalType":"uint256"},{"name":"ry","type":"uint256","internalType":"uint256"},{"name":"z","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"cold","type":"uint256","internalType":"uint256"},{"name":"warm","type":"uint256","internalType":"uint256"}],"stateMutability":"view"},{"type":"function","name":"verify","inputs":[{"name":"message","type":"bytes32","internalType":"bytes32"},{"name":"px","type":"uint256","internalType":"uint256"},{"name":"py","type":"uint256","internalType":"uint256"},{"name":"rx","type":"uint256","internalType":"uint256"},{"name":"ry","type":"uint256","internalType":"uint256"},{"name":"z","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"signer","type":"address","internalType":"address"}],"stateMutability":"view"},{"type":"function","name":"verifyBytes","inputs":[{"name":"message","type":"bytes","internalType":"bytes"},{"name":"px","type":"uint256","internalType":"uint256"},{"name":"py","type":"uint256","internalType":"uint256"},{"name":"rx","type":"uint256","internalType":"uint256"},{"name":"ry","type":"uint256","internalType":"uint256"},{"name":"z","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"signer","type":"address","internalType":"address"}],"stateMutability":"view"}]
+    "Groth16Verifier128LeavesIC1": {
+      "address": "0x5a1862f101709df1e0ef768b6f19f987a4e5cfb9",
+      "abi": [{"type":"function","name":"getIC1","inputs":[{"name":"index","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"},{"name":"","type":"uint256","internalType":"uint256"},{"name":"","type":"uint256","internalType":"uint256"},{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"}]
+    },
+    "Groth16Verifier128LeavesIC2": {
+      "address": "0x633c0bf94394b76012e2f2d8f1ea6d44dd13eac9",
+      "abi": [{"type":"function","name":"getIC2","inputs":[{"name":"index","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"},{"name":"","type":"uint256","internalType":"uint256"},{"name":"","type":"uint256","internalType":"uint256"},{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"}]
     },
     "BridgeCore": {
       "address": "0xb6bd0fad0b47e8c322606a199fa83ed8ca182f23",

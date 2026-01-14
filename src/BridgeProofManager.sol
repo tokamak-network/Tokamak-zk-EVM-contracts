@@ -258,17 +258,13 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         bytes32 storedBlockInfoHash = bridge.getChannelBlockInfosHash(channelId);
         require(storedBlockInfoHash != bytes32(0), "Block info hash not set for channel");
 
-        // DISABLED FOR TESTING PURPOSES
-        /*
-        // Skip block info validation in test environments (when chainid is 31337 - Anvil/Hardhat)
-        if (block.chainid != 31337) {
-            for (uint256 i = 0; i < proofs.length; i++) {
-                ProofData calldata currentProof = proofs[i];
-                bytes32 proofBlockInfoHash = _extractBlockInfoHashFromProof(currentProof.publicInputs);
-                require(proofBlockInfoHash == storedBlockInfoHash, "Block info mismatch in proof");
-            }
+        for (uint256 i = 0; i < proofs.length; i++) {
+            ProofData calldata currentProof = proofs[i];
+            bytes32 proofBlockInfoHash = _extractBlockInfoHashFromProof(currentProof.publicInputs);
+            require(proofBlockInfoHash == storedBlockInfoHash, "Block info mismatch in proof");
         }
-        */
+
+    
         // STEP3: zk-SNARK proof verification
         // Only after signature validation, verify ZK proofs
         for (uint256 i = 0; i < proofs.length; i++) {
@@ -502,16 +498,14 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(coinbaseValue >> 128)), bytes16(uint128(coinbaseValue)));
 
         // TIMESTAMP (32 bytes total - upper 16 + lower 16)
-        // MISMATCH WARNING: This is current block timestamp, not block n-1!
         uint256 timestamp = block.timestamp;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(timestamp >> 128)), bytes16(uint128(timestamp)));
 
-        // NUMBER (32 bytes total - upper 16 + lower 16) - Use n-1
+        // NUMBER (32 bytes total - upper 16 + lower 16) 
         uint256 number = targetBlockNumber;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(number >> 128)), bytes16(uint128(number)));
 
         // PREVRANDAO (32 bytes total - upper 16 + lower 16)
-        // MISMATCH WARNING: This is current block prevrandao, not block n-1!
         uint256 prevrandao = block.prevrandao;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(prevrandao >> 128)), bytes16(uint128(prevrandao)));
 
@@ -524,18 +518,16 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(chainid >> 128)), bytes16(uint128(chainid)));
 
         // SELFBALANCE (32 bytes total - upper 16 + lower 16)
-        // MISMATCH WARNING: This is current balance, not block n-1!
         uint256 selfbalance = address(this).balance;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(selfbalance >> 128)), bytes16(uint128(selfbalance)));
 
         // BASEFEE (32 bytes total - upper 16 + lower 16)
-        // MISMATCH WARNING: This is current basefee, not block n-1!
         uint256 basefee = block.basefee;
         blockInfo = abi.encodePacked(blockInfo, bytes16(uint128(basefee >> 128)), bytes16(uint128(basefee)));
 
-        // Block hashes 2-5 blocks ago from current block (32 bytes each - upper 16 + lower 16)
-        // Since we're hashing for block n-1, these are blocks (n-2), (n-3), (n-4), (n-5)
-        for (uint256 i = 2; i <= 5; i++) {
+        // Block hashes 1-4 blocks ago from current block (32 bytes each - upper 16 + lower 16)
+        // Since we're hashing for block n, these are blocks (n-1), (n-2), (n-3), (n-4)
+        for (uint256 i = 1; i <= 4; i++) {
             bytes32 blockHash;
             if (block.number >= i) {
                 blockHash = blockhash(block.number - i);

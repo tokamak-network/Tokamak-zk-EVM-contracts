@@ -926,12 +926,12 @@ contract BridgeCoreTest is Test {
 
         assertEq(targetContractReturned, address(token));
         assertEq(uint8(state), uint8(BridgeCore.ChannelState.Initialized));
-        
+
         // Check that all participants are whitelisted
         assertTrue(bridge.isChannelWhitelisted(channelId, user1));
         assertTrue(bridge.isChannelWhitelisted(channelId, user2));
         assertTrue(bridge.isChannelWhitelisted(channelId, user3));
-        
+
         assertEq(channelParticipants.length, 0); // No deposits made yet
 
         vm.stopPrank();
@@ -1351,7 +1351,6 @@ contract BridgeCoreTest is Test {
 
     // ========== Integration Tests ==========
 
-
     function testSignatureCommitmentProtection() public {
         bytes32 channelId = _initializeChannel();
         uint128[] memory proofPart1 = new uint128[](1);
@@ -1506,7 +1505,7 @@ contract BridgeCoreTest is Test {
         assertEq(requiredTreeSize, 64, "Should select 64-leaf tree for 33 participants");
 
         vm.stopPrank();
-    }  
+    }
 
     function _wrapProofInArray(BridgeProofManager.ProofData memory proof)
         internal

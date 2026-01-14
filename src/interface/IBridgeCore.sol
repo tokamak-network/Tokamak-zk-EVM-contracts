@@ -49,9 +49,18 @@ interface IBridgeCore {
     function getChannelInitialStateRoot(bytes32 channelId) external view returns (bytes32);
     function isAllowedTargetContract(address targetContract) external view returns (bool);
     function getTargetContractData(address targetContract) external view returns (TargetContract memory);
-    function getChannelInfo(bytes32 channelId) external view returns (address targetContract, ChannelState state, uint256 participantCount, bytes32 initialRoot);
-    function getWithdrawableAmount(bytes32 channelId, address participant, address targetContract) external view returns (uint256);
-    function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract) external view returns (bool);
+    function getChannelInfo(bytes32 channelId)
+        external
+        view
+        returns (address targetContract, ChannelState state, uint256 participantCount, bytes32 initialRoot);
+    function getWithdrawableAmount(bytes32 channelId, address participant, address targetContract)
+        external
+        view
+        returns (uint256);
+    function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract)
+        external
+        view
+        returns (bool);
     function isSignatureVerified(bytes32 channelId) external view returns (bool);
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32);
     function isFrostSignatureEnabled(bytes32 channelId) external view returns (bool);

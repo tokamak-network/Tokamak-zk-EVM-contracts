@@ -203,7 +203,7 @@ contract VerifyFinalBalancesInputTest is Test {
             16,
             address(0xBEEF)
         );
-        
+
         // Set a channel leader for testing cleanup
         bridge.setChannelLeader(address(0x123));
     }

@@ -368,16 +368,16 @@ contract DeployV2Script is Script {
 
         // TON preprocess data from WTON_preprocess.json
         uint128[] memory tonPreprocessedPart1 = new uint128[](4);
-        tonPreprocessedPart1[0] = 0x1186b2f2b6871713b10bc24ef04a9a39;
-        tonPreprocessedPart1[1] = 0x02b36b71d4948be739d14bb0e8f4a887;
-        tonPreprocessedPart1[2] = 0x18e54aba379045c9f5c18d8aefeaa8cc;
-        tonPreprocessedPart1[3] = 0x08df3e052d4b1c0840d73edcea3f85e7;
+        tonPreprocessedPart1[0] = 0x11b01d3b7756a1e2c84462f2a011f8cf;
+        tonPreprocessedPart1[1] = 0x110f0dbdfee1e30c55061363fd147c5f;
+        tonPreprocessedPart1[2] = 0x02e86220169ffc66feac2bca980de255;
+        tonPreprocessedPart1[3] = 0x12d32a9d10236151ea94eddd2de15df4;
 
         uint256[] memory tonPreprocessedPart2 = new uint256[](4);
-        tonPreprocessedPart2[0] = 0x7e084b3358f7f1404f0a4ee1acc6d254997032f77fd77593fab7c896b7cfce1e;
-        tonPreprocessedPart2[1] = 0xe2dfa30cd1fca5558bfe26343dc755a0a52ef6115b9aef97d71b047ed5d830c8;
-        tonPreprocessedPart2[2] = 0xf68408df0b8dda3f529522a67be22f2934970885243a9d2cf17d140f2ac1bb10;
-        tonPreprocessedPart2[3] = 0x4b0d9a6ffeb25101ff57e35d7e527f2080c460edc122f2480f8313555a71d3ac;
+        tonPreprocessedPart2[0] = 0xe2285fde54386faf68544ac49ac3f620c84265d1e76dffbbb780329a35c798f2;
+        tonPreprocessedPart2[1] = 0x85767f719652f5fcde0bc847a1af46c16c3ffab6bded47addd0f8215588f1684;
+        tonPreprocessedPart2[2] = 0xd775a85c51e4d33eaccca66cd04346c2d291b2c777daa08b093d91a9475e1623;
+        tonPreprocessedPart2[3] = 0x3e984d129c3dab74f9d13ab9ab66d5d826fca5e1f6270242aaa5dedeedf2fe58;
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
         BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(tonAddress, emptySlots, true);
@@ -386,9 +386,10 @@ contract DeployV2Script is Script {
         BridgeAdminManager(adminManagerAddress).setupTonTransferPreAllocatedLeaf(tonAddress);
 
         // Register TON transfer function
-        bytes32 tonTransferSig = keccak256("transferTON(address,uint256)");
+        bytes32 tonTransferSig = 0xa9059cbb00000000000000000000000000000000000000000000000000000000;
+        bytes32 instanceHash = 0xd157cb883adb9cb0e27d9dc419e2a4be817d856281b994583b5bae64be94d35a;
         BridgeAdminManager(adminManagerAddress).registerFunction(
-            tonAddress, tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2, keccak256("ton_instance_hash")
+            tonAddress, tonTransferSig, tonPreprocessedPart1, tonPreprocessedPart2, instanceHash
         );
 
         console.log("TON target contract configured:", tonAddress);

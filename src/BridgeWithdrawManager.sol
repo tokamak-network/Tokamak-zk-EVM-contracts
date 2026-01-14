@@ -41,7 +41,7 @@ contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, Own
 
     function withdraw(bytes32 channelId, address targetContract) external nonReentrant {
         require(targetContract != address(0), "Invalid target contract");
-        
+
         // Check if there's a withdrawable amount for this specific target contract
         uint256 withdrawAmount = bridge.getWithdrawableAmount(channelId, msg.sender, targetContract);
         require(withdrawAmount > 0, "No withdrawable amount");

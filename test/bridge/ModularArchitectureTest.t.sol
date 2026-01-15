@@ -218,6 +218,7 @@ contract ModularArchitectureTest is Test {
         address actualLeader = bridge.getChannelLeader(channelId);
 
         // Initialize channel state using ProofManager (leader is the channel creator)
+        vm.roll(30); // Set block number high enough to avoid underflow in block.number - 3
         vm.startPrank(actualLeader);
         proofManager.initializeChannelState(
             channelId,

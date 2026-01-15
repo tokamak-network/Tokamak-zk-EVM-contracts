@@ -57,6 +57,10 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         address coinbase;
         uint256 chainId;
         uint256 selfbalance;
+        uint256 blockHash1;
+        uint256 blockHash2;
+        uint256 blockHash3;
+        uint256 blockHash4;
     }
 
     IBridgeCore public bridge;
@@ -192,7 +196,11 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             basefee: block.basefee,
             coinbase: block.coinbase,
             chainId: block.chainid,
-            selfbalance: address(this).balance
+            selfbalance: address(this).balance,
+            blockHash1: uint256(blockhash(block.number - 1)),
+            blockHash2: uint256(blockhash(block.number - 2)),
+            blockHash3: uint256(blockhash(block.number - 3)),
+            blockHash4: uint256(blockhash(block.number - 4))
         });
         bytes32 blockInfosHash = _computeBlockInfosHash();
 

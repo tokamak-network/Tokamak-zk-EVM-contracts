@@ -1008,6 +1008,7 @@ contract BridgeCoreTest is Test {
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
+        vm.roll(10); // Set block number high enough to avoid underflow in block.number - 3
         vm.prank(leader);
         proofManager.initializeChannelState(
             channelId,
@@ -1057,6 +1058,7 @@ contract BridgeCoreTest is Test {
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot1
         });
+        vm.roll(15); // Set block number high enough to avoid underflow in block.number - 3
         vm.prank(leader);
         proofManager.initializeChannelState(
             channelId1,
@@ -1093,6 +1095,7 @@ contract BridgeCoreTest is Test {
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot2
         });
+        vm.roll(20); // Set block number high enough to avoid underflow in block.number - 3
         vm.prank(leader2);
         proofManager.initializeChannelState(
             channelId2,
@@ -1247,6 +1250,7 @@ contract BridgeCoreTest is Test {
             pC: [uint256(13), uint256(14), uint256(15), uint256(16)],
             merkleRoot: mockMerkleRoot
         });
+        vm.roll(25); // Set block number high enough to avoid underflow in block.number - 3
         vm.prank(leader);
         proofManager.initializeChannelState(
             channelId,

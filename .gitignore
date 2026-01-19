@@ -48,3 +48,9 @@ ignition/deployments/chain-31337
 
 /.claude
 /.github
+
+# Groth16 directories to exclude
+groth16/trusted-setup/pow_of_tau/
+groth16/circuits/build/
+*.ptau
+.DS_Store

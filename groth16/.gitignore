@@ -1,0 +1,7 @@
+circuits/build/
+trusted-setup/pow_of_tau/
+
+input.json
+proof.json
+public.json
+witness.wtns

@@ -684,14 +684,14 @@ contract Groth16Verifier32Leaves {
                 mstore(add(_pPairing, 1248), calldataload(add(pC, 96))) // _pC[1][1] (y_PART2)
 
                 // delta2 G2 point order: x1, x0, y1, y0
-                mstore(add(_pPairing, 1280), deltax2_PART1) // x1_PART1
-                mstore(add(_pPairing, 1312), deltax2_PART2) // x1_PART2
-                mstore(add(_pPairing, 1344), deltax1_PART1) // x0_PART1
-                mstore(add(_pPairing, 1376), deltax1_PART2) // x0_PART2
-                mstore(add(_pPairing, 1408), deltay2_PART1) // y1_PART1
-                mstore(add(_pPairing, 1440), deltay2_PART2) // y1_PART2
-                mstore(add(_pPairing, 1472), deltay1_PART1) // y0_PART1
-                mstore(add(_pPairing, 1504), deltay1_PART2) // y0_PART2
+                mstore(add(_pPairing, 1280), deltax1_PART1) // x1_PART1
+                mstore(add(_pPairing, 1312), deltax1_PART2) // x1_PART2
+                mstore(add(_pPairing, 1344), deltax2_PART1) // x0_PART1
+                mstore(add(_pPairing, 1376), deltax2_PART2) // x0_PART2
+                mstore(add(_pPairing, 1408), deltay1_PART1) // y1_PART1
+                mstore(add(_pPairing, 1440), deltay1_PART2) // y1_PART2
+                mstore(add(_pPairing, 1472), deltay2_PART1) // y0_PART1
+                mstore(add(_pPairing, 1504), deltay2_PART2) // y0_PART2
 
                 let success := staticcall(sub(gas(), 2000), 0x0f, _pPairing, 1536, _pPairing, 0x20)
 

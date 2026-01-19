@@ -10,7 +10,7 @@ async function generateProof() {
         
         // Step 1: Generate witness
         console.log('📝 Generating witness...');
-        execSync('snarkjs wtns calculate ../../circuits/build/circuit_N5_js/circuit_N5.wasm input.json witness.wtns', {
+        execSync('snarkjs wtns calculate ../../circuits/build/circuit_N6_js/circuit_N6.wasm input.json witness.wtns', {
             stdio: 'inherit',
             cwd: process.cwd()
         });
@@ -18,7 +18,7 @@ async function generateProof() {
         
         // Step 2: Generate proof
         console.log('🔐 Generating proof...');
-        execSync('snarkjs groth16 prove ../../trusted-setup/32_leaves_vk/circuit_final.zkey witness.wtns proof.json public_temp.json', {
+        execSync('snarkjs groth16 prove ../../trusted-setup/64_leaves_vk/circuit_final.zkey witness.wtns proof.json public_temp.json', {
             stdio: 'inherit',
             cwd: process.cwd()
         });
@@ -32,23 +32,23 @@ async function generateProof() {
         fs.renameSync('public_temp.json', 'public.json');
         
         // Load the actual circuit public signals and witness
-        const wasm = fs.readFileSync('../../circuits/build/circuit_N5_js/circuit_N5.wasm');
-        const witnessCalculator = require('../../circuits/build/circuit_N5_js/witness_calculator.js');
+        const wasm = fs.readFileSync('../../circuits/build/circuit_N6_js/circuit_N6.wasm');
+        const witnessCalculator = require('../../circuits/build/circuit_N6_js/witness_calculator.js');
         
         async function createPublicSignalFiles() {
             const wc = await witnessCalculator(wasm);
             const witness = await wc.calculateWitness(input, 0);
             const merkleRoot = witness[witness.length - 1].toString();
             
-            // Extract the 67 circuit public signals (witness[1] to witness[67])
+            // Extract the 131 circuit public signals (witness[1] to witness[131]) - 130 inputs + 1 output
             const circuitPublicSignals = [];
-            for (let i = 1; i <= 67; i++) {
+            for (let i = 1; i <= 131; i++) {
                 circuitPublicSignals.push(witness[i].toString());
             }
 
             console.log("number of witness elements:{}", witness.length);
                       
-            // Also create a file with just the 67 circuit signals for snarkJS testing if needed
+            // Also create a file with just the 131 circuit signals for snarkJS testing if needed
             fs.writeFileSync('public.json', JSON.stringify(circuitPublicSignals, null, 2));
         }
         
@@ -70,7 +70,7 @@ async function generateProof() {
             console.log('\n📊 Proof Summary:');
             console.log(`  - Protocol: Groth16`);
             console.log(`  - Curve: BLS12-381`);
-            console.log(`  - Circuit: 32 leaves (N=5)`);
+            console.log(`  - Circuit: 64 leaves (N=6)`);
             console.log(`  - Public signals count: ${publicSignals.length}`);
             console.log(`  - Proof components: pi_a, pi_b, pi_c`);
             
@@ -89,9 +89,9 @@ async function generateProof() {
 // Check if required files exist before starting
 function checkRequiredFiles() {
     const requiredFiles = [
-        '../../circuits/build/circuit_N5_js/circuit_N5.wasm',
+        '../../circuits/build/circuit_N6_js/circuit_N6.wasm',
         'input.json',
-        '../../trusted-setup/32_leaves_vk/circuit_final.zkey'
+        '../../trusted-setup/64_leaves_vk/circuit_final.zkey'
     ];
     
     const missingFiles = requiredFiles.filter(file => !fs.existsSync(file));
@@ -111,7 +111,7 @@ function ensureDirectories() {
 
 // Main execution
 if (require.main === module) {
-    console.log('🚀 Tokamak ZK Proof Generator (32 Leaves)');
+    console.log('🚀 Tokamak ZK Proof Generator (64 Leaves)');
     console.log('==========================================\n');
     
     checkRequiredFiles();

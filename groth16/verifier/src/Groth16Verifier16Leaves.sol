@@ -424,14 +424,14 @@ contract Groth16Verifier16Leaves {
                 mstore(add(_pPairing, 480), alphay_PART2)
 
                 // beta2 G2 point order: x1, x0, y1, y0
-                mstore(add(_pPairing, 512), betax2_PART1) // x1_PART1
-                mstore(add(_pPairing, 544), betax2_PART2) // x1_PART2
-                mstore(add(_pPairing, 576), betax1_PART1) // x0_PART1
-                mstore(add(_pPairing, 608), betax1_PART2) // x0_PART2
-                mstore(add(_pPairing, 640), betay2_PART1) // y1_PART1
-                mstore(add(_pPairing, 672), betay2_PART2) // y1_PART2
-                mstore(add(_pPairing, 704), betay1_PART1) // y0_PART1
-                mstore(add(_pPairing, 736), betay1_PART2) // y0_PART2
+                mstore(add(_pPairing, 512), betax1_PART1) // x0_PART1
+                mstore(add(_pPairing, 544), betax1_PART2) // x0_PART2
+                mstore(add(_pPairing, 576), betax2_PART1) // x1_PART1
+                mstore(add(_pPairing, 608), betax2_PART2) // x1_PART2
+                mstore(add(_pPairing, 640), betay1_PART1) // y0_PART1
+                mstore(add(_pPairing, 672), betay1_PART2) // y0_PART2
+                mstore(add(_pPairing, 704), betay2_PART1) // y1_PART1
+                mstore(add(_pPairing, 736), betay2_PART2) // y1_PART2
 
                 // vk_x (48-byte format from G1 point) - PAIR 2 G1
                 mstore(add(_pPairing, 768), mload(add(pMem, pVk))) // x_PART1
@@ -456,14 +456,14 @@ contract Groth16Verifier16Leaves {
                 mstore(add(_pPairing, 1248), calldataload(add(pC, 96))) // _pC[1][1] (y_PART2)
 
                 // delta2 G2 point order: x1, x0, y1, y0
-                mstore(add(_pPairing, 1280), deltax2_PART1) // x1_PART1
-                mstore(add(_pPairing, 1312), deltax2_PART2) // x1_PART2
-                mstore(add(_pPairing, 1344), deltax1_PART1) // x0_PART1
-                mstore(add(_pPairing, 1376), deltax1_PART2) // x0_PART2
-                mstore(add(_pPairing, 1408), deltay2_PART1) // y1_PART1
-                mstore(add(_pPairing, 1440), deltay2_PART2) // y1_PART2
-                mstore(add(_pPairing, 1472), deltay1_PART1) // y0_PART1
-                mstore(add(_pPairing, 1504), deltay1_PART2) // y0_PART2
+                mstore(add(_pPairing, 1280), deltax1_PART1) // x0_PART1
+                mstore(add(_pPairing, 1312), deltax1_PART2) // x0_PART2
+                mstore(add(_pPairing, 1344), deltax2_PART1) // x1_PART1
+                mstore(add(_pPairing, 1376), deltax2_PART2) // x1_PART2
+                mstore(add(_pPairing, 1408), deltay1_PART1) // y0_PART1
+                mstore(add(_pPairing, 1440), deltay1_PART2) // y0_PART2
+                mstore(add(_pPairing, 1472), deltay2_PART1) // y1_PART1
+                mstore(add(_pPairing, 1504), deltay2_PART2) // y1_PART2
 
                 let success := staticcall(sub(gas(), 2000), 0x0f, _pPairing, 1536, _pPairing, 0x20)
 

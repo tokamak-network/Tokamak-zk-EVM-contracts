@@ -12,25 +12,26 @@ contract Groth16Verifier128LeavesTest is Test {
     Groth16Verifier128LeavesIC1 icContract1;
     Groth16Verifier128LeavesIC2 icContract2;
 
-    // BLS12-381 proof constants for 128 leaves
-    uint256 constant pA_x_PART1 = 0x00000000000000000000000000000000076aed58b3189ab0a86591abf032f406;
-    uint256 constant pA_x_PART2 = 0x3d85023cd1e1241c8c351225f94b4ab1b4a87abdd05af4d303cdff8103562d5c;
-    uint256 constant pA_y_PART1 = 0x000000000000000000000000000000000cafae81f350610933c88c3ac2dfe6d9;
-    uint256 constant pA_y_PART2 = 0x24ea6589895595bae03a864ac1c4a2e6d62f3f8a08d33fd19f4c8699bcf31655;
+    // Updated proof constants from prover/128_leaves_groth/proof.json - split into PART1/PART2
+    uint256 constant pA_x_PART1 = 0x00000000000000000000000000000000073f88faa50fc02143d43ad6e04d7511;
+    uint256 constant pA_x_PART2 = 0xd4bbcd62fc013946fe1f92bb03acb0d023a60661ab4ef1abc4fadf36d7a8b33e;
+    uint256 constant pA_y_PART1 = 0x000000000000000000000000000000000a7d33bb58fcb3d1aa843bbcd2f9bef3;
+    uint256 constant pA_y_PART2 = 0x368c2c7a3a74e764973e54a37de199d1cc3900e2c45f4b6dd327277b51f525c6;
 
-    uint256 constant pB_x0_PART1 = 0x000000000000000000000000000000000e5e674854319a6a8e4ab14c660881e1;
-    uint256 constant pB_x0_PART2 = 0xc9762263b12f8661f50feb00e41de3a16708b7e37b64e2fc033cee3febcc6eb2;
-    uint256 constant pB_x1_PART1 = 0x00000000000000000000000000000000085656305f6a8e4cfbb0599f71d2a269;
-    uint256 constant pB_x1_PART2 = 0xb405d46a6299bf657abfb0f9b30d557b9e3df0d1f20f3c9b4f4681db41dd92a5;
-    uint256 constant pB_y0_PART1 = 0x000000000000000000000000000000000ff9f7876abae6c6a37e0b2c5fd284e7;
-    uint256 constant pB_y0_PART2 = 0x2a955d1e00bed62c8ed430a5226a7adcaa0f6ac4314c980568561727fe8adb03;
-    uint256 constant pB_y1_PART1 = 0x000000000000000000000000000000000340304e51ee4e5eac0584008de96fed;
-    uint256 constant pB_y1_PART2 = 0xc98c43ff84a1db5f46f783fa4b3986c8f1f50cf5b7a6031d6abfbdad9be9310f;
+    uint256 constant pB_x0_PART1 = 0x0000000000000000000000000000000015c67822da0ba883550bb78ed176248b;
+    uint256 constant pB_x0_PART2 = 0x6d087a4ee190bfe865e0a7d9a64341592c34c10befeaa0f6bf826049255ffddd;
+    uint256 constant pB_x1_PART1 = 0x0000000000000000000000000000000001afa6f3d933e12e35bfe39b80c5cd8b;
+    uint256 constant pB_x1_PART2 = 0x01d338bff32408267b9fdd17592b30af57bce25e174249f15ddfce14db1e0187;
 
-    uint256 constant pC_x_PART1 = 0x000000000000000000000000000000000ec43fc63089c2a31f37c0440cf03435;
-    uint256 constant pC_x_PART2 = 0x0a3e66d477dd88c5a26193982aff587c7778640e3de2042864491b86a40f93e5;
-    uint256 constant pC_y_PART1 = 0x00000000000000000000000000000000103e2efa463c48f4fa750c3285d7ddd6;
-    uint256 constant pC_y_PART2 = 0xdf1fcb65adc5d4b00e1bb3af933a6e52a968c42ab962dd444023802196b51a36;
+    uint256 constant pB_y0_PART1 = 0x00000000000000000000000000000000035afb5f40528ea07322e84597613b91;
+    uint256 constant pB_y0_PART2 = 0x4c6a1ba2f3ca608a41e131a0df811171fc56786b753370be0069b4b6a37127c5;
+    uint256 constant pB_y1_PART1 = 0x000000000000000000000000000000000b6a97d0c65b8882687ecda087822957;
+    uint256 constant pB_y1_PART2 = 0x0ab2c6a416dda575d1e313e09017e2d525d8d6a19ef8657ecc948bb314a69f2c;
+
+    uint256 constant pC_x_PART1 = 0x0000000000000000000000000000000018ae7f4b5985bac687f7ce707d31205f;
+    uint256 constant pC_x_PART2 = 0x75247dbb2966068524857b83e9e6c95adf846d7b4c4fc3f0c2da6986f04a1ada;
+    uint256 constant pC_y_PART1 = 0x000000000000000000000000000000001202c46378dfdb385d0de62c2a34737a;
+    uint256 constant pC_y_PART2 = 0xbbf4b0d0a7a57e9ef5badc28cbb78843c9353a561b9dc0d08c2d30300108df72;
 
     function setUp() public {
         // Deploy IC constants contracts first
@@ -41,7 +42,7 @@ contract Groth16Verifier128LeavesTest is Test {
     }
 
     function testProof128() public view {
-        // Proof data from proof.json
+        // Test data from prover/128_leaves_groth/proof.json and prover/128_leaves_groth/public.json
         uint256[4] memory proof_a = [
             pA_x_PART1,
             pA_x_PART2, 
@@ -67,9 +68,11 @@ contract Groth16Verifier128LeavesTest is Test {
             pC_y_PART2
         ];
         
-        // Public signals array with 257 elements from public.json
-        uint256[257] memory pub_signals = [
-            26975209276776476692791800104944319946909193252482610676888258047264401491067,
+        // Public signals from prover/128_leaves_groth/public.json (259 values for 128-leaf Merkle tree proof)
+        uint256[259] memory pub_signals = [
+            206695481878273484056705585188047556010030907458735423358908191339675099390,
+            12345678901234567890123456789012345678901234567890123456789012345678,
+            930919869281768667460268632116214329467302314052,
             6218676549690402052910318315276979534381485872621884367715834658603456243904,
             123456789123456789123456789123456789123456789123456789123456789123456789,
             123456789123456789123456789123456789123456789123456789123456789123456789,
@@ -334,4 +337,5 @@ contract Groth16Verifier128LeavesTest is Test {
         console.log("128-leaf proof verification result:", result);
         assertTrue(result, "Proof should be valid");
     }
+
 }

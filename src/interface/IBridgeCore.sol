@@ -64,6 +64,9 @@ interface IBridgeCore {
     function isSignatureVerified(bytes32 channelId) external view returns (bool);
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32);
     function isFrostSignatureEnabled(bytes32 channelId) external view returns (bool);
+    function hasChannelTimeoutWithdrawals(bytes32 channelId) external view returns (bool);
+    function hasUserTimeoutWithdrawn(bytes32 channelId, address user) external view returns (bool);
+    function isChannelTimedOut(bytes32 channelId) external view returns (bool);
 
     // Setter functions (only callable by managers)
     function updateChannelUserDeposits(bytes32 channelId, address participant, uint256 amount) external;
@@ -90,6 +93,8 @@ interface IBridgeCore {
     function setChannelBlockInfosHash(bytes32 channelId, bytes32 blockInfosHash) external;
     function addParticipantOnDeposit(bytes32 channelId, address user) external;
     function cleanupChannel(bytes32 channelId) external;
+    function setChannelTimeoutWithdrawals(bytes32 channelId) external;
+    function setUserTimeoutWithdrawn(bytes32 channelId, address user) external;
 
     // === PRE-ALLOCATED LEAVES FUNCTIONS ===
     function setPreAllocatedLeaf(address targetContract, bytes32 mptKey, uint256 value) external;

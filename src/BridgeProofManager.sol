@@ -216,6 +216,13 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
     {
         require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Open, "Invalid state");
         require(proofs.length > 0 && proofs.length <= 5, "Must provide 1-5 proofs");
+        
+        // Check timeout conditions
+        bool isTimedOut = bridge.isChannelTimedOut(channelId);
+        bool hasTimeoutWithdrawals = bridge.hasChannelTimeoutWithdrawals(channelId);
+        
+        // If channel is timed out AND someone has withdrawn, reject proof submission
+        require(!isTimedOut || !hasTimeoutWithdrawals, "Cannot submit proof after timeout withdrawals");
 
         // Extract finalStateRoot from the last proof's output state root (indices 0-1)
         ProofData calldata lastProof = proofs[proofs.length - 1];

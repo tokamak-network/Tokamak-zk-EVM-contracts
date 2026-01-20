@@ -53,13 +53,14 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     struct Channel {
         // Slot 1
         bytes32 id;
-        // Slot 2: pack addresses and small values (20 + 20 + 1 + 1 + 1 + 13 bytes = 56 bytes)
+        // Slot 2: pack addresses and small values (20 + 20 + 1 + 1 + 1 + 1 + 12 bytes = 56 bytes)
         address targetContract; // 20 bytes
         address leader; // 20 bytes
         ChannelState state; // 1 byte
         bool sigVerified; // 1 byte
         bool frostSignatureEnabled; // 1 byte
-        // 13 bytes available for future use
+        bool hasTimeoutWithdrawals; // 1 byte - tracks if any timeout withdrawals occurred
+        // 12 bytes available for future use
 
         // Slot 3: signer and counts (20 + 8 + 4 bytes = 32 bytes)
         address signerAddr; // 20 bytes
@@ -88,6 +89,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
     uint256 public constant MIN_PARTICIPANTS = 1;
     uint256 public constant MAX_PARTICIPANTS = 128;
+    uint256 public constant CHANNEL_TIMEOUT = 7 days;
 
     /// @custom:storage-location erc7201:tokamak.storage.BridgeCore
     struct BridgeCoreStorage {
@@ -101,6 +103,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         mapping(address => mapping(bytes32 => PreAllocatedLeaf)) preAllocatedLeaves;
         mapping(address => bytes32[]) targetContractPreAllocatedKeys;
         mapping(address => mapping(bytes32 => mapping(address => uint256))) withdrawAmount;
+        mapping(bytes32 => mapping(address => bool)) hasTimeoutWithdrawn;
     }
 
     bytes32 private constant BridgeCoreStorageLocation =
@@ -781,6 +784,33 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function isFrostSignatureEnabled(bytes32 channelId) external view returns (bool) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].frostSignatureEnabled;
+    }
+
+    function hasChannelTimeoutWithdrawals(bytes32 channelId) external view returns (bool) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.channels[channelId].hasTimeoutWithdrawals;
+    }
+
+    function hasUserTimeoutWithdrawn(bytes32 channelId, address user) external view returns (bool) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.hasTimeoutWithdrawn[channelId][user];
+    }
+
+    function isChannelTimedOut(bytes32 channelId) external view returns (bool) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        Channel storage channel = $.channels[channelId];
+        require(channel.leader != address(0), "Channel does not exist");
+        return block.timestamp > channel.openTimestamp + CHANNEL_TIMEOUT;
+    }
+
+    function setChannelTimeoutWithdrawals(bytes32 channelId) external onlyManager {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        $.channels[channelId].hasTimeoutWithdrawals = true;
+    }
+
+    function setUserTimeoutWithdrawn(bytes32 channelId, address user) external onlyManager {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        $.hasTimeoutWithdrawn[channelId][user] = true;
     }
 
     /**

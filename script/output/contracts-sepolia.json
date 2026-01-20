@@ -1,6 +1,6 @@
 {
   "network": "sepolia",
-  "upgradeDate": "2026-01-14T17:37:28Z",
+  "upgradeDate": "2026-01-20T09:08:01Z",
   "contracts": {
     "TokamakVerifier": {
       "address": "0xF43C2a14A8e5Ab3FC8740ea4AABc45010ED9fb52",

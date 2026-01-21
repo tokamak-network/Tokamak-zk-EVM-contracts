@@ -73,7 +73,6 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
             uint256 actualAmount = balanceAfter - balanceBefore;
             require(actualAmount > 0, "No tokens transferred");
             bridge.updateChannelUserDeposits(_channelId, msg.sender, targetContract, actualAmount);
-            bridge.updateChannelTotalDeposits(_channelId, actualAmount);
         }
 
         // Add user to participants array when they make their first deposit

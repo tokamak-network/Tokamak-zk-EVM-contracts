@@ -59,7 +59,6 @@ contract MockBridgeCore {
     bool public frostEnabled;
     bool public signatureVerified;
     address[] public participants;
-    uint256 public totalDeposits;
     bytes32 public finalStateRoot;
     uint256 public treeSize;
     address public targetContract;
@@ -72,7 +71,6 @@ contract MockBridgeCore {
         bool _frostEnabled,
         bool _signatureVerified,
         address[] calldata _participants,
-        uint256 _totalDeposits,
         bytes32 _finalStateRoot,
         uint256 _treeSize,
         address _targetContract
@@ -80,7 +78,6 @@ contract MockBridgeCore {
         state = _state;
         frostEnabled = _frostEnabled;
         signatureVerified = _signatureVerified;
-        totalDeposits = _totalDeposits;
         finalStateRoot = _finalStateRoot;
         treeSize = _treeSize;
         targetContract = _targetContract;
@@ -109,10 +106,6 @@ contract MockBridgeCore {
 
     function getChannelParticipants(bytes32) external view returns (address[] memory) {
         return participants;
-    }
-
-    function getChannelTotalDeposits(bytes32) external view returns (uint256) {
-        return totalDeposits;
     }
 
     function getChannelFinalStateRoot(bytes32) external view returns (bytes32) {
@@ -211,7 +204,6 @@ contract VerifyFinalBalancesInputTest is Test {
             false,
             false,
             participants,
-            90_000000000000000000,
             bytes32(uint256(0x1234)),
             16,
             address(0xBEEF)

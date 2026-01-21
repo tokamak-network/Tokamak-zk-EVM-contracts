@@ -384,15 +384,6 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             require(finalUserStorageSlots[i].length == userStorageSlotsCount, "Invalid storage slots count for participant");
         }
 
-        // Validate balance conservation for the single target contract
-        uint256 totalFinalBalance = 0;
-        for (uint256 participantIdx = 0; participantIdx < participants.length; participantIdx++) {
-            totalFinalBalance += finalBalances[participantIdx];
-        }
-
-        uint256 totalDeposited = bridge.getChannelTotalDeposits(channelId);
-        require(totalFinalBalance == totalDeposited, "Balance conservation violated");
-
         // Step 1: Get the final state root stored
         bytes32 finalStateRoot = bridge.getChannelFinalStateRoot(channelId);
 

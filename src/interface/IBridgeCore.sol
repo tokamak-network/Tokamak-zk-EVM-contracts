@@ -43,7 +43,6 @@ interface IBridgeCore {
     function isChannelWhitelisted(bytes32 channelId, address addr) external view returns (bool);
     function getChannelTreeSize(bytes32 channelId) external view returns (uint256);
     function getL2MptKey(bytes32 channelId, address participant) external view returns (uint256);
-    function getChannelTotalDeposits(bytes32 channelId) external view returns (uint256);
     function getChannelPublicKey(bytes32 channelId) external view returns (uint256 pkx, uint256 pky);
     function isChannelPublicKeySet(bytes32 channelId) external view returns (bool);
     function getChannelSignerAddr(bytes32 channelId) external view returns (address);
@@ -71,7 +70,6 @@ interface IBridgeCore {
     // Setter functions (only callable by managers)
     function updateChannelUserDeposits(bytes32 channelId, address participant, address targetContract, uint256 amount)
         external;
-    function updateChannelTotalDeposits(bytes32 channelId, uint256 amount) external;
     function setChannelL2MptKey(bytes32 channelId, address participant, uint256 mptKey) external;
     function setChannelInitialStateRoot(bytes32 channelId, bytes32 stateRoot) external;
     function setChannelFinalStateRoot(bytes32 channelId, bytes32 stateRoot) external;

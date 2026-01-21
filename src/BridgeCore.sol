@@ -79,8 +79,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         // Slots 9-10: public key
         uint256 pkx;
         uint256 pky;
-        // Slot 11: total deposits
-        uint256 totalDeposits;
         // Dynamic storage (mappings and arrays)
         mapping(address => bool) isWhiteListed;
         address[] participants;
@@ -228,11 +226,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         require(amount < R_MOD, "Amount exceeds R_MOD");
         $.validatedUserStorage[participant][channelId][targetContract].amount += amount;
-    }
-
-    function updateChannelTotalDeposits(bytes32 channelId, uint256 amount) external onlyManager {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        $.channels[channelId].totalDeposits += amount;
     }
 
     function setChannelL2MptKey(bytes32 channelId, address participant, uint256 mptKey) external onlyManager {
@@ -699,11 +692,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function getL2MptKey(bytes32 channelId, address participant) external view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.channels[channelId].l2MptKey[participant];
-    }
-
-    function getChannelTotalDeposits(bytes32 channelId) external view returns (uint256) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.channels[channelId].totalDeposits;
     }
 
     function getChannelPublicKey(bytes32 channelId) external view returns (uint256 pkx, uint256 pky) {

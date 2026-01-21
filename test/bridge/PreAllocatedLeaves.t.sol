@@ -55,7 +55,8 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, emptyUserStorageSlots, true);
 
         // Setup TON transfer pre-allocated leaf
         adminManager.setupTonTransferPreAllocatedLeaf(address(testToken));
@@ -82,7 +83,8 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, emptyUserStorageSlots, true);
 
         // Set a custom pre-allocated leaf
         bytes32 customKey = bytes32(uint256(0x42));
@@ -106,7 +108,8 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, emptyUserStorageSlots, true);
 
         // Set multiple pre-allocated leaves
         adminManager.setPreAllocatedLeaf(address(testToken), bytes32(uint256(0x01)), 100);
@@ -129,7 +132,8 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, emptyUserStorageSlots, true);
 
         // Set a pre-allocated leaf
         bytes32 testKey = bytes32(uint256(0x42));
@@ -158,7 +162,8 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, emptyUserStorageSlots, true);
 
         // Setup TON transfer pre-allocated leaf (1 leaf)
         adminManager.setupTonTransferPreAllocatedLeaf(address(testToken));
@@ -197,7 +202,8 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, emptyUserStorageSlots, true);
 
         // Setup TON transfer pre-allocated leaf (1 leaf)
         adminManager.setupTonTransferPreAllocatedLeaf(address(testToken));

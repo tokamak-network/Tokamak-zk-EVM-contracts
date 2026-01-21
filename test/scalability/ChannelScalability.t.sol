@@ -38,7 +38,8 @@ contract SimpleChannelScalabilityTest is Test {
         bridgeCore.updateManagerAddresses(address(0), address(0), address(0), address(adminManager));
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(TARGET_CONTRACT, emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        adminManager.setAllowedTargetContract(TARGET_CONTRACT, emptySlots, emptyUserStorageSlots, true);
     }
 
     /**

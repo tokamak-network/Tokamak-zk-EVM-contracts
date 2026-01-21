@@ -119,7 +119,8 @@ contract ModularArchitectureTest is Test {
         bytes32 transferSig = keccak256("transfer(address,uint256)");
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, emptyUserStorageSlots, true);
         adminManager.registerFunction(
             address(testToken), transferSig, preprocessedPart1, preprocessedPart2, keccak256("test_instance_hash")
         );

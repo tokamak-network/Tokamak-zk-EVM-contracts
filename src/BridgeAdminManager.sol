@@ -44,11 +44,12 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
     function setAllowedTargetContract(
         address targetContract,
         IBridgeCore.PreAllocatedLeaf[] memory storageSlots,
+        IBridgeCore.UserStorageSlot[] memory userStorageSlots,
         bool allowed
     ) external onlyOwner {
         require(targetContract != address(0), "Invalid target contract address");
 
-        bridge.setAllowedTargetContract(targetContract, storageSlots, allowed);
+        bridge.setAllowedTargetContract(targetContract, storageSlots, userStorageSlots, allowed);
         emit TargetContractAllowed(targetContract, allowed);
     }
 

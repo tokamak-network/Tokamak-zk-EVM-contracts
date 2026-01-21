@@ -346,9 +346,10 @@ contract BridgeCoreTest is Test {
         bytes32 functionInstanceHash = 0xd157cb883adb9cb0e27d9dc419e2a4be817d856281b994583b5bae64be94d35a;
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(token), emptySlots, true);
-        adminManager.setAllowedTargetContract(address(highPrecisionToken), emptySlots, true);
-        adminManager.setAllowedTargetContract(address(usdtLikeToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        adminManager.setAllowedTargetContract(address(token), emptySlots, emptyUserStorageSlots, true);
+        adminManager.setAllowedTargetContract(address(highPrecisionToken), emptySlots, emptyUserStorageSlots, true);
+        adminManager.setAllowedTargetContract(address(usdtLikeToken), emptySlots, emptyUserStorageSlots, true);
 
         // Register transfer function for each token using 4-byte selector (standard format)
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));

@@ -143,6 +143,19 @@ contract MockBridgeCore {
         return l2MptKeys[participant];
     }
 
+    function getTargetContractData(address) external pure returns (IBridgeCore.TargetContract memory) {
+        // Return empty target contract data (no user storage slots)
+        IBridgeCore.RegisteredFunction[] memory emptyFunctions = new IBridgeCore.RegisteredFunction[](0);
+        IBridgeCore.PreAllocatedLeaf[] memory emptyLeaves = new IBridgeCore.PreAllocatedLeaf[](0);
+        IBridgeCore.UserStorageSlot[] memory emptySlots = new IBridgeCore.UserStorageSlot[](0);
+
+        return IBridgeCore.TargetContract({
+            preAllocatedLeaves: emptyLeaves,
+            registeredFunctions: emptyFunctions,
+            userStorageSlots: emptySlots
+        });
+    }
+
     function setChannelValidatedUserStorage(bytes32, address[] memory, uint256[] memory) external {}
 
     function setChannelCloseTimestamp(bytes32, uint256) external {}
@@ -252,9 +265,15 @@ contract VerifyFinalBalancesInputTest is Test {
             ]
         });
 
+        // Empty user storage slots (no additional storage slots for this test)
+        uint256[][] memory finalUserStorageSlots = new uint256[][](6);
+        for (uint256 i = 0; i < 6; i++) {
+            finalUserStorageSlots[i] = new uint256[](0);
+        }
+
         (bool ok, bytes memory data) = address(proofManager).call(
             abi.encodeCall(
-                BridgeProofManager.verifyFinalBalancesGroth16, (channelId, finalBalances, permutation, proof)
+                BridgeProofManager.verifyFinalBalancesGroth16, (channelId, finalBalances, finalUserStorageSlots, permutation, proof)
             )
         );
         if (!ok) {

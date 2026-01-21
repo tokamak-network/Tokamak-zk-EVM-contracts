@@ -380,7 +380,8 @@ contract DeployV2Script is Script {
         tonPreprocessedPart2[3] = 0x3e984d129c3dab74f9d13ab9ab66d5d826fca5e1f6270242aaa5dedeedf2fe58;
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(tonAddress, emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
+        BridgeAdminManager(adminManagerAddress).setAllowedTargetContract(tonAddress, emptySlots, emptyUserStorageSlots, true);
 
         // Setup TON pre-allocated leaf for decimals (slot 0x07 with value 18)
         BridgeAdminManager(adminManagerAddress).setupTonTransferPreAllocatedLeaf(tonAddress);

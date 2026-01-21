@@ -15,10 +15,15 @@ interface IBridgeCore {
         bool isActive;
     }
 
+    struct UserStorageSlot {
+        uint8 slotOffset;
+        bytes32 getterFunctionSignature;
+    }
+
     struct TargetContract {
-        // contractAddress removed - redundant with mapping key
-        PreAllocatedLeaf[] storageSlot;
+        PreAllocatedLeaf[] preAllocatedLeaves;
         RegisteredFunction[] registeredFunctions;
+        UserStorageSlot[] userStorageSlots;
     }
 
     struct RegisteredFunction {
@@ -75,8 +80,12 @@ interface IBridgeCore {
     function setChannelValidatedUserStorage(bytes32 channelId, address[] memory participants, uint256[] memory amounts)
         external;
     function setChannelSignatureVerified(bytes32 channelId, bool verified) external;
-    function setAllowedTargetContract(address targetContract, PreAllocatedLeaf[] memory storageSlots, bool allowed)
-        external;
+    function setAllowedTargetContract(
+        address targetContract,
+        PreAllocatedLeaf[] memory leaves,
+        UserStorageSlot[] memory userStorageSlots,
+        bool allowed
+    ) external;
     function registerFunction(
         address targetContract,
         bytes32 functionSignature,

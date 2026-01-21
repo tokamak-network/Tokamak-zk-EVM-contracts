@@ -937,6 +937,115 @@ contract BridgeCoreTest is Test {
         vm.stopPrank();
     }
 
+    function testParticipantCountOverflow() public {
+        vm.startPrank(leader);
+
+        // Create 16 participants (NOT including the leader)
+        address[] memory participants = new address[](16);
+        for (uint256 i = 0; i < 16; i++) {
+            participants[i] = address(uint160(1000 + i));
+            token.mint(participants[i], 10 ether);
+        }
+
+        // Open channel - leader will be auto-whitelisted as 17th participant
+        bytes32 channelId = keccak256(abi.encode(leader, "overflow-test"));
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            channelId: channelId,
+            targetContract: address(token),
+            whitelisted: participants,
+            enableFrostSignature: false
+        });
+        bridge.openChannel(params);
+
+        vm.stopPrank();
+
+        // Verify tree size - should be 32, not 16
+        uint256 treeSize = bridge.getChannelTreeSize(channelId);
+
+        // Now have leader + 16 whitelisted users deposit
+        // This creates 17 participants for a tree that might only support 16
+
+        // Leader deposits
+        vm.startPrank(leader);
+        token.approve(address(depositManager), 1 ether);
+        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(1)));
+        vm.stopPrank();
+
+        // All 16 participants deposit
+        for (uint256 i = 0; i < 16; i++) {
+            vm.startPrank(participants[i]);
+            token.approve(address(depositManager), 1 ether);
+            depositManager.depositToken(channelId, 1 ether, bytes32(uint256(2 + i)));
+            vm.stopPrank();
+        }
+
+        // Get participant count
+        address[] memory channelParticipants = bridge.getChannelParticipants(channelId);
+
+        // Should have 17 participants total
+        assertEq(channelParticipants.length, 17, "Should have 17 participants");
+
+        // Tree size must accommodate all participants
+        assertTrue(treeSize >= channelParticipants.length, "Tree size must be >= participant count");
+    }
+
+    function testMultipleChannelsWithSameLeader() public {
+        vm.startPrank(leader);
+
+        address[] memory participants = new address[](2);
+        participants[0] = user1;
+        participants[1] = user2;
+
+        // Create first channel
+        bytes32 channelId1 = keccak256(abi.encode(leader, "channel1"));
+        BridgeCore.ChannelParams memory params1 = BridgeCore.ChannelParams({
+            channelId: channelId1,
+            targetContract: address(token),
+            whitelisted: participants,
+            enableFrostSignature: false
+        });
+        bridge.openChannel(params1);
+
+        // Create second channel with same leader
+        bytes32 channelId2 = keccak256(abi.encode(leader, "channel2"));
+        BridgeCore.ChannelParams memory params2 = BridgeCore.ChannelParams({
+            channelId: channelId2,
+            targetContract: address(token),
+            whitelisted: participants,
+            enableFrostSignature: false
+        });
+        bridge.openChannel(params2);
+
+        vm.stopPrank();
+
+        // Verify leader flag is set
+        assertTrue(bridge.isMarkedChannelLeader(leader), "Leader should be marked as channel leader");
+
+        // Cleanup first channel
+        vm.prank(address(withdrawManager));
+        bridge.cleanupChannel(channelId1);
+
+        // Verify leader flag is STILL true (bug fix verification)
+        assertTrue(
+            bridge.isMarkedChannelLeader(leader),
+            "Leader flag should remain true when leader still has other channels"
+        );
+
+        // Verify first channel is deleted but second still exists
+        assertEq(bridge.getChannelLeader(channelId1), address(0), "First channel should be deleted");
+        assertEq(bridge.getChannelLeader(channelId2), leader, "Second channel should still exist");
+
+        // Cleanup second channel
+        vm.prank(address(withdrawManager));
+        bridge.cleanupChannel(channelId2);
+
+        // Now leader flag should be false
+        assertFalse(
+            bridge.isMarkedChannelLeader(leader),
+            "Leader flag should be false when no channels remain"
+        );
+    }
+
     // ========== Deposit Tests ==========
 
     function testDepositTokenBasic() public {

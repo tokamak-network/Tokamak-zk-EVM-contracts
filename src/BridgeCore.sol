@@ -104,6 +104,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         mapping(address => bytes32[]) targetContractPreAllocatedKeys;
         mapping(address => mapping(bytes32 => mapping(address => uint256))) withdrawAmount;
         mapping(bytes32 => mapping(address => bool)) hasTimeoutWithdrawn;
+        mapping(address => uint256) channelLeaderCount;
     }
 
     bytes32 private constant BridgeCoreStorageLocation =
@@ -164,16 +165,19 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         // Get number of active pre-allocated leaves for this target contract
         uint256 preAllocatedCount = _getActivePreAllocatedCount(params.targetContract);
 
-        // Calculate maximum allowed participants considering pre-allocated leaves
-        uint256 maxAllowedParticipants = MAX_PARTICIPANTS - preAllocatedCount;
+        // Calculate maximum allowed participants considering pre-allocated leaves and leader
+        // Leader is always auto-whitelisted, so subtract 1 to account for them
+        uint256 maxAllowedParticipants = MAX_PARTICIPANTS - preAllocatedCount - 1;
 
         require(
             params.whitelisted.length >= MIN_PARTICIPANTS && params.whitelisted.length <= maxAllowedParticipants,
             "Invalid whitelisted count considering pre-allocated leaves"
         );
 
-        uint256 requiredTreeSize = determineTreeSize(params.whitelisted.length + preAllocatedCount, 1);
+        // Include leader in tree size calculation (+1 for leader)
+        uint256 requiredTreeSize = determineTreeSize(params.whitelisted.length + 1 + preAllocatedCount, 1);
 
+        $.channelLeaderCount[msg.sender]++;
         $.isChannelLeader[msg.sender] = true;
         Channel storage channel = $.channels[channelId];
 
@@ -421,9 +425,16 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         require(channel.leader != address(0), "Channel does not exist");
 
-        // Remove channel leader flag and delete channel
-        $.isChannelLeader[channel.leader] = false;
+        address leader = channel.leader;
+
+        // Delete channel first
         delete $.channels[channelId];
+
+        // Decrement channel leader count and only clear flag if no more channels led
+        $.channelLeaderCount[leader]--;
+        if ($.channelLeaderCount[leader] == 0) {
+            $.isChannelLeader[leader] = false;
+        }
 
         emit ChannelDeleted(channelId, block.timestamp);
     }
@@ -556,11 +567,12 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     /**
      * @notice Get maximum allowed participants for a target contract considering pre-allocated leaves
      * @param targetContract The target contract address
-     * @return maxParticipants Maximum number of participants allowed
+     * @return maxParticipants Maximum number of participants allowed in the whitelist (excluding leader)
      */
     function getMaxAllowedParticipants(address targetContract) external view returns (uint256 maxParticipants) {
         uint256 preAllocatedCount = _getActivePreAllocatedCount(targetContract);
-        return MAX_PARTICIPANTS - preAllocatedCount;
+        // Subtract 1 for the leader who is automatically whitelisted
+        return MAX_PARTICIPANTS - preAllocatedCount - 1;
     }
 
     /**

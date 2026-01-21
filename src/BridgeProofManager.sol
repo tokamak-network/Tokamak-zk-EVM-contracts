@@ -144,11 +144,8 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                 (uint256 value, bool exists) = bridge.getPreAllocatedLeaf(targetContract, key);
 
                 if (exists) {
-                    uint256 modedKey = uint256(key) % R_MOD;
-                    uint256 modedValue = value % R_MOD;
-
-                    publicSignals[currentIndex] = modedKey;
-                    publicSignals[currentIndex + treeSize] = modedValue;
+                    publicSignals[currentIndex] = uint256(key);
+                    publicSignals[currentIndex + treeSize] = value;
                     currentIndex++;
                 }
             }
@@ -165,12 +162,9 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                 require(l2MptKey != 0, "Participant MPT key not set");
             }
 
-            uint256 modedL2MptKey = l2MptKey % R_MOD;
-            uint256 modedBalance = balance % R_MOD;
-
             // Add balance leaf: POSEIDON2(L2MptKey, Balance)
-            publicSignals[currentIndex] = modedL2MptKey;
-            publicSignals[currentIndex + treeSize] = modedBalance;
+            publicSignals[currentIndex] = l2MptKey;
+            publicSignals[currentIndex + treeSize] = balance;
             currentIndex++;
         }
 
@@ -181,7 +175,6 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             for (uint256 i = 0; i < participants.length; i++) {
                 address l1Address = participants[i];
                 uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address);
-                uint256 modedL2MptKey = l2MptKey % R_MOD;
 
                 // Perform staticcall to fetch the value from target contract
                 bytes memory callData = abi.encodePacked(slot.getterFunctionSignature, abi.encode(l1Address));
@@ -192,11 +185,9 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                     slotValue = abi.decode(returnData, (uint256));
                 }
 
-                uint256 modedSlotValue = slotValue % R_MOD;
-
                 // Add storage slot leaf: POSEIDON2(L2MptKey, slotValue)
-                publicSignals[currentIndex] = modedL2MptKey;
-                publicSignals[currentIndex + treeSize] = modedSlotValue;
+                publicSignals[currentIndex] = l2MptKey;
+                publicSignals[currentIndex + treeSize] = slotValue;
                 currentIndex++;
             }
         }

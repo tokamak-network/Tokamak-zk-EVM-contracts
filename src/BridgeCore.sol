@@ -90,6 +90,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     uint256 public constant MIN_PARTICIPANTS = 1;
     uint256 public constant MAX_PARTICIPANTS = 128;
     uint256 public constant CHANNEL_TIMEOUT = 7 days;
+    uint256 constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
     /// @custom:storage-location erc7201:tokamak.storage.BridgeCore
     struct BridgeCoreStorage {
@@ -225,6 +226,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     // Manager setter functions
     function updateChannelUserDeposits(bytes32 channelId, address participant, address targetContract, uint256 amount) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        require(amount < R_MOD, "Amount exceeds R_MOD");
         $.validatedUserStorage[participant][channelId][targetContract].amount += amount;
     }
 
@@ -236,6 +238,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function setChannelL2MptKey(bytes32 channelId, address participant, uint256 mptKey) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
+
+        require(mptKey < R_MOD, "MPT key exceeds R_MOD");
 
         // Check if the mptKey is already used by another participant
         for (uint256 i = 0; i < channel.participants.length; i++) {

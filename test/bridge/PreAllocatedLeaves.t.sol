@@ -66,10 +66,6 @@ contract PreAllocatedLeavesTest is Test {
         assertTrue(exists, "Pre-allocated leaf should exist");
         assertEq(value, 18, "Pre-allocated leaf value should be 18 (decimals)");
 
-        // Check that max participants is reduced by 1 pre-allocated + 1 leader
-        uint256 maxParticipants = bridge.getMaxAllowedParticipants(address(testToken));
-        assertEq(maxParticipants, 126, "Max participants should be 126 (128 - 1 pre-allocated - 1 leader)");
-
         // Get all pre-allocated keys
         bytes32[] memory keys = bridge.getPreAllocatedKeys(address(testToken));
         assertEq(keys.length, 1, "Should have 1 pre-allocated key");
@@ -96,10 +92,6 @@ contract PreAllocatedLeavesTest is Test {
         assertTrue(exists, "Custom pre-allocated leaf should exist");
         assertEq(value, customValue, "Custom pre-allocated leaf value should match");
 
-        // Check that max participants is reduced
-        uint256 maxParticipants = bridge.getMaxAllowedParticipants(address(testToken));
-        assertEq(maxParticipants, 126, "Max participants should be 126 (128 - 1 pre-allocated - 1 leader)");
-
         vm.stopPrank();
     }
 
@@ -115,10 +107,6 @@ contract PreAllocatedLeavesTest is Test {
         adminManager.setPreAllocatedLeaf(address(testToken), bytes32(uint256(0x01)), 100);
         adminManager.setPreAllocatedLeaf(address(testToken), bytes32(uint256(0x02)), 200);
         adminManager.setPreAllocatedLeaf(address(testToken), bytes32(uint256(0x03)), 300);
-
-        // Check that max participants is reduced by 3 pre-allocated + 1 leader
-        uint256 maxParticipants = bridge.getMaxAllowedParticipants(address(testToken));
-        assertEq(maxParticipants, 124, "Max participants should be 124 (128 - 3 pre-allocated - 1 leader)");
 
         // Get all pre-allocated keys
         bytes32[] memory keys = bridge.getPreAllocatedKeys(address(testToken));
@@ -149,10 +137,6 @@ contract PreAllocatedLeavesTest is Test {
         // Verify it no longer exists
         (value, exists) = adminManager.getPreAllocatedLeaf(address(testToken), testKey);
         assertFalse(exists, "Pre-allocated leaf should not exist after removal");
-
-        // Check that max participants is back to normal (minus leader)
-        uint256 maxParticipants = bridge.getMaxAllowedParticipants(address(testToken));
-        assertEq(maxParticipants, 127, "Max participants should be 127 (128 - 1 leader)");
 
         vm.stopPrank();
     }

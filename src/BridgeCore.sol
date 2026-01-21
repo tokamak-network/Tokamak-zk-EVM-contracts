@@ -576,17 +576,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Get maximum allowed participants for a target contract considering pre-allocated leaves
-     * @param targetContract The target contract address
-     * @return maxParticipants Maximum number of participants allowed in the whitelist (excluding leader)
-     */
-    function getMaxAllowedParticipants(address targetContract) external view returns (uint256 maxParticipants) {
-        uint256 preAllocatedCount = _getActivePreAllocatedCount(targetContract);
-        // Subtract 1 for the leader who is automatically whitelisted
-        return MAX_PARTICIPANTS - preAllocatedCount - 1;
-    }
-
-    /**
      * @notice Get the number of pre-allocated leaves for a specific channel
      * @param channelId The channel ID
      * @return count Number of pre-allocated leaves in the channel

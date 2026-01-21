@@ -114,7 +114,7 @@ contract TimeoutWithdrawalTest is Test {
     bytes32 public channelId;
     uint256 public constant DEPOSIT_AMOUNT = 1 ether;
 
-    event TimeoutWithdrawn(bytes32 indexed channelId, address indexed user, address token, uint256 amount);
+    event Withdrawn(bytes32 indexed channelId, address indexed user, address token, uint256 amount);
 
     function setUp() public {
         // Set proper block number to avoid underflow in blockhash calculations
@@ -259,94 +259,88 @@ contract TimeoutWithdrawalTest is Test {
 
     function testWithdrawOnTimeoutSuccess() public {
         _initializeChannel();
-        
+
         // Fast forward past timeout
         vm.warp(block.timestamp + bridge.CHANNEL_TIMEOUT() + 1);
-        
+
         uint256 initialTokenBalance = token.balanceOf(user1);
-        
+
         vm.expectEmit(true, true, true, true);
-        emit TimeoutWithdrawn(channelId, user1, address(token), DEPOSIT_AMOUNT);
-        
+        emit Withdrawn(channelId, user1, address(token), DEPOSIT_AMOUNT);
+
         vm.prank(user1);
-        withdrawManager.withdrawOnTimeout(channelId);
-        
+        withdrawManager.withdraw(channelId, address(token));
+
         // Check user received their deposit back
         assertEq(token.balanceOf(user1), initialTokenBalance + DEPOSIT_AMOUNT);
-        
-        // Check user is marked as having withdrawn on timeout
-        assertTrue(bridge.hasUserTimeoutWithdrawn(channelId, user1));
-        
-        // Check channel is marked as having timeout withdrawals
-        assertTrue(bridge.hasChannelTimeoutWithdrawals(channelId));
+
+        // Verify user's validatedUserStorage is cleared after withdrawal
+        assertEq(bridge.getValidatedUserStorage(channelId, user1, address(token)), 0);
     }
 
     function testWithdrawOnTimeoutBeforeTimeout() public {
         _initializeChannel();
-        
-        vm.expectRevert("Channel not timed out");
+
+        vm.expectRevert("Channel must be deleted or timed out");
         vm.prank(user1);
-        withdrawManager.withdrawOnTimeout(channelId);
+        withdrawManager.withdraw(channelId, address(token));
     }
 
     function testWithdrawOnTimeoutAlreadyWithdrawn() public {
         _initializeChannel();
-        
+
         // Fast forward past timeout
         vm.warp(block.timestamp + bridge.CHANNEL_TIMEOUT() + 1);
-        
+
         // First withdrawal
         vm.prank(user1);
-        withdrawManager.withdrawOnTimeout(channelId);
-        
+        withdrawManager.withdraw(channelId, address(token));
+
         // Try to withdraw again
-        vm.expectRevert("User already withdrew on timeout");
+        vm.expectRevert("No withdrawable amount");
         vm.prank(user1);
-        withdrawManager.withdrawOnTimeout(channelId);
+        withdrawManager.withdraw(channelId, address(token));
     }
 
     function testWithdrawOnTimeoutNotParticipant() public {
         _initializeChannel();
-        
+
         // Fast forward past timeout
         vm.warp(block.timestamp + bridge.CHANNEL_TIMEOUT() + 1);
-        
+
         address nonParticipant = makeAddr("nonParticipant");
-        
-        vm.expectRevert("Not a channel participant");
+
+        vm.expectRevert("No withdrawable amount");
         vm.prank(nonParticipant);
-        withdrawManager.withdrawOnTimeout(channelId);
+        withdrawManager.withdraw(channelId, address(token));
     }
 
 
 
     function testMultipleUsersCanWithdrawOnTimeout() public {
         _initializeChannel();
-        
+
         // Fast forward past timeout
         vm.warp(block.timestamp + bridge.CHANNEL_TIMEOUT() + 1);
-        
+
         uint256 user1InitialBalance = token.balanceOf(user1);
         uint256 user2InitialBalance = token.balanceOf(user2);
-        
+
         // User1 withdraws
         vm.prank(user1);
-        withdrawManager.withdrawOnTimeout(channelId);
-        
+        withdrawManager.withdraw(channelId, address(token));
+
         // User2 withdraws
         vm.prank(user2);
-        withdrawManager.withdrawOnTimeout(channelId);
-        
+        withdrawManager.withdraw(channelId, address(token));
+
         // Both should have received their deposits back
         assertEq(token.balanceOf(user1), user1InitialBalance + DEPOSIT_AMOUNT);
         assertEq(token.balanceOf(user2), user2InitialBalance + DEPOSIT_AMOUNT);
-        
-        // Both should be marked as having withdrawn
-        assertTrue(bridge.hasUserTimeoutWithdrawn(channelId, user1));
-        assertTrue(bridge.hasUserTimeoutWithdrawn(channelId, user2));
-        
-        // Channel should be marked as having timeout withdrawals
-        assertTrue(bridge.hasChannelTimeoutWithdrawals(channelId));
+
+        // Verify both users' validatedUserStorage is cleared after withdrawal
+        assertEq(bridge.getValidatedUserStorage(channelId, user1, address(token)), 0);
+        assertEq(bridge.getValidatedUserStorage(channelId, user2, address(token)), 0);
     }
 
     function _submitMockProof() internal {

@@ -206,7 +206,7 @@ contract ModularArchitectureTest is Test {
         vm.stopPrank();
 
         // Verify deposit was recorded
-        assertEq(bridge.getParticipantDeposit(channelId, user1), 1 ether);
+        assertEq(bridge.getValidatedUserStorage(channelId, user1, address(testToken)), 1 ether);
         assertEq(bridge.getL2MptKey(channelId, user1), 123);
     }
 
@@ -305,7 +305,7 @@ contract ModularArchitectureTest is Test {
         vm.stopPrank();
 
         // Verify deposit was recorded
-        assertEq(bridge.getParticipantDeposit(channelId, user1), 1 ether);
+        assertEq(bridge.getValidatedUserStorage(channelId, user1, address(testToken)), 1 ether);
         assertEq(bridge.getL2MptKey(channelId, user1), 123);
     }
 }

@@ -143,7 +143,7 @@ contract MockBridgeCore {
         return l2MptKeys[participant];
     }
 
-    function setChannelWithdrawAmounts(bytes32, address[] memory, uint256[] memory) external {}
+    function setChannelValidatedUserStorage(bytes32, address[] memory, uint256[] memory) external {}
 
     function setChannelCloseTimestamp(bytes32, uint256) external {}
 

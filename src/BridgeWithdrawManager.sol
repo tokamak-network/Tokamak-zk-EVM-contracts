@@ -43,43 +43,23 @@ contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, Own
     function withdraw(bytes32 channelId, address targetContract) external nonReentrant {
         require(targetContract != address(0), "Invalid target contract");
 
+        // Check that channel is deleted or timed out before allowing withdrawal
+        require(
+            bridge.getChannelLeader(channelId) == address(0) || bridge.isChannelTimedOut(channelId),
+            "Channel must be deleted or timed out"
+        );
+
         // Check if there's a withdrawable amount for this specific target contract
-        uint256 withdrawAmount = bridge.getWithdrawableAmount(channelId, msg.sender, targetContract);
+        uint256 withdrawAmount = bridge.getValidatedUserStorage(channelId, msg.sender, targetContract);
         require(withdrawAmount > 0, "No withdrawable amount");
 
         // Clear the withdrawable amount
-        bridge.clearWithdrawableAmount(channelId, msg.sender, targetContract);
+        bridge.clearValidatedUserStorage(channelId, msg.sender, targetContract);
 
         // Transfer the token from deposit manager (where tokens are held)
         BridgeDepositManager(bridge.depositManager()).transferForWithdrawal(targetContract, msg.sender, withdrawAmount);
 
         emit Withdrawn(channelId, msg.sender, targetContract, withdrawAmount);
-    }
-
-    function withdrawOnTimeout(bytes32 channelId) external nonReentrant {
-        require(bridge.isChannelTimedOut(channelId), "Channel not timed out");
-        require(!bridge.hasUserTimeoutWithdrawn(channelId, msg.sender), "User already withdrew on timeout");
-        require(bridge.isChannelParticipant(channelId, msg.sender), "Not a channel participant");
-        
-        IBridgeCore.ChannelState state = bridge.getChannelState(channelId);
-        require(state == IBridgeCore.ChannelState.Open, "Channel not in Open state");
-        
-        address targetContract = bridge.getChannelTargetContract(channelId);
-        uint256 depositAmount = bridge.getParticipantDeposit(channelId, msg.sender);
-        require(depositAmount > 0, "No deposit to withdraw");
-
-        // Mark this user as having withdrawn on timeout
-        bridge.setUserTimeoutWithdrawn(channelId, msg.sender);
-        
-        // Mark channel as having timeout withdrawals (prevents leader from submitting proof later)
-        if (!bridge.hasChannelTimeoutWithdrawals(channelId)) {
-            bridge.setChannelTimeoutWithdrawals(channelId);
-        }
-
-        // Transfer the user's original deposit back
-        BridgeDepositManager(bridge.depositManager()).transferForWithdrawal(targetContract, msg.sender, depositAmount);
-
-        emit TimeoutWithdrawn(channelId, msg.sender, targetContract, depositAmount);
     }
 
     function updateBridge(address _newBridge) external onlyOwner {

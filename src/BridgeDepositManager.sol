@@ -72,7 +72,7 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
             uint256 balanceAfter = IERC20Upgradeable(targetContract).balanceOf(address(this));
             uint256 actualAmount = balanceAfter - balanceBefore;
             require(actualAmount > 0, "No tokens transferred");
-            bridge.updateChannelUserDeposits(_channelId, msg.sender, actualAmount);
+            bridge.updateChannelUserDeposits(_channelId, msg.sender, targetContract, actualAmount);
             bridge.updateChannelTotalDeposits(_channelId, actualAmount);
         }
 

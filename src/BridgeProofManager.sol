@@ -152,7 +152,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Add participant data AFTER pre-allocated leaves
         for (uint256 i = 0; i < participants.length; i++) {
             address l1Address = participants[i];
-            uint256 balance = bridge.getParticipantDeposit(channelId, l1Address);
+            uint256 balance = bridge.getValidatedUserStorage(channelId, l1Address, targetContract);
             uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address);
 
             if (balance > 0) {
@@ -219,10 +219,9 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         
         // Check timeout conditions
         bool isTimedOut = bridge.isChannelTimedOut(channelId);
-        bool hasTimeoutWithdrawals = bridge.hasChannelTimeoutWithdrawals(channelId);
         
         // If channel is timed out AND someone has withdrawn, reject proof submission
-        require(!isTimedOut || !hasTimeoutWithdrawals, "Cannot submit proof after timeout withdrawals");
+        require(!isTimedOut, "Cannot submit proof after timeout");
 
         // Extract finalStateRoot from the last proof's output state root (indices 0-1)
         ProofData calldata lastProof = proofs[proofs.length - 1];
@@ -422,7 +421,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         require(proofValid, "Invalid Groth16 proof");
 
         // Set withdraw amounts if proof is valid
-        bridge.setChannelWithdrawAmounts(channelId, participants, finalBalances);
+        bridge.setChannelValidatedUserStorage(channelId, participants, finalBalances);
         bridge.setChannelCloseTimestamp(channelId, block.timestamp);
 
         // Cleanup channel by removing channel leader flag and deleting channel data

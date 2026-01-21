@@ -1018,31 +1018,31 @@ contract BridgeCoreTest is Test {
 
         vm.stopPrank();
 
-        // Verify leader flag is set
-        assertTrue(bridge.isMarkedChannelLeader(leader), "Leader should be marked as channel leader");
+        // Verify leader is set for both channels
+        assertTrue(bridge.isMarkedChannelLeader(leader, channelId1), "Leader should be marked for channel 1");
+        assertTrue(bridge.isMarkedChannelLeader(leader, channelId2), "Leader should be marked for channel 2");
 
         // Cleanup first channel
         vm.prank(address(withdrawManager));
         bridge.cleanupChannel(channelId1);
 
-        // Verify leader flag is STILL true (bug fix verification)
-        assertTrue(
-            bridge.isMarkedChannelLeader(leader),
-            "Leader flag should remain true when leader still has other channels"
-        );
-
         // Verify first channel is deleted but second still exists
         assertEq(bridge.getChannelLeader(channelId1), address(0), "First channel should be deleted");
-        assertEq(bridge.getChannelLeader(channelId2), leader, "Second channel should still exist");
+        assertFalse(bridge.isMarkedChannelLeader(leader, channelId1), "Leader should not be marked for deleted channel 1");
+        assertTrue(
+            bridge.isMarkedChannelLeader(leader, channelId2),
+            "Leader should still be marked for channel 2"
+        );
 
         // Cleanup second channel
         vm.prank(address(withdrawManager));
         bridge.cleanupChannel(channelId2);
 
-        // Now leader flag should be false
+        // Now both channels should be deleted
+        assertEq(bridge.getChannelLeader(channelId2), address(0), "Second channel should be deleted");
         assertFalse(
-            bridge.isMarkedChannelLeader(leader),
-            "Leader flag should be false when no channels remain"
+            bridge.isMarkedChannelLeader(leader, channelId2),
+            "Leader should not be marked for deleted channel 2"
         );
     }
 

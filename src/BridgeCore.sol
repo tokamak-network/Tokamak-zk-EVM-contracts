@@ -35,6 +35,11 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         bytes32 getterFunctionSignature;
     }
 
+    struct Withdrawal {
+        uint256 amount;
+        bool isLocked;
+    }
+
     struct PreAllocatedLeaf {
         uint256 value;
         bytes32 key;
@@ -96,7 +101,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         address adminManager;
         mapping(address => mapping(bytes32 => PreAllocatedLeaf)) preAllocatedLeaves;
         mapping(address => bytes32[]) targetContractPreAllocatedKeys;
-        mapping(address => mapping(bytes32 => mapping(address => uint256))) validatedUserStorage;
+        mapping(address => mapping(bytes32 => mapping(address => Withdrawal))) validatedUserStorage;
     }
 
     bytes32 private constant BridgeCoreStorageLocation =
@@ -220,7 +225,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     // Manager setter functions
     function updateChannelUserDeposits(bytes32 channelId, address participant, address targetContract, uint256 amount) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        $.validatedUserStorage[participant][channelId][targetContract] += amount;
+        $.validatedUserStorage[participant][channelId][targetContract].amount += amount;
     }
 
     function updateChannelTotalDeposits(bytes32 channelId, uint256 amount) external onlyManager {
@@ -273,7 +278,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         for (uint256 participantIdx = 0; participantIdx < participants.length; participantIdx++) {
             address participant = participants[participantIdx];
             uint256 finalBalance = amounts[participantIdx];
-            $.validatedUserStorage[participant][channelId][targetContract] = finalBalance;
+            $.validatedUserStorage[participant][channelId][targetContract].amount = finalBalance;
+            $.validatedUserStorage[participant][channelId][targetContract].isLocked = false;
         }
     }
 
@@ -389,7 +395,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         onlyManager
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        $.validatedUserStorage[participant][channelId][targetContract] = 0;
+        $.validatedUserStorage[participant][channelId][targetContract].amount = 0;
+        $.validatedUserStorage[participant][channelId][targetContract].isLocked = false;
     }
 
     function setChannelCloseTimestamp(bytes32 channelId, uint256 timestamp) external onlyManager {
@@ -764,7 +771,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         returns (uint256)
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.validatedUserStorage[participant][channelId][targetContract];
+        return $.validatedUserStorage[participant][channelId][targetContract].amount;
     }
 
     function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract)
@@ -773,7 +780,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         returns (bool)
     {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.validatedUserStorage[participant][channelId][targetContract] == 0;
+        return $.validatedUserStorage[participant][channelId][targetContract].amount == 0;
     }
 
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32) {

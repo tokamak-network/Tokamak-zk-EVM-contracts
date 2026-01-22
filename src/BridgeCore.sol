@@ -163,12 +163,12 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         // Get number of active pre-allocated leaves for this target contract
         uint256 preAllocatedCount = _getActivePreAllocatedCount(params.targetContract);
-        uint256 numberOfUserStorageSlot = $.allowedTargetContracts[params.targetContract].userStorageSlots.length + 1;
+        uint256 numberOfUserStorageSlot = $.allowedTargetContracts[params.targetContract].userStorageSlots.length;
 
         // Calculate maximum allowed participants considering pre-allocated leaves and leader
-        // Leader is always auto-whitelisted, so subtract 1 to account for them
-        // we divide by the number of user storage slots to get the correct limit
-        uint256 maxAllowedParticipants = (MAX_PARTICIPANTS / numberOfUserStorageSlot) - preAllocatedCount - (1 * numberOfUserStorageSlot);
+        // Formula: (availableLeaves / slotsPerParticipant) - 1 (for leader)
+        // Example: tree=16, preAlloc=4, slots=2 => ((16-4)/2)-1 = 5 whitelisted (6 total with leader)
+        uint256 maxAllowedParticipants = ((MAX_PARTICIPANTS - preAllocatedCount) / numberOfUserStorageSlot) - 1;
 
         require(
             params.whitelisted.length >= MIN_PARTICIPANTS && params.whitelisted.length <= maxAllowedParticipants,

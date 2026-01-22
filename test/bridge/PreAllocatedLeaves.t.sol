@@ -180,11 +180,11 @@ contract PreAllocatedLeavesTest is Test {
         vm.stopPrank();
 
         // Create participants
-        // With 1 balance slot: numberOfUserStorageSlot = 1 + 1 = 2
+        // With 1 balance slot: numberOfUserStorageSlot = 1
         // With 1 pre-allocated leaf: preAllocatedCount = 1
-        // maxAllowedParticipants = (128 / 2) - 1 - (1 * 2) = 64 - 1 - 2 = 61
-        address[] memory participants = new address[](61);
-        for (uint256 i = 0; i < 61; i++) {
+        // maxAllowedParticipants = ((128 - 1) / 1) - 1 = 127 - 1 = 126
+        address[] memory participants = new address[](126);
+        for (uint256 i = 0; i < 126; i++) {
             participants[i] = address(uint160(i + 1));
         }
 
@@ -198,7 +198,7 @@ contract PreAllocatedLeavesTest is Test {
             enableFrostSignature: true
         });
 
-        // This should succeed with 61 participants (plus leader = 62 total)
+        // This should succeed with 126 participants (plus leader = 127 total)
         bytes32 returnedChannelId = bridge.openChannel(params);
         assertEq(returnedChannelId, channelId);
 
@@ -227,10 +227,10 @@ contract PreAllocatedLeavesTest is Test {
 
         vm.stopPrank();
 
-        // Try to create with 62 participants (max is 61, should fail)
-        // maxAllowedParticipants = (128 / 2) - 1 - (1 * 2) = 64 - 1 - 2 = 61
-        address[] memory participants = new address[](62);
-        for (uint256 i = 0; i < 62; i++) {
+        // Try to create with 127 participants (max is 126, should fail)
+        // maxAllowedParticipants = ((128 - 1) / 1) - 1 = 127 - 1 = 126
+        address[] memory participants = new address[](127);
+        for (uint256 i = 0; i < 127; i++) {
             participants[i] = address(uint160(i + 1));
         }
 

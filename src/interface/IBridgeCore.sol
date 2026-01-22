@@ -18,6 +18,7 @@ interface IBridgeCore {
     struct UserStorageSlot {
         uint8 slotOffset;
         bytes32 getterFunctionSignature;
+        bool isLoadedOnChain; // false = value from deposits (balance), true = fetch via staticcall
     }
 
     struct TargetContract {

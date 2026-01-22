@@ -49,10 +49,9 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
         address targetContract = bridge.getChannelTargetContract(_channelId);
         require(targetContract != address(0), "Invalid target contract");
 
-        // Validate MPT keys count matches expected storage slots (1 for balance + additional user storage slots)
+        // Validate MPT keys count matches expected storage slots (now includes balance as slot 0)
         IBridgeCore.TargetContract memory targetContractData = bridge.getTargetContractData(targetContract);
-        uint256 expectedSlots = 1 + targetContractData.userStorageSlots.length;
-        require(_mptKeys.length == expectedSlots, "MPT keys count mismatch");
+        require(_mptKeys.length == targetContractData.userStorageSlots.length, "MPT keys count mismatch");
 
         uint256 userBalance = IERC20Upgradeable(targetContract).balanceOf(msg.sender);
         require(

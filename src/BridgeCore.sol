@@ -33,6 +33,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     struct UserStorageSlot {
         uint8 slotOffset;
         bytes32 getterFunctionSignature;
+        bool isLoadedOnChain; // false = value from deposits (balance), true = fetch via staticcall
     }
 
     struct ValidatedUserStorage {
@@ -234,8 +235,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
 
-        // Get expected number of slots: 1 (balance) + userStorageSlots.length
-        uint256 expectedSlots = 1 + $.allowedTargetContracts[channel.targetContract].userStorageSlots.length;
+        // Get expected number of slots from userStorageSlots (now includes balance as slot 0)
+        uint256 expectedSlots = $.allowedTargetContracts[channel.targetContract].userStorageSlots.length;
         require(mptKeys.length == expectedSlots, "MPT keys count mismatch");
 
         // Validate and store each mptKey by slot index
@@ -429,8 +430,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         address[] memory participants = channel.participants;
         address targetContract = channel.targetContract;
 
-        // Get number of user storage slots for this target contract
-        uint256 numSlots = 1 + $.allowedTargetContracts[targetContract].userStorageSlots.length;
+        // Get number of user storage slots for this target contract (now includes balance)
+        uint256 numSlots = $.allowedTargetContracts[targetContract].userStorageSlots.length;
 
         // Clean up mappings inside the channel struct
         // Note: Arrays are cleared by delete, but mappings must be manually cleared

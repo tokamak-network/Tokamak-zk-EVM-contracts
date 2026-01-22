@@ -121,12 +121,12 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         uint256 treeSize = bridge.getChannelTreeSize(channelId);
         uint256 preAllocatedCount = bridge.getChannelPreAllocatedLeavesCount(channelId);
 
-        // Get user storage slots from target contract (additional slots beyond balance)
+        // Get user storage slots from target contract (now includes balance as slot 0)
         IBridgeCore.TargetContract memory targetContractData = bridge.getTargetContractData(targetContract);
         uint256 userStorageSlotsCount = targetContractData.userStorageSlots.length;
 
-        // Total entries = pre-allocated + (participants * (1 balance + additional storage slots))
-        uint256 totalEntries = preAllocatedCount + (participants.length * (1 + userStorageSlotsCount));
+        // Total entries = pre-allocated + (participants * userStorageSlots)
+        uint256 totalEntries = preAllocatedCount + (participants.length * userStorageSlotsCount);
         require(totalEntries <= treeSize, "Too many entries for circuit");
 
         uint256 publicSignalsLength = treeSize * 2 + 1;
@@ -152,40 +152,33 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         }
 
         // Add participant data AFTER pre-allocated leaves
-        // First: Add ALL balance leaves for ALL participants
-        for (uint256 i = 0; i < participants.length; i++) {
-            address l1Address = participants[i];
-            uint256 balance = bridge.getValidatedUserBalance(channelId, l1Address);
-            uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address, 0); // slotIndex 0 = balance
-
-            if (balance > 0) {
-                require(l2MptKey != 0, "Participant MPT key not set");
-            }
-
-            // Add balance leaf: POSEIDON2(L2MptKey, Balance)
-            publicSignals[currentIndex] = l2MptKey;
-            publicSignals[currentIndex + treeSize] = balance;
-            currentIndex++;
-        }
-
-        // Second: Add ALL additional user storage slot leaves for ALL participants
+        // Iterate through ALL user storage slots (including balance at slot 0)
         for (uint256 j = 0; j < userStorageSlotsCount; j++) {
             IBridgeCore.UserStorageSlot memory slot = targetContractData.userStorageSlots[j];
 
             for (uint256 i = 0; i < participants.length; i++) {
                 address l1Address = participants[i];
-                uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address, uint8(j + 1)); // slotIndex j+1 for additional slots
+                uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address, uint8(j));
 
-                // Perform staticcall to fetch the value from target contract
-                bytes memory callData = abi.encodePacked(slot.getterFunctionSignature, abi.encode(l1Address));
-                (bool success, bytes memory returnData) = targetContract.staticcall(callData);
+                uint256 slotValue;
+                if (!slot.isLoadedOnChain) {
+                    // Balance slot: value comes from deposits
+                    slotValue = bridge.getValidatedUserBalance(channelId, l1Address);
+                    if (slotValue > 0) {
+                        require(l2MptKey != 0, "Participant MPT key not set");
+                    }
+                } else {
+                    // On-chain slot: fetch via staticcall
+                    bytes memory callData = abi.encodePacked(slot.getterFunctionSignature, abi.encode(l1Address));
+                    (bool success, bytes memory returnData) = targetContract.staticcall(callData);
 
-                uint256 slotValue = 0;
-                if (success && returnData.length >= 32) {
-                    slotValue = abi.decode(returnData, (uint256));
+                    slotValue = 0;
+                    if (success && returnData.length >= 32) {
+                        slotValue = abi.decode(returnData, (uint256));
+                    }
                 }
 
-                // Add storage slot leaf: POSEIDON2(L2MptKey, slotValue)
+                // Add leaf: POSEIDON2(L2MptKey, slotValue)
                 publicSignals[currentIndex] = l2MptKey;
                 publicSignals[currentIndex + treeSize] = slotValue;
                 currentIndex++;
@@ -357,8 +350,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
     function verifyFinalBalancesGroth16(
         bytes32 channelId,
-        uint256[] calldata finalBalances,
-        uint256[][] calldata finalUserStorageSlots,
+        uint256[][] calldata finalSlotValues, // Includes balance at index 0, then other slots
         uint256[] calldata permutation,
         ChannelFinalizationProof calldata groth16Proof
     ) external {
@@ -371,17 +363,16 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         }
 
         address[] memory participants = bridge.getChannelParticipants(channelId);
-        require(finalBalances.length == participants.length, "Invalid final balances length");
 
         // Get target contract data and validate user storage slots
         address targetContract = bridge.getChannelTargetContract(channelId);
         IBridgeCore.TargetContract memory targetContractData = bridge.getTargetContractData(targetContract);
         uint256 userStorageSlotsCount = targetContractData.userStorageSlots.length;
 
-        // Validate finalUserStorageSlots dimensions
-        require(finalUserStorageSlots.length == participants.length, "Invalid user storage slots length");
+        // Validate finalSlotValues dimensions (now includes balance as slot 0)
+        require(finalSlotValues.length == participants.length, "Invalid slot values length");
         for (uint256 i = 0; i < participants.length; i++) {
-            require(finalUserStorageSlots[i].length == userStorageSlotsCount, "Invalid storage slots count for participant");
+            require(finalSlotValues[i].length == userStorageSlotsCount, "Invalid storage slots count for participant");
         }
 
         // Step 1: Get the final state root stored
@@ -391,8 +382,8 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         uint256 treeSize = bridge.getChannelTreeSize(channelId);
         uint256 preAllocatedCount = bridge.getPreAllocatedLeavesCount(targetContract);
 
-        // Total entries = pre-allocated + (participants * (1 balance + additional storage slots))
-        uint256 totalEntries = preAllocatedCount + (participants.length * (1 + userStorageSlotsCount));
+        // Total entries = pre-allocated + (participants * userStorageSlotsCount)
+        uint256 totalEntries = preAllocatedCount + (participants.length * userStorageSlotsCount);
         require(totalEntries == permutation.length, "Invalid permutation length");
 
         uint256[] memory publicSignals = new uint256[](1 + 2 * treeSize);
@@ -419,32 +410,17 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         }
 
         // Step 4: Add participant data AFTER pre-allocated leaves
-        // First: Add ALL balance leaves for ALL participants
-        for (uint256 i = 0; i < participants.length; i++) {
-            address participant = participants[i];
-
-            // Get L2 MPT key for this participant (slotIndex 0 = balance)
-            uint256 l2MptKey = bridge.getL2MptKey(channelId, participant, 0);
-            uint256 modedL2MptKey = l2MptKey % R_MOD;
-
-            // Add balance leaf: POSEIDON2(L2MptKey, Balance)
-            uint256 permutedIndex = permutation[currentIndex];
-            publicSignals[1 + permutedIndex] = modedL2MptKey;
-            publicSignals[1 + treeSize + permutedIndex] = finalBalances[i] % R_MOD;
-            currentIndex++;
-        }
-
-        // Second: Add ALL additional user storage slot leaves for ALL participants
+        // Iterate through ALL user storage slots (including balance at slot 0)
         for (uint256 j = 0; j < userStorageSlotsCount; j++) {
             for (uint256 i = 0; i < participants.length; i++) {
                 address participant = participants[i];
-                uint256 l2MptKey = bridge.getL2MptKey(channelId, participant, uint8(j + 1)); // slotIndex j+1 for additional slots
+                uint256 l2MptKey = bridge.getL2MptKey(channelId, participant, uint8(j));
                 uint256 modedL2MptKey = l2MptKey % R_MOD;
 
-                uint256 slotValue = finalUserStorageSlots[i][j];
+                uint256 slotValue = finalSlotValues[i][j];
                 uint256 modedSlotValue = slotValue % R_MOD;
 
-                // Add storage slot leaf: POSEIDON2(L2MptKey, slotValue)
+                // Add slot leaf: POSEIDON2(L2MptKey, slotValue)
                 uint256 permutedIndex = permutation[currentIndex];
                 publicSignals[1 + permutedIndex] = modedL2MptKey;
                 publicSignals[1 + treeSize + permutedIndex] = modedSlotValue;
@@ -467,6 +443,12 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
         // Step 6: Assert that the verifier returns true
         require(proofValid, "Invalid Groth16 proof");
+
+        // Extract final balances from slot 0 for withdrawal
+        uint256[] memory finalBalances = new uint256[](participants.length);
+        for (uint256 i = 0; i < participants.length; i++) {
+            finalBalances[i] = finalSlotValues[i][0]; // Slot 0 is always balance
+        }
 
         // Set withdraw amounts if proof is valid
         bridge.setChannelValidatedUserStorage(channelId, participants, finalBalances);

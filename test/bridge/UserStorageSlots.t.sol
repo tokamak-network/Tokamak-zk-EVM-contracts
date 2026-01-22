@@ -147,14 +147,22 @@ contract UserStorageSlotsTest is Test {
         proofManager.updateBridge(address(bridge));
         adminManager.updateBridge(address(bridge));
 
-        // Set up USDT as allowed target contract with 2 user storage slots
+        // Set up USDT as allowed target contract with balance + isBlackListed slots
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        IBridgeCore.UserStorageSlot[] memory userStorageSlots = new IBridgeCore.UserStorageSlot[](1);
+        IBridgeCore.UserStorageSlot[] memory userStorageSlots = new IBridgeCore.UserStorageSlot[](2);
 
-        // Add isBlackListed storage slot
+        // Slot 0: balance (not loaded from chain, comes from deposits)
         userStorageSlots[0] = IBridgeCore.UserStorageSlot({
-            slotOffset: 1, // Arbitrary slot offset
-            getterFunctionSignature: bytes32(bytes4(keccak256("isBlackListed(address)")))
+            slotOffset: 2, // USDT balance slot offset
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+
+        // Slot 1: isBlackListed (loaded from chain via staticcall)
+        userStorageSlots[1] = IBridgeCore.UserStorageSlot({
+            slotOffset: 6, // USDT isBlackListed slot offset
+            getterFunctionSignature: bytes32(bytes4(keccak256("isBlackListed(address)"))),
+            isLoadedOnChain: true
         });
 
         adminManager.setAllowedTargetContract(address(usdt), emptySlots, userStorageSlots, true);
@@ -278,10 +286,15 @@ contract UserStorageSlotsTest is Test {
         simpleToken.mint(user1, 100 ether);
         simpleToken.mint(user2, 100 ether);
 
-        // Set up simple token without user storage slots
+        // Set up simple token with balance slot only
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
-        adminManager.setAllowedTargetContract(address(simpleToken), emptySlots, emptyUserStorageSlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(simpleToken), emptySlots, balanceSlot, true);
         vm.stopPrank();
 
         // Create channel
@@ -428,19 +441,17 @@ contract UserStorageSlotsTest is Test {
         // Verify final balances with user storage slots
         vm.startPrank(leader);
 
-        uint256[] memory finalBalances = new uint256[](3);
-        finalBalances[0] = 8 ether;  // user1
-        finalBalances[1] = 22 ether; // user2
-        finalBalances[2] = 5 ether;  // leader
-
-        // Final user storage slots: isBlackListed values for each participant
-        uint256[][] memory finalUserStorageSlots = new uint256[][](3);
-        finalUserStorageSlots[0] = new uint256[](1); // user1: not blacklisted
-        finalUserStorageSlots[0][0] = 0;
-        finalUserStorageSlots[1] = new uint256[](1); // user2: not blacklisted
-        finalUserStorageSlots[1][0] = 0;
-        finalUserStorageSlots[2] = new uint256[](1); // leader: not blacklisted
-        finalUserStorageSlots[2][0] = 0;
+        // Final slot values: [balance, isBlackListed] for each participant
+        uint256[][] memory finalSlotValues = new uint256[][](3);
+        finalSlotValues[0] = new uint256[](2); // user1: balance + not blacklisted
+        finalSlotValues[0][0] = 8 ether;       // balance
+        finalSlotValues[0][1] = 0;             // not blacklisted
+        finalSlotValues[1] = new uint256[](2); // user2: balance + not blacklisted
+        finalSlotValues[1][0] = 22 ether;      // balance
+        finalSlotValues[1][1] = 0;             // not blacklisted
+        finalSlotValues[2] = new uint256[](2); // leader: balance + not blacklisted
+        finalSlotValues[2][0] = 5 ether;       // balance
+        finalSlotValues[2][1] = 0;             // not blacklisted
 
         // Permutation array: First all balances (3), then all isBlackListed (3) = 6 entries total
         uint256[] memory permutation = new uint256[](6);
@@ -457,7 +468,7 @@ contract UserStorageSlotsTest is Test {
             pC: pC
         });
 
-        proofManager.verifyFinalBalancesGroth16(channelId, finalBalances, finalUserStorageSlots, permutation, finalProof);
+        proofManager.verifyFinalBalancesGroth16(channelId, finalSlotValues, permutation, finalProof);
 
         vm.stopPrank();
 

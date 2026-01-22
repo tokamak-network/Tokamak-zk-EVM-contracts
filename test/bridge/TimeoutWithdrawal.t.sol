@@ -190,11 +190,16 @@ contract TimeoutWithdrawalTest is Test {
         
         vm.stopPrank();
 
-        // Set up allowed target contract
+        // Set up allowed target contract with balance slot
         vm.startPrank(owner);
-        IBridgeCore.PreAllocatedLeaf[] memory emptyLeaves;
-        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots;
-        adminManager.setAllowedTargetContract(address(token), emptyLeaves, emptyUserStorageSlots, true);
+        IBridgeCore.PreAllocatedLeaf[] memory emptyLeaves = new IBridgeCore.PreAllocatedLeaf[](0);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(token), emptyLeaves, balanceSlot, true);
         vm.stopPrank();
 
         // Mint tokens to participants

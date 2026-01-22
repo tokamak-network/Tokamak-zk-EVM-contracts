@@ -137,15 +137,20 @@ contract MockBridgeCore {
     }
 
     function getTargetContractData(address) external pure returns (IBridgeCore.TargetContract memory) {
-        // Return empty target contract data (no user storage slots)
+        // Return target contract data with balance slot only
         IBridgeCore.RegisteredFunction[] memory emptyFunctions = new IBridgeCore.RegisteredFunction[](0);
         IBridgeCore.PreAllocatedLeaf[] memory emptyLeaves = new IBridgeCore.PreAllocatedLeaf[](0);
-        IBridgeCore.UserStorageSlot[] memory emptySlots = new IBridgeCore.UserStorageSlot[](0);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false // balance comes from deposits
+        });
 
         return IBridgeCore.TargetContract({
             preAllocatedLeaves: emptyLeaves,
             registeredFunctions: emptyFunctions,
-            userStorageSlots: emptySlots
+            userStorageSlots: balanceSlot
         });
     }
 
@@ -216,13 +221,20 @@ contract VerifyFinalBalancesInputTest is Test {
     function testVerifyFinalBalancesGroth16WithProvidedInputs() public {
         bytes32 channelId = bytes32(uint256(42));
 
-        uint256[] memory finalBalances = new uint256[](6);
-        finalBalances[0] = 8_000000000000000000;
-        finalBalances[1] = 21_000000000000000000;
-        finalBalances[2] = 9_000000000000000000;
-        finalBalances[3] = 18_000000000000000000;
-        finalBalances[4] = 4_000000000000000000;
-        finalBalances[5] = 30_000000000000000000;
+        // Final slot values: balance only for each participant (slot 0)
+        uint256[][] memory finalSlotValues = new uint256[][](6);
+        finalSlotValues[0] = new uint256[](1);
+        finalSlotValues[0][0] = 8_000000000000000000;
+        finalSlotValues[1] = new uint256[](1);
+        finalSlotValues[1][0] = 21_000000000000000000;
+        finalSlotValues[2] = new uint256[](1);
+        finalSlotValues[2][0] = 9_000000000000000000;
+        finalSlotValues[3] = new uint256[](1);
+        finalSlotValues[3][0] = 18_000000000000000000;
+        finalSlotValues[4] = new uint256[](1);
+        finalSlotValues[4][0] = 4_000000000000000000;
+        finalSlotValues[5] = new uint256[](1);
+        finalSlotValues[5][0] = 30_000000000000000000;
 
         uint256[] memory permutation = new uint256[](6);
         permutation[0] = 3;
@@ -257,15 +269,9 @@ contract VerifyFinalBalancesInputTest is Test {
             ]
         });
 
-        // Empty user storage slots (no additional storage slots for this test)
-        uint256[][] memory finalUserStorageSlots = new uint256[][](6);
-        for (uint256 i = 0; i < 6; i++) {
-            finalUserStorageSlots[i] = new uint256[](0);
-        }
-
         (bool ok, bytes memory data) = address(proofManager).call(
             abi.encodeCall(
-                BridgeProofManager.verifyFinalBalancesGroth16, (channelId, finalBalances, finalUserStorageSlots, permutation, proof)
+                BridgeProofManager.verifyFinalBalancesGroth16, (channelId, finalSlotValues, permutation, proof)
             )
         );
         if (!ok) {

@@ -176,8 +176,13 @@ contract ProofSubmissionTest is Test {
         bytes32 functionInstanceHash = 0xd157cb883adb9cb0e27d9dc419e2a4be817d856281b994583b5bae64be94d35a;
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        IBridgeCore.UserStorageSlot[] memory emptyUserStorageSlots = new IBridgeCore.UserStorageSlot[](0);
-        adminManager.setAllowedTargetContract(address(token), emptySlots, emptyUserStorageSlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(token), emptySlots, balanceSlot, true);
         adminManager.registerFunction(
             address(token), transferSig, preprocessedPart1, preprocessedPart2, functionInstanceHash
         );

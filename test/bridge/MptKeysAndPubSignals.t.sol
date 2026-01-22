@@ -151,16 +151,27 @@ contract MptKeysAndPubSignalsTest is Test {
             address(depositManager), address(proofManager), address(0), address(adminManager)
         );
 
-        // Register simple token (no user storage slots)
+        // Register simple token with balance slot only
         IBridgeCore.PreAllocatedLeaf[] memory emptyLeaves = new IBridgeCore.PreAllocatedLeaf[](0);
-        IBridgeCore.UserStorageSlot[] memory emptySlots = new IBridgeCore.UserStorageSlot[](0);
-        adminManager.setAllowedTargetContract(address(simpleToken), emptyLeaves, emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory simpleSlots = new IBridgeCore.UserStorageSlot[](1);
+        simpleSlots[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0, // balance slot
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false // balance comes from deposits
+        });
+        adminManager.setAllowedTargetContract(address(simpleToken), emptyLeaves, simpleSlots, true);
 
-        // Register USDT token with isBlackListed storage slot
-        IBridgeCore.UserStorageSlot[] memory usdtSlots = new IBridgeCore.UserStorageSlot[](1);
+        // Register USDT token with balance + isBlackListed storage slots
+        IBridgeCore.UserStorageSlot[] memory usdtSlots = new IBridgeCore.UserStorageSlot[](2);
         usdtSlots[0] = IBridgeCore.UserStorageSlot({
-            slotOffset: 1,
-            getterFunctionSignature: bytes32(bytes4(keccak256("isBlackListed(address)")))
+            slotOffset: 2, // USDT balance slot
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false // balance comes from deposits
+        });
+        usdtSlots[1] = IBridgeCore.UserStorageSlot({
+            slotOffset: 6, // USDT isBlackListed slot
+            getterFunctionSignature: bytes32(bytes4(keccak256("isBlackListed(address)"))),
+            isLoadedOnChain: true // fetched from chain
         });
         adminManager.setAllowedTargetContract(address(usdtToken), emptyLeaves, usdtSlots, true);
 

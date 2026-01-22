@@ -984,6 +984,7 @@ contract BridgeCoreTest is Test {
         address[] memory channelParticipants = bridge.getChannelParticipants(channelId);
 
         // Should have 17 participants total
+
         assertEq(channelParticipants.length, 17, "Should have 17 participants");
 
         // Tree size must accommodate all participants
@@ -1061,6 +1062,8 @@ contract BridgeCoreTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Deposited(channelId, user1, address(token), depositAmount);
         depositManager.depositToken(channelId, depositAmount, bytes32(uint256(uint160(l2User1))));
+        uint256 amountStored = bridge.getValidatedUserBalance(channelId, user1);
+        assertEq(amountStored, depositAmount);
 
         vm.stopPrank();
     }

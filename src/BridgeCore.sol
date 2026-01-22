@@ -35,8 +35,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         bytes32 getterFunctionSignature;
     }
 
-    struct Withdrawal {
-        uint256 amount;
+    struct ValidatedUserStorage {
+        address targetContract;
+        mapping(uint8 => uint256) value; // Usage: value[SLOT_NUMBER], slot 0 = balance
         bool isLocked;
     }
 
@@ -100,7 +101,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         address adminManager;
         mapping(address => mapping(bytes32 => PreAllocatedLeaf)) preAllocatedLeaves;
         mapping(address => bytes32[]) targetContractPreAllocatedKeys;
-        mapping(address => mapping(bytes32 => mapping(address => Withdrawal))) validatedUserStorage;
+        // Usage: validatedUserStorage[USER_ADDRESS][CHANNEL_ID]
+        mapping(address => mapping(bytes32 => ValidatedUserStorage[])) validatedUserStorage;
     }
 
     bytes32 private constant BridgeCoreStorageLocation =
@@ -223,9 +225,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
     // Manager setter functions
     function updateChannelUserDeposits(bytes32 channelId, address participant, address targetContract, uint256 amount) external onlyManager {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         require(amount < R_MOD, "Amount exceeds R_MOD");
-        $.validatedUserStorage[participant][channelId][targetContract].amount += amount;
+        ValidatedUserStorage storage entry = _getOrCreateValidatedUserStorage(participant, channelId);
+        entry.value[0] += amount; // Slot 0 = balance
     }
 
     function setChannelL2MptKey(bytes32 channelId, address participant, uint256 mptKey) external onlyManager {
@@ -267,16 +269,12 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         external
         onlyManager
     {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-
-        // Get target contract before channel cleanup
-        address targetContract = $.channels[channelId].targetContract;
-
         for (uint256 participantIdx = 0; participantIdx < participants.length; participantIdx++) {
             address participant = participants[participantIdx];
             uint256 finalBalance = amounts[participantIdx];
-            $.validatedUserStorage[participant][channelId][targetContract].amount = finalBalance;
-            $.validatedUserStorage[participant][channelId][targetContract].isLocked = false;
+            ValidatedUserStorage storage entry = _getOrCreateValidatedUserStorage(participant, channelId);
+            entry.value[0] = finalBalance; // Slot 0 = balance
+            entry.isLocked = false;
         }
     }
 
@@ -387,13 +385,16 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         }
     }
 
-    function clearValidatedUserStorage(bytes32 channelId, address participant, address targetContract)
+    function clearValidatedUserStorage(bytes32 channelId, address participant)
         external
         onlyManager
     {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        $.validatedUserStorage[participant][channelId][targetContract].amount = 0;
-        $.validatedUserStorage[participant][channelId][targetContract].isLocked = false;
+        if (!_hasValidatedUserStorage(participant, channelId)) {
+            return; // Nothing to clear
+        }
+        ValidatedUserStorage storage entry = _getValidatedUserStorage(participant, channelId);
+        entry.value[0] = 0; // Clear balance slot
+        entry.isLocked = false;
     }
 
     function setChannelCloseTimestamp(bytes32 channelId, uint256 timestamp) external onlyManager {
@@ -429,8 +430,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         require(channel.leader != address(0), "Channel does not exist");
 
-        // Get target contract and participants before cleanup
-        address targetContract = channel.targetContract;
+        // Get participants before cleanup
         address[] memory participants = channel.participants;
 
         // Clean up mappings inside the channel struct
@@ -610,6 +610,60 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return count;
     }
 
+    /**
+     * @dev Get or create ValidatedUserStorage entry for a channel
+     * @param participant The user address
+     * @param channelId The channel ID
+     * @return storage pointer to the ValidatedUserStorage entry
+     */
+    function _getOrCreateValidatedUserStorage(
+        address participant,
+        bytes32 channelId
+    ) internal returns (ValidatedUserStorage storage) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        ValidatedUserStorage[] storage entries = $.validatedUserStorage[participant][channelId];
+
+        // Return existing entry if exists
+        if (entries.length > 0) {
+            return entries[0];
+        }
+
+        // Create new entry with channel's targetContract
+        address targetContract = $.channels[channelId].targetContract;
+        entries.push();
+        ValidatedUserStorage storage newEntry = entries[0];
+        newEntry.targetContract = targetContract;
+        return newEntry;
+    }
+
+    /**
+     * @dev Get ValidatedUserStorage entry for a channel (read-only)
+     * @param participant The user address
+     * @param channelId The channel ID
+     * @return storage pointer to the ValidatedUserStorage entry (reverts if not found)
+     */
+    function _getValidatedUserStorage(
+        address participant,
+        bytes32 channelId
+    ) internal view returns (ValidatedUserStorage storage) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        ValidatedUserStorage[] storage entries = $.validatedUserStorage[participant][channelId];
+
+        require(entries.length > 0, "ValidatedUserStorage not found");
+        return entries[0];
+    }
+
+    /**
+     * @dev Check if ValidatedUserStorage entry exists for a channel
+     */
+    function _hasValidatedUserStorage(
+        address participant,
+        bytes32 channelId
+    ) internal view returns (bool) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.validatedUserStorage[participant][channelId].length > 0;
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     function deriveAddressFromPubkey(uint256 pkx, uint256 pky) internal pure returns (address) {
@@ -746,22 +800,28 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].sigVerified;
     }
 
-    function getValidatedUserStorage(bytes32 channelId, address participant, address targetContract)
+    function getValidatedUserBalance(bytes32 channelId, address participant)
         external
         view
         returns (uint256)
     {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.validatedUserStorage[participant][channelId][targetContract].amount;
+        if (!_hasValidatedUserStorage(participant, channelId)) {
+            return 0;
+        }
+        ValidatedUserStorage storage entry = _getValidatedUserStorage(participant, channelId);
+        return entry.value[0]; // Slot 0 = balance
     }
 
-    function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract)
+    function hasUserWithdrawn(bytes32 channelId, address participant)
         external
         view
         returns (bool)
     {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.validatedUserStorage[participant][channelId][targetContract].amount == 0;
+        if (!_hasValidatedUserStorage(participant, channelId)) {
+            return true; // No entry means nothing to withdraw
+        }
+        ValidatedUserStorage storage entry = _getValidatedUserStorage(participant, channelId);
+        return entry.value[0] == 0;
     }
 
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32) {

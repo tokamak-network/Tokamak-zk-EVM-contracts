@@ -276,7 +276,7 @@ contract TimeoutWithdrawalTest is Test {
         assertEq(token.balanceOf(user1), initialTokenBalance + DEPOSIT_AMOUNT);
 
         // Verify user's validatedUserStorage is cleared after withdrawal
-        assertEq(bridge.getValidatedUserStorage(channelId, user1, address(token)), 0);
+        assertEq(bridge.getValidatedUserBalance(channelId, user1), 0);
     }
 
     function testWithdrawOnTimeoutBeforeTimeout() public {
@@ -340,8 +340,8 @@ contract TimeoutWithdrawalTest is Test {
         assertEq(token.balanceOf(user2), user2InitialBalance + DEPOSIT_AMOUNT);
 
         // Verify both users' validatedUserStorage is cleared after withdrawal
-        assertEq(bridge.getValidatedUserStorage(channelId, user1, address(token)), 0);
-        assertEq(bridge.getValidatedUserStorage(channelId, user2, address(token)), 0);
+        assertEq(bridge.getValidatedUserBalance(channelId, user1), 0);
+        assertEq(bridge.getValidatedUserBalance(channelId, user2), 0);
     }
 
     function _submitMockProof() internal {

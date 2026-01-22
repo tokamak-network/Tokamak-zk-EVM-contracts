@@ -54,11 +54,11 @@ interface IBridgeCore {
         external
         view
         returns (address targetContract, ChannelState state, uint256 participantCount, bytes32 initialRoot);
-    function getValidatedUserStorage(bytes32 channelId, address participant, address targetContract)
+    function getValidatedUserBalance(bytes32 channelId, address participant)
         external
         view
         returns (uint256);
-    function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract)
+    function hasUserWithdrawn(bytes32 channelId, address participant)
         external
         view
         returns (bool);
@@ -92,7 +92,7 @@ interface IBridgeCore {
         bytes32 instancesHash
     ) external;
     function unregisterFunction(address targetContract, bytes32 functionSignature) external;
-    function clearValidatedUserStorage(bytes32 channelId, address participant, address targetContract) external;
+    function clearValidatedUserStorage(bytes32 channelId, address participant) external;
     function setChannelBlockInfosHash(bytes32 channelId, bytes32 blockInfosHash) external;
     function addParticipantOnDeposit(bytes32 channelId, address user) external;
     function cleanupChannel(bytes32 channelId) external;

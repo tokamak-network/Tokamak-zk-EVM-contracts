@@ -155,7 +155,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // First: Add ALL balance leaves for ALL participants
         for (uint256 i = 0; i < participants.length; i++) {
             address l1Address = participants[i];
-            uint256 balance = bridge.getValidatedUserStorage(channelId, l1Address, targetContract);
+            uint256 balance = bridge.getValidatedUserBalance(channelId, l1Address);
             uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address);
 
             if (balance > 0) {

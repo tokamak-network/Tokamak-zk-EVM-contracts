@@ -36,7 +36,7 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
         bridge = IBridgeCore(_bridgeCore);
     }
 
-    function depositToken(bytes32 _channelId, uint256 _amount, bytes32 _mptKey) external nonReentrant {
+    function depositToken(bytes32 _channelId, uint256 _amount, bytes32[] calldata _mptKeys) external nonReentrant {
         require(bridge.getChannelState(_channelId) == IBridgeCore.ChannelState.Initialized, "Invalid channel state");
         require(bridge.isChannelWhitelisted(_channelId, msg.sender), "Not whitelisted");
 
@@ -46,11 +46,13 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
             require(bridge.isChannelPublicKeySet(_channelId), "Channel leader must set public key first");
         }
 
-        require(_mptKey != bytes32(0), "Invalid MPT key");
-
         address targetContract = bridge.getChannelTargetContract(_channelId);
         require(targetContract != address(0), "Invalid target contract");
-        require(bridge.isAllowedTargetContract(targetContract), "Target contract not allowed");
+
+        // Validate MPT keys count matches expected storage slots (1 for balance + additional user storage slots)
+        IBridgeCore.TargetContract memory targetContractData = bridge.getTargetContractData(targetContract);
+        uint256 expectedSlots = 1 + targetContractData.userStorageSlots.length;
+        require(_mptKeys.length == expectedSlots, "MPT keys count mismatch");
 
         uint256 userBalance = IERC20Upgradeable(targetContract).balanceOf(msg.sender);
         require(
@@ -78,7 +80,12 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
         // Add user to participants array when they make their first deposit
         bridge.addParticipantOnDeposit(_channelId, msg.sender);
 
-        bridge.setChannelL2MptKey(_channelId, msg.sender, uint256(_mptKey));
+        // Convert bytes32[] to uint256[] and set MPT keys
+        uint256[] memory mptKeysUint = new uint256[](_mptKeys.length);
+        for (uint256 i = 0; i < _mptKeys.length; i++) {
+            mptKeysUint[i] = uint256(_mptKeys[i]);
+        }
+        bridge.setChannelL2MptKeys(_channelId, msg.sender, mptKeysUint);
 
         emit Deposited(_channelId, msg.sender, targetContract, _amount);
     }

@@ -239,7 +239,9 @@ contract TimeoutWithdrawalTest is Test {
         for (uint256 i = 0; i < participants.length; i++) {
             vm.startPrank(participants[i]);
             token.approve(address(depositManager), DEPOSIT_AMOUNT);
-            depositManager.depositToken(channelId, DEPOSIT_AMOUNT, bytes32(uint256(i + 1)));
+            bytes32[] memory mptKeys = new bytes32[](1);
+            mptKeys[0] = bytes32(uint256(i + 1));
+            depositManager.depositToken(channelId, DEPOSIT_AMOUNT, mptKeys);
             vm.stopPrank();
         }
     }

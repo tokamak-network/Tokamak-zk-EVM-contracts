@@ -188,26 +188,38 @@ contract UserStorageSlotsTest is Test {
         bridge.openChannel(params);
         vm.stopPrank();
 
-        // Deposit tokens
+        // Deposit tokens (2 mptKeys each: balance + isBlackListed)
         vm.startPrank(user1);
         usdt.approve(address(depositManager), 10 ether);
-        depositManager.depositToken(channelId, 10 ether, bytes32(uint256(1)));
+        bytes32[] memory mptKeys1 = new bytes32[](2);
+        mptKeys1[0] = bytes32(uint256(1)); // balance slot
+        mptKeys1[1] = bytes32(uint256(101)); // isBlackListed slot
+        depositManager.depositToken(channelId, 10 ether, mptKeys1);
         vm.stopPrank();
 
         vm.startPrank(user2);
         usdt.approve(address(depositManager), 20 ether);
-        depositManager.depositToken(channelId, 20 ether, bytes32(uint256(2)));
+        bytes32[] memory mptKeys2 = new bytes32[](2);
+        mptKeys2[0] = bytes32(uint256(2));
+        mptKeys2[1] = bytes32(uint256(102));
+        depositManager.depositToken(channelId, 20 ether, mptKeys2);
         vm.stopPrank();
 
         vm.startPrank(user3);
         usdt.approve(address(depositManager), 15 ether);
-        depositManager.depositToken(channelId, 15 ether, bytes32(uint256(3)));
+        bytes32[] memory mptKeys3 = new bytes32[](2);
+        mptKeys3[0] = bytes32(uint256(3));
+        mptKeys3[1] = bytes32(uint256(103));
+        depositManager.depositToken(channelId, 15 ether, mptKeys3);
         vm.stopPrank();
 
         // Leader deposits to participate
         vm.startPrank(leader);
         usdt.approve(address(depositManager), 5 ether);
-        depositManager.depositToken(channelId, 5 ether, bytes32(uint256(4)));
+        bytes32[] memory mptKeys4 = new bytes32[](2);
+        mptKeys4[0] = bytes32(uint256(4));
+        mptKeys4[1] = bytes32(uint256(104));
+        depositManager.depositToken(channelId, 5 ether, mptKeys4);
         vm.stopPrank();
 
         // Blacklist user3 AFTER deposits (to test staticcall fetches blacklist status correctly)
@@ -290,20 +302,26 @@ contract UserStorageSlotsTest is Test {
         bridge.openChannel(params);
         vm.stopPrank();
 
-        // Deposit tokens
+        // Deposit tokens (1 mptKey each: balance only for simple token)
         vm.startPrank(user1);
         simpleToken.approve(address(depositManager), 10 ether);
-        depositManager.depositToken(channelId, 10 ether, bytes32(uint256(1)));
+        bytes32[] memory mptKeys1 = new bytes32[](1);
+        mptKeys1[0] = bytes32(uint256(1));
+        depositManager.depositToken(channelId, 10 ether, mptKeys1);
         vm.stopPrank();
 
         vm.startPrank(user2);
         simpleToken.approve(address(depositManager), 20 ether);
-        depositManager.depositToken(channelId, 20 ether, bytes32(uint256(2)));
+        bytes32[] memory mptKeys2 = new bytes32[](1);
+        mptKeys2[0] = bytes32(uint256(2));
+        depositManager.depositToken(channelId, 20 ether, mptKeys2);
         vm.stopPrank();
 
         vm.startPrank(leader);
         simpleToken.approve(address(depositManager), 5 ether);
-        depositManager.depositToken(channelId, 5 ether, bytes32(uint256(3)));
+        bytes32[] memory mptKeys3 = new bytes32[](1);
+        mptKeys3[0] = bytes32(uint256(3));
+        depositManager.depositToken(channelId, 5 ether, mptKeys3);
         vm.stopPrank();
 
         // Initialize channel state with proof
@@ -356,21 +374,30 @@ contract UserStorageSlotsTest is Test {
         bridge.openChannel(params);
         vm.stopPrank();
 
-        // Deposit tokens
+        // Deposit tokens (2 mptKeys each: balance + isBlackListed)
         vm.startPrank(user1);
         usdt.approve(address(depositManager), 10 ether);
-        depositManager.depositToken(channelId, 10 ether, bytes32(uint256(1)));
+        bytes32[] memory mptKeys1 = new bytes32[](2);
+        mptKeys1[0] = bytes32(uint256(1));
+        mptKeys1[1] = bytes32(uint256(101));
+        depositManager.depositToken(channelId, 10 ether, mptKeys1);
         vm.stopPrank();
 
         vm.startPrank(user2);
         usdt.approve(address(depositManager), 20 ether);
-        depositManager.depositToken(channelId, 20 ether, bytes32(uint256(2)));
+        bytes32[] memory mptKeys2 = new bytes32[](2);
+        mptKeys2[0] = bytes32(uint256(2));
+        mptKeys2[1] = bytes32(uint256(102));
+        depositManager.depositToken(channelId, 20 ether, mptKeys2);
         vm.stopPrank();
 
         // Leader deposits to participate
         vm.startPrank(leader);
         usdt.approve(address(depositManager), 5 ether);
-        depositManager.depositToken(channelId, 5 ether, bytes32(uint256(3)));
+        bytes32[] memory mptKeys3 = new bytes32[](2);
+        mptKeys3[0] = bytes32(uint256(3));
+        mptKeys3[1] = bytes32(uint256(103));
+        depositManager.depositToken(channelId, 5 ether, mptKeys3);
         vm.stopPrank();
 
         // Initialize channel state

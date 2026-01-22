@@ -203,12 +203,14 @@ contract ModularArchitectureTest is Test {
         // Test deposit using DepositManager
         vm.startPrank(user1);
         testToken.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(123)));
+        bytes32[] memory mptKeys = new bytes32[](1);
+        mptKeys[0] = bytes32(uint256(123));
+        depositManager.depositToken(channelId, 1 ether, mptKeys);
         vm.stopPrank();
 
         // Verify deposit was recorded
         assertEq(bridge.getValidatedUserBalance(channelId, user1), 1 ether);
-        assertEq(bridge.getL2MptKey(channelId, user1), 123);
+        assertEq(bridge.getL2MptKey(channelId, user1, 0), 123);
     }
 
     function testChannelStateInitialization() public {
@@ -258,19 +260,25 @@ contract ModularArchitectureTest is Test {
         vm.stopPrank();
 
         // Add deposits
+        bytes32[] memory mptKeys1 = new bytes32[](1);
+        mptKeys1[0] = bytes32(uint256(123));
         vm.startPrank(user1);
         testToken.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(123)));
+        depositManager.depositToken(channelId, 1 ether, mptKeys1);
         vm.stopPrank();
 
+        bytes32[] memory mptKeys2 = new bytes32[](1);
+        mptKeys2[0] = bytes32(uint256(456));
         vm.startPrank(user2);
         testToken.approve(address(depositManager), 2 ether);
-        depositManager.depositToken(channelId, 2 ether, bytes32(uint256(456)));
+        depositManager.depositToken(channelId, 2 ether, mptKeys2);
         vm.stopPrank();
 
+        bytes32[] memory mptKeys3 = new bytes32[](1);
+        mptKeys3[0] = bytes32(uint256(789));
         vm.startPrank(user3);
         testToken.approve(address(depositManager), 3 ether);
-        depositManager.depositToken(channelId, 3 ether, bytes32(uint256(789)));
+        depositManager.depositToken(channelId, 3 ether, mptKeys3);
         vm.stopPrank();
     }
 
@@ -300,13 +308,15 @@ contract ModularArchitectureTest is Test {
         assertEq(uint8(bridge.getChannelState(channelId)), uint8(IBridgeCore.ChannelState.Initialized));
 
         // Test that deposit works without setting public key
+        bytes32[] memory mptKeys = new bytes32[](1);
+        mptKeys[0] = bytes32(uint256(123));
         vm.startPrank(user1);
         testToken.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(123)));
+        depositManager.depositToken(channelId, 1 ether, mptKeys);
         vm.stopPrank();
 
         // Verify deposit was recorded
         assertEq(bridge.getValidatedUserBalance(channelId, user1), 1 ether);
-        assertEq(bridge.getL2MptKey(channelId, user1), 123);
+        assertEq(bridge.getL2MptKey(channelId, user1, 0), 123);
     }
 }

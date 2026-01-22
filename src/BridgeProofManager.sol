@@ -156,7 +156,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         for (uint256 i = 0; i < participants.length; i++) {
             address l1Address = participants[i];
             uint256 balance = bridge.getValidatedUserBalance(channelId, l1Address);
-            uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address);
+            uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address, 0); // slotIndex 0 = balance
 
             if (balance > 0) {
                 require(l2MptKey != 0, "Participant MPT key not set");
@@ -174,7 +174,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
             for (uint256 i = 0; i < participants.length; i++) {
                 address l1Address = participants[i];
-                uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address);
+                uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address, uint8(j + 1)); // slotIndex j+1 for additional slots
 
                 // Perform staticcall to fetch the value from target contract
                 bytes memory callData = abi.encodePacked(slot.getterFunctionSignature, abi.encode(l1Address));
@@ -423,8 +423,8 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         for (uint256 i = 0; i < participants.length; i++) {
             address participant = participants[i];
 
-            // Get L2 MPT key for this participant
-            uint256 l2MptKey = bridge.getL2MptKey(channelId, participant);
+            // Get L2 MPT key for this participant (slotIndex 0 = balance)
+            uint256 l2MptKey = bridge.getL2MptKey(channelId, participant, 0);
             uint256 modedL2MptKey = l2MptKey % R_MOD;
 
             // Add balance leaf: POSEIDON2(L2MptKey, Balance)
@@ -438,7 +438,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         for (uint256 j = 0; j < userStorageSlotsCount; j++) {
             for (uint256 i = 0; i < participants.length; i++) {
                 address participant = participants[i];
-                uint256 l2MptKey = bridge.getL2MptKey(channelId, participant);
+                uint256 l2MptKey = bridge.getL2MptKey(channelId, participant, uint8(j + 1)); // slotIndex j+1 for additional slots
                 uint256 modedL2MptKey = l2MptKey % R_MOD;
 
                 uint256 slotValue = finalUserStorageSlots[i][j];

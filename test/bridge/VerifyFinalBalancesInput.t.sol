@@ -64,7 +64,7 @@ contract MockBridgeCore {
     address public targetContract;
     address public channelLeader;
     bool public isCleanedUp;
-    mapping(address => uint256) public l2MptKeys;
+    mapping(address => mapping(uint8 => uint256)) public l2MptKeys;
 
     function setConfig(
         IBridgeCore.ChannelState _state,
@@ -88,8 +88,8 @@ contract MockBridgeCore {
         }
     }
 
-    function setL2MptKey(address participant, uint256 key) external {
-        l2MptKeys[participant] = key;
+    function setL2MptKey(address participant, uint8 slotIndex, uint256 key) external {
+        l2MptKeys[participant][slotIndex] = key;
     }
 
     function getChannelState(bytes32) external view returns (IBridgeCore.ChannelState) {
@@ -132,8 +132,8 @@ contract MockBridgeCore {
         return (0, false);
     }
 
-    function getL2MptKey(bytes32, address participant) external view returns (uint256) {
-        return l2MptKeys[participant];
+    function getL2MptKey(bytes32, address participant, uint8 slotIndex) external view returns (uint256) {
+        return l2MptKeys[participant][slotIndex];
     }
 
     function getTargetContractData(address) external pure returns (IBridgeCore.TargetContract memory) {

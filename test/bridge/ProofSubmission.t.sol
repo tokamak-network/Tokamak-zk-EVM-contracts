@@ -215,19 +215,25 @@ contract ProofSubmissionTest is Test {
         token.mint(user1, 1000e18);
         vm.startPrank(user1);
         token.approve(address(depositManager), 2e18);
-        depositManager.depositToken(channelId, 2e18, bytes32(uint256(10)));
+        bytes32[] memory mptKeys1 = new bytes32[](1);
+        mptKeys1[0] = bytes32(uint256(10));
+        depositManager.depositToken(channelId, 2e18, mptKeys1);
         vm.stopPrank();
 
         token.mint(user2, 1000e18);
         vm.startPrank(user2);
         token.approve(address(depositManager), 500e18);
-        depositManager.depositToken(channelId, 500e18, bytes32(uint256(20)));
+        bytes32[] memory mptKeys2 = new bytes32[](1);
+        mptKeys2[0] = bytes32(uint256(20));
+        depositManager.depositToken(channelId, 500e18, mptKeys2);
         vm.stopPrank();
 
         token.mint(leader, 1000e18);
         vm.startPrank(leader);
         token.approve(address(depositManager), 1e18);
-        depositManager.depositToken(channelId, 1e18, bytes32(uint256(30)));
+        bytes32[] memory mptKeys3 = new bytes32[](1);
+        mptKeys3[0] = bytes32(uint256(30));
+        depositManager.depositToken(channelId, 1e18, mptKeys3);
         vm.stopPrank();
     }
 

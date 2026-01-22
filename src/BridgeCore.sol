@@ -83,7 +83,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         // Dynamic storage (mappings and arrays)
         mapping(address => bool) isWhiteListed;
         address[] participants;
-        mapping(address => uint256) l2MptKey;
+        mapping(address => mapping(uint8 => uint256)) l2MptKey; // l2MptKey[participant][slotIndex]
     }
 
     uint256 public constant MIN_PARTICIPANTS = 1;
@@ -230,24 +230,19 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         entry.value[0] += amount; // Slot 0 = balance
     }
 
-    function setChannelL2MptKey(bytes32 channelId, address participant, uint256 mptKey) external onlyManager {
+    function setChannelL2MptKeys(bytes32 channelId, address participant, uint256[] calldata mptKeys) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
 
-        require(mptKey < R_MOD, "MPT key exceeds R_MOD");
+        // Get expected number of slots: 1 (balance) + userStorageSlots.length
+        uint256 expectedSlots = 1 + $.allowedTargetContracts[channel.targetContract].userStorageSlots.length;
+        require(mptKeys.length == expectedSlots, "MPT keys count mismatch");
 
-        // Check if the mptKey is already used by another participant
-        for (uint256 i = 0; i < channel.participants.length; i++) {
-            address existingParticipant = channel.participants[i];
-            if (
-                existingParticipant != participant && channel.l2MptKey[existingParticipant] == mptKey
-                    && mptKey != 0
-            ) {
-                revert("L2MPTKey already in use by another participant");
-            }
+        // Validate and store each mptKey by slot index
+        for (uint8 i = 0; i < mptKeys.length; i++) {
+            require(mptKeys[i] < R_MOD, "MPT key exceeds R_MOD");
+            channel.l2MptKey[participant][i] = mptKeys[i];
         }
-
-        channel.l2MptKey[participant] = mptKey;
     }
 
     function setChannelInitialStateRoot(bytes32 channelId, bytes32 stateRoot) external onlyManager {
@@ -430,15 +425,22 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
         require(channel.leader != address(0), "Channel does not exist");
 
-        // Get participants before cleanup
+        // Get participants and target contract before cleanup
         address[] memory participants = channel.participants;
+        address targetContract = channel.targetContract;
+
+        // Get number of user storage slots for this target contract
+        uint256 numSlots = 1 + $.allowedTargetContracts[targetContract].userStorageSlots.length;
 
         // Clean up mappings inside the channel struct
         // Note: Arrays are cleared by delete, but mappings must be manually cleared
         for (uint256 i = 0; i < participants.length; i++) {
             address participant = participants[i];
             delete channel.isWhiteListed[participant];
-            delete channel.l2MptKey[participant];
+            // Clear each slot index in the nested mapping
+            for (uint8 j = 0; j < numSlots; j++) {
+                delete channel.l2MptKey[participant][j];
+            }
         }
 
         // Now delete the channel struct
@@ -743,9 +745,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].requiredTreeSize;
     }
 
-    function getL2MptKey(bytes32 channelId, address participant) external view returns (uint256) {
+    function getL2MptKey(bytes32 channelId, address participant, uint8 slotIndex) external view returns (uint256) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        return $.channels[channelId].l2MptKey[participant];
+        return $.channels[channelId].l2MptKey[participant][slotIndex];
     }
 
     function getChannelPublicKey(bytes32 channelId) external view returns (uint256 pkx, uint256 pky) {

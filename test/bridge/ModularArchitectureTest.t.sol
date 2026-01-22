@@ -136,10 +136,11 @@ contract ModularArchitectureTest is Test {
         vm.deal(user2, 10 ether);
         vm.deal(user3, 10 ether);
 
-        // Mint test tokens for users
+        // Mint test tokens for users and leader
         testToken.mint(user1, 1000 ether);
         testToken.mint(user2, 1000 ether);
         testToken.mint(user3, 1000 ether);
+        testToken.mint(leader, 1000 ether);
 
         vm.stopPrank();
     }
@@ -214,7 +215,7 @@ contract ModularArchitectureTest is Test {
         vm.stopPrank();
 
         // Verify deposit was recorded
-        assertEq(bridge.getValidatedUserBalance(channelId, user1), 1 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user1, 0), 1 ether);
         assertEq(bridge.getL2MptKey(channelId, user1, 0), 123);
     }
 
@@ -262,6 +263,12 @@ contract ModularArchitectureTest is Test {
         bytes32 returnedChannelId = bridge.openChannel(params);
         assertEq(returnedChannelId, channelId);
         bridge.setChannelPublicKey(channelId, 1, 2);
+
+        // Leader must deposit before initializing
+        testToken.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader = new bytes32[](1);
+        mptKeysLeader[0] = bytes32(uint256(999));
+        depositManager.depositToken(channelId, 1 ether, mptKeysLeader);
         vm.stopPrank();
 
         // Add deposits
@@ -321,7 +328,7 @@ contract ModularArchitectureTest is Test {
         vm.stopPrank();
 
         // Verify deposit was recorded
-        assertEq(bridge.getValidatedUserBalance(channelId, user1), 1 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user1, 0), 1 ether);
         assertEq(bridge.getL2MptKey(channelId, user1, 0), 123);
     }
 }

@@ -27,7 +27,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     struct TargetContract {
         PreAllocatedLeaf[] preAllocatedLeaves;
         RegisteredFunction[] registeredFunctions;
-        UserStorageSlot[] userStorageSlots; // ADDITIONAL STORAGE SLOTS (BALANCE SLOT SHOULD NOT BE STORED HERE)
+        UserStorageSlot[] userStorageSlots;
     }
 
     struct UserStorageSlot {
@@ -38,7 +38,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
     struct ValidatedUserStorage {
         address targetContract;
-        mapping(uint8 => uint256) value; // Usage: value[SLOT_NUMBER], slot 0 = balance
+        mapping(uint8 => uint256) value; // Usage: value[SLOT_NUMBER]
         bool isLocked;
     }
 
@@ -56,9 +56,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     }
 
     struct Channel {
-        // Slot 1
+        // Slot 0
         bytes32 id;
-        // Slot 2: pack addresses and small values (20 + 20 + 1 + 1 + 1 + 1 + 12 bytes = 56 bytes)
+        // Slot 1-2: pack addresses and small values (20 + 20 + 1 + 1 + 1 + 1 = 44 bytes)
         address targetContract; // 20 bytes
         address leader; // 20 bytes
         ChannelState state; // 1 byte
@@ -166,9 +166,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         uint256 numberOfUserStorageSlot = $.allowedTargetContracts[params.targetContract].userStorageSlots.length;
 
         // Calculate maximum allowed participants considering pre-allocated leaves and leader
-        // Formula: (availableLeaves / slotsPerParticipant) - 1 (for leader)
+        // Formula: (availableLeaves / slotsPerParticipant) - (1 * numberOfUserStorageSlot) for leader
         // Example: tree=16, preAlloc=4, slots=2 => ((16-4)/2)-1 = 5 whitelisted (6 total with leader)
-        uint256 maxAllowedParticipants = ((MAX_PARTICIPANTS - preAllocatedCount) / numberOfUserStorageSlot) - 1;
+        uint256 maxAllowedParticipants = ((MAX_PARTICIPANTS - preAllocatedCount) / numberOfUserStorageSlot) - (1 * numberOfUserStorageSlot);
 
         require(
             params.whitelisted.length >= MIN_PARTICIPANTS && params.whitelisted.length <= maxAllowedParticipants,
@@ -225,17 +225,24 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     }
 
     // Manager setter functions
-    function updateChannelUserDeposits(bytes32 channelId, address participant, address targetContract, uint256 amount) external onlyManager {
+    function updateChannelUserDeposits(bytes32 channelId, address participant, uint8 slotIndex, uint256 amount) external onlyManager {
         require(amount < R_MOD, "Amount exceeds R_MOD");
+
+        // Validate slotIndex has isLoadedOnChain == false (i.e., it's a balance slot)
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        address targetContract = $.channels[channelId].targetContract;
+        require(slotIndex < $.allowedTargetContracts[targetContract].userStorageSlots.length, "Invalid slot index");
+        require(!$.allowedTargetContracts[targetContract].userStorageSlots[slotIndex].isLoadedOnChain, "Slot must be off-chain");
+
         ValidatedUserStorage storage entry = _getOrCreateValidatedUserStorage(participant, channelId);
-        entry.value[0] += amount; // Slot 0 = balance
+        entry.value[slotIndex] += amount;
     }
 
     function setChannelL2MptKeys(bytes32 channelId, address participant, uint256[] calldata mptKeys) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         Channel storage channel = $.channels[channelId];
 
-        // Get expected number of slots from userStorageSlots (now includes balance as slot 0)
+        // Get expected number of slots from userStorageSlots
         uint256 expectedSlots = $.allowedTargetContracts[channel.targetContract].userStorageSlots.length;
         require(mptKeys.length == expectedSlots, "MPT keys count mismatch");
 
@@ -261,15 +268,22 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         $.channels[channelId].state = state;
     }
 
-    function setChannelValidatedUserStorage(bytes32 channelId, address[] memory participants, uint256[] memory amounts)
+    function setChannelValidatedUserStorage(bytes32 channelId, address[] memory participants, uint256[][] memory slotValues)
         external
         onlyManager
     {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        address targetContract = $.channels[channelId].targetContract;
+        uint256 numSlots = $.allowedTargetContracts[targetContract].userStorageSlots.length;
+
         for (uint256 participantIdx = 0; participantIdx < participants.length; participantIdx++) {
             address participant = participants[participantIdx];
-            uint256 finalBalance = amounts[participantIdx];
+            require(slotValues[participantIdx].length == numSlots, "Slot values count mismatch");
+
             ValidatedUserStorage storage entry = _getOrCreateValidatedUserStorage(participant, channelId);
-            entry.value[0] = finalBalance; // Slot 0 = balance
+            for (uint8 slotIdx = 0; slotIdx < numSlots; slotIdx++) {
+                entry.value[slotIdx] = slotValues[participantIdx][slotIdx];
+            }
             entry.isLocked = false;
         }
     }
@@ -381,15 +395,20 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         }
     }
 
-    function clearValidatedUserStorage(bytes32 channelId, address participant)
+    function clearValidatedUserStorage(bytes32 channelId, address participant, address targetContract)
         external
         onlyManager
     {
         if (!_hasValidatedUserStorage(participant, channelId)) {
             return; // Nothing to clear
         }
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        uint256 numSlots = $.allowedTargetContracts[targetContract].userStorageSlots.length;
+
         ValidatedUserStorage storage entry = _getValidatedUserStorage(participant, channelId);
-        entry.value[0] = 0; // Clear balance slot
+        for (uint8 slotIdx = 0; slotIdx < numSlots; slotIdx++) {
+            entry.value[slotIdx] = 0;
+        }
         entry.isLocked = false;
     }
 
@@ -667,6 +686,20 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.validatedUserStorage[participant][channelId].length > 0;
     }
 
+    /**
+     * @dev Get the balance slot index for a target contract (the one with isLoadedOnChain == false)
+     */
+    function _getBalanceSlotIndex(address targetContract) internal view returns (uint8) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        UserStorageSlot[] storage slots = $.allowedTargetContracts[targetContract].userStorageSlots;
+        for (uint8 i = 0; i < slots.length; i++) {
+            if (!slots[i].isLoadedOnChain) {
+                return i;
+            }
+        }
+        revert("No balance slot found");
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     function deriveAddressFromPubkey(uint256 pkx, uint256 pky) internal pure returns (address) {
@@ -803,7 +836,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return $.channels[channelId].sigVerified;
     }
 
-    function getValidatedUserBalance(bytes32 channelId, address participant)
+    function getValidatedUserSlotValue(bytes32 channelId, address participant, uint8 slotIndex)
         external
         view
         returns (uint256)
@@ -812,10 +845,10 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
             return 0;
         }
         ValidatedUserStorage storage entry = _getValidatedUserStorage(participant, channelId);
-        return entry.value[0]; // Slot 0 = balance
+        return entry.value[slotIndex];
     }
 
-    function hasUserWithdrawn(bytes32 channelId, address participant)
+    function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract)
         external
         view
         returns (bool)
@@ -823,8 +856,21 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         if (!_hasValidatedUserStorage(participant, channelId)) {
             return true; // No entry means nothing to withdraw
         }
+        uint8 balanceSlotIndex = _getBalanceSlotIndex(targetContract);
+
         ValidatedUserStorage storage entry = _getValidatedUserStorage(participant, channelId);
-        return entry.value[0] == 0;
+        return entry.value[balanceSlotIndex] == 0;
+    }
+
+    function getBalanceSlotIndex(address targetContract) external view returns (uint8) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        UserStorageSlot[] storage slots = $.allowedTargetContracts[targetContract].userStorageSlots;
+        for (uint8 i = 0; i < slots.length; i++) {
+            if (!slots[i].isLoadedOnChain) {
+                return i;
+            }
+        }
+        revert("No balance slot found");
     }
 
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32) {

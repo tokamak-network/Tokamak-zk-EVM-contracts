@@ -121,7 +121,17 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         uint256 treeSize = bridge.getChannelTreeSize(channelId);
         uint256 preAllocatedCount = bridge.getChannelPreAllocatedLeavesCount(channelId);
 
-        // Get user storage slots from target contract (now includes balance as slot 0)
+        // Verify that the leader has deposited (is in participants array)
+        bool leaderIsParticipant = false;
+        for (uint256 i = 0; i < participants.length; i++) {
+            if (participants[i] == msg.sender) {
+                leaderIsParticipant = true;
+                break;
+            }
+        }
+        require(leaderIsParticipant, "Leader must deposit before initializing");
+
+        // Get user storage slots from target contract
         IBridgeCore.TargetContract memory targetContractData = bridge.getTargetContractData(targetContract);
         uint256 userStorageSlotsCount = targetContractData.userStorageSlots.length;
 
@@ -152,7 +162,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         }
 
         // Add participant data AFTER pre-allocated leaves
-        // Iterate through ALL user storage slots (including balance at slot 0)
+        // Iterate through all user storage slots
         for (uint256 j = 0; j < userStorageSlotsCount; j++) {
             IBridgeCore.UserStorageSlot memory slot = targetContractData.userStorageSlots[j];
 
@@ -163,7 +173,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                 uint256 slotValue;
                 if (!slot.isLoadedOnChain) {
                     // Balance slot: value comes from deposits
-                    slotValue = bridge.getValidatedUserBalance(channelId, l1Address);
+                    slotValue = bridge.getValidatedUserSlotValue(channelId, l1Address, uint8(j));
                     if (slotValue > 0) {
                         require(l2MptKey != 0, "Participant MPT key not set");
                     }
@@ -350,7 +360,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
     function verifyFinalBalancesGroth16(
         bytes32 channelId,
-        uint256[][] calldata finalSlotValues, // Includes balance at index 0, then other slots
+        uint256[][] calldata finalSlotValues, // finalSlotValues[participant][slot]
         uint256[] calldata permutation,
         ChannelFinalizationProof calldata groth16Proof
     ) external {
@@ -369,7 +379,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         IBridgeCore.TargetContract memory targetContractData = bridge.getTargetContractData(targetContract);
         uint256 userStorageSlotsCount = targetContractData.userStorageSlots.length;
 
-        // Validate finalSlotValues dimensions (now includes balance as slot 0)
+        // Validate finalSlotValues dimensions
         require(finalSlotValues.length == participants.length, "Invalid slot values length");
         for (uint256 i = 0; i < participants.length; i++) {
             require(finalSlotValues[i].length == userStorageSlotsCount, "Invalid storage slots count for participant");
@@ -410,7 +420,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         }
 
         // Step 4: Add participant data AFTER pre-allocated leaves
-        // Iterate through ALL user storage slots (including balance at slot 0)
+        // Iterate through all user storage slots
         for (uint256 j = 0; j < userStorageSlotsCount; j++) {
             for (uint256 i = 0; i < participants.length; i++) {
                 address participant = participants[i];
@@ -444,14 +454,8 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         // Step 6: Assert that the verifier returns true
         require(proofValid, "Invalid Groth16 proof");
 
-        // Extract final balances from slot 0 for withdrawal
-        uint256[] memory finalBalances = new uint256[](participants.length);
-        for (uint256 i = 0; i < participants.length; i++) {
-            finalBalances[i] = finalSlotValues[i][0]; // Slot 0 is always balance
-        }
-
-        // Set withdraw amounts if proof is valid
-        bridge.setChannelValidatedUserStorage(channelId, participants, finalBalances);
+        // Store all final slot values for all participants
+        bridge.setChannelValidatedUserStorage(channelId, participants, finalSlotValues);
         bridge.setChannelCloseTimestamp(channelId, block.timestamp);
 
         // Cleanup channel by removing channel leader flag and deleting channel data

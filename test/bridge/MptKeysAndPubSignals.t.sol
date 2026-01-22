@@ -175,13 +175,15 @@ contract MptKeysAndPubSignalsTest is Test {
         });
         adminManager.setAllowedTargetContract(address(usdtToken), emptyLeaves, usdtSlots, true);
 
-        // Mint tokens to participants
+        // Mint tokens to participants and leader
         simpleToken.mint(user1, 100 ether);
         simpleToken.mint(user2, 100 ether);
         simpleToken.mint(user3, 100 ether);
+        simpleToken.mint(leader, 100 ether);
         usdtToken.mint(user1, 100 ether);
         usdtToken.mint(user2, 100 ether);
         usdtToken.mint(user3, 100 ether);
+        usdtToken.mint(leader, 100 ether);
 
         vm.stopPrank();
     }
@@ -298,6 +300,14 @@ contract MptKeysAndPubSignalsTest is Test {
     function testPubSignalsInputsForSimpleToken() public {
         bytes32 channelId = _createSimpleTokenChannel();
 
+        // Leader must deposit before initializing
+        vm.startPrank(leader);
+        simpleToken.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader = new bytes32[](1);
+        mptKeysLeader[0] = bytes32(uint256(999));
+        depositManager.depositToken(channelId, 1 ether, mptKeysLeader);
+        vm.stopPrank();
+
         // User1 deposits 10 ether
         vm.startPrank(user1);
         simpleToken.approve(address(depositManager), 10 ether);
@@ -316,13 +326,15 @@ contract MptKeysAndPubSignalsTest is Test {
 
         // Verify all inputs that go into pubSignals are correct
         address[] memory participants = bridge.getChannelParticipants(channelId);
-        assertEq(participants.length, 2, "Should have 2 participants");
-        assertEq(participants[0], user1);
-        assertEq(participants[1], user2);
+        assertEq(participants.length, 3, "Should have 3 participants (leader + 2 users)");
+        assertEq(participants[0], leader);
+        assertEq(participants[1], user1);
+        assertEq(participants[2], user2);
 
         // Verify balances
-        assertEq(bridge.getValidatedUserBalance(channelId, user1), 10 ether);
-        assertEq(bridge.getValidatedUserBalance(channelId, user2), 20 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, leader, 0), 1 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user1, 0), 10 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user2, 0), 20 ether);
 
         // Verify MPT keys for balance slot (slot 0)
         assertEq(bridge.getL2MptKey(channelId, user1, 0), USER1_BALANCE_MPT_KEY);
@@ -351,6 +363,15 @@ contract MptKeysAndPubSignalsTest is Test {
     function testPubSignalsInputsForUSDTToken() public {
         bytes32 channelId = _createUSDTChannel();
 
+        // Leader must deposit before initializing
+        vm.startPrank(leader);
+        usdtToken.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader = new bytes32[](2);
+        mptKeysLeader[0] = bytes32(uint256(998));
+        mptKeysLeader[1] = bytes32(uint256(999));
+        depositManager.depositToken(channelId, 1 ether, mptKeysLeader);
+        vm.stopPrank();
+
         // User1 deposits 10 ether (will not be blacklisted)
         vm.startPrank(user1);
         usdtToken.approve(address(depositManager), 10 ether);
@@ -375,13 +396,15 @@ contract MptKeysAndPubSignalsTest is Test {
 
         // Verify all inputs that go into pubSignals
         address[] memory participants = bridge.getChannelParticipants(channelId);
-        assertEq(participants.length, 2);
-        assertEq(participants[0], user1);
-        assertEq(participants[1], user2);
+        assertEq(participants.length, 3, "Should have 3 participants (leader + 2 users)");
+        assertEq(participants[0], leader);
+        assertEq(participants[1], user1);
+        assertEq(participants[2], user2);
 
         // Verify balances
-        assertEq(bridge.getValidatedUserBalance(channelId, user1), 10 ether);
-        assertEq(bridge.getValidatedUserBalance(channelId, user2), 20 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, leader, 0), 1 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user1, 0), 10 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user2, 0), 20 ether);
 
         // Verify MPT keys for balance slot (slot 0)
         assertEq(bridge.getL2MptKey(channelId, user1, 0), USER1_BALANCE_MPT_KEY);
@@ -395,7 +418,7 @@ contract MptKeysAndPubSignalsTest is Test {
         assertFalse(usdtToken.isBlackListed(user1), "user1 should not be blacklisted");
         assertTrue(usdtToken.isBlackListed(user2), "user2 should be blacklisted");
 
-        // Verify tree size (2 participants * 2 slots = 4 leaves, fits in tree size 16)
+        // Verify tree size (3 participants * 2 slots = 6 leaves, fits in tree size 16)
         assertEq(bridge.getChannelTreeSize(channelId), 16);
 
         // Initialize channel to verify the proof manager accepts the data
@@ -417,6 +440,15 @@ contract MptKeysAndPubSignalsTest is Test {
 
     function testPubSignalsConstructionLogic() public {
         bytes32 channelId = _createUSDTChannel();
+
+        // Leader must deposit before initializing
+        vm.startPrank(leader);
+        usdtToken.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader = new bytes32[](2);
+        mptKeysLeader[0] = bytes32(uint256(998));
+        mptKeysLeader[1] = bytes32(uint256(999));
+        depositManager.depositToken(channelId, 1 ether, mptKeysLeader);
+        vm.stopPrank();
 
         // Setup: 3 users deposit with specific MPT keys and amounts
         vm.startPrank(user1);
@@ -459,42 +491,28 @@ contract MptKeysAndPubSignalsTest is Test {
         assertEq(treeSize, 16, "Tree size should be 16");
 
         address[] memory participants = bridge.getChannelParticipants(channelId);
-        assertEq(participants.length, 3, "Should have 3 participants");
+        assertEq(participants.length, 4, "Should have 4 participants (leader + 3 users)");
+        assertEq(participants[0], leader, "First participant should be leader");
+        assertEq(participants[1], user1, "Second participant should be user1");
+        assertEq(participants[2], user2, "Third participant should be user2");
+        assertEq(participants[3], user3, "Fourth participant should be user3");
 
-        // Construct expected pubSignals array (excluding merkleRoot at index 0)
-        uint256[] memory expectedKeys = new uint256[](6);
-        uint256[] memory expectedValues = new uint256[](6);
+        // Verify balances for users (not checking leader's MPT key as it uses different constant)
+        assertEq(bridge.getL2MptKey(channelId, user1, 0), USER1_BALANCE_MPT_KEY, "user1 balance key");
+        assertEq(bridge.getL2MptKey(channelId, user2, 0), USER2_BALANCE_MPT_KEY, "user2 balance key");
+        assertEq(bridge.getL2MptKey(channelId, user3, 0), USER3_BALANCE_MPT_KEY, "user3 balance key");
+        assertEq(bridge.getL2MptKey(channelId, user1, 1), USER1_BLACKLIST_MPT_KEY, "user1 blacklist key");
+        assertEq(bridge.getL2MptKey(channelId, user2, 1), USER2_BLACKLIST_MPT_KEY, "user2 blacklist key");
+        assertEq(bridge.getL2MptKey(channelId, user3, 1), USER3_BLACKLIST_MPT_KEY, "user3 blacklist key");
 
-        // Balance leaves (indices 1-3 for keys, 17-19 for values)
-        expectedKeys[0] = bridge.getL2MptKey(channelId, participants[0], 0); // user1 balance key
-        expectedKeys[1] = bridge.getL2MptKey(channelId, participants[1], 0); // user2 balance key
-        expectedKeys[2] = bridge.getL2MptKey(channelId, participants[2], 0); // user3 balance key
-        expectedValues[0] = bridge.getValidatedUserBalance(channelId, participants[0]); // user1 balance
-        expectedValues[1] = bridge.getValidatedUserBalance(channelId, participants[1]); // user2 balance
-        expectedValues[2] = bridge.getValidatedUserBalance(channelId, participants[2]); // user3 balance
-
-        // Blacklist leaves (indices 4-6 for keys, 20-22 for values)
-        expectedKeys[3] = bridge.getL2MptKey(channelId, participants[0], 1); // user1 blacklist key
-        expectedKeys[4] = bridge.getL2MptKey(channelId, participants[1], 1); // user2 blacklist key
-        expectedKeys[5] = bridge.getL2MptKey(channelId, participants[2], 1); // user3 blacklist key
-        expectedValues[3] = usdtToken.isBlackListed(participants[0]) ? 1 : 0; // user1 blacklist value
-        expectedValues[4] = usdtToken.isBlackListed(participants[1]) ? 1 : 0; // user2 blacklist value
-        expectedValues[5] = usdtToken.isBlackListed(participants[2]) ? 1 : 0; // user3 blacklist value
-
-        // Verify expected values
-        assertEq(expectedKeys[0], USER1_BALANCE_MPT_KEY, "user1 balance key");
-        assertEq(expectedKeys[1], USER2_BALANCE_MPT_KEY, "user2 balance key");
-        assertEq(expectedKeys[2], USER3_BALANCE_MPT_KEY, "user3 balance key");
-        assertEq(expectedKeys[3], USER1_BLACKLIST_MPT_KEY, "user1 blacklist key");
-        assertEq(expectedKeys[4], USER2_BLACKLIST_MPT_KEY, "user2 blacklist key");
-        assertEq(expectedKeys[5], USER3_BLACKLIST_MPT_KEY, "user3 blacklist key");
-
-        assertEq(expectedValues[0], 10 ether, "user1 balance");
-        assertEq(expectedValues[1], 20 ether, "user2 balance");
-        assertEq(expectedValues[2], 15 ether, "user3 balance");
-        assertEq(expectedValues[3], 0, "user1 not blacklisted");
-        assertEq(expectedValues[4], 0, "user2 not blacklisted");
-        assertEq(expectedValues[5], 1, "user3 is blacklisted");
+        assertEq(bridge.getValidatedUserSlotValue(channelId, leader, 0), 1 ether, "leader balance");
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user1, 0), 10 ether, "user1 balance");
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user2, 0), 20 ether, "user2 balance");
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user3, 0), 15 ether, "user3 balance");
+        assertEq(usdtToken.isBlackListed(leader) ? 1 : 0, 0, "leader not blacklisted");
+        assertEq(usdtToken.isBlackListed(user1) ? 1 : 0, 0, "user1 not blacklisted");
+        assertEq(usdtToken.isBlackListed(user2) ? 1 : 0, 0, "user2 not blacklisted");
+        assertEq(usdtToken.isBlackListed(user3) ? 1 : 0, 1, "user3 is blacklisted");
 
         // Initialize channel to confirm the proof manager constructs pubSignals correctly
         bytes32 merkleRoot = keccak256("testMerkleRoot");
@@ -516,6 +534,15 @@ contract MptKeysAndPubSignalsTest is Test {
     function testPubSignalsOrderingIsCorrect() public {
         // This test verifies the ordering: ALL balance leaves first, then ALL additional storage slot leaves
         bytes32 channelId = _createUSDTChannel();
+
+        // Leader must deposit before initializing
+        vm.startPrank(leader);
+        usdtToken.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader = new bytes32[](2);
+        mptKeysLeader[0] = bytes32(uint256(998));
+        mptKeysLeader[1] = bytes32(uint256(999));
+        depositManager.depositToken(channelId, 1 ether, mptKeysLeader);
+        vm.stopPrank();
 
         // Deposit for all 3 users
         vm.startPrank(user1);
@@ -547,25 +574,24 @@ contract MptKeysAndPubSignalsTest is Test {
 
         // The pubSignals should be ordered as:
         // [0]: merkleRoot
-        // [1]: participants[0] balance key (user1)
-        // [2]: participants[1] balance key (user2)
-        // [3]: participants[2] balance key (user3)
-        // [4]: participants[0] blacklist key (user1)
-        // [5]: participants[1] blacklist key (user2)
-        // [6]: participants[2] blacklist key (user3)
+        // [1]: participants[0] balance key (leader)
+        // [2]: participants[1] balance key (user1)
+        // [3]: participants[2] balance key (user2)
+        // [4]: participants[3] balance key (user3)
+        // [5]: participants[0] blacklist key (leader)
+        // [6]: participants[1] blacklist key (user1)
+        // [7]: participants[2] blacklist key (user2)
+        // [8]: participants[3] blacklist key (user3)
         // ... zeros until treeSize
         // [treeSize+1]: participants[0] balance value
-        // [treeSize+2]: participants[1] balance value
-        // [treeSize+3]: participants[2] balance value
-        // [treeSize+4]: participants[0] blacklist value
-        // [treeSize+5]: participants[1] blacklist value
-        // [treeSize+6]: participants[2] blacklist value
-        // ... zeros
+        // etc.
 
-        // Verify participants are in expected order
-        assertEq(participants[0], user1);
-        assertEq(participants[1], user2);
-        assertEq(participants[2], user3);
+        // Verify participants are in expected order (leader first, then users)
+        assertEq(participants.length, 4, "Should have 4 participants");
+        assertEq(participants[0], leader);
+        assertEq(participants[1], user1);
+        assertEq(participants[2], user2);
+        assertEq(participants[3], user3);
 
         // Initialize to confirm the construction works
         vm.prank(leader);

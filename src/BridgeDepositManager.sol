@@ -49,7 +49,7 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
         address targetContract = bridge.getChannelTargetContract(_channelId);
         require(targetContract != address(0), "Invalid target contract");
 
-        // Validate MPT keys count matches expected storage slots (now includes balance as slot 0)
+        // Validate MPT keys count matches expected storage slots
         IBridgeCore.TargetContract memory targetContractData = bridge.getTargetContractData(targetContract);
         require(_mptKeys.length == targetContractData.userStorageSlots.length, "MPT keys count mismatch");
 
@@ -73,7 +73,9 @@ contract BridgeDepositManager is Initializable, ReentrancyGuardUpgradeable, Owna
             uint256 balanceAfter = IERC20Upgradeable(targetContract).balanceOf(address(this));
             uint256 actualAmount = balanceAfter - balanceBefore;
             require(actualAmount > 0, "No tokens transferred");
-            bridge.updateChannelUserDeposits(_channelId, msg.sender, targetContract, actualAmount);
+            // Find the balance slot index (the one with isLoadedOnChain == false)
+            uint8 balanceSlotIndex = bridge.getBalanceSlotIndex(targetContract);
+            bridge.updateChannelUserDeposits(_channelId, msg.sender, balanceSlotIndex, actualAmount);
         }
 
         // Add user to participants array when they make their first deposit

@@ -235,10 +235,10 @@ contract UserStorageSlotsTest is Test {
         usdt.addBlackList(user3);
 
         // Verify balances are tracked
-        assertEq(bridge.getValidatedUserBalance(channelId, user1), 10 ether);
-        assertEq(bridge.getValidatedUserBalance(channelId, user2), 20 ether);
-        assertEq(bridge.getValidatedUserBalance(channelId, user3), 15 ether);
-        assertEq(bridge.getValidatedUserBalance(channelId, leader), 5 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user1, 0), 10 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user2, 0), 20 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user3, 0), 15 ether);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, leader, 0), 5 ether);
 
         // Verify blacklist status
         assertFalse(usdt.isBlackListed(user1));

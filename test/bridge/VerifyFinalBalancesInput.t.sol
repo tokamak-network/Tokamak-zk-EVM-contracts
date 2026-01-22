@@ -154,7 +154,11 @@ contract MockBridgeCore {
         });
     }
 
-    function setChannelValidatedUserStorage(bytes32, address[] memory, uint256[] memory) external {}
+    function setChannelValidatedUserStorage(bytes32, address[] memory, uint256[][] memory) external {}
+
+    function getBalanceSlotIndex(address) external pure returns (uint8) {
+        return 0; // Balance is always slot 0 in mock
+    }
 
     function setChannelCloseTimestamp(bytes32, uint256) external {}
 

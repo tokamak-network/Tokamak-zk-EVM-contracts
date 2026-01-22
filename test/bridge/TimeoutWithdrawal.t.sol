@@ -202,10 +202,11 @@ contract TimeoutWithdrawalTest is Test {
         adminManager.setAllowedTargetContract(address(token), emptyLeaves, balanceSlot, true);
         vm.stopPrank();
 
-        // Mint tokens to participants
+        // Mint tokens to participants and leader
         token.mint(user1, 10 ether);
         token.mint(user2, 10 ether);
         token.mint(user3, 10 ether);
+        token.mint(leader, 10 ether);
 
         // Setup channel
         _setupChannel();
@@ -213,14 +214,14 @@ contract TimeoutWithdrawalTest is Test {
 
     function _setupChannel() internal {
         vm.startPrank(leader);
-        
+
         address[] memory participants = new address[](3);
         participants[0] = user1;
         participants[1] = user2;
         participants[2] = user3;
 
         channelId = keccak256(abi.encode(leader, block.timestamp, "timeout_test"));
-        
+
         BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
             channelId: channelId,
             targetContract: address(token),
@@ -229,6 +230,12 @@ contract TimeoutWithdrawalTest is Test {
         });
 
         bridge.openChannel(params);
+
+        // Leader must deposit before initializing
+        token.approve(address(depositManager), DEPOSIT_AMOUNT);
+        bytes32[] memory mptKeysLeader = new bytes32[](1);
+        mptKeysLeader[0] = bytes32(uint256(999));
+        depositManager.depositToken(channelId, DEPOSIT_AMOUNT, mptKeysLeader);
         vm.stopPrank();
 
         // Make deposits
@@ -283,7 +290,7 @@ contract TimeoutWithdrawalTest is Test {
         assertEq(token.balanceOf(user1), initialTokenBalance + DEPOSIT_AMOUNT);
 
         // Verify user's validatedUserStorage is cleared after withdrawal
-        assertEq(bridge.getValidatedUserBalance(channelId, user1), 0);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user1, 0), 0);
     }
 
     function testWithdrawOnTimeoutBeforeTimeout() public {
@@ -347,8 +354,8 @@ contract TimeoutWithdrawalTest is Test {
         assertEq(token.balanceOf(user2), user2InitialBalance + DEPOSIT_AMOUNT);
 
         // Verify both users' validatedUserStorage is cleared after withdrawal
-        assertEq(bridge.getValidatedUserBalance(channelId, user1), 0);
-        assertEq(bridge.getValidatedUserBalance(channelId, user2), 0);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user1, 0), 0);
+        assertEq(bridge.getValidatedUserSlotValue(channelId, user2, 0), 0);
     }
 
     function _submitMockProof() internal {

@@ -55,28 +55,29 @@ interface IBridgeCore {
         external
         view
         returns (address targetContract, ChannelState state, uint256 participantCount, bytes32 initialRoot);
-    function getValidatedUserBalance(bytes32 channelId, address participant)
+    function getValidatedUserSlotValue(bytes32 channelId, address participant, uint8 slotIndex)
         external
         view
         returns (uint256);
-    function hasUserWithdrawn(bytes32 channelId, address participant)
+    function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract)
         external
         view
         returns (bool);
+    function getBalanceSlotIndex(address targetContract) external view returns (uint8);
     function isSignatureVerified(bytes32 channelId) external view returns (bool);
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32);
     function isFrostSignatureEnabled(bytes32 channelId) external view returns (bool);
     function isChannelTimedOut(bytes32 channelId) external view returns (bool);
 
     // Setter functions (only callable by managers)
-    function updateChannelUserDeposits(bytes32 channelId, address participant, address targetContract, uint256 amount)
+    function updateChannelUserDeposits(bytes32 channelId, address participant, uint8 slotIndex, uint256 amount)
         external;
     function setChannelL2MptKeys(bytes32 channelId, address participant, uint256[] calldata mptKeys) external;
     function setChannelInitialStateRoot(bytes32 channelId, bytes32 stateRoot) external;
     function setChannelFinalStateRoot(bytes32 channelId, bytes32 stateRoot) external;
     function setChannelState(bytes32 channelId, ChannelState state) external;
     function setChannelCloseTimestamp(bytes32 channelId, uint256 timestamp) external;
-    function setChannelValidatedUserStorage(bytes32 channelId, address[] memory participants, uint256[] memory amounts)
+    function setChannelValidatedUserStorage(bytes32 channelId, address[] memory participants, uint256[][] memory slotValues)
         external;
     function setChannelSignatureVerified(bytes32 channelId, bool verified) external;
     function setAllowedTargetContract(
@@ -93,7 +94,7 @@ interface IBridgeCore {
         bytes32 instancesHash
     ) external;
     function unregisterFunction(address targetContract, bytes32 functionSignature) external;
-    function clearValidatedUserStorage(bytes32 channelId, address participant) external;
+    function clearValidatedUserStorage(bytes32 channelId, address participant, address targetContract) external;
     function setChannelBlockInfosHash(bytes32 channelId, bytes32 blockInfosHash) external;
     function addParticipantOnDeposit(bytes32 channelId, address user) external;
     function cleanupChannel(bytes32 channelId) external;

@@ -49,12 +49,15 @@ contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, Own
             "Channel must be deleted or timed out"
         );
 
+        // Get the balance slot index for this target contract
+        uint8 balanceSlotIndex = bridge.getBalanceSlotIndex(targetContract);
+
         // Check if there's a withdrawable amount for this specific target contract
-        uint256 withdrawAmount = bridge.getValidatedUserBalance(channelId, msg.sender);
+        uint256 withdrawAmount = bridge.getValidatedUserSlotValue(channelId, msg.sender, balanceSlotIndex);
         require(withdrawAmount > 0, "No withdrawable amount");
 
         // Clear the withdrawable amount
-        bridge.clearValidatedUserStorage(channelId, msg.sender);
+        bridge.clearValidatedUserStorage(channelId, msg.sender, targetContract);
 
         // Transfer the token from deposit manager (where tokens are held)
         BridgeDepositManager(bridge.depositManager()).transferForWithdrawal(targetContract, msg.sender, withdrawAmount);

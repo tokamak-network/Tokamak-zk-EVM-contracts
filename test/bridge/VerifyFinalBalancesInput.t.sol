@@ -275,7 +275,7 @@ contract VerifyFinalBalancesInputTest is Test {
 
         (bool ok, bytes memory data) = address(proofManager).call(
             abi.encodeCall(
-                BridgeProofManager.verifyFinalBalancesGroth16, (channelId, finalSlotValues, permutation, proof)
+                BridgeProofManager.updateValidatedUserStorage, (channelId, finalSlotValues, permutation, proof)
             )
         );
         if (!ok) {
@@ -287,7 +287,7 @@ contract VerifyFinalBalancesInputTest is Test {
 
     function _decodeRevert(bytes memory data) private pure returns (string memory) {
         if (data.length < 68) {
-            return "verifyFinalBalancesGroth16 reverted";
+            return "updateValidatedUserStorage reverted";
         }
         bytes4 selector;
         assembly {
@@ -299,6 +299,6 @@ contract VerifyFinalBalancesInputTest is Test {
             }
             return abi.decode(data, (string));
         }
-        return "verifyFinalBalancesGroth16 reverted (non-string)";
+        return "updateValidatedUserStorage reverted (non-string)";
     }
 }

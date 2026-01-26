@@ -63,6 +63,14 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         uint256 blockHash4;
     }
 
+    struct ChannelContext {
+        address[] participants;
+        address targetContract;
+        uint256 treeSize;
+        IBridgeCore.TargetContract targetContractData;
+        uint256 userStorageSlotsCount;
+    }
+
     IBridgeCore public bridge;
     ITokamakVerifier public zkVerifier;
     IZecFrost public zecFrost;
@@ -116,46 +124,39 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             require(bridge.isChannelPublicKeySet(channelId), "Channel leader must set public key first");
         }
 
-        address[] memory participants = bridge.getChannelParticipants(channelId);
-        address targetContract = bridge.getChannelTargetContract(channelId);
-        uint256 treeSize = bridge.getChannelTreeSize(channelId);
+        ChannelContext memory ctx = _getChannelContext(channelId);
         uint256 preAllocatedCount = bridge.getChannelPreAllocatedLeavesCount(channelId);
 
         // Verify that the leader has deposited (is in participants array)
         bool leaderIsParticipant = false;
-        for (uint256 i = 0; i < participants.length; i++) {
-            if (participants[i] == msg.sender) {
+        for (uint256 i = 0; i < ctx.participants.length; i++) {
+            if (ctx.participants[i] == msg.sender) {
                 leaderIsParticipant = true;
                 break;
             }
         }
         require(leaderIsParticipant, "Leader must deposit before initializing");
 
-        // Get user storage slots from target contract
-        IBridgeCore.TargetContract memory targetContractData = bridge.getTargetContractData(targetContract);
-        uint256 userStorageSlotsCount = targetContractData.userStorageSlots.length;
-
         // Total entries = pre-allocated + (participants * userStorageSlots)
-        uint256 totalEntries = preAllocatedCount + (participants.length * userStorageSlotsCount);
-        require(totalEntries <= treeSize, "Too many entries for circuit");
+        uint256 totalEntries = preAllocatedCount + (ctx.participants.length * ctx.userStorageSlotsCount);
+        require(totalEntries <= ctx.treeSize, "Too many entries for circuit");
 
-        uint256 publicSignalsLength = treeSize * 2 + 1;
+        uint256 publicSignalsLength = ctx.treeSize * 2 + 1;
         uint256[] memory publicSignals = new uint256[](publicSignalsLength);
 
         publicSignals[0] = uint256(proof.merkleRoot);
 
-        uint256 currentIndex = 1; // Start after merkle root
+        uint256 currentIndex = 0;
 
         // Add pre-allocated leaves data FIRST
         if (preAllocatedCount > 0) {
-            bytes32[] memory preAllocatedKeys = bridge.getPreAllocatedKeys(targetContract);
+            bytes32[] memory preAllocatedKeys = bridge.getPreAllocatedKeys(ctx.targetContract);
             for (uint256 i = 0; i < preAllocatedKeys.length; i++) {
                 bytes32 key = preAllocatedKeys[i];
-                (uint256 value, bool exists) = bridge.getPreAllocatedLeaf(targetContract, key);
+                (uint256 value, bool exists) = bridge.getPreAllocatedLeaf(ctx.targetContract, key);
 
                 if (exists) {
-                    publicSignals[currentIndex] = uint256(key);
-                    publicSignals[currentIndex + treeSize] = value;
+                    _setLeafInPublicSignals(publicSignals, ctx.treeSize, currentIndex, uint256(key), value);
                     currentIndex++;
                 }
             }
@@ -163,11 +164,11 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
         // Add participant data AFTER pre-allocated leaves
         // Iterate through all user storage slots
-        for (uint256 j = 0; j < userStorageSlotsCount; j++) {
-            IBridgeCore.UserStorageSlot memory slot = targetContractData.userStorageSlots[j];
+        for (uint256 j = 0; j < ctx.userStorageSlotsCount; j++) {
+            IBridgeCore.UserStorageSlot memory slot = ctx.targetContractData.userStorageSlots[j];
 
-            for (uint256 i = 0; i < participants.length; i++) {
-                address l1Address = participants[i];
+            for (uint256 i = 0; i < ctx.participants.length; i++) {
+                address l1Address = ctx.participants[i];
                 uint256 l2MptKey = bridge.getL2MptKey(channelId, l1Address, uint8(j));
 
                 uint256 slotValue;
@@ -180,7 +181,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                 } else {
                     // On-chain slot: fetch via staticcall
                     bytes memory callData = abi.encodePacked(slot.getterFunctionSignature, abi.encode(l1Address));
-                    (bool success, bytes memory returnData) = targetContract.staticcall(callData);
+                    (bool success, bytes memory returnData) = ctx.targetContract.staticcall(callData);
 
                     slotValue = 0;
                     if (success && returnData.length >= 32) {
@@ -189,20 +190,18 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
                 }
 
                 // Add leaf: POSEIDON2(L2MptKey, slotValue)
-                publicSignals[currentIndex] = l2MptKey;
-                publicSignals[currentIndex + treeSize] = slotValue;
+                _setLeafInPublicSignals(publicSignals, ctx.treeSize, currentIndex, l2MptKey, slotValue);
                 currentIndex++;
             }
         }
 
         // Fill remaining entries with zeros
-        for (uint256 i = currentIndex; i < treeSize; i++) {
-            publicSignals[i] = 0;
-            publicSignals[i + treeSize] = 0;
+        for (uint256 i = currentIndex; i < ctx.treeSize; i++) {
+            _setLeafInPublicSignals(publicSignals, ctx.treeSize, i, 0, 0);
         }
 
         bool proofValid = verifyGroth16Proof(
-            treeSize,
+            ctx.treeSize,
             groth16Verifier16,
             groth16Verifier32,
             groth16Verifier64,
@@ -358,7 +357,7 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         emit ProofSigned(channelId, msg.sender, finalStateRoot);
     }
 
-    function verifyFinalBalancesGroth16(
+    function updateValidatedUserStorage(
         bytes32 channelId,
         uint256[][] calldata finalSlotValues, // finalSlotValues[participant][slot]
         uint256[] calldata permutation,
@@ -372,75 +371,59 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             require(bridge.isSignatureVerified(channelId), "signature not verified");
         }
 
-        address[] memory participants = bridge.getChannelParticipants(channelId);
-
-        // Get target contract data and validate user storage slots
-        address targetContract = bridge.getChannelTargetContract(channelId);
-        IBridgeCore.TargetContract memory targetContractData = bridge.getTargetContractData(targetContract);
-        uint256 userStorageSlotsCount = targetContractData.userStorageSlots.length;
+        ChannelContext memory ctx = _getChannelContext(channelId);
+        uint256 preAllocatedCount = bridge.getPreAllocatedLeavesCount(ctx.targetContract);
 
         // Validate finalSlotValues dimensions
-        require(finalSlotValues.length == participants.length, "Invalid slot values length");
-        for (uint256 i = 0; i < participants.length; i++) {
-            require(finalSlotValues[i].length == userStorageSlotsCount, "Invalid storage slots count for participant");
+        require(finalSlotValues.length == ctx.participants.length, "Invalid slot values length");
+        for (uint256 i = 0; i < ctx.participants.length; i++) {
+            require(finalSlotValues[i].length == ctx.userStorageSlotsCount, "Invalid storage slots count for participant");
         }
 
-        // Step 1: Get the final state root stored
+        // Get the final state root stored
         bytes32 finalStateRoot = bridge.getChannelFinalStateRoot(channelId);
 
-        // Step 2: Get tree size and pre-allocated count
-        uint256 treeSize = bridge.getChannelTreeSize(channelId);
-        uint256 preAllocatedCount = bridge.getPreAllocatedLeavesCount(targetContract);
-
         // Total entries = pre-allocated + (participants * userStorageSlotsCount)
-        uint256 totalEntries = preAllocatedCount + (participants.length * userStorageSlotsCount);
+        uint256 totalEntries = preAllocatedCount + (ctx.participants.length * ctx.userStorageSlotsCount);
         require(totalEntries == permutation.length, "Invalid permutation length");
 
-        uint256[] memory publicSignals = new uint256[](1 + 2 * treeSize);
+        uint256[] memory publicSignals = new uint256[](1 + 2 * ctx.treeSize);
 
         // Set final state root as first public signal
         publicSignals[0] = uint256(finalStateRoot);
 
         uint256 currentIndex = 0;
 
-        // Step 3: Add pre-allocated leaves data FIRST
+        // Add pre-allocated leaves data FIRST
         if (preAllocatedCount > 0) {
-            bytes32[] memory preAllocatedKeys = bridge.getPreAllocatedKeys(targetContract);
+            bytes32[] memory preAllocatedKeys = bridge.getPreAllocatedKeys(ctx.targetContract);
             for (uint256 i = 0; i < preAllocatedKeys.length; i++) {
                 bytes32 key = preAllocatedKeys[i];
-                (uint256 value, bool exists) = bridge.getPreAllocatedLeaf(targetContract, key);
+                (uint256 value, bool exists) = bridge.getPreAllocatedLeaf(ctx.targetContract, key);
                 require(exists, "Pre-allocated leaf not found");
 
-                // Set pre-allocated MPT key and value
-                uint256 permutedIndex = permutation[currentIndex];
-                publicSignals[1 + permutedIndex] = uint256(key);
-                publicSignals[1 + treeSize + permutedIndex] = value;
+                _setLeafInPublicSignals(publicSignals, ctx.treeSize, permutation[currentIndex], uint256(key), value);
                 currentIndex++;
             }
         }
 
-        // Step 4: Add participant data AFTER pre-allocated leaves
+        // Add participant data AFTER pre-allocated leaves
         // Iterate through all user storage slots
-        for (uint256 j = 0; j < userStorageSlotsCount; j++) {
-            for (uint256 i = 0; i < participants.length; i++) {
-                address participant = participants[i];
+        for (uint256 j = 0; j < ctx.userStorageSlotsCount; j++) {
+            for (uint256 i = 0; i < ctx.participants.length; i++) {
+                address participant = ctx.participants[i];
                 uint256 l2MptKey = bridge.getL2MptKey(channelId, participant, uint8(j));
-                uint256 modedL2MptKey = l2MptKey % R_MOD;
 
                 uint256 slotValue = finalSlotValues[i][j];
-                uint256 modedSlotValue = slotValue % R_MOD;
 
-                // Add slot leaf: POSEIDON2(L2MptKey, slotValue)
-                uint256 permutedIndex = permutation[currentIndex];
-                publicSignals[1 + permutedIndex] = modedL2MptKey;
-                publicSignals[1 + treeSize + permutedIndex] = modedSlotValue;
+                _setLeafInPublicSignals(publicSignals, ctx.treeSize, permutation[currentIndex], l2MptKey, slotValue);
                 currentIndex++;
             }
         }
 
-        // Step 5: Verify the groth16 proof passed as a parameter
+        // Verify the groth16 proof
         bool proofValid = verifyGroth16Proof(
-            treeSize,
+            ctx.treeSize,
             groth16Verifier16,
             groth16Verifier32,
             groth16Verifier64,
@@ -451,11 +434,10 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
             publicSignals
         );
 
-        // Step 6: Assert that the verifier returns true
         require(proofValid, "Invalid Groth16 proof");
 
         // Store all final slot values for all participants
-        bridge.setChannelValidatedUserStorage(channelId, participants, finalSlotValues);
+        bridge.setChannelValidatedUserStorage(channelId, ctx.participants, finalSlotValues);
         bridge.setChannelCloseTimestamp(channelId, block.timestamp);
 
         // Cleanup channel by removing channel leader flag and deleting channel data
@@ -532,6 +514,25 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
 
     function _concatenateStateRoot(uint256 part1, uint256 part2) internal pure returns (bytes32) {
         return bytes32((part1 << 128) | part2);
+    }
+
+    function _getChannelContext(bytes32 channelId) internal view returns (ChannelContext memory ctx) {
+        ctx.participants = bridge.getChannelParticipants(channelId);
+        ctx.targetContract = bridge.getChannelTargetContract(channelId);
+        ctx.treeSize = bridge.getChannelTreeSize(channelId);
+        ctx.targetContractData = bridge.getTargetContractData(ctx.targetContract);
+        ctx.userStorageSlotsCount = ctx.targetContractData.userStorageSlots.length;
+    }
+
+    function _setLeafInPublicSignals(
+        uint256[] memory publicSignals,
+        uint256 treeSize,
+        uint256 physicalIndex,
+        uint256 key,
+        uint256 value
+    ) internal pure {
+        publicSignals[1 + physicalIndex] = key;
+        publicSignals[1 + treeSize + physicalIndex] = value;
     }
 
     function _computeBlockInfosHash() internal view returns (bytes32) {

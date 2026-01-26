@@ -468,7 +468,7 @@ contract UserStorageSlotsTest is Test {
             pC: pC
         });
 
-        proofManager.verifyFinalBalancesGroth16(channelId, finalSlotValues, permutation, finalProof);
+        proofManager.updateValidatedUserStorage(channelId, finalSlotValues, permutation, finalProof);
 
         vm.stopPrank();
 

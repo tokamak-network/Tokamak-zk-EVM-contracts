@@ -848,6 +848,18 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return entry.value[slotIndex];
     }
 
+    function getValidatedUserTargetContract(bytes32 channelId, address participant)
+        external
+        view
+        returns (address)
+    {
+        if (!_hasValidatedUserStorage(participant, channelId)) {
+            return address(0);
+        }
+        ValidatedUserStorage storage entry = _getValidatedUserStorage(participant, channelId);
+        return entry.targetContract;
+    }
+
     function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract)
         external
         view

@@ -325,7 +325,8 @@ contract TimeoutWithdrawalTest is Test {
 
         address nonParticipant = makeAddr("nonParticipant");
 
-        vm.expectRevert("No withdrawable amount");
+        // Non-participants have no ValidatedUserStorage entry, so targetContract validation fails first
+        vm.expectRevert("Target contract mismatch");
         vm.prank(nonParticipant);
         withdrawManager.withdraw(channelId, address(token));
     }

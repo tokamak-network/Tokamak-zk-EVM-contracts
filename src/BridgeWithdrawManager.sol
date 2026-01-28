@@ -49,6 +49,10 @@ contract BridgeWithdrawManager is Initializable, ReentrancyGuardUpgradeable, Own
             "Channel must be deleted or timed out"
         );
 
+        // Validate that the provided targetContract matches the one stored for this user's channel
+        address storedTargetContract = bridge.getValidatedUserTargetContract(channelId, msg.sender);
+        require(storedTargetContract == targetContract, "Target contract mismatch");
+
         // Get the balance slot index for this target contract
         uint8 balanceSlotIndex = bridge.getBalanceSlotIndex(targetContract);
 

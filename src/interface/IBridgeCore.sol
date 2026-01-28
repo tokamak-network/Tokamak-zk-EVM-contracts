@@ -59,6 +59,10 @@ interface IBridgeCore {
         external
         view
         returns (uint256);
+    function getValidatedUserTargetContract(bytes32 channelId, address participant)
+        external
+        view
+        returns (address);
     function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract)
         external
         view
@@ -108,7 +112,6 @@ interface IBridgeCore {
         returns (uint256 value, bool exists);
     function getPreAllocatedKeys(address targetContract) external view returns (bytes32[] memory keys);
     function getPreAllocatedLeavesCount(address targetContract) external view returns (uint256 count);
-    function getMaxAllowedParticipants(address targetContract) external view returns (uint256 maxParticipants);
     function getChannelPreAllocatedLeavesCount(bytes32 channelId) external view returns (uint256 count);
 
     function generateChannelId(address leader, bytes32 salt) external pure returns (bytes32 channelId);

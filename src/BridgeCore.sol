@@ -11,10 +11,18 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     using ECDSAUpgradeable for bytes32;
 
     enum ChannelState {
-        None,
-        Initialized,
-        Open,
-        Closing
+        None,           // 0 - Channel doesn't exist
+        Initialized,    // 1 - Awaiting deposits
+        Open,           // 2 - Active, accepting proofs
+        Disputing,      // 3 - Objection raised, awaiting resolution
+        Closing         // 4 - Awaiting finalization
+    }
+
+    struct ConfirmedState {
+        bytes32 stateRoot;      // The confirmed state root m_i
+        uint256 confirmedAt;    // Timestamp when confirmed
+        uint256 proofIndex;     // Last proof index included in this state
+        uint256 blockNumber;    // Block number when confirmed
     }
 
     struct ChannelParams {
@@ -100,10 +108,14 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         address proofManager;
         address withdrawManager;
         address adminManager;
+        address stakingManager;      // Q2 2026: Staking manager for TON staking
+        address objectionManager;    // Q2 2026: Objection manager for disputes
         mapping(address => mapping(bytes32 => PreAllocatedLeaf)) preAllocatedLeaves;
         mapping(address => bytes32[]) targetContractPreAllocatedKeys;
         // Usage: validatedUserStorage[USER_ADDRESS][CHANNEL_ID]
         mapping(address => mapping(bytes32 => ValidatedUserStorage[])) validatedUserStorage;
+        // Q2 2026: Confirmed states for each channel
+        mapping(bytes32 => ConfirmedState[]) confirmedStates;
     }
 
     bytes32 private constant BridgeCoreStorageLocation =
@@ -118,8 +130,12 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     modifier onlyManager() {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         require(
-            msg.sender == $.depositManager || msg.sender == $.proofManager || msg.sender == $.withdrawManager
-                || msg.sender == $.adminManager,
+            msg.sender == $.depositManager ||
+            msg.sender == $.proofManager ||
+            msg.sender == $.withdrawManager ||
+            msg.sender == $.adminManager ||
+            msg.sender == $.stakingManager ||
+            msg.sender == $.objectionManager,
             "Only managers can call"
         );
         _;
@@ -738,6 +754,15 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         if (_adminManager != address(0)) $.adminManager = _adminManager;
     }
 
+    function updateQ2Managers(
+        address _stakingManager,
+        address _objectionManager
+    ) external onlyOwner {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        if (_stakingManager != address(0)) $.stakingManager = _stakingManager;
+        if (_objectionManager != address(0)) $.objectionManager = _objectionManager;
+    }
+
     // ========== GETTER FUNCTIONS ==========
 
     function depositManager() external view returns (address) {
@@ -748,6 +773,16 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     function withdrawManager() external view returns (address) {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
         return $.withdrawManager;
+    }
+
+    function stakingManager() external view returns (address) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.stakingManager;
+    }
+
+    function objectionManager() external view returns (address) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.objectionManager;
     }
 
     function getChannelState(bytes32 channelId) external view returns (ChannelState) {
@@ -930,5 +965,77 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         return keccak256(abi.encodePacked(leader, salt));
     }
 
-    uint256[42] private __gap;
+    // ========== CONFIRMED STATE FUNCTIONS (Q2 2026) ==========
+
+    /**
+     * @notice Add a confirmed state checkpoint for a channel
+     * @dev Only callable by managers (primarily objection manager)
+     * @param channelId The channel ID
+     * @param stateRoot The confirmed state root
+     * @param proofIndex The proof index that established this state
+     */
+    function addConfirmedState(bytes32 channelId, bytes32 stateRoot, uint256 proofIndex) external onlyManager {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+
+        require($.channels[channelId].leader != address(0), "Channel does not exist");
+
+        $.confirmedStates[channelId].push(ConfirmedState({
+            stateRoot: stateRoot,
+            confirmedAt: block.timestamp,
+            proofIndex: proofIndex,
+            blockNumber: block.number
+        }));
+    }
+
+    /**
+     * @notice Get the latest confirmed state for a channel
+     * @param channelId The channel ID
+     * @return stateRoot The latest confirmed state root
+     * @return proofIndex The proof index of the latest confirmed state
+     */
+    function getLatestConfirmedState(bytes32 channelId) external view returns (bytes32 stateRoot, uint256 proofIndex) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        ConfirmedState[] storage states = $.confirmedStates[channelId];
+
+        if (states.length == 0) {
+            return ($.channels[channelId].initialStateRoot, 0);
+        }
+
+        ConfirmedState storage latest = states[states.length - 1];
+        return (latest.stateRoot, latest.proofIndex);
+    }
+
+    /**
+     * @notice Get all confirmed states for a channel
+     * @param channelId The channel ID
+     * @return Array of confirmed states
+     */
+    function getConfirmedStates(bytes32 channelId) external view returns (ConfirmedState[] memory) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.confirmedStates[channelId];
+    }
+
+    /**
+     * @notice Get the count of confirmed states for a channel
+     * @param channelId The channel ID
+     * @return count Number of confirmed states
+     */
+    function getConfirmedStateCount(bytes32 channelId) external view returns (uint256) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        return $.confirmedStates[channelId].length;
+    }
+
+    /**
+     * @notice Get a specific confirmed state by index
+     * @param channelId The channel ID
+     * @param index The index of the confirmed state
+     * @return The confirmed state at the given index
+     */
+    function getConfirmedStateAt(bytes32 channelId, uint256 index) external view returns (ConfirmedState memory) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        require(index < $.confirmedStates[channelId].length, "Index out of bounds");
+        return $.confirmedStates[channelId][index];
+    }
+
+    uint256[40] private __gap;
 }

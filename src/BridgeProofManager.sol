@@ -446,6 +446,143 @@ contract BridgeProofManager is Initializable, ReentrancyGuardUpgradeable, Ownabl
         emit FinalBalancesGroth16Verified(channelId, finalStateRoot);
     }
 
+    /**
+     * @notice Update validated user storage from an intermediate confirmed state (Q2 2026)
+     * @dev Allows closing from any confirmed intermediate state m_i, not just the initial state m_0
+     * @param channelId The channel ID
+     * @param fromStateIndex The confirmed state index to start from (0 = initial, 1+ = confirmed states)
+     * @param finalSlotValues Final slot values for all participants
+     * @param permutation Permutation array for leaf ordering
+     * @param groth16Proof Groth16 proof for state transition
+     */
+    function updateValidatedUserStorageFromIntermediate(
+        bytes32 channelId,
+        uint256 fromStateIndex,
+        uint256[][] calldata finalSlotValues,
+        uint256[] calldata permutation,
+        ChannelFinalizationProof calldata groth16Proof
+    ) external {
+        require(bridge.getChannelState(channelId) == IBridgeCore.ChannelState.Closing, "Invalid state");
+
+        _validateIntermediateStateClosing(channelId, fromStateIndex, finalSlotValues, permutation);
+
+        ChannelContext memory ctx = _getChannelContext(channelId);
+        bytes32 finalStateRoot = bridge.getChannelFinalStateRoot(channelId);
+
+        uint256[] memory publicSignals = _buildPublicSignalsForClosing(channelId, ctx, finalSlotValues, permutation, finalStateRoot);
+
+        bool proofValid = verifyGroth16Proof(
+            ctx.treeSize,
+            groth16Verifier16,
+            groth16Verifier32,
+            groth16Verifier64,
+            groth16Verifier128,
+            groth16Proof.pA,
+            groth16Proof.pB,
+            groth16Proof.pC,
+            publicSignals
+        );
+
+        require(proofValid, "Invalid Groth16 proof");
+
+        bridge.setChannelValidatedUserStorage(channelId, ctx.participants, finalSlotValues);
+        bridge.setChannelCloseTimestamp(channelId, block.timestamp);
+        bridge.cleanupChannel(channelId);
+
+        emit FinalBalancesGroth16Verified(channelId, finalStateRoot);
+    }
+
+    function _validateIntermediateStateClosing(
+        bytes32 channelId,
+        uint256 fromStateIndex,
+        uint256[][] calldata finalSlotValues,
+        uint256[] calldata permutation
+    ) internal view {
+        bool frostEnabled = bridge.isFrostSignatureEnabled(channelId);
+        if (frostEnabled) {
+            require(bridge.isSignatureVerified(channelId), "signature not verified");
+        }
+
+        ChannelContext memory ctx = _getChannelContext(channelId);
+
+        require(finalSlotValues.length == ctx.participants.length, "Invalid slot values length");
+        for (uint256 i = 0; i < ctx.participants.length; i++) {
+            require(finalSlotValues[i].length == ctx.userStorageSlotsCount, "Invalid storage slots count");
+        }
+
+        if (fromStateIndex > 0) {
+            uint256 confirmedCount = bridge.getConfirmedStateCount(channelId);
+            require(fromStateIndex <= confirmedCount, "Invalid state index");
+        }
+
+        uint256 preAllocatedCount = bridge.getPreAllocatedLeavesCount(ctx.targetContract);
+        uint256 totalEntries = preAllocatedCount + (ctx.participants.length * ctx.userStorageSlotsCount);
+        require(totalEntries == permutation.length, "Invalid permutation length");
+    }
+
+    function _buildPublicSignalsForClosing(
+        bytes32 channelId,
+        ChannelContext memory ctx,
+        uint256[][] calldata finalSlotValues,
+        uint256[] calldata permutation,
+        bytes32 finalStateRoot
+    ) internal view returns (uint256[] memory) {
+        uint256[] memory publicSignals = new uint256[](1 + 2 * ctx.treeSize);
+        publicSignals[0] = uint256(finalStateRoot);
+
+        uint256 currentIndex = _addPreAllocatedLeavesToSignals(ctx, publicSignals, permutation);
+        _addParticipantDataToSignals(channelId, ctx, finalSlotValues, permutation, publicSignals, currentIndex);
+
+        return publicSignals;
+    }
+
+    function _addPreAllocatedLeavesToSignals(
+        ChannelContext memory ctx,
+        uint256[] memory publicSignals,
+        uint256[] calldata permutation
+    ) internal view returns (uint256) {
+        bytes32[] memory keys = bridge.getPreAllocatedKeys(ctx.targetContract);
+        uint256 tSize = ctx.treeSize;
+        address tc = ctx.targetContract;
+
+        for (uint256 i = 0; i < keys.length;) {
+            (uint256 val, bool exists) = bridge.getPreAllocatedLeaf(tc, keys[i]);
+            require(exists, "Pre-allocated leaf not found");
+            _setLeafInPublicSignals(publicSignals, tSize, permutation[i], uint256(keys[i]), val);
+            unchecked { ++i; }
+        }
+
+        return keys.length;
+    }
+
+    function _addParticipantDataToSignals(
+        bytes32 channelId,
+        ChannelContext memory ctx,
+        uint256[][] calldata finalSlotValues,
+        uint256[] calldata permutation,
+        uint256[] memory publicSignals,
+        uint256 startIndex
+    ) internal view {
+        uint256 idx = startIndex;
+        uint256 slots = ctx.userStorageSlotsCount;
+        uint256 pLen = ctx.participants.length;
+        uint256 tSize = ctx.treeSize;
+
+        for (uint256 j = 0; j < slots;) {
+            for (uint256 i = 0; i < pLen;) {
+                _setLeafInPublicSignals(
+                    publicSignals,
+                    tSize,
+                    permutation[idx],
+                    bridge.getL2MptKey(channelId, ctx.participants[i], uint8(j)),
+                    finalSlotValues[i][j]
+                );
+                unchecked { ++i; ++idx; }
+            }
+            unchecked { ++j; }
+        }
+    }
+
     function updateVerifier(address _newVerifier) external onlyOwner {
         require(_newVerifier != address(0), "Invalid verifier address");
         zkVerifier = ITokamakVerifier(_newVerifier);

@@ -53,17 +53,6 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
         emit TargetContractAllowed(targetContract, allowed);
     }
 
-    function updateTargetContractData(
-        address targetContract,
-        IBridgeCore.PreAllocatedLeaf[] memory leaves,
-        IBridgeCore.UserStorageSlot[] memory userStorageSlots
-    ) external onlyOwner {
-        require(targetContract != address(0), "Invalid target contract address");
-        require(userStorageSlots.length > 0, "User storage slots cannot be empty");
-
-        bridge.updateTargetContractData(targetContract, leaves, userStorageSlots);
-    }
-
     function registerFunction(
         address targetContract,
         bytes32 functionSignature,

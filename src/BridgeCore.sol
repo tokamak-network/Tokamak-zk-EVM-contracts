@@ -319,13 +319,29 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     ) external onlyManager {
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
+        // Clear existing pre-allocated leaves from preAllocatedLeaves mapping and keys array
+        bytes32[] storage existingKeys = $.targetContractPreAllocatedKeys[targetContract];
+        for (uint256 i = 0; i < existingKeys.length; i++) {
+            delete $.preAllocatedLeaves[targetContract][existingKeys[i]];
+        }
+        delete $.targetContractPreAllocatedKeys[targetContract];
+
         if (allowed) {
-            // Clear existing pre-allocated leaves
+            // Clear existing pre-allocated leaves array
             delete $.allowedTargetContracts[targetContract].preAllocatedLeaves;
 
-            // Add new pre-allocated leaves
+            // Add new pre-allocated leaves to both storage locations
             for (uint256 i = 0; i < leaves.length; i++) {
-                $.allowedTargetContracts[targetContract].preAllocatedLeaves.push(leaves[i]);
+                PreAllocatedLeaf memory leaf = leaves[i];
+
+                // Add to allowedTargetContracts array
+                $.allowedTargetContracts[targetContract].preAllocatedLeaves.push(leaf);
+
+                // Add to preAllocatedLeaves mapping and keys array (only if active and key is not zero)
+                if (leaf.isActive && leaf.key != bytes32(0)) {
+                    $.preAllocatedLeaves[targetContract][leaf.key] = leaf;
+                    $.targetContractPreAllocatedKeys[targetContract].push(leaf.key);
+                }
             }
 
             // Clear existing user storage slots
@@ -346,33 +362,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
             }
         } else {
             delete $.allowedTargetContracts[targetContract];
-        }
-    }
-
-    function updateTargetContractData(
-        address targetContract,
-        PreAllocatedLeaf[] memory leaves,
-        UserStorageSlot[] memory userStorageSlots
-    ) external onlyManager {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-
-        require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
-        require(userStorageSlots.length > 0, "User storage slots cannot be empty");
-
-        // Clear existing pre-allocated leaves
-        delete $.allowedTargetContracts[targetContract].preAllocatedLeaves;
-
-        // Add new pre-allocated leaves
-        for (uint256 i = 0; i < leaves.length; i++) {
-            $.allowedTargetContracts[targetContract].preAllocatedLeaves.push(leaves[i]);
-        }
-
-        // Clear existing user storage slots
-        delete $.allowedTargetContracts[targetContract].userStorageSlots;
-
-        // Add new user storage slots
-        for (uint256 i = 0; i < userStorageSlots.length; i++) {
-            $.allowedTargetContracts[targetContract].userStorageSlots.push(userStorageSlots[i]);
         }
     }
 

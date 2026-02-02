@@ -100,6 +100,11 @@ interface IBridgeCore {
         UserStorageSlot[] memory userStorageSlots,
         bool allowed
     ) external;
+    function updateTargetContractData(
+        address targetContract,
+        PreAllocatedLeaf[] memory leaves,
+        UserStorageSlot[] memory userStorageSlots
+    ) external;
     function registerFunction(
         address targetContract,
         bytes32 functionSignature,

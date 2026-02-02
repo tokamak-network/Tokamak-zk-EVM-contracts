@@ -181,6 +181,8 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         uint256 preAllocatedCount = _getActivePreAllocatedCount(params.targetContract);
         uint256 numberOfUserStorageSlot = $.allowedTargetContracts[params.targetContract].userStorageSlots.length;
 
+        require(numberOfUserStorageSlot > 0, "Target contract has no user storage slots configured");
+
         // Calculate maximum allowed participants considering pre-allocated leaves and leader
         // Formula: (availableLeaves / slotsPerParticipant) - (1 * numberOfUserStorageSlot) for leader
         // Example: tree=16, preAlloc=4, slots=2 => ((16-4)/2)-1 = 5 whitelisted (6 total with leader)
@@ -344,6 +346,33 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
             }
         } else {
             delete $.allowedTargetContracts[targetContract];
+        }
+    }
+
+    function updateTargetContractData(
+        address targetContract,
+        PreAllocatedLeaf[] memory leaves,
+        UserStorageSlot[] memory userStorageSlots
+    ) external onlyManager {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+
+        require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
+        require(userStorageSlots.length > 0, "User storage slots cannot be empty");
+
+        // Clear existing pre-allocated leaves
+        delete $.allowedTargetContracts[targetContract].preAllocatedLeaves;
+
+        // Add new pre-allocated leaves
+        for (uint256 i = 0; i < leaves.length; i++) {
+            $.allowedTargetContracts[targetContract].preAllocatedLeaves.push(leaves[i]);
+        }
+
+        // Clear existing user storage slots
+        delete $.allowedTargetContracts[targetContract].userStorageSlots;
+
+        // Add new user storage slots
+        for (uint256 i = 0; i < userStorageSlots.length; i++) {
+            $.allowedTargetContracts[targetContract].userStorageSlots.push(userStorageSlots[i]);
         }
     }
 

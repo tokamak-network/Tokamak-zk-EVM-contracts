@@ -164,12 +164,12 @@ contract MptKeysAndPubSignalsTest is Test {
         // Register USDT token with balance + isBlackListed storage slots
         IBridgeCore.UserStorageSlot[] memory usdtSlots = new IBridgeCore.UserStorageSlot[](2);
         usdtSlots[0] = IBridgeCore.UserStorageSlot({
-            slotOffset: 2, // USDT balance slot
+            slotOffset: 0, // slotOffset 0 for balance
             getterFunctionSignature: bytes32(0),
             isLoadedOnChain: false // balance comes from deposits
         });
         usdtSlots[1] = IBridgeCore.UserStorageSlot({
-            slotOffset: 6, // USDT isBlackListed slot
+            slotOffset: 1, // slotOffset 1 for isBlackListed
             getterFunctionSignature: bytes32(bytes4(keccak256("isBlackListed(address)"))),
             isLoadedOnChain: true // fetched from chain
         });

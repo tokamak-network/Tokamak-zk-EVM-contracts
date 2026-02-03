@@ -153,14 +153,14 @@ contract UserStorageSlotsTest is Test {
 
         // Slot 0: balance (not loaded from chain, comes from deposits)
         userStorageSlots[0] = IBridgeCore.UserStorageSlot({
-            slotOffset: 2, // USDT balance slot offset
+            slotOffset: 0, // slotOffset 0 for balance
             getterFunctionSignature: bytes32(0),
             isLoadedOnChain: false
         });
 
         // Slot 1: isBlackListed (loaded from chain via staticcall)
         userStorageSlots[1] = IBridgeCore.UserStorageSlot({
-            slotOffset: 6, // USDT isBlackListed slot offset
+            slotOffset: 1, // slotOffset 1 for isBlackListed
             getterFunctionSignature: bytes32(bytes4(keccak256("isBlackListed(address)"))),
             isLoadedOnChain: true
         });

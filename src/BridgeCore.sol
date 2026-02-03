@@ -338,7 +338,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
                 $.allowedTargetContracts[targetContract].preAllocatedLeaves.push(leaf);
 
                 // Add to preAllocatedLeaves mapping and keys array (only if active and key is not zero)
-                if (leaf.isActive && leaf.key != bytes32(0)) {
+                if (leaf.isActive) {
                     $.preAllocatedLeaves[targetContract][leaf.key] = leaf;
                     $.targetContractPreAllocatedKeys[targetContract].push(leaf.key);
                 }
@@ -728,7 +728,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         UserStorageSlot[] storage slots = $.allowedTargetContracts[targetContract].userStorageSlots;
         for (uint8 i = 0; i < slots.length; i++) {
             if (!slots[i].isLoadedOnChain) {
-                return i;
+                return slots[i].slotOffset;
             }
         }
         revert("No balance slot found");
@@ -928,14 +928,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
     }
 
     function getBalanceSlotIndex(address targetContract) external view returns (uint8) {
-        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
-        UserStorageSlot[] storage slots = $.allowedTargetContracts[targetContract].userStorageSlots;
-        for (uint8 i = 0; i < slots.length; i++) {
-            if (!slots[i].isLoadedOnChain) {
-                return i;
-            }
-        }
-        revert("No balance slot found");
+        return _getBalanceSlotIndex(targetContract);
     }
 
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32) {

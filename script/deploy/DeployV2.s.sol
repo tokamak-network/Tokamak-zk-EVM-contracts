@@ -8,6 +8,8 @@ import "../../src/BridgeDepositManager.sol";
 import "../../src/BridgeProofManager.sol";
 import "../../src/BridgeWithdrawManager.sol";
 import "../../src/BridgeAdminManager.sol";
+import "../../src/BridgeStakingManager.sol";
+import "../../src/BridgeObjectionManager.sol";
 import "../../src/verifier/TokamakVerifier.sol";
 import "../../src/verifier/Groth16Verifier16Leaves.sol";
 import "../../src/verifier/Groth16Verifier32Leaves.sol";
@@ -25,6 +27,8 @@ contract DeployV2Script is Script {
     address public proofManagerImpl;
     address public withdrawManagerImpl;
     address public adminManagerImpl;
+    address public stakingManagerImpl;      // Q2 2026
+    address public objectionManagerImpl;    // Q2 2026
 
     // Proxy addresses (main contracts)
     address public rollupBridge;
@@ -32,11 +36,14 @@ contract DeployV2Script is Script {
     address public proofManager;
     address public withdrawManager;
     address public adminManager;
+    address public stakingManager;          // Q2 2026
+    address public objectionManager;        // Q2 2026
 
     // Environment variables
     address public zkVerifier;
     address public zecFrost;
     address public deployer;
+    address public tonToken;    // Q2 2026: TON token for staking
 
     // Verification settings
     bool public shouldVerify;
@@ -58,6 +65,15 @@ contract DeployV2Script is Script {
             zecFrost = frost;
         } catch {
             console.log("No ZEC_FROST_ADDRESS provided, will deploy new ZecFrost");
+        }
+
+        // Q2 2026: TON token address for staking
+        try vm.envAddress("TON_TOKEN_ADDRESS") returns (address ton) {
+            tonToken = ton;
+        } catch {
+            // Default TON token address on mainnet/sepolia
+            tonToken = 0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
+            console.log("No TON_TOKEN_ADDRESS provided, using default:", tonToken);
         }
     }
 
@@ -146,6 +162,18 @@ contract DeployV2Script is Script {
         adminManagerImpl = address(adminManagerImplementation);
         console.log("BridgeAdminManager implementation deployed at:", adminManagerImpl);
 
+        // Q2 2026: Deploy StakingManager implementation
+        console.log("Deploying BridgeStakingManager implementation...");
+        BridgeStakingManager stakingManagerImplementation = new BridgeStakingManager();
+        stakingManagerImpl = address(stakingManagerImplementation);
+        console.log("BridgeStakingManager implementation deployed at:", stakingManagerImpl);
+
+        // Q2 2026: Deploy ObjectionManager implementation
+        console.log("Deploying BridgeObjectionManager implementation...");
+        BridgeObjectionManager objectionManagerImplementation = new BridgeObjectionManager();
+        objectionManagerImpl = address(objectionManagerImplementation);
+        console.log("BridgeObjectionManager implementation deployed at:", objectionManagerImpl);
+
         // Deploy Bridge proxy with temporary zero addresses
         console.log("Deploying Bridge proxy...");
         bytes memory rollupBridgeInitData =
@@ -187,9 +215,33 @@ contract DeployV2Script is Script {
         adminManager = address(adminManagerProxy);
         console.log("BridgeAdminManager proxy deployed at:", adminManager);
 
+        // Q2 2026: Deploy StakingManager proxy
+        bytes memory stakingManagerInitData = abi.encodeCall(
+            BridgeStakingManager.initialize, (rollupBridge, tonToken, deployer)
+        );
+        ERC1967Proxy stakingManagerProxy = new ERC1967Proxy(stakingManagerImpl, stakingManagerInitData);
+        stakingManager = address(stakingManagerProxy);
+        console.log("BridgeStakingManager proxy deployed at:", stakingManager);
+
+        // Q2 2026: Deploy ObjectionManager proxy
+        bytes memory objectionManagerInitData = abi.encodeCall(
+            BridgeObjectionManager.initialize, (rollupBridge, stakingManager, zkVerifier, deployer)
+        );
+        ERC1967Proxy objectionManagerProxy = new ERC1967Proxy(objectionManagerImpl, objectionManagerInitData);
+        objectionManager = address(objectionManagerProxy);
+        console.log("BridgeObjectionManager proxy deployed at:", objectionManager);
+
+        // Q2 2026: Set objection manager reference in staking manager
+        BridgeStakingManager(stakingManager).setObjectionManager(objectionManager);
+        console.log("ObjectionManager set in StakingManager");
+
         // Update bridge with correct manager addresses
         console.log("Updating bridge with manager addresses...");
         BridgeCore(rollupBridge).updateManagerAddresses(depositManager, proofManager, withdrawManager, adminManager);
+
+        // Q2 2026: Update bridge with new Q2 managers
+        console.log("Updating bridge with Q2 2026 manager addresses...");
+        BridgeCore(rollupBridge).updateQ2Managers(stakingManager, objectionManager);
 
         // Configure TON target contract
         console.log("Configuring TON target contract...");
@@ -214,12 +266,18 @@ contract DeployV2Script is Script {
         console.log("Proof Manager Implementation:", proofManagerImpl);
         console.log("Withdraw Manager Implementation:", withdrawManagerImpl);
         console.log("Admin Manager Implementation:", adminManagerImpl);
+        console.log("Staking Manager Implementation:", stakingManagerImpl);
+        console.log("Objection Manager Implementation:", objectionManagerImpl);
         console.log("\n=== PROXIES ===");
         console.log("Bridge Proxy:", rollupBridge);
         console.log("Deposit Manager Proxy:", depositManager);
         console.log("Proof Manager Proxy:", proofManager);
         console.log("Withdraw Manager Proxy:", withdrawManager);
         console.log("Admin Manager Proxy:", adminManager);
+        console.log("Staking Manager Proxy:", stakingManager);
+        console.log("Objection Manager Proxy:", objectionManager);
+        console.log("\n=== Q2 2026 CONFIG ===");
+        console.log("TON Token:", tonToken);
         console.log("\nDeployer (Owner):", deployer);
 
         // Post-deployment verification
@@ -250,11 +308,15 @@ contract DeployV2Script is Script {
         require(proofManagerImpl != address(0), "Proof manager implementation not deployed");
         require(withdrawManagerImpl != address(0), "Withdraw manager implementation not deployed");
         require(adminManagerImpl != address(0), "Admin manager implementation not deployed");
+        require(stakingManagerImpl != address(0), "Staking manager implementation not deployed");
+        require(objectionManagerImpl != address(0), "Objection manager implementation not deployed");
         require(rollupBridge != address(0), "Bridge proxy not deployed");
         require(depositManager != address(0), "Deposit manager proxy not deployed");
         require(proofManager != address(0), "Proof manager proxy not deployed");
         require(withdrawManager != address(0), "Withdraw manager proxy not deployed");
         require(adminManager != address(0), "Admin manager proxy not deployed");
+        require(stakingManager != address(0), "Staking manager proxy not deployed");
+        require(objectionManager != address(0), "Objection manager proxy not deployed");
 
         // Always verify TokamakVerifier since we always deploy a new one
         console.log("Verifying TokamakVerifier...");
@@ -335,6 +397,27 @@ contract DeployV2Script is Script {
         adminCmd[4] = "--etherscan-api-key";
         adminCmd[5] = etherscanApiKey;
         _verifyWithRetry(adminCmd, "BridgeAdminManager");
+
+        // Q2 2026: Verify new managers
+        console.log("Verifying BridgeStakingManager implementation...");
+        string[] memory stakingCmd = new string[](6);
+        stakingCmd[0] = "forge";
+        stakingCmd[1] = "verify-contract";
+        stakingCmd[2] = vm.toString(stakingManagerImpl);
+        stakingCmd[3] = "src/BridgeStakingManager.sol:BridgeStakingManager";
+        stakingCmd[4] = "--etherscan-api-key";
+        stakingCmd[5] = etherscanApiKey;
+        _verifyWithRetry(stakingCmd, "BridgeStakingManager");
+
+        console.log("Verifying BridgeObjectionManager implementation...");
+        string[] memory objectionCmd = new string[](6);
+        objectionCmd[0] = "forge";
+        objectionCmd[1] = "verify-contract";
+        objectionCmd[2] = vm.toString(objectionManagerImpl);
+        objectionCmd[3] = "src/BridgeObjectionManager.sol:BridgeObjectionManager";
+        objectionCmd[4] = "--etherscan-api-key";
+        objectionCmd[5] = etherscanApiKey;
+        _verifyWithRetry(objectionCmd, "BridgeObjectionManager");
 
         console.log("Contract verification complete!");
     }

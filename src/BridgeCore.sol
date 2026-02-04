@@ -302,12 +302,24 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
         if (allowed) {
-            // Clear existing pre-allocated leaves
+            // Clear existing pre-allocated leaves from both storages
+            bytes32[] storage existingKeys = $.targetContractPreAllocatedKeys[targetContract];
+            for (uint256 i = 0; i < existingKeys.length; i++) {
+                delete $.preAllocatedLeaves[targetContract][existingKeys[i]];
+            }
+            delete $.targetContractPreAllocatedKeys[targetContract];
             delete $.allowedTargetContracts[targetContract].preAllocatedLeaves;
 
-            // Add new pre-allocated leaves
+            // Add new pre-allocated leaves to both storages
             for (uint256 i = 0; i < leaves.length; i++) {
-                $.allowedTargetContracts[targetContract].preAllocatedLeaves.push(leaves[i]);
+                PreAllocatedLeaf memory leaf = leaves[i];
+                $.allowedTargetContracts[targetContract].preAllocatedLeaves.push(leaf);
+
+                // Also update the preAllocatedLeaves mapping and keys array if leaf is active
+                if (leaf.isActive && leaf.key != bytes32(0)) {
+                    $.preAllocatedLeaves[targetContract][leaf.key] = leaf;
+                    $.targetContractPreAllocatedKeys[targetContract].push(leaf.key);
+                }
             }
 
             // Clear existing user storage slots
@@ -327,6 +339,12 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
                 );
             }
         } else {
+            // Clear pre-allocated leaves from mapping and keys array
+            bytes32[] storage existingKeys = $.targetContractPreAllocatedKeys[targetContract];
+            for (uint256 i = 0; i < existingKeys.length; i++) {
+                delete $.preAllocatedLeaves[targetContract][existingKeys[i]];
+            }
+            delete $.targetContractPreAllocatedKeys[targetContract];
             delete $.allowedTargetContracts[targetContract];
         }
     }

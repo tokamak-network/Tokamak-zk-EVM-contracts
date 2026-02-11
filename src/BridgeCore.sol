@@ -316,7 +316,7 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
                 $.allowedTargetContracts[targetContract].preAllocatedLeaves.push(leaf);
 
                 // Also update the preAllocatedLeaves mapping and keys array if leaf is active
-                if (leaf.isActive && leaf.key != bytes32(0)) {
+                if (leaf.isActive) {
                     $.preAllocatedLeaves[targetContract][leaf.key] = leaf;
                     $.targetContractPreAllocatedKeys[targetContract].push(leaf.key);
                 }
@@ -500,7 +500,6 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         BridgeCoreStorage storage $ = _getBridgeCoreStorage();
 
         require(_isTargetContractAllowed(targetContract), "Target contract not allowed");
-        require(key != bytes32(0), "MPT key cannot be zero");
 
         PreAllocatedLeaf storage leaf = $.preAllocatedLeaves[targetContract][key];
         bool isNewLeaf = !leaf.isActive;
@@ -712,6 +711,17 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         UserStorageSlot[] storage slots = $.allowedTargetContracts[targetContract].userStorageSlots;
         for (uint8 i = 0; i < slots.length; i++) {
             if (!slots[i].isLoadedOnChain) {
+                return i;
+            }
+        }
+        revert("No balance slot found");
+    }
+
+    function _getBalanceSlotOffset(address targetContract) internal view returns (uint8) {
+        BridgeCoreStorage storage $ = _getBridgeCoreStorage();
+        UserStorageSlot[] storage slots = $.allowedTargetContracts[targetContract].userStorageSlots;
+        for (uint8 i = 0; i < slots.length; i++) {
+            if (!slots[i].isLoadedOnChain) {
                 return slots[i].slotOffset;
             }
         }
@@ -894,6 +904,10 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
 
     function getBalanceSlotIndex(address targetContract) external view returns (uint8) {
         return _getBalanceSlotIndex(targetContract);
+    }
+
+    function getBalanceSlotOffset(address targetContract) external view returns (uint8) {
+        return _getBalanceSlotOffset(targetContract);
     }
 
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32) {

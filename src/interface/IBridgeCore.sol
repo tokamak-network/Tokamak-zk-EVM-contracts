@@ -68,6 +68,7 @@ interface IBridgeCore {
         view
         returns (bool);
     function getBalanceSlotIndex(address targetContract) external view returns (uint8);
+    function getBalanceSlotOffset(address targetContract) external view returns (uint8);
     function isSignatureVerified(bytes32 channelId) external view returns (bool);
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32);
     function isFrostSignatureEnabled(bytes32 channelId) external view returns (bool);

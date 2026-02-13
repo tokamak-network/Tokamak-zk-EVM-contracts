@@ -1272,6 +1272,10 @@ contract TokamakVerifier is ITokamakVerifier {
             ///
             /// [LHS_A]_1 := V_{x,y}[U]_1 - [W]_1 + κ1([V]_1 - V_{x,y}[G]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
             ///
+            /// Implementation note:
+            /// - In this Solidity implementation, `prepareLHSA()` computes `V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1`.
+            /// - The `-κ1V_{x,y}[G]_1` term is moved to `prepareLHSC()` via `d[1]_1` (where `d` includes `-κ1V_{x,y}`), so the final aggregated `[LHS]_1` remains equivalent.
+            ///
             ///
             /// and where
             ///
@@ -1293,7 +1297,8 @@ contract TokamakVerifier is ITokamakVerifier {
             ///             κ2^2 * ω_{m_i}^{-1} * χ *[M_{χ}]_1 + κ2^2 * ζ * [M_{ζ}]_1 + κ2^3 * ω_{m_i}^{-1} * χ * [N_{χ}]_1 + κ_2^3 ω_smax^{-1} * ζ * [N_{ζ}]
             ///
 
-            /// @dev calculate [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
+            /// @dev calculate implementation-grouped [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
+            ///      note: `-κ1V_{x,y}[G]_1` is applied in `prepareLHSC()` through `d[1]_1`.
             function prepareLHSA() {
                 g1pointMulIntoDest(PROOF_POLY_U_X_SLOT_PART1, mload(PROOF_VXY_SLOT), AGG_LHS_A_X_SLOT_PART1)
                 g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, PROOF_POLY_W_X_SLOT_PART1)
@@ -1313,7 +1318,7 @@ contract TokamakVerifier is ITokamakVerifier {
                     BUFFER_AGGREGATED_POLY_X_SLOT_PART1
                 )
 
-                // (V_{x,y}[U]_1 - [W]_1) + (κ1 * ([V]_1 - V_{x,y}[1]_1)) - t_n(χ)[Q_{A,X}]_1
+                // (V_{x,y}[U]_1 - [W]_1) + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1
                 g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
 
                 // t_{s_{max}}(ζ)[Q_{A,Y}]_1
@@ -1322,7 +1327,8 @@ contract TokamakVerifier is ITokamakVerifier {
                     mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT),
                     BUFFER_AGGREGATED_POLY_X_SLOT_PART1
                 )
-                // V_{x,y}[U]_1 - [W]_1 + κ1 * ([V]_1 - V_{x,y}[1]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
+                // V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
+                // (`-κ1V_{x,y}[1]_1` is included in `prepareLHSC()` via `d[1]_1`)
                 g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
             }
 

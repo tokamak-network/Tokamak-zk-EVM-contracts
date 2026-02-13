@@ -98,7 +98,7 @@
 | `prepareQueries()` | `verify-rust/src/lib.rs` `prepare_query` / `verify/src/verify/mod.rs` `prepare_query` | **Mostly equivalent**. Structure of `[F]`, `[G]`, `t_n(chi)`, `t_smax(zeta)`, `t_mi(chi)` is consistent. |
 | `computeLagrangeK0Eval()` | `verify-rust/src/lib.rs` `compute_lagrange_k0_eval` / same in `verify/src/verify/mod.rs` | **Equivalent**. Uses `L_0(chi)=(chi^m_i-1)/(m_i*(chi-1))`. |
 | `computeAPUB()` | `verify-rust/src/lib.rs` `compute_A_pub` / `verify/src/verify/mod.rs` `compute_a_pub` | **Functionally equivalent, optimization strategy differs**. Rust uses straightforward full iteration; Solidity uses a sparse two-pass strategy over non-zero public inputs plus a small-index fast path. |
-| `prepareLHSA()` | `verify-rust/src/lib.rs` `prepare_lhs_a` / `verify/src/verify/mod.rs` `prepare_lhs_a` | **Key functional difference exists**. Rust includes `-kappa1*vy*[G]` as part of `u*vy - w + (v - g*vy)*kappa1 - q_ax*t_n - q_ay*t_smax`. Solidity currently computes through `+kappa1*[V]` in this section and does not visibly include the `-[G]` term here. |
+| `prepareLHSA()` | `verify-rust/src/lib.rs` `prepare_lhs_a` / `verify/src/verify/mod.rs` `prepare_lhs_a` | **Section-level grouping difference**. Rust keeps `-kappa1*vy*[G]` directly inside `LHS_A`: `u*vy - w + (v - g*vy)*kappa1 - q_ax*t_n - q_ay*t_smax`. Solidity computes `prepareLHSA` as `u*vy - w + kappa1*v - q_ax*t_n - q_ay*t_smax`, and moves `-kappa1*vy*[1]` to `prepareLHSC` scalar `d` (as `d[1]`). |
 | `prepareLHSB()` | `verify-rust/src/lib.rs` `prepare_lhs_b` / `verify/src/verify/mod.rs` `prepare_lhs_b` | **Equivalent**. `(1 + kappa2*kappa1^4)*[A]`. |
 | `prepareLHSC()` | `verify-rust/src/lib.rs` `prepare_lhs_c` / `verify/src/verify/mod.rs` `prepare_lhs_c` | **Mostly equivalent**. Scalar composition and combination flow for `a,b,c,d` align. |
 | `prepareRHS1()` / `prepareRHS2()` | `verify-rust/src/lib.rs` `prepare_rhs_1`, `prepare_rhs_2` / same in `verify/src/verify/mod.rs` | **Equivalent**. Uses `kappa2`, `kappa2^2`, `kappa2^3` for chi/zeta commitment aggregation. |
@@ -110,9 +110,15 @@
 - Rust applies stronger on-curve/deserialization/length validation (`validate_inputs` path).
 - Solidity primarily validates proof-part lengths and `smax`; other issues often surface later as pairing failure.
 
-2. `LHS_A` formula composition
-- Rust includes `-kappa1 * vy * [G]`.
-- Solidity does not visibly include this term inside `prepareLHSA()`.
+2. `LHS_A` formula composition (implementation grouping)
+- Rust includes `-kappa1 * vy * [G]` inside `LHS_A`.
+- Solidity moves this term out of `prepareLHSA()` and applies it in `prepareLHSC()` through `d[1]` (`d` includes `-kappa1 * vy`).
+- Therefore, this is a section-level rearrangement, not necessarily a whole-equation mismatch.
+
+## Clarification: `-kappa1*vy*[1]` Term Placement
+- Solidity comments under `prepareLHSA()` previously suggested the term was still inside `LHS_A`, but the executed operations in that function do not apply `-kappa1*vy*[1]`.
+- The term is applied in `prepareLHSC()` when adding `d[1]`, where `d := -(kappa1^3*r1 + kappa2*r2 + kappa2^2*r3 + kappa1*vy + kappa1^4*A_pub)`.
+- This matches a deliberate algebraic regrouping strategy: keep `prepareLHSA()` as a compact point combination and collect `[1]`-coefficient terms in `d`.
 
 3. Omega selection in aggregated commitment
 - Rust (`verify-rust`/`verify`) uses `omega_smax_inv` for chi-branch terms.

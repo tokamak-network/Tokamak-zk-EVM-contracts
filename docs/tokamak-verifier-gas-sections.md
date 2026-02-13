@@ -82,6 +82,35 @@
 - Repeated runs with the same input reproduce `verify = 1,201,029`.
 - Since `testVerifier()` gas (`2,487,015`) includes wrapper/encoding overhead, optimization should be tracked against `verify` gas (`1,201,029`).
 
+## Applied Optimization: `computeAPUB`
+- Target function: `computeAPUB()` (`src/verifier/TokamakVerifier.sol:1178`)
+- Measurement command:
+  - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvv --offline`
+
+### What Was Optimized
+1. Remove dead `modexp`
+- Removed unused `inv_n := modexp(n, p-2)` in `computeAPUB`.
+
+2. Reuse `omega^i` from first pass
+- First pass now tracks `omega_power` iteratively and stores `(value, omega^i)` for non-zero inputs.
+- This removes per-term `omega^i` recomputation in the second pass (both repeated `mulmod` for small `i` and `modexp` for large `i`).
+
+3. Batch inversion for denominators
+- Replaced per-term inversion `inv(denominator_full_i)` with one inversion of the total product and right-to-left recovery.
+- Effectively reduces many expensive `modexp` inversions to one inversion plus `mulmod` reconstruction.
+
+### Gas Impact (Measured)
+| Variant | `verify` gas | Saved vs baseline |
+|---|---:|---:|
+| Baseline (no optimization) | 1,201,029 | - |
+| + Step 1 (remove dead `modexp`) | 1,199,427 | 1,602 |
+| + Step 2 (`omega^i` reuse) | 1,159,203 | 41,826 |
+| + Step 3 (batch inversion) | **980,360** | **220,669** |
+
+### Net Result
+- `TokamakVerifier::verify(...)`: `1,201,029 -> 980,360`
+- Total reduction: **220,669 gas** (**-18.37%**)
+
 ## Rust Code Comparison (Section-by-Section)
 - Reference workspace members:
   - `packages/backend/crates/verify-rust`

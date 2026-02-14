@@ -41,25 +41,26 @@ $$
 
 | Term | Coefficient $c_i$ | Point element $[P_i]_1$ |
 |---|---|---|
-| 1 | $1+\kappa_2\kappa_1^4$ | $[A]_1$ |
-| 2 | $\kappa_2 V_{x,y}$ | $[U]_1$ |
-| 3 | $-\kappa_2$ | $[W]_1$ |
-| 4 | $\kappa_2\kappa_1$ | $[V]_1$ |
-| 5 | $-\kappa_2 t_n(\chi)$ | $[Q_{A,X}]_1$ |
-| 6 | $-\kappa_2 t_{s_{max}}(\zeta)$ | $[Q_{A,Y}]_1$ |
-| 7 | $\kappa_2\kappa_1^2(R_{x,y}-1)$ | $[K_{-1}(x)L_{-1}(y)]_1$ |
-| 8 | $C_G + C_F$ | $[B]_1$ |
-| 9 | $\theta_0 C_F$ | $[s^{(0)}]_1$ |
-| 10 | $\theta_1 C_F$ | $[s^{(1)}]_1$ |
-| 11 | $\theta_0 C_G$ | $[x]_1$ |
-| 12 | $\theta_1 C_G$ | $[y]_1$ |
-| 13 | $-\kappa_2\kappa_1^2 t_{m_l}(\chi)$ | $[Q_{C,X}]_1$ |
-| 14 | $-\kappa_2\kappa_1^2 t_{s_{max}}(\zeta)$ | $[Q_{C,Y}]_1$ |
-| 15 | $\kappa_2\kappa_1^3+\kappa_2^2+\kappa_2^3$ | $[R]_1$ |
-| 16 | $-\kappa_2\kappa_1^4A_{pub}-\kappa_2\kappa_1V_{x,y}-\kappa_2\kappa_1^3R_{x,y}-\kappa_2^2R'_{x,y}-\kappa_2^3R''_{x,y}+\theta_2(C_G+C_F)$ | $[1]_1$ |
-| 17 | $\kappa_2\chi$ | $[\Pi_\chi]_1$ |
-| 18 | $\kappa_2\zeta$ | $[\Pi_\zeta]_1$ |
-| 19 | $\kappa_2^2\omega_{m_I}^{-1}\chi$ | $[M_\chi]_1$ |
-| 20 | $\kappa_2^2\zeta$ | $[M_\zeta]_1$ |
-| 21 | $\kappa_2^3\omega_{m_I}^{-1}\chi$ | $[N_\chi]_1$ |
-| 22 | $\kappa_2^3\omega_{s_{max}}^{-1}\zeta$ | $[N_\zeta]_1$ |
+| 1 | $1$ | $[A_{fix}]_1$ |
+| 2 | $1+\kappa_2\kappa_1^4$ | $[A_{free}]_1$ |
+| 3 | $\kappa_2 V_{x,y}$ | $[U]_1$ |
+| 4 | $-\kappa_2$ | $[W]_1$ |
+| 5 | $\kappa_2\kappa_1$ | $[V]_1$ |
+| 6 | $-\kappa_2 t_n(\chi)$ | $[Q_{A,X}]_1$ |
+| 7 | $-\kappa_2 t_{s_{max}}(\zeta)$ | $[Q_{A,Y}]_1$ |
+| 8 | $\kappa_2\kappa_1^2(R_{x,y}-1)$ | $[K_{-1}(x)L_{-1}(y)]_1$ |
+| 9 | $C_G + C_F$ | $[B]_1$ |
+| 10 | $\theta_0 C_F$ | $[s^{(0)}]_1$ |
+| 11 | $\theta_1 C_F$ | $[s^{(1)}]_1$ |
+| 12 | $\theta_0 C_G$ | $[x]_1$ |
+| 13 | $\theta_1 C_G$ | $[y]_1$ |
+| 14 | $-\kappa_2\kappa_1^2 t_{m_l}(\chi)$ | $[Q_{C,X}]_1$ |
+| 15 | $-\kappa_2\kappa_1^2 t_{s_{max}}(\zeta)$ | $[Q_{C,Y}]_1$ |
+| 16 | $\kappa_2\kappa_1^3+\kappa_2^2+\kappa_2^3$ | $[R]_1$ |
+| 17 | $-\kappa_2\kappa_1^4A_{eval}-\kappa_2\kappa_1V_{x,y}-\kappa_2\kappa_1^3R_{x,y}-\kappa_2^2R'_{x,y}-\kappa_2^3R''_{x,y}+\theta_2(C_G+C_F)$ | $[1]_1$ |
+| 18 | $\kappa_2\chi$ | $[\Pi_\chi]_1$ |
+| 19 | $\kappa_2\zeta$ | $[\Pi_\zeta]_1$ |
+| 20 | $\kappa_2^2\omega_{m_I}^{-1}\chi$ | $[M_\chi]_1$ |
+| 21 | $\kappa_2^2\zeta$ | $[M_\zeta]_1$ |
+| 22 | $\kappa_2^3\omega_{m_I}^{-1}\chi$ | $[N_\chi]_1$ |
+| 23 | $\kappa_2^3\omega_{s_{max}}^{-1}\zeta$ | $[N_\zeta]_1$ |

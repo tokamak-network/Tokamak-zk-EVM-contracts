@@ -1,5 +1,19 @@
 # TokamakVerifier Gas Profiling Todo
 
+## 2026-02-14 Update Plan (Refresh Gas Doc for Latest Verifier)
+- [x] Align `docs/tokamak-verifier-gas-sections.md` function references and section descriptions with current `TokamakVerifier.sol`.
+- [x] Update residual/hotspot/verification notes to include latest (`HEAD`) metrics.
+- [x] Refresh Rust comparison table and functional-difference summary to match current Step 4 implementation (`prepareLhsAuxSingleMSM`).
+- [x] Re-validate measured numbers against latest trace output and finalize review note.
+
+### 2026-02-14 Review Note (Refresh Gas Doc for Latest Verifier)
+- Validation command:
+  - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvv --offline`
+- Confirmed latest trace values still match doc:
+  - `verify = 821,775`
+  - precompile subtotal = `601,120`
+  - sequence: `modexp x7`, `g1msm x3`, `pairing x1`
+
 ## 2026-02-14 Update Plan (Single-MSM LHS+AUX Refactor)
 - [x] Refactor `TokamakVerifier.sol` to compute `[LHS]_1 + [AUX]_1` using a single 22-term MSM call based on `docs/verifier-spec.md` summary table.
 - [x] Wire the new flow into `verify()` and keep pairing inputs behaviorally equivalent.

@@ -12,26 +12,26 @@
 
 ## Functional Sections
 1. Verification key load
-- `_loadVerificationKey()` (`src/verifier/TokamakVerifier.sol:484`)
+- `_loadVerificationKey()` (`src/verifier/TokamakVerifier.sol:418`)
 
 2. Step 1: Proof loading and validation
-- `loadProof()` (`src/verifier/TokamakVerifier.sol:775`)
+- `loadProof()` (`src/verifier/TokamakVerifier.sol:562`)
 
 3. Step 2: Transcript/challenge initialization
-- `initializeTranscript()` (`src/verifier/TokamakVerifier.sol:1016`)
+- `initializeTranscript()` (`src/verifier/TokamakVerifier.sol:803`)
 
 4. Step 3: Query/scalar preparation
-- `prepareQueries()` (`src/verifier/TokamakVerifier.sol:1099`)
-- `computeLagrangeK0Eval()` (`src/verifier/TokamakVerifier.sol:1123`)
-- `computeAPUB()` (`src/verifier/TokamakVerifier.sol:1159`)
+- `prepareQueries()` (`src/verifier/TokamakVerifier.sol:886`)
+- `computeLagrangeK0Eval()` (`src/verifier/TokamakVerifier.sol:910`)
+- `computeAPUB()` (`src/verifier/TokamakVerifier.sol:946`)
 
 5. Step 4: Aggregated commitment construction
-- `prepareLhsAuxSingleMSM()` (`src/verifier/TokamakVerifier.sol:1301`)
-- `prepareRHS1()` (`src/verifier/TokamakVerifier.sol:1424`)
-- `prepareRHS2()` (`src/verifier/TokamakVerifier.sol:1437`)
+- `prepareLhsAuxSingleMSM()` (`src/verifier/TokamakVerifier.sol:1088`)
+- `prepareRHS1()` (`src/verifier/TokamakVerifier.sol:1211`)
+- `prepareRHS2()` (`src/verifier/TokamakVerifier.sol:1224`)
 
 6. Step 5: Final pairing check
-- `finalPairing()` (`src/verifier/TokamakVerifier.sol:1479`)
+- `finalPairing()` (`src/verifier/TokamakVerifier.sol:1266`)
 
 ## Measured Gas (Trace-Exact, Precompile-Attributed)
 - The values below are exact precompile gas totals aggregated from `-vvvv` traces in section execution order.
@@ -69,30 +69,31 @@
   - `0x0f` (pairing): `1` call, `363,700` gas
 
 ## Residual (Non-Precompile)
-- `verify` total `1,201,029` - precompile subtotal `972,284` = **228,745 gas**
-- This residual includes:
+- Baseline residual: `1,201,029 - 972,284 = 228,745`
+- Current `HEAD` residual: `821,775 - 601,120 = 220,655`
+- Residual includes:
   - `_loadVerificationKey`
   - `loadProof`
   - `initializeTranscript`
   - Arithmetic and memory manipulation overhead in each section (`mulmod`, `addmod`, `mstore`, `keccak256`, calldata decoding, etc.)
 
 ## Hotspots for Optimization (Priority)
-1. `computeAPUB`
-- Heavy concentration of `modexp` calls (the majority of the `288` total)
-- Largest hotspot within Step 3
-
-2. `finalPairing`
+1. `finalPairing`
 - Single call but very large absolute cost (`363,700` gas)
 
-3. Step 4 (`prepareLHS*`, `prepareRHS*`, `prepareAggregatedCommitment`)
-- Many G1MSM/G1ADD calls, cumulative `308,450` gas
+2. `prepareLhsAuxSingleMSM`
+- Single 22-term MSM call (`172,656` gas) dominates Step 4 after refactor
+
+3. `prepareRHS1` / `prepareRHS2`
+- Each costs `30,528` gas; together still meaningful after Step 4 fusion
 
 ## Verification Notes
-- Repeated runs with the same input reproduce `verify = 1,201,029`.
-- Since `testVerifier()` gas (`2,487,015`) includes wrapper/encoding overhead, optimization should be tracked against `verify` gas (`1,201,029`).
+- Repeated runs with the same input reproduce `verify = 821,775` on `HEAD`.
+- `testVerifier()` wrapper gas is currently `2,107,761`; optimization tracking should use internal `verify` gas (`821,775`).
+- Historical checkpoints are kept for trend comparison (`1,201,029 -> 980,360 -> 930,866 -> 821,775`).
 
 ## Applied Optimization: `computeAPUB`
-- Target function: `computeAPUB()` (`src/verifier/TokamakVerifier.sol:1159`)
+- Target function: `computeAPUB()` (`src/verifier/TokamakVerifier.sol:946`)
 - Measurement command:
   - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvv --offline`
 
@@ -192,24 +193,17 @@
 - Reference files:
   - `verify-rust/src/lib.rs`
   - `verify/src/verify/mod.rs`
-- Note:
-  - In `HEAD`, Solidity fuses prior Step 4 paths into `prepareLhsAuxSingleMSM()`.
-  - Rows for `prepareLHSA` / `prepareLHSB` / `prepareLHSC` / `prepareAggregatedCommitment` are kept as conceptual-equation mapping references.
 
 | Solidity section | Rust counterpart | Comparison |
 |---|---|---|
 | `_loadVerificationKey()` | `verify-rust/src/lib.rs` `VerifierContext::new` / `verify/src/verify/mod.rs` `Verifier::new` | **Implementation-path difference**. Solidity hardcodes VK constants and loads them into memory. Rust loads/parses VK JSON at runtime. The verification goal is the same, but the input path differs. |
 | `loadProof()` | `verify-rust/src/lib.rs` `load_proof` / `verify/src/verify/mod.rs` `deserialize_proof` | **Functional difference exists**. Rust returns explicit parse/shape/length errors during deserialization. Solidity strongly validates only proof part lengths (38/42) and `smax`; `preprocessed`/`publicInputs` lengths are not explicitly validated (missing entries become zero via `calldataload`). |
 | `initializeTranscript()` | `verify-rust/src/lib.rs` `compute_challenges` / transcript update path in `verify/src/verify/mod.rs` | **Mostly equivalent**. Commit order (U,V,W,QAX,QAY,B -> R -> QCX,QCY -> Vxy,R1,R2,R3) and challenge flow match. |
-| `prepareQueries()` | `verify-rust/src/lib.rs` `prepare_query` / `verify/src/verify/mod.rs` `prepare_query` | **Implementation-path difference**. In `HEAD`, Solidity computes only scalar queries (`t_n`, `t_smax`, `t_mi`) here and folds `[F]`/`[G]` effects into `prepareLhsAuxSingleMSM()`. The full equation target remains equivalent. |
+| `prepareQueries()` | `verify-rust/src/lib.rs` `prepare_query` / `verify/src/verify/mod.rs` `prepare_query` | **Implementation-path difference**. In `HEAD`, Solidity computes only scalar queries (`t_n`, `t_smax`, `t_mi`) here and folds `[F]`/`[G]` effects into `prepareLhsAuxSingleMSM()`. Equation target remains equivalent. |
 | `computeLagrangeK0Eval()` | `verify-rust/src/lib.rs` `compute_lagrange_k0_eval` / same in `verify/src/verify/mod.rs` | **Equivalent**. Uses `L_0(chi)=(chi^m_i-1)/(m_i*(chi-1))`. |
 | `computeAPUB()` | `verify-rust/src/lib.rs` `compute_A_pub` / `verify/src/verify/mod.rs` `compute_a_pub` | **Functionally equivalent, optimization strategy differs**. Rust uses straightforward full iteration; Solidity uses a sparse two-pass strategy over non-zero public inputs plus a small-index fast path. |
-| `prepareLhsAuxSingleMSM()` | `verify-rust/src/lib.rs` `prepare_lhs_a`/`prepare_lhs_b`/`prepare_lhs_c`/`prepare_aggregated_commitment` (and corresponding functions in `verify/src/verify/mod.rs`) | **Equivalent target, different construction strategy**. Solidity fuses the expanded `[LHS]+[AUX]` linear combination into one 22-term MSM, while Rust keeps multi-step composition. |
-| `prepareLHSA()` | `verify-rust/src/lib.rs` `prepare_lhs_a` / `verify/src/verify/mod.rs` `prepare_lhs_a` | **Section-level grouping difference**. Rust keeps `-kappa1*vy*[G]` directly inside `LHS_A`: `u*vy - w + (v - g*vy)*kappa1 - q_ax*t_n - q_ay*t_smax`. Solidity computes `prepareLHSA` as `u*vy - w + kappa1*v - q_ax*t_n - q_ay*t_smax`, and moves `-kappa1*vy*[1]` to `prepareLHSC` scalar `d` (as `d[1]`). |
-| `prepareLHSB()` | `verify-rust/src/lib.rs` `prepare_lhs_b` / `verify/src/verify/mod.rs` `prepare_lhs_b` | **Equivalent**. `(1 + kappa2*kappa1^4)*[A]`. |
-| `prepareLHSC()` | `verify-rust/src/lib.rs` `prepare_lhs_c` / `verify/src/verify/mod.rs` `prepare_lhs_c` | **Mostly equivalent**. Scalar composition and combination flow for `a,b,c,d` align. |
+| `prepareLhsAuxSingleMSM()` | `verify-rust/src/lib.rs` `prepare_lhs_a` + `prepare_lhs_b` + `prepare_lhs_c` + `prepare_aggregated_commitment` (and same path in `verify/src/verify/mod.rs`) | **Equivalent target, different construction strategy**. Solidity fuses expanded `[LHS]+[AUX]` into one 22-term MSM; Rust keeps multi-step composition and then aggregates. |
 | `prepareRHS1()` / `prepareRHS2()` | `verify-rust/src/lib.rs` `prepare_rhs_1`, `prepare_rhs_2` / same in `verify/src/verify/mod.rs` | **Equivalent**. Uses `kappa2`, `kappa2^2`, `kappa2^3` for chi/zeta commitment aggregation. |
-| `prepareAggregatedCommitment()` | `verify-rust/src/lib.rs` `prepare_aggregated_commitment` / same in `verify/src/verify/mod.rs` | **Key functional difference exists**. Solidity uses `omega_mi^{-1}` (`OMEGA_MI_1`) for chi-branch terms (`M_chi`, `N_chi`). Both Rust implementations use `omega_smax_inv` for the chi branch as well. |
 | `finalPairing()` | `verify-rust/src/lib.rs` `check_pairing` / `verify/src/verify/mod.rs` `check_pairing` | **Same mathematical target**. Rust validates with library pairing APIs; Solidity manually encodes and calls precompile `0x0f`. |
 
 ## Functional Differences Summary
@@ -217,17 +211,11 @@
 - Rust applies stronger on-curve/deserialization/length validation (`validate_inputs` path).
 - Solidity primarily validates proof-part lengths and `smax`; other issues often surface later as pairing failure.
 
-2. `LHS_A` formula composition (implementation grouping)
-- Rust includes `-kappa1 * vy * [G]` inside `LHS_A`.
-- Solidity moves this term out of `prepareLHSA()` and applies it in `prepareLHSC()` through `d[1]` (`d` includes `-kappa1 * vy`).
-- Therefore, this is a section-level rearrangement, not necessarily a whole-equation mismatch.
+2. Step 4 construction strategy
+- Rust composes `LHS_A`, `LHS_B`, `LHS_C`, and `AUX` in separate stages.
+- Solidity `HEAD` computes the same final `[LHS]+[AUX]` linear combination directly as one 22-term MSM.
 
-## Clarification: `-kappa1*vy*[1]` Term Placement
-- Solidity comments under `prepareLHSA()` previously suggested the term was still inside `LHS_A`, but the executed operations in that function do not apply `-kappa1*vy*[1]`.
-- The term is applied in `prepareLHSC()` when adding `d[1]`, where `d := -(kappa1^3*r1 + kappa2*r2 + kappa2^2*r3 + kappa1*vy + kappa1^4*A_pub)`.
-- This matches a deliberate algebraic regrouping strategy: keep `prepareLHSA()` as a compact point combination and collect `[1]`-coefficient terms in `d`.
-
-3. Omega selection in aggregated commitment
+3. Omega selection in aggregated commitment terms
 - Rust (`verify-rust`/`verify`) uses `omega_smax_inv` for chi-branch terms.
 - Solidity uses `omega_mi^{-1}` for chi terms and `omega_smax^{-1}` for part of zeta terms.
 

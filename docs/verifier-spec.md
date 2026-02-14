@@ -19,7 +19,7 @@ $$
 [LHS]_1 := [LHS_B]_1 + \kappa_2([LHS_A]_1 + [LHS_C]_1),\\
 [LHS_A]_1 := V_{x,y}[U]_1 - [W]_1 + \kappa_1[V]_1 - \kappa_1V_{x,y}[1]_1 - t_n(\chi)[Q_{A,X}]_1 - t_{s_max}(\zeta)[Q_{A,Y}]_1, \\
 [LHS_C]_1 := \kappa_1^2((R_{x,y}-1)[K_{-1}(x)L_{-1}(y)]_1+\kappa_0(\chi-1)(R_{x,y}[G]_1-R'_{x,y}[F]_1)+\kappa_0^2K_0(\chi)(R_{x,y}[G]_1-R''_{x,y}[F]_1)-t_{m_l}(\chi)[Q_{C,X}]_1-t_{s_{max}}(\zeta)[Q_{C,Y}]_1)+\kappa_1^3([R]_1-R_{x,y}[1]_1) + \kappa_2([R]_1-R'_{x,y}[1]_1)+ \kappa_2^2([R]_1-R''_{x,y}[1]_1),\\
-[LHS_B]_1 := (1+\kappa_2\kappa_1^4)[A]_1-\kappa_2\kappa_1^4A_{pub}[1]_1,\\
+[LHS_B]_1 := [A_{fix}]_1 + (1+\kappa_2\kappa_1^4)[A_{free}]_1-\kappa_2\kappa_1^4A_{eval}[1]_1,\\
 [AUX]_1 := \kappa_2\chi[\Pi_\chi]_1 + \kappa_2\zeta[\Pi_{\zeta}]_1 + \kappa_2^2\omega_{m_I}^{-1}\chi[M_\chi]_1 + \kappa_2^2\zeta[M_\zeta]_1+ \kappa_2^3 \omega_{m_I}^{-1} \chi [N_{\chi}]_1 + \kappa_2^3 \omega_{s_{max}}^{-1} \zeta [N_{\zeta}].
 [F]_1 := [B]_1 + \theta_0[s^{(0)}]_1+\theta_1[s^{(1)}]_1+\theta_2[1]_1,\\
 [G]_1:= [B]_1+\theta_0[x]_1+\theta_1[y]_1+\theta_2[1]_1.

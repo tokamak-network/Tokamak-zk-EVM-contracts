@@ -13,7 +13,7 @@ You are updating optimization reports for this repo. Follow these rules exactly.
 
 ## Source Series Table Rules
 - The table must be titled **“Source Series (gas usage by snapshot commit)”**.
-- Add a new row **only when gas usage decreases by ≥ 5%** compared to the immediately previous snapshot.
+- Add a new row **only when gas usage decreases by ≥ 5%** compared to the immediately previous snapshot. If new commits make gas usage decrease by < 5%, include them in the last row.
 - Columns (in this order):
   1. `date`
   2. `commits`

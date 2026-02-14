@@ -33,6 +33,12 @@ $$
 [LHS]_1 + [AUX]_1 = \sum_i c_i [P_i]_1
 $$
 
+with
+$$
+C_G := \kappa_2\kappa_1^2 R_{x,y}\big(\kappa_0(\chi-1)+\kappa_0^2K_0(\chi)\big), \quad
+C_F := -\kappa_2\kappa_1^2\big(\kappa_0(\chi-1)R'_{x,y}+\kappa_0^2K_0(\chi)R''_{x,y}\big).
+$$
+
 | Term | Coefficient $c_i$ | Point element $[P_i]_1$ |
 |---|---|---|
 | 1 | $1+\kappa_2\kappa_1^4$ | $[A]_1$ |
@@ -42,15 +48,18 @@ $$
 | 5 | $-\kappa_2 t_n(\chi)$ | $[Q_{A,X}]_1$ |
 | 6 | $-\kappa_2 t_{s_{max}}(\zeta)$ | $[Q_{A,Y}]_1$ |
 | 7 | $\kappa_2\kappa_1^2(R_{x,y}-1)$ | $[K_{-1}(x)L_{-1}(y)]_1$ |
-| 8 | $\kappa_2\kappa_1^2 R_{x,y}\big(\kappa_0(\chi-1)+\kappa_0^2K_0(\chi)\big)$ | $[G]_1$ |
-| 9 | $-\kappa_2\kappa_1^2\big(\kappa_0(\chi-1)R'_{x,y}+\kappa_0^2K_0(\chi)R''_{x,y}\big)$ | $[F]_1$ |
-| 10 | $-\kappa_2\kappa_1^2 t_{m_l}(\chi)$ | $[Q_{C,X}]_1$ |
-| 11 | $-\kappa_2\kappa_1^2 t_{s_{max}}(\zeta)$ | $[Q_{C,Y}]_1$ |
-| 12 | $\kappa_2\kappa_1^3+\kappa_2^2+\kappa_2^3$ | $[R]_1$ |
-| 13 | $-\kappa_2\kappa_1^4A_{pub}-\kappa_2\kappa_1V_{x,y}-\kappa_2\kappa_1^3R_{x,y}-\kappa_2^2R'_{x,y}-\kappa_2^3R''_{x,y}$ | $[1]_1$ |
-| 14 | $\kappa_2\chi$ | $[\Pi_\chi]_1$ |
-| 15 | $\kappa_2\zeta$ | $[\Pi_\zeta]_1$ |
-| 16 | $\kappa_2^2\omega_{m_I}^{-1}\chi$ | $[M_\chi]_1$ |
-| 17 | $\kappa_2^2\zeta$ | $[M_\zeta]_1$ |
-| 18 | $\kappa_2^3\omega_{m_I}^{-1}\chi$ | $[N_\chi]_1$ |
-| 19 | $\kappa_2^3\omega_{s_{max}}^{-1}\zeta$ | $[N_\zeta]_1$ |
+| 8 | $C_G + C_F$ | $[B]_1$ |
+| 9 | $\theta_0 C_F$ | $[s^{(0)}]_1$ |
+| 10 | $\theta_1 C_F$ | $[s^{(1)}]_1$ |
+| 11 | $\theta_0 C_G$ | $[x]_1$ |
+| 12 | $\theta_1 C_G$ | $[y]_1$ |
+| 13 | $-\kappa_2\kappa_1^2 t_{m_l}(\chi)$ | $[Q_{C,X}]_1$ |
+| 14 | $-\kappa_2\kappa_1^2 t_{s_{max}}(\zeta)$ | $[Q_{C,Y}]_1$ |
+| 15 | $\kappa_2\kappa_1^3+\kappa_2^2+\kappa_2^3$ | $[R]_1$ |
+| 16 | $-\kappa_2\kappa_1^4A_{pub}-\kappa_2\kappa_1V_{x,y}-\kappa_2\kappa_1^3R_{x,y}-\kappa_2^2R'_{x,y}-\kappa_2^3R''_{x,y}+\theta_2(C_G+C_F)$ | $[1]_1$ |
+| 17 | $\kappa_2\chi$ | $[\Pi_\chi]_1$ |
+| 18 | $\kappa_2\zeta$ | $[\Pi_\zeta]_1$ |
+| 19 | $\kappa_2^2\omega_{m_I}^{-1}\chi$ | $[M_\chi]_1$ |
+| 20 | $\kappa_2^2\zeta$ | $[M_\zeta]_1$ |
+| 21 | $\kappa_2^3\omega_{m_I}^{-1}\chi$ | $[N_\chi]_1$ |
+| 22 | $\kappa_2^3\omega_{s_{max}}^{-1}\zeta$ | $[N_\zeta]_1$ |

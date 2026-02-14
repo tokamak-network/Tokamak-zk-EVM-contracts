@@ -1090,49 +1090,13 @@ contract TokamakVerifier is ITokamakVerifier {
                                         3. Prepare Queries
                 //////////////////////////////////////////////////////////////*/
 
-            /// @dev Here we compute some queries for the final pairing
-            /// We use the formulas:
-            /// [F]_1:=[B]_1+θ_0[s^{(0)}(x,y)]_1+θ_1[s^{(1)}(x,y)]_1+θ_2[1]_1
-            ///
-            /// [G]_1:= [B]_1+θ_0[s^{(2)}(x,y)]_1+θ_1[y]_1+θ_2[1]_1
-            ///
-            /// t_n(χ):=χ^{n}-1
-            ///
-            /// t_{smax}(ζ) := ζ^{smax}-1
-            ///
-            /// t_{m_I}(χ) := χ^{m_I}-1
+            /// @dev Prepare scalar queries consumed by the single-shot Step 4 MSM.
+            /// We compute:
+            /// - t_n(χ) := χ^{n}-1
+            /// - t_{smax}(ζ) := ζ^{smax}-1
+            /// - t_{m_I}(χ) := χ^{m_I}-1
 
             function prepareQueries() {
-                // calculate [F]_1
-                {
-                    let theta0 := mload(CHALLENGE_THETA_0_SLOT)
-                    let theta1 := mload(CHALLENGE_THETA_1_SLOT)
-                    let theta2 := mload(CHALLENGE_THETA_2_SLOT)
-
-                    mstore(INTERMERDIARY_POLY_F_X_SLOT_PART1, mload(PROOF_POLY_B_X_SLOT_PART1))
-                    mstore(INTERMERDIARY_POLY_F_X_SLOT_PART2, mload(PROOF_POLY_B_X_SLOT_PART2))
-                    mstore(INTERMERDIARY_POLY_F_Y_SLOT_PART1, mload(PROOF_POLY_B_Y_SLOT_PART1))
-                    mstore(INTERMERDIARY_POLY_F_Y_SLOT_PART2, mload(PROOF_POLY_B_Y_SLOT_PART2))
-
-                    g1pointMulAndAddIntoDest(PUBLIC_INPUTS_S_0_X_SLOT_PART1, theta0, INTERMERDIARY_POLY_F_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(PUBLIC_INPUTS_S_1_X_SLOT_PART1, theta1, INTERMERDIARY_POLY_F_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(VK_IDENTITY_X_PART1, theta2, INTERMERDIARY_POLY_F_X_SLOT_PART1)
-                }
-                // calculate [G]_1
-                {
-                    let theta0 := mload(CHALLENGE_THETA_0_SLOT)
-                    let theta1 := mload(CHALLENGE_THETA_1_SLOT)
-                    let theta2 := mload(CHALLENGE_THETA_2_SLOT)
-
-                    mstore(INTERMERDIARY_POLY_G_X_SLOT_PART1, mload(PROOF_POLY_B_X_SLOT_PART1))
-                    mstore(INTERMERDIARY_POLY_G_X_SLOT_PART2, mload(PROOF_POLY_B_X_SLOT_PART2))
-                    mstore(INTERMERDIARY_POLY_G_Y_SLOT_PART1, mload(PROOF_POLY_B_Y_SLOT_PART1))
-                    mstore(INTERMERDIARY_POLY_G_Y_SLOT_PART2, mload(PROOF_POLY_B_Y_SLOT_PART2))
-
-                    g1pointMulAndAddIntoDest(VK_POLY_X_X_PART1, theta0, INTERMERDIARY_POLY_G_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(VK_POLY_Y_X_PART1, theta1, INTERMERDIARY_POLY_G_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(VK_IDENTITY_X_PART1, theta2, INTERMERDIARY_POLY_G_X_SLOT_PART1)
-                }
                 // calculate t_n(χ)
                 {
                     let chi := mload(CHALLENGE_CHI_SLOT)
@@ -1309,8 +1273,7 @@ contract TokamakVerifier is ITokamakVerifier {
             /// [LHS_A]_1 := V_{x,y}[U]_1 - [W]_1 + κ1([V]_1 - V_{x,y}[G]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
             ///
             /// Implementation note:
-            /// - In this Solidity implementation, `prepareLHSA()` computes `V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1`.
-            /// - The `-κ1V_{x,y}[G]_1` term is moved to `prepareLHSC()` via `d[1]_1` (where `d` includes `-κ1V_{x,y}`), so the final aggregated `[LHS]_1` remains equivalent.
+            /// - This implementation computes `[LHS]_1 + [AUX]_1` directly in one 22-term MSM using the expanded form.
             ///
             ///
             /// and where
@@ -1333,111 +1296,128 @@ contract TokamakVerifier is ITokamakVerifier {
             ///             κ2^2 * ω_{m_i}^{-1} * χ *[M_{χ}]_1 + κ2^2 * ζ * [M_{ζ}]_1 + κ2^3 * ω_{m_i}^{-1} * χ * [N_{χ}]_1 + κ_2^3 ω_smax^{-1} * ζ * [N_{ζ}]
             ///
 
-            /// @dev calculate implementation-grouped [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
-            ///      note: `-κ1V_{x,y}[G]_1` is applied in `prepareLHSC()` through `d[1]_1`.
-            function prepareLHSA() {
+            /// @dev Compute [LHS]_1 + [AUX]_1 in one 22-term MSM using the fully expanded form
+            ///      from `docs/verifier-spec.md` summary table.
+            function prepareLhsAuxSingleMSM() {
                 let msmPtr := 0x9800
-                let V_xy := mload(PROOF_VXY_SLOT)
-                let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
-                let negOne := sub(R_MOD, 1)
-                let neg_tn := addmod(0, sub(R_MOD, mload(INTERMERDIARY_SCALAR_T_N_CHI_SLOT)), R_MOD)
-                let neg_tsmax := addmod(0, sub(R_MOD, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT)), R_MOD)
 
-                // [LHS_A]_1 = Vxy[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[QAX]_1 - t_smax(ζ)[QAY]_1
-                msmStoreTerm(msmPtr, 0, PROOF_POLY_U_X_SLOT_PART1, V_xy)
-                msmStoreTerm(msmPtr, 1, PROOF_POLY_W_X_SLOT_PART1, negOne)
-                msmStoreTerm(msmPtr, 2, PROOF_POLY_V_X_SLOT_PART1, kappa1)
-                msmStoreTerm(msmPtr, 3, PROOF_POLY_QAX_X_SLOT_PART1, neg_tn)
-                msmStoreTerm(msmPtr, 4, PROOF_POLY_QAY_X_SLOT_PART1, neg_tsmax)
-                g1msmFromBuffer(msmPtr, 5, AGG_LHS_A_X_SLOT_PART1)
-            }
-
-            /// @dev [LHS_B]_1 := (1+κ2κ1^4)[A]_1
-            function prepareLHSB() {
-                let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
-                let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
-                let A_pub := mload(INTERMEDIARY_SCALAR_APUB_SLOT)
-
-                // 1+κ2κ1^4
-                let coeff1 := addmod(1, mulmod(kappa2, modexp(kappa1, 4), R_MOD), R_MOD)
-
-                // (1+κ2κ1^4)[A]_1
-                g1pointMulIntoDest(PROOF_POLY_A_X_SLOT_PART1, coeff1, AGG_LHS_B_X_SLOT_PART1)
-            }
-
-            ///  @dev [LHS_C]_1 := κ1^2(R_{x,y} - 1) * [K_{-1}(X)L_{-1}(X)]_1 + a[G]_1
-            ///                    - b[F]_1 - κ1^2 * t_{m_i}(χ) * [Q_{C,X}]_1 - κ1^2 * t_{s_{max}}(ζ) * [Q_{C,Y}]_1) + c[R]_1 + d[1]_1
-            function prepareLHSC() {
                 let kappa0 := mload(CHALLENGE_KAPPA_0_SLOT)
                 let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
+                let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
+                let chi := mload(CHALLENGE_CHI_SLOT)
+                let zeta := mload(CHALLENGE_ZETA_SLOT)
+                let theta0 := mload(CHALLENGE_THETA_0_SLOT)
+                let theta1 := mload(CHALLENGE_THETA_1_SLOT)
+                let theta2 := mload(CHALLENGE_THETA_2_SLOT)
+
                 let kappa1_pow2 := mulmod(kappa1, kappa1, R_MOD)
                 let kappa1_pow3 := mulmod(kappa1, kappa1_pow2, R_MOD)
-                let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
+                let kappa1_pow4 := mulmod(kappa1, kappa1_pow3, R_MOD)
                 let kappa2_pow2 := mulmod(kappa2, kappa2, R_MOD)
-                let chi := mload(CHALLENGE_CHI_SLOT)
-                let chi_minus_1 := addmod(chi, sub(R_MOD, 1), R_MOD)
-                let r1 := mload(PROOF_R1XY_SLOT)
-                let r2 := mload(PROOF_R2XY_SLOT)
-                let r3 := mload(PROOF_R3XY_SLOT)
-                let k0 := mload(INTERMEDIARY_SCALAR_KO_SLOT)
-                let V_xy := mload(PROOF_VXY_SLOT)
-                let A_pub := mload(INTERMEDIARY_SCALAR_APUB_SLOT)
-                let t_ml := mload(INTERMERDIARY_SCALAR_T_MI_CHI_SLOT)
-                let t_smax := mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT)
+                let kappa2_pow3 := mulmod(kappa2_pow2, kappa2, R_MOD)
+                let common := mulmod(kappa2, kappa1_pow2, R_MOD)
 
-                // a := κ1^2 * κ0 * R_{x,y} * ((χ-1) + κ0 * K_0(χ))
-                let a :=
-                    mulmod(
-                        mulmod(mulmod(mulmod(kappa1, kappa1, R_MOD), kappa0, R_MOD), r1, R_MOD),
-                        addmod(chi_minus_1, mulmod(kappa0, k0, R_MOD), R_MOD),
-                        R_MOD
-                    )
-                // b := κ1^2 * κ0 * ((χ-1) R’_{x,y} + κ0K_0(χ)R’’_{x,y})
-                let b :=
-                    mulmod(
-                        mulmod(kappa1_pow2, kappa0, R_MOD),
-                        addmod(mulmod(chi_minus_1, r2, R_MOD), mulmod(mulmod(kappa0, k0, R_MOD), r3, R_MOD), R_MOD),
-                        R_MOD
-                    )
-                // c := κ1^3 + κ2 + κ2^2
-                let c := addmod(kappa1_pow3, addmod(kappa2, kappa2_pow2, R_MOD), R_MOD)
-                //    d := -κ1^3R_{x,y} - κ2R’_{x,y} - κ2^2R’’_{x,y} - κ1V_{x,y} - κ1^4A_{pub}
-                // => d := - (κ1^3R_{x,y} + κ2R’_{x,y} + κ2^2R’’_{x,y} + κ1V_{x,y} + κ1^4A_{pub})
-                let d :=
-                    sub(
-                        R_MOD,
+                // Scratch slots:
+                // 0x9400: C_G, 0x9420: C_F, 0x9440: C_B = C_G + C_F.
+                {
+                    let chi_minus_1 := addmod(chi, sub(R_MOD, 1), R_MOD)
+                    let kappa0_chi_minus_1 := mulmod(kappa0, chi_minus_1, R_MOD)
+                    let kappa0_pow2_k0 :=
+                        mulmod(mulmod(kappa0, kappa0, R_MOD), mload(INTERMEDIARY_SCALAR_KO_SLOT), R_MOD)
+                    let kappa0_mix := addmod(kappa0_chi_minus_1, kappa0_pow2_k0, R_MOD)
+                    let c_g := mulmod(mulmod(common, mload(PROOF_R1XY_SLOT), R_MOD), kappa0_mix, R_MOD)
+                    let c_f_inner :=
+                        addmod(
+                            mulmod(kappa0_chi_minus_1, mload(PROOF_R2XY_SLOT), R_MOD),
+                            mulmod(kappa0_pow2_k0, mload(PROOF_R3XY_SLOT), R_MOD),
+                            R_MOD
+                        )
+                    let c_f := addmod(0, sub(R_MOD, mulmod(common, c_f_inner, R_MOD)), R_MOD)
+                    mstore(0x9400, c_g)
+                    mstore(0x9420, c_f)
+                    mstore(0x9440, addmod(c_g, c_f, R_MOD))
+                }
+
+                msmStoreTerm(msmPtr, 0, PROOF_POLY_A_X_SLOT_PART1, addmod(1, mulmod(kappa2, kappa1_pow4, R_MOD), R_MOD))
+                msmStoreTerm(msmPtr, 1, PROOF_POLY_U_X_SLOT_PART1, mulmod(kappa2, mload(PROOF_VXY_SLOT), R_MOD))
+                msmStoreTerm(msmPtr, 2, PROOF_POLY_W_X_SLOT_PART1, addmod(0, sub(R_MOD, kappa2), R_MOD))
+                msmStoreTerm(msmPtr, 3, PROOF_POLY_V_X_SLOT_PART1, mulmod(kappa2, kappa1, R_MOD))
+                msmStoreTerm(
+                    msmPtr,
+                    4,
+                    PROOF_POLY_QAX_X_SLOT_PART1,
+                    addmod(0, sub(R_MOD, mulmod(kappa2, mload(INTERMERDIARY_SCALAR_T_N_CHI_SLOT), R_MOD)), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    5,
+                    PROOF_POLY_QAY_X_SLOT_PART1,
+                    addmod(0, sub(R_MOD, mulmod(kappa2, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT), R_MOD)), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr, 6, VK_POLY_KXLX_X_PART1, mulmod(common, addmod(mload(PROOF_R1XY_SLOT), sub(R_MOD, 1), R_MOD), R_MOD)
+                )
+                msmStoreTerm(msmPtr, 7, PROOF_POLY_B_X_SLOT_PART1, mload(0x9440))
+                msmStoreTerm(msmPtr, 8, PUBLIC_INPUTS_S_0_X_SLOT_PART1, mulmod(theta0, mload(0x9420), R_MOD))
+                msmStoreTerm(msmPtr, 9, PUBLIC_INPUTS_S_1_X_SLOT_PART1, mulmod(theta1, mload(0x9420), R_MOD))
+                msmStoreTerm(msmPtr, 10, VK_POLY_X_X_PART1, mulmod(theta0, mload(0x9400), R_MOD))
+                msmStoreTerm(msmPtr, 11, VK_POLY_Y_X_PART1, mulmod(theta1, mload(0x9400), R_MOD))
+                msmStoreTerm(
+                    msmPtr,
+                    12,
+                    PROOF_POLY_QCX_X_SLOT_PART1,
+                    addmod(0, sub(R_MOD, mulmod(common, mload(INTERMERDIARY_SCALAR_T_MI_CHI_SLOT), R_MOD)), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    13,
+                    PROOF_POLY_QCY_X_SLOT_PART1,
+                    addmod(0, sub(R_MOD, mulmod(common, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT), R_MOD)), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    14,
+                    PROOF_POLY_R_X_SLOT_PART1,
+                    addmod(mulmod(kappa2, kappa1_pow3, R_MOD), addmod(kappa2_pow2, kappa2_pow3, R_MOD), R_MOD)
+                )
+
+                {
+                    let coeff_identity_base :=
                         addmod(
                             addmod(
-                                addmod(mulmod(kappa1_pow3, r1, R_MOD), mulmod(kappa2, r2, R_MOD), R_MOD),
-                                mulmod(kappa2_pow2, r3, R_MOD),
+                                mulmod(mulmod(kappa2, kappa1_pow4, R_MOD), mload(INTERMEDIARY_SCALAR_APUB_SLOT), R_MOD),
+                                mulmod(mulmod(kappa2, kappa1, R_MOD), mload(PROOF_VXY_SLOT), R_MOD),
                                 R_MOD
                             ),
                             addmod(
-                                mulmod(kappa1, V_xy, R_MOD), mulmod(mulmod(kappa1, kappa1_pow3, R_MOD), A_pub, R_MOD), R_MOD
+                                mulmod(mulmod(kappa2, kappa1_pow3, R_MOD), mload(PROOF_R1XY_SLOT), R_MOD),
+                                addmod(
+                                    mulmod(kappa2_pow2, mload(PROOF_R2XY_SLOT), R_MOD),
+                                    mulmod(kappa2_pow3, mload(PROOF_R3XY_SLOT), R_MOD),
+                                    R_MOD
+                                ),
+                                R_MOD
                             ),
                             R_MOD
                         )
-                    )
-                // κ1^2(R_x,y - 1)
-                let kappa1_r_minus_1 := mulmod(mulmod(kappa1, kappa1, R_MOD), sub(r1, 1), R_MOD)
-                // κ1^2 * t_{m_l}(χ)
-                let kappa1_tml := mulmod(kappa1_pow2, t_ml, R_MOD)
-                // κ1^2 * t_{s_{max}}(ζ)
-                let kappa1_tsmax := mulmod(kappa1_pow2, t_smax, R_MOD)
-                let neg_b := addmod(0, sub(R_MOD, b), R_MOD)
-                let neg_kappa1_tml := addmod(0, sub(R_MOD, kappa1_tml), R_MOD)
-                let neg_kappa1_tsmax := addmod(0, sub(R_MOD, kappa1_tsmax), R_MOD)
-                let msmPtr := 0x9800
+                    let coeff_identity :=
+                        addmod(addmod(0, sub(R_MOD, coeff_identity_base), R_MOD), mulmod(theta2, mload(0x9440), R_MOD), R_MOD)
+                    msmStoreTerm(msmPtr, 15, VK_IDENTITY_X_PART1, coeff_identity)
+                }
 
-                // [LHS_C]_1 as a single linear combination.
-                msmStoreTerm(msmPtr, 0, VK_POLY_KXLX_X_PART1, kappa1_r_minus_1)
-                msmStoreTerm(msmPtr, 1, INTERMERDIARY_POLY_G_X_SLOT_PART1, a)
-                msmStoreTerm(msmPtr, 2, INTERMERDIARY_POLY_F_X_SLOT_PART1, neg_b)
-                msmStoreTerm(msmPtr, 3, PROOF_POLY_QCX_X_SLOT_PART1, neg_kappa1_tml)
-                msmStoreTerm(msmPtr, 4, PROOF_POLY_QCY_X_SLOT_PART1, neg_kappa1_tsmax)
-                msmStoreTerm(msmPtr, 5, PROOF_POLY_R_X_SLOT_PART1, c)
-                msmStoreTerm(msmPtr, 6, VK_IDENTITY_X_PART1, d)
-                g1msmFromBuffer(msmPtr, 7, AGG_LHS_C_X_SLOT_PART1)
+                msmStoreTerm(msmPtr, 16, PROOF_POLY_PI_CHI_X_SLOT_PART1, mulmod(kappa2, chi, R_MOD))
+                msmStoreTerm(msmPtr, 17, PROOF_POLY_PI_ZETA_X_SLOT_PART1, mulmod(kappa2, zeta, R_MOD))
+                msmStoreTerm(msmPtr, 18, PROOF_POLY_M_CHI_X_SLOT_PART1, mulmod(kappa2_pow2, mulmod(OMEGA_MI_1, chi, R_MOD), R_MOD))
+                msmStoreTerm(msmPtr, 19, PROOF_POLY_M_ZETA_X_SLOT_PART1, mulmod(kappa2_pow2, zeta, R_MOD))
+                msmStoreTerm(msmPtr, 20, PROOF_POLY_N_CHI_X_SLOT_PART1, mulmod(kappa2_pow3, mulmod(OMEGA_MI_1, chi, R_MOD), R_MOD))
+                msmStoreTerm(
+                    msmPtr,
+                    21,
+                    PROOF_POLY_N_ZETA_X_SLOT_PART1,
+                    mulmod(kappa2_pow3, mulmod(getOmegaSmaxInverse(mload(PARAM_SMAX)), zeta, R_MOD), R_MOD)
+                )
+
+                g1msmFromBuffer(msmPtr, 22, PAIRING_AGG_LHS_AUX_X_SLOT_PART1)
             }
 
             /// @dev [RHS_1]_1 := κ2[Π_{χ}]_1 + κ2^2[M_{χ}]_1 + κ2^3[N_{χ}]_1
@@ -1478,59 +1458,6 @@ contract TokamakVerifier is ITokamakVerifier {
                 default {
                     // This should never happen if loadProof validation is correct
                     revertWithMessage(25, "Invalid smax for omega")
-                }
-            }
-
-            /// @dev [LHS]_1 := [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
-            /// @dev [AUX]_1 := κ2 * χ * [Π_{χ}]_1 + κ2 * ζ *[Π_ζ]_1 +
-            ///                 κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1 + κ2^2 * ζ * [M_ζ]_1 + κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1 + κ_2^3 * ω_smax^{-1} * ζ * [N_{ζ}]
-            function prepareAggregatedCommitment() {
-                // calculate [LHS]_1 = [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
-                {
-                    let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
-                    let msmPtr := 0x9800
-
-                    // [LHS]_1 = [LHS_B]_1 + κ2[LHS_A]_1 + κ2[LHS_C]_1
-                    msmStoreTerm(msmPtr, 0, AGG_LHS_B_X_SLOT_PART1, 1)
-                    msmStoreTerm(msmPtr, 1, AGG_LHS_A_X_SLOT_PART1, kappa2)
-                    msmStoreTerm(msmPtr, 2, AGG_LHS_C_X_SLOT_PART1, kappa2)
-                    g1msmFromBuffer(msmPtr, 3, PAIRING_AGG_LHS_X_SLOT_PART1)
-                }
-
-                // calculate [AUX]_1
-                {
-                    let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
-                    let chi := mload(CHALLENGE_CHI_SLOT)
-                    let zeta := mload(CHALLENGE_ZETA_SLOT)
-                    let omega_ml := OMEGA_MI_1
-                    let omega_smax := getOmegaSmaxInverse(mload(PARAM_SMAX))
-
-                    let kappa2_chi := mulmod(kappa2, chi, R_MOD)
-                    let kappa2_zeta := mulmod(kappa2, zeta, R_MOD)
-                    let kappa2_pow2_omega_ml_chi :=
-                        mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), omega_ml, R_MOD), chi, R_MOD)
-                    let kappa2_pow2_zeta := mulmod(mulmod(kappa2, kappa2, R_MOD), zeta, R_MOD)
-                    let kappa2_pow3_omega_ml_chi :=
-                        mulmod(mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), kappa2, R_MOD), omega_ml, R_MOD), chi, R_MOD)
-                    let kappa2_pow3_omega_smax_zeta :=
-                        mulmod(mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), kappa2, R_MOD), omega_smax, R_MOD), zeta, R_MOD)
-                    let msmPtr := 0x9800
-
-                    // [AUX]_1 as a single linear combination.
-                    msmStoreTerm(msmPtr, 0, PROOF_POLY_PI_CHI_X_SLOT_PART1, kappa2_chi)
-                    msmStoreTerm(msmPtr, 1, PROOF_POLY_PI_ZETA_X_SLOT_PART1, kappa2_zeta)
-                    msmStoreTerm(msmPtr, 2, PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2_omega_ml_chi)
-                    msmStoreTerm(msmPtr, 3, PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2_zeta)
-                    msmStoreTerm(msmPtr, 4, PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3_omega_ml_chi)
-                    msmStoreTerm(msmPtr, 5, PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3_omega_smax_zeta)
-                    g1msmFromBuffer(msmPtr, 6, PAIRING_AGG_AUX_X_SLOT_PART1)
-                }
-
-                // calculate [LHS]_1 + [AUX]_1
-                {
-                    g1pointAddIntoDest(
-                        PAIRING_AGG_LHS_X_SLOT_PART1, PAIRING_AGG_AUX_X_SLOT_PART1, PAIRING_AGG_LHS_AUX_X_SLOT_PART1
-                    )
                 }
             }
 
@@ -1694,7 +1621,7 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(0xd40, X_Y0_PART1)
                 mstore(0xd60, X_Y0_PART2)
 
-                // load [RHS_2]_2 := κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1
+                // load [RHS_2]_1 := κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1
                 mstore(0xd80, mload(PAIRING_AGG_RHS_2_X_SLOT_PART1))
                 mstore(0xda0, mload(PAIRING_AGG_RHS_2_X_SLOT_PART2))
                 mstore(0xdc0, mload(PAIRING_AGG_RHS_2_Y_SLOT_PART1))
@@ -1727,13 +1654,10 @@ contract TokamakVerifier is ITokamakVerifier {
             computeLagrangeK0Eval()
             computeAPUB()
 
-            // Step4: computation of the final polynomial commitments - COMMENTED OUT FOR DEBUGGING
-            prepareLHSA()
-            prepareLHSB()
-            prepareLHSC()
+            // Step4: one-shot computation of [LHS]_1 + [AUX]_1, and RHS aggregation for pairing terms
+            prepareLhsAuxSingleMSM()
             prepareRHS1()
             prepareRHS2()
-            prepareAggregatedCommitment()
 
             // Step5: final pairing - COMMENTED OUT FOR DEBUGGING
             finalPairing()

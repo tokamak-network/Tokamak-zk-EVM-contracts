@@ -15,26 +15,23 @@
 - `_loadVerificationKey()` (`src/verifier/TokamakVerifier.sol:484`)
 
 2. Step 1: Proof loading and validation
-- `loadProof()` (`src/verifier/TokamakVerifier.sol:758`)
+- `loadProof()` (`src/verifier/TokamakVerifier.sol:775`)
 
 3. Step 2: Transcript/challenge initialization
-- `initializeTranscript()` (`src/verifier/TokamakVerifier.sol:999`)
+- `initializeTranscript()` (`src/verifier/TokamakVerifier.sol:1016`)
 
 4. Step 3: Query/scalar preparation
-- `prepareQueries()` (`src/verifier/TokamakVerifier.sol:1088`)
-- `computeLagrangeK0Eval()` (`src/verifier/TokamakVerifier.sol:1142`)
-- `computeAPUB()` (`src/verifier/TokamakVerifier.sol:1178`)
+- `prepareQueries()` (`src/verifier/TokamakVerifier.sol:1099`)
+- `computeLagrangeK0Eval()` (`src/verifier/TokamakVerifier.sol:1123`)
+- `computeAPUB()` (`src/verifier/TokamakVerifier.sol:1159`)
 
 5. Step 4: Aggregated commitment construction
-- `prepareLHSA()` (`src/verifier/TokamakVerifier.sol:1297`)
-- `prepareLHSB()` (`src/verifier/TokamakVerifier.sol:1330`)
-- `prepareLHSC()` (`src/verifier/TokamakVerifier.sol:1344`)
-- `prepareRHS1()` (`src/verifier/TokamakVerifier.sol:1419`)
-- `prepareRHS2()` (`src/verifier/TokamakVerifier.sol:1430`)
-- `prepareAggregatedCommitment()` (`src/verifier/TokamakVerifier.sol:1458`)
+- `prepareLhsAuxSingleMSM()` (`src/verifier/TokamakVerifier.sol:1301`)
+- `prepareRHS1()` (`src/verifier/TokamakVerifier.sol:1424`)
+- `prepareRHS2()` (`src/verifier/TokamakVerifier.sol:1437`)
 
 6. Step 5: Final pairing check
-- `finalPairing()` (`src/verifier/TokamakVerifier.sol:1540`)
+- `finalPairing()` (`src/verifier/TokamakVerifier.sol:1479`)
 
 ## Measured Gas (Trace-Exact, Precompile-Attributed)
 - The values below are exact precompile gas totals aggregated from `-vvvv` traces in section execution order.
@@ -42,26 +39,33 @@
   - Baseline: original implementation (`verify = 1,201,029`)
   - After `computeAPUB` optimization (`50030b0`, `verify = 980,360`)
   - After MSM call consolidation (`73daa15`, `verify = 930,866`)
+  - After single-call `LHS+AUX` MSM refactor (`HEAD`, `verify = 821,775`)
 
-| Section | Baseline | After `computeAPUB` Opt (`50030b0`) | After MSM Consolidation (`73daa15`) |
-|---|---:|---:|---:|
-| `prepareQueries` | 74,850 | 74,850 | 74,850 |
-| `computeLagrangeK0Eval` | 1,554 | 1,554 | 1,554 |
-| `computeAPUB` | 223,730 | 1,554 | 1,554 |
-| `prepareLHSA` | 49,500 | 49,500 | 45,840 |
-| `prepareLHSB` | 12,200 | 12,200 | 12,200 |
-| `prepareLHSC` | 86,250 | 86,250 | 61,992 |
-| `prepareRHS1` | 36,750 | 36,750 | 30,528 |
-| `prepareRHS2` | 36,750 | 36,750 | 30,528 |
-| `prepareAggregatedCommitment` | 87,000 | 87,000 | 84,903 |
-| `finalPairing` | 363,700 | 363,700 | 363,700 |
-| **Precompile subtotal** | **972,284** | **750,108** | **707,649** |
+| Section | Baseline | After `computeAPUB` Opt (`50030b0`) | After MSM Consolidation (`73daa15`) | After Single-MSM `LHS+AUX` (`HEAD`) |
+|---|---:|---:|---:|---:|
+| `prepareQueries` | 74,850 | 74,850 | 74,850 | 600 |
+| `computeLagrangeK0Eval` | 1,554 | 1,554 | 1,554 | 1,554 |
+| `computeAPUB` | 223,730 | 1,554 | 1,554 | 1,554 |
+| `prepareLHSA` | 49,500 | 49,500 | 45,840 | 0 |
+| `prepareLHSB` | 12,200 | 12,200 | 12,200 | 0 |
+| `prepareLHSC` | 86,250 | 86,250 | 61,992 | 0 |
+| `prepareLhsAuxSingleMSM` | 0 | 0 | 0 | 172,656 |
+| `prepareRHS1` | 36,750 | 36,750 | 30,528 | 30,528 |
+| `prepareRHS2` | 36,750 | 36,750 | 30,528 | 30,528 |
+| `prepareAggregatedCommitment` | 87,000 | 87,000 | 84,903 | 0 |
+| `finalPairing` | 363,700 | 363,700 | 363,700 | 363,700 |
+| **Precompile subtotal** | **972,284** | **750,108** | **707,649** | **601,120** |
 
 ### Precompile Call Counts
 - Baseline:
   - `0x0c` (BLS12-381 G1MSM): `31` calls, `372,000` gas
   - `0x0b` (BLS12-381 G1ADD): `28` calls, `10,500` gas
   - `0x05` (`modexp`): `288` calls, `226,084` gas
+  - `0x0f` (pairing): `1` call, `363,700` gas
+- After single-call `LHS+AUX` MSM refactor (`HEAD`):
+  - `0x0c` (BLS12-381 G1MSM): `3` calls, `233,712` gas
+  - `0x0b` (BLS12-381 G1ADD): `0` calls, `0` gas
+  - `0x05` (`modexp`): `7` calls, `3,708` gas
   - `0x0f` (pairing): `1` call, `363,700` gas
 
 ## Residual (Non-Precompile)
@@ -88,7 +92,7 @@
 - Since `testVerifier()` gas (`2,487,015`) includes wrapper/encoding overhead, optimization should be tracked against `verify` gas (`1,201,029`).
 
 ## Applied Optimization: `computeAPUB`
-- Target function: `computeAPUB()` (`src/verifier/TokamakVerifier.sol:1178`)
+- Target function: `computeAPUB()` (`src/verifier/TokamakVerifier.sol:1159`)
 - Measurement command:
   - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvv --offline`
 
@@ -149,6 +153,38 @@
 - `TokamakVerifier::verify(...)`: `1,201,029 -> 930,866`
 - Total reduction from original baseline: **270,163 gas** (**-22.49%**)
 
+## Applied Optimization: Single-MSM `[LHS]+[AUX]` Refactor (Step 4)
+- Target functions:
+  - `prepareQueries()` (`src/verifier/TokamakVerifier.sol`)
+  - `prepareLhsAuxSingleMSM()` (`src/verifier/TokamakVerifier.sol`)
+  - `verify()` Step 4 call path (`src/verifier/TokamakVerifier.sol`)
+
+### What Was Optimized
+1. Replaced split LHS/AUX assembly path with one 22-term MSM
+- Removed the runtime path that separately built `LHS_A`, `LHS_B`, `LHS_C`, `AUX`, then added `LHS + AUX`.
+- Added `prepareLhsAuxSingleMSM()` to directly compute `[LHS]_1 + [AUX]_1` in a single `0x0c` call using the expanded coefficient table from `docs/verifier-spec.md`.
+
+2. Removed now-unnecessary `[F]`/`[G]` point materialization in Step 3
+- `prepareQueries()` now computes only scalar queries (`t_n(chi)`, `t_smax(zeta)`, `t_mI(chi)`).
+- `[F]`/`[G]` contributions are folded into the one-shot MSM coefficients.
+
+3. Updated Step 4 execution order
+- `verify()` now runs:
+  - `prepareLhsAuxSingleMSM()`
+  - `prepareRHS1()`
+  - `prepareRHS2()`
+- This preserves pairing inputs while reducing precompile call count.
+
+### Gas Impact (Measured)
+| Variant | `verify` gas | Saved vs previous |
+|---|---:|---:|
+| After MSM consolidation (`73daa15`) | 930,866 | - |
+| + Single-MSM `[LHS]+[AUX]` refactor (`HEAD`) | **821,775** | **109,091** |
+
+### Cumulative Net Result
+- `TokamakVerifier::verify(...)`: `1,201,029 -> 821,775`
+- Total reduction from original baseline: **379,254 gas** (**-31.58%**)
+
 ## Rust Code Comparison (Section-by-Section)
 - Reference workspace members:
   - `packages/backend/crates/verify-rust`
@@ -156,15 +192,19 @@
 - Reference files:
   - `verify-rust/src/lib.rs`
   - `verify/src/verify/mod.rs`
+- Note:
+  - In `HEAD`, Solidity fuses prior Step 4 paths into `prepareLhsAuxSingleMSM()`.
+  - Rows for `prepareLHSA` / `prepareLHSB` / `prepareLHSC` / `prepareAggregatedCommitment` are kept as conceptual-equation mapping references.
 
 | Solidity section | Rust counterpart | Comparison |
 |---|---|---|
 | `_loadVerificationKey()` | `verify-rust/src/lib.rs` `VerifierContext::new` / `verify/src/verify/mod.rs` `Verifier::new` | **Implementation-path difference**. Solidity hardcodes VK constants and loads them into memory. Rust loads/parses VK JSON at runtime. The verification goal is the same, but the input path differs. |
 | `loadProof()` | `verify-rust/src/lib.rs` `load_proof` / `verify/src/verify/mod.rs` `deserialize_proof` | **Functional difference exists**. Rust returns explicit parse/shape/length errors during deserialization. Solidity strongly validates only proof part lengths (38/42) and `smax`; `preprocessed`/`publicInputs` lengths are not explicitly validated (missing entries become zero via `calldataload`). |
 | `initializeTranscript()` | `verify-rust/src/lib.rs` `compute_challenges` / transcript update path in `verify/src/verify/mod.rs` | **Mostly equivalent**. Commit order (U,V,W,QAX,QAY,B -> R -> QCX,QCY -> Vxy,R1,R2,R3) and challenge flow match. |
-| `prepareQueries()` | `verify-rust/src/lib.rs` `prepare_query` / `verify/src/verify/mod.rs` `prepare_query` | **Mostly equivalent**. Structure of `[F]`, `[G]`, `t_n(chi)`, `t_smax(zeta)`, `t_mi(chi)` is consistent. |
+| `prepareQueries()` | `verify-rust/src/lib.rs` `prepare_query` / `verify/src/verify/mod.rs` `prepare_query` | **Implementation-path difference**. In `HEAD`, Solidity computes only scalar queries (`t_n`, `t_smax`, `t_mi`) here and folds `[F]`/`[G]` effects into `prepareLhsAuxSingleMSM()`. The full equation target remains equivalent. |
 | `computeLagrangeK0Eval()` | `verify-rust/src/lib.rs` `compute_lagrange_k0_eval` / same in `verify/src/verify/mod.rs` | **Equivalent**. Uses `L_0(chi)=(chi^m_i-1)/(m_i*(chi-1))`. |
 | `computeAPUB()` | `verify-rust/src/lib.rs` `compute_A_pub` / `verify/src/verify/mod.rs` `compute_a_pub` | **Functionally equivalent, optimization strategy differs**. Rust uses straightforward full iteration; Solidity uses a sparse two-pass strategy over non-zero public inputs plus a small-index fast path. |
+| `prepareLhsAuxSingleMSM()` | `verify-rust/src/lib.rs` `prepare_lhs_a`/`prepare_lhs_b`/`prepare_lhs_c`/`prepare_aggregated_commitment` (and corresponding functions in `verify/src/verify/mod.rs`) | **Equivalent target, different construction strategy**. Solidity fuses the expanded `[LHS]+[AUX]` linear combination into one 22-term MSM, while Rust keeps multi-step composition. |
 | `prepareLHSA()` | `verify-rust/src/lib.rs` `prepare_lhs_a` / `verify/src/verify/mod.rs` `prepare_lhs_a` | **Section-level grouping difference**. Rust keeps `-kappa1*vy*[G]` directly inside `LHS_A`: `u*vy - w + (v - g*vy)*kappa1 - q_ax*t_n - q_ay*t_smax`. Solidity computes `prepareLHSA` as `u*vy - w + kappa1*v - q_ax*t_n - q_ay*t_smax`, and moves `-kappa1*vy*[1]` to `prepareLHSC` scalar `d` (as `d[1]`). |
 | `prepareLHSB()` | `verify-rust/src/lib.rs` `prepare_lhs_b` / `verify/src/verify/mod.rs` `prepare_lhs_b` | **Equivalent**. `(1 + kappa2*kappa1^4)*[A]`. |
 | `prepareLHSC()` | `verify-rust/src/lib.rs` `prepare_lhs_c` / `verify/src/verify/mod.rs` `prepare_lhs_c` | **Mostly equivalent**. Scalar composition and combination flow for `a,b,c,d` align. |

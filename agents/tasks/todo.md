@@ -1,5 +1,21 @@
 # TokamakVerifier Gas Profiling Todo
 
+## 2026-02-14 Update Plan (Measured Gas Table Expansion)
+- [x] Extract section-level precompile gas for optimization checkpoint `50030b0` (`computeAPUB` optimized).
+- [x] Reconfirm section-level precompile gas for current checkpoint `73daa15` (MSM consolidation).
+- [x] Update `docs/tokamak-verifier-gas-sections.md` so `Measured Gas` table includes per-section values across all optimization checkpoints.
+- [x] Verify table totals and section sums match trace-derived subtotals.
+- [x] Add a short review note in this file with validation commands and outcomes.
+
+### 2026-02-14 Review Note
+- Validation commands:
+  - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvv --offline` at `50030b0`
+  - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvv --offline` at `73daa15`
+- Verified checkpoints:
+  - `50030b0`: `verify = 980,360`, precompile subtotal = `750,108`
+  - `73daa15`: `verify = 930,866`, precompile subtotal = `707,649`
+- Section table in `docs/tokamak-verifier-gas-sections.md` updated with three aligned columns (baseline / `50030b0` / `73daa15`) and matching subtotals.
+
 ## Plan
 - [x] Read `src/verifier/TokamakVerifier.sol` and define functional sections of `verify` pipeline.
 - [x] Measure baseline gas of `test/verifier/Verifier.t.sol::testVerifier`.

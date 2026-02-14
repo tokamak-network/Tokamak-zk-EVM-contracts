@@ -37,27 +37,32 @@
 - `finalPairing()` (`src/verifier/TokamakVerifier.sol:1540`)
 
 ## Measured Gas (Trace-Exact, Precompile-Attributed)
-- The values below are exact precompile gas totals aggregated from the `-vvvv` trace in section execution order.
+- The values below are exact precompile gas totals aggregated from `-vvvv` traces in section execution order.
+- Checkpoints:
+  - Baseline: original implementation (`verify = 1,201,029`)
+  - After `computeAPUB` optimization (`50030b0`, `verify = 980,360`)
+  - After MSM call consolidation (`73daa15`, `verify = 930,866`)
 
-| Section | Gas |
-|---|---:|
-| `prepareQueries` | 74,850 |
-| `computeLagrangeK0Eval` | 1,554 |
-| `computeAPUB` | 223,730 |
-| `prepareLHSA` | 49,500 |
-| `prepareLHSB` | 12,200 |
-| `prepareLHSC` | 86,250 |
-| `prepareRHS1` | 36,750 |
-| `prepareRHS2` | 36,750 |
-| `prepareAggregatedCommitment` | 87,000 |
-| `finalPairing` | 363,700 |
-| **Precompile subtotal** | **972,284** |
+| Section | Baseline | After `computeAPUB` Opt (`50030b0`) | After MSM Consolidation (`73daa15`) |
+|---|---:|---:|---:|
+| `prepareQueries` | 74,850 | 74,850 | 74,850 |
+| `computeLagrangeK0Eval` | 1,554 | 1,554 | 1,554 |
+| `computeAPUB` | 223,730 | 1,554 | 1,554 |
+| `prepareLHSA` | 49,500 | 49,500 | 45,840 |
+| `prepareLHSB` | 12,200 | 12,200 | 12,200 |
+| `prepareLHSC` | 86,250 | 86,250 | 61,992 |
+| `prepareRHS1` | 36,750 | 36,750 | 30,528 |
+| `prepareRHS2` | 36,750 | 36,750 | 30,528 |
+| `prepareAggregatedCommitment` | 87,000 | 87,000 | 84,903 |
+| `finalPairing` | 363,700 | 363,700 | 363,700 |
+| **Precompile subtotal** | **972,284** | **750,108** | **707,649** |
 
 ### Precompile Call Counts
-- `0x0c` (BLS12-381 G1MSM): `31` calls, `372,000` gas
-- `0x0b` (BLS12-381 G1ADD): `28` calls, `10,500` gas
-- `0x05` (`modexp`): `288` calls, `226,084` gas
-- `0x0f` (pairing): `1` call, `363,700` gas
+- Baseline:
+  - `0x0c` (BLS12-381 G1MSM): `31` calls, `372,000` gas
+  - `0x0b` (BLS12-381 G1ADD): `28` calls, `10,500` gas
+  - `0x05` (`modexp`): `288` calls, `226,084` gas
+  - `0x0f` (pairing): `1` call, `363,700` gas
 
 ## Residual (Non-Precompile)
 - `verify` total `1,201,029` - precompile subtotal `972,284` = **228,745 gas**

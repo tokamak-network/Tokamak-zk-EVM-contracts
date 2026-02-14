@@ -17,6 +17,20 @@
   - precompile subtotal: `707,649 -> 601,120` (`-106,529`)
   - call counts after refactor: `0x0c` MSM `3`, `0x0b` G1ADD `0`, `0x05` modexp `7`, pairing `1`
 
+## 2026-02-14 Update Plan (TokamakVerifier Dead Code Cleanup)
+- [x] Remove unused constants and stale memory slots left after Step 4 refactor.
+- [x] Remove unused local assembly helper functions in `verify`.
+- [x] Run verifier tests and trace sanity-check gas behavior.
+- [x] Record validation note in this task file.
+
+### 2026-02-14 Review Note (TokamakVerifier Dead Code Cleanup)
+- Validation commands:
+  - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --offline`
+  - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvv --offline`
+- Verified results:
+  - all `testTokamakVerifier` tests passed (5/5)
+  - `TokamakVerifier::verify` remained `821,775` gas after cleanup (no behavioral regression observed)
+
 ## 2026-02-14 Update Plan (Measured Gas Table Expansion)
 - [x] Extract section-level precompile gas for optimization checkpoint `50030b0` (`computeAPUB` optimized).
 - [x] Reconfirm section-level precompile gas for current checkpoint `73daa15` (MSM consolidation).

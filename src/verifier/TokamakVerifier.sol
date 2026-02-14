@@ -166,24 +166,11 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x080;
     uint256 internal constant CHALLENGE_KAPPA_2_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0a0;
     uint256 internal constant CHALLENGE_ZETA_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0c0;
-    uint256 internal constant CHALLENGE_XI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0e0;
     uint256 internal constant CHALLENGE_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100;
 
     /*//////////////////////////////////////////////////////////////
                         Intermediary verifier state
     //////////////////////////////////////////////////////////////*/
-
-    // [F]_1
-    uint256 internal constant INTERMERDIARY_POLY_F_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x020;
-    uint256 internal constant INTERMERDIARY_POLY_F_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x040;
-    uint256 internal constant INTERMERDIARY_POLY_F_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x060;
-    uint256 internal constant INTERMERDIARY_POLY_F_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x080;
-
-    // [G]_1
-    uint256 internal constant INTERMERDIARY_POLY_G_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x0a0;
-    uint256 internal constant INTERMERDIARY_POLY_G_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x0c0;
-    uint256 internal constant INTERMERDIARY_POLY_G_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x0e0;
-    uint256 internal constant INTERMERDIARY_POLY_G_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x100;
 
     // t_n(χ)
     uint256 internal constant INTERMERDIARY_SCALAR_T_N_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x120;
@@ -196,43 +183,6 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant INTERMEDIARY_SCALAR_KO_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x180;
     // A_pub
     uint256 internal constant INTERMEDIARY_SCALAR_APUB_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0;
-
-    /*//////////////////////////////////////////////////////////////
-                      Aggregated commitment
-    //////////////////////////////////////////////////////////////*/
-
-    uint256 internal constant AGG_LHS_A_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x020;
-    uint256 internal constant AGG_LHS_A_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x040;
-    uint256 internal constant AGG_LHS_A_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x060;
-    uint256 internal constant AGG_LHS_A_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x080;
-
-    uint256 internal constant AGG_LHS_B_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x0a0;
-    uint256 internal constant AGG_LHS_B_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x0c0;
-    uint256 internal constant AGG_LHS_B_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x0e0;
-    uint256 internal constant AGG_LHS_B_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x100;
-
-    uint256 internal constant AGG_LHS_C_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x120;
-    uint256 internal constant AGG_LHS_C_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x140;
-    uint256 internal constant AGG_LHS_C_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x160;
-    uint256 internal constant AGG_LHS_C_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x180;
-
-    uint256 internal constant PAIRING_AGG_LHS_X_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x1a0;
-    uint256 internal constant PAIRING_AGG_LHS_X_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x1c0;
-    uint256 internal constant PAIRING_AGG_LHS_Y_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x1e0;
-    uint256 internal constant PAIRING_AGG_LHS_Y_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x200;
-
-    uint256 internal constant PAIRING_AGG_AUX_X_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x220;
-    uint256 internal constant PAIRING_AGG_AUX_X_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x240;
-    uint256 internal constant PAIRING_AGG_AUX_Y_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x260;
-    uint256 internal constant PAIRING_AGG_AUX_Y_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x280;
 
     uint256 internal constant PAIRING_AGG_LHS_AUX_X_SLOT_PART1 =
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x2a0;
@@ -260,19 +210,6 @@ contract TokamakVerifier is ITokamakVerifier {
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x3e0;
     uint256 internal constant PAIRING_AGG_RHS_2_Y_SLOT_PART2 =
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x400;
-
-    /*//////////////////////////////////////////////////////////////
-                                Pairing data
-    //////////////////////////////////////////////////////////////*/
-
-    uint256 internal constant BUFFER_AGGREGATED_POLY_X_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x420;
-    uint256 internal constant BUFFER_AGGREGATED_POLY_X_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x440;
-    uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x460;
-    uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480;
 
     /*//////////////////////////////////////////////////////////////
                             Verification keys
@@ -322,9 +259,6 @@ contract TokamakVerifier is ITokamakVerifier {
     //////////////////////////////////////////////////////////////*/
 
     // Scalar field size
-    // Q_MOD is the base field modulus (48 bytes long). To fit with the EVM, we sliced it into two 32bytes variables => 16 first bytes are zeros
-    uint256 internal constant Q_MOD_PART1 = 0x000000000000000000000000000000001a0111ea397fe69a4b1ba7b6434bacd7;
-    uint256 internal constant Q_MOD_PART2 = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
     // R_MOD is the main subgroup order
     uint256 internal constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
@@ -582,53 +516,6 @@ contract TokamakVerifier is ITokamakVerifier {
                 res := mload(0x00)
             }
 
-            /// @dev Performs a G1 point multiplication operation and stores the result in a given memory destination.
-            function g1pointMulIntoDest(point, s, dest) {
-                mstore(0x00, mload(point))
-                mstore(0x20, mload(add(point, 0x20)))
-                mstore(0x40, mload(add(point, 0x40)))
-                mstore(0x60, mload(add(point, 0x60)))
-                mstore(0x80, s)
-                // BLS12-381 G1MSM at address 0x0c
-                if iszero(staticcall(gas(), 0x0c, 0, 0xa0, dest, 0x80)) {
-                    revertWithMessage(30, "g1pointMulIntoDest: G1MSM failed")
-                }
-            }
-
-            /// @dev Performs a G1 point addition operation and stores the result in a given memory destination.
-            function g1pointAddIntoDest(p1, p2, dest) {
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(add(p1, 0x40)))
-                mstore(0x60, mload(add(p1, 0x60)))
-                mstore(0x80, mload(p2))
-                mstore(0xa0, mload(add(p2, 0x20)))
-                mstore(0xc0, mload(add(p2, 0x40)))
-                mstore(0xe0, mload(add(p2, 0x60)))
-                //  BLS12-381 G1ADDat address 0x0b
-                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
-                    revertWithMessage(30, "g1pointAddIntoDest: G1ADD failed")
-                }
-            }
-
-            /// @dev Performs a G1 point multiplication and addition operations and stores the result in a given memory destination.
-            function g1pointMulAndAddIntoDest(point, s, dest) {
-                mstore(0x00, mload(point))
-                mstore(0x20, mload(add(point, 0x20)))
-                mstore(0x40, mload(add(point, 0x40)))
-                mstore(0x60, mload(add(point, 0x60)))
-                mstore(0x80, s)
-                let success := staticcall(gas(), 0x0c, 0, 0xa0, 0, 0x80)
-
-                mstore(0x80, mload(dest))
-                mstore(0xa0, mload(add(dest, 0x20)))
-                mstore(0xc0, mload(add(dest, 0x40)))
-                mstore(0xe0, mload(add(dest, 0x60)))
-                success := and(success, staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80))
-
-                if iszero(success) { revertWithMessage(22, "g1pointMulAndAddIntoDest") }
-            }
-
             /// @dev Writes one `(point, scalar)` term into a packed MSM buffer.
             function msmStoreTerm(buffer, idx, point, scalar) {
                 let off := add(buffer, mul(idx, 0xa0))
@@ -643,106 +530,6 @@ contract TokamakVerifier is ITokamakVerifier {
             function g1msmFromBuffer(buffer, nTerms, dest) {
                 if iszero(staticcall(gas(), 0x0c, buffer, mul(nTerms, 0xa0), dest, 0x80)) {
                     revertWithMessage(25, "g1msmFromBuffer failed")
-                }
-            }
-
-            /// @dev Performs a point subtraction operation and updates the first point with the result.
-            function g1pointSubAssign(p1, p2) {
-                // We'll use the fact that for BLS12-381 with 48-byte coordinates,
-                // the precompile expects the full 384-bit representation
-
-                // Copy p1 to memory
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(add(p1, 0x40)))
-                mstore(0x60, mload(add(p1, 0x60)))
-
-                // Copy p2's x-coordinate
-                mstore(0x80, mload(p2))
-                mstore(0xa0, mload(add(p2, 0x20)))
-
-                // For the y-coordinate, we need to negate it
-                // In BLS12-381, -y = q - y where q is the field modulus
-                let y_low := mload(add(p2, 0x60))
-                let y_high := mload(add(p2, 0x40))
-
-                // Perform q - y
-                let neg_y_low, neg_y_high
-
-                // Since we're working with 384-bit numbers split into two 256-bit parts,
-                // and the high 128 bits of the high part are always zero for valid field elements
-                let borrow := 0
-
-                // Subtract low part
-                switch lt(Q_MOD_PART2, y_low)
-                case 1 {
-                    // Need to borrow from high part
-                    neg_y_low := sub(Q_MOD_PART2, y_low)
-                    neg_y_low := add(neg_y_low, not(0)) // Add 2^256
-                    neg_y_low := add(neg_y_low, 1)
-                    borrow := 1
-                }
-                default { neg_y_low := sub(Q_MOD_PART2, y_low) }
-
-                // Subtract high part with borrow
-                neg_y_high := sub(sub(Q_MOD_PART1, y_high), borrow)
-
-                mstore(0xc0, neg_y_high)
-                mstore(0xe0, neg_y_low)
-
-                // Perform the addition
-                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, p1, 0x80)) {
-                    revertWithMessage(28, "pointSubAssign: G1ADD failed")
-                }
-            }
-
-            /// @dev Performs a point subtraction operation and updates dest with the result.
-            function g1pointSubIntoDest(p1, p2, dest) {
-                // We'll use the fact that for BLS12-381 with 48-byte coordinates,
-                // the precompile expects the full 384-bit representation
-
-                // Copy p1 to memory
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(add(p1, 0x40)))
-                mstore(0x60, mload(add(p1, 0x60)))
-
-                // Copy p2's x-coordinate
-                mstore(0x80, mload(p2))
-                mstore(0xa0, mload(add(p2, 0x20)))
-
-                // For the y-coordinate, we need to negate it
-                // In BLS12-381, -y = q - y where q is the field modulus
-                let y_low := mload(add(p2, 0x60))
-                let y_high := mload(add(p2, 0x40))
-
-                // Perform q - y
-                let neg_y_low, neg_y_high
-
-                // Since we're working with 384-bit numbers split into two 256-bit parts,
-                // and the high 128 bits of the high part are always zero for valid field elements
-                let borrow := 0
-
-                // Subtract low part
-                switch lt(Q_MOD_PART2, y_low)
-                case 1 {
-                    // Need to borrow from high part
-                    neg_y_low := sub(Q_MOD_PART2, y_low)
-                    neg_y_low := add(neg_y_low, not(0)) // Add 2^256
-                    neg_y_low := add(neg_y_low, 1)
-                    borrow := 1
-                }
-                default { neg_y_low := sub(Q_MOD_PART2, y_low) }
-
-                // Subtract high part with borrow
-                neg_y_high := sub(sub(Q_MOD_PART1, y_high), borrow)
-
-                mstore(0xc0, neg_y_high)
-                mstore(0xe0, neg_y_low)
-
-                // Perform the addition
-                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
-                    revertWithMessage(28, "pointSubAssign: G1ADD failed")
                 }
             }
 

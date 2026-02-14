@@ -629,6 +629,23 @@ contract TokamakVerifier is ITokamakVerifier {
                 if iszero(success) { revertWithMessage(22, "g1pointMulAndAddIntoDest") }
             }
 
+            /// @dev Writes one `(point, scalar)` term into a packed MSM buffer.
+            function msmStoreTerm(buffer, idx, point, scalar) {
+                let off := add(buffer, mul(idx, 0xa0))
+                mstore(off, mload(point))
+                mstore(add(off, 0x20), mload(add(point, 0x20)))
+                mstore(add(off, 0x40), mload(add(point, 0x40)))
+                mstore(add(off, 0x60), mload(add(point, 0x60)))
+                mstore(add(off, 0x80), scalar)
+            }
+
+            /// @dev Computes MSM over packed `(point, scalar)` terms already stored in memory.
+            function g1msmFromBuffer(buffer, nTerms, dest) {
+                if iszero(staticcall(gas(), 0x0c, buffer, mul(nTerms, 0xa0), dest, 0x80)) {
+                    revertWithMessage(25, "g1msmFromBuffer failed")
+                }
+            }
+
             /// @dev Performs a point subtraction operation and updates the first point with the result.
             function g1pointSubAssign(p1, p2) {
                 // We'll use the fact that for BLS12-381 with 48-byte coordinates,
@@ -1319,36 +1336,20 @@ contract TokamakVerifier is ITokamakVerifier {
             /// @dev calculate implementation-grouped [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
             ///      note: `-κ1V_{x,y}[G]_1` is applied in `prepareLHSC()` through `d[1]_1`.
             function prepareLHSA() {
-                g1pointMulIntoDest(PROOF_POLY_U_X_SLOT_PART1, mload(PROOF_VXY_SLOT), AGG_LHS_A_X_SLOT_PART1)
-                g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, PROOF_POLY_W_X_SLOT_PART1)
+                let msmPtr := 0x9800
+                let V_xy := mload(PROOF_VXY_SLOT)
+                let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
+                let negOne := sub(R_MOD, 1)
+                let neg_tn := addmod(0, sub(R_MOD, mload(INTERMERDIARY_SCALAR_T_N_CHI_SLOT)), R_MOD)
+                let neg_tsmax := addmod(0, sub(R_MOD, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT)), R_MOD)
 
-                //κ1[V]_1
-                g1pointMulIntoDest(
-                    PROOF_POLY_V_X_SLOT_PART1, mload(CHALLENGE_KAPPA_1_SLOT), BUFFER_AGGREGATED_POLY_X_SLOT_PART1
-                )
-
-                // (V_{x,y}[U]_1 - [W]_1) + κ1[V]_1
-                g1pointAddIntoDest(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1, AGG_LHS_A_X_SLOT_PART1)
-
-                // t_n(χ)[Q_{A,X}]_1
-                g1pointMulIntoDest(
-                    PROOF_POLY_QAX_X_SLOT_PART1,
-                    mload(INTERMERDIARY_SCALAR_T_N_CHI_SLOT),
-                    BUFFER_AGGREGATED_POLY_X_SLOT_PART1
-                )
-
-                // (V_{x,y}[U]_1 - [W]_1) + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1
-                g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                // t_{s_{max}}(ζ)[Q_{A,Y}]_1
-                g1pointMulIntoDest(
-                    PROOF_POLY_QAY_X_SLOT_PART1,
-                    mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT),
-                    BUFFER_AGGREGATED_POLY_X_SLOT_PART1
-                )
-                // V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
-                // (`-κ1V_{x,y}[1]_1` is included in `prepareLHSC()` via `d[1]_1`)
-                g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
+                // [LHS_A]_1 = Vxy[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[QAX]_1 - t_smax(ζ)[QAY]_1
+                msmStoreTerm(msmPtr, 0, PROOF_POLY_U_X_SLOT_PART1, V_xy)
+                msmStoreTerm(msmPtr, 1, PROOF_POLY_W_X_SLOT_PART1, negOne)
+                msmStoreTerm(msmPtr, 2, PROOF_POLY_V_X_SLOT_PART1, kappa1)
+                msmStoreTerm(msmPtr, 3, PROOF_POLY_QAX_X_SLOT_PART1, neg_tn)
+                msmStoreTerm(msmPtr, 4, PROOF_POLY_QAY_X_SLOT_PART1, neg_tsmax)
+                g1msmFromBuffer(msmPtr, 5, AGG_LHS_A_X_SLOT_PART1)
             }
 
             /// @dev [LHS_B]_1 := (1+κ2κ1^4)[A]_1
@@ -1423,21 +1424,20 @@ contract TokamakVerifier is ITokamakVerifier {
                 let kappa1_tml := mulmod(kappa1_pow2, t_ml, R_MOD)
                 // κ1^2 * t_{s_{max}}(ζ)
                 let kappa1_tsmax := mulmod(kappa1_pow2, t_smax, R_MOD)
+                let neg_b := addmod(0, sub(R_MOD, b), R_MOD)
+                let neg_kappa1_tml := addmod(0, sub(R_MOD, kappa1_tml), R_MOD)
+                let neg_kappa1_tsmax := addmod(0, sub(R_MOD, kappa1_tsmax), R_MOD)
+                let msmPtr := 0x9800
 
-                g1pointMulIntoDest(VK_POLY_KXLX_X_PART1, kappa1_r_minus_1, AGG_LHS_C_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(INTERMERDIARY_POLY_G_X_SLOT_PART1, a, AGG_LHS_C_X_SLOT_PART1)
-
-                g1pointMulIntoDest(INTERMERDIARY_POLY_F_X_SLOT_PART1, b, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                g1pointMulIntoDest(PROOF_POLY_QCX_X_SLOT_PART1, kappa1_tml, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                g1pointMulIntoDest(PROOF_POLY_QCY_X_SLOT_PART1, kappa1_tsmax, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                g1pointMulAndAddIntoDest(PROOF_POLY_R_X_SLOT_PART1, c, AGG_LHS_C_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(VK_IDENTITY_X_PART1, d, AGG_LHS_C_X_SLOT_PART1)
+                // [LHS_C]_1 as a single linear combination.
+                msmStoreTerm(msmPtr, 0, VK_POLY_KXLX_X_PART1, kappa1_r_minus_1)
+                msmStoreTerm(msmPtr, 1, INTERMERDIARY_POLY_G_X_SLOT_PART1, a)
+                msmStoreTerm(msmPtr, 2, INTERMERDIARY_POLY_F_X_SLOT_PART1, neg_b)
+                msmStoreTerm(msmPtr, 3, PROOF_POLY_QCX_X_SLOT_PART1, neg_kappa1_tml)
+                msmStoreTerm(msmPtr, 4, PROOF_POLY_QCY_X_SLOT_PART1, neg_kappa1_tsmax)
+                msmStoreTerm(msmPtr, 5, PROOF_POLY_R_X_SLOT_PART1, c)
+                msmStoreTerm(msmPtr, 6, VK_IDENTITY_X_PART1, d)
+                g1msmFromBuffer(msmPtr, 7, AGG_LHS_C_X_SLOT_PART1)
             }
 
             /// @dev [RHS_1]_1 := κ2[Π_{χ}]_1 + κ2^2[M_{χ}]_1 + κ2^3[N_{χ}]_1
@@ -1445,10 +1445,12 @@ contract TokamakVerifier is ITokamakVerifier {
                 let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
                 let kappa2_pow2 := mulmod(kappa2, kappa2, R_MOD)
                 let kappa2_pow3 := mulmod(kappa2_pow2, kappa2, R_MOD)
+                let msmPtr := 0x9800
 
-                g1pointMulIntoDest(PROOF_POLY_PI_CHI_X_SLOT_PART1, kappa2, PAIRING_AGG_RHS_1_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2, PAIRING_AGG_RHS_1_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3, PAIRING_AGG_RHS_1_X_SLOT_PART1)
+                msmStoreTerm(msmPtr, 0, PROOF_POLY_PI_CHI_X_SLOT_PART1, kappa2)
+                msmStoreTerm(msmPtr, 1, PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2)
+                msmStoreTerm(msmPtr, 2, PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3)
+                g1msmFromBuffer(msmPtr, 3, PAIRING_AGG_RHS_1_X_SLOT_PART1)
             }
 
             /// @dev [RHS_2]_1 := κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1
@@ -1456,10 +1458,12 @@ contract TokamakVerifier is ITokamakVerifier {
                 let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
                 let kappa2_pow2 := mulmod(kappa2, kappa2, R_MOD)
                 let kappa2_pow3 := mulmod(kappa2_pow2, kappa2, R_MOD)
+                let msmPtr := 0x9800
 
-                g1pointMulIntoDest(PROOF_POLY_PI_ZETA_X_SLOT_PART1, kappa2, PAIRING_AGG_RHS_2_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2, PAIRING_AGG_RHS_2_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3, PAIRING_AGG_RHS_2_X_SLOT_PART1)
+                msmStoreTerm(msmPtr, 0, PROOF_POLY_PI_ZETA_X_SLOT_PART1, kappa2)
+                msmStoreTerm(msmPtr, 1, PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2)
+                msmStoreTerm(msmPtr, 2, PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3)
+                g1msmFromBuffer(msmPtr, 3, PAIRING_AGG_RHS_2_X_SLOT_PART1)
             }
 
             // @dev Function to get the correct omega_smax^{-1} value based on smax parameter
@@ -1484,19 +1488,13 @@ contract TokamakVerifier is ITokamakVerifier {
                 // calculate [LHS]_1 = [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
                 {
                     let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
+                    let msmPtr := 0x9800
 
-                    // First add [LHS_A]_1 + [LHS_C]_1
-                    g1pointAddIntoDest(
-                        AGG_LHS_A_X_SLOT_PART1, AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1
-                    )
-
-                    // Multiply by κ2: κ2([LHS_A]_1 + [LHS_C]_1)
-                    g1pointMulIntoDest(BUFFER_AGGREGATED_POLY_X_SLOT_PART1, kappa2, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                    // Add [LHS_B]_1: [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
-                    g1pointAddIntoDest(
-                        AGG_LHS_B_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1, PAIRING_AGG_LHS_X_SLOT_PART1
-                    )
+                    // [LHS]_1 = [LHS_B]_1 + κ2[LHS_A]_1 + κ2[LHS_C]_1
+                    msmStoreTerm(msmPtr, 0, AGG_LHS_B_X_SLOT_PART1, 1)
+                    msmStoreTerm(msmPtr, 1, AGG_LHS_A_X_SLOT_PART1, kappa2)
+                    msmStoreTerm(msmPtr, 2, AGG_LHS_C_X_SLOT_PART1, kappa2)
+                    g1msmFromBuffer(msmPtr, 3, PAIRING_AGG_LHS_X_SLOT_PART1)
                 }
 
                 // calculate [AUX]_1
@@ -1516,27 +1514,16 @@ contract TokamakVerifier is ITokamakVerifier {
                         mulmod(mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), kappa2, R_MOD), omega_ml, R_MOD), chi, R_MOD)
                     let kappa2_pow3_omega_smax_zeta :=
                         mulmod(mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), kappa2, R_MOD), omega_smax, R_MOD), zeta, R_MOD)
-                    // [AUX]_1 accumulation
-                    // κ2 * χ * [Π_{χ}]_1
-                    g1pointMulIntoDest(PROOF_POLY_PI_CHI_X_SLOT_PART1, kappa2_chi, PAIRING_AGG_AUX_X_SLOT_PART1)
-                    // += κ2 * ζ *[Π_ζ]_1
-                    g1pointMulAndAddIntoDest(PROOF_POLY_PI_ZETA_X_SLOT_PART1, kappa2_zeta, PAIRING_AGG_AUX_X_SLOT_PART1)
-                    // += κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1
-                    g1pointMulAndAddIntoDest(
-                        PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2_omega_ml_chi, PAIRING_AGG_AUX_X_SLOT_PART1
-                    )
-                    // += κ2^2 * ζ * [M_ζ]_1
-                    g1pointMulAndAddIntoDest(
-                        PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2_zeta, PAIRING_AGG_AUX_X_SLOT_PART1
-                    )
-                    // κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1
-                    g1pointMulAndAddIntoDest(
-                        PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3_omega_ml_chi, PAIRING_AGG_AUX_X_SLOT_PART1
-                    )
-                    // κ2^3 * ω_smax^{-1} * ζ * [N_{ζ}]
-                    g1pointMulAndAddIntoDest(
-                        PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3_omega_smax_zeta, PAIRING_AGG_AUX_X_SLOT_PART1
-                    )
+                    let msmPtr := 0x9800
+
+                    // [AUX]_1 as a single linear combination.
+                    msmStoreTerm(msmPtr, 0, PROOF_POLY_PI_CHI_X_SLOT_PART1, kappa2_chi)
+                    msmStoreTerm(msmPtr, 1, PROOF_POLY_PI_ZETA_X_SLOT_PART1, kappa2_zeta)
+                    msmStoreTerm(msmPtr, 2, PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2_omega_ml_chi)
+                    msmStoreTerm(msmPtr, 3, PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2_zeta)
+                    msmStoreTerm(msmPtr, 4, PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3_omega_ml_chi)
+                    msmStoreTerm(msmPtr, 5, PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3_omega_smax_zeta)
+                    g1msmFromBuffer(msmPtr, 6, PAIRING_AGG_AUX_X_SLOT_PART1)
                 }
 
                 // calculate [LHS]_1 + [AUX]_1

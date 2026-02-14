@@ -111,6 +111,39 @@
 - `TokamakVerifier::verify(...)`: `1,201,029 -> 980,360`
 - Total reduction: **220,669 gas** (**-18.37%**)
 
+## Applied Optimization: MSM Call Consolidation (Step 4)
+- Target functions:
+  - `prepareLHSA()` (`src/verifier/TokamakVerifier.sol`)
+  - `prepareLHSC()` (`src/verifier/TokamakVerifier.sol`)
+  - `prepareRHS1()` (`src/verifier/TokamakVerifier.sol`)
+  - `prepareRHS2()` (`src/verifier/TokamakVerifier.sol`)
+  - `prepareAggregatedCommitment()` (`src/verifier/TokamakVerifier.sol`)
+
+### What Was Optimized
+1. Added packed MSM helpers
+- Added `msmStoreTerm(...)` and `g1msmFromBuffer(...)` helpers to build and execute multi-term MSM calls.
+
+2. Replaced repeated `1-point MSM + G1ADD/G1SUB` chains
+- `prepareLHSA`: collapsed into one 5-term MSM.
+- `prepareLHSC`: collapsed into one 7-term MSM (negative terms encoded with `R_MOD - coeff`).
+- `prepareRHS1` / `prepareRHS2`: each collapsed into one 3-term MSM.
+- `prepareAggregatedCommitment`:
+  - LHS aggregation collapsed into one 3-term MSM.
+  - AUX aggregation collapsed into one 6-term MSM.
+
+3. Reduced precompile call overhead in Step 4
+- Fewer `0x0c` calls and significantly fewer `0x0b` calls by avoiding intermediate point additions/subtractions.
+
+### Gas Impact (Measured)
+| Variant | `verify` gas | Saved vs previous |
+|---|---:|---:|
+| After `computeAPUB` optimization | 980,360 | - |
+| + MSM call consolidation | **930,866** | **49,494** |
+
+### Cumulative Net Result
+- `TokamakVerifier::verify(...)`: `1,201,029 -> 930,866`
+- Total reduction from original baseline: **270,163 gas** (**-22.49%**)
+
 ## Rust Code Comparison (Section-by-Section)
 - Reference workspace members:
   - `packages/backend/crates/verify-rust`

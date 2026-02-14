@@ -970,79 +970,63 @@ contract TokamakVerifier is ITokamakVerifier {
                 }
 
                 // Normal case: compute weighted sum
-                let weightedSum := 0
-
-                // First pass: count non-zero values and store their indices
+                // We store:
+                // - numerator base: a_j * ω^j
+                // - denominator_full: (χ - ω^j) * n
+                // and build prefix products in the same pass to reduce loop overhead.
+                let weightedSumRaw := 0
                 let nonZeroCount := 0
                 let tempOffset := 0x2000 // Temporary storage location
+                let denomOffset := 0xa000
+                let prefixOffset := 0xc000
                 let omega_power := 1
+                let prefix := 1
 
                 for { let i := 0 } lt(i, numPublicInputs) { i := add(i, 1) } {
                     let val := calldataload(add(add(offset, 0x24), mul(i, 0x20)))
                     if val {
-                        // Store value and precomputed ω^i
-                        mstore(add(tempOffset, mul(nonZeroCount, 0x40)), val)
-                        mstore(add(tempOffset, add(mul(nonZeroCount, 0x40), 0x20)), omega_power)
-                        nonZeroCount := add(nonZeroCount, 1)
-                    }
-                    omega_power := mulmod(omega_power, omega, R_MOD)
-                }
+                        let denominator := addmod(chi, sub(R_MOD, omega_power), R_MOD)
 
-                // Second pass: process only non-zero values
-                if nonZeroCount {
-                    // Batch inversion buffers for denominator_full values and prefix products.
-                    // Keep these regions away from verifier's reserved memory layout.
-                    let denomOffset := 0xa000
-                    let prefixOffset := 0xc000
-
-                    // Build denominator list and handle singular case early.
-                    for { let j := 0 } lt(j, nonZeroCount) { j := add(j, 1) } {
-                        let val := mload(add(tempOffset, mul(j, 0x40)))
-                        let omega_i := mload(add(tempOffset, add(mul(j, 0x40), 0x20)))
-                        let denominator := addmod(chi, sub(R_MOD, omega_i), R_MOD)
-
+                        // singular point: χ == ω^j
                         if iszero(denominator) {
                             mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
                             leave
                         }
 
-                        // denominator_full = (chi - ω^j) * n
-                        mstore(add(denomOffset, mul(j, 0x20)), mulmod(denominator, n, R_MOD))
-                    }
+                        let denominatorFull := mulmod(denominator, n, R_MOD)
+                        let numeratorBase := mulmod(val, omega_power, R_MOD)
 
-                    // Prefix products of denominator_full values.
-                    let prefix := 1
-                    for { let j := 0 } lt(j, nonZeroCount) { j := add(j, 1) } {
-                        prefix := mulmod(prefix, mload(add(denomOffset, mul(j, 0x20))), R_MOD)
-                        mstore(add(prefixOffset, mul(j, 0x20)), prefix)
-                    }
+                        mstore(add(tempOffset, mul(nonZeroCount, 0x20)), numeratorBase)
+                        mstore(add(denomOffset, mul(nonZeroCount, 0x20)), denominatorFull)
 
-                    // Invert total product once.
+                        prefix := mulmod(prefix, denominatorFull, R_MOD)
+                        mstore(add(prefixOffset, mul(nonZeroCount, 0x20)), prefix)
+                        nonZeroCount := add(nonZeroCount, 1)
+                    }
+                    omega_power := mulmod(omega_power, omega, R_MOD)
+                }
+
+                // Invert product once, then recover each inverse right-to-left.
+                if nonZeroCount {
                     let running := modexp(prefix, sub(R_MOD, 2))
 
-                    // Recover each denominator inverse from right to left.
                     for { let j := nonZeroCount } gt(j, 0) { j := sub(j, 1) } {
                         let idx := sub(j, 1)
                         let prefixPrev := 1
                         if idx { prefixPrev := mload(add(prefixOffset, sub(mul(idx, 0x20), 0x20))) }
 
-                        let inv_denominator_full := mulmod(prefixPrev, running, R_MOD)
-                        let denominator_full := mload(add(denomOffset, mul(idx, 0x20)))
-                        running := mulmod(running, denominator_full, R_MOD)
+                        let invDenominatorFull := mulmod(prefixPrev, running, R_MOD)
+                        let denominatorFull := mload(add(denomOffset, mul(idx, 0x20)))
+                        running := mulmod(running, denominatorFull, R_MOD)
 
-                        // numerator = a_j * ω^j * (chi^n - 1)
-                        let val := mload(add(tempOffset, mul(idx, 0x40)))
-                        let omega_i := mload(add(tempOffset, add(mul(idx, 0x40), 0x20)))
-                        let numerator := mulmod(val, omega_i, R_MOD)
-                        numerator := mulmod(numerator, chi_n_1, R_MOD)
-
-                        let contribution := mulmod(numerator, inv_denominator_full, R_MOD)
-                        weightedSum := addmod(weightedSum, contribution, R_MOD)
+                        let numeratorBase := mload(add(tempOffset, mul(idx, 0x20)))
+                        let contributionRaw := mulmod(numeratorBase, invDenominatorFull, R_MOD)
+                        weightedSumRaw := addmod(weightedSumRaw, contributionRaw, R_MOD)
                     }
                 }
 
-                // Result is the weighted sum (no additional factors needed)
-                let result := weightedSum
+                // Apply (χ^n - 1) once at the end.
+                let result := mulmod(weightedSumRaw, chi_n_1, R_MOD)
 
                 mstore(INTERMEDIARY_SCALAR_APUB_SLOT, result)
             }

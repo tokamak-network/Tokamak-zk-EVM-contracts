@@ -33,15 +33,36 @@
 6. Step 5: Final pairing check
 - `finalPairing()` (`src/verifier/TokamakVerifier.sol:1266`)
 
-## Measured Gas (Trace-Exact, Precompile-Attributed)
-- The values below are exact precompile gas totals aggregated from `-vvvv` traces in section execution order.
-- Checkpoints:
-  - Baseline: original implementation (`verify = 1,201,029`)
-  - After `computeAPUB` optimization (`50030b0`, `verify = 980,360`)
-  - After MSM call consolidation (`73daa15`, `verify = 930,866`)
-  - After single-call `LHS+AUX` MSM refactor (`HEAD`, `verify = 821,775`)
+## Measured Gas (Section Total, `HEAD`)
+- The table below is section-total gas (not only precompile gas).
+- `_loadVerificationKey`, `loadProof`, and `initializeTranscript` are now explicitly measured.
+- Measurement method:
+  - Temporary checkpoint instrumentation (`gas()` delta at each section boundary) in `verify`.
+  - Profiling call from `0x0000000000000000000000000000000000001234`.
+  - Command:
+    - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testProfileSectionGas -vv --offline`
 
-| Section | Baseline | After `computeAPUB` Opt (`50030b0`) | After MSM Consolidation (`73daa15`) | After Single-MSM `LHS+AUX` (`HEAD`) |
+| Section | `HEAD` total gas |
+|---|---:|
+| `_loadVerificationKey` | 6,623 |
+| `loadProof` | 1,880 |
+| `initializeTranscript` | 8,468 |
+| `prepareQueries` | 1,411 |
+| `computeLagrangeK0Eval` | 2,291 |
+| `computeAPUB` | 155,436 |
+| `prepareLhsAuxSingleMSM` | 177,474 |
+| `prepareRHS1` | 30,959 |
+| `prepareRHS2` | 30,959 |
+| `finalPairing` | 365,095 |
+| **Section subtotal** | **780,596** |
+| **`verify` total** | **785,531** |
+| **Unattributed glue overhead** | **4,935** |
+
+## Historical Checkpoints (Precompile-Only View)
+- The table below is kept for historical comparison across optimization commits.
+- These values are exact precompile gas totals aggregated from `-vvvv` traces.
+
+| Section | Baseline | After `computeAPUB` Opt (`50030b0`) | After MSM Consolidation (`73daa15`) | After Single-MSM `LHS+AUX` (`6f5394b`) |
 |---|---:|---:|---:|---:|
 | `prepareQueries` | 74,850 | 74,850 | 74,850 | 600 |
 | `computeLagrangeK0Eval` | 1,554 | 1,554 | 1,554 | 1,554 |
@@ -62,35 +83,60 @@
   - `0x0b` (BLS12-381 G1ADD): `28` calls, `10,500` gas
   - `0x05` (`modexp`): `288` calls, `226,084` gas
   - `0x0f` (pairing): `1` call, `363,700` gas
-- After single-call `LHS+AUX` MSM refactor (`HEAD`):
+- After single-call `LHS+AUX` MSM refactor (`6f5394b`):
   - `0x0c` (BLS12-381 G1MSM): `3` calls, `233,712` gas
   - `0x0b` (BLS12-381 G1ADD): `0` calls, `0` gas
   - `0x05` (`modexp`): `7` calls, `3,708` gas
   - `0x0f` (pairing): `1` call, `363,700` gas
 
-## Residual (Non-Precompile)
-- Baseline residual: `1,201,029 - 972,284 = 228,745`
-- Current `HEAD` residual: `821,775 - 601,120 = 220,655`
-- Residual includes:
-  - `_loadVerificationKey`
-  - `loadProof`
-  - `initializeTranscript`
-  - Arithmetic and memory manipulation overhead in each section (`mulmod`, `addmod`, `mstore`, `keccak256`, calldata decoding, etc.)
+## Residual / Overhead Notes
+- In the historical precompile-only view:
+  - Baseline residual: `1,201,029 - 972,284 = 228,745`
+  - `HEAD` residual: `785,531 - 601,120 = 184,411`
+- In the section-total `HEAD` view:
+  - Unattributed glue overhead: `785,531 - 780,596 = 4,935`
+  - This includes boundary code not assigned to one section (step transitions and final return glue).
 
 ## Hotspots for Optimization (Priority)
 1. `finalPairing`
 - Single call but very large absolute cost (`363,700` gas)
 
-2. `prepareLhsAuxSingleMSM`
-- Single 22-term MSM call (`172,656` gas) dominates Step 4 after refactor
+2. `computeAPUB`
+- Dominant non-pairing section in total gas (`155,436` gas) due heavy finite-field arithmetic loops.
 
-3. `prepareRHS1` / `prepareRHS2`
-- Each costs `30,528` gas; together still meaningful after Step 4 fusion
+3. `prepareLhsAuxSingleMSM`
+- Single 22-term MSM call plus setup (`177,474` gas total).
 
 ## Verification Notes
-- Repeated runs with the same input reproduce `verify = 821,775` on `HEAD`.
-- `testVerifier()` wrapper gas is currently `2,107,761`; optimization tracking should use internal `verify` gas (`821,775`).
-- Historical checkpoints are kept for trend comparison (`1,201,029 -> 980,360 -> 930,866 -> 821,775`).
+- Repeated runs with the same input reproduce `verify = 785,531` on `HEAD`.
+- `testVerifier()` wrapper gas is currently `2,071,517`; optimization tracking should use internal `verify` gas (`785,531`).
+- Historical checkpoints are kept for trend comparison (`1,201,029 -> 980,360 -> 930,866 -> 821,775 -> 785,531`).
+
+## Applied Optimization: `computeAPUB` Loop Fusion / Arithmetic Hoist
+- Target function: `computeAPUB()` (`src/verifier/TokamakVerifier.sol:946`)
+- Measurement command:
+  - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvv --offline`
+
+### What Was Optimized
+1. Merged non-zero passes
+- Combined denominator construction and prefix-product building into the first non-zero scan.
+- Removed separate denominator/prefix loops.
+
+2. Reduced temporary memory footprint
+- Stored `numeratorBase = a_j * omega^j` directly (32-byte slot), instead of storing both `(value, omega^j)` pairs (64-byte slots).
+
+3. Hoisted shared factor
+- Applied `(chi^n - 1)` once at the end to the accumulated raw sum, instead of multiplying this factor per contribution.
+
+### Gas Impact (Measured)
+| Variant | `verify` gas | Saved vs previous |
+|---|---:|---:|
+| After single-MSM `[LHS]+[AUX]` refactor (`6f5394b`) | 821,775 | - |
+| + `computeAPUB` loop/memory tightening (`HEAD`) | **785,531** | **36,244** |
+
+### Cumulative Net Result
+- `TokamakVerifier::verify(...)`: `1,201,029 -> 785,531`
+- Total reduction from original baseline: **415,498 gas** (**-34.60%**)
 
 ## Applied Optimization: `computeAPUB`
 - Target function: `computeAPUB()` (`src/verifier/TokamakVerifier.sol:946`)
@@ -180,7 +226,7 @@
 | Variant | `verify` gas | Saved vs previous |
 |---|---:|---:|
 | After MSM consolidation (`73daa15`) | 930,866 | - |
-| + Single-MSM `[LHS]+[AUX]` refactor (`HEAD`) | **821,775** | **109,091** |
+| + Single-MSM `[LHS]+[AUX]` refactor (`6f5394b`) | **821,775** | **109,091** |
 
 ### Cumulative Net Result
 - `TokamakVerifier::verify(...)`: `1,201,029 -> 821,775`

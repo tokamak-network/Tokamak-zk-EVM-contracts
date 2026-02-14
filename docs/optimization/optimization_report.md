@@ -11,3 +11,4 @@
 ## Notes
 - Source rows are included only when gas decreases by at least 5% versus the immediately previous snapshot.
 - Snapshot values are taken from `docs/tokamak-verifier-gas-sections.md` (Measured Gas checkpoints).
+- Latest snapshot commit `f483cc4` reports `785,531`, which is `4.41%` lower than `821,775`; below the 5% threshold, so no new Source Series row was added.

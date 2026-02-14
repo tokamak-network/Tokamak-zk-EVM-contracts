@@ -1,5 +1,75 @@
 # TokamakVerifier Gas Profiling Todo
 
+## 2026-02-14 Update Plan (computeAPUB l_free Unification)
+- [x] Add `OMEGA_64` constant for the 64-sized free-input domain.
+- [x] Refactor `computeAPUB()` to replace separate `n`/`numPublicInputs` with single `l_free`.
+- [x] Set `l_free = 64` and switch the domain root to `OMEGA_64`.
+- [x] Update loop bounds/comments/denominator scaling to use `l_free` consistently.
+- [x] Run focused verifier test for compile/runtime sanity.
+
+### 2026-02-14 Review Note (computeAPUB l_free Unification)
+- Validation command:
+  - `forge test --match-contract testTokamakVerifier --match-test testVerifier --offline`
+- Result:
+  - Contract compiles successfully.
+  - Existing fixture still fails at `loadProof: Proof is invalid` due the currently-mismatched preprocessed-proof format in tests.
+
+## 2026-02-14 Update Plan (Naming Sync: A_fix -> O_pub,fix in loadProof)
+- [x] Replace `A_fix` naming in `loadProof()` with `O_pub,fix` to match latest proof-format semantics.
+- [x] Rename memory slot constants from `PROOF_POLY_A_FIX_*` to `PROOF_POLY_OPUB_FIX_*`.
+- [x] Update final pairing accumulation to read from renamed `O_pub,fix` slots.
+- [x] Compile/test verifier path to confirm no build regressions.
+
+### 2026-02-14 Review Note (Naming Sync: A_fix -> O_pub,fix)
+- Validation command:
+  - `forge test --match-contract testTokamakVerifier --match-test testVerifier --offline`
+- Result:
+  - Build succeeds.
+  - Existing fixture still fails at `loadProof: Proof is invalid` because test vectors are not migrated to the new preprocessed input shape.
+
+## 2026-02-14 Update Plan (Spec Sync: Pairing Equation Revision)
+- [x] Read updated `docs/verifier-spec.md` final pairing equation and identify affected algebraic ownership (`A_fix` movement from LHS to RHS pairing side).
+- [x] Update `docs/verifier-spec.md` summary coefficient table to match revised `LHS_B` and remove stale `A_fix` term from `[LHS]_1+[AUX]_1`.
+- [x] Update `src/verifier/TokamakVerifier.sol` Step4 MSM to match new summary (22 terms, no `A_fix` term in LHS aggregation).
+- [x] Update `src/verifier/TokamakVerifier.sol` final pairing implementation to pair `([O_{pub,fix}] + [O_{pub,free}])` against `[γ]_2`.
+- [x] Compile/run focused verifier test and capture compatibility status.
+
+### 2026-02-14 Review Note (Spec Sync: Pairing Equation Revision)
+- Validation commands:
+  - `forge test --match-contract testTokamakVerifier --match-test testVerifier --offline`
+  - `forge test --match-contract testTokamakVerifier --match-test testVerifier --offline -vvvv`
+- Result:
+  - Build succeeds.
+  - Existing fixture still fails at `loadProof: Proof is invalid` (fixture not yet migrated to new preprocessed format carrying `A_fix/O_pub,fix`).
+
+## 2026-02-14 Update Plan (A Source Split: A_fix from preprocessed, A_free from proof)
+- [x] Rewire `loadProof()` so `A_fix` is decoded from `_preprocessedPart1/_preprocessedPart2`.
+- [x] Keep `A_free` decoded from `_proof` and restore proof length/offset layout accordingly.
+- [x] Add strict length guards for the new preprocessed format (`6/6` words).
+- [x] Run verifier test path and capture compatibility outcome.
+
+### 2026-02-14 Review Note (A Source Split)
+- Validation commands:
+  - `forge test --match-contract testTokamakVerifier --match-test testVerifier --offline`
+  - `forge test --match-contract testTokamakVerifier --match-test testVerifier --offline -vvvv`
+- Result:
+  - Build succeeds.
+  - Existing fixture reverts at `loadProof: Proof is invalid` because it still supplies old preprocessed shape (without `A_fix` words).
+
+## 2026-02-14 Update Plan (Proof Format Split: A_fix/A_free)
+- [x] Identify all `A` commitment load/use paths in `TokamakVerifier.sol` and define safe memory slots for `A_fix`.
+- [x] Update proof decoding format in `loadProof()` from single `A` to `A_fix` + `A_free` (length/offset changes included).
+- [x] Update Step 4 MSM assembly to apply separate coefficients to `A_fix` and `A_free`.
+- [x] Compile and run verifier test path to confirm code-level integration status.
+- [x] Record review note and compatibility impact.
+
+### 2026-02-14 Review Note (Proof Format Split: A_fix/A_free)
+- Validation command:
+  - `forge test --match-contract testTokamakVerifier --match-test testVerifier --offline -vvvv`
+- Result:
+  - Contract compiles successfully.
+  - Existing fixture test fails with `loadProof: Proof is invalid` because test vectors still use old proof lengths (`38/42`) while verifier now requires new format (`40/44`) and shifted scalar offsets.
+
 ## 2026-02-14 Update Plan (Refresh Gas Doc for Latest Verifier)
 - [x] Align `docs/tokamak-verifier-gas-sections.md` function references and section descriptions with current `TokamakVerifier.sol`.
 - [x] Update residual/hotspot/verification notes to include latest (`HEAD`) metrics.

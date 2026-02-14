@@ -126,16 +126,16 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant PROOF_POLY_N_CHI_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x840;
     uint256 internal constant PROOF_POLY_N_CHI_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x860;
     uint256 internal constant PROOF_POLY_N_CHI_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x880;
-    // O_pub
+    // O_pub,free
     uint256 internal constant PROOF_POLY_OPUB_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x8a0;
     uint256 internal constant PROOF_POLY_OPUB_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x8c0;
     uint256 internal constant PROOF_POLY_OPUB_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x8e0;
     uint256 internal constant PROOF_POLY_OPUB_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x900;
-    // A
-    uint256 internal constant PROOF_POLY_A_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x920;
-    uint256 internal constant PROOF_POLY_A_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x940;
-    uint256 internal constant PROOF_POLY_A_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x960;
-    uint256 internal constant PROOF_POLY_A_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x980;
+    // A_free
+    uint256 internal constant PROOF_POLY_A_FREE_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x920;
+    uint256 internal constant PROOF_POLY_A_FREE_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x940;
+    uint256 internal constant PROOF_POLY_A_FREE_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x960;
+    uint256 internal constant PROOF_POLY_A_FREE_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x980;
     // R_xy
     uint256 internal constant PROOF_R1XY_SLOT = 0x8000 + 0x200 + 0x120 + 0x9a0;
     // R'_xy
@@ -144,6 +144,12 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant PROOF_R3XY_SLOT = 0x8000 + 0x200 + 0x120 + 0x9e0;
     // V_xy
     uint256 internal constant PROOF_VXY_SLOT = 0x8000 + 0x200 + 0x120 + 0xa00;
+
+    // O_pub,fix (decoded from `_preprocessed`; used in final pairing)
+    uint256 internal constant PROOF_POLY_OPUB_FIX_X_SLOT_PART1 = 0x9720;
+    uint256 internal constant PROOF_POLY_OPUB_FIX_X_SLOT_PART2 = 0x9740;
+    uint256 internal constant PROOF_POLY_OPUB_FIX_Y_SLOT_PART1 = 0x9760;
+    uint256 internal constant PROOF_POLY_OPUB_FIX_Y_SLOT_PART2 = 0x9780;
 
     /*//////////////////////////////////////////////////////////////
                 transcript slot (used for challenge computation)
@@ -181,7 +187,7 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant INTERMERDIARY_SCALAR_T_MI_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x160;
     // K_0(χ)
     uint256 internal constant INTERMEDIARY_SCALAR_KO_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x180;
-    // A_pub
+    // A_eval = A(chi)
     uint256 internal constant INTERMEDIARY_SCALAR_APUB_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0;
 
     uint256 internal constant PAIRING_AGG_LHS_AUX_X_SLOT_PART1 =
@@ -267,6 +273,10 @@ contract TokamakVerifier is ITokamakVerifier {
 
     // n
     uint256 internal constant CONSTANT_N = 2048;
+    // ω_64
+    uint256 internal constant OMEGA_64 = 0x0e4840ac57f86f5e293b1d67bc8de5d9a12a70a615d0b8e4d2fc5e69ac5db47f;
+    // ω_128
+    uint256 internal constant OMEGA_128 = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
     // ω_512
     uint256 internal constant OMEGA_512 = 0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
     // m_i
@@ -472,7 +482,7 @@ contract TokamakVerifier is ITokamakVerifier {
         uint256[] calldata, // _proof part2 (32 bytes)
         uint128[] calldata, // _preprocessedPart1 (16 bytes)
         uint256[] calldata, // _preprocessedPart2 (32 bytes)
-        uint256[] calldata, // publicInputs (used for computing A_pub)
+        uint256[] calldata, // publicInputs (used for computing A_eval)
         uint256 // smax
     ) public view virtual returns (bool final_result) {
         // No memory was accessed yet, so keys can be loaded into the right place and not corrupt any other memory.
@@ -566,29 +576,43 @@ contract TokamakVerifier is ITokamakVerifier {
                 let offset4 := calldataload(0x64)
                 let part1LengthInWords := calldataload(add(offset, 0x04))
                 let part2LengthInWords := calldataload(add(offset2, 0x04))
-                let isValid := and(eq(part1LengthInWords, 38), eq(part2LengthInWords, 42))
+                let preprocessedPart1LengthInWords := calldataload(add(offset3, 0x04))
+                let preprocessedPart2LengthInWords := calldataload(add(offset4, 0x04))
+                let isValid :=
+                    and(
+                        and(eq(part1LengthInWords, 38), eq(part2LengthInWords, 42)),
+                        and(eq(preprocessedPart1LengthInWords, 6), eq(preprocessedPart2LengthInWords, 6))
+                    )
 
                 // revert if the length of the proof is not valid
                 if iszero(isValid) { revertWithMessage(27, "loadProof: Proof is invalid") }
 
-                // S PERMUTATION POLYNOMIALS
+                // S PERMUTATION POLYNOMIALS & O_pub,fix
                 {
                     let x0 := calldataload(add(offset3, 0x024))
                     let y0 := calldataload(add(offset3, 0x044))
                     let x1 := calldataload(add(offset3, 0x064))
                     let y1 := calldataload(add(offset3, 0x084))
+                    let x2 := calldataload(add(offset3, 0x0a4))
+                    let y2 := calldataload(add(offset3, 0x0c4))
                     mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART1, x0)
                     mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART1, y0)
                     mstore(PUBLIC_INPUTS_S_1_X_SLOT_PART1, x1)
                     mstore(PUBLIC_INPUTS_S_1_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_OPUB_FIX_X_SLOT_PART1, x2)
+                    mstore(PROOF_POLY_OPUB_FIX_Y_SLOT_PART1, y2)
                     x0 := calldataload(add(offset4, 0x024))
                     y0 := calldataload(add(offset4, 0x044))
                     x1 := calldataload(add(offset4, 0x064))
                     y1 := calldataload(add(offset4, 0x084))
+                    x2 := calldataload(add(offset4, 0x0a4))
+                    y2 := calldataload(add(offset4, 0x0c4))
                     mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART2, x0)
                     mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART2, y0)
                     mstore(PUBLIC_INPUTS_S_1_X_SLOT_PART2, x1)
                     mstore(PUBLIC_INPUTS_S_1_Y_SLOT_PART2, y1)
+                    mstore(PROOF_POLY_OPUB_FIX_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_OPUB_FIX_Y_SLOT_PART2, y2)
                 }
                 // PROOF U, V & W
                 {
@@ -744,7 +768,7 @@ contract TokamakVerifier is ITokamakVerifier {
                     mstore(PROOF_POLY_N_CHI_X_SLOT_PART2, x3)
                     mstore(PROOF_POLY_N_CHI_Y_SLOT_PART2, y3)
                 }
-                // PROOF O_PUB & A
+                // PROOF O_PUB & A_free
                 {
                     let x0 := calldataload(add(offset, 0x464))
                     let y0 := calldataload(add(offset, 0x484))
@@ -752,16 +776,16 @@ contract TokamakVerifier is ITokamakVerifier {
                     let y1 := calldataload(add(offset, 0x4c4))
                     mstore(PROOF_POLY_OPUB_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_OPUB_Y_SLOT_PART1, y0)
-                    mstore(PROOF_POLY_A_X_SLOT_PART1, x1)
-                    mstore(PROOF_POLY_A_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_A_FREE_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_A_FREE_Y_SLOT_PART1, y1)
                     x0 := calldataload(add(offset2, 0x464))
                     y0 := calldataload(add(offset2, 0x484))
                     x1 := calldataload(add(offset2, 0x4a4))
                     y1 := calldataload(add(offset2, 0x4c4))
                     mstore(PROOF_POLY_OPUB_X_SLOT_PART2, x0)
                     mstore(PROOF_POLY_OPUB_Y_SLOT_PART2, y0)
-                    mstore(PROOF_POLY_A_X_SLOT_PART2, x1)
-                    mstore(PROOF_POLY_A_Y_SLOT_PART2, y1)
+                    mstore(PROOF_POLY_A_FREE_X_SLOT_PART2, x1)
+                    mstore(PROOF_POLY_A_FREE_Y_SLOT_PART2, y1)
                 }
 
                 mstore(PROOF_R1XY_SLOT, mod(calldataload(add(offset2, 0x4e4)), R_MOD))
@@ -941,25 +965,24 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(INTERMEDIARY_SCALAR_KO_SLOT, r)
             }
 
-            // A_pub = A(chi)
+            // A_eval = A(chi)
             // A(chi) = sum_0^{l-1}(a_j * M_j(chi))
             function computeAPUB() {
                 let chi := mload(CHALLENGE_CHI_SLOT)
                 let offset := calldataload(0x84)
 
-                let n := 512
-                let omega := OMEGA_512
-                let numPublicInputs := 512
+                let l_free := 64
+                let omega := OMEGA_64
 
-                // Compute chi^512 - 1
-                let chi_n := modexp(chi, n)
+                // Compute chi^64 - 1
+                let chi_n := modexp(chi, l_free)
                 let chi_n_1 := addmod(chi_n, sub(R_MOD, 1), R_MOD)
 
-                // Check if chi is a 512th root of unity
+                // Check if chi is a 64th root of unity
                 if iszero(chi_n_1) {
                     // Special case: find and return the corresponding value
                     let omega_power := 1
-                    for { let i := 0 } lt(i, numPublicInputs) { i := add(i, 1) } {
+                    for { let i := 0 } lt(i, l_free) { i := add(i, 1) } {
                         if eq(chi, omega_power) {
                             let val := calldataload(add(add(offset, 0x24), mul(i, 0x20)))
                             mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
@@ -972,7 +995,7 @@ contract TokamakVerifier is ITokamakVerifier {
                 // Normal case: compute weighted sum
                 // We store:
                 // - numerator base: a_j * ω^j
-                // - denominator_full: (χ - ω^j) * n
+                // - denominator_full: (χ - ω^j) * l_free
                 // and build prefix products in the same pass to reduce loop overhead.
                 let weightedSumRaw := 0
                 let nonZeroCount := 0
@@ -982,7 +1005,7 @@ contract TokamakVerifier is ITokamakVerifier {
                 let omega_power := 1
                 let prefix := 1
 
-                for { let i := 0 } lt(i, numPublicInputs) { i := add(i, 1) } {
+                for { let i := 0 } lt(i, l_free) { i := add(i, 1) } {
                     let val := calldataload(add(add(offset, 0x24), mul(i, 0x20)))
                     if val {
                         let denominator := addmod(chi, sub(R_MOD, omega_power), R_MOD)
@@ -993,7 +1016,7 @@ contract TokamakVerifier is ITokamakVerifier {
                             leave
                         }
 
-                        let denominatorFull := mulmod(denominator, n, R_MOD)
+                        let denominatorFull := mulmod(denominator, l_free, R_MOD)
                         let numeratorBase := mulmod(val, omega_power, R_MOD)
 
                         mstore(add(tempOffset, mul(nonZeroCount, 0x20)), numeratorBase)
@@ -1055,11 +1078,16 @@ contract TokamakVerifier is ITokamakVerifier {
             ///         with a := κ1^2κ0R_{x,y}((χ-1)  + κ0K_0(χ))
             ///              b := κ1^2κ0((χ-1) R’_{x,y} + κ0K_0(χ)R’’_{x,y})
             ///              c := κ1^3 + κ2 + κ2^2
-            ///              d := -κ1^3R_{x,y} - κ2R’_{x,y} - κ2^2R’’_{x,y} - κ1V_{x,y} - κ1^4A_{pub}
+            ///              d := -κ1^3R_{x,y} - κ2R’_{x,y} - κ2^2R’’_{x,y} - κ1V_{x,y} - κ1^4A_{eval}
             ///
             ///  and where
             ///
-            ///  [LHS_B]_1 := (1+κ2κ1^4)[A]_1
+            ///  [LHS_B]_1 := (1+κ2κ1^4)[A_{free}]_1 - κ2κ1^4A_{eval}[1]_1
+            ///
+            ///  implementation note for current proof format:
+            ///  - `O_{pub,fix}` is loaded from `_preprocessed` and used in final pairing
+            ///  - `A_{free}` is loaded from `_proof`
+            ///  - `A_{eval}` is provided by `computeAPUB()` into `INTERMEDIARY_SCALAR_APUB_SLOT`
             ///
             ///  and
             ///
@@ -1109,7 +1137,10 @@ contract TokamakVerifier is ITokamakVerifier {
                     mstore(0x9440, addmod(c_g, c_f, R_MOD))
                 }
 
-                msmStoreTerm(msmPtr, 0, PROOF_POLY_A_X_SLOT_PART1, addmod(1, mulmod(kappa2, kappa1_pow4, R_MOD), R_MOD))
+                // (1 + κ2κ1^4) * [A_free]_1
+                msmStoreTerm(
+                    msmPtr, 0, PROOF_POLY_A_FREE_X_SLOT_PART1, addmod(1, mulmod(kappa2, kappa1_pow4, R_MOD), R_MOD)
+                )
                 msmStoreTerm(msmPtr, 1, PROOF_POLY_U_X_SLOT_PART1, mulmod(kappa2, mload(PROOF_VXY_SLOT), R_MOD))
                 msmStoreTerm(msmPtr, 2, PROOF_POLY_W_X_SLOT_PART1, addmod(0, sub(R_MOD, kappa2), R_MOD))
                 msmStoreTerm(msmPtr, 3, PROOF_POLY_V_X_SLOT_PART1, mulmod(kappa2, kappa1, R_MOD))
@@ -1156,6 +1187,7 @@ contract TokamakVerifier is ITokamakVerifier {
                     let coeff_identity_base :=
                         addmod(
                             addmod(
+                                // κ2κ1^4 * A_eval
                                 mulmod(mulmod(kappa2, kappa1_pow4, R_MOD), mload(INTERMEDIARY_SCALAR_APUB_SLOT), R_MOD),
                                 mulmod(mulmod(kappa2, kappa1, R_MOD), mload(PROOF_VXY_SLOT), R_MOD),
                                 R_MOD
@@ -1240,7 +1272,7 @@ contract TokamakVerifier is ITokamakVerifier {
             /// @dev We should check the equation:
             ///
             ///    /                                                  \           /                                                          \
-            ///   | e([LHS]_1 + [AUX]_1, [1]_2)e([B]_1, [α^4]_2)       |         |  e([O_pub], [γ]_2])e([O_mid]_1, [η]_2)e([O_prv]_1, [δ]_2)  |
+            ///   | e([LHS]_1 + [AUX]_1, [1]_2)e([B]_1, [α^4]_2)       |         |  e([O_{pub,fix}]_1+[O_{pub,free}]_1, [γ]_2)e([O_mid]_1, [η]_2)e([O_prv]_1, [δ]_2)  |
             ///   | e([U]_1, [α]_2)e([V]_1, [α^2]_2)e([W]_1, [α^3]_2)  |    =    |  . e(κ2[Π_{χ}]_1 + κ2^2[M_{χ}]_1 + κ2^3[N_{χ}]_1, [x]_2)   |
             ///    \                                                  /          |  . e(κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1, [y]_2)   |
             ///                                                                   \                                                          /
@@ -1328,11 +1360,16 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(0x740, ALPHA_POWER3_Y0_PART1)
                 mstore(0x760, ALPHA_POWER3_Y0_PART2)
 
-                // load [O_pub]_1
-                mstore(0x780, mload(PROOF_POLY_OPUB_X_SLOT_PART1))
-                mstore(0x7a0, mload(PROOF_POLY_OPUB_X_SLOT_PART2))
-                mstore(0x7c0, mload(PROOF_POLY_OPUB_Y_SLOT_PART1))
-                mstore(0x7e0, mload(PROOF_POLY_OPUB_Y_SLOT_PART2))
+                // load [O_{pub,fix}]_1 + [O_{pub,free}]_1 using G1 add precompile
+                mstore(0xf00, mload(PROOF_POLY_OPUB_FIX_X_SLOT_PART1))
+                mstore(0xf20, mload(PROOF_POLY_OPUB_FIX_X_SLOT_PART2))
+                mstore(0xf40, mload(PROOF_POLY_OPUB_FIX_Y_SLOT_PART1))
+                mstore(0xf60, mload(PROOF_POLY_OPUB_FIX_Y_SLOT_PART2))
+                mstore(0xf80, mload(PROOF_POLY_OPUB_X_SLOT_PART1))
+                mstore(0xfa0, mload(PROOF_POLY_OPUB_X_SLOT_PART2))
+                mstore(0xfc0, mload(PROOF_POLY_OPUB_Y_SLOT_PART1))
+                mstore(0xfe0, mload(PROOF_POLY_OPUB_Y_SLOT_PART2))
+                if iszero(staticcall(gas(), 0x0b, 0xf00, 0x100, 0x780, 0x80)) { revertWithMessage(22, "g1add precompile failed") }
 
                 // load -[γ]_2
                 mstore(0x800, GAMMA_X1_PART1)
@@ -1420,7 +1457,7 @@ contract TokamakVerifier is ITokamakVerifier {
             // Step2: Recompute all the challenges with the transcript
             initializeTranscript()
 
-            // Step3: computation of [F]_1, [G]_1, t_n(χ), t_smax(ζ) and t_ml(χ), K0(χ) and A_pub
+            // Step3: computation of [F]_1, [G]_1, t_n(χ), t_smax(ζ), t_ml(χ), K0(χ), and A_eval
             prepareQueries()
             computeLagrangeK0Eval()
             computeAPUB()
@@ -1434,7 +1471,7 @@ contract TokamakVerifier is ITokamakVerifier {
             finalPairing()
             final_result := true
 
-            // DEBUG: Return A_pub instead of final result
+            // DEBUG: Return A_eval instead of final result
             mstore(0x00, final_result)
             return(0x00, 0x20)
         }

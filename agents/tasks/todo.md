@@ -1,5 +1,20 @@
 # TokamakVerifier Gas Profiling Todo
 
+## 2026-02-15 Update Plan (PR #82 Review: computeAPUB Scratch Memory Safety)
+- [x] Audit `computeAPUB()` scratch memory addresses against reserved verifier memory layout.
+- [x] Replace hardcoded scratch offsets in `computeAPUB()` with named constants in a safe memory region.
+- [x] Re-run focused verifier tests to ensure no functional regression.
+- [x] Add review note with validation commands and outcomes.
+
+### 2026-02-15 Review Note (PR #82 Review: computeAPUB Scratch Memory Safety)
+- Validation commands:
+  - `perl -ne 'if(/uint256 internal constant\\s+(\\w+)\\s*=\\s*([^;]+);/){$n=$1;$e=$2;$e=~s/\\s+//g; next unless $e=~/\\+/; @parts=split(/\\+/,$e); $v=0; $ok=1; for $p (@parts){ if($p!~/^0x[0-9a-fA-F]+$/){$ok=0; last;} $v+=hex($p);} if($ok){ printf(\"%s 0x%x\\n\",$n,$v);} }' src/verifier/TokamakVerifier.sol | sort -k2`
+  - `forge test --match-contract testTokamakVerifier --offline`
+- Result:
+  - Reserved verifier slots were confirmed below `0x9800` (`O_pub,fix` at `0x9720..0x9780`), and `computeAPUB` scratch buffers were moved to `0x10000/0x10800/0x11000`.
+  - Hardcoded temporary offsets in `computeAPUB` were replaced with named constants.
+  - `testTokamakVerifier` passed (`5 passed, 0 failed`).
+
 ## 2026-02-15 Update Plan (Build-time VK Codegen from sigma_verify.json)
 - [x] Add a deterministic codegen script that reads `src/verifier/TokamakVerifierKey/sigma_verify.json` and emits Solidity VK constants.
 - [x] Introduce a generated Solidity key module and wire `TokamakVerifier._loadVerificationKey()` to consume generated constants instead of hardcoded literal values.

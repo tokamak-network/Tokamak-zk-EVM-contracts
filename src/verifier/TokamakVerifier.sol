@@ -304,6 +304,11 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant OMEGA_SMAX_2048_MINUS_1 =
         0x394fda0d65ba213edeae67bc36f376e13cc5bb329aa58ff53dc9e5600f6fb2ac;
 
+    // computeAPUB scratch buffers (64 words each), placed above verifier reserved slots.
+    uint256 internal constant COMPUTE_APUB_NUMERATOR_BUFFER_SLOT = 0x10000;
+    uint256 internal constant COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT = 0x10800;
+    uint256 internal constant COMPUTE_APUB_PREFIX_BUFFER_SLOT = 0x11000;
+
     /*//////////////////////////////////////////////////////////////
                             G2 elements
         //////////////////////////////////////////////////////////////*/
@@ -1020,9 +1025,9 @@ contract TokamakVerifier is ITokamakVerifier {
                 // and build prefix products in the same pass to reduce loop overhead.
                 let weightedSumRaw := 0
                 let nonZeroCount := 0
-                let tempOffset := 0x2000 // Temporary storage location
-                let denomOffset := 0xa000
-                let prefixOffset := 0xc000
+                let tempOffset := COMPUTE_APUB_NUMERATOR_BUFFER_SLOT
+                let denomOffset := COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT
+                let prefixOffset := COMPUTE_APUB_PREFIX_BUFFER_SLOT
                 let omega_power := 1
                 let prefix := 1
 

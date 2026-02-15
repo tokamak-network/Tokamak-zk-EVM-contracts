@@ -17,6 +17,21 @@
   - `TokamakVerifier` compiles with generated constants wired into `_loadVerificationKey()`.
   - `testTokamakVerifier` suite passed (`5 passed, 0 failed`).
 
+## 2026-02-15 Update Plan (Gas Doc + Reporting Refresh)
+- [x] Re-measure latest `HEAD` verifier gas from `testVerifier` trace.
+- [x] Update `docs/tokamak-verifier-gas-sections.md` Measured Gas snapshot to current values.
+- [x] Update `docs/optimization/optimization_report.md` Source Series with a new row only if >=5% decrease rule is met.
+- [x] Add the corresponding mini-report file with proposition/proof format compliance.
+
+### 2026-02-15 Review Note (Gas Doc + Reporting Refresh)
+- Validation commands:
+  - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvvv --offline`
+  - trace parsing for precompile totals/counts from `/tmp/tokamak_verify_trace5.txt`
+- Result:
+  - `verify` gas confirmed at `655,104` for snapshot commit `ae99e6b`.
+  - Source Series row added for `655,104` (drop vs previous `785,531` is `16.61%`, so new row is valid).
+  - Mini-report created at `docs/optimization/mini-reports/2026-02-15_ae99e6b.md`.
+
 ## 2026-02-14 Update Plan (computeAPUB l_free Unification)
 - [x] Add `OMEGA_64` constant for the 64-sized free-input domain.
 - [x] Refactor `computeAPUB()` to replace separate `n`/`numPublicInputs` with single `l_free`.

@@ -2,6 +2,7 @@
 pragma solidity 0.8.29;
 
 import {ITokamakVerifier} from "../interface/ITokamakVerifier.sol";
+import {TokamakVerifierKeyGenerated} from "./TokamakVerifierKey/TokamakVerifierKey.generated.sol";
 
 /* solhint-disable max-line-length */
 /// @author Project Ooo team
@@ -426,6 +427,26 @@ contract TokamakVerifier is ITokamakVerifier {
     /// `VK_` prefix.
     /// NOTE: Function may corrupt the memory state if some memory was used before this function was called.
     function _loadVerificationKey() internal pure virtual {
+        uint256 lagrangeKlXPart1 = TokamakVerifierKeyGenerated.LAGRANGE_KL_X_PART1;
+        uint256 lagrangeKlXPart2 = TokamakVerifierKeyGenerated.LAGRANGE_KL_X_PART2;
+        uint256 lagrangeKlYPart1 = TokamakVerifierKeyGenerated.LAGRANGE_KL_Y_PART1;
+        uint256 lagrangeKlYPart2 = TokamakVerifierKeyGenerated.LAGRANGE_KL_Y_PART2;
+
+        uint256 identityXPart1 = TokamakVerifierKeyGenerated.IDENTITY_X_PART1;
+        uint256 identityXPart2 = TokamakVerifierKeyGenerated.IDENTITY_X_PART2;
+        uint256 identityYPart1 = TokamakVerifierKeyGenerated.IDENTITY_Y_PART1;
+        uint256 identityYPart2 = TokamakVerifierKeyGenerated.IDENTITY_Y_PART2;
+
+        uint256 sigmaXXPart1 = TokamakVerifierKeyGenerated.SIGMA_X_X_PART1;
+        uint256 sigmaXXPart2 = TokamakVerifierKeyGenerated.SIGMA_X_X_PART2;
+        uint256 sigmaXYPart1 = TokamakVerifierKeyGenerated.SIGMA_X_Y_PART1;
+        uint256 sigmaXYPart2 = TokamakVerifierKeyGenerated.SIGMA_X_Y_PART2;
+
+        uint256 sigmaYXPart1 = TokamakVerifierKeyGenerated.SIGMA_Y_X_PART1;
+        uint256 sigmaYXPart2 = TokamakVerifierKeyGenerated.SIGMA_Y_X_PART2;
+        uint256 sigmaYYPart1 = TokamakVerifierKeyGenerated.SIGMA_Y_Y_PART1;
+        uint256 sigmaYYPart2 = TokamakVerifierKeyGenerated.SIGMA_Y_Y_PART2;
+
         assembly {
             /*
             "lagrange_KL": {
@@ -434,10 +455,10 @@ contract TokamakVerifier is ITokamakVerifier {
             }
             */
             // preproccessed KL commitment vk
-            mstore(VK_POLY_KXLX_X_PART1, 0x0000000000000000000000000000000004f1e1a2ec023aef31bde5b77da1e69d)
-            mstore(VK_POLY_KXLX_X_PART2, 0xdf5f0bc762904ccee1e8b0131e517246ccf938b28f294dcaca7dbd0c36ff3607)
-            mstore(VK_POLY_KXLX_Y_PART1, 0x0000000000000000000000000000000013440b9abcae5c5c5749fbc390065d1e)
-            mstore(VK_POLY_KXLX_Y_PART2, 0xdea2da1ca7a4f63960dc958c9f32d289c3df14028dc7262642cc1466d6745bef)
+            mstore(VK_POLY_KXLX_X_PART1, lagrangeKlXPart1)
+            mstore(VK_POLY_KXLX_X_PART2, lagrangeKlXPart2)
+            mstore(VK_POLY_KXLX_Y_PART1, lagrangeKlYPart1)
+            mstore(VK_POLY_KXLX_Y_PART2, lagrangeKlYPart2)
 
             /*
             "G": {
@@ -446,10 +467,10 @@ contract TokamakVerifier is ITokamakVerifier {
             },
             */
             // [1]_1 (Generator/Identity point)
-            mstore(VK_IDENTITY_X_PART1, 0x000000000000000000000000000000000b001b4cc05fa01578be7d4e821d6ff5)
-            mstore(VK_IDENTITY_X_PART2, 0x8f2a05c584fba3cb31a37942dece65eadec9a878add2282f7c2513abb8d4ab05)
-            mstore(VK_IDENTITY_Y_PART1, 0x0000000000000000000000000000000015e237775397ed22eef43dd36cdca277)
-            mstore(VK_IDENTITY_Y_PART2, 0xc9cf6fa7e4ffff0a5bb4b20a82392caacf0f63fb6cdb02bccf2f5af14970d6b9)
+            mstore(VK_IDENTITY_X_PART1, identityXPart1)
+            mstore(VK_IDENTITY_X_PART2, identityXPart2)
+            mstore(VK_IDENTITY_Y_PART1, identityYPart1)
+            mstore(VK_IDENTITY_Y_PART2, identityYPart2)
 
             /*
             "x": {
@@ -458,10 +479,10 @@ contract TokamakVerifier is ITokamakVerifier {
             },
             */
             // [x]_1 (Polynomial evaluation point)
-            mstore(VK_POLY_X_X_PART1, 0x000000000000000000000000000000000d45aca9cf6986877b859616c9613dfe)
-            mstore(VK_POLY_X_X_PART2, 0x38633f32c81a5a5e426f37beb4f1f9a8db94bcb17673c014031ed6f80406ae12)
-            mstore(VK_POLY_X_Y_PART1, 0x00000000000000000000000000000000014de0221674a94bd5e60383f1f262d1)
-            mstore(VK_POLY_X_Y_PART2, 0x00c79178775b99480ec1a267fb28c905389357c2c111b94becf8676365f64133)
+            mstore(VK_POLY_X_X_PART1, sigmaXXPart1)
+            mstore(VK_POLY_X_X_PART2, sigmaXXPart2)
+            mstore(VK_POLY_X_Y_PART1, sigmaXYPart1)
+            mstore(VK_POLY_X_Y_PART2, sigmaXYPart2)
 
             /*
             "y": {
@@ -470,10 +491,10 @@ contract TokamakVerifier is ITokamakVerifier {
             }
             */
             // [y]_1 (Polynomial evaluation point)
-            mstore(VK_POLY_Y_X_PART1, 0x0000000000000000000000000000000009cf106b4240325df41d6a76331883cb)
-            mstore(VK_POLY_Y_X_PART2, 0xe61a678d7d877bf670446001be74d27580424e05a37af26bb85f99b380758888)
-            mstore(VK_POLY_Y_Y_PART1, 0x000000000000000000000000000000000889c802a90694c68dfbcf207205778a)
-            mstore(VK_POLY_Y_Y_PART2, 0x7493cda2cbb6f9fb0b5ad39dbeef2fac91d847cc01d6040164ef30d840395af0)
+            mstore(VK_POLY_Y_X_PART1, sigmaYXPart1)
+            mstore(VK_POLY_Y_X_PART2, sigmaYXPart2)
+            mstore(VK_POLY_Y_Y_PART1, sigmaYYPart1)
+            mstore(VK_POLY_Y_Y_PART2, sigmaYYPart2)
         }
     }
 

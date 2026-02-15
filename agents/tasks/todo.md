@@ -1,5 +1,22 @@
 # TokamakVerifier Gas Profiling Todo
 
+## 2026-02-15 Update Plan (Build-time VK Codegen from sigma_verify.json)
+- [x] Add a deterministic codegen script that reads `src/verifier/TokamakVerifierKey/sigma_verify.json` and emits Solidity VK constants.
+- [x] Introduce a generated Solidity key module and wire `TokamakVerifier._loadVerificationKey()` to consume generated constants instead of hardcoded literal values.
+- [x] Add npm scripts so build/test paths can regenerate VK constants before compilation.
+- [x] Run codegen + `forge build` + focused verifier tests to validate no functional regression.
+- [x] Record review note with exact validation commands and outcomes.
+
+### 2026-02-15 Review Note (Build-time VK Codegen from sigma_verify.json)
+- Validation commands:
+  - `npm run gen:tokamak-vk`
+  - `forge build`
+  - `forge test --match-contract testTokamakVerifier --offline -vv`
+- Result:
+  - Generated VK module successfully from `sigma_verify.json`.
+  - `TokamakVerifier` compiles with generated constants wired into `_loadVerificationKey()`.
+  - `testTokamakVerifier` suite passed (`5 passed, 0 failed`).
+
 ## 2026-02-14 Update Plan (computeAPUB l_free Unification)
 - [x] Add `OMEGA_64` constant for the 64-sized free-input domain.
 - [x] Refactor `computeAPUB()` to replace separate `n`/`numPublicInputs` with single `l_free`.

@@ -10,3 +10,6 @@
 - When `verifier-spec.md` formula ownership changes (e.g., a term moving from `[LHS]` to final pairing RHS), update both artifacts in lockstep: the spec's summary coefficient table and the Solidity aggregation implementation. Keeping only one side updated introduces algebraic inconsistency.
 - When domain terminology changes in the proof format, rename code identifiers to the canonical term end-to-end (constants, load paths, and pairing usage). Mixed naming like `A_fix` vs `O_pub,fix` increases integration errors even when data layout is identical.
 - In polynomial-evaluation code, if two parameters are semantically the same domain size (e.g., `n` and `numPublicInputs`), model them as a single variable (`l_free`) to avoid divergence bugs and reduce maintenance overhead.
+
+## 2026-02-15
+- In inline assembly with a custom verifier memory map, never leave temporary scratch addresses as raw literals; define named scratch constants and verify they do not overlap reserved slots before using them.

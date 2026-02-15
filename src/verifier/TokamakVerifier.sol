@@ -308,6 +308,10 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant COMPUTE_APUB_NUMERATOR_BUFFER_SLOT = 0x10000;
     uint256 internal constant COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT = 0x10800;
     uint256 internal constant COMPUTE_APUB_PREFIX_BUFFER_SLOT = 0x11000;
+    // Step 4 temporary coefficients (C_G, C_F, C_B = C_G + C_F), kept outside reserved verifier slots.
+    uint256 internal constant STEP4_COEFF_C_G_SLOT = 0x11800;
+    uint256 internal constant STEP4_COEFF_C_F_SLOT = 0x11820;
+    uint256 internal constant STEP4_COEFF_C_B_SLOT = 0x11840;
 
     /*//////////////////////////////////////////////////////////////
                             G2 elements
@@ -1143,7 +1147,7 @@ contract TokamakVerifier is ITokamakVerifier {
                 let common := mulmod(kappa2, kappa1_pow2, R_MOD)
 
                 // Scratch slots:
-                // 0x9400: C_G, 0x9420: C_F, 0x9440: C_B = C_G + C_F.
+                // STEP4_COEFF_C_G_SLOT: C_G, STEP4_COEFF_C_F_SLOT: C_F, STEP4_COEFF_C_B_SLOT: C_B = C_G + C_F.
                 {
                     let chi_minus_1 := addmod(chi, sub(R_MOD, 1), R_MOD)
                     let kappa0_chi_minus_1 := mulmod(kappa0, chi_minus_1, R_MOD)
@@ -1158,9 +1162,9 @@ contract TokamakVerifier is ITokamakVerifier {
                             R_MOD
                         )
                     let c_f := addmod(0, sub(R_MOD, mulmod(common, c_f_inner, R_MOD)), R_MOD)
-                    mstore(0x9400, c_g)
-                    mstore(0x9420, c_f)
-                    mstore(0x9440, addmod(c_g, c_f, R_MOD))
+                    mstore(STEP4_COEFF_C_G_SLOT, c_g)
+                    mstore(STEP4_COEFF_C_F_SLOT, c_f)
+                    mstore(STEP4_COEFF_C_B_SLOT, addmod(c_g, c_f, R_MOD))
                 }
 
                 // (1 + κ2κ1^4) * [A_free]_1
@@ -1185,11 +1189,11 @@ contract TokamakVerifier is ITokamakVerifier {
                 msmStoreTerm(
                     msmPtr, 6, VK_POLY_KXLX_X_PART1, mulmod(common, addmod(mload(PROOF_R1XY_SLOT), sub(R_MOD, 1), R_MOD), R_MOD)
                 )
-                msmStoreTerm(msmPtr, 7, PROOF_POLY_B_X_SLOT_PART1, mload(0x9440))
-                msmStoreTerm(msmPtr, 8, PUBLIC_INPUTS_S_0_X_SLOT_PART1, mulmod(theta0, mload(0x9420), R_MOD))
-                msmStoreTerm(msmPtr, 9, PUBLIC_INPUTS_S_1_X_SLOT_PART1, mulmod(theta1, mload(0x9420), R_MOD))
-                msmStoreTerm(msmPtr, 10, VK_POLY_X_X_PART1, mulmod(theta0, mload(0x9400), R_MOD))
-                msmStoreTerm(msmPtr, 11, VK_POLY_Y_X_PART1, mulmod(theta1, mload(0x9400), R_MOD))
+                msmStoreTerm(msmPtr, 7, PROOF_POLY_B_X_SLOT_PART1, mload(STEP4_COEFF_C_B_SLOT))
+                msmStoreTerm(msmPtr, 8, PUBLIC_INPUTS_S_0_X_SLOT_PART1, mulmod(theta0, mload(STEP4_COEFF_C_F_SLOT), R_MOD))
+                msmStoreTerm(msmPtr, 9, PUBLIC_INPUTS_S_1_X_SLOT_PART1, mulmod(theta1, mload(STEP4_COEFF_C_F_SLOT), R_MOD))
+                msmStoreTerm(msmPtr, 10, VK_POLY_X_X_PART1, mulmod(theta0, mload(STEP4_COEFF_C_G_SLOT), R_MOD))
+                msmStoreTerm(msmPtr, 11, VK_POLY_Y_X_PART1, mulmod(theta1, mload(STEP4_COEFF_C_G_SLOT), R_MOD))
                 msmStoreTerm(
                     msmPtr,
                     12,
@@ -1230,7 +1234,11 @@ contract TokamakVerifier is ITokamakVerifier {
                             R_MOD
                         )
                     let coeff_identity :=
-                        addmod(addmod(0, sub(R_MOD, coeff_identity_base), R_MOD), mulmod(theta2, mload(0x9440), R_MOD), R_MOD)
+                        addmod(
+                            addmod(0, sub(R_MOD, coeff_identity_base), R_MOD),
+                            mulmod(theta2, mload(STEP4_COEFF_C_B_SLOT), R_MOD),
+                            R_MOD
+                        )
                     msmStoreTerm(msmPtr, 15, VK_IDENTITY_X_PART1, coeff_identity)
                 }
 

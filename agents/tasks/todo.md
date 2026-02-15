@@ -1,5 +1,20 @@
 # TokamakVerifier Gas Profiling Todo
 
+## 2026-02-15 Update Plan (Step4 Scratch Alias Removal)
+- [x] Identify and replace Step4 scratch literals overlapping reserved slots (`0x9400/0x9420/0x9440`).
+- [x] Introduce named Step4 scratch constants in a safe, non-overlapping region.
+- [x] Re-scan literal memory accesses in reserved slot range and run focused verifier tests.
+- [x] Add review note with exact validation commands and outcomes.
+
+### 2026-02-15 Review Note (Step4 Scratch Alias Removal)
+- Validation commands:
+  - `perl -ne 'if(/\\b(mstore|mload|mstore8)\\((0x[0-9a-fA-F]+)\\b/){$op=$1;$a=hex($2); if($a>=0x8240 && $a<=0x9780){printf(\"%5d %s %s\\n\",$.,$op,$2)}}' src/verifier/TokamakVerifier.sol`
+  - `forge test --match-contract testTokamakVerifier --offline`
+- Result:
+  - `prepareLhsAuxSingleMSM` scratch literals (`0x9400/0x9420/0x9440`) were replaced by named constants at `0x11800/0x11820/0x11840`, removing aliasing with `PAIRING_AGG_RHS_2_*` reserved slots.
+  - Reserved-range literal scan returned no hits after replacement.
+  - `testTokamakVerifier` passed (`5 passed, 0 failed`).
+
 ## 2026-02-15 Update Plan (PR #82 Review: computeAPUB Scratch Memory Safety)
 - [x] Audit `computeAPUB()` scratch memory addresses against reserved verifier memory layout.
 - [x] Replace hardcoded scratch offsets in `computeAPUB()` with named constants in a safe memory region.

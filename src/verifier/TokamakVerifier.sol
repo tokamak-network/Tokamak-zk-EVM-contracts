@@ -2,6 +2,7 @@
 pragma solidity 0.8.29;
 
 import {ITokamakVerifier} from "../interface/ITokamakVerifier.sol";
+import {TokamakVerifierKeyGenerated} from "./TokamakVerifierKey/TokamakVerifierKey.generated.sol";
 
 /* solhint-disable max-line-length */
 /// @author Project Ooo team
@@ -126,16 +127,16 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant PROOF_POLY_N_CHI_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x840;
     uint256 internal constant PROOF_POLY_N_CHI_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x860;
     uint256 internal constant PROOF_POLY_N_CHI_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x880;
-    // O_pub
+    // O_pub,free
     uint256 internal constant PROOF_POLY_OPUB_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x8a0;
     uint256 internal constant PROOF_POLY_OPUB_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x8c0;
     uint256 internal constant PROOF_POLY_OPUB_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x8e0;
     uint256 internal constant PROOF_POLY_OPUB_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x900;
-    // A
-    uint256 internal constant PROOF_POLY_A_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x920;
-    uint256 internal constant PROOF_POLY_A_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x940;
-    uint256 internal constant PROOF_POLY_A_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x960;
-    uint256 internal constant PROOF_POLY_A_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x980;
+    // A_free
+    uint256 internal constant PROOF_POLY_A_FREE_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x920;
+    uint256 internal constant PROOF_POLY_A_FREE_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x940;
+    uint256 internal constant PROOF_POLY_A_FREE_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0x960;
+    uint256 internal constant PROOF_POLY_A_FREE_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0x980;
     // R_xy
     uint256 internal constant PROOF_R1XY_SLOT = 0x8000 + 0x200 + 0x120 + 0x9a0;
     // R'_xy
@@ -144,6 +145,12 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant PROOF_R3XY_SLOT = 0x8000 + 0x200 + 0x120 + 0x9e0;
     // V_xy
     uint256 internal constant PROOF_VXY_SLOT = 0x8000 + 0x200 + 0x120 + 0xa00;
+
+    // O_pub,fix (decoded from `_preprocessed`; used in final pairing)
+    uint256 internal constant PROOF_POLY_OPUB_FIX_X_SLOT_PART1 = 0x9720;
+    uint256 internal constant PROOF_POLY_OPUB_FIX_X_SLOT_PART2 = 0x9740;
+    uint256 internal constant PROOF_POLY_OPUB_FIX_Y_SLOT_PART1 = 0x9760;
+    uint256 internal constant PROOF_POLY_OPUB_FIX_Y_SLOT_PART2 = 0x9780;
 
     /*//////////////////////////////////////////////////////////////
                 transcript slot (used for challenge computation)
@@ -166,24 +173,11 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x080;
     uint256 internal constant CHALLENGE_KAPPA_2_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0a0;
     uint256 internal constant CHALLENGE_ZETA_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0c0;
-    uint256 internal constant CHALLENGE_XI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0e0;
     uint256 internal constant CHALLENGE_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100;
 
     /*//////////////////////////////////////////////////////////////
                         Intermediary verifier state
     //////////////////////////////////////////////////////////////*/
-
-    // [F]_1
-    uint256 internal constant INTERMERDIARY_POLY_F_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x020;
-    uint256 internal constant INTERMERDIARY_POLY_F_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x040;
-    uint256 internal constant INTERMERDIARY_POLY_F_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x060;
-    uint256 internal constant INTERMERDIARY_POLY_F_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x080;
-
-    // [G]_1
-    uint256 internal constant INTERMERDIARY_POLY_G_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x0a0;
-    uint256 internal constant INTERMERDIARY_POLY_G_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x0c0;
-    uint256 internal constant INTERMERDIARY_POLY_G_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x0e0;
-    uint256 internal constant INTERMERDIARY_POLY_G_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x100;
 
     // t_n(χ)
     uint256 internal constant INTERMERDIARY_SCALAR_T_N_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x120;
@@ -194,45 +188,8 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant INTERMERDIARY_SCALAR_T_MI_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x160;
     // K_0(χ)
     uint256 internal constant INTERMEDIARY_SCALAR_KO_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x180;
-    // A_pub
+    // A_eval = A(chi)
     uint256 internal constant INTERMEDIARY_SCALAR_APUB_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0;
-
-    /*//////////////////////////////////////////////////////////////
-                      Aggregated commitment
-    //////////////////////////////////////////////////////////////*/
-
-    uint256 internal constant AGG_LHS_A_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x020;
-    uint256 internal constant AGG_LHS_A_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x040;
-    uint256 internal constant AGG_LHS_A_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x060;
-    uint256 internal constant AGG_LHS_A_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x080;
-
-    uint256 internal constant AGG_LHS_B_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x0a0;
-    uint256 internal constant AGG_LHS_B_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x0c0;
-    uint256 internal constant AGG_LHS_B_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x0e0;
-    uint256 internal constant AGG_LHS_B_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x100;
-
-    uint256 internal constant AGG_LHS_C_X_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x120;
-    uint256 internal constant AGG_LHS_C_X_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x140;
-    uint256 internal constant AGG_LHS_C_Y_SLOT_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x160;
-    uint256 internal constant AGG_LHS_C_Y_SLOT_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x180;
-
-    uint256 internal constant PAIRING_AGG_LHS_X_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x1a0;
-    uint256 internal constant PAIRING_AGG_LHS_X_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x1c0;
-    uint256 internal constant PAIRING_AGG_LHS_Y_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x1e0;
-    uint256 internal constant PAIRING_AGG_LHS_Y_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x200;
-
-    uint256 internal constant PAIRING_AGG_AUX_X_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x220;
-    uint256 internal constant PAIRING_AGG_AUX_X_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x240;
-    uint256 internal constant PAIRING_AGG_AUX_Y_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x260;
-    uint256 internal constant PAIRING_AGG_AUX_Y_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x280;
 
     uint256 internal constant PAIRING_AGG_LHS_AUX_X_SLOT_PART1 =
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x2a0;
@@ -260,19 +217,6 @@ contract TokamakVerifier is ITokamakVerifier {
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x3e0;
     uint256 internal constant PAIRING_AGG_RHS_2_Y_SLOT_PART2 =
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x400;
-
-    /*//////////////////////////////////////////////////////////////
-                                Pairing data
-    //////////////////////////////////////////////////////////////*/
-
-    uint256 internal constant BUFFER_AGGREGATED_POLY_X_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x420;
-    uint256 internal constant BUFFER_AGGREGATED_POLY_X_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x440;
-    uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART1 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x460;
-    uint256 internal constant BUFFER_AGGREGATED_POLY_Y_SLOT_PART2 =
-        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480;
 
     /*//////////////////////////////////////////////////////////////
                             Verification keys
@@ -322,9 +266,6 @@ contract TokamakVerifier is ITokamakVerifier {
     //////////////////////////////////////////////////////////////*/
 
     // Scalar field size
-    // Q_MOD is the base field modulus (48 bytes long). To fit with the EVM, we sliced it into two 32bytes variables => 16 first bytes are zeros
-    uint256 internal constant Q_MOD_PART1 = 0x000000000000000000000000000000001a0111ea397fe69a4b1ba7b6434bacd7;
-    uint256 internal constant Q_MOD_PART2 = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
     // R_MOD is the main subgroup order
     uint256 internal constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
@@ -333,6 +274,10 @@ contract TokamakVerifier is ITokamakVerifier {
 
     // n
     uint256 internal constant CONSTANT_N = 2048;
+    // ω_64
+    uint256 internal constant OMEGA_64 = 0x0e4840ac57f86f5e293b1d67bc8de5d9a12a70a615d0b8e4d2fc5e69ac5db47f;
+    // ω_128
+    uint256 internal constant OMEGA_128 = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
     // ω_512
     uint256 internal constant OMEGA_512 = 0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
     // m_i
@@ -358,6 +303,15 @@ contract TokamakVerifier is ITokamakVerifier {
     // ω_smax_2048^{-1}
     uint256 internal constant OMEGA_SMAX_2048_MINUS_1 =
         0x394fda0d65ba213edeae67bc36f376e13cc5bb329aa58ff53dc9e5600f6fb2ac;
+
+    // computeAPUB scratch buffers (64 words each), placed above verifier reserved slots.
+    uint256 internal constant COMPUTE_APUB_NUMERATOR_BUFFER_SLOT = 0x10000;
+    uint256 internal constant COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT = 0x10800;
+    uint256 internal constant COMPUTE_APUB_PREFIX_BUFFER_SLOT = 0x11000;
+    // Step 4 temporary coefficients (C_G, C_F, C_B = C_G + C_F), kept outside reserved verifier slots.
+    uint256 internal constant STEP4_COEFF_C_G_SLOT = 0x11800;
+    uint256 internal constant STEP4_COEFF_C_F_SLOT = 0x11820;
+    uint256 internal constant STEP4_COEFF_C_B_SLOT = 0x11840;
 
     /*//////////////////////////////////////////////////////////////
                             G2 elements
@@ -482,6 +436,26 @@ contract TokamakVerifier is ITokamakVerifier {
     /// `VK_` prefix.
     /// NOTE: Function may corrupt the memory state if some memory was used before this function was called.
     function _loadVerificationKey() internal pure virtual {
+        uint256 lagrangeKlXPart1 = TokamakVerifierKeyGenerated.LAGRANGE_KL_X_PART1;
+        uint256 lagrangeKlXPart2 = TokamakVerifierKeyGenerated.LAGRANGE_KL_X_PART2;
+        uint256 lagrangeKlYPart1 = TokamakVerifierKeyGenerated.LAGRANGE_KL_Y_PART1;
+        uint256 lagrangeKlYPart2 = TokamakVerifierKeyGenerated.LAGRANGE_KL_Y_PART2;
+
+        uint256 identityXPart1 = TokamakVerifierKeyGenerated.IDENTITY_X_PART1;
+        uint256 identityXPart2 = TokamakVerifierKeyGenerated.IDENTITY_X_PART2;
+        uint256 identityYPart1 = TokamakVerifierKeyGenerated.IDENTITY_Y_PART1;
+        uint256 identityYPart2 = TokamakVerifierKeyGenerated.IDENTITY_Y_PART2;
+
+        uint256 sigmaXXPart1 = TokamakVerifierKeyGenerated.SIGMA_X_X_PART1;
+        uint256 sigmaXXPart2 = TokamakVerifierKeyGenerated.SIGMA_X_X_PART2;
+        uint256 sigmaXYPart1 = TokamakVerifierKeyGenerated.SIGMA_X_Y_PART1;
+        uint256 sigmaXYPart2 = TokamakVerifierKeyGenerated.SIGMA_X_Y_PART2;
+
+        uint256 sigmaYXPart1 = TokamakVerifierKeyGenerated.SIGMA_Y_X_PART1;
+        uint256 sigmaYXPart2 = TokamakVerifierKeyGenerated.SIGMA_Y_X_PART2;
+        uint256 sigmaYYPart1 = TokamakVerifierKeyGenerated.SIGMA_Y_Y_PART1;
+        uint256 sigmaYYPart2 = TokamakVerifierKeyGenerated.SIGMA_Y_Y_PART2;
+
         assembly {
             /*
             "lagrange_KL": {
@@ -490,10 +464,10 @@ contract TokamakVerifier is ITokamakVerifier {
             }
             */
             // preproccessed KL commitment vk
-            mstore(VK_POLY_KXLX_X_PART1, 0x0000000000000000000000000000000004f1e1a2ec023aef31bde5b77da1e69d)
-            mstore(VK_POLY_KXLX_X_PART2, 0xdf5f0bc762904ccee1e8b0131e517246ccf938b28f294dcaca7dbd0c36ff3607)
-            mstore(VK_POLY_KXLX_Y_PART1, 0x0000000000000000000000000000000013440b9abcae5c5c5749fbc390065d1e)
-            mstore(VK_POLY_KXLX_Y_PART2, 0xdea2da1ca7a4f63960dc958c9f32d289c3df14028dc7262642cc1466d6745bef)
+            mstore(VK_POLY_KXLX_X_PART1, lagrangeKlXPart1)
+            mstore(VK_POLY_KXLX_X_PART2, lagrangeKlXPart2)
+            mstore(VK_POLY_KXLX_Y_PART1, lagrangeKlYPart1)
+            mstore(VK_POLY_KXLX_Y_PART2, lagrangeKlYPart2)
 
             /*
             "G": {
@@ -502,10 +476,10 @@ contract TokamakVerifier is ITokamakVerifier {
             },
             */
             // [1]_1 (Generator/Identity point)
-            mstore(VK_IDENTITY_X_PART1, 0x000000000000000000000000000000000b001b4cc05fa01578be7d4e821d6ff5)
-            mstore(VK_IDENTITY_X_PART2, 0x8f2a05c584fba3cb31a37942dece65eadec9a878add2282f7c2513abb8d4ab05)
-            mstore(VK_IDENTITY_Y_PART1, 0x0000000000000000000000000000000015e237775397ed22eef43dd36cdca277)
-            mstore(VK_IDENTITY_Y_PART2, 0xc9cf6fa7e4ffff0a5bb4b20a82392caacf0f63fb6cdb02bccf2f5af14970d6b9)
+            mstore(VK_IDENTITY_X_PART1, identityXPart1)
+            mstore(VK_IDENTITY_X_PART2, identityXPart2)
+            mstore(VK_IDENTITY_Y_PART1, identityYPart1)
+            mstore(VK_IDENTITY_Y_PART2, identityYPart2)
 
             /*
             "x": {
@@ -514,10 +488,10 @@ contract TokamakVerifier is ITokamakVerifier {
             },
             */
             // [x]_1 (Polynomial evaluation point)
-            mstore(VK_POLY_X_X_PART1, 0x000000000000000000000000000000000d45aca9cf6986877b859616c9613dfe)
-            mstore(VK_POLY_X_X_PART2, 0x38633f32c81a5a5e426f37beb4f1f9a8db94bcb17673c014031ed6f80406ae12)
-            mstore(VK_POLY_X_Y_PART1, 0x00000000000000000000000000000000014de0221674a94bd5e60383f1f262d1)
-            mstore(VK_POLY_X_Y_PART2, 0x00c79178775b99480ec1a267fb28c905389357c2c111b94becf8676365f64133)
+            mstore(VK_POLY_X_X_PART1, sigmaXXPart1)
+            mstore(VK_POLY_X_X_PART2, sigmaXXPart2)
+            mstore(VK_POLY_X_Y_PART1, sigmaXYPart1)
+            mstore(VK_POLY_X_Y_PART2, sigmaXYPart2)
 
             /*
             "y": {
@@ -526,10 +500,10 @@ contract TokamakVerifier is ITokamakVerifier {
             }
             */
             // [y]_1 (Polynomial evaluation point)
-            mstore(VK_POLY_Y_X_PART1, 0x0000000000000000000000000000000009cf106b4240325df41d6a76331883cb)
-            mstore(VK_POLY_Y_X_PART2, 0xe61a678d7d877bf670446001be74d27580424e05a37af26bb85f99b380758888)
-            mstore(VK_POLY_Y_Y_PART1, 0x000000000000000000000000000000000889c802a90694c68dfbcf207205778a)
-            mstore(VK_POLY_Y_Y_PART2, 0x7493cda2cbb6f9fb0b5ad39dbeef2fac91d847cc01d6040164ef30d840395af0)
+            mstore(VK_POLY_Y_X_PART1, sigmaYXPart1)
+            mstore(VK_POLY_Y_X_PART2, sigmaYXPart2)
+            mstore(VK_POLY_Y_Y_PART1, sigmaYYPart1)
+            mstore(VK_POLY_Y_Y_PART2, sigmaYYPart2)
         }
     }
 
@@ -538,7 +512,7 @@ contract TokamakVerifier is ITokamakVerifier {
         uint256[] calldata, // _proof part2 (32 bytes)
         uint128[] calldata, // _preprocessedPart1 (16 bytes)
         uint256[] calldata, // _preprocessedPart2 (32 bytes)
-        uint256[] calldata, // publicInputs (used for computing A_pub)
+        uint256[] calldata, // publicInputs (used for computing A_eval)
         uint256 // smax
     ) public view virtual returns (bool final_result) {
         // No memory was accessed yet, so keys can be loaded into the right place and not corrupt any other memory.
@@ -582,150 +556,20 @@ contract TokamakVerifier is ITokamakVerifier {
                 res := mload(0x00)
             }
 
-            /// @dev Performs a G1 point multiplication operation and stores the result in a given memory destination.
-            function g1pointMulIntoDest(point, s, dest) {
-                mstore(0x00, mload(point))
-                mstore(0x20, mload(add(point, 0x20)))
-                mstore(0x40, mload(add(point, 0x40)))
-                mstore(0x60, mload(add(point, 0x60)))
-                mstore(0x80, s)
-                // BLS12-381 G1MSM at address 0x0c
-                if iszero(staticcall(gas(), 0x0c, 0, 0xa0, dest, 0x80)) {
-                    revertWithMessage(30, "g1pointMulIntoDest: G1MSM failed")
-                }
+            /// @dev Writes one `(point, scalar)` term into a packed MSM buffer.
+            function msmStoreTerm(buffer, idx, point, scalar) {
+                let off := add(buffer, mul(idx, 0xa0))
+                mstore(off, mload(point))
+                mstore(add(off, 0x20), mload(add(point, 0x20)))
+                mstore(add(off, 0x40), mload(add(point, 0x40)))
+                mstore(add(off, 0x60), mload(add(point, 0x60)))
+                mstore(add(off, 0x80), scalar)
             }
 
-            /// @dev Performs a G1 point addition operation and stores the result in a given memory destination.
-            function g1pointAddIntoDest(p1, p2, dest) {
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(add(p1, 0x40)))
-                mstore(0x60, mload(add(p1, 0x60)))
-                mstore(0x80, mload(p2))
-                mstore(0xa0, mload(add(p2, 0x20)))
-                mstore(0xc0, mload(add(p2, 0x40)))
-                mstore(0xe0, mload(add(p2, 0x60)))
-                //  BLS12-381 G1ADDat address 0x0b
-                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
-                    revertWithMessage(30, "g1pointAddIntoDest: G1ADD failed")
-                }
-            }
-
-            /// @dev Performs a G1 point multiplication and addition operations and stores the result in a given memory destination.
-            function g1pointMulAndAddIntoDest(point, s, dest) {
-                mstore(0x00, mload(point))
-                mstore(0x20, mload(add(point, 0x20)))
-                mstore(0x40, mload(add(point, 0x40)))
-                mstore(0x60, mload(add(point, 0x60)))
-                mstore(0x80, s)
-                let success := staticcall(gas(), 0x0c, 0, 0xa0, 0, 0x80)
-
-                mstore(0x80, mload(dest))
-                mstore(0xa0, mload(add(dest, 0x20)))
-                mstore(0xc0, mload(add(dest, 0x40)))
-                mstore(0xe0, mload(add(dest, 0x60)))
-                success := and(success, staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80))
-
-                if iszero(success) { revertWithMessage(22, "g1pointMulAndAddIntoDest") }
-            }
-
-            /// @dev Performs a point subtraction operation and updates the first point with the result.
-            function g1pointSubAssign(p1, p2) {
-                // We'll use the fact that for BLS12-381 with 48-byte coordinates,
-                // the precompile expects the full 384-bit representation
-
-                // Copy p1 to memory
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(add(p1, 0x40)))
-                mstore(0x60, mload(add(p1, 0x60)))
-
-                // Copy p2's x-coordinate
-                mstore(0x80, mload(p2))
-                mstore(0xa0, mload(add(p2, 0x20)))
-
-                // For the y-coordinate, we need to negate it
-                // In BLS12-381, -y = q - y where q is the field modulus
-                let y_low := mload(add(p2, 0x60))
-                let y_high := mload(add(p2, 0x40))
-
-                // Perform q - y
-                let neg_y_low, neg_y_high
-
-                // Since we're working with 384-bit numbers split into two 256-bit parts,
-                // and the high 128 bits of the high part are always zero for valid field elements
-                let borrow := 0
-
-                // Subtract low part
-                switch lt(Q_MOD_PART2, y_low)
-                case 1 {
-                    // Need to borrow from high part
-                    neg_y_low := sub(Q_MOD_PART2, y_low)
-                    neg_y_low := add(neg_y_low, not(0)) // Add 2^256
-                    neg_y_low := add(neg_y_low, 1)
-                    borrow := 1
-                }
-                default { neg_y_low := sub(Q_MOD_PART2, y_low) }
-
-                // Subtract high part with borrow
-                neg_y_high := sub(sub(Q_MOD_PART1, y_high), borrow)
-
-                mstore(0xc0, neg_y_high)
-                mstore(0xe0, neg_y_low)
-
-                // Perform the addition
-                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, p1, 0x80)) {
-                    revertWithMessage(28, "pointSubAssign: G1ADD failed")
-                }
-            }
-
-            /// @dev Performs a point subtraction operation and updates dest with the result.
-            function g1pointSubIntoDest(p1, p2, dest) {
-                // We'll use the fact that for BLS12-381 with 48-byte coordinates,
-                // the precompile expects the full 384-bit representation
-
-                // Copy p1 to memory
-                mstore(0x00, mload(p1))
-                mstore(0x20, mload(add(p1, 0x20)))
-                mstore(0x40, mload(add(p1, 0x40)))
-                mstore(0x60, mload(add(p1, 0x60)))
-
-                // Copy p2's x-coordinate
-                mstore(0x80, mload(p2))
-                mstore(0xa0, mload(add(p2, 0x20)))
-
-                // For the y-coordinate, we need to negate it
-                // In BLS12-381, -y = q - y where q is the field modulus
-                let y_low := mload(add(p2, 0x60))
-                let y_high := mload(add(p2, 0x40))
-
-                // Perform q - y
-                let neg_y_low, neg_y_high
-
-                // Since we're working with 384-bit numbers split into two 256-bit parts,
-                // and the high 128 bits of the high part are always zero for valid field elements
-                let borrow := 0
-
-                // Subtract low part
-                switch lt(Q_MOD_PART2, y_low)
-                case 1 {
-                    // Need to borrow from high part
-                    neg_y_low := sub(Q_MOD_PART2, y_low)
-                    neg_y_low := add(neg_y_low, not(0)) // Add 2^256
-                    neg_y_low := add(neg_y_low, 1)
-                    borrow := 1
-                }
-                default { neg_y_low := sub(Q_MOD_PART2, y_low) }
-
-                // Subtract high part with borrow
-                neg_y_high := sub(sub(Q_MOD_PART1, y_high), borrow)
-
-                mstore(0xc0, neg_y_high)
-                mstore(0xe0, neg_y_low)
-
-                // Perform the addition
-                if iszero(staticcall(gas(), 0x0b, 0x00, 0x100, dest, 0x80)) {
-                    revertWithMessage(28, "pointSubAssign: G1ADD failed")
+            /// @dev Computes MSM over packed `(point, scalar)` terms already stored in memory.
+            function g1msmFromBuffer(buffer, nTerms, dest) {
+                if iszero(staticcall(gas(), 0x0c, buffer, mul(nTerms, 0xa0), dest, 0x80)) {
+                    revertWithMessage(25, "g1msmFromBuffer failed")
                 }
             }
 
@@ -762,29 +606,43 @@ contract TokamakVerifier is ITokamakVerifier {
                 let offset4 := calldataload(0x64)
                 let part1LengthInWords := calldataload(add(offset, 0x04))
                 let part2LengthInWords := calldataload(add(offset2, 0x04))
-                let isValid := and(eq(part1LengthInWords, 38), eq(part2LengthInWords, 42))
+                let preprocessedPart1LengthInWords := calldataload(add(offset3, 0x04))
+                let preprocessedPart2LengthInWords := calldataload(add(offset4, 0x04))
+                let isValid :=
+                    and(
+                        and(eq(part1LengthInWords, 38), eq(part2LengthInWords, 42)),
+                        and(eq(preprocessedPart1LengthInWords, 6), eq(preprocessedPart2LengthInWords, 6))
+                    )
 
                 // revert if the length of the proof is not valid
                 if iszero(isValid) { revertWithMessage(27, "loadProof: Proof is invalid") }
 
-                // S PERMUTATION POLYNOMIALS
+                // S PERMUTATION POLYNOMIALS & O_pub,fix
                 {
                     let x0 := calldataload(add(offset3, 0x024))
                     let y0 := calldataload(add(offset3, 0x044))
                     let x1 := calldataload(add(offset3, 0x064))
                     let y1 := calldataload(add(offset3, 0x084))
+                    let x2 := calldataload(add(offset3, 0x0a4))
+                    let y2 := calldataload(add(offset3, 0x0c4))
                     mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART1, x0)
                     mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART1, y0)
                     mstore(PUBLIC_INPUTS_S_1_X_SLOT_PART1, x1)
                     mstore(PUBLIC_INPUTS_S_1_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_OPUB_FIX_X_SLOT_PART1, x2)
+                    mstore(PROOF_POLY_OPUB_FIX_Y_SLOT_PART1, y2)
                     x0 := calldataload(add(offset4, 0x024))
                     y0 := calldataload(add(offset4, 0x044))
                     x1 := calldataload(add(offset4, 0x064))
                     y1 := calldataload(add(offset4, 0x084))
+                    x2 := calldataload(add(offset4, 0x0a4))
+                    y2 := calldataload(add(offset4, 0x0c4))
                     mstore(PUBLIC_INPUTS_S_0_X_SLOT_PART2, x0)
                     mstore(PUBLIC_INPUTS_S_0_Y_SLOT_PART2, y0)
                     mstore(PUBLIC_INPUTS_S_1_X_SLOT_PART2, x1)
                     mstore(PUBLIC_INPUTS_S_1_Y_SLOT_PART2, y1)
+                    mstore(PROOF_POLY_OPUB_FIX_X_SLOT_PART2, x2)
+                    mstore(PROOF_POLY_OPUB_FIX_Y_SLOT_PART2, y2)
                 }
                 // PROOF U, V & W
                 {
@@ -940,7 +798,7 @@ contract TokamakVerifier is ITokamakVerifier {
                     mstore(PROOF_POLY_N_CHI_X_SLOT_PART2, x3)
                     mstore(PROOF_POLY_N_CHI_Y_SLOT_PART2, y3)
                 }
-                // PROOF O_PUB & A
+                // PROOF O_PUB & A_free
                 {
                     let x0 := calldataload(add(offset, 0x464))
                     let y0 := calldataload(add(offset, 0x484))
@@ -948,16 +806,16 @@ contract TokamakVerifier is ITokamakVerifier {
                     let y1 := calldataload(add(offset, 0x4c4))
                     mstore(PROOF_POLY_OPUB_X_SLOT_PART1, x0)
                     mstore(PROOF_POLY_OPUB_Y_SLOT_PART1, y0)
-                    mstore(PROOF_POLY_A_X_SLOT_PART1, x1)
-                    mstore(PROOF_POLY_A_Y_SLOT_PART1, y1)
+                    mstore(PROOF_POLY_A_FREE_X_SLOT_PART1, x1)
+                    mstore(PROOF_POLY_A_FREE_Y_SLOT_PART1, y1)
                     x0 := calldataload(add(offset2, 0x464))
                     y0 := calldataload(add(offset2, 0x484))
                     x1 := calldataload(add(offset2, 0x4a4))
                     y1 := calldataload(add(offset2, 0x4c4))
                     mstore(PROOF_POLY_OPUB_X_SLOT_PART2, x0)
                     mstore(PROOF_POLY_OPUB_Y_SLOT_PART2, y0)
-                    mstore(PROOF_POLY_A_X_SLOT_PART2, x1)
-                    mstore(PROOF_POLY_A_Y_SLOT_PART2, y1)
+                    mstore(PROOF_POLY_A_FREE_X_SLOT_PART2, x1)
+                    mstore(PROOF_POLY_A_FREE_Y_SLOT_PART2, y1)
                 }
 
                 mstore(PROOF_R1XY_SLOT, mod(calldataload(add(offset2, 0x4e4)), R_MOD))
@@ -1073,49 +931,13 @@ contract TokamakVerifier is ITokamakVerifier {
                                         3. Prepare Queries
                 //////////////////////////////////////////////////////////////*/
 
-            /// @dev Here we compute some queries for the final pairing
-            /// We use the formulas:
-            /// [F]_1:=[B]_1+θ_0[s^{(0)}(x,y)]_1+θ_1[s^{(1)}(x,y)]_1+θ_2[1]_1
-            ///
-            /// [G]_1:= [B]_1+θ_0[s^{(2)}(x,y)]_1+θ_1[y]_1+θ_2[1]_1
-            ///
-            /// t_n(χ):=χ^{n}-1
-            ///
-            /// t_{smax}(ζ) := ζ^{smax}-1
-            ///
-            /// t_{m_I}(χ) := χ^{m_I}-1
+            /// @dev Prepare scalar queries consumed by the single-shot Step 4 MSM.
+            /// We compute:
+            /// - t_n(χ) := χ^{n}-1
+            /// - t_{smax}(ζ) := ζ^{smax}-1
+            /// - t_{m_I}(χ) := χ^{m_I}-1
 
             function prepareQueries() {
-                // calculate [F]_1
-                {
-                    let theta0 := mload(CHALLENGE_THETA_0_SLOT)
-                    let theta1 := mload(CHALLENGE_THETA_1_SLOT)
-                    let theta2 := mload(CHALLENGE_THETA_2_SLOT)
-
-                    mstore(INTERMERDIARY_POLY_F_X_SLOT_PART1, mload(PROOF_POLY_B_X_SLOT_PART1))
-                    mstore(INTERMERDIARY_POLY_F_X_SLOT_PART2, mload(PROOF_POLY_B_X_SLOT_PART2))
-                    mstore(INTERMERDIARY_POLY_F_Y_SLOT_PART1, mload(PROOF_POLY_B_Y_SLOT_PART1))
-                    mstore(INTERMERDIARY_POLY_F_Y_SLOT_PART2, mload(PROOF_POLY_B_Y_SLOT_PART2))
-
-                    g1pointMulAndAddIntoDest(PUBLIC_INPUTS_S_0_X_SLOT_PART1, theta0, INTERMERDIARY_POLY_F_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(PUBLIC_INPUTS_S_1_X_SLOT_PART1, theta1, INTERMERDIARY_POLY_F_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(VK_IDENTITY_X_PART1, theta2, INTERMERDIARY_POLY_F_X_SLOT_PART1)
-                }
-                // calculate [G]_1
-                {
-                    let theta0 := mload(CHALLENGE_THETA_0_SLOT)
-                    let theta1 := mload(CHALLENGE_THETA_1_SLOT)
-                    let theta2 := mload(CHALLENGE_THETA_2_SLOT)
-
-                    mstore(INTERMERDIARY_POLY_G_X_SLOT_PART1, mload(PROOF_POLY_B_X_SLOT_PART1))
-                    mstore(INTERMERDIARY_POLY_G_X_SLOT_PART2, mload(PROOF_POLY_B_X_SLOT_PART2))
-                    mstore(INTERMERDIARY_POLY_G_Y_SLOT_PART1, mload(PROOF_POLY_B_Y_SLOT_PART1))
-                    mstore(INTERMERDIARY_POLY_G_Y_SLOT_PART2, mload(PROOF_POLY_B_Y_SLOT_PART2))
-
-                    g1pointMulAndAddIntoDest(VK_POLY_X_X_PART1, theta0, INTERMERDIARY_POLY_G_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(VK_POLY_Y_X_PART1, theta1, INTERMERDIARY_POLY_G_X_SLOT_PART1)
-                    g1pointMulAndAddIntoDest(VK_IDENTITY_X_PART1, theta2, INTERMERDIARY_POLY_G_X_SLOT_PART1)
-                }
                 // calculate t_n(χ)
                 {
                     let chi := mload(CHALLENGE_CHI_SLOT)
@@ -1173,25 +995,24 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(INTERMEDIARY_SCALAR_KO_SLOT, r)
             }
 
-            // A_pub = A(chi)
+            // A_eval = A(chi)
             // A(chi) = sum_0^{l-1}(a_j * M_j(chi))
             function computeAPUB() {
                 let chi := mload(CHALLENGE_CHI_SLOT)
                 let offset := calldataload(0x84)
 
-                let n := 512
-                let omega := OMEGA_512
-                let numPublicInputs := 512
+                let l_free := 64
+                let omega := OMEGA_64
 
-                // Compute chi^512 - 1
-                let chi_n := modexp(chi, n)
+                // Compute chi^64 - 1
+                let chi_n := modexp(chi, l_free)
                 let chi_n_1 := addmod(chi_n, sub(R_MOD, 1), R_MOD)
 
-                // Check if chi is a 512th root of unity
+                // Check if chi is a 64th root of unity
                 if iszero(chi_n_1) {
                     // Special case: find and return the corresponding value
                     let omega_power := 1
-                    for { let i := 0 } lt(i, numPublicInputs) { i := add(i, 1) } {
+                    for { let i := 0 } lt(i, l_free) { i := add(i, 1) } {
                         if eq(chi, omega_power) {
                             let val := calldataload(add(add(offset, 0x24), mul(i, 0x20)))
                             mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
@@ -1202,60 +1023,63 @@ contract TokamakVerifier is ITokamakVerifier {
                 }
 
                 // Normal case: compute weighted sum
-                let weightedSum := 0
-                let inv_n := modexp(n, sub(R_MOD, 2))
-
-                // First pass: count non-zero values and store their indices
+                // We store:
+                // - numerator base: a_j * ω^j
+                // - denominator_full: (χ - ω^j) * l_free
+                // and build prefix products in the same pass to reduce loop overhead.
+                let weightedSumRaw := 0
                 let nonZeroCount := 0
-                let tempOffset := 0x2000 // Temporary storage location
+                let tempOffset := COMPUTE_APUB_NUMERATOR_BUFFER_SLOT
+                let denomOffset := COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT
+                let prefixOffset := COMPUTE_APUB_PREFIX_BUFFER_SLOT
+                let omega_power := 1
+                let prefix := 1
 
-                for { let i := 0 } lt(i, numPublicInputs) { i := add(i, 1) } {
+                for { let i := 0 } lt(i, l_free) { i := add(i, 1) } {
                     let val := calldataload(add(add(offset, 0x24), mul(i, 0x20)))
                     if val {
-                        // Store index and value
-                        mstore(add(tempOffset, mul(nonZeroCount, 0x40)), i)
-                        mstore(add(tempOffset, add(mul(nonZeroCount, 0x40), 0x20)), val)
+                        let denominator := addmod(chi, sub(R_MOD, omega_power), R_MOD)
+
+                        // singular point: χ == ω^j
+                        if iszero(denominator) {
+                            mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
+                            leave
+                        }
+
+                        let denominatorFull := mulmod(denominator, l_free, R_MOD)
+                        let numeratorBase := mulmod(val, omega_power, R_MOD)
+
+                        mstore(add(tempOffset, mul(nonZeroCount, 0x20)), numeratorBase)
+                        mstore(add(denomOffset, mul(nonZeroCount, 0x20)), denominatorFull)
+
+                        prefix := mulmod(prefix, denominatorFull, R_MOD)
+                        mstore(add(prefixOffset, mul(nonZeroCount, 0x20)), prefix)
                         nonZeroCount := add(nonZeroCount, 1)
                     }
+                    omega_power := mulmod(omega_power, omega, R_MOD)
                 }
 
-                // Second pass: process only non-zero values
-                for { let j := 0 } lt(j, nonZeroCount) { j := add(j, 1) } {
-                    let i := mload(add(tempOffset, mul(j, 0x40)))
-                    let val := mload(add(tempOffset, add(mul(j, 0x40), 0x20)))
+                // Invert product once, then recover each inverse right-to-left.
+                if nonZeroCount {
+                    let running := modexp(prefix, sub(R_MOD, 2))
 
-                    // Compute omega^i using efficient method based on i
-                    let omega_i := 1
+                    for { let j := nonZeroCount } gt(j, 0) { j := sub(j, 1) } {
+                        let idx := sub(j, 1)
+                        let prefixPrev := 1
+                        if idx { prefixPrev := mload(add(prefixOffset, sub(mul(idx, 0x20), 0x20))) }
 
-                    // For small i, use repeated multiplication
-                    if lt(i, 16) {
-                        for { let k := 0 } lt(k, i) { k := add(k, 1) } { omega_i := mulmod(omega_i, omega, R_MOD) }
+                        let invDenominatorFull := mulmod(prefixPrev, running, R_MOD)
+                        let denominatorFull := mload(add(denomOffset, mul(idx, 0x20)))
+                        running := mulmod(running, denominatorFull, R_MOD)
+
+                        let numeratorBase := mload(add(tempOffset, mul(idx, 0x20)))
+                        let contributionRaw := mulmod(numeratorBase, invDenominatorFull, R_MOD)
+                        weightedSumRaw := addmod(weightedSumRaw, contributionRaw, R_MOD)
                     }
-                    // For larger i, use modexp
-                    if iszero(lt(i, 16)) { omega_i := modexp(omega, i) }
-
-                    // Compute contribution
-                    let denominator := addmod(chi, sub(R_MOD, omega_i), R_MOD)
-
-                    if iszero(denominator) {
-                        mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
-                        leave
-                    }
-
-                    // Compute full denominator: (chi - ω^j) * n
-                    let denominator_full := mulmod(denominator, n, R_MOD)
-                    let inv_denominator_full := modexp(denominator_full, sub(R_MOD, 2))
-
-                    // Compute numerator: a_j * ω^j * (chi^n - 1)
-                    let numerator := mulmod(val, omega_i, R_MOD)
-                    numerator := mulmod(numerator, chi_n_1, R_MOD)
-
-                    let contribution := mulmod(numerator, inv_denominator_full, R_MOD)
-                    weightedSum := addmod(weightedSum, contribution, R_MOD)
                 }
 
-                // Result is the weighted sum (no additional factors needed)
-                let result := weightedSum
+                // Apply (χ^n - 1) once at the end.
+                let result := mulmod(weightedSumRaw, chi_n_1, R_MOD)
 
                 mstore(INTERMEDIARY_SCALAR_APUB_SLOT, result)
             }
@@ -1272,6 +1096,9 @@ contract TokamakVerifier is ITokamakVerifier {
             ///
             /// [LHS_A]_1 := V_{x,y}[U]_1 - [W]_1 + κ1([V]_1 - V_{x,y}[G]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
             ///
+            /// Implementation note:
+            /// - This implementation computes `[LHS]_1 + [AUX]_1` directly in one 22-term MSM using the expanded form.
+            ///
             ///
             /// and where
             ///
@@ -1281,11 +1108,16 @@ contract TokamakVerifier is ITokamakVerifier {
             ///         with a := κ1^2κ0R_{x,y}((χ-1)  + κ0K_0(χ))
             ///              b := κ1^2κ0((χ-1) R’_{x,y} + κ0K_0(χ)R’’_{x,y})
             ///              c := κ1^3 + κ2 + κ2^2
-            ///              d := -κ1^3R_{x,y} - κ2R’_{x,y} - κ2^2R’’_{x,y} - κ1V_{x,y} - κ1^4A_{pub}
+            ///              d := -κ1^3R_{x,y} - κ2R’_{x,y} - κ2^2R’’_{x,y} - κ1V_{x,y} - κ1^4A_{eval}
             ///
             ///  and where
             ///
-            ///  [LHS_B]_1 := (1+κ2κ1^4)[A]_1
+            ///  [LHS_B]_1 := (1+κ2κ1^4)[A_{free}]_1 - κ2κ1^4A_{eval}[1]_1
+            ///
+            ///  implementation note for current proof format:
+            ///  - `O_{pub,fix}` is loaded from `_preprocessed` and used in final pairing
+            ///  - `A_{free}` is loaded from `_proof`
+            ///  - `A_{eval}` is provided by `computeAPUB()` into `INTERMEDIARY_SCALAR_APUB_SLOT`
             ///
             ///  and
             ///
@@ -1293,126 +1125,136 @@ contract TokamakVerifier is ITokamakVerifier {
             ///             κ2^2 * ω_{m_i}^{-1} * χ *[M_{χ}]_1 + κ2^2 * ζ * [M_{ζ}]_1 + κ2^3 * ω_{m_i}^{-1} * χ * [N_{χ}]_1 + κ_2^3 ω_smax^{-1} * ζ * [N_{ζ}]
             ///
 
-            /// @dev calculate [LHS_A]_1 = V_{x,y}[U]_1 - [W]_1 + κ1[V]_1 - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
-            function prepareLHSA() {
-                g1pointMulIntoDest(PROOF_POLY_U_X_SLOT_PART1, mload(PROOF_VXY_SLOT), AGG_LHS_A_X_SLOT_PART1)
-                g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, PROOF_POLY_W_X_SLOT_PART1)
+            /// @dev Compute [LHS]_1 + [AUX]_1 in one 22-term MSM using the fully expanded form
+            ///      from `docs/verifier-spec.md` summary table.
+            function prepareLhsAuxSingleMSM() {
+                let msmPtr := 0x9800
 
-                //κ1[V]_1
-                g1pointMulIntoDest(
-                    PROOF_POLY_V_X_SLOT_PART1, mload(CHALLENGE_KAPPA_1_SLOT), BUFFER_AGGREGATED_POLY_X_SLOT_PART1
-                )
-
-                // (V_{x,y}[U]_1 - [W]_1) + κ1[V]_1
-                g1pointAddIntoDest(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1, AGG_LHS_A_X_SLOT_PART1)
-
-                // t_n(χ)[Q_{A,X}]_1
-                g1pointMulIntoDest(
-                    PROOF_POLY_QAX_X_SLOT_PART1,
-                    mload(INTERMERDIARY_SCALAR_T_N_CHI_SLOT),
-                    BUFFER_AGGREGATED_POLY_X_SLOT_PART1
-                )
-
-                // (V_{x,y}[U]_1 - [W]_1) + (κ1 * ([V]_1 - V_{x,y}[1]_1)) - t_n(χ)[Q_{A,X}]_1
-                g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                // t_{s_{max}}(ζ)[Q_{A,Y}]_1
-                g1pointMulIntoDest(
-                    PROOF_POLY_QAY_X_SLOT_PART1,
-                    mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT),
-                    BUFFER_AGGREGATED_POLY_X_SLOT_PART1
-                )
-                // V_{x,y}[U]_1 - [W]_1 + κ1 * ([V]_1 - V_{x,y}[1]_1) - t_n(χ)[Q_{A,X}]_1 - t_{s_{max}}(ζ)[Q_{A,Y}]_1
-                g1pointSubAssign(AGG_LHS_A_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-            }
-
-            /// @dev [LHS_B]_1 := (1+κ2κ1^4)[A]_1
-            function prepareLHSB() {
-                let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
-                let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
-                let A_pub := mload(INTERMEDIARY_SCALAR_APUB_SLOT)
-
-                // 1+κ2κ1^4
-                let coeff1 := addmod(1, mulmod(kappa2, modexp(kappa1, 4), R_MOD), R_MOD)
-
-                // (1+κ2κ1^4)[A]_1
-                g1pointMulIntoDest(PROOF_POLY_A_X_SLOT_PART1, coeff1, AGG_LHS_B_X_SLOT_PART1)
-            }
-
-            ///  @dev [LHS_C]_1 := κ1^2(R_{x,y} - 1) * [K_{-1}(X)L_{-1}(X)]_1 + a[G]_1
-            ///                    - b[F]_1 - κ1^2 * t_{m_i}(χ) * [Q_{C,X}]_1 - κ1^2 * t_{s_{max}}(ζ) * [Q_{C,Y}]_1) + c[R]_1 + d[1]_1
-            function prepareLHSC() {
                 let kappa0 := mload(CHALLENGE_KAPPA_0_SLOT)
                 let kappa1 := mload(CHALLENGE_KAPPA_1_SLOT)
+                let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
+                let chi := mload(CHALLENGE_CHI_SLOT)
+                let zeta := mload(CHALLENGE_ZETA_SLOT)
+                let theta0 := mload(CHALLENGE_THETA_0_SLOT)
+                let theta1 := mload(CHALLENGE_THETA_1_SLOT)
+                let theta2 := mload(CHALLENGE_THETA_2_SLOT)
+
                 let kappa1_pow2 := mulmod(kappa1, kappa1, R_MOD)
                 let kappa1_pow3 := mulmod(kappa1, kappa1_pow2, R_MOD)
-                let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
+                let kappa1_pow4 := mulmod(kappa1, kappa1_pow3, R_MOD)
                 let kappa2_pow2 := mulmod(kappa2, kappa2, R_MOD)
-                let chi := mload(CHALLENGE_CHI_SLOT)
-                let chi_minus_1 := addmod(chi, sub(R_MOD, 1), R_MOD)
-                let r1 := mload(PROOF_R1XY_SLOT)
-                let r2 := mload(PROOF_R2XY_SLOT)
-                let r3 := mload(PROOF_R3XY_SLOT)
-                let k0 := mload(INTERMEDIARY_SCALAR_KO_SLOT)
-                let V_xy := mload(PROOF_VXY_SLOT)
-                let A_pub := mload(INTERMEDIARY_SCALAR_APUB_SLOT)
-                let t_ml := mload(INTERMERDIARY_SCALAR_T_MI_CHI_SLOT)
-                let t_smax := mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT)
+                let kappa2_pow3 := mulmod(kappa2_pow2, kappa2, R_MOD)
+                let common := mulmod(kappa2, kappa1_pow2, R_MOD)
 
-                // a := κ1^2 * κ0 * R_{x,y} * ((χ-1) + κ0 * K_0(χ))
-                let a :=
-                    mulmod(
-                        mulmod(mulmod(mulmod(kappa1, kappa1, R_MOD), kappa0, R_MOD), r1, R_MOD),
-                        addmod(chi_minus_1, mulmod(kappa0, k0, R_MOD), R_MOD),
-                        R_MOD
-                    )
-                // b := κ1^2 * κ0 * ((χ-1) R’_{x,y} + κ0K_0(χ)R’’_{x,y})
-                let b :=
-                    mulmod(
-                        mulmod(kappa1_pow2, kappa0, R_MOD),
-                        addmod(mulmod(chi_minus_1, r2, R_MOD), mulmod(mulmod(kappa0, k0, R_MOD), r3, R_MOD), R_MOD),
-                        R_MOD
-                    )
-                // c := κ1^3 + κ2 + κ2^2
-                let c := addmod(kappa1_pow3, addmod(kappa2, kappa2_pow2, R_MOD), R_MOD)
-                //    d := -κ1^3R_{x,y} - κ2R’_{x,y} - κ2^2R’’_{x,y} - κ1V_{x,y} - κ1^4A_{pub}
-                // => d := - (κ1^3R_{x,y} + κ2R’_{x,y} + κ2^2R’’_{x,y} + κ1V_{x,y} + κ1^4A_{pub})
-                let d :=
-                    sub(
-                        R_MOD,
+                // Scratch slots:
+                // STEP4_COEFF_C_G_SLOT: C_G, STEP4_COEFF_C_F_SLOT: C_F, STEP4_COEFF_C_B_SLOT: C_B = C_G + C_F.
+                {
+                    let chi_minus_1 := addmod(chi, sub(R_MOD, 1), R_MOD)
+                    let kappa0_chi_minus_1 := mulmod(kappa0, chi_minus_1, R_MOD)
+                    let kappa0_pow2_k0 :=
+                        mulmod(mulmod(kappa0, kappa0, R_MOD), mload(INTERMEDIARY_SCALAR_KO_SLOT), R_MOD)
+                    let kappa0_mix := addmod(kappa0_chi_minus_1, kappa0_pow2_k0, R_MOD)
+                    let c_g := mulmod(mulmod(common, mload(PROOF_R1XY_SLOT), R_MOD), kappa0_mix, R_MOD)
+                    let c_f_inner :=
+                        addmod(
+                            mulmod(kappa0_chi_minus_1, mload(PROOF_R2XY_SLOT), R_MOD),
+                            mulmod(kappa0_pow2_k0, mload(PROOF_R3XY_SLOT), R_MOD),
+                            R_MOD
+                        )
+                    let c_f := addmod(0, sub(R_MOD, mulmod(common, c_f_inner, R_MOD)), R_MOD)
+                    mstore(STEP4_COEFF_C_G_SLOT, c_g)
+                    mstore(STEP4_COEFF_C_F_SLOT, c_f)
+                    mstore(STEP4_COEFF_C_B_SLOT, addmod(c_g, c_f, R_MOD))
+                }
+
+                // (1 + κ2κ1^4) * [A_free]_1
+                msmStoreTerm(
+                    msmPtr, 0, PROOF_POLY_A_FREE_X_SLOT_PART1, addmod(1, mulmod(kappa2, kappa1_pow4, R_MOD), R_MOD)
+                )
+                msmStoreTerm(msmPtr, 1, PROOF_POLY_U_X_SLOT_PART1, mulmod(kappa2, mload(PROOF_VXY_SLOT), R_MOD))
+                msmStoreTerm(msmPtr, 2, PROOF_POLY_W_X_SLOT_PART1, addmod(0, sub(R_MOD, kappa2), R_MOD))
+                msmStoreTerm(msmPtr, 3, PROOF_POLY_V_X_SLOT_PART1, mulmod(kappa2, kappa1, R_MOD))
+                msmStoreTerm(
+                    msmPtr,
+                    4,
+                    PROOF_POLY_QAX_X_SLOT_PART1,
+                    addmod(0, sub(R_MOD, mulmod(kappa2, mload(INTERMERDIARY_SCALAR_T_N_CHI_SLOT), R_MOD)), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    5,
+                    PROOF_POLY_QAY_X_SLOT_PART1,
+                    addmod(0, sub(R_MOD, mulmod(kappa2, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT), R_MOD)), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr, 6, VK_POLY_KXLX_X_PART1, mulmod(common, addmod(mload(PROOF_R1XY_SLOT), sub(R_MOD, 1), R_MOD), R_MOD)
+                )
+                msmStoreTerm(msmPtr, 7, PROOF_POLY_B_X_SLOT_PART1, mload(STEP4_COEFF_C_B_SLOT))
+                msmStoreTerm(msmPtr, 8, PUBLIC_INPUTS_S_0_X_SLOT_PART1, mulmod(theta0, mload(STEP4_COEFF_C_F_SLOT), R_MOD))
+                msmStoreTerm(msmPtr, 9, PUBLIC_INPUTS_S_1_X_SLOT_PART1, mulmod(theta1, mload(STEP4_COEFF_C_F_SLOT), R_MOD))
+                msmStoreTerm(msmPtr, 10, VK_POLY_X_X_PART1, mulmod(theta0, mload(STEP4_COEFF_C_G_SLOT), R_MOD))
+                msmStoreTerm(msmPtr, 11, VK_POLY_Y_X_PART1, mulmod(theta1, mload(STEP4_COEFF_C_G_SLOT), R_MOD))
+                msmStoreTerm(
+                    msmPtr,
+                    12,
+                    PROOF_POLY_QCX_X_SLOT_PART1,
+                    addmod(0, sub(R_MOD, mulmod(common, mload(INTERMERDIARY_SCALAR_T_MI_CHI_SLOT), R_MOD)), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    13,
+                    PROOF_POLY_QCY_X_SLOT_PART1,
+                    addmod(0, sub(R_MOD, mulmod(common, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT), R_MOD)), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    14,
+                    PROOF_POLY_R_X_SLOT_PART1,
+                    addmod(mulmod(kappa2, kappa1_pow3, R_MOD), addmod(kappa2_pow2, kappa2_pow3, R_MOD), R_MOD)
+                )
+
+                {
+                    let coeff_identity_base :=
                         addmod(
                             addmod(
-                                addmod(mulmod(kappa1_pow3, r1, R_MOD), mulmod(kappa2, r2, R_MOD), R_MOD),
-                                mulmod(kappa2_pow2, r3, R_MOD),
+                                // κ2κ1^4 * A_eval
+                                mulmod(mulmod(kappa2, kappa1_pow4, R_MOD), mload(INTERMEDIARY_SCALAR_APUB_SLOT), R_MOD),
+                                mulmod(mulmod(kappa2, kappa1, R_MOD), mload(PROOF_VXY_SLOT), R_MOD),
                                 R_MOD
                             ),
                             addmod(
-                                mulmod(kappa1, V_xy, R_MOD), mulmod(mulmod(kappa1, kappa1_pow3, R_MOD), A_pub, R_MOD), R_MOD
+                                mulmod(mulmod(kappa2, kappa1_pow3, R_MOD), mload(PROOF_R1XY_SLOT), R_MOD),
+                                addmod(
+                                    mulmod(kappa2_pow2, mload(PROOF_R2XY_SLOT), R_MOD),
+                                    mulmod(kappa2_pow3, mload(PROOF_R3XY_SLOT), R_MOD),
+                                    R_MOD
+                                ),
+                                R_MOD
                             ),
                             R_MOD
                         )
-                    )
-                // κ1^2(R_x,y - 1)
-                let kappa1_r_minus_1 := mulmod(mulmod(kappa1, kappa1, R_MOD), sub(r1, 1), R_MOD)
-                // κ1^2 * t_{m_l}(χ)
-                let kappa1_tml := mulmod(kappa1_pow2, t_ml, R_MOD)
-                // κ1^2 * t_{s_{max}}(ζ)
-                let kappa1_tsmax := mulmod(kappa1_pow2, t_smax, R_MOD)
+                    let coeff_identity :=
+                        addmod(
+                            addmod(0, sub(R_MOD, coeff_identity_base), R_MOD),
+                            mulmod(theta2, mload(STEP4_COEFF_C_B_SLOT), R_MOD),
+                            R_MOD
+                        )
+                    msmStoreTerm(msmPtr, 15, VK_IDENTITY_X_PART1, coeff_identity)
+                }
 
-                g1pointMulIntoDest(VK_POLY_KXLX_X_PART1, kappa1_r_minus_1, AGG_LHS_C_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(INTERMERDIARY_POLY_G_X_SLOT_PART1, a, AGG_LHS_C_X_SLOT_PART1)
+                msmStoreTerm(msmPtr, 16, PROOF_POLY_PI_CHI_X_SLOT_PART1, mulmod(kappa2, chi, R_MOD))
+                msmStoreTerm(msmPtr, 17, PROOF_POLY_PI_ZETA_X_SLOT_PART1, mulmod(kappa2, zeta, R_MOD))
+                msmStoreTerm(msmPtr, 18, PROOF_POLY_M_CHI_X_SLOT_PART1, mulmod(kappa2_pow2, mulmod(OMEGA_MI_1, chi, R_MOD), R_MOD))
+                msmStoreTerm(msmPtr, 19, PROOF_POLY_M_ZETA_X_SLOT_PART1, mulmod(kappa2_pow2, zeta, R_MOD))
+                msmStoreTerm(msmPtr, 20, PROOF_POLY_N_CHI_X_SLOT_PART1, mulmod(kappa2_pow3, mulmod(OMEGA_MI_1, chi, R_MOD), R_MOD))
+                msmStoreTerm(
+                    msmPtr,
+                    21,
+                    PROOF_POLY_N_ZETA_X_SLOT_PART1,
+                    mulmod(kappa2_pow3, mulmod(getOmegaSmaxInverse(mload(PARAM_SMAX)), zeta, R_MOD), R_MOD)
+                )
 
-                g1pointMulIntoDest(INTERMERDIARY_POLY_F_X_SLOT_PART1, b, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                g1pointMulIntoDest(PROOF_POLY_QCX_X_SLOT_PART1, kappa1_tml, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                g1pointMulIntoDest(PROOF_POLY_QCY_X_SLOT_PART1, kappa1_tsmax, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-                g1pointSubAssign(AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                g1pointMulAndAddIntoDest(PROOF_POLY_R_X_SLOT_PART1, c, AGG_LHS_C_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(VK_IDENTITY_X_PART1, d, AGG_LHS_C_X_SLOT_PART1)
+                g1msmFromBuffer(msmPtr, 22, PAIRING_AGG_LHS_AUX_X_SLOT_PART1)
             }
 
             /// @dev [RHS_1]_1 := κ2[Π_{χ}]_1 + κ2^2[M_{χ}]_1 + κ2^3[N_{χ}]_1
@@ -1420,10 +1262,12 @@ contract TokamakVerifier is ITokamakVerifier {
                 let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
                 let kappa2_pow2 := mulmod(kappa2, kappa2, R_MOD)
                 let kappa2_pow3 := mulmod(kappa2_pow2, kappa2, R_MOD)
+                let msmPtr := 0x9800
 
-                g1pointMulIntoDest(PROOF_POLY_PI_CHI_X_SLOT_PART1, kappa2, PAIRING_AGG_RHS_1_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2, PAIRING_AGG_RHS_1_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3, PAIRING_AGG_RHS_1_X_SLOT_PART1)
+                msmStoreTerm(msmPtr, 0, PROOF_POLY_PI_CHI_X_SLOT_PART1, kappa2)
+                msmStoreTerm(msmPtr, 1, PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2)
+                msmStoreTerm(msmPtr, 2, PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3)
+                g1msmFromBuffer(msmPtr, 3, PAIRING_AGG_RHS_1_X_SLOT_PART1)
             }
 
             /// @dev [RHS_2]_1 := κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1
@@ -1431,10 +1275,12 @@ contract TokamakVerifier is ITokamakVerifier {
                 let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
                 let kappa2_pow2 := mulmod(kappa2, kappa2, R_MOD)
                 let kappa2_pow3 := mulmod(kappa2_pow2, kappa2, R_MOD)
+                let msmPtr := 0x9800
 
-                g1pointMulIntoDest(PROOF_POLY_PI_ZETA_X_SLOT_PART1, kappa2, PAIRING_AGG_RHS_2_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2, PAIRING_AGG_RHS_2_X_SLOT_PART1)
-                g1pointMulAndAddIntoDest(PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3, PAIRING_AGG_RHS_2_X_SLOT_PART1)
+                msmStoreTerm(msmPtr, 0, PROOF_POLY_PI_ZETA_X_SLOT_PART1, kappa2)
+                msmStoreTerm(msmPtr, 1, PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2)
+                msmStoreTerm(msmPtr, 2, PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3)
+                g1msmFromBuffer(msmPtr, 3, PAIRING_AGG_RHS_2_X_SLOT_PART1)
             }
 
             // @dev Function to get the correct omega_smax^{-1} value based on smax parameter
@@ -1452,76 +1298,6 @@ contract TokamakVerifier is ITokamakVerifier {
                 }
             }
 
-            /// @dev [LHS]_1 := [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
-            /// @dev [AUX]_1 := κ2 * χ * [Π_{χ}]_1 + κ2 * ζ *[Π_ζ]_1 +
-            ///                 κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1 + κ2^2 * ζ * [M_ζ]_1 + κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1 + κ_2^3 * ω_smax^{-1} * ζ * [N_{ζ}]
-            function prepareAggregatedCommitment() {
-                // calculate [LHS]_1 = [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
-                {
-                    let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
-
-                    // First add [LHS_A]_1 + [LHS_C]_1
-                    g1pointAddIntoDest(
-                        AGG_LHS_A_X_SLOT_PART1, AGG_LHS_C_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1
-                    )
-
-                    // Multiply by κ2: κ2([LHS_A]_1 + [LHS_C]_1)
-                    g1pointMulIntoDest(BUFFER_AGGREGATED_POLY_X_SLOT_PART1, kappa2, BUFFER_AGGREGATED_POLY_X_SLOT_PART1)
-
-                    // Add [LHS_B]_1: [LHS_B]_1 + κ2([LHS_A]_1 + [LHS_C]_1)
-                    g1pointAddIntoDest(
-                        AGG_LHS_B_X_SLOT_PART1, BUFFER_AGGREGATED_POLY_X_SLOT_PART1, PAIRING_AGG_LHS_X_SLOT_PART1
-                    )
-                }
-
-                // calculate [AUX]_1
-                {
-                    let kappa2 := mload(CHALLENGE_KAPPA_2_SLOT)
-                    let chi := mload(CHALLENGE_CHI_SLOT)
-                    let zeta := mload(CHALLENGE_ZETA_SLOT)
-                    let omega_ml := OMEGA_MI_1
-                    let omega_smax := getOmegaSmaxInverse(mload(PARAM_SMAX))
-
-                    let kappa2_chi := mulmod(kappa2, chi, R_MOD)
-                    let kappa2_zeta := mulmod(kappa2, zeta, R_MOD)
-                    let kappa2_pow2_omega_ml_chi :=
-                        mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), omega_ml, R_MOD), chi, R_MOD)
-                    let kappa2_pow2_zeta := mulmod(mulmod(kappa2, kappa2, R_MOD), zeta, R_MOD)
-                    let kappa2_pow3_omega_ml_chi :=
-                        mulmod(mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), kappa2, R_MOD), omega_ml, R_MOD), chi, R_MOD)
-                    let kappa2_pow3_omega_smax_zeta :=
-                        mulmod(mulmod(mulmod(mulmod(kappa2, kappa2, R_MOD), kappa2, R_MOD), omega_smax, R_MOD), zeta, R_MOD)
-                    // [AUX]_1 accumulation
-                    // κ2 * χ * [Π_{χ}]_1
-                    g1pointMulIntoDest(PROOF_POLY_PI_CHI_X_SLOT_PART1, kappa2_chi, PAIRING_AGG_AUX_X_SLOT_PART1)
-                    // += κ2 * ζ *[Π_ζ]_1
-                    g1pointMulAndAddIntoDest(PROOF_POLY_PI_ZETA_X_SLOT_PART1, kappa2_zeta, PAIRING_AGG_AUX_X_SLOT_PART1)
-                    // += κ2^2 * ω_{m_l}^{-1} * χ *[M_{χ}]_1
-                    g1pointMulAndAddIntoDest(
-                        PROOF_POLY_M_CHI_X_SLOT_PART1, kappa2_pow2_omega_ml_chi, PAIRING_AGG_AUX_X_SLOT_PART1
-                    )
-                    // += κ2^2 * ζ * [M_ζ]_1
-                    g1pointMulAndAddIntoDest(
-                        PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2_zeta, PAIRING_AGG_AUX_X_SLOT_PART1
-                    )
-                    // κ2^3 * ω_{m_l}^{-1} * χ * [N_{χ}]_1
-                    g1pointMulAndAddIntoDest(
-                        PROOF_POLY_N_CHI_X_SLOT_PART1, kappa2_pow3_omega_ml_chi, PAIRING_AGG_AUX_X_SLOT_PART1
-                    )
-                    // κ2^3 * ω_smax^{-1} * ζ * [N_{ζ}]
-                    g1pointMulAndAddIntoDest(
-                        PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3_omega_smax_zeta, PAIRING_AGG_AUX_X_SLOT_PART1
-                    )
-                }
-
-                // calculate [LHS]_1 + [AUX]_1
-                {
-                    g1pointAddIntoDest(
-                        PAIRING_AGG_LHS_X_SLOT_PART1, PAIRING_AGG_AUX_X_SLOT_PART1, PAIRING_AGG_LHS_AUX_X_SLOT_PART1
-                    )
-                }
-            }
-
             /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                                                                             5. Pairing
                 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
@@ -1530,7 +1306,7 @@ contract TokamakVerifier is ITokamakVerifier {
             /// @dev We should check the equation:
             ///
             ///    /                                                  \           /                                                          \
-            ///   | e([LHS]_1 + [AUX]_1, [1]_2)e([B]_1, [α^4]_2)       |         |  e([O_pub], [γ]_2])e([O_mid]_1, [η]_2)e([O_prv]_1, [δ]_2)  |
+            ///   | e([LHS]_1 + [AUX]_1, [1]_2)e([B]_1, [α^4]_2)       |         |  e([O_{pub,fix}]_1+[O_{pub,free}]_1, [γ]_2)e([O_mid]_1, [η]_2)e([O_prv]_1, [δ]_2)  |
             ///   | e([U]_1, [α]_2)e([V]_1, [α^2]_2)e([W]_1, [α^3]_2)  |    =    |  . e(κ2[Π_{χ}]_1 + κ2^2[M_{χ}]_1 + κ2^3[N_{χ}]_1, [x]_2)   |
             ///    \                                                  /          |  . e(κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1, [y]_2)   |
             ///                                                                   \                                                          /
@@ -1618,11 +1394,16 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(0x740, ALPHA_POWER3_Y0_PART1)
                 mstore(0x760, ALPHA_POWER3_Y0_PART2)
 
-                // load [O_pub]_1
-                mstore(0x780, mload(PROOF_POLY_OPUB_X_SLOT_PART1))
-                mstore(0x7a0, mload(PROOF_POLY_OPUB_X_SLOT_PART2))
-                mstore(0x7c0, mload(PROOF_POLY_OPUB_Y_SLOT_PART1))
-                mstore(0x7e0, mload(PROOF_POLY_OPUB_Y_SLOT_PART2))
+                // load [O_{pub,fix}]_1 + [O_{pub,free}]_1 using G1 add precompile
+                mstore(0xf00, mload(PROOF_POLY_OPUB_FIX_X_SLOT_PART1))
+                mstore(0xf20, mload(PROOF_POLY_OPUB_FIX_X_SLOT_PART2))
+                mstore(0xf40, mload(PROOF_POLY_OPUB_FIX_Y_SLOT_PART1))
+                mstore(0xf60, mload(PROOF_POLY_OPUB_FIX_Y_SLOT_PART2))
+                mstore(0xf80, mload(PROOF_POLY_OPUB_X_SLOT_PART1))
+                mstore(0xfa0, mload(PROOF_POLY_OPUB_X_SLOT_PART2))
+                mstore(0xfc0, mload(PROOF_POLY_OPUB_Y_SLOT_PART1))
+                mstore(0xfe0, mload(PROOF_POLY_OPUB_Y_SLOT_PART2))
+                if iszero(staticcall(gas(), 0x0b, 0xf00, 0x100, 0x780, 0x80)) { revertWithMessage(22, "g1add precompile failed") }
 
                 // load -[γ]_2
                 mstore(0x800, GAMMA_X1_PART1)
@@ -1682,7 +1463,7 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(0xd40, X_Y0_PART1)
                 mstore(0xd60, X_Y0_PART2)
 
-                // load [RHS_2]_2 := κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1
+                // load [RHS_2]_1 := κ2[Π_{ζ}]_1 + κ2^2[M_{ζ}]_1 + κ2^3[N_{ζ}]_1
                 mstore(0xd80, mload(PAIRING_AGG_RHS_2_X_SLOT_PART1))
                 mstore(0xda0, mload(PAIRING_AGG_RHS_2_X_SLOT_PART2))
                 mstore(0xdc0, mload(PAIRING_AGG_RHS_2_Y_SLOT_PART1))
@@ -1710,24 +1491,21 @@ contract TokamakVerifier is ITokamakVerifier {
             // Step2: Recompute all the challenges with the transcript
             initializeTranscript()
 
-            // Step3: computation of [F]_1, [G]_1, t_n(χ), t_smax(ζ) and t_ml(χ), K0(χ) and A_pub
+            // Step3: computation of [F]_1, [G]_1, t_n(χ), t_smax(ζ), t_ml(χ), K0(χ), and A_eval
             prepareQueries()
             computeLagrangeK0Eval()
             computeAPUB()
 
-            // Step4: computation of the final polynomial commitments - COMMENTED OUT FOR DEBUGGING
-            prepareLHSA()
-            prepareLHSB()
-            prepareLHSC()
+            // Step4: one-shot computation of [LHS]_1 + [AUX]_1, and RHS aggregation for pairing terms
+            prepareLhsAuxSingleMSM()
             prepareRHS1()
             prepareRHS2()
-            prepareAggregatedCommitment()
 
             // Step5: final pairing - COMMENTED OUT FOR DEBUGGING
             finalPairing()
             final_result := true
 
-            // DEBUG: Return A_pub instead of final result
+            // DEBUG: Return A_eval instead of final result
             mstore(0x00, final_result)
             return(0x00, 0x20)
         }

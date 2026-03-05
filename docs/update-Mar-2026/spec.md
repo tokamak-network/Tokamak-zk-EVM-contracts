@@ -8,82 +8,36 @@ $\mathbb{F}_{b}$ 는 $b$-bit word의 field이다.
 
 ### Bridge manager
 
-The Bridge Manager maintains normalized state for three core relations: $\mathcal{A}, \mathcal{T}, \mathcal{F}$.  
-All getter and setter functions are derived from these definitions.
+#### Primary relations
+- $\mathcal{A} \subset \mathbb{F}_{32}\times \mathbb{F}_{160}$
+  - This relation pairs function signatures with storage addresses.
+- $\mathcal{P} \subset \mathbb{F}_{160}\times \mathbb{F}_{256}$
+  - This relation pairs storage addresses with pre-allocated keys.
+- $\mathcal{U} \subset \mathbb{F}_{160}\times \mathbb{F}_{8}$
+  - This relation pairs storage addresses with user storage slots.
+- $\mathcal{F} \subset \mathbb{F}_{32}\times \mathbb{F}_{256} \times \mathbb{F}_{256}$
+  - This relation pairs function signatures with pairs of an instance hash and a preprocess hash.
+  - Uniqueness: $\forall f\in\mathbb{F}_{32},\ \forall i_1,p_1,i_2,p_2\in\mathbb{F}_{256},\ ((f,i_1,p_1)\in\mathcal{F}\wedge(f,i_2,p_2)\in\mathcal{F})\Rightarrow(i_1=i_2\wedge p_1=p_2)$
 
-#### Primary normalized relations
+#### Getters
 
-The primary state is relational (not map-first):
+Exactly one getter is defined per primary relation:
 
-Let $G := \texttt{FcnSigs}$, $S := \texttt{StorageAddrs}$, $K := \mathbb{F}_{256}$, $U := \mathbb{F}_{8}$, $I := \mathbb{F}_{256}$, $P := \mathbb{F}_{256}$, and $H := I \times P$.
-
-- $\mathcal{A} \subseteq G\times S$
-- $\mathcal{T}_K \subseteq S\times K$
-- $\mathcal{T}_U \subseteq S\times U$
-- $\mathcal{T} := (\mathcal{T}_K, \mathcal{T}_U)$
-- $\mathcal{F} \subseteq G\times H$
-
-Semantics:
-
-- $\mathcal{A}$ pairs one function signature with a set of storage addresses.
-- $\mathcal{T}$ pairs one storage address with a pair of sets: pre-allocated keys and user slots.
-- $\mathcal{F}$ pairs one function signature with one $(\texttt{instanceHash},\texttt{preprocessHash})$ pair.
-
-Functional constraint for $\mathcal{F}$:
-
-- $\forall f\in G,\ \forall h_1,h_2\in H,\ ((f,h_1)\in\mathcal{F}\wedge(f,h_2)\in\mathcal{F})\Rightarrow h_1=h_2$
-
-#### Derived maps from relations
-
-Maps are derived views and are not primary state:
-
-- $\mathcal{A}^{\sharp}: G\to \mathcal{P}_{\mathrm{fin}}(S),\quad \mathcal{A}^{\sharp}(f):=\{s\in S\mid(f,s)\in\mathcal{A}\}$
-- $\mathcal{T}^{\sharp}: S\to \mathcal{P}_{\mathrm{fin}}(K)\times\mathcal{P}_{\mathrm{fin}}(U)$
-- $\mathcal{T}^{\sharp}(s):=\left(\{k\in K\mid(s,k)\in\mathcal{T}_K\},\ \{u\in U\mid(s,u)\in\mathcal{T}_U\}\right)$
-- $\mathcal{F}^{\sharp}: G\to H_{\bot},\quad H_{\bot}:=H\cup\{\bot\}$
-- $\mathcal{F}^{\sharp}(f):=\begin{cases}
-    h & \text{if }(f,h)\in\mathcal{F}\\
-    \bot & \text{if }\nexists h\in H:(f,h)\in\mathcal{F}
-  \end{cases}$
-
-#### Derived getters
-
-- $\texttt{GetFcnStorages}(f):=\mathcal{A}^{\sharp}(f)$
-- $\texttt{GetPreAllocKeys}(s):=\pi_1(\mathcal{T}^{\sharp}(s))$
-- $\texttt{GetUserSlots}(s):=\pi_2(\mathcal{T}^{\sharp}(s))$
-- $\texttt{GetTreeCfg}(s):=\mathcal{T}^{\sharp}(s)$
-- $\texttt{GetFcnCfg}(f):=\mathcal{F}^{\sharp}(f)\in H_{\bot}$
-
-Batch getters are pure set comprehensions:
-
-- $\texttt{GetTreeCfgs}(X):=\{(s,\mathcal{T}^{\sharp}(s))\mid \exists f\in X:(f,s)\in\mathcal{A}\}$
-- $\texttt{GetFcnCfgs}(X):=\{(f,h)\mid f\in X,\ (f,h)\in\mathcal{F}\}$
-
-#### Setter semantics
-
-Let $f\in G$, $s\in S$, $k\in K$, $u\in U$, $h\in H$.  
-Each setter is a direct relational update:
-
-- $\texttt{AddStorageAddr}(f,s):\ \mathcal{A}\leftarrow\mathcal{A}\cup\{(f,s)\}$
-- $\texttt{DelStorageAddr}(f,s):\ \mathcal{A}\leftarrow\mathcal{A}\setminus\{(f,s)\}$
-- $\texttt{AddPreAllocKey}(s,k):\ \mathcal{T}_K\leftarrow\mathcal{T}_K\cup\{(s,k)\}$
-- $\texttt{DelPreAllocKey}(s,k):\ \mathcal{T}_K\leftarrow\mathcal{T}_K\setminus\{(s,k)\}$
-- $\texttt{AddUserSlot}(s,u):\ \mathcal{T}_U\leftarrow\mathcal{T}_U\cup\{(s,u)\}$
-- $\texttt{DelUserSlot}(s,u):\ \mathcal{T}_U\leftarrow\mathcal{T}_U\setminus\{(s,u)\}$
-- $\texttt{SetFcnCfg}(f,h):\ \mathcal{F}\leftarrow\left(\mathcal{F}\setminus\{(f,h')\mid h'\in H\}\right)\cup\{(f,h)\}$
-- $\texttt{ClearFcnCfg}(f):\ \mathcal{F}\leftarrow\mathcal{F}\setminus\{(f,h')\mid h'\in H\}$
-
-#### Stability and consistency invariants
-
-- (Set uniqueness) $\mathcal{A}$, $\mathcal{T}_K$, and $\mathcal{T}_U$ are sets of tuples, so repeated insertions are idempotent.
-- (Read-after-write) Each relational update immediately changes the corresponding derived getter.
-- (Single-valued config) Functionality of $\mathcal{F}$ guarantees at most one active config for each $f$.
-- (Total getter behavior) For unseen keys in derived maps:
-  - $\mathcal{A}^{\sharp}(f)=\varnothing$
-  - $\mathcal{T}^{\sharp}(s)=(\varnothing,\varnothing)$
-  - $\mathcal{F}^{\sharp}(f)=\bot$
-
-These defaults eliminate undefined reads and keep getter logic branch-minimal.
+- For $\mathcal{A}$:
+  - $\texttt{GetFcnStorages}:\mathbb{F}_{32}\to\mathcal{P}(\mathbb{F}_{160})$
+  - $\texttt{GetFcnStorages}(f):=\{s\in\mathbb{F}_{160}\mid (f,s)\in\mathcal{A}\}$
+- For $\mathcal{P}$:
+  - $\texttt{GetPreAllocKeys}:\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{256})$
+  - $\texttt{GetPreAllocKeys}(s):=\{k\in\mathbb{F}_{256}\mid (s,k)\in\mathcal{P}\}$
+- For $\mathcal{U}$:
+  - $\texttt{GetUserSlots}:\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{8})$
+  - $\texttt{GetUserSlots}(s):=\{u\in\mathbb{F}_{8}\mid (s,u)\in\mathcal{U}\}$
+- For $\mathcal{F}$:
+  - $\texttt{GetFcnCfg}:\mathbb{F}_{32}\to(\mathbb{F}_{256}\times\mathbb{F}_{256})_{\bot}$
+  - $\texttt{GetFcnCfg}(f):=\begin{cases}
+      (i,p) & \text{if } (f,i,p)\in\mathcal{F}\\
+      \bot & \text{if } \nexists(i,p)\in\mathbb{F}_{256}\times\mathbb{F}_{256}:\ (f,i,p)\in\mathcal{F}
+    \end{cases}$
 
 ### Channel
 
@@ -96,11 +50,11 @@ These defaults eliminate undefined reads and keep getter logic branch-minimal.
 - Variables
     - $\texttt{UserAddrs}:=\{\texttt{userAddr}_i\in\mathbb{F}_{256}\mid i\in[\texttt{nUsers}]\}$
     - $\texttt{AppFcnSigs}:=\{\texttt{appFcnSig}_i\in\texttt{FcnSigs}\}_{i\in[\texttt{nAppFcns}]}$
-    - $\texttt{AppStorageAddrs}:=\texttt{GetFcnStorages}(\texttt{AppFcnSigs})$
+    - $\texttt{AppStorageAddrs}:=\bigcup_{f\in\texttt{AppFcnSigs}}\texttt{GetFcnStorages}(f)$
     - $\texttt{nAppTrees}:=|\texttt{AppStorageAddrs}|\in\mathbb{F}_{16}$
     - $\texttt{StateRootsTr}:=\{\texttt{stateRoots}_i\in\mathbb{F_{256}}^{\texttt{nAppStorages}}\mid i\in[\texttt{nRootTrans]}\}$
-    - $\texttt{AppTreeCfgs}:=\texttt{GetTreeCfgs}(\texttt{AppFcnSigs})$
-    - $\texttt{AppFcnCfgs}:=\texttt{GetFcnCfgs}(\texttt{AppFcnSigs})$
+    - $\texttt{AppTreeCfgs}:=\{(s,\texttt{GetPreAllocKeys}(s),\texttt{GetUserSlots}(s))\mid s\in\texttt{AppStorageAddrs}\}$
+    - $\texttt{AppFcnCfgs}:=\{(f,\texttt{GetFcnCfg}(f))\mid f\in\texttt{AppFcnSigs},\ \texttt{GetFcnCfg}(f)\neq\bot\}$
     - $\texttt{ChannelStorageKeys}:=\{\texttt{chStorageKey}_{i,k}\in\mathbb{F}_{256}\mid i\in[\texttt{nUsers}],k\in[\texttt{nAppStorages}]\}$
     - $\texttt{ValidatedStorageValues}:=\{\texttt{value}_{i,k}\in\mathbb{F}_{256}\mid i\in[\texttt{nUsers}],k\in[\texttt{nAppStorages}]\}$
 - Structures

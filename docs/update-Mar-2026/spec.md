@@ -40,30 +40,37 @@ Exactly one getter is defined per primary relation:
 
 ### Channel
 
-브릿지 컨트랙트가 관리하는 각 채널은 다음의 변수들로 구성되어있다:
+A channel is defined by a user set and a function-signature subset:
 
-- Length params
-    - $\texttt{nUsers}\in\mathbb{F}_{16}$
-    - $\texttt{nAppFcns}\in\mathbb{F_{16}}$
-    - $\texttt{nRootTrans}\in\mathbb{F_{16}}$
-- Variables
-    - $\texttt{UserAddrs}:=\{\texttt{userAddr}_i\in\mathbb{F}_{256}\mid i\in[\texttt{nUsers}]\}$
-    - $\texttt{AppFcnSigs}:=\{\texttt{appFcnSig}_i\in\texttt{FcnSigs}\}_{i\in[\texttt{nAppFcns}]}$
-    - $\texttt{AppStorageAddrs}:=\bigcup_{f\in\texttt{AppFcnSigs}}\texttt{GetFcnStorages}(f)$
-    - $\texttt{nAppTrees}:=|\texttt{AppStorageAddrs}|\in\mathbb{F}_{16}$
-    - $\texttt{StateRootsTr}:=\{\texttt{stateRoots}_i\in\mathbb{F_{256}}^{\texttt{nAppStorages}}\mid i\in[\texttt{nRootTrans]}\}$
-    - $\texttt{AppTreeCfgs}:=\{(s,\texttt{GetPreAllocKeys}(s),\texttt{GetUserSlots}(s))\mid s\in\texttt{AppStorageAddrs}\}$
-    - $\texttt{AppFcnCfgs}:=\{(f,\texttt{GetFcnCfg}(f))\mid f\in\texttt{AppFcnSigs}\}$
-    - $\texttt{ChannelStorageKeys}:=\{\texttt{chStorageKey}_{i,k}\in\mathbb{F}_{256}\mid i\in[\texttt{nUsers}],k\in[\texttt{nAppStorages}]\}$
-    - $\texttt{ValidatedStorageValues}:=\{\texttt{value}_{i,k}\in\mathbb{F}_{256}\mid i\in[\texttt{nUsers}],k\in[\texttt{nAppStorages}]\}$
-- Structures
-    - $\mathbb{K}:=\{(\texttt{userAddr},\texttt{storageAddr},\texttt{key})\in\texttt{UserAddrs}\times\texttt{AppStorageAddrs}\times\texttt{ChannelStorageKeys}\}$
-    - $\mathbb{V}:=\{(\texttt{storageAddr},\texttt{chStorageKey},\texttt{value})\in\texttt{AppStorageAddrs}\times\texttt{ChannelStorageKeys}\times\texttt{ValidatedStorageValues}\}$
-- Functions
-    - $\texttt{GetChainStorageKey}:\texttt{UserAddr}\times\texttt{AppStorageAddrs}\to \mathbb{F_{256}}$
-        - $\texttt{GetChainStorageKey}(u,s):=\texttt{Keccak256}(u,t)\ \text{where}\ \texttt{TreeInfo}(s)=(p,t)$
-    - $\texttt{GetChannelStorageKey}:\texttt{UserAddr}\times\texttt{AppStorageAddrs}\to\texttt{ChannelStorageKeys}$
-        - $\texttt{GetChannelStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathbb{K}$
-    - $\texttt{GetValidatedStorageValue}:\texttt{AppStorageAddrs}\times\texttt{ChannelStorageKeys}\to\texttt{ValidatedStorageValues}$
-        - $\texttt{GetValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathbb{V}$
-    - $\texttt{UpdateValidatedStorageValue}:\texttt{AppStorageAddrs}\times\texttt{ChannelStorageKeys}\times\texttt{ValidatedStorageValues}\to \mathbb{V}$
+- $\texttt{UserAddrs}\subseteq\mathbb{F}_{256}$
+- $\texttt{AppFcnSigs}\subseteq\{f\in\mathbb{F}_{32}\mid \exists s\in\mathbb{F}_{160},\ (f,s)\in\mathcal{A}\}$
+
+Let the channel-local storage domain be:
+
+- $\widetilde{S}:=\{s\in\mathbb{F}_{160}\mid \exists f\in\texttt{AppFcnSigs},\ (f,s)\in\mathcal{A}\}$
+
+The channel manages exactly six relations:
+
+- $\widetilde{\mathcal{A}}:=\mathcal{A}\cap\left(\texttt{AppFcnSigs}\times\mathbb{F}_{160}\right)$
+- $\widetilde{\mathcal{P}}:=\mathcal{P}\cap\left(\widetilde{S}\times\mathbb{F}_{256}\right)$
+- $\widetilde{\mathcal{U}}:=\mathcal{U}\cap\left(\widetilde{S}\times\mathbb{F}_{8}\right)$
+- $\widetilde{\mathcal{F}}:=\mathcal{F}\cap\left(\texttt{AppFcnSigs}\times\mathbb{F}_{256}\times\mathbb{F}_{256}\right)$
+- $\mathcal{K}\subseteq \texttt{UserAddrs}\times\widetilde{S}\times\mathbb{F}_{256}$
+- $\mathcal{V}\subseteq \widetilde{S}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
+
+By construction:
+
+- $\widetilde{\mathcal{A}}\subseteq\mathcal{A}$
+- $\widetilde{\mathcal{P}}\subseteq\mathcal{P}$
+- $\widetilde{\mathcal{U}}\subseteq\mathcal{U}$
+- $\widetilde{\mathcal{F}}\subseteq\mathcal{F}$
+
+Channel key/value read relations:
+
+- $\texttt{GetChannelStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
+- $\texttt{GetValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
+
+Consistency constraints:
+
+- $\forall (u,s)\in\texttt{UserAddrs}\times\widetilde{S},\ \exists!k\in\mathbb{F}_{256},\ (u,s,k)\in\mathcal{K}$
+- $\forall s\in\widetilde{S},\ \forall k\in\{k'\in\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k')\in\mathcal{K}\},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}$

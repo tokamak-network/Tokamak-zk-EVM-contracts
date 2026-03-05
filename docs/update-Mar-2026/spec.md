@@ -48,18 +48,18 @@ A channel is defined by a user set and a function-signature subset:
 - $\texttt{UserAddrs}\subseteq\mathbb{F}_{256}$
 - $\texttt{AppFcnSigs}\subseteq\texttt{FcnSigns}$
 
-Let the channel-local storage domain be:
-
-- $\texttt{AppStorages}:=\bigcup_{f\in\texttt{AppFcnSigs}}\texttt{GetFcnStorages}(f)$
-
 The channel manages exactly six relations:
 
-- $\widetilde{\mathcal{S}}:=\{(f,s)\in\texttt{AppFcnSigs}\times\mathbb{F}_{160}\mid s\in\texttt{GetFcnStorages}(f)\}$
-- $\widetilde{\mathcal{P}}:=\{(s,k)\in\texttt{AppStorages}\times\mathbb{F}_{256}\mid k\in\texttt{GetPreAllocKeys}(s)\}$
-- $\widetilde{\mathcal{U}}:=\{(s,u)\in\texttt{AppStorages}\times\mathbb{F}_{8}\mid u\in\texttt{GetUserSlots}(s)\}$
-- $\widetilde{\mathcal{F}}:=\{(f,i,p)\in\texttt{AppFcnSigs}\times\mathbb{F}_{256}\times\mathbb{F}_{256}\mid \texttt{GetFcnCfg}(f)=(i,p)\}$
-- $\mathcal{K}\subseteq \texttt{UserAddrs}\times\texttt{AppStorages}\times\mathbb{F}_{256}$
-- $\mathcal{V}\subseteq \texttt{AppStorages}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
+- $\widetilde{\mathcal{S}}:=\{(f,s)\mid f\in\texttt{AppFcnSigs}\ \wedge\ s\in\texttt{GetFcnStorages}(f)\}$
+- $\widetilde{\mathcal{P}}:=\{(s,k)\mid s\in\widetilde{\texttt{Storages}}\ \wedge\ k\in\texttt{GetPreAllocKeys}(s)\}$
+- $\widetilde{\mathcal{U}}:=\{(s,u)\mid s\in\widetilde{\texttt{Storages}}\ \wedge\ u\in\texttt{GetUserSlots}(s)\}$
+- $\widetilde{\mathcal{F}}:=\{(f,i,p)\mid f\in\texttt{AppFcnSigs}\ \wedge\ \texttt{GetFcnCfg}(f)=(i,p)\}$
+- $\mathcal{K}\subseteq \texttt{UserAddrs}\times\widetilde{\texttt{Storages}}\times\mathbb{F}_{256}$
+- $\mathcal{V}\subseteq \widetilde{\texttt{Storages}}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
+
+where:
+
+- $\widetilde{\texttt{Storages}}:=\{s\in\mathbb{F}_{160}\mid \exists f\in\texttt{AppFcnSigs},\ (f,s)\in\widetilde{\mathcal{S}}\}$
 
 By construction:
 
@@ -75,5 +75,5 @@ Channel key/value read relations:
 
 Consistency constraints:
 
-- $\forall (u,s)\in\texttt{UserAddrs}\times\texttt{AppStorages},\ \exists!k\in\mathbb{F}_{256},\ (u,s,k)\in\mathcal{K}$
-- $\forall s\in\texttt{AppStorages},\ \forall k\in\{k'\in\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k')\in\mathcal{K}\},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}$
+- $\forall (u,s)\in\texttt{UserAddrs}\times\widetilde{\texttt{Storages}},\ \exists!k\in\mathbb{F}_{256},\ (u,s,k)\in\mathcal{K}$
+- $\forall s\in\widetilde{\texttt{Storages}},\ \forall k\in\{k'\in\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k')\in\mathcal{K}\},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}$

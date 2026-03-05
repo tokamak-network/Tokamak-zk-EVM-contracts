@@ -19,8 +19,7 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 - $\mathcal{P}\subseteq\mathbb{F}_{160}\times\mathbb{F}_{256}$
 - $\mathcal{U}\subseteq\mathbb{F}_{160}\times\mathbb{F}_{8}$
 - $\mathcal{F}\subseteq\texttt{FcnSigns}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
-  - Existence: $\forall f\in\texttt{FcnSigns},\ \exists i,p\in\mathbb{F}_{256},\ (f,i,p)\in\mathcal{F}$
-  - Uniqueness: $\forall f\in\texttt{FcnSigns},\ \forall i_1,p_1,i_2,p_2\in\mathbb{F}_{256},\ ((f,i_1,p_1)\in\mathcal{F}\wedge(f,i_2,p_2)\in\mathcal{F})\Rightarrow(i_1=i_2\wedge p_1=p_2)$
+  - Existence and uniqueness: $\forall f\in\texttt{FcnSigns},\ \exists!(i,p)\in\mathbb{F}_{256}\times\mathbb{F}_{256}\ \text{s.t.}\ (f,i,p)\in\mathcal{F}$
 
 #### Getters
 

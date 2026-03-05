@@ -15,15 +15,12 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 #### Relations
 
 - $\mathcal{S}\subseteq\texttt{FcnSigns}\times\mathbb{F}_{160}$
+  - Existence: $\forall f\in\texttt{FcnSigns},\ \exists s\in\mathbb{F}_{160},\ (f,s)\in\mathcal{S}$
 - $\mathcal{P}\subseteq\mathbb{F}_{160}\times\mathbb{F}_{256}$
 - $\mathcal{U}\subseteq\mathbb{F}_{160}\times\mathbb{F}_{8}$
 - $\mathcal{F}\subseteq\texttt{FcnSigns}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
-
-#### Constraints
-
-- $\forall f\in\texttt{FcnSigns},\ \exists s\in\mathbb{F}_{160},\ (f,s)\in\mathcal{S}$
-- $\forall f\in\texttt{FcnSigns},\ \exists i,p\in\mathbb{F}_{256},\ (f,i,p)\in\mathcal{F}$
-- $\forall f\in\texttt{FcnSigns},\ \forall i_1,p_1,i_2,p_2\in\mathbb{F}_{256},\ ((f,i_1,p_1)\in\mathcal{F}\wedge(f,i_2,p_2)\in\mathcal{F})\Rightarrow(i_1=i_2\wedge p_1=p_2)$
+  - Existence: $\forall f\in\texttt{FcnSigns},\ \exists i,p\in\mathbb{F}_{256},\ (f,i,p)\in\mathcal{F}$
+  - Uniqueness: $\forall f\in\texttt{FcnSigns},\ \forall i_1,p_1,i_2,p_2\in\mathbb{F}_{256},\ ((f,i_1,p_1)\in\mathcal{F}\wedge(f,i_2,p_2)\in\mathcal{F})\Rightarrow(i_1=i_2\wedge p_1=p_2)$
 
 #### Getters
 
@@ -47,20 +44,17 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 #### Relations
 
 - $\widetilde{\mathcal{S}}:=\{(f,s)\mid f\in\texttt{AppFcnSigs}\ \wedge\ s\in\texttt{GetFcnStorages}(f)\}$
+  - Inclusion: $\widetilde{\mathcal{S}}\subseteq\mathcal{S}$
 - $\widetilde{\mathcal{P}}:=\{(s,k)\mid s\in\texttt{AppStorages}\ \wedge\ k\in\texttt{GetPreAllocKeys}(s)\}$
+  - Inclusion: $\widetilde{\mathcal{P}}\subseteq\mathcal{P}$
 - $\widetilde{\mathcal{U}}:=\{(s,u)\mid s\in\texttt{AppStorages}\ \wedge\ u\in\texttt{GetUserSlots}(s)\}$
+  - Inclusion: $\widetilde{\mathcal{U}}\subseteq\mathcal{U}$
 - $\widetilde{\mathcal{F}}:=\{(f,i,p)\mid f\in\texttt{AppFcnSigs}\ \wedge\ \texttt{GetFcnCfg}(f)=(i,p)\}$
+  - Inclusion: $\widetilde{\mathcal{F}}\subseteq\mathcal{F}$
 - $\mathcal{K}\subseteq\texttt{UserAddrs}\times\texttt{AppStorages}\times\mathbb{F}_{256}$
+  - Existence and uniqueness: $\forall (u,s)\in\texttt{UserAddrs}\times\texttt{AppStorages},\ \exists!k\in\mathbb{F}_{256},\ (u,s,k)\in\mathcal{K}$
 - $\mathcal{V}\subseteq\texttt{AppStorages}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
-
-#### Constraints
-
-- $\widetilde{\mathcal{S}}\subseteq\mathcal{S}$
-- $\widetilde{\mathcal{P}}\subseteq\mathcal{P}$
-- $\widetilde{\mathcal{U}}\subseteq\mathcal{U}$
-- $\widetilde{\mathcal{F}}\subseteq\mathcal{F}$
-- $\forall (u,s)\in\texttt{UserAddrs}\times\texttt{AppStorages},\ \exists!k\in\mathbb{F}_{256},\ (u,s,k)\in\mathcal{K}$
-- $\forall s\in\texttt{AppStorages},\ \forall k\in\{k'\in\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k')\in\mathcal{K}\},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}$
+  - Existence and uniqueness on channel keys: $\forall s\in\texttt{AppStorages},\ \forall k\in\{k'\in\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k')\in\mathcal{K}\},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}$
 
 #### Getters
 

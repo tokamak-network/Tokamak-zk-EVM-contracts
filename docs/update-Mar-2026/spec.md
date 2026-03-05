@@ -19,6 +19,12 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 - $\mathcal{U}\subseteq\mathbb{F}_{160}\times\mathbb{F}_{8}$
 - $\mathcal{F}\subseteq\texttt{FcnSigns}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
 
+#### Constraints
+
+- $\forall f\in\texttt{FcnSigns},\ \exists s\in\mathbb{F}_{160},\ (f,s)\in\mathcal{S}$
+- $\forall f\in\texttt{FcnSigns},\ \exists i,p\in\mathbb{F}_{256},\ (f,i,p)\in\mathcal{F}$
+- $\forall f\in\texttt{FcnSigns},\ \forall i_1,p_1,i_2,p_2\in\mathbb{F}_{256},\ ((f,i_1,p_1)\in\mathcal{F}\wedge(f,i_2,p_2)\in\mathcal{F})\Rightarrow(i_1=i_2\wedge p_1=p_2)$
+
 #### Getters
 
 - $\texttt{GetFcnStorages}:\texttt{FcnSigns}\to\mathcal{P}(\mathbb{F}_{160})$
@@ -29,12 +35,6 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 - $\texttt{GetUserSlots}(s):=\{u\in\mathbb{F}_{8}\mid(s,u)\in\mathcal{U}\}$
 - $\texttt{GetFcnCfg}:\texttt{FcnSigns}\to\mathbb{F}_{256}\times\mathbb{F}_{256}$
 - $\texttt{GetFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}$
-
-#### Constraints
-
-- $\forall f\in\texttt{FcnSigns},\ \exists s\in\mathbb{F}_{160},\ (f,s)\in\mathcal{S}$
-- $\forall f\in\texttt{FcnSigns},\ \exists i,p\in\mathbb{F}_{256},\ (f,i,p)\in\mathcal{F}$
-- $\forall f\in\texttt{FcnSigns},\ \forall i_1,p_1,i_2,p_2\in\mathbb{F}_{256},\ ((f,i_1,p_1)\in\mathcal{F}\wedge(f,i_2,p_2)\in\mathcal{F})\Rightarrow(i_1=i_2\wedge p_1=p_2)$
 
 ### Channel
 
@@ -53,6 +53,15 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 - $\mathcal{K}\subseteq\texttt{UserAddrs}\times\texttt{AppStorages}\times\mathbb{F}_{256}$
 - $\mathcal{V}\subseteq\texttt{AppStorages}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
 
+#### Constraints
+
+- $\widetilde{\mathcal{S}}\subseteq\mathcal{S}$
+- $\widetilde{\mathcal{P}}\subseteq\mathcal{P}$
+- $\widetilde{\mathcal{U}}\subseteq\mathcal{U}$
+- $\widetilde{\mathcal{F}}\subseteq\mathcal{F}$
+- $\forall (u,s)\in\texttt{UserAddrs}\times\texttt{AppStorages},\ \exists!k\in\mathbb{F}_{256},\ (u,s,k)\in\mathcal{K}$
+- $\forall s\in\texttt{AppStorages},\ \forall k\in\{k'\in\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k')\in\mathcal{K}\},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}$
+
 #### Getters
 
 - $\texttt{GetChannelStorages}:\texttt{AppFcnSigs}\to\mathcal{P}(\mathbb{F}_{160})$
@@ -65,12 +74,3 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 - $\texttt{GetChannelFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\widetilde{\mathcal{F}}$
 - $\texttt{GetChannelStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
 - $\texttt{GetValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
-
-#### Constraints
-
-- $\widetilde{\mathcal{S}}\subseteq\mathcal{S}$
-- $\widetilde{\mathcal{P}}\subseteq\mathcal{P}$
-- $\widetilde{\mathcal{U}}\subseteq\mathcal{U}$
-- $\widetilde{\mathcal{F}}\subseteq\mathcal{F}$
-- $\forall (u,s)\in\texttt{UserAddrs}\times\texttt{AppStorages},\ \exists!k\in\mathbb{F}_{256},\ (u,s,k)\in\mathcal{K}$
-- $\forall s\in\texttt{AppStorages},\ \forall k\in\{k'\in\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k')\in\mathcal{K}\},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}$

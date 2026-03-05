@@ -39,6 +39,7 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 - $\texttt{UserAddrs}\subseteq\mathbb{F}_{256}$
 - $\texttt{AppFcnSigs}\subseteq\texttt{FcnSigns}$
 - $\texttt{AppStorages}:=\bigcup_{f\in\texttt{AppFcnSigs}}\texttt{GetFcnStorages}(f)$
+- $\texttt{AppPreAllocKeys}:=\{(s,k)\in\texttt{AppStorages}\times\mathbb{F}_{256}\mid k\in\texttt{GetPreAllocKeys}(s)\}$
 
 #### Relations
 
@@ -57,8 +58,7 @@ The channel manages seven relations.
 - $\mathcal{V}\subseteq\texttt{AppStorages}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
   - Conditional existence and uniqueness on channel keys: $\forall s\in\texttt{AppStorages},\ \forall k\in\mathbb{F}_{256},\ \left((\exists u\in\texttt{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}\right)$
 - $\mathcal{A}\subseteq\texttt{AppStorages}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
-  - Pre-allocated-key membership: $\forall s\in\texttt{AppStorages},\ \forall k,v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{A}\Rightarrow (s,k)\in\widetilde{\mathcal{P}}$
-  - Uniqueness (without existence): $\forall s\in\texttt{AppStorages},\ \forall k,v_1,v_2\in\mathbb{F}_{256},\ ((s,k,v_1)\in\mathcal{A}\wedge(s,k,v_2)\in\mathcal{A})\Rightarrow v_1=v_2$
+  - Conditional existence and uniqueness on app pre-allocated keys: $\forall (s,k)\in\texttt{AppPreAllocKeys},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{A}$
 
 #### Getters
 
@@ -74,5 +74,5 @@ The channel manages seven relations.
   - $\texttt{GetUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
 - $\texttt{GetValidatedStorageValue}:\{(s,k)\in\texttt{AppStorages}\times\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k)\in\mathcal{K}\}\to\mathbb{F}_{256}$
   - $\texttt{GetValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
-- $\texttt{GetAppPreAllocValue}:\{(s,k)\in\texttt{AppStorages}\times\mathbb{F}_{256}\mid (s,k)\in\widetilde{\mathcal{P}}\ \wedge\ \exists v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{A}\}\to\mathbb{F}_{256}$
+- $\texttt{GetAppPreAllocValue}:\texttt{AppPreAllocKeys}\to\mathbb{F}_{256}$
   - $\texttt{GetAppPreAllocValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{A}$

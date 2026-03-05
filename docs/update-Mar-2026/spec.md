@@ -8,7 +8,7 @@ $\mathbb{F}_{b}$ 는 $b$-bit word의 field이다.
 
 ### Bridge manager
 
-The Bridge Manager maintains normalized state for three core objects: $\mathbb{A}, \mathbb{T}, \mathbb{F}$.  
+The Bridge Manager maintains normalized state for three core relations: $A, T, F$.  
 All getter and setter functions are derived from these definitions.
 
 #### Domains
@@ -21,67 +21,75 @@ All getter and setter functions are derived from these definitions.
 - $P := \mathbb{F}_{256}$ (preprocess hash domain)
 - $H := I \times P$
 
-#### Normalized canonical form
+#### Primary normalized relations
 
-Define the state as three maps over finite sets:
+The primary state is relational (not map-first):
 
-- $A: G \to \mathcal{P}_{\mathrm{fin}}(S)$
-- $T: S \to \mathcal{P}_{\mathrm{fin}}(K)\times\mathcal{P}_{\mathrm{fin}}(U)$
-- $F: G \to H_{\bot}$, where $H_{\bot}:=H\cup\{\bot\}$ and $\bot$ means "unset"
+- $A \subseteq G\times S$
+- $T_K \subseteq S\times K$
+- $T_U \subseteq S\times U$
+- $T := (T_K, T_U)$
+- $F \subseteq G\times H$
 
-This form is normalization-oriented for simple updates:
+Semantics:
 
-- $A$ stores only membership of storage addresses per function signature.
-- $T$ stores only membership of pre-allocated keys and user slots per storage address.
-- $F$ stores exactly one config pair (or unset) per function signature.
+- $A$ pairs one function signature with a set of storage addresses.
+- $T$ pairs one storage address with a pair of sets: pre-allocated keys and user slots.
+- $F$ pairs one function signature with one $(\texttt{instanceHash},\texttt{preprocessHash})$ pair.
 
-#### Equivalent relational graphs
+Functional constraint for $F$:
 
-The map form above is equivalent to these relations:
+- $\forall f\in G,\ \forall h_1,h_2\in H,\ ((f,h_1)\in F\wedge(f,h_2)\in F)\Rightarrow h_1=h_2$
 
-- $\mathbb{A}:=\{(f,s)\in G\times S\mid s\in A(f)\}$
-- $\mathbb{T}_K:=\{(s,k)\in S\times K\mid k\in\pi_1(T(s))\}$
-- $\mathbb{T}_U:=\{(s,u)\in S\times U\mid u\in\pi_2(T(s))\}$
-- $\mathbb{F}:=\{(f,h)\in G\times H\mid F(f)=h\neq\bot\}$
+#### Derived maps from relations
 
-where $\pi_1,\pi_2$ are first and second projections.
+Maps are derived views and are not primary state:
+
+- $A^{\sharp}: G\to \mathcal{P}_{\mathrm{fin}}(S),\quad A^{\sharp}(f):=\{s\in S\mid(f,s)\in A\}$
+- $T^{\sharp}: S\to \mathcal{P}_{\mathrm{fin}}(K)\times\mathcal{P}_{\mathrm{fin}}(U)$
+- $T^{\sharp}(s):=\left(\{k\in K\mid(s,k)\in T_K\},\ \{u\in U\mid(s,u)\in T_U\}\right)$
+- $F^{\sharp}: G\to H_{\bot},\quad H_{\bot}:=H\cup\{\bot\}$
+- $F^{\sharp}(f):=\begin{cases}
+    h & \text{if }(f,h)\in F\\
+    \bot & \text{if }\nexists h\in H:(f,h)\in F
+  \end{cases}$
 
 #### Derived getters
 
-- $\texttt{GetFcnStorages}(f):=A(f)$
-- $\texttt{GetPreAllocKeys}(s):=\pi_1(T(s))$
-- $\texttt{GetUserSlots}(s):=\pi_2(T(s))$
-- $\texttt{GetTreeCfg}(s):=(\pi_1(T(s)),\pi_2(T(s)))$
-- $\texttt{GetFcnCfg}(f):=F(f)\in H_{\bot}$
+- $\texttt{GetFcnStorages}(f):=A^{\sharp}(f)$
+- $\texttt{GetPreAllocKeys}(s):=\pi_1(T^{\sharp}(s))$
+- $\texttt{GetUserSlots}(s):=\pi_2(T^{\sharp}(s))$
+- $\texttt{GetTreeCfg}(s):=T^{\sharp}(s)$
+- $\texttt{GetFcnCfg}(f):=F^{\sharp}(f)\in H_{\bot}$
 
 Batch getters are pure set comprehensions:
 
-- $\texttt{GetTreeCfgs}(X):=\{(s,T(s))\mid \exists f\in X,\ s\in A(f)\}$
-- $\texttt{GetFcnCfgs}(X):=\{(f,F(f))\mid f\in X,\ F(f)\neq\bot\}$
+- $\texttt{GetTreeCfgs}(X):=\{(s,T^{\sharp}(s))\mid \exists f\in X:(f,s)\in A\}$
+- $\texttt{GetFcnCfgs}(X):=\{(f,h)\mid f\in X,\ (f,h)\in F\}$
 
 #### Setter semantics
 
 Let $f\in G$, $s\in S$, $k\in K$, $u\in U$, $h\in H$.  
-Each setter is a primitive set insertion/deletion or single overwrite:
+Each setter is a direct relational update:
 
-- $\texttt{AddStorageAddr}(f,s):\ A(f)\leftarrow A(f)\cup\{s\}$
-- $\texttt{DelStorageAddr}(f,s):\ A(f)\leftarrow A(f)\setminus\{s\}$
-- $\texttt{AddPreAllocKey}(s,k):\ \pi_1(T(s))\leftarrow \pi_1(T(s))\cup\{k\}$
-- $\texttt{DelPreAllocKey}(s,k):\ \pi_1(T(s))\leftarrow \pi_1(T(s))\setminus\{k\}$
-- $\texttt{AddUserSlot}(s,u):\ \pi_2(T(s))\leftarrow \pi_2(T(s))\cup\{u\}$
-- $\texttt{DelUserSlot}(s,u):\ \pi_2(T(s))\leftarrow \pi_2(T(s))\setminus\{u\}$
-- $\texttt{SetFcnCfg}(f,h):\ F(f)\leftarrow h$
-- $\texttt{ClearFcnCfg}(f):\ F(f)\leftarrow \bot$
+- $\texttt{AddStorageAddr}(f,s):\ A\leftarrow A\cup\{(f,s)\}$
+- $\texttt{DelStorageAddr}(f,s):\ A\leftarrow A\setminus\{(f,s)\}$
+- $\texttt{AddPreAllocKey}(s,k):\ T_K\leftarrow T_K\cup\{(s,k)\}$
+- $\texttt{DelPreAllocKey}(s,k):\ T_K\leftarrow T_K\setminus\{(s,k)\}$
+- $\texttt{AddUserSlot}(s,u):\ T_U\leftarrow T_U\cup\{(s,u)\}$
+- $\texttt{DelUserSlot}(s,u):\ T_U\leftarrow T_U\setminus\{(s,u)\}$
+- $\texttt{SetFcnCfg}(f,h):\ F\leftarrow\left(F\setminus\{(f,h')\mid h'\in H\}\right)\cup\{(f,h)\}$
+- $\texttt{ClearFcnCfg}(f):\ F\leftarrow F\setminus\{(f,h')\mid h'\in H\}$
 
 #### Stability and consistency invariants
 
-- (Set uniqueness) $A(f)$, $\pi_1(T(s))$, and $\pi_2(T(s))$ are sets, so duplicate inserts are idempotent.
-- (Read-after-write) Each setter immediately changes the corresponding getter result by construction.
-- (Single-valued config) $F$ is a function, so one $f$ has at most one active $(\texttt{instanceHash},\texttt{preprocessHash})$ pair.
-- (Total getter behavior) For unseen keys, use defaults:
-  - $A(f)=\varnothing$
-  - $T(s)=(\varnothing,\varnothing)$
-  - $F(f)=\bot$
+- (Set uniqueness) $A$, $T_K$, and $T_U$ are sets of tuples, so repeated insertions are idempotent.
+- (Read-after-write) Each relational update immediately changes the corresponding derived getter.
+- (Single-valued config) Functionality of $F$ guarantees at most one active config for each $f$.
+- (Total getter behavior) For unseen keys in derived maps:
+  - $A^{\sharp}(f)=\varnothing$
+  - $T^{\sharp}(s)=(\varnothing,\varnothing)$
+  - $F^{\sharp}(f)=\bot$
 
 These defaults eliminate undefined reads and keep getter logic branch-minimal.
 

@@ -50,14 +50,14 @@ A channel is defined by a user set and a function-signature subset:
 
 Let the channel-local storage domain be:
 
-- $\texttt{AppStorages}:=\{s\in\mathbb{F}_{160}\mid \exists f\in\texttt{AppFcnSigs},\ (f,s)\in\mathcal{S}\}$
+- $\texttt{AppStorages}:=\bigcup_{f\in\texttt{AppFcnSigs}}\texttt{GetFcnStorages}(f)$
 
 The channel manages exactly six relations:
 
-- $\widetilde{\mathcal{S}}:=\mathcal{S}\cap\left(\texttt{AppFcnSigs}\times\mathbb{F}_{160}\right)$
-- $\widetilde{\mathcal{P}}:=\mathcal{P}\cap\left(\texttt{AppStorages}\times\mathbb{F}_{256}\right)$
-- $\widetilde{\mathcal{U}}:=\mathcal{U}\cap\left(\texttt{AppStorages}\times\mathbb{F}_{8}\right)$
-- $\widetilde{\mathcal{F}}:=\mathcal{F}\cap\left(\texttt{AppFcnSigs}\times\mathbb{F}_{256}\times\mathbb{F}_{256}\right)$
+- $\widetilde{\mathcal{S}}:=\{(f,s)\in\texttt{AppFcnSigs}\times\mathbb{F}_{160}\mid s\in\texttt{GetFcnStorages}(f)\}$
+- $\widetilde{\mathcal{P}}:=\{(s,k)\in\texttt{AppStorages}\times\mathbb{F}_{256}\mid k\in\texttt{GetPreAllocKeys}(s)\}$
+- $\widetilde{\mathcal{U}}:=\{(s,u)\in\texttt{AppStorages}\times\mathbb{F}_{8}\mid u\in\texttt{GetUserSlots}(s)\}$
+- $\widetilde{\mathcal{F}}:=\{(f,i,p)\in\texttt{AppFcnSigs}\times\mathbb{F}_{256}\times\mathbb{F}_{256}\mid \texttt{GetFcnCfg}(f)=(i,p)\}$
 - $\mathcal{K}\subseteq \texttt{UserAddrs}\times\texttt{AppStorages}\times\mathbb{F}_{256}$
 - $\mathcal{V}\subseteq \texttt{AppStorages}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
 

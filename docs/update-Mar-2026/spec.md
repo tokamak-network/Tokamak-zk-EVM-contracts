@@ -65,6 +65,17 @@ By construction:
 - $\widetilde{\mathcal{U}}\subseteq\mathcal{U}$
 - $\widetilde{\mathcal{F}}\subseteq\mathcal{F}$
 
+Channel getters for induced relations:
+
+- $\texttt{GetChannelStorages}:\texttt{AppFcnSigs}\to\mathcal{P}(\mathbb{F}_{160})$
+- $\texttt{GetChannelStorages}(f):=\{s\in\mathbb{F}_{160}\mid (f,s)\in\widetilde{\mathcal{S}}\}$
+- $\texttt{GetChannelPreAllocKeys}:\texttt{AppStorages}\to\mathcal{P}(\mathbb{F}_{256})$
+- $\texttt{GetChannelPreAllocKeys}(s):=\{k\in\mathbb{F}_{256}\mid (s,k)\in\widetilde{\mathcal{P}}\}$
+- $\texttt{GetChannelUserSlots}:\texttt{AppStorages}\to\mathcal{P}(\mathbb{F}_{8})$
+- $\texttt{GetChannelUserSlots}(s):=\{u\in\mathbb{F}_{8}\mid (s,u)\in\widetilde{\mathcal{U}}\}$
+- $\texttt{GetChannelFcnCfg}:\texttt{AppFcnSigs}\to\mathbb{F}_{256}\times\mathbb{F}_{256}$
+- $\texttt{GetChannelFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\widetilde{\mathcal{F}}$
+
 Channel key/value read relations:
 
 - $\texttt{GetChannelStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$

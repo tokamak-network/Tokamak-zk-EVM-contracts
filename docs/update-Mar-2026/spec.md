@@ -8,80 +8,69 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 
 ### Bridge manager
 
-Let $\texttt{FcnSigns}\subseteq\mathbb{F}_{32}$ be the function-signature set managed by the bridge manager.
+#### Scope
 
-#### Primary relations
+- $\texttt{FcnSigns}\subseteq\mathbb{F}_{32}$ (managed function-signature set)
 
-- $\mathcal{S} \subseteq \texttt{FcnSigns}\times \mathbb{F}_{160}$
-  - This relation pairs function signatures with storage addresses.
-  - Existence on managed signatures: $\forall f\in\texttt{FcnSigns},\ \exists s\in\mathbb{F}_{160},\ (f,s)\in\mathcal{S}$
-- $\mathcal{P} \subseteq \mathbb{F}_{160}\times \mathbb{F}_{256}$
-  - This relation pairs storage addresses with pre-allocated keys.
-- $\mathcal{U} \subseteq \mathbb{F}_{160}\times \mathbb{F}_{8}$
-  - This relation pairs storage addresses with user storage slots.
-- $\mathcal{F} \subseteq \texttt{FcnSigns}\times \mathbb{F}_{256} \times \mathbb{F}_{256}$
-  - This relation pairs function signatures with $(\texttt{instanceHash},\texttt{preprocessHash})$.
-  - Existence on managed signatures: $\forall f\in\texttt{FcnSigns},\ \exists i,p\in\mathbb{F}_{256},\ (f,i,p)\in\mathcal{F}$
-  - Uniqueness: $\forall f\in\texttt{FcnSigns},\ \forall i_1,p_1,i_2,p_2\in\mathbb{F}_{256},\ ((f,i_1,p_1)\in\mathcal{F}\wedge(f,i_2,p_2)\in\mathcal{F})\Rightarrow(i_1=i_2\wedge p_1=p_2)$
+#### Relations
+
+- $\mathcal{S}\subseteq\texttt{FcnSigns}\times\mathbb{F}_{160}$
+- $\mathcal{P}\subseteq\mathbb{F}_{160}\times\mathbb{F}_{256}$
+- $\mathcal{U}\subseteq\mathbb{F}_{160}\times\mathbb{F}_{8}$
+- $\mathcal{F}\subseteq\texttt{FcnSigns}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
 
 #### Getters
 
-Exactly one getter is defined per primary relation:
+- $\texttt{GetFcnStorages}:\texttt{FcnSigns}\to\mathcal{P}(\mathbb{F}_{160})$
+- $\texttt{GetFcnStorages}(f):=\{s\in\mathbb{F}_{160}\mid(f,s)\in\mathcal{S}\}$
+- $\texttt{GetPreAllocKeys}:\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{256})$
+- $\texttt{GetPreAllocKeys}(s):=\{k\in\mathbb{F}_{256}\mid(s,k)\in\mathcal{P}\}$
+- $\texttt{GetUserSlots}:\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{8})$
+- $\texttt{GetUserSlots}(s):=\{u\in\mathbb{F}_{8}\mid(s,u)\in\mathcal{U}\}$
+- $\texttt{GetFcnCfg}:\texttt{FcnSigns}\to\mathbb{F}_{256}\times\mathbb{F}_{256}$
+- $\texttt{GetFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}$
 
-- For $\mathcal{S}$:
-  - $\texttt{GetFcnStorages}:\texttt{FcnSigns}\to\mathcal{P}(\mathbb{F}_{160})$
-  - $\texttt{GetFcnStorages}(f):=\{s\in\mathbb{F}_{160}\mid (f,s)\in\mathcal{S}\}$
-- For $\mathcal{P}$:
-  - $\texttt{GetPreAllocKeys}:\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{256})$
-  - $\texttt{GetPreAllocKeys}(s):=\{k\in\mathbb{F}_{256}\mid (s,k)\in\mathcal{P}\}$
-- For $\mathcal{U}$:
-  - $\texttt{GetUserSlots}:\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{8})$
-  - $\texttt{GetUserSlots}(s):=\{u\in\mathbb{F}_{8}\mid (s,u)\in\mathcal{U}\}$
-- For $\mathcal{F}$:
-  - $\texttt{GetFcnCfg}:\texttt{FcnSigns}\to\mathbb{F}_{256}\times\mathbb{F}_{256}$
-  - $\texttt{GetFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}$
+#### Constraints
+
+- $\forall f\in\texttt{FcnSigns},\ \exists s\in\mathbb{F}_{160},\ (f,s)\in\mathcal{S}$
+- $\forall f\in\texttt{FcnSigns},\ \exists i,p\in\mathbb{F}_{256},\ (f,i,p)\in\mathcal{F}$
+- $\forall f\in\texttt{FcnSigns},\ \forall i_1,p_1,i_2,p_2\in\mathbb{F}_{256},\ ((f,i_1,p_1)\in\mathcal{F}\wedge(f,i_2,p_2)\in\mathcal{F})\Rightarrow(i_1=i_2\wedge p_1=p_2)$
 
 ### Channel
 
-A channel is defined by a user set and a function-signature subset:
+#### Scope
 
 - $\texttt{UserAddrs}\subseteq\mathbb{F}_{256}$
 - $\texttt{AppFcnSigs}\subseteq\texttt{FcnSigns}$
 - $\texttt{AppStorages}:=\bigcup_{f\in\texttt{AppFcnSigs}}\texttt{GetFcnStorages}(f)$
 
-The channel manages exactly six relations:
+#### Relations
 
 - $\widetilde{\mathcal{S}}:=\{(f,s)\mid f\in\texttt{AppFcnSigs}\ \wedge\ s\in\texttt{GetFcnStorages}(f)\}$
 - $\widetilde{\mathcal{P}}:=\{(s,k)\mid s\in\texttt{AppStorages}\ \wedge\ k\in\texttt{GetPreAllocKeys}(s)\}$
 - $\widetilde{\mathcal{U}}:=\{(s,u)\mid s\in\texttt{AppStorages}\ \wedge\ u\in\texttt{GetUserSlots}(s)\}$
 - $\widetilde{\mathcal{F}}:=\{(f,i,p)\mid f\in\texttt{AppFcnSigs}\ \wedge\ \texttt{GetFcnCfg}(f)=(i,p)\}$
-- $\mathcal{K}\subseteq \texttt{UserAddrs}\times\texttt{AppStorages}\times\mathbb{F}_{256}$
-- $\mathcal{V}\subseteq \texttt{AppStorages}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
+- $\mathcal{K}\subseteq\texttt{UserAddrs}\times\texttt{AppStorages}\times\mathbb{F}_{256}$
+- $\mathcal{V}\subseteq\texttt{AppStorages}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
 
-By construction:
+#### Getters
+
+- $\texttt{GetChannelStorages}:\texttt{AppFcnSigs}\to\mathcal{P}(\mathbb{F}_{160})$
+- $\texttt{GetChannelStorages}(f):=\{s\in\mathbb{F}_{160}\mid(f,s)\in\widetilde{\mathcal{S}}\}$
+- $\texttt{GetChannelPreAllocKeys}:\texttt{AppStorages}\to\mathcal{P}(\mathbb{F}_{256})$
+- $\texttt{GetChannelPreAllocKeys}(s):=\{k\in\mathbb{F}_{256}\mid(s,k)\in\widetilde{\mathcal{P}}\}$
+- $\texttt{GetChannelUserSlots}:\texttt{AppStorages}\to\mathcal{P}(\mathbb{F}_{8})$
+- $\texttt{GetChannelUserSlots}(s):=\{u\in\mathbb{F}_{8}\mid(s,u)\in\widetilde{\mathcal{U}}\}$
+- $\texttt{GetChannelFcnCfg}:\texttt{AppFcnSigs}\to\mathbb{F}_{256}\times\mathbb{F}_{256}$
+- $\texttt{GetChannelFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\widetilde{\mathcal{F}}$
+- $\texttt{GetChannelStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
+- $\texttt{GetValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
+
+#### Constraints
 
 - $\widetilde{\mathcal{S}}\subseteq\mathcal{S}$
 - $\widetilde{\mathcal{P}}\subseteq\mathcal{P}$
 - $\widetilde{\mathcal{U}}\subseteq\mathcal{U}$
 - $\widetilde{\mathcal{F}}\subseteq\mathcal{F}$
-
-Channel getters for induced relations:
-
-- $\texttt{GetChannelStorages}:\texttt{AppFcnSigs}\to\mathcal{P}(\mathbb{F}_{160})$
-- $\texttt{GetChannelStorages}(f):=\{s\in\mathbb{F}_{160}\mid (f,s)\in\widetilde{\mathcal{S}}\}$
-- $\texttt{GetChannelPreAllocKeys}:\texttt{AppStorages}\to\mathcal{P}(\mathbb{F}_{256})$
-- $\texttt{GetChannelPreAllocKeys}(s):=\{k\in\mathbb{F}_{256}\mid (s,k)\in\widetilde{\mathcal{P}}\}$
-- $\texttt{GetChannelUserSlots}:\texttt{AppStorages}\to\mathcal{P}(\mathbb{F}_{8})$
-- $\texttt{GetChannelUserSlots}(s):=\{u\in\mathbb{F}_{8}\mid (s,u)\in\widetilde{\mathcal{U}}\}$
-- $\texttt{GetChannelFcnCfg}:\texttt{AppFcnSigs}\to\mathbb{F}_{256}\times\mathbb{F}_{256}$
-- $\texttt{GetChannelFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\widetilde{\mathcal{F}}$
-
-Channel key/value read relations:
-
-- $\texttt{GetChannelStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
-- $\texttt{GetValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
-
-Consistency constraints:
-
 - $\forall (u,s)\in\texttt{UserAddrs}\times\texttt{AppStorages},\ \exists!k\in\mathbb{F}_{256},\ (u,s,k)\in\mathcal{K}$
 - $\forall s\in\texttt{AppStorages},\ \forall k\in\{k'\in\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k')\in\mathcal{K}\},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}$

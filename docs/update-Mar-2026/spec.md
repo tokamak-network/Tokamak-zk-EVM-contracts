@@ -19,7 +19,7 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 - $\texttt{UserStorageSlots}\subseteq\mathbb{F}_{8}$
   - A set of user storage slots
 - $\texttt{FcnCfgs}\subseteq\mathbb{F}_{256}\times\mathbb{F}_{256}$
-  - A set of function-configuration pairs $(\texttt{instanceHash},\texttt{preprocessHash})$
+  - A set of function-configuration pairs of instance hash and preprocess hash
 
 #### Relations
 
@@ -32,9 +32,9 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
   - Getter: $\texttt{GetPreAllocKeys}:\texttt{StorageAddrs}\to\mathcal{P}(\texttt{PreAllocKeys})$, where $\texttt{GetPreAllocKeys}(s):=\{k\in\texttt{PreAllocKeys}\mid(s,k)\in\mathcal{P}_M\}$
 - $\mathcal{U}_M\subseteq\texttt{StorageAddrs}\times\texttt{UserStorageSlots}$
   - Getter: $\texttt{GetUserSlots}:\texttt{StorageAddrs}\to\mathcal{P}(\texttt{UserStorageSlots})$, where $\texttt{GetUserSlots}(s):=\{u\in\texttt{UserStorageSlots}\mid(s,u)\in\mathcal{U}_M\}$
-- $\mathcal{F}_M\subseteq\texttt{FcnSigns}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
-  - Existence and uniqueness: $\forall f\in\texttt{FcnSigns},\ \exists!(i,p)\in\texttt{FcnCfgs}\ \text{s.t.}\ (f,i,p)\in\mathcal{F}_M$
-  - Getter: $\texttt{GetFcnCfg}:\texttt{FcnSigns}\to\texttt{FcnCfgs}$, where $\texttt{GetFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}_M$
+- $\mathcal{F}_M\subseteq\texttt{FcnSigns}\times\texttt{FcnCfgs}$
+  - Existence and uniqueness: $\forall f\in\texttt{FcnSigns},\ \exists!q\in\texttt{FcnCfgs}\ \text{s.t.}\ (f,q)\in\mathcal{F}_M$
+  - Getter: $\texttt{GetFcnCfg}:\texttt{FcnSigns}\to\texttt{FcnCfgs}$, where $\texttt{GetFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}_M$
 
 ### Channel
 
@@ -76,9 +76,9 @@ Given $\texttt{AppFcnSigs}$, a channel derives the following projected relations
 - $\mathcal{U}:=\{(s,u)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ u\in\texttt{GetUserSlots}(s)\}$
   - Inclusion: $\mathcal{U}\subseteq\mathcal{U}_M$
   - Getter: $\texttt{GetAppUserSlots}:\texttt{AppStorageAddrs}\to\mathcal{P}(\texttt{AppUserStorageSlots})$, where $\texttt{GetAppUserSlots}(s):=\{u\in\texttt{AppUserStorageSlots}\mid(s,u)\in\mathcal{U}\}$
-- $\mathcal{F}:=\{(f,i,p)\mid f\in\texttt{AppFcnSigs}\ \wedge\ (i,p)\in\texttt{AppFcnCfgs}\ \wedge\ \texttt{GetFcnCfg}(f)=(i,p)\}$
+- $\mathcal{F}:=\{(f,q)\mid f\in\texttt{AppFcnSigs}\ \wedge\ q\in\texttt{AppFcnCfgs}\ \wedge\ \texttt{GetFcnCfg}(f)=q\}$
   - Inclusion: $\mathcal{F}\subseteq\mathcal{F}_M$
-  - Getter: $\texttt{GetAppFcnCfg}:\texttt{AppFcnSigs}\to\texttt{AppFcnCfgs}$, where $\texttt{GetAppFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}$
+  - Getter: $\texttt{GetAppFcnCfg}:\texttt{AppFcnSigs}\to\texttt{AppFcnCfgs}$, where $\texttt{GetAppFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}$
 
 Given $\texttt{UserAddrs}$ and their channel storage access keys, a channel maintains and manages the following relations:
 
@@ -125,8 +125,8 @@ Given $\texttt{ChannelIds}$ and channel instances $\{X_c\}_{c\in\texttt{ChannelI
   - Bridge-manager consistency: $\forall(c,s,u)\in\widetilde{\mathcal{U}},\ (s,u)\in\mathcal{U}_M$
   - Getter: $\texttt{GetChannelUserSlots}:\{(c,s)\mid c\in\texttt{ChannelIds}\ \wedge\ s\in\texttt{AppStorageAddrs}_c\}\to\mathcal{P}(\texttt{AppUserStorageSlots}_c)$, where $\texttt{GetChannelUserSlots}(c,s):=\texttt{GetAppUserSlots}_c(s)$
 - $\widetilde{\mathcal{F}}:=\bigcup_{c\in\texttt{ChannelIds}}\left(\{c\}\times\mathcal{F}_c\right)$
-  - Bridge-manager consistency: $\forall(c,f,i,p)\in\widetilde{\mathcal{F}},\ (f,i,p)\in\mathcal{F}_M$
-  - Existence and uniqueness per channel-function pair: $\forall c\in\texttt{ChannelIds},\ \forall f\in\texttt{AppFcnSigs}_c,\ \exists!(i,p)\in\texttt{AppFcnCfgs}_c,\ (c,f,i,p)\in\widetilde{\mathcal{F}}$
+  - Bridge-manager consistency: $\forall(c,f,q)\in\widetilde{\mathcal{F}},\ (f,q)\in\mathcal{F}_M$
+  - Existence and uniqueness per channel-function pair: $\forall c\in\texttt{ChannelIds},\ \forall f\in\texttt{AppFcnSigs}_c,\ \exists!q\in\texttt{AppFcnCfgs}_c,\ (c,f,q)\in\widetilde{\mathcal{F}}$
   - Getter: $\texttt{GetChannelFcnCfg}:\{(c,f)\mid c\in\texttt{ChannelIds}\ \wedge\ f\in\texttt{AppFcnSigs}_c\}\to\texttt{AppFcnCfgs}_c$, where $\texttt{GetChannelFcnCfg}(c,f):=\texttt{GetAppFcnCfg}_c(f)$
 - $\widetilde{\mathcal{K}}:=\bigcup_{c\in\texttt{ChannelIds}}\left(\{c\}\times\mathcal{K}_c\right)$
   - Uniqueness (without existence): $\forall c\in\texttt{ChannelIds},\ \forall u\in\texttt{UserAddrs}_c,\ \forall s\in\texttt{AppStorageAddrs}_c,\ \forall k_1,k_2\in\texttt{AppUserStorageKey}_c,\ ((c,u,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c,u,s,k_2)\in\widetilde{\mathcal{K}})\Rightarrow k_1=k_2$

@@ -12,21 +12,31 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 
 - $\texttt{FcnSigns}\subseteq\mathbb{F}_{32}$
   - A set of contract function signatures
+- $\texttt{StorageAddrs}\subseteq\mathbb{F}_{160}$
+  - A set of storage addresses
+- $\texttt{PreAllocKeys}\subseteq\mathbb{F}_{256}$
+  - A set of pre-allocated keys
+- $\texttt{UserStorageSlots}\subseteq\mathbb{F}_{8}$
+  - A set of user storage slots
+- $\texttt{InstanceHashes}\subseteq\mathbb{F}_{256}$
+  - A set of instance hashes
+- $\texttt{PreprocessHashes}\subseteq\mathbb{F}_{256}$
+  - A set of preprocess hashes
 
 #### Relations
 
 Given $\texttt{FcnSigns}$ and MPT structural information involved with each of the contract functions, the bridge manager maintains and manages the following relations:
 
-- $\mathcal{S}_M\subseteq\texttt{FcnSigns}\times\mathbb{F}_{160}$
-  - Existence: $\forall f\in\texttt{FcnSigns},\ \exists s\in\mathbb{F}_{160},\ (f,s)\in\mathcal{S}_M$
-  - Getter: $\texttt{GetFcnStorages}:\texttt{FcnSigns}\to\mathcal{P}(\mathbb{F}_{160})$, where $\texttt{GetFcnStorages}(f):=\{s\in\mathbb{F}_{160}\mid(f,s)\in\mathcal{S}_M\}$
-- $\mathcal{P}_M\subseteq\mathbb{F}_{160}\times\mathbb{F}_{256}$
-  - Getter: $\texttt{GetPreAllocKeys}:\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{256})$, where $\texttt{GetPreAllocKeys}(s):=\{k\in\mathbb{F}_{256}\mid(s,k)\in\mathcal{P}_M\}$
-- $\mathcal{U}_M\subseteq\mathbb{F}_{160}\times\mathbb{F}_{8}$
-  - Getter: $\texttt{GetUserSlots}:\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{8})$, where $\texttt{GetUserSlots}(s):=\{u\in\mathbb{F}_{8}\mid(s,u)\in\mathcal{U}_M\}$
-- $\mathcal{F}_M\subseteq\texttt{FcnSigns}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
-  - Existence and uniqueness: $\forall f\in\texttt{FcnSigns},\ \exists!(i,p)\in\mathbb{F}_{256}\times\mathbb{F}_{256}\ \text{s.t.}\ (f,i,p)\in\mathcal{F}_M$
-  - Getter: $\texttt{GetFcnCfg}:\texttt{FcnSigns}\to\mathbb{F}_{256}\times\mathbb{F}_{256}$, where $\texttt{GetFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}_M$
+- $\mathcal{S}_M\subseteq\texttt{FcnSigns}\times\texttt{StorageAddrs}$
+  - Existence: $\forall f\in\texttt{FcnSigns},\ \exists s\in\texttt{StorageAddrs},\ (f,s)\in\mathcal{S}_M$
+  - Getter: $\texttt{GetFcnStorages}:\texttt{FcnSigns}\to\mathcal{P}(\texttt{StorageAddrs})$, where $\texttt{GetFcnStorages}(f):=\{s\in\texttt{StorageAddrs}\mid(f,s)\in\mathcal{S}_M\}$
+- $\mathcal{P}_M\subseteq\texttt{StorageAddrs}\times\texttt{PreAllocKeys}$
+  - Getter: $\texttt{GetPreAllocKeys}:\texttt{StorageAddrs}\to\mathcal{P}(\texttt{PreAllocKeys})$, where $\texttt{GetPreAllocKeys}(s):=\{k\in\texttt{PreAllocKeys}\mid(s,k)\in\mathcal{P}_M\}$
+- $\mathcal{U}_M\subseteq\texttt{StorageAddrs}\times\texttt{UserStorageSlots}$
+  - Getter: $\texttt{GetUserSlots}:\texttt{StorageAddrs}\to\mathcal{P}(\texttt{UserStorageSlots})$, where $\texttt{GetUserSlots}(s):=\{u\in\texttt{UserStorageSlots}\mid(s,u)\in\mathcal{U}_M\}$
+- $\mathcal{F}_M\subseteq\texttt{FcnSigns}\times\texttt{InstanceHashes}\times\texttt{PreprocessHashes}$
+  - Existence and uniqueness: $\forall f\in\texttt{FcnSigns},\ \exists!(i,p)\in\texttt{InstanceHashes}\times\texttt{PreprocessHashes}\ \text{s.t.}\ (f,i,p)\in\mathcal{F}_M$
+  - Getter: $\texttt{GetFcnCfg}:\texttt{FcnSigns}\to\texttt{InstanceHashes}\times\texttt{PreprocessHashes}$, where $\texttt{GetFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}_M$
 
 ### Channel
 

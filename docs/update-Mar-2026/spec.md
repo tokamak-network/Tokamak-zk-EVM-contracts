@@ -73,41 +73,41 @@ Given $\texttt{UserAddrs}$ and their channel storage access keys, a channel main
 
 #### Scope
 
-- $\mathcal{C}\subseteq\mathbb{F}_{256}$
+- $\texttt{ChannelIds}\subseteq\mathbb{F}_{256}$
   - A set of registered channel IDs
-- For each $c\in\mathcal{C}$, let $X_c$ denote one channel instance satisfying the Channel section:
+- For each $c\in\texttt{ChannelIds}$, let $X_c$ denote one channel instance satisfying the Channel section:
   - $X_c=(\texttt{UserAddrs}_c,\texttt{AppFcnSigs}_c,\texttt{AppStorages}_c,\widetilde{\mathcal{S}}_c,\widetilde{\mathcal{P}}_c,\widetilde{\mathcal{U}}_c,\widetilde{\mathcal{F}}_c,\mathcal{K}_c,\mathcal{V}_c,\mathcal{A}_c)$
 
 #### Relations
 
-Given $\mathcal{C}$ and channel instances $\{X_c\}_{c\in\mathcal{C}}$, the core relations are lifted from channel relations:
+Given $\texttt{ChannelIds}$ and channel instances $\{X_c\}_{c\in\texttt{ChannelIds}}$, the core relations are lifted from channel relations:
 
-- $\mathcal{M}^{\mathrm{C}}:=\{(c,u)\mid c\in\mathcal{C}\ \wedge\ u\in\texttt{UserAddrs}_c\}$
-  - Getter: $\texttt{GetChannelUsers}:\mathcal{C}\to\mathcal{P}(\mathbb{F}_{256})$, where $\texttt{GetChannelUsers}(c):=\{u\in\mathbb{F}_{256}\mid(c,u)\in\mathcal{M}^{\mathrm{C}}\}$
-- $\mathcal{S}^{\mathrm{C}}:=\{(c,f,s)\mid c\in\mathcal{C}\ \wedge\ (f,s)\in\widetilde{\mathcal{S}}_c\}$
+- $\mathcal{M}^{\mathrm{C}}:=\{(c,u)\mid c\in\texttt{ChannelIds}\ \wedge\ u\in\texttt{UserAddrs}_c\}$
+  - Getter: $\texttt{GetChannelUsers}:\texttt{ChannelIds}\to\mathcal{P}(\mathbb{F}_{256})$, where $\texttt{GetChannelUsers}(c):=\{u\in\mathbb{F}_{256}\mid(c,u)\in\mathcal{M}^{\mathrm{C}}\}$
+- $\mathcal{S}^{\mathrm{C}}:=\{(c,f,s)\mid c\in\texttt{ChannelIds}\ \wedge\ (f,s)\in\widetilde{\mathcal{S}}_c\}$
   - Bridge-manager consistency: $\forall(c,f,s)\in\mathcal{S}^{\mathrm{C}},\ (f,s)\in\mathcal{S}$
-  - Getter: $\texttt{GetChannelFcnStorages}:\mathcal{C}\times\mathbb{F}_{32}\to\mathcal{P}(\mathbb{F}_{160})$, where $\texttt{GetChannelFcnStorages}(c,f):=\{s\in\mathbb{F}_{160}\mid(c,f,s)\in\mathcal{S}^{\mathrm{C}}\}=\texttt{GetAppFcnStorages}_c(f)$
-- $\mathcal{P}^{\mathrm{C}}:=\{(c,s,k)\mid c\in\mathcal{C}\ \wedge\ (s,k)\in\widetilde{\mathcal{P}}_c\}$
+  - Getter: $\texttt{GetChannelFcnStorages}:\texttt{ChannelIds}\times\mathbb{F}_{32}\to\mathcal{P}(\mathbb{F}_{160})$, where $\texttt{GetChannelFcnStorages}(c,f):=\{s\in\mathbb{F}_{160}\mid(c,f,s)\in\mathcal{S}^{\mathrm{C}}\}=\texttt{GetAppFcnStorages}_c(f)$
+- $\mathcal{P}^{\mathrm{C}}:=\{(c,s,k)\mid c\in\texttt{ChannelIds}\ \wedge\ (s,k)\in\widetilde{\mathcal{P}}_c\}$
   - Bridge-manager consistency: $\forall(c,s,k)\in\mathcal{P}^{\mathrm{C}},\ (s,k)\in\mathcal{P}$
-  - Getter: $\texttt{GetChannelPreAllocKeys}:\mathcal{C}\times\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{256})$, where $\texttt{GetChannelPreAllocKeys}(c,s):=\{k\in\mathbb{F}_{256}\mid(c,s,k)\in\mathcal{P}^{\mathrm{C}}\}=\texttt{GetAppPreAllocKeys}_c(s)$
-- $\mathcal{U}^{\mathrm{C}}:=\{(c,s,u)\mid c\in\mathcal{C}\ \wedge\ (s,u)\in\widetilde{\mathcal{U}}_c\}$
+  - Getter: $\texttt{GetChannelPreAllocKeys}:\texttt{ChannelIds}\times\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{256})$, where $\texttt{GetChannelPreAllocKeys}(c,s):=\{k\in\mathbb{F}_{256}\mid(c,s,k)\in\mathcal{P}^{\mathrm{C}}\}=\texttt{GetAppPreAllocKeys}_c(s)$
+- $\mathcal{U}^{\mathrm{C}}:=\{(c,s,u)\mid c\in\texttt{ChannelIds}\ \wedge\ (s,u)\in\widetilde{\mathcal{U}}_c\}$
   - Bridge-manager consistency: $\forall(c,s,u)\in\mathcal{U}^{\mathrm{C}},\ (s,u)\in\mathcal{U}$
-  - Getter: $\texttt{GetChannelUserSlots}:\mathcal{C}\times\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{8})$, where $\texttt{GetChannelUserSlots}(c,s):=\{u\in\mathbb{F}_{8}\mid(c,s,u)\in\mathcal{U}^{\mathrm{C}}\}=\texttt{GetAppUserSlots}_c(s)$
-- $\mathcal{F}^{\mathrm{C}}:=\{(c,f,i,p)\mid c\in\mathcal{C}\ \wedge\ (f,i,p)\in\widetilde{\mathcal{F}}_c\}$
+  - Getter: $\texttt{GetChannelUserSlots}:\texttt{ChannelIds}\times\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{8})$, where $\texttt{GetChannelUserSlots}(c,s):=\{u\in\mathbb{F}_{8}\mid(c,s,u)\in\mathcal{U}^{\mathrm{C}}\}=\texttt{GetAppUserSlots}_c(s)$
+- $\mathcal{F}^{\mathrm{C}}:=\{(c,f,i,p)\mid c\in\texttt{ChannelIds}\ \wedge\ (f,i,p)\in\widetilde{\mathcal{F}}_c\}$
   - Bridge-manager consistency: $\forall(c,f,i,p)\in\mathcal{F}^{\mathrm{C}},\ (f,i,p)\in\mathcal{F}$
-  - Existence and uniqueness per channel-function pair: $\forall c\in\mathcal{C},\ \forall f\in\texttt{AppFcnSigs}_c,\ \exists!(i,p)\in\mathbb{F}_{256}\times\mathbb{F}_{256},\ (c,f,i,p)\in\mathcal{F}^{\mathrm{C}}$
-  - Getter: $\texttt{GetChannelFcnCfg}:\{(c,f)\mid c\in\mathcal{C}\ \wedge\ f\in\texttt{AppFcnSigs}_c\}\to\mathbb{F}_{256}\times\mathbb{F}_{256}$, where $\texttt{GetChannelFcnCfg}(c,f):=(i,p)\ \text{where}\ (c,f,i,p)\in\mathcal{F}^{\mathrm{C}}=\texttt{GetAppFcnCfg}_c(f)$
-- $\mathcal{K}^{\mathrm{C}}:=\{(c,u,s,k)\mid c\in\mathcal{C}\ \wedge\ (u,s,k)\in\mathcal{K}_c\}$
-  - Uniqueness (without existence): $\forall c\in\mathcal{C},\ \forall u\in\texttt{UserAddrs}_c,\ \forall s\in\texttt{AppStorages}_c,\ \forall k_1,k_2\in\mathbb{F}_{256},\ ((c,u,s,k_1)\in\mathcal{K}^{\mathrm{C}}\wedge(c,u,s,k_2)\in\mathcal{K}^{\mathrm{C}})\Rightarrow k_1=k_2$
-  - Getter: $\texttt{GetChannelUserStorageKey}:\{(c,u,s)\mid c\in\mathcal{C}\ \wedge\ (c,u)\in\mathcal{M}^{\mathrm{C}}\ \wedge\ s\in\texttt{AppStorages}_c\}\to\mathbb{F}_{256}$, where $\texttt{GetChannelUserStorageKey}(c,u,s):=k\ \text{where}\ (c,u,s,k)\in\mathcal{K}^{\mathrm{C}}=\texttt{GetAppUserStorageKey}_c(u,s)$
-- $\mathcal{V}^{\mathrm{C}}:=\{(c,s,k,v)\mid c\in\mathcal{C}\ \wedge\ (s,k,v)\in\mathcal{V}_c\}$
-  - Conditional existence and uniqueness on channel keys: $\forall c\in\mathcal{C},\ \forall s\in\texttt{AppStorages}_c,\ \forall k\in\mathbb{F}_{256},\ \left((\exists u\in\texttt{UserAddrs}_c,\ (c,u,s,k)\in\mathcal{K}^{\mathrm{C}})\Rightarrow \exists!v\in\mathbb{F}_{256},\ (c,s,k,v)\in\mathcal{V}^{\mathrm{C}}\right)$
-  - Getter: $\texttt{GetChannelValidatedStorageValue}:\{(c,s,k)\mid c\in\mathcal{C}\ \wedge\ \exists u\in\texttt{UserAddrs}_c,\ (c,u,s,k)\in\mathcal{K}^{\mathrm{C}}\}\to\mathbb{F}_{256}$, where $\texttt{GetChannelValidatedStorageValue}(c,s,k):=v\ \text{where}\ (c,s,k,v)\in\mathcal{V}^{\mathrm{C}}=\texttt{GetAppValidatedStorageValue}_c(s,k)$
-- $\mathcal{A}^{\mathrm{C}}:=\{(c,s,k,v)\mid c\in\mathcal{C}\ \wedge\ (s,k,v)\in\mathcal{A}_c\}$
-  - Conditional existence and uniqueness on channel pre-allocated keys: $\forall c\in\mathcal{C},\ \forall (s,k)\in\widetilde{\mathcal{P}}_c,\ \exists!v\in\mathbb{F}_{256},\ (c,s,k,v)\in\mathcal{A}^{\mathrm{C}}$
-  - Getter: $\texttt{GetChannelPreAllocValue}:\{(c,s,k)\mid c\in\mathcal{C}\ \wedge\ (s,k)\in\widetilde{\mathcal{P}}_c\}\to\mathbb{F}_{256}$, where $\texttt{GetChannelPreAllocValue}(c,s,k):=v\ \text{where}\ (c,s,k,v)\in\mathcal{A}^{\mathrm{C}}=\texttt{GetAppPreAllocValue}_c(s,k)$
+  - Existence and uniqueness per channel-function pair: $\forall c\in\texttt{ChannelIds},\ \forall f\in\texttt{AppFcnSigs}_c,\ \exists!(i,p)\in\mathbb{F}_{256}\times\mathbb{F}_{256},\ (c,f,i,p)\in\mathcal{F}^{\mathrm{C}}$
+  - Getter: $\texttt{GetChannelFcnCfg}:\{(c,f)\mid c\in\texttt{ChannelIds}\ \wedge\ f\in\texttt{AppFcnSigs}_c\}\to\mathbb{F}_{256}\times\mathbb{F}_{256}$, where $\texttt{GetChannelFcnCfg}(c,f):=(i,p)\ \text{where}\ (c,f,i,p)\in\mathcal{F}^{\mathrm{C}}=\texttt{GetAppFcnCfg}_c(f)$
+- $\mathcal{K}^{\mathrm{C}}:=\{(c,u,s,k)\mid c\in\texttt{ChannelIds}\ \wedge\ (u,s,k)\in\mathcal{K}_c\}$
+  - Uniqueness (without existence): $\forall c\in\texttt{ChannelIds},\ \forall u\in\texttt{UserAddrs}_c,\ \forall s\in\texttt{AppStorages}_c,\ \forall k_1,k_2\in\mathbb{F}_{256},\ ((c,u,s,k_1)\in\mathcal{K}^{\mathrm{C}}\wedge(c,u,s,k_2)\in\mathcal{K}^{\mathrm{C}})\Rightarrow k_1=k_2$
+  - Getter: $\texttt{GetChannelUserStorageKey}:\{(c,u,s)\mid c\in\texttt{ChannelIds}\ \wedge\ (c,u)\in\mathcal{M}^{\mathrm{C}}\ \wedge\ s\in\texttt{AppStorages}_c\}\to\mathbb{F}_{256}$, where $\texttt{GetChannelUserStorageKey}(c,u,s):=k\ \text{where}\ (c,u,s,k)\in\mathcal{K}^{\mathrm{C}}=\texttt{GetAppUserStorageKey}_c(u,s)$
+- $\mathcal{V}^{\mathrm{C}}:=\{(c,s,k,v)\mid c\in\texttt{ChannelIds}\ \wedge\ (s,k,v)\in\mathcal{V}_c\}$
+  - Conditional existence and uniqueness on channel keys: $\forall c\in\texttt{ChannelIds},\ \forall s\in\texttt{AppStorages}_c,\ \forall k\in\mathbb{F}_{256},\ \left((\exists u\in\texttt{UserAddrs}_c,\ (c,u,s,k)\in\mathcal{K}^{\mathrm{C}})\Rightarrow \exists!v\in\mathbb{F}_{256},\ (c,s,k,v)\in\mathcal{V}^{\mathrm{C}}\right)$
+  - Getter: $\texttt{GetChannelValidatedStorageValue}:\{(c,s,k)\mid c\in\texttt{ChannelIds}\ \wedge\ \exists u\in\texttt{UserAddrs}_c,\ (c,u,s,k)\in\mathcal{K}^{\mathrm{C}}\}\to\mathbb{F}_{256}$, where $\texttt{GetChannelValidatedStorageValue}(c,s,k):=v\ \text{where}\ (c,s,k,v)\in\mathcal{V}^{\mathrm{C}}=\texttt{GetAppValidatedStorageValue}_c(s,k)$
+- $\mathcal{A}^{\mathrm{C}}:=\{(c,s,k,v)\mid c\in\texttt{ChannelIds}\ \wedge\ (s,k,v)\in\mathcal{A}_c\}$
+  - Conditional existence and uniqueness on channel pre-allocated keys: $\forall c\in\texttt{ChannelIds},\ \forall (s,k)\in\widetilde{\mathcal{P}}_c,\ \exists!v\in\mathbb{F}_{256},\ (c,s,k,v)\in\mathcal{A}^{\mathrm{C}}$
+  - Getter: $\texttt{GetChannelPreAllocValue}:\{(c,s,k)\mid c\in\texttt{ChannelIds}\ \wedge\ (s,k)\in\widetilde{\mathcal{P}}_c\}\to\mathbb{F}_{256}$, where $\texttt{GetChannelPreAllocValue}(c,s,k):=v\ \text{where}\ (c,s,k,v)\in\mathcal{A}^{\mathrm{C}}=\texttt{GetAppPreAllocValue}_c(s,k)$
 
 Core access constraints:
 
-- Every channel-scoped getter is indexed by channel ID $c\in\mathcal{C}$.
+- Every channel-scoped getter is indexed by channel ID $c\in\texttt{ChannelIds}$.
 - Every user-scoped getter requires a membership witness $(c,u)\in\mathcal{M}^{\mathrm{C}}$ in its domain.

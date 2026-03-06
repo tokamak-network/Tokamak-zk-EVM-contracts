@@ -1,4 +1,4 @@
-pragma circom 2.2.3;
+pragma circom 2.2.2;
 
 include "./templates.circom";
 

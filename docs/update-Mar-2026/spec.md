@@ -75,10 +75,10 @@ Given $\texttt{AppFcnSigs}$, a channel derives the following projected relations
 - $\mathcal{S}:=\{(f,s)\mid f\in\texttt{AppFcnSigs}\ \wedge\ s\in\texttt{GetFcnStorages}(f)\}$
   - Inclusion: $\mathcal{S}\subseteq\mathcal{S}_M$
   - Getter: $\texttt{GetAppFcnStorages}:\texttt{AppFcnSigs}\to\mathcal{P}(\texttt{AppStorageAddrs})$, where $\texttt{GetAppFcnStorages}(f):=\{s\in\texttt{AppStorageAddrs}\mid(f,s)\in\mathcal{S}\}$
-- $\mathcal{P}:=\{(s,k)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ k\in\texttt{AppPreAllocKeys}\ \wedge\ k\in\texttt{GetPreAllocKeys}(s)\}$
+- $\mathcal{P}:=\{(s,k)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ k\in\texttt{GetPreAllocKeys}(s)\}$
   - Inclusion: $\mathcal{P}\subseteq\mathcal{P}_M$
   - Getter: $\texttt{GetAppPreAllocKeys}:\texttt{AppStorageAddrs}\to\mathcal{P}(\texttt{AppPreAllocKeys})$, where $\texttt{GetAppPreAllocKeys}(s):=\{k\in\texttt{AppPreAllocKeys}\mid(s,k)\in\mathcal{P}\}$
-- $\mathcal{U}:=\{(s,u)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ u\in\texttt{AppUserStorageSlots}\ \wedge\ u\in\texttt{GetUserSlots}(s)\}$
+- $\mathcal{U}:=\{(s,u)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ u\in\texttt{GetUserSlots}(s)\}$
   - Inclusion: $\mathcal{U}\subseteq\mathcal{U}_M$
   - Getter: $\texttt{GetAppUserSlots}:\texttt{AppStorageAddrs}\to\mathcal{P}(\texttt{AppUserStorageSlots})$, where $\texttt{GetAppUserSlots}(s):=\{u\in\texttt{AppUserStorageSlots}\mid(s,u)\in\mathcal{U}\}$
 - $\mathcal{F}:=\{(f,i,p)\mid f\in\texttt{AppFcnSigs}\ \wedge\ i\in\texttt{AppInstanceHashes}\ \wedge\ p\in\texttt{AppPreprocessHashes}\ \wedge\ \texttt{GetFcnCfg}(f)=(i,p)\}$

@@ -58,7 +58,7 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
 - $\mathrm{AppFcnCfgs}:=\mathrm{getFcnCfg}[\mathrm{AppFcnSigs}]$
   - A set of function-configuration pairs of instance hash and preprocess hash referenced by the functions in $\mathrm{AppFcnSigs}$
   - Inclusion: $\mathrm{AppFcnCfgs}\subseteq\mathrm{FcnCfgs}$
-- $\mathrm{AppUserStorageKey}\subseteq\mathbb{F}_{256}$
+- $\mathrm{AppUserStorageKeys}\subseteq\mathbb{F}_{256}$
   - A set of channel storage access keys used by users, distinct from Ethereum storage access keys
 - $\mathrm{AppValidatedStorageValues}\subseteq\mathbb{F}_{256}$
   - A set of validated channel storage values associated with user accesses
@@ -90,12 +90,12 @@ Given $\mathrm{AppFcnSigs}$, a channel derives the following projected relations
 
 Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel maintains and manages the following relations:
 
-- $\mathcal{K}\subseteq\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKey}$
-  - Uniqueness (without existence): $\forall u\in\mathrm{UserAddrs},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{AppUserStorageKey},\ ((u,s,k_1)\in\mathcal{K}\wedge(u,s,k_2)\in\mathcal{K})\Rightarrow k_1=k_2$
-  - Getter: $\mathrm{getAppUserStorageKey}:\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\to\mathrm{AppUserStorageKey}$, where $\mathrm{getAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
-- $\mathcal{V}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKey}\times\mathrm{AppValidatedStorageValues}$
-  - Conditional existence and uniqueness on channel keys: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppUserStorageKey},\ \left((\exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\mathrm{AppValidatedStorageValues},\ (s,k,v)\in\mathcal{V}\right)$
-  - Getter: $\mathrm{getAppValidatedStorageValue}:\{(s,k)\in\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKey}\mid \exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\}\to\mathrm{AppValidatedStorageValues}$, where $\mathrm{getAppValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
+- $\mathcal{K}\subseteq\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}$
+  - Uniqueness (without existence): $\forall u\in\mathrm{UserAddrs},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{AppUserStorageKeys},\ ((u,s,k_1)\in\mathcal{K}\wedge(u,s,k_2)\in\mathcal{K})\Rightarrow k_1=k_2$
+  - Getter: $\mathrm{getAppUserStorageKey}:\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\to\mathrm{AppUserStorageKeys}$, where $\mathrm{getAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
+- $\mathcal{V}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}\times\mathrm{AppValidatedStorageValues}$
+  - Conditional existence and uniqueness on channel keys: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppUserStorageKeys},\ \left((\exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\mathrm{AppValidatedStorageValues},\ (s,k,v)\in\mathcal{V}\right)$
+  - Getter: $\mathrm{getAppValidatedStorageValue}:\{(s,k)\in\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}\mid \exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\}\to\mathrm{AppValidatedStorageValues}$, where $\mathrm{getAppValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
 - $\mathcal{A}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppPreAllocKeys}\times\mathrm{AppPreAllocValues}$
   - Conditional existence and uniqueness on app pre-allocated keys: $\forall (s,k)\in\mathcal{P},\ \exists!v\in\mathrm{AppPreAllocValues},\ (s,k,v)\in\mathcal{A}$
   - Getter: $\mathrm{getAppPreAllocValue}:\mathcal{P}\to\mathrm{AppPreAllocValues}$, where $\mathrm{getAppPreAllocValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{A}$
@@ -119,7 +119,7 @@ Given state-machine indexing and verified state-root vectors, a channel maintain
 $$
 \begin{aligned}
 X_c:=(&\mathrm{UserAddrs}_c,\mathrm{AppFcnSigs}_c,\mathrm{AppStorageAddrs}_c,\mathrm{AppPreAllocKeys}_c,\mathrm{AppUserStorageSlots}_c,\\
-     &\mathrm{AppFcnCfgs}_c,\mathrm{AppUserStorageKey}_c,\mathrm{AppValidatedStorageValues}_c,\mathrm{AppPreAllocValues}_c,\\
+     &\mathrm{AppFcnCfgs}_c,\mathrm{AppUserStorageKeys}_c,\mathrm{AppValidatedStorageValues}_c,\mathrm{AppPreAllocValues}_c,\\
      &\mathrm{nAppStorages}_c,\mathrm{stateIndex}_c,\mathrm{VerifiedStateRoots}_c,\\
      &\mathcal{S}_c,\mathcal{P}_c,\mathcal{U}_c,\mathcal{F}_c,\mathcal{K}_c,\mathcal{V}_c,\mathcal{A}_c,\mathcal{R}_c)
 \end{aligned}
@@ -145,11 +145,11 @@ Given $\mathrm{ChannelIds}$ and channel instances $\{X_c\}_{c\in\mathrm{ChannelI
   - Existence and uniqueness per channel-function pair: $\forall c\in\mathrm{ChannelIds},\ \forall f\in\mathrm{AppFcnSigs}_c,\ \exists!q\in\mathrm{AppFcnCfgs}_c,\ (c,f,q)\in\widetilde{\mathcal{F}}$
   - Getter: $\mathrm{getChannelFcnCfg}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{AppFcnSigs}_c\}\to\mathrm{AppFcnCfgs}_c$, where $\mathrm{getChannelFcnCfg}(c,f):=\mathrm{getAppFcnCfg}_c(f)$
 - $\widetilde{\mathcal{K}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{K}_c\right)$
-  - Uniqueness (without existence): $\forall c\in\mathrm{ChannelIds},\ \forall u\in\mathrm{UserAddrs}_c,\ \forall s\in\mathrm{AppStorageAddrs}_c,\ \forall k_1,k_2\in\mathrm{AppUserStorageKey}_c,\ ((c,u,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c,u,s,k_2)\in\widetilde{\mathcal{K}})\Rightarrow k_1=k_2$
-  - Getter: $\mathrm{getChannelUserStorageKey}:\{(c,u,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ (c,u)\in\widetilde{\mathcal{M}}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathrm{AppUserStorageKey}_c$, where $\mathrm{getChannelUserStorageKey}(c,u,s):=\mathrm{getAppUserStorageKey}_c(u,s)$
+  - Uniqueness (without existence): $\forall c\in\mathrm{ChannelIds},\ \forall u\in\mathrm{UserAddrs}_c,\ \forall s\in\mathrm{AppStorageAddrs}_c,\ \forall k_1,k_2\in\mathrm{AppUserStorageKeys}_c,\ ((c,u,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c,u,s,k_2)\in\widetilde{\mathcal{K}})\Rightarrow k_1=k_2$
+  - Getter: $\mathrm{getChannelUserStorageKey}:\{(c,u,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ (c,u)\in\widetilde{\mathcal{M}}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathrm{AppUserStorageKeys}_c$, where $\mathrm{getChannelUserStorageKey}(c,u,s):=\mathrm{getAppUserStorageKey}_c(u,s)$
 - $\widetilde{\mathcal{V}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{V}_c\right)$
-  - Conditional existence and uniqueness on channel keys: $\forall c\in\mathrm{ChannelIds},\ \forall s\in\mathrm{AppStorageAddrs}_c,\ \forall k\in\mathrm{AppUserStorageKey}_c,\ \left((\exists u\in\mathrm{UserAddrs}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}})\Rightarrow \exists!v\in\mathrm{AppValidatedStorageValues}_c,\ (c,s,k,v)\in\widetilde{\mathcal{V}}\right)$
-  - Getter: $\mathrm{getChannelValidatedStorageValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ k\in\mathrm{AppUserStorageKey}_c\ \wedge\ \exists u\in\mathrm{UserAddrs}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}}\}\to\mathrm{AppValidatedStorageValues}_c$, where $\mathrm{getChannelValidatedStorageValue}(c,s,k):=\mathrm{getAppValidatedStorageValue}_c(s,k)$
+  - Conditional existence and uniqueness on channel keys: $\forall c\in\mathrm{ChannelIds},\ \forall s\in\mathrm{AppStorageAddrs}_c,\ \forall k\in\mathrm{AppUserStorageKeys}_c,\ \left((\exists u\in\mathrm{UserAddrs}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}})\Rightarrow \exists!v\in\mathrm{AppValidatedStorageValues}_c,\ (c,s,k,v)\in\widetilde{\mathcal{V}}\right)$
+  - Getter: $\mathrm{getChannelValidatedStorageValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ k\in\mathrm{AppUserStorageKeys}_c\ \wedge\ \exists u\in\mathrm{UserAddrs}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}}\}\to\mathrm{AppValidatedStorageValues}_c$, where $\mathrm{getChannelValidatedStorageValue}(c,s,k):=\mathrm{getAppValidatedStorageValue}_c(s,k)$
 - $\widetilde{\mathcal{A}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{A}_c\right)$
   - Conditional existence and uniqueness on channel pre-allocated keys: $\forall c\in\mathrm{ChannelIds},\ \forall (s,k)\in\mathcal{P}_c,\ \exists!v\in\mathrm{AppPreAllocValues}_c,\ (c,s,k,v)\in\widetilde{\mathcal{A}}$
   - Getter: $\mathrm{getChannelPreAllocValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ (s,k)\in\mathcal{P}_c\}\to\mathrm{AppPreAllocValues}_c$, where $\mathrm{getChannelPreAllocValue}(c,s,k):=\mathrm{getAppPreAllocValue}_c(s,k)$

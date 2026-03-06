@@ -50,6 +50,25 @@ template Poseidon2MerkleTree(N) {
     root <== levelOutputs[N - 1][0];
 }
 
+// Shared single-leaf template for Tokamak storage inputs.
+template TokamakStorageLeaf() {
+    signal input contract_id;
+    signal input storage_key_L2MPT;
+    signal input storage_value;
+    signal output leaf;
+
+    // intermediate = poseidon2(storage_key_L2MPT, storage_value)
+    component intermediate_hash = Poseidon255(2);
+    intermediate_hash.in[0] <== storage_key_L2MPT;
+    intermediate_hash.in[1] <== storage_value;
+
+    // leaf = poseidon2(contract_id, intermediate_value)
+    component leaf_hash = Poseidon255(2);
+    leaf_hash.in[0] <== contract_id;
+    leaf_hash.in[1] <== intermediate_hash.out;
+    leaf <== leaf_hash.out;
+}
+
 // Shared Tokamak storage Merkle proof template parameterized by tree depth N.
 template TokamakStorageMerkleProof(N) {
     var nLeaves = 2 ** N;
@@ -70,31 +89,19 @@ template TokamakStorageMerkleProof(N) {
     contract_id_hash.in[1] <== contract_address;
     signal contract_id <== contract_id_hash.out;
 
-    // Step 2: Compute intermediate leaf values.
-    // intermediate = poseidon2(storage_key_L2MPT, storage_value)
-    component intermediate_hash[nLeaves];
-    signal intermediate_values[nLeaves];
-
-    for (var i = 0; i < nLeaves; i++) {
-        intermediate_hash[i] = Poseidon255(2);
-        intermediate_hash[i].in[0] <== storage_keys_L2MPT[i];
-        intermediate_hash[i].in[1] <== storage_values[i];
-        intermediate_values[i] <== intermediate_hash[i].out;
-    }
-
-    // Step 3: Compute final leaves.
-    // leaf = poseidon2(contract_id, intermediate_value)
-    component leaf_hash[nLeaves];
+    // Step 2: Compute leaves from per-entry storage inputs.
+    component storage_leaf[nLeaves];
     signal leaf_values[nLeaves];
 
     for (var i = 0; i < nLeaves; i++) {
-        leaf_hash[i] = Poseidon255(2);
-        leaf_hash[i].in[0] <== contract_id;
-        leaf_hash[i].in[1] <== intermediate_values[i];
-        leaf_values[i] <== leaf_hash[i].out;
+        storage_leaf[i] = TokamakStorageLeaf();
+        storage_leaf[i].contract_id <== contract_id;
+        storage_leaf[i].storage_key_L2MPT <== storage_keys_L2MPT[i];
+        storage_leaf[i].storage_value <== storage_values[i];
+        leaf_values[i] <== storage_leaf[i].leaf;
     }
 
-    // Step 4: Compute Merkle tree.
+    // Step 3: Compute Merkle tree.
     component merkle_tree = Poseidon2MerkleTree(N);
 
     for (var i = 0; i < nLeaves; i++) {

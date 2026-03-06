@@ -2,56 +2,6 @@ pragma circom 2.2.2;
 
 include "../node_modules/poseidon-bls12381-circom/circuits/poseidon255.circom";
 
-// Shared Poseidon Merkle tree template parameterized by tree depth N.
-// Tree capacity: 2^N leaves.
-template Poseidon2MerkleTree(N) {
-    var nLeaves = 2 ** N;
-    signal input leaves[nLeaves];
-    signal output root;
-
-    // Calculate total number of components needed across all levels.
-    var totalComponents = 0;
-    var temp = nLeaves;
-    for (var level = 0; level < N; level++) {
-        temp = temp \ 2;
-        totalComponents += temp;
-    }
-
-    component hashers[totalComponents];
-
-    // Signals to store outputs for each level.
-    signal levelOutputs[N][nLeaves \ 2];
-
-    var componentIndex = 0;
-    var currentLevelSize = nLeaves;
-
-    for (var level = 0; level < N; level++) {
-        var nextLevelSize = currentLevelSize \ 2;
-
-        for (var i = 0; i < nextLevelSize; i++) {
-            hashers[componentIndex] = Poseidon255(2);
-
-            if (level == 0) {
-                // First level: use input leaves.
-                hashers[componentIndex].in[0] <== leaves[i * 2 + 0];
-                hashers[componentIndex].in[1] <== leaves[i * 2 + 1];
-            } else {
-                // Subsequent levels: use previous level outputs.
-                hashers[componentIndex].in[0] <== levelOutputs[level - 1][i * 2 + 0];
-                hashers[componentIndex].in[1] <== levelOutputs[level - 1][i * 2 + 1];
-            }
-
-            levelOutputs[level][i] <== hashers[componentIndex].out;
-            componentIndex++;
-        }
-
-        currentLevelSize = nextLevelSize;
-    }
-
-    // Root is the single output from the last level.
-    root <== levelOutputs[N - 1][0];
-}
-
 // Shared single-leaf template for Tokamak storage inputs.
 template computeLeaf() {
     signal input storage_key;

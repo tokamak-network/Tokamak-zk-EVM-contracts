@@ -18,10 +18,8 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
   - A set of pre-allocated keys
 - $\texttt{UserStorageSlots}\subseteq\mathbb{F}_{8}$
   - A set of user storage slots
-- $\texttt{InstanceHashes}\subseteq\mathbb{F}_{256}$
-  - A set of instance hashes
-- $\texttt{PreprocessHashes}\subseteq\mathbb{F}_{256}$
-  - A set of preprocess hashes
+- $\texttt{FcnCfgs}\subseteq\mathbb{F}_{256}\times\mathbb{F}_{256}$
+  - A set of function-configuration pairs $(\texttt{instanceHash},\texttt{preprocessHash})$
 
 #### Relations
 
@@ -34,9 +32,9 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
   - Getter: $\texttt{GetPreAllocKeys}:\texttt{StorageAddrs}\to\mathcal{P}(\texttt{PreAllocKeys})$, where $\texttt{GetPreAllocKeys}(s):=\{k\in\texttt{PreAllocKeys}\mid(s,k)\in\mathcal{P}_M\}$
 - $\mathcal{U}_M\subseteq\texttt{StorageAddrs}\times\texttt{UserStorageSlots}$
   - Getter: $\texttt{GetUserSlots}:\texttt{StorageAddrs}\to\mathcal{P}(\texttt{UserStorageSlots})$, where $\texttt{GetUserSlots}(s):=\{u\in\texttt{UserStorageSlots}\mid(s,u)\in\mathcal{U}_M\}$
-- $\mathcal{F}_M\subseteq\texttt{FcnSigns}\times\texttt{InstanceHashes}\times\texttt{PreprocessHashes}$
-  - Existence and uniqueness: $\forall f\in\texttt{FcnSigns},\ \exists!(i,p)\in\texttt{InstanceHashes}\times\texttt{PreprocessHashes}\ \text{s.t.}\ (f,i,p)\in\mathcal{F}_M$
-  - Getter: $\texttt{GetFcnCfg}:\texttt{FcnSigns}\to\texttt{InstanceHashes}\times\texttt{PreprocessHashes}$, where $\texttt{GetFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}_M$
+- $\mathcal{F}_M\subseteq\texttt{FcnSigns}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
+  - Existence and uniqueness: $\forall f\in\texttt{FcnSigns},\ \exists!(i,p)\in\texttt{FcnCfgs}\ \text{s.t.}\ (f,i,p)\in\mathcal{F}_M$
+  - Getter: $\texttt{GetFcnCfg}:\texttt{FcnSigns}\to\texttt{FcnCfgs}$, where $\texttt{GetFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}_M$
 
 ### Channel
 
@@ -55,9 +53,9 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
 - $\texttt{AppUserStorageSlots}:=\bigcup_{s\in\texttt{AppStorageAddrs}}\texttt{GetUserSlots}(s)$
   - A set of user storage slots associated with $\texttt{AppStorageAddrs}$
   - Inclusion: $\texttt{AppUserStorageSlots}\subseteq\texttt{UserStorageSlots}$
-- $\texttt{AppFcnCfgs}:=\{(i,p)\in\texttt{InstanceHashes}\times\texttt{PreprocessHashes}\mid \exists f\in\texttt{AppFcnSigs},\ \texttt{GetFcnCfg}(f)=(i,p)\}$
+- $\texttt{AppFcnCfgs}:=\{(i,p)\in\texttt{FcnCfgs}\mid \exists f\in\texttt{AppFcnSigs},\ \texttt{GetFcnCfg}(f)=(i,p)\}$
   - A set of function-configuration pairs used by $\texttt{AppFcnSigs}$
-  - Inclusion: $\texttt{AppFcnCfgs}\subseteq\texttt{InstanceHashes}\times\texttt{PreprocessHashes}$
+  - Inclusion: $\texttt{AppFcnCfgs}\subseteq\texttt{FcnCfgs}$
 - $\texttt{AppUserStorageKey}\subseteq\mathbb{F}_{256}$
   - A set of channel storage access keys used by users, distinct from Ethereum storage access keys
 - $\texttt{AppValidatedStorageValues}\subseteq\mathbb{F}_{256}$

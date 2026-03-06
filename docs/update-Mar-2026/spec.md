@@ -1,8 +1,10 @@
 # Tokamak Private App Channels - Bridge Contract
 
-### General
+This document defines the minimal requirements needed to keep the bridge contract's storage structure secure. All mathematical constraints in this document can be converted into security guardrails, in the form of skills, so that any core update to the bridge contract can be safely performed by generative LLMs without security leakage.
 
-The bridge contract records and manages channel data.
+Director: Jehyuk Jang, Ph.D
+
+### Finite-Field notation
 
 $\mathbb{F}_{b}$ is the field of $b$-bit words.
 
@@ -19,7 +21,7 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 - $\texttt{UserStorageSlots}\subseteq\mathbb{F}_{8}$
   - A set of user storage slots
 - $\texttt{FcnCfgs}\subseteq\mathbb{F}_{256}\times\mathbb{F}_{256}$
-  - A set of function-configuration pairs of instance hash and preprocess hash
+  - A set of function-configuration pairs of instance hashes and preprocess hashes
 
 #### Relations
 

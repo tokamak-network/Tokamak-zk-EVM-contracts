@@ -68,8 +68,6 @@ template TokamakStorageMerkleProof(N) {
     var nLeaves = 2 ** N;
 
     // Public inputs.
-    signal input fixed_prefix;                 // Fixed prefix for contract identification.
-    signal input contract_address;             // Contract address.
     signal input storage_keys_L2MPT[nLeaves];  // L2MPT storage keys.
     signal input storage_values[nLeaves];      // Storage values.
 

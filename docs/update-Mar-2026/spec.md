@@ -64,7 +64,7 @@ Given $\texttt{AppFcnSigs}$, a channel derives the following projected relations
 
 - $\mathcal{S}:=\{(f,s)\mid f\in\texttt{AppFcnSigs}\ \wedge\ s\in\texttt{GetFcnStorages}(f)\}$
   - Inclusion: $\mathcal{S}\subseteq\mathcal{S}_M$
-  - Getter: $\texttt{GetAppFcnStorages}:\texttt{AppFcnSigs}\to\mathcal{P}(\mathbb{F}_{160})$, where $\texttt{GetAppFcnStorages}(f):=\{s\in\mathbb{F}_{160}\mid(f,s)\in\mathcal{S}\}$
+  - Getter: $\texttt{GetAppFcnStorages}:\texttt{AppFcnSigs}\to\mathcal{P}(\texttt{AppStorageAddrs})$, where $\texttt{GetAppFcnStorages}(f):=\{s\in\texttt{AppStorageAddrs}\mid(f,s)\in\mathcal{S}\}$
 - $\mathcal{P}:=\{(s,k)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ k\in\texttt{AppPreAllocKeys}\ \wedge\ k\in\texttt{GetPreAllocKeys}(s)\}$
   - Inclusion: $\mathcal{P}\subseteq\mathcal{P}_M$
   - Getter: $\texttt{GetAppPreAllocKeys}:\texttt{AppStorageAddrs}\to\mathcal{P}(\texttt{AppPreAllocKeys})$, where $\texttt{GetAppPreAllocKeys}(s):=\{k\in\texttt{AppPreAllocKeys}\mid(s,k)\in\mathcal{P}\}$
@@ -105,7 +105,7 @@ Given $\texttt{ChannelIds}$ and channel instances $\{X_c\}_{c\in\texttt{ChannelI
   - Getter: $\texttt{GetChannelUsers}:\texttt{ChannelIds}\to\mathcal{P}(\mathbb{F}_{256})$, where $\texttt{GetChannelUsers}(c):=\{u\in\mathbb{F}_{256}\mid(c,u)\in\widetilde{\mathcal{M}}\}$
 - $\widetilde{\mathcal{S}}:=\{(c,f,s)\mid c\in\texttt{ChannelIds}\ \wedge\ (f,s)\in\mathcal{S}_c\}$
   - Bridge-manager consistency: $\forall(c,f,s)\in\widetilde{\mathcal{S}},\ (f,s)\in\mathcal{S}_M$
-  - Getter: $\texttt{GetChannelFcnStorages}:\texttt{ChannelIds}\times\mathbb{F}_{32}\to\mathcal{P}(\mathbb{F}_{160})$, where $\texttt{GetChannelFcnStorages}(c,f):=\{s\in\mathbb{F}_{160}\mid(c,f,s)\in\widetilde{\mathcal{S}}\}=\texttt{GetAppFcnStorages}_c(f)$
+  - Getter: $\texttt{GetChannelFcnStorages}:\texttt{ChannelIds}\times\mathbb{F}_{32}\to\mathcal{P}(\mathbb{F}_{160})$, where $\texttt{GetChannelFcnStorages}(c,f):=\{s\in\texttt{AppStorageAddrs}_c\mid(c,f,s)\in\widetilde{\mathcal{S}}\}=\texttt{GetAppFcnStorages}_c(f)$
 - $\widetilde{\mathcal{P}}:=\{(c,s,k)\mid c\in\texttt{ChannelIds}\ \wedge\ (s,k)\in\mathcal{P}_c\}$
   - Bridge-manager consistency: $\forall(c,s,k)\in\widetilde{\mathcal{P}},\ (s,k)\in\mathcal{P}_M$
   - Getter: $\texttt{GetChannelPreAllocKeys}:\texttt{ChannelIds}\times\mathbb{F}_{160}\to\mathcal{P}(\mathbb{F}_{256})$, where $\texttt{GetChannelPreAllocKeys}(c,s):=\{k\in\mathbb{F}_{256}\mid(c,s,k)\in\widetilde{\mathcal{P}}\}=\texttt{GetAppPreAllocKeys}_c(s)$

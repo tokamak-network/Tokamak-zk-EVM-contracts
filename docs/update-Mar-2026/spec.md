@@ -67,16 +67,16 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
 
 Given $\texttt{AppFcnSigs}$, a channel derives the following projected relations:
 
-- $\mathcal{S}:=\{(f,s)\mid f\in\texttt{AppFcnSigs}\ \wedge\ s\in\texttt{GetFcnStorages}(f)\}$
+- $\mathcal{S}:=\bigcup_{f\in\texttt{AppFcnSigs}}\left(\{f\}\times\texttt{GetFcnStorages}(f)\right)$
   - Inclusion: $\mathcal{S}\subseteq\mathcal{S}_M$
   - Getter: $\texttt{GetAppFcnStorages}:\texttt{AppFcnSigs}\to\mathcal{P}(\texttt{AppStorageAddrs})$, where $\texttt{GetAppFcnStorages}(f):=\{s\in\texttt{AppStorageAddrs}\mid(f,s)\in\mathcal{S}\}$
-- $\mathcal{P}:=\{(s,k)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ k\in\texttt{GetPreAllocKeys}(s)\}$
+- $\mathcal{P}:=\bigcup_{s\in\texttt{AppStorageAddrs}}\left(\{s\}\times\texttt{GetPreAllocKeys}(s)\right)$
   - Inclusion: $\mathcal{P}\subseteq\mathcal{P}_M$
   - Getter: $\texttt{GetAppPreAllocKeys}:\texttt{AppStorageAddrs}\to\mathcal{P}(\texttt{AppPreAllocKeys})$, where $\texttt{GetAppPreAllocKeys}(s):=\{k\in\texttt{AppPreAllocKeys}\mid(s,k)\in\mathcal{P}\}$
-- $\mathcal{U}:=\{(s,u)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ u\in\texttt{GetUserSlots}(s)\}$
+- $\mathcal{U}:=\bigcup_{s\in\texttt{AppStorageAddrs}}\left(\{s\}\times\texttt{GetUserSlots}(s)\right)$
   - Inclusion: $\mathcal{U}\subseteq\mathcal{U}_M$
   - Getter: $\texttt{GetAppUserSlots}:\texttt{AppStorageAddrs}\to\mathcal{P}(\texttt{AppUserStorageSlots})$, where $\texttt{GetAppUserSlots}(s):=\{u\in\texttt{AppUserStorageSlots}\mid(s,u)\in\mathcal{U}\}$
-- $\mathcal{F}:=\{(f,\texttt{GetFcnCfg}(f))\mid f\in\texttt{AppFcnSigs}\}$
+- $\mathcal{F}:=\bigcup_{f\in\texttt{AppFcnSigs}}\left(\{f\}\times\{\texttt{GetFcnCfg}(f)\}\right)$
   - Inclusion: $\mathcal{F}\subseteq\mathcal{F}_M$
   - Getter: $\texttt{GetAppFcnCfg}:\texttt{AppFcnSigs}\to\texttt{AppFcnCfgs}$, where $\texttt{GetAppFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}$
 

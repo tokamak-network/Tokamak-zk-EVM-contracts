@@ -43,19 +43,23 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
 #### Scope
 
 - $\texttt{UserAddrs}\subseteq\mathbb{F}_{256}$
-  - A set of user addresses
+  - A set of user addresses registered in a channel
 - $\texttt{AppFcnSigs}\subseteq\texttt{FcnSigns}$
-  - A set of contract function signatures that is supported by a channel
+  - A set of contract function signatures supported by a channel
 - $\texttt{AppStorageAddrs}:=\bigcup_{f\in\texttt{AppFcnSigs}}\texttt{GetFcnStorages}(f)$
-  - A set of storage addresses that the contract functions in $\texttt{AppFcnSigs}$ handle
+  - A set of storage addresses referenced by the functions in $\texttt{AppFcnSigs}$
   - Inclusion: $\texttt{AppStorageAddrs}\subseteq\texttt{StorageAddrs}$
 - $\texttt{AppPreAllocKeys}:=\bigcup_{s\in\texttt{AppStorageAddrs}}\texttt{GetPreAllocKeys}(s)$
+  - A set of pre-allocated keys associated with $\texttt{AppStorageAddrs}$
   - Inclusion: $\texttt{AppPreAllocKeys}\subseteq\texttt{PreAllocKeys}$
 - $\texttt{AppUserStorageSlots}:=\bigcup_{s\in\texttt{AppStorageAddrs}}\texttt{GetUserSlots}(s)$
+  - A set of user storage slots associated with $\texttt{AppStorageAddrs}$
   - Inclusion: $\texttt{AppUserStorageSlots}\subseteq\texttt{UserStorageSlots}$
 - $\texttt{AppInstanceHashes}:=\{i\in\texttt{InstanceHashes}\mid \exists f\in\texttt{AppFcnSigs},\ \exists p\in\texttt{PreprocessHashes},\ \texttt{GetFcnCfg}(f)=(i,p)\}$
+  - A set of instance hashes used by function configurations over $\texttt{AppFcnSigs}$
   - Inclusion: $\texttt{AppInstanceHashes}\subseteq\texttt{InstanceHashes}$
 - $\texttt{AppPreprocessHashes}:=\{p\in\texttt{PreprocessHashes}\mid \exists f\in\texttt{AppFcnSigs},\ \exists i\in\texttt{InstanceHashes},\ \texttt{GetFcnCfg}(f)=(i,p)\}$
+  - A set of preprocess hashes used by function configurations over $\texttt{AppFcnSigs}$
   - Inclusion: $\texttt{AppPreprocessHashes}\subseteq\texttt{PreprocessHashes}$
 
 #### Relations

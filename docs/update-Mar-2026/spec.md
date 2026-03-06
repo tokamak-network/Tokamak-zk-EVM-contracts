@@ -68,7 +68,7 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
   - The current state index of the channel state machine
 - $\mathrm{StateIndices}:=\{t\in\mathbb{N}\mid t\le\mathrm{stateIndex}\}$
   - A set of valid state indices in the channel state machine
-- $\mathrm{VerifiedStateRoots}\subseteq\mathbb{F}_{256}$
+- $\mathrm{VerifiedStateRoots}\subseteq\mathbb{F}_{255}$
   - A set of verified state roots
 
 #### Relations
@@ -95,6 +95,7 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
   - Getter: $\mathrm{getAppUserStorageKey}:\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\to\mathrm{AppUserStorageKeys}$, where $\mathrm{getAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
 - $\mathcal{V}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}\times\mathrm{AppValidatedStorageValues}$
   - Conditional existence and uniqueness on channel keys: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppUserStorageKeys},\ \left((\exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\mathrm{AppValidatedStorageValues},\ (s,k,v)\in\mathcal{V}\right)$
+  - Setter-gated value update: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppUserStorageKeys},\ \forall \mathrm{updatedStorageValue}\in\mathbb{F}_{256},\ \left((s,k,\mathrm{updatedStorageValue})\in\mathcal{V}\Rightarrow \exists \mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\ \mathrm{updateStorage}(s,\mathrm{updatedRoot},k,\mathrm{updatedStorageValue})=\mathrm{true}\right)$
   - Getter: $\mathrm{getAppValidatedStorageValue}:\{(s,k)\in\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}\mid \exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\}\to\mathrm{AppValidatedStorageValues}$, where $\mathrm{getAppValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
 - $\mathcal{A}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppPreAllocKeys}\times\mathrm{AppPreAllocValues}$
   - Conditional existence and uniqueness on app pre-allocated keys: $\forall (s,k)\in\mathcal{D},\ \exists!v\in\mathrm{AppPreAllocValues},\ (s,k,v)\in\mathcal{A}$
@@ -105,7 +106,18 @@ Given state-machine indexing and verified state roots, a channel maintains and m
 - $\mathcal{R}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\times\mathrm{VerifiedStateRoots}$
   - Existence and uniqueness per storage-index pair: $\forall s\in\mathrm{AppStorageAddrs},\ \forall t\in\mathrm{StateIndices},\ \exists!r\in\mathrm{VerifiedStateRoots},\ (s,t,r)\in\mathcal{R}$
   - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left(t<\mathrm{stateIndex}\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (s,t,r_t)\in\mathcal{R}\wedge(s,t+1,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
+  - Setter-gated root update: $\forall s\in\mathrm{AppStorageAddrs},\ \forall t\in\mathrm{StateIndices},\ \forall r_t,\mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\ \left((t<\mathrm{stateIndex}\wedge(s,t,r_t)\in\mathcal{R}\wedge(s,t+1,\mathrm{updatedRoot})\in\mathcal{R}\wedge r_t\neq \mathrm{updatedRoot})\Rightarrow \exists k\in\mathrm{AppUserStorageKeys},\ \exists \mathrm{updatedStorageValue}\in\mathbb{F}_{256},\ \mathrm{updateStorage}(s,\mathrm{updatedRoot},k,\mathrm{updatedStorageValue})=\mathrm{true}\right)$
   - Getter: $\mathrm{getVerifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (s,t,r)\in\mathcal{R}$
+
+#### Setter functions
+
+- $\mathrm{updateStorage}:\mathrm{AppStorageAddrs}\times\mathbb{F}_{255}\times\mathrm{AppUserStorageKeys}\times\mathbb{F}_{256}\to\{\mathrm{true},\mathrm{false}\}$
+  - Inputs:
+    - $\mathrm{storageAddr}\in\mathrm{AppStorageAddrs}$
+    - $\mathrm{updatedRoot}\in\mathbb{F}_{255}$
+    - $\mathrm{appUserStorageKey}\in\mathrm{AppUserStorageKeys}$
+    - $\mathrm{updatedStorageValue}\in\mathbb{F}_{256}$
+  - Output: $\mathrm{true}$ or $\mathrm{false}$
 
 
 ### Bridge Core

@@ -54,7 +54,7 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
   - A set of user storage slots associated with $\texttt{AppStorageAddrs}$
   - Inclusion: $\texttt{AppUserStorageSlots}\subseteq\texttt{UserStorageSlots}$
 - $\texttt{AppFcnCfgs}:=\texttt{GetFcnCfg}[\texttt{AppFcnSigs}]$
-  - The image of $\texttt{AppFcnSigs}$ under $\texttt{GetFcnCfg}$
+  - A set of function-configuration pairs of instance hash and preprocess hash referenced by the functions in $\texttt{AppFcnSigs}$
   - Inclusion: $\texttt{AppFcnCfgs}\subseteq\texttt{FcnCfgs}$
 - $\texttt{AppUserStorageKey}\subseteq\mathbb{F}_{256}$
   - A set of channel storage access keys used by users, distinct from Ethereum storage access keys
@@ -76,7 +76,7 @@ Given $\texttt{AppFcnSigs}$, a channel derives the following projected relations
 - $\mathcal{U}:=\{(s,u)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ u\in\texttt{GetUserSlots}(s)\}$
   - Inclusion: $\mathcal{U}\subseteq\mathcal{U}_M$
   - Getter: $\texttt{GetAppUserSlots}:\texttt{AppStorageAddrs}\to\mathcal{P}(\texttt{AppUserStorageSlots})$, where $\texttt{GetAppUserSlots}(s):=\{u\in\texttt{AppUserStorageSlots}\mid(s,u)\in\mathcal{U}\}$
-- $\mathcal{F}:=\{(f,q)\mid f\in\texttt{AppFcnSigs}\ \wedge\ q\in\texttt{AppFcnCfgs}\ \wedge\ \texttt{GetFcnCfg}(f)=q\}$
+- $\mathcal{F}:=\{(f,\texttt{GetFcnCfg}(f))\mid f\in\texttt{AppFcnSigs}\}$
   - Inclusion: $\mathcal{F}\subseteq\mathcal{F}_M$
   - Getter: $\texttt{GetAppFcnCfg}:\texttt{AppFcnSigs}\to\texttt{AppFcnCfgs}$, where $\texttt{GetAppFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}$
 

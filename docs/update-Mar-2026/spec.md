@@ -104,14 +104,15 @@ Given $\texttt{UserAddrs}$ and their channel storage access keys, a channel main
 
 - $\texttt{ChannelIds}\subseteq\mathbb{F}_{256}$
   - A set of registered channel IDs
-- For each $c\in\texttt{ChannelIds}$, let $X_c$ denote one channel instance satisfying the Channel section:
-  - $$
-    \begin{aligned}
-    X_c:=(&\texttt{UserAddrs}_c,\texttt{AppFcnSigs}_c,\texttt{AppStorageAddrs}_c,\texttt{AppPreAllocKeys}_c,\texttt{AppUserStorageSlots}_c,\\
-         &\texttt{AppInstanceHashes}_c,\texttt{AppPreprocessHashes}_c,\texttt{AppUserStorageKey}_c,\texttt{AppValidatedStorageValues}_c,\texttt{AppPreAllocValues}_c,\\
-         &\mathcal{S}_c,\mathcal{P}_c,\mathcal{U}_c,\mathcal{F}_c,\mathcal{K}_c,\mathcal{V}_c,\mathcal{A}_c)
-    \end{aligned}
-    $$
+For each $c\in\texttt{ChannelIds}$, let $X_c$ denote one channel instance satisfying the Channel section:
+
+$$
+\begin{aligned}
+X_c:=(&\texttt{UserAddrs}_c,\texttt{AppFcnSigs}_c,\texttt{AppStorageAddrs}_c,\texttt{AppPreAllocKeys}_c,\texttt{AppUserStorageSlots}_c,\\
+     &\texttt{AppInstanceHashes}_c,\texttt{AppPreprocessHashes}_c,\texttt{AppUserStorageKey}_c,\texttt{AppValidatedStorageValues}_c,\texttt{AppPreAllocValues}_c,\\
+     &\mathcal{S}_c,\mathcal{P}_c,\mathcal{U}_c,\mathcal{F}_c,\mathcal{K}_c,\mathcal{V}_c,\mathcal{A}_c)
+\end{aligned}
+$$
 
 #### Relations
 

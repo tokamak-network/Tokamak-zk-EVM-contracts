@@ -20,7 +20,7 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
-contract updateTree {
+contract Groth16Verifier {
     // BLS12-381 Scalar field modulus (r)
     uint256 constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     // BLS12-381 Base field modulus (q) - split into two parts for 48-byte representation

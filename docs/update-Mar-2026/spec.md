@@ -55,12 +55,9 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
 - $\texttt{AppUserStorageSlots}:=\bigcup_{s\in\texttt{AppStorageAddrs}}\texttt{GetUserSlots}(s)$
   - A set of user storage slots associated with $\texttt{AppStorageAddrs}$
   - Inclusion: $\texttt{AppUserStorageSlots}\subseteq\texttt{UserStorageSlots}$
-- $\texttt{AppInstanceHashes}:=\{i\in\texttt{InstanceHashes}\mid \exists f\in\texttt{AppFcnSigs},\ \exists p\in\texttt{PreprocessHashes},\ \texttt{GetFcnCfg}(f)=(i,p)\}$
-  - A set of instance hashes used by function configurations over $\texttt{AppFcnSigs}$
-  - Inclusion: $\texttt{AppInstanceHashes}\subseteq\texttt{InstanceHashes}$
-- $\texttt{AppPreprocessHashes}:=\{p\in\texttt{PreprocessHashes}\mid \exists f\in\texttt{AppFcnSigs},\ \exists i\in\texttt{InstanceHashes},\ \texttt{GetFcnCfg}(f)=(i,p)\}$
-  - A set of preprocess hashes used by function configurations over $\texttt{AppFcnSigs}$
-  - Inclusion: $\texttt{AppPreprocessHashes}\subseteq\texttt{PreprocessHashes}$
+- $\texttt{AppFcnCfgs}:=\{(i,p)\in\texttt{InstanceHashes}\times\texttt{PreprocessHashes}\mid \exists f\in\texttt{AppFcnSigs},\ \texttt{GetFcnCfg}(f)=(i,p)\}$
+  - A set of function-configuration pairs used by $\texttt{AppFcnSigs}$
+  - Inclusion: $\texttt{AppFcnCfgs}\subseteq\texttt{InstanceHashes}\times\texttt{PreprocessHashes}$
 - $\texttt{AppUserStorageKey}\subseteq\mathbb{F}_{256}$
   - A set of channel storage access keys used by users, distinct from Ethereum storage access keys
 - $\texttt{AppValidatedStorageValues}\subseteq\mathbb{F}_{256}$
@@ -81,9 +78,9 @@ Given $\texttt{AppFcnSigs}$, a channel derives the following projected relations
 - $\mathcal{U}:=\{(s,u)\mid s\in\texttt{AppStorageAddrs}\ \wedge\ u\in\texttt{GetUserSlots}(s)\}$
   - Inclusion: $\mathcal{U}\subseteq\mathcal{U}_M$
   - Getter: $\texttt{GetAppUserSlots}:\texttt{AppStorageAddrs}\to\mathcal{P}(\texttt{AppUserStorageSlots})$, where $\texttt{GetAppUserSlots}(s):=\{u\in\texttt{AppUserStorageSlots}\mid(s,u)\in\mathcal{U}\}$
-- $\mathcal{F}:=\{(f,i,p)\mid f\in\texttt{AppFcnSigs}\ \wedge\ i\in\texttt{AppInstanceHashes}\ \wedge\ p\in\texttt{AppPreprocessHashes}\ \wedge\ \texttt{GetFcnCfg}(f)=(i,p)\}$
+- $\mathcal{F}:=\{(f,i,p)\mid f\in\texttt{AppFcnSigs}\ \wedge\ (i,p)\in\texttt{AppFcnCfgs}\ \wedge\ \texttt{GetFcnCfg}(f)=(i,p)\}$
   - Inclusion: $\mathcal{F}\subseteq\mathcal{F}_M$
-  - Getter: $\texttt{GetAppFcnCfg}:\texttt{AppFcnSigs}\to\texttt{AppInstanceHashes}\times\texttt{AppPreprocessHashes}$, where $\texttt{GetAppFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}$
+  - Getter: $\texttt{GetAppFcnCfg}:\texttt{AppFcnSigs}\to\texttt{AppFcnCfgs}$, where $\texttt{GetAppFcnCfg}(f):=(i,p)\ \text{where}\ (f,i,p)\in\mathcal{F}$
 
 Given $\texttt{UserAddrs}$ and their channel storage access keys, a channel maintains and manages the following relations:
 
@@ -109,7 +106,7 @@ Given $\texttt{UserAddrs}$ and their channel storage access keys, a channel main
 $$
 \begin{aligned}
 X_c:=(&\texttt{UserAddrs}_c,\texttt{AppFcnSigs}_c,\texttt{AppStorageAddrs}_c,\texttt{AppPreAllocKeys}_c,\texttt{AppUserStorageSlots}_c,\\
-     &\texttt{AppInstanceHashes}_c,\texttt{AppPreprocessHashes}_c,\texttt{AppUserStorageKey}_c,\texttt{AppValidatedStorageValues}_c,\texttt{AppPreAllocValues}_c,\\
+     &\texttt{AppFcnCfgs}_c,\texttt{AppUserStorageKey}_c,\texttt{AppValidatedStorageValues}_c,\texttt{AppPreAllocValues}_c,\\
      &\mathcal{S}_c,\mathcal{P}_c,\mathcal{U}_c,\mathcal{F}_c,\mathcal{K}_c,\mathcal{V}_c,\mathcal{A}_c)
 \end{aligned}
 $$
@@ -131,8 +128,8 @@ Given $\texttt{ChannelIds}$ and channel instances $\{X_c\}_{c\in\texttt{ChannelI
   - Getter: $\texttt{GetChannelUserSlots}:\{(c,s)\mid c\in\texttt{ChannelIds}\ \wedge\ s\in\texttt{AppStorageAddrs}_c\}\to\mathcal{P}(\texttt{AppUserStorageSlots}_c)$, where $\texttt{GetChannelUserSlots}(c,s):=\texttt{GetAppUserSlots}_c(s)$
 - $\widetilde{\mathcal{F}}:=\bigcup_{c\in\texttt{ChannelIds}}\left(\{c\}\times\mathcal{F}_c\right)$
   - Bridge-manager consistency: $\forall(c,f,i,p)\in\widetilde{\mathcal{F}},\ (f,i,p)\in\mathcal{F}_M$
-  - Existence and uniqueness per channel-function pair: $\forall c\in\texttt{ChannelIds},\ \forall f\in\texttt{AppFcnSigs}_c,\ \exists!(i,p)\in\texttt{AppInstanceHashes}_c\times\texttt{AppPreprocessHashes}_c,\ (c,f,i,p)\in\widetilde{\mathcal{F}}$
-  - Getter: $\texttt{GetChannelFcnCfg}:\{(c,f)\mid c\in\texttt{ChannelIds}\ \wedge\ f\in\texttt{AppFcnSigs}_c\}\to\texttt{AppInstanceHashes}_c\times\texttt{AppPreprocessHashes}_c$, where $\texttt{GetChannelFcnCfg}(c,f):=\texttt{GetAppFcnCfg}_c(f)$
+  - Existence and uniqueness per channel-function pair: $\forall c\in\texttt{ChannelIds},\ \forall f\in\texttt{AppFcnSigs}_c,\ \exists!(i,p)\in\texttt{AppFcnCfgs}_c,\ (c,f,i,p)\in\widetilde{\mathcal{F}}$
+  - Getter: $\texttt{GetChannelFcnCfg}:\{(c,f)\mid c\in\texttt{ChannelIds}\ \wedge\ f\in\texttt{AppFcnSigs}_c\}\to\texttt{AppFcnCfgs}_c$, where $\texttt{GetChannelFcnCfg}(c,f):=\texttt{GetAppFcnCfg}_c(f)$
 - $\widetilde{\mathcal{K}}:=\bigcup_{c\in\texttt{ChannelIds}}\left(\{c\}\times\mathcal{K}_c\right)$
   - Uniqueness (without existence): $\forall c\in\texttt{ChannelIds},\ \forall u\in\texttt{UserAddrs}_c,\ \forall s\in\texttt{AppStorageAddrs}_c,\ \forall k_1,k_2\in\texttt{AppUserStorageKey}_c,\ ((c,u,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c,u,s,k_2)\in\widetilde{\mathcal{K}})\Rightarrow k_1=k_2$
   - Getter: $\texttt{GetChannelUserStorageKey}:\{(c,u,s)\mid c\in\texttt{ChannelIds}\ \wedge\ (c,u)\in\widetilde{\mathcal{M}}\ \wedge\ s\in\texttt{AppStorageAddrs}_c\}\to\texttt{AppUserStorageKey}_c$, where $\texttt{GetChannelUserStorageKey}(c,u,s):=\texttt{GetAppUserStorageKey}_c(u,s)$

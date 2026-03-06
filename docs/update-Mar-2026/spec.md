@@ -61,6 +61,12 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
 - $\texttt{AppPreprocessHashes}:=\{p\in\texttt{PreprocessHashes}\mid \exists f\in\texttt{AppFcnSigs},\ \exists i\in\texttt{InstanceHashes},\ \texttt{GetFcnCfg}(f)=(i,p)\}$
   - A set of preprocess hashes used by function configurations over $\texttt{AppFcnSigs}$
   - Inclusion: $\texttt{AppPreprocessHashes}\subseteq\texttt{PreprocessHashes}$
+- $\texttt{AppUserStorageKey}\subseteq\mathbb{F}_{256}$
+  - A set of channel storage access keys used by users, distinct from Ethereum storage access keys
+- $\texttt{AppValidatedStorageValues}\subseteq\mathbb{F}_{256}$
+  - A set of validated channel storage values associated with user accesses
+- $\texttt{AppPreAllocValues}\subseteq\mathbb{F}_{256}$
+  - A set of fixed values assigned to pre-allocated keys in channel storage
 
 #### Relations
 
@@ -81,15 +87,15 @@ Given $\texttt{AppFcnSigs}$, a channel derives the following projected relations
 
 Given $\texttt{UserAddrs}$ and their channel storage access keys, a channel maintains and manages the following relations:
 
-- $\mathcal{K}\subseteq\texttt{UserAddrs}\times\texttt{AppStorageAddrs}\times\mathbb{F}_{256}$
-  - Uniqueness (without existence): $\forall u\in\texttt{UserAddrs},\ \forall s\in\texttt{AppStorageAddrs},\ \forall k_1,k_2\in\mathbb{F}_{256},\ ((u,s,k_1)\in\mathcal{K}\wedge(u,s,k_2)\in\mathcal{K})\Rightarrow k_1=k_2$
-  - Getter: $\texttt{GetAppUserStorageKey}:\texttt{UserAddrs}\times\texttt{AppStorageAddrs}\to\mathbb{F}_{256}$, where $\texttt{GetAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
-- $\mathcal{V}\subseteq\texttt{AppStorageAddrs}\times\mathbb{F}_{256}\times\mathbb{F}_{256}$
-  - Conditional existence and uniqueness on channel keys: $\forall s\in\texttt{AppStorageAddrs},\ \forall k\in\mathbb{F}_{256},\ \left((\exists u\in\texttt{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{V}\right)$
-  - Getter: $\texttt{GetAppValidatedStorageValue}:\{(s,k)\in\texttt{AppStorageAddrs}\times\mathbb{F}_{256}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k)\in\mathcal{K}\}\to\mathbb{F}_{256}$, where $\texttt{GetAppValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
-- $\mathcal{A}\subseteq\texttt{AppStorageAddrs}\times\texttt{AppPreAllocKeys}\times\mathbb{F}_{256}$
-  - Conditional existence and uniqueness on app pre-allocated keys: $\forall (s,k)\in\mathcal{P},\ \exists!v\in\mathbb{F}_{256},\ (s,k,v)\in\mathcal{A}$
-  - Getter: $\texttt{GetAppPreAllocValue}:\mathcal{P}\to\mathbb{F}_{256}$, where $\texttt{GetAppPreAllocValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{A}$
+- $\mathcal{K}\subseteq\texttt{UserAddrs}\times\texttt{AppStorageAddrs}\times\texttt{AppUserStorageKey}$
+  - Uniqueness (without existence): $\forall u\in\texttt{UserAddrs},\ \forall s\in\texttt{AppStorageAddrs},\ \forall k_1,k_2\in\texttt{AppUserStorageKey},\ ((u,s,k_1)\in\mathcal{K}\wedge(u,s,k_2)\in\mathcal{K})\Rightarrow k_1=k_2$
+  - Getter: $\texttt{GetAppUserStorageKey}:\texttt{UserAddrs}\times\texttt{AppStorageAddrs}\to\texttt{AppUserStorageKey}$, where $\texttt{GetAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
+- $\mathcal{V}\subseteq\texttt{AppStorageAddrs}\times\texttt{AppUserStorageKey}\times\texttt{AppValidatedStorageValues}$
+  - Conditional existence and uniqueness on channel keys: $\forall s\in\texttt{AppStorageAddrs},\ \forall k\in\texttt{AppUserStorageKey},\ \left((\exists u\in\texttt{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\texttt{AppValidatedStorageValues},\ (s,k,v)\in\mathcal{V}\right)$
+  - Getter: $\texttt{GetAppValidatedStorageValue}:\{(s,k)\in\texttt{AppStorageAddrs}\times\texttt{AppUserStorageKey}\mid \exists u\in\texttt{UserAddrs},\ (u,s,k)\in\mathcal{K}\}\to\texttt{AppValidatedStorageValues}$, where $\texttt{GetAppValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
+- $\mathcal{A}\subseteq\texttt{AppStorageAddrs}\times\texttt{AppPreAllocKeys}\times\texttt{AppPreAllocValues}$
+  - Conditional existence and uniqueness on app pre-allocated keys: $\forall (s,k)\in\mathcal{P},\ \exists!v\in\texttt{AppPreAllocValues},\ (s,k,v)\in\mathcal{A}$
+  - Getter: $\texttt{GetAppPreAllocValue}:\mathcal{P}\to\texttt{AppPreAllocValues}$, where $\texttt{GetAppPreAllocValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{A}$
 
 
 ### Bridge Core

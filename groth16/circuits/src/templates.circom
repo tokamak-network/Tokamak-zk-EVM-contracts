@@ -65,35 +65,86 @@ template computeLeaf() {
     leaf <== leaf_hash.out;
 }
 
-// Shared Tokamak storage Merkle proof template parameterized by tree depth N.
+// Rebuilds a Merkle root from one leaf and its sibling path.
+template verifyMerkleProof(N) {
+    signal input leaf;
+    signal input leaf_index;
+    signal input proof[N]; // Sibling node at each tree level (bottom-up).
+    signal output root;
+
+    signal index_bits[N];
+    signal index_acc[N + 1];
+    signal left_nodes[N];
+    signal right_nodes[N];
+    signal level_hashes[N + 1];
+    component hashers[N];
+
+    index_acc[0] <== 0;
+    level_hashes[0] <== leaf;
+
+    var bit_weight = 1;
+    for (var i = 0; i < N; i++) {
+        // Decompose leaf_index into N binary bits.
+        index_bits[i] * (index_bits[i] - 1) === 0;
+        index_acc[i + 1] <== index_acc[i] + index_bits[i] * bit_weight;
+        bit_weight = bit_weight * 2;
+
+        // If bit is 0: hash(current, sibling), else hash(sibling, current).
+        left_nodes[i] <== level_hashes[i] + index_bits[i] * (proof[i] - level_hashes[i]);
+        right_nodes[i] <== proof[i] + index_bits[i] * (level_hashes[i] - proof[i]);
+
+        hashers[i] = Poseidon255(2);
+        hashers[i].in[0] <== left_nodes[i];
+        hashers[i].in[1] <== right_nodes[i];
+        level_hashes[i + 1] <== hashers[i].out;
+    }
+
+    // Constrain index range: 0 <= leaf_index < 2^N.
+    leaf_index === index_acc[N];
+    root <== level_hashes[N];
+}
+
+// Verifies one-leaf update consistency using before/after Merkle proofs.
 template updateTree(N) {
-    var nLeaves = 2 ** N;
+    // Public inputs for the target leaf update.
+    signal input leaf_index;
+    signal input storage_key;
+    signal input storage_value_before;
+    signal input storage_value_after;
+    signal input proof_before[N];
+    signal input proof_after[N];
 
-    // Public inputs.
-    signal input storage_keys[nLeaves];  // L2MPT storage keys.
-    signal input storage_values[nLeaves];      // Storage values.
+    // Public outputs: old and new roots derived from proofs.
+    signal output root_before;
+    signal output root_after;
 
-    // Public output.
-    signal output merkle_root;
+    // Compute the updated leaf values.
+    component leaf_before = computeLeaf();
+    leaf_before.storage_key <== storage_key;
+    leaf_before.storage_value <== storage_value_before;
 
-    // Step 1: Compute leaves from per-entry storage inputs.
-    component storage_leaf[nLeaves];
-    signal leaf_values[nLeaves];
+    component leaf_after = computeLeaf();
+    leaf_after.storage_key <== storage_key;
+    leaf_after.storage_value <== storage_value_after;
 
-    for (var i = 0; i < nLeaves; i++) {
-        storage_leaf[i] = computeLeaf();
-        storage_leaf[i].storage_key <== storage_keys[i];
-        storage_leaf[i].storage_value <== storage_values[i];
-        leaf_values[i] <== storage_leaf[i].leaf;
+    // 1) Verify the pre-update Merkle proof.
+    component merkle_before = verifyMerkleProof(N);
+    merkle_before.leaf <== leaf_before.leaf;
+    merkle_before.leaf_index <== leaf_index;
+
+    // 2) Verify the post-update Merkle proof.
+    component merkle_after = verifyMerkleProof(N);
+    merkle_after.leaf <== leaf_after.leaf;
+    merkle_after.leaf_index <== leaf_index;
+
+    for (var i = 0; i < N; i++) {
+        merkle_before.proof[i] <== proof_before[i];
+        merkle_after.proof[i] <== proof_after[i];
+
+        // 3) Every path sibling node must stay equal across proofs.
+        proof_before[i] === proof_after[i];
     }
 
-    // Step 2: Compute Merkle tree.
-    component merkle_tree = Poseidon2MerkleTree(N);
-
-    for (var i = 0; i < nLeaves; i++) {
-        merkle_tree.leaves[i] <== leaf_values[i];
-    }
-
-    // Output the computed root.
-    merkle_root <== merkle_tree.root;
+    root_before <== merkle_before.root;
+    root_after <== merkle_after.root;
 }

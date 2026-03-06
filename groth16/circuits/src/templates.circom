@@ -1,3 +1,5 @@
+pragma circom 2.2.2;
+
 include "../node_modules/poseidon-bls12381-circom/circuits/poseidon255.circom";
 
 // Shared Poseidon Merkle tree template parameterized by tree depth N.

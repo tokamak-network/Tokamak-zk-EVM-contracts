@@ -64,12 +64,12 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
   - A set of validated channel storage values associated with user accesses
 - $\mathrm{AppPreAllocValues}\subseteq\mathbb{F}_{256}$
   - A set of fixed values assigned to pre-allocated keys in channel storage
-- $\mathrm{nAppStorages}:=\left|\mathrm{AppStorageAddrs}\right|\in\mathbb{N}$
-  - The cardinality of $\mathrm{AppStorageAddrs}$
 - $\mathrm{stateIndex}\in\mathbb{N}$
   - The current state index of the channel state machine
-- $\mathrm{VerifiedStateRoots}\subseteq\left(\mathbb{F}_{256}\right)^{\mathrm{nAppStorages}}$
-  - A set of verified state-root vectors over $\mathrm{AppStorageAddrs}$
+- $\mathrm{StateIndices}:=\{t\in\mathbb{N}\mid t\le\mathrm{stateIndex}\}$
+  - A set of valid state indices in the channel state machine
+- $\mathrm{VerifiedStateRoots}\subseteq\mathbb{F}_{256}$
+  - A set of verified state roots
 
 #### Relations
 
@@ -100,12 +100,12 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
   - Conditional existence and uniqueness on app pre-allocated keys: $\forall (s,k)\in\mathcal{P},\ \exists!v\in\mathrm{AppPreAllocValues},\ (s,k,v)\in\mathcal{A}$
   - Getter: $\mathrm{getAppPreAllocValue}:\mathcal{P}\to\mathrm{AppPreAllocValues}$, where $\mathrm{getAppPreAllocValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{A}$
 
-Given state-machine indexing and verified state-root vectors, a channel maintains and manages the following relation:
+Given state-machine indexing and verified state roots, a channel maintains and manages the following relation:
 
-- $\mathcal{R}\subseteq\mathbb{N}\times\mathrm{VerifiedStateRoots}$
-  - Contiguous indexing with unique root vector per index: $\forall t\in\mathbb{N},\ \left(t\le\mathrm{stateIndex}\Rightarrow \exists!r\in\mathrm{VerifiedStateRoots},\ (t,r)\in\mathcal{R}\right)$
-  - Single root-vector change per unit increment: $\forall t\in\mathbb{N},\ \left(t<\mathrm{stateIndex}\Rightarrow \forall r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ ((t,r_t)\in\mathcal{R}\wedge(t+1,r_{t+1})\in\mathcal{R})\Rightarrow r_t\neq r_{t+1}\right)$
-  - Getter: $\mathrm{getVerifiedStateRoot}:\{t\in\mathbb{N}\mid t\le\mathrm{stateIndex}\}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(t):=r\ \text{where}\ (t,r)\in\mathcal{R}$
+- $\mathcal{R}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\times\mathrm{VerifiedStateRoots}$
+  - Existence and uniqueness per storage-index pair: $\forall s\in\mathrm{AppStorageAddrs},\ \forall t\in\mathrm{StateIndices},\ \exists!r\in\mathrm{VerifiedStateRoots},\ (s,t,r)\in\mathcal{R}$
+  - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left(t<\mathrm{stateIndex}\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (s,t,r_t)\in\mathcal{R}\wedge(s,t+1,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
+  - Getter: $\mathrm{getVerifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (s,t,r)\in\mathcal{R}$
 
 
 ### Bridge Core
@@ -120,7 +120,7 @@ $$
 \begin{aligned}
 X_c:=(&\mathrm{UserAddrs}_c,\mathrm{AppFcnSigs}_c,\mathrm{AppStorageAddrs}_c,\mathrm{AppPreAllocKeys}_c,\mathrm{AppUserStorageSlots}_c,\\
      &\mathrm{AppFcnCfgs}_c,\mathrm{AppUserStorageKeys}_c,\mathrm{AppValidatedStorageValues}_c,\mathrm{AppPreAllocValues}_c,\\
-     &\mathrm{nAppStorages}_c,\mathrm{stateIndex}_c,\mathrm{VerifiedStateRoots}_c,\\
+     &\mathrm{stateIndex}_c,\mathrm{StateIndices}_c,\mathrm{VerifiedStateRoots}_c,\\
      &\mathcal{S}_c,\mathcal{P}_c,\mathcal{U}_c,\mathcal{F}_c,\mathcal{K}_c,\mathcal{V}_c,\mathcal{A}_c,\mathcal{R}_c)
 \end{aligned}
 $$
@@ -154,7 +154,7 @@ Given $\mathrm{ChannelIds}$ and channel instances $\{X_c\}_{c\in\mathrm{ChannelI
   - Conditional existence and uniqueness on channel pre-allocated keys: $\forall c\in\mathrm{ChannelIds},\ \forall (s,k)\in\mathcal{P}_c,\ \exists!v\in\mathrm{AppPreAllocValues}_c,\ (c,s,k,v)\in\widetilde{\mathcal{A}}$
   - Getter: $\mathrm{getChannelPreAllocValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ (s,k)\in\mathcal{P}_c\}\to\mathrm{AppPreAllocValues}_c$, where $\mathrm{getChannelPreAllocValue}(c,s,k):=\mathrm{getAppPreAllocValue}_c(s,k)$
 - $\widetilde{\mathcal{R}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{R}_c\right)$
-  - Getter: $\mathrm{getChannelVerifiedStateRoot}:\{(c,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ t\in\mathbb{N}\ \wedge\ t\le\mathrm{stateIndex}_c\}\to\mathrm{VerifiedStateRoots}_c$, where $\mathrm{getChannelVerifiedStateRoot}(c,t):=\mathrm{getVerifiedStateRoot}_c(t)$
+  - Getter: $\mathrm{getChannelVerifiedStateRoot}:\{(c,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\}\to\mathrm{VerifiedStateRoots}_c$, where $\mathrm{getChannelVerifiedStateRoot}(c,s,t):=\mathrm{getVerifiedStateRoot}_c(s,t)$
 
 Core access constraints:
 

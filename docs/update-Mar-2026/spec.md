@@ -44,13 +44,13 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
   - A set of user addresses registered in a channel
 - $\texttt{AppFcnSigs}\subseteq\texttt{FcnSigns}$
   - A set of contract function signatures supported by a channel
-- $\texttt{AppStorageAddrs}:=\bigcup_{f\in\texttt{AppFcnSigs}}\texttt{GetFcnStorages}(f)$
+- $\texttt{AppStorageAddrs}:=\texttt{GetFcnStorages}[\texttt{AppFcnSigs}]$
   - A set of storage addresses referenced by the functions in $\texttt{AppFcnSigs}$
   - Inclusion: $\texttt{AppStorageAddrs}\subseteq\texttt{StorageAddrs}$
-- $\texttt{AppPreAllocKeys}:=\bigcup_{s\in\texttt{AppStorageAddrs}}\texttt{GetPreAllocKeys}(s)$
+- $\texttt{AppPreAllocKeys}:=\texttt{GetPreAllocKeys}[\texttt{AppStorageAddrs}]$
   - A set of pre-allocated keys associated with $\texttt{AppStorageAddrs}$
   - Inclusion: $\texttt{AppPreAllocKeys}\subseteq\texttt{PreAllocKeys}$
-- $\texttt{AppUserStorageSlots}:=\bigcup_{s\in\texttt{AppStorageAddrs}}\texttt{GetUserSlots}(s)$
+- $\texttt{AppUserStorageSlots}:=\texttt{GetUserSlots}[\texttt{AppStorageAddrs}]$
   - A set of user storage slots associated with $\texttt{AppStorageAddrs}$
   - Inclusion: $\texttt{AppUserStorageSlots}\subseteq\texttt{UserStorageSlots}$
 - $\texttt{AppFcnCfgs}:=\texttt{GetFcnCfg}[\texttt{AppFcnSigs}]$

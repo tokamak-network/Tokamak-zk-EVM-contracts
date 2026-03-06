@@ -35,6 +35,7 @@ template verifyMerkleProof(N) {
     var bit_weight = 1;
     for (var i = 0; i < N; i++) {
         // Decompose leaf_index into N binary bits.
+        index_bits[i] <-- (leaf_index \ bit_weight) % 2;
         index_bits[i] * (index_bits[i] - 1) === 0;
         index_acc[i + 1] <== index_acc[i] + index_bits[i] * bit_weight;
         bit_weight = bit_weight * 2;
@@ -80,6 +81,7 @@ template updateTree(N) {
     signal value_delta;
     signal value_delta_inv;
     value_delta <== storage_value_after - storage_value_before;
+    value_delta_inv <-- 1 / value_delta;
     value_delta * value_delta_inv === 1;
 
     // 1) Verify the pre-update Merkle proof.

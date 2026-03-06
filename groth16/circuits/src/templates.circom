@@ -58,14 +58,14 @@ template verifyMerkleProof(N) {
 
 // Verifies one-leaf update consistency using before/after Merkle proofs.
 template updateTree(N) {
-    // Public inputs for the target leaf update.
-    signal input root_before;
-    signal input root_after;
-    signal input leaf_index;
-    signal input storage_key;
-    signal input storage_value_before;
-    signal input storage_value_after;
-    signal input proof[N];
+    // Input visibility is determined by component main{public [...]} in circuit_N*.circom.
+    signal input root_before;          // [PUBLIC]
+    signal input root_after;           // [PUBLIC]
+    signal input leaf_index;           // [PRIVATE]
+    signal input storage_key;          // [PUBLIC]
+    signal input storage_value_before; // [PUBLIC]
+    signal input storage_value_after;  // [PUBLIC]
+    signal input proof[N];             // [PRIVATE]
 
     // Compute the updated leaf values.
     component leaf_before = computeLeaf();

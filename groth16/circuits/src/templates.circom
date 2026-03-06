@@ -51,7 +51,7 @@ template Poseidon2MerkleTree(N) {
 }
 
 // Shared single-leaf template for Tokamak storage inputs.
-template TokamakStorageLeaf() {
+template computeLeaf() {
     signal input storage_key;
     signal input storage_value;
     signal output leaf;
@@ -64,11 +64,11 @@ template TokamakStorageLeaf() {
 }
 
 // Shared Tokamak storage Merkle proof template parameterized by tree depth N.
-template TokamakStorageMerkleProof(N) {
+template updateTree(N) {
     var nLeaves = 2 ** N;
 
     // Public inputs.
-    signal input storage_keys_L2MPT[nLeaves];  // L2MPT storage keys.
+    signal input storage_keys[nLeaves];  // L2MPT storage keys.
     signal input storage_values[nLeaves];      // Storage values.
 
     // Public output.
@@ -79,8 +79,8 @@ template TokamakStorageMerkleProof(N) {
     signal leaf_values[nLeaves];
 
     for (var i = 0; i < nLeaves; i++) {
-        storage_leaf[i] = TokamakStorageLeaf();
-        storage_leaf[i].storage_key <== storage_keys_L2MPT[i];
+        storage_leaf[i] = computeLeaf();
+        storage_leaf[i].storage_key <== storage_keys[i];
         storage_leaf[i].storage_value <== storage_values[i];
         leaf_values[i] <== storage_leaf[i].leaf;
     }

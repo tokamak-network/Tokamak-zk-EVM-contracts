@@ -69,8 +69,8 @@ template computeLeaf() {
 template verifyMerkleProof(N) {
     signal input leaf;
     signal input leaf_index;
+    signal input expected_root;
     signal input proof[N]; // Sibling node at each tree level (bottom-up).
-    signal output root;
 
     signal index_bits[N];
     signal index_acc[N + 1];
@@ -101,22 +101,21 @@ template verifyMerkleProof(N) {
 
     // Constrain index range: 0 <= leaf_index < 2^N.
     leaf_index === index_acc[N];
-    root <== level_hashes[N];
+
+    // Constrain the reconstructed root to the provided public root.
+    expected_root === level_hashes[N];
 }
 
 // Verifies one-leaf update consistency using before/after Merkle proofs.
 template updateTree(N) {
     // Public inputs for the target leaf update.
+    signal input root_before;
+    signal input root_after;
     signal input leaf_index;
     signal input storage_key;
     signal input storage_value_before;
     signal input storage_value_after;
-    signal input proof_before[N];
-    signal input proof_after[N];
-
-    // Public outputs: old and new roots derived from proofs.
-    signal output root_before;
-    signal output root_after;
+    signal input proof[N];
 
     // Compute the updated leaf values.
     component leaf_before = computeLeaf();
@@ -127,24 +126,27 @@ template updateTree(N) {
     leaf_after.storage_key <== storage_key;
     leaf_after.storage_value <== storage_value_after;
 
+    // Enforce an actual update happened.
+    signal value_delta;
+    signal value_delta_inv;
+    value_delta <== storage_value_after - storage_value_before;
+    value_delta * value_delta_inv === 1;
+
     // 1) Verify the pre-update Merkle proof.
     component merkle_before = verifyMerkleProof(N);
     merkle_before.leaf <== leaf_before.leaf;
     merkle_before.leaf_index <== leaf_index;
+    merkle_before.expected_root <== root_before;
 
     // 2) Verify the post-update Merkle proof.
     component merkle_after = verifyMerkleProof(N);
     merkle_after.leaf <== leaf_after.leaf;
     merkle_after.leaf_index <== leaf_index;
+    merkle_after.expected_root <== root_after;
 
+    // 3) Path nodes are shared for before/after; one proof array is sufficient.
     for (var i = 0; i < N; i++) {
-        merkle_before.proof[i] <== proof_before[i];
-        merkle_after.proof[i] <== proof_after[i];
-
-        // 3) Every path sibling node must stay equal across proofs.
-        proof_before[i] === proof_after[i];
+        merkle_before.proof[i] <== proof[i];
+        merkle_after.proof[i] <== proof[i];
     }
-
-    root_before <== merkle_before.root;
-    root_after <== merkle_after.root;
 }

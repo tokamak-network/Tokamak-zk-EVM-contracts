@@ -53,8 +53,8 @@ Given $\texttt{FcnSigns}$ and MPT structural information involved with each of t
 - $\texttt{AppUserStorageSlots}:=\bigcup_{s\in\texttt{AppStorageAddrs}}\texttt{GetUserSlots}(s)$
   - A set of user storage slots associated with $\texttt{AppStorageAddrs}$
   - Inclusion: $\texttt{AppUserStorageSlots}\subseteq\texttt{UserStorageSlots}$
-- $\texttt{AppFcnCfgs}:=\{(i,p)\in\texttt{FcnCfgs}\mid \exists f\in\texttt{AppFcnSigs},\ \texttt{GetFcnCfg}(f)=(i,p)\}$
-  - A set of function-configuration pairs used by $\texttt{AppFcnSigs}$
+- $\texttt{AppFcnCfgs}:=\texttt{GetFcnCfg}[\texttt{AppFcnSigs}]$
+  - The image of $\texttt{AppFcnSigs}$ under $\texttt{GetFcnCfg}$
   - Inclusion: $\texttt{AppFcnCfgs}\subseteq\texttt{FcnCfgs}$
 - $\texttt{AppUserStorageKey}\subseteq\mathbb{F}_{256}$
   - A set of channel storage access keys used by users, distinct from Ethereum storage access keys

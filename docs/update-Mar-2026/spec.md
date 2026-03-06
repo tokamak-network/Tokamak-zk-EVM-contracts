@@ -29,11 +29,11 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
 
 - $\mathcal{S}_M\subseteq\mathrm{FcnSigns}\times\mathrm{StorageAddrs}$
   - Existence: $\forall f\in\mathrm{FcnSigns},\ \exists s\in\mathrm{StorageAddrs},\ (f,s)\in\mathcal{S}_M$
-  - Getter: $\mathrm{getFcnStorages}:\mathrm{FcnSigns}\to\mathcal{P}(\mathrm{StorageAddrs})$, where $\mathrm{getFcnStorages}(f):=\{s\in\mathrm{StorageAddrs}\mid(f,s)\in\mathcal{S}_M\}$
+  - Getter: $\mathrm{getFcnStorages}:\mathrm{FcnSigns}\to\wp(\mathrm{StorageAddrs})$, where $\mathrm{getFcnStorages}(f):=\{s\in\mathrm{StorageAddrs}\mid(f,s)\in\mathcal{S}_M\}$
 - $\mathcal{P}_M\subseteq\mathrm{StorageAddrs}\times\mathrm{PreAllocKeys}$
-  - Getter: $\mathrm{getPreAllocKeys}:\mathrm{StorageAddrs}\to\mathcal{P}(\mathrm{PreAllocKeys})$, where $\mathrm{getPreAllocKeys}(s):=\{k\in\mathrm{PreAllocKeys}\mid(s,k)\in\mathcal{P}_M\}$
+  - Getter: $\mathrm{getPreAllocKeys}:\mathrm{StorageAddrs}\to\wp(\mathrm{PreAllocKeys})$, where $\mathrm{getPreAllocKeys}(s):=\{k\in\mathrm{PreAllocKeys}\mid(s,k)\in\mathcal{P}_M\}$
 - $\mathcal{U}_M\subseteq\mathrm{StorageAddrs}\times\mathrm{UserStorageSlots}$
-  - Getter: $\mathrm{getUserSlots}:\mathrm{StorageAddrs}\to\mathcal{P}(\mathrm{UserStorageSlots})$, where $\mathrm{getUserSlots}(s):=\{u\in\mathrm{UserStorageSlots}\mid(s,u)\in\mathcal{U}_M\}$
+  - Getter: $\mathrm{getUserSlots}:\mathrm{StorageAddrs}\to\wp(\mathrm{UserStorageSlots})$, where $\mathrm{getUserSlots}(s):=\{u\in\mathrm{UserStorageSlots}\mid(s,u)\in\mathcal{U}_M\}$
 - $\mathcal{F}_M\subseteq\mathrm{FcnSigns}\times\mathrm{FcnCfgs}$
   - Existence and uniqueness: $\forall f\in\mathrm{FcnSigns},\ \exists!q\in\mathrm{FcnCfgs}\ \text{s.t.}\ (f,q)\in\mathcal{F}_M$
   - Getter: $\mathrm{getFcnCfg}:\mathrm{FcnSigns}\to\mathrm{FcnCfgs}$, where $\mathrm{getFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}_M$
@@ -77,13 +77,13 @@ Given $\mathrm{AppFcnSigs}$, a channel derives the following projected relations
 
 - $\mathcal{S}:=\bigcup_{f\in\mathrm{AppFcnSigs}}\left(\{f\}\times\mathrm{getFcnStorages}(f)\right)$
   - Inclusion: $\mathcal{S}\subseteq\mathcal{S}_M$
-  - Getter: $\mathrm{getAppFcnStorages}:\mathrm{AppFcnSigs}\to\mathcal{P}(\mathrm{AppStorageAddrs})$, where $\mathrm{getAppFcnStorages}(f):=\{s\in\mathrm{AppStorageAddrs}\mid(f,s)\in\mathcal{S}\}$
+  - Getter: $\mathrm{getAppFcnStorages}:\mathrm{AppFcnSigs}\to\wp(\mathrm{AppStorageAddrs})$, where $\mathrm{getAppFcnStorages}(f):=\{s\in\mathrm{AppStorageAddrs}\mid(f,s)\in\mathcal{S}\}$
 - $\mathcal{P}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\left(\{s\}\times\mathrm{getPreAllocKeys}(s)\right)$
   - Inclusion: $\mathcal{P}\subseteq\mathcal{P}_M$
-  - Getter: $\mathrm{getAppPreAllocKeys}:\mathrm{AppStorageAddrs}\to\mathcal{P}(\mathrm{AppPreAllocKeys})$, where $\mathrm{getAppPreAllocKeys}(s):=\{k\in\mathrm{AppPreAllocKeys}\mid(s,k)\in\mathcal{P}\}$
+  - Getter: $\mathrm{getAppPreAllocKeys}:\mathrm{AppStorageAddrs}\to\wp(\mathrm{AppPreAllocKeys})$, where $\mathrm{getAppPreAllocKeys}(s):=\{k\in\mathrm{AppPreAllocKeys}\mid(s,k)\in\mathcal{P}\}$
 - $\mathcal{U}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\left(\{s\}\times\mathrm{getUserSlots}(s)\right)$
   - Inclusion: $\mathcal{U}\subseteq\mathcal{U}_M$
-  - Getter: $\mathrm{getAppUserSlots}:\mathrm{AppStorageAddrs}\to\mathcal{P}(\mathrm{AppUserStorageSlots})$, where $\mathrm{getAppUserSlots}(s):=\{u\in\mathrm{AppUserStorageSlots}\mid(s,u)\in\mathcal{U}\}$
+  - Getter: $\mathrm{getAppUserSlots}:\mathrm{AppStorageAddrs}\to\wp(\mathrm{AppUserStorageSlots})$, where $\mathrm{getAppUserSlots}(s):=\{u\in\mathrm{AppUserStorageSlots}\mid(s,u)\in\mathcal{U}\}$
 - $\mathcal{F}:=\bigcup_{f\in\mathrm{AppFcnSigs}}\left(\{f\}\times\{\mathrm{getFcnCfg}(f)\}\right)$
   - Inclusion: $\mathcal{F}\subseteq\mathcal{F}_M$
   - Getter: $\mathrm{getAppFcnCfg}:\mathrm{AppFcnSigs}\to\mathrm{AppFcnCfgs}$, where $\mathrm{getAppFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}$
@@ -130,16 +130,16 @@ $$
 Given $\mathrm{ChannelIds}$ and channel instances $\{X_c\}_{c\in\mathrm{ChannelIds}}$, the core relations are lifted from channel relations:
 
 - $\widetilde{\mathcal{M}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathrm{UserAddrs}_c\right)$
-  - Getter: $\mathrm{getChannelUsers}:\mathrm{ChannelIds}\to\mathcal{P}(\mathrm{UserAddrs}_c)$, where $\mathrm{getChannelUsers}(c):=\{u\in\mathrm{UserAddrs}_c\mid(c,u)\in\widetilde{\mathcal{M}}\}$
+  - Getter: $\mathrm{getChannelUsers}:\mathrm{ChannelIds}\to\wp(\mathrm{UserAddrs}_c)$, where $\mathrm{getChannelUsers}(c):=\{u\in\mathrm{UserAddrs}_c\mid(c,u)\in\widetilde{\mathcal{M}}\}$
 - $\widetilde{\mathcal{S}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{S}_c\right)$
   - Bridge-manager consistency: $\forall(c,f,s)\in\widetilde{\mathcal{S}},\ (f,s)\in\mathcal{S}_M$
-  - Getter: $\mathrm{getChannelFcnStorages}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{AppFcnSigs}_c\}\to\mathcal{P}(\mathrm{AppStorageAddrs}_c)$, where $\mathrm{getChannelFcnStorages}(c,f):=\mathrm{getAppFcnStorages}_c(f)$
+  - Getter: $\mathrm{getChannelFcnStorages}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{AppFcnSigs}_c\}\to\wp(\mathrm{AppStorageAddrs}_c)$, where $\mathrm{getChannelFcnStorages}(c,f):=\mathrm{getAppFcnStorages}_c(f)$
 - $\widetilde{\mathcal{P}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{P}_c\right)$
   - Bridge-manager consistency: $\forall(c,s,k)\in\widetilde{\mathcal{P}},\ (s,k)\in\mathcal{P}_M$
-  - Getter: $\mathrm{getChannelPreAllocKeys}:\{(c,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathcal{P}(\mathrm{AppPreAllocKeys}_c)$, where $\mathrm{getChannelPreAllocKeys}(c,s):=\mathrm{getAppPreAllocKeys}_c(s)$
+  - Getter: $\mathrm{getChannelPreAllocKeys}:\{(c,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\wp(\mathrm{AppPreAllocKeys}_c)$, where $\mathrm{getChannelPreAllocKeys}(c,s):=\mathrm{getAppPreAllocKeys}_c(s)$
 - $\widetilde{\mathcal{U}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{U}_c\right)$
   - Bridge-manager consistency: $\forall(c,s,u)\in\widetilde{\mathcal{U}},\ (s,u)\in\mathcal{U}_M$
-  - Getter: $\mathrm{getChannelUserSlots}:\{(c,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathcal{P}(\mathrm{AppUserStorageSlots}_c)$, where $\mathrm{getChannelUserSlots}(c,s):=\mathrm{getAppUserSlots}_c(s)$
+  - Getter: $\mathrm{getChannelUserSlots}:\{(c,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\wp(\mathrm{AppUserStorageSlots}_c)$, where $\mathrm{getChannelUserSlots}(c,s):=\mathrm{getAppUserSlots}_c(s)$
 - $\widetilde{\mathcal{F}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{F}_c\right)$
   - Bridge-manager consistency: $\forall(c,f,q)\in\widetilde{\mathcal{F}},\ (f,q)\in\mathcal{F}_M$
   - Existence and uniqueness per channel-function pair: $\forall c\in\mathrm{ChannelIds},\ \forall f\in\mathrm{AppFcnSigs}_c,\ \exists!q\in\mathrm{AppFcnCfgs}_c,\ (c,f,q)\in\widetilde{\mathcal{F}}$

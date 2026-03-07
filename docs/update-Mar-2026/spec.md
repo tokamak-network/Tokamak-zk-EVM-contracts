@@ -128,10 +128,10 @@ Given state-machine indexing and verified state roots, a channel maintains and m
     - $\mathrm{proofGroth16}\in\mathbb{F}_{256}^{16}$
     - $\mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
-- $\mathrm{updateAllStorages}:(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}\to\{\mathrm{true},\mathrm{false}\}$
+- $\mathrm{updateAllStorages}:(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathbb{F}_{255}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}\to\{\mathrm{true},\mathrm{false}\}$
   - Inputs:
     - $\mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}$
-    - $\mathrm{updatedRoots}\in\mathbb{F}_{256}^{\mathrm{nAppStorages}}$
+    - $\mathrm{updatedRoots}\in\mathbb{F}_{255}^{\mathrm{nAppStorages}}$
     - $\mathrm{proofTokamak}\in\mathbb{F}_{256}^{42}$
     - $\mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4}$
     - $\mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}$

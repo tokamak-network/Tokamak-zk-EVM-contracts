@@ -128,16 +128,17 @@ Given state-machine indexing and verified state roots, a channel maintains and m
     - $\mathrm{proofGroth16}\in\mathbb{F}_{256}^{16}$
     - $\mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
-- $\mathrm{updateAllStorages}:\mathcal{P}(\mathrm{AppStorageAddrs})\times\mathcal{P}(\mathrm{AppUserStorageKeys})\times(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathbb{F}_{255}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}\to\{\mathrm{true},\mathrm{false}\}$
+- $\mathrm{updateAllStorages}:\{\mathrm{AppStorageAddrs}\}\times\{\mathrm{AppUserStorageKeys}\}\times(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathbb{F}_{255}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}\to\{\mathrm{true},\mathrm{false}\}$
   - Inputs:
-    - $\mathrm{appStorageAddrs}\in\mathcal{P}(\mathrm{AppStorageAddrs})$
-    - $\mathrm{appUserStorageKeys}\in\mathcal{P}(\mathrm{AppUserStorageKeys})$
+    - $\mathrm{appStorageAddrs}\in\{\mathrm{AppStorageAddrs}\}$
+    - $\mathrm{appUserStorageKeys}\in\{\mathrm{AppUserStorageKeys}\}$
     - $\mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}$
     - $\mathrm{updatedRoots}\in\mathbb{F}_{255}^{\mathrm{nAppStorages}}$
     - $\mathrm{proofTokamak}\in\mathbb{F}_{256}^{42}$
     - $\mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4}$
     - $\mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}$
     - Full-set usage: $\mathrm{appStorageAddrs}=\mathrm{AppStorageAddrs}\ \wedge\ \mathrm{appUserStorageKeys}=\mathrm{AppUserStorageKeys}$
+    - Complete internal usage: letting $\mathrm{ProcessedPairs}_{\mathrm{all}}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}$ be the set of storage-key pairs internally processed by one execution, $\mathrm{ProcessedPairs}_{\mathrm{all}}=\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
 
 

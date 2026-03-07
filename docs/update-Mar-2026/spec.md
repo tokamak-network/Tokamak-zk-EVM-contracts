@@ -103,6 +103,7 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
   - Conditional existence and uniqueness on validated values: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppUserStorageKeys},\ \forall v\in\mathrm{AppValidatedStorageValues},\ \left((s,k,v)\in\mathcal{V}\Rightarrow \exists!u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\right)$
   - Getter: $\mathrm{getAppUserStorageKey}:\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\to\mathrm{AppUserStorageKeys}$, where $\mathrm{getAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
 - $\mathcal{V}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}\times\mathrm{AppValidatedStorageValues}$
+  - Uniqueness (without existence): $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppUserStorageKeys},\ \forall v_1,v_2\in\mathrm{AppValidatedStorageValues},\ ((s,k,v_1)\in\mathcal{V}\wedge(s,k,v_2)\in\mathcal{V})\Rightarrow v_1=v_2$
   - Conditional existence and uniqueness on channel keys: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppUserStorageKeys},\ \left((\exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\mathrm{AppValidatedStorageValues},\ (s,k,v)\in\mathcal{V}\right)$
   - Setter-gated value update:
     $$
@@ -118,6 +119,7 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
     $$
   - Getter: $\mathrm{getAppValidatedStorageValue}:\{(s,k)\in\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}\mid \exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\}\to\mathrm{AppValidatedStorageValues}$, where $\mathrm{getAppValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
 - $\mathcal{A}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppPreAllocKeys}\times\mathrm{AppPreAllocValues}$
+  - Uniqueness (without existence): $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppPreAllocKeys},\ \forall v_1,v_2\in\mathrm{AppPreAllocValues},\ ((s,k,v_1)\in\mathcal{A}\wedge(s,k,v_2)\in\mathcal{A})\Rightarrow v_1=v_2$
   - Conditional existence and uniqueness on app pre-allocated keys: $\forall (s,k)\in\mathcal{D},\ \exists!v\in\mathrm{AppPreAllocValues},\ (s,k,v)\in\mathcal{A}$
   - Getter: $\mathrm{getAppPreAllocValue}:\mathcal{D}\to\mathrm{AppPreAllocValues}$, where $\mathrm{getAppPreAllocValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{A}$
 

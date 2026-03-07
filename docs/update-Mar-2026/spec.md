@@ -22,6 +22,11 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
   - A set of user storage slots
 - $\mathrm{FcnCfgs}\subseteq\mathbb{F}_{256}\times\mathbb{F}_{256}$
   - A set of function-configuration pairs of instance hashes and preprocess hashes
+- $\mathrm{nTokamakPublicInputs}\in\mathbb{F}_{16}$
+  - The length of public inputs required to verify a Tokamak zk-EVM proof
+- $\mathrm{nMerkleTreeLevels}\in\mathbb{F}_{8}$
+  - The number of levels for each channel Merkle tree
+  - Each Merkle tree has $2^{\mathrm{nMerkleTreeLevels}}$ leaves
 
 #### Relations
 
@@ -49,6 +54,9 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
 - $\mathrm{AppStorageAddrs}:=\mathrm{getFcnStorages}[\mathrm{AppFcnSigs}]$
   - A set of storage addresses referenced by the functions in $\mathrm{AppFcnSigs}$
   - Inclusion: $\mathrm{AppStorageAddrs}\subseteq\mathrm{StorageAddrs}$
+- $\mathrm{nAppStorages}\in\mathbb{F}_{16}$
+  - The cardinality of $\mathrm{AppStorageAddrs}$
+  - Cardinality: $\mathrm{nAppStorages}=\left|\mathrm{AppStorageAddrs}\right|$
 - $\mathrm{AppPreAllocKeys}:=\mathrm{getPreAllocKeys}[\mathrm{AppStorageAddrs}]$
   - A set of pre-allocated keys associated with $\mathrm{AppStorageAddrs}$
   - Inclusion: $\mathrm{AppPreAllocKeys}\subseteq\mathrm{PreAllocKeys}$
@@ -111,12 +119,22 @@ Given state-machine indexing and verified state roots, a channel maintains and m
 
 #### Setter functions
 
-- $\mathrm{updateSingleStorage}:\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}\times\mathbb{F}_{256}\times\mathbb{F}_{255}\to\{\mathrm{true},\mathrm{false}\}$
+- $\mathrm{updateSingleStorage}:\mathrm{AppStorageAddrs}\times\mathrm{AppUserStorageKeys}\times\mathbb{F}_{256}\times\mathbb{F}_{255}\times\mathbb{F}_{256}^{16}\times\mathbb{F}_{256}^{5}\to\{\mathrm{true},\mathrm{false}\}$
   - Inputs:
     - $\mathrm{appStorageAddr}\in\mathrm{AppStorageAddrs}$
     - $\mathrm{appUserStorageKey}\in\mathrm{AppUserStorageKeys}$
     - $\mathrm{updatedStorageValue}\in\mathbb{F}_{256}$
     - $\mathrm{updatedRoot}\in\mathbb{F}_{255}$
+    - $\mathrm{proofGroth16}\in\mathbb{F}_{256}^{16}$
+    - $\mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5}$
+  - Output: $\mathrm{true}$ or $\mathrm{false}$
+- $\mathrm{updateAllStorages}:(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}\to\{\mathrm{true},\mathrm{false}\}$
+  - Inputs:
+    - $\mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}$
+    - $\mathrm{updatedRoots}\in\mathbb{F}_{256}^{\mathrm{nAppStorages}}$
+    - $\mathrm{proofTokamak}\in\mathbb{F}_{256}^{42}$
+    - $\mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4}$
+    - $\mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
 
 
@@ -130,7 +148,7 @@ Given state-machine indexing and verified state roots, a channel maintains and m
 
 $$
 \begin{aligned}
-X_c:=(&\mathrm{UserAddrs}_c,\mathrm{AppFcnSigs}_c,\mathrm{AppStorageAddrs}_c,\mathrm{AppPreAllocKeys}_c,\mathrm{AppUserStorageSlots}_c,\\
+X_c:=(&\mathrm{UserAddrs}_c,\mathrm{AppFcnSigs}_c,\mathrm{AppStorageAddrs}_c,\mathrm{nAppStorages}_c,\mathrm{AppPreAllocKeys}_c,\mathrm{AppUserStorageSlots}_c,\\
      &\mathrm{AppFcnCfgs}_c,\mathrm{AppUserStorageKeys}_c,\mathrm{AppValidatedStorageValues}_c,\mathrm{AppPreAllocValues}_c,\\
      &\mathrm{stateIndex}_c,\mathrm{StateIndices}_c,\mathrm{VerifiedStateRoots}_c,\\
      &\mathcal{S}_c,\mathcal{D}_c,\mathcal{U}_c,\mathcal{F}_c,\mathcal{K}_c,\mathcal{V}_c,\mathcal{A}_c,\mathcal{R}_c)

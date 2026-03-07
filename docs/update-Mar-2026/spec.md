@@ -10,7 +10,7 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
 
 ### Bridge manager
 
-#### Scope
+#### Variables
 
 - $\mathrm{FcnSigns}\subseteq\mathbb{F}_{32}$
   - A set of contract function signatures
@@ -45,7 +45,7 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
 
 ### Channel
 
-#### Scope
+#### Variables
 
 - $\mathrm{UserAddrs}\subseteq\mathbb{F}_{256}$
   - A set of user addresses registered in a channel
@@ -164,7 +164,7 @@ Given state-machine indexing and verified state roots, a channel maintains and m
 
 ### Bridge Core
 
-#### Scope
+#### Variables
 
 - $\mathrm{ChannelIds}\subseteq\mathbb{F}_{256}$
   - A set of registered channel IDs

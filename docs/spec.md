@@ -129,6 +129,7 @@ Given state-machine indexing and verified/unverified state roots, a channel main
 
 - $\mathcal{R}\subseteq\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{VerifiedStateRoots}$
   - Existence and uniqueness per storage-index pair: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \exists!r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}$
+  - Vector-wise completeness per state index: $\forall t\in\mathrm{StateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{VerifiedStateRoots},\ (t,s^\prime,r^\prime)\in\mathcal{R}\right)\right)$
   - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left(t<\mathrm{stateIndex}\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (t,s,r_t)\in\mathcal{R}\wedge(t+1,s,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
   - Setter-gated root update:
     $$
@@ -145,6 +146,7 @@ Given state-machine indexing and verified/unverified state roots, a channel main
   - Getter: $\mathrm{getVerifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (t,s,r)\in\mathcal{R}$
 - $\mathcal{N}\subseteq\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{UnverifiedStateRoots}$
   - Existence (without uniqueness) per storage-index pair: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{UnverifiedStateRoots},\ (t,s,r)\in\mathcal{N}$
+  - Vector-wise completeness per state index: $\forall t\in\mathrm{StateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{UnverifiedStateRoots},\ (t,s,r)\in\mathcal{N}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{UnverifiedStateRoots},\ (t,s^\prime,r^\prime)\in\mathcal{N}\right)\right)$
   - Getter: $\mathrm{getUnverifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathcal{P}(\mathrm{UnverifiedStateRoots})$, where $\mathrm{getUnverifiedStateRoot}(s,t):=\{r\in\mathrm{UnverifiedStateRoots}\mid(t,s,r)\in\mathcal{N}\}$
 
 #### Setter functions

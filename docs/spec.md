@@ -205,7 +205,16 @@ Given $\mathrm{ChannelIds}$ and channel instances $\{X_c\}_{c\in\mathrm{ChannelI
 - $\widetilde{\mathcal{F}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{F}_c\right)$
   - Getter: $\mathrm{getChannelFcnCfg}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{AppFcnSigs}_c\}\to\mathrm{AppFcnCfgs}_c$, where $\mathrm{getChannelFcnCfg}(c,f):=\mathrm{getAppFcnCfg}_c(f)$
 - $\widetilde{\mathcal{K}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{K}_c\right)$
-  - Uniqueness (integrated): $\left(\forall c\in\mathrm{ChannelIds},\ \forall u\in\mathrm{UserAddrs}_c,\ \forall s\in\mathrm{StorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys}_c,\ \left(((c,u,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c,u,s,k_2)\in\widetilde{\mathcal{K}})\Rightarrow k_1=k_2\right)\right)\ \wedge\ \left(\forall c_1,c_2\in\mathrm{ChannelIds},\ \forall u_1\in\mathrm{UserAddrs}_{c_1},\ \forall u_2\in\mathrm{UserAddrs}_{c_2},\ \forall s\in\mathrm{StorageAddrs},\ \forall k_1\in\mathrm{UserChannelStorageKeys}_{c_1},\ \forall k_2\in\mathrm{UserChannelStorageKeys}_{c_2},\ \left(((c_1,u_1,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c_2,u_2,s,k_2)\in\widetilde{\mathcal{K}}\wedge k_1\neq k_2)\Rightarrow(c_1\neq c_2\vee u_1\neq u_2)\right)\right)$
+  - Uniqueness (integrated):
+    $$
+    \begin{aligned}
+    &\left(\forall c\in\mathrm{ChannelIds},\ \forall u\in\mathrm{UserAddrs}_c,\ \forall s\in\mathrm{StorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys}_c,\right.\\
+    &\qquad\left.\left(((c,u,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c,u,s,k_2)\in\widetilde{\mathcal{K}})\Rightarrow k_1=k_2\right)\right)\ \wedge\\
+    &\left(\forall c_1,c_2\in\mathrm{ChannelIds},\ \forall u_1\in\mathrm{UserAddrs}_{c_1},\ \forall u_2\in\mathrm{UserAddrs}_{c_2},\ \forall s\in\mathrm{StorageAddrs},\right.\\
+    &\qquad\left.\forall k_1\in\mathrm{UserChannelStorageKeys}_{c_1},\ \forall k_2\in\mathrm{UserChannelStorageKeys}_{c_2},\right.\\
+    &\qquad\left.\left(((c_1,u_1,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c_2,u_2,s,k_2)\in\widetilde{\mathcal{K}}\wedge k_1\neq k_2)\Rightarrow(c_1\neq c_2\vee u_1\neq u_2)\right)\right)
+    \end{aligned}
+    $$
   - Getter: $\mathrm{getChannelUserStorageKey}:\{(c,u,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ (c,u)\in\widetilde{\mathcal{M}}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathrm{UserChannelStorageKeys}_c$, where $\mathrm{getChannelUserStorageKey}(c,u,s):=\mathrm{getAppUserStorageKey}_c(u,s)$
 - $\widetilde{\mathcal{V}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{V}_c\right)$
   - Getter: $\mathrm{getChannelValidatedStorageValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ k\in\mathrm{UserChannelStorageKeys}_c\ \wedge\ \exists u\in\mathrm{UserAddrs}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}}\}\to\mathrm{ValidatedStorageValues}_c$, where $\mathrm{getChannelValidatedStorageValue}(c,s,k):=\mathrm{getAppValidatedStorageValue}_c(s,k)$

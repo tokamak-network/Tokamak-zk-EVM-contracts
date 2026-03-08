@@ -144,8 +144,8 @@ Given state-machine indexing and verified/unverified state roots, a channel main
     $$
   - Getter: $\mathrm{getVerifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (s,t,r)\in\mathcal{R}$
 - $\mathcal{N}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\times\mathrm{UnverifiedStateRoots}$
-  - Existence and uniqueness per storage-index pair: $\forall s\in\mathrm{AppStorageAddrs},\ \forall t\in\mathrm{StateIndices},\ \exists!r\in\mathrm{UnverifiedStateRoots},\ (s,t,r)\in\mathcal{N}$
-  - Getter: $\mathrm{getUnverifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{UnverifiedStateRoots}$, where $\mathrm{getUnverifiedStateRoot}(s,t):=r\ \text{where}\ (s,t,r)\in\mathcal{N}$
+  - Existence (without uniqueness) per storage-index pair: $\forall s\in\mathrm{AppStorageAddrs},\ \forall t\in\mathrm{StateIndices},\ \exists r\in\mathrm{UnverifiedStateRoots},\ (s,t,r)\in\mathcal{N}$
+  - Getter: $\mathrm{getUnverifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathcal{P}(\mathrm{UnverifiedStateRoots})$, where $\mathrm{getUnverifiedStateRoot}(s,t):=\{r\in\mathrm{UnverifiedStateRoots}\mid(s,t,r)\in\mathcal{N}\}$
 
 #### Setter functions
 
@@ -218,7 +218,7 @@ Given $\mathrm{ChannelIds}$ and channel instances $\{X_c\}_{c\in\mathrm{ChannelI
 - $\widetilde{\mathcal{R}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{R}_c\right)$
   - Getter: $\mathrm{getChannelVerifiedStateRoot}:\{(c,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\}\to\mathrm{VerifiedStateRoots}_c$, where $\mathrm{getChannelVerifiedStateRoot}(c,s,t):=\mathrm{getVerifiedStateRoot}_c(s,t)$
 - $\widetilde{\mathcal{N}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{N}_c\right)$
-  - Getter: $\mathrm{getChannelUnverifiedStateRoot}:\{(c,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\}\to\mathrm{UnverifiedStateRoots}_c$, where $\mathrm{getChannelUnverifiedStateRoot}(c,s,t):=\mathrm{getUnverifiedStateRoot}_c(s,t)$
+  - Getter: $\mathrm{getChannelUnverifiedStateRoot}:\{(c,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\}\to\mathcal{P}(\mathrm{UnverifiedStateRoots}_c)$, where $\mathrm{getChannelUnverifiedStateRoot}(c,s,t):=\mathrm{getUnverifiedStateRoot}_c(s,t)$
 
 Core access constraints:
 

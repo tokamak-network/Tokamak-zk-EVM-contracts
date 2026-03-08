@@ -206,7 +206,7 @@ Given state-machine indexing and verified/unverified state roots, a channel main
     - $\mathrm{proofGroth16}\in\mathbb{F}_{256}^{16}$
     - $\mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
-- $\mathrm{proposeUnverifiedStateRoots}:\mathbb{N}\times\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}\times\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}}\to\{\mathrm{true},\mathrm{false}\}$
+- $\mathrm{proposeUnverifiedStateRoots}:\mathrm{UnverifiedStateIndices}\times\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}\times\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}}\to\{\mathrm{true},\mathrm{false}\}$
   - Inputs:
     - $\mathrm{proposedStateIndex}\in\mathrm{UnverifiedStateIndices}$
     - $\mathrm{forkId}\in\mathrm{ForkIds}$

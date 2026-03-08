@@ -179,6 +179,7 @@ Given state-machine indexing and verified/unverified state roots, a channel main
 - $\mathcal{N}\subseteq\mathrm{ForkIds}\times\mathrm{UnverifiedStateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{UnverifiedStateRoots}$
   - Uniqueness per state-fork-storage triple (without existence): $\forall t\in\mathrm{UnverifiedStateIndices},\ \forall f\in\mathrm{ForkIds},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{UnverifiedStateRoots},\ ((f,t,s,r_1)\in\mathcal{N}\wedge(f,t,s,r_2)\in\mathcal{N})\Rightarrow r_1=r_2$
   - Vector-wise completeness per state-fork pair: $\forall t\in\mathrm{UnverifiedStateIndices},\ \forall f\in\mathrm{ForkIds},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{UnverifiedStateRoots},\ (f,t,s,r)\in\mathcal{N}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{UnverifiedStateRoots},\ (f,t,s^\prime,r^\prime)\in\mathcal{N}\right)\right)$
+  - Proposal insertion by setter (without special verification): $\forall \mathrm{proposedStateIndex}\in\mathrm{UnverifiedStateIndices},\ \forall \mathrm{forkId}\in\mathrm{ForkIds},\ \forall \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \forall \mathrm{proposedRoots}\in\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}},\ \mathrm{proposeUnverifiedStateRoots}(\mathrm{proposedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{proposedRoots})=\mathrm{true}\Rightarrow \forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{forkId},\mathrm{proposedStateIndex},\mathrm{appStorageAddrs}_i,\mathrm{proposedRoots}_i)\in\mathcal{N}$
   - Reset of committed unverified proposals:
     $$
     \begin{aligned}
@@ -211,8 +212,6 @@ Given state-machine indexing and verified/unverified state roots, a channel main
     - $\mathrm{forkId}\in\mathrm{ForkIds}$
     - $\mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}$
     - $\mathrm{proposedRoots}\in\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}}$
-  - Constraints:
-    - Proposal update (without special verification): $\mathrm{proposeUnverifiedStateRoots}(\mathrm{proposedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{proposedRoots})=\mathrm{true}\Rightarrow \forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{forkId},\mathrm{proposedStateIndex},\mathrm{appStorageAddrs}_i,\mathrm{proposedRoots}_i)\in\mathcal{N}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
 - $\mathrm{verifyUnverifiedStateRoots}:\mathrm{UnverifiedStateIndices}\times\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}\times(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}\to\{\mathrm{true},\mathrm{false}\}$
   - Inputs:

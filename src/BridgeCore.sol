@@ -3,10 +3,10 @@ pragma solidity 0.8.29;
 
 import "./BridgeAccessControl.sol";
 import "./BridgeChannel.sol";
-import "./BridgeManager.sol";
+import "./BridgeAdminManager.sol";
 
 contract BridgeCore is BridgeOwnable {
-    BridgeManager public immutable bridgeManager;
+    BridgeAdminManager public immutable bridgeManager;
 
     mapping(bytes32 => address) private _channelAddress;
     bytes32[] private _channelIds;
@@ -15,7 +15,7 @@ contract BridgeCore is BridgeOwnable {
 
     constructor(address managerAddress, address initialOwner) BridgeOwnable(initialOwner) {
         require(managerAddress != address(0), "Invalid manager");
-        bridgeManager = BridgeManager(managerAddress);
+        bridgeManager = BridgeAdminManager(managerAddress);
     }
 
     function createChannel(bytes32 channelId, bytes4[] calldata appFcnSigs, address[] calldata users)

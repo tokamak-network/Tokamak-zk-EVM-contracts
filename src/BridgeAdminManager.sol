@@ -3,7 +3,7 @@ pragma solidity 0.8.29;
 
 import "./BridgeAccessControl.sol";
 
-contract BridgeManager is BridgeOwnable {
+contract BridgeAdminManager is BridgeOwnable {
     struct FcnCfg {
         bytes32 instancesHash;
         bytes32 preprocessHash;

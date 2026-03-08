@@ -8,7 +8,7 @@ Director: Jehyuk Jang, Ph.D
 
 $\mathbb{F}_{b}$ is the field of $b$-bit words.
 
-### Bridge manager
+### Bridge Admin Manager
 
 #### Variables
 

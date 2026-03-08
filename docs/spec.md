@@ -175,6 +175,7 @@ Given state-machine indexing and verified/unverified state roots, a channel main
     - $\mathrm{proofTokamak}\in\mathbb{F}_{256}^{42}$
     - $\mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4}$
     - $\mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}$
+  - Constraints:
     - Coverage on validated values: $\forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \forall j\in\{0,\dots,2^{\mathrm{nMerkleTreeLevels}}-1\},\ \exists v\in\mathrm{ValidatedStorageValues},\ (\mathrm{appStorageAddrs}_i,\mathrm{userChannelStorageKeys}_{i,j},v)\in\mathcal{V}$
     - Membership in $\mathcal{N}$: $\forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{stateIndex},\mathrm{appStorageAddrs}_i,\mathrm{updatedRoots}_i)\in\mathcal{N}$
     - No pre-existing verified tuple at state index: $\forall s\in\mathbb{F}_{160},\ \forall r\in\mathbb{F}_{255},\ (\mathrm{stateIndex},s,r)\notin\mathcal{R}$

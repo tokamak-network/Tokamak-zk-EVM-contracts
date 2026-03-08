@@ -110,17 +110,6 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
     \Big)
     \end{aligned}
     $$
-  - Verified-commit synchronized update:
-    $$
-    \begin{aligned}
-    &\forall \mathrm{forkId}\in\mathrm{ForkIds},\ \forall \mathrm{proposedStateIndex}\in\mathrm{StateIndices},\ \forall \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\\
-    &\forall \mathrm{userChannelStorageKeys}\in(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \forall \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
-    &\forall \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\ \forall \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \forall \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\\
-    &\forall \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
-    &\mathrm{verifyProposedStateRoots}(\mathrm{forkId},\mathrm{proposedStateIndex},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\\
-    &\Rightarrow \forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \forall j\in\{0,\dots,2^{\mathrm{nMerkleTreeLevels}}-1\},\ \exists u\in\mathrm{UserAddrs},\ (u,\mathrm{appStorageAddrs}_i,\mathrm{userChannelStorageKeys}_{i,j},\mathrm{updatedStorageValues}_{i,j})\in\mathcal{V}\ \text{in the post-state}
-    \end{aligned}
-    $$
   - Getter: $\mathrm{getAppValidatedStorageValue}:\{(u,s,k)\in\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\times\mathrm{UserChannelStorageKeys}\mid \exists v\in\mathrm{ValidatedStorageValues},\ (u,s,k,v)\in\mathcal{V}\}\to\mathrm{ValidatedStorageValues}$, where $\mathrm{getAppValidatedStorageValue}(u,s,k):=v\ \text{where}\ (u,s,k,v)\in\mathcal{V}$
 - $\mathcal{A}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppPreAllocKeys}\times\mathrm{PreAllocValues}$
   - Uniqueness (without existence): $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppPreAllocKeys},\ \forall v_1,v_2\in\mathrm{PreAllocValues},\ ((s,k,v_1)\in\mathcal{A}\wedge(s,k,v_2)\in\mathcal{A})\Rightarrow v_1=v_2$

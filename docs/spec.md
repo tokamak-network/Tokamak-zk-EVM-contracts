@@ -135,6 +135,7 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
 
 - $\mathcal{R}\subseteq\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{VerifiedStateRoots}$
   - Existence and uniqueness per storage-index pair: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \exists!r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}$
+  - Vector-wise completeness per state-index: $\forall t\in\mathrm{StateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{VerifiedStateRoots},\ (t,s^\prime,r^\prime)\in\mathcal{R}\right)\right)$
   - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left((t+1)\in\mathrm{StateIndices}\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (t,s,r_t)\in\mathcal{R}\wedge(t+1,s,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
   - Setter-gated root update:
     $$
@@ -153,6 +154,7 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
 - $\mathcal{N}\subseteq\mathrm{ForkIds}\times\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots}$
   - Uniqueness per state-fork-storage triple (without existence): $\forall t\in\mathrm{StateIndices},\ \forall f\in\mathrm{ForkIds},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ ((f,t,s,r_1)\in\mathcal{N}\wedge(f,t,s,r_2)\in\mathcal{N})\Rightarrow r_1=r_2$
   - Vector-wise completeness per state-fork pair: $\forall t\in\mathrm{StateIndices},\ \forall f\in\mathrm{ForkIds},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{ProposedStateRoots},\ (f,t,s,r)\in\mathcal{N}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{ProposedStateRoots},\ (f,t,s^\prime,r^\prime)\in\mathcal{N}\right)\right)$
+  - State transition by one-step index increment with root update: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \left(\left((t+1)\in\mathrm{StateIndices}\wedge\exists s\in\mathrm{AppStorageAddrs},\ \exists r_t\in\mathrm{ProposedStateRoots},\ (f,t,s,r_t)\in\mathcal{N}\right)\Rightarrow\exists s^\prime\in\mathrm{AppStorageAddrs},\ \exists r_t^\prime,r_{t+1}\in\mathrm{ProposedStateRoots},\ (f,t,s^\prime,r_t^\prime)\in\mathcal{N}\wedge(f,t+1,s^\prime,r_{t+1})\in\mathcal{N}\wedge r_t^\prime\neq r_{t+1}\right)$
   - Getter: $\mathrm{getProposedStateRoot}:\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{ProposedStateRoots}$, where $\mathrm{getProposedStateRoot}(f,s,t):=r\ \text{where}\ (f,t,s,r)\in\mathcal{N}$
   - Getter: $\mathrm{getProposedStateFork}:\mathrm{ForkIds}\to\mathcal{P}(\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots})$, where $\mathrm{getProposedStateFork}(f):=\{(t,s,r)\in\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots}\mid(f,t,s,r)\in\mathcal{N}\}$
 

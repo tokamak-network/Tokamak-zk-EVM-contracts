@@ -135,8 +135,7 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
 
 - $\mathcal{R}\subseteq\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{VerifiedStateRoots}$
   - Existence and uniqueness per storage-index pair: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \exists!r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}$
-  - Getter: $\mathrm{getLastVerifiedStateIndex}:\{\ast\}\to\mathrm{StateIndices}$, where $\mathrm{getLastVerifiedStateIndex}(\ast):=\max\{t\in\mathrm{StateIndices}\mid\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\}$
-  - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left(t<\mathrm{getLastVerifiedStateIndex}(\ast)\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (t,s,r_t)\in\mathcal{R}\wedge(t+1,s,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
+  - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left((t+1)\in\mathrm{StateIndices}\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (t,s,r_t)\in\mathcal{R}\wedge(t+1,s,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
   - Setter-gated root update:
     $$
     \begin{aligned}

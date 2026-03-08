@@ -40,7 +40,7 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
 - $\mathcal{U}_M\subseteq\mathrm{StorageAddrs}\times\mathrm{UserStorageSlots}$
   - Getter: $\mathrm{getUserSlots}:\mathrm{StorageAddrs}\to\mathcal{P}(\mathrm{UserStorageSlots})$, where $\mathrm{getUserSlots}(s):=\{u\in\mathrm{UserStorageSlots}\mid(s,u)\in\mathcal{U}_M\}$
 - $\mathcal{F}_M\subseteq\mathrm{FcnSigns}\times\mathrm{FcnCfgs}$
-  - Existence and uniqueness: $\forall f\in\mathrm{FcnSigns},\ \exists!q\in\mathrm{FcnCfgs}\ \text{s.t.}\ (f,q)\in\mathcal{F}_M$
+  - Existence and uniqueness (integrated): $\left(\forall f\in\mathrm{FcnSigns},\ \exists!q\in\mathrm{FcnCfgs}\ \text{s.t.}\ (f,q)\in\mathcal{F}_M\right)\ \wedge\ \left(\forall f_1,f_2\in\mathrm{FcnSigns},\ \forall q_1,q_2\in\mathrm{FcnCfgs},\ ((f_1,q_1)\in\mathcal{F}_M\wedge(f_2,q_2)\in\mathcal{F}_M\wedge q_1\neq q_2)\Rightarrow f_1\neq f_2\right)$
   - Getter: $\mathrm{getFcnCfg}:\mathrm{FcnSigns}\to\mathrm{FcnCfgs}$, where $\mathrm{getFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}_M$
 
 ### Channel
@@ -94,11 +94,11 @@ Given $\mathrm{AppFcnSigs}$, a channel derives the following projected relations
 Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel maintains and manages the following relations:
 
 - $\mathcal{K}\subseteq\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\times\mathrm{UserChannelStorageKeys}$
-  - Uniqueness (without existence): $\forall u\in\mathrm{UserAddrs},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys},\ ((u,s,k_1)\in\mathcal{K}\wedge(u,s,k_2)\in\mathcal{K})\Rightarrow k_1=k_2$
+  - Uniqueness (integrated): $\left(\forall u\in\mathrm{UserAddrs},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys},\ ((u,s,k_1)\in\mathcal{K}\wedge(u,s,k_2)\in\mathcal{K})\Rightarrow k_1=k_2\right)\ \wedge\ \left(\forall u_1,u_2\in\mathrm{UserAddrs},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys},\ ((u_1,s,k_1)\in\mathcal{K}\wedge(u_2,s,k_2)\in\mathcal{K}\wedge k_1\neq k_2)\Rightarrow u_1\neq u_2\right)$
   - Conditional existence and uniqueness on validated values: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \forall v\in\mathrm{ValidatedStorageValues},\ \left((s,k,v)\in\mathcal{V}\Rightarrow \exists!u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\right)$
   - Getter: $\mathrm{getAppUserStorageKey}:\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\to\mathrm{UserChannelStorageKeys}$, where $\mathrm{getAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
 - $\mathcal{V}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{UserChannelStorageKeys}\times\mathrm{ValidatedStorageValues}$
-  - Uniqueness (without existence): $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \forall v_1,v_2\in\mathrm{ValidatedStorageValues},\ ((s,k,v_1)\in\mathcal{V}\wedge(s,k,v_2)\in\mathcal{V})\Rightarrow v_1=v_2$
+  - Uniqueness (integrated): $\left(\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \forall v_1,v_2\in\mathrm{ValidatedStorageValues},\ ((s,k,v_1)\in\mathcal{V}\wedge(s,k,v_2)\in\mathcal{V})\Rightarrow v_1=v_2\right)\ \wedge\ \left(\forall s\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys},\ \forall v_1,v_2\in\mathrm{ValidatedStorageValues},\ ((s,k_1,v_1)\in\mathcal{V}\wedge(s,k_2,v_2)\in\mathcal{V}\wedge v_1\neq v_2)\Rightarrow k_1\neq k_2\right)$
   - Conditional existence and uniqueness on channel keys: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \left((\exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\mathrm{ValidatedStorageValues},\ (s,k,v)\in\mathcal{V}\right)$
   - Setter-gated value update:
     $$
@@ -116,14 +116,14 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
     $$
   - Getter: $\mathrm{getAppValidatedStorageValue}:\{(s,k)\in\mathrm{AppStorageAddrs}\times\mathrm{UserChannelStorageKeys}\mid \exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\}\to\mathrm{ValidatedStorageValues}$, where $\mathrm{getAppValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
 - $\mathcal{A}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{AppPreAllocKeys}\times\mathrm{PreAllocValues}$
-  - Uniqueness (without existence): $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppPreAllocKeys},\ \forall v_1,v_2\in\mathrm{PreAllocValues},\ ((s,k,v_1)\in\mathcal{A}\wedge(s,k,v_2)\in\mathcal{A})\Rightarrow v_1=v_2$
+  - Uniqueness (integrated): $\left(\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{AppPreAllocKeys},\ \forall v_1,v_2\in\mathrm{PreAllocValues},\ ((s,k,v_1)\in\mathcal{A}\wedge(s,k,v_2)\in\mathcal{A})\Rightarrow v_1=v_2\right)\ \wedge\ \left(\forall s\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{AppPreAllocKeys},\ \forall v_1,v_2\in\mathrm{PreAllocValues},\ ((s,k_1,v_1)\in\mathcal{A}\wedge(s,k_2,v_2)\in\mathcal{A}\wedge v_1\neq v_2)\Rightarrow k_1\neq k_2\right)$
   - Conditional existence and uniqueness on app pre-allocated keys: $\forall (s,k)\in\mathcal{D},\ \exists!v\in\mathrm{PreAllocValues},\ (s,k,v)\in\mathcal{A}$
   - Getter: $\mathrm{getAppPreAllocValue}:\mathcal{D}\to\mathrm{PreAllocValues}$, where $\mathrm{getAppPreAllocValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{A}$
 
 Given state-machine indexing and verified/proposed state roots, a channel maintains and manages the following relations:
 
 - $\mathcal{R}\subseteq\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{VerifiedStateRoots}$
-  - Uniqueness (without existence) per storage-index pair: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{VerifiedStateRoots},\ \left(((t,s,r_1)\in\mathcal{R}\wedge(t,s,r_2)\in\mathcal{R})\Rightarrow r_1=r_2\right)$
+  - Uniqueness (integrated) per storage-index pair: $\left(\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{VerifiedStateRoots},\ \left(((t,s,r_1)\in\mathcal{R}\wedge(t,s,r_2)\in\mathcal{R})\Rightarrow r_1=r_2\right)\right)\ \wedge\ \left(\forall t\in\mathrm{StateIndices},\ \forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{VerifiedStateRoots},\ \left(((t,s_1,r_1)\in\mathcal{R}\wedge(t,s_2,r_2)\in\mathcal{R}\wedge r_1\neq r_2)\Rightarrow s_1\neq s_2\right)\right)$
   - Vector-wise completeness per state-index: $\forall t\in\mathrm{StateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{VerifiedStateRoots},\ (t,s^\prime,r^\prime)\in\mathcal{R}\right)\right)$
   - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r,r^\prime\in\mathrm{VerifiedStateRoots},\ \left(((t,s,r)\in\mathcal{R}\wedge(t+1,s,r^\prime)\in\mathcal{R})\Rightarrow r\neq r^\prime\right)$
   - Setter-gated root update:
@@ -141,7 +141,7 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
     $$
   - Getter: $\mathrm{getVerifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (t,s,r)\in\mathcal{R}$
 - $\mathcal{N}\subseteq\mathrm{ForkIds}\times\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots}$
-  - Uniqueness (without existence) per fork-index-storage triple: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ \left(((f,t,s,r_1)\in\mathcal{N}\wedge(f,t,s,r_2)\in\mathcal{N})\Rightarrow r_1=r_2\right)$
+  - Uniqueness (integrated) per fork-index-storage triple: $\left(\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ \left(((f,t,s,r_1)\in\mathcal{N}\wedge(f,t,s,r_2)\in\mathcal{N})\Rightarrow r_1=r_2\right)\right)\ \wedge\ \left(\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ \left(((f,t,s_1,r_1)\in\mathcal{N}\wedge(f,t,s_2,r_2)\in\mathcal{N}\wedge r_1\neq r_2)\Rightarrow s_1\neq s_2\right)\right)$
   - Vector-wise completeness per fork-index pair: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{ProposedStateRoots},\ (f,t,s,r)\in\mathcal{N}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{ProposedStateRoots},\ (f,t,s^\prime,r^\prime)\in\mathcal{N}\right)\right)$
   - State transition by one-step index increment with root update: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r,r^\prime\in\mathrm{ProposedStateRoots},\ \left(((f,t,s,r)\in\mathcal{N}\wedge(f,t+1,s,r^\prime)\in\mathcal{N})\Rightarrow r\neq r^\prime\right)$
   - Getter: $\mathrm{getProposedStateRoot}:\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{ProposedStateRoots}$, where $\mathrm{getProposedStateRoot}(f,s,t):=r\ \text{where}\ (f,t,s,r)\in\mathcal{N}$

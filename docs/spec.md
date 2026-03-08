@@ -119,10 +119,10 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
     &\big((s,k,\mathrm{updatedStorageValue})\in\mathcal{V}\big)\Rightarrow\Big(\\
     &\qquad\exists \mathrm{leafIndex}\in\mathbb{F}_{16},\ \exists \mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\ \exists \mathrm{proofGroth16}\in\mathbb{F}_{256}^{16},\ \exists \mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5},\\
     &\qquad\ \mathrm{updateSingleStateLeaf}(s,\mathrm{leafIndex},k,\mathrm{updatedStorageValue},\mathrm{updatedRoot},\mathrm{proofGroth16},\mathrm{publicInputGroth16})=\mathrm{true}\\
-    &\qquad\vee\ \exists \mathrm{verifiedStateIndex}\in\mathrm{VerifiedStateIndices},\ \exists \mathrm{forkId}\in\mathrm{ForkIds},\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{userChannelStorageKeys}\in(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
+    &\qquad\vee\ \exists \mathrm{unverifiedStateIndex}\in\mathrm{UnverifiedStateIndices},\ \exists \mathrm{forkId}\in\mathrm{ForkIds},\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{userChannelStorageKeys}\in(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
-    &\qquad\ \mathrm{verifyUnverifiedStateRoots}(\mathrm{verifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
+    &\qquad\ \mathrm{verifyUnverifiedStateRoots}(\mathrm{unverifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
     \Big)
     \end{aligned}
     $$
@@ -141,12 +141,13 @@ Given state-machine indexing and verified/unverified state roots, a channel main
   - Setter-gated root update:
     $$
     \begin{aligned}
-    &\forall s\in\mathrm{AppStorageAddrs},\ \forall t\in\mathrm{VerifiedStateIndices},\ \forall r_t,\mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\\
-    &\big(t<\mathrm{lastVerifiedStateIndex}\wedge(t,s,r_t)\in\mathcal{R}\wedge(t+1,s,\mathrm{updatedRoot})\in\mathcal{R}\wedge r_t\neq \mathrm{updatedRoot}\big)\Rightarrow\Big(\\
-    &\qquad\exists \mathrm{forkId}\in\mathrm{ForkIds},\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{userChannelStorageKeys}\in(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
+    &\forall s\in\mathrm{AppStorageAddrs},\ \forall \mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\\
+    &\Big((\mathrm{lastVerifiedStateIndex}+1,s,\mathrm{updatedRoot})\in\mathcal{R}\wedge\exists r_t\in\mathrm{VerifiedStateRoots},\ (\mathrm{lastVerifiedStateIndex},s,r_t)\in\mathcal{R}\wedge r_t\neq \mathrm{updatedRoot}\Big)\Rightarrow\Big(\\
+    &\qquad\exists \mathrm{forkId}\in\mathrm{ForkIds},\ \exists \mathrm{unverifiedStateIndex}\in\mathrm{UnverifiedStateIndices},\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{userChannelStorageKeys}\in(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
-    &\qquad\ \mathrm{verifyUnverifiedStateRoots}(t,\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
+    &\qquad\ \mathrm{unverifiedStateIndex}=\mathrm{lastVerifiedStateIndex}+1\ \wedge\\
+    &\qquad\ \mathrm{verifyUnverifiedStateRoots}(\mathrm{unverifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
     \Big)
     \end{aligned}
     $$
@@ -178,9 +179,9 @@ Given state-machine indexing and verified/unverified state roots, a channel main
   - Constraints:
     - Proposal update (without special verification): $\mathrm{proposeUnverifiedStateRoots}(\mathrm{proposedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{proposedRoots})=\mathrm{true}\Rightarrow \forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{forkId},\mathrm{proposedStateIndex},\mathrm{appStorageAddrs}_i,\mathrm{proposedRoots}_i)\in\mathcal{N}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
-- $\mathrm{verifyUnverifiedStateRoots}:\mathrm{VerifiedStateIndices}\times\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}\times(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}\to\{\mathrm{true},\mathrm{false}\}$
+- $\mathrm{verifyUnverifiedStateRoots}:\mathrm{UnverifiedStateIndices}\times\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}\times(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}\to\{\mathrm{true},\mathrm{false}\}$
   - Inputs:
-    - $\mathrm{lastVerifiedStateIndex}\in\mathrm{VerifiedStateIndices}$
+    - $\mathrm{unverifiedStateIndex}\in\mathrm{UnverifiedStateIndices}$
     - $\mathrm{forkId}\in\mathrm{ForkIds}$
     - $\mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}$
     - $\mathrm{userChannelStorageKeys}\in(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}$
@@ -190,12 +191,13 @@ Given state-machine indexing and verified/unverified state roots, a channel main
     - $\mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4}$
     - $\mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}$
   - Constraints:
-    - Membership in selected fork of $\mathcal{N}$: $\forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{forkId},\mathrm{lastVerifiedStateIndex}+1,\mathrm{appStorageAddrs}_i,\mathrm{updatedRoots}_i)\in\mathcal{N}$
-    - No pre-existing verified tuple at next state index: $\forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{VerifiedStateRoots},\ (\mathrm{lastVerifiedStateIndex}+1,s,r)\notin\mathcal{R}$
-    - Verified commit into $\mathcal{R}$ on success: $\mathrm{verifyUnverifiedStateRoots}(\mathrm{lastVerifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\Rightarrow \forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{lastVerifiedStateIndex}+1,\mathrm{appStorageAddrs}_i,\mathrm{updatedRoots}_i)\in\mathcal{R}$
-    - Synchronized update of $\mathcal{V}$ on verified commit: $\mathrm{verifyUnverifiedStateRoots}(\mathrm{lastVerifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\Rightarrow \forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \forall j\in\{0,\dots,2^{\mathrm{nMerkleTreeLevels}}-1\},\ (\mathrm{appStorageAddrs}_i,\mathrm{userChannelStorageKeys}_{i,j},\mathrm{updatedStorageValues}_{i,j})\in\mathcal{V}$
-    - Reset of unverified proposals at committed index: $\mathrm{verifyUnverifiedStateRoots}(\mathrm{lastVerifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\Rightarrow \forall f\in\mathrm{ForkIds},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{UnverifiedStateRoots},\ (f,\mathrm{lastVerifiedStateIndex}+1,s,r)\notin\mathcal{N}$
-    - State-index advancement on success: $\mathrm{verifyUnverifiedStateRoots}(\mathrm{lastVerifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\Rightarrow (\mathrm{lastVerifiedStateIndex}+1)\in\mathrm{VerifiedStateIndices}\ \text{in the post-state}$
+    - Immediate-next-index constraint: $\mathrm{unverifiedStateIndex}=\mathrm{lastVerifiedStateIndex}+1$
+    - Membership in selected fork of $\mathcal{N}$: $\forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{forkId},\mathrm{unverifiedStateIndex},\mathrm{appStorageAddrs}_i,\mathrm{updatedRoots}_i)\in\mathcal{N}$
+    - No pre-existing verified tuple at target index: $\forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{VerifiedStateRoots},\ (\mathrm{unverifiedStateIndex},s,r)\notin\mathcal{R}$
+    - Verified commit into $\mathcal{R}$ on success: $\mathrm{verifyUnverifiedStateRoots}(\mathrm{unverifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\Rightarrow \forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{unverifiedStateIndex},\mathrm{appStorageAddrs}_i,\mathrm{updatedRoots}_i)\in\mathcal{R}$
+    - Synchronized update of $\mathcal{V}$ on verified commit: $\mathrm{verifyUnverifiedStateRoots}(\mathrm{unverifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\Rightarrow \forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \forall j\in\{0,\dots,2^{\mathrm{nMerkleTreeLevels}}-1\},\ (\mathrm{appStorageAddrs}_i,\mathrm{userChannelStorageKeys}_{i,j},\mathrm{updatedStorageValues}_{i,j})\in\mathcal{V}$
+    - Reset of unverified proposals at committed index: $\mathrm{verifyUnverifiedStateRoots}(\mathrm{unverifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\Rightarrow \forall f\in\mathrm{ForkIds},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{UnverifiedStateRoots},\ (f,\mathrm{unverifiedStateIndex},s,r)\notin\mathcal{N}$
+    - State-index advancement on success: $\mathrm{verifyUnverifiedStateRoots}(\mathrm{unverifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\Rightarrow \left(\mathrm{unverifiedStateIndex}\in\mathrm{VerifiedStateIndices}\ \wedge\ \mathrm{lastVerifiedStateIndex}=\mathrm{unverifiedStateIndex}\right)\ \text{in the post-state}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
 
 

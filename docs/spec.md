@@ -133,19 +133,19 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
 
 Given state-machine indexing and verified/unverified state roots, a channel maintains and manages the following relations:
 
-- Let $\mathrm{maxMeaningfulStateIndex}(\mathcal{R}):=\max\{t\in\mathrm{StateIndices}\mid\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\}$.
 - $\mathcal{R}\subseteq\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{VerifiedStateRoots}$
   - Existence and uniqueness per storage-index pair: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \exists!r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}$
-  - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left(t<\mathrm{maxMeaningfulStateIndex}(\mathcal{R})\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (t,s,r_t)\in\mathcal{R}\wedge(t+1,s,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
+  - Getter: $\mathrm{getLastVerifiedStateIndex}:\{\ast\}\to\mathrm{StateIndices}$, where $\mathrm{getLastVerifiedStateIndex}(\ast):=\max\{t\in\mathrm{StateIndices}\mid\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\}$
+  - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left(t<\mathrm{getLastVerifiedStateIndex}(\ast)\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (t,s,r_t)\in\mathcal{R}\wedge(t+1,s,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
   - Setter-gated root update:
     $$
     \begin{aligned}
     &\forall s\in\mathrm{AppStorageAddrs},\ \forall \mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\\
-    &\Big((\mathrm{maxMeaningfulStateIndex}(\mathcal{R})+1,s,\mathrm{updatedRoot})\in\mathcal{R}\wedge\exists r_t\in\mathrm{VerifiedStateRoots},\ (\mathrm{maxMeaningfulStateIndex}(\mathcal{R}),s,r_t)\in\mathcal{R}\wedge r_t\neq \mathrm{updatedRoot}\Big)\Rightarrow\Big(\\
+    &\Big((\mathrm{getLastVerifiedStateIndex}(\ast)+1,s,\mathrm{updatedRoot})\in\mathcal{R}\wedge\exists r_t\in\mathrm{VerifiedStateRoots},\ (\mathrm{getLastVerifiedStateIndex}(\ast),s,r_t)\in\mathcal{R}\wedge r_t\neq \mathrm{updatedRoot}\Big)\Rightarrow\Big(\\
     &\qquad\exists \mathrm{forkId}\in\mathrm{ForkIds},\ \exists \mathrm{unverifiedStateIndex}\in\mathrm{StateIndices},\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{userChannelStorageKeys}\in(\mathrm{UserChannelStorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
-    &\qquad\ \mathrm{unverifiedStateIndex}=\mathrm{maxMeaningfulStateIndex}(\mathcal{R})+1\ \wedge\\
+    &\qquad\ \mathrm{unverifiedStateIndex}=\mathrm{getLastVerifiedStateIndex}(\ast)+1\ \wedge\\
     &\qquad\ \mathrm{verifyUnverifiedStateRoots}(\mathrm{unverifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
     \Big)
     \end{aligned}
@@ -169,7 +169,7 @@ Given state-machine indexing and verified/unverified state roots, a channel main
     &\forall \mathrm{updatedRoots}\in\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}},\ \forall \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \forall \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\\
     &\forall \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
     &\mathrm{verifyUnverifiedStateRoots}(\mathrm{unverifiedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\\
-    &\Rightarrow \left(\mathrm{unverifiedStateIndex}\in\mathrm{StateIndices}\ \wedge\ \mathrm{maxMeaningfulStateIndex}(\mathcal{R})=\mathrm{unverifiedStateIndex}\right)\ \text{in the post-state}
+    &\Rightarrow \left(\mathrm{unverifiedStateIndex}\in\mathrm{StateIndices}\ \wedge\ \mathrm{getLastVerifiedStateIndex}(\ast)=\mathrm{unverifiedStateIndex}\right)\ \text{in the post-state}
     \end{aligned}
     $$
   - Getter: $\mathrm{getVerifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (t,s,r)\in\mathcal{R}$
@@ -229,7 +229,7 @@ Given state-machine indexing and verified/unverified state roots, a channel main
     - $\mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4}$
     - $\mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}$
   - Constraints:
-    - Immediate-next-index constraint: $\mathrm{unverifiedStateIndex}=\mathrm{maxMeaningfulStateIndex}(\mathcal{R})+1$
+    - Immediate-next-index constraint: $\mathrm{unverifiedStateIndex}=\mathrm{getLastVerifiedStateIndex}(\ast)+1$
     - Membership in selected fork of $\mathcal{N}$: $\forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{forkId},\mathrm{unverifiedStateIndex},\mathrm{appStorageAddrs}_i,\mathrm{updatedRoots}_i)\in\mathcal{N}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
 

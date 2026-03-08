@@ -75,7 +75,7 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
 - $\mathrm{UnverifiedStateRoots}\subseteq\mathbb{F}_{255}$
   - A set of unverified state roots
   - Inclusion: $\mathrm{UnverifiedStateRoots}\subseteq\mathrm{VerifiedStateRoots}$
-- $\mathrm{ForkIds}\subseteq\mathbb{F}_{256}$
+- $\mathrm{ForkIds}\subseteq\mathbb{F}_{8}$
   - A set of fork identifiers for unverified proposed state-root vectors
 
 #### Relations

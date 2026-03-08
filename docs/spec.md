@@ -53,19 +53,15 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
   - A set of contract function signatures supported by a channel
 - $\mathrm{AppStorageAddrs}:=\mathrm{getFcnStorages}[\mathrm{AppFcnSigs}]$
   - A set of storage addresses referenced by the functions in $\mathrm{AppFcnSigs}$
-  - Inclusion: $\mathrm{AppStorageAddrs}\subseteq\mathrm{StorageAddrs}$
 - $\mathrm{nAppStorages}\in\mathbb{F}_{16}$
   - The cardinality of $\mathrm{AppStorageAddrs}$
   - Cardinality: $\mathrm{nAppStorages}=\left|\mathrm{AppStorageAddrs}\right|$
 - $\mathrm{AppPreAllocKeys}:=\mathrm{getPreAllocKeys}[\mathrm{AppStorageAddrs}]$
   - A set of pre-allocated keys associated with $\mathrm{AppStorageAddrs}$
-  - Inclusion: $\mathrm{AppPreAllocKeys}\subseteq\mathrm{PreAllocKeys}$
 - $\mathrm{AppUserStorageSlots}:=\mathrm{getUserSlots}[\mathrm{AppStorageAddrs}]$
   - A set of user storage slots associated with $\mathrm{AppStorageAddrs}$
-  - Inclusion: $\mathrm{AppUserStorageSlots}\subseteq\mathrm{UserStorageSlots}$
 - $\mathrm{AppFcnCfgs}:=\mathrm{getFcnCfg}[\mathrm{AppFcnSigs}]$
   - A set of function-configuration pairs of instance hash and preprocess hash referenced by the functions in $\mathrm{AppFcnSigs}$
-  - Inclusion: $\mathrm{AppFcnCfgs}\subseteq\mathrm{FcnCfgs}$
 - $\mathrm{UserChannelStorageKeys}\subseteq\mathbb{F}_{256}$
   - A set of channel storage access keys used by users, distinct from Ethereum storage access keys
 - $\mathrm{ValidatedStorageValues}\subseteq\mathbb{F}_{256}$
@@ -91,16 +87,12 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
 Given $\mathrm{AppFcnSigs}$, a channel derives the following projected relations:
 
 - $\mathcal{S}:=\bigcup_{f\in\mathrm{AppFcnSigs}}\left(\{f\}\times\mathrm{getFcnStorages}(f)\right)$
-  - Inclusion: $\mathcal{S}\subseteq\mathcal{S}_M$
   - Getter: $\mathrm{getAppFcnStorages}:\mathrm{AppFcnSigs}\to\mathcal{P}(\mathrm{AppStorageAddrs})$, where $\mathrm{getAppFcnStorages}(f):=\{s\in\mathrm{AppStorageAddrs}\mid(f,s)\in\mathcal{S}\}$
 - $\mathcal{D}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\left(\{s\}\times\mathrm{getPreAllocKeys}(s)\right)$
-  - Inclusion: $\mathcal{D}\subseteq\mathcal{P}_M$
   - Getter: $\mathrm{getAppPreAllocKeys}:\mathrm{AppStorageAddrs}\to\mathcal{P}(\mathrm{AppPreAllocKeys})$, where $\mathrm{getAppPreAllocKeys}(s):=\{k\in\mathrm{AppPreAllocKeys}\mid(s,k)\in\mathcal{D}\}$
 - $\mathcal{U}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\left(\{s\}\times\mathrm{getUserSlots}(s)\right)$
-  - Inclusion: $\mathcal{U}\subseteq\mathcal{U}_M$
   - Getter: $\mathrm{getAppUserSlots}:\mathrm{AppStorageAddrs}\to\mathcal{P}(\mathrm{AppUserStorageSlots})$, where $\mathrm{getAppUserSlots}(s):=\{u\in\mathrm{AppUserStorageSlots}\mid(s,u)\in\mathcal{U}\}$
 - $\mathcal{F}:=\bigcup_{f\in\mathrm{AppFcnSigs}}\left(\{f\}\times\{\mathrm{getFcnCfg}(f)\}\right)$
-  - Inclusion: $\mathcal{F}\subseteq\mathcal{F}_M$
   - Getter: $\mathrm{getAppFcnCfg}:\mathrm{AppFcnSigs}\to\mathrm{AppFcnCfgs}$, where $\mathrm{getAppFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}$
 
 Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel maintains and manages the following relations:
@@ -147,7 +139,6 @@ Given state-machine indexing and verified/unverified state roots, a channel main
 
 - $\mathcal{R}\subseteq\mathrm{VerifiedStateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{VerifiedStateRoots}$
   - Existence and uniqueness per storage-index pair: $\forall t\in\mathrm{VerifiedStateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \exists!r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}$
-  - Vector-wise completeness per state index: $\forall t\in\mathrm{VerifiedStateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{VerifiedStateRoots},\ (t,s^\prime,r^\prime)\in\mathcal{R}\right)\right)$
   - State transition by one-step index increment with root update: $\forall t\in\mathrm{VerifiedStateIndices},\ \left(t<\mathrm{lastVerifiedStateIndex}\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (t,s,r_t)\in\mathcal{R}\wedge(t+1,s,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
   - Setter-gated root update:
     $$
@@ -264,34 +255,21 @@ Given $\mathrm{ChannelIds}$ and channel instances $\{X_c\}_{c\in\mathrm{ChannelI
 - $\widetilde{\mathcal{M}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathrm{UserAddrs}_c\right)$
   - Getter: $\mathrm{getChannelUsers}:\mathrm{ChannelIds}\to\mathcal{P}(\mathrm{UserAddrs}_c)$, where $\mathrm{getChannelUsers}(c):=\{u\in\mathrm{UserAddrs}_c\mid(c,u)\in\widetilde{\mathcal{M}}\}$
 - $\widetilde{\mathcal{S}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{S}_c\right)$
-  - Bridge-manager consistency: $\forall(c,f,s)\in\widetilde{\mathcal{S}},\ (f,s)\in\mathcal{S}_M$
   - Getter: $\mathrm{getChannelFcnStorages}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{AppFcnSigs}_c\}\to\mathcal{P}(\mathrm{AppStorageAddrs}_c)$, where $\mathrm{getChannelFcnStorages}(c,f):=\mathrm{getAppFcnStorages}_c(f)$
 - $\widetilde{\mathcal{D}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{D}_c\right)$
-  - Bridge-manager consistency: $\forall(c,s,k)\in\widetilde{\mathcal{D}},\ (s,k)\in\mathcal{P}_M$
   - Getter: $\mathrm{getChannelPreAllocKeys}:\{(c,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathcal{P}(\mathrm{AppPreAllocKeys}_c)$, where $\mathrm{getChannelPreAllocKeys}(c,s):=\mathrm{getAppPreAllocKeys}_c(s)$
 - $\widetilde{\mathcal{U}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{U}_c\right)$
-  - Bridge-manager consistency: $\forall(c,s,u)\in\widetilde{\mathcal{U}},\ (s,u)\in\mathcal{U}_M$
   - Getter: $\mathrm{getChannelUserSlots}:\{(c,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathcal{P}(\mathrm{AppUserStorageSlots}_c)$, where $\mathrm{getChannelUserSlots}(c,s):=\mathrm{getAppUserSlots}_c(s)$
 - $\widetilde{\mathcal{F}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{F}_c\right)$
-  - Bridge-manager consistency: $\forall(c,f,q)\in\widetilde{\mathcal{F}},\ (f,q)\in\mathcal{F}_M$
-  - Existence and uniqueness per channel-function pair: $\forall c\in\mathrm{ChannelIds},\ \forall f\in\mathrm{AppFcnSigs}_c,\ \exists!q\in\mathrm{AppFcnCfgs}_c,\ (c,f,q)\in\widetilde{\mathcal{F}}$
   - Getter: $\mathrm{getChannelFcnCfg}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{AppFcnSigs}_c\}\to\mathrm{AppFcnCfgs}_c$, where $\mathrm{getChannelFcnCfg}(c,f):=\mathrm{getAppFcnCfg}_c(f)$
 - $\widetilde{\mathcal{K}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{K}_c\right)$
-  - Uniqueness (without existence): $\forall c\in\mathrm{ChannelIds},\ \forall u\in\mathrm{UserAddrs}_c,\ \forall s\in\mathrm{AppStorageAddrs}_c,\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys}_c,\ ((c,u,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c,u,s,k_2)\in\widetilde{\mathcal{K}})\Rightarrow k_1=k_2$
   - Getter: $\mathrm{getChannelUserStorageKey}:\{(c,u,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ (c,u)\in\widetilde{\mathcal{M}}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathrm{UserChannelStorageKeys}_c$, where $\mathrm{getChannelUserStorageKey}(c,u,s):=\mathrm{getAppUserStorageKey}_c(u,s)$
 - $\widetilde{\mathcal{V}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{V}_c\right)$
-  - Conditional existence and uniqueness on channel keys: $\forall c\in\mathrm{ChannelIds},\ \forall s\in\mathrm{AppStorageAddrs}_c,\ \forall k\in\mathrm{UserChannelStorageKeys}_c,\ \left((\exists u\in\mathrm{UserAddrs}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}})\Rightarrow \exists!v\in\mathrm{ValidatedStorageValues}_c,\ (c,s,k,v)\in\widetilde{\mathcal{V}}\right)$
   - Getter: $\mathrm{getChannelValidatedStorageValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ k\in\mathrm{UserChannelStorageKeys}_c\ \wedge\ \exists u\in\mathrm{UserAddrs}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}}\}\to\mathrm{ValidatedStorageValues}_c$, where $\mathrm{getChannelValidatedStorageValue}(c,s,k):=\mathrm{getAppValidatedStorageValue}_c(s,k)$
 - $\widetilde{\mathcal{A}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{A}_c\right)$
-  - Conditional existence and uniqueness on channel pre-allocated keys: $\forall c\in\mathrm{ChannelIds},\ \forall (s,k)\in\mathcal{D}_c,\ \exists!v\in\mathrm{PreAllocValues}_c,\ (c,s,k,v)\in\widetilde{\mathcal{A}}$
   - Getter: $\mathrm{getChannelPreAllocValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ (s,k)\in\mathcal{D}_c\}\to\mathrm{PreAllocValues}_c$, where $\mathrm{getChannelPreAllocValue}(c,s,k):=\mathrm{getAppPreAllocValue}_c(s,k)$
 - $\widetilde{\mathcal{R}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{R}_c\right)$
   - Getter: $\mathrm{getChannelVerifiedStateRoot}:\{(c,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{VerifiedStateIndices}_c\}\to\mathrm{VerifiedStateRoots}_c$, where $\mathrm{getChannelVerifiedStateRoot}(c,s,t):=\mathrm{getVerifiedStateRoot}_c(s,t)$
 - $\widetilde{\mathcal{N}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{N}_c\right)$
   - Getter: $\mathrm{getChannelUnverifiedStateRoot}:\{(c,f,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{ForkIds}_c\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{UnverifiedStateIndices}_c\}\to\mathrm{UnverifiedStateRoots}_c$, where $\mathrm{getChannelUnverifiedStateRoot}(c,f,s,t):=\mathrm{getUnverifiedStateRoot}_c(f,s,t)$
   - Getter: $\mathrm{getChannelUnverifiedForks}:\{(c,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ t\in\mathrm{UnverifiedStateIndices}_c\}\to\mathcal{P}(\mathrm{ForkIds}_c)$, where $\mathrm{getChannelUnverifiedForks}(c,t):=\mathrm{getUnverifiedForks}_c(t)$
-
-Core access constraints:
-
-- Every channel-scoped getter is indexed by channel ID $c\in\mathrm{ChannelIds}$.
-- Every user-scoped getter requires a membership witness $(c,u)\in\widetilde{\mathcal{M}}$ in its domain.

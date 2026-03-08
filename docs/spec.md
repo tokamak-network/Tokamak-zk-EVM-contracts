@@ -178,7 +178,8 @@ Given state-machine indexing and verified/unverified state roots, a channel main
   - Vector-wise completeness per state-fork pair: $\forall t\in\mathrm{StateIndices},\ \forall f\in\mathrm{ForkIds},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{UnverifiedStateRoots},\ (f,t,s,r)\in\mathcal{N}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{UnverifiedStateRoots},\ (f,t,s^\prime,r^\prime)\in\mathcal{N}\right)\right)$
   - Proposal insertion by setter (without special verification): $\forall \mathrm{proposedStateIndex}\in\mathrm{StateIndices},\ \forall \mathrm{forkId}\in\mathrm{ForkIds},\ \forall \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \forall \mathrm{proposedRoots}\in\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}},\ \mathrm{proposeUnverifiedStateRoots}(\mathrm{proposedStateIndex},\mathrm{forkId},\mathrm{appStorageAddrs},\mathrm{proposedRoots})=\mathrm{true}\Rightarrow \forall i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ (\mathrm{forkId},\mathrm{proposedStateIndex},\mathrm{appStorageAddrs}_i,\mathrm{proposedRoots}_i)\in\mathcal{N}$
   - Deletion of verified or invalid entries:
-    - Invalidity criterion: for a fixed $(f,t)$, entries are invalid when no unverified root remains against the post-state $\mathcal{R}$.
+    - Invalid-entry definition: an entry $(f,t,s,r)\in\mathcal{N}$ is invalid iff $t\le\mathrm{getLastVerifiedStateIndex}(\ast)$.
+    - Let $\mathcal{N}^{+}$ denote the relation after one successful execution of $\mathrm{verifyUnverifiedStateRoots}$.
     $$
     \begin{aligned}
     &\forall \mathrm{forkId}\in\mathrm{ForkIds},\ \forall \mathrm{unverifiedStateIndex}\in\mathrm{StateIndices},\ \forall \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\\
@@ -186,13 +187,8 @@ Given state-machine indexing and verified/unverified state roots, a channel main
     &\forall \mathrm{updatedRoots}\in\mathrm{UnverifiedStateRoots}^{\mathrm{nAppStorages}},\ \forall \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \forall \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\\
     &\forall \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
     &\mathrm{verifyUnverifiedStateRoots}(\mathrm{forkId},\mathrm{unverifiedStateIndex},\mathrm{appStorageAddrs},\mathrm{userChannelStorageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}\\
-    &\Rightarrow\Big(\\
-    &\qquad\forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{UnverifiedStateRoots},\ (\mathrm{forkId},\mathrm{unverifiedStateIndex},s,r)\notin\mathcal{N}\ \text{in the post-state}\ \wedge\\
-    &\qquad\forall f\in\mathrm{ForkIds},\ \Big(\\
-    &\qquad\qquad\neg\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{UnverifiedStateRoots},\ (f,\mathrm{unverifiedStateIndex},s,r)\in\mathcal{N}\ \text{in the pre-state}\ \wedge\ (\mathrm{unverifiedStateIndex},s,r)\notin\mathcal{R}\ \text{in the post-state}\\
-    &\qquad\qquad\Rightarrow \forall s^\prime\in\mathrm{AppStorageAddrs},\ \forall r^\prime\in\mathrm{UnverifiedStateRoots},\ (f,\mathrm{unverifiedStateIndex},s^\prime,r^\prime)\notin\mathcal{N}\ \text{in the post-state}
-    &\qquad\Big)
-    &\Big)
+    &\Rightarrow\left(\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{UnverifiedStateRoots},\right.\\
+    &\qquad\left.(f,t,s,r)\in\mathcal{N}^{+}\ \Leftrightarrow\ \left((f,t,s,r)\in\mathcal{N}\ \wedge\ t>\mathrm{unverifiedStateIndex}\right)\right)
     \end{aligned}
     $$
   - Getter: $\mathrm{getUnverifiedStateRoot}:\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{UnverifiedStateRoots}$, where $\mathrm{getUnverifiedStateRoot}(f,s,t):=r\ \text{where}\ (f,t,s,r)\in\mathcal{N}$

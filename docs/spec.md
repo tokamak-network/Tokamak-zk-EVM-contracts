@@ -127,14 +127,14 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
 
 Given state-machine indexing and verified/unverified state roots, a channel maintains and manages the following relations:
 
-- $\mathcal{R}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\times\mathrm{VerifiedStateRoots}$
-  - Existence and uniqueness per storage-index pair: $\forall s\in\mathrm{AppStorageAddrs},\ \forall t\in\mathrm{StateIndices},\ \exists!r\in\mathrm{VerifiedStateRoots},\ (s,t,r)\in\mathcal{R}$
-  - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left(t<\mathrm{stateIndex}\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (s,t,r_t)\in\mathcal{R}\wedge(s,t+1,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
+- $\mathcal{R}\subseteq\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{VerifiedStateRoots}$
+  - Existence and uniqueness per storage-index pair: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \exists!r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}$
+  - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \left(t<\mathrm{stateIndex}\Rightarrow \exists s\in\mathrm{AppStorageAddrs},\ \exists r_t,r_{t+1}\in\mathrm{VerifiedStateRoots},\ (t,s,r_t)\in\mathcal{R}\wedge(t+1,s,r_{t+1})\in\mathcal{R}\wedge r_t\neq r_{t+1}\right)$
   - Setter-gated root update:
     $$
     \begin{aligned}
     &\forall s\in\mathrm{AppStorageAddrs},\ \forall t\in\mathrm{StateIndices},\ \forall r_t,\mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\\
-    &\big(t<\mathrm{stateIndex}\wedge(s,t,r_t)\in\mathcal{R}\wedge(s,t+1,\mathrm{updatedRoot})\in\mathcal{R}\wedge r_t\neq \mathrm{updatedRoot}\big)\Rightarrow\Big(\\
+    &\big(t<\mathrm{stateIndex}\wedge(t,s,r_t)\in\mathcal{R}\wedge(t+1,s,\mathrm{updatedRoot})\in\mathcal{R}\wedge r_t\neq \mathrm{updatedRoot}\big)\Rightarrow\Big(\\
     &\qquad\exists k\in\mathrm{UserStorageKeys},\ \exists \mathrm{updatedStorageValue}\in\mathbb{F}_{256},\ \mathrm{updateSingleStorage}(s,k,\mathrm{updatedStorageValue},\mathrm{updatedRoot})=\mathrm{true}\\
     &\qquad\vee\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathbb{F}_{255}^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
@@ -142,10 +142,10 @@ Given state-machine indexing and verified/unverified state roots, a channel main
     \Big)
     \end{aligned}
     $$
-  - Getter: $\mathrm{getVerifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (s,t,r)\in\mathcal{R}$
-- $\mathcal{N}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\times\mathrm{UnverifiedStateRoots}$
-  - Existence (without uniqueness) per storage-index pair: $\forall s\in\mathrm{AppStorageAddrs},\ \forall t\in\mathrm{StateIndices},\ \exists r\in\mathrm{UnverifiedStateRoots},\ (s,t,r)\in\mathcal{N}$
-  - Getter: $\mathrm{getUnverifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathcal{P}(\mathrm{UnverifiedStateRoots})$, where $\mathrm{getUnverifiedStateRoot}(s,t):=\{r\in\mathrm{UnverifiedStateRoots}\mid(s,t,r)\in\mathcal{N}\}$
+  - Getter: $\mathrm{getVerifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (t,s,r)\in\mathcal{R}$
+- $\mathcal{N}\subseteq\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{UnverifiedStateRoots}$
+  - Existence (without uniqueness) per storage-index pair: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{UnverifiedStateRoots},\ (t,s,r)\in\mathcal{N}$
+  - Getter: $\mathrm{getUnverifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathcal{P}(\mathrm{UnverifiedStateRoots})$, where $\mathrm{getUnverifiedStateRoot}(s,t):=\{r\in\mathrm{UnverifiedStateRoots}\mid(t,s,r)\in\mathcal{N}\}$
 
 #### Setter functions
 

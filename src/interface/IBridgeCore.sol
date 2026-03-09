@@ -37,12 +37,16 @@ interface IBridgeCore {
     // View functions
     function depositManager() external view returns (address);
     function withdrawManager() external view returns (address);
+    function nTokamakPublicInputs() external view returns (uint16);
+    function nMerkleTreeLevels() external view returns (uint8);
     function getChannelState(bytes32 channelId) external view returns (ChannelState);
     function getChannelTargetContract(bytes32 channelId) external view returns (address);
     function getChannelLeader(bytes32 channelId) external view returns (address);
     function getChannelParticipants(bytes32 channelId) external view returns (address[] memory);
+    function getChannelUsers(bytes32 channelId) external view returns (address[] memory);
     function isChannelWhitelisted(bytes32 channelId, address addr) external view returns (bool);
     function getChannelTreeSize(bytes32 channelId) external view returns (uint256);
+    function getChannelMerkleTreeLevels(bytes32 channelId) external view returns (uint8);
     function getL2MptKey(bytes32 channelId, address participant, uint8 slotIndex) external view returns (uint256);
     function getChannelPublicKey(bytes32 channelId) external view returns (uint256 pkx, uint256 pky);
     function isChannelPublicKeySet(bytes32 channelId) external view returns (bool);
@@ -59,10 +63,7 @@ interface IBridgeCore {
         external
         view
         returns (uint256);
-    function getValidatedUserTargetContract(bytes32 channelId, address participant)
-        external
-        view
-        returns (address);
+    function getValidatedUserTargetContract(bytes32 channelId, address participant) external view returns (address);
     function hasUserWithdrawn(bytes32 channelId, address participant, address targetContract)
         external
         view
@@ -73,17 +74,88 @@ interface IBridgeCore {
     function getChannelBlockInfosHash(bytes32 channelId) external view returns (bytes32);
     function isFrostSignatureEnabled(bytes32 channelId) external view returns (bool);
     function isChannelTimedOut(bytes32 channelId) external view returns (bool);
+    function getFcnStorages(bytes32 functionSignature) external view returns (address[] memory);
+    function getPreAllocKeys(address storageAddr) external view returns (bytes32[] memory);
+    function getUserSlots(address storageAddr) external view returns (uint8[] memory);
+    function getFcnCfg(bytes32 functionSignature) external view returns (bytes32 instancesHash, bytes32 preprocessHash);
+    function getAppFcnStorages(bytes32 channelId, bytes32 functionSignature) external view returns (address[] memory);
+    function getAppPreAllocKeys(bytes32 channelId, address appStorageAddr) external view returns (bytes32[] memory);
+    function getAppUserSlots(bytes32 channelId, address appStorageAddr) external view returns (uint8[] memory);
+    function getAppFcnCfg(bytes32 channelId, bytes32 functionSignature)
+        external
+        view
+        returns (bytes32 instancesHash, bytes32 preprocessHash);
+    function getAppUserStorageKey(bytes32 channelId, address user, address appStorageAddr)
+        external
+        view
+        returns (uint256);
+    function getAppValidatedStorageValue(bytes32 channelId, address appStorageAddr, uint256 appUserStorageKey)
+        external
+        view
+        returns (uint256);
+    function getAppPreAllocValue(bytes32 channelId, address appStorageAddr, bytes32 preAllocKey)
+        external
+        view
+        returns (uint256);
+    function getVerifiedStateRoot(bytes32 channelId, address appStorageAddr, uint16 stateIndex)
+        external
+        view
+        returns (bytes32);
+    function getProposedStateRoot(bytes32 channelId, uint8 forkId, address appStorageAddr, uint16 stateIndex)
+        external
+        view
+        returns (bytes32);
+    function getProposedStateFork(bytes32 channelId, uint8 forkId)
+        external
+        view
+        returns (uint16[] memory stateIndices, bytes32[] memory roots);
+    function getChannelFcnStorages(bytes32 channelId, bytes32 functionSignature)
+        external
+        view
+        returns (address[] memory);
+    function getChannelPreAllocKeys(bytes32 channelId, address appStorageAddr) external view returns (bytes32[] memory);
+    function getChannelUserSlots(bytes32 channelId, address appStorageAddr) external view returns (uint8[] memory);
+    function getChannelFcnCfg(bytes32 channelId, bytes32 functionSignature)
+        external
+        view
+        returns (bytes32 instancesHash, bytes32 preprocessHash);
+    function getChannelUserStorageKey(bytes32 channelId, address user, address appStorageAddr)
+        external
+        view
+        returns (uint256);
+    function getChannelValidatedStorageValue(bytes32 channelId, address appStorageAddr, uint256 appUserStorageKey)
+        external
+        view
+        returns (uint256);
+    function getChannelPreAllocValue(bytes32 channelId, address appStorageAddr, bytes32 preAllocKey)
+        external
+        view
+        returns (uint256);
+    function getChannelVerifiedStateRoot(bytes32 channelId, address appStorageAddr, uint16 stateIndex)
+        external
+        view
+        returns (bytes32);
+    function getChannelProposedStateRoot(bytes32 channelId, uint8 forkId, address appStorageAddr, uint16 stateIndex)
+        external
+        view
+        returns (bytes32);
+    function getChannelProposedStateFork(bytes32 channelId, uint8 forkId)
+        external
+        view
+        returns (uint16[] memory stateIndices, bytes32[] memory roots);
 
     // Setter functions (only callable by managers)
-    function updateChannelUserDeposits(bytes32 channelId, address participant, uint8 slotIndex, uint256 amount)
-        external;
+    function updateChannelUserDeposits(bytes32 channelId, address participant, uint8 slotIndex, uint256 amount) external;
     function setChannelL2MptKeys(bytes32 channelId, address participant, uint256[] calldata mptKeys) external;
     function setChannelInitialStateRoot(bytes32 channelId, bytes32 stateRoot) external;
     function setChannelFinalStateRoot(bytes32 channelId, bytes32 stateRoot) external;
     function setChannelState(bytes32 channelId, ChannelState state) external;
     function setChannelCloseTimestamp(bytes32 channelId, uint256 timestamp) external;
-    function setChannelValidatedUserStorage(bytes32 channelId, address[] memory participants, uint256[][] memory slotValues)
-        external;
+    function setChannelValidatedUserStorage(
+        bytes32 channelId,
+        address[] memory participants,
+        uint256[][] memory slotValues
+    ) external;
     function setChannelSignatureVerified(bytes32 channelId, bool verified) external;
     function setAllowedTargetContract(
         address targetContract,

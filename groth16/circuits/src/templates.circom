@@ -29,7 +29,7 @@ template computeInitialRoot(N_PRE_ALLOC_KEYS, N_LEVELS) {
 
     // Build leaves:
     // - First N_PRE_ALLOC_KEYS leaves use provided (key, value).
-    // - Remaining leaves use (0, 0).
+    // - Remaining leaves use (-1, 0), where -1 is interpreted in Fr(BLS12-381).
     signal tree_nodes[(2 * N_LEAVES) - 1];
     for (var i = 0; i < N_LEAVES; i++) {
         if (i < N_PRE_ALLOC_KEYS) {
@@ -38,7 +38,7 @@ template computeInitialRoot(N_PRE_ALLOC_KEYS, N_LEVELS) {
                 storage_value <== pre_allocated_values[i]
             );
         } else {
-            tree_nodes[(N_LEAVES - 1) + i] <== computeLeaf()(storage_key <== 0, storage_value <== 0);
+            tree_nodes[(N_LEAVES - 1) + i] <== computeLeaf()(storage_key <== -1, storage_value <== 0);
         }
     }
 

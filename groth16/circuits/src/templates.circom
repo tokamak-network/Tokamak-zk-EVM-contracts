@@ -103,18 +103,19 @@ template updateTree(N) {
     signal input root_before;          // [PUBLIC]
     signal input root_after;           // [PUBLIC]
     signal input leaf_index;           // [PRIVATE]
-    signal input storage_key;          // [PUBLIC]
+    signal input storage_key_before;   // [PUBLIC]
     signal input storage_value_before; // [PUBLIC]
+    signal input storage_key_after;    // [PUBLIC]
     signal input storage_value_after;  // [PUBLIC]
     signal input proof[N];             // [PRIVATE]
 
     // Compute the updated leaf values.
     component leaf_before = computeLeaf();
-    leaf_before.storage_key <== storage_key;
+    leaf_before.storage_key <== storage_key_before;
     leaf_before.storage_value <== storage_value_before;
 
     component leaf_after = computeLeaf();
-    leaf_after.storage_key <== storage_key;
+    leaf_after.storage_key <== storage_key_after;
     leaf_after.storage_value <== storage_value_after;
 
     // Enforce an actual update happened.

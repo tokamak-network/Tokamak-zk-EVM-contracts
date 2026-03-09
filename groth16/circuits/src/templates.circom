@@ -22,10 +22,7 @@ template computeInitialRoot(N_PRE_ALLOC_KEYS, N_LEVELS) {
     signal output root;
 
     // Derive the leaf count from the level count: N_LEAVES = 2**N_LEVELS.
-    var N_LEAVES = 1;
-    for (var i = 0; i < N_LEVELS; i++) {
-        N_LEAVES = N_LEAVES * 2;
-    }
+    var N_LEAVES = 2**N_LEVELS;
 
     // Compile-time guard: N_LEAVES must be strictly greater than N_PRE_ALLOC_KEYS.
     assert(N_LEAVES > N_PRE_ALLOC_KEYS);

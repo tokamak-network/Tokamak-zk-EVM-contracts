@@ -150,6 +150,19 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
   - Uniqueness (integrated) per fork-index-storage triple: $\left(\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ \left(((f,t,s,r_1)\in\mathcal{N}\wedge(f,t,s,r_2)\in\mathcal{N})\Rightarrow r_1=r_2\right)\right)\ \wedge\ \left(\forall f_1,f_2\in\mathrm{ForkIds},\ \forall t_1,t_2\in\mathrm{StateIndices},\ \forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ \left(((f_1,t_1,s_1,r_1)\in\mathcal{N}\wedge(f_2,t_2,s_2,r_2)\in\mathcal{N}\wedge r_1\neq r_2)\Rightarrow(f_1\neq f_2\vee t_1\neq t_2\vee s_1\neq s_2)\right)\right)$
   - Vector-wise completeness per fork-index pair: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{ProposedStateRoots},\ (f,t,s,r)\in\mathcal{N}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{ProposedStateRoots},\ (f,t,s^\prime,r^\prime)\in\mathcal{N}\right)\right)$
   - State transition by one-step index increment with root update: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r,r^\prime\in\mathrm{ProposedStateRoots},\ \left(((f,t,s,r)\in\mathcal{N}\wedge(f,t+1,s,r^\prime)\in\mathcal{N})\Rightarrow r\neq r^\prime\right)$
+  - Synchronization from $\mathcal{R}$ when $\mathcal{R}$ is ahead of $\mathcal{N}$:
+    $$
+    \begin{aligned}
+    &\max\left\{\tau_R\in\mathrm{StateIndices}\ \middle|\ \exists s_R\in\mathrm{AppStorageAddrs},\ \exists r_R\in\mathrm{VerifiedStateRoots},\ (\tau_R,s_R,r_R)\in\mathcal{R}\right\}\\
+    &>\max\left\{\tau_N\in\mathrm{StateIndices}\ \middle|\ \exists f_N\in\mathrm{ForkIds},\ \exists s_N\in\mathrm{AppStorageAddrs},\ \exists r_N\in\mathrm{ProposedStateRoots},\ (f_N,\tau_N,s_N,r_N)\in\mathcal{N}\right\}\\
+    &\Rightarrow \exists f_{\mathrm{new}}\in\mathrm{ForkIds},\ \Big(\\
+    &\qquad \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{VerifiedStateRoots},\\
+    &\qquad\ \ ((t,s,r)\in\mathcal{R}\Rightarrow(f_{\mathrm{new}},t,s,r)\in\mathcal{N}\ \text{in the post-state})\ \wedge\\
+    &\qquad \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{ProposedStateRoots},\\
+    &\qquad\ \ (f_{\mathrm{new}},t,s,r)\notin\mathcal{N}\ \text{in the pre-state}
+    \Big)
+    \end{aligned}
+    $$
   - Getter: $\mathrm{getProposedStateRoot}:\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{ProposedStateRoots}$, where $\mathrm{getProposedStateRoot}(f,s,t):=r\ \text{where}\ (f,t,s,r)\in\mathcal{N}$
   - Getter: $\mathrm{getProposedStateFork}:\mathrm{ForkIds}\to\mathcal{P}(\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots})$, where $\mathrm{getProposedStateFork}(f):=\{(t,s,r)\in\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots}\mid(f,t,s,r)\in\mathcal{N}\}$
 

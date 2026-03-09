@@ -15,6 +15,71 @@ template computeLeaf() {
     leaf <== leaf_hash.out;
 }
 
+// Computes a Merkle root from pre-allocated key/value inputs and zero-filled leaves.
+template computePreAllocatedMerkleRoot(N_PRE_ALLOC_KEYS, N_LEAVES) {
+    signal input pre_allocated_keys[N_PRE_ALLOC_KEYS];
+    signal input pre_allocated_values[N_PRE_ALLOC_KEYS];
+    signal output root;
+
+    // Compile-time guard: N_LEAVES must be strictly greater than N_PRE_ALLOC_KEYS.
+    if (N_LEAVES <= N_PRE_ALLOC_KEYS) {
+        assert(0 == 1);
+    }
+
+    // Build leaves:
+    // - First N_PRE_ALLOC_KEYS leaves use provided (key, value).
+    // - Remaining leaves use (0, 0).
+    component leaf_hashers[N_LEAVES];
+    signal leaf_nodes[N_LEAVES];
+    for (var i = 0; i < N_LEAVES; i++) {
+        leaf_hashers[i] = computeLeaf();
+        if (i < N_PRE_ALLOC_KEYS) {
+            leaf_hashers[i].storage_key <== pre_allocated_keys[i];
+            leaf_hashers[i].storage_value <== pre_allocated_values[i];
+        } else {
+            leaf_hashers[i].storage_key <== 0;
+            leaf_hashers[i].storage_value <== 0;
+        }
+        leaf_nodes[i] <== leaf_hashers[i].leaf;
+    }
+
+    // Build upper tree levels by pairwise Poseidon hashing.
+    // This template expects N_LEAVES to be a power of two.
+    var check_level_size = N_LEAVES;
+    while (check_level_size > 1) {
+        if ((check_level_size % 2) != 0) {
+            assert(0 == 1);
+        }
+        check_level_size = check_level_size / 2;
+    }
+
+    signal tree_nodes[2 * N_LEAVES];
+    component node_hashers[N_LEAVES - 1];
+    for (var i = 0; i < N_LEAVES; i++) {
+        tree_nodes[i] <== leaf_nodes[i];
+    }
+
+    var level_start = 0;
+    var next_level_start = N_LEAVES;
+    var level_size = N_LEAVES;
+    var hash_idx = 0;
+
+    while (level_size > 1) {
+        for (var i = 0; i < (level_size / 2); i++) {
+            node_hashers[hash_idx] = Poseidon255(2);
+            node_hashers[hash_idx].in[0] <== tree_nodes[level_start + (2 * i)];
+            node_hashers[hash_idx].in[1] <== tree_nodes[level_start + (2 * i) + 1];
+            tree_nodes[next_level_start + i] <== node_hashers[hash_idx].out;
+            hash_idx++;
+        }
+        level_start = next_level_start;
+        next_level_start = next_level_start + (level_size / 2);
+        level_size = level_size / 2;
+    }
+
+    root <== tree_nodes[level_start];
+}
+
 // Rebuilds a Merkle root from one leaf and its sibling path.
 template verifyMerkleProof(N) {
     signal input leaf;

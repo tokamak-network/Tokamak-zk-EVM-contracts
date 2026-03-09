@@ -108,8 +108,8 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
     \begin{aligned}
     &\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \forall \mathrm{updatedStorageValue}\in\mathbb{F}_{256},\\
     &\big((s,k,\mathrm{updatedStorageValue})\in\mathcal{V}\big)\Rightarrow\Big(\\
-    &\qquad\exists \mathrm{leafIndex}\in\mathbb{F}_{16},\ \exists \mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\ \exists \mathrm{proofGroth16}\in\mathbb{F}_{256}^{16},\ \exists \mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5},\\
-    &\qquad\ \mathrm{updateSingleStateLeaf}(s,\mathrm{leafIndex},k,\mathrm{updatedStorageValue},\mathrm{updatedRoot},\mathrm{proofGroth16},\mathrm{publicInputGroth16})=\mathrm{true}\\
+    &\qquad\exists \mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\ \exists \mathrm{proofGroth16}\in\mathbb{F}_{256}^{16},\ \exists \mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5},\\
+    &\qquad\ \mathrm{updateSingleStateLeaf}(s,k,\mathrm{updatedStorageValue},\mathrm{updatedRoot},\mathrm{proofGroth16},\mathrm{publicInputGroth16})=\mathrm{true}\\
     &\qquad\vee\ \exists \mathrm{forkId}\in\mathrm{ForkIds},\ \exists \mathrm{proposedStateIndex}\in\mathrm{StateIndices},\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
@@ -144,9 +144,9 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
     &\qquad\vee\ \Big(\\
     &\qquad\ \max\left\{\tau_R\in\mathrm{StateIndices}\ \middle|\ \exists s_R\in\mathrm{AppStorageAddrs},\ \exists r_R\in\mathrm{VerifiedStateRoots},\ (\tau_R,s_R,r_R)\in\mathcal{R}\right\}\\
     &\qquad\ \ge\max\left\{\tau_N\in\mathrm{StateIndices}\ \middle|\ \exists f_N\in\mathrm{ForkIds},\ \exists s_N\in\mathrm{AppStorageAddrs},\ \exists r_N\in\mathrm{ProposedStateRoots},\ (f_N,\tau_N,s_N,r_N)\in\mathcal{N}\right\}\\
-    &\qquad\ \wedge\ \exists \mathrm{leafIndex}\in\mathbb{F}_{16},\ \exists \mathrm{userChannelStorageKey}\in\mathrm{UserChannelStorageKeys},\ \exists \mathrm{updatedStorageValue}\in\mathbb{F}_{256},\\
+    &\qquad\ \wedge\ \exists \mathrm{userChannelStorageKey}\in\mathrm{UserChannelStorageKeys},\ \exists \mathrm{updatedStorageValue}\in\mathbb{F}_{256},\\
     &\qquad\ \exists \mathrm{proofGroth16}\in\mathbb{F}_{256}^{16},\ \exists \mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5},\\
-    &\qquad\ \mathrm{updateSingleStateLeaf}(s,\mathrm{leafIndex},\mathrm{userChannelStorageKey},\mathrm{updatedStorageValue},r,\mathrm{proofGroth16},\mathrm{publicInputGroth16})=\mathrm{true}
+    &\qquad\ \mathrm{updateSingleStateLeaf}(s,\mathrm{userChannelStorageKey},\mathrm{updatedStorageValue},r,\mathrm{proofGroth16},\mathrm{publicInputGroth16})=\mathrm{true}
     &\qquad\Big)
     \Big)
     \end{aligned}
@@ -182,10 +182,9 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
 
 #### Setter functions
 
-- $\mathrm{updateSingleStateLeaf}:\mathrm{AppStorageAddrs}\times\mathbb{F}_{16}\times\mathrm{UserChannelStorageKeys}\times\mathbb{F}_{256}\times\mathbb{F}_{255}\times\mathbb{F}_{256}^{16}\times\mathbb{F}_{256}^{5}\to\{\mathrm{true},\mathrm{false}\}$
+- $\mathrm{updateSingleStateLeaf}:\mathrm{AppStorageAddrs}\times\mathrm{UserChannelStorageKeys}\times\mathbb{F}_{256}\times\mathbb{F}_{255}\times\mathbb{F}_{256}^{16}\times\mathbb{F}_{256}^{5}\to\{\mathrm{true},\mathrm{false}\}$
   - Inputs:
     - $\mathrm{appStorageAddr}\in\mathrm{AppStorageAddrs}$
-    - $\mathrm{leafIndex}\in\mathbb{F}_{16}$
     - $\mathrm{userChannelStorageKey}\in\mathrm{UserChannelStorageKeys}$
     - $\mathrm{updatedStorageValue}\in\mathbb{F}_{256}$
     - $\mathrm{updatedRoot}\in\mathbb{F}_{255}$

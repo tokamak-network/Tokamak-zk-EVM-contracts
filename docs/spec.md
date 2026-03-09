@@ -72,9 +72,8 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
   - A unified set of state indices used for both verified and unverified channel states
 - $\mathrm{ProposedStateRoots}\subseteq\mathbb{F}_{255}$
   - A set of proposed state roots
-- $\mathrm{VerifiedStateRoots}\subseteq\mathbb{F}_{255}$
+- $\mathrm{VerifiedStateRoots}\subseteq\mathrm{ProposedStateRoots}$
   - A set of verified state roots
-  - Inclusion: $\mathrm{VerifiedStateRoots}\subseteq\mathrm{ProposedStateRoots}$
 - $\mathrm{ForkIds}\subseteq\mathbb{F}_{8}$
   - A set of fork identifiers for unverified proposed state-root vectors
 

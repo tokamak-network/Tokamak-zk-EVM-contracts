@@ -19,8 +19,8 @@ contract TestGroth16Integration is Script {
             [uint256(5), uint256(6), uint256(7), uint256(8), uint256(9), uint256(10), uint256(11), uint256(12)];
         uint256[4] memory pC = [uint256(13), uint256(14), uint256(15), uint256(16)];
 
-        // Create test public signals (35 elements for current 16-leaf verifier)
-        uint256[35] memory publicSignals;
+        // Create test public signals (33 elements for 16-leaf tree)
+        uint256[33] memory publicSignals;
 
         // Fill with test MPT keys and balances
         publicSignals[0] = uint256(uint160(address(0xd69B7AaaE8C1c9F0546AfA4Fd8eD39741cE3f59F))); // MPT key 1
@@ -31,8 +31,8 @@ contract TestGroth16Integration is Script {
         publicSignals[17] = 2000000000000000000; // Balance 2: 2 ETH
         publicSignals[18] = 3000000000000000000; // Balance 3: 3 ETH
 
-        // Mock merkle root near tail position
-        publicSignals[34] = uint256(keccak256("test_merkle_root"));
+        // Mock merkle root as last element
+        publicSignals[32] = uint256(keccak256("test_merkle_root"));
 
         console.log("Testing proof verification...");
 

@@ -51,16 +51,16 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
   - A set of user addresses registered in a channel
 - $\mathrm{AppFcnSigs}\subseteq\mathrm{FcnSigns}$
   - A set of contract function signatures supported by a channel
-- $\mathrm{AppStorageAddrs}:=\mathrm{getFcnStorages}[\mathrm{AppFcnSigs}]$
+- $\mathrm{AppStorageAddrs}:=\bigcup_{f\in\mathrm{AppFcnSigs}}\mathrm{getFcnStorages}(f)$
   - A set of storage addresses referenced by the functions in $\mathrm{AppFcnSigs}$
 - $\mathrm{nAppStorages}\in\mathbb{F}_{16}$
   - The cardinality of $\mathrm{AppStorageAddrs}$
   - Cardinality: $\mathrm{nAppStorages}=\left|\mathrm{AppStorageAddrs}\right|$
-- $\mathrm{AppPreAllocKeys}:=\mathrm{getPreAllocKeys}[\mathrm{AppStorageAddrs}]$
+- $\mathrm{AppPreAllocKeys}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\mathrm{getPreAllocKeys}(s)$
   - A set of pre-allocated keys associated with $\mathrm{AppStorageAddrs}$
-- $\mathrm{AppUserStorageSlots}:=\mathrm{getUserSlots}[\mathrm{AppStorageAddrs}]$
+- $\mathrm{AppUserStorageSlots}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\mathrm{getUserSlots}(s)$
   - A set of user storage slots associated with $\mathrm{AppStorageAddrs}$
-- $\mathrm{AppFcnCfgs}:=\mathrm{getFcnCfg}[\mathrm{AppFcnSigs}]$
+- $\mathrm{AppFcnCfgs}:=\{q\in\mathrm{FcnCfgs}\mid\exists f\in\mathrm{AppFcnSigs},\ q=\mathrm{getFcnCfg}(f)\}$
   - A set of function-configuration pairs of instance hash and preprocess hash referenced by the functions in $\mathrm{AppFcnSigs}$
 - $\mathrm{UserChannelStorageKeys}\subseteq\mathbb{F}_{256}$
   - A set of channel storage access keys used by users, distinct from Ethereum storage access keys
@@ -70,6 +70,8 @@ Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of t
   - A unified set of channel storage values, including validated values and fixed pre-allocated values
 - $\mathrm{StateIndices}\subseteq\mathbb{F}_{16}$
   - A unified set of state indices used for both verified and unverified channel states
+  - Order and arithmetic semantics: each element of $\mathrm{StateIndices}$ is interpreted as an integer in $\{0,\dots,2^{16}-1\}$; comparisons ($<,\le,>,\ge$), successor ($t+1$), and $\max$ use this integer order
+- Vector indexing convention: for $x\in A^{n}$, $x_i$ denotes the $i$-th component; for $y\in(B^{m})^{n}$, $y_{i,j}$ denotes the $j$-th component of the $i$-th vector
 - $\mathrm{ProposedStateRoots}\subseteq\mathbb{F}_{255}$
   - A set of proposed state roots
 - $\mathrm{VerifiedStateRoots}\subseteq\mathrm{ProposedStateRoots}$
@@ -92,10 +94,11 @@ Given $\mathrm{AppFcnSigs}$, a channel derives the following projected relations
 
 Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel maintains and manages the following relations:
 
+- Key-space disjointness: $\mathrm{AppPreAllocKeys}\cap\mathrm{UserChannelStorageKeys}=\varnothing$
 - $\mathcal{K}\subseteq\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\times\mathrm{UserChannelStorageKeys}$
   - Uniqueness (integrated): $\left(\forall u\in\mathrm{UserAddrs},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys},\ ((u,s,k_1)\in\mathcal{K}\wedge(u,s,k_2)\in\mathcal{K})\Rightarrow k_1=k_2\right)\ \wedge\ \left(\forall u_1,u_2\in\mathrm{UserAddrs},\ \forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys},\ ((u_1,s_1,k_1)\in\mathcal{K}\wedge(u_2,s_2,k_2)\in\mathcal{K}\wedge k_1\neq k_2)\Rightarrow(u_1\neq u_2\vee s_1\neq s_2)\right)$
   - Conditional existence and uniqueness on validated values: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \forall v\in\mathrm{ValidatedStorageValues},\ \left((s,k,v)\in\mathcal{V}\Rightarrow \exists!u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\right)$
-  - Getter: $\mathrm{getAppUserStorageKey}:\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\to\mathrm{UserChannelStorageKeys}$, where $\mathrm{getAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
+  - Getter: $\mathrm{getAppUserStorageKey}:\{(u,s)\in\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\mid\exists k\in\mathrm{UserChannelStorageKeys},\ (u,s,k)\in\mathcal{K}\}\to\mathrm{UserChannelStorageKeys}$, where $\mathrm{getAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
 - $\mathcal{V}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{StorageKeys}\times\mathrm{ValidatedStorageValues}$
   - Uniqueness (integrated): $\left(\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{StorageKeys},\ \forall v_1,v_2\in\mathrm{ValidatedStorageValues},\ ((s,k,v_1)\in\mathcal{V}\wedge(s,k,v_2)\in\mathcal{V})\Rightarrow v_1=v_2\right)\ \wedge\ \left(\forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{StorageKeys},\ \forall v_1,v_2\in\mathrm{ValidatedStorageValues},\ ((s_1,k_1,v_1)\in\mathcal{V}\wedge(s_2,k_2,v_2)\in\mathcal{V}\wedge v_1\neq v_2)\Rightarrow(s_1\neq s_2\vee k_1\neq k_2)\right)$
   - Conditional existence and uniqueness on channel keys: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \left((\exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\mathrm{ValidatedStorageValues},\ (s,k,v)\in\mathcal{V}\right)$
@@ -110,6 +113,8 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
     &\qquad\vee\ \exists \mathrm{forkId}\in\mathrm{ForkIds},\ \exists \mathrm{proposedStateIndex}\in\mathrm{StateIndices},\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
+    &\qquad\ \exists i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \exists j\in\{0,\dots,2^{\mathrm{nMerkleTreeLevels}}-1\},\\
+    &\qquad\ \mathrm{appStorageAddrs}_i=s\ \wedge\ \mathrm{storageKeys}_{i,j}=k\ \wedge\ \mathrm{updatedStorageValues}_{i,j}=\mathrm{updatedStorageValue}\ \wedge\\
     &\qquad\ \mathrm{verifyProposedStateRoots}(\mathrm{forkId},\mathrm{proposedStateIndex},\mathrm{appStorageAddrs},\mathrm{storageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
     \Big)
     \end{aligned}
@@ -133,6 +138,7 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
     &\qquad\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
+    &\qquad\ \exists i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \mathrm{appStorageAddrs}_i=s\ \wedge\ \mathrm{updatedRoots}_i=r\ \wedge\\
     &\qquad\ \mathrm{verifyProposedStateRoots}(\mathrm{forkId},t,\mathrm{appStorageAddrs},\mathrm{storageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
     &\qquad\Big)\\
     &\qquad\vee\ \Big(\\
@@ -145,25 +151,33 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
     \Big)
     \end{aligned}
     $$
-  - Getter: $\mathrm{getVerifiedStateRoot}:\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (t,s,r)\in\mathcal{R}$
+  - Getter: $\mathrm{getVerifiedStateRoot}:\{(s,t)\in\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\mid\exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (t,s,r)\in\mathcal{R}$
 - $\mathcal{N}\subseteq\mathrm{ForkIds}\times\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots}$
   - Uniqueness (integrated) per fork-index-storage triple: $\left(\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ \left(((f,t,s,r_1)\in\mathcal{N}\wedge(f,t,s,r_2)\in\mathcal{N})\Rightarrow r_1=r_2\right)\right)\ \wedge\ \left(\forall f_1,f_2\in\mathrm{ForkIds},\ \forall t_1,t_2\in\mathrm{StateIndices},\ \forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ \left(((f_1,t_1,s_1,r_1)\in\mathcal{N}\wedge(f_2,t_2,s_2,r_2)\in\mathcal{N}\wedge r_1\neq r_2)\Rightarrow(f_1\neq f_2\vee t_1\neq t_2\vee s_1\neq s_2)\right)\right)$
   - Vector-wise completeness per fork-index pair: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{ProposedStateRoots},\ (f,t,s,r)\in\mathcal{N}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{ProposedStateRoots},\ (f,t,s^\prime,r^\prime)\in\mathcal{N}\right)\right)$
   - State transition by one-step index increment with root update: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r,r^\prime\in\mathrm{ProposedStateRoots},\ \left(((f,t,s,r)\in\mathcal{N}\wedge(f,t+1,s,r^\prime)\in\mathcal{N})\Rightarrow r\neq r^\prime\right)$
-  - Synchronization from $\mathcal{R}$ when $\mathcal{R}$ is ahead of $\mathcal{N}$:
+  - Synchronization fork availability when $\mathcal{R}$ is ahead of $\mathcal{N}$:
+    $$
+    \begin{aligned}
+    &\max\left\{\tau_R\in\mathrm{StateIndices}\ \middle|\ \exists s_R\in\mathrm{AppStorageAddrs},\ \exists r_R\in\mathrm{VerifiedStateRoots},\ (\tau_R,s_R,r_R)\in\mathcal{R}\right\}\\
+    &>\max\left\{\tau_N\in\mathrm{StateIndices}\ \middle|\ \exists f_N\in\mathrm{ForkIds},\ \exists s_N\in\mathrm{AppStorageAddrs},\ \exists r_N\in\mathrm{ProposedStateRoots},\ (f_N,\tau_N,s_N,r_N)\in\mathcal{N}\right\}\\
+    &\Rightarrow \exists f_{\mathrm{new}}\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{ProposedStateRoots},\\
+    &\qquad (f_{\mathrm{new}},t,s,r)\notin\mathcal{N}\ \text{in the pre-state}
+    \end{aligned}
+    $$
+  - Exact synchronization from $\mathcal{R}$ into a fresh fork:
     $$
     \begin{aligned}
     &\max\left\{\tau_R\in\mathrm{StateIndices}\ \middle|\ \exists s_R\in\mathrm{AppStorageAddrs},\ \exists r_R\in\mathrm{VerifiedStateRoots},\ (\tau_R,s_R,r_R)\in\mathcal{R}\right\}\\
     &>\max\left\{\tau_N\in\mathrm{StateIndices}\ \middle|\ \exists f_N\in\mathrm{ForkIds},\ \exists s_N\in\mathrm{AppStorageAddrs},\ \exists r_N\in\mathrm{ProposedStateRoots},\ (f_N,\tau_N,s_N,r_N)\in\mathcal{N}\right\}\\
     &\Rightarrow \exists f_{\mathrm{new}}\in\mathrm{ForkIds},\ \Big(\\
-    &\qquad \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{VerifiedStateRoots},\\
-    &\qquad\ \ ((t,s,r)\in\mathcal{R}\Rightarrow(f_{\mathrm{new}},t,s,r)\in\mathcal{N}\ \text{in the post-state})\ \wedge\\
     &\qquad \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{ProposedStateRoots},\\
-    &\qquad\ \ (f_{\mathrm{new}},t,s,r)\notin\mathcal{N}\ \text{in the pre-state}
+    &\qquad\ \ (f_{\mathrm{new}},t,s,r)\notin\mathcal{N}\ \text{in the pre-state}\ \wedge\\
+    &\qquad\ \left((f_{\mathrm{new}},t,s,r)\in\mathcal{N}\ \text{in the post-state}\ \Leftrightarrow\ \big(r\in\mathrm{VerifiedStateRoots}\wedge(t,s,r)\in\mathcal{R}\big)\right)
     \Big)
     \end{aligned}
     $$
-  - Getter: $\mathrm{getProposedStateRoot}:\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\to\mathrm{ProposedStateRoots}$, where $\mathrm{getProposedStateRoot}(f,s,t):=r\ \text{where}\ (f,t,s,r)\in\mathcal{N}$
+  - Getter: $\mathrm{getProposedStateRoot}:\{(f,s,t)\in\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\mid\exists r\in\mathrm{ProposedStateRoots},\ (f,t,s,r)\in\mathcal{N}\}\to\mathrm{ProposedStateRoots}$, where $\mathrm{getProposedStateRoot}(f,s,t):=r\ \text{where}\ (f,t,s,r)\in\mathcal{N}$
   - Getter: $\mathrm{getProposedStateFork}:\mathrm{ForkIds}\to\mathcal{P}(\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots})$, where $\mathrm{getProposedStateFork}(f):=\{(t,s,r)\in\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots}\mid(f,t,s,r)\in\mathcal{N}\}$
 
 #### Setter functions
@@ -234,12 +248,12 @@ Given $\mathrm{ChannelIds}$ and channel instances $\{X_c\}_{c\in\mathrm{ChannelI
     &\qquad\left.\left(((c_1,u_1,s_1,k_1)\in\widetilde{\mathcal{K}}\wedge(c_2,u_2,s_2,k_2)\in\widetilde{\mathcal{K}}\wedge k_1\neq k_2)\Rightarrow(c_1\neq c_2\vee u_1\neq u_2\vee s_1\neq s_2)\right)\right)
     \end{aligned}
     $$
-  - Getter: $\mathrm{getChannelUserStorageKey}:\{(c,u,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ (c,u)\in\widetilde{\mathcal{M}}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathrm{UserChannelStorageKeys}_c$, where $\mathrm{getChannelUserStorageKey}(c,u,s):=\mathrm{getAppUserStorageKey}_c(u,s)$
+  - Getter: $\mathrm{getChannelUserStorageKey}:\{(c,u,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ (c,u)\in\widetilde{\mathcal{M}}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ \exists k\in\mathrm{UserChannelStorageKeys}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}}\}\to\mathrm{UserChannelStorageKeys}_c$, where $\mathrm{getChannelUserStorageKey}(c,u,s):=\mathrm{getAppUserStorageKey}_c(u,s)$
 - $\widetilde{\mathcal{V}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{V}_c\right)$
   - Getter: $\mathrm{getChannelValidatedStorageValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ k\in\mathrm{UserChannelStorageKeys}_c\ \wedge\ \exists u\in\mathrm{UserAddrs}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}}\}\to\mathrm{ValidatedStorageValues}_c$, where $\mathrm{getChannelValidatedStorageValue}(c,s,k):=\mathrm{getAppValidatedStorageValue}_c(s,k)$
   - Getter: $\mathrm{getChannelPreAllocValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ (s,k)\in\mathcal{D}_c\}\to\mathrm{ValidatedStorageValues}_c$, where $\mathrm{getChannelPreAllocValue}(c,s,k):=\mathrm{getAppPreAllocValue}_c(s,k)$
 - $\widetilde{\mathcal{R}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{R}_c\right)$
-  - Getter: $\mathrm{getChannelVerifiedStateRoot}:\{(c,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\}\to\mathrm{VerifiedStateRoots}_c$, where $\mathrm{getChannelVerifiedStateRoot}(c,s,t):=\mathrm{getVerifiedStateRoot}_c(s,t)$
+  - Getter: $\mathrm{getChannelVerifiedStateRoot}:\{(c,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\ \wedge\ \exists r\in\mathrm{VerifiedStateRoots}_c,\ (c,t,s,r)\in\widetilde{\mathcal{R}}\}\to\mathrm{VerifiedStateRoots}_c$, where $\mathrm{getChannelVerifiedStateRoot}(c,s,t):=\mathrm{getVerifiedStateRoot}_c(s,t)$
 - $\widetilde{\mathcal{N}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{N}_c\right)$
-  - Getter: $\mathrm{getChannelProposedStateRoot}:\{(c,f,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{ForkIds}_c\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\}\to\mathrm{ProposedStateRoots}_c$, where $\mathrm{getChannelProposedStateRoot}(c,f,s,t):=\mathrm{getProposedStateRoot}_c(f,s,t)$
+  - Getter: $\mathrm{getChannelProposedStateRoot}:\{(c,f,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{ForkIds}_c\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\ \wedge\ \exists r\in\mathrm{ProposedStateRoots}_c,\ (c,f,t,s,r)\in\widetilde{\mathcal{N}}\}\to\mathrm{ProposedStateRoots}_c$, where $\mathrm{getChannelProposedStateRoot}(c,f,s,t):=\mathrm{getProposedStateRoot}_c(f,s,t)$
   - Getter: $\mathrm{getChannelProposedStateFork}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{ForkIds}_c\}\to\mathcal{P}(\mathrm{StateIndices}_c\times\mathrm{AppStorageAddrs}_c\times\mathrm{ProposedStateRoots}_c)$, where $\mathrm{getChannelProposedStateFork}(c,f):=\mathrm{getProposedStateFork}_c(f)$

@@ -128,11 +128,20 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
     \begin{aligned}
     &\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{VerifiedStateRoots},\\
     &\Big((t,s,r)\in\mathcal{R}\Big)\Rightarrow\Big(\\
-    &\qquad\exists \mathrm{forkId}\in\mathrm{ForkIds},\ (\mathrm{forkId},t,s,r)\in\mathcal{N}\ \wedge\\
-    &\qquad\exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
-    &\qquad\exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\\
-    &\qquad\exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
-    &\qquad\mathrm{verifyProposedStateRoots}(\mathrm{forkId},t,\mathrm{appStorageAddrs},\mathrm{storageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
+    &\qquad\Big(\\
+    &\qquad\ \exists \mathrm{forkId}\in\mathrm{ForkIds},\ (\mathrm{forkId},t,s,r)\in\mathcal{N}\ \wedge\\
+    &\qquad\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
+    &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\\
+    &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
+    &\qquad\ \mathrm{verifyProposedStateRoots}(\mathrm{forkId},t,\mathrm{appStorageAddrs},\mathrm{storageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
+    &\qquad\Big)\\
+    &\qquad\vee\ \Big(\\
+    &\qquad\ \max\left\{\tau_R\in\mathrm{StateIndices}\ \middle|\ \exists s_R\in\mathrm{AppStorageAddrs},\ \exists r_R\in\mathrm{VerifiedStateRoots},\ (\tau_R,s_R,r_R)\in\mathcal{R}\right\}\\
+    &\qquad\ \ge\max\left\{\tau_N\in\mathrm{StateIndices}\ \middle|\ \exists f_N\in\mathrm{ForkIds},\ \exists s_N\in\mathrm{AppStorageAddrs},\ \exists r_N\in\mathrm{ProposedStateRoots},\ (f_N,\tau_N,s_N,r_N)\in\mathcal{N}\right\}\\
+    &\qquad\ \wedge\ \exists \mathrm{leafIndex}\in\mathbb{F}_{16},\ \exists \mathrm{userChannelStorageKey}\in\mathrm{UserChannelStorageKeys},\ \exists \mathrm{updatedStorageValue}\in\mathbb{F}_{256},\\
+    &\qquad\ \exists \mathrm{proofGroth16}\in\mathbb{F}_{256}^{16},\ \exists \mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5},\\
+    &\qquad\ \mathrm{updateSingleStateLeaf}(s,\mathrm{leafIndex},\mathrm{userChannelStorageKey},\mathrm{updatedStorageValue},r,\mathrm{proofGroth16},\mathrm{publicInputGroth16})=\mathrm{true}
+    &\qquad\Big)
     \Big)
     \end{aligned}
     $$

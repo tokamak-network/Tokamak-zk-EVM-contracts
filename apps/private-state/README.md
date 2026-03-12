@@ -15,7 +15,8 @@ The goal is not privacy. The contracts intentionally expose note owners, note va
 ## Contract Layout
 
 - `TokenVault.sol`: Custodies ERC-20 balances and tracks each account's liquid balance inside the DApp.
-- `PrivateNoteRegistry.sol`: Stores note commitments, note metadata, spent flags, and nullifiers.
+- `PrivateNoteRegistry.sol`: Stores note commitments and immutable note metadata.
+- `PrivateNullifierRegistry.sol`: Stores nullifier usage and is the single source of truth for spent status.
 - `PrivateStateController.sol`: User-facing entrypoint for deposit, note minting, note transfer, note redemption, and withdrawal.
 
 ## Ownership Proof Without Circuits
@@ -30,14 +31,16 @@ This preserves spend authorization semantics, but it does not preserve anonymity
 
 ## Nullifier Model
 
-The registry computes a deterministic nullifier from:
+The note store computes a deterministic nullifier from:
 
 - `noteId`
 - `commitment`
 - `owner`
 - `nullifierNonce`
 
-Once a note is consumed, the registry stores the nullifier and rejects any later attempt to reuse it.
+Once a note is consumed, the nullifier store records the nullifier and rejects any later attempt to reuse it.
+
+The design intentionally avoids storing both `note.spent` and `nullifierUsed` in different contracts. The nullifier store is the only spend-state authority.
 
 ## End-to-End Flow
 
@@ -56,5 +59,6 @@ Because there is no circuit:
 - Note values are public.
 - Nullifier inputs are public.
 - The system offers double-spend protection and note accounting, but not privacy.
+- Token balances, note metadata, and nullifier usage now live at different addresses, so controller trust and cross-contract invariants remain security-critical.
 
 That tradeoff is deliberate for this DApp and should not be confused with the privacy guarantees of production zk-note systems.

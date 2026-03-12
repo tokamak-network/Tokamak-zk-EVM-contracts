@@ -3,6 +3,7 @@ pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
+import {PrivateNullifierRegistry} from "../../apps/private-state/src/PrivateNullifierRegistry.sol";
 import {PrivateNoteRegistry} from "../../apps/private-state/src/PrivateNoteRegistry.sol";
 import {PrivateStateController} from "../../apps/private-state/src/PrivateStateController.sol";
 import {TokenVault} from "../../apps/private-state/src/TokenVault.sol";
@@ -27,18 +28,21 @@ contract PrivateStateControllerTest is Test {
 
     MockToken private token;
     TokenVault private tokenVault;
+    PrivateNullifierRegistry private nullifierStore;
     PrivateNoteRegistry private noteRegistry;
     PrivateStateController private controller;
 
     function setUp() public {
         token = new MockToken();
         tokenVault = new TokenVault(owner);
+        nullifierStore = new PrivateNullifierRegistry(owner);
         noteRegistry = new PrivateNoteRegistry(owner);
-        controller = new PrivateStateController(noteRegistry, tokenVault);
+        controller = new PrivateStateController(noteRegistry, nullifierStore, tokenVault);
 
         vm.startPrank(owner);
-        tokenVault.setController(address(controller));
-        noteRegistry.setController(address(controller));
+        tokenVault.bindController(address(controller));
+        nullifierStore.bindController(address(controller));
+        noteRegistry.bindController(address(controller));
         vm.stopPrank();
 
         token.mint(alice, 1_000 ether);
@@ -81,8 +85,7 @@ contract PrivateStateControllerTest is Test {
             controller.transferNotes(inputNoteIds, authorizations, outputs);
 
         assertEq(nullifiers.length, 1);
-        assertTrue(noteRegistry.nullifierUsed(nullifiers[0]));
-        assertTrue(noteRegistry.getNote(noteId).spent);
+        assertTrue(nullifierStore.nullifierUsed(nullifiers[0]));
         assertEq(outputIds.length, 2);
         assertEq(noteRegistry.getNote(outputIds[0]).owner, bob);
         assertEq(noteRegistry.getNote(outputIds[0]).value, 35 ether);
@@ -181,7 +184,9 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.transferNotes(inputNoteIds, authorizations, outputs);
 
-        vm.expectRevert(abi.encodeWithSelector(PrivateNoteRegistry.NoteAlreadySpent.selector, noteId));
+        vm.expectRevert(
+            abi.encodeWithSelector(PrivateNullifierRegistry.NullifierAlreadyUsed.selector, nullifiersFor(noteId))
+        );
         vm.prank(alice);
         controller.transferNotes(inputNoteIds, authorizations, outputs);
     }
@@ -232,7 +237,7 @@ contract PrivateStateControllerTest is Test {
         controller.redeemNotes(inputNoteIds, authorizations, bob);
 
         assertEq(tokenVault.liquidBalances(bob, address(token)), 25 ether);
-        assertTrue(noteRegistry.getNote(noteId).spent);
+        assertTrue(nullifierStore.nullifierUsed(nullifiersFor(noteId)));
     }
 
     function testCannotWithdrawMoreThanLiquidBalance() public {
@@ -246,5 +251,24 @@ contract PrivateStateControllerTest is Test {
         );
         vm.prank(alice);
         controller.withdrawToken(address(token), 11 ether, alice);
+    }
+
+    function testStoreControllerCannotBeRebound() public {
+        vm.expectRevert(TokenVault.ControllerAlreadyBound.selector);
+        vm.prank(owner);
+        tokenVault.bindController(relayer);
+
+        vm.expectRevert(PrivateNoteRegistry.ControllerAlreadyBound.selector);
+        vm.prank(owner);
+        noteRegistry.bindController(relayer);
+
+        vm.expectRevert(PrivateNullifierRegistry.ControllerAlreadyBound.selector);
+        vm.prank(owner);
+        nullifierStore.bindController(relayer);
+    }
+
+    function nullifiersFor(uint256 noteId) internal view returns (bytes32) {
+        PrivateNoteRegistry.Note memory note = noteRegistry.getNote(noteId);
+        return noteRegistry.computeNullifier(noteId, note.commitment, note.owner, note.nullifierNonce);
     }
 }

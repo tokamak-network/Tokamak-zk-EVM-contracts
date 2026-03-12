@@ -12,10 +12,11 @@ contract TokenVault is Ownable {
 
     error ZeroAddress();
     error ZeroAmount();
+    error ControllerAlreadyBound();
     error UnauthorizedController(address caller);
     error InsufficientLiquidBalance(address account, address token, uint256 available, uint256 required);
 
-    event ControllerUpdated(address indexed controller);
+    event ControllerBound(address indexed controller);
     event Deposited(address indexed payer, address indexed beneficiary, address indexed token, uint256 amount);
     event LiquidBalanceCredited(address indexed account, address indexed token, uint256 amount);
     event LiquidBalanceDebited(address indexed account, address indexed token, uint256 amount);
@@ -34,13 +35,16 @@ contract TokenVault is Ownable {
         _;
     }
 
-    function setController(address newController) external onlyOwner {
+    function bindController(address newController) external onlyOwner {
         if (newController == address(0)) {
             revert ZeroAddress();
         }
+        if (controller != address(0)) {
+            revert ControllerAlreadyBound();
+        }
 
         controller = newController;
-        emit ControllerUpdated(newController);
+        emit ControllerBound(newController);
     }
 
     function deposit(address token, address payer, address beneficiary, uint256 amount) external onlyController {

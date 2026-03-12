@@ -4,6 +4,7 @@ pragma solidity 0.8.29;
 import {ECDSA} from "@openzeppelin/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/utils/cryptography/MessageHashUtils.sol";
 import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
+import {PrivateNullifierRegistry} from "./PrivateNullifierRegistry.sol";
 import {PrivateNoteRegistry} from "./PrivateNoteRegistry.sol";
 import {TokenVault} from "./TokenVault.sol";
 
@@ -54,14 +55,19 @@ contract PrivateStateController is ReentrancyGuard {
     event NotesRedeemed(address indexed operator, address indexed receiver, uint256 inputCount);
     event TokenWithdrawn(address indexed account, address indexed receiver, address indexed token, uint256 amount);
 
+    PrivateNullifierRegistry public immutable nullifierStore;
     PrivateNoteRegistry public immutable noteRegistry;
     TokenVault public immutable tokenVault;
 
-    constructor(PrivateNoteRegistry noteRegistry_, TokenVault tokenVault_) {
-        if (address(noteRegistry_) == address(0) || address(tokenVault_) == address(0)) {
+    constructor(PrivateNoteRegistry noteRegistry_, PrivateNullifierRegistry nullifierStore_, TokenVault tokenVault_) {
+        if (
+            address(noteRegistry_) == address(0) || address(nullifierStore_) == address(0)
+                || address(tokenVault_) == address(0)
+        ) {
             revert ZeroAddress();
         }
 
+        nullifierStore = nullifierStore_;
         noteRegistry = noteRegistry_;
         tokenVault = tokenVault_;
     }
@@ -135,7 +141,9 @@ contract PrivateStateController is ReentrancyGuard {
 
             _verifyTransferAuthorization(inputNoteIds[i], note.owner, outputsHash, authorizations[i]);
             totalInputValue += note.value;
-            nullifiers[i] = noteRegistry.consumeNote(inputNoteIds[i], msg.sender);
+            nullifiers[i] =
+                noteRegistry.computeNullifier(inputNoteIds[i], note.commitment, note.owner, note.nullifierNonce);
+            nullifierStore.useNullifier(nullifiers[i], inputNoteIds[i], msg.sender);
         }
 
         if (totalInputValue != totalOutputValue) {
@@ -173,7 +181,9 @@ contract PrivateStateController is ReentrancyGuard {
             PrivateNoteRegistry.Note memory note = noteRegistry.getNote(inputNoteIds[i]);
             _verifyRedeemAuthorization(inputNoteIds[i], note.owner, receiver, authorizations[i]);
 
-            nullifiers[i] = noteRegistry.consumeNote(inputNoteIds[i], msg.sender);
+            nullifiers[i] =
+                noteRegistry.computeNullifier(inputNoteIds[i], note.commitment, note.owner, note.nullifierNonce);
+            nullifierStore.useNullifier(nullifiers[i], inputNoteIds[i], msg.sender);
             tokenVault.creditLiquidBalance(receiver, note.token, note.value);
         }
 

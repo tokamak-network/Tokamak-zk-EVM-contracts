@@ -37,6 +37,8 @@ This folder contains all deployment scripts for the Tokamak zk-EVM bridge system
    # Edit .env with your specific values
    ```
 
+   For private-state deployment, use `env-private-state.template` as the parameter reference instead of `env-v2.template`.
+
 2. Make sure you have all required environment variables set:
    ```bash
    PRIVATE_KEY=your_private_key_here

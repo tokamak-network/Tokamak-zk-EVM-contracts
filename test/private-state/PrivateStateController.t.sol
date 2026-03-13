@@ -58,19 +58,15 @@ contract PrivateStateControllerTest is Test {
         assertEq(tokenVault.liquidBalances(alice), 100 ether);
         assertEq(token.balanceOf(address(tokenVault)), 100 ether);
 
-        PrivateStateController.InputNote memory note0 =
-            _mintNote(alice, 10 ether, bytes32("alice-4-0"), "enc:alice-4-0");
-        PrivateStateController.InputNote memory note1 =
-            _mintNote(alice, 15 ether, bytes32("alice-4-1"), "enc:alice-4-1");
-        PrivateStateController.InputNote memory note2 =
-            _mintNote(alice, 20 ether, bytes32("alice-4-2"), "enc:alice-4-2");
-        PrivateStateController.InputNote memory note3 =
-            _mintNote(alice, 15 ether, bytes32("alice-4-3"), "enc:alice-4-3");
+        PrivateStateController.Note memory note0 = _mintNote(alice, 10 ether, bytes32("alice-4-0"), "enc:alice-4-0");
+        PrivateStateController.Note memory note1 = _mintNote(alice, 15 ether, bytes32("alice-4-1"), "enc:alice-4-1");
+        PrivateStateController.Note memory note2 = _mintNote(alice, 20 ether, bytes32("alice-4-2"), "enc:alice-4-2");
+        PrivateStateController.Note memory note3 = _mintNote(alice, 15 ether, bytes32("alice-4-3"), "enc:alice-4-3");
 
         assertEq(tokenVault.liquidBalances(alice), 40 ether);
 
-        PrivateStateController.InputNote[4] memory inputNotes = _inputNotes4(note0, note1, note2, note3);
-        PrivateStateController.OutputNote[3] memory outputs = _outputNotes3(
+        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(note0, note1, note2, note3);
+        PrivateStateController.Note[3] memory outputs = _outputNotes3(
             _outputNote(bob, 35 ether, bytes32("bob-4-0")),
             _outputNote(alice, 15 ether, bytes32("alice-4-change-0")),
             _outputNote(alice, 10 ether, bytes32("alice-4-change-1"))
@@ -86,7 +82,7 @@ contract PrivateStateControllerTest is Test {
             assertTrue(noteRegistry.commitmentExists(outputCommitments[i]));
         }
 
-        PrivateStateController.InputNote[4] memory bobNotes = _inputNotes4(
+        PrivateStateController.Note[4] memory bobNotes = _inputNotes4(
             _inputNote(35 ether, bob, bytes32("bob-4-0")),
             _inputNote(10 ether, bob, bytes32("bob-4-dummy-1")),
             _inputNote(10 ether, bob, bytes32("bob-4-dummy-2")),
@@ -122,13 +118,13 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(40 ether);
 
-        PrivateStateController.InputNote[4] memory inputNotes = _inputNotes4(
+        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
             _mintNote(alice, 10 ether, bytes32("alice-4b-0"), "enc:alice-4b-0"),
             _mintNote(alice, 10 ether, bytes32("alice-4b-1"), "enc:alice-4b-1"),
             _mintNote(alice, 10 ether, bytes32("alice-4b-2"), "enc:alice-4b-2"),
             _mintNote(alice, 10 ether, bytes32("alice-4b-3"), "enc:alice-4b-3")
         );
-        PrivateStateController.OutputNote[3] memory outputs = _outputNotes3(
+        PrivateStateController.Note[3] memory outputs = _outputNotes3(
             _outputNote(bob, 20 ether, bytes32("bob-4b-0")),
             _outputNote(alice, 10 ether, bytes32("alice-4b-change-0")),
             _outputNote(alice, 10 ether, bytes32("alice-4b-change-1"))
@@ -142,17 +138,13 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(40 ether);
 
-        PrivateStateController.InputNote memory note0 =
-            _mintNote(alice, 10 ether, bytes32("alice-4c-0"), "enc:alice-4c-0");
-        PrivateStateController.InputNote memory note1 =
-            _mintNote(alice, 10 ether, bytes32("alice-4c-1"), "enc:alice-4c-1");
-        PrivateStateController.InputNote memory note2 =
-            _mintNote(alice, 10 ether, bytes32("alice-4c-2"), "enc:alice-4c-2");
-        PrivateStateController.InputNote memory note3 =
-            _mintNote(alice, 10 ether, bytes32("alice-4c-3"), "enc:alice-4c-3");
+        PrivateStateController.Note memory note0 = _mintNote(alice, 10 ether, bytes32("alice-4c-0"), "enc:alice-4c-0");
+        PrivateStateController.Note memory note1 = _mintNote(alice, 10 ether, bytes32("alice-4c-1"), "enc:alice-4c-1");
+        PrivateStateController.Note memory note2 = _mintNote(alice, 10 ether, bytes32("alice-4c-2"), "enc:alice-4c-2");
+        PrivateStateController.Note memory note3 = _mintNote(alice, 10 ether, bytes32("alice-4c-3"), "enc:alice-4c-3");
 
-        PrivateStateController.InputNote[4] memory inputNotes = _inputNotes4(note0, note1, note2, note3);
-        PrivateStateController.OutputNote[3] memory outputs = _outputNotes3(
+        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(note0, note1, note2, note3);
+        PrivateStateController.Note[3] memory outputs = _outputNotes3(
             _outputNote(alice, 15 ether, bytes32("alice-4c-out-0")),
             _outputNote(alice, 15 ether, bytes32("alice-4c-out-1")),
             _outputNote(alice, 10 ether, bytes32("alice-4c-out-2"))
@@ -171,13 +163,13 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(40 ether);
 
-        PrivateStateController.InputNote[4] memory inputNotes = _inputNotes4(
+        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
             _mintNote(alice, 10 ether, bytes32("alice-4d-0"), "enc:alice-4d-0"),
             _mintNote(alice, 10 ether, bytes32("alice-4d-1"), "enc:alice-4d-1"),
             _mintNote(alice, 10 ether, bytes32("alice-4d-2"), "enc:alice-4d-2"),
             _mintNote(alice, 10 ether, bytes32("alice-4d-3"), "enc:alice-4d-3")
         );
-        PrivateStateController.OutputNote[3] memory outputs = _outputNotes3(
+        PrivateStateController.Note[3] memory outputs = _outputNotes3(
             _outputNote(bob, 20 ether, bytes32("bob-4d-0")),
             _outputNote(alice, 10 ether, bytes32("alice-4d-change-0")),
             _outputNote(alice, 11 ether, bytes32("alice-4d-change-1"))
@@ -193,7 +185,7 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(60 ether);
 
-        PrivateStateController.InputNote[6] memory inputNotes = _inputNotes6(
+        PrivateStateController.Note[6] memory inputNotes = _inputNotes6(
             _mintNote(alice, 10 ether, bytes32("alice-6-0"), "enc:alice-6-0"),
             _mintNote(alice, 10 ether, bytes32("alice-6-1"), "enc:alice-6-1"),
             _mintNote(alice, 10 ether, bytes32("alice-6-2"), "enc:alice-6-2"),
@@ -201,7 +193,7 @@ contract PrivateStateControllerTest is Test {
             _mintNote(alice, 10 ether, bytes32("alice-6-4"), "enc:alice-6-4"),
             _mintNote(alice, 10 ether, bytes32("alice-6-5"), "enc:alice-6-5")
         );
-        PrivateStateController.OutputNote[3] memory outputs = _outputNotes3(
+        PrivateStateController.Note[3] memory outputs = _outputNotes3(
             _outputNote(bob, 30 ether, bytes32("bob-6-0")),
             _outputNote(alice, 20 ether, bytes32("alice-6-change-0")),
             _outputNote(alice, 10 ether, bytes32("alice-6-change-1"))
@@ -218,7 +210,7 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(80 ether);
 
-        PrivateStateController.InputNote[8] memory inputNotes = _inputNotes8(
+        PrivateStateController.Note[8] memory inputNotes = _inputNotes8(
             _mintNote(alice, 10 ether, bytes32("alice-8-0"), "enc:alice-8-0"),
             _mintNote(alice, 10 ether, bytes32("alice-8-1"), "enc:alice-8-1"),
             _mintNote(alice, 10 ether, bytes32("alice-8-2"), "enc:alice-8-2"),
@@ -228,7 +220,7 @@ contract PrivateStateControllerTest is Test {
             _mintNote(alice, 10 ether, bytes32("alice-8-6"), "enc:alice-8-6"),
             _mintNote(alice, 10 ether, bytes32("alice-8-7"), "enc:alice-8-7")
         );
-        PrivateStateController.OutputNote[3] memory outputs = _outputNotes3(
+        PrivateStateController.Note[3] memory outputs = _outputNotes3(
             _outputNote(bob, 40 ether, bytes32("bob-8-0")),
             _outputNote(alice, 20 ether, bytes32("alice-8-change-0")),
             _outputNote(alice, 20 ether, bytes32("alice-8-change-1"))
@@ -242,13 +234,13 @@ contract PrivateStateControllerTest is Test {
     }
 
     function testTransferNotes4UnknownCommitmentCannotBeSpent() public {
-        PrivateStateController.InputNote[4] memory inputNotes = _inputNotes4(
+        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
             _inputNote(5 ether, alice, bytes32("unknown-4-0")),
             _inputNote(5 ether, alice, bytes32("unknown-4-1")),
             _inputNote(5 ether, alice, bytes32("unknown-4-2")),
             _inputNote(5 ether, alice, bytes32("unknown-4-3"))
         );
-        PrivateStateController.OutputNote[3] memory outputs = _outputNotes3(
+        PrivateStateController.Note[3] memory outputs = _outputNotes3(
             _outputNote(bob, 10 ether, bytes32("unknown-out-0")),
             _outputNote(alice, 5 ether, bytes32("unknown-out-1")),
             _outputNote(alice, 5 ether, bytes32("unknown-out-2"))
@@ -264,7 +256,7 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(40 ether);
 
-        PrivateStateController.InputNote[4] memory inputNotes = _inputNotes4(
+        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
             _mintNote(alice, 10 ether, bytes32("alice-redeem-0"), "enc:alice-redeem-0"),
             _mintNote(alice, 10 ether, bytes32("alice-redeem-1"), "enc:alice-redeem-1"),
             _mintNote(alice, 10 ether, bytes32("alice-redeem-2"), "enc:alice-redeem-2"),
@@ -284,7 +276,7 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(40 ether);
 
-        PrivateStateController.InputNote[4] memory inputNotes = _inputNotes4(
+        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
             _mintNote(alice, 10 ether, bytes32("alice-redeem-4"), "enc:alice-redeem-4"),
             _mintNote(alice, 10 ether, bytes32("alice-redeem-5"), "enc:alice-redeem-5"),
             _mintNote(alice, 10 ether, bytes32("alice-redeem-6"), "enc:alice-redeem-6"),
@@ -300,7 +292,7 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(60 ether);
 
-        PrivateStateController.InputNote[6] memory inputNotes = _inputNotes6(
+        PrivateStateController.Note[6] memory inputNotes = _inputNotes6(
             _mintNote(alice, 10 ether, bytes32("alice-redeem-6a"), "enc:alice-redeem-6a"),
             _mintNote(alice, 10 ether, bytes32("alice-redeem-6b"), "enc:alice-redeem-6b"),
             _mintNote(alice, 10 ether, bytes32("alice-redeem-6c"), "enc:alice-redeem-6c"),
@@ -319,7 +311,7 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(80 ether);
 
-        PrivateStateController.InputNote[8] memory inputNotes = _inputNotes8(
+        PrivateStateController.Note[8] memory inputNotes = _inputNotes8(
             _mintNote(alice, 10 ether, bytes32("alice-redeem-8a"), "enc:alice-redeem-8a"),
             _mintNote(alice, 10 ether, bytes32("alice-redeem-8b"), "enc:alice-redeem-8b"),
             _mintNote(alice, 10 ether, bytes32("alice-redeem-8c"), "enc:alice-redeem-8c"),
@@ -340,7 +332,7 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(18 ether);
 
-        PrivateStateController.OutputNote[1] memory outputs =
+        PrivateStateController.Note[1] memory outputs =
             _outputNotes1(_outputNote(alice, 18 ether, bytes32("alice-mint-event")));
         vm.prank(alice);
         bytes32[1] memory commitments = controller.mintNotes1(outputs);
@@ -353,7 +345,7 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(30 ether);
 
-        PrivateStateController.OutputNote[2] memory outputs = _outputNotes2(
+        PrivateStateController.Note[2] memory outputs = _outputNotes2(
             _outputNote(alice, 10 ether, bytes32("alice-mint-2-0")),
             _outputNote(bob, 20 ether, bytes32("alice-mint-2-1"))
         );
@@ -369,7 +361,7 @@ contract PrivateStateControllerTest is Test {
         vm.prank(alice);
         controller.depositToken(45 ether);
 
-        PrivateStateController.OutputNote[3] memory outputs = _outputNotes3(
+        PrivateStateController.Note[3] memory outputs = _outputNotes3(
             _outputNote(alice, 10 ether, bytes32("alice-mint-3-0")),
             _outputNote(bob, 15 ether, bytes32("alice-mint-3-1")),
             _outputNote(alice, 20 ether, bytes32("alice-mint-3-2"))
@@ -410,7 +402,7 @@ contract PrivateStateControllerTest is Test {
 
     function _mintNote(address noteOwner, uint256 value, bytes32 salt, bytes memory)
         internal
-        returns (PrivateStateController.InputNote memory note)
+        returns (PrivateStateController.Note memory note)
     {
         note = _inputNote(value, noteOwner, salt);
         vm.prank(noteOwner);
@@ -420,25 +412,25 @@ contract PrivateStateControllerTest is Test {
     function _inputNote(uint256 value_, address owner_, bytes32 salt_)
         internal
         pure
-        returns (PrivateStateController.InputNote memory)
+        returns (PrivateStateController.Note memory)
     {
-        return PrivateStateController.InputNote({value: value_, owner: owner_, salt: salt_});
+        return PrivateStateController.Note({value: value_, owner: owner_, salt: salt_});
     }
 
     function _outputNote(address owner_, uint256 value_, bytes32 salt_)
         internal
         pure
-        returns (PrivateStateController.OutputNote memory)
+        returns (PrivateStateController.Note memory)
     {
-        return PrivateStateController.OutputNote({owner: owner_, value: value_, salt: salt_});
+        return PrivateStateController.Note({owner: owner_, value: value_, salt: salt_});
     }
 
     function _inputNotes4(
-        PrivateStateController.InputNote memory note0,
-        PrivateStateController.InputNote memory note1,
-        PrivateStateController.InputNote memory note2,
-        PrivateStateController.InputNote memory note3
-    ) internal pure returns (PrivateStateController.InputNote[4] memory notes) {
+        PrivateStateController.Note memory note0,
+        PrivateStateController.Note memory note1,
+        PrivateStateController.Note memory note2,
+        PrivateStateController.Note memory note3
+    ) internal pure returns (PrivateStateController.Note[4] memory notes) {
         notes[0] = note0;
         notes[1] = note1;
         notes[2] = note2;
@@ -446,13 +438,13 @@ contract PrivateStateControllerTest is Test {
     }
 
     function _inputNotes6(
-        PrivateStateController.InputNote memory note0,
-        PrivateStateController.InputNote memory note1,
-        PrivateStateController.InputNote memory note2,
-        PrivateStateController.InputNote memory note3,
-        PrivateStateController.InputNote memory note4,
-        PrivateStateController.InputNote memory note5
-    ) internal pure returns (PrivateStateController.InputNote[6] memory notes) {
+        PrivateStateController.Note memory note0,
+        PrivateStateController.Note memory note1,
+        PrivateStateController.Note memory note2,
+        PrivateStateController.Note memory note3,
+        PrivateStateController.Note memory note4,
+        PrivateStateController.Note memory note5
+    ) internal pure returns (PrivateStateController.Note[6] memory notes) {
         notes[0] = note0;
         notes[1] = note1;
         notes[2] = note2;
@@ -462,15 +454,15 @@ contract PrivateStateControllerTest is Test {
     }
 
     function _inputNotes8(
-        PrivateStateController.InputNote memory note0,
-        PrivateStateController.InputNote memory note1,
-        PrivateStateController.InputNote memory note2,
-        PrivateStateController.InputNote memory note3,
-        PrivateStateController.InputNote memory note4,
-        PrivateStateController.InputNote memory note5,
-        PrivateStateController.InputNote memory note6,
-        PrivateStateController.InputNote memory note7
-    ) internal pure returns (PrivateStateController.InputNote[8] memory notes) {
+        PrivateStateController.Note memory note0,
+        PrivateStateController.Note memory note1,
+        PrivateStateController.Note memory note2,
+        PrivateStateController.Note memory note3,
+        PrivateStateController.Note memory note4,
+        PrivateStateController.Note memory note5,
+        PrivateStateController.Note memory note6,
+        PrivateStateController.Note memory note7
+    ) internal pure returns (PrivateStateController.Note[8] memory notes) {
         notes[0] = note0;
         notes[1] = note1;
         notes[2] = note2;
@@ -482,36 +474,37 @@ contract PrivateStateControllerTest is Test {
     }
 
     function _outputNotes3(
-        PrivateStateController.OutputNote memory note0,
-        PrivateStateController.OutputNote memory note1,
-        PrivateStateController.OutputNote memory note2
-    ) internal pure returns (PrivateStateController.OutputNote[3] memory notes) {
+        PrivateStateController.Note memory note0,
+        PrivateStateController.Note memory note1,
+        PrivateStateController.Note memory note2
+    ) internal pure returns (PrivateStateController.Note[3] memory notes) {
         notes[0] = note0;
         notes[1] = note1;
         notes[2] = note2;
     }
 
-    function _outputNotes1(PrivateStateController.OutputNote memory note0)
+    function _outputNotes1(PrivateStateController.Note memory note0)
         internal
         pure
-        returns (PrivateStateController.OutputNote[1] memory notes)
+        returns (PrivateStateController.Note[1] memory notes)
     {
         notes[0] = note0;
     }
 
-    function _outputNotes2(
-        PrivateStateController.OutputNote memory note0,
-        PrivateStateController.OutputNote memory note1
-    ) internal pure returns (PrivateStateController.OutputNote[2] memory notes) {
+    function _outputNotes2(PrivateStateController.Note memory note0, PrivateStateController.Note memory note1)
+        internal
+        pure
+        returns (PrivateStateController.Note[2] memory notes)
+    {
         notes[0] = note0;
         notes[1] = note1;
     }
 
-    function _commitmentOf(PrivateStateController.InputNote memory note) internal view returns (bytes32) {
+    function _commitmentOf(PrivateStateController.Note memory note) internal view returns (bytes32) {
         return controller.computeNoteCommitment(note.value, note.owner, note.salt);
     }
 
-    function _nullifierOf(PrivateStateController.InputNote memory note) internal view returns (bytes32) {
+    function _nullifierOf(PrivateStateController.Note memory note) internal view returns (bytes32) {
         return controller.computeNullifier(note.value, note.owner, note.salt);
     }
 }

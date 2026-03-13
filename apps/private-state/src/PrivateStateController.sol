@@ -16,13 +16,7 @@ contract PrivateStateController is ReentrancyGuard {
     error InputOutputValueMismatch(uint256 inputValue, uint256 outputValue);
     error UnauthorizedNoteOwner(address caller, address expectedOwner);
 
-    struct InputNote {
-        uint256 value;
-        address owner;
-        bytes32 salt;
-    }
-
-    struct OutputNote {
+    struct Note {
         address owner;
         uint256 value;
         bytes32 salt;
@@ -60,34 +54,34 @@ contract PrivateStateController is ReentrancyGuard {
         emit TokenDeposited(msg.sender, msg.sender, tokamakNetworkToken, amount);
     }
 
-    function mintNotes1(OutputNote[1] calldata outputs) external nonReentrant returns (bytes32[1] memory commitments) {
-        OutputNote[] memory dynamicOutputs = _copyOutputNotes1(outputs);
+    function mintNotes1(Note[1] calldata outputs) external nonReentrant returns (bytes32[1] memory commitments) {
+        Note[] memory dynamicOutputs = _copyNotes1(outputs);
         bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs);
         commitments[0] = dynamicCommitments[0];
     }
 
-    function mintNotes2(OutputNote[2] calldata outputs) external nonReentrant returns (bytes32[2] memory commitments) {
-        OutputNote[] memory dynamicOutputs = _copyOutputNotes2(outputs);
+    function mintNotes2(Note[2] calldata outputs) external nonReentrant returns (bytes32[2] memory commitments) {
+        Note[] memory dynamicOutputs = _copyNotes2(outputs);
         bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs);
         for (uint256 i = 0; i < 2; ++i) {
             commitments[i] = dynamicCommitments[i];
         }
     }
 
-    function mintNotes3(OutputNote[3] calldata outputs) external nonReentrant returns (bytes32[3] memory commitments) {
-        OutputNote[] memory dynamicOutputs = _copyOutputNotes3(outputs);
+    function mintNotes3(Note[3] calldata outputs) external nonReentrant returns (bytes32[3] memory commitments) {
+        Note[] memory dynamicOutputs = _copyNotes3(outputs);
         bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs);
         for (uint256 i = 0; i < 3; ++i) {
             commitments[i] = dynamicCommitments[i];
         }
     }
 
-    function transferNotes4(InputNote[4] calldata inputNotes, OutputNote[3] calldata outputs)
+    function transferNotes4(Note[4] calldata inputNotes, Note[3] calldata outputs)
         external
         nonReentrant
         returns (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments)
     {
-        InputNote[] memory dynamicInputs = _copyInputNotes4(inputNotes);
+        Note[] memory dynamicInputs = _copyNotes4(inputNotes);
         (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
             _transferFixedNotes(dynamicInputs, outputs);
 
@@ -99,12 +93,12 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function transferNotes6(InputNote[6] calldata inputNotes, OutputNote[3] calldata outputs)
+    function transferNotes6(Note[6] calldata inputNotes, Note[3] calldata outputs)
         external
         nonReentrant
         returns (bytes32[6] memory nullifiers, bytes32[3] memory outputCommitments)
     {
-        InputNote[] memory dynamicInputs = _copyInputNotes6(inputNotes);
+        Note[] memory dynamicInputs = _copyNotes6(inputNotes);
         (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
             _transferFixedNotes(dynamicInputs, outputs);
 
@@ -116,12 +110,12 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function transferNotes8(InputNote[8] calldata inputNotes, OutputNote[3] calldata outputs)
+    function transferNotes8(Note[8] calldata inputNotes, Note[3] calldata outputs)
         external
         nonReentrant
         returns (bytes32[8] memory nullifiers, bytes32[3] memory outputCommitments)
     {
-        InputNote[] memory dynamicInputs = _copyInputNotes8(inputNotes);
+        Note[] memory dynamicInputs = _copyNotes8(inputNotes);
         (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
             _transferFixedNotes(dynamicInputs, outputs);
 
@@ -133,36 +127,36 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function redeemNotes4(InputNote[4] calldata inputNotes, address receiver)
+    function redeemNotes4(Note[4] calldata inputNotes, address receiver)
         external
         nonReentrant
         returns (bytes32[4] memory nullifiers)
     {
-        InputNote[] memory dynamicInputs = _copyInputNotes4(inputNotes);
+        Note[] memory dynamicInputs = _copyNotes4(inputNotes);
         bytes32[] memory dynamicNullifiers = _redeemFixedNotes(dynamicInputs, receiver);
         for (uint256 i = 0; i < 4; ++i) {
             nullifiers[i] = dynamicNullifiers[i];
         }
     }
 
-    function redeemNotes6(InputNote[6] calldata inputNotes, address receiver)
+    function redeemNotes6(Note[6] calldata inputNotes, address receiver)
         external
         nonReentrant
         returns (bytes32[6] memory nullifiers)
     {
-        InputNote[] memory dynamicInputs = _copyInputNotes6(inputNotes);
+        Note[] memory dynamicInputs = _copyNotes6(inputNotes);
         bytes32[] memory dynamicNullifiers = _redeemFixedNotes(dynamicInputs, receiver);
         for (uint256 i = 0; i < 6; ++i) {
             nullifiers[i] = dynamicNullifiers[i];
         }
     }
 
-    function redeemNotes8(InputNote[8] calldata inputNotes, address receiver)
+    function redeemNotes8(Note[8] calldata inputNotes, address receiver)
         external
         nonReentrant
         returns (bytes32[8] memory nullifiers)
     {
-        InputNote[] memory dynamicInputs = _copyInputNotes8(inputNotes);
+        Note[] memory dynamicInputs = _copyNotes8(inputNotes);
         bytes32[] memory dynamicNullifiers = _redeemFixedNotes(dynamicInputs, receiver);
         for (uint256 i = 0; i < 8; ++i) {
             nullifiers[i] = dynamicNullifiers[i];
@@ -184,13 +178,13 @@ contract PrivateStateController is ReentrancyGuard {
         return keccak256(abi.encode(block.chainid, address(nullifierStore), tokamakNetworkToken, value, owner, salt));
     }
 
-    function _transferFixedNotes(InputNote[] memory inputNotes, OutputNote[3] calldata outputs)
+    function _transferFixedNotes(Note[] memory inputNotes, Note[3] calldata outputs)
         internal
         returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments)
     {
         uint256 totalOutputValue;
         for (uint256 i = 0; i < 3; ++i) {
-            _validateOutputNote(outputs[i]);
+            _validateNoteFields(outputs[i].value, outputs[i].owner);
             totalOutputValue += outputs[i].value;
         }
 
@@ -198,7 +192,7 @@ contract PrivateStateController is ReentrancyGuard {
         bytes32[] memory inputCommitments = new bytes32[](inputNotes.length);
         nullifiers = new bytes32[](inputNotes.length);
         for (uint256 i = 0; i < inputNotes.length; ++i) {
-            InputNote memory note = inputNotes[i];
+            Note memory note = inputNotes[i];
             _validateNoteFields(note.value, note.owner);
 
             bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
@@ -229,11 +223,11 @@ contract PrivateStateController is ReentrancyGuard {
         emit NotesTransferred(msg.sender, inputNotes.length, 3);
     }
 
-    function _mintFixedNotes(OutputNote[] memory outputs) internal returns (bytes32[] memory commitments) {
+    function _mintFixedNotes(Note[] memory outputs) internal returns (bytes32[] memory commitments) {
         uint256 totalValue;
         commitments = new bytes32[](outputs.length);
         for (uint256 i = 0; i < outputs.length; ++i) {
-            _validateOutputNote(outputs[i]);
+            _validateNoteFields(outputs[i].value, outputs[i].owner);
             totalValue += outputs[i].value;
         }
 
@@ -246,7 +240,7 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function _redeemFixedNotes(InputNote[] memory inputNotes, address receiver)
+    function _redeemFixedNotes(Note[] memory inputNotes, address receiver)
         internal
         returns (bytes32[] memory nullifiers)
     {
@@ -257,7 +251,7 @@ contract PrivateStateController is ReentrancyGuard {
         bytes32[] memory inputCommitments = new bytes32[](inputNotes.length);
         nullifiers = new bytes32[](inputNotes.length);
         for (uint256 i = 0; i < inputNotes.length; ++i) {
-            InputNote memory note = inputNotes[i];
+            Note memory note = inputNotes[i];
             _validateNoteFields(note.value, note.owner);
 
             bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
@@ -287,56 +281,47 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function _validateOutputNote(OutputNote memory output) internal pure {
-        if (output.owner == address(0)) {
-            revert ZeroAddress();
-        }
-        if (output.value == 0) {
-            revert ZeroAmount();
-        }
-    }
-
     function _requireNoteOwner(address owner) internal view {
         if (msg.sender != owner) {
             revert UnauthorizedNoteOwner(msg.sender, owner);
         }
     }
 
-    function _copyInputNotes4(InputNote[4] calldata inputNotes) internal pure returns (InputNote[] memory copied) {
-        copied = new InputNote[](4);
+    function _copyNotes4(Note[4] calldata inputNotes) internal pure returns (Note[] memory copied) {
+        copied = new Note[](4);
         for (uint256 i = 0; i < 4; ++i) {
             copied[i] = inputNotes[i];
         }
     }
 
-    function _copyInputNotes6(InputNote[6] calldata inputNotes) internal pure returns (InputNote[] memory copied) {
-        copied = new InputNote[](6);
+    function _copyNotes6(Note[6] calldata inputNotes) internal pure returns (Note[] memory copied) {
+        copied = new Note[](6);
         for (uint256 i = 0; i < 6; ++i) {
             copied[i] = inputNotes[i];
         }
     }
 
-    function _copyInputNotes8(InputNote[8] calldata inputNotes) internal pure returns (InputNote[] memory copied) {
-        copied = new InputNote[](8);
+    function _copyNotes8(Note[8] calldata inputNotes) internal pure returns (Note[] memory copied) {
+        copied = new Note[](8);
         for (uint256 i = 0; i < 8; ++i) {
             copied[i] = inputNotes[i];
         }
     }
 
-    function _copyOutputNotes1(OutputNote[1] calldata outputs) internal pure returns (OutputNote[] memory copied) {
-        copied = new OutputNote[](1);
+    function _copyNotes1(Note[1] calldata outputs) internal pure returns (Note[] memory copied) {
+        copied = new Note[](1);
         copied[0] = outputs[0];
     }
 
-    function _copyOutputNotes2(OutputNote[2] calldata outputs) internal pure returns (OutputNote[] memory copied) {
-        copied = new OutputNote[](2);
+    function _copyNotes2(Note[2] calldata outputs) internal pure returns (Note[] memory copied) {
+        copied = new Note[](2);
         for (uint256 i = 0; i < 2; ++i) {
             copied[i] = outputs[i];
         }
     }
 
-    function _copyOutputNotes3(OutputNote[3] calldata outputs) internal pure returns (OutputNote[] memory copied) {
-        copied = new OutputNote[](3);
+    function _copyNotes3(Note[3] calldata outputs) internal pure returns (Note[] memory copied) {
+        copied = new Note[](3);
         for (uint256 i = 0; i < 3; ++i) {
             copied[i] = outputs[i];
         }

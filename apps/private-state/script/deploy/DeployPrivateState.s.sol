@@ -22,7 +22,7 @@ contract DeployPrivateStateScript is Script {
     }
 
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_STATE_PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("APPS_DEPLOYER_PRIVATE_KEY");
         deployer = vm.addr(deployerPrivateKey);
         finalOwner = _loadFinalOwner(deployer);
         canonicalAsset = vm.envAddress("PRIVATE_STATE_CANONICAL_ASSET");

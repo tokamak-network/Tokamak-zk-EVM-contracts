@@ -38,8 +38,9 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - If an app needs extra per-user accounting, build it around the shared L2 accounting vault pattern rather than inventing a custom direct-custody vault.
 8. Keep DApp deployment assets isolated from bridge deployment assets:
    - Store each DApp deployment script under `apps/<dapp>/script/deploy`.
-   - Store app deployment RPC endpoints, private keys, and related parameters in `apps/.env`.
-   - Namespace app deployment variables by DApp, for example `PRIVATE_STATE_RPC_URL`.
+   - Store app deployment parameters in `apps/.env`.
+   - Share the deployment signer and target network across DApps through common app-level variables.
+   - Namespace only DApp-specific deployment values, for example `PRIVATE_STATE_CANONICAL_ASSET`.
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
 9. Keep the review explicit in the final response:
    - State whether the entrypoints satisfy the zk-L2 privacy assumption.

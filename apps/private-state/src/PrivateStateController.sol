@@ -32,7 +32,6 @@ contract PrivateStateController is ReentrancyGuard {
     event NoteMinted(
         address indexed liquidBalanceOwner, bytes32 indexed commitment, address indexed noteOwner, uint256 amount
     );
-    event EncryptedNotePublished(bytes32 indexed commitment, address indexed noteOwner, bytes encryptedPayload);
     event NotesTransferred(address indexed operator, uint256 inputCount, uint256 outputCount);
     event NotesRedeemed(address indexed operator, address indexed receiver, uint256 inputCount);
     event TokenWithdrawn(address indexed account, address indexed receiver, uint256 amount);
@@ -65,51 +64,36 @@ contract PrivateStateController is ReentrancyGuard {
         emit TokenDeposited(msg.sender, beneficiary, tokamakNetworkToken, amount);
     }
 
-    function mintNotes1(OutputNote[1] calldata outputs, bytes[1] calldata encryptedOutputPayloads)
-        external
-        nonReentrant
-        returns (bytes32[1] memory commitments)
-    {
+    function mintNotes1(OutputNote[1] calldata outputs) external nonReentrant returns (bytes32[1] memory commitments) {
         OutputNote[] memory dynamicOutputs = _copyOutputNotes1(outputs);
-        bytes[] memory dynamicPayloads = _copyPayloads1(encryptedOutputPayloads);
-        bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs, dynamicPayloads);
+        bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs);
         commitments[0] = dynamicCommitments[0];
     }
 
-    function mintNotes2(OutputNote[2] calldata outputs, bytes[2] calldata encryptedOutputPayloads)
-        external
-        nonReentrant
-        returns (bytes32[2] memory commitments)
-    {
+    function mintNotes2(OutputNote[2] calldata outputs) external nonReentrant returns (bytes32[2] memory commitments) {
         OutputNote[] memory dynamicOutputs = _copyOutputNotes2(outputs);
-        bytes[] memory dynamicPayloads = _copyPayloads2(encryptedOutputPayloads);
-        bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs, dynamicPayloads);
+        bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs);
         for (uint256 i = 0; i < 2; ++i) {
             commitments[i] = dynamicCommitments[i];
         }
     }
 
-    function mintNotes3(OutputNote[3] calldata outputs, bytes[3] calldata encryptedOutputPayloads)
-        external
-        nonReentrant
-        returns (bytes32[3] memory commitments)
-    {
+    function mintNotes3(OutputNote[3] calldata outputs) external nonReentrant returns (bytes32[3] memory commitments) {
         OutputNote[] memory dynamicOutputs = _copyOutputNotes3(outputs);
-        bytes[] memory dynamicPayloads = _copyPayloads3(encryptedOutputPayloads);
-        bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs, dynamicPayloads);
+        bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs);
         for (uint256 i = 0; i < 3; ++i) {
             commitments[i] = dynamicCommitments[i];
         }
     }
 
-    function transferNotes4(
-        InputNote[4] calldata inputNotes,
-        OutputNote[3] calldata outputs,
-        bytes[3] calldata encryptedOutputPayloads
-    ) external nonReentrant returns (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments) {
+    function transferNotes4(InputNote[4] calldata inputNotes, OutputNote[3] calldata outputs)
+        external
+        nonReentrant
+        returns (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments)
+    {
         InputNote[] memory dynamicInputs = _copyInputNotes4(inputNotes);
         (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
-            _transferFixedNotes(dynamicInputs, outputs, encryptedOutputPayloads);
+            _transferFixedNotes(dynamicInputs, outputs);
 
         for (uint256 i = 0; i < 4; ++i) {
             nullifiers[i] = dynamicNullifiers[i];
@@ -119,14 +103,14 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function transferNotes6(
-        InputNote[6] calldata inputNotes,
-        OutputNote[3] calldata outputs,
-        bytes[3] calldata encryptedOutputPayloads
-    ) external nonReentrant returns (bytes32[6] memory nullifiers, bytes32[3] memory outputCommitments) {
+    function transferNotes6(InputNote[6] calldata inputNotes, OutputNote[3] calldata outputs)
+        external
+        nonReentrant
+        returns (bytes32[6] memory nullifiers, bytes32[3] memory outputCommitments)
+    {
         InputNote[] memory dynamicInputs = _copyInputNotes6(inputNotes);
         (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
-            _transferFixedNotes(dynamicInputs, outputs, encryptedOutputPayloads);
+            _transferFixedNotes(dynamicInputs, outputs);
 
         for (uint256 i = 0; i < 6; ++i) {
             nullifiers[i] = dynamicNullifiers[i];
@@ -136,14 +120,14 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function transferNotes8(
-        InputNote[8] calldata inputNotes,
-        OutputNote[3] calldata outputs,
-        bytes[3] calldata encryptedOutputPayloads
-    ) external nonReentrant returns (bytes32[8] memory nullifiers, bytes32[3] memory outputCommitments) {
+    function transferNotes8(InputNote[8] calldata inputNotes, OutputNote[3] calldata outputs)
+        external
+        nonReentrant
+        returns (bytes32[8] memory nullifiers, bytes32[3] memory outputCommitments)
+    {
         InputNote[] memory dynamicInputs = _copyInputNotes8(inputNotes);
         (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
-            _transferFixedNotes(dynamicInputs, outputs, encryptedOutputPayloads);
+            _transferFixedNotes(dynamicInputs, outputs);
 
         for (uint256 i = 0; i < 8; ++i) {
             nullifiers[i] = dynamicNullifiers[i];
@@ -204,11 +188,10 @@ contract PrivateStateController is ReentrancyGuard {
         return keccak256(abi.encode(block.chainid, address(nullifierStore), tokamakNetworkToken, value, owner, salt));
     }
 
-    function _transferFixedNotes(
-        InputNote[] memory inputNotes,
-        OutputNote[3] calldata outputs,
-        bytes[3] calldata encryptedOutputPayloads
-    ) internal returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments) {
+    function _transferFixedNotes(InputNote[] memory inputNotes, OutputNote[3] calldata outputs)
+        internal
+        returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments)
+    {
         uint256 totalOutputValue;
         for (uint256 i = 0; i < 3; ++i) {
             _validateOutputNote(outputs[i]);
@@ -245,16 +228,12 @@ contract PrivateStateController is ReentrancyGuard {
         for (uint256 i = 0; i < 3; ++i) {
             outputCommitments[i] = computeNoteCommitment(outputs[i].value, outputs[i].owner, outputs[i].salt);
             noteRegistry.registerCommitment(outputCommitments[i]);
-            emit EncryptedNotePublished(outputCommitments[i], outputs[i].owner, encryptedOutputPayloads[i]);
         }
 
         emit NotesTransferred(msg.sender, inputNotes.length, 3);
     }
 
-    function _mintFixedNotes(OutputNote[] memory outputs, bytes[] memory encryptedOutputPayloads)
-        internal
-        returns (bytes32[] memory commitments)
-    {
+    function _mintFixedNotes(OutputNote[] memory outputs) internal returns (bytes32[] memory commitments) {
         uint256 totalValue;
         commitments = new bytes32[](outputs.length);
         for (uint256 i = 0; i < outputs.length; ++i) {
@@ -268,7 +247,6 @@ contract PrivateStateController is ReentrancyGuard {
             commitments[i] = computeNoteCommitment(outputs[i].value, outputs[i].owner, outputs[i].salt);
             noteRegistry.registerCommitment(commitments[i]);
             emit NoteMinted(msg.sender, commitments[i], outputs[i].owner, outputs[i].value);
-            emit EncryptedNotePublished(commitments[i], outputs[i].owner, encryptedOutputPayloads[i]);
         }
     }
 
@@ -365,25 +343,6 @@ contract PrivateStateController is ReentrancyGuard {
         copied = new OutputNote[](3);
         for (uint256 i = 0; i < 3; ++i) {
             copied[i] = outputs[i];
-        }
-    }
-
-    function _copyPayloads1(bytes[1] calldata payloads) internal pure returns (bytes[] memory copied) {
-        copied = new bytes[](1);
-        copied[0] = payloads[0];
-    }
-
-    function _copyPayloads2(bytes[2] calldata payloads) internal pure returns (bytes[] memory copied) {
-        copied = new bytes[](2);
-        for (uint256 i = 0; i < 2; ++i) {
-            copied[i] = payloads[i];
-        }
-    }
-
-    function _copyPayloads3(bytes[3] calldata payloads) internal pure returns (bytes[] memory copied) {
-        copied = new bytes[](3);
-        for (uint256 i = 0; i < 3; ++i) {
-            copied[i] = payloads[i];
         }
     }
 }

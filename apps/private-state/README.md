@@ -4,7 +4,7 @@ This application implements the lifecycle of a zk-note style payment system for 
 
 ## Scope
 
-The target deployment model is a proving-based L2 where raw transaction calldata is not exposed to L1 observers or other L2 users. In that environment, recipients recover newly created notes from encrypted payloads emitted in events rather than from public calldata. What remains from the zk-note model is the state machine:
+The target deployment model is a proving-based L2 where raw transaction calldata is not exposed to L1 observers or other L2 users. What remains from the zk-note model is the state machine:
 
 - Tokamak Network Token deposits move assets into an application vault.
 - Deposited balances can be converted into spendable notes.
@@ -17,7 +17,7 @@ The target deployment model is a proving-based L2 where raw transaction calldata
 - `TokenVault.sol`: Custodies the Tokamak Network Token and tracks each account's liquid balance inside the DApp.
 - `PrivateNoteRegistry.sol`: Stores note commitments only.
 - `PrivateNullifierRegistry.sol`: Stores nullifier usage and is the single source of truth for spent status.
-- `PrivateStateController.sol`: User-facing entrypoint that reconstructs commitments and nullifiers from transaction calldata and emits encrypted note payloads for newly created notes.
+- `PrivateStateController.sol`: User-facing entrypoint that reconstructs commitments and nullifiers from transaction calldata.
 
 ## Ownership Proof Without Circuits
 
@@ -27,8 +27,6 @@ Real Zcash or zkDai systems prove note ownership inside a circuit by showing kno
 - The controller recomputes the note commitment from that plaintext and checks that the commitment exists on-chain.
 - The plaintext includes a visible `owner` address.
 - The note owner must spend directly by calling the controller.
-- Newly created notes can carry an opaque encrypted payload that the contract publishes in an event alongside the note commitment.
-
 This preserves spend authorization semantics. Privacy assumptions depend on the surrounding L2 transaction visibility model rather than on the contracts themselves.
 
 ## Nullifier Model
@@ -43,22 +41,12 @@ Once a note is consumed, the nullifier store records the nullifier and rejects a
 
 The design intentionally avoids storing note plaintext or duplicate spent flags on-chain. The nullifier store is the only spend-state authority.
 
-## Encrypted Note Delivery
-
-When one of `mintNotes1`, `mintNotes2`, `mintNotes3`, `transferNotes4`, `transferNotes6`, or `transferNotes8` creates a new note, the caller can attach an encrypted payload for that note. The controller does not interpret or verify the ciphertext. It simply emits an `EncryptedNotePublished` event containing:
-
-- the new note commitment
-- the intended note owner
-- the opaque encrypted payload bytes
-
-This lets a recipient recover note data from events under the stated L2 privacy assumptions without relying on a separate off-chain delivery channel.
-
 ## End-to-End Flow
 
 1. Approve the vault to transfer the Tokamak Network Token.
 2. Call `depositToken` or `depositTokenFor` on the controller.
-3. Call `mintNotes1`, `mintNotes2`, or `mintNotes3` to lock part of the liquid balance into one, two, or three note commitments and emit encrypted note payloads.
-4. Call one of `transferNotes4`, `transferNotes6`, or `transferNotes8` with exactly 3 output notes and 3 encrypted output payloads.
+3. Call `mintNotes1`, `mintNotes2`, or `mintNotes3` to lock part of the liquid balance into one, two, or three note commitments.
+4. Call one of `transferNotes4`, `transferNotes6`, or `transferNotes8` with exactly 3 output notes.
 5. Call one of `redeemNotes4`, `redeemNotes6`, or `redeemNotes8` to convert fixed batches of notes back into liquid balances.
 6. Call `withdrawToken` to receive the Tokamak Network Token.
 
@@ -88,7 +76,5 @@ These fixed entrypoints are intended to make the final user-facing state transit
 
 Because note validity is still checked directly in contract code:
 
-- The contracts themselves do not encrypt or authenticate note payloads.
-- Ciphertexts are treated as opaque event data and must be constructed correctly off-chain.
 - The system still relies on cross-contract invariants between the controller, vault, note registry, and nullifier registry.
 - Privacy depends on the surrounding L2 execution model, not solely on these contracts.

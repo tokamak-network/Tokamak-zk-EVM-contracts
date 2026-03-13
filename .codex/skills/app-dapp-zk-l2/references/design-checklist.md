@@ -17,7 +17,48 @@ Design implications:
 - Do not add calldata privacy workarounds whose only purpose is to hide data from public L1 mempools.
 - Focus privacy review on the data that becomes state, events, or proof-linked public outputs.
 
-## 2. Circuit-Convertible User Entry Points
+## 2. Bridge-Managed Custody and Accounting
+
+Treat the following as mandatory across every DApp under `apps/`:
+
+- L1 is the canonical asset custody domain.
+- L2 is an accounting domain whose state root is recorded and advanced by the L1 bridge.
+- Users may deposit to and withdraw from the L1 bridge custody vault directly.
+- Users must not interact directly with an L2 token custody vault, because L2 should not hold canonical custody in this model.
+- L2 accounting balance changes must be accepted only as part of proof-verified bridge state transitions.
+
+Required design implications:
+
+- Do not add user-facing L2 `deposit` or `withdraw` functions that independently move assets.
+- Model L2 asset state as accounting balances, not as a second canonical custody layer.
+- Treat deposit and withdrawal as proof-backed L1 bridge operations that also update the accepted L2 state root.
+- Ensure the proof statement or public inputs bind L2 balance deltas to the corresponding L1 bridge custody delta.
+
+Preferred naming:
+
+- L1 custody contract: `L1BridgeAssetVault`
+- L2 mirrored balance contract: `L2AccountingVault`
+
+If a DApp must keep the historical `TokenVault` name for compatibility, document clearly that the L2 contract is accounting-only and not direct custody.
+
+## 3. Standard L2 Accounting Vault Shape
+
+Every DApp under `apps/` must use the same L2 accounting vault storage pattern.
+
+Required properties:
+
+- One canonical per-user accounting balance mapping.
+- No direct ERC-20 `transferFrom` or `transfer` entrypoints for end users.
+- No user-facing deposit or withdrawal functions on L2.
+- Mutations restricted to bridge-coupled state transitions or the app's canonical coordinator logic, depending on the proving architecture.
+
+Review questions:
+
+- Does the L2 vault store accounting balances only?
+- Can any user bypass the bridge flow and mutate L2 balances directly?
+- Does the DApp introduce a second L2-specific vault shape instead of reusing the standard one?
+
+## 4. Circuit-Convertible User Entry Points
 
 Every final user-facing function must be convertible into a fixed circuit.
 
@@ -44,7 +85,7 @@ Preferred refactors:
 - Move optional behavior behind explicit pre-processing and then call one canonical state transition entrypoint.
 - Convert branchy success logic into prevalidated data that feeds a single transition path.
 
-## 3. Symbolic-Path Checking Tool
+## 5. Symbolic-Path Checking Tool
 
 Run the checker on every final user-facing contract:
 
@@ -68,7 +109,7 @@ What it does not do:
 
 Use the tool output as a gate for review, then verify flagged functions manually.
 
-## 4. Storage Layout Guidance
+## 6. Storage Layout Guidance
 
 If the DApp is likely to maintain large or fast-growing state, prefer splitting storage across multiple addresses.
 
@@ -87,7 +128,8 @@ Prefer separate storage addresses when:
 
 Typical split patterns:
 
-- Asset custody store
+- L1 bridge custody store
+- L2 accounting vault
 - Note or commitment store
 - Nullifier or spent-state store
 - Order, market, or position store
@@ -100,12 +142,14 @@ Review questions:
 - Which state can be isolated behind a coordinator without duplicating truth?
 - Is any field duplicated across stores when one canonical source would suffice?
 
-## 5. Review Output
+## 7. Review Output
 
 When reporting on a new app design, explicitly answer:
 
 1. What information becomes public state or events despite the zk-L2 privacy assumption?
-2. Which external functions are the final user-facing entrypoints?
-3. Does each such function have exactly one successful symbolic path?
-4. Did the checker flag anything, and if so, why is it acceptable or how should it be refactored?
-5. Should storage remain in one address or be split across multiple addresses?
+2. Does the design keep canonical custody on L1 and L2 balances as accounting-only state?
+3. Does the app reuse the standard L2 accounting vault shape?
+4. Which external functions are the final user-facing entrypoints?
+5. Does each such function have exactly one successful symbolic path?
+6. Did the checker flag anything, and if so, why is it acceptable or how should it be refactored?
+7. Should storage remain in one address or be split across multiple addresses?

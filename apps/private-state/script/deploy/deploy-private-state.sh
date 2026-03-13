@@ -13,6 +13,11 @@ set -a
 source "$ENV_FILE"
 set +a
 
+if [[ -n "${APPS_DEPLOYER_PRIVATE_KEY:-}" && "${APPS_DEPLOYER_PRIVATE_KEY}" != 0x* ]]; then
+    APPS_DEPLOYER_PRIVATE_KEY="0x${APPS_DEPLOYER_PRIVATE_KEY}"
+    export APPS_DEPLOYER_PRIVATE_KEY
+fi
+
 VERIFY_FLAG=""
 if [[ "${1:-}" == "--verify" ]]; then
     VERIFY_FLAG="--verify"

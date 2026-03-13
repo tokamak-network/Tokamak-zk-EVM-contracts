@@ -102,11 +102,17 @@ contract PrivateStateControllerTest is Test {
         controller.depositToken(30 ether);
 
         vm.prank(bob);
-        controller.mintNote(10 ether, bob, bytes32("bob-4-dummy-1"), bytes("enc:bob-4-dummy-1"));
+        controller.mintNotes1(
+            _outputNotes1(_outputNote(bob, 10 ether, bytes32("bob-4-dummy-1"))), _payloads1(bytes("enc:bob-4-dummy-1"))
+        );
         vm.prank(bob);
-        controller.mintNote(10 ether, bob, bytes32("bob-4-dummy-2"), bytes("enc:bob-4-dummy-2"));
+        controller.mintNotes1(
+            _outputNotes1(_outputNote(bob, 10 ether, bytes32("bob-4-dummy-2"))), _payloads1(bytes("enc:bob-4-dummy-2"))
+        );
         vm.prank(bob);
-        controller.mintNote(10 ether, bob, bytes32("bob-4-dummy-3"), bytes("enc:bob-4-dummy-3"));
+        controller.mintNotes1(
+            _outputNotes1(_outputNote(bob, 10 ether, bytes32("bob-4-dummy-3"))), _payloads1(bytes("enc:bob-4-dummy-3"))
+        );
 
         vm.prank(bob);
         controller.redeemNotes4(bobNotes, bob);
@@ -361,7 +367,7 @@ contract PrivateStateControllerTest is Test {
         assertEq(tokenVault.liquidBalances(bob), 80 ether);
     }
 
-    function testMintEmitsEncryptedPayload() public {
+    function testMintNotes1EmitsEncryptedPayload() public {
         PrivateStateController.InputNote memory aliceNote = _inputNote(18 ether, alice, bytes32("alice-mint-event"));
         bytes memory encryptedPayload = bytes("enc:alice-mint-event");
         bytes32 expectedCommitment = _commitmentOf(aliceNote);
@@ -373,7 +379,48 @@ contract PrivateStateControllerTest is Test {
         emit EncryptedNotePublished(expectedCommitment, alice, encryptedPayload);
 
         vm.prank(alice);
-        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, encryptedPayload);
+        controller.mintNotes1(
+            _outputNotes1(_outputNote(aliceNote.owner, aliceNote.value, aliceNote.salt)), _payloads1(encryptedPayload)
+        );
+    }
+
+    function testMintNotes2CreatesTwoCommitments() public {
+        vm.prank(alice);
+        controller.depositToken(30 ether);
+
+        PrivateStateController.OutputNote[2] memory outputs = _outputNotes2(
+            _outputNote(alice, 10 ether, bytes32("alice-mint-2-0")),
+            _outputNote(bob, 20 ether, bytes32("alice-mint-2-1"))
+        );
+        bytes[2] memory encryptedPayloads = _payloads2(bytes("enc:alice-mint-2-0"), bytes("enc:alice-mint-2-1"));
+
+        vm.prank(alice);
+        bytes32[2] memory commitments = controller.mintNotes2(outputs, encryptedPayloads);
+
+        assertEq(tokenVault.liquidBalances(alice), 0);
+        assertTrue(noteRegistry.commitmentExists(commitments[0]));
+        assertTrue(noteRegistry.commitmentExists(commitments[1]));
+    }
+
+    function testMintNotes3CreatesThreeCommitments() public {
+        vm.prank(alice);
+        controller.depositToken(45 ether);
+
+        PrivateStateController.OutputNote[3] memory outputs = _outputNotes3(
+            _outputNote(alice, 10 ether, bytes32("alice-mint-3-0")),
+            _outputNote(bob, 15 ether, bytes32("alice-mint-3-1")),
+            _outputNote(alice, 20 ether, bytes32("alice-mint-3-2"))
+        );
+        bytes[3] memory encryptedPayloads =
+            _payloads3(bytes("enc:alice-mint-3-0"), bytes("enc:alice-mint-3-1"), bytes("enc:alice-mint-3-2"));
+
+        vm.prank(alice);
+        bytes32[3] memory commitments = controller.mintNotes3(outputs, encryptedPayloads);
+
+        assertEq(tokenVault.liquidBalances(alice), 0);
+        for (uint256 i = 0; i < 3; ++i) {
+            assertTrue(noteRegistry.commitmentExists(commitments[i]));
+        }
     }
 
     function testCannotWithdrawMoreThanLiquidBalance() public {
@@ -407,7 +454,7 @@ contract PrivateStateControllerTest is Test {
     {
         note = _inputNote(value, noteOwner, salt);
         vm.prank(noteOwner);
-        controller.mintNote(value, noteOwner, salt, encryptedPayload);
+        controller.mintNotes1(_outputNotes1(_outputNote(noteOwner, value, salt)), _payloads1(encryptedPayload));
     }
 
     function _inputNote(uint256 value_, address owner_, bytes32 salt_)
@@ -482,6 +529,31 @@ contract PrivateStateControllerTest is Test {
         notes[0] = note0;
         notes[1] = note1;
         notes[2] = note2;
+    }
+
+    function _outputNotes1(PrivateStateController.OutputNote memory note0)
+        internal
+        pure
+        returns (PrivateStateController.OutputNote[1] memory notes)
+    {
+        notes[0] = note0;
+    }
+
+    function _outputNotes2(
+        PrivateStateController.OutputNote memory note0,
+        PrivateStateController.OutputNote memory note1
+    ) internal pure returns (PrivateStateController.OutputNote[2] memory notes) {
+        notes[0] = note0;
+        notes[1] = note1;
+    }
+
+    function _payloads1(bytes memory payload0) internal pure returns (bytes[1] memory payloads) {
+        payloads[0] = payload0;
+    }
+
+    function _payloads2(bytes memory payload0, bytes memory payload1) internal pure returns (bytes[2] memory payloads) {
+        payloads[0] = payload0;
+        payloads[1] = payload1;
     }
 
     function _payloads3(bytes memory payload0, bytes memory payload1, bytes memory payload2)

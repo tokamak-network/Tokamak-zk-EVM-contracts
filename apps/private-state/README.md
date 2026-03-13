@@ -45,7 +45,7 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 
 ## Encrypted Note Delivery
 
-When `mintNote` or one of `transferNotes4`, `transferNotes6`, or `transferNotes8` creates a new note, the caller can attach an encrypted payload for that note. The controller does not interpret or verify the ciphertext. It simply emits an `EncryptedNotePublished` event containing:
+When one of `mintNotes1`, `mintNotes2`, `mintNotes3`, `transferNotes4`, `transferNotes6`, or `transferNotes8` creates a new note, the caller can attach an encrypted payload for that note. The controller does not interpret or verify the ciphertext. It simply emits an `EncryptedNotePublished` event containing:
 
 - the new note commitment
 - the intended note owner
@@ -57,12 +57,18 @@ This lets a recipient recover note data from events under the stated L2 privacy 
 
 1. Approve the vault to transfer the Tokamak Network Token.
 2. Call `depositToken` or `depositTokenFor` on the controller.
-3. Call `mintNote` to lock part of the liquid balance into a commitment and emit an encrypted note payload.
+3. Call `mintNotes1`, `mintNotes2`, or `mintNotes3` to lock part of the liquid balance into one, two, or three note commitments and emit encrypted note payloads.
 4. Call one of `transferNotes4`, `transferNotes6`, or `transferNotes8` with exactly 3 output notes and 3 encrypted output payloads.
 5. Call one of `redeemNotes4`, `redeemNotes6`, or `redeemNotes8` to convert fixed batches of notes back into liquid balances.
 6. Call `withdrawToken` to receive the Tokamak Network Token.
 
 ## Fixed-Arity Entry Points
+
+The current mint API exposes three fixed-arity user-facing functions:
+
+- `mintNotes1`: 1 output note
+- `mintNotes2`: 2 output notes
+- `mintNotes3`: 3 output notes
 
 The current transfer API exposes three fixed-arity user-facing functions:
 

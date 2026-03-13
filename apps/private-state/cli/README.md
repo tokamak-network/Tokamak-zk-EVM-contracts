@@ -24,7 +24,8 @@ Each `calldata.json` file follows this shape:
 
 The CLI reads a function's `calldata.json`, optionally replaces `args` through `--args-file` or replaces the full
 template through `--template-file`, resolves the deployed contract address from
-`apps/private-state/deploy/deployment.<chain-id>.latest.json`, and then either:
+`apps/private-state/deploy/deployment.<chain-id>.latest.json`, restricts network selection to `mainnet`, `sepolia`,
+or `anvil`, and then either:
 
 - generates calldata only
 - performs `eth_call`

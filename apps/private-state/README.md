@@ -161,7 +161,7 @@ private-state now includes a terminal CLI under `apps/private-state/cli/private-
 
 The CLI:
 
-- selects a target network through `--network` or `apps/.env`
+- selects a target network through `--network` or `apps/.env`, restricted to `mainnet`, `sepolia`, or `anvil`
 - loads deployed addresses from `apps/private-state/deploy/deployment.<chain-id>.latest.json`
 - loads callable ABIs from `apps/private-state/deploy/*.callable-abi.json`
 - reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`

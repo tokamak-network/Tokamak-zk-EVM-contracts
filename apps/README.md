@@ -46,7 +46,7 @@ Recommended structure:
 
 The CLI should:
 
-- accept a target network selection
+- accept a target network selection restricted to `mainnet`, `sepolia`, or `anvil`
 - optionally accept a wallet private key for signed transactions
 - resolve deployed contract addresses from `apps/<dapp>/deploy/deployment.<chain-id>.latest.json`
 - load callable ABIs from `apps/<dapp>/deploy/*.callable-abi.json`

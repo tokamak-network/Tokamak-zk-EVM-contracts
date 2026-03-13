@@ -5,7 +5,7 @@ import path from "path";
 import process from "process";
 import { execFileSync } from "child_process";
 import { fileURLToPath } from "url";
-import { deriveRpcUrl, resolveAppNetwork } from "../../script/network-config.mjs";
+import { deriveRpcUrl, resolveCliNetwork } from "../../script/network-config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,7 +41,7 @@ async function main() {
     throw new Error("Missing --network and APPS_NETWORK.");
   }
 
-  const network = resolveAppNetwork(networkName);
+  const network = resolveCliNetwork(networkName);
   const manifest = readJson(path.resolve(deployRoot, `deployment.${network.chainId}.latest.json`));
   const payload = buildPayload(args.functionName, args);
   const abi = readJson(path.resolve(deployRoot, payload.abiFile.replace("../deploy/", "")));
@@ -135,7 +135,7 @@ Usage:
   node apps/private-state/cli/private-state-cli.mjs send <function-name> [--network <name>] [--private-key <hex>] [--args-file <path>] [--template-file <path>]
 
 Flags:
-  --network <name>         Override APPS_NETWORK from apps/.env
+  --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia, anvil
   --rpc-url <url>          Explicit RPC endpoint override
   --alchemy-api-key <key>  Explicit Alchemy key override
   --env-file <path>        Alternate apps/.env location

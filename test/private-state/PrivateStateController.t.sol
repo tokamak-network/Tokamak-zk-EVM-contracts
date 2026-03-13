@@ -9,7 +9,7 @@ import {PrivateStateController} from "../../apps/private-state/src/PrivateStateC
 import {TokenVault} from "../../apps/private-state/src/TokenVault.sol";
 
 contract MockToken is ERC20 {
-    constructor() ERC20("Tokamak Network Token", "TNT") {}
+    constructor() ERC20("Tokamak Network Token", "TON") {}
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);

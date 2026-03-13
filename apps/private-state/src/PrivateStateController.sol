@@ -18,7 +18,6 @@ contract PrivateStateController is ReentrancyGuard {
     error ArrayLengthMismatch(uint256 expected, uint256 actual);
     error ZeroAddress();
     error ZeroAmount();
-    error MixedNoteTokens(address expected, address actual);
     error UnknownCommitment(bytes32 commitment);
     error InputOutputValueMismatch(uint256 inputValue, uint256 outputValue);
     error AuthorizationExpired(uint256 deadline);
@@ -33,7 +32,6 @@ contract PrivateStateController is ReentrancyGuard {
     );
 
     struct InputNote {
-        address token;
         uint256 value;
         address owner;
         bytes32 salt;
@@ -52,19 +50,16 @@ contract PrivateStateController is ReentrancyGuard {
 
     event TokenDeposited(address indexed payer, address indexed beneficiary, address indexed token, uint256 amount);
     event NoteMinted(
-        address indexed liquidBalanceOwner,
-        bytes32 indexed commitment,
-        address indexed noteOwner,
-        address token,
-        uint256 amount
+        address indexed liquidBalanceOwner, bytes32 indexed commitment, address indexed noteOwner, uint256 amount
     );
-    event NotesTransferred(address indexed operator, address indexed token, uint256 inputCount, uint256 outputCount);
+    event NotesTransferred(address indexed operator, uint256 inputCount, uint256 outputCount);
     event NotesRedeemed(address indexed operator, address indexed receiver, uint256 inputCount);
-    event TokenWithdrawn(address indexed account, address indexed receiver, address indexed token, uint256 amount);
+    event TokenWithdrawn(address indexed account, address indexed receiver, uint256 amount);
 
     PrivateNullifierRegistry public immutable nullifierStore;
     PrivateNoteRegistry public immutable noteRegistry;
     TokenVault public immutable tokenVault;
+    address public immutable tokamakNetworkToken;
 
     constructor(PrivateNoteRegistry noteRegistry_, PrivateNullifierRegistry nullifierStore_, TokenVault tokenVault_) {
         if (
@@ -77,29 +72,30 @@ contract PrivateStateController is ReentrancyGuard {
         nullifierStore = nullifierStore_;
         noteRegistry = noteRegistry_;
         tokenVault = tokenVault_;
+        tokamakNetworkToken = address(tokenVault_.tokamakNetworkToken());
     }
 
-    function depositToken(address token, uint256 amount) external {
-        depositTokenFor(token, amount, msg.sender);
+    function depositToken(uint256 amount) external {
+        depositTokenFor(amount, msg.sender);
     }
 
-    function depositTokenFor(address token, uint256 amount, address beneficiary) public nonReentrant {
-        tokenVault.deposit(token, msg.sender, beneficiary, amount);
-        emit TokenDeposited(msg.sender, beneficiary, token, amount);
+    function depositTokenFor(uint256 amount, address beneficiary) public nonReentrant {
+        tokenVault.deposit(msg.sender, beneficiary, amount);
+        emit TokenDeposited(msg.sender, beneficiary, tokamakNetworkToken, amount);
     }
 
-    function mintNote(address token, uint256 amount, address noteOwner, bytes32 salt)
+    function mintNote(uint256 amount, address noteOwner, bytes32 salt)
         external
         nonReentrant
         returns (bytes32 commitment)
     {
-        _validateNoteFields(token, amount, noteOwner);
+        _validateNoteFields(amount, noteOwner);
 
-        tokenVault.debitLiquidBalance(msg.sender, token, amount);
-        commitment = computeNoteCommitment(token, amount, noteOwner, salt);
+        tokenVault.debitLiquidBalance(msg.sender, amount);
+        commitment = computeNoteCommitment(amount, noteOwner, salt);
         noteRegistry.registerCommitment(commitment);
 
-        emit NoteMinted(msg.sender, commitment, noteOwner, token, amount);
+        emit NoteMinted(msg.sender, commitment, noteOwner, amount);
     }
 
     function transferNotes(
@@ -114,10 +110,9 @@ contract PrivateStateController is ReentrancyGuard {
             revert ArrayLengthMismatch(inputNotes.length, authorizations.length);
         }
 
-        address token = inputNotes[0].token;
-        _validateNoteFields(token, inputNotes[0].value, inputNotes[0].owner);
+        _validateNoteFields(inputNotes[0].value, inputNotes[0].owner);
 
-        bytes32 outputsHash = hashTransferOutputs(token, outputs);
+        bytes32 outputsHash = hashTransferOutputs(outputs);
         uint256 totalOutputValue;
         for (uint256 i = 0; i < outputs.length; ++i) {
             _validateOutputNote(outputs[i]);
@@ -129,19 +124,16 @@ contract PrivateStateController is ReentrancyGuard {
         nullifiers = new bytes32[](inputNotes.length);
         for (uint256 i = 0; i < inputNotes.length; ++i) {
             InputNote calldata note = inputNotes[i];
-            _validateNoteFields(note.token, note.value, note.owner);
-            if (note.token != token) {
-                revert MixedNoteTokens(token, note.token);
-            }
+            _validateNoteFields(note.value, note.owner);
 
-            bytes32 commitment = computeNoteCommitment(note.token, note.value, note.owner, note.salt);
+            bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
             if (!noteRegistry.commitmentExists(commitment)) {
                 revert UnknownCommitment(commitment);
             }
 
             _verifyTransferAuthorization(commitment, note.owner, outputsHash, authorizations[i]);
             inputCommitments[i] = commitment;
-            nullifiers[i] = computeNullifier(note.token, note.value, note.owner, note.salt);
+            nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
             totalInputValue += note.value;
         }
 
@@ -155,11 +147,11 @@ contract PrivateStateController is ReentrancyGuard {
 
         outputCommitments = new bytes32[](outputs.length);
         for (uint256 i = 0; i < outputs.length; ++i) {
-            outputCommitments[i] = computeNoteCommitment(token, outputs[i].value, outputs[i].owner, outputs[i].salt);
+            outputCommitments[i] = computeNoteCommitment(outputs[i].value, outputs[i].owner, outputs[i].salt);
             noteRegistry.registerCommitment(outputCommitments[i]);
         }
 
-        emit NotesTransferred(msg.sender, token, inputNotes.length, outputs.length);
+        emit NotesTransferred(msg.sender, inputNotes.length, outputs.length);
     }
 
     function redeemNotes(
@@ -181,40 +173,37 @@ contract PrivateStateController is ReentrancyGuard {
         nullifiers = new bytes32[](inputNotes.length);
         for (uint256 i = 0; i < inputNotes.length; ++i) {
             InputNote calldata note = inputNotes[i];
-            _validateNoteFields(note.token, note.value, note.owner);
+            _validateNoteFields(note.value, note.owner);
 
-            bytes32 commitment = computeNoteCommitment(note.token, note.value, note.owner, note.salt);
+            bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
             if (!noteRegistry.commitmentExists(commitment)) {
                 revert UnknownCommitment(commitment);
             }
 
             _verifyRedeemAuthorization(commitment, note.owner, receiver, authorizations[i]);
             inputCommitments[i] = commitment;
-            nullifiers[i] = computeNullifier(note.token, note.value, note.owner, note.salt);
+            nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
         }
 
         for (uint256 i = 0; i < inputNotes.length; ++i) {
             nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
-            tokenVault.creditLiquidBalance(receiver, inputNotes[i].token, inputNotes[i].value);
+            tokenVault.creditLiquidBalance(receiver, inputNotes[i].value);
         }
 
         emit NotesRedeemed(msg.sender, receiver, inputNotes.length);
     }
 
-    function withdrawToken(address token, uint256 amount, address receiver) external nonReentrant {
-        tokenVault.withdraw(token, msg.sender, receiver, amount);
-        emit TokenWithdrawn(msg.sender, receiver, token, amount);
+    function withdrawToken(uint256 amount, address receiver) external nonReentrant {
+        tokenVault.withdraw(msg.sender, receiver, amount);
+        emit TokenWithdrawn(msg.sender, receiver, amount);
     }
 
-    function hashTransferOutputs(address token, OutputNote[] calldata outputs) public pure returns (bytes32) {
-        if (token == address(0)) {
-            revert ZeroAddress();
-        }
+    function hashTransferOutputs(OutputNote[] calldata outputs) public pure returns (bytes32) {
         if (outputs.length == 0) {
             revert EmptyArray();
         }
 
-        bytes32 rollingHash = keccak256(abi.encodePacked(token, outputs.length));
+        bytes32 rollingHash = keccak256(abi.encodePacked(outputs.length));
         for (uint256 i = 0; i < outputs.length; ++i) {
             rollingHash = keccak256(abi.encodePacked(rollingHash, outputs[i].owner, outputs[i].value, outputs[i].salt));
         }
@@ -222,18 +211,14 @@ contract PrivateStateController is ReentrancyGuard {
         return rollingHash;
     }
 
-    function computeNoteCommitment(address token, uint256 value, address owner, bytes32 salt)
-        public
-        view
-        returns (bytes32)
-    {
-        _validateNoteFields(token, value, owner);
-        return keccak256(abi.encode(block.chainid, address(noteRegistry), token, value, owner, salt));
+    function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
+        _validateNoteFields(value, owner);
+        return keccak256(abi.encode(block.chainid, address(noteRegistry), tokamakNetworkToken, value, owner, salt));
     }
 
-    function computeNullifier(address token, uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
-        _validateNoteFields(token, value, owner);
-        return keccak256(abi.encode(block.chainid, address(nullifierStore), token, value, owner, salt));
+    function computeNullifier(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
+        _validateNoteFields(value, owner);
+        return keccak256(abi.encode(block.chainid, address(nullifierStore), tokamakNetworkToken, value, owner, salt));
     }
 
     function getTransferAuthorizationHash(bytes32 inputCommitment, bytes32 outputsHash, uint256 deadline)
@@ -308,8 +293,8 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function _validateNoteFields(address token, uint256 value, address owner) internal pure {
-        if (token == address(0) || owner == address(0)) {
+    function _validateNoteFields(uint256 value, address owner) internal pure {
+        if (owner == address(0)) {
             revert ZeroAddress();
         }
         if (value == 0) {

@@ -153,3 +153,5 @@ When reporting on a new app design, explicitly answer:
 5. Does each such function have exactly one successful symbolic path?
 6. Did the checker flag anything, and if so, why is it acceptable or how should it be refactored?
 7. Should storage remain in one address or be split across multiple addresses?
+8. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
+9. Are app deployment secrets and RPC settings isolated in `apps/.env` with DApp-specific variable names?

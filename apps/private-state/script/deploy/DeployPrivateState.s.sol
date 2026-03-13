@@ -2,10 +2,10 @@
 pragma solidity 0.8.29;
 
 import "forge-std/Script.sol";
-import "../../apps/private-state/src/L2AccountingVault.sol";
-import "../../apps/private-state/src/PrivateNullifierRegistry.sol";
-import "../../apps/private-state/src/PrivateNoteRegistry.sol";
-import "../../apps/private-state/src/PrivateStateController.sol";
+import "../../src/L2AccountingVault.sol";
+import "../../src/PrivateNullifierRegistry.sol";
+import "../../src/PrivateNoteRegistry.sol";
+import "../../src/PrivateStateController.sol";
 
 contract DeployPrivateStateScript is Script {
     address public deployer;
@@ -22,7 +22,7 @@ contract DeployPrivateStateScript is Script {
     }
 
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_STATE_PRIVATE_KEY");
         deployer = vm.addr(deployerPrivateKey);
         finalOwner = _loadFinalOwner(deployer);
         canonicalAsset = vm.envAddress("PRIVATE_STATE_CANONICAL_ASSET");

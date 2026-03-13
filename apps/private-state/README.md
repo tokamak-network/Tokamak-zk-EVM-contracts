@@ -88,11 +88,13 @@ Sepolia deployment requires four concrete inputs:
 
 The repository now includes:
 
-- `script/deploy/DeployPrivateState.s.sol`
-- `script/deploy/deploy-private-state.sh`
-- `script/deploy/env-private-state.template`
+- `apps/private-state/script/deploy/DeployPrivateState.s.sol`
+- `apps/private-state/script/deploy/deploy-private-state.sh`
+- `apps/.env.template`
 
 The deploy script deploys `L2AccountingVault`, `PrivateNoteRegistry`, `PrivateNullifierRegistry`, and `PrivateStateController`, binds the controller to the three storage contracts, and optionally transfers ownership of those storage contracts to `PRIVATE_STATE_OWNER`.
+
+private-state deployment parameters must be stored in `apps/.env`, not in the repository-root bridge deployment `.env`. The private-state deploy flow uses the namespaced variables `PRIVATE_STATE_PRIVATE_KEY`, `PRIVATE_STATE_RPC_URL`, `PRIVATE_STATE_CHAIN_ID`, `PRIVATE_STATE_CANONICAL_ASSET`, `PRIVATE_STATE_OWNER`, and `PRIVATE_STATE_ETHERSCAN_API_KEY`.
 
 ## Security Tradeoffs
 

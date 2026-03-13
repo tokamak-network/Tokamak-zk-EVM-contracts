@@ -12,6 +12,7 @@ contract PrivateStateControllerTest is Test {
     address private alice = makeAddr("alice");
     address private bob = makeAddr("bob");
     address private mallory = makeAddr("mallory");
+    address private testingBalanceSetter = makeAddr("testing-balance-setter");
     address private canonicalAsset = makeAddr("canonical-asset");
 
     bytes32 private constant L2_ACCOUNTING_VAULT_SALT = keccak256("private-state.l2-accounting-vault");
@@ -29,7 +30,9 @@ contract PrivateStateControllerTest is Test {
 
         address predictedController = vm.computeCreateAddress(address(deploymentFactory), 1);
         address predictedL2AccountingVault = vm.computeCreate2Address(
-            L2_ACCOUNTING_VAULT_SALT, _l2AccountingVaultInitCodeHash(predictedController), address(deploymentFactory)
+            L2_ACCOUNTING_VAULT_SALT,
+            _l2AccountingVaultInitCodeHash(predictedController, testingBalanceSetter),
+            address(deploymentFactory)
         );
         address predictedNoteRegistry =
             vm.computeCreate2Address(NOTE_REGISTRY_SALT, _noteRegistryInitCodeHash(predictedController), address(deploymentFactory));
@@ -40,7 +43,8 @@ contract PrivateStateControllerTest is Test {
         controller = deploymentFactory.deployController(
             predictedNoteRegistry, predictedNullifierRegistry, predictedL2AccountingVault, canonicalAsset
         );
-        l2AccountingVault = deploymentFactory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController);
+        l2AccountingVault =
+            deploymentFactory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController, testingBalanceSetter);
         noteRegistry = deploymentFactory.deployPrivateNoteRegistry(NOTE_REGISTRY_SALT, predictedController);
         nullifierStore =
             deploymentFactory.deployPrivateNullifierRegistry(NULLIFIER_REGISTRY_SALT, predictedController);
@@ -105,6 +109,21 @@ contract PrivateStateControllerTest is Test {
         controller.bridgeWithdraw(65 ether);
 
         assertEq(l2AccountingVault.liquidBalances(bob), 0);
+    }
+
+    function testTestingBalanceSetterCanOverrideLiquidBalance() public {
+        vm.prank(testingBalanceSetter);
+        l2AccountingVault.setLiquidBalanceForTesting(alice, 77 ether);
+
+        assertEq(l2AccountingVault.liquidBalances(alice), 77 ether);
+    }
+
+    function testTestingBalanceSetterRejectsUnauthorizedCaller() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(L2AccountingVault.UnauthorizedTestingBalanceSetter.selector, mallory)
+        );
+        vm.prank(mallory);
+        l2AccountingVault.setLiquidBalanceForTesting(alice, 1 ether);
     }
 
     function testTransferNotes4CannotTransferAnotherOwnersNotes() public {
@@ -491,8 +510,14 @@ contract PrivateStateControllerTest is Test {
         return controller.computeNullifier(note.value, note.owner, note.salt);
     }
 
-    function _l2AccountingVaultInitCodeHash(address controller_) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(type(L2AccountingVault).creationCode, abi.encode(controller_)));
+    function _l2AccountingVaultInitCodeHash(address controller_, address testingBalanceSetter_)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encodePacked(type(L2AccountingVault).creationCode, abi.encode(controller_, testingBalanceSetter_))
+        );
     }
 
     function _noteRegistryInitCodeHash(address controller_) internal pure returns (bytes32) {

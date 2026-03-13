@@ -131,8 +131,13 @@ The private-state deploy flow uses shared app deployment variables for the signe
 It uses a namespaced variable only for the private-state-specific value:
 
 - `PRIVATE_STATE_CANONICAL_ASSET`
+- `PRIVATE_STATE_TESTING_BALANCE_SETTER`
 
 There is no `PRIVATE_STATE_OWNER` parameter.
+
+When `PRIVATE_STATE_TESTING_BALANCE_SETTER` is the zero address, the L2 accounting vault disables the test-only
+balance override function. If a non-zero address is configured, that address may call the vault test hook to set an
+account balance to an arbitrary value. This is useful for public test deployments and unsafe for production custody.
 
 ## Security Tradeoffs
 

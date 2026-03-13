@@ -28,6 +28,8 @@ contract PrivateStateControllerTest is Test {
     PrivateNoteRegistry private noteRegistry;
     PrivateStateController private controller;
 
+    event EncryptedNotePublished(bytes32 indexed commitment, address indexed noteOwner, bytes encryptedPayload);
+
     function setUp() public {
         token = new MockToken();
         tokenVault = new TokenVault(owner, address(token));
@@ -59,9 +61,11 @@ contract PrivateStateControllerTest is Test {
         assertEq(token.balanceOf(address(tokenVault)), 100 ether);
 
         PrivateStateController.InputNote memory aliceNote = _inputNote(60 ether, alice, bytes32("alice-note-1"));
+        bytes memory aliceEncryptedPayload = bytes("enc:alice-note-1");
 
         vm.prank(alice);
-        bytes32 aliceCommitment = controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt);
+        bytes32 aliceCommitment =
+            controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, aliceEncryptedPayload);
 
         assertEq(tokenVault.liquidBalances(alice), 40 ether);
         assertEq(aliceCommitment, _commitmentOf(aliceNote));
@@ -70,13 +74,16 @@ contract PrivateStateControllerTest is Test {
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](2);
         outputs[0] = _outputNote(bob, 35 ether, bytes32("bob-note-1"));
         outputs[1] = _outputNote(alice, 25 ether, bytes32("alice-change-1"));
+        bytes[] memory encryptedOutputPayloads = new bytes[](2);
+        encryptedOutputPayloads[0] = bytes("enc:bob-note-1");
+        encryptedOutputPayloads[1] = bytes("enc:alice-change-1");
 
         PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
         inputNotes[0] = aliceNote;
 
         vm.prank(alice);
         (bytes32[] memory nullifiers, bytes32[] memory outputCommitments) =
-            controller.transferNotes(inputNotes, outputs);
+            controller.transferNotes(inputNotes, outputs, encryptedOutputPayloads);
 
         assertEq(nullifiers.length, 1);
         assertTrue(nullifierStore.nullifierUsed(nullifiers[0]));
@@ -104,21 +111,24 @@ contract PrivateStateControllerTest is Test {
 
     function testNoteOwnerCanTransferDirectly() public {
         PrivateStateController.InputNote memory aliceNote = _inputNote(50 ether, alice, bytes32("alice-note-2"));
+        bytes memory aliceEncryptedPayload = bytes("enc:alice-note-2");
 
         vm.prank(alice);
         controller.depositToken(50 ether);
 
         vm.prank(alice);
-        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt);
+        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, aliceEncryptedPayload);
 
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
         outputs[0] = _outputNote(bob, 50 ether, bytes32("bob-note-2"));
+        bytes[] memory encryptedOutputPayloads = new bytes[](1);
+        encryptedOutputPayloads[0] = bytes("enc:bob-note-2");
 
         PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
         inputNotes[0] = aliceNote;
 
         vm.prank(alice);
-        (, bytes32[] memory outputCommitments) = controller.transferNotes(inputNotes, outputs);
+        (, bytes32[] memory outputCommitments) = controller.transferNotes(inputNotes, outputs, encryptedOutputPayloads);
 
         assertTrue(noteRegistry.commitmentExists(outputCommitments[0]));
         assertEq(outputCommitments[0], _commitmentOf(_inputNote(50 ether, bob, bytes32("bob-note-2"))));
@@ -131,17 +141,19 @@ contract PrivateStateControllerTest is Test {
         controller.depositToken(10 ether);
 
         vm.prank(alice);
-        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt);
+        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, bytes("enc:alice-note-3"));
 
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
         outputs[0] = _outputNote(bob, 10 ether, bytes32("bob-note-3"));
+        bytes[] memory encryptedOutputPayloads = new bytes[](1);
+        encryptedOutputPayloads[0] = bytes("enc:bob-note-3");
 
         PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
         inputNotes[0] = aliceNote;
 
         vm.expectRevert(abi.encodeWithSelector(PrivateStateController.UnauthorizedNoteOwner.selector, mallory, alice));
         vm.prank(mallory);
-        controller.transferNotes(inputNotes, outputs);
+        controller.transferNotes(inputNotes, outputs, encryptedOutputPayloads);
     }
 
     function testCannotReplaySpentNote() public {
@@ -151,22 +163,24 @@ contract PrivateStateControllerTest is Test {
         controller.depositToken(15 ether);
 
         vm.prank(alice);
-        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt);
+        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, bytes("enc:alice-note-4"));
 
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
         outputs[0] = _outputNote(alice, 15 ether, bytes32("alice-note-4b"));
+        bytes[] memory encryptedOutputPayloads = new bytes[](1);
+        encryptedOutputPayloads[0] = bytes("enc:alice-note-4b");
 
         PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
         inputNotes[0] = aliceNote;
 
         vm.prank(alice);
-        controller.transferNotes(inputNotes, outputs);
+        controller.transferNotes(inputNotes, outputs, encryptedOutputPayloads);
 
         vm.expectRevert(
             abi.encodeWithSelector(PrivateNullifierRegistry.NullifierAlreadyUsed.selector, _nullifierOf(aliceNote))
         );
         vm.prank(alice);
-        controller.transferNotes(inputNotes, outputs);
+        controller.transferNotes(inputNotes, outputs, encryptedOutputPayloads);
     }
 
     function testRejectsTransferValueMismatch() public {
@@ -176,10 +190,12 @@ contract PrivateStateControllerTest is Test {
         controller.depositToken(20 ether);
 
         vm.prank(alice);
-        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt);
+        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, bytes("enc:alice-note-5"));
 
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
         outputs[0] = _outputNote(bob, 19 ether, bytes32("bob-note-5"));
+        bytes[] memory encryptedOutputPayloads = new bytes[](1);
+        encryptedOutputPayloads[0] = bytes("enc:bob-note-5");
 
         PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
         inputNotes[0] = aliceNote;
@@ -188,7 +204,7 @@ contract PrivateStateControllerTest is Test {
             abi.encodeWithSelector(PrivateStateController.InputOutputValueMismatch.selector, 20 ether, 19 ether)
         );
         vm.prank(alice);
-        controller.transferNotes(inputNotes, outputs);
+        controller.transferNotes(inputNotes, outputs, encryptedOutputPayloads);
     }
 
     function testNoteOwnerCanRedeemDirectly() public {
@@ -198,7 +214,7 @@ contract PrivateStateControllerTest is Test {
         controller.depositToken(25 ether);
 
         vm.prank(alice);
-        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt);
+        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, bytes("enc:alice-note-6"));
 
         PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
         inputNotes[0] = aliceNote;
@@ -217,7 +233,7 @@ contract PrivateStateControllerTest is Test {
         controller.depositToken(12 ether);
 
         vm.prank(alice);
-        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt);
+        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, bytes("enc:alice-note-7"));
 
         PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
         inputNotes[0] = aliceNote;
@@ -232,12 +248,53 @@ contract PrivateStateControllerTest is Test {
         inputNotes[0] = _inputNote(5 ether, alice, bytes32("unknown-note"));
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
         outputs[0] = _outputNote(bob, 5 ether, bytes32("unknown-out"));
+        bytes[] memory encryptedOutputPayloads = new bytes[](1);
+        encryptedOutputPayloads[0] = bytes("enc:unknown-out");
 
         bytes32 unknownCommitment = _commitmentOf(inputNotes[0]);
 
         vm.expectRevert(abi.encodeWithSelector(PrivateStateController.UnknownCommitment.selector, unknownCommitment));
         vm.prank(alice);
-        controller.transferNotes(inputNotes, outputs);
+        controller.transferNotes(inputNotes, outputs, encryptedOutputPayloads);
+    }
+
+    function testTransferRejectsEncryptedPayloadLengthMismatch() public {
+        PrivateStateController.InputNote memory aliceNote = _inputNote(30 ether, alice, bytes32("alice-note-8"));
+
+        vm.prank(alice);
+        controller.depositToken(30 ether);
+
+        vm.prank(alice);
+        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, bytes("enc:alice-note-8"));
+
+        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
+        inputNotes[0] = aliceNote;
+
+        PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](2);
+        outputs[0] = _outputNote(bob, 10 ether, bytes32("bob-note-8"));
+        outputs[1] = _outputNote(alice, 20 ether, bytes32("alice-change-8"));
+
+        bytes[] memory encryptedOutputPayloads = new bytes[](1);
+        encryptedOutputPayloads[0] = bytes("enc:bob-note-8");
+
+        vm.expectRevert(abi.encodeWithSelector(PrivateStateController.ArrayLengthMismatch.selector, 2, 1));
+        vm.prank(alice);
+        controller.transferNotes(inputNotes, outputs, encryptedOutputPayloads);
+    }
+
+    function testMintEmitsEncryptedPayload() public {
+        PrivateStateController.InputNote memory aliceNote = _inputNote(18 ether, alice, bytes32("alice-note-9"));
+        bytes memory encryptedPayload = bytes("enc:alice-note-9");
+        bytes32 expectedCommitment = _commitmentOf(aliceNote);
+
+        vm.prank(alice);
+        controller.depositToken(18 ether);
+
+        vm.expectEmit(true, true, false, true);
+        emit EncryptedNotePublished(expectedCommitment, alice, encryptedPayload);
+
+        vm.prank(alice);
+        controller.mintNote(aliceNote.value, aliceNote.owner, aliceNote.salt, encryptedPayload);
     }
 
     function testCannotWithdrawMoreThanLiquidBalance() public {

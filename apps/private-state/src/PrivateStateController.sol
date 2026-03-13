@@ -10,6 +10,7 @@ import {TokenVault} from "./TokenVault.sol";
 /// @notice User-facing application logic for the non-private zk-note DApp.
 contract PrivateStateController is ReentrancyGuard {
     error EmptyArray();
+    error ArrayLengthMismatch(uint256 expected, uint256 actual);
     error ZeroAddress();
     error ZeroAmount();
     error UnknownCommitment(bytes32 commitment);
@@ -32,6 +33,7 @@ contract PrivateStateController is ReentrancyGuard {
     event NoteMinted(
         address indexed liquidBalanceOwner, bytes32 indexed commitment, address indexed noteOwner, uint256 amount
     );
+    event EncryptedNotePublished(bytes32 indexed commitment, address indexed noteOwner, bytes encryptedPayload);
     event NotesTransferred(address indexed operator, uint256 inputCount, uint256 outputCount);
     event NotesRedeemed(address indexed operator, address indexed receiver, uint256 inputCount);
     event TokenWithdrawn(address indexed account, address indexed receiver, uint256 amount);
@@ -64,7 +66,7 @@ contract PrivateStateController is ReentrancyGuard {
         emit TokenDeposited(msg.sender, beneficiary, tokamakNetworkToken, amount);
     }
 
-    function mintNote(uint256 amount, address noteOwner, bytes32 salt)
+    function mintNote(uint256 amount, address noteOwner, bytes32 salt, bytes calldata encryptedNotePayload)
         external
         nonReentrant
         returns (bytes32 commitment)
@@ -76,15 +78,19 @@ contract PrivateStateController is ReentrancyGuard {
         noteRegistry.registerCommitment(commitment);
 
         emit NoteMinted(msg.sender, commitment, noteOwner, amount);
+        emit EncryptedNotePublished(commitment, noteOwner, encryptedNotePayload);
     }
 
-    function transferNotes(InputNote[] calldata inputNotes, OutputNote[] calldata outputs)
-        external
-        nonReentrant
-        returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments)
-    {
+    function transferNotes(
+        InputNote[] calldata inputNotes,
+        OutputNote[] calldata outputs,
+        bytes[] calldata encryptedOutputPayloads
+    ) external nonReentrant returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments) {
         if (inputNotes.length == 0 || outputs.length == 0) {
             revert EmptyArray();
+        }
+        if (outputs.length != encryptedOutputPayloads.length) {
+            revert ArrayLengthMismatch(outputs.length, encryptedOutputPayloads.length);
         }
 
         _validateNoteFields(inputNotes[0].value, inputNotes[0].owner);
@@ -125,6 +131,7 @@ contract PrivateStateController is ReentrancyGuard {
         for (uint256 i = 0; i < outputs.length; ++i) {
             outputCommitments[i] = computeNoteCommitment(outputs[i].value, outputs[i].owner, outputs[i].salt);
             noteRegistry.registerCommitment(outputCommitments[i]);
+            emit EncryptedNotePublished(outputCommitments[i], outputs[i].owner, encryptedOutputPayloads[i]);
         }
 
         emit NotesTransferred(msg.sender, inputNotes.length, outputs.length);

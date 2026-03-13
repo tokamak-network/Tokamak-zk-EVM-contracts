@@ -30,7 +30,7 @@ required_vars=(
     "PRIVATE_STATE_CANONICAL_ASSET"
 )
 
-if [[ -z "${APPS_RPC_URL_OVERRIDE:-}" ]]; then
+if [[ -z "${APPS_RPC_URL_OVERRIDE:-}" && "${APPS_NETWORK:-}" != "anvil" ]]; then
     required_vars+=("APPS_ALCHEMY_API_KEY")
 fi
 
@@ -51,9 +51,12 @@ fi
 if [[ -n "${APPS_RPC_URL_OVERRIDE:-}" ]]; then
     APPS_RPC_URL="$APPS_RPC_URL_OVERRIDE"
     NETWORK_LABEL="<override>"
+elif [[ "$APPS_NETWORK" == "anvil" ]]; then
+    APPS_RPC_URL="http://127.0.0.1:8545"
+    NETWORK_LABEL="anvil-localhost"
 else
     if [[ -z "$APPS_ALCHEMY_NETWORK" ]]; then
-        echo "APPS_RPC_URL_OVERRIDE is required for APPS_NETWORK=$APPS_NETWORK" >&2
+        echo "Unsupported APPS_NETWORK=$APPS_NETWORK without an explicit APPS_RPC_URL_OVERRIDE" >&2
         exit 1
     fi
 

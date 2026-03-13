@@ -47,7 +47,8 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Store app deployment parameters in `apps/.env`.
    - Share the deployment signer and target network across DApps through common app-level variables.
    - Prefer an app-level provider key plus network name, then derive the RPC URL and chain ID inside the DApp deployment script.
-   - Allow an explicit `APPS_RPC_URL_OVERRIDE` for local development chains such as anvil, because provider-key-based RPC derivation does not apply there.
+   - Default `APPS_NETWORK=anvil` to `http://127.0.0.1:8545` for local development.
+   - Keep `APPS_RPC_URL_OVERRIDE` only as an advanced option for nonstandard local or custom RPC endpoints.
    - Namespace only DApp-specific deployment values, for example `PRIVATE_STATE_CANONICAL_ASSET`.
    - Do not add per-DApp owner env variables in the default app deployment model.
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.

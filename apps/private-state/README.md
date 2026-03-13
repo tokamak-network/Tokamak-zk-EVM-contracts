@@ -127,8 +127,10 @@ The private-state deploy flow uses shared app deployment variables for the signe
 - `APPS_DEPLOYER_PRIVATE_KEY`
 - `APPS_NETWORK`
 - `APPS_ALCHEMY_API_KEY`
-- `APPS_RPC_URL_OVERRIDE` for local development chains such as anvil
 - `APPS_ETHERSCAN_API_KEY` when block explorer verification is needed
+
+For `APPS_NETWORK=anvil`, the deploy scripts default to `http://127.0.0.1:8545`. `APPS_RPC_URL_OVERRIDE` is only an
+advanced option for nonstandard local or custom RPC endpoints.
 
 It uses a namespaced variable only for the private-state-specific value:
 
@@ -166,7 +168,6 @@ For fast local iteration, private-state now includes an anvil bootstrap flow:
 Recommended `apps/.env` values for anvil:
 
 - `APPS_NETWORK=anvil`
-- `APPS_RPC_URL_OVERRIDE=http://127.0.0.1:8545`
 - `APPS_DEPLOYER_PRIVATE_KEY=<anvil account private key>`
 - `PRIVATE_STATE_TESTING_BALANCE_SETTER=<tester address or zero address>`
 

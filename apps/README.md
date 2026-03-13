@@ -12,11 +12,12 @@ Shared variables:
 - `APPS_NETWORK`
 - `APPS_ALCHEMY_API_KEY`
 - `APPS_ETHERSCAN_API_KEY`
-- `APPS_RPC_URL_OVERRIDE`
 
-Use `APPS_RPC_URL_OVERRIDE` for local development chains such as anvil. Public-network deployment scripts may derive
-their RPC URLs and chain IDs from `APPS_ALCHEMY_API_KEY` and `APPS_NETWORK`, but local anvil flows need an explicit
-RPC URL.
+Public-network deployment scripts derive their RPC URLs and chain IDs from `APPS_ALCHEMY_API_KEY` and
+`APPS_NETWORK`. For `APPS_NETWORK=anvil`, local scripts default to `http://127.0.0.1:8545`.
+
+`APPS_RPC_URL_OVERRIDE` remains available as an advanced option when a DApp must target a nonstandard local or custom
+RPC endpoint.
 
 ## Local anvil Convention
 

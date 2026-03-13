@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
-import {Ownable} from "@openzeppelin/access/Ownable.sol";
-
 /// @title L2AccountingVault
 /// @notice Tracks per-account L2 accounting balances for a bridge-managed custody model.
-contract L2AccountingVault is Ownable {
+contract L2AccountingVault {
     error ZeroAddress();
     error ZeroAmount();
-    error ControllerAlreadyBound();
     error UnauthorizedController(address caller);
     error InsufficientLiquidBalance(address account, uint256 available, uint256 required);
 
@@ -18,27 +15,22 @@ contract L2AccountingVault is Ownable {
 
     mapping(address account => uint256 amount) public liquidBalances;
 
-    address public controller;
+    address public immutable controller;
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    constructor(address controller_) {
+        if (controller_ == address(0)) {
+            revert ZeroAddress();
+        }
+
+        controller = controller_;
+        emit ControllerBound(controller_);
+    }
 
     modifier onlyController() {
         if (msg.sender != controller) {
             revert UnauthorizedController(msg.sender);
         }
         _;
-    }
-
-    function bindController(address newController) external onlyOwner {
-        if (newController == address(0)) {
-            revert ZeroAddress();
-        }
-        if (controller != address(0)) {
-            revert ControllerAlreadyBound();
-        }
-
-        controller = newController;
-        emit ControllerBound(newController);
     }
 
     function creditLiquidBalance(address account, uint256 amount) external onlyController {

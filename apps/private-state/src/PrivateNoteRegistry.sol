@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
-import {Ownable} from "@openzeppelin/access/Ownable.sol";
-
 /// @title PrivateNoteRegistry
 /// @notice Stores note commitments only for the non-private zk-note DApp.
-contract PrivateNoteRegistry is Ownable {
+contract PrivateNoteRegistry {
     error ZeroAddress();
     error ZeroCommitment();
-    error ControllerAlreadyBound();
     error UnauthorizedController(address caller);
     error CommitmentAlreadyExists(bytes32 commitment);
 
@@ -17,27 +14,22 @@ contract PrivateNoteRegistry is Ownable {
 
     mapping(bytes32 commitment => bool exists) public commitmentExists;
 
-    address public controller;
+    address public immutable controller;
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    constructor(address controller_) {
+        if (controller_ == address(0)) {
+            revert ZeroAddress();
+        }
+
+        controller = controller_;
+        emit ControllerBound(controller_);
+    }
 
     modifier onlyController() {
         if (msg.sender != controller) {
             revert UnauthorizedController(msg.sender);
         }
         _;
-    }
-
-    function bindController(address newController) external onlyOwner {
-        if (newController == address(0)) {
-            revert ZeroAddress();
-        }
-        if (controller != address(0)) {
-            revert ControllerAlreadyBound();
-        }
-
-        controller = newController;
-        emit ControllerBound(newController);
     }
 
     function registerCommitment(bytes32 commitment) external onlyController {

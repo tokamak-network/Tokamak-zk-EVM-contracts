@@ -142,7 +142,27 @@ Review questions:
 - Which state can be isolated behind a coordinator without duplicating truth?
 - Is any field duplicated across stores when one canonical source would suffice?
 
-## 7. Review Output
+## 7. Admin and Controller Wiring
+
+Preferred default:
+
+- no `owner` role on DApp contracts
+- no mutable `setController` or `bindController`
+- constructor-bound immutable controller addresses
+
+If a controller is required:
+
+- register it through deployment-time constructor arguments
+- avoid post-deployment admin wiring
+- when circular dependencies exist, solve them with deterministic address prediction and CREATE2 in the deployment script rather than by reintroducing mutable admin hooks
+
+Review questions:
+
+- Does the design still rely on an owner role that could have been removed?
+- Is the controller relationship immutable after deployment?
+- If address prediction is used, is the deployment flow deterministic and explicitly documented?
+
+## 8. Review Output
 
 When reporting on a new app design, explicitly answer:
 
@@ -155,4 +175,5 @@ When reporting on a new app design, explicitly answer:
 7. Should storage remain in one address or be split across multiple addresses?
 8. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
 9. Are app deployment secrets and RPC settings isolated in `apps/.env`, with shared app-level signer and network variables plus DApp-specific namespaced values only where needed?
-10. Does the deployment flow keep the shared app deployment signer as the initial owner instead of introducing a separate per-DApp owner env parameter?
+10. Was contract-level admin ownership removed where it was not strictly necessary?
+11. If a controller exists, is it wired immutably at deployment time rather than through a mutable admin step?

@@ -6,30 +6,49 @@ import {L2AccountingVault} from "../../apps/private-state/src/L2AccountingVault.
 import {PrivateNullifierRegistry} from "../../apps/private-state/src/PrivateNullifierRegistry.sol";
 import {PrivateNoteRegistry} from "../../apps/private-state/src/PrivateNoteRegistry.sol";
 import {PrivateStateController} from "../../apps/private-state/src/PrivateStateController.sol";
+import {PrivateStateDeploymentFactory} from "../../apps/private-state/script/deploy/PrivateStateDeploymentFactory.sol";
 
 contract PrivateStateControllerTest is Test {
-    address private owner = makeAddr("owner");
     address private alice = makeAddr("alice");
     address private bob = makeAddr("bob");
     address private mallory = makeAddr("mallory");
     address private canonicalAsset = makeAddr("canonical-asset");
 
+    bytes32 private constant L2_ACCOUNTING_VAULT_SALT = keccak256("private-state.l2-accounting-vault");
+    bytes32 private constant NOTE_REGISTRY_SALT = keccak256("private-state.note-registry");
+    bytes32 private constant NULLIFIER_REGISTRY_SALT = keccak256("private-state.nullifier-registry");
+
     L2AccountingVault private l2AccountingVault;
     PrivateNullifierRegistry private nullifierStore;
     PrivateNoteRegistry private noteRegistry;
     PrivateStateController private controller;
+    PrivateStateDeploymentFactory private deploymentFactory;
 
     function setUp() public {
-        l2AccountingVault = new L2AccountingVault(owner);
-        nullifierStore = new PrivateNullifierRegistry(owner);
-        noteRegistry = new PrivateNoteRegistry(owner);
-        controller = new PrivateStateController(noteRegistry, nullifierStore, l2AccountingVault, canonicalAsset);
+        deploymentFactory = new PrivateStateDeploymentFactory();
 
-        vm.startPrank(owner);
-        l2AccountingVault.bindController(address(controller));
-        nullifierStore.bindController(address(controller));
-        noteRegistry.bindController(address(controller));
-        vm.stopPrank();
+        address predictedController = vm.computeCreateAddress(address(deploymentFactory), 1);
+        address predictedL2AccountingVault = vm.computeCreate2Address(
+            L2_ACCOUNTING_VAULT_SALT, _l2AccountingVaultInitCodeHash(predictedController), address(deploymentFactory)
+        );
+        address predictedNoteRegistry =
+            vm.computeCreate2Address(NOTE_REGISTRY_SALT, _noteRegistryInitCodeHash(predictedController), address(deploymentFactory));
+        address predictedNullifierRegistry = vm.computeCreate2Address(
+            NULLIFIER_REGISTRY_SALT, _nullifierRegistryInitCodeHash(predictedController), address(deploymentFactory)
+        );
+
+        controller = deploymentFactory.deployController(
+            predictedNoteRegistry, predictedNullifierRegistry, predictedL2AccountingVault, canonicalAsset
+        );
+        l2AccountingVault = deploymentFactory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController);
+        noteRegistry = deploymentFactory.deployPrivateNoteRegistry(NOTE_REGISTRY_SALT, predictedController);
+        nullifierStore =
+            deploymentFactory.deployPrivateNullifierRegistry(NULLIFIER_REGISTRY_SALT, predictedController);
+
+        assertEq(address(controller), predictedController);
+        assertEq(address(l2AccountingVault), predictedL2AccountingVault);
+        assertEq(address(noteRegistry), predictedNoteRegistry);
+        assertEq(address(nullifierStore), predictedNullifierRegistry);
     }
 
     function testTransferNotes4BridgeDepositRedeemAndBridgeWithdraw() public {
@@ -366,18 +385,10 @@ contract PrivateStateControllerTest is Test {
         controller.bridgeWithdraw(11 ether);
     }
 
-    function testStoreControllerCannotBeRebound() public {
-        vm.expectRevert(L2AccountingVault.ControllerAlreadyBound.selector);
-        vm.prank(owner);
-        l2AccountingVault.bindController(mallory);
-
-        vm.expectRevert(PrivateNoteRegistry.ControllerAlreadyBound.selector);
-        vm.prank(owner);
-        noteRegistry.bindController(mallory);
-
-        vm.expectRevert(PrivateNullifierRegistry.ControllerAlreadyBound.selector);
-        vm.prank(owner);
-        nullifierStore.bindController(mallory);
+    function testStoresUseImmutablePredictedController() public view {
+        assertEq(l2AccountingVault.controller(), address(controller));
+        assertEq(noteRegistry.controller(), address(controller));
+        assertEq(nullifierStore.controller(), address(controller));
     }
 
     function _mintNote(address noteOwner, uint256 value, bytes32 salt)
@@ -478,5 +489,17 @@ contract PrivateStateControllerTest is Test {
 
     function _nullifierOf(PrivateStateController.Note memory note) internal view returns (bytes32) {
         return controller.computeNullifier(note.value, note.owner, note.salt);
+    }
+
+    function _l2AccountingVaultInitCodeHash(address controller_) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(type(L2AccountingVault).creationCode, abi.encode(controller_)));
+    }
+
+    function _noteRegistryInitCodeHash(address controller_) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(type(PrivateNoteRegistry).creationCode, abi.encode(controller_)));
+    }
+
+    function _nullifierRegistryInitCodeHash(address controller_) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(type(PrivateNullifierRegistry).creationCode, abi.encode(controller_)));
     }
 }

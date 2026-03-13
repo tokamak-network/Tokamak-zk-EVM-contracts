@@ -36,20 +36,25 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - The L2 vault is not a real token custody contract.
    - Keep its storage layout standardized across DApps and restrict it to bridge-coupled accounting concerns.
    - If an app needs extra per-user accounting, build it around the shared L2 accounting vault pattern rather than inventing a custom direct-custody vault.
-8. Keep DApp deployment assets isolated from bridge deployment assets:
+8. Remove contract-level owner roles from app contracts by default:
+   - Do not add `Ownable` or similar admin roles unless the task explicitly requires an operational admin path.
+   - If a DApp needs a controller, bind that relationship at deployment time rather than through a mutable owner-controlled setter.
+   - Prefer constructor-bound immutable controller addresses.
+   - When the controller and storage contracts depend on each other, use deterministic address prediction and CREATE2 in the app-local deployment flow instead of adding post-deployment controller registration.
+9. Keep DApp deployment assets isolated from bridge deployment assets:
    - Store each DApp deployment script under `apps/<dapp>/script/deploy`.
    - Store app deployment parameters in `apps/.env`.
    - Share the deployment signer and target network across DApps through common app-level variables.
-   - Keep the shared deployment signer as the initial owner for DApp contracts created through that deployment flow.
-   - Namespace only DApp-specific deployment values, for example `PRIVATE_STATE_CANONICAL_ASSET`.
-   - Do not add per-DApp owner env variables unless an explicit post-deployment ownership transfer requirement exists.
+    - Namespace only DApp-specific deployment values, for example `PRIVATE_STATE_CANONICAL_ASSET`.
+   - Do not add per-DApp owner env variables in the default app deployment model.
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
-9. Keep the review explicit in the final response:
+10. Keep the review explicit in the final response:
    - State whether the entrypoints satisfy the zk-L2 privacy assumption.
    - State whether the successful symbolic path for each user-facing function appears unique.
    - State whether the app respects bridge-managed custody and avoids direct user interaction with the L2 accounting vault.
    - State whether storage should remain centralized or be split across addresses.
    - State whether deployment scripts and env configuration are isolated under the DApp folder and `apps/.env`.
+   - State whether admin ownership was removed and whether any remaining controller wiring is immutable and deployment-bound.
 
 ## Resources
 

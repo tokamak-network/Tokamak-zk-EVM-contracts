@@ -32,26 +32,21 @@ This preserves spend authorization semantics. Privacy assumptions depend on the 
 
 ## Owner Roles
 
-This DApp uses two different notions of ownership:
+This DApp now has only one ownership concept at the contract layer:
 
 - `note owner`: the address embedded in a note plaintext that is allowed to spend that note
-- `contract owner`: the `Ownable` administrator of `L2AccountingVault`, `PrivateNoteRegistry`, and `PrivateNullifierRegistry`
 
-The two roles are intentionally separate. A note owner controls note spending through the controller entrypoints. A contract owner does not gain direct authority over user notes, commitments, nullifiers, or L2 accounting balances.
+There is no storage-contract `owner` role anymore. `L2AccountingVault`, `PrivateNoteRegistry`, and
+`PrivateNullifierRegistry` each receive the controller address in their constructor and keep it as an immutable value.
 
-In the current design, the contract owner has a narrow bootstrap role only:
+As a result:
 
-- call `bindController()` once on each storage contract
-- transfer or renounce ownership of those storage contracts later if desired
+- note spending authority still belongs to the note owner through controller entrypoints
+- storage contracts do not expose an administrative rebinding path
+- controller trust is fixed at deployment time rather than managed post-deployment
 
-After controller binding is complete, the contract owner cannot:
-
-- spend a user's note
-- register commitments directly
-- mark nullifiers as used directly
-- credit or debit user accounting balances directly
-
-Those state changes remain restricted to the bound controller. As a result, the contract owner is best understood as an initialization and administration role, not as an operator with direct user-fund control.
+This removes an administrative attack surface, but it also means a controller deployment mistake or controller bug
+cannot be repaired through an owner action.
 
 ## Nullifier Model
 
@@ -115,7 +110,14 @@ The repository now includes:
 - `apps/private-state/script/deploy/deploy-private-state.sh`
 - `apps/.env.template`
 
-The deploy script deploys `L2AccountingVault`, `PrivateNoteRegistry`, `PrivateNullifierRegistry`, and `PrivateStateController`, then binds the controller to the three storage contracts. The deployment signer remains the owner of all three storage contracts.
+The deploy script uses a deployment factory and deterministic address prediction:
+
+1. predict the future controller address
+2. predict the three storage contract addresses from CREATE2 salts and the predicted controller address
+3. deploy the controller first using the predicted storage addresses
+4. deploy the three storage contracts with the predicted controller address embedded in their constructor
+
+There is no `bindController()` step and no storage-contract owner. The controller relationship is fixed at deployment time.
 
 private-state deployment parameters must be stored in `apps/.env`, not in the repository-root bridge deployment `.env`.
 
@@ -130,7 +132,7 @@ It uses a namespaced variable only for the private-state-specific value:
 
 - `PRIVATE_STATE_CANONICAL_ASSET`
 
-There is no `PRIVATE_STATE_OWNER` parameter. The deployment signer is always the initial owner for the private-state storage contracts.
+There is no `PRIVATE_STATE_OWNER` parameter.
 
 ## Security Tradeoffs
 

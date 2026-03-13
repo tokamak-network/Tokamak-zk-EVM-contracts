@@ -1,0 +1,20 @@
+# Environment template for private-state deployment
+
+# Required deployment signer
+PRIVATE_KEY=your_private_key_here
+
+# Required RPC endpoint and chain id
+RPC_URL=https://eth-sepolia.example/v2/YOUR_API_KEY
+CHAIN_ID=11155111
+
+# Required canonical asset address used in note commitments and nullifiers
+# If private-state is tied to the same Sepolia TON target as the bridge deployment,
+# reuse that address here.
+PRIVATE_STATE_CANONICAL_ASSET=0xa30fe40285B8f5c0457DbC3B7C8A280373c40044
+
+# Optional final owner for the vault and registries.
+# When omitted, the deployer remains the owner.
+PRIVATE_STATE_OWNER=
+
+# Optional block explorer verification
+ETHERSCAN_API_KEY=your_etherscan_api_key_here

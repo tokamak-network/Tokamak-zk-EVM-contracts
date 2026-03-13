@@ -77,6 +77,23 @@ The current redeem API exposes three fixed-arity user-facing functions:
 
 These fixed entrypoints are intended to make the final user-facing state transitions more circuit-friendly under the repository's zk-L2 design constraints.
 
+## Deployment Inputs
+
+Sepolia deployment requires four concrete inputs:
+
+- the deployer private key
+- the Sepolia RPC URL
+- the Sepolia chain ID
+- the canonical TON asset address used as `canonicalAsset`
+
+The repository now includes:
+
+- `script/deploy/DeployPrivateState.s.sol`
+- `script/deploy/deploy-private-state.sh`
+- `script/deploy/env-private-state.template`
+
+The deploy script deploys `L2AccountingVault`, `PrivateNoteRegistry`, `PrivateNullifierRegistry`, and `PrivateStateController`, binds the controller to the three storage contracts, and optionally transfers ownership of those storage contracts to `PRIVATE_STATE_OWNER`.
+
 ## Security Tradeoffs
 
 Because note validity is still checked directly in contract code:
@@ -84,3 +101,4 @@ Because note validity is still checked directly in contract code:
 - The system still relies on cross-contract invariants between the controller, accounting vault, note registry, and nullifier registry.
 - The bridge-coupled accounting entrypoints model proof-backed L1 bridge settlement rather than standalone L2 token custody.
 - Privacy depends on the surrounding L2 execution model, not solely on these contracts.
+- The current `bridgeDeposit` and `bridgeWithdraw` functions remain direct user entrypoints. As a result, the deployed contract set does not by itself enforce the stricter architecture where only L1 bridge proof settlement may mutate L2 accounting balances.

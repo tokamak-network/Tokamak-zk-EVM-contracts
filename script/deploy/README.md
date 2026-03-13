@@ -11,6 +11,7 @@ This folder contains all deployment scripts for the Tokamak zk-EVM bridge system
 3. **RegisterFunction.s.sol** - Registers functions in deployed contracts
 4. **SetChannelPublicKey.s.sol** - Sets channel public keys
 5. **TestGroth16Integration.s.sol** - Tests Groth16 integration
+6. **DeployPrivateState.s.sol** - Deploys the private-state application contracts
 
 ### Shell Scripts (.sh)
 
@@ -19,10 +20,12 @@ This folder contains all deployment scripts for the Tokamak zk-EVM bridge system
 3. **register-function.sh** - Executes function registration
 4. **set-channel-public-key.sh** - Executes channel public key setup
 5. **test-groth16-integration.sh** - Executes Groth16 integration tests
+6. **deploy-private-state.sh** - Executes private-state deployment
 
 ## Configuration Files
 
 - **env-v2.template** - Template for environment variables needed for V2 deployment
+- **env-private-state.template** - Template for environment variables needed for private-state deployment
 
 ## Usage
 
@@ -63,6 +66,9 @@ cd script/deploy
 
 # Test Groth16 integration
 ./test-groth16-integration.sh
+
+# Deploy private-state
+./deploy-private-state.sh
 ```
 
 ## Important Notes
@@ -76,6 +82,8 @@ cd script/deploy
 4. **Gas Costs**: Deployment can be expensive on mainnet. Test thoroughly on testnet first.
 
 5. **Security**: Never commit your `.env` file with real private keys to version control.
+
+6. **private-state deployment note**: The current private-state contracts still expose `bridgeDeposit` and `bridgeWithdraw` as direct user entrypoints. That makes the deployment usable for Sepolia testing, but not a complete enforcement of an L1-proof-only accounting model.
 
 ## Script Features
 

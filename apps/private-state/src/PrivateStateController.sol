@@ -2,9 +2,9 @@
 pragma solidity 0.8.29;
 
 import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
+import {L2AccountingVault} from "./L2AccountingVault.sol";
 import {PrivateNullifierRegistry} from "./PrivateNullifierRegistry.sol";
 import {PrivateNoteRegistry} from "./PrivateNoteRegistry.sol";
-import {TokenVault} from "./TokenVault.sol";
 
 /// @title PrivateStateController
 /// @notice User-facing application logic for the non-private zk-note DApp.
@@ -22,36 +22,46 @@ contract PrivateStateController is ReentrancyGuard {
         bytes32 salt;
     }
 
-    event TokenDeposited(address indexed payer, address indexed beneficiary, address indexed token, uint256 amount);
+    event BridgeDepositApplied(address indexed account, uint256 amount);
     event NoteMinted(
         address indexed liquidBalanceOwner, bytes32 indexed commitment, address indexed noteOwner, uint256 amount
     );
     event NotesTransferred(address indexed operator, uint256 inputCount, uint256 outputCount);
     event NotesRedeemed(address indexed operator, address indexed receiver, uint256 inputCount);
-    event TokenWithdrawn(address indexed account, address indexed receiver, uint256 amount);
+    event BridgeWithdrawalApplied(address indexed account, uint256 amount);
 
     PrivateNullifierRegistry public immutable nullifierStore;
     PrivateNoteRegistry public immutable noteRegistry;
-    TokenVault public immutable tokenVault;
-    address public immutable tokamakNetworkToken;
+    L2AccountingVault public immutable l2AccountingVault;
+    address public immutable canonicalAsset;
 
-    constructor(PrivateNoteRegistry noteRegistry_, PrivateNullifierRegistry nullifierStore_, TokenVault tokenVault_) {
+    constructor(
+        PrivateNoteRegistry noteRegistry_,
+        PrivateNullifierRegistry nullifierStore_,
+        L2AccountingVault l2AccountingVault_,
+        address canonicalAsset_
+    ) {
         if (
             address(noteRegistry_) == address(0) || address(nullifierStore_) == address(0)
-                || address(tokenVault_) == address(0)
+                || address(l2AccountingVault_) == address(0) || canonicalAsset_ == address(0)
         ) {
             revert ZeroAddress();
         }
 
         nullifierStore = nullifierStore_;
         noteRegistry = noteRegistry_;
-        tokenVault = tokenVault_;
-        tokamakNetworkToken = address(tokenVault_.tokamakNetworkToken());
+        l2AccountingVault = l2AccountingVault_;
+        canonicalAsset = canonicalAsset_;
     }
 
-    function depositToken(uint256 amount) external nonReentrant {
-        tokenVault.deposit(msg.sender, msg.sender, amount);
-        emit TokenDeposited(msg.sender, msg.sender, tokamakNetworkToken, amount);
+    function bridgeDeposit(uint256 amount) external nonReentrant {
+        l2AccountingVault.creditLiquidBalance(msg.sender, amount);
+        emit BridgeDepositApplied(msg.sender, amount);
+    }
+
+    function bridgeWithdraw(uint256 amount) external nonReentrant {
+        l2AccountingVault.debitLiquidBalance(msg.sender, amount);
+        emit BridgeWithdrawalApplied(msg.sender, amount);
     }
 
     function mintNotes1(Note[1] calldata outputs) external nonReentrant returns (bytes32[1] memory commitments) {
@@ -163,19 +173,14 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function withdrawToken(uint256 amount, address receiver) external nonReentrant {
-        tokenVault.withdraw(msg.sender, receiver, amount);
-        emit TokenWithdrawn(msg.sender, receiver, amount);
-    }
-
     function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
         _validateNoteFields(value, owner);
-        return keccak256(abi.encode(block.chainid, address(noteRegistry), tokamakNetworkToken, value, owner, salt));
+        return keccak256(abi.encode(block.chainid, address(noteRegistry), canonicalAsset, value, owner, salt));
     }
 
     function computeNullifier(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
         _validateNoteFields(value, owner);
-        return keccak256(abi.encode(block.chainid, address(nullifierStore), tokamakNetworkToken, value, owner, salt));
+        return keccak256(abi.encode(block.chainid, address(nullifierStore), canonicalAsset, value, owner, salt));
     }
 
     function _transferFixedNotes(Note[] memory inputNotes, Note[3] calldata outputs)
@@ -231,7 +236,7 @@ contract PrivateStateController is ReentrancyGuard {
             totalValue += outputs[i].value;
         }
 
-        tokenVault.debitLiquidBalance(msg.sender, totalValue);
+        l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
 
         for (uint256 i = 0; i < outputs.length; ++i) {
             commitments[i] = computeNoteCommitment(outputs[i].value, outputs[i].owner, outputs[i].salt);
@@ -266,7 +271,7 @@ contract PrivateStateController is ReentrancyGuard {
 
         for (uint256 i = 0; i < inputNotes.length; ++i) {
             nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
-            tokenVault.creditLiquidBalance(receiver, inputNotes[i].value);
+            l2AccountingVault.creditLiquidBalance(receiver, inputNotes[i].value);
         }
 
         emit NotesRedeemed(msg.sender, receiver, inputNotes.length);

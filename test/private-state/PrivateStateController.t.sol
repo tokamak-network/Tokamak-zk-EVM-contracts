@@ -2,75 +2,56 @@
 pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
-import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
+import {L2AccountingVault} from "../../apps/private-state/src/L2AccountingVault.sol";
 import {PrivateNullifierRegistry} from "../../apps/private-state/src/PrivateNullifierRegistry.sol";
 import {PrivateNoteRegistry} from "../../apps/private-state/src/PrivateNoteRegistry.sol";
 import {PrivateStateController} from "../../apps/private-state/src/PrivateStateController.sol";
-import {TokenVault} from "../../apps/private-state/src/TokenVault.sol";
-
-contract MockToken is ERC20 {
-    constructor() ERC20("Tokamak Network Token", "TON") {}
-
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
-    }
-}
 
 contract PrivateStateControllerTest is Test {
     address private owner = makeAddr("owner");
     address private alice = makeAddr("alice");
     address private bob = makeAddr("bob");
     address private mallory = makeAddr("mallory");
+    address private canonicalAsset = makeAddr("canonical-asset");
 
-    MockToken private token;
-    TokenVault private tokenVault;
+    L2AccountingVault private l2AccountingVault;
     PrivateNullifierRegistry private nullifierStore;
     PrivateNoteRegistry private noteRegistry;
     PrivateStateController private controller;
 
     function setUp() public {
-        token = new MockToken();
-        tokenVault = new TokenVault(owner, address(token));
+        l2AccountingVault = new L2AccountingVault(owner);
         nullifierStore = new PrivateNullifierRegistry(owner);
         noteRegistry = new PrivateNoteRegistry(owner);
-        controller = new PrivateStateController(noteRegistry, nullifierStore, tokenVault);
+        controller = new PrivateStateController(noteRegistry, nullifierStore, l2AccountingVault, canonicalAsset);
 
         vm.startPrank(owner);
-        tokenVault.bindController(address(controller));
+        l2AccountingVault.bindController(address(controller));
         nullifierStore.bindController(address(controller));
         noteRegistry.bindController(address(controller));
         vm.stopPrank();
-
-        token.mint(alice, 1_000 ether);
-        token.mint(bob, 1_000 ether);
-
-        vm.prank(alice);
-        token.approve(address(tokenVault), type(uint256).max);
-
-        vm.prank(bob);
-        token.approve(address(tokenVault), type(uint256).max);
     }
 
-    function testTransferNotes4DepositRedeemAndWithdraw() public {
+    function testTransferNotes4BridgeDepositRedeemAndBridgeWithdraw() public {
         vm.prank(alice);
-        controller.depositToken(100 ether);
+        controller.bridgeDeposit(100 ether);
 
-        assertEq(tokenVault.liquidBalances(alice), 100 ether);
-        assertEq(token.balanceOf(address(tokenVault)), 100 ether);
+        assertEq(l2AccountingVault.liquidBalances(alice), 100 ether);
 
-        PrivateStateController.Note memory note0 = _mintNote(alice, 10 ether, bytes32("alice-4-0"), "enc:alice-4-0");
-        PrivateStateController.Note memory note1 = _mintNote(alice, 15 ether, bytes32("alice-4-1"), "enc:alice-4-1");
-        PrivateStateController.Note memory note2 = _mintNote(alice, 20 ether, bytes32("alice-4-2"), "enc:alice-4-2");
-        PrivateStateController.Note memory note3 = _mintNote(alice, 15 ether, bytes32("alice-4-3"), "enc:alice-4-3");
+        PrivateStateController.Note memory note0 = _mintNote(alice, 10 ether, bytes32("alice-4-0"));
+        PrivateStateController.Note memory note1 = _mintNote(alice, 15 ether, bytes32("alice-4-1"));
+        PrivateStateController.Note memory note2 = _mintNote(alice, 20 ether, bytes32("alice-4-2"));
+        PrivateStateController.Note memory note3 = _mintNote(alice, 15 ether, bytes32("alice-4-3"));
 
-        assertEq(tokenVault.liquidBalances(alice), 40 ether);
+        assertEq(l2AccountingVault.liquidBalances(alice), 40 ether);
 
-        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(note0, note1, note2, note3);
-        PrivateStateController.Note[3] memory outputs = _outputNotes3(
-            _outputNote(bob, 35 ether, bytes32("bob-4-0")),
-            _outputNote(alice, 15 ether, bytes32("alice-4-change-0")),
-            _outputNote(alice, 10 ether, bytes32("alice-4-change-1"))
+        PrivateStateController.Note[4] memory inputNotes = _notes4(note0, note1, note2, note3);
+        PrivateStateController.Note[3] memory outputs = _notes3(
+            _note(bob, 35 ether, bytes32("bob-4-0")),
+            _note(alice, 15 ether, bytes32("alice-4-change-0")),
+            _note(alice, 10 ether, bytes32("alice-4-change-1"))
         );
+
         vm.prank(alice);
         (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments) =
             controller.transferNotes4(inputNotes, outputs);
@@ -82,53 +63,47 @@ contract PrivateStateControllerTest is Test {
             assertTrue(noteRegistry.commitmentExists(outputCommitments[i]));
         }
 
-        PrivateStateController.Note[4] memory bobNotes = _inputNotes4(
-            _inputNote(35 ether, bob, bytes32("bob-4-0")),
-            _inputNote(10 ether, bob, bytes32("bob-4-dummy-1")),
-            _inputNote(10 ether, bob, bytes32("bob-4-dummy-2")),
-            _inputNote(10 ether, bob, bytes32("bob-4-dummy-3"))
+        PrivateStateController.Note[4] memory bobNotes = _notes4(
+            _note(bob, 35 ether, bytes32("bob-4-0")),
+            _note(bob, 10 ether, bytes32("bob-4-dummy-1")),
+            _note(bob, 10 ether, bytes32("bob-4-dummy-2")),
+            _note(bob, 10 ether, bytes32("bob-4-dummy-3"))
         );
 
         vm.prank(bob);
-        controller.depositToken(30 ether);
+        controller.bridgeDeposit(30 ether);
 
-        vm.prank(bob);
-        controller.mintNotes1(_outputNotes1(_outputNote(bob, 10 ether, bytes32("bob-4-dummy-1"))));
-        vm.prank(bob);
-        controller.mintNotes1(_outputNotes1(_outputNote(bob, 10 ether, bytes32("bob-4-dummy-2"))));
-        vm.prank(bob);
-        controller.mintNotes1(_outputNotes1(_outputNote(bob, 10 ether, bytes32("bob-4-dummy-3"))));
-
-        vm.prank(bob);
+        vm.startPrank(bob);
+        controller.mintNotes1(_noteArray1(_note(bob, 10 ether, bytes32("bob-4-dummy-1"))));
+        controller.mintNotes1(_noteArray1(_note(bob, 10 ether, bytes32("bob-4-dummy-2"))));
+        controller.mintNotes1(_noteArray1(_note(bob, 10 ether, bytes32("bob-4-dummy-3"))));
         controller.redeemNotes4(bobNotes, bob);
+        vm.stopPrank();
 
-        assertEq(tokenVault.liquidBalances(bob), 65 ether);
-
-        uint256 bobBalanceBefore = token.balanceOf(bob);
+        assertEq(l2AccountingVault.liquidBalances(bob), 65 ether);
 
         vm.prank(bob);
-        controller.withdrawToken(65 ether, bob);
+        controller.bridgeWithdraw(65 ether);
 
-        assertEq(tokenVault.liquidBalances(bob), 0);
-        assertEq(token.balanceOf(bob), bobBalanceBefore + 65 ether);
-        assertEq(token.balanceOf(address(tokenVault)), 65 ether);
+        assertEq(l2AccountingVault.liquidBalances(bob), 0);
     }
 
     function testTransferNotes4CannotTransferAnotherOwnersNotes() public {
         vm.prank(alice);
-        controller.depositToken(40 ether);
+        controller.bridgeDeposit(40 ether);
 
-        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
-            _mintNote(alice, 10 ether, bytes32("alice-4b-0"), "enc:alice-4b-0"),
-            _mintNote(alice, 10 ether, bytes32("alice-4b-1"), "enc:alice-4b-1"),
-            _mintNote(alice, 10 ether, bytes32("alice-4b-2"), "enc:alice-4b-2"),
-            _mintNote(alice, 10 ether, bytes32("alice-4b-3"), "enc:alice-4b-3")
+        PrivateStateController.Note[4] memory inputNotes = _notes4(
+            _mintNote(alice, 10 ether, bytes32("alice-4b-0")),
+            _mintNote(alice, 10 ether, bytes32("alice-4b-1")),
+            _mintNote(alice, 10 ether, bytes32("alice-4b-2")),
+            _mintNote(alice, 10 ether, bytes32("alice-4b-3"))
         );
-        PrivateStateController.Note[3] memory outputs = _outputNotes3(
-            _outputNote(bob, 20 ether, bytes32("bob-4b-0")),
-            _outputNote(alice, 10 ether, bytes32("alice-4b-change-0")),
-            _outputNote(alice, 10 ether, bytes32("alice-4b-change-1"))
+        PrivateStateController.Note[3] memory outputs = _notes3(
+            _note(bob, 20 ether, bytes32("bob-4b-0")),
+            _note(alice, 10 ether, bytes32("alice-4b-change-0")),
+            _note(alice, 10 ether, bytes32("alice-4b-change-1"))
         );
+
         vm.expectRevert(abi.encodeWithSelector(PrivateStateController.UnauthorizedNoteOwner.selector, mallory, alice));
         vm.prank(mallory);
         controller.transferNotes4(inputNotes, outputs);
@@ -136,19 +111,20 @@ contract PrivateStateControllerTest is Test {
 
     function testTransferNotes4CannotReplaySpentNotes() public {
         vm.prank(alice);
-        controller.depositToken(40 ether);
+        controller.bridgeDeposit(40 ether);
 
-        PrivateStateController.Note memory note0 = _mintNote(alice, 10 ether, bytes32("alice-4c-0"), "enc:alice-4c-0");
-        PrivateStateController.Note memory note1 = _mintNote(alice, 10 ether, bytes32("alice-4c-1"), "enc:alice-4c-1");
-        PrivateStateController.Note memory note2 = _mintNote(alice, 10 ether, bytes32("alice-4c-2"), "enc:alice-4c-2");
-        PrivateStateController.Note memory note3 = _mintNote(alice, 10 ether, bytes32("alice-4c-3"), "enc:alice-4c-3");
+        PrivateStateController.Note memory note0 = _mintNote(alice, 10 ether, bytes32("alice-4c-0"));
+        PrivateStateController.Note memory note1 = _mintNote(alice, 10 ether, bytes32("alice-4c-1"));
+        PrivateStateController.Note memory note2 = _mintNote(alice, 10 ether, bytes32("alice-4c-2"));
+        PrivateStateController.Note memory note3 = _mintNote(alice, 10 ether, bytes32("alice-4c-3"));
 
-        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(note0, note1, note2, note3);
-        PrivateStateController.Note[3] memory outputs = _outputNotes3(
-            _outputNote(alice, 15 ether, bytes32("alice-4c-out-0")),
-            _outputNote(alice, 15 ether, bytes32("alice-4c-out-1")),
-            _outputNote(alice, 10 ether, bytes32("alice-4c-out-2"))
+        PrivateStateController.Note[4] memory inputNotes = _notes4(note0, note1, note2, note3);
+        PrivateStateController.Note[3] memory outputs = _notes3(
+            _note(alice, 15 ether, bytes32("alice-4c-out-0")),
+            _note(alice, 15 ether, bytes32("alice-4c-out-1")),
+            _note(alice, 10 ether, bytes32("alice-4c-out-2"))
         );
+
         vm.prank(alice);
         controller.transferNotes4(inputNotes, outputs);
 
@@ -161,19 +137,20 @@ contract PrivateStateControllerTest is Test {
 
     function testTransferNotes4RejectsValueMismatch() public {
         vm.prank(alice);
-        controller.depositToken(40 ether);
+        controller.bridgeDeposit(40 ether);
 
-        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
-            _mintNote(alice, 10 ether, bytes32("alice-4d-0"), "enc:alice-4d-0"),
-            _mintNote(alice, 10 ether, bytes32("alice-4d-1"), "enc:alice-4d-1"),
-            _mintNote(alice, 10 ether, bytes32("alice-4d-2"), "enc:alice-4d-2"),
-            _mintNote(alice, 10 ether, bytes32("alice-4d-3"), "enc:alice-4d-3")
+        PrivateStateController.Note[4] memory inputNotes = _notes4(
+            _mintNote(alice, 10 ether, bytes32("alice-4d-0")),
+            _mintNote(alice, 10 ether, bytes32("alice-4d-1")),
+            _mintNote(alice, 10 ether, bytes32("alice-4d-2")),
+            _mintNote(alice, 10 ether, bytes32("alice-4d-3"))
         );
-        PrivateStateController.Note[3] memory outputs = _outputNotes3(
-            _outputNote(bob, 20 ether, bytes32("bob-4d-0")),
-            _outputNote(alice, 10 ether, bytes32("alice-4d-change-0")),
-            _outputNote(alice, 11 ether, bytes32("alice-4d-change-1"))
+        PrivateStateController.Note[3] memory outputs = _notes3(
+            _note(bob, 20 ether, bytes32("bob-4d-0")),
+            _note(alice, 10 ether, bytes32("alice-4d-change-0")),
+            _note(alice, 11 ether, bytes32("alice-4d-change-1"))
         );
+
         vm.expectRevert(
             abi.encodeWithSelector(PrivateStateController.InputOutputValueMismatch.selector, 40 ether, 41 ether)
         );
@@ -183,21 +160,22 @@ contract PrivateStateControllerTest is Test {
 
     function testTransferNotes6OwnerCanTransferDirectly() public {
         vm.prank(alice);
-        controller.depositToken(60 ether);
+        controller.bridgeDeposit(60 ether);
 
-        PrivateStateController.Note[6] memory inputNotes = _inputNotes6(
-            _mintNote(alice, 10 ether, bytes32("alice-6-0"), "enc:alice-6-0"),
-            _mintNote(alice, 10 ether, bytes32("alice-6-1"), "enc:alice-6-1"),
-            _mintNote(alice, 10 ether, bytes32("alice-6-2"), "enc:alice-6-2"),
-            _mintNote(alice, 10 ether, bytes32("alice-6-3"), "enc:alice-6-3"),
-            _mintNote(alice, 10 ether, bytes32("alice-6-4"), "enc:alice-6-4"),
-            _mintNote(alice, 10 ether, bytes32("alice-6-5"), "enc:alice-6-5")
+        PrivateStateController.Note[6] memory inputNotes = _notes6(
+            _mintNote(alice, 10 ether, bytes32("alice-6-0")),
+            _mintNote(alice, 10 ether, bytes32("alice-6-1")),
+            _mintNote(alice, 10 ether, bytes32("alice-6-2")),
+            _mintNote(alice, 10 ether, bytes32("alice-6-3")),
+            _mintNote(alice, 10 ether, bytes32("alice-6-4")),
+            _mintNote(alice, 10 ether, bytes32("alice-6-5"))
         );
-        PrivateStateController.Note[3] memory outputs = _outputNotes3(
-            _outputNote(bob, 30 ether, bytes32("bob-6-0")),
-            _outputNote(alice, 20 ether, bytes32("alice-6-change-0")),
-            _outputNote(alice, 10 ether, bytes32("alice-6-change-1"))
+        PrivateStateController.Note[3] memory outputs = _notes3(
+            _note(bob, 30 ether, bytes32("bob-6-0")),
+            _note(alice, 20 ether, bytes32("alice-6-change-0")),
+            _note(alice, 10 ether, bytes32("alice-6-change-1"))
         );
+
         vm.prank(alice);
         (, bytes32[3] memory outputCommitments) = controller.transferNotes6(inputNotes, outputs);
 
@@ -208,23 +186,24 @@ contract PrivateStateControllerTest is Test {
 
     function testTransferNotes8OwnerCanTransferDirectly() public {
         vm.prank(alice);
-        controller.depositToken(80 ether);
+        controller.bridgeDeposit(80 ether);
 
-        PrivateStateController.Note[8] memory inputNotes = _inputNotes8(
-            _mintNote(alice, 10 ether, bytes32("alice-8-0"), "enc:alice-8-0"),
-            _mintNote(alice, 10 ether, bytes32("alice-8-1"), "enc:alice-8-1"),
-            _mintNote(alice, 10 ether, bytes32("alice-8-2"), "enc:alice-8-2"),
-            _mintNote(alice, 10 ether, bytes32("alice-8-3"), "enc:alice-8-3"),
-            _mintNote(alice, 10 ether, bytes32("alice-8-4"), "enc:alice-8-4"),
-            _mintNote(alice, 10 ether, bytes32("alice-8-5"), "enc:alice-8-5"),
-            _mintNote(alice, 10 ether, bytes32("alice-8-6"), "enc:alice-8-6"),
-            _mintNote(alice, 10 ether, bytes32("alice-8-7"), "enc:alice-8-7")
+        PrivateStateController.Note[8] memory inputNotes = _notes8(
+            _mintNote(alice, 10 ether, bytes32("alice-8-0")),
+            _mintNote(alice, 10 ether, bytes32("alice-8-1")),
+            _mintNote(alice, 10 ether, bytes32("alice-8-2")),
+            _mintNote(alice, 10 ether, bytes32("alice-8-3")),
+            _mintNote(alice, 10 ether, bytes32("alice-8-4")),
+            _mintNote(alice, 10 ether, bytes32("alice-8-5")),
+            _mintNote(alice, 10 ether, bytes32("alice-8-6")),
+            _mintNote(alice, 10 ether, bytes32("alice-8-7"))
         );
-        PrivateStateController.Note[3] memory outputs = _outputNotes3(
-            _outputNote(bob, 40 ether, bytes32("bob-8-0")),
-            _outputNote(alice, 20 ether, bytes32("alice-8-change-0")),
-            _outputNote(alice, 20 ether, bytes32("alice-8-change-1"))
+        PrivateStateController.Note[3] memory outputs = _notes3(
+            _note(bob, 40 ether, bytes32("bob-8-0")),
+            _note(alice, 20 ether, bytes32("alice-8-change-0")),
+            _note(alice, 20 ether, bytes32("alice-8-change-1"))
         );
+
         vm.prank(alice);
         (, bytes32[3] memory outputCommitments) = controller.transferNotes8(inputNotes, outputs);
 
@@ -234,16 +213,16 @@ contract PrivateStateControllerTest is Test {
     }
 
     function testTransferNotes4UnknownCommitmentCannotBeSpent() public {
-        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
-            _inputNote(5 ether, alice, bytes32("unknown-4-0")),
-            _inputNote(5 ether, alice, bytes32("unknown-4-1")),
-            _inputNote(5 ether, alice, bytes32("unknown-4-2")),
-            _inputNote(5 ether, alice, bytes32("unknown-4-3"))
+        PrivateStateController.Note[4] memory inputNotes = _notes4(
+            _note(alice, 5 ether, bytes32("unknown-4-0")),
+            _note(alice, 5 ether, bytes32("unknown-4-1")),
+            _note(alice, 5 ether, bytes32("unknown-4-2")),
+            _note(alice, 5 ether, bytes32("unknown-4-3"))
         );
-        PrivateStateController.Note[3] memory outputs = _outputNotes3(
-            _outputNote(bob, 10 ether, bytes32("unknown-out-0")),
-            _outputNote(alice, 5 ether, bytes32("unknown-out-1")),
-            _outputNote(alice, 5 ether, bytes32("unknown-out-2"))
+        PrivateStateController.Note[3] memory outputs = _notes3(
+            _note(bob, 10 ether, bytes32("unknown-out-0")),
+            _note(alice, 5 ether, bytes32("unknown-out-1")),
+            _note(alice, 5 ether, bytes32("unknown-out-2"))
         );
         bytes32 unknownCommitment = _commitmentOf(inputNotes[0]);
 
@@ -254,19 +233,19 @@ contract PrivateStateControllerTest is Test {
 
     function testRedeemNotes4OwnerCanRedeemDirectly() public {
         vm.prank(alice);
-        controller.depositToken(40 ether);
+        controller.bridgeDeposit(40 ether);
 
-        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-0"), "enc:alice-redeem-0"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-1"), "enc:alice-redeem-1"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-2"), "enc:alice-redeem-2"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-3"), "enc:alice-redeem-3")
+        PrivateStateController.Note[4] memory inputNotes = _notes4(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-0")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-1")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-2")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-3"))
         );
 
         vm.prank(alice);
         bytes32[4] memory nullifiers = controller.redeemNotes4(inputNotes, bob);
 
-        assertEq(tokenVault.liquidBalances(bob), 40 ether);
+        assertEq(l2AccountingVault.liquidBalances(bob), 40 ether);
         for (uint256 i = 0; i < 4; ++i) {
             assertTrue(nullifierStore.nullifierUsed(nullifiers[i]));
         }
@@ -274,13 +253,13 @@ contract PrivateStateControllerTest is Test {
 
     function testRedeemNotes4CannotRedeemAnotherOwnersNotes() public {
         vm.prank(alice);
-        controller.depositToken(40 ether);
+        controller.bridgeDeposit(40 ether);
 
-        PrivateStateController.Note[4] memory inputNotes = _inputNotes4(
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-4"), "enc:alice-redeem-4"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-5"), "enc:alice-redeem-5"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-6"), "enc:alice-redeem-6"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-7"), "enc:alice-redeem-7")
+        PrivateStateController.Note[4] memory inputNotes = _notes4(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-4")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-5")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-7"))
         );
 
         vm.expectRevert(abi.encodeWithSelector(PrivateStateController.UnauthorizedNoteOwner.selector, mallory, alice));
@@ -290,106 +269,107 @@ contract PrivateStateControllerTest is Test {
 
     function testRedeemNotes6OwnerCanRedeemDirectly() public {
         vm.prank(alice);
-        controller.depositToken(60 ether);
+        controller.bridgeDeposit(60 ether);
 
-        PrivateStateController.Note[6] memory inputNotes = _inputNotes6(
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-6a"), "enc:alice-redeem-6a"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-6b"), "enc:alice-redeem-6b"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-6c"), "enc:alice-redeem-6c"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-6d"), "enc:alice-redeem-6d"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-6e"), "enc:alice-redeem-6e"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-6f"), "enc:alice-redeem-6f")
+        PrivateStateController.Note[6] memory inputNotes = _notes6(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6a")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6b")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6c")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6d")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6e")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6f"))
         );
 
         vm.prank(alice);
         controller.redeemNotes6(inputNotes, bob);
 
-        assertEq(tokenVault.liquidBalances(bob), 60 ether);
+        assertEq(l2AccountingVault.liquidBalances(bob), 60 ether);
     }
 
     function testRedeemNotes8OwnerCanRedeemDirectly() public {
         vm.prank(alice);
-        controller.depositToken(80 ether);
+        controller.bridgeDeposit(80 ether);
 
-        PrivateStateController.Note[8] memory inputNotes = _inputNotes8(
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-8a"), "enc:alice-redeem-8a"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-8b"), "enc:alice-redeem-8b"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-8c"), "enc:alice-redeem-8c"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-8d"), "enc:alice-redeem-8d"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-8e"), "enc:alice-redeem-8e"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-8f"), "enc:alice-redeem-8f"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-8g"), "enc:alice-redeem-8g"),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-8h"), "enc:alice-redeem-8h")
+        PrivateStateController.Note[8] memory inputNotes = _notes8(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8a")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8b")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8c")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8d")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8e")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8f")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8g")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8h"))
         );
 
         vm.prank(alice);
         controller.redeemNotes8(inputNotes, bob);
 
-        assertEq(tokenVault.liquidBalances(bob), 80 ether);
+        assertEq(l2AccountingVault.liquidBalances(bob), 80 ether);
     }
 
     function testMintNotes1CreatesCommitment() public {
         vm.prank(alice);
-        controller.depositToken(18 ether);
+        controller.bridgeDeposit(18 ether);
 
-        PrivateStateController.Note[1] memory outputs =
-            _outputNotes1(_outputNote(alice, 18 ether, bytes32("alice-mint-event")));
+        PrivateStateController.Note[1] memory outputs = _noteArray1(_note(alice, 18 ether, bytes32("alice-mint-event")));
+
         vm.prank(alice);
         bytes32[1] memory commitments = controller.mintNotes1(outputs);
 
-        assertEq(tokenVault.liquidBalances(alice), 0);
+        assertEq(l2AccountingVault.liquidBalances(alice), 0);
         assertTrue(noteRegistry.commitmentExists(commitments[0]));
     }
 
     function testMintNotes2CreatesTwoCommitments() public {
         vm.prank(alice);
-        controller.depositToken(30 ether);
+        controller.bridgeDeposit(30 ether);
 
-        PrivateStateController.Note[2] memory outputs = _outputNotes2(
-            _outputNote(alice, 10 ether, bytes32("alice-mint-2-0")),
-            _outputNote(bob, 20 ether, bytes32("alice-mint-2-1"))
+        PrivateStateController.Note[2] memory outputs = _noteArray2(
+            _note(alice, 10 ether, bytes32("alice-mint-2-0")), _note(bob, 20 ether, bytes32("alice-mint-2-1"))
         );
+
         vm.prank(alice);
         bytes32[2] memory commitments = controller.mintNotes2(outputs);
 
-        assertEq(tokenVault.liquidBalances(alice), 0);
+        assertEq(l2AccountingVault.liquidBalances(alice), 0);
         assertTrue(noteRegistry.commitmentExists(commitments[0]));
         assertTrue(noteRegistry.commitmentExists(commitments[1]));
     }
 
     function testMintNotes3CreatesThreeCommitments() public {
         vm.prank(alice);
-        controller.depositToken(45 ether);
+        controller.bridgeDeposit(45 ether);
 
-        PrivateStateController.Note[3] memory outputs = _outputNotes3(
-            _outputNote(alice, 10 ether, bytes32("alice-mint-3-0")),
-            _outputNote(bob, 15 ether, bytes32("alice-mint-3-1")),
-            _outputNote(alice, 20 ether, bytes32("alice-mint-3-2"))
+        PrivateStateController.Note[3] memory outputs = _notes3(
+            _note(alice, 10 ether, bytes32("alice-mint-3-0")),
+            _note(bob, 15 ether, bytes32("alice-mint-3-1")),
+            _note(alice, 20 ether, bytes32("alice-mint-3-2"))
         );
+
         vm.prank(alice);
         bytes32[3] memory commitments = controller.mintNotes3(outputs);
 
-        assertEq(tokenVault.liquidBalances(alice), 0);
+        assertEq(l2AccountingVault.liquidBalances(alice), 0);
         for (uint256 i = 0; i < 3; ++i) {
             assertTrue(noteRegistry.commitmentExists(commitments[i]));
         }
     }
 
-    function testCannotWithdrawMoreThanLiquidBalance() public {
+    function testCannotBridgeWithdrawMoreThanLiquidBalance() public {
         vm.prank(alice);
-        controller.depositToken(10 ether);
+        controller.bridgeDeposit(10 ether);
 
         vm.expectRevert(
-            abi.encodeWithSelector(TokenVault.InsufficientLiquidBalance.selector, alice, 10 ether, 11 ether)
+            abi.encodeWithSelector(L2AccountingVault.InsufficientLiquidBalance.selector, alice, 10 ether, 11 ether)
         );
         vm.prank(alice);
-        controller.withdrawToken(11 ether, alice);
+        controller.bridgeWithdraw(11 ether);
     }
 
     function testStoreControllerCannotBeRebound() public {
-        vm.expectRevert(TokenVault.ControllerAlreadyBound.selector);
+        vm.expectRevert(L2AccountingVault.ControllerAlreadyBound.selector);
         vm.prank(owner);
-        tokenVault.bindController(mallory);
+        l2AccountingVault.bindController(mallory);
 
         vm.expectRevert(PrivateNoteRegistry.ControllerAlreadyBound.selector);
         vm.prank(owner);
@@ -400,24 +380,16 @@ contract PrivateStateControllerTest is Test {
         nullifierStore.bindController(mallory);
     }
 
-    function _mintNote(address noteOwner, uint256 value, bytes32 salt, bytes memory)
+    function _mintNote(address noteOwner, uint256 value, bytes32 salt)
         internal
         returns (PrivateStateController.Note memory note)
     {
-        note = _inputNote(value, noteOwner, salt);
+        note = _note(noteOwner, value, salt);
         vm.prank(noteOwner);
-        controller.mintNotes1(_outputNotes1(_outputNote(noteOwner, value, salt)));
+        controller.mintNotes1(_noteArray1(note));
     }
 
-    function _inputNote(uint256 value_, address owner_, bytes32 salt_)
-        internal
-        pure
-        returns (PrivateStateController.Note memory)
-    {
-        return PrivateStateController.Note({value: value_, owner: owner_, salt: salt_});
-    }
-
-    function _outputNote(address owner_, uint256 value_, bytes32 salt_)
+    function _note(address owner_, uint256 value_, bytes32 salt_)
         internal
         pure
         returns (PrivateStateController.Note memory)
@@ -425,7 +397,7 @@ contract PrivateStateControllerTest is Test {
         return PrivateStateController.Note({owner: owner_, value: value_, salt: salt_});
     }
 
-    function _inputNotes4(
+    function _notes4(
         PrivateStateController.Note memory note0,
         PrivateStateController.Note memory note1,
         PrivateStateController.Note memory note2,
@@ -437,7 +409,7 @@ contract PrivateStateControllerTest is Test {
         notes[3] = note3;
     }
 
-    function _inputNotes6(
+    function _notes6(
         PrivateStateController.Note memory note0,
         PrivateStateController.Note memory note1,
         PrivateStateController.Note memory note2,
@@ -453,7 +425,7 @@ contract PrivateStateControllerTest is Test {
         notes[5] = note5;
     }
 
-    function _inputNotes8(
+    function _notes8(
         PrivateStateController.Note memory note0,
         PrivateStateController.Note memory note1,
         PrivateStateController.Note memory note2,
@@ -473,7 +445,7 @@ contract PrivateStateControllerTest is Test {
         notes[7] = note7;
     }
 
-    function _outputNotes3(
+    function _notes3(
         PrivateStateController.Note memory note0,
         PrivateStateController.Note memory note1,
         PrivateStateController.Note memory note2
@@ -483,7 +455,7 @@ contract PrivateStateControllerTest is Test {
         notes[2] = note2;
     }
 
-    function _outputNotes1(PrivateStateController.Note memory note0)
+    function _noteArray1(PrivateStateController.Note memory note0)
         internal
         pure
         returns (PrivateStateController.Note[1] memory notes)
@@ -491,7 +463,7 @@ contract PrivateStateControllerTest is Test {
         notes[0] = note0;
     }
 
-    function _outputNotes2(PrivateStateController.Note memory note0, PrivateStateController.Note memory note1)
+    function _noteArray2(PrivateStateController.Note memory note0, PrivateStateController.Note memory note1)
         internal
         pure
         returns (PrivateStateController.Note[2] memory notes)

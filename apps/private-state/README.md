@@ -4,20 +4,21 @@ This application implements the lifecycle of a zk-note style payment system for 
 
 ## Scope
 
-The target deployment model is a proving-based L2 where raw transaction calldata is not exposed to L1 observers or other L2 users. What remains from the zk-note model is the state machine:
+The target deployment model is a proving-based L2 where raw transaction calldata is not exposed to L1 observers or other L2 users. Canonical asset custody remains on L1. The L2 DApp keeps accounting balances only and assumes a bridge verifier on L1 accepts state-root transitions backed by proofs. What remains from the zk-note model is the state machine:
 
-- Tokamak Network Token deposits move assets into an application vault.
-- Deposited balances can be converted into spendable notes.
+- L1 bridge custody is the source of truth for the Tokamak Network Token.
+- Bridge-coupled accounting deposits increase an L2 accounting balance.
+- Accounting balances can be converted into spendable notes.
 - Spending a note proves ownership at the contract layer, marks the old note as spent, derives a nullifier, and creates replacement output notes.
-- Notes can be redeemed back into liquid token balances inside the vault.
-- Liquid balances can be withdrawn as Tokamak Network Token balances.
+- Notes can be redeemed back into liquid accounting balances inside the L2 accounting vault.
+- Bridge-coupled accounting withdrawals decrease the L2 accounting balance.
 
 ## Contract Layout
 
-- `TokenVault.sol`: Custodies the Tokamak Network Token and tracks each account's liquid balance inside the DApp.
+- `L2AccountingVault.sol`: Stores per-account L2 accounting balances only. It does not custody real tokens.
 - `PrivateNoteRegistry.sol`: Stores note commitments only.
 - `PrivateNullifierRegistry.sol`: Stores nullifier usage and is the single source of truth for spent status.
-- `PrivateStateController.sol`: User-facing entrypoint that reconstructs commitments and nullifiers from transaction calldata.
+- `PrivateStateController.sol`: User-facing entrypoint that reconstructs commitments and nullifiers from transaction calldata and applies bridge-coupled accounting transitions.
 
 ## Ownership Proof Without Circuits
 
@@ -31,7 +32,7 @@ This preserves spend authorization semantics. Privacy assumptions depend on the 
 
 ## Nullifier Model
 
-The controller computes a deterministic nullifier from the submitted note plaintext and the nullifier store domain. The Tokamak Network Token address is fixed at deployment time and remains part of the derived hashes even though callers do not pass it explicitly. The note store itself only keeps commitment existence.
+The controller computes a deterministic nullifier from the submitted note plaintext and the nullifier store domain. The canonical Tokamak Network Token asset identifier is fixed at deployment time and remains part of the derived hashes even though callers do not pass it explicitly. The note store itself only keeps commitment existence.
 
 - `value`
 - `owner`
@@ -43,14 +44,18 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 
 ## End-to-End Flow
 
-1. Approve the vault to transfer the Tokamak Network Token.
-2. Call `depositToken` on the controller.
+1. Lock or release the canonical asset through the L1 bridge custody flow.
+2. Apply the matching L2 accounting transition with `bridgeDeposit` or `bridgeWithdraw`.
 3. Call `mintNotes1`, `mintNotes2`, or `mintNotes3` to lock part of the liquid balance into one, two, or three note commitments.
 4. Call one of `transferNotes4`, `transferNotes6`, or `transferNotes8` with exactly 3 output notes.
 5. Call one of `redeemNotes4`, `redeemNotes6`, or `redeemNotes8` to convert fixed batches of notes back into liquid balances.
-6. Call `withdrawToken` to receive the Tokamak Network Token.
 
 ## Fixed-Arity Entry Points
+
+The current bridge-coupled accounting API exposes two fixed-purpose user-facing functions:
+
+- `bridgeDeposit`: increase the caller's L2 accounting balance after the matching L1 bridge deposit proof
+- `bridgeWithdraw`: decrease the caller's L2 accounting balance before the matching L1 bridge withdrawal settlement
 
 The current mint API exposes three fixed-arity user-facing functions:
 
@@ -76,5 +81,6 @@ These fixed entrypoints are intended to make the final user-facing state transit
 
 Because note validity is still checked directly in contract code:
 
-- The system still relies on cross-contract invariants between the controller, vault, note registry, and nullifier registry.
+- The system still relies on cross-contract invariants between the controller, accounting vault, note registry, and nullifier registry.
+- The bridge-coupled accounting entrypoints model proof-backed L1 bridge settlement rather than standalone L2 token custody.
 - Privacy depends on the surrounding L2 execution model, not solely on these contracts.

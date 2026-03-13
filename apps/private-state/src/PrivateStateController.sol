@@ -10,7 +10,6 @@ import {TokenVault} from "./TokenVault.sol";
 /// @notice User-facing application logic for the non-private zk-note DApp.
 contract PrivateStateController is ReentrancyGuard {
     error EmptyArray();
-    error ArrayLengthMismatch(uint256 expected, uint256 actual);
     error ZeroAddress();
     error ZeroAmount();
     error UnknownCommitment(bytes32 commitment);
@@ -81,60 +80,55 @@ contract PrivateStateController is ReentrancyGuard {
         emit EncryptedNotePublished(commitment, noteOwner, encryptedNotePayload);
     }
 
-    function transferNotes(
-        InputNote[] calldata inputNotes,
-        OutputNote[] calldata outputs,
-        bytes[] calldata encryptedOutputPayloads
-    ) external nonReentrant returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments) {
-        if (inputNotes.length == 0 || outputs.length == 0) {
-            revert EmptyArray();
+    function transferNotes4(
+        InputNote[4] calldata inputNotes,
+        OutputNote[3] calldata outputs,
+        bytes[3] calldata encryptedOutputPayloads
+    ) external nonReentrant returns (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments) {
+        InputNote[] memory dynamicInputs = _copyInputNotes4(inputNotes);
+        (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
+            _transferFixedNotes(dynamicInputs, outputs, encryptedOutputPayloads);
+
+        for (uint256 i = 0; i < 4; ++i) {
+            nullifiers[i] = dynamicNullifiers[i];
         }
-        if (outputs.length != encryptedOutputPayloads.length) {
-            revert ArrayLengthMismatch(outputs.length, encryptedOutputPayloads.length);
+        for (uint256 i = 0; i < 3; ++i) {
+            outputCommitments[i] = dynamicOutputs[i];
         }
+    }
 
-        _validateNoteFields(inputNotes[0].value, inputNotes[0].owner);
+    function transferNotes6(
+        InputNote[6] calldata inputNotes,
+        OutputNote[3] calldata outputs,
+        bytes[3] calldata encryptedOutputPayloads
+    ) external nonReentrant returns (bytes32[6] memory nullifiers, bytes32[3] memory outputCommitments) {
+        InputNote[] memory dynamicInputs = _copyInputNotes6(inputNotes);
+        (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
+            _transferFixedNotes(dynamicInputs, outputs, encryptedOutputPayloads);
 
-        uint256 totalOutputValue;
-        for (uint256 i = 0; i < outputs.length; ++i) {
-            _validateOutputNote(outputs[i]);
-            totalOutputValue += outputs[i].value;
+        for (uint256 i = 0; i < 6; ++i) {
+            nullifiers[i] = dynamicNullifiers[i];
         }
-
-        uint256 totalInputValue;
-        bytes32[] memory inputCommitments = new bytes32[](inputNotes.length);
-        nullifiers = new bytes32[](inputNotes.length);
-        for (uint256 i = 0; i < inputNotes.length; ++i) {
-            InputNote calldata note = inputNotes[i];
-            _validateNoteFields(note.value, note.owner);
-
-            bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
-            if (!noteRegistry.commitmentExists(commitment)) {
-                revert UnknownCommitment(commitment);
-            }
-
-            _requireNoteOwner(note.owner);
-            inputCommitments[i] = commitment;
-            nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
-            totalInputValue += note.value;
+        for (uint256 i = 0; i < 3; ++i) {
+            outputCommitments[i] = dynamicOutputs[i];
         }
+    }
 
-        if (totalInputValue != totalOutputValue) {
-            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+    function transferNotes8(
+        InputNote[8] calldata inputNotes,
+        OutputNote[3] calldata outputs,
+        bytes[3] calldata encryptedOutputPayloads
+    ) external nonReentrant returns (bytes32[8] memory nullifiers, bytes32[3] memory outputCommitments) {
+        InputNote[] memory dynamicInputs = _copyInputNotes8(inputNotes);
+        (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
+            _transferFixedNotes(dynamicInputs, outputs, encryptedOutputPayloads);
+
+        for (uint256 i = 0; i < 8; ++i) {
+            nullifiers[i] = dynamicNullifiers[i];
         }
-
-        for (uint256 i = 0; i < inputCommitments.length; ++i) {
-            nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
+        for (uint256 i = 0; i < 3; ++i) {
+            outputCommitments[i] = dynamicOutputs[i];
         }
-
-        outputCommitments = new bytes32[](outputs.length);
-        for (uint256 i = 0; i < outputs.length; ++i) {
-            outputCommitments[i] = computeNoteCommitment(outputs[i].value, outputs[i].owner, outputs[i].salt);
-            noteRegistry.registerCommitment(outputCommitments[i]);
-            emit EncryptedNotePublished(outputCommitments[i], outputs[i].owner, encryptedOutputPayloads[i]);
-        }
-
-        emit NotesTransferred(msg.sender, inputNotes.length, outputs.length);
     }
 
     function redeemNotes(InputNote[] calldata inputNotes, address receiver)
@@ -188,6 +182,53 @@ contract PrivateStateController is ReentrancyGuard {
         return keccak256(abi.encode(block.chainid, address(nullifierStore), tokamakNetworkToken, value, owner, salt));
     }
 
+    function _transferFixedNotes(
+        InputNote[] memory inputNotes,
+        OutputNote[3] calldata outputs,
+        bytes[3] calldata encryptedOutputPayloads
+    ) internal returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments) {
+        uint256 totalOutputValue;
+        for (uint256 i = 0; i < 3; ++i) {
+            _validateOutputNote(outputs[i]);
+            totalOutputValue += outputs[i].value;
+        }
+
+        uint256 totalInputValue;
+        bytes32[] memory inputCommitments = new bytes32[](inputNotes.length);
+        nullifiers = new bytes32[](inputNotes.length);
+        for (uint256 i = 0; i < inputNotes.length; ++i) {
+            InputNote memory note = inputNotes[i];
+            _validateNoteFields(note.value, note.owner);
+
+            bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
+            if (!noteRegistry.commitmentExists(commitment)) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(note.owner);
+            inputCommitments[i] = commitment;
+            nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
+            totalInputValue += note.value;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < inputCommitments.length; ++i) {
+            nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
+        }
+
+        outputCommitments = new bytes32[](3);
+        for (uint256 i = 0; i < 3; ++i) {
+            outputCommitments[i] = computeNoteCommitment(outputs[i].value, outputs[i].owner, outputs[i].salt);
+            noteRegistry.registerCommitment(outputCommitments[i]);
+            emit EncryptedNotePublished(outputCommitments[i], outputs[i].owner, encryptedOutputPayloads[i]);
+        }
+
+        emit NotesTransferred(msg.sender, inputNotes.length, 3);
+    }
+
     function _validateNoteFields(uint256 value, address owner) internal pure {
         if (owner == address(0)) {
             revert ZeroAddress();
@@ -209,6 +250,27 @@ contract PrivateStateController is ReentrancyGuard {
     function _requireNoteOwner(address owner) internal view {
         if (msg.sender != owner) {
             revert UnauthorizedNoteOwner(msg.sender, owner);
+        }
+    }
+
+    function _copyInputNotes4(InputNote[4] calldata inputNotes) internal pure returns (InputNote[] memory copied) {
+        copied = new InputNote[](4);
+        for (uint256 i = 0; i < 4; ++i) {
+            copied[i] = inputNotes[i];
+        }
+    }
+
+    function _copyInputNotes6(InputNote[6] calldata inputNotes) internal pure returns (InputNote[] memory copied) {
+        copied = new InputNote[](6);
+        for (uint256 i = 0; i < 6; ++i) {
+            copied[i] = inputNotes[i];
+        }
+    }
+
+    function _copyInputNotes8(InputNote[8] calldata inputNotes) internal pure returns (InputNote[] memory copied) {
+        copied = new InputNote[](8);
+        for (uint256 i = 0; i < 8; ++i) {
+            copied[i] = inputNotes[i];
         }
     }
 }

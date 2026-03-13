@@ -45,7 +45,7 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 
 ## Encrypted Note Delivery
 
-When `mintNote` or `transferNotes` creates a new note, the caller can attach an encrypted payload for that note. The controller does not interpret or verify the ciphertext. It simply emits an `EncryptedNotePublished` event containing:
+When `mintNote` or one of `transferNotes4`, `transferNotes6`, or `transferNotes8` creates a new note, the caller can attach an encrypted payload for that note. The controller does not interpret or verify the ciphertext. It simply emits an `EncryptedNotePublished` event containing:
 
 - the new note commitment
 - the intended note owner
@@ -58,9 +58,19 @@ This lets a recipient recover note data from events under the stated L2 privacy 
 1. Approve the vault to transfer the Tokamak Network Token.
 2. Call `depositToken` or `depositTokenFor` on the controller.
 3. Call `mintNote` to lock part of the liquid balance into a commitment and emit an encrypted note payload.
-4. Call `transferNotes` with the input note plaintext in calldata, plus one encrypted payload per output note, to consume notes and issue new output commitments.
+4. Call one of `transferNotes4`, `transferNotes6`, or `transferNotes8` with exactly 3 output notes and 3 encrypted output payloads.
 5. Call `redeemNotes` with the input note plaintext in calldata to convert notes back into liquid balances.
 6. Call `withdrawToken` to receive the Tokamak Network Token.
+
+## Fixed-Arity Transfer Entry Points
+
+The current transfer API exposes three fixed-arity user-facing functions:
+
+- `transferNotes4`: 4 input notes, 3 output notes
+- `transferNotes6`: 6 input notes, 3 output notes
+- `transferNotes8`: 8 input notes, 3 output notes
+
+This change is intended to make the final transfer entrypoints more circuit-friendly under the repository's zk-L2 design constraints.
 
 ## Security Tradeoffs
 

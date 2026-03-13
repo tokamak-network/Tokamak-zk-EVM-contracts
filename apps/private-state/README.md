@@ -127,6 +127,7 @@ The private-state deploy flow uses shared app deployment variables for the signe
 - `APPS_DEPLOYER_PRIVATE_KEY`
 - `APPS_CHAIN_ID`
 - `APPS_ALCHEMY_API_KEY`
+- `APPS_RPC_URL_OVERRIDE` for local development chains such as anvil
 - `APPS_ETHERSCAN_API_KEY` when block explorer verification is needed
 
 It uses a namespaced variable only for the private-state-specific value:
@@ -143,7 +144,7 @@ account balance to an arbitrary value. This is useful for public test deployment
 Every successful deployment also writes DApp-local JSON artifacts into `apps/private-state/deploy`:
 
 - `deployment.<chain-id>.<timestamp>.json`: the deployed addresses and deployment metadata for that run
-- `deployment.latest.json`: the latest deployment manifest
+- `deployment.<chain-id>.latest.json`: the latest deployment manifest for that chain
 - `PrivateStateController.callable-abi.json`
 - `L2AccountingVault.callable-abi.json`
 - `PrivateNoteRegistry.callable-abi.json`
@@ -151,6 +152,38 @@ Every successful deployment also writes DApp-local JSON artifacts into `apps/pri
 
 The ABI files intentionally contain only the user-facing or tester-facing callable functions for each contract rather
 than the full contract ABI.
+
+## Local anvil Workflow
+
+For fast local iteration, private-state now includes an anvil bootstrap flow:
+
+- `apps/private-state/script/anvil/start-anvil.sh`
+- `apps/private-state/script/anvil/bootstrap-private-state-anvil.sh`
+- `apps/private-state/script/anvil/stop-anvil.sh`
+- `apps/private-state/script/anvil/DeployMockTokamakNetworkToken.s.sol`
+- `apps/private-state/script/anvil/write-anvil-artifacts.sh`
+
+Recommended `apps/.env` values for anvil:
+
+- `APPS_CHAIN_ID=31337`
+- `APPS_RPC_URL_OVERRIDE=http://127.0.0.1:8545`
+- `APPS_DEPLOYER_PRIVATE_KEY=<anvil account private key>`
+- `PRIVATE_STATE_TESTING_BALANCE_SETTER=<tester address or zero address>`
+
+The bootstrap flow:
+
+1. starts from a reachable anvil RPC
+2. deploys `MockTokamakNetworkToken`
+3. uses that mock token as `PRIVATE_STATE_CANONICAL_ASSET`
+4. deploys private-state
+5. writes local manifests and callable ABI files into `apps/private-state/deploy`
+
+The anvil bootstrap also writes:
+
+- `anvil-bootstrap.latest.json`
+- `MockTokamakNetworkToken.callable-abi.json`
+
+These local anvil artifacts are ignored by git because they are expected to change frequently.
 
 ## Security Tradeoffs
 

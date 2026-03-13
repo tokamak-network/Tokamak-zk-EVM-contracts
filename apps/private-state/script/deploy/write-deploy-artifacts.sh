@@ -21,7 +21,7 @@ mkdir -p "$DEPLOY_DIR"
 
 TIMESTAMP_UTC="$(date -u +"%Y%m%dT%H%M%SZ")"
 DEPLOYMENT_FILE="$DEPLOY_DIR/deployment.${CHAIN_ID}.${TIMESTAMP_UTC}.json"
-LATEST_FILE="$DEPLOY_DIR/deployment.latest.json"
+CHAIN_LATEST_FILE="$DEPLOY_DIR/deployment.${CHAIN_ID}.latest.json"
 
 ZERO_ADDRESS="0x0000000000000000000000000000000000000000"
 
@@ -78,7 +78,7 @@ jq -n \
         }
     }' > "$DEPLOYMENT_FILE"
 
-cp "$DEPLOYMENT_FILE" "$LATEST_FILE"
+cp "$DEPLOYMENT_FILE" "$CHAIN_LATEST_FILE"
 
 write_callable_abi() {
     local artifact_path="$1"
@@ -140,5 +140,5 @@ write_callable_abi \
     ]'
 
 echo "Wrote deployment manifest: $DEPLOYMENT_FILE"
-echo "Updated deployment manifest: $LATEST_FILE"
+echo "Updated chain deployment manifest: $CHAIN_LATEST_FILE"
 echo "Wrote callable ABI files under: $DEPLOY_DIR"

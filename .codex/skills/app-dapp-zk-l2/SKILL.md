@@ -43,12 +43,15 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - When the controller and storage contracts depend on each other, use deterministic address prediction and CREATE2 in the app-local deployment flow instead of adding post-deployment controller registration.
 9. Keep DApp deployment assets isolated from bridge deployment assets:
    - Store each DApp deployment script under `apps/<dapp>/script/deploy`.
+   - Store local anvil helpers under `apps/<dapp>/script/anvil` when the DApp needs a local development chain workflow.
    - Store app deployment parameters in `apps/.env`.
    - Share the deployment signer and target network across DApps through common app-level variables.
    - Prefer an app-level provider key plus chain identifier, then derive the RPC URL inside the DApp deployment script.
+   - Allow an explicit `APPS_RPC_URL_OVERRIDE` for local development chains such as anvil, because provider-key-based RPC derivation does not apply there.
    - Namespace only DApp-specific deployment values, for example `PRIVATE_STATE_CANONICAL_ASSET`.
    - Do not add per-DApp owner env variables in the default app deployment model.
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
+   - Write deployment manifests and callable ABI JSON files into `apps/<dapp>/deploy`.
 10. Keep the review explicit in the final response:
    - State whether the entrypoints satisfy the zk-L2 privacy assumption.
    - State whether the successful symbolic path for each user-facing function appears unique.

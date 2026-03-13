@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-ENV_FILE="$PROJECT_ROOT/apps/.env"
+ENV_FILE="${APPS_ENV_FILE:-$PROJECT_ROOT/apps/.env}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "Missing $ENV_FILE"
@@ -25,10 +25,13 @@ fi
 
 required_vars=(
     "APPS_DEPLOYER_PRIVATE_KEY"
-    "APPS_ALCHEMY_API_KEY"
     "APPS_CHAIN_ID"
     "PRIVATE_STATE_CANONICAL_ASSET"
 )
+
+if [[ -z "${APPS_RPC_URL_OVERRIDE:-}" ]]; then
+    required_vars+=("APPS_ALCHEMY_API_KEY")
+fi
 
 for var_name in "${required_vars[@]}"; do
     if [[ -z "${!var_name:-}" ]]; then
@@ -59,8 +62,13 @@ if [[ -n "$VERIFY_FLAG" && -z "${APPS_ETHERSCAN_API_KEY:-}" ]]; then
     exit 1
 fi
 
-ALCHEMY_NETWORK="$(alchemy_network "$APPS_CHAIN_ID")"
-APPS_RPC_URL="https://${ALCHEMY_NETWORK}.g.alchemy.com/v2/${APPS_ALCHEMY_API_KEY}"
+if [[ -n "${APPS_RPC_URL_OVERRIDE:-}" ]]; then
+    APPS_RPC_URL="$APPS_RPC_URL_OVERRIDE"
+    ALCHEMY_NETWORK="<override>"
+else
+    ALCHEMY_NETWORK="$(alchemy_network "$APPS_CHAIN_ID")"
+    APPS_RPC_URL="https://${ALCHEMY_NETWORK}.g.alchemy.com/v2/${APPS_ALCHEMY_API_KEY}"
+fi
 
 FORGE_CMD=(
     forge script apps/private-state/script/deploy/DeployPrivateState.s.sol:DeployPrivateStateScript

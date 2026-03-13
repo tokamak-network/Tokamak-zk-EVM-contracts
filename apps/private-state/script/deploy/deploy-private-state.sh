@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 ENV_FILE="${APPS_ENV_FILE:-$PROJECT_ROOT/apps/.env}"
+source "$PROJECT_ROOT/apps/script/network-config.sh"
 
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "Missing $ENV_FILE"
@@ -25,7 +26,7 @@ fi
 
 required_vars=(
     "APPS_DEPLOYER_PRIVATE_KEY"
-    "APPS_CHAIN_ID"
+    "APPS_NETWORK"
     "PRIVATE_STATE_CANONICAL_ASSET"
 )
 
@@ -40,22 +41,7 @@ for var_name in "${required_vars[@]}"; do
     fi
 done
 
-alchemy_network() {
-    case "$1" in
-        11155111) echo "eth-sepolia" ;;
-        1) echo "eth-mainnet" ;;
-        84532) echo "base-sepolia" ;;
-        8453) echo "base-mainnet" ;;
-        421614) echo "arb-sepolia" ;;
-        42161) echo "arb-mainnet" ;;
-        10) echo "opt-mainnet" ;;
-        11155420) echo "opt-sepolia" ;;
-        *)
-            echo "Unsupported APPS_CHAIN_ID for Alchemy RPC derivation: $1" >&2
-            exit 1
-            ;;
-    esac
-}
+resolve_app_network "$APPS_NETWORK"
 
 if [[ -n "$VERIFY_FLAG" && -z "${APPS_ETHERSCAN_API_KEY:-}" ]]; then
     echo "APPS_ETHERSCAN_API_KEY is required when --verify is used"
@@ -64,10 +50,15 @@ fi
 
 if [[ -n "${APPS_RPC_URL_OVERRIDE:-}" ]]; then
     APPS_RPC_URL="$APPS_RPC_URL_OVERRIDE"
-    ALCHEMY_NETWORK="<override>"
+    NETWORK_LABEL="<override>"
 else
-    ALCHEMY_NETWORK="$(alchemy_network "$APPS_CHAIN_ID")"
-    APPS_RPC_URL="https://${ALCHEMY_NETWORK}.g.alchemy.com/v2/${APPS_ALCHEMY_API_KEY}"
+    if [[ -z "$APPS_ALCHEMY_NETWORK" ]]; then
+        echo "APPS_RPC_URL_OVERRIDE is required for APPS_NETWORK=$APPS_NETWORK" >&2
+        exit 1
+    fi
+
+    NETWORK_LABEL="$APPS_ALCHEMY_NETWORK"
+    APPS_RPC_URL="https://${APPS_ALCHEMY_NETWORK}.g.alchemy.com/v2/${APPS_ALCHEMY_API_KEY}"
 fi
 
 FORGE_CMD=(
@@ -80,8 +71,8 @@ if [[ -n "$VERIFY_FLAG" ]]; then
     FORGE_CMD+=(--verify --etherscan-api-key "$APPS_ETHERSCAN_API_KEY")
 fi
 
-echo "Deploying private-state to chain ID $APPS_CHAIN_ID"
-echo "Alchemy network: $ALCHEMY_NETWORK"
+echo "Deploying private-state to network $APPS_NETWORK (chain ID $APPS_CHAIN_ID)"
+echo "RPC network label: $NETWORK_LABEL"
 echo "Canonical asset: $PRIVATE_STATE_CANONICAL_ASSET"
 echo "Owner: <deployer>"
 echo "Environment file: $ENV_FILE"

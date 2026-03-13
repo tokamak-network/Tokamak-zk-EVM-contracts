@@ -9,13 +9,14 @@ All app deployments and local app test environments use `apps/.env`.
 Shared variables:
 
 - `APPS_DEPLOYER_PRIVATE_KEY`
-- `APPS_CHAIN_ID`
+- `APPS_NETWORK`
 - `APPS_ALCHEMY_API_KEY`
 - `APPS_ETHERSCAN_API_KEY`
 - `APPS_RPC_URL_OVERRIDE`
 
 Use `APPS_RPC_URL_OVERRIDE` for local development chains such as anvil. Public-network deployment scripts may derive
-their RPC URLs from `APPS_ALCHEMY_API_KEY` and `APPS_CHAIN_ID`, but local anvil flows need an explicit RPC URL.
+their RPC URLs and chain IDs from `APPS_ALCHEMY_API_KEY` and `APPS_NETWORK`, but local anvil flows need an explicit
+RPC URL.
 
 ## Local anvil Convention
 

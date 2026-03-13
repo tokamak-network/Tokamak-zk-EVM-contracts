@@ -6,6 +6,7 @@ ENV_FILE="$PROJECT_ROOT/apps/.env"
 DEPLOY_DIR="$PROJECT_ROOT/apps/private-state/deploy"
 PID_FILE="$DEPLOY_DIR/anvil.pid"
 LOG_FILE="$DEPLOY_DIR/anvil.log"
+source "$PROJECT_ROOT/apps/script/network-config.sh"
 
 mkdir -p "$DEPLOY_DIR"
 
@@ -16,7 +17,9 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 RPC_URL="${APPS_RPC_URL_OVERRIDE:-http://127.0.0.1:8545}"
-CHAIN_ID="${APPS_CHAIN_ID:-31337}"
+APPS_NETWORK="${APPS_NETWORK:-anvil}"
+resolve_app_network "$APPS_NETWORK"
+CHAIN_ID="$APPS_CHAIN_ID"
 MNEMONIC="${APPS_ANVIL_MNEMONIC:-test test test test test test test test test test test junk}"
 HOST_PORT="${RPC_URL#http://}"
 HOST_PORT="${HOST_PORT#https://}"
@@ -26,6 +29,11 @@ PORT="${HOST_PORT##*:}"
 
 if [[ "$HOST" == "$PORT" ]]; then
     PORT="8545"
+fi
+
+if [[ "$APPS_NETWORK" != "anvil" ]]; then
+    echo "start-anvil.sh requires APPS_NETWORK=anvil" >&2
+    exit 1
 fi
 
 if [[ -f "$PID_FILE" ]]; then

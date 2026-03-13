@@ -4,6 +4,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 ENV_FILE="$PROJECT_ROOT/apps/.env"
 TEMP_ENV_FILE="$(mktemp /tmp/private-state-anvil.env.XXXXXX)"
+source "$PROJECT_ROOT/apps/script/network-config.sh"
 
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "Missing $ENV_FILE" >&2
@@ -25,7 +26,13 @@ if [[ -n "${APPS_DEPLOYER_PRIVATE_KEY:-}" && "${APPS_DEPLOYER_PRIVATE_KEY}" != 0
 fi
 
 APPS_RPC_URL="${APPS_RPC_URL_OVERRIDE:-http://127.0.0.1:8545}"
-APPS_CHAIN_ID="${APPS_CHAIN_ID:-31337}"
+APPS_NETWORK="${APPS_NETWORK:-anvil}"
+resolve_app_network "$APPS_NETWORK"
+
+if [[ "$APPS_NETWORK" != "anvil" ]]; then
+    echo "bootstrap-private-state-anvil.sh requires APPS_NETWORK=anvil" >&2
+    exit 1
+fi
 
 if ! curl -sS \
     -H "Content-Type: application/json" \

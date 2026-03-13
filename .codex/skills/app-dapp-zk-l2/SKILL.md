@@ -40,7 +40,9 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Store each DApp deployment script under `apps/<dapp>/script/deploy`.
    - Store app deployment parameters in `apps/.env`.
    - Share the deployment signer and target network across DApps through common app-level variables.
+   - Keep the shared deployment signer as the initial owner for DApp contracts created through that deployment flow.
    - Namespace only DApp-specific deployment values, for example `PRIVATE_STATE_CANONICAL_ASSET`.
+   - Do not add per-DApp owner env variables unless an explicit post-deployment ownership transfer requirement exists.
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
 9. Keep the review explicit in the final response:
    - State whether the entrypoints satisfy the zk-L2 privacy assumption.

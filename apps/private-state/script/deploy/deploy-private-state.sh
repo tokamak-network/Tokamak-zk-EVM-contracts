@@ -49,7 +49,7 @@ fi
 
 echo "Deploying private-state to chain ID $APPS_CHAIN_ID"
 echo "Canonical asset: $PRIVATE_STATE_CANONICAL_ASSET"
-echo "Final owner: ${PRIVATE_STATE_OWNER:-<deployer>}"
+echo "Owner: <deployer>"
 echo "Environment file: $ENV_FILE"
 
 (

@@ -115,7 +115,7 @@ The repository now includes:
 - `apps/private-state/script/deploy/deploy-private-state.sh`
 - `apps/.env.template`
 
-The deploy script deploys `L2AccountingVault`, `PrivateNoteRegistry`, `PrivateNullifierRegistry`, and `PrivateStateController`, binds the controller to the three storage contracts, and optionally transfers ownership of those storage contracts to `PRIVATE_STATE_OWNER`.
+The deploy script deploys `L2AccountingVault`, `PrivateNoteRegistry`, `PrivateNullifierRegistry`, and `PrivateStateController`, then binds the controller to the three storage contracts. The deployment signer remains the owner of all three storage contracts.
 
 private-state deployment parameters must be stored in `apps/.env`, not in the repository-root bridge deployment `.env`.
 
@@ -126,38 +126,11 @@ The private-state deploy flow uses shared app deployment variables for the signe
 - `APPS_CHAIN_ID`
 - `APPS_ETHERSCAN_API_KEY` when block explorer verification is needed
 
-It uses namespaced variables only for private-state-specific values:
+It uses a namespaced variable only for the private-state-specific value:
 
 - `PRIVATE_STATE_CANONICAL_ASSET`
-- `PRIVATE_STATE_OWNER`
 
-private-state deployment parameters must be stored in `apps/.env`, not in the repository-root bridge deployment `.env`.
-
-The private-state deploy flow uses shared app deployment variables for the signer and target network:
-
-- `APPS_DEPLOYER_PRIVATE_KEY`
-- `APPS_RPC_URL`
-- `APPS_CHAIN_ID`
-- `APPS_ETHERSCAN_API_KEY` when block explorer verification is needed
-
-It uses namespaced variables only for private-state-specific values:
-
-- `PRIVATE_STATE_CANONICAL_ASSET`
-- `PRIVATE_STATE_OWNER`
-
-private-state deployment parameters must be stored in `apps/.env`, not in the repository-root bridge deployment `.env`.
-
-The private-state deploy flow uses shared app deployment variables for the signer and target network:
-
-- `APPS_DEPLOYER_PRIVATE_KEY`
-- `APPS_RPC_URL`
-- `APPS_CHAIN_ID`
-- `APPS_ETHERSCAN_API_KEY` when block explorer verification is needed
-
-It uses namespaced variables only for private-state-specific values:
-
-- `PRIVATE_STATE_CANONICAL_ASSET`
-- `PRIVATE_STATE_OWNER`
+There is no `PRIVATE_STATE_OWNER` parameter. The deployment signer is always the initial owner for the private-state storage contracts.
 
 ## Security Tradeoffs
 

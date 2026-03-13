@@ -9,7 +9,6 @@ import "../../src/PrivateStateController.sol";
 
 contract DeployPrivateStateScript is Script {
     address public deployer;
-    address public finalOwner;
     address public canonicalAsset;
 
     address public l2AccountingVault;
@@ -24,7 +23,6 @@ contract DeployPrivateStateScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("APPS_DEPLOYER_PRIVATE_KEY");
         deployer = vm.addr(deployerPrivateKey);
-        finalOwner = _loadFinalOwner(deployer);
         canonicalAsset = vm.envAddress("PRIVATE_STATE_CANONICAL_ASSET");
 
         vm.startBroadcast(deployerPrivateKey);
@@ -40,12 +38,6 @@ contract DeployPrivateStateScript is Script {
         noteRegistryContract.bindController(address(controllerContract));
         nullifierRegistryContract.bindController(address(controllerContract));
 
-        if (finalOwner != deployer) {
-            l2AccountingVaultContract.transferOwnership(finalOwner);
-            noteRegistryContract.transferOwnership(finalOwner);
-            nullifierRegistryContract.transferOwnership(finalOwner);
-        }
-
         vm.stopBroadcast();
 
         l2AccountingVault = address(l2AccountingVaultContract);
@@ -55,19 +47,11 @@ contract DeployPrivateStateScript is Script {
 
         console.log("DeployPrivateStateScript complete");
         console.log("deployer", deployer);
-        console.log("finalOwner", finalOwner);
+        console.log("owner", deployer);
         console.log("canonicalAsset", canonicalAsset);
         console.log("l2AccountingVault", l2AccountingVault);
         console.log("noteRegistry", noteRegistry);
         console.log("nullifierRegistry", nullifierRegistry);
         console.log("controller", controller);
-    }
-
-    function _loadFinalOwner(address defaultOwner) internal view returns (address owner) {
-        try vm.envAddress("PRIVATE_STATE_OWNER") returns (address configuredOwner) {
-            owner = configuredOwner;
-        } catch {
-            owner = defaultOwner;
-        }
     }
 }

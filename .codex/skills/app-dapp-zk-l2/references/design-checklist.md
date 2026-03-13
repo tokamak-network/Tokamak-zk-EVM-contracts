@@ -155,3 +155,4 @@ When reporting on a new app design, explicitly answer:
 7. Should storage remain in one address or be split across multiple addresses?
 8. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
 9. Are app deployment secrets and RPC settings isolated in `apps/.env`, with shared app-level signer and network variables plus DApp-specific namespaced values only where needed?
+10. Does the deployment flow keep the shared app deployment signer as the initial owner instead of introducing a separate per-DApp owner env parameter?

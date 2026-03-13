@@ -37,14 +37,12 @@ contract PrivateStateController is ReentrancyGuard {
         uint256 value;
         address owner;
         bytes32 salt;
-        uint256 nullifierNonce;
     }
 
     struct OutputNote {
         address owner;
         uint256 value;
         bytes32 salt;
-        uint256 nullifierNonce;
     }
 
     struct SpendAuthorization {
@@ -90,7 +88,7 @@ contract PrivateStateController is ReentrancyGuard {
         emit TokenDeposited(msg.sender, beneficiary, token, amount);
     }
 
-    function mintNote(address token, uint256 amount, address noteOwner, bytes32 salt, uint256 nullifierNonce)
+    function mintNote(address token, uint256 amount, address noteOwner, bytes32 salt)
         external
         nonReentrant
         returns (bytes32 commitment)
@@ -98,7 +96,7 @@ contract PrivateStateController is ReentrancyGuard {
         _validateNoteFields(token, amount, noteOwner);
 
         tokenVault.debitLiquidBalance(msg.sender, token, amount);
-        commitment = computeNoteCommitment(token, amount, noteOwner, salt, nullifierNonce);
+        commitment = computeNoteCommitment(token, amount, noteOwner, salt);
         noteRegistry.registerCommitment(commitment);
 
         emit NoteMinted(msg.sender, commitment, noteOwner, token, amount);
@@ -136,15 +134,14 @@ contract PrivateStateController is ReentrancyGuard {
                 revert MixedNoteTokens(token, note.token);
             }
 
-            bytes32 commitment =
-                computeNoteCommitment(note.token, note.value, note.owner, note.salt, note.nullifierNonce);
+            bytes32 commitment = computeNoteCommitment(note.token, note.value, note.owner, note.salt);
             if (!noteRegistry.commitmentExists(commitment)) {
                 revert UnknownCommitment(commitment);
             }
 
             _verifyTransferAuthorization(commitment, note.owner, outputsHash, authorizations[i]);
             inputCommitments[i] = commitment;
-            nullifiers[i] = computeNullifier(note.token, note.value, note.owner, note.salt, note.nullifierNonce);
+            nullifiers[i] = computeNullifier(note.token, note.value, note.owner, note.salt);
             totalInputValue += note.value;
         }
 
@@ -158,9 +155,7 @@ contract PrivateStateController is ReentrancyGuard {
 
         outputCommitments = new bytes32[](outputs.length);
         for (uint256 i = 0; i < outputs.length; ++i) {
-            outputCommitments[i] = computeNoteCommitment(
-                token, outputs[i].value, outputs[i].owner, outputs[i].salt, outputs[i].nullifierNonce
-            );
+            outputCommitments[i] = computeNoteCommitment(token, outputs[i].value, outputs[i].owner, outputs[i].salt);
             noteRegistry.registerCommitment(outputCommitments[i]);
         }
 
@@ -188,15 +183,14 @@ contract PrivateStateController is ReentrancyGuard {
             InputNote calldata note = inputNotes[i];
             _validateNoteFields(note.token, note.value, note.owner);
 
-            bytes32 commitment =
-                computeNoteCommitment(note.token, note.value, note.owner, note.salt, note.nullifierNonce);
+            bytes32 commitment = computeNoteCommitment(note.token, note.value, note.owner, note.salt);
             if (!noteRegistry.commitmentExists(commitment)) {
                 revert UnknownCommitment(commitment);
             }
 
             _verifyRedeemAuthorization(commitment, note.owner, receiver, authorizations[i]);
             inputCommitments[i] = commitment;
-            nullifiers[i] = computeNullifier(note.token, note.value, note.owner, note.salt, note.nullifierNonce);
+            nullifiers[i] = computeNullifier(note.token, note.value, note.owner, note.salt);
         }
 
         for (uint256 i = 0; i < inputNotes.length; ++i) {
@@ -222,32 +216,24 @@ contract PrivateStateController is ReentrancyGuard {
 
         bytes32 rollingHash = keccak256(abi.encodePacked(token, outputs.length));
         for (uint256 i = 0; i < outputs.length; ++i) {
-            rollingHash = keccak256(
-                abi.encodePacked(
-                    rollingHash, outputs[i].owner, outputs[i].value, outputs[i].salt, outputs[i].nullifierNonce
-                )
-            );
+            rollingHash = keccak256(abi.encodePacked(rollingHash, outputs[i].owner, outputs[i].value, outputs[i].salt));
         }
 
         return rollingHash;
     }
 
-    function computeNoteCommitment(address token, uint256 value, address owner, bytes32 salt, uint256 nullifierNonce)
+    function computeNoteCommitment(address token, uint256 value, address owner, bytes32 salt)
         public
         view
         returns (bytes32)
     {
         _validateNoteFields(token, value, owner);
-        return keccak256(abi.encode(block.chainid, address(noteRegistry), token, value, owner, salt, nullifierNonce));
+        return keccak256(abi.encode(block.chainid, address(noteRegistry), token, value, owner, salt));
     }
 
-    function computeNullifier(address token, uint256 value, address owner, bytes32 salt, uint256 nullifierNonce)
-        public
-        view
-        returns (bytes32)
-    {
+    function computeNullifier(address token, uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
         _validateNoteFields(token, value, owner);
-        return keccak256(abi.encode(block.chainid, address(nullifierStore), token, value, owner, salt, nullifierNonce));
+        return keccak256(abi.encode(block.chainid, address(nullifierStore), token, value, owner, salt));
     }
 
     function getTransferAuthorizationHash(bytes32 inputCommitment, bytes32 outputsHash, uint256 deadline)

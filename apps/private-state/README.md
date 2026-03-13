@@ -39,7 +39,6 @@ The controller computes a deterministic nullifier from the submitted note plaint
 - `value`
 - `owner`
 - `salt`
-- `nullifierNonce`
 
 Once a note is consumed, the nullifier store records the nullifier and rejects any later attempt to reuse it.
 

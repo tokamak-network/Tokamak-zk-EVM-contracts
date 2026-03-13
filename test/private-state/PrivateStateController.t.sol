@@ -62,42 +62,43 @@ contract PrivateStateControllerTest is Test {
         assertEq(tokenVault.liquidBalances(alice, address(token)), 100 ether);
         assertEq(token.balanceOf(address(tokenVault)), 100 ether);
 
+        PrivateStateController.InputNote memory aliceNote =
+            _inputNote(address(token), 60 ether, alice, bytes32("alice-note-1"), 11);
+
         vm.prank(alice);
-        (uint256 noteId,) = controller.mintNote(address(token), 60 ether, alice, bytes32("alice-note-1"), 11);
+        bytes32 aliceCommitment = controller.mintNote(
+            aliceNote.token, aliceNote.value, aliceNote.owner, aliceNote.salt, aliceNote.nullifierNonce
+        );
 
         assertEq(tokenVault.liquidBalances(alice, address(token)), 40 ether);
+        assertEq(aliceCommitment, _commitmentOf(aliceNote));
+        assertTrue(noteRegistry.commitmentExists(aliceCommitment));
 
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](2);
-        outputs[0] = PrivateStateController.OutputNote({
-            owner: bob, value: 35 ether, salt: bytes32("bob-note-1"), nullifierNonce: 21
-        });
-        outputs[1] = PrivateStateController.OutputNote({
-            owner: alice, value: 25 ether, salt: bytes32("alice-change-1"), nullifierNonce: 22
-        });
+        outputs[0] = _outputNote(bob, 35 ether, bytes32("bob-note-1"), 21);
+        outputs[1] = _outputNote(alice, 25 ether, bytes32("alice-change-1"), 22);
 
-        uint256[] memory inputNoteIds = new uint256[](1);
-        inputNoteIds[0] = noteId;
+        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
+        inputNotes[0] = aliceNote;
         PrivateStateController.SpendAuthorization[] memory authorizations =
             new PrivateStateController.SpendAuthorization[](1);
 
         vm.prank(alice);
-        (bytes32[] memory nullifiers, uint256[] memory outputIds,) =
-            controller.transferNotes(inputNoteIds, authorizations, outputs);
+        (bytes32[] memory nullifiers, bytes32[] memory outputCommitments) =
+            controller.transferNotes(inputNotes, authorizations, outputs);
 
         assertEq(nullifiers.length, 1);
         assertTrue(nullifierStore.nullifierUsed(nullifiers[0]));
-        assertEq(outputIds.length, 2);
-        assertEq(noteRegistry.getNote(outputIds[0]).owner, bob);
-        assertEq(noteRegistry.getNote(outputIds[0]).value, 35 ether);
-        assertEq(noteRegistry.getNote(outputIds[1]).owner, alice);
-        assertEq(noteRegistry.getNote(outputIds[1]).value, 25 ether);
+        assertEq(outputCommitments.length, 2);
+        assertTrue(noteRegistry.commitmentExists(outputCommitments[0]));
+        assertTrue(noteRegistry.commitmentExists(outputCommitments[1]));
 
-        uint256[] memory bobNoteIds = new uint256[](1);
-        bobNoteIds[0] = outputIds[0];
+        PrivateStateController.InputNote[] memory bobNotes = new PrivateStateController.InputNote[](1);
+        bobNotes[0] = _inputNote(address(token), 35 ether, bob, bytes32("bob-note-1"), 21);
         authorizations = new PrivateStateController.SpendAuthorization[](1);
 
         vm.prank(bob);
-        controller.redeemNotes(bobNoteIds, authorizations, bob);
+        controller.redeemNotes(bobNotes, authorizations, bob);
 
         assertEq(tokenVault.liquidBalances(bob, address(token)), 35 ether);
 
@@ -112,99 +113,109 @@ contract PrivateStateControllerTest is Test {
     }
 
     function testRelayerCanTransferWithOwnerSignature() public {
+        PrivateStateController.InputNote memory aliceNote =
+            _inputNote(address(token), 50 ether, alice, bytes32("alice-note-2"), 31);
+
         vm.prank(alice);
         controller.depositToken(address(token), 50 ether);
 
         vm.prank(alice);
-        (uint256 noteId,) = controller.mintNote(address(token), 50 ether, alice, bytes32("alice-note-2"), 31);
+        bytes32 aliceCommitment = controller.mintNote(
+            aliceNote.token, aliceNote.value, aliceNote.owner, aliceNote.salt, aliceNote.nullifierNonce
+        );
 
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
-        outputs[0] = PrivateStateController.OutputNote({
-            owner: bob, value: 50 ether, salt: bytes32("bob-note-2"), nullifierNonce: 41
-        });
+        outputs[0] = _outputNote(bob, 50 ether, bytes32("bob-note-2"), 41);
 
         bytes32 outputsHash = controller.hashTransferOutputs(address(token), outputs);
         uint256 deadline = block.timestamp + 1 days;
-        bytes32 digest = controller.getTransferAuthorizationHash(noteId, outputsHash, deadline);
+        bytes32 digest = controller.getTransferAuthorizationHash(aliceCommitment, outputsHash, deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_KEY, digest);
 
-        uint256[] memory inputNoteIds = new uint256[](1);
-        inputNoteIds[0] = noteId;
+        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
+        inputNotes[0] = aliceNote;
         PrivateStateController.SpendAuthorization[] memory authorizations =
             new PrivateStateController.SpendAuthorization[](1);
         authorizations[0] =
             PrivateStateController.SpendAuthorization({deadline: deadline, signature: abi.encodePacked(r, s, v)});
 
         vm.prank(relayer);
-        (, uint256[] memory outputIds,) = controller.transferNotes(inputNoteIds, authorizations, outputs);
+        (, bytes32[] memory outputCommitments) = controller.transferNotes(inputNotes, authorizations, outputs);
 
-        assertEq(noteRegistry.getNote(outputIds[0]).owner, bob);
-        assertEq(noteRegistry.getNote(outputIds[0]).value, 50 ether);
+        assertTrue(noteRegistry.commitmentExists(outputCommitments[0]));
+        assertEq(
+            outputCommitments[0], _commitmentOf(_inputNote(address(token), 50 ether, bob, bytes32("bob-note-2"), 41))
+        );
     }
 
     function testCannotTransferWithoutOwnerAuthorization() public {
+        PrivateStateController.InputNote memory aliceNote =
+            _inputNote(address(token), 10 ether, alice, bytes32("alice-note-3"), 51);
+
         vm.prank(alice);
         controller.depositToken(address(token), 10 ether);
 
         vm.prank(alice);
-        (uint256 noteId,) = controller.mintNote(address(token), 10 ether, alice, bytes32("alice-note-3"), 51);
+        bytes32 aliceCommitment = controller.mintNote(
+            aliceNote.token, aliceNote.value, aliceNote.owner, aliceNote.salt, aliceNote.nullifierNonce
+        );
 
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
-        outputs[0] = PrivateStateController.OutputNote({
-            owner: bob, value: 10 ether, salt: bytes32("bob-note-3"), nullifierNonce: 61
-        });
+        outputs[0] = _outputNote(bob, 10 ether, bytes32("bob-note-3"), 61);
 
-        uint256[] memory inputNoteIds = new uint256[](1);
-        inputNoteIds[0] = noteId;
+        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
+        inputNotes[0] = aliceNote;
         PrivateStateController.SpendAuthorization[] memory authorizations =
             new PrivateStateController.SpendAuthorization[](1);
 
-        vm.expectRevert(abi.encodeWithSelector(PrivateStateController.MissingAuthorization.selector, noteId));
+        vm.expectRevert(abi.encodeWithSelector(PrivateStateController.MissingAuthorization.selector, aliceCommitment));
         vm.prank(relayer);
-        controller.transferNotes(inputNoteIds, authorizations, outputs);
+        controller.transferNotes(inputNotes, authorizations, outputs);
     }
 
     function testCannotReplaySpentNote() public {
+        PrivateStateController.InputNote memory aliceNote =
+            _inputNote(address(token), 15 ether, alice, bytes32("alice-note-4"), 71);
+
         vm.prank(alice);
         controller.depositToken(address(token), 15 ether);
 
         vm.prank(alice);
-        (uint256 noteId,) = controller.mintNote(address(token), 15 ether, alice, bytes32("alice-note-4"), 71);
+        controller.mintNote(aliceNote.token, aliceNote.value, aliceNote.owner, aliceNote.salt, aliceNote.nullifierNonce);
 
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
-        outputs[0] = PrivateStateController.OutputNote({
-            owner: alice, value: 15 ether, salt: bytes32("alice-note-4b"), nullifierNonce: 72
-        });
+        outputs[0] = _outputNote(alice, 15 ether, bytes32("alice-note-4b"), 72);
 
-        uint256[] memory inputNoteIds = new uint256[](1);
-        inputNoteIds[0] = noteId;
+        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
+        inputNotes[0] = aliceNote;
         PrivateStateController.SpendAuthorization[] memory authorizations =
             new PrivateStateController.SpendAuthorization[](1);
 
         vm.prank(alice);
-        controller.transferNotes(inputNoteIds, authorizations, outputs);
+        controller.transferNotes(inputNotes, authorizations, outputs);
 
         vm.expectRevert(
-            abi.encodeWithSelector(PrivateNullifierRegistry.NullifierAlreadyUsed.selector, nullifiersFor(noteId))
+            abi.encodeWithSelector(PrivateNullifierRegistry.NullifierAlreadyUsed.selector, _nullifierOf(aliceNote))
         );
         vm.prank(alice);
-        controller.transferNotes(inputNoteIds, authorizations, outputs);
+        controller.transferNotes(inputNotes, authorizations, outputs);
     }
 
     function testRejectsTransferValueMismatch() public {
+        PrivateStateController.InputNote memory aliceNote =
+            _inputNote(address(token), 20 ether, alice, bytes32("alice-note-5"), 81);
+
         vm.prank(alice);
         controller.depositToken(address(token), 20 ether);
 
         vm.prank(alice);
-        (uint256 noteId,) = controller.mintNote(address(token), 20 ether, alice, bytes32("alice-note-5"), 81);
+        controller.mintNote(aliceNote.token, aliceNote.value, aliceNote.owner, aliceNote.salt, aliceNote.nullifierNonce);
 
         PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
-        outputs[0] = PrivateStateController.OutputNote({
-            owner: bob, value: 19 ether, salt: bytes32("bob-note-5"), nullifierNonce: 91
-        });
+        outputs[0] = _outputNote(bob, 19 ether, bytes32("bob-note-5"), 91);
 
-        uint256[] memory inputNoteIds = new uint256[](1);
-        inputNoteIds[0] = noteId;
+        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
+        inputNotes[0] = aliceNote;
         PrivateStateController.SpendAuthorization[] memory authorizations =
             new PrivateStateController.SpendAuthorization[](1);
 
@@ -212,32 +223,52 @@ contract PrivateStateControllerTest is Test {
             abi.encodeWithSelector(PrivateStateController.InputOutputValueMismatch.selector, 20 ether, 19 ether)
         );
         vm.prank(alice);
-        controller.transferNotes(inputNoteIds, authorizations, outputs);
+        controller.transferNotes(inputNotes, authorizations, outputs);
     }
 
     function testRelayerCanRedeemWithOwnerSignature() public {
+        PrivateStateController.InputNote memory aliceNote =
+            _inputNote(address(token), 25 ether, alice, bytes32("alice-note-6"), 101);
+
         vm.prank(alice);
         controller.depositToken(address(token), 25 ether);
 
         vm.prank(alice);
-        (uint256 noteId,) = controller.mintNote(address(token), 25 ether, alice, bytes32("alice-note-6"), 101);
+        bytes32 aliceCommitment = controller.mintNote(
+            aliceNote.token, aliceNote.value, aliceNote.owner, aliceNote.salt, aliceNote.nullifierNonce
+        );
 
         uint256 deadline = block.timestamp + 1 days;
-        bytes32 digest = controller.getRedeemAuthorizationHash(noteId, bob, deadline);
+        bytes32 digest = controller.getRedeemAuthorizationHash(aliceCommitment, bob, deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_KEY, digest);
 
-        uint256[] memory inputNoteIds = new uint256[](1);
-        inputNoteIds[0] = noteId;
+        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
+        inputNotes[0] = aliceNote;
         PrivateStateController.SpendAuthorization[] memory authorizations =
             new PrivateStateController.SpendAuthorization[](1);
         authorizations[0] =
             PrivateStateController.SpendAuthorization({deadline: deadline, signature: abi.encodePacked(r, s, v)});
 
         vm.prank(relayer);
-        controller.redeemNotes(inputNoteIds, authorizations, bob);
+        controller.redeemNotes(inputNotes, authorizations, bob);
 
         assertEq(tokenVault.liquidBalances(bob, address(token)), 25 ether);
-        assertTrue(nullifierStore.nullifierUsed(nullifiersFor(noteId)));
+        assertTrue(nullifierStore.nullifierUsed(_nullifierOf(aliceNote)));
+    }
+
+    function testUnknownCommitmentCannotBeSpent() public {
+        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
+        inputNotes[0] = _inputNote(address(token), 5 ether, alice, bytes32("unknown-note"), 201);
+        PrivateStateController.OutputNote[] memory outputs = new PrivateStateController.OutputNote[](1);
+        outputs[0] = _outputNote(bob, 5 ether, bytes32("unknown-out"), 202);
+        PrivateStateController.SpendAuthorization[] memory authorizations =
+            new PrivateStateController.SpendAuthorization[](1);
+
+        bytes32 unknownCommitment = _commitmentOf(inputNotes[0]);
+
+        vm.expectRevert(abi.encodeWithSelector(PrivateStateController.UnknownCommitment.selector, unknownCommitment));
+        vm.prank(alice);
+        controller.transferNotes(inputNotes, authorizations, outputs);
     }
 
     function testCannotWithdrawMoreThanLiquidBalance() public {
@@ -267,8 +298,31 @@ contract PrivateStateControllerTest is Test {
         nullifierStore.bindController(relayer);
     }
 
-    function nullifiersFor(uint256 noteId) internal view returns (bytes32) {
-        PrivateNoteRegistry.Note memory note = noteRegistry.getNote(noteId);
-        return noteRegistry.computeNullifier(noteId, note.commitment, note.owner, note.nullifierNonce);
+    function _inputNote(address token_, uint256 value_, address owner_, bytes32 salt_, uint256 nullifierNonce_)
+        internal
+        pure
+        returns (PrivateStateController.InputNote memory)
+    {
+        return PrivateStateController.InputNote({
+            token: token_, value: value_, owner: owner_, salt: salt_, nullifierNonce: nullifierNonce_
+        });
+    }
+
+    function _outputNote(address owner_, uint256 value_, bytes32 salt_, uint256 nullifierNonce_)
+        internal
+        pure
+        returns (PrivateStateController.OutputNote memory)
+    {
+        return PrivateStateController.OutputNote({
+            owner: owner_, value: value_, salt: salt_, nullifierNonce: nullifierNonce_
+        });
+    }
+
+    function _commitmentOf(PrivateStateController.InputNote memory note) internal view returns (bytes32) {
+        return controller.computeNoteCommitment(note.token, note.value, note.owner, note.salt, note.nullifierNonce);
+    }
+
+    function _nullifierOf(PrivateStateController.InputNote memory note) internal view returns (bytes32) {
+        return controller.computeNullifier(note.token, note.value, note.owner, note.salt, note.nullifierNonce);
     }
 }

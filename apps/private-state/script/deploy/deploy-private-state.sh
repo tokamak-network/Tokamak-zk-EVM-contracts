@@ -82,3 +82,5 @@ echo "Environment file: $ENV_FILE"
     cd "$PROJECT_ROOT"
     "${FORGE_CMD[@]}"
 )
+
+bash "$PROJECT_ROOT/apps/private-state/script/deploy/write-deploy-artifacts.sh" "$APPS_CHAIN_ID"

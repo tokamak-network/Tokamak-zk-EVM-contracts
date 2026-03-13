@@ -108,6 +108,7 @@ The repository now includes:
 
 - `apps/private-state/script/deploy/DeployPrivateState.s.sol`
 - `apps/private-state/script/deploy/deploy-private-state.sh`
+- `apps/private-state/script/deploy/write-deploy-artifacts.sh`
 - `apps/.env.template`
 
 The deploy script uses a deployment factory and deterministic address prediction:
@@ -138,6 +139,18 @@ There is no `PRIVATE_STATE_OWNER` parameter.
 When `PRIVATE_STATE_TESTING_BALANCE_SETTER` is the zero address, the L2 accounting vault disables the test-only
 balance override function. If a non-zero address is configured, that address may call the vault test hook to set an
 account balance to an arbitrary value. This is useful for public test deployments and unsafe for production custody.
+
+Every successful deployment also writes DApp-local JSON artifacts into `apps/private-state/deploy`:
+
+- `deployment.<chain-id>.<timestamp>.json`: the deployed addresses and deployment metadata for that run
+- `deployment.latest.json`: the latest deployment manifest
+- `PrivateStateController.callable-abi.json`
+- `L2AccountingVault.callable-abi.json`
+- `PrivateNoteRegistry.callable-abi.json`
+- `PrivateNullifierRegistry.callable-abi.json`
+
+The ABI files intentionally contain only the user-facing or tester-facing callable functions for each contract rather
+than the full contract ABI.
 
 ## Security Tradeoffs
 

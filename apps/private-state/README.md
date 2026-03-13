@@ -26,8 +26,7 @@ Real Zcash or zkDai systems prove note ownership inside a circuit by showing kno
 - The spender submits the full note plaintext in calldata.
 - The controller recomputes the note commitment from that plaintext and checks that the commitment exists on-chain.
 - The plaintext includes a visible `owner` address.
-- The owner can spend directly by calling the controller.
-- A relayer can spend on behalf of the owner when it submits an ECDSA signature over a controller-defined authorization hash.
+- The note owner must spend directly by calling the controller.
 
 This preserves spend authorization semantics, but it does not preserve anonymity or hidden amounts.
 

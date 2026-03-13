@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
-import {ECDSA} from "@openzeppelin/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin/utils/cryptography/MessageHashUtils.sol";
 import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
 import {PrivateNullifierRegistry} from "./PrivateNullifierRegistry.sol";
 import {PrivateNoteRegistry} from "./PrivateNoteRegistry.sol";
@@ -11,25 +9,12 @@ import {TokenVault} from "./TokenVault.sol";
 /// @title PrivateStateController
 /// @notice User-facing application logic for the non-private zk-note DApp.
 contract PrivateStateController is ReentrancyGuard {
-    using ECDSA for bytes32;
-    using MessageHashUtils for bytes32;
-
     error EmptyArray();
-    error ArrayLengthMismatch(uint256 expected, uint256 actual);
     error ZeroAddress();
     error ZeroAmount();
     error UnknownCommitment(bytes32 commitment);
     error InputOutputValueMismatch(uint256 inputValue, uint256 outputValue);
-    error AuthorizationExpired(uint256 deadline);
-    error MissingAuthorization(bytes32 commitment);
-    error InvalidAuthorization(bytes32 commitment, address recoveredSigner, address expectedSigner);
-
-    bytes32 private constant TRANSFER_NOTE_TYPEHASH = keccak256(
-        "TransferNote(uint256 chainId,address controller,bytes32 inputCommitment,bytes32 outputsHash,uint256 deadline)"
-    );
-    bytes32 private constant REDEEM_NOTE_TYPEHASH = keccak256(
-        "RedeemNote(uint256 chainId,address controller,bytes32 inputCommitment,address receiver,uint256 deadline)"
-    );
+    error UnauthorizedNoteOwner(address caller, address expectedOwner);
 
     struct InputNote {
         uint256 value;
@@ -41,11 +26,6 @@ contract PrivateStateController is ReentrancyGuard {
         address owner;
         uint256 value;
         bytes32 salt;
-    }
-
-    struct SpendAuthorization {
-        uint256 deadline;
-        bytes signature;
     }
 
     event TokenDeposited(address indexed payer, address indexed beneficiary, address indexed token, uint256 amount);
@@ -98,21 +78,17 @@ contract PrivateStateController is ReentrancyGuard {
         emit NoteMinted(msg.sender, commitment, noteOwner, amount);
     }
 
-    function transferNotes(
-        InputNote[] calldata inputNotes,
-        SpendAuthorization[] calldata authorizations,
-        OutputNote[] calldata outputs
-    ) external nonReentrant returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments) {
+    function transferNotes(InputNote[] calldata inputNotes, OutputNote[] calldata outputs)
+        external
+        nonReentrant
+        returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments)
+    {
         if (inputNotes.length == 0 || outputs.length == 0) {
             revert EmptyArray();
-        }
-        if (inputNotes.length != authorizations.length) {
-            revert ArrayLengthMismatch(inputNotes.length, authorizations.length);
         }
 
         _validateNoteFields(inputNotes[0].value, inputNotes[0].owner);
 
-        bytes32 outputsHash = hashTransferOutputs(outputs);
         uint256 totalOutputValue;
         for (uint256 i = 0; i < outputs.length; ++i) {
             _validateOutputNote(outputs[i]);
@@ -131,7 +107,7 @@ contract PrivateStateController is ReentrancyGuard {
                 revert UnknownCommitment(commitment);
             }
 
-            _verifyTransferAuthorization(commitment, note.owner, outputsHash, authorizations[i]);
+            _requireNoteOwner(note.owner);
             inputCommitments[i] = commitment;
             nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
             totalInputValue += note.value;
@@ -154,16 +130,13 @@ contract PrivateStateController is ReentrancyGuard {
         emit NotesTransferred(msg.sender, inputNotes.length, outputs.length);
     }
 
-    function redeemNotes(
-        InputNote[] calldata inputNotes,
-        SpendAuthorization[] calldata authorizations,
-        address receiver
-    ) external nonReentrant returns (bytes32[] memory nullifiers) {
+    function redeemNotes(InputNote[] calldata inputNotes, address receiver)
+        external
+        nonReentrant
+        returns (bytes32[] memory nullifiers)
+    {
         if (inputNotes.length == 0) {
             revert EmptyArray();
-        }
-        if (inputNotes.length != authorizations.length) {
-            revert ArrayLengthMismatch(inputNotes.length, authorizations.length);
         }
         if (receiver == address(0)) {
             revert ZeroAddress();
@@ -180,7 +153,7 @@ contract PrivateStateController is ReentrancyGuard {
                 revert UnknownCommitment(commitment);
             }
 
-            _verifyRedeemAuthorization(commitment, note.owner, receiver, authorizations[i]);
+            _requireNoteOwner(note.owner);
             inputCommitments[i] = commitment;
             nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
         }
@@ -198,19 +171,6 @@ contract PrivateStateController is ReentrancyGuard {
         emit TokenWithdrawn(msg.sender, receiver, amount);
     }
 
-    function hashTransferOutputs(OutputNote[] calldata outputs) public pure returns (bytes32) {
-        if (outputs.length == 0) {
-            revert EmptyArray();
-        }
-
-        bytes32 rollingHash = keccak256(abi.encodePacked(outputs.length));
-        for (uint256 i = 0; i < outputs.length; ++i) {
-            rollingHash = keccak256(abi.encodePacked(rollingHash, outputs[i].owner, outputs[i].value, outputs[i].salt));
-        }
-
-        return rollingHash;
-    }
-
     function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
         _validateNoteFields(value, owner);
         return keccak256(abi.encode(block.chainid, address(noteRegistry), tokamakNetworkToken, value, owner, salt));
@@ -219,78 +179,6 @@ contract PrivateStateController is ReentrancyGuard {
     function computeNullifier(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
         _validateNoteFields(value, owner);
         return keccak256(abi.encode(block.chainid, address(nullifierStore), tokamakNetworkToken, value, owner, salt));
-    }
-
-    function getTransferAuthorizationHash(bytes32 inputCommitment, bytes32 outputsHash, uint256 deadline)
-        public
-        view
-        returns (bytes32)
-    {
-        return keccak256(
-                abi.encode(TRANSFER_NOTE_TYPEHASH, block.chainid, address(this), inputCommitment, outputsHash, deadline)
-            ).toEthSignedMessageHash();
-    }
-
-    function getRedeemAuthorizationHash(bytes32 inputCommitment, address receiver, uint256 deadline)
-        public
-        view
-        returns (bytes32)
-    {
-        if (receiver == address(0)) {
-            revert ZeroAddress();
-        }
-
-        return keccak256(
-                abi.encode(REDEEM_NOTE_TYPEHASH, block.chainid, address(this), inputCommitment, receiver, deadline)
-            ).toEthSignedMessageHash();
-    }
-
-    function _verifyTransferAuthorization(
-        bytes32 inputCommitment,
-        address owner,
-        bytes32 outputsHash,
-        SpendAuthorization calldata authorization
-    ) internal view {
-        if (msg.sender == owner) {
-            return;
-        }
-
-        if (authorization.signature.length == 0) {
-            revert MissingAuthorization(inputCommitment);
-        }
-        if (authorization.deadline < block.timestamp) {
-            revert AuthorizationExpired(authorization.deadline);
-        }
-
-        address recoveredSigner = getTransferAuthorizationHash(inputCommitment, outputsHash, authorization.deadline)
-            .recover(authorization.signature);
-        if (recoveredSigner != owner) {
-            revert InvalidAuthorization(inputCommitment, recoveredSigner, owner);
-        }
-    }
-
-    function _verifyRedeemAuthorization(
-        bytes32 inputCommitment,
-        address owner,
-        address receiver,
-        SpendAuthorization calldata authorization
-    ) internal view {
-        if (msg.sender == owner) {
-            return;
-        }
-
-        if (authorization.signature.length == 0) {
-            revert MissingAuthorization(inputCommitment);
-        }
-        if (authorization.deadline < block.timestamp) {
-            revert AuthorizationExpired(authorization.deadline);
-        }
-
-        address recoveredSigner = getRedeemAuthorizationHash(inputCommitment, receiver, authorization.deadline)
-            .recover(authorization.signature);
-        if (recoveredSigner != owner) {
-            revert InvalidAuthorization(inputCommitment, recoveredSigner, owner);
-        }
     }
 
     function _validateNoteFields(uint256 value, address owner) internal pure {
@@ -308,6 +196,12 @@ contract PrivateStateController is ReentrancyGuard {
         }
         if (output.value == 0) {
             revert ZeroAmount();
+        }
+    }
+
+    function _requireNoteOwner(address owner) internal view {
+        if (msg.sender != owner) {
+            revert UnauthorizedNoteOwner(msg.sender, owner);
         }
     }
 }

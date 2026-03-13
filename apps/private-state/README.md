@@ -100,8 +100,8 @@ These fixed entrypoints are intended to make the final user-facing state transit
 Sepolia deployment requires four concrete inputs:
 
 - the deployer private key
-- the Sepolia RPC URL
 - the Sepolia chain ID
+- the Alchemy API key used to derive the Sepolia RPC URL
 - the canonical TON asset address used as `canonicalAsset`
 
 The repository now includes:
@@ -124,8 +124,8 @@ private-state deployment parameters must be stored in `apps/.env`, not in the re
 The private-state deploy flow uses shared app deployment variables for the signer and target network:
 
 - `APPS_DEPLOYER_PRIVATE_KEY`
-- `APPS_RPC_URL`
 - `APPS_CHAIN_ID`
+- `APPS_ALCHEMY_API_KEY`
 - `APPS_ETHERSCAN_API_KEY` when block explorer verification is needed
 
 It uses a namespaced variable only for the private-state-specific value:

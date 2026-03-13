@@ -174,6 +174,6 @@ When reporting on a new app design, explicitly answer:
 6. Did the checker flag anything, and if so, why is it acceptable or how should it be refactored?
 7. Should storage remain in one address or be split across multiple addresses?
 8. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
-9. Are app deployment secrets and RPC settings isolated in `apps/.env`, with shared app-level signer and network variables plus DApp-specific namespaced values only where needed?
+9. Are app deployment secrets and network settings isolated in `apps/.env`, with shared app-level signer and provider-key-plus-chain variables plus DApp-specific namespaced values only where needed?
 10. Was contract-level admin ownership removed where it was not strictly necessary?
 11. If a controller exists, is it wired immutably at deployment time rather than through a mutable admin step?

@@ -45,7 +45,8 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Store each DApp deployment script under `apps/<dapp>/script/deploy`.
    - Store app deployment parameters in `apps/.env`.
    - Share the deployment signer and target network across DApps through common app-level variables.
-    - Namespace only DApp-specific deployment values, for example `PRIVATE_STATE_CANONICAL_ASSET`.
+   - Prefer an app-level provider key plus chain identifier, then derive the RPC URL inside the DApp deployment script.
+   - Namespace only DApp-specific deployment values, for example `PRIVATE_STATE_CANONICAL_ASSET`.
    - Do not add per-DApp owner env variables in the default app deployment model.
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
 10. Keep the review explicit in the final response:

@@ -30,6 +30,29 @@ Real Zcash or zkDai systems prove note ownership inside a circuit by showing kno
 - The note owner must spend directly by calling the controller.
 This preserves spend authorization semantics. Privacy assumptions depend on the surrounding L2 transaction visibility model rather than on the contracts themselves.
 
+## Owner Roles
+
+This DApp uses two different notions of ownership:
+
+- `note owner`: the address embedded in a note plaintext that is allowed to spend that note
+- `contract owner`: the `Ownable` administrator of `L2AccountingVault`, `PrivateNoteRegistry`, and `PrivateNullifierRegistry`
+
+The two roles are intentionally separate. A note owner controls note spending through the controller entrypoints. A contract owner does not gain direct authority over user notes, commitments, nullifiers, or L2 accounting balances.
+
+In the current design, the contract owner has a narrow bootstrap role only:
+
+- call `bindController()` once on each storage contract
+- transfer or renounce ownership of those storage contracts later if desired
+
+After controller binding is complete, the contract owner cannot:
+
+- spend a user's note
+- register commitments directly
+- mark nullifiers as used directly
+- credit or debit user accounting balances directly
+
+Those state changes remain restricted to the bound controller. As a result, the contract owner is best understood as an initialization and administration role, not as an operator with direct user-fund control.
+
 ## Nullifier Model
 
 The controller computes a deterministic nullifier from the submitted note plaintext and the nullifier store domain. The canonical Tokamak Network Token asset identifier is fixed at deployment time and remains part of the derived hashes even though callers do not pass it explicitly. The note store itself only keeps commitment existence.

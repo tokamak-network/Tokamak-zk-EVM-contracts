@@ -44,7 +44,7 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 ## End-to-End Flow
 
 1. Approve the vault to transfer the Tokamak Network Token.
-2. Call `depositToken` or `depositTokenFor` on the controller.
+2. Call `depositToken` on the controller.
 3. Call `mintNotes1`, `mintNotes2`, or `mintNotes3` to lock part of the liquid balance into one, two, or three note commitments.
 4. Call one of `transferNotes4`, `transferNotes6`, or `transferNotes8` with exactly 3 output notes.
 5. Call one of `redeemNotes4`, `redeemNotes6`, or `redeemNotes8` to convert fixed batches of notes back into liquid balances.

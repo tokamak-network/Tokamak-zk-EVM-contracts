@@ -55,13 +55,9 @@ contract PrivateStateController is ReentrancyGuard {
         tokamakNetworkToken = address(tokenVault_.tokamakNetworkToken());
     }
 
-    function depositToken(uint256 amount) external {
-        depositTokenFor(amount, msg.sender);
-    }
-
-    function depositTokenFor(uint256 amount, address beneficiary) public nonReentrant {
-        tokenVault.deposit(msg.sender, beneficiary, amount);
-        emit TokenDeposited(msg.sender, beneficiary, tokamakNetworkToken, amount);
+    function depositToken(uint256 amount) external nonReentrant {
+        tokenVault.deposit(msg.sender, msg.sender, amount);
+        emit TokenDeposited(msg.sender, msg.sender, tokamakNetworkToken, amount);
     }
 
     function mintNotes1(OutputNote[1] calldata outputs) external nonReentrant returns (bytes32[1] memory commitments) {

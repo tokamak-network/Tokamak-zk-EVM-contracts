@@ -1,19 +1,10 @@
 # private-state CLI
 
-This folder contains a browser-based CLI for the private-state DApp.
-
-## Why it is browser-based
-
-MetaMask exposes an EIP-1193 provider in the browser, not in a plain shell process. Because the CLI must optionally
-connect to MetaMask and submit transactions, the practical implementation is a static web app that behaves like an
-operator console.
+This folder contains a terminal CLI for the private-state DApp.
 
 ## Structure
 
-- `index.html`: the operator UI
-- `main.js`: manifest loading, ABI loading, calldata generation, `eth_call`, and `eth_sendTransaction`
-- `style.css`: presentation
-- `serve.sh`: simple local static file server
+- `private-state-cli.mjs`: the CLI entrypoint
 - `functions/index.json`: selectable function list
 - `functions/<function-name>/calldata.json`: default calldata template for that function
 
@@ -31,23 +22,23 @@ Each `calldata.json` file follows this shape:
 }
 ```
 
-The CLI reads the selected function's `calldata.json`, allows manual editing, encodes the calldata with the callable
-ABI, resolves the deployed contract address from `apps/private-state/deploy/deployment.<chain-id>.latest.json`, and
-then either:
+The CLI reads a function's `calldata.json`, optionally replaces `args` through `--args-file` or replaces the full
+template through `--template-file`, resolves the deployed contract address from
+`apps/private-state/deploy/deployment.<chain-id>.latest.json`, and then either:
 
 - generates calldata only
 - performs `eth_call`
-- submits `eth_sendTransaction` through MetaMask
+- submits a signed transaction using a provided private key
 
-## Serving the CLI
-
-Do not open the HTML file with `file://`. Use a local HTTP server instead.
+## Usage
 
 ```bash
-bash apps/private-state/cli/serve.sh
+node apps/private-state/cli/private-state-cli.mjs list
+node apps/private-state/cli/private-state-cli.mjs show-template bridgeDeposit
+node apps/private-state/cli/private-state-cli.mjs generate bridgeDeposit --network sepolia
+node apps/private-state/cli/private-state-cli.mjs call canonicalAsset --network sepolia
+node apps/private-state/cli/private-state-cli.mjs send bridgeDeposit --network anvil --private-key <hex>
 ```
-
-Then open the printed URL in a browser with MetaMask installed.
 
 ## Function-folder naming
 

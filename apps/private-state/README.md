@@ -155,59 +155,29 @@ Every successful deployment also writes DApp-local JSON artifacts into `apps/pri
 The ABI files intentionally contain only the user-facing or tester-facing callable functions for each contract rather
 than the full contract ABI.
 
-## Browser CLI
+## CLI
 
-private-state now includes a browser-based operator CLI under `apps/private-state/cli`.
-
-This is intentionally browser-based rather than a pure terminal program because MetaMask connectivity requires a
-browser EIP-1193 provider.
+private-state now includes a terminal CLI under `apps/private-state/cli/private-state-cli.mjs`.
 
 The CLI:
 
-- selects a target network
+- selects a target network through `--network` or `apps/.env`
 - loads deployed addresses from `apps/private-state/deploy/deployment.<chain-id>.latest.json`
 - loads callable ABIs from `apps/private-state/deploy/*.callable-abi.json`
 - reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`
 - generates calldata
 - performs `eth_call`
-- submits `eth_sendTransaction` through MetaMask
+- submits signed transactions with a private key
 
-Serve it locally with:
-
-```bash
-bash apps/private-state/cli/serve.sh
-```
-
-Then open the printed URL in a browser with MetaMask installed.
-
-The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such
-as `controller()`, those duplicates are intentionally omitted from the CLI function-folder set to avoid path
-collisions.
-
-## Browser CLI
-
-private-state now includes a browser-based operator CLI under `apps/private-state/cli`.
-
-This is intentionally browser-based rather than a pure terminal program because MetaMask connectivity requires a
-browser EIP-1193 provider.
-
-The CLI:
-
-- selects a target network
-- loads deployed addresses from `apps/private-state/deploy/deployment.<chain-id>.latest.json`
-- loads callable ABIs from `apps/private-state/deploy/*.callable-abi.json`
-- reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`
-- generates calldata
-- performs `eth_call`
-- submits `eth_sendTransaction` through MetaMask
-
-Serve it locally with:
+Examples:
 
 ```bash
-bash apps/private-state/cli/serve.sh
+node apps/private-state/cli/private-state-cli.mjs list
+node apps/private-state/cli/private-state-cli.mjs show-template bridgeDeposit
+node apps/private-state/cli/private-state-cli.mjs generate bridgeDeposit --network sepolia
+node apps/private-state/cli/private-state-cli.mjs call canonicalAsset --network sepolia
+node apps/private-state/cli/private-state-cli.mjs send bridgeDeposit --network anvil --private-key <hex>
 ```
-
-Then open the printed URL in a browser with MetaMask installed.
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such
 as `controller()`, those duplicates are intentionally omitted from the CLI function-folder set to avoid path

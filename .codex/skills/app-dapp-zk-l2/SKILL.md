@@ -54,8 +54,8 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
    - Write deployment manifests and callable ABI JSON files into `apps/<dapp>/deploy`.
 10. Provide a DApp-local CLI under `apps/<dapp>/cli`:
-   - Prefer a browser-based static CLI when MetaMask connectivity is required, because MetaMask is not a shell-native provider.
-   - Include target-network selection and optional MetaMask connection.
+   - Use a terminal CLI, not a browser application.
+   - Include target-network selection and optional private-key input for signed transactions.
    - Resolve contract addresses from `apps/<dapp>/deploy/deployment.<chain-id>.latest.json`.
    - Load callable ABIs from `apps/<dapp>/deploy/*.callable-abi.json`.
    - Keep one function template folder per callable function under `apps/<dapp>/cli/functions/<function-name>/calldata.json`.

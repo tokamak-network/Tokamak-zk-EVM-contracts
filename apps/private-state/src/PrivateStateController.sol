@@ -131,40 +131,40 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function redeemNotes(InputNote[] calldata inputNotes, address receiver)
+    function redeemNotes4(InputNote[4] calldata inputNotes, address receiver)
         external
         nonReentrant
-        returns (bytes32[] memory nullifiers)
+        returns (bytes32[4] memory nullifiers)
     {
-        if (inputNotes.length == 0) {
-            revert EmptyArray();
+        InputNote[] memory dynamicInputs = _copyInputNotes4(inputNotes);
+        bytes32[] memory dynamicNullifiers = _redeemFixedNotes(dynamicInputs, receiver);
+        for (uint256 i = 0; i < 4; ++i) {
+            nullifiers[i] = dynamicNullifiers[i];
         }
-        if (receiver == address(0)) {
-            revert ZeroAddress();
+    }
+
+    function redeemNotes6(InputNote[6] calldata inputNotes, address receiver)
+        external
+        nonReentrant
+        returns (bytes32[6] memory nullifiers)
+    {
+        InputNote[] memory dynamicInputs = _copyInputNotes6(inputNotes);
+        bytes32[] memory dynamicNullifiers = _redeemFixedNotes(dynamicInputs, receiver);
+        for (uint256 i = 0; i < 6; ++i) {
+            nullifiers[i] = dynamicNullifiers[i];
         }
+    }
 
-        bytes32[] memory inputCommitments = new bytes32[](inputNotes.length);
-        nullifiers = new bytes32[](inputNotes.length);
-        for (uint256 i = 0; i < inputNotes.length; ++i) {
-            InputNote calldata note = inputNotes[i];
-            _validateNoteFields(note.value, note.owner);
-
-            bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
-            if (!noteRegistry.commitmentExists(commitment)) {
-                revert UnknownCommitment(commitment);
-            }
-
-            _requireNoteOwner(note.owner);
-            inputCommitments[i] = commitment;
-            nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
+    function redeemNotes8(InputNote[8] calldata inputNotes, address receiver)
+        external
+        nonReentrant
+        returns (bytes32[8] memory nullifiers)
+    {
+        InputNote[] memory dynamicInputs = _copyInputNotes8(inputNotes);
+        bytes32[] memory dynamicNullifiers = _redeemFixedNotes(dynamicInputs, receiver);
+        for (uint256 i = 0; i < 8; ++i) {
+            nullifiers[i] = dynamicNullifiers[i];
         }
-
-        for (uint256 i = 0; i < inputNotes.length; ++i) {
-            nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
-            tokenVault.creditLiquidBalance(receiver, inputNotes[i].value);
-        }
-
-        emit NotesRedeemed(msg.sender, receiver, inputNotes.length);
     }
 
     function withdrawToken(uint256 amount, address receiver) external nonReentrant {
@@ -227,6 +227,38 @@ contract PrivateStateController is ReentrancyGuard {
         }
 
         emit NotesTransferred(msg.sender, inputNotes.length, 3);
+    }
+
+    function _redeemFixedNotes(InputNote[] memory inputNotes, address receiver)
+        internal
+        returns (bytes32[] memory nullifiers)
+    {
+        if (receiver == address(0)) {
+            revert ZeroAddress();
+        }
+
+        bytes32[] memory inputCommitments = new bytes32[](inputNotes.length);
+        nullifiers = new bytes32[](inputNotes.length);
+        for (uint256 i = 0; i < inputNotes.length; ++i) {
+            InputNote memory note = inputNotes[i];
+            _validateNoteFields(note.value, note.owner);
+
+            bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
+            if (!noteRegistry.commitmentExists(commitment)) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(note.owner);
+            inputCommitments[i] = commitment;
+            nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
+        }
+
+        for (uint256 i = 0; i < inputNotes.length; ++i) {
+            nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
+            tokenVault.creditLiquidBalance(receiver, inputNotes[i].value);
+        }
+
+        emit NotesRedeemed(msg.sender, receiver, inputNotes.length);
     }
 
     function _validateNoteFields(uint256 value, address owner) internal pure {

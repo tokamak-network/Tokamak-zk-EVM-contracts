@@ -91,21 +91,35 @@ contract PrivateStateControllerTest is Test {
             assertTrue(noteRegistry.commitmentExists(outputCommitments[i]));
         }
 
-        PrivateStateController.InputNote[] memory bobNotes = new PrivateStateController.InputNote[](1);
-        bobNotes[0] = _inputNote(35 ether, bob, bytes32("bob-4-0"));
+        PrivateStateController.InputNote[4] memory bobNotes = _inputNotes4(
+            _inputNote(35 ether, bob, bytes32("bob-4-0")),
+            _inputNote(10 ether, bob, bytes32("bob-4-dummy-1")),
+            _inputNote(10 ether, bob, bytes32("bob-4-dummy-2")),
+            _inputNote(10 ether, bob, bytes32("bob-4-dummy-3"))
+        );
 
         vm.prank(bob);
-        controller.redeemNotes(bobNotes, bob);
+        controller.depositToken(30 ether);
 
-        assertEq(tokenVault.liquidBalances(bob), 35 ether);
+        vm.prank(bob);
+        controller.mintNote(10 ether, bob, bytes32("bob-4-dummy-1"), bytes("enc:bob-4-dummy-1"));
+        vm.prank(bob);
+        controller.mintNote(10 ether, bob, bytes32("bob-4-dummy-2"), bytes("enc:bob-4-dummy-2"));
+        vm.prank(bob);
+        controller.mintNote(10 ether, bob, bytes32("bob-4-dummy-3"), bytes("enc:bob-4-dummy-3"));
+
+        vm.prank(bob);
+        controller.redeemNotes4(bobNotes, bob);
+
+        assertEq(tokenVault.liquidBalances(bob), 65 ether);
 
         uint256 bobBalanceBefore = token.balanceOf(bob);
 
         vm.prank(bob);
-        controller.withdrawToken(35 ether, bob);
+        controller.withdrawToken(65 ether, bob);
 
         assertEq(tokenVault.liquidBalances(bob), 0);
-        assertEq(token.balanceOf(bob), bobBalanceBefore + 35 ether);
+        assertEq(token.balanceOf(bob), bobBalanceBefore + 65 ether);
         assertEq(token.balanceOf(address(tokenVault)), 65 ether);
     }
 
@@ -271,34 +285,80 @@ contract PrivateStateControllerTest is Test {
         controller.transferNotes4(inputNotes, outputs, encryptedOutputPayloads);
     }
 
-    function testNoteOwnerCanRedeemDirectly() public {
+    function testRedeemNotes4OwnerCanRedeemDirectly() public {
         vm.prank(alice);
-        controller.depositToken(25 ether);
+        controller.depositToken(40 ether);
 
-        PrivateStateController.InputNote memory aliceNote =
-            _mintNote(alice, 25 ether, bytes32("alice-redeem-0"), "enc:alice-redeem-0");
-        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
-        inputNotes[0] = aliceNote;
+        PrivateStateController.InputNote[4] memory inputNotes = _inputNotes4(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-0"), "enc:alice-redeem-0"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-1"), "enc:alice-redeem-1"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-2"), "enc:alice-redeem-2"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-3"), "enc:alice-redeem-3")
+        );
 
         vm.prank(alice);
-        controller.redeemNotes(inputNotes, bob);
+        bytes32[4] memory nullifiers = controller.redeemNotes4(inputNotes, bob);
 
-        assertEq(tokenVault.liquidBalances(bob), 25 ether);
-        assertTrue(nullifierStore.nullifierUsed(_nullifierOf(aliceNote)));
+        assertEq(tokenVault.liquidBalances(bob), 40 ether);
+        for (uint256 i = 0; i < 4; ++i) {
+            assertTrue(nullifierStore.nullifierUsed(nullifiers[i]));
+        }
     }
 
-    function testCannotRedeemAnotherOwnersNote() public {
+    function testRedeemNotes4CannotRedeemAnotherOwnersNotes() public {
         vm.prank(alice);
-        controller.depositToken(12 ether);
+        controller.depositToken(40 ether);
 
-        PrivateStateController.InputNote memory aliceNote =
-            _mintNote(alice, 12 ether, bytes32("alice-redeem-1"), "enc:alice-redeem-1");
-        PrivateStateController.InputNote[] memory inputNotes = new PrivateStateController.InputNote[](1);
-        inputNotes[0] = aliceNote;
+        PrivateStateController.InputNote[4] memory inputNotes = _inputNotes4(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-4"), "enc:alice-redeem-4"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-5"), "enc:alice-redeem-5"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6"), "enc:alice-redeem-6"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-7"), "enc:alice-redeem-7")
+        );
 
         vm.expectRevert(abi.encodeWithSelector(PrivateStateController.UnauthorizedNoteOwner.selector, mallory, alice));
         vm.prank(mallory);
-        controller.redeemNotes(inputNotes, mallory);
+        controller.redeemNotes4(inputNotes, mallory);
+    }
+
+    function testRedeemNotes6OwnerCanRedeemDirectly() public {
+        vm.prank(alice);
+        controller.depositToken(60 ether);
+
+        PrivateStateController.InputNote[6] memory inputNotes = _inputNotes6(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6a"), "enc:alice-redeem-6a"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6b"), "enc:alice-redeem-6b"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6c"), "enc:alice-redeem-6c"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6d"), "enc:alice-redeem-6d"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6e"), "enc:alice-redeem-6e"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-6f"), "enc:alice-redeem-6f")
+        );
+
+        vm.prank(alice);
+        controller.redeemNotes6(inputNotes, bob);
+
+        assertEq(tokenVault.liquidBalances(bob), 60 ether);
+    }
+
+    function testRedeemNotes8OwnerCanRedeemDirectly() public {
+        vm.prank(alice);
+        controller.depositToken(80 ether);
+
+        PrivateStateController.InputNote[8] memory inputNotes = _inputNotes8(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8a"), "enc:alice-redeem-8a"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8b"), "enc:alice-redeem-8b"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8c"), "enc:alice-redeem-8c"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8d"), "enc:alice-redeem-8d"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8e"), "enc:alice-redeem-8e"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8f"), "enc:alice-redeem-8f"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8g"), "enc:alice-redeem-8g"),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-8h"), "enc:alice-redeem-8h")
+        );
+
+        vm.prank(alice);
+        controller.redeemNotes8(inputNotes, bob);
+
+        assertEq(tokenVault.liquidBalances(bob), 80 ether);
     }
 
     function testMintEmitsEncryptedPayload() public {

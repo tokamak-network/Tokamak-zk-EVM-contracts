@@ -59,10 +59,10 @@ This lets a recipient recover note data from events under the stated L2 privacy 
 2. Call `depositToken` or `depositTokenFor` on the controller.
 3. Call `mintNote` to lock part of the liquid balance into a commitment and emit an encrypted note payload.
 4. Call one of `transferNotes4`, `transferNotes6`, or `transferNotes8` with exactly 3 output notes and 3 encrypted output payloads.
-5. Call `redeemNotes` with the input note plaintext in calldata to convert notes back into liquid balances.
+5. Call one of `redeemNotes4`, `redeemNotes6`, or `redeemNotes8` to convert fixed batches of notes back into liquid balances.
 6. Call `withdrawToken` to receive the Tokamak Network Token.
 
-## Fixed-Arity Transfer Entry Points
+## Fixed-Arity Entry Points
 
 The current transfer API exposes three fixed-arity user-facing functions:
 
@@ -70,7 +70,13 @@ The current transfer API exposes three fixed-arity user-facing functions:
 - `transferNotes6`: 6 input notes, 3 output notes
 - `transferNotes8`: 8 input notes, 3 output notes
 
-This change is intended to make the final transfer entrypoints more circuit-friendly under the repository's zk-L2 design constraints.
+The current redeem API exposes three fixed-arity user-facing functions:
+
+- `redeemNotes4`: 4 input notes
+- `redeemNotes6`: 6 input notes
+- `redeemNotes8`: 8 input notes
+
+These fixed entrypoints are intended to make the final user-facing state transitions more circuit-friendly under the repository's zk-L2 design constraints.
 
 ## Security Tradeoffs
 

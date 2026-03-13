@@ -1,0 +1,11 @@
+{
+  "description": "Check whether a nullifier has already been used.",
+  "contractKey": "nullifierRegistry",
+  "abiFile": "../deploy/PrivateNullifierRegistry.callable-abi.json",
+  "method": "nullifierUsed",
+  "mode": "call",
+  "value": "0x0",
+  "args": [
+    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ]
+}

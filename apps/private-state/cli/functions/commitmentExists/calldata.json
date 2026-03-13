@@ -1,0 +1,11 @@
+{
+  "description": "Check whether a note commitment exists in the note registry.",
+  "contractKey": "noteRegistry",
+  "abiFile": "../deploy/PrivateNoteRegistry.callable-abi.json",
+  "method": "commitmentExists",
+  "mode": "call",
+  "value": "0x0",
+  "args": [
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ]
+}

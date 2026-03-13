@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>private-state CLI</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.14.1/dist/ethers.umd.min.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">private-state</p>
+        <h1>DApp CLI</h1>
+        <p class="subtitle">
+          Browser-based operator for private-state user and tester entrypoints. Serve this folder over HTTP, select a
+          target network, load a function template from `calldata.json`, then generate calldata, call, or send a
+          transaction through MetaMask.
+        </p>
+      </div>
+      <div class="hero-actions">
+        <button id="connect-wallet" type="button">Connect MetaMask</button>
+        <button id="switch-network" type="button">Switch Network</button>
+      </div>
+    </header>
+
+    <section class="panel grid two">
+      <label>
+        <span>Target network</span>
+        <select id="network-select"></select>
+      </label>
+      <label>
+        <span>Function</span>
+        <select id="function-select"></select>
+      </label>
+    </section>
+
+    <section class="panel grid two">
+      <div>
+        <h2>Deployment</h2>
+        <dl class="kv">
+          <div><dt>Manifest</dt><dd id="manifest-path">-</dd></div>
+          <div><dt>Contract</dt><dd id="contract-key">-</dd></div>
+          <div><dt>Address</dt><dd id="contract-address">-</dd></div>
+          <div><dt>Mode</dt><dd id="function-mode">-</dd></div>
+          <div><dt>Method</dt><dd id="function-method">-</dd></div>
+        </dl>
+      </div>
+      <div>
+        <h2>Wallet</h2>
+        <dl class="kv">
+          <div><dt>MetaMask</dt><dd id="wallet-status">Disconnected</dd></div>
+          <div><dt>Selected account</dt><dd id="wallet-account">-</dd></div>
+          <div><dt>Connected chain</dt><dd id="wallet-chain">-</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>Function Template</h2>
+        <button id="reload-template" type="button">Reload calldata.json</button>
+      </div>
+      <p id="function-description" class="muted">-</p>
+      <textarea id="calldata-editor" spellcheck="false"></textarea>
+    </section>
+
+    <section class="panel actions">
+      <button id="generate-calldata" type="button">Generate Calldata</button>
+      <button id="perform-call" type="button">Perform eth_call</button>
+      <button id="send-transaction" type="button">Send Transaction</button>
+    </section>
+
+    <section class="panel grid two">
+      <div>
+        <h2>Generated Transaction</h2>
+        <pre id="transaction-preview" class="code-block">-</pre>
+      </div>
+      <div>
+        <h2>Result</h2>
+        <pre id="result-output" class="code-block">-</pre>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Notes</h2>
+      <ul class="notes">
+        <li>The CLI reads function templates from `cli/functions/&lt;function-name&gt;/calldata.json`.</li>
+        <li>Duplicate low-signal getters such as the repeated `controller()` views are intentionally omitted to avoid folder name collisions.</li>
+        <li>MetaMask is required for live `eth_call` and `eth_sendTransaction` execution. Calldata generation works without a wallet.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

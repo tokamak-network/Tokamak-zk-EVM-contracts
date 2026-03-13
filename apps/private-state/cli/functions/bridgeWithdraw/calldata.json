@@ -1,0 +1,9 @@
+{
+  "description": "Bridge-controlled L2 accounting debit for the caller.",
+  "contractKey": "controller",
+  "abiFile": "../deploy/PrivateStateController.callable-abi.json",
+  "method": "bridgeWithdraw",
+  "mode": "send",
+  "value": "0x0",
+  "args": ["1000000000000000000"]
+}

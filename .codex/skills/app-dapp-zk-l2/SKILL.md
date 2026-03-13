@@ -53,13 +53,21 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Do not add per-DApp owner env variables in the default app deployment model.
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
    - Write deployment manifests and callable ABI JSON files into `apps/<dapp>/deploy`.
-10. Keep the review explicit in the final response:
+10. Provide a DApp-local CLI under `apps/<dapp>/cli`:
+   - Prefer a browser-based static CLI when MetaMask connectivity is required, because MetaMask is not a shell-native provider.
+   - Include target-network selection and optional MetaMask connection.
+   - Resolve contract addresses from `apps/<dapp>/deploy/deployment.<chain-id>.latest.json`.
+   - Load callable ABIs from `apps/<dapp>/deploy/*.callable-abi.json`.
+   - Keep one function template folder per callable function under `apps/<dapp>/cli/functions/<function-name>/calldata.json`.
+   - If duplicate function names exist across contracts, explicitly document how collisions are resolved instead of silently overwriting folders.
+11. Keep the review explicit in the final response:
    - State whether the entrypoints satisfy the zk-L2 privacy assumption.
    - State whether the successful symbolic path for each user-facing function appears unique.
    - State whether the app respects bridge-managed custody and avoids direct user interaction with the L2 accounting vault.
    - State whether storage should remain centralized or be split across addresses.
    - State whether deployment scripts and env configuration are isolated under the DApp folder and `apps/.env`.
    - State whether admin ownership was removed and whether any remaining controller wiring is immutable and deployment-bound.
+   - State whether the DApp exposes a local CLI under `apps/<dapp>/cli` that reads `calldata.json` templates, deployment manifests, and callable ABI files.
 
 ## Resources
 

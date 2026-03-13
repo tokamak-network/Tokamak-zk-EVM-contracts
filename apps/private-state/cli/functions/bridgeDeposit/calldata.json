@@ -1,0 +1,9 @@
+{
+  "description": "Bridge-controlled L2 accounting credit for the caller.",
+  "contractKey": "controller",
+  "abiFile": "../deploy/PrivateStateController.callable-abi.json",
+  "method": "bridgeDeposit",
+  "mode": "send",
+  "value": "0x0",
+  "args": ["1000000000000000000"]
+}

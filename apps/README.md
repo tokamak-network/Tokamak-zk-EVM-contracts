@@ -32,3 +32,53 @@ Recommended responsibilities:
 
 The private-state DApp follows this convention today and should be used as the reference implementation for future
 app local-chain workflows.
+
+## CLI Convention
+
+Each DApp under `apps/` should also provide an operator CLI under `apps/<dapp>/cli`.
+
+Because MetaMask integration requires a browser EIP-1193 provider, this CLI should normally be implemented as a small
+static web app rather than as a pure shell command.
+
+Recommended structure:
+
+- `apps/<dapp>/cli/index.html`
+- `apps/<dapp>/cli/main.js`
+- `apps/<dapp>/cli/style.css`
+- `apps/<dapp>/cli/serve.sh`
+- `apps/<dapp>/cli/functions/index.json`
+- `apps/<dapp>/cli/functions/<function-name>/calldata.json`
+
+The CLI should:
+
+- accept a target network selection
+- optionally connect to MetaMask
+- resolve deployed contract addresses from `apps/<dapp>/deploy/deployment.<chain-id>.latest.json`
+- load callable ABIs from `apps/<dapp>/deploy/*.callable-abi.json`
+- read each function template from `cli/functions/<function-name>/calldata.json`
+- generate calldata and support `eth_call` or `eth_sendTransaction` as appropriate
+
+## CLI Convention
+
+Each DApp under `apps/` should also provide an operator CLI under `apps/<dapp>/cli`.
+
+Because MetaMask integration requires a browser EIP-1193 provider, this CLI should normally be implemented as a small
+static web app rather than as a pure shell command.
+
+Recommended structure:
+
+- `apps/<dapp>/cli/index.html`
+- `apps/<dapp>/cli/main.js`
+- `apps/<dapp>/cli/style.css`
+- `apps/<dapp>/cli/serve.sh`
+- `apps/<dapp>/cli/functions/index.json`
+- `apps/<dapp>/cli/functions/<function-name>/calldata.json`
+
+The CLI should:
+
+- accept a target network selection
+- optionally connect to MetaMask
+- resolve deployed contract addresses from `apps/<dapp>/deploy/deployment.<chain-id>.latest.json`
+- load callable ABIs from `apps/<dapp>/deploy/*.callable-abi.json`
+- read each function template from `cli/functions/<function-name>/calldata.json`
+- generate calldata and support `eth_call` or `eth_sendTransaction` as appropriate

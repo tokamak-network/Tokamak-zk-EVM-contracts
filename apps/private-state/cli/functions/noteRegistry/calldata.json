@@ -1,0 +1,9 @@
+{
+  "description": "Read the deployed note registry address from the controller.",
+  "contractKey": "controller",
+  "abiFile": "../deploy/PrivateStateController.callable-abi.json",
+  "method": "noteRegistry",
+  "mode": "call",
+  "value": "0x0",
+  "args": []
+}

@@ -215,7 +215,11 @@ For fast local iteration, private-state now includes an anvil bootstrap flow:
 Recommended `apps/.env` values for anvil:
 
 - `APPS_NETWORK=anvil`
-- `APPS_DEPLOYER_PRIVATE_KEY=<anvil account private key>`
+- `APPS_ANVIL_DEPLOYER_PRIVATE_KEY=<optional custom anvil account private key>`
+
+If `APPS_ANVIL_DEPLOYER_PRIVATE_KEY` is unset, `make anvil-bootstrap` falls back to the default funded anvil account.
+This prevents local bootstrap from accidentally reusing a Sepolia or mainnet deployer key that has no balance on the
+local chain.
 
 The bootstrap flow:
 

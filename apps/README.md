@@ -19,6 +19,10 @@ Public-network deployment scripts derive their RPC URLs and chain IDs from `APPS
 `APPS_RPC_URL_OVERRIDE` remains available as an advanced option when a DApp must target a nonstandard local or custom
 RPC endpoint.
 
+`APPS_ANVIL_DEPLOYER_PRIVATE_KEY` is an optional local override for anvil workflows. If it is unset, DApp-local
+anvil bootstrap scripts should fall back to the default funded anvil account instead of reusing a public-network
+deployer key that may have no local balance.
+
 ## Local anvil Convention
 
 Each DApp may provide local anvil helpers under `apps/<dapp>/script/anvil`.

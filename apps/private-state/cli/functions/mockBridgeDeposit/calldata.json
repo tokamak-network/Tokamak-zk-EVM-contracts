@@ -1,8 +1,8 @@
 {
-  "description": "Bridge-controlled L2 accounting debit for the caller.",
+  "description": "Development-only mock bridge credit for the caller's L2 accounting balance.",
   "contractKey": "controller",
   "abiFile": "../deploy/PrivateStateController.callable-abi.json",
-  "method": "bridgeWithdraw",
+  "method": "mockBridgeDeposit",
   "mode": "send",
   "value": "0x0",
   "args": ["1000000000000000000"]

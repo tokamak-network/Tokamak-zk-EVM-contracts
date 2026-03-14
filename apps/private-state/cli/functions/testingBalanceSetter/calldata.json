@@ -1,9 +1,0 @@
-{
-  "description": "Read the tester-only balance override operator.",
-  "contractKey": "l2AccountingVault",
-  "abiFile": "../deploy/L2AccountingVault.callable-abi.json",
-  "method": "testingBalanceSetter",
-  "mode": "call",
-  "value": "0x0",
-  "args": []
-}

@@ -1,6 +1,6 @@
 [
-  { "name": "bridgeDeposit" },
-  { "name": "bridgeWithdraw" },
+  { "name": "mockBridgeDeposit" },
+  { "name": "mockBridgeWithdraw" },
   { "name": "canonicalAsset" },
   { "name": "computeNoteCommitment" },
   { "name": "computeNullifier" },
@@ -17,8 +17,6 @@
   { "name": "transferNotes6" },
   { "name": "transferNotes8" },
   { "name": "liquidBalances" },
-  { "name": "setLiquidBalanceForTesting" },
-  { "name": "testingBalanceSetter" },
   { "name": "commitmentExists" },
   { "name": "nullifierUsed" }
 ]

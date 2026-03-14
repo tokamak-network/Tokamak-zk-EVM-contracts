@@ -46,9 +46,6 @@ NULLIFIER_REGISTRY="$(
 CANONICAL_ASSET="$(
     jq -r 'first(.transactions[] | select(.function == "deployController(address,address,address,address)") | .arguments[3]) // empty' "$RUN_FILE"
 )"
-TESTING_BALANCE_SETTER="$(
-    jq -r 'first(.transactions[] | select(.function == "deployL2AccountingVault(bytes32,address,address)") | .arguments[2]) // "'"$ZERO_ADDRESS"'"' "$RUN_FILE"
-)"
 
 jq -n \
     --arg generatedAtUtc "$TIMESTAMP_UTC" \
@@ -56,7 +53,6 @@ jq -n \
     --arg runFile "$RUN_FILE" \
     --arg deployer "$DEPLOYER" \
     --arg canonicalAsset "$CANONICAL_ASSET" \
-    --arg testingBalanceSetter "$TESTING_BALANCE_SETTER" \
     --arg deploymentFactory "$DEPLOYMENT_FACTORY" \
     --arg controller "$CONTROLLER" \
     --arg l2AccountingVault "$L2_ACCOUNTING_VAULT" \
@@ -68,7 +64,6 @@ jq -n \
         broadcastRunFile: $runFile,
         deployer: $deployer,
         canonicalAsset: $canonicalAsset,
-        testingBalanceSetter: $testingBalanceSetter,
         contracts: {
             deploymentFactory: $deploymentFactory,
             controller: $controller,
@@ -94,8 +89,8 @@ write_callable_abi \
     "$PROJECT_ROOT/out/PrivateStateController.sol/PrivateStateController.json" \
     "$DEPLOY_DIR/PrivateStateController.callable-abi.json" \
     '[
-        "bridgeDeposit",
-        "bridgeWithdraw",
+        "mockBridgeDeposit",
+        "mockBridgeWithdraw",
         "canonicalAsset",
         "computeNoteCommitment",
         "computeNullifier",
@@ -118,9 +113,7 @@ write_callable_abi \
     "$DEPLOY_DIR/L2AccountingVault.callable-abi.json" \
     '[
         "controller",
-        "liquidBalances",
-        "setLiquidBalanceForTesting",
-        "testingBalanceSetter"
+        "liquidBalances"
     ]'
 
 write_callable_abi \

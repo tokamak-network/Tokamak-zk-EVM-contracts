@@ -12,7 +12,6 @@ contract PrivateStateControllerTest is Test {
     address private alice = makeAddr("alice");
     address private bob = makeAddr("bob");
     address private mallory = makeAddr("mallory");
-    address private testingBalanceSetter = makeAddr("testing-balance-setter");
     address private canonicalAsset = makeAddr("canonical-asset");
 
     bytes32 private constant L2_ACCOUNTING_VAULT_SALT = keccak256("private-state.l2-accounting-vault");
@@ -30,9 +29,7 @@ contract PrivateStateControllerTest is Test {
 
         address predictedController = vm.computeCreateAddress(address(deploymentFactory), 1);
         address predictedL2AccountingVault = vm.computeCreate2Address(
-            L2_ACCOUNTING_VAULT_SALT,
-            _l2AccountingVaultInitCodeHash(predictedController, testingBalanceSetter),
-            address(deploymentFactory)
+            L2_ACCOUNTING_VAULT_SALT, _l2AccountingVaultInitCodeHash(predictedController), address(deploymentFactory)
         );
         address predictedNoteRegistry =
             vm.computeCreate2Address(NOTE_REGISTRY_SALT, _noteRegistryInitCodeHash(predictedController), address(deploymentFactory));
@@ -43,8 +40,7 @@ contract PrivateStateControllerTest is Test {
         controller = deploymentFactory.deployController(
             predictedNoteRegistry, predictedNullifierRegistry, predictedL2AccountingVault, canonicalAsset
         );
-        l2AccountingVault =
-            deploymentFactory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController, testingBalanceSetter);
+        l2AccountingVault = deploymentFactory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController);
         noteRegistry = deploymentFactory.deployPrivateNoteRegistry(NOTE_REGISTRY_SALT, predictedController);
         nullifierStore =
             deploymentFactory.deployPrivateNullifierRegistry(NULLIFIER_REGISTRY_SALT, predictedController);
@@ -55,9 +51,9 @@ contract PrivateStateControllerTest is Test {
         assertEq(address(nullifierStore), predictedNullifierRegistry);
     }
 
-    function testTransferNotes4BridgeDepositRedeemAndBridgeWithdraw() public {
+    function testTransferNotes4MockBridgeDepositRedeemAndMockBridgeWithdraw() public {
         vm.prank(alice);
-        controller.bridgeDeposit(100 ether);
+        controller.mockBridgeDeposit(100 ether);
 
         assertEq(l2AccountingVault.liquidBalances(alice), 100 ether);
 
@@ -94,7 +90,7 @@ contract PrivateStateControllerTest is Test {
         );
 
         vm.prank(bob);
-        controller.bridgeDeposit(30 ether);
+        controller.mockBridgeDeposit(30 ether);
 
         vm.startPrank(bob);
         controller.mintNotes1(_noteArray1(_note(bob, 10 ether, bytes32("bob-4-dummy-1"))));
@@ -106,29 +102,14 @@ contract PrivateStateControllerTest is Test {
         assertEq(l2AccountingVault.liquidBalances(bob), 65 ether);
 
         vm.prank(bob);
-        controller.bridgeWithdraw(65 ether);
+        controller.mockBridgeWithdraw(65 ether);
 
         assertEq(l2AccountingVault.liquidBalances(bob), 0);
     }
 
-    function testTestingBalanceSetterCanOverrideLiquidBalance() public {
-        vm.prank(testingBalanceSetter);
-        l2AccountingVault.setLiquidBalanceForTesting(alice, 77 ether);
-
-        assertEq(l2AccountingVault.liquidBalances(alice), 77 ether);
-    }
-
-    function testTestingBalanceSetterRejectsUnauthorizedCaller() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(L2AccountingVault.UnauthorizedTestingBalanceSetter.selector, mallory)
-        );
-        vm.prank(mallory);
-        l2AccountingVault.setLiquidBalanceForTesting(alice, 1 ether);
-    }
-
     function testTransferNotes4CannotTransferAnotherOwnersNotes() public {
         vm.prank(alice);
-        controller.bridgeDeposit(40 ether);
+        controller.mockBridgeDeposit(40 ether);
 
         PrivateStateController.Note[4] memory inputNotes = _notes4(
             _mintNote(alice, 10 ether, bytes32("alice-4b-0")),
@@ -149,7 +130,7 @@ contract PrivateStateControllerTest is Test {
 
     function testTransferNotes4CannotReplaySpentNotes() public {
         vm.prank(alice);
-        controller.bridgeDeposit(40 ether);
+        controller.mockBridgeDeposit(40 ether);
 
         PrivateStateController.Note memory note0 = _mintNote(alice, 10 ether, bytes32("alice-4c-0"));
         PrivateStateController.Note memory note1 = _mintNote(alice, 10 ether, bytes32("alice-4c-1"));
@@ -175,7 +156,7 @@ contract PrivateStateControllerTest is Test {
 
     function testTransferNotes4RejectsValueMismatch() public {
         vm.prank(alice);
-        controller.bridgeDeposit(40 ether);
+        controller.mockBridgeDeposit(40 ether);
 
         PrivateStateController.Note[4] memory inputNotes = _notes4(
             _mintNote(alice, 10 ether, bytes32("alice-4d-0")),
@@ -198,7 +179,7 @@ contract PrivateStateControllerTest is Test {
 
     function testTransferNotes6OwnerCanTransferDirectly() public {
         vm.prank(alice);
-        controller.bridgeDeposit(60 ether);
+        controller.mockBridgeDeposit(60 ether);
 
         PrivateStateController.Note[6] memory inputNotes = _notes6(
             _mintNote(alice, 10 ether, bytes32("alice-6-0")),
@@ -224,7 +205,7 @@ contract PrivateStateControllerTest is Test {
 
     function testTransferNotes8OwnerCanTransferDirectly() public {
         vm.prank(alice);
-        controller.bridgeDeposit(80 ether);
+        controller.mockBridgeDeposit(80 ether);
 
         PrivateStateController.Note[8] memory inputNotes = _notes8(
             _mintNote(alice, 10 ether, bytes32("alice-8-0")),
@@ -271,7 +252,7 @@ contract PrivateStateControllerTest is Test {
 
     function testRedeemNotes4OwnerCanRedeemDirectly() public {
         vm.prank(alice);
-        controller.bridgeDeposit(40 ether);
+        controller.mockBridgeDeposit(40 ether);
 
         PrivateStateController.Note[4] memory inputNotes = _notes4(
             _mintNote(alice, 10 ether, bytes32("alice-redeem-0")),
@@ -291,7 +272,7 @@ contract PrivateStateControllerTest is Test {
 
     function testRedeemNotes4CannotRedeemAnotherOwnersNotes() public {
         vm.prank(alice);
-        controller.bridgeDeposit(40 ether);
+        controller.mockBridgeDeposit(40 ether);
 
         PrivateStateController.Note[4] memory inputNotes = _notes4(
             _mintNote(alice, 10 ether, bytes32("alice-redeem-4")),
@@ -307,7 +288,7 @@ contract PrivateStateControllerTest is Test {
 
     function testRedeemNotes6OwnerCanRedeemDirectly() public {
         vm.prank(alice);
-        controller.bridgeDeposit(60 ether);
+        controller.mockBridgeDeposit(60 ether);
 
         PrivateStateController.Note[6] memory inputNotes = _notes6(
             _mintNote(alice, 10 ether, bytes32("alice-redeem-6a")),
@@ -326,7 +307,7 @@ contract PrivateStateControllerTest is Test {
 
     function testRedeemNotes8OwnerCanRedeemDirectly() public {
         vm.prank(alice);
-        controller.bridgeDeposit(80 ether);
+        controller.mockBridgeDeposit(80 ether);
 
         PrivateStateController.Note[8] memory inputNotes = _notes8(
             _mintNote(alice, 10 ether, bytes32("alice-redeem-8a")),
@@ -347,7 +328,7 @@ contract PrivateStateControllerTest is Test {
 
     function testMintNotes1CreatesCommitment() public {
         vm.prank(alice);
-        controller.bridgeDeposit(18 ether);
+        controller.mockBridgeDeposit(18 ether);
 
         PrivateStateController.Note[1] memory outputs = _noteArray1(_note(alice, 18 ether, bytes32("alice-mint-event")));
 
@@ -360,7 +341,7 @@ contract PrivateStateControllerTest is Test {
 
     function testMintNotes2CreatesTwoCommitments() public {
         vm.prank(alice);
-        controller.bridgeDeposit(30 ether);
+        controller.mockBridgeDeposit(30 ether);
 
         PrivateStateController.Note[2] memory outputs = _noteArray2(
             _note(alice, 10 ether, bytes32("alice-mint-2-0")), _note(bob, 20 ether, bytes32("alice-mint-2-1"))
@@ -376,7 +357,7 @@ contract PrivateStateControllerTest is Test {
 
     function testMintNotes3CreatesThreeCommitments() public {
         vm.prank(alice);
-        controller.bridgeDeposit(45 ether);
+        controller.mockBridgeDeposit(45 ether);
 
         PrivateStateController.Note[3] memory outputs = _notes3(
             _note(alice, 10 ether, bytes32("alice-mint-3-0")),
@@ -393,15 +374,15 @@ contract PrivateStateControllerTest is Test {
         }
     }
 
-    function testCannotBridgeWithdrawMoreThanLiquidBalance() public {
+    function testCannotMockBridgeWithdrawMoreThanLiquidBalance() public {
         vm.prank(alice);
-        controller.bridgeDeposit(10 ether);
+        controller.mockBridgeDeposit(10 ether);
 
         vm.expectRevert(
             abi.encodeWithSelector(L2AccountingVault.InsufficientLiquidBalance.selector, alice, 10 ether, 11 ether)
         );
         vm.prank(alice);
-        controller.bridgeWithdraw(11 ether);
+        controller.mockBridgeWithdraw(11 ether);
     }
 
     function testStoresUseImmutablePredictedController() public view {
@@ -510,14 +491,8 @@ contract PrivateStateControllerTest is Test {
         return controller.computeNullifier(note.value, note.owner, note.salt);
     }
 
-    function _l2AccountingVaultInitCodeHash(address controller_, address testingBalanceSetter_)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(
-            abi.encodePacked(type(L2AccountingVault).creationCode, abi.encode(controller_, testingBalanceSetter_))
-        );
+    function _l2AccountingVaultInitCodeHash(address controller_) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(type(L2AccountingVault).creationCode, abi.encode(controller_)));
     }
 
     function _noteRegistryInitCodeHash(address controller_) internal pure returns (bytes32) {

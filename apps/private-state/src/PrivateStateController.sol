@@ -22,13 +22,13 @@ contract PrivateStateController is ReentrancyGuard {
         bytes32 salt;
     }
 
-    event BridgeDepositApplied(address indexed account, uint256 amount);
+    event MockBridgeDepositApplied(address indexed account, uint256 amount);
     event NoteMinted(
         address indexed liquidBalanceOwner, bytes32 indexed commitment, address indexed noteOwner, uint256 amount
     );
     event NotesTransferred(address indexed operator, uint256 inputCount, uint256 outputCount);
     event NotesRedeemed(address indexed operator, address indexed receiver, uint256 inputCount);
-    event BridgeWithdrawalApplied(address indexed account, uint256 amount);
+    event MockBridgeWithdrawalApplied(address indexed account, uint256 amount);
 
     PrivateNullifierRegistry public immutable nullifierStore;
     PrivateNoteRegistry public immutable noteRegistry;
@@ -54,14 +54,14 @@ contract PrivateStateController is ReentrancyGuard {
         canonicalAsset = canonicalAsset_;
     }
 
-    function bridgeDeposit(uint256 amount) external nonReentrant {
+    function mockBridgeDeposit(uint256 amount) external nonReentrant {
         l2AccountingVault.creditLiquidBalance(msg.sender, amount);
-        emit BridgeDepositApplied(msg.sender, amount);
+        emit MockBridgeDepositApplied(msg.sender, amount);
     }
 
-    function bridgeWithdraw(uint256 amount) external nonReentrant {
+    function mockBridgeWithdraw(uint256 amount) external nonReentrant {
         l2AccountingVault.debitLiquidBalance(msg.sender, amount);
-        emit BridgeWithdrawalApplied(msg.sender, amount);
+        emit MockBridgeWithdrawalApplied(msg.sender, amount);
     }
 
     function mintNotes1(Note[1] calldata outputs) external nonReentrant returns (bytes32[1] memory commitments) {

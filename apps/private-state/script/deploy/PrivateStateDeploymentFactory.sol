@@ -21,11 +21,8 @@ contract PrivateStateDeploymentFactory {
         );
     }
 
-    function deployL2AccountingVault(bytes32 salt, address controller, address testingBalanceSetter)
-        external
-        returns (L2AccountingVault vault)
-    {
-        vault = new L2AccountingVault{salt: salt}(controller, testingBalanceSetter);
+    function deployL2AccountingVault(bytes32 salt, address controller) external returns (L2AccountingVault vault) {
+        vault = new L2AccountingVault{salt: salt}(controller);
     }
 
     function deployPrivateNoteRegistry(bytes32 salt, address controller) external returns (PrivateNoteRegistry registry) {

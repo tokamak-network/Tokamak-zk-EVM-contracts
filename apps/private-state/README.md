@@ -63,17 +63,17 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 ## End-to-End Flow
 
 1. Lock or release the canonical asset through the L1 bridge custody flow.
-2. Apply the matching L2 accounting transition with `bridgeDeposit` or `bridgeWithdraw`.
+2. Apply the matching L2 accounting transition with `mockBridgeDeposit` or `mockBridgeWithdraw` during development.
 3. Call `mintNotes1`, `mintNotes2`, or `mintNotes3` to lock part of the liquid balance into one, two, or three note commitments.
 4. Call one of `transferNotes4`, `transferNotes6`, or `transferNotes8` with exactly 3 output notes.
 5. Call one of `redeemNotes4`, `redeemNotes6`, or `redeemNotes8` to convert fixed batches of notes back into liquid balances.
 
 ## Fixed-Arity Entry Points
 
-The current bridge-coupled accounting API exposes two fixed-purpose user-facing functions:
+The current development accounting API exposes two fixed-purpose user-facing functions:
 
-- `bridgeDeposit`: increase the caller's L2 accounting balance after the matching L1 bridge deposit proof
-- `bridgeWithdraw`: decrease the caller's L2 accounting balance before the matching L1 bridge withdrawal settlement
+- `mockBridgeDeposit`: increase the caller's L2 accounting balance through a mock bridge transition
+- `mockBridgeWithdraw`: decrease the caller's L2 accounting balance through a mock bridge transition
 
 The current mint API exposes three fixed-arity user-facing functions:
 
@@ -135,13 +135,8 @@ advanced option for nonstandard local or custom RPC endpoints.
 It uses a namespaced variable only for the private-state-specific value:
 
 - `PRIVATE_STATE_CANONICAL_ASSET`
-- `PRIVATE_STATE_TESTING_BALANCE_SETTER`
 
 There is no `PRIVATE_STATE_OWNER` parameter.
-
-When `PRIVATE_STATE_TESTING_BALANCE_SETTER` is the zero address, the L2 accounting vault disables the test-only
-balance override function. If a non-zero address is configured, that address may call the vault test hook to set an
-account balance to an arbitrary value. This is useful for public test deployments and unsafe for production custody.
 
 Every successful deployment also writes DApp-local JSON artifacts into `apps/private-state/deploy`:
 
@@ -173,10 +168,10 @@ Examples:
 
 ```bash
 node apps/private-state/cli/private-state-cli.mjs list
-node apps/private-state/cli/private-state-cli.mjs show-template bridgeDeposit
-node apps/private-state/cli/private-state-cli.mjs generate bridgeDeposit --network sepolia
+node apps/private-state/cli/private-state-cli.mjs show-template mockBridgeDeposit
+node apps/private-state/cli/private-state-cli.mjs generate mockBridgeDeposit --network sepolia
 node apps/private-state/cli/private-state-cli.mjs call canonicalAsset --network sepolia
-node apps/private-state/cli/private-state-cli.mjs send bridgeDeposit --network anvil --private-key <hex>
+node apps/private-state/cli/private-state-cli.mjs send mockBridgeDeposit --network anvil --private-key <hex>
 ```
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such
@@ -197,7 +192,6 @@ Recommended `apps/.env` values for anvil:
 
 - `APPS_NETWORK=anvil`
 - `APPS_DEPLOYER_PRIVATE_KEY=<anvil account private key>`
-- `PRIVATE_STATE_TESTING_BALANCE_SETTER=<tester address or zero address>`
 
 The bootstrap flow:
 
@@ -219,6 +213,6 @@ These local anvil artifacts are ignored by git because they are expected to chan
 Because note validity is still checked directly in contract code:
 
 - The system still relies on cross-contract invariants between the controller, accounting vault, note registry, and nullifier registry.
-- The bridge-coupled accounting entrypoints model proof-backed L1 bridge settlement rather than standalone L2 token custody.
+- The mock bridge entrypoints model proof-backed L1 bridge settlement during development rather than standalone L2 token custody.
 - Privacy depends on the surrounding L2 execution model, not solely on these contracts.
-- The current `bridgeDeposit` and `bridgeWithdraw` functions remain direct user entrypoints. As a result, the deployed contract set does not by itself enforce the stricter architecture where only L1 bridge proof settlement may mutate L2 accounting balances.
+- The current `mockBridgeDeposit` and `mockBridgeWithdraw` functions remain direct user entrypoints for development. They must be removed or replaced when a real bridge settlement path is introduced.

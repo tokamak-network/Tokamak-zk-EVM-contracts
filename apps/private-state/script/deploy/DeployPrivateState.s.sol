@@ -15,7 +15,6 @@ contract DeployPrivateStateScript is Script {
 
     address public deployer;
     address public canonicalAsset;
-    address public testingBalanceSetter;
     address public deploymentFactory;
 
     address public l2AccountingVault;
@@ -25,14 +24,12 @@ contract DeployPrivateStateScript is Script {
 
     function setUp() public {
         canonicalAsset = vm.envAddress("PRIVATE_STATE_CANONICAL_ASSET");
-        testingBalanceSetter = vm.envOr("PRIVATE_STATE_TESTING_BALANCE_SETTER", address(0));
     }
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("APPS_DEPLOYER_PRIVATE_KEY");
         deployer = vm.addr(deployerPrivateKey);
         canonicalAsset = vm.envAddress("PRIVATE_STATE_CANONICAL_ASSET");
-        testingBalanceSetter = vm.envOr("PRIVATE_STATE_TESTING_BALANCE_SETTER", address(0));
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -41,9 +38,7 @@ contract DeployPrivateStateScript is Script {
 
         address predictedController = vm.computeCreateAddress(address(factory), 1);
         address predictedL2AccountingVault = vm.computeCreate2Address(
-            L2_ACCOUNTING_VAULT_SALT,
-            _l2AccountingVaultInitCodeHash(predictedController, testingBalanceSetter),
-            address(factory)
+            L2_ACCOUNTING_VAULT_SALT, _l2AccountingVaultInitCodeHash(predictedController), address(factory)
         );
         address predictedNoteRegistry =
             vm.computeCreate2Address(NOTE_REGISTRY_SALT, _noteRegistryInitCodeHash(predictedController), address(factory));
@@ -55,7 +50,7 @@ contract DeployPrivateStateScript is Script {
             predictedNoteRegistry, predictedNullifierRegistry, predictedL2AccountingVault, canonicalAsset
         );
         L2AccountingVault l2AccountingVaultContract =
-            factory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController, testingBalanceSetter);
+            factory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController);
         PrivateNoteRegistry noteRegistryContract =
             factory.deployPrivateNoteRegistry(NOTE_REGISTRY_SALT, predictedController);
         PrivateNullifierRegistry nullifierRegistryContract =
@@ -78,21 +73,14 @@ contract DeployPrivateStateScript is Script {
         console.log("deploymentFactory", deploymentFactory);
         console.log("owner", deployer);
         console.log("canonicalAsset", canonicalAsset);
-        console.log("testingBalanceSetter", testingBalanceSetter);
         console.log("l2AccountingVault", l2AccountingVault);
         console.log("noteRegistry", noteRegistry);
         console.log("nullifierRegistry", nullifierRegistry);
         console.log("controller", controller);
     }
 
-    function _l2AccountingVaultInitCodeHash(address controller_, address testingBalanceSetter_)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(
-            abi.encodePacked(type(L2AccountingVault).creationCode, abi.encode(controller_, testingBalanceSetter_))
-        );
+    function _l2AccountingVaultInitCodeHash(address controller_) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(type(L2AccountingVault).creationCode, abi.encode(controller_)));
     }
 
     function _noteRegistryInitCodeHash(address controller_) internal pure returns (bytes32) {

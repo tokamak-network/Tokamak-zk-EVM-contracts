@@ -106,6 +106,7 @@ Sepolia deployment requires four concrete inputs:
 
 The repository now includes:
 
+- `apps/private-state/Makefile`
 - `apps/private-state/script/deploy/DeployPrivateState.s.sol`
 - `apps/private-state/script/deploy/deploy-private-state.sh`
 - `apps/private-state/script/deploy/write-deploy-artifacts.sh`
@@ -150,6 +151,26 @@ Every successful deployment also writes DApp-local JSON artifacts into `apps/pri
 The ABI files intentionally contain only the user-facing or tester-facing callable functions for each contract rather
 than the full contract ABI.
 
+## Shortcut Commands
+
+The DApp folder exposes concise local commands through `apps/private-state/Makefile`.
+
+Examples:
+
+```bash
+cd apps/private-state
+make help
+make anvil-start
+make anvil-bootstrap
+make test
+make deploy-sepolia
+make deploy-mainnet
+make cli-list
+```
+
+The deployment shortcuts do not require editing `apps/.env` just to switch networks. They create a temporary env file,
+override `APPS_NETWORK` for the requested target, and then call the existing deployment script.
+
 ## CLI
 
 private-state now includes a terminal CLI under `apps/private-state/cli/private-state-cli.mjs`.
@@ -167,6 +188,8 @@ The CLI:
 Examples:
 
 ```bash
+cd apps/private-state
+make cli-list
 node apps/private-state/cli/private-state-cli.mjs list
 node apps/private-state/cli/private-state-cli.mjs show-template mockBridgeDeposit
 node apps/private-state/cli/private-state-cli.mjs generate mockBridgeDeposit --network sepolia
@@ -182,6 +205,7 @@ collisions.
 
 For fast local iteration, private-state now includes an anvil bootstrap flow:
 
+- `apps/private-state/Makefile`
 - `apps/private-state/script/anvil/start-anvil.sh`
 - `apps/private-state/script/anvil/bootstrap-private-state-anvil.sh`
 - `apps/private-state/script/anvil/stop-anvil.sh`
@@ -200,6 +224,16 @@ The bootstrap flow:
 3. uses that mock token as `PRIVATE_STATE_CANONICAL_ASSET`
 4. deploys private-state
 5. writes local manifests and callable ABI files into `apps/private-state/deploy`
+
+The shortest local workflow is:
+
+```bash
+cd apps/private-state
+make anvil-start
+make anvil-bootstrap
+make test
+make anvil-stop
+```
 
 The anvil bootstrap also writes:
 

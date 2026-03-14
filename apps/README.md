@@ -33,6 +33,27 @@ Recommended responsibilities:
 The private-state DApp follows this convention today and should be used as the reference implementation for future
 app local-chain workflows.
 
+## Shortcut Command Convention
+
+Each DApp should expose concise operator commands inside the DApp folder itself.
+
+Preferred shape:
+
+- `apps/<dapp>/Makefile`
+
+Recommended targets:
+
+- `make anvil-start`
+- `make anvil-bootstrap`
+- `make anvil-stop`
+- `make test`
+- `make deploy-sepolia`
+- `make deploy-mainnet`
+- `make cli-list`
+
+If a deployment target needs a different network than the one stored in `apps/.env`, prefer creating a temporary
+app-local env override inside the command wrapper instead of asking the operator to rewrite `apps/.env`.
+
 ## CLI Convention
 
 Each DApp under `apps/` should also provide an operator CLI under `apps/<dapp>/cli`.

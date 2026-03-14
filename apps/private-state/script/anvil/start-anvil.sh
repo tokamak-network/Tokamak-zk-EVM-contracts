@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-ENV_FILE="$PROJECT_ROOT/apps/.env"
+ENV_FILE="${APPS_ENV_FILE:-$PROJECT_ROOT/apps/.env}"
 DEPLOY_DIR="$PROJECT_ROOT/apps/private-state/deploy"
 PID_FILE="$DEPLOY_DIR/anvil.pid"
 LOG_FILE="$DEPLOY_DIR/anvil.log"

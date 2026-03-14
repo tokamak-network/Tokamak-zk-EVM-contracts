@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-ENV_FILE="$PROJECT_ROOT/apps/.env"
+ENV_FILE="${APPS_ENV_FILE:-$PROJECT_ROOT/apps/.env}"
 TEMP_ENV_FILE="$(mktemp /tmp/private-state-anvil.env.XXXXXX)"
 source "$PROJECT_ROOT/apps/script/network-config.sh"
 

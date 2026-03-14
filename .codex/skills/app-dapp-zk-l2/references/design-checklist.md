@@ -176,7 +176,8 @@ When reporting on a new app design, explicitly answer:
 8. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
 9. Are app deployment secrets and network settings isolated in `apps/.env`, with shared app-level signer and provider-key-plus-network variables plus DApp-specific namespaced values only where needed, with `APPS_NETWORK=anvil` defaulting to localhost and `APPS_RPC_URL_OVERRIDE` reserved for nonstandard RPC overrides?
 10. Does the DApp provide a local terminal CLI under `apps/<dapp>/cli`, limited to `mainnet`, `sepolia`, and `anvil`, and does that CLI read per-function `calldata.json` templates plus deployment manifests and callable ABI JSON files?
-11. If duplicate callable function names exist across contracts, is the CLI folder naming collision handled explicitly and documented?
-12. Was contract-level admin ownership removed where it was not strictly necessary?
-13. If a controller exists, is it wired immutably at deployment time rather than through a mutable admin step?
-14. Does the DApp provide local anvil helpers under `apps/<dapp>/script/anvil` when local-chain testing is required, and does it write manifests and callable ABI JSON files into `apps/<dapp>/deploy`?
+11. Does the DApp also provide concise DApp-local command wrappers, preferably through `apps/<dapp>/Makefile`, for anvil workflows, tests, and public-network deployment?
+12. If duplicate callable function names exist across contracts, is the CLI folder naming collision handled explicitly and documented?
+13. Was contract-level admin ownership removed where it was not strictly necessary?
+14. If a controller exists, is it wired immutably at deployment time rather than through a mutable admin step?
+15. Does the DApp provide local anvil helpers under `apps/<dapp>/script/anvil` when local-chain testing is required, and does it write manifests and callable ABI JSON files into `apps/<dapp>/deploy`?

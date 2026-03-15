@@ -94,6 +94,30 @@ contract PrivateStateController is ReentrancyGuard {
         commitments[2] = _mintOutputNote(msg.sender, outputs[2]);
     }
 
+    function transferNotes1(Note[1] calldata inputNotes, Note[3] calldata outputs)
+        external
+        nonReentrant
+        returns (bytes32[1] memory nullifiers, bytes32[3] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        Note calldata note = inputNotes[0];
+        _validateNoteFields(note.value, note.owner);
+
+        bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
+        if (!noteRegistry.commitmentExists(commitment)) {
+            revert UnknownCommitment(commitment);
+        }
+
+        _requireNoteOwner(note.owner);
+        if (note.value != totalOutputValue) {
+            revert InputOutputValueMismatch(note.value, totalOutputValue);
+        }
+
+        nullifiers[0] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
+        nullifierStore.useNullifier(nullifiers[0], commitment, msg.sender);
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
     function transferNotes4(Note[4] calldata inputNotes, Note[3] calldata outputs)
         external
         nonReentrant

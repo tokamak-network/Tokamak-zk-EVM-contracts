@@ -107,6 +107,27 @@ contract PrivateStateControllerTest is Test {
         assertEq(l2AccountingVault.liquidBalances(bob), 0);
     }
 
+    function testTransferNotes1OwnerCanTransferDirectly() public {
+        vm.prank(alice);
+        controller.mockBridgeDeposit(30 ether);
+
+        PrivateStateController.Note[1] memory inputNotes = _noteArray1(_mintNote(alice, 30 ether, bytes32("alice-1-0")));
+        PrivateStateController.Note[3] memory outputs = _notes3(
+            _note(bob, 10 ether, bytes32("bob-1-0")),
+            _note(alice, 10 ether, bytes32("alice-1-change-0")),
+            _note(alice, 10 ether, bytes32("alice-1-change-1"))
+        );
+
+        vm.prank(alice);
+        (bytes32[1] memory nullifiers, bytes32[3] memory outputCommitments) =
+            controller.transferNotes1(inputNotes, outputs);
+
+        assertTrue(nullifierStore.nullifierUsed(nullifiers[0]));
+        for (uint256 i = 0; i < 3; ++i) {
+            assertTrue(noteRegistry.commitmentExists(outputCommitments[i]));
+        }
+    }
+
     function testTransferNotes4CannotTransferAnotherOwnersNotes() public {
         vm.prank(alice);
         controller.mockBridgeDeposit(40 ether);

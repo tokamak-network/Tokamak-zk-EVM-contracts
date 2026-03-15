@@ -103,6 +103,7 @@ write_callable_abi \
         "redeemNotes4",
         "redeemNotes6",
         "redeemNotes8",
+        "transferNotes1",
         "transferNotes4",
         "transferNotes6",
         "transferNotes8"

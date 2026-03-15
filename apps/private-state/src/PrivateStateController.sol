@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
-import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
 import {L2AccountingVault} from "./L2AccountingVault.sol";
 import {PrivateNullifierRegistry} from "./PrivateNullifierRegistry.sol";
 import {PrivateNoteRegistry} from "./PrivateNoteRegistry.sol";
 
 /// @title PrivateStateController
 /// @notice User-facing application logic for the non-private zk-note DApp.
-contract PrivateStateController is ReentrancyGuard {
+contract PrivateStateController {
     error EmptyArray();
     error ZeroAddress();
     error ZeroAmount();
@@ -53,24 +52,24 @@ contract PrivateStateController is ReentrancyGuard {
         canonicalAsset = canonicalAsset_;
     }
 
-    function mockBridgeDeposit(uint256 amount) external nonReentrant {
+    function mockBridgeDeposit(uint256 amount) external {
         l2AccountingVault.creditLiquidBalance(msg.sender, amount);
         emit MockBridgeDepositApplied(msg.sender, amount);
     }
 
-    function mockBridgeWithdraw(uint256 amount) external nonReentrant {
+    function mockBridgeWithdraw(uint256 amount) external {
         l2AccountingVault.debitLiquidBalance(msg.sender, amount);
         emit MockBridgeWithdrawalApplied(msg.sender, amount);
     }
 
-    function mintNotes1(Note[1] calldata outputs) external nonReentrant returns (bytes32[1] memory commitments) {
+    function mintNotes1(Note[1] calldata outputs) external returns (bytes32[1] memory commitments) {
         _validateNoteFields(outputs[0].value, outputs[0].owner);
 
         l2AccountingVault.debitLiquidBalance(msg.sender, outputs[0].value);
         commitments[0] = _mintOutputNote(msg.sender, outputs[0]);
     }
 
-    function mintNotes2(Note[2] calldata outputs) external nonReentrant returns (bytes32[2] memory commitments) {
+    function mintNotes2(Note[2] calldata outputs) external returns (bytes32[2] memory commitments) {
         _validateNoteFields(outputs[0].value, outputs[0].owner);
         _validateNoteFields(outputs[1].value, outputs[1].owner);
 
@@ -81,7 +80,7 @@ contract PrivateStateController is ReentrancyGuard {
         commitments[1] = _mintOutputNote(msg.sender, outputs[1]);
     }
 
-    function mintNotes3(Note[3] calldata outputs) external nonReentrant returns (bytes32[3] memory commitments) {
+    function mintNotes3(Note[3] calldata outputs) external returns (bytes32[3] memory commitments) {
         _validateNoteFields(outputs[0].value, outputs[0].owner);
         _validateNoteFields(outputs[1].value, outputs[1].owner);
         _validateNoteFields(outputs[2].value, outputs[2].owner);
@@ -96,7 +95,6 @@ contract PrivateStateController is ReentrancyGuard {
 
     function transferNotes1(Note[1] calldata inputNotes, Note[3] calldata outputs)
         external
-        nonReentrant
         returns (bytes32[1] memory nullifiers, bytes32[3] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
@@ -120,7 +118,6 @@ contract PrivateStateController is ReentrancyGuard {
 
     function transferNotes4(Note[4] calldata inputNotes, Note[3] calldata outputs)
         external
-        nonReentrant
         returns (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
@@ -155,7 +152,6 @@ contract PrivateStateController is ReentrancyGuard {
 
     function transferNotes6(Note[6] calldata inputNotes, Note[3] calldata outputs)
         external
-        nonReentrant
         returns (bytes32[6] memory nullifiers, bytes32[3] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
@@ -190,7 +186,6 @@ contract PrivateStateController is ReentrancyGuard {
 
     function transferNotes8(Note[8] calldata inputNotes, Note[3] calldata outputs)
         external
-        nonReentrant
         returns (bytes32[8] memory nullifiers, bytes32[3] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
@@ -225,7 +220,6 @@ contract PrivateStateController is ReentrancyGuard {
 
     function redeemNotes4(Note[4] calldata inputNotes, address receiver)
         external
-        nonReentrant
         returns (bytes32[4] memory nullifiers)
     {
         Note[] memory dynamicInputs = _copyNotes4(inputNotes);
@@ -237,7 +231,6 @@ contract PrivateStateController is ReentrancyGuard {
 
     function redeemNotes6(Note[6] calldata inputNotes, address receiver)
         external
-        nonReentrant
         returns (bytes32[6] memory nullifiers)
     {
         Note[] memory dynamicInputs = _copyNotes6(inputNotes);
@@ -249,7 +242,6 @@ contract PrivateStateController is ReentrancyGuard {
 
     function redeemNotes8(Note[8] calldata inputNotes, address receiver)
         external
-        nonReentrant
         returns (bytes32[8] memory nullifiers)
     {
         Note[] memory dynamicInputs = _copyNotes8(inputNotes);

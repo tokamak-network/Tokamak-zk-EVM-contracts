@@ -21,6 +21,9 @@ contract PrivateStateController {
         bytes32 salt;
     }
 
+    bytes32 private constant NOTE_COMMITMENT_DOMAIN = keccak256("PRIVATE_STATE_NOTE_COMMITMENT");
+    bytes32 private constant NULLIFIER_DOMAIN = keccak256("PRIVATE_STATE_NULLIFIER");
+
     event MockBridgeDepositApplied(address indexed account, uint256 amount);
     event NoteMinted(
         address indexed liquidBalanceOwner, bytes32 indexed commitment, address indexed noteOwner, uint256 amount
@@ -315,11 +318,15 @@ contract PrivateStateController {
     }
 
     function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
-        return keccak256(abi.encode(block.chainid, address(noteRegistry), canonicalAsset, value, owner, salt));
+        return keccak256(abi.encode(NOTE_COMMITMENT_DOMAIN, _computeSharedNotePayloadHash(value, owner, salt)));
     }
 
     function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
-        return keccak256(abi.encode(block.chainid, address(nullifierStore), canonicalAsset, value, owner, salt));
+        return keccak256(abi.encode(NULLIFIER_DOMAIN, _computeSharedNotePayloadHash(value, owner, salt)));
+    }
+
+    function _computeSharedNotePayloadHash(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
+        return keccak256(abi.encode(block.chainid, canonicalAsset, value, owner, salt));
     }
 
     function _validateTransferOutputs(Note[3] calldata outputs) internal pure returns (uint256 totalOutputValue) {

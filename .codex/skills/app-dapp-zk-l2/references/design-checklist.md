@@ -142,7 +142,26 @@ Review questions:
 - Which state can be isolated behind a coordinator without duplicating truth?
 - Is any field duplicated across stores when one canonical source would suffice?
 
-## 7. Admin and Controller Wiring
+## 7. Function-Level Bytecode Discipline
+
+Every DApp under `apps/` should keep contract bytecode lean by minimizing each function to the operations that are strictly necessary for the intended state transition.
+
+Required review rules:
+
+- Do not keep generic helper paths that only exist for convenience if a fixed-arity or direct path is materially smaller.
+- Avoid copying fixed-size calldata into dynamic memory unless another hard requirement makes it necessary.
+- Avoid internal dispatch layers that only forward to one concrete implementation path.
+- Re-check reusable abstractions when they add loops, memory allocation, or intermediate data structures that the concrete function does not actually need.
+- If a user-facing function can be expressed as a simpler fixed-shape flow, prefer the simpler flow.
+
+Review questions:
+
+- Which operations in this function are essential to the state transition?
+- Which operations only support abstraction, copying, or generic plumbing?
+- Can any dynamic allocation, copying, or generic iteration be removed without weakening validation?
+- Does the current factoring reduce bytecode, or does it only move complexity around?
+
+## 8. Admin and Controller Wiring
 
 Preferred default:
 
@@ -162,7 +181,7 @@ Review questions:
 - Is the controller relationship immutable after deployment?
 - If address prediction is used, is the deployment flow deterministic and explicitly documented?
 
-## 8. Review Output
+## 9. Review Output
 
 When reporting on a new app design, explicitly answer:
 
@@ -171,13 +190,14 @@ When reporting on a new app design, explicitly answer:
 3. Does the app reuse the standard L2 accounting vault shape?
 4. Which external functions are the final user-facing entrypoints?
 5. Does each such function have exactly one successful symbolic path?
-6. Did the checker flag anything, and if so, why is it acceptable or how should it be refactored?
-7. Should storage remain in one address or be split across multiple addresses?
-8. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
-9. Are app deployment secrets and network settings isolated in `apps/.env`, with shared app-level signer and provider-key-plus-network variables plus DApp-specific namespaced values only where needed, with `APPS_NETWORK=anvil` defaulting to localhost and `APPS_RPC_URL_OVERRIDE` reserved for nonstandard RPC overrides?
-10. Does the DApp provide a local terminal CLI under `apps/<dapp>/cli`, limited to `mainnet`, `sepolia`, and `anvil`, and does that CLI read per-function `calldata.json` templates plus deployment manifests and callable ABI JSON files?
-11. Does the DApp also provide concise DApp-local command wrappers, preferably through `apps/<dapp>/Makefile`, for anvil workflows, tests, and public-network deployment?
-12. If duplicate callable function names exist across contracts, is the CLI folder naming collision handled explicitly and documented?
-13. Was contract-level admin ownership removed where it was not strictly necessary?
-14. If a controller exists, is it wired immutably at deployment time rather than through a mutable admin step?
-15. Does the DApp provide local anvil helpers under `apps/<dapp>/script/anvil` when local-chain testing is required, and does it write manifests and callable ABI JSON files into `apps/<dapp>/deploy`?
+6. Does each final user-facing function contain only the operations strictly required for its state transition, or is there avoidable bytecode-heavy scaffolding left to remove?
+7. Did the checker flag anything, and if so, why is it acceptable or how should it be refactored?
+8. Should storage remain in one address or be split across multiple addresses?
+9. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
+10. Are app deployment secrets and network settings isolated in `apps/.env`, with shared app-level signer and provider-key-plus-network variables plus DApp-specific namespaced values only where needed, with `APPS_NETWORK=anvil` defaulting to localhost and `APPS_RPC_URL_OVERRIDE` reserved for nonstandard RPC overrides?
+11. Does the DApp provide a local terminal CLI under `apps/<dapp>/cli`, limited to `mainnet`, `sepolia`, and `anvil`, and does that CLI read per-function `calldata.json` templates plus deployment manifests and callable ABI JSON files?
+12. Does the DApp also provide concise DApp-local command wrappers, preferably through `apps/<dapp>/Makefile`, for anvil workflows, tests, and public-network deployment?
+13. If duplicate callable function names exist across contracts, is the CLI folder naming collision handled explicitly and documented?
+14. Was contract-level admin ownership removed where it was not strictly necessary?
+15. If a controller exists, is it wired immutably at deployment time rather than through a mutable admin step?
+16. Does the DApp provide local anvil helpers under `apps/<dapp>/script/anvil` when local-chain testing is required, and does it write manifests and callable ABI JSON files into `apps/<dapp>/deploy`?

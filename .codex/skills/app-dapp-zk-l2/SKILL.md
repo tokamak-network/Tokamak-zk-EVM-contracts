@@ -31,17 +31,22 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
 ```
 
 6. If storage growth is likely to be material, prefer splitting storage across multiple contract addresses rather than forcing all state into one address.
-7. Every DApp under `apps/` must use the same L2 accounting vault shape:
+7. Optimize contract bytecode at the function level across every DApp under `apps/`:
+   - Keep each contract function limited to the operations that are strictly necessary for its state transition.
+   - Remove avoidable dynamic-array copies, generic dispatch layers, mode-switch helpers, and other scaffolding when a fixed-arity or direct path is sufficient.
+   - Prefer specialized helper functions when they materially reduce bytecode and do not reintroduce multiple successful symbolic paths.
+   - Review whether reusable abstractions are actually paying for themselves; if they only add indirection and bytecode, inline or split them.
+8. Every DApp under `apps/` must use the same L2 accounting vault shape:
    - Prefer naming such as `L1BridgeAssetVault` for L1 custody and `L2AccountingVault` for the L2 mirror state.
    - The L2 vault is not a real token custody contract.
    - Keep its storage layout standardized across DApps and restrict it to bridge-coupled accounting concerns.
    - If an app needs extra per-user accounting, build it around the shared L2 accounting vault pattern rather than inventing a custom direct-custody vault.
-8. Remove contract-level owner roles from app contracts by default:
+9. Remove contract-level owner roles from app contracts by default:
    - Do not add `Ownable` or similar admin roles unless the task explicitly requires an operational admin path.
    - If a DApp needs a controller, bind that relationship at deployment time rather than through a mutable owner-controlled setter.
    - Prefer constructor-bound immutable controller addresses.
    - When the controller and storage contracts depend on each other, use deterministic address prediction and CREATE2 in the app-local deployment flow instead of adding post-deployment controller registration.
-9. Keep DApp deployment assets isolated from bridge deployment assets:
+10. Keep DApp deployment assets isolated from bridge deployment assets:
    - Store each DApp deployment script under `apps/<dapp>/script/deploy`.
    - Store local anvil helpers under `apps/<dapp>/script/anvil` when the DApp needs a local development chain workflow.
    - Store app deployment parameters in `apps/.env`.
@@ -53,21 +58,22 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Do not add per-DApp owner env variables in the default app deployment model.
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
    - Write deployment manifests and callable ABI JSON files into `apps/<dapp>/deploy`.
-10. Provide a DApp-local CLI under `apps/<dapp>/cli`:
+11. Provide a DApp-local CLI under `apps/<dapp>/cli`:
    - Use a terminal CLI, not a browser application.
    - Include target-network selection limited to `mainnet`, `sepolia`, and `anvil`, plus optional private-key input for signed transactions.
    - Resolve contract addresses from `apps/<dapp>/deploy/deployment.<chain-id>.latest.json`.
    - Load callable ABIs from `apps/<dapp>/deploy/*.callable-abi.json`.
    - Keep one function template folder per callable function under `apps/<dapp>/cli/functions/<function-name>/calldata.json`.
    - If duplicate function names exist across contracts, explicitly document how collisions are resolved instead of silently overwriting folders.
-11. Provide concise DApp-local command wrappers:
+12. Provide concise DApp-local command wrappers:
    - Prefer `apps/<dapp>/Makefile`.
    - Include short commands for local anvil start/bootstrap/stop, local tests, and public-network deployment.
    - Prefer targets such as `make anvil-start`, `make anvil-bootstrap`, `make anvil-stop`, `make test`, `make deploy-sepolia`, `make deploy-mainnet`, and `make cli-list`.
    - If a command must target a different network than the one stored in `apps/.env`, create a temporary env override inside the wrapper instead of requiring the operator to edit `apps/.env`.
-12. Keep the review explicit in the final response:
+13. Keep the review explicit in the final response:
    - State whether the entrypoints satisfy the zk-L2 privacy assumption.
    - State whether the successful symbolic path for each user-facing function appears unique.
+   - State whether the implementation keeps function bytecode focused on strictly necessary operations or still contains avoidable scaffolding.
    - State whether the app respects bridge-managed custody and avoids direct user interaction with the L2 accounting vault.
    - State whether storage should remain centralized or be split across addresses.
    - State whether deployment scripts and env configuration are isolated under the DApp folder and `apps/.env`.

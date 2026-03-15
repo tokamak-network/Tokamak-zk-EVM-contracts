@@ -66,11 +66,7 @@ contract PrivateStateController {
     }
 
     function mintNotes1(Note[1] calldata outputs) external returns (bytes32[1] memory commitments) {
-        Note calldata output0 = outputs[0];
-        address output0Owner = output0.owner;
-        uint256 output0Value = output0.value;
-        bytes32 output0Salt = output0.salt;
-        _validateNoteFields(output0Value, output0Owner);
+        (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
 
         l2AccountingVault.debitLiquidBalance(msg.sender, output0Value);
         commitments[0] = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
@@ -79,16 +75,8 @@ contract PrivateStateController {
     }
 
     function mintNotes2(Note[2] calldata outputs) external returns (bytes32[2] memory commitments) {
-        Note calldata output0 = outputs[0];
-        Note calldata output1 = outputs[1];
-        address output0Owner = output0.owner;
-        uint256 output0Value = output0.value;
-        bytes32 output0Salt = output0.salt;
-        address output1Owner = output1.owner;
-        uint256 output1Value = output1.value;
-        bytes32 output1Salt = output1.salt;
-        _validateNoteFields(output0Value, output0Owner);
-        _validateNoteFields(output1Value, output1Owner);
+        (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
+        (address output1Owner, uint256 output1Value, bytes32 output1Salt) = _loadValidatedNote(outputs[1]);
 
         uint256 totalValue = output0Value + output1Value;
         l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
@@ -103,21 +91,9 @@ contract PrivateStateController {
     }
 
     function mintNotes3(Note[3] calldata outputs) external returns (bytes32[3] memory commitments) {
-        Note calldata output0 = outputs[0];
-        Note calldata output1 = outputs[1];
-        Note calldata output2 = outputs[2];
-        address output0Owner = output0.owner;
-        uint256 output0Value = output0.value;
-        bytes32 output0Salt = output0.salt;
-        address output1Owner = output1.owner;
-        uint256 output1Value = output1.value;
-        bytes32 output1Salt = output1.salt;
-        address output2Owner = output2.owner;
-        uint256 output2Value = output2.value;
-        bytes32 output2Salt = output2.salt;
-        _validateNoteFields(output0Value, output0Owner);
-        _validateNoteFields(output1Value, output1Owner);
-        _validateNoteFields(output2Value, output2Owner);
+        (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
+        (address output1Owner, uint256 output1Value, bytes32 output1Salt) = _loadValidatedNote(outputs[1]);
+        (address output2Owner, uint256 output2Value, bytes32 output2Salt) = _loadValidatedNote(outputs[2]);
 
         uint256 totalValue = output0Value + output1Value + output2Value;
         l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
@@ -139,28 +115,12 @@ contract PrivateStateController {
         external
         returns (bytes32[1] memory nullifiers, bytes32[3] memory outputCommitments)
     {
-        Note calldata output0 = outputs[0];
-        Note calldata output1 = outputs[1];
-        Note calldata output2 = outputs[2];
-        address output0Owner = output0.owner;
-        uint256 output0Value = output0.value;
-        bytes32 output0Salt = output0.salt;
-        address output1Owner = output1.owner;
-        uint256 output1Value = output1.value;
-        bytes32 output1Salt = output1.salt;
-        address output2Owner = output2.owner;
-        uint256 output2Value = output2.value;
-        bytes32 output2Salt = output2.salt;
-        _validateNoteFields(output0Value, output0Owner);
-        _validateNoteFields(output1Value, output1Owner);
-        _validateNoteFields(output2Value, output2Owner);
+        (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
+        (address output1Owner, uint256 output1Value, bytes32 output1Salt) = _loadValidatedNote(outputs[1]);
+        (address output2Owner, uint256 output2Value, bytes32 output2Salt) = _loadValidatedNote(outputs[2]);
         uint256 totalOutputValue = output0Value + output1Value + output2Value;
 
-        Note calldata note = inputNotes[0];
-        address noteOwner = note.owner;
-        uint256 noteValue = note.value;
-        bytes32 noteSalt = note.salt;
-        _validateNoteFields(noteValue, noteOwner);
+        (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
 
         bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
         bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
@@ -198,11 +158,7 @@ contract PrivateStateController {
         uint256 totalInputValue;
 
         for (uint256 i = 0; i < 4; ++i) {
-            Note calldata note = inputNotes[i];
-            address noteOwner = note.owner;
-            uint256 noteValue = note.value;
-            bytes32 noteSalt = note.salt;
-            _validateNoteFields(noteValue, noteOwner);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
@@ -236,11 +192,7 @@ contract PrivateStateController {
         uint256 totalInputValue;
 
         for (uint256 i = 0; i < 6; ++i) {
-            Note calldata note = inputNotes[i];
-            address noteOwner = note.owner;
-            uint256 noteValue = note.value;
-            bytes32 noteSalt = note.salt;
-            _validateNoteFields(noteValue, noteOwner);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
@@ -274,11 +226,7 @@ contract PrivateStateController {
         uint256 totalInputValue;
 
         for (uint256 i = 0; i < 8; ++i) {
-            Note calldata note = inputNotes[i];
-            address noteOwner = note.owner;
-            uint256 noteValue = note.value;
-            bytes32 noteSalt = note.salt;
-            _validateNoteFields(noteValue, noteOwner);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
@@ -313,11 +261,7 @@ contract PrivateStateController {
 
         bytes32[4] memory inputCommitments;
         for (uint256 i = 0; i < 4; ++i) {
-            Note calldata note = inputNotes[i];
-            address noteOwner = note.owner;
-            uint256 noteValue = note.value;
-            bytes32 noteSalt = note.salt;
-            _validateNoteFields(noteValue, noteOwner);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
@@ -348,11 +292,7 @@ contract PrivateStateController {
 
         bytes32[6] memory inputCommitments;
         for (uint256 i = 0; i < 6; ++i) {
-            Note calldata note = inputNotes[i];
-            address noteOwner = note.owner;
-            uint256 noteValue = note.value;
-            bytes32 noteSalt = note.salt;
-            _validateNoteFields(noteValue, noteOwner);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
@@ -383,11 +323,7 @@ contract PrivateStateController {
 
         bytes32[8] memory inputCommitments;
         for (uint256 i = 0; i < 8; ++i) {
-            Note calldata note = inputNotes[i];
-            address noteOwner = note.owner;
-            uint256 noteValue = note.value;
-            bytes32 noteSalt = note.salt;
-            _validateNoteFields(noteValue, noteOwner);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
@@ -455,24 +391,32 @@ contract PrivateStateController {
 
     function _validateTransferOutputs(Note[3] calldata outputs) internal pure returns (uint256 totalOutputValue) {
         for (uint256 i = 0; i < 3; ++i) {
-            Note calldata output = outputs[i];
-            address outputOwner = output.owner;
-            uint256 outputValue = output.value;
-            _validateNoteFields(outputValue, outputOwner);
+            (, uint256 outputValue,) = _loadValidatedNote(outputs[i]);
             totalOutputValue += outputValue;
         }
     }
 
     function _registerTransferOutputs(Note[3] calldata outputs, bytes32[3] memory outputCommitments) internal {
         for (uint256 i = 0; i < 3; ++i) {
-            Note calldata output = outputs[i];
-            address outputOwner = output.owner;
-            uint256 outputValue = output.value;
-            bytes32 outputSalt = output.salt;
+            (address outputOwner, uint256 outputValue, bytes32 outputSalt) = _loadValidatedNote(outputs[i]);
             bytes32 commitment = _computeNoteCommitmentUnchecked(outputValue, outputOwner, outputSalt);
             outputCommitments[i] = commitment;
             noteRegistry.registerCommitment(commitment);
         }
+    }
+
+    function _loadValidatedNote(Note calldata note)
+        internal
+        pure
+        returns (address owner, uint256 value, bytes32 salt)
+    {
+        assembly {
+            let noteOffset := note
+            owner := and(calldataload(noteOffset), 0xffffffffffffffffffffffffffffffffffffffff)
+            value := calldataload(add(noteOffset, 0x20))
+            salt := calldataload(add(noteOffset, 0x40))
+        }
+        _validateNoteFields(value, owner);
     }
 
 }

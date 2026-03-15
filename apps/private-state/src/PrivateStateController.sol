@@ -104,7 +104,8 @@ contract PrivateStateController {
         Note calldata note = inputNotes[0];
         _validateNoteFields(note.value, note.owner);
 
-        bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
+        bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(note.value, note.owner, note.salt);
+        bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
         if (!noteRegistry.commitmentExists(commitment)) {
             revert UnknownCommitment(commitment);
         }
@@ -114,7 +115,7 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(note.value, totalOutputValue);
         }
 
-        nullifiers[0] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
+        nullifiers[0] = _computeNullifierFromSharedHash(sharedPayloadHash);
         nullifierStore.useNullifier(nullifiers[0], commitment, msg.sender);
         _registerTransferOutputs(outputs, outputCommitments);
     }
@@ -131,14 +132,15 @@ contract PrivateStateController {
             Note calldata note = inputNotes[i];
             _validateNoteFields(note.value, note.owner);
 
-            bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
+            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(note.value, note.owner, note.salt);
+            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
             if (!noteRegistry.commitmentExists(commitment)) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(note.owner);
             commitments[i] = commitment;
-            nullifiers[i] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
+            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
             totalInputValue += note.value;
         }
 
@@ -165,14 +167,15 @@ contract PrivateStateController {
             Note calldata note = inputNotes[i];
             _validateNoteFields(note.value, note.owner);
 
-            bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
+            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(note.value, note.owner, note.salt);
+            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
             if (!noteRegistry.commitmentExists(commitment)) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(note.owner);
             commitments[i] = commitment;
-            nullifiers[i] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
+            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
             totalInputValue += note.value;
         }
 
@@ -199,14 +202,15 @@ contract PrivateStateController {
             Note calldata note = inputNotes[i];
             _validateNoteFields(note.value, note.owner);
 
-            bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
+            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(note.value, note.owner, note.salt);
+            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
             if (!noteRegistry.commitmentExists(commitment)) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(note.owner);
             commitments[i] = commitment;
-            nullifiers[i] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
+            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
             totalInputValue += note.value;
         }
 
@@ -256,12 +260,12 @@ contract PrivateStateController {
 
     function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
         _validateNoteFields(value, owner);
-        return _computeNoteCommitmentUnchecked(value, owner, salt);
+        return _computeNoteCommitmentFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
     }
 
     function computeNullifier(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
         _validateNoteFields(value, owner);
-        return _computeNullifierUnchecked(value, owner, salt);
+        return _computeNullifierFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
     }
 
     function _mintOutputNote(address liquidBalanceOwner, Note calldata output) internal returns (bytes32 commitment) {
@@ -284,14 +288,15 @@ contract PrivateStateController {
             Note memory note = inputNotes[i];
             _validateNoteFields(note.value, note.owner);
 
-            bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
+            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(note.value, note.owner, note.salt);
+            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
             if (!noteRegistry.commitmentExists(commitment)) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(note.owner);
             inputCommitments[i] = commitment;
-            nullifiers[i] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
+            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
         }
 
         for (uint256 i = 0; i < inputNotes.length; ++i) {
@@ -318,15 +323,23 @@ contract PrivateStateController {
     }
 
     function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
-        return keccak256(abi.encode(NOTE_COMMITMENT_DOMAIN, _computeSharedNotePayloadHash(value, owner, salt)));
+        return _computeNoteCommitmentFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
     }
 
     function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
-        return keccak256(abi.encode(NULLIFIER_DOMAIN, _computeSharedNotePayloadHash(value, owner, salt)));
+        return _computeNullifierFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
     }
 
     function _computeSharedNotePayloadHash(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
         return keccak256(abi.encode(block.chainid, canonicalAsset, value, owner, salt));
+    }
+
+    function _computeNoteCommitmentFromSharedHash(bytes32 sharedPayloadHash) internal pure returns (bytes32) {
+        return keccak256(abi.encode(NOTE_COMMITMENT_DOMAIN, sharedPayloadHash));
+    }
+
+    function _computeNullifierFromSharedHash(bytes32 sharedPayloadHash) internal pure returns (bytes32) {
+        return keccak256(abi.encode(NULLIFIER_DOMAIN, sharedPayloadHash));
     }
 
     function _validateTransferOutputs(Note[3] calldata outputs) internal pure returns (uint256 totalOutputValue) {

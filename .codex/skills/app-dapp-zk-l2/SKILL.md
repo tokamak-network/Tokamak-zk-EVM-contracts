@@ -36,6 +36,9 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Remove avoidable dynamic-array copies, generic dispatch layers, mode-switch helpers, and other scaffolding when a fixed-arity or direct path is sufficient.
    - Prefer specialized helper functions when they materially reduce bytecode and do not reintroduce multiple successful symbolic paths.
    - Review whether reusable abstractions are actually paying for themselves; if they only add indirection and bytecode, inline or split them.
+   - Treat Synthesizer placements as a first-class optimization budget. Placements are the circuit-side resource units emitted while the Synthesizer models EVM execution. Every user-facing function should be implemented to minimize placement usage, not just Solidity source length.
+   - When a function is placement-heavy, identify whether the cost comes from calldata copying, loop control, helper indirection, repeated hashing, repeated storage calls, or external contract boundaries.
+   - If direct low-level coding materially reduces placement usage without violating correctness or the single-success-path rule, assembly blocks are allowed.
 8. Every DApp under `apps/` must use the same L2 accounting vault shape:
    - Prefer naming such as `L1BridgeAssetVault` for L1 custody and `L2AccountingVault` for the L2 mirror state.
    - The L2 vault is not a real token custody contract.
@@ -74,6 +77,7 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - State whether the entrypoints satisfy the zk-L2 privacy assumption.
    - State whether the successful symbolic path for each user-facing function appears unique.
    - State whether the implementation keeps function bytecode focused on strictly necessary operations or still contains avoidable scaffolding.
+   - State whether the implementation also minimizes Synthesizer placement usage or still contains avoidable placement-heavy logic.
    - State whether the app respects bridge-managed custody and avoids direct user interaction with the L2 accounting vault.
    - State whether storage should remain centralized or be split across addresses.
    - State whether deployment scripts and env configuration are isolated under the DApp folder and `apps/.env`.

@@ -161,7 +161,79 @@ Review questions:
 - Can any dynamic allocation, copying, or generic iteration be removed without weakening validation?
 - Does the current factoring reduce bytecode, or does it only move complexity around?
 
-## 8. Admin and Controller Wiring
+## 8. Placement Discipline
+
+Treat Synthesizer placements as a primary optimization target for every user-facing contract function.
+
+Definition:
+
+- A placement is a circuit-side resource allocation emitted by the Synthesizer while modeling EVM execution.
+- Placement count is not the same as Solidity line count, opcode count, gas cost, or bytecode size.
+- A small Solidity helper can still be placement-heavy if it triggers calldata copying, repeated storage access, repeated hashing, or external-call proof logic.
+
+Required implementation rule:
+
+- Every DApp contract function should be implemented to minimize placement usage while preserving correctness and the single-success-path rule.
+
+Allowed optimization techniques:
+
+- Inline fixed-arity logic when generic helper layers only add scaffolding.
+- Remove avoidable calldata-to-memory copies.
+- Remove generic dynamic-array helpers when the entrypoint arity is fixed.
+- Collapse repeated validation or repeated hashing when the same intermediate value can be reused.
+- Use assembly when it materially reduces placement usage and does not weaken validation or make the control flow ambiguous.
+
+Review questions:
+
+- Which placements are caused by the function itself, and which are caused by subcalls into storage/helper contracts?
+- Is the function paying placements for abstraction rather than for state-transition requirements?
+- Can fixed-arity calldata access replace generic loops or dynamic copies?
+- Can a shared intermediate hash or decoded field be computed once and reused?
+- Would an assembly block remove measurable placement-heavy scaffolding without obscuring correctness?
+
+## 9. Placement Analysis Methodology
+
+Use this process when a function appears placement-heavy or when reviewing a new DApp entrypoint.
+
+1. Generate or rerun the relevant Synthesizer example so that fresh analysis artifacts are written.
+2. Inspect the Synthesizer analysis outputs under `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/outputs/analysis/`.
+   - `step_log.json`
+   - `message_code_addresses.json`
+3. If the example reaches full circuit generation, also inspect:
+   - `outputs/placementVariables.json`
+   - `outputs/instance.json`
+   - `outputs/permutation.json`
+4. Separate pre-transaction or signature-validation placements from placements triggered by the target contract function.
+5. Partition placements by executing contract address first.
+   - entrypoint controller
+   - note registry
+   - nullifier store
+   - accounting vault
+   - other subcalls
+6. Map placement ranges back to source-level logic blocks.
+   - function dispatch and calldata decoding
+   - validation blocks
+   - hash construction
+   - storage reads
+   - storage writes
+   - output registration
+   - event emission
+7. Report exact counts for each logic block whenever possible.
+   - Do not stop at qualitative labels such as "heavy" or "dominant".
+   - Prefer explicit counts per block and per subcall boundary.
+8. Distinguish between controller-side placements and placements paid because the architecture crosses contract boundaries.
+9. Use the results to decide whether to:
+   - inline logic
+   - specialize fixed-arity paths
+   - remove helper indirection
+   - reduce repeated hashing
+   - merge or redesign storage boundaries
+
+Output expectation:
+
+- A placement analysis should identify the function's total placements, subtract setup overhead, then give exact placement counts per internal logic stage and per external subcall domain.
+
+## 10. Admin and Controller Wiring
 
 Preferred default:
 
@@ -181,7 +253,7 @@ Review questions:
 - Is the controller relationship immutable after deployment?
 - If address prediction is used, is the deployment flow deterministic and explicitly documented?
 
-## 9. Review Output
+## 11. Review Output
 
 When reporting on a new app design, explicitly answer:
 
@@ -191,13 +263,15 @@ When reporting on a new app design, explicitly answer:
 4. Which external functions are the final user-facing entrypoints?
 5. Does each such function have exactly one successful symbolic path?
 6. Does each final user-facing function contain only the operations strictly required for its state transition, or is there avoidable bytecode-heavy scaffolding left to remove?
-7. Did the checker flag anything, and if so, why is it acceptable or how should it be refactored?
-8. Should storage remain in one address or be split across multiple addresses?
-9. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
-10. Are app deployment secrets and network settings isolated in `apps/.env`, with shared app-level signer and provider-key-plus-network variables plus DApp-specific namespaced values only where needed, with `APPS_NETWORK=anvil` defaulting to localhost and `APPS_RPC_URL_OVERRIDE` reserved for nonstandard RPC overrides?
-11. Does the DApp provide a local terminal CLI under `apps/<dapp>/cli`, limited to `mainnet`, `sepolia`, and `anvil`, and does that CLI read per-function `calldata.json` templates plus deployment manifests and callable ABI JSON files?
-12. Does the DApp also provide concise DApp-local command wrappers, preferably through `apps/<dapp>/Makefile`, for anvil workflows, tests, and public-network deployment?
-13. If duplicate callable function names exist across contracts, is the CLI folder naming collision handled explicitly and documented?
-14. Was contract-level admin ownership removed where it was not strictly necessary?
-15. If a controller exists, is it wired immutably at deployment time rather than through a mutable admin step?
-16. Does the DApp provide local anvil helpers under `apps/<dapp>/script/anvil` when local-chain testing is required, and does it write manifests and callable ABI JSON files into `apps/<dapp>/deploy`?
+7. Does each final user-facing function also minimize Synthesizer placement usage, or is there avoidable placement-heavy scaffolding left to remove?
+8. If a function is placement-heavy, what are the exact placement counts by logic block and by external subcall domain?
+9. Did the checker flag anything, and if so, why is it acceptable or how should it be refactored?
+10. Should storage remain in one address or be split across multiple addresses?
+11. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
+12. Are app deployment secrets and network settings isolated in `apps/.env`, with shared app-level signer and provider-key-plus-network variables plus DApp-specific namespaced values only where needed, with `APPS_NETWORK=anvil` defaulting to localhost and `APPS_RPC_URL_OVERRIDE` reserved for nonstandard RPC overrides?
+13. Does the DApp provide a local terminal CLI under `apps/<dapp>/cli`, limited to `mainnet`, `sepolia`, and `anvil`, and does that CLI read per-function `calldata.json` templates plus deployment manifests and callable ABI JSON files?
+14. Does the DApp also provide concise DApp-local command wrappers, preferably through `apps/<dapp>/Makefile`, for anvil workflows, tests, and public-network deployment?
+15. If duplicate callable function names exist across contracts, is the CLI folder naming collision handled explicitly and documented?
+16. Was contract-level admin ownership removed where it was not strictly necessary?
+17. If a controller exists, is it wired immutably at deployment time rather than through a mutable admin step?
+18. Does the DApp provide local anvil helpers under `apps/<dapp>/script/anvil` when local-chain testing is required, and does it write manifests and callable ABI JSON files into `apps/<dapp>/deploy`?

@@ -26,7 +26,6 @@ contract PrivateStateController is ReentrancyGuard {
     event NoteMinted(
         address indexed liquidBalanceOwner, bytes32 indexed commitment, address indexed noteOwner, uint256 amount
     );
-    event NotesTransferred(address indexed operator, uint256 inputCount, uint256 outputCount);
     event NotesRedeemed(address indexed operator, address indexed receiver, uint256 inputCount);
     event MockBridgeWithdrawalApplied(address indexed account, uint256 amount);
 
@@ -100,16 +99,34 @@ contract PrivateStateController is ReentrancyGuard {
         nonReentrant
         returns (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments)
     {
-        Note[] memory dynamicInputs = _copyNotes4(inputNotes);
-        (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
-            _transferFixedNotes(dynamicInputs, outputs);
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        bytes32[4] memory commitments;
+        uint256 totalInputValue;
 
         for (uint256 i = 0; i < 4; ++i) {
-            nullifiers[i] = dynamicNullifiers[i];
+            Note calldata note = inputNotes[i];
+            _validateNoteFields(note.value, note.owner);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
+            if (!noteRegistry.commitmentExists(commitment)) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(note.owner);
+            commitments[i] = commitment;
+            nullifiers[i] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
+            totalInputValue += note.value;
         }
-        for (uint256 i = 0; i < 3; ++i) {
-            outputCommitments[i] = dynamicOutputs[i];
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
         }
+
+        for (uint256 i = 0; i < 4; ++i) {
+            nullifierStore.useNullifier(nullifiers[i], commitments[i], msg.sender);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
     }
 
     function transferNotes6(Note[6] calldata inputNotes, Note[3] calldata outputs)
@@ -117,16 +134,34 @@ contract PrivateStateController is ReentrancyGuard {
         nonReentrant
         returns (bytes32[6] memory nullifiers, bytes32[3] memory outputCommitments)
     {
-        Note[] memory dynamicInputs = _copyNotes6(inputNotes);
-        (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
-            _transferFixedNotes(dynamicInputs, outputs);
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        bytes32[6] memory commitments;
+        uint256 totalInputValue;
 
         for (uint256 i = 0; i < 6; ++i) {
-            nullifiers[i] = dynamicNullifiers[i];
+            Note calldata note = inputNotes[i];
+            _validateNoteFields(note.value, note.owner);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
+            if (!noteRegistry.commitmentExists(commitment)) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(note.owner);
+            commitments[i] = commitment;
+            nullifiers[i] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
+            totalInputValue += note.value;
         }
-        for (uint256 i = 0; i < 3; ++i) {
-            outputCommitments[i] = dynamicOutputs[i];
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
         }
+
+        for (uint256 i = 0; i < 6; ++i) {
+            nullifierStore.useNullifier(nullifiers[i], commitments[i], msg.sender);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
     }
 
     function transferNotes8(Note[8] calldata inputNotes, Note[3] calldata outputs)
@@ -134,16 +169,34 @@ contract PrivateStateController is ReentrancyGuard {
         nonReentrant
         returns (bytes32[8] memory nullifiers, bytes32[3] memory outputCommitments)
     {
-        Note[] memory dynamicInputs = _copyNotes8(inputNotes);
-        (bytes32[] memory dynamicNullifiers, bytes32[] memory dynamicOutputs) =
-            _transferFixedNotes(dynamicInputs, outputs);
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        bytes32[8] memory commitments;
+        uint256 totalInputValue;
 
         for (uint256 i = 0; i < 8; ++i) {
-            nullifiers[i] = dynamicNullifiers[i];
+            Note calldata note = inputNotes[i];
+            _validateNoteFields(note.value, note.owner);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
+            if (!noteRegistry.commitmentExists(commitment)) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(note.owner);
+            commitments[i] = commitment;
+            nullifiers[i] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
+            totalInputValue += note.value;
         }
-        for (uint256 i = 0; i < 3; ++i) {
-            outputCommitments[i] = dynamicOutputs[i];
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
         }
+
+        for (uint256 i = 0; i < 8; ++i) {
+            nullifierStore.useNullifier(nullifiers[i], commitments[i], msg.sender);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
     }
 
     function redeemNotes4(Note[4] calldata inputNotes, address receiver)
@@ -184,57 +237,12 @@ contract PrivateStateController is ReentrancyGuard {
 
     function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
         _validateNoteFields(value, owner);
-        return keccak256(abi.encode(block.chainid, address(noteRegistry), canonicalAsset, value, owner, salt));
+        return _computeNoteCommitmentUnchecked(value, owner, salt);
     }
 
     function computeNullifier(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
         _validateNoteFields(value, owner);
-        return keccak256(abi.encode(block.chainid, address(nullifierStore), canonicalAsset, value, owner, salt));
-    }
-
-    function _transferFixedNotes(Note[] memory inputNotes, Note[3] calldata outputs)
-        internal
-        returns (bytes32[] memory nullifiers, bytes32[] memory outputCommitments)
-    {
-        uint256 totalOutputValue;
-        for (uint256 i = 0; i < 3; ++i) {
-            _validateNoteFields(outputs[i].value, outputs[i].owner);
-            totalOutputValue += outputs[i].value;
-        }
-
-        uint256 totalInputValue;
-        bytes32[] memory inputCommitments = new bytes32[](inputNotes.length);
-        nullifiers = new bytes32[](inputNotes.length);
-        for (uint256 i = 0; i < inputNotes.length; ++i) {
-            Note memory note = inputNotes[i];
-            _validateNoteFields(note.value, note.owner);
-
-            bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
-            if (!noteRegistry.commitmentExists(commitment)) {
-                revert UnknownCommitment(commitment);
-            }
-
-            _requireNoteOwner(note.owner);
-            inputCommitments[i] = commitment;
-            nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
-            totalInputValue += note.value;
-        }
-
-        if (totalInputValue != totalOutputValue) {
-            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
-        }
-
-        for (uint256 i = 0; i < inputCommitments.length; ++i) {
-            nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
-        }
-
-        outputCommitments = new bytes32[](3);
-        for (uint256 i = 0; i < 3; ++i) {
-            outputCommitments[i] = computeNoteCommitment(outputs[i].value, outputs[i].owner, outputs[i].salt);
-            noteRegistry.registerCommitment(outputCommitments[i]);
-        }
-
-        emit NotesTransferred(msg.sender, inputNotes.length, 3);
+        return _computeNullifierUnchecked(value, owner, salt);
     }
 
     function _mintOutputNote(address liquidBalanceOwner, Note calldata output) internal returns (bytes32 commitment) {
@@ -257,14 +265,14 @@ contract PrivateStateController is ReentrancyGuard {
             Note memory note = inputNotes[i];
             _validateNoteFields(note.value, note.owner);
 
-            bytes32 commitment = computeNoteCommitment(note.value, note.owner, note.salt);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(note.value, note.owner, note.salt);
             if (!noteRegistry.commitmentExists(commitment)) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(note.owner);
             inputCommitments[i] = commitment;
-            nullifiers[i] = computeNullifier(note.value, note.owner, note.salt);
+            nullifiers[i] = _computeNullifierUnchecked(note.value, note.owner, note.salt);
         }
 
         for (uint256 i = 0; i < inputNotes.length; ++i) {
@@ -287,6 +295,29 @@ contract PrivateStateController is ReentrancyGuard {
     function _requireNoteOwner(address owner) internal view {
         if (msg.sender != owner) {
             revert UnauthorizedNoteOwner(msg.sender, owner);
+        }
+    }
+
+    function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
+        return keccak256(abi.encode(block.chainid, address(noteRegistry), canonicalAsset, value, owner, salt));
+    }
+
+    function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
+        return keccak256(abi.encode(block.chainid, address(nullifierStore), canonicalAsset, value, owner, salt));
+    }
+
+    function _validateTransferOutputs(Note[3] calldata outputs) internal pure returns (uint256 totalOutputValue) {
+        for (uint256 i = 0; i < 3; ++i) {
+            _validateNoteFields(outputs[i].value, outputs[i].owner);
+            totalOutputValue += outputs[i].value;
+        }
+    }
+
+    function _registerTransferOutputs(Note[3] calldata outputs, bytes32[3] memory outputCommitments) internal {
+        for (uint256 i = 0; i < 3; ++i) {
+            bytes32 commitment = _computeNoteCommitmentUnchecked(outputs[i].value, outputs[i].owner, outputs[i].salt);
+            outputCommitments[i] = commitment;
+            noteRegistry.registerCommitment(commitment);
         }
     }
 

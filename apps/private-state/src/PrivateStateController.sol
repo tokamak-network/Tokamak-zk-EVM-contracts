@@ -381,8 +381,8 @@ contract PrivateStateController {
         return _computeNullifierFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
     }
 
-    function _computeSharedNotePayloadHash(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
-        return keccak256(abi.encode(block.chainid, canonicalAsset, value, owner, salt));
+    function _computeSharedNotePayloadHash(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
+        return keccak256(abi.encode(value, owner, salt));
     }
 
     function _computeNoteCommitmentFromSharedHash(bytes32 sharedPayloadHash) internal pure returns (bytes32) {

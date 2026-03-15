@@ -355,11 +355,15 @@ contract PrivateStateController {
     }
 
     function _validateNoteFields(uint256 value, address owner) internal pure {
-        if (owner == address(0)) {
-            revert ZeroAddress();
-        }
-        if (value == 0) {
-            revert ZeroAmount();
+        assembly {
+            if iszero(owner) {
+                mstore(0x00, 0xd92e233d)
+                revert(0x1c, 0x04)
+            }
+            if iszero(value) {
+                mstore(0x00, 0x1f2a2005)
+                revert(0x1c, 0x04)
+            }
         }
     }
 

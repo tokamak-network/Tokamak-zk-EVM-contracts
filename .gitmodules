@@ -12,3 +12,7 @@
 	path = submodules/Tokamak-zk-EVM
 	url = https://github.com/tokamak-network/Tokamak-zk-EVM
 	branch = dev
+[submodule "TokamakL2JS"]
+	path = TokamakL2JS
+	url = https://github.com/tokamak-network/TokamakL2JS
+	branch = main

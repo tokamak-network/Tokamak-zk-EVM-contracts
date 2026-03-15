@@ -65,25 +65,34 @@ contract PrivateStateController is ReentrancyGuard {
     }
 
     function mintNotes1(Note[1] calldata outputs) external nonReentrant returns (bytes32[1] memory commitments) {
-        Note[] memory dynamicOutputs = _copyNotes1(outputs);
-        bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs);
-        commitments[0] = dynamicCommitments[0];
+        _validateNoteFields(outputs[0].value, outputs[0].owner);
+
+        l2AccountingVault.debitLiquidBalance(msg.sender, outputs[0].value);
+        commitments[0] = _mintOutputNote(msg.sender, outputs[0]);
     }
 
     function mintNotes2(Note[2] calldata outputs) external nonReentrant returns (bytes32[2] memory commitments) {
-        Note[] memory dynamicOutputs = _copyNotes2(outputs);
-        bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs);
-        for (uint256 i = 0; i < 2; ++i) {
-            commitments[i] = dynamicCommitments[i];
-        }
+        _validateNoteFields(outputs[0].value, outputs[0].owner);
+        _validateNoteFields(outputs[1].value, outputs[1].owner);
+
+        uint256 totalValue = outputs[0].value + outputs[1].value;
+        l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
+
+        commitments[0] = _mintOutputNote(msg.sender, outputs[0]);
+        commitments[1] = _mintOutputNote(msg.sender, outputs[1]);
     }
 
     function mintNotes3(Note[3] calldata outputs) external nonReentrant returns (bytes32[3] memory commitments) {
-        Note[] memory dynamicOutputs = _copyNotes3(outputs);
-        bytes32[] memory dynamicCommitments = _mintFixedNotes(dynamicOutputs);
-        for (uint256 i = 0; i < 3; ++i) {
-            commitments[i] = dynamicCommitments[i];
-        }
+        _validateNoteFields(outputs[0].value, outputs[0].owner);
+        _validateNoteFields(outputs[1].value, outputs[1].owner);
+        _validateNoteFields(outputs[2].value, outputs[2].owner);
+
+        uint256 totalValue = outputs[0].value + outputs[1].value + outputs[2].value;
+        l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
+
+        commitments[0] = _mintOutputNote(msg.sender, outputs[0]);
+        commitments[1] = _mintOutputNote(msg.sender, outputs[1]);
+        commitments[2] = _mintOutputNote(msg.sender, outputs[2]);
     }
 
     function transferNotes4(Note[4] calldata inputNotes, Note[3] calldata outputs)
@@ -228,21 +237,10 @@ contract PrivateStateController is ReentrancyGuard {
         emit NotesTransferred(msg.sender, inputNotes.length, 3);
     }
 
-    function _mintFixedNotes(Note[] memory outputs) internal returns (bytes32[] memory commitments) {
-        uint256 totalValue;
-        commitments = new bytes32[](outputs.length);
-        for (uint256 i = 0; i < outputs.length; ++i) {
-            _validateNoteFields(outputs[i].value, outputs[i].owner);
-            totalValue += outputs[i].value;
-        }
-
-        l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
-
-        for (uint256 i = 0; i < outputs.length; ++i) {
-            commitments[i] = computeNoteCommitment(outputs[i].value, outputs[i].owner, outputs[i].salt);
-            noteRegistry.registerCommitment(commitments[i]);
-            emit NoteMinted(msg.sender, commitments[i], outputs[i].owner, outputs[i].value);
-        }
+    function _mintOutputNote(address liquidBalanceOwner, Note calldata output) internal returns (bytes32 commitment) {
+        commitment = computeNoteCommitment(output.value, output.owner, output.salt);
+        noteRegistry.registerCommitment(commitment);
+        emit NoteMinted(liquidBalanceOwner, commitment, output.owner, output.value);
     }
 
     function _redeemFixedNotes(Note[] memory inputNotes, address receiver)
@@ -313,22 +311,4 @@ contract PrivateStateController is ReentrancyGuard {
         }
     }
 
-    function _copyNotes1(Note[1] calldata outputs) internal pure returns (Note[] memory copied) {
-        copied = new Note[](1);
-        copied[0] = outputs[0];
-    }
-
-    function _copyNotes2(Note[2] calldata outputs) internal pure returns (Note[] memory copied) {
-        copied = new Note[](2);
-        for (uint256 i = 0; i < 2; ++i) {
-            copied[i] = outputs[i];
-        }
-    }
-
-    function _copyNotes3(Note[3] calldata outputs) internal pure returns (Note[] memory copied) {
-        copied = new Note[](3);
-        for (uint256 i = 0; i < 3; ++i) {
-            copied[i] = outputs[i];
-        }
-    }
 }

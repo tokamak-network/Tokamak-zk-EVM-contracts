@@ -3,6 +3,15 @@
 APP_ENV_FILE ?= $(abspath ../.env)
 DEPLOY_ENV_MKDIR := /tmp
 
+define DEPLOY_RULE
+	@tmp_env="$$(mktemp $(DEPLOY_ENV_MKDIR)/private-state.env.XXXXXX)"; \
+	trap 'rm -f "$$tmp_env" "$$tmp_env.next"' EXIT; \
+	cp "$(APP_ENV_FILE)" "$$tmp_env"; \
+	awk 'BEGIN { replaced = 0 } /^APPS_NETWORK=/ { print "APPS_NETWORK=$(1)"; replaced = 1; next } { print } END { if (replaced == 0) print "APPS_NETWORK=$(1)" }' "$$tmp_env" > "$$tmp_env.next"; \
+	mv "$$tmp_env.next" "$$tmp_env"; \
+	APPS_ENV_FILE="$$tmp_env" bash script/deploy/deploy-private-state.sh $(2)
+endef
+
 help:
 	@printf '%s\n' \
 		'private-state commands:' \
@@ -29,36 +38,16 @@ test:
 	@cd ../.. && forge test --offline --match-contract PrivateStateControllerTest
 
 deploy-sepolia:
-	@tmp_env="$$(mktemp $(DEPLOY_ENV_MKDIR)/private-state.env.XXXXXX)"; \
-	trap 'rm -f "$$tmp_env" "$$tmp_env.next"' EXIT; \
-	cp "$(APP_ENV_FILE)" "$$tmp_env"; \
-	awk 'BEGIN { replaced = 0 } /^APPS_NETWORK=/ { print "APPS_NETWORK=sepolia"; replaced = 1; next } { print } END { if (replaced == 0) print "APPS_NETWORK=sepolia" }' "$$tmp_env" > "$$tmp_env.next"; \
-	mv "$$tmp_env.next" "$$tmp_env"; \
-	APPS_ENV_FILE="$$tmp_env" bash script/deploy/deploy-private-state.sh
+	$(call DEPLOY_RULE,sepolia,)
 
 deploy-sepolia-verify:
-	@tmp_env="$$(mktemp $(DEPLOY_ENV_MKDIR)/private-state.env.XXXXXX)"; \
-	trap 'rm -f "$$tmp_env" "$$tmp_env.next"' EXIT; \
-	cp "$(APP_ENV_FILE)" "$$tmp_env"; \
-	awk 'BEGIN { replaced = 0 } /^APPS_NETWORK=/ { print "APPS_NETWORK=sepolia"; replaced = 1; next } { print } END { if (replaced == 0) print "APPS_NETWORK=sepolia" }' "$$tmp_env" > "$$tmp_env.next"; \
-	mv "$$tmp_env.next" "$$tmp_env"; \
-	APPS_ENV_FILE="$$tmp_env" bash script/deploy/deploy-private-state.sh --verify
+	$(call DEPLOY_RULE,sepolia,--verify)
 
 deploy-mainnet:
-	@tmp_env="$$(mktemp $(DEPLOY_ENV_MKDIR)/private-state.env.XXXXXX)"; \
-	trap 'rm -f "$$tmp_env" "$$tmp_env.next"' EXIT; \
-	cp "$(APP_ENV_FILE)" "$$tmp_env"; \
-	awk 'BEGIN { replaced = 0 } /^APPS_NETWORK=/ { print "APPS_NETWORK=mainnet"; replaced = 1; next } { print } END { if (replaced == 0) print "APPS_NETWORK=mainnet" }' "$$tmp_env" > "$$tmp_env.next"; \
-	mv "$$tmp_env.next" "$$tmp_env"; \
-	APPS_ENV_FILE="$$tmp_env" bash script/deploy/deploy-private-state.sh
+	$(call DEPLOY_RULE,mainnet,)
 
 deploy-mainnet-verify:
-	@tmp_env="$$(mktemp $(DEPLOY_ENV_MKDIR)/private-state.env.XXXXXX)"; \
-	trap 'rm -f "$$tmp_env" "$$tmp_env.next"' EXIT; \
-	cp "$(APP_ENV_FILE)" "$$tmp_env"; \
-	awk 'BEGIN { replaced = 0 } /^APPS_NETWORK=/ { print "APPS_NETWORK=mainnet"; replaced = 1; next } { print } END { if (replaced == 0) print "APPS_NETWORK=mainnet" }' "$$tmp_env" > "$$tmp_env.next"; \
-	mv "$$tmp_env.next" "$$tmp_env"; \
-	APPS_ENV_FILE="$$tmp_env" bash script/deploy/deploy-private-state.sh --verify
+	$(call DEPLOY_RULE,mainnet,--verify)
 
 cli-list:
 	@node cli/private-state-cli.mjs list

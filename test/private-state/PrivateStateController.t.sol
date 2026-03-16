@@ -7,6 +7,10 @@ import {PrivateStateController} from "../../apps/private-state/src/PrivateStateC
 import {PrivateStateDeploymentFactory} from "../../apps/private-state/script/deploy/PrivateStateDeploymentFactory.sol";
 
 contract PrivateStateControllerTest is Test {
+    uint256 private constant BLS12_381_SCALAR_FIELD_ORDER =
+        52435875175126190479447740508185965837690552500527637822603658699938581184512;
+    uint256 private constant MAX_LIQUID_BALANCE = BLS12_381_SCALAR_FIELD_ORDER - 1;
+
     address private alice = makeAddr("alice");
     address private bob = makeAddr("bob");
     address private mallory = makeAddr("mallory");
@@ -406,6 +410,32 @@ contract PrivateStateControllerTest is Test {
         );
         vm.prank(alice);
         controller.mockBridgeWithdraw(11 ether);
+    }
+
+    function testControllerCannotCreditLiquidBalancePastBlsScalarField() public {
+        vm.prank(address(controller));
+        l2AccountingVault.creditLiquidBalance(alice, MAX_LIQUID_BALANCE);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L2AccountingVault.LiquidBalanceOverflow.selector, alice, MAX_LIQUID_BALANCE, 1
+            )
+        );
+        vm.prank(address(controller));
+        l2AccountingVault.creditLiquidBalance(alice, 1);
+    }
+
+    function testMockBridgeDepositCannotOverflowBlsScalarField() public {
+        vm.prank(address(controller));
+        l2AccountingVault.creditLiquidBalance(alice, MAX_LIQUID_BALANCE);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L2AccountingVault.LiquidBalanceOverflow.selector, alice, MAX_LIQUID_BALANCE, 1
+            )
+        );
+        vm.prank(alice);
+        controller.mockBridgeDeposit(1);
     }
 
     function testStoresUseImmutablePredictedController() public view {

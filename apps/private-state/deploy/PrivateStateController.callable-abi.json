@@ -488,6 +488,88 @@
   },
   {
     "type": "function",
+    "name": "redeemNotes4",
+    "inputs": [
+      {
+        "name": "inputNotes",
+        "type": "tuple[4]",
+        "internalType": "struct PrivateStateController.Note[4]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "receiver",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[4]",
+        "internalType": "bytes32[4]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "redeemNotes5",
+    "inputs": [
+      {
+        "name": "inputNotes",
+        "type": "tuple[5]",
+        "internalType": "struct PrivateStateController.Note[5]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "receiver",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[5]",
+        "internalType": "bytes32[5]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "transferNotes1To1",
     "inputs": [
       {

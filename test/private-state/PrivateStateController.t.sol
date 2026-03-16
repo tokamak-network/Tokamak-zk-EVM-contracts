@@ -275,14 +275,55 @@ contract PrivateStateControllerTest is Test {
         }
     }
 
+    function testRedeemNotes4OwnerCanRedeemDirectly() public {
+        vm.prank(alice);
+        controller.mockBridgeDeposit(40 ether);
+
+        PrivateStateController.Note[4] memory inputNotes = _notes4(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-4a")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-4b")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-4c")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-4d"))
+        );
+
+        vm.prank(alice);
+        bytes32[4] memory nullifiers = controller.redeemNotes4(inputNotes, bob);
+
+        assertEq(l2AccountingVault.liquidBalances(bob), 40 ether);
+        for (uint256 i = 0; i < 4; ++i) {
+            assertTrue(controller.nullifierUsed(nullifiers[i]));
+        }
+    }
+
+    function testRedeemNotes5OwnerCanRedeemDirectly() public {
+        vm.prank(alice);
+        controller.mockBridgeDeposit(50 ether);
+
+        PrivateStateController.Note[5] memory inputNotes = _notes5(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-5a")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-5b")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-5c")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-5d")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-5e"))
+        );
+
+        vm.prank(alice);
+        bytes32[5] memory nullifiers = controller.redeemNotes5(inputNotes, bob);
+
+        assertEq(l2AccountingVault.liquidBalances(bob), 50 ether);
+        for (uint256 i = 0; i < 5; ++i) {
+            assertTrue(controller.nullifierUsed(nullifiers[i]));
+        }
+    }
+
     function testRedeemNotes3CannotRedeemAnotherOwnersNotes() public {
         vm.prank(alice);
         controller.mockBridgeDeposit(30 ether);
 
         PrivateStateController.Note[3] memory inputNotes = _notes3(
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-4")),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-5")),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-6"))
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-unauthorized-0")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-unauthorized-1")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-unauthorized-2"))
         );
 
         vm.expectRevert(abi.encodeWithSelector(PrivateStateController.UnauthorizedNoteOwner.selector, mallory, alice));

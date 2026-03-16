@@ -94,7 +94,6 @@ write_callable_abi \
         "redeemNotes2",
         "redeemNotes3",
         "redeemNotes4",
-        "redeemNotes5",
         "nullifierUsed",
         "transferNotes1To1",
         "transferNotes1To2",

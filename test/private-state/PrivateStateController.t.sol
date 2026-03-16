@@ -284,26 +284,6 @@ contract PrivateStateControllerTest is Test {
         }
     }
 
-    function testRedeemNotes5OwnerCanRedeemDirectly() public {
-        _seedLiquidBalance(alice, 50 ether);
-
-        PrivateStateController.Note[5] memory inputNotes = _notes5(
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-5a")),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-5b")),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-5c")),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-5d")),
-            _mintNote(alice, 10 ether, bytes32("alice-redeem-5e"))
-        );
-
-        vm.prank(alice);
-        bytes32[5] memory nullifiers = controller.redeemNotes5(inputNotes, bob);
-
-        assertEq(l2AccountingVault.liquidBalances(bob), 50 ether);
-        for (uint256 i = 0; i < 5; ++i) {
-            assertTrue(controller.nullifierUsed(nullifiers[i]));
-        }
-    }
-
     function testRedeemNotes3CannotRedeemAnotherOwnersNotes() public {
         _seedLiquidBalance(alice, 30 ether);
 

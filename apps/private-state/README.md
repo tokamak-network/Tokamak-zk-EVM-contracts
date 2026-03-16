@@ -63,7 +63,7 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 2. Fund the sender's L2 liquid balance through the bridge-controlled accounting path before minting or transferring notes.
 3. Call `mintNotes1`, `mintNotes2`, `mintNotes3`, `mintNotes4`, `mintNotes5`, or `mintNotes6` to lock part of the liquid balance into one, two, three, four, five, or six note commitments.
 4. Call one of the fixed-arity `transferNotes<N>To<M>` entrypoints with `N` input notes and `M` output notes.
-5. Call one of `redeemNotes1`, `redeemNotes2`, `redeemNotes3`, `redeemNotes4`, or `redeemNotes5` to convert fixed batches of notes back into liquid balances.
+5. Call one of `redeemNotes1`, `redeemNotes2`, `redeemNotes3`, or `redeemNotes4` to convert fixed batches of notes back into liquid balances.
 
 ## Fixed-Arity Entry Points
 
@@ -83,13 +83,12 @@ The current transfer API exposes the full fixed-arity family for `N in [1, 8]` a
 - `transferNotes3To1`, `transferNotes3To2`
 - `transferNotes4To1`
 
-The current redeem API exposes five fixed-arity user-facing functions:
+The current redeem API exposes four fixed-arity user-facing functions:
 
 - `redeemNotes1`: 1 input note
 - `redeemNotes2`: 2 input notes
 - `redeemNotes3`: 3 input notes
 - `redeemNotes4`: 4 input notes
-- `redeemNotes5`: 5 input notes
 
 These fixed entrypoints are intended to make the final user-facing state transitions more circuit-friendly under the repository's zk-L2 design constraints.
 

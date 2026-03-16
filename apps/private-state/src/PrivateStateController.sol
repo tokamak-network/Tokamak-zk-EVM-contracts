@@ -468,48 +468,6 @@ contract PrivateStateController {
         }
     }
 
-    function redeemNotes5(Note[5] calldata inputNotes, address receiver)
-        external
-        returns (bytes32[5] memory nullifiers)
-    {
-        assembly {
-            if iszero(receiver) {
-                mstore(0x00, 0xd92e233d)
-                revert(0x1c, 0x04)
-            }
-        }
-        {
-            uint256 noteValue;
-            bytes32 nullifier;
-            (noteValue, nullifier) = _prepareSpendableNote(inputNotes[0]);
-            nullifiers[0] = nullifier;
-            _useNullifier(nullifier);
-            uint256 totalRedeemValue = noteValue;
-
-            (noteValue, nullifier) = _prepareSpendableNote(inputNotes[1]);
-            nullifiers[1] = nullifier;
-            _useNullifier(nullifier);
-            totalRedeemValue += noteValue;
-
-            (noteValue, nullifier) = _prepareSpendableNote(inputNotes[2]);
-            nullifiers[2] = nullifier;
-            _useNullifier(nullifier);
-            totalRedeemValue += noteValue;
-
-            (noteValue, nullifier) = _prepareSpendableNote(inputNotes[3]);
-            nullifiers[3] = nullifier;
-            _useNullifier(nullifier);
-            totalRedeemValue += noteValue;
-
-            (noteValue, nullifier) = _prepareSpendableNote(inputNotes[4]);
-            nullifiers[4] = nullifier;
-            _useNullifier(nullifier);
-            totalRedeemValue += noteValue;
-
-            l2AccountingVault.creditLiquidBalance(receiver, totalRedeemValue);
-        }
-    }
-
     function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public pure returns (bytes32) {
         _validateNoteFields(value, owner);
         return _computeNoteCommitmentUnchecked(value, owner, salt);

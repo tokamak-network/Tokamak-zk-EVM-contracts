@@ -349,8 +349,11 @@ contract PrivateStateController {
         external
         returns (bytes32[4] memory nullifiers)
     {
-        if (receiver == address(0)) {
-            revert ZeroAddress();
+        assembly {
+            if iszero(receiver) {
+                mstore(0x00, 0xd92e233d)
+                revert(0x1c, 0x04)
+            }
         }
         {
             (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);
@@ -384,8 +387,11 @@ contract PrivateStateController {
         external
         returns (bytes32[6] memory nullifiers)
     {
-        if (receiver == address(0)) {
-            revert ZeroAddress();
+        assembly {
+            if iszero(receiver) {
+                mstore(0x00, 0xd92e233d)
+                revert(0x1c, 0x04)
+            }
         }
         {
             (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);
@@ -431,8 +437,11 @@ contract PrivateStateController {
         external
         returns (bytes32[8] memory nullifiers)
     {
-        if (receiver == address(0)) {
-            revert ZeroAddress();
+        assembly {
+            if iszero(receiver) {
+                mstore(0x00, 0xd92e233d)
+                revert(0x1c, 0x04)
+            }
         }
         {
             (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);

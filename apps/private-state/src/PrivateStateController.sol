@@ -114,8 +114,7 @@ contract PrivateStateController {
 
         (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
 
-        bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
-        bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
+        bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
         if (!commitmentExists[commitment]) {
             revert UnknownCommitment(commitment);
         }
@@ -125,7 +124,7 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(noteValue, totalOutputValue);
         }
 
-        nullifiers[0] = _computeNullifierFromSharedHash(sharedPayloadHash);
+        nullifiers[0] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         _useNullifier(nullifiers[0]);
 
         bytes32 output0Commitment = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
@@ -151,14 +150,13 @@ contract PrivateStateController {
         for (uint256 i = 0; i < 4; ++i) {
             (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
-            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
-            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
             if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             totalInputValue += noteValue;
         }
 
@@ -183,14 +181,13 @@ contract PrivateStateController {
         for (uint256 i = 0; i < 6; ++i) {
             (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
-            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
-            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
             if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             totalInputValue += noteValue;
         }
 
@@ -215,14 +212,13 @@ contract PrivateStateController {
         for (uint256 i = 0; i < 8; ++i) {
             (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
-            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
-            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
             if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             totalInputValue += noteValue;
         }
 
@@ -247,14 +243,13 @@ contract PrivateStateController {
         for (uint256 i = 0; i < 4; ++i) {
             (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
-            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
-            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
             if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
 
         for (uint256 i = 0; i < 4; ++i) {
@@ -275,14 +270,13 @@ contract PrivateStateController {
         for (uint256 i = 0; i < 6; ++i) {
             (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
-            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
-            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
             if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
 
         for (uint256 i = 0; i < 6; ++i) {
@@ -303,14 +297,13 @@ contract PrivateStateController {
         for (uint256 i = 0; i < 8; ++i) {
             (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
-            bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
-            bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
             if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
 
         for (uint256 i = 0; i < 8; ++i) {
@@ -323,12 +316,12 @@ contract PrivateStateController {
 
     function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public pure returns (bytes32) {
         _validateNoteFields(value, owner);
-        return _computeNoteCommitmentFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
+        return _computeNoteCommitmentUnchecked(value, owner, salt);
     }
 
     function computeNullifier(uint256 value, address owner, bytes32 salt) public pure returns (bytes32) {
         _validateNoteFields(value, owner);
-        return _computeNullifierFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
+        return _computeNullifierUnchecked(value, owner, salt);
     }
 
     function _validateNoteFields(uint256 value, address owner) internal pure {
@@ -351,23 +344,11 @@ contract PrivateStateController {
     }
 
     function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
-        return _computeNoteCommitmentFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
+        return keccak256(abi.encode(NOTE_COMMITMENT_DOMAIN, owner, value, salt));
     }
 
     function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
-        return _computeNullifierFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
-    }
-
-    function _computeSharedNotePayloadHash(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
-        return keccak256(abi.encode(value, owner, salt));
-    }
-
-    function _computeNoteCommitmentFromSharedHash(bytes32 sharedPayloadHash) internal pure returns (bytes32) {
-        return keccak256(abi.encode(NOTE_COMMITMENT_DOMAIN, sharedPayloadHash));
-    }
-
-    function _computeNullifierFromSharedHash(bytes32 sharedPayloadHash) internal pure returns (bytes32) {
-        return keccak256(abi.encode(NULLIFIER_DOMAIN, sharedPayloadHash));
+        return keccak256(abi.encode(NULLIFIER_DOMAIN, owner, value, salt));
     }
 
     function _validateTransferOutputs(Note[3] calldata outputs) internal pure returns (uint256 totalOutputValue) {

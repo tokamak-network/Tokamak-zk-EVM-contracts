@@ -62,7 +62,7 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 1. Lock or release the canonical asset through the L1 bridge custody flow.
 2. Apply the matching L2 accounting transition with `mockBridgeDeposit` or `mockBridgeWithdraw` during development.
 3. Call `mintNotes1`, `mintNotes2`, or `mintNotes3` to lock part of the liquid balance into one, two, or three note commitments.
-4. Call one of `transferNotes1`, `transferNotes4`, `transferNotes6`, or `transferNotes8` with exactly 2 output notes.
+4. Call one of the fixed-arity `transferNotes<N>To<M>` entrypoints with `N` input notes and `M` output notes.
 5. Call one of `redeemNotes4`, `redeemNotes6`, or `redeemNotes8` to convert fixed batches of notes back into liquid balances.
 
 ## Fixed-Arity Entry Points
@@ -78,12 +78,16 @@ The current mint API exposes three fixed-arity user-facing functions:
 - `mintNotes2`: 2 output notes
 - `mintNotes3`: 3 output notes
 
-The current transfer API exposes three fixed-arity user-facing functions:
+The current transfer API exposes the full fixed-arity family for `N in [1, 8]` and `M in [1, 2]`:
 
-- `transferNotes1`: 1 input note, 2 output notes
-- `transferNotes4`: 4 input notes, 2 output notes
-- `transferNotes6`: 6 input notes, 2 output notes
-- `transferNotes8`: 8 input notes, 2 output notes
+- `transferNotes1To1`, `transferNotes1To2`
+- `transferNotes2To1`, `transferNotes2To2`
+- `transferNotes3To1`, `transferNotes3To2`
+- `transferNotes4To1`, `transferNotes4To2`
+- `transferNotes5To1`, `transferNotes5To2`
+- `transferNotes6To1`, `transferNotes6To2`
+- `transferNotes7To1`, `transferNotes7To2`
+- `transferNotes8To1`, `transferNotes8To2`
 
 The current redeem API exposes three fixed-arity user-facing functions:
 

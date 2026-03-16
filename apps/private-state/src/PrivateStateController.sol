@@ -103,7 +103,33 @@ contract PrivateStateController {
         emit NoteMinted(msg.sender, commitments[2], output2Owner, output2Value);
     }
 
-    function transferNotes1(Note[1] calldata inputNotes, Note[2] calldata outputs)
+    function transferNotes1To1(Note[1] calldata inputNotes, Note[1] calldata outputs)
+        external
+        returns (bytes32[1] memory nullifiers, bytes32[1] memory outputCommitments)
+    {
+        (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
+
+        (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
+
+        bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+        if (!commitmentExists[commitment]) {
+            revert UnknownCommitment(commitment);
+        }
+
+        _requireNoteOwner(noteOwner);
+        if (noteValue != output0Value) {
+            revert InputOutputValueMismatch(noteValue, output0Value);
+        }
+
+        nullifiers[0] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+        _useNullifier(nullifiers[0]);
+
+        bytes32 output0Commitment = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
+        outputCommitments[0] = output0Commitment;
+        _registerCommitment(output0Commitment);
+    }
+
+    function transferNotes1To2(Note[1] calldata inputNotes, Note[2] calldata outputs)
         external
         returns (bytes32[1] memory nullifiers, bytes32[2] memory outputCommitments)
     {
@@ -135,7 +161,162 @@ contract PrivateStateController {
         _registerCommitment(output1Commitment);
     }
 
-    function transferNotes4(Note[4] calldata inputNotes, Note[2] calldata outputs)
+    function transferNotes2To1(Note[2] calldata inputNotes, Note[1] calldata outputs)
+        external
+        returns (bytes32[2] memory nullifiers, bytes32[1] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 2; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 2; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes2To2(Note[2] calldata inputNotes, Note[2] calldata outputs)
+        external
+        returns (bytes32[2] memory nullifiers, bytes32[2] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 2; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 2; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes3To1(Note[3] calldata inputNotes, Note[1] calldata outputs)
+        external
+        returns (bytes32[3] memory nullifiers, bytes32[1] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 3; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 3; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes3To2(Note[3] calldata inputNotes, Note[2] calldata outputs)
+        external
+        returns (bytes32[3] memory nullifiers, bytes32[2] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 3; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 3; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes4To1(Note[4] calldata inputNotes, Note[1] calldata outputs)
+        external
+        returns (bytes32[4] memory nullifiers, bytes32[1] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 4; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 4; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes4To2(Note[4] calldata inputNotes, Note[2] calldata outputs)
         external
         returns (bytes32[4] memory nullifiers, bytes32[2] memory outputCommitments)
     {
@@ -166,7 +347,100 @@ contract PrivateStateController {
         _registerTransferOutputs(outputs, outputCommitments);
     }
 
-    function transferNotes6(Note[6] calldata inputNotes, Note[2] calldata outputs)
+    function transferNotes5To1(Note[5] calldata inputNotes, Note[1] calldata outputs)
+        external
+        returns (bytes32[5] memory nullifiers, bytes32[1] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 5; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 5; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes5To2(Note[5] calldata inputNotes, Note[2] calldata outputs)
+        external
+        returns (bytes32[5] memory nullifiers, bytes32[2] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 5; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 5; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes6To1(Note[6] calldata inputNotes, Note[1] calldata outputs)
+        external
+        returns (bytes32[6] memory nullifiers, bytes32[1] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 6; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 6; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes6To2(Note[6] calldata inputNotes, Note[2] calldata outputs)
         external
         returns (bytes32[6] memory nullifiers, bytes32[2] memory outputCommitments)
     {
@@ -197,7 +471,100 @@ contract PrivateStateController {
         _registerTransferOutputs(outputs, outputCommitments);
     }
 
-    function transferNotes8(Note[8] calldata inputNotes, Note[2] calldata outputs)
+    function transferNotes7To1(Note[7] calldata inputNotes, Note[1] calldata outputs)
+        external
+        returns (bytes32[7] memory nullifiers, bytes32[1] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 7; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 7; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes7To2(Note[7] calldata inputNotes, Note[2] calldata outputs)
+        external
+        returns (bytes32[7] memory nullifiers, bytes32[2] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 7; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 7; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes8To1(Note[8] calldata inputNotes, Note[1] calldata outputs)
+        external
+        returns (bytes32[8] memory nullifiers, bytes32[1] memory outputCommitments)
+    {
+        uint256 totalOutputValue = _validateTransferOutputs(outputs);
+        uint256 totalInputValue;
+
+        for (uint256 i = 0; i < 8; ++i) {
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
+
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+
+            _requireNoteOwner(noteOwner);
+            nullifiers[i] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
+            totalInputValue += noteValue;
+        }
+
+        if (totalInputValue != totalOutputValue) {
+            revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
+        }
+
+        for (uint256 i = 0; i < 8; ++i) {
+            _useNullifier(nullifiers[i]);
+        }
+
+        _registerTransferOutputs(outputs, outputCommitments);
+    }
+
+    function transferNotes8To2(Note[8] calldata inputNotes, Note[2] calldata outputs)
         external
         returns (bytes32[8] memory nullifiers, bytes32[2] memory outputCommitments)
     {
@@ -346,11 +713,22 @@ contract PrivateStateController {
         return keccak256(abi.encode(NULLIFIER_DOMAIN, owner, value, salt));
     }
 
+    function _validateTransferOutputs(Note[1] calldata outputs) internal pure returns (uint256 totalOutputValue) {
+        (, totalOutputValue,) = _loadValidatedNote(outputs[0]);
+    }
+
     function _validateTransferOutputs(Note[2] calldata outputs) internal pure returns (uint256 totalOutputValue) {
         for (uint256 i = 0; i < 2; ++i) {
             (, uint256 outputValue,) = _loadValidatedNote(outputs[i]);
             totalOutputValue += outputValue;
         }
+    }
+
+    function _registerTransferOutputs(Note[1] calldata outputs, bytes32[1] memory outputCommitments) internal {
+        (address outputOwner, uint256 outputValue, bytes32 outputSalt) = _loadValidatedNote(outputs[0]);
+        bytes32 commitment = _computeNoteCommitmentUnchecked(outputValue, outputOwner, outputSalt);
+        outputCommitments[0] = commitment;
+        _registerCommitment(commitment);
     }
 
     function _registerTransferOutputs(Note[2] calldata outputs, bytes32[2] memory outputCommitments) internal {

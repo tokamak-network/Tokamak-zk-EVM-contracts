@@ -170,14 +170,24 @@ contract PrivateStateController {
 
         uint256 totalInputValue;
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue = noteValue;
-            nullifiers[0] = nullifier;
+            nullifiers[0] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[1]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[1]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue += noteValue;
-            nullifiers[1] = nullifier;
+            nullifiers[1] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
 
         if (totalInputValue != totalOutputValue) {
@@ -201,14 +211,24 @@ contract PrivateStateController {
 
         uint256 totalInputValue;
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue = noteValue;
-            nullifiers[0] = nullifier;
+            nullifiers[0] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[1]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[1]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue += noteValue;
-            nullifiers[1] = nullifier;
+            nullifiers[1] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
 
         if (totalInputValue != totalOutputValue) {
@@ -230,19 +250,34 @@ contract PrivateStateController {
 
         uint256 totalInputValue;
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue = noteValue;
-            nullifiers[0] = nullifier;
+            nullifiers[0] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[1]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[1]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue += noteValue;
-            nullifiers[1] = nullifier;
+            nullifiers[1] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[2]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[2]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue += noteValue;
-            nullifiers[2] = nullifier;
+            nullifiers[2] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
 
         if (totalInputValue != totalOutputValue) {
@@ -313,24 +348,44 @@ contract PrivateStateController {
 
         uint256 totalInputValue;
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue = noteValue;
-            nullifiers[0] = nullifier;
+            nullifiers[0] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[1]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[1]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue += noteValue;
-            nullifiers[1] = nullifier;
+            nullifiers[1] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[2]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[2]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue += noteValue;
-            nullifiers[2] = nullifier;
+            nullifiers[2] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[3]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[3]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
             totalInputValue += noteValue;
-            nullifiers[3] = nullifier;
+            nullifiers[3] = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
         }
 
         if (totalInputValue != totalOutputValue) {
@@ -356,25 +411,49 @@ contract PrivateStateController {
             }
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[0] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[1]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[1]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[1] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[2]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[2]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[2] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[3]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[3]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[3] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
@@ -394,37 +473,73 @@ contract PrivateStateController {
             }
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[0] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[1]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[1]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[1] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[2]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[2]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[2] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[3]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[3]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[3] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[4]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[4]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[4] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[5]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[5]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[5] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
@@ -444,49 +559,97 @@ contract PrivateStateController {
             }
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[0]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[0] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[1]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[1]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[1] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[2]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[2]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[2] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[3]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[3]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[3] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[4]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[4]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[4] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[5]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[5]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[5] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[6]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[6]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[6] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
         {
-            (uint256 noteValue, bytes32 nullifier) = _prepareSpendableNote(inputNotes[7]);
+            (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[7]);
+            bytes32 commitment = _computeNoteCommitmentUnchecked(noteValue, noteOwner, noteSalt);
+            if (!commitmentExists[commitment]) {
+                revert UnknownCommitment(commitment);
+            }
+            _requireNoteOwner(noteOwner);
+            bytes32 nullifier = _computeNullifierUnchecked(noteValue, noteOwner, noteSalt);
             nullifiers[7] = nullifier;
             _useNullifier(nullifier);
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
@@ -540,17 +703,6 @@ contract PrivateStateController {
         (address outputOwner, uint256 value, bytes32 outputSalt) = _loadValidatedNote(outputNote);
         outputValue = value;
         outputCommitment = _computeNoteCommitmentUnchecked(value, outputOwner, outputSalt);
-    }
-
-    function _prepareSpendableNote(Note calldata inputNote) internal view returns (uint256 noteValue, bytes32 nullifier) {
-        (address noteOwner, uint256 value, bytes32 noteSalt) = _loadValidatedNote(inputNote);
-        bytes32 commitment = _computeNoteCommitmentUnchecked(value, noteOwner, noteSalt);
-        if (!commitmentExists[commitment]) {
-            revert UnknownCommitment(commitment);
-        }
-        _requireNoteOwner(noteOwner);
-        noteValue = value;
-        nullifier = _computeNullifierUnchecked(value, noteOwner, noteSalt);
     }
 
     function _registerCommitment(bytes32 commitment) internal {

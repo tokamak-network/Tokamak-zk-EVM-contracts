@@ -26,13 +26,6 @@ contract PrivateStateController {
     bytes32 private constant NOTE_COMMITMENT_DOMAIN = keccak256("PRIVATE_STATE_NOTE_COMMITMENT");
     bytes32 private constant NULLIFIER_DOMAIN = keccak256("PRIVATE_STATE_NULLIFIER");
 
-    event MockBridgeDepositApplied(address indexed account, uint256 amount);
-    event NoteMinted(
-        address indexed liquidBalanceOwner, bytes32 indexed commitment, address indexed noteOwner, uint256 amount
-    );
-    event NotesRedeemed(address indexed operator, address indexed receiver, uint256 inputCount);
-    event MockBridgeWithdrawalApplied(address indexed account, uint256 amount);
-
     mapping(bytes32 commitment => bool exists) public commitmentExists;
     mapping(bytes32 nullifier => bool used) public nullifierUsed;
     L2AccountingVault public immutable l2AccountingVault;
@@ -49,12 +42,10 @@ contract PrivateStateController {
 
     function mockBridgeDeposit(uint256 amount) external {
         l2AccountingVault.creditLiquidBalance(msg.sender, amount);
-        emit MockBridgeDepositApplied(msg.sender, amount);
     }
 
     function mockBridgeWithdraw(uint256 amount) external {
         l2AccountingVault.debitLiquidBalance(msg.sender, amount);
-        emit MockBridgeWithdrawalApplied(msg.sender, amount);
     }
 
     function mintNotes1(Note[1] calldata outputs) external returns (bytes32[1] memory commitments) {
@@ -63,7 +54,6 @@ contract PrivateStateController {
         l2AccountingVault.debitLiquidBalance(msg.sender, output0Value);
         commitments[0] = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
         _registerCommitment(commitments[0]);
-        emit NoteMinted(msg.sender, commitments[0], output0Owner, output0Value);
     }
 
     function mintNotes2(Note[2] calldata outputs) external returns (bytes32[2] memory commitments) {
@@ -75,11 +65,9 @@ contract PrivateStateController {
 
         commitments[0] = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
         _registerCommitment(commitments[0]);
-        emit NoteMinted(msg.sender, commitments[0], output0Owner, output0Value);
 
         commitments[1] = _computeNoteCommitmentUnchecked(output1Value, output1Owner, output1Salt);
         _registerCommitment(commitments[1]);
-        emit NoteMinted(msg.sender, commitments[1], output1Owner, output1Value);
     }
 
     function mintNotes3(Note[3] calldata outputs) external returns (bytes32[3] memory commitments) {
@@ -92,15 +80,12 @@ contract PrivateStateController {
 
         commitments[0] = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
         _registerCommitment(commitments[0]);
-        emit NoteMinted(msg.sender, commitments[0], output0Owner, output0Value);
 
         commitments[1] = _computeNoteCommitmentUnchecked(output1Value, output1Owner, output1Salt);
         _registerCommitment(commitments[1]);
-        emit NoteMinted(msg.sender, commitments[1], output1Owner, output1Value);
 
         commitments[2] = _computeNoteCommitmentUnchecked(output2Value, output2Owner, output2Salt);
         _registerCommitment(commitments[2]);
-        emit NoteMinted(msg.sender, commitments[2], output2Owner, output2Value);
     }
 
     function transferNotes1To1(Note[1] calldata inputNotes, Note[1] calldata outputs)
@@ -359,7 +344,6 @@ contract PrivateStateController {
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
 
-        emit NotesRedeemed(msg.sender, receiver, 4);
     }
 
     function redeemNotes6(Note[6] calldata inputNotes, address receiver)
@@ -421,7 +405,6 @@ contract PrivateStateController {
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
 
-        emit NotesRedeemed(msg.sender, receiver, 6);
     }
 
     function redeemNotes8(Note[8] calldata inputNotes, address receiver)
@@ -499,7 +482,6 @@ contract PrivateStateController {
             l2AccountingVault.creditLiquidBalance(receiver, noteValue);
         }
 
-        emit NotesRedeemed(msg.sender, receiver, 8);
     }
 
     function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public pure returns (bytes32) {

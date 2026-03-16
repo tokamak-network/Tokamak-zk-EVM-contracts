@@ -9,9 +9,6 @@ contract PrivateNullifierRegistry {
     error NullifierAlreadyUsed(bytes32 nullifier);
     error ZeroNullifier();
 
-    event ControllerBound(address indexed controller);
-    event NullifierUsed(bytes32 indexed nullifier, bytes32 indexed commitment, address indexed operator);
-
     mapping(bytes32 nullifier => bool used) public nullifierUsed;
 
     address public immutable controller;
@@ -22,7 +19,6 @@ contract PrivateNullifierRegistry {
         }
 
         controller = controller_;
-        emit ControllerBound(controller_);
     }
 
     modifier onlyController() {
@@ -41,6 +37,5 @@ contract PrivateNullifierRegistry {
         }
 
         nullifierUsed[nullifier] = true;
-        emit NullifierUsed(nullifier, commitment, operator);
     }
 }

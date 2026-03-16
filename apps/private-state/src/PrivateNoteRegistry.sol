@@ -9,9 +9,6 @@ contract PrivateNoteRegistry {
     error UnauthorizedController(address caller);
     error CommitmentAlreadyExists(bytes32 commitment);
 
-    event ControllerBound(address indexed controller);
-    event CommitmentRegistered(bytes32 indexed commitment);
-
     mapping(bytes32 commitment => bool exists) public commitmentExists;
 
     address public immutable controller;
@@ -22,7 +19,6 @@ contract PrivateNoteRegistry {
         }
 
         controller = controller_;
-        emit ControllerBound(controller_);
     }
 
     modifier onlyController() {
@@ -41,6 +37,5 @@ contract PrivateNoteRegistry {
         }
 
         commitmentExists[commitment] = true;
-        emit CommitmentRegistered(commitment);
     }
 }

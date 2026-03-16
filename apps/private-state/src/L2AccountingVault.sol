@@ -9,10 +9,6 @@ contract L2AccountingVault {
     error UnauthorizedController(address caller);
     error InsufficientLiquidBalance(address account, uint256 available, uint256 required);
 
-    event ControllerBound(address indexed controller);
-    event LiquidBalanceCredited(address indexed account, uint256 amount);
-    event LiquidBalanceDebited(address indexed account, uint256 amount);
-
     mapping(address account => uint256 amount) public liquidBalances;
 
     address public immutable controller;
@@ -23,7 +19,6 @@ contract L2AccountingVault {
         }
 
         controller = controller_;
-        emit ControllerBound(controller_);
     }
 
     modifier onlyController() {
@@ -42,7 +37,6 @@ contract L2AccountingVault {
         }
 
         liquidBalances[account] += amount;
-        emit LiquidBalanceCredited(account, amount);
     }
 
     function debitLiquidBalance(address account, uint256 amount) external onlyController {
@@ -59,6 +53,5 @@ contract L2AccountingVault {
         }
 
         liquidBalances[account] = available - amount;
-        emit LiquidBalanceDebited(account, amount);
     }
 }

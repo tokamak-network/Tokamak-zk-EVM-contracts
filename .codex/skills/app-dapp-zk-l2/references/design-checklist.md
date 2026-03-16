@@ -151,6 +151,7 @@ Required review rules:
 - Do not keep generic helper paths that only exist for convenience if a fixed-arity or direct path is materially smaller.
 - Avoid copying fixed-size calldata into dynamic memory unless another hard requirement makes it necessary.
 - Avoid internal dispatch layers that only forward to one concrete implementation path.
+- Do not use loops for repeated work inside user-facing contract hot paths. If the arity is fixed, unroll the work into a flat implementation.
 - Re-check reusable abstractions when they add loops, memory allocation, or intermediate data structures that the concrete function does not actually need.
 - If a user-facing function can be expressed as a simpler fixed-shape flow, prefer the simpler flow.
 
@@ -180,6 +181,7 @@ Allowed optimization techniques:
 - Inline fixed-arity logic when generic helper layers only add scaffolding.
 - Remove avoidable calldata-to-memory copies.
 - Remove generic dynamic-array helpers when the entrypoint arity is fixed.
+- Replace fixed-arity loops with flat, explicitly repeated operations so that loop control does not consume placements.
 - Collapse repeated validation or repeated hashing when the same intermediate value can be reused.
 - Use assembly when it materially reduces placement usage and does not weaken validation or make the control flow ambiguous.
 
@@ -188,6 +190,7 @@ Review questions:
 - Which placements are caused by the function itself, and which are caused by subcalls into storage/helper contracts?
 - Is the function paying placements for abstraction rather than for state-transition requirements?
 - Can fixed-arity calldata access replace generic loops or dynamic copies?
+- Is any remaining loop in a fixed-arity user-facing function paying avoidable placement overhead?
 - Can a shared intermediate hash or decoded field be computed once and reused?
 - Would an assembly block remove measurable placement-heavy scaffolding without obscuring correctness?
 

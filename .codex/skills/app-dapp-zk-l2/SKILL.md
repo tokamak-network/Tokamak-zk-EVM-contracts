@@ -34,10 +34,12 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
 7. Optimize contract bytecode at the function level across every DApp under `apps/`:
    - Keep each contract function limited to the operations that are strictly necessary for its state transition.
    - Remove avoidable dynamic-array copies, generic dispatch layers, mode-switch helpers, and other scaffolding when a fixed-arity or direct path is sufficient.
+   - For repeated work in user-facing contract functions, do not use loops. Flatten and unroll the logic into a fixed-arity path instead, even when the loop body is branch-free.
    - Prefer specialized helper functions when they materially reduce bytecode and do not reintroduce multiple successful symbolic paths.
    - Review whether reusable abstractions are actually paying for themselves; if they only add indirection and bytecode, inline or split them.
    - Treat Synthesizer placements as a first-class optimization budget. Placements are the circuit-side resource units emitted while the Synthesizer models EVM execution. Every user-facing function should be implemented to minimize placement usage, not just Solidity source length.
    - When a function is placement-heavy, identify whether the cost comes from calldata copying, loop control, helper indirection, repeated hashing, repeated storage calls, or external contract boundaries.
+   - Treat loop control itself as avoidable placement overhead in hot paths. If a function arity is known at compile time, encode each repeated operation explicitly instead of iterating.
    - If direct low-level coding materially reduces placement usage without violating correctness or the single-success-path rule, assembly blocks are allowed.
 8. Every DApp under `apps/` must use the same L2 accounting vault shape:
    - Prefer naming such as `L1BridgeAssetVault` for L1 custody and `L2AccountingVault` for the L2 mirror state.

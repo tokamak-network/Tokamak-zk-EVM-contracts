@@ -47,20 +47,19 @@ contract PrivateStateControllerTest is Test {
         assertEq(l2AccountingVault.liquidBalances(alice), 40 ether);
 
         PrivateStateController.Note[4] memory inputNotes = _notes4(note0, note1, note2, note3);
-        PrivateStateController.Note[3] memory outputs = _notes3(
+        PrivateStateController.Note[2] memory outputs = _notes2(
             _note(bob, 35 ether, bytes32("bob-4-0")),
-            _note(alice, 15 ether, bytes32("alice-4-change-0")),
-            _note(alice, 10 ether, bytes32("alice-4-change-1"))
+            _note(alice, 25 ether, bytes32("alice-4-change-0"))
         );
 
         vm.prank(alice);
-        (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments) =
+        (bytes32[4] memory nullifiers, bytes32[2] memory outputCommitments) =
             controller.transferNotes4(inputNotes, outputs);
 
         for (uint256 i = 0; i < 4; ++i) {
             assertTrue(controller.nullifierUsed(nullifiers[i]));
         }
-        for (uint256 i = 0; i < 3; ++i) {
+        for (uint256 i = 0; i < 2; ++i) {
             assertTrue(controller.commitmentExists(outputCommitments[i]));
         }
 
@@ -94,18 +93,17 @@ contract PrivateStateControllerTest is Test {
         controller.mockBridgeDeposit(30 ether);
 
         PrivateStateController.Note[1] memory inputNotes = _noteArray1(_mintNote(alice, 30 ether, bytes32("alice-1-0")));
-        PrivateStateController.Note[3] memory outputs = _notes3(
+        PrivateStateController.Note[2] memory outputs = _notes2(
             _note(bob, 10 ether, bytes32("bob-1-0")),
-            _note(alice, 10 ether, bytes32("alice-1-change-0")),
-            _note(alice, 10 ether, bytes32("alice-1-change-1"))
+            _note(alice, 20 ether, bytes32("alice-1-change-0"))
         );
 
         vm.prank(alice);
-        (bytes32[1] memory nullifiers, bytes32[3] memory outputCommitments) =
+        (bytes32[1] memory nullifiers, bytes32[2] memory outputCommitments) =
             controller.transferNotes1(inputNotes, outputs);
 
         assertTrue(controller.nullifierUsed(nullifiers[0]));
-        for (uint256 i = 0; i < 3; ++i) {
+        for (uint256 i = 0; i < 2; ++i) {
             assertTrue(controller.commitmentExists(outputCommitments[i]));
         }
     }
@@ -120,10 +118,9 @@ contract PrivateStateControllerTest is Test {
             _mintNote(alice, 10 ether, bytes32("alice-4b-2")),
             _mintNote(alice, 10 ether, bytes32("alice-4b-3"))
         );
-        PrivateStateController.Note[3] memory outputs = _notes3(
+        PrivateStateController.Note[2] memory outputs = _notes2(
             _note(bob, 20 ether, bytes32("bob-4b-0")),
-            _note(alice, 10 ether, bytes32("alice-4b-change-0")),
-            _note(alice, 10 ether, bytes32("alice-4b-change-1"))
+            _note(alice, 20 ether, bytes32("alice-4b-change-0"))
         );
 
         vm.expectRevert(abi.encodeWithSelector(PrivateStateController.UnauthorizedNoteOwner.selector, mallory, alice));
@@ -141,10 +138,9 @@ contract PrivateStateControllerTest is Test {
         PrivateStateController.Note memory note3 = _mintNote(alice, 10 ether, bytes32("alice-4c-3"));
 
         PrivateStateController.Note[4] memory inputNotes = _notes4(note0, note1, note2, note3);
-        PrivateStateController.Note[3] memory outputs = _notes3(
+        PrivateStateController.Note[2] memory outputs = _notes2(
             _note(alice, 15 ether, bytes32("alice-4c-out-0")),
-            _note(alice, 15 ether, bytes32("alice-4c-out-1")),
-            _note(alice, 10 ether, bytes32("alice-4c-out-2"))
+            _note(alice, 25 ether, bytes32("alice-4c-out-1"))
         );
 
         vm.prank(alice);
@@ -167,10 +163,9 @@ contract PrivateStateControllerTest is Test {
             _mintNote(alice, 10 ether, bytes32("alice-4d-2")),
             _mintNote(alice, 10 ether, bytes32("alice-4d-3"))
         );
-        PrivateStateController.Note[3] memory outputs = _notes3(
+        PrivateStateController.Note[2] memory outputs = _notes2(
             _note(bob, 20 ether, bytes32("bob-4d-0")),
-            _note(alice, 10 ether, bytes32("alice-4d-change-0")),
-            _note(alice, 11 ether, bytes32("alice-4d-change-1"))
+            _note(alice, 21 ether, bytes32("alice-4d-change-0"))
         );
 
         vm.expectRevert(
@@ -192,16 +187,15 @@ contract PrivateStateControllerTest is Test {
             _mintNote(alice, 10 ether, bytes32("alice-6-4")),
             _mintNote(alice, 10 ether, bytes32("alice-6-5"))
         );
-        PrivateStateController.Note[3] memory outputs = _notes3(
+        PrivateStateController.Note[2] memory outputs = _notes2(
             _note(bob, 30 ether, bytes32("bob-6-0")),
-            _note(alice, 20 ether, bytes32("alice-6-change-0")),
-            _note(alice, 10 ether, bytes32("alice-6-change-1"))
+            _note(alice, 30 ether, bytes32("alice-6-change-0"))
         );
 
         vm.prank(alice);
-        (, bytes32[3] memory outputCommitments) = controller.transferNotes6(inputNotes, outputs);
+        (, bytes32[2] memory outputCommitments) = controller.transferNotes6(inputNotes, outputs);
 
-        for (uint256 i = 0; i < 3; ++i) {
+        for (uint256 i = 0; i < 2; ++i) {
             assertTrue(controller.commitmentExists(outputCommitments[i]));
         }
     }
@@ -220,16 +214,15 @@ contract PrivateStateControllerTest is Test {
             _mintNote(alice, 10 ether, bytes32("alice-8-6")),
             _mintNote(alice, 10 ether, bytes32("alice-8-7"))
         );
-        PrivateStateController.Note[3] memory outputs = _notes3(
+        PrivateStateController.Note[2] memory outputs = _notes2(
             _note(bob, 40 ether, bytes32("bob-8-0")),
-            _note(alice, 20 ether, bytes32("alice-8-change-0")),
-            _note(alice, 20 ether, bytes32("alice-8-change-1"))
+            _note(alice, 40 ether, bytes32("alice-8-change-0"))
         );
 
         vm.prank(alice);
-        (, bytes32[3] memory outputCommitments) = controller.transferNotes8(inputNotes, outputs);
+        (, bytes32[2] memory outputCommitments) = controller.transferNotes8(inputNotes, outputs);
 
-        for (uint256 i = 0; i < 3; ++i) {
+        for (uint256 i = 0; i < 2; ++i) {
             assertTrue(controller.commitmentExists(outputCommitments[i]));
         }
     }
@@ -241,10 +234,9 @@ contract PrivateStateControllerTest is Test {
             _note(alice, 5 ether, bytes32("unknown-4-2")),
             _note(alice, 5 ether, bytes32("unknown-4-3"))
         );
-        PrivateStateController.Note[3] memory outputs = _notes3(
+        PrivateStateController.Note[2] memory outputs = _notes2(
             _note(bob, 10 ether, bytes32("unknown-out-0")),
-            _note(alice, 5 ether, bytes32("unknown-out-1")),
-            _note(alice, 5 ether, bytes32("unknown-out-2"))
+            _note(alice, 10 ether, bytes32("unknown-out-1"))
         );
         bytes32 unknownCommitment = _commitmentOf(inputNotes[0]);
 
@@ -455,6 +447,15 @@ contract PrivateStateControllerTest is Test {
         notes[5] = note5;
         notes[6] = note6;
         notes[7] = note7;
+    }
+
+    function _notes2(PrivateStateController.Note memory note0, PrivateStateController.Note memory note1)
+        internal
+        pure
+        returns (PrivateStateController.Note[2] memory notes)
+    {
+        notes[0] = note0;
+        notes[1] = note1;
     }
 
     function _notes3(

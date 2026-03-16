@@ -103,14 +103,13 @@ contract PrivateStateController {
         emit NoteMinted(msg.sender, commitments[2], output2Owner, output2Value);
     }
 
-    function transferNotes1(Note[1] calldata inputNotes, Note[3] calldata outputs)
+    function transferNotes1(Note[1] calldata inputNotes, Note[2] calldata outputs)
         external
-        returns (bytes32[1] memory nullifiers, bytes32[3] memory outputCommitments)
+        returns (bytes32[1] memory nullifiers, bytes32[2] memory outputCommitments)
     {
         (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
         (address output1Owner, uint256 output1Value, bytes32 output1Salt) = _loadValidatedNote(outputs[1]);
-        (address output2Owner, uint256 output2Value, bytes32 output2Salt) = _loadValidatedNote(outputs[2]);
-        uint256 totalOutputValue = output0Value + output1Value + output2Value;
+        uint256 totalOutputValue = output0Value + output1Value;
 
         (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[0]);
 
@@ -134,15 +133,11 @@ contract PrivateStateController {
         bytes32 output1Commitment = _computeNoteCommitmentUnchecked(output1Value, output1Owner, output1Salt);
         outputCommitments[1] = output1Commitment;
         _registerCommitment(output1Commitment);
-
-        bytes32 output2Commitment = _computeNoteCommitmentUnchecked(output2Value, output2Owner, output2Salt);
-        outputCommitments[2] = output2Commitment;
-        _registerCommitment(output2Commitment);
     }
 
-    function transferNotes4(Note[4] calldata inputNotes, Note[3] calldata outputs)
+    function transferNotes4(Note[4] calldata inputNotes, Note[2] calldata outputs)
         external
-        returns (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments)
+        returns (bytes32[4] memory nullifiers, bytes32[2] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
         uint256 totalInputValue;
@@ -171,9 +166,9 @@ contract PrivateStateController {
         _registerTransferOutputs(outputs, outputCommitments);
     }
 
-    function transferNotes6(Note[6] calldata inputNotes, Note[3] calldata outputs)
+    function transferNotes6(Note[6] calldata inputNotes, Note[2] calldata outputs)
         external
-        returns (bytes32[6] memory nullifiers, bytes32[3] memory outputCommitments)
+        returns (bytes32[6] memory nullifiers, bytes32[2] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
         uint256 totalInputValue;
@@ -202,9 +197,9 @@ contract PrivateStateController {
         _registerTransferOutputs(outputs, outputCommitments);
     }
 
-    function transferNotes8(Note[8] calldata inputNotes, Note[3] calldata outputs)
+    function transferNotes8(Note[8] calldata inputNotes, Note[2] calldata outputs)
         external
-        returns (bytes32[8] memory nullifiers, bytes32[3] memory outputCommitments)
+        returns (bytes32[8] memory nullifiers, bytes32[2] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
         uint256 totalInputValue;
@@ -351,15 +346,15 @@ contract PrivateStateController {
         return keccak256(abi.encode(NULLIFIER_DOMAIN, owner, value, salt));
     }
 
-    function _validateTransferOutputs(Note[3] calldata outputs) internal pure returns (uint256 totalOutputValue) {
-        for (uint256 i = 0; i < 3; ++i) {
+    function _validateTransferOutputs(Note[2] calldata outputs) internal pure returns (uint256 totalOutputValue) {
+        for (uint256 i = 0; i < 2; ++i) {
             (, uint256 outputValue,) = _loadValidatedNote(outputs[i]);
             totalOutputValue += outputValue;
         }
     }
 
-    function _registerTransferOutputs(Note[3] calldata outputs, bytes32[3] memory outputCommitments) internal {
-        for (uint256 i = 0; i < 3; ++i) {
+    function _registerTransferOutputs(Note[2] calldata outputs, bytes32[2] memory outputCommitments) internal {
+        for (uint256 i = 0; i < 2; ++i) {
             (address outputOwner, uint256 outputValue, bytes32 outputSalt) = _loadValidatedNote(outputs[i]);
             bytes32 commitment = _computeNoteCommitmentUnchecked(outputValue, outputOwner, outputSalt);
             outputCommitments[i] = commitment;

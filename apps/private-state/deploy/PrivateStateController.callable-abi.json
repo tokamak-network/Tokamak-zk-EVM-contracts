@@ -406,8 +406,8 @@
       },
       {
         "name": "outputs",
-        "type": "tuple[3]",
-        "internalType": "struct PrivateStateController.Note[3]",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.Note[2]",
         "components": [
           {
             "name": "owner",
@@ -435,8 +435,8 @@
       },
       {
         "name": "outputCommitments",
-        "type": "bytes32[3]",
-        "internalType": "bytes32[3]"
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
       }
     ],
     "stateMutability": "nonpayable"
@@ -469,8 +469,8 @@
       },
       {
         "name": "outputs",
-        "type": "tuple[3]",
-        "internalType": "struct PrivateStateController.Note[3]",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.Note[2]",
         "components": [
           {
             "name": "owner",
@@ -498,8 +498,8 @@
       },
       {
         "name": "outputCommitments",
-        "type": "bytes32[3]",
-        "internalType": "bytes32[3]"
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
       }
     ],
     "stateMutability": "nonpayable"
@@ -532,8 +532,8 @@
       },
       {
         "name": "outputs",
-        "type": "tuple[3]",
-        "internalType": "struct PrivateStateController.Note[3]",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.Note[2]",
         "components": [
           {
             "name": "owner",
@@ -561,8 +561,8 @@
       },
       {
         "name": "outputCommitments",
-        "type": "bytes32[3]",
-        "internalType": "bytes32[3]"
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
       }
     ],
     "stateMutability": "nonpayable"
@@ -595,8 +595,8 @@
       },
       {
         "name": "outputs",
-        "type": "tuple[3]",
-        "internalType": "struct PrivateStateController.Note[3]",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.Note[2]",
         "components": [
           {
             "name": "owner",
@@ -624,8 +624,8 @@
       },
       {
         "name": "outputCommitments",
-        "type": "bytes32[3]",
-        "internalType": "bytes32[3]"
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
       }
     ],
     "stateMutability": "nonpayable"

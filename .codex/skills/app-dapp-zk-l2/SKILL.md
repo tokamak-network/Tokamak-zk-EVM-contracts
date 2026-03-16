@@ -46,6 +46,9 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - The L2 vault is not a real token custody contract.
    - Keep its storage layout standardized across DApps and restrict it to bridge-coupled accounting concerns.
    - If an app needs extra per-user accounting, build it around the shared L2 accounting vault pattern rather than inventing a custom direct-custody vault.
+   - Every L2 vault mutation must enforce both overflow and underflow safety against the BLS12-381 scalar field, not only against native `uint256` wraparound.
+   - On credit paths, reject any balance increase that would make the stored balance exceed `BLS12-381 scalar field order - 1`.
+   - On debit paths, reject any subtraction that would move the stored balance below zero under the same field-bound accounting model.
 9. Remove contract-level owner roles from app contracts by default:
    - Do not add `Ownable` or similar admin roles unless the task explicitly requires an operational admin path.
    - If a DApp needs a controller, bind that relationship at deployment time rather than through a mutable owner-controlled setter.
@@ -81,6 +84,7 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - State whether the implementation keeps function bytecode focused on strictly necessary operations or still contains avoidable scaffolding.
    - State whether the implementation also minimizes Synthesizer placement usage or still contains avoidable placement-heavy logic.
    - State whether the app respects bridge-managed custody and avoids direct user interaction with the L2 accounting vault.
+   - State whether every L2 vault mutation is guarded against BLS12-381 scalar-field overflow and underflow.
    - State whether storage should remain centralized or be split across addresses.
    - State whether deployment scripts and env configuration are isolated under the DApp folder and `apps/.env`.
    - State whether admin ownership was removed and whether any remaining controller wiring is immutable and deployment-bound.

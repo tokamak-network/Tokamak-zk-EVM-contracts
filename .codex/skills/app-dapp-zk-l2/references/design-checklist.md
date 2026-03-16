@@ -51,12 +51,16 @@ Required properties:
 - No direct ERC-20 `transferFrom` or `transfer` entrypoints for end users.
 - No user-facing deposit or withdrawal functions on L2.
 - Mutations restricted to bridge-coupled state transitions or the app's canonical coordinator logic, depending on the proving architecture.
+- Every credit and debit path must enforce overflow and underflow checks against the BLS12-381 scalar field, not just native `uint256` arithmetic.
+- Credit paths must reject any update that would raise a stored balance above `BLS12-381 scalar field order - 1`.
+- Debit paths must reject any update that would drive a stored balance below zero under the same field-bound accounting model.
 
 Review questions:
 
 - Does the L2 vault store accounting balances only?
 - Can any user bypass the bridge flow and mutate L2 balances directly?
 - Does the DApp introduce a second L2-specific vault shape instead of reusing the standard one?
+- Are all L2 vault credit and debit mutations guarded against BLS12-381 scalar-field overflow and underflow?
 
 ## 4. Circuit-Convertible User Entry Points
 

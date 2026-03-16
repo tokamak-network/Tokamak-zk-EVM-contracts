@@ -396,17 +396,15 @@ contract PrivateStateController {
             (noteValue, nullifier) = _prepareSpendableNote(inputNotes[0]);
             nullifiers[0] = nullifier;
             _useNullifier(nullifier);
-            l2AccountingVault.creditLiquidBalance(receiver, noteValue);
-        }
-        {
-            uint256 noteValue;
-            bytes32 nullifier;
+            uint256 totalRedeemValue = noteValue;
+
             (noteValue, nullifier) = _prepareSpendableNote(inputNotes[1]);
             nullifiers[1] = nullifier;
             _useNullifier(nullifier);
-            l2AccountingVault.creditLiquidBalance(receiver, noteValue);
-        }
+            totalRedeemValue += noteValue;
 
+            l2AccountingVault.creditLiquidBalance(receiver, totalRedeemValue);
+        }
     }
 
     function redeemNotes3(Note[3] calldata inputNotes, address receiver)
@@ -425,25 +423,20 @@ contract PrivateStateController {
             (noteValue, nullifier) = _prepareSpendableNote(inputNotes[0]);
             nullifiers[0] = nullifier;
             _useNullifier(nullifier);
-            l2AccountingVault.creditLiquidBalance(receiver, noteValue);
-        }
-        {
-            uint256 noteValue;
-            bytes32 nullifier;
+            uint256 totalRedeemValue = noteValue;
+
             (noteValue, nullifier) = _prepareSpendableNote(inputNotes[1]);
             nullifiers[1] = nullifier;
             _useNullifier(nullifier);
-            l2AccountingVault.creditLiquidBalance(receiver, noteValue);
-        }
-        {
-            uint256 noteValue;
-            bytes32 nullifier;
+            totalRedeemValue += noteValue;
+
             (noteValue, nullifier) = _prepareSpendableNote(inputNotes[2]);
             nullifiers[2] = nullifier;
             _useNullifier(nullifier);
-            l2AccountingVault.creditLiquidBalance(receiver, noteValue);
-        }
+            totalRedeemValue += noteValue;
 
+            l2AccountingVault.creditLiquidBalance(receiver, totalRedeemValue);
+        }
     }
 
     function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public pure returns (bytes32) {

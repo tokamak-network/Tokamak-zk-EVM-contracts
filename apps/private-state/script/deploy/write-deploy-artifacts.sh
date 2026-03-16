@@ -89,6 +89,8 @@ write_callable_abi \
         "mintNotes1",
         "mintNotes2",
         "mintNotes3",
+        "mintNotes4",
+        "redeemNotes3",
         "nullifierUsed",
         "redeemNotes4",
         "redeemNotes6",

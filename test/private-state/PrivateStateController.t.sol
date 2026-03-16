@@ -251,6 +251,25 @@ contract PrivateStateControllerTest is Test {
         }
     }
 
+    function testRedeemNotes3OwnerCanRedeemDirectly() public {
+        vm.prank(alice);
+        controller.mockBridgeDeposit(30 ether);
+
+        PrivateStateController.Note[3] memory inputNotes = _notes3(
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-3a")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-3b")),
+            _mintNote(alice, 10 ether, bytes32("alice-redeem-3c"))
+        );
+
+        vm.prank(alice);
+        bytes32[3] memory nullifiers = controller.redeemNotes3(inputNotes, bob);
+
+        assertEq(l2AccountingVault.liquidBalances(bob), 30 ether);
+        for (uint256 i = 0; i < 3; ++i) {
+            assertTrue(controller.nullifierUsed(nullifiers[i]));
+        }
+    }
+
     function testRedeemNotes4CannotRedeemAnotherOwnersNotes() public {
         vm.prank(alice);
         controller.mockBridgeDeposit(40 ether);
@@ -351,6 +370,26 @@ contract PrivateStateControllerTest is Test {
 
         assertEq(l2AccountingVault.liquidBalances(alice), 0);
         for (uint256 i = 0; i < 3; ++i) {
+            assertTrue(controller.commitmentExists(commitments[i]));
+        }
+    }
+
+    function testMintNotes4CreatesFourCommitments() public {
+        vm.prank(alice);
+        controller.mockBridgeDeposit(70 ether);
+
+        PrivateStateController.Note[4] memory outputs = _notes4(
+            _note(alice, 10 ether, bytes32("alice-mint-4-0")),
+            _note(bob, 15 ether, bytes32("alice-mint-4-1")),
+            _note(alice, 20 ether, bytes32("alice-mint-4-2")),
+            _note(bob, 25 ether, bytes32("alice-mint-4-3"))
+        );
+
+        vm.prank(alice);
+        bytes32[4] memory commitments = controller.mintNotes4(outputs);
+
+        assertEq(l2AccountingVault.liquidBalances(alice), 0);
+        for (uint256 i = 0; i < 4; ++i) {
             assertTrue(controller.commitmentExists(commitments[i]));
         }
     }

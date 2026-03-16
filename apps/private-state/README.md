@@ -61,9 +61,9 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 
 1. Lock or release the canonical asset through the L1 bridge custody flow.
 2. Apply the matching L2 accounting transition with `mockBridgeDeposit` or `mockBridgeWithdraw` during development.
-3. Call `mintNotes1`, `mintNotes2`, or `mintNotes3` to lock part of the liquid balance into one, two, or three note commitments.
+3. Call `mintNotes1`, `mintNotes2`, `mintNotes3`, or `mintNotes4` to lock part of the liquid balance into one, two, three, or four note commitments.
 4. Call one of the fixed-arity `transferNotes<N>To<M>` entrypoints with `N` input notes and `M` output notes.
-5. Call one of `redeemNotes4`, `redeemNotes6`, or `redeemNotes8` to convert fixed batches of notes back into liquid balances.
+5. Call one of `redeemNotes3`, `redeemNotes4`, `redeemNotes6`, or `redeemNotes8` to convert fixed batches of notes back into liquid balances.
 
 ## Fixed-Arity Entry Points
 
@@ -72,11 +72,12 @@ The current development accounting API exposes two fixed-purpose user-facing fun
 - `mockBridgeDeposit`: increase the caller's L2 accounting balance through a mock bridge transition
 - `mockBridgeWithdraw`: decrease the caller's L2 accounting balance through a mock bridge transition
 
-The current mint API exposes three fixed-arity user-facing functions:
+The current mint API exposes four fixed-arity user-facing functions:
 
 - `mintNotes1`: 1 output note
 - `mintNotes2`: 2 output notes
 - `mintNotes3`: 3 output notes
+- `mintNotes4`: 4 output notes
 
 The current transfer API exposes the full fixed-arity family for `N in [1, 8]` and `M in [1, 2]`:
 
@@ -85,8 +86,9 @@ The current transfer API exposes the full fixed-arity family for `N in [1, 8]` a
 - `transferNotes3To1`, `transferNotes3To2`
 - `transferNotes4To1`
 
-The current redeem API exposes three fixed-arity user-facing functions:
+The current redeem API exposes four fixed-arity user-facing functions:
 
+- `redeemNotes3`: 3 input notes
 - `redeemNotes4`: 4 input notes
 - `redeemNotes6`: 6 input notes
 - `redeemNotes8`: 8 input notes

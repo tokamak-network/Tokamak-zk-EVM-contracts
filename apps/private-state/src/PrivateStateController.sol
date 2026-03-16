@@ -88,6 +88,28 @@ contract PrivateStateController {
         _registerCommitment(commitments[2]);
     }
 
+    function mintNotes4(Note[4] calldata outputs) external returns (bytes32[4] memory commitments) {
+        (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
+        (address output1Owner, uint256 output1Value, bytes32 output1Salt) = _loadValidatedNote(outputs[1]);
+        (address output2Owner, uint256 output2Value, bytes32 output2Salt) = _loadValidatedNote(outputs[2]);
+        (address output3Owner, uint256 output3Value, bytes32 output3Salt) = _loadValidatedNote(outputs[3]);
+
+        uint256 totalValue = output0Value + output1Value + output2Value + output3Value;
+        l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
+
+        commitments[0] = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
+        _registerCommitment(commitments[0]);
+
+        commitments[1] = _computeNoteCommitmentUnchecked(output1Value, output1Owner, output1Salt);
+        _registerCommitment(commitments[1]);
+
+        commitments[2] = _computeNoteCommitmentUnchecked(output2Value, output2Owner, output2Salt);
+        _registerCommitment(commitments[2]);
+
+        commitments[3] = _computeNoteCommitmentUnchecked(output3Value, output3Owner, output3Salt);
+        _registerCommitment(commitments[3]);
+    }
+
     function transferNotes1To1(Note[1] calldata inputNotes, Note[1] calldata outputs)
         external
         returns (bytes32[1] memory nullifiers, bytes32[1] memory outputCommitments)
@@ -300,6 +322,43 @@ contract PrivateStateController {
         _registerCommitment(outputCommitments[0]);
     }
 
+
+    function redeemNotes3(Note[3] calldata inputNotes, address receiver)
+        external
+        returns (bytes32[3] memory nullifiers)
+    {
+        assembly {
+            if iszero(receiver) {
+                mstore(0x00, 0xd92e233d)
+                revert(0x1c, 0x04)
+            }
+        }
+        {
+            uint256 noteValue;
+            bytes32 nullifier;
+            (noteValue, nullifier) = _prepareSpendableNote(inputNotes[0]);
+            nullifiers[0] = nullifier;
+            _useNullifier(nullifier);
+            l2AccountingVault.creditLiquidBalance(receiver, noteValue);
+        }
+        {
+            uint256 noteValue;
+            bytes32 nullifier;
+            (noteValue, nullifier) = _prepareSpendableNote(inputNotes[1]);
+            nullifiers[1] = nullifier;
+            _useNullifier(nullifier);
+            l2AccountingVault.creditLiquidBalance(receiver, noteValue);
+        }
+        {
+            uint256 noteValue;
+            bytes32 nullifier;
+            (noteValue, nullifier) = _prepareSpendableNote(inputNotes[2]);
+            nullifiers[2] = nullifier;
+            _useNullifier(nullifier);
+            l2AccountingVault.creditLiquidBalance(receiver, noteValue);
+        }
+
+    }
 
     function redeemNotes4(Note[4] calldata inputNotes, address receiver)
         external

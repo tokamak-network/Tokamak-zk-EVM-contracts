@@ -8,8 +8,6 @@
   { "name": "mintNotes1" },
   { "name": "mintNotes2" },
   { "name": "mintNotes3" },
-  { "name": "noteRegistry" },
-  { "name": "nullifierStore" },
   { "name": "redeemNotes4" },
   { "name": "redeemNotes6" },
   { "name": "redeemNotes8" },

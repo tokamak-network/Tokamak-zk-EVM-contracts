@@ -1,7 +1,7 @@
 {
-  "description": "Check whether a note commitment exists in the note registry.",
-  "contractKey": "noteRegistry",
-  "abiFile": "../deploy/PrivateNoteRegistry.callable-abi.json",
+  "description": "Check whether a note commitment exists in the private-state controller.",
+  "contractKey": "controller",
+  "abiFile": "../deploy/PrivateStateController.callable-abi.json",
   "method": "commitmentExists",
   "mode": "call",
   "value": "0x0",

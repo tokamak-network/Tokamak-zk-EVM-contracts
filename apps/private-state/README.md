@@ -16,9 +16,7 @@ The target deployment model is a proving-based L2 where raw transaction calldata
 ## Contract Layout
 
 - `L2AccountingVault.sol`: Stores per-account L2 accounting balances only. It does not custody real tokens.
-- `PrivateNoteRegistry.sol`: Stores note commitments only.
-- `PrivateNullifierRegistry.sol`: Stores nullifier usage and is the single source of truth for spent status.
-- `PrivateStateController.sol`: User-facing entrypoint that reconstructs commitments and nullifiers from transaction calldata and applies bridge-coupled accounting transitions.
+- `PrivateStateController.sol`: User-facing entrypoint that reconstructs commitments and nullifiers from transaction calldata, stores note commitment existence, stores nullifier usage, and applies bridge-coupled accounting transitions.
 
 ## Ownership Proof Without Circuits
 
@@ -36,29 +34,28 @@ This DApp now has only one ownership concept at the contract layer:
 
 - `note owner`: the address embedded in a note plaintext that is allowed to spend that note
 
-There is no storage-contract `owner` role anymore. `L2AccountingVault`, `PrivateNoteRegistry`, and
-`PrivateNullifierRegistry` each receive the controller address in their constructor and keep it as an immutable value.
+There is no storage-contract `owner` role anymore. `L2AccountingVault` and the controller wiring are fixed at deployment time and do not expose an administrative rebinding path.
 
 As a result:
 
 - note spending authority still belongs to the note owner through controller entrypoints
-- storage contracts do not expose an administrative rebinding path
-- controller trust is fixed at deployment time rather than managed post-deployment
+- controller-owned note state does not expose an administrative rebinding path
+- accounting-vault trust is fixed at deployment time rather than managed post-deployment
 
 This removes an administrative attack surface, but it also means a controller deployment mistake or controller bug
 cannot be repaired through an owner action.
 
 ## Nullifier Model
 
-The controller computes a deterministic nullifier from the submitted note plaintext and the nullifier store domain. The canonical Tokamak Network Token asset identifier is fixed at deployment time and remains part of the derived hashes even though callers do not pass it explicitly. The note store itself only keeps commitment existence.
+The controller computes a deterministic nullifier from the submitted note plaintext and stores both note commitment existence and nullifier usage internally.
 
 - `value`
 - `owner`
 - `salt`
 
-Once a note is consumed, the nullifier store records the nullifier and rejects any later attempt to reuse it.
+Once a note is consumed, the controller records the nullifier and rejects any later attempt to reuse it.
 
-The design intentionally avoids storing note plaintext or duplicate spent flags on-chain. The nullifier store is the only spend-state authority.
+The design intentionally avoids storing note plaintext or duplicate spent flags on-chain. The controller is the only spend-state authority for note/nullifier state.
 
 ## End-to-End Flow
 
@@ -146,8 +143,6 @@ Every successful deployment also writes DApp-local JSON artifacts into `apps/pri
 - `deployment.<chain-id>.latest.json`: the latest deployment manifest for that chain
 - `PrivateStateController.callable-abi.json`
 - `L2AccountingVault.callable-abi.json`
-- `PrivateNoteRegistry.callable-abi.json`
-- `PrivateNullifierRegistry.callable-abi.json`
 
 The ABI files intentionally contain only the user-facing or tester-facing callable functions for each contract rather
 than the full contract ABI.
@@ -251,7 +246,7 @@ These local anvil artifacts are ignored by git because they are expected to chan
 
 Because note validity is still checked directly in contract code:
 
-- The system still relies on cross-contract invariants between the controller, accounting vault, note registry, and nullifier registry.
+- The system still relies on cross-contract invariants between the controller and the accounting vault.
 - The mock bridge entrypoints model proof-backed L1 bridge settlement during development rather than standalone L2 token custody.
 - Privacy depends on the surrounding L2 execution model, not solely on these contracts.
 - The current `mockBridgeDeposit` and `mockBridgeWithdraw` functions remain direct user entrypoints for development. They must be removed or replaced when a real bridge settlement path is introduced.

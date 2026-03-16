@@ -14,6 +14,25 @@
   },
   {
     "type": "function",
+    "name": "commitmentExists",
+    "inputs": [
+      {
+        "name": "commitment",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "exists",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "computeNoteCommitment",
     "inputs": [
       {
@@ -39,7 +58,7 @@
         "internalType": "bytes32"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "pure"
   },
   {
     "type": "function",
@@ -68,7 +87,7 @@
         "internalType": "bytes32"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "pure"
   },
   {
     "type": "function",
@@ -219,26 +238,19 @@
   },
   {
     "type": "function",
-    "name": "noteRegistry",
-    "inputs": [],
-    "outputs": [
+    "name": "nullifierUsed",
+    "inputs": [
       {
-        "name": "",
-        "type": "address",
-        "internalType": "contract PrivateNoteRegistry"
+        "name": "nullifier",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "nullifierStore",
-    "inputs": [],
     "outputs": [
       {
-        "name": "",
-        "type": "address",
-        "internalType": "contract PrivateNullifierRegistry"
+        "name": "used",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"

@@ -1,9 +1,0 @@
-{
-  "description": "Read the deployed nullifier registry address from the controller.",
-  "contractKey": "controller",
-  "abiFile": "../deploy/PrivateStateController.callable-abi.json",
-  "method": "nullifierStore",
-  "mode": "call",
-  "value": "0x0",
-  "args": []
-}

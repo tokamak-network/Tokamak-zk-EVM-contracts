@@ -37,14 +37,8 @@ CONTROLLER="$(
 L2_ACCOUNTING_VAULT="$(
     jq -r 'first(.transactions[] | (.additionalContracts // [])[]? | select(.contractName == "L2AccountingVault") | .address) // empty' "$RUN_FILE"
 )"
-NOTE_REGISTRY="$(
-    jq -r 'first(.transactions[] | (.additionalContracts // [])[]? | select(.contractName == "PrivateNoteRegistry") | .address) // empty' "$RUN_FILE"
-)"
-NULLIFIER_REGISTRY="$(
-    jq -r 'first(.transactions[] | (.additionalContracts // [])[]? | select(.contractName == "PrivateNullifierRegistry") | .address) // empty' "$RUN_FILE"
-)"
 CANONICAL_ASSET="$(
-    jq -r 'first(.transactions[] | select(.function == "deployController(address,address,address,address)") | .arguments[3]) // empty' "$RUN_FILE"
+    jq -r 'first(.transactions[] | select(.function == "deployController(address,address)") | .arguments[1]) // empty' "$RUN_FILE"
 )"
 
 jq -n \
@@ -56,8 +50,6 @@ jq -n \
     --arg deploymentFactory "$DEPLOYMENT_FACTORY" \
     --arg controller "$CONTROLLER" \
     --arg l2AccountingVault "$L2_ACCOUNTING_VAULT" \
-    --arg noteRegistry "$NOTE_REGISTRY" \
-    --arg nullifierRegistry "$NULLIFIER_REGISTRY" \
     '{
         generatedAtUtc: $generatedAtUtc,
         chainId: ($chainId | tonumber),
@@ -67,9 +59,7 @@ jq -n \
         contracts: {
             deploymentFactory: $deploymentFactory,
             controller: $controller,
-            l2AccountingVault: $l2AccountingVault,
-            noteRegistry: $noteRegistry,
-            nullifierRegistry: $nullifierRegistry
+            l2AccountingVault: $l2AccountingVault
         }
     }' > "$DEPLOYMENT_FILE"
 
@@ -94,12 +84,12 @@ write_callable_abi \
         "canonicalAsset",
         "computeNoteCommitment",
         "computeNullifier",
+        "commitmentExists",
         "l2AccountingVault",
         "mintNotes1",
         "mintNotes2",
         "mintNotes3",
-        "noteRegistry",
-        "nullifierStore",
+        "nullifierUsed",
         "redeemNotes4",
         "redeemNotes6",
         "redeemNotes8",
@@ -115,22 +105,6 @@ write_callable_abi \
     '[
         "controller",
         "liquidBalances"
-    ]'
-
-write_callable_abi \
-    "$PROJECT_ROOT/out/PrivateNoteRegistry.sol/PrivateNoteRegistry.json" \
-    "$DEPLOY_DIR/PrivateNoteRegistry.callable-abi.json" \
-    '[
-        "commitmentExists",
-        "controller"
-    ]'
-
-write_callable_abi \
-    "$PROJECT_ROOT/out/PrivateNullifierRegistry.sol/PrivateNullifierRegistry.json" \
-    "$DEPLOY_DIR/PrivateNullifierRegistry.callable-abi.json" \
-    '[
-        "controller",
-        "nullifierUsed"
     ]'
 
 echo "Wrote deployment manifest: $DEPLOYMENT_FILE"

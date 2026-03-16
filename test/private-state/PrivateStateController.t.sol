@@ -3,8 +3,6 @@ pragma solidity 0.8.29;
 
 import "forge-std/Test.sol";
 import {L2AccountingVault} from "../../apps/private-state/src/L2AccountingVault.sol";
-import {PrivateNullifierRegistry} from "../../apps/private-state/src/PrivateNullifierRegistry.sol";
-import {PrivateNoteRegistry} from "../../apps/private-state/src/PrivateNoteRegistry.sol";
 import {PrivateStateController} from "../../apps/private-state/src/PrivateStateController.sol";
 import {PrivateStateDeploymentFactory} from "../../apps/private-state/script/deploy/PrivateStateDeploymentFactory.sol";
 
@@ -15,12 +13,8 @@ contract PrivateStateControllerTest is Test {
     address private canonicalAsset = makeAddr("canonical-asset");
 
     bytes32 private constant L2_ACCOUNTING_VAULT_SALT = keccak256("private-state.l2-accounting-vault");
-    bytes32 private constant NOTE_REGISTRY_SALT = keccak256("private-state.note-registry");
-    bytes32 private constant NULLIFIER_REGISTRY_SALT = keccak256("private-state.nullifier-registry");
 
     L2AccountingVault private l2AccountingVault;
-    PrivateNullifierRegistry private nullifierStore;
-    PrivateNoteRegistry private noteRegistry;
     PrivateStateController private controller;
     PrivateStateDeploymentFactory private deploymentFactory;
 
@@ -31,24 +25,12 @@ contract PrivateStateControllerTest is Test {
         address predictedL2AccountingVault = vm.computeCreate2Address(
             L2_ACCOUNTING_VAULT_SALT, _l2AccountingVaultInitCodeHash(predictedController), address(deploymentFactory)
         );
-        address predictedNoteRegistry =
-            vm.computeCreate2Address(NOTE_REGISTRY_SALT, _noteRegistryInitCodeHash(predictedController), address(deploymentFactory));
-        address predictedNullifierRegistry = vm.computeCreate2Address(
-            NULLIFIER_REGISTRY_SALT, _nullifierRegistryInitCodeHash(predictedController), address(deploymentFactory)
-        );
 
-        controller = deploymentFactory.deployController(
-            predictedNoteRegistry, predictedNullifierRegistry, predictedL2AccountingVault, canonicalAsset
-        );
+        controller = deploymentFactory.deployController(predictedL2AccountingVault, canonicalAsset);
         l2AccountingVault = deploymentFactory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController);
-        noteRegistry = deploymentFactory.deployPrivateNoteRegistry(NOTE_REGISTRY_SALT, predictedController);
-        nullifierStore =
-            deploymentFactory.deployPrivateNullifierRegistry(NULLIFIER_REGISTRY_SALT, predictedController);
 
         assertEq(address(controller), predictedController);
         assertEq(address(l2AccountingVault), predictedL2AccountingVault);
-        assertEq(address(noteRegistry), predictedNoteRegistry);
-        assertEq(address(nullifierStore), predictedNullifierRegistry);
     }
 
     function testTransferNotes4MockBridgeDepositRedeemAndMockBridgeWithdraw() public {
@@ -76,10 +58,10 @@ contract PrivateStateControllerTest is Test {
             controller.transferNotes4(inputNotes, outputs);
 
         for (uint256 i = 0; i < 4; ++i) {
-            assertTrue(nullifierStore.nullifierUsed(nullifiers[i]));
+            assertTrue(controller.nullifierUsed(nullifiers[i]));
         }
         for (uint256 i = 0; i < 3; ++i) {
-            assertTrue(noteRegistry.commitmentExists(outputCommitments[i]));
+            assertTrue(controller.commitmentExists(outputCommitments[i]));
         }
 
         PrivateStateController.Note[4] memory bobNotes = _notes4(
@@ -122,9 +104,9 @@ contract PrivateStateControllerTest is Test {
         (bytes32[1] memory nullifiers, bytes32[3] memory outputCommitments) =
             controller.transferNotes1(inputNotes, outputs);
 
-        assertTrue(nullifierStore.nullifierUsed(nullifiers[0]));
+        assertTrue(controller.nullifierUsed(nullifiers[0]));
         for (uint256 i = 0; i < 3; ++i) {
-            assertTrue(noteRegistry.commitmentExists(outputCommitments[i]));
+            assertTrue(controller.commitmentExists(outputCommitments[i]));
         }
     }
 
@@ -169,7 +151,7 @@ contract PrivateStateControllerTest is Test {
         controller.transferNotes4(inputNotes, outputs);
 
         vm.expectRevert(
-            abi.encodeWithSelector(PrivateNullifierRegistry.NullifierAlreadyUsed.selector, _nullifierOf(note0))
+            abi.encodeWithSelector(PrivateStateController.NullifierAlreadyUsed.selector, _nullifierOf(note0))
         );
         vm.prank(alice);
         controller.transferNotes4(inputNotes, outputs);
@@ -220,7 +202,7 @@ contract PrivateStateControllerTest is Test {
         (, bytes32[3] memory outputCommitments) = controller.transferNotes6(inputNotes, outputs);
 
         for (uint256 i = 0; i < 3; ++i) {
-            assertTrue(noteRegistry.commitmentExists(outputCommitments[i]));
+            assertTrue(controller.commitmentExists(outputCommitments[i]));
         }
     }
 
@@ -248,7 +230,7 @@ contract PrivateStateControllerTest is Test {
         (, bytes32[3] memory outputCommitments) = controller.transferNotes8(inputNotes, outputs);
 
         for (uint256 i = 0; i < 3; ++i) {
-            assertTrue(noteRegistry.commitmentExists(outputCommitments[i]));
+            assertTrue(controller.commitmentExists(outputCommitments[i]));
         }
     }
 
@@ -287,7 +269,7 @@ contract PrivateStateControllerTest is Test {
 
         assertEq(l2AccountingVault.liquidBalances(bob), 40 ether);
         for (uint256 i = 0; i < 4; ++i) {
-            assertTrue(nullifierStore.nullifierUsed(nullifiers[i]));
+            assertTrue(controller.nullifierUsed(nullifiers[i]));
         }
     }
 
@@ -357,7 +339,7 @@ contract PrivateStateControllerTest is Test {
         bytes32[1] memory commitments = controller.mintNotes1(outputs);
 
         assertEq(l2AccountingVault.liquidBalances(alice), 0);
-        assertTrue(noteRegistry.commitmentExists(commitments[0]));
+        assertTrue(controller.commitmentExists(commitments[0]));
     }
 
     function testMintNotes2CreatesTwoCommitments() public {
@@ -372,8 +354,8 @@ contract PrivateStateControllerTest is Test {
         bytes32[2] memory commitments = controller.mintNotes2(outputs);
 
         assertEq(l2AccountingVault.liquidBalances(alice), 0);
-        assertTrue(noteRegistry.commitmentExists(commitments[0]));
-        assertTrue(noteRegistry.commitmentExists(commitments[1]));
+        assertTrue(controller.commitmentExists(commitments[0]));
+        assertTrue(controller.commitmentExists(commitments[1]));
     }
 
     function testMintNotes3CreatesThreeCommitments() public {
@@ -391,7 +373,7 @@ contract PrivateStateControllerTest is Test {
 
         assertEq(l2AccountingVault.liquidBalances(alice), 0);
         for (uint256 i = 0; i < 3; ++i) {
-            assertTrue(noteRegistry.commitmentExists(commitments[i]));
+            assertTrue(controller.commitmentExists(commitments[i]));
         }
     }
 
@@ -408,8 +390,6 @@ contract PrivateStateControllerTest is Test {
 
     function testStoresUseImmutablePredictedController() public view {
         assertEq(l2AccountingVault.controller(), address(controller));
-        assertEq(noteRegistry.controller(), address(controller));
-        assertEq(nullifierStore.controller(), address(controller));
     }
 
     function _mintNote(address noteOwner, uint256 value, bytes32 salt)
@@ -514,13 +494,5 @@ contract PrivateStateControllerTest is Test {
 
     function _l2AccountingVaultInitCodeHash(address controller_) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(type(L2AccountingVault).creationCode, abi.encode(controller_)));
-    }
-
-    function _noteRegistryInitCodeHash(address controller_) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(type(PrivateNoteRegistry).creationCode, abi.encode(controller_)));
-    }
-
-    function _nullifierRegistryInitCodeHash(address controller_) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(type(PrivateNullifierRegistry).creationCode, abi.encode(controller_)));
     }
 }

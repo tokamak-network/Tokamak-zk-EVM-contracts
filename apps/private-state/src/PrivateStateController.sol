@@ -2,15 +2,17 @@
 pragma solidity 0.8.29;
 
 import {L2AccountingVault} from "./L2AccountingVault.sol";
-import {PrivateNullifierRegistry} from "./PrivateNullifierRegistry.sol";
-import {PrivateNoteRegistry} from "./PrivateNoteRegistry.sol";
 
 /// @title PrivateStateController
 /// @notice User-facing application logic for the non-private zk-note DApp.
 contract PrivateStateController {
     error EmptyArray();
+    error ZeroCommitment();
+    error ZeroNullifier();
     error ZeroAddress();
     error ZeroAmount();
+    error CommitmentAlreadyExists(bytes32 commitment);
+    error NullifierAlreadyUsed(bytes32 nullifier);
     error UnknownCommitment(bytes32 commitment);
     error InputOutputValueMismatch(uint256 inputValue, uint256 outputValue);
     error UnauthorizedNoteOwner(address caller, address expectedOwner);
@@ -31,26 +33,16 @@ contract PrivateStateController {
     event NotesRedeemed(address indexed operator, address indexed receiver, uint256 inputCount);
     event MockBridgeWithdrawalApplied(address indexed account, uint256 amount);
 
-    PrivateNullifierRegistry public immutable nullifierStore;
-    PrivateNoteRegistry public immutable noteRegistry;
+    mapping(bytes32 commitment => bool exists) public commitmentExists;
+    mapping(bytes32 nullifier => bool used) public nullifierUsed;
     L2AccountingVault public immutable l2AccountingVault;
     address public immutable canonicalAsset;
 
-    constructor(
-        PrivateNoteRegistry noteRegistry_,
-        PrivateNullifierRegistry nullifierStore_,
-        L2AccountingVault l2AccountingVault_,
-        address canonicalAsset_
-    ) {
-        if (
-            address(noteRegistry_) == address(0) || address(nullifierStore_) == address(0)
-                || address(l2AccountingVault_) == address(0) || canonicalAsset_ == address(0)
-        ) {
+    constructor(L2AccountingVault l2AccountingVault_, address canonicalAsset_) {
+        if (address(l2AccountingVault_) == address(0) || canonicalAsset_ == address(0)) {
             revert ZeroAddress();
         }
 
-        nullifierStore = nullifierStore_;
-        noteRegistry = noteRegistry_;
         l2AccountingVault = l2AccountingVault_;
         canonicalAsset = canonicalAsset_;
     }
@@ -70,7 +62,7 @@ contract PrivateStateController {
 
         l2AccountingVault.debitLiquidBalance(msg.sender, output0Value);
         commitments[0] = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
-        noteRegistry.registerCommitment(commitments[0]);
+        _registerCommitment(commitments[0]);
         emit NoteMinted(msg.sender, commitments[0], output0Owner, output0Value);
     }
 
@@ -82,11 +74,11 @@ contract PrivateStateController {
         l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
 
         commitments[0] = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
-        noteRegistry.registerCommitment(commitments[0]);
+        _registerCommitment(commitments[0]);
         emit NoteMinted(msg.sender, commitments[0], output0Owner, output0Value);
 
         commitments[1] = _computeNoteCommitmentUnchecked(output1Value, output1Owner, output1Salt);
-        noteRegistry.registerCommitment(commitments[1]);
+        _registerCommitment(commitments[1]);
         emit NoteMinted(msg.sender, commitments[1], output1Owner, output1Value);
     }
 
@@ -99,15 +91,15 @@ contract PrivateStateController {
         l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
 
         commitments[0] = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
-        noteRegistry.registerCommitment(commitments[0]);
+        _registerCommitment(commitments[0]);
         emit NoteMinted(msg.sender, commitments[0], output0Owner, output0Value);
 
         commitments[1] = _computeNoteCommitmentUnchecked(output1Value, output1Owner, output1Salt);
-        noteRegistry.registerCommitment(commitments[1]);
+        _registerCommitment(commitments[1]);
         emit NoteMinted(msg.sender, commitments[1], output1Owner, output1Value);
 
         commitments[2] = _computeNoteCommitmentUnchecked(output2Value, output2Owner, output2Salt);
-        noteRegistry.registerCommitment(commitments[2]);
+        _registerCommitment(commitments[2]);
         emit NoteMinted(msg.sender, commitments[2], output2Owner, output2Value);
     }
 
@@ -124,7 +116,7 @@ contract PrivateStateController {
 
         bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
         bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
-        if (!noteRegistry.commitmentExists(commitment)) {
+        if (!commitmentExists[commitment]) {
             revert UnknownCommitment(commitment);
         }
 
@@ -134,19 +126,19 @@ contract PrivateStateController {
         }
 
         nullifiers[0] = _computeNullifierFromSharedHash(sharedPayloadHash);
-        nullifierStore.useNullifier(nullifiers[0], commitment, msg.sender);
+        _useNullifier(nullifiers[0]);
 
         bytes32 output0Commitment = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
         outputCommitments[0] = output0Commitment;
-        noteRegistry.registerCommitment(output0Commitment);
+        _registerCommitment(output0Commitment);
 
         bytes32 output1Commitment = _computeNoteCommitmentUnchecked(output1Value, output1Owner, output1Salt);
         outputCommitments[1] = output1Commitment;
-        noteRegistry.registerCommitment(output1Commitment);
+        _registerCommitment(output1Commitment);
 
         bytes32 output2Commitment = _computeNoteCommitmentUnchecked(output2Value, output2Owner, output2Salt);
         outputCommitments[2] = output2Commitment;
-        noteRegistry.registerCommitment(output2Commitment);
+        _registerCommitment(output2Commitment);
     }
 
     function transferNotes4(Note[4] calldata inputNotes, Note[3] calldata outputs)
@@ -154,7 +146,6 @@ contract PrivateStateController {
         returns (bytes32[4] memory nullifiers, bytes32[3] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
-        bytes32[4] memory commitments;
         uint256 totalInputValue;
 
         for (uint256 i = 0; i < 4; ++i) {
@@ -162,12 +153,11 @@ contract PrivateStateController {
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
-            if (!noteRegistry.commitmentExists(commitment)) {
+            if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            commitments[i] = commitment;
             nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
             totalInputValue += noteValue;
         }
@@ -177,7 +167,7 @@ contract PrivateStateController {
         }
 
         for (uint256 i = 0; i < 4; ++i) {
-            nullifierStore.useNullifier(nullifiers[i], commitments[i], msg.sender);
+            _useNullifier(nullifiers[i]);
         }
 
         _registerTransferOutputs(outputs, outputCommitments);
@@ -188,7 +178,6 @@ contract PrivateStateController {
         returns (bytes32[6] memory nullifiers, bytes32[3] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
-        bytes32[6] memory commitments;
         uint256 totalInputValue;
 
         for (uint256 i = 0; i < 6; ++i) {
@@ -196,12 +185,11 @@ contract PrivateStateController {
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
-            if (!noteRegistry.commitmentExists(commitment)) {
+            if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            commitments[i] = commitment;
             nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
             totalInputValue += noteValue;
         }
@@ -211,7 +199,7 @@ contract PrivateStateController {
         }
 
         for (uint256 i = 0; i < 6; ++i) {
-            nullifierStore.useNullifier(nullifiers[i], commitments[i], msg.sender);
+            _useNullifier(nullifiers[i]);
         }
 
         _registerTransferOutputs(outputs, outputCommitments);
@@ -222,7 +210,6 @@ contract PrivateStateController {
         returns (bytes32[8] memory nullifiers, bytes32[3] memory outputCommitments)
     {
         uint256 totalOutputValue = _validateTransferOutputs(outputs);
-        bytes32[8] memory commitments;
         uint256 totalInputValue;
 
         for (uint256 i = 0; i < 8; ++i) {
@@ -230,12 +217,11 @@ contract PrivateStateController {
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
-            if (!noteRegistry.commitmentExists(commitment)) {
+            if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            commitments[i] = commitment;
             nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
             totalInputValue += noteValue;
         }
@@ -245,7 +231,7 @@ contract PrivateStateController {
         }
 
         for (uint256 i = 0; i < 8; ++i) {
-            nullifierStore.useNullifier(nullifiers[i], commitments[i], msg.sender);
+            _useNullifier(nullifiers[i]);
         }
 
         _registerTransferOutputs(outputs, outputCommitments);
@@ -258,24 +244,21 @@ contract PrivateStateController {
         if (receiver == address(0)) {
             revert ZeroAddress();
         }
-
-        bytes32[4] memory inputCommitments;
         for (uint256 i = 0; i < 4; ++i) {
             (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
-            if (!noteRegistry.commitmentExists(commitment)) {
+            if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            inputCommitments[i] = commitment;
             nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
         }
 
         for (uint256 i = 0; i < 4; ++i) {
-            nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
+            _useNullifier(nullifiers[i]);
             l2AccountingVault.creditLiquidBalance(receiver, inputNotes[i].value);
         }
 
@@ -289,24 +272,21 @@ contract PrivateStateController {
         if (receiver == address(0)) {
             revert ZeroAddress();
         }
-
-        bytes32[6] memory inputCommitments;
         for (uint256 i = 0; i < 6; ++i) {
             (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
-            if (!noteRegistry.commitmentExists(commitment)) {
+            if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            inputCommitments[i] = commitment;
             nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
         }
 
         for (uint256 i = 0; i < 6; ++i) {
-            nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
+            _useNullifier(nullifiers[i]);
             l2AccountingVault.creditLiquidBalance(receiver, inputNotes[i].value);
         }
 
@@ -320,36 +300,33 @@ contract PrivateStateController {
         if (receiver == address(0)) {
             revert ZeroAddress();
         }
-
-        bytes32[8] memory inputCommitments;
         for (uint256 i = 0; i < 8; ++i) {
             (address noteOwner, uint256 noteValue, bytes32 noteSalt) = _loadValidatedNote(inputNotes[i]);
 
             bytes32 sharedPayloadHash = _computeSharedNotePayloadHash(noteValue, noteOwner, noteSalt);
             bytes32 commitment = _computeNoteCommitmentFromSharedHash(sharedPayloadHash);
-            if (!noteRegistry.commitmentExists(commitment)) {
+            if (!commitmentExists[commitment]) {
                 revert UnknownCommitment(commitment);
             }
 
             _requireNoteOwner(noteOwner);
-            inputCommitments[i] = commitment;
             nullifiers[i] = _computeNullifierFromSharedHash(sharedPayloadHash);
         }
 
         for (uint256 i = 0; i < 8; ++i) {
-            nullifierStore.useNullifier(nullifiers[i], inputCommitments[i], msg.sender);
+            _useNullifier(nullifiers[i]);
             l2AccountingVault.creditLiquidBalance(receiver, inputNotes[i].value);
         }
 
         emit NotesRedeemed(msg.sender, receiver, 8);
     }
 
-    function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
+    function computeNoteCommitment(uint256 value, address owner, bytes32 salt) public pure returns (bytes32) {
         _validateNoteFields(value, owner);
         return _computeNoteCommitmentFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
     }
 
-    function computeNullifier(uint256 value, address owner, bytes32 salt) public view returns (bytes32) {
+    function computeNullifier(uint256 value, address owner, bytes32 salt) public pure returns (bytes32) {
         _validateNoteFields(value, owner);
         return _computeNullifierFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
     }
@@ -373,11 +350,11 @@ contract PrivateStateController {
         }
     }
 
-    function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
+    function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
         return _computeNoteCommitmentFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
     }
 
-    function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt) internal view returns (bytes32) {
+    function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
         return _computeNullifierFromSharedHash(_computeSharedNotePayloadHash(value, owner, salt));
     }
 
@@ -405,8 +382,28 @@ contract PrivateStateController {
             (address outputOwner, uint256 outputValue, bytes32 outputSalt) = _loadValidatedNote(outputs[i]);
             bytes32 commitment = _computeNoteCommitmentUnchecked(outputValue, outputOwner, outputSalt);
             outputCommitments[i] = commitment;
-            noteRegistry.registerCommitment(commitment);
+            _registerCommitment(commitment);
         }
+    }
+
+    function _registerCommitment(bytes32 commitment) internal {
+        if (commitment == bytes32(0)) {
+            revert ZeroCommitment();
+        }
+        if (commitmentExists[commitment]) {
+            revert CommitmentAlreadyExists(commitment);
+        }
+        commitmentExists[commitment] = true;
+    }
+
+    function _useNullifier(bytes32 nullifier) internal {
+        if (nullifier == bytes32(0)) {
+            revert ZeroNullifier();
+        }
+        if (nullifierUsed[nullifier]) {
+            revert NullifierAlreadyUsed(nullifier);
+        }
+        nullifierUsed[nullifier] = true;
     }
 
     function _loadValidatedNote(Note calldata note)

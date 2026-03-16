@@ -99,16 +99,7 @@ write_callable_abi \
         "transferNotes2To2",
         "transferNotes3To1",
         "transferNotes3To2",
-        "transferNotes4To1",
-        "transferNotes4To2",
-        "transferNotes5To1",
-        "transferNotes5To2",
-        "transferNotes6To1",
-        "transferNotes6To2",
-        "transferNotes7To1",
-        "transferNotes7To2",
-        "transferNotes8To1",
-        "transferNotes8To2"
+        "transferNotes4To1"
     ]'
 
 write_callable_abi \

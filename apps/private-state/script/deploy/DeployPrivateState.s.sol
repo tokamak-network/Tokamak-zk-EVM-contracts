@@ -10,20 +10,16 @@ contract DeployPrivateStateScript is Script {
     bytes32 internal constant L2_ACCOUNTING_VAULT_SALT = keccak256("private-state.l2-accounting-vault");
 
     address public deployer;
-    address public canonicalAsset;
     address public deploymentFactory;
 
     address public l2AccountingVault;
     address public controller;
 
-    function setUp() public {
-        canonicalAsset = vm.envAddress("PRIVATE_STATE_CANONICAL_ASSET");
-    }
+    function setUp() public {}
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("APPS_DEPLOYER_PRIVATE_KEY");
         deployer = vm.addr(deployerPrivateKey);
-        canonicalAsset = vm.envAddress("PRIVATE_STATE_CANONICAL_ASSET");
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -35,7 +31,7 @@ contract DeployPrivateStateScript is Script {
             L2_ACCOUNTING_VAULT_SALT, _l2AccountingVaultInitCodeHash(predictedController), address(factory)
         );
 
-        PrivateStateController controllerContract = factory.deployController(predictedL2AccountingVault, canonicalAsset);
+        PrivateStateController controllerContract = factory.deployController(predictedL2AccountingVault);
         L2AccountingVault l2AccountingVaultContract =
             factory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController);
 
@@ -51,7 +47,6 @@ contract DeployPrivateStateScript is Script {
         console.log("deployer", deployer);
         console.log("deploymentFactory", deploymentFactory);
         console.log("owner", deployer);
-        console.log("canonicalAsset", canonicalAsset);
         console.log("l2AccountingVault", l2AccountingVault);
         console.log("controller", controller);
     }

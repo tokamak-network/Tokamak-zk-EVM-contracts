@@ -14,8 +14,6 @@ contract PrivateStateControllerTest is Test {
     address private alice = makeAddr("alice");
     address private bob = makeAddr("bob");
     address private mallory = makeAddr("mallory");
-    address private canonicalAsset = makeAddr("canonical-asset");
-
     bytes32 private constant L2_ACCOUNTING_VAULT_SALT = keccak256("private-state.l2-accounting-vault");
 
     L2AccountingVault private l2AccountingVault;
@@ -30,7 +28,7 @@ contract PrivateStateControllerTest is Test {
             L2_ACCOUNTING_VAULT_SALT, _l2AccountingVaultInitCodeHash(predictedController), address(deploymentFactory)
         );
 
-        controller = deploymentFactory.deployController(predictedL2AccountingVault, canonicalAsset);
+        controller = deploymentFactory.deployController(predictedL2AccountingVault);
         l2AccountingVault = deploymentFactory.deployL2AccountingVault(L2_ACCOUNTING_VAULT_SALT, predictedController);
 
         assertEq(address(controller), predictedController);

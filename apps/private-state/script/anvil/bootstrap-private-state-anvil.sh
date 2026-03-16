@@ -47,44 +47,19 @@ if ! curl -sS \
     exit 1
 fi
 
-(
-    cd "$PROJECT_ROOT"
-    forge script apps/private-state/script/anvil/DeployMockTokamakNetworkToken.s.sol:DeployMockTokamakNetworkTokenScript \
-        --rpc-url "$APPS_RPC_URL" \
-        --broadcast
-)
-
-PRIVATE_STATE_CANONICAL_ASSET="$(
-    jq -r 'first(.transactions[] | select(.transactionType == "CREATE" and .contractName == "MockTokamakNetworkToken") | .contractAddress) // empty' \
-        "$PROJECT_ROOT/broadcast/DeployMockTokamakNetworkToken.s.sol/${APPS_CHAIN_ID}/run-latest.json"
-)"
-
-if [[ -z "$PRIVATE_STATE_CANONICAL_ASSET" ]]; then
-    echo "Failed to determine mock canonical asset address" >&2
-    exit 1
-fi
-
 export APPS_RPC_URL_OVERRIDE="$APPS_RPC_URL"
 cp "$ENV_FILE" "$TEMP_ENV_FILE"
-awk -v canonical_asset="$PRIVATE_STATE_CANONICAL_ASSET" -v deployer_private_key="$APPS_DEPLOYER_PRIVATE_KEY" '
-BEGIN { replaced_asset = 0; replaced_deployer = 0 }
+awk -v deployer_private_key="$APPS_DEPLOYER_PRIVATE_KEY" '
+BEGIN { replaced_deployer = 0 }
 /^APPS_DEPLOYER_PRIVATE_KEY=/ {
     print "APPS_DEPLOYER_PRIVATE_KEY=" deployer_private_key
     replaced_deployer = 1
-    next
-}
-/^PRIVATE_STATE_CANONICAL_ASSET=/ {
-    print "PRIVATE_STATE_CANONICAL_ASSET=" canonical_asset
-    replaced_asset = 1
     next
 }
 { print }
 END {
     if (replaced_deployer == 0) {
         print "APPS_DEPLOYER_PRIVATE_KEY=" deployer_private_key
-    }
-    if (replaced_asset == 0) {
-        print "PRIVATE_STATE_CANONICAL_ASSET=" canonical_asset
     }
 }
 ' "$TEMP_ENV_FILE" > "${TEMP_ENV_FILE}.next"
@@ -96,6 +71,5 @@ bash "$PROJECT_ROOT/apps/private-state/script/anvil/write-anvil-artifacts.sh" "$
 echo "Bootstrapped private-state on anvil"
 echo "RPC URL: $APPS_RPC_URL"
 echo "Anvil deployer: $(cast wallet address --private-key "$APPS_DEPLOYER_PRIVATE_KEY")"
-echo "Mock canonical asset: $PRIVATE_STATE_CANONICAL_ASSET"
 echo "Deployment manifest: $PROJECT_ROOT/apps/private-state/deploy/deployment.${APPS_CHAIN_ID}.latest.json"
 echo "Anvil bootstrap manifest: $PROJECT_ROOT/apps/private-state/deploy/anvil-bootstrap.latest.json"

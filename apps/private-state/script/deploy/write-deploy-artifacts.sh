@@ -37,16 +37,11 @@ CONTROLLER="$(
 L2_ACCOUNTING_VAULT="$(
     jq -r 'first(.transactions[] | (.additionalContracts // [])[]? | select(.contractName == "L2AccountingVault") | .address) // empty' "$RUN_FILE"
 )"
-CANONICAL_ASSET="$(
-    jq -r 'first(.transactions[] | select(.function == "deployController(address,address)") | .arguments[1]) // empty' "$RUN_FILE"
-)"
-
 jq -n \
     --arg generatedAtUtc "$TIMESTAMP_UTC" \
     --arg chainId "$CHAIN_ID" \
     --arg runFile "$RUN_FILE" \
     --arg deployer "$DEPLOYER" \
-    --arg canonicalAsset "$CANONICAL_ASSET" \
     --arg deploymentFactory "$DEPLOYMENT_FACTORY" \
     --arg controller "$CONTROLLER" \
     --arg l2AccountingVault "$L2_ACCOUNTING_VAULT" \
@@ -55,7 +50,6 @@ jq -n \
         chainId: ($chainId | tonumber),
         broadcastRunFile: $runFile,
         deployer: $deployer,
-        canonicalAsset: $canonicalAsset,
         contracts: {
             deploymentFactory: $deploymentFactory,
             controller: $controller,
@@ -79,7 +73,6 @@ write_callable_abi \
     "$PROJECT_ROOT/out/PrivateStateController.sol/PrivateStateController.json" \
     "$DEPLOY_DIR/PrivateStateController.callable-abi.json" \
     '[
-        "canonicalAsset",
         "computeNoteCommitment",
         "computeNullifier",
         "commitmentExists",

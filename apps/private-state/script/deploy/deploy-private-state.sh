@@ -27,7 +27,6 @@ fi
 required_vars=(
     "APPS_DEPLOYER_PRIVATE_KEY"
     "APPS_NETWORK"
-    "PRIVATE_STATE_CANONICAL_ASSET"
 )
 
 if [[ -z "${APPS_RPC_URL_OVERRIDE:-}" && "${APPS_NETWORK:-}" != "anvil" ]]; then
@@ -76,7 +75,6 @@ fi
 
 echo "Deploying private-state to network $APPS_NETWORK (chain ID $APPS_CHAIN_ID)"
 echo "RPC network label: $NETWORK_LABEL"
-echo "Canonical asset: $PRIVATE_STATE_CANONICAL_ASSET"
 echo "Owner: <deployer>"
 echo "Environment file: $ENV_FILE"
 

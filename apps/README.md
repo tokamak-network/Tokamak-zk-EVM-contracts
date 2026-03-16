@@ -30,7 +30,6 @@ Each DApp may provide local anvil helpers under `apps/<dapp>/script/anvil`.
 Recommended responsibilities:
 
 - start or stop a local anvil instance
-- deploy any mock canonical assets required by the DApp
 - bootstrap the DApp contracts onto anvil
 - write local deployment manifests and callable ABI files under `apps/<dapp>/deploy`
 

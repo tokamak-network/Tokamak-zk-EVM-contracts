@@ -37,7 +37,6 @@ or `anvil`, and then either:
 node apps/private-state/cli/private-state-cli.mjs list
 node apps/private-state/cli/private-state-cli.mjs show-template mintNotes1
 node apps/private-state/cli/private-state-cli.mjs generate mintNotes1 --network sepolia
-node apps/private-state/cli/private-state-cli.mjs call canonicalAsset --network sepolia
 node apps/private-state/cli/private-state-cli.mjs send mintNotes1 --network anvil --private-key <hex>
 ```
 

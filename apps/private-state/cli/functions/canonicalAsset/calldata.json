@@ -1,9 +1,0 @@
-{
-  "description": "Read the canonical asset bound into note commitments and nullifiers.",
-  "contractKey": "controller",
-  "abiFile": "../deploy/PrivateStateController.callable-abi.json",
-  "method": "canonicalAsset",
-  "mode": "call",
-  "value": "0x0",
-  "args": []
-}

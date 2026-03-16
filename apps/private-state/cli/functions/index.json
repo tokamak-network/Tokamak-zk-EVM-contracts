@@ -1,5 +1,4 @@
 [
-  { "name": "canonicalAsset" },
   { "name": "computeNoteCommitment" },
   { "name": "computeNullifier" },
   { "name": "l2AccountingVault" },

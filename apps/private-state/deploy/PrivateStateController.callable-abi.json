@@ -1,19 +1,6 @@
 [
   {
     "type": "function",
-    "name": "canonicalAsset",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "commitmentExists",
     "inputs": [
       {

@@ -59,11 +59,10 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 
 ## End-to-End Flow
 
-1. Lock or release the canonical asset through the L1 bridge custody flow.
-2. Fund the sender's L2 liquid balance through the bridge-controlled accounting path before minting or transferring notes.
-3. Call `mintNotes1`, `mintNotes2`, `mintNotes3`, `mintNotes4`, `mintNotes5`, or `mintNotes6` to lock part of the liquid balance into one, two, three, four, five, or six note commitments.
-4. Call one of the fixed-arity `transferNotes<N>To<M>` entrypoints with `N` input notes and `M` output notes.
-5. Call one of `redeemNotes1`, `redeemNotes2`, `redeemNotes3`, or `redeemNotes4` to convert fixed batches of notes back into liquid balances.
+1. Fund the sender's L2 liquid balance through the bridge-controlled accounting path before minting or transferring notes.
+2. Call `mintNotes1`, `mintNotes2`, `mintNotes3`, `mintNotes4`, `mintNotes5`, or `mintNotes6` to lock part of the liquid balance into one, two, three, four, five, or six note commitments.
+3. Call one of the fixed-arity `transferNotes<N>To<M>` entrypoints with `N` input notes and `M` output notes.
+4. Call one of `redeemNotes1`, `redeemNotes2`, `redeemNotes3`, or `redeemNotes4` to convert fixed batches of notes back into liquid balances.
 
 ## Fixed-Arity Entry Points
 
@@ -94,12 +93,11 @@ These fixed entrypoints are intended to make the final user-facing state transit
 
 ## Deployment Inputs
 
-Sepolia deployment requires four concrete inputs:
+Sepolia deployment requires three concrete inputs:
 
 - the deployer private key
 - the target network name
 - the Alchemy API key used to derive the Sepolia RPC URL
-- the canonical TON asset address used as `canonicalAsset`
 
 The repository now includes:
 
@@ -129,10 +127,6 @@ The private-state deploy flow uses shared app deployment variables for the signe
 
 For `APPS_NETWORK=anvil`, the deploy scripts default to `http://127.0.0.1:8545`. `APPS_RPC_URL_OVERRIDE` is only an
 advanced option for nonstandard local or custom RPC endpoints.
-
-It uses a namespaced variable only for the private-state-specific value:
-
-- `PRIVATE_STATE_CANONICAL_ASSET`
 
 There is no `PRIVATE_STATE_OWNER` parameter.
 
@@ -188,7 +182,6 @@ make cli-list
 node apps/private-state/cli/private-state-cli.mjs list
 node apps/private-state/cli/private-state-cli.mjs show-template mintNotes1
 node apps/private-state/cli/private-state-cli.mjs generate mintNotes1 --network sepolia
-node apps/private-state/cli/private-state-cli.mjs call canonicalAsset --network sepolia
 node apps/private-state/cli/private-state-cli.mjs send mintNotes1 --network anvil --private-key <hex>
 ```
 
@@ -204,7 +197,6 @@ For fast local iteration, private-state now includes an anvil bootstrap flow:
 - `apps/private-state/script/anvil/start-anvil.sh`
 - `apps/private-state/script/anvil/bootstrap-private-state-anvil.sh`
 - `apps/private-state/script/anvil/stop-anvil.sh`
-- `apps/private-state/script/anvil/DeployMockTokamakNetworkToken.s.sol`
 - `apps/private-state/script/anvil/write-anvil-artifacts.sh`
 
 Recommended `apps/.env` values for anvil:
@@ -219,10 +211,8 @@ local chain.
 The bootstrap flow:
 
 1. starts from a reachable anvil RPC
-2. deploys `MockTokamakNetworkToken`
-3. uses that mock token as `PRIVATE_STATE_CANONICAL_ASSET`
-4. deploys private-state
-5. writes local manifests and callable ABI files into `apps/private-state/deploy`
+2. deploys private-state
+3. writes local manifests and callable ABI files into `apps/private-state/deploy`
 
 The shortest local workflow is:
 
@@ -237,7 +227,6 @@ make anvil-stop
 The anvil bootstrap also writes:
 
 - `anvil-bootstrap.latest.json`
-- `MockTokamakNetworkToken.callable-abi.json`
 
 These local anvil artifacts are ignored by git because they are expected to change frequently.
 

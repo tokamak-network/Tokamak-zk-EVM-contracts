@@ -29,15 +29,13 @@ contract PrivateStateController {
     mapping(bytes32 commitment => bool exists) public commitmentExists;
     mapping(bytes32 nullifier => bool used) public nullifierUsed;
     L2AccountingVault public immutable l2AccountingVault;
-    address public immutable canonicalAsset;
 
-    constructor(L2AccountingVault l2AccountingVault_, address canonicalAsset_) {
-        if (address(l2AccountingVault_) == address(0) || canonicalAsset_ == address(0)) {
+    constructor(L2AccountingVault l2AccountingVault_) {
+        if (address(l2AccountingVault_) == address(0)) {
             revert ZeroAddress();
         }
 
         l2AccountingVault = l2AccountingVault_;
-        canonicalAsset = canonicalAsset_;
     }
 
     function mintNotes1(Note[1] calldata outputs) external returns (bytes32[1] memory commitments) {

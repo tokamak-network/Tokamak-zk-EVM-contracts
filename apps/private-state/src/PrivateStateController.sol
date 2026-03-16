@@ -278,34 +278,31 @@ contract PrivateStateController {
         external
         returns (bytes32[3] memory nullifiers, bytes32[2] memory outputCommitments)
     {
-        (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
-        (address output1Owner, uint256 output1Value, bytes32 output1Salt) = _loadValidatedNote(outputs[1]);
+        uint256 output0Value;
+        uint256 output1Value;
+        (output0Value, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
+        (output1Value, outputCommitments[1]) = _prepareTransferOutput(outputs[1]);
         uint256 totalOutputValue = output0Value + output1Value;
 
         uint256 note0Value;
         (note0Value, nullifiers[0]) = _prepareSpendableNote(inputNotes[0]);
-        _useNullifier(nullifiers[0]);
 
         uint256 note1Value;
         (note1Value, nullifiers[1]) = _prepareSpendableNote(inputNotes[1]);
-        _useNullifier(nullifiers[1]);
 
         uint256 note2Value;
         (note2Value, nullifiers[2]) = _prepareSpendableNote(inputNotes[2]);
-        _useNullifier(nullifiers[2]);
 
         uint256 totalInputValue = note0Value + note1Value + note2Value;
         if (totalInputValue != totalOutputValue) {
             revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
         }
 
-        bytes32 output0Commitment = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
-        outputCommitments[0] = output0Commitment;
-        _registerCommitment(output0Commitment);
-
-        bytes32 output1Commitment = _computeNoteCommitmentUnchecked(output1Value, output1Owner, output1Salt);
-        outputCommitments[1] = output1Commitment;
-        _registerCommitment(output1Commitment);
+        _useNullifier(nullifiers[0]);
+        _useNullifier(nullifiers[1]);
+        _useNullifier(nullifiers[2]);
+        _registerCommitment(outputCommitments[0]);
+        _registerCommitment(outputCommitments[1]);
     }
 
     function transferNotes4To1(Note[4] calldata inputNotes, Note[1] calldata outputs)

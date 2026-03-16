@@ -40,14 +40,6 @@ contract PrivateStateController {
         canonicalAsset = canonicalAsset_;
     }
 
-    function mockBridgeDeposit(uint256 amount) external {
-        l2AccountingVault.creditLiquidBalance(msg.sender, amount);
-    }
-
-    function mockBridgeWithdraw(uint256 amount) external {
-        l2AccountingVault.debitLiquidBalance(msg.sender, amount);
-    }
-
     function mintNotes1(Note[1] calldata outputs) external returns (bytes32[1] memory commitments) {
         uint256 output0Value;
         (output0Value, commitments[0]) = _prepareMintOutput(outputs[0]);

@@ -1,9 +1,0 @@
-{
-  "description": "Development-only mock bridge debit for the caller's L2 accounting balance.",
-  "contractKey": "controller",
-  "abiFile": "../deploy/PrivateStateController.callable-abi.json",
-  "method": "mockBridgeWithdraw",
-  "mode": "send",
-  "value": "0x0",
-  "args": ["1000000000000000000"]
-}

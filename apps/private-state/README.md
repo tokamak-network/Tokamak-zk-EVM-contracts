@@ -60,17 +60,12 @@ The design intentionally avoids storing note plaintext or duplicate spent flags 
 ## End-to-End Flow
 
 1. Lock or release the canonical asset through the L1 bridge custody flow.
-2. Apply the matching L2 accounting transition with `mockBridgeDeposit` or `mockBridgeWithdraw` during development.
+2. Fund the sender's L2 liquid balance through the bridge-controlled accounting path before minting or transferring notes.
 3. Call `mintNotes1`, `mintNotes2`, `mintNotes3`, `mintNotes4`, `mintNotes5`, or `mintNotes6` to lock part of the liquid balance into one, two, three, four, five, or six note commitments.
 4. Call one of the fixed-arity `transferNotes<N>To<M>` entrypoints with `N` input notes and `M` output notes.
 5. Call one of `redeemNotes1`, `redeemNotes2`, `redeemNotes3`, `redeemNotes4`, or `redeemNotes5` to convert fixed batches of notes back into liquid balances.
 
 ## Fixed-Arity Entry Points
-
-The current development accounting API exposes two fixed-purpose user-facing functions:
-
-- `mockBridgeDeposit`: increase the caller's L2 accounting balance through a mock bridge transition
-- `mockBridgeWithdraw`: decrease the caller's L2 accounting balance through a mock bridge transition
 
 The current mint API exposes six fixed-arity user-facing functions:
 
@@ -192,10 +187,10 @@ Examples:
 cd apps/private-state
 make cli-list
 node apps/private-state/cli/private-state-cli.mjs list
-node apps/private-state/cli/private-state-cli.mjs show-template mockBridgeDeposit
-node apps/private-state/cli/private-state-cli.mjs generate mockBridgeDeposit --network sepolia
+node apps/private-state/cli/private-state-cli.mjs show-template mintNotes1
+node apps/private-state/cli/private-state-cli.mjs generate mintNotes1 --network sepolia
 node apps/private-state/cli/private-state-cli.mjs call canonicalAsset --network sepolia
-node apps/private-state/cli/private-state-cli.mjs send mockBridgeDeposit --network anvil --private-key <hex>
+node apps/private-state/cli/private-state-cli.mjs send mintNotes1 --network anvil --private-key <hex>
 ```
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such
@@ -254,4 +249,4 @@ Because note validity is still checked directly in contract code:
 - The system still relies on cross-contract invariants between the controller and the accounting vault.
 - The mock bridge entrypoints model proof-backed L1 bridge settlement during development rather than standalone L2 token custody.
 - Privacy depends on the surrounding L2 execution model, not solely on these contracts.
-- The current `mockBridgeDeposit` and `mockBridgeWithdraw` functions remain direct user entrypoints for development. They must be removed or replaced when a real bridge settlement path is introduced.
+- The user-facing controller no longer exposes direct liquid-balance mutation entrypoints. Balance setup is expected to come from a bridge-controlled accounting path or test-only controller-authorized setup.

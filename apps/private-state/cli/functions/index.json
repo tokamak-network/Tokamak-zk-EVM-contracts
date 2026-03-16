@@ -1,6 +1,4 @@
 [
-  { "name": "mockBridgeDeposit" },
-  { "name": "mockBridgeWithdraw" },
   { "name": "canonicalAsset" },
   { "name": "computeNoteCommitment" },
   { "name": "computeNullifier" },

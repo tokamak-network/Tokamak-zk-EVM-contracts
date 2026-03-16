@@ -79,8 +79,6 @@ write_callable_abi \
     "$PROJECT_ROOT/out/PrivateStateController.sol/PrivateStateController.json" \
     "$DEPLOY_DIR/PrivateStateController.callable-abi.json" \
     '[
-        "mockBridgeDeposit",
-        "mockBridgeWithdraw",
         "canonicalAsset",
         "computeNoteCommitment",
         "computeNullifier",

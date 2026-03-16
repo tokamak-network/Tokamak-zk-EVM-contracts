@@ -15,10 +15,10 @@ Each `calldata.json` file follows this shape:
   "description": "Human-readable note for the operator",
   "contractKey": "controller",
   "abiFile": "../deploy/PrivateStateController.callable-abi.json",
-  "method": "mockBridgeDeposit",
+  "method": "mintNotes1",
   "mode": "send",
   "value": "0x0",
-  "args": ["1000000000000000000"]
+  "args": [[{"owner":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266","value":"1000000000000000000","salt":"0x1000000000000000000000000000000000000000000000000000000000000001"}]]
 }
 ```
 
@@ -35,10 +35,10 @@ or `anvil`, and then either:
 
 ```bash
 node apps/private-state/cli/private-state-cli.mjs list
-node apps/private-state/cli/private-state-cli.mjs show-template mockBridgeDeposit
-node apps/private-state/cli/private-state-cli.mjs generate mockBridgeDeposit --network sepolia
+node apps/private-state/cli/private-state-cli.mjs show-template mintNotes1
+node apps/private-state/cli/private-state-cli.mjs generate mintNotes1 --network sepolia
 node apps/private-state/cli/private-state-cli.mjs call canonicalAsset --network sepolia
-node apps/private-state/cli/private-state-cli.mjs send mockBridgeDeposit --network anvil --private-key <hex>
+node apps/private-state/cli/private-state-cli.mjs send mintNotes1 --network anvil --private-key <hex>
 ```
 
 ## Function-folder naming

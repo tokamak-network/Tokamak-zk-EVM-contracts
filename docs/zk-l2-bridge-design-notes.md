@@ -27,6 +27,7 @@ The current writing method follows these rules:
 
 The following terms are used throughout this document:
 
+- `System`: Tokamak Private App Channels, used as the default shorthand for the overall architecture described in this document
 - `L1`: Ethereum mainnet or the canonical settlement layer
 - `L2`: the zk-proof-based execution layer realized through private channels
 - `Bridge`: the cross-layer system that binds L1 custody to L2 state transitions
@@ -284,6 +285,7 @@ The following record is kept so that later revisions can identify which parts of
 - Other participants or third parties may object to a proposed state; upon objection, Ethereum verifies the proposal and reverts to the last verifiable state if verification fails.
 - If proposals continue without objection until closure, the final proposed state is verified at closure and the last verified state becomes final.
 - For DeFi channels, participant assets are protected by the proof protocol, channel entry or opening requires Ethereum verification of the resulting new state, and channel asset balances on Ethereum change only when the new state is verified.
+- From this point onward, the term `System` refers to Tokamak Private App Channels.
 
 ## 3. Conclusion
 

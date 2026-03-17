@@ -29,7 +29,8 @@ The following terms are used throughout this document:
 
 - `System`: Tokamak Private App Channels, used as the default shorthand for the overall architecture described in this document
 - `L1`: Ethereum mainnet or the canonical settlement layer
-- `L2`: the zk-proof-based execution layer realized through private channels and modeled as a state machine
+- `L2`: a zk-proof-based state-machine instance managed by the bridge; each such L2 is called a channel
+- `Channel`: an individual L2 instance managed by the L1 bridge contracts
 - `Bridge`: the cross-layer system that binds L1 custody to L2 state transitions
 - `Canonical custody`: the asset position that remains authoritative on L1
 - `Verified state`: the channel state that Ethereum has already validated
@@ -55,6 +56,7 @@ The following assumptions are currently treated as the baseline unless later inp
 
 - L1 is the canonical settlement and custody domain
 - the System is divided at the highest level into bridge contracts deployed on Ethereum and an L2 server with its own independent state
+- the L1 bridge contracts manage multiple L2 instances, and each managed L2 instance is called a channel
 - L2 is realized as a set of autonomous private channels created, operated, and closed on Ethereum
 - L2 is a state machine, and its concrete state is represented by one or more Merkle trees
 - an L2 state can therefore be expressed as a vector of Merkle roots
@@ -73,7 +75,7 @@ The following assumptions are currently treated as the baseline unless later inp
 
 The current highest-priority architectural direction comes from the user-provided description of Tokamak Private App Channels. Under that description, the fundamental Layer 2 unit is not one shared rollup-wide state machine, but an autonomous private channel.
 
-Tokamak Private App Channels are currently understood as autonomous Layer 2 channels that participants create, operate, and close on Ethereum. This implies that the system is multi-channel, that each channel operates independently, and that the total number of concurrent channels is bounded primarily by Ethereum scalability rather than by a single global channel design. It also implies that the lifetime and scale of a channel may differ according to its application purpose.
+Tokamak Private App Channels are currently understood as autonomous Layer 2 channels that participants create, operate, and close on Ethereum. Each such channel is an individual L2 instance managed by the L1 bridge contracts. This implies that the System is multi-channel, that each channel operates independently, and that the total number of concurrent channels is bounded primarily by Ethereum scalability rather than by a single global channel design. It also implies that the lifetime and scale of a channel may differ according to its application purpose.
 
 Each channel is private through zero-knowledge proofs. Channel transactions are not intended to be revealed outside the channel, including to Ethereum validators. Ethereum is expected to validate the correctness of channel state transitions without learning the underlying private transaction contents.
 
@@ -142,12 +144,13 @@ At the highest level, the System is currently divided into two major parts:
 - L1, namely Ethereum, where the bridge contracts are deployed
 - an L2 server that maintains state independent from Ethereum while coordinating private channel execution
 
-The remaining subsections refine this top-level split.
+The L1 side manages multiple L2 instances. Each managed L2 instance is called a channel. The remaining subsections refine this top-level split.
 
 #### 2.5.1 L1 Bridge Layer
 
 The L1 bridge layer is responsible for:
 
+- managing multiple channels, where each channel is an individual L2 instance
 - channel creation registration
 - canonical asset custody
 - channel entry validation
@@ -156,8 +159,21 @@ The L1 bridge layer is responsible for:
 - withdrawal settlement
 - proof verification
 - accepted state-root progression
+- storage of each channel's Merkle-root-vector change history
+- storage of the latest leaves of each channel's current Merkle trees, without retaining past leaves
+- acceptance and storage of proposed Merkle-root-vector updates for each channel
+- proof-based verification of channel update proposals and commitment of the verified Merkle-root-vector update
 - final channel closure settlement
 - bridge configuration and emergency controls
+
+More concretely, L1 management of a channel currently means the following:
+
+1. L1 stores the history of changes to the channel's Merkle-root vector.
+2. L1 stores the latest leaves of the channel's current Merkle trees.
+3. L1 does not store historical leaves once they are no longer current.
+4. L1 accepts and stores proposals to update the channel's Merkle-root vector.
+5. When proof evidence for a proposal is submitted, L1 verifies that evidence.
+6. If the proof verifies successfully, L1 updates the channel's Merkle-root vector according to the proposal.
 
 #### 2.5.2 L2 Server and Channel Execution Layer
 
@@ -224,18 +240,20 @@ The channel lifecycle can currently be described as follows.
 1. Users execute channel actions.
 2. Participants coordinate the next channel state on the leader-hosted server.
 3. The system derives the resulting bridge-relevant state transition.
-4. A validity proof is generated for the proposed state.
-5. In concrete terms, the transition updates the underlying Merkle-tree state and therefore updates the Merkle-root vector.
-6. The proposed state may be published to Ethereum before it becomes economically final.
-7. The participant asset baseline on Ethereum remains the last verified state until verification occurs.
+4. In concrete terms, the transition updates the underlying Merkle-tree state and therefore updates the Merkle-root vector.
+5. A validity proof is generated for the proposed state update.
+6. The proposed Merkle-root-vector update is submitted to L1 and stored as a proposal for the channel.
+7. The proposed state may be published to Ethereum before it becomes economically final.
+8. The participant asset baseline on Ethereum remains the last verified state until verification occurs.
 
 #### 2.6.5 Objection and Verification
 
 1. A proposed channel state appears on Ethereum as a candidate progression.
 2. Another participant or a third party objects to the proposal.
-3. Ethereum verifies the last proposed channel state.
-4. If the proposal is valid, it becomes the new verified reference point.
-5. If the proposal is invalid, the channel falls back to the last verifiable state.
+3. Proof evidence for the proposed Merkle-root-vector update is submitted to Ethereum.
+4. Ethereum verifies that evidence against the stored proposal.
+5. If the proposal is valid, the channel's Merkle-root vector is updated and becomes the new verified reference point.
+6. If the proposal is invalid, the channel falls back to the last verifiable state.
 
 #### 2.6.6 Channel Closure
 
@@ -265,8 +283,11 @@ The exact state model remains open, but the system currently needs to track at l
 - provisional channel asset balances
 - L2 accounting balances
 - the set of Merkle trees that realize each L2 state
+- the latest stored leaves of each channel's current Merkle trees
 - accepted Merkle-root vectors
 - proposed Merkle-root vectors
+- per-channel history of Merkle-root-vector changes
+- per-channel stored update proposals
 - objection records
 - verified checkpoint history
 - deposit records or commitments
@@ -282,6 +303,9 @@ The current invariants are:
 - deposit and withdrawal accounting must remain conservation-safe across layers
 - every authoritative L2 state must be representable as a Merkle-root vector
 - every L2 state update must correspond to an update of that Merkle-root vector
+- L1 must preserve the history of Merkle-root-vector changes for each channel
+- L1 must store the latest leaves of each current channel tree while not retaining obsolete historical leaves
+- no channel update proposal becomes authoritative until its submitted proof evidence is verified by L1
 - opening a channel or entering a channel must not become final until Ethereum verifies the resulting new state
 - a failed proposal must not corrupt the last verifiable state
 - reversion after failed verification must return the channel to the last verifiable state
@@ -311,12 +335,13 @@ The following record is kept so that later revisions can identify which parts of
 - From this point onward, the term `System` refers to Tokamak Private App Channels.
 - The System is divided at the highest level into L1 bridge contracts deployed on Ethereum and an L2 server with independent state.
 - L2 is a state machine whose concrete state is realized by one or more Merkle trees, so an L2 state is represented by a vector of Merkle roots and an L2 state update means an update of that vector.
+- The L1 bridge contracts manage multiple L2 instances, each called a channel, by storing root-vector history, current leaves, update proposals, and proof-validated state updates.
 
 ## 3. Conclusion
 
 ### 3.1 Current Working Conclusions
 
-At the current stage, Tokamak Private App Channels are best understood as a System with two top-level parts: bridge contracts deployed on Ethereum and an L2 server with independent state. Within that System, the channels operate as autonomous private Layer 2 execution domains under proof-backed economic finality. L2 itself is treated as a state machine whose concrete state is realized by one or more Merkle trees, so each authoritative checkpoint is represented by a Merkle-root vector. Each channel is app-specific, each channel has its own participant set and designated leader, and each channel can progress provisionally without immediately changing Ethereum-side asset authority.
+At the current stage, Tokamak Private App Channels are best understood as a System with two top-level parts: bridge contracts deployed on Ethereum and an L2 server with independent state. Within that System, the L1 bridge contracts manage multiple L2 instances, and each such L2 instance is called a channel. L2 itself is treated as a state machine whose concrete state is realized by one or more Merkle trees, so each authoritative checkpoint is represented by a Merkle-root vector. Each channel is app-specific, each channel has its own participant set and designated leader, and each channel can progress provisionally without immediately changing Ethereum-side asset authority.
 
 The most important current conclusion is that the bridge must distinguish operational state from economically authoritative state. Proposed state may drive activity inside the channel, but verified state alone determines the asset position that Ethereum recognizes. This distinction governs channel entry, DeFi safety, dispute handling, channel closure, and withdrawal.
 
@@ -331,6 +356,7 @@ The following questions remain open and will need to be resolved in later revisi
 - the exact operational meaning of the phrase "last verifiable state"
 - the exact withdrawal authorization model
 - the exact relation between provisional in-channel execution and verified Ethereum state
+- the exact Ethereum scalability cost of storing the latest leaves for many channels on L1
 - the exact data-availability assumptions
 - the exact failure and recovery model
 
@@ -339,8 +365,10 @@ The following questions remain open and will need to be resolved in later revisi
 The following decisions are stable enough to be treated as the current working position of this document:
 
 - The System is divided at the highest level into L1 bridge contracts on Ethereum and an L2 server with independent state.
+- The L1 bridge contracts manage multiple L2 instances, each of which is called a channel.
 - L2 is a state machine whose concrete state is represented by a vector of Merkle roots derived from one or more Merkle trees.
 - Tokamak Private App Channels are treated as autonomous private Layer 2 channels created, operated, and closed on Ethereum.
+- L1 management of a channel includes storing Merkle-root-vector change history, storing only the latest leaves of the current Merkle trees, storing update proposals, and committing proposed updates only after proof verification.
 - Each channel is app-specific and uses a preset DApp surface.
 - Each channel has a designated leader responsible for publication, relay-server operation, and closure.
 - The leader is an operational coordinator, not the unilateral owner of participant assets or state authority.

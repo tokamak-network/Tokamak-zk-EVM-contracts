@@ -75,9 +75,9 @@ The current mint API exposes six fixed-arity user-facing functions:
 - `mintNotes5`: 5 output notes
 - `mintNotes6`: 6 output notes
 
-The current transfer API exposes the full fixed-arity family for `N in [1, 8]` and `M in [1, 2]`:
+The current transfer API exposes the following fixed-arity family:
 
-- `transferNotes1To1`, `transferNotes1To2`
+- `transferNotes1To1`, `transferNotes1To2`, `transferNotes1To3`
 - `transferNotes2To1`, `transferNotes2To2`
 - `transferNotes3To1`, `transferNotes3To2`
 - `transferNotes4To1`

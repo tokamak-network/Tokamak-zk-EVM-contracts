@@ -91,6 +91,16 @@ contract PrivateStateControllerTest is Test {
         (, bytes32[2] memory outputCommitments1To2) = controller.transferNotes1To2(inputNotes1To2, outputs1To2);
         _assertCommitmentsExist(outputCommitments1To2);
 
+        PrivateStateController.Note[1] memory inputNotes1To3 = _noteArray1(_mintNote(alice, 30 ether, bytes32("alice-1to3-0")));
+        PrivateStateController.Note[3] memory outputs1To3 = _notes3(
+            _note(bob, 10 ether, bytes32("bob-1to3-0")),
+            _note(alice, 10 ether, bytes32("alice-1to3-change-0")),
+            _note(alice, 10 ether, bytes32("alice-1to3-change-1"))
+        );
+        vm.prank(alice);
+        (, bytes32[3] memory outputCommitments1To3) = controller.transferNotes1To3(inputNotes1To3, outputs1To3);
+        _assertCommitmentsExist(outputCommitments1To3);
+
         PrivateStateController.Note[2] memory inputNotes2To1 = _noteArray2(
             _mintNote(alice, 10 ether, bytes32("alice-2to1-0")), _mintNote(alice, 10 ether, bytes32("alice-2to1-1"))
         );
@@ -571,6 +581,12 @@ contract PrivateStateControllerTest is Test {
     function _assertCommitmentsExist(bytes32[2] memory commitments) internal view {
         assertTrue(controller.commitmentExists(commitments[0]));
         assertTrue(controller.commitmentExists(commitments[1]));
+    }
+
+    function _assertCommitmentsExist(bytes32[3] memory commitments) internal view {
+        assertTrue(controller.commitmentExists(commitments[0]));
+        assertTrue(controller.commitmentExists(commitments[1]));
+        assertTrue(controller.commitmentExists(commitments[2]));
     }
 
     function _commitmentOf(PrivateStateController.Note memory note) internal view returns (bytes32) {

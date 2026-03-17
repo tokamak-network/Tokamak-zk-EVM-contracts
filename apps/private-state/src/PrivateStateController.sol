@@ -180,6 +180,30 @@ contract PrivateStateController {
         _registerCommitment(output1Commitment);
     }
 
+    function transferNotes1To3(Note[1] calldata inputNotes, Note[3] calldata outputs)
+        external
+        returns (bytes32[1] memory nullifiers, bytes32[3] memory outputCommitments)
+    {
+        uint256 output0Value;
+        uint256 output1Value;
+        uint256 output2Value;
+        (output0Value, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
+        (output1Value, outputCommitments[1]) = _prepareTransferOutput(outputs[1]);
+        (output2Value, outputCommitments[2]) = _prepareTransferOutput(outputs[2]);
+        uint256 totalOutputValue = output0Value + output1Value + output2Value;
+
+        uint256 noteValue;
+        (noteValue, nullifiers[0]) = _prepareSpendableNote(inputNotes[0]);
+        if (noteValue != totalOutputValue) {
+            revert InputOutputValueMismatch(noteValue, totalOutputValue);
+        }
+
+        _useNullifier(nullifiers[0]);
+        _registerCommitment(outputCommitments[0]);
+        _registerCommitment(outputCommitments[1]);
+        _registerCommitment(outputCommitments[2]);
+    }
+
     function transferNotes2To1(Note[2] calldata inputNotes, Note[1] calldata outputs)
         external
         returns (bytes32[2] memory nullifiers, bytes32[1] memory outputCommitments)

@@ -90,6 +90,7 @@ write_callable_abi \
         "nullifierUsed",
         "transferNotes1To1",
         "transferNotes1To2",
+        "transferNotes1To3",
         "transferNotes2To1",
         "transferNotes2To2",
         "transferNotes3To1",

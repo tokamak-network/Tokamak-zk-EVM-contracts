@@ -616,6 +616,69 @@
   },
   {
     "type": "function",
+    "name": "transferNotes1To3",
+    "inputs": [
+      {
+        "name": "inputNotes",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.Note[1]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "outputs",
+        "type": "tuple[3]",
+        "internalType": "struct PrivateStateController.Note[3]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      },
+      {
+        "name": "outputCommitments",
+        "type": "bytes32[3]",
+        "internalType": "bytes32[3]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "transferNotes2To1",
     "inputs": [
       {

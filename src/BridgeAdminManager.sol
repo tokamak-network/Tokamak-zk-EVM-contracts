@@ -1,178 +1,168 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.29;
+pragma solidity ^0.8.24;
 
-import "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import {ITokamakVerifier} from "./interface/ITokamakVerifier.sol";
-import "./interface/IGroth16Verifier16Leaves.sol";
-import "./interface/IBridgeCore.sol";
+import {Owned} from "./Owned.sol";
 
-contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
+contract BridgeAdminManager is Owned {
+    struct FcnCfg {
+        bytes32 instanceHash;
+        bytes32 preprocessHash;
+        bool exists;
     }
 
-    IBridgeCore public bridge;
+    error InvalidFunctionSignature();
+    error FunctionAlreadyRegistered();
+    error FunctionNotRegistered();
+    error EmptyStorageSet();
+    error DuplicateConfiguration();
+    error InvalidStorageAddress();
+    error InvalidMerkleLevel();
 
-    event VerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
-    event TargetContractAllowed(address indexed targetContract, bool allowed);
-    event FunctionRegistered(
-        bytes32 indexed functionSignature,
-        uint256 preprocessedPart1Length,
-        uint256 preprocessedPart2Length,
-        bytes32 instancesHash
-    );
-    event FunctionUnregistered(bytes32 indexed functionSignature);
-    event TreasuryAddressUpdated(address indexed oldTreasury, address indexed newTreasury);
+    uint16 public nTokamakPublicInputs;
+    uint8 public nMerkleTreeLevels;
 
-    modifier onlyBridge() {
-        require(msg.sender == address(bridge), "Only bridge can call");
-        _;
+    bytes4[] private _fcnSigns;
+    uint160[] private _storageAddrs;
+
+    mapping(bytes4 => bool) private _fcnRegistered;
+    mapping(uint160 => bool) private _storageRegistered;
+
+    mapping(bytes4 => uint160[]) private _fcnStorages;
+    mapping(bytes4 => mapping(uint160 => bool)) private _fcnStorageSeen;
+
+    mapping(uint160 => bytes32[]) private _preAllocKeys;
+    mapping(uint160 => mapping(bytes32 => bool)) private _preAllocKeySeen;
+    mapping(bytes32 => bool) private _globalPreAllocKeySeen;
+
+    mapping(uint160 => uint8[]) private _userSlots;
+    mapping(uint160 => mapping(uint8 => bool)) private _userSlotSeen;
+
+    mapping(bytes4 => FcnCfg) private _fcnCfg;
+    mapping(bytes32 => bytes4) private _cfgToFunction;
+    mapping(bytes32 => bool) private _cfgSeen;
+
+    event FunctionRegistered(bytes4 indexed functionSig, bytes32 indexed instanceHash, bytes32 indexed preprocessHash);
+    event FunctionStorageAdded(bytes4 indexed functionSig, uint160 indexed storageAddr);
+    event PreAllocKeyAdded(uint160 indexed storageAddr, bytes32 indexed preAllocKey);
+    event UserSlotAdded(uint160 indexed storageAddr, uint8 indexed userSlot);
+    event TokamakParamsUpdated(uint16 nTokamakPublicInputs, uint8 nMerkleTreeLevels);
+
+    constructor(address initialOwner, uint16 tokamakPublicInputs, uint8 merkleTreeLevels) Owned(initialOwner) {
+        if (merkleTreeLevels > 32) revert InvalidMerkleLevel();
+        nTokamakPublicInputs = tokamakPublicInputs;
+        nMerkleTreeLevels = merkleTreeLevels;
     }
 
-    function initialize(address _bridgeCore, address _owner) public initializer {
-        __Ownable_init_unchained();
-        __UUPSUpgradeable_init();
-        _transferOwnership(_owner);
-
-        require(_bridgeCore != address(0), "Invalid bridge address");
-        bridge = IBridgeCore(_bridgeCore);
-    }
-
-    function setAllowedTargetContract(
-        address targetContract,
-        IBridgeCore.PreAllocatedLeaf[] memory storageSlots,
-        IBridgeCore.UserStorageSlot[] memory userStorageSlots,
-        bool allowed
-    ) external onlyOwner {
-        require(targetContract != address(0), "Invalid target contract address");
-
-        bridge.setAllowedTargetContract(targetContract, storageSlots, userStorageSlots, allowed);
-        emit TargetContractAllowed(targetContract, allowed);
+    function setTokamakParams(uint16 tokamakPublicInputs, uint8 merkleTreeLevels) external onlyOwner {
+        if (merkleTreeLevels > 32) revert InvalidMerkleLevel();
+        nTokamakPublicInputs = tokamakPublicInputs;
+        nMerkleTreeLevels = merkleTreeLevels;
+        emit TokamakParamsUpdated(tokamakPublicInputs, merkleTreeLevels);
     }
 
     function registerFunction(
-        address targetContract,
-        bytes32 functionSignature,
-        uint128[] memory preprocessedPart1,
-        uint256[] memory preprocessedPart2,
-        bytes32 instancesHash
+        bytes4 functionSig,
+        uint160[] calldata storageAddrs,
+        bytes32 instanceHash,
+        bytes32 preprocessHash
     ) external onlyOwner {
-        require(targetContract != address(0), "Invalid target contract address");
-        require(functionSignature != bytes32(0), "Invalid function signature");
-        require(preprocessedPart1.length > 0, "preprocessedPart1 cannot be empty");
-        require(preprocessedPart2.length > 0, "preprocessedPart2 cannot be empty");
+        if (functionSig == bytes4(0)) revert InvalidFunctionSignature();
+        if (_fcnRegistered[functionSig]) revert FunctionAlreadyRegistered();
+        if (storageAddrs.length == 0) revert EmptyStorageSet();
 
-        bridge.registerFunction(targetContract, functionSignature, preprocessedPart1, preprocessedPart2, instancesHash);
-        emit FunctionRegistered(functionSignature, preprocessedPart1.length, preprocessedPart2.length, instancesHash);
-    }
+        bytes32 cfgId = keccak256(abi.encode(instanceHash, preprocessHash));
+        if (_cfgSeen[cfgId]) revert DuplicateConfiguration();
 
-    function unregisterFunction(address targetContract, bytes32 functionSignature) external onlyOwner {
-        require(targetContract != address(0), "Invalid target contract address");
-        require(functionSignature != bytes32(0), "Invalid function signature");
+        _cfgSeen[cfgId] = true;
+        _cfgToFunction[cfgId] = functionSig;
 
-        // Get target contract data and check if function exists
-        IBridgeCore.TargetContract memory targetData = bridge.getTargetContractData(targetContract);
-        bool found = false;
-        for (uint256 i = 0; i < targetData.registeredFunctions.length; i++) {
-            if (targetData.registeredFunctions[i].functionSignature == functionSignature) {
-                found = true;
-                break;
-            }
+        _fcnRegistered[functionSig] = true;
+        _fcnSigns.push(functionSig);
+        _fcnCfg[functionSig] = FcnCfg({instanceHash: instanceHash, preprocessHash: preprocessHash, exists: true});
+
+        for (uint256 i = 0; i < storageAddrs.length; ++i) {
+            _addFunctionStorage(functionSig, storageAddrs[i]);
         }
-        require(found, "Function not registered");
 
-        bridge.unregisterFunction(targetContract, functionSignature);
-        emit FunctionUnregistered(functionSignature);
+        emit FunctionRegistered(functionSig, instanceHash, preprocessHash);
     }
 
-    function getRegisteredFunction(address targetContract, bytes32 functionSignature)
-        external
-        view
-        returns (IBridgeCore.RegisteredFunction memory)
-    {
-        IBridgeCore.TargetContract memory targetData = bridge.getTargetContractData(targetContract);
-        for (uint256 i = 0; i < targetData.registeredFunctions.length; i++) {
-            if (targetData.registeredFunctions[i].functionSignature == functionSignature) {
-                return targetData.registeredFunctions[i];
-            }
+    function addFunctionStorage(bytes4 functionSig, uint160 storageAddr) external onlyOwner {
+        if (!_fcnRegistered[functionSig]) revert FunctionNotRegistered();
+        _addFunctionStorage(functionSig, storageAddr);
+    }
+
+    function addPreAllocKey(uint160 storageAddr, bytes32 preAllocKey) external onlyOwner {
+        if (!_storageRegistered[storageAddr]) revert InvalidStorageAddress();
+        if (_preAllocKeySeen[storageAddr][preAllocKey]) return;
+
+        _preAllocKeySeen[storageAddr][preAllocKey] = true;
+        _globalPreAllocKeySeen[preAllocKey] = true;
+        _preAllocKeys[storageAddr].push(preAllocKey);
+
+        emit PreAllocKeyAdded(storageAddr, preAllocKey);
+    }
+
+    function addUserSlot(uint160 storageAddr, uint8 userSlot) external onlyOwner {
+        if (!_storageRegistered[storageAddr]) revert InvalidStorageAddress();
+        if (_userSlotSeen[storageAddr][userSlot]) return;
+
+        _userSlotSeen[storageAddr][userSlot] = true;
+        _userSlots[storageAddr].push(userSlot);
+
+        emit UserSlotAdded(storageAddr, userSlot);
+    }
+
+    function isFunctionRegistered(bytes4 functionSig) external view returns (bool) {
+        return _fcnRegistered[functionSig];
+    }
+
+    function isStorageRegistered(uint160 storageAddr) external view returns (bool) {
+        return _storageRegistered[storageAddr];
+    }
+
+    function isPreAllocKey(bytes32 preAllocKey) external view returns (bool) {
+        return _globalPreAllocKeySeen[preAllocKey];
+    }
+
+    function getFcnSigns() external view returns (bytes4[] memory) {
+        return _fcnSigns;
+    }
+
+    function getStorageAddrs() external view returns (uint160[] memory) {
+        return _storageAddrs;
+    }
+
+    function getFcnStorages(bytes4 functionSig) external view returns (uint160[] memory) {
+        return _fcnStorages[functionSig];
+    }
+
+    function getPreAllocKeys(uint160 storageAddr) external view returns (bytes32[] memory) {
+        return _preAllocKeys[storageAddr];
+    }
+
+    function getUserSlots(uint160 storageAddr) external view returns (uint8[] memory) {
+        return _userSlots[storageAddr];
+    }
+
+    function getFcnCfg(bytes4 functionSig) external view returns (bytes32 instanceHash, bytes32 preprocessHash) {
+        FcnCfg memory cfg = _fcnCfg[functionSig];
+        if (!cfg.exists) revert FunctionNotRegistered();
+        return (cfg.instanceHash, cfg.preprocessHash);
+    }
+
+    function _addFunctionStorage(bytes4 functionSig, uint160 storageAddr) internal {
+        if (storageAddr == uint160(0)) revert InvalidStorageAddress();
+        if (_fcnStorageSeen[functionSig][storageAddr]) return;
+
+        _fcnStorageSeen[functionSig][storageAddr] = true;
+        _fcnStorages[functionSig].push(storageAddr);
+
+        if (!_storageRegistered[storageAddr]) {
+            _storageRegistered[storageAddr] = true;
+            _storageAddrs.push(storageAddr);
         }
-        revert("Function not registered");
+
+        emit FunctionStorageAdded(functionSig, storageAddr);
     }
-
-    function getTargetContractData(address targetContract) external view returns (IBridgeCore.TargetContract memory) {
-        return bridge.getTargetContractData(targetContract);
-    }
-
-    function updateBridge(address _newBridge) external onlyOwner {
-        require(_newBridge != address(0), "Invalid bridge address");
-        bridge = IBridgeCore(_newBridge);
-    }
-
-    // ========== PRE-ALLOCATED LEAVES MANAGEMENT ==========
-
-    /**
-     * @notice Set a pre-allocated leaf for a target contract
-     * @param targetContract The target contract address
-     * @param key The MPT key for the pre-allocated leaf
-     * @param value The value for the pre-allocated leaf
-     */
-    function setPreAllocatedLeaf(address targetContract, bytes32 key, uint256 value) external onlyOwner {
-        bridge.setPreAllocatedLeaf(targetContract, key, value);
-    }
-
-    /**
-     * @notice Remove a pre-allocated leaf for a target contract
-     * @param targetContract The target contract address
-     * @param key The MPT key to remove
-     */
-    function removePreAllocatedLeaf(address targetContract, bytes32 key) external onlyOwner {
-        bridge.removePreAllocatedLeaf(targetContract, key);
-    }
-
-    /**
-     * @notice Setup TON transfer pre-allocated leaf (convenience function)
-     * @dev Sets up the standard 0x07 slot with decimals value 18 for TON transfers
-     * @param tonContractAddress The TON contract address
-     */
-    function setupTonTransferPreAllocatedLeaf(address tonContractAddress) external onlyOwner {
-        // TON transfer uses slot 0x07 with decimals value 18
-        bytes32 tonDecimalsSlot = bytes32(uint256(0x07));
-        uint256 tonDecimalsValue = 18;
-
-        bridge.setPreAllocatedLeaf(tonContractAddress, tonDecimalsSlot, tonDecimalsValue);
-    }
-
-    /**
-     * @notice Get pre-allocated leaf information
-     * @param targetContract The target contract address
-     * @param key The key
-     * @return value The value of the pre-allocated leaf
-     * @return exists Whether the leaf exists
-     */
-    function getPreAllocatedLeaf(address targetContract, bytes32 key)
-        external
-        view
-        returns (uint256 value, bool exists)
-    {
-        return bridge.getPreAllocatedLeaf(targetContract, key);
-    }
-
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
-
-    /**
-     * @notice Returns the address of the current implementation contract
-     * @dev Uses EIP-1967 standard storage slot for implementation address
-     * @return implementation The address of the implementation contract
-     */
-    function getImplementation() external view returns (address implementation) {
-        bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-        assembly {
-            implementation := sload(slot)
-        }
-    }
-
-    uint256[47] private __gap;
 }

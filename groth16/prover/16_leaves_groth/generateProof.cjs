@@ -40,15 +40,16 @@ async function generateProof() {
             const witness = await wc.calculateWitness(input, 0);
             const merkleRoot = witness[witness.length - 1].toString();
             
-            // Extract the 35 circuit public signals (witness[1] to witness[35]) - 34 inputs + 1 output
+            // Extract circuit public signals: 1 root + N storage keys + N storage values.
+            const publicSignalCount = 1 + 2 * input.storage_keys_L2MPT.length;
             const circuitPublicSignals = [];
-            for (let i = 1; i <= 35; i++) {
+            for (let i = 1; i <= publicSignalCount; i++) {
                 circuitPublicSignals.push(witness[i].toString());
             }
 
             console.log("number of witness elements:{}", witness.length);
                       
-            // Also create a file with just the 35 circuit signals for snarkJS testing if needed
+            // Also create a file with just the circuit public signals for snarkJS testing if needed
             fs.writeFileSync('public.json', JSON.stringify(circuitPublicSignals, null, 2));
         }
         

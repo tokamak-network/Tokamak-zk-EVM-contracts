@@ -53,6 +53,7 @@ The current design goals are as follows:
 The following assumptions are currently treated as the baseline unless later inputs revise them:
 
 - L1 is the canonical settlement and custody domain
+- the System is divided at the highest level into bridge contracts deployed on Ethereum and an L2 server with its own independent state
 - L2 is realized as a set of autonomous private channels created, operated, and closed on Ethereum
 - bridge acceptance must be proof-gated rather than trust-gated
 - public outputs should reveal commitments and state transitions, not full private transaction contents
@@ -130,6 +131,13 @@ This implies that the architecture may need both narrow proof updates and full b
 
 Taking the user-provided model and the current reading of `docs/spec.md` together, the rough Layer 2 system structure can be stated as follows.
 
+At the highest level, the System is currently divided into two major parts:
+
+- L1, namely Ethereum, where the bridge contracts are deployed
+- an L2 server that maintains state independent from Ethereum while coordinating private channel execution
+
+The remaining subsections refine this top-level split.
+
 #### 2.5.1 L1 Bridge Layer
 
 The L1 bridge layer is responsible for:
@@ -145,9 +153,11 @@ The L1 bridge layer is responsible for:
 - final channel closure settlement
 - bridge configuration and emergency controls
 
-#### 2.5.2 L2 Channel Execution Layer
+#### 2.5.2 L2 Server and Channel Execution Layer
 
-The L2 execution layer is not one global execution fabric. It is a collection of app-specific private channels. Each channel performs:
+The L2 side is currently modeled as a server with independent state. This server is not merely a stateless relayer. It is the off-chain environment in which the private channels are coordinated and in which channel state progresses before Ethereum accepts a verified checkpoint.
+
+Within that L2 server, the execution layer is not one global execution fabric. It is a collection of app-specific private channels. Each channel performs:
 
 - private transaction handling inside the channel
 - participant-driven state transition generation
@@ -286,12 +296,13 @@ The following record is kept so that later revisions can identify which parts of
 - If proposals continue without objection until closure, the final proposed state is verified at closure and the last verified state becomes final.
 - For DeFi channels, participant assets are protected by the proof protocol, channel entry or opening requires Ethereum verification of the resulting new state, and channel asset balances on Ethereum change only when the new state is verified.
 - From this point onward, the term `System` refers to Tokamak Private App Channels.
+- The System is divided at the highest level into L1 bridge contracts deployed on Ethereum and an L2 server with independent state.
 
 ## 3. Conclusion
 
 ### 3.1 Current Working Conclusions
 
-At the current stage, Tokamak Private App Channels are best understood as autonomous private Layer 2 channels operating on Ethereum under proof-backed economic finality. Each channel is app-specific, each channel has its own participant set and designated leader, and each channel can progress provisionally without immediately changing Ethereum-side asset authority.
+At the current stage, Tokamak Private App Channels are best understood as a System with two top-level parts: bridge contracts deployed on Ethereum and an L2 server with independent state. Within that System, the channels operate as autonomous private Layer 2 execution domains under proof-backed economic finality. Each channel is app-specific, each channel has its own participant set and designated leader, and each channel can progress provisionally without immediately changing Ethereum-side asset authority.
 
 The most important current conclusion is that the bridge must distinguish operational state from economically authoritative state. Proposed state may drive activity inside the channel, but verified state alone determines the asset position that Ethereum recognizes. This distinction governs channel entry, DeFi safety, dispute handling, channel closure, and withdrawal.
 
@@ -313,6 +324,7 @@ The following questions remain open and will need to be resolved in later revisi
 
 The following decisions are stable enough to be treated as the current working position of this document:
 
+- The System is divided at the highest level into L1 bridge contracts on Ethereum and an L2 server with independent state.
 - Tokamak Private App Channels are treated as autonomous private Layer 2 channels created, operated, and closed on Ethereum.
 - Each channel is app-specific and uses a preset DApp surface.
 - Each channel has a designated leader responsible for publication, relay-server operation, and closure.

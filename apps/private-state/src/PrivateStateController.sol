@@ -6,7 +6,6 @@ import {L2AccountingVault} from "./L2AccountingVault.sol";
 /// @title PrivateStateController
 /// @notice User-facing application logic for the non-private zk-note DApp.
 contract PrivateStateController {
-    error EmptyArray();
     error ZeroCommitment();
     error ZeroNullifier();
     error ZeroAddress();
@@ -140,7 +139,8 @@ contract PrivateStateController {
         external
         returns (bytes32[1] memory nullifiers, bytes32[1] memory outputCommitments)
     {
-        (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
+        uint256 output0Value;
+        (output0Value, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
 
         uint256 noteValue;
         (noteValue, nullifiers[0]) = _prepareSpendableNote(inputNotes[0]);
@@ -149,18 +149,17 @@ contract PrivateStateController {
         }
 
         _useNullifier(nullifiers[0]);
-
-        bytes32 output0Commitment = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
-        outputCommitments[0] = output0Commitment;
-        _registerCommitment(output0Commitment);
+        _registerCommitment(outputCommitments[0]);
     }
 
     function transferNotes1To2(Note[1] calldata inputNotes, Note[2] calldata outputs)
         external
         returns (bytes32[1] memory nullifiers, bytes32[2] memory outputCommitments)
     {
-        (address output0Owner, uint256 output0Value, bytes32 output0Salt) = _loadValidatedNote(outputs[0]);
-        (address output1Owner, uint256 output1Value, bytes32 output1Salt) = _loadValidatedNote(outputs[1]);
+        uint256 output0Value;
+        uint256 output1Value;
+        (output0Value, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
+        (output1Value, outputCommitments[1]) = _prepareOutputNote(outputs[1]);
         uint256 totalOutputValue = output0Value + output1Value;
 
         uint256 noteValue;
@@ -170,14 +169,8 @@ contract PrivateStateController {
         }
 
         _useNullifier(nullifiers[0]);
-
-        bytes32 output0Commitment = _computeNoteCommitmentUnchecked(output0Value, output0Owner, output0Salt);
-        outputCommitments[0] = output0Commitment;
-        _registerCommitment(output0Commitment);
-
-        bytes32 output1Commitment = _computeNoteCommitmentUnchecked(output1Value, output1Owner, output1Salt);
-        outputCommitments[1] = output1Commitment;
-        _registerCommitment(output1Commitment);
+        _registerCommitment(outputCommitments[0]);
+        _registerCommitment(outputCommitments[1]);
     }
 
     function transferNotes1To3(Note[1] calldata inputNotes, Note[3] calldata outputs)
@@ -510,12 +503,6 @@ contract PrivateStateController {
         }
     }
 
-    function _requireNoteOwner(address owner) internal view {
-        if (msg.sender != owner) {
-            revert UnauthorizedNoteOwner(msg.sender, owner);
-        }
-    }
-
     function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
         return keccak256(abi.encode(NOTE_COMMITMENT_DOMAIN, owner, value, salt));
     }
@@ -544,7 +531,9 @@ contract PrivateStateController {
         if (!commitmentExists[commitment]) {
             revert UnknownCommitment(commitment);
         }
-        _requireNoteOwner(noteOwner);
+        if (msg.sender != noteOwner) {
+            revert UnauthorizedNoteOwner(msg.sender, noteOwner);
+        }
         noteValue = value;
         nullifier = _computeNullifierUnchecked(value, noteOwner, noteSalt);
     }

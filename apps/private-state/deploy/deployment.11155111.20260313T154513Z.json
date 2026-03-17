@@ -1,0 +1,13 @@
+{
+  "generatedAtUtc": "20260313T154513Z",
+  "chainId": 11155111,
+  "broadcastRunFile": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/broadcast/DeployPrivateState.s.sol/11155111/run-latest.json",
+  "deployer": "0x7ba7171625dbbfb546749674be1731ede8da4e25",
+  "contracts": {
+    "deploymentFactory": "0x45093c8e9feb10dab3ef6a1792dcd87324165fb1",
+    "controller": "0xf3d5fc0b78b14d775734db03fc87a7afc851985c",
+    "l2AccountingVault": "0xe4cc2251d01a712929a9748a4830ba1e36b243ba",
+    "noteRegistry": "0x0e58d8e9edbe814df13186514fbbc6d5492478cf",
+    "nullifierRegistry": "0x44caf17e59cb334d5189aed49e096558dd3902ec"
+  }
+}

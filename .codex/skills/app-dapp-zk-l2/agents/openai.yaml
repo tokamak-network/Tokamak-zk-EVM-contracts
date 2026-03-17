@@ -1,0 +1,4 @@
+interface:
+  display_name: "App DApp Zk L2"
+  short_description: "Design and review app-level DApps for zk-L2 execution."
+  default_prompt: "Use this skill when creating or reviewing a new DApp under apps/ that must satisfy zk-L2 privacy, circuit-convertible entrypoints, and scalable storage layout constraints."

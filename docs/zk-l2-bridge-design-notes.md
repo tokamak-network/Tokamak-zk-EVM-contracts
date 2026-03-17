@@ -33,6 +33,8 @@ The following terms are used throughout this document:
 - `Channel`: an individual L2 instance managed by the L1 bridge contracts
 - `Bridge`: the cross-layer system that binds L1 custody to L2 state transitions
 - `Canonical custody`: the asset position that remains authoritative on L1
+- `L1 token vault`: the per-channel vault managed by the L1 bridge contracts for token approval, transfer, deposit, and withdrawal
+- `L2 token vault` or `L2 accounting vault`: the per-channel vault domain represented inside the L2 state, with its own dedicated Merkle tree
 - `Verified state`: the channel state that Ethereum has already validated
 - `Proposed state`: the channel state that has been suggested but is not yet economically authoritative on Ethereum
 - `Merkle-root vector`: the vector composed of the roots of the Merkle trees that concretely represent an L2 state
@@ -59,6 +61,8 @@ The following assumptions are currently treated as the baseline unless later inp
 - the L1 bridge contracts manage multiple L2 instances, and each managed L2 instance is called a channel
 - L2 is realized as a set of autonomous private channels created, operated, and closed on Ethereum
 - L2 is a state machine, and its concrete state is represented by one or more Merkle trees
+- each channel has its own L1 token vault managed by the bridge
+- each channel's L2 state always includes one dedicated Merkle tree for an L2 token vault or L2 accounting vault
 - an L2 state can therefore be expressed as a vector of Merkle roots
 - an L2 state update means an update of that Merkle-root vector
 - bridge acceptance must be proof-gated rather than trust-gated
@@ -118,6 +122,15 @@ The current asset interpretation is:
 
 Under this reading, channel execution may advance provisionally, but Ethereum-side economic authority does not move until verification occurs.
 
+The current vault interpretation is channel-specific:
+
+- the L1 bridge manages a separate L1 token vault for each channel
+- channel users may approve and transfer tokens into a chosen channel's L1 token vault
+- channel users may also withdraw their tokens back out through that channel's L1 token vault
+- the corresponding L2 state always contains one independent Merkle tree dedicated to an L2 token vault or an L2 accounting vault
+
+At the current level of abstraction, deposit means moving a user's position from the L1 token vault into the L2 token-vault domain, and withdraw means moving a user's position from the L2 token-vault domain back into the L1 token vault. The exact operating logic of `deposit` and `withdraw` remains intentionally deferred until later input.
+
 ### 2.4 Provisional Interpretation of `docs/spec.md`
 
 The mathematical model in `docs/spec.md` is currently treated as a structural reference rather than as final protocol truth. The present reading is that the spec describes a bridge-facing model with three major layers.
@@ -153,6 +166,7 @@ The L1 bridge layer is responsible for:
 - managing multiple channels, where each channel is an individual L2 instance
 - channel creation registration
 - canonical asset custody
+- management of a separate L1 token vault for each channel
 - channel entry validation
 - deposit acceptance
 - objection handling and dispute-triggered verification
@@ -174,6 +188,7 @@ More concretely, L1 management of a channel currently means the following:
 4. L1 accepts and stores proposals to update the channel's Merkle-root vector.
 5. When proof evidence for a proposal is submitted, L1 verifies that evidence.
 6. If the proof verifies successfully, L1 updates the channel's Merkle-root vector according to the proposal.
+7. L1 manages the channel's token-vault deposit and withdrawal entrypoints.
 
 #### 2.5.2 L2 Server and Channel Execution Layer
 
@@ -187,6 +202,7 @@ Within that L2 server, the execution layer is not one global execution fabric. I
 - participant-driven state transition generation
 - provisional state progression between verified checkpoints
 - updates to one or more Merkle trees and therefore to the resulting Merkle-root vector
+- maintenance of one dedicated Merkle tree for the channel's L2 token vault or L2 accounting vault
 - bridge-relevant accounting transitions
 - production of the witness required for proof generation
 
@@ -231,9 +247,11 @@ The channel lifecycle can currently be described as follows.
 #### 2.6.3 Deposit and Funding
 
 1. A participant places assets into the Ethereum-side custody path required by the channel or its DeFi application.
-2. The channel incorporates that funding event into a new candidate state.
-3. Until Ethereum verifies that new state, the participant's authoritative asset position remains based on the last verified state.
-4. After verification, the new asset position becomes authoritative on Ethereum.
+2. The participant may approve and transfer tokens to the selected channel's L1 token vault.
+3. The participant invokes the channel's `deposit` function on the L1 token vault.
+4. The channel incorporates that funding event into a new candidate state, including the channel's L2 token-vault or accounting-vault tree.
+5. Until Ethereum verifies that new state, the participant's authoritative asset position remains based on the last verified state.
+6. After verification, the new asset position becomes authoritative on Ethereum.
 
 #### 2.6.4 In-Channel State Transition
 
@@ -264,10 +282,11 @@ The channel lifecycle can currently be described as follows.
 
 #### 2.6.7 Withdrawal
 
-1. A participant requests to move channel-bound funds back to Ethereum.
-2. The withdrawal entitlement is determined from the last Ethereum-verified state.
-3. The bridge verifies that the claim matches the authoritative verified state.
-4. The bridge releases assets from Ethereum-side custody.
+1. A participant requests to move channel-bound funds from the L2 token-vault domain back toward the L1 token vault.
+2. The participant invokes the channel's `withdraw` function on the L1 token vault.
+3. The withdrawal entitlement is determined from the last Ethereum-verified state.
+4. The bridge verifies that the claim matches the authoritative verified state.
+5. The bridge releases assets from Ethereum-side custody.
 
 ### 2.7 State Categories and Invariants
 
@@ -279,10 +298,12 @@ The exact state model remains open, but the system currently needs to track at l
 - channel app identifiers or preset DApp templates
 - channel status across creation, operation, objection, and closure
 - canonical L1 custody balances
+- per-channel L1 token vault balances
 - verified channel asset balances
 - provisional channel asset balances
 - L2 accounting balances
 - the set of Merkle trees that realize each L2 state
+- the dedicated Merkle tree for each channel's L2 token vault or L2 accounting vault
 - the latest stored leaves of each channel's current Merkle trees
 - accepted Merkle-root vectors
 - proposed Merkle-root vectors
@@ -301,6 +322,8 @@ The current invariants are:
 - no asset leaves L1 custody without a bridge-authorized settlement path
 - no proposed state becomes economically authoritative on Ethereum without proof verification
 - deposit and withdrawal accounting must remain conservation-safe across layers
+- each channel must have its own L1 token vault managed by the bridge
+- each channel must have exactly one dedicated L2 vault tree inside its L2 state
 - every authoritative L2 state must be representable as a Merkle-root vector
 - every L2 state update must correspond to an update of that Merkle-root vector
 - L1 must preserve the history of Merkle-root-vector changes for each channel
@@ -336,6 +359,9 @@ The following record is kept so that later revisions can identify which parts of
 - The System is divided at the highest level into L1 bridge contracts deployed on Ethereum and an L2 server with independent state.
 - L2 is a state machine whose concrete state is realized by one or more Merkle trees, so an L2 state is represented by a vector of Merkle roots and an L2 state update means an update of that vector.
 - The L1 bridge contracts manage multiple L2 instances, each called a channel, by storing root-vector history, current leaves, update proposals, and proof-validated state updates.
+- Each channel has its own L1 token vault, and each channel's L2 state always contains one dedicated token-vault or accounting-vault Merkle tree.
+- Users may approve and transfer tokens into a channel's L1 token vault, and may later invoke `deposit` or `withdraw` there to move their position between the L1 vault and the L2 vault domain.
+- The detailed operating principles of `deposit` and `withdraw` are deferred for later specification.
 
 ## 3. Conclusion
 
@@ -353,6 +379,8 @@ The following questions remain open and will need to be resolved in later revisi
 
 - the exact rights and limits of third-party objections
 - the exact proof-submission timing model
+- the exact operating principles of the `deposit` and `withdraw` functions
+- whether the phrase `L2 token vault` should be interpreted as real L2 token custody or as an accounting-vault abstraction inside the L2 state machine
 - the exact operational meaning of the phrase "last verifiable state"
 - the exact withdrawal authorization model
 - the exact relation between provisional in-channel execution and verified Ethereum state
@@ -369,6 +397,9 @@ The following decisions are stable enough to be treated as the current working p
 - L2 is a state machine whose concrete state is represented by a vector of Merkle roots derived from one or more Merkle trees.
 - Tokamak Private App Channels are treated as autonomous private Layer 2 channels created, operated, and closed on Ethereum.
 - L1 management of a channel includes storing Merkle-root-vector change history, storing only the latest leaves of the current Merkle trees, storing update proposals, and committing proposed updates only after proof verification.
+- Each channel has its own L1 token vault managed by the bridge.
+- Each channel's L2 state includes exactly one dedicated Merkle tree for an L2 token vault or accounting vault.
+- Users may use the channel's L1 token vault to approve, transfer, deposit, and withdraw tokens, while the exact deposit/withdraw logic remains to be specified.
 - Each channel is app-specific and uses a preset DApp surface.
 - Each channel has a designated leader responsible for publication, relay-server operation, and closure.
 - The leader is an operational coordinator, not the unilateral owner of participant assets or state authority.

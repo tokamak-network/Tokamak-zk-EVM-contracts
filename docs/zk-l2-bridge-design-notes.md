@@ -38,7 +38,6 @@ The following terms are used throughout this document:
 - `Groth zkp`: the Groth16-based proof system used for token-vault control
 - `Tokamak zkp`: the custom Tokamak zk-EVM proof system used for L2 channel transaction processing
 - `Instance`: the public data paired with a submitted proof
-- `Proposal pool`: the stored set of not-yet-accepted Tokamak-zkp-based channel state-update proposals, including possible forks
 - `Verified state`: the channel state that Ethereum has already validated
 - `Proposed state`: the channel state that has been suggested but is not yet economically authoritative on Ethereum
 - `Merkle-root vector`: the vector composed of the roots of the Merkle trees that concretely represent an L2 state
@@ -98,24 +97,23 @@ Each channel is formed by a group of users, one of whom is designated as the cha
 
 All participants, including the leader, are currently treated as equal contributors to channel operation. The leader is therefore an operational coordinator, not the owner of the channel state and not a unilateral controller of participant assets.
 
-### 2.2 State-Machine, Proposal, and Dispute Model
+### 2.2 State-Machine and Verification Model
 
 L2 is currently modeled as a state machine, and each channel is modeled as an application-specific state machine inside that L2 environment. Participants generate candidate channel state transitions on the leader-hosted server, and those transitions are intended to be validated on Ethereum with zero-knowledge proofs.
 
 The current definition of state is concrete rather than purely abstract. The substance of an L2 state is one or more Merkle trees. A single L2 may therefore contain multiple Merkle trees at once. Under that definition, an L2 state is represented by the vector of those Merkle roots, and an L2 state update means that the Merkle-root vector has changed. However, even though the channel state domain is independent from other channels, every update to those Merkle trees is currently treated as being under L1 control.
 
-The model explicitly distinguishes between proposed state and verified state. Proposed state may exist before Ethereum has fully verified it, and it may be used as the provisional operational state inside the channel. Verified state, however, is the only state that is economically authoritative on Ethereum.
+The model explicitly distinguishes between candidate state and verified state. Candidate state may exist on the L2 server before Ethereum has fully verified it, and it may be used as the provisional operational state inside the channel. Verified state, however, is the only state that is economically authoritative on Ethereum.
 
-The current dispute model is as follows:
+In the current version, channel verification follows an immediate-verification model:
 
-1. A participant proposes a new channel state to Ethereum together with its validity proof.
-2. Other participants or third parties may object to that proposal.
-3. If an objection is raised, Ethereum verifies the last proposed channel state.
-4. If verification fails, the channel reverts to the last verifiable state.
-5. If proposals continue without objection until closure, the final proposed state is verified at closure.
-6. The last verified state at closure becomes the final channel state.
+1. A participant generates a candidate channel state transition together with its validity proof.
+2. The participant submits the proof and its instance directly to the relevant verifier on L1.
+3. Ethereum verifies the submitted proof immediately.
+4. If verification succeeds, the channel's Merkle-root vector is updated immediately.
+5. If verification fails, the attempted update is rejected and the last verified state remains authoritative.
 
-This model creates a deliberate separation between operational progression inside a channel and economically authoritative progression on Ethereum.
+This model creates a deliberate separation between operational progression inside a channel and economically authoritative progression on Ethereum, while avoiding deferred proposal-pool machinery in the current version.
 
 ### 2.3 DeFi Safety Interpretation
 
@@ -125,7 +123,7 @@ The current asset interpretation is:
 
 - when a user opens a channel or enters an existing channel, the validity of the resulting new state must be verified by Ethereum
 - a participant may later move channel-bound funds back to Ethereum using the last Ethereum-verified state
-- if a newly proposed state has not been verified by Ethereum, that proposal must not change the participant's authoritative asset position on Ethereum
+- if a newly generated candidate state has not been verified by Ethereum, it must not change the participant's authoritative asset position on Ethereum
 
 Under this reading, channel execution may advance provisionally, but Ethereum-side economic authority does not move until verification occurs.
 
@@ -186,39 +184,17 @@ Under the current interpretation, successful verification of a Tokamak zkp proof
 - the channel Merkle-tree leaves consumed by execution were correct
 - the resulting channel Merkle trees were updated correctly
 
-Users submit Tokamak zkp proofs and instances to the L1 bridge's channel manager. However, these submissions are not verified immediately. Instead, they are stored as channel state-update proposals.
+Users submit Tokamak zkp proofs and instances directly to the Tokamak-zkp verifier of the relevant channel manager on L1. In the current version, the submission is verified immediately rather than being stored in a proposal pool.
 
-#### 2.3.3 Tokamak Proposal Pool, Forks, and Acceptance
+If the Tokamak zkp proof verifies successfully, the channel manager immediately updates the channel's Merkle-root vector to the instance's post-state. If the proof does not verify, the attempted state update is rejected and the previously verified state remains authoritative.
 
-The current Tokamak-zkp proposal model is as follows:
+#### 2.3.3 Deferred Proposal-Pool and Tokenomics Model
 
-- submitted channel Merkle-root-vector updates may accumulate without immediate verification
-- submitted updates may form multiple forks
-- someone must call the channel's Tokamak-zkp verifier on L1 to verify some proposed updates
-- once a proposal is verified and accepted, the corresponding channel state becomes officially updated
-- proposals that are accepted, proposals on forks that are not selected for acceptance, and proposals that fail verification are removed from the channel manager
+The previously discussed proposal-pool model, including fork accumulation, delayed verification, proposer penalties, verifier rewards, and related token economics, is now treated as future work rather than as current behavior.
 
-This means the channel manager currently behaves as a proposal pool plus selective verifier, not as an immediate-verification pipeline.
+The reason is structural: a proposal-pool design cannot operate coherently until the protocol first specifies how unresolved forks are maintained, who is permitted or incentivized to resolve them, and how penalties and rewards are funded and enforced.
 
-#### 2.3.4 Deposit and Withdraw Preconditions
-
-Before a user may perform `deposit` or `withdraw`, the proposal pool of the corresponding channel must be cleared.
-
-Under the current rule, clearing the proposal pool means one of the following:
-
-- some specific fork is verified and accepted
-- all proposal forks are shown to be unverifiable
-
-This requirement prevents Groth-zkp-based token-vault operations from running against a channel whose Tokamak-zkp state-update proposals are still unresolved.
-
-#### 2.3.5 Incentives and Deferred Token Economics
-
-The current model allows economic consequences around proposal validity:
-
-- a user who proposes an unverifiable fork may be penalized
-- a user who successfully verifies a specific fork may be rewarded
-
-The exact token economics for those penalties and rewards remains deferred.
+Accordingly, the current version of the System does not rely on proposal-pool operation for Tokamak-zkp-based channel updates.
 
 ### 2.4 Provisional Interpretation of `docs/spec.md`
 
@@ -226,7 +202,7 @@ The mathematical model in `docs/spec.md` is currently treated as a structural re
 
 First, the `Bridge Admin Manager` appears to define a control-plane registry. It records which function signatures are supported, which storage addresses they touch, which pre-allocated keys and user storage slots matter, and which proof configuration belongs to each function. Under this reading, the bridge does not treat the L2 application as a black box. It maintains a structured model of which parts of L2 state it is willing to validate.
 
-Second, the `Channel` section appears to define a per-channel state domain. Each channel has a participant set, a supported function set, a derived storage universe, channel-local user storage keys, a validated value table, a history of verified state roots, and a history of proposed roots organized by fork identifier.
+Second, the `Channel` section appears to define a per-channel state domain. Each channel has a participant set, a supported function set, a derived storage universe, channel-local user storage keys, a validated value table, and a history of verified state roots. The spec may also be read as leaving room for a future model with proposed roots organized by fork identifier, but that is no longer treated as part of the current operating design.
 
 Third, the `Bridge Core` appears to lift the per-channel relations into a global channel-scoped namespace. Under this interpretation, the bridge core is a channel aggregator and query surface rather than a separate state-transition model.
 
@@ -259,15 +235,14 @@ The L1 bridge layer is responsible for:
 - verification of Groth-zkp-based token-vault updates
 - channel entry validation
 - deposit acceptance
-- objection handling and dispute-triggered verification
 - withdrawal settlement
 - Tokamak-zkp verifier entrypoints
 - proof verification
 - accepted state-root progression
 - storage of each channel's Merkle-root-vector change history
 - storage of the latest leaves of each channel's current Merkle trees, without retaining past leaves
-- acceptance and storage of proposed Merkle-root-vector updates for each channel
-- proof-based verification of channel update proposals and commitment of the verified Merkle-root-vector update
+- immediate verification of Tokamak-zkp-based channel update requests
+- commitment of a verified Merkle-root-vector update immediately after successful verification
 - final channel closure settlement
 - bridge configuration and emergency controls
 
@@ -276,12 +251,11 @@ More concretely, L1 management of a channel currently means the following:
 1. L1 stores the history of changes to the channel's Merkle-root vector.
 2. L1 stores the latest leaves of the channel's current Merkle trees.
 3. L1 does not store historical leaves once they are no longer current.
-4. L1 accepts and stores proposals to update the channel's Merkle-root vector.
-5. When proof evidence for a proposal is submitted, L1 verifies that evidence.
-6. If the proof verifies successfully, L1 updates the channel's Merkle-root vector according to the proposal.
+4. L1 accepts Tokamak-zkp-based requests to update the channel's Merkle-root vector.
+5. L1 verifies the submitted proof evidence immediately through the channel manager's verifier.
+6. If the proof verifies successfully, L1 updates the channel's Merkle-root vector according to the submitted instance.
 7. L1 manages the channel's token-vault deposit and withdrawal entrypoints.
 8. L1 controls every accepted update to every Merkle tree belonging to the channel.
-9. L1 stores Tokamak-zkp-based state-update proposals in a per-channel proposal pool until some fork is accepted or all forks are shown invalid.
 
 #### 2.5.2 L2 Server and Channel Execution Layer
 
@@ -308,9 +282,9 @@ A distinct proof and coordination layer sits between channel execution and Ether
 - derive or collect the transition witness
 - generate Groth zkp proofs for token-vault control
 - generate Tokamak zkp proofs for channel transaction execution
-- submit state proposals, proofs, and bridge-linked public inputs
-- coordinate objection-triggered verification
-- coordinate verified-state advancement or reversion
+- submit proofs, instances, and bridge-linked public inputs
+- coordinate immediate verification of Tokamak-zkp-based channel updates
+- coordinate verified-state advancement
 
 #### 2.5.4 Leader-Hosted Relay Layer
 
@@ -344,12 +318,11 @@ The channel lifecycle can currently be described as follows.
 
 1. A participant places assets into the Ethereum-side custody path required by the channel or its DeFi application.
 2. The participant may approve and transfer tokens to the selected channel's L1 token vault.
-3. The participant first clears the channel's Tokamak proposal pool by verifying one fork or showing all forks unverifiable.
-4. The participant invokes the channel's `deposit` function on the L1 token vault.
-5. The participant submits a Groth zkp proof and instance for the L2 token-vault tree update.
-6. The channel incorporates that funding event into a new candidate state, including the channel's L2 token-vault or accounting-vault tree.
-7. Until Ethereum verifies that new state, the participant's authoritative asset position remains based on the last verified state.
-8. After verification, the new asset position becomes authoritative on Ethereum.
+3. The participant invokes the channel's `deposit` function on the L1 token vault.
+4. The participant submits a Groth zkp proof and instance for the L2 token-vault tree update.
+5. The channel incorporates that funding event into a new candidate state, including the channel's L2 token-vault or accounting-vault tree.
+6. Until Ethereum verifies that new state, the participant's authoritative asset position remains based on the last verified state.
+7. After verification, the new asset position becomes authoritative on Ethereum.
 
 #### 2.6.4 In-Channel State Transition
 
@@ -357,39 +330,33 @@ The channel lifecycle can currently be described as follows.
 2. Participants coordinate the next channel state on the leader-hosted server.
 3. The system derives the resulting bridge-relevant state transition.
 4. In concrete terms, the transition updates the underlying Merkle-tree state and therefore updates the Merkle-root vector.
-5. A validity proof is generated for the proposed state update.
+5. A validity proof is generated for the candidate state update.
 6. In the transaction-processing path, that proof is a Tokamak zkp proof paired with an instance.
-7. The proposed Merkle-root-vector update is submitted to L1 and stored as a proposal for the channel.
-8. No Merkle-tree update becomes authoritative until L1 accepts the update under its control rules.
-9. The proposed state may be published to Ethereum before it becomes economically final.
-10. The participant asset baseline on Ethereum remains the last verified state until verification occurs.
+7. The user submits the Tokamak zkp proof and instance directly to the channel manager's verifier on L1.
+8. If the proof verifies successfully, L1 immediately updates the channel's Merkle-root vector under its control rules.
+9. The participant asset baseline on Ethereum remains the last verified state until verification occurs.
 
-#### 2.6.5 Objection and Verification
+#### 2.6.5 Immediate Verification and Rejection
 
-1. A proposed channel state appears on Ethereum as a candidate progression.
-2. Another participant or a third party objects to the proposal.
-3. Tokamak zkp proof evidence for the proposed Merkle-root-vector update is submitted to Ethereum.
-4. Ethereum verifies that evidence against the stored proposal.
-5. If the proposal is valid, the channel's Merkle-root vector is updated and becomes the new verified reference point.
-6. Accepted proposals, unselected competing forks, and failed proposals are removed from the proposal pool.
-7. If the proposal is invalid, the channel falls back to the last verifiable state.
+1. A user submits a Tokamak zkp proof and instance for a channel state update.
+2. The channel manager's Tokamak-zkp verifier on L1 checks that proof immediately.
+3. If the proof is valid, the channel's Merkle-root vector is updated and becomes the new verified reference point.
+4. If the proof is invalid, the submitted update is rejected and the channel remains at the previous verified state.
 
 #### 2.6.6 Channel Closure
 
 1. The channel leader closes the channel on Ethereum.
-2. If there are unverified proposed states, the final proposed state is verified at closure.
-3. The last verified state at closure becomes the final channel state.
-4. Settlement rights are derived from that final verified state.
+2. The last verified state at closure becomes the final channel state.
+3. Settlement rights are derived from that final verified state.
 
 #### 2.6.7 Withdrawal
 
 1. A participant requests to move channel-bound funds from the L2 token-vault domain back toward the L1 token vault.
-2. The participant first clears the channel's Tokamak proposal pool by verifying one fork or showing all forks unverifiable.
-3. The participant invokes the channel's `withdraw` function on the L1 token vault.
-4. The participant submits a Groth zkp proof and instance for the L2 token-vault tree update.
-5. The withdrawal entitlement is determined from the last Ethereum-verified state.
-6. The bridge verifies that the claim matches the authoritative verified state.
-7. The bridge releases assets from Ethereum-side custody.
+2. The participant invokes the channel's `withdraw` function on the L1 token vault.
+3. The participant submits a Groth zkp proof and instance for the L2 token-vault tree update.
+4. The withdrawal entitlement is determined from the last Ethereum-verified state.
+5. The bridge verifies that the claim matches the authoritative verified state.
+6. The bridge releases assets from Ethereum-side custody.
 
 ### 2.7 State Categories and Invariants
 
@@ -399,7 +366,7 @@ The exact state model remains open, but the system currently needs to track at l
 - channel leaders
 - channel participant sets
 - channel app identifiers or preset DApp templates
-- channel status across creation, operation, objection, and closure
+- channel status across creation, operation, verification, and closure
 - canonical L1 custody balances
 - per-channel L1 token vault balances
 - verified channel asset balances
@@ -409,13 +376,9 @@ The exact state model remains open, but the system currently needs to track at l
 - the dedicated Merkle tree for each channel's L2 token vault or L2 accounting vault
 - the latest stored leaves of each channel's current Merkle trees
 - accepted Merkle-root vectors
-- proposed Merkle-root vectors
 - per-channel history of Merkle-root-vector changes
-- per-channel stored update proposals
-- per-channel Tokamak-zkp proposal pools and forks
 - Groth zkp instances for vault updates
-- Tokamak zkp instances for channel transaction proposals
-- objection records
+- Tokamak zkp instances for channel transaction updates
 - verified checkpoint history
 - deposit records or commitments
 - withdrawal claims or nullifiers
@@ -426,7 +389,7 @@ The exact state model remains open, but the system currently needs to track at l
 The current invariants are:
 
 - no asset leaves L1 custody without a bridge-authorized settlement path
-- no proposed state becomes economically authoritative on Ethereum without proof verification
+- no candidate state becomes economically authoritative on Ethereum without proof verification
 - deposit and withdrawal accounting must remain conservation-safe across layers
 - each channel must have its own L1 token vault managed by the bridge
 - each channel must have exactly one dedicated L2 vault tree inside its L2 state
@@ -435,14 +398,12 @@ The current invariants are:
 - every channel Merkle-tree update must remain under L1 control
 - every L2 vault-tree update must remain under L1 control
 - every deposit or withdrawal must be backed by a valid Groth zkp proof and instance
-- every channel transaction proposal must be backed by a Tokamak zkp proof and instance
+- every channel transaction update must be backed by a Tokamak zkp proof and instance
 - L1 must preserve the history of Merkle-root-vector changes for each channel
 - L1 must store the latest leaves of each current channel tree while not retaining obsolete historical leaves
-- no channel update proposal becomes authoritative until its submitted proof evidence is verified by L1
-- deposit and withdrawal must not proceed while the channel's Tokamak proposal pool remains uncleared
+- no channel update becomes authoritative until its submitted Tokamak zkp evidence is verified by L1
 - opening a channel or entering a channel must not become final until Ethereum verifies the resulting new state
-- a failed proposal must not corrupt the last verifiable state
-- reversion after failed verification must return the channel to the last verifiable state
+- a failed Tokamak zkp submission must not corrupt the last verifiable state
 - a channel failure must remain isolated from other channels
 - the leader must not gain unilateral control over participant assets merely by hosting the relay server or publishing transactions
 - state-root progression must be well-defined and non-ambiguous
@@ -476,9 +437,15 @@ The following record is kept so that later revisions can identify which parts of
 - Every Merkle-tree update in a channel, including updates to the L2 token-vault or accounting-vault tree, is under L1 control.
 - The System uses Groth zkp for token-vault control and Tokamak zkp for L2 channel transaction processing.
 - Groth zkp proofs directly drive deposit and withdrawal updates on the L2 token-vault tree and the channel Merkle-root vector.
-- Tokamak zkp proofs are stored first as channel state-update proposals, may accumulate into forks, and become official only after later verification.
-- Deposit and withdrawal are blocked until the corresponding channel's Tokamak proposal pool is cleared.
-- Proposal penalties and verification rewards may exist, but the token economics is not yet specified.
+- In the current version, Tokamak zkp proofs are submitted directly to each channel manager's verifier on L1, and successful verification immediately updates the channel Merkle-root vector.
+- Proposal-pool operation, fork management, and token-economics-driven rewards or penalties are deferred to future work.
+
+#### 2.8.2 2026-03-18
+
+- The current version does not operate a channel state-update proposal pool.
+- A channel user submits Tokamak zkp directly to the Tokamak-zkp verifier of the relevant channel manager on L1.
+- If the submitted Tokamak zkp verifies successfully, the channel's Merkle-root vector is updated immediately.
+- Proposal-pool operation, fork handling, rewards, penalties, and tokenomics are deferred to future work.
 
 ## 3. Conclusion
 
@@ -486,7 +453,7 @@ The following record is kept so that later revisions can identify which parts of
 
 At the current stage, Tokamak Private App Channels are best understood as a System with two top-level parts: bridge contracts deployed on Ethereum and an L2 server with independent state. Within that System, the L1 bridge contracts manage multiple L2 instances, and each such L2 instance is called a channel. L2 itself is treated as a state machine whose concrete state is realized by one or more Merkle trees, so each authoritative checkpoint is represented by a Merkle-root vector. Each channel is app-specific, each channel has its own participant set and designated leader, and each channel has an independent state domain, but the authoritative update of every channel Merkle tree remains under L1 control.
 
-The most important current conclusion is that the bridge must distinguish operational state from economically authoritative state. Proposed state may drive activity inside the channel, but verified state alone determines the asset position that Ethereum recognizes. This distinction governs channel entry, DeFi safety, dispute handling, channel closure, and withdrawal.
+The most important current conclusion is that the bridge must distinguish operational state from economically authoritative state. Channel execution may be prepared off-chain, but verified state alone determines the asset position that Ethereum recognizes. This distinction governs channel entry, DeFi safety, verification, channel closure, and withdrawal.
 
 The second major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
 
@@ -494,15 +461,14 @@ The second major conclusion is that the leader should be modeled as an operation
 
 The following questions remain open and will need to be resolved in later revisions:
 
-- the exact rights and limits of third-party objections
 - the exact proof-submission timing model
 - the exact operating principles of the `deposit` and `withdraw` functions
 - whether the phrase `L2 token vault` should be interpreted as real L2 token custody or as an accounting-vault abstraction inside the L2 state machine
 - the exact operational meaning of the phrase "last verifiable state"
 - the exact withdrawal authorization model
 - the exact relation between provisional in-channel execution and verified Ethereum state
-- whether clearing the entire Tokamak proposal pool before every deposit or withdrawal creates a griefing or liveness bottleneck
-- whether deposit and withdrawal should instead be gated only by the subset of unresolved proposals that can affect the vault tree or the relevant verified checkpoint
+- the exact future design of proposal-pool operation, if the protocol later reintroduces delayed Tokamak-zkp verification
+- the exact tokenomics required to support future proposal-pool operation, fork resolution, penalties, and rewards
 - the exact Ethereum scalability cost of storing the latest leaves for many channels on L1
 - the exact data-availability assumptions
 - the exact failure and recovery model
@@ -515,19 +481,18 @@ The following decisions are stable enough to be treated as the current working p
 - The L1 bridge contracts manage multiple L2 instances, each of which is called a channel.
 - L2 is a state machine whose concrete state is represented by a vector of Merkle roots derived from one or more Merkle trees.
 - Tokamak Private App Channels are treated as autonomous private Layer 2 channels created, operated, and closed on Ethereum.
-- L1 management of a channel includes storing Merkle-root-vector change history, storing only the latest leaves of the current Merkle trees, storing update proposals, and committing proposed updates only after proof verification.
+- L1 management of a channel includes storing Merkle-root-vector change history, storing only the latest leaves of the current Merkle trees, immediately verifying submitted Tokamak zkp updates, and committing verified updates.
 - Each channel has its own L1 token vault managed by the bridge.
 - Each channel's L2 state includes exactly one dedicated Merkle tree for an L2 token vault or accounting vault.
 - Users may use the channel's L1 token vault to approve, transfer, deposit, and withdraw tokens, while the exact deposit/withdraw logic remains to be specified.
 - Every Merkle-tree update in a channel, including every L2 vault-tree update, is under L1 control.
 - The System uses Groth zkp for token-vault control and Tokamak zkp for channel transaction processing.
 - Groth zkp proofs directly authorize deposit and withdrawal updates on the L2 token-vault tree and on the channel Merkle-root vector.
-- Tokamak zkp proofs are stored first as per-channel proposals, may accumulate into forks, and become authoritative only after later L1 verification.
-- Deposit and withdrawal are currently blocked until the corresponding channel's Tokamak proposal pool is cleared, although the liveness cost of that rule remains open.
+- Tokamak zkp proofs are submitted directly to each channel manager's verifier on L1, and successful verification immediately updates the channel Merkle-root vector.
+- Proposal-pool operation, fork handling, and tokenomics-linked incentives are not part of the current version and remain future work.
 - Each channel is app-specific and uses a preset DApp surface.
 - Each channel has a designated leader responsible for publication, relay-server operation, and closure.
 - The leader is an operational coordinator, not the unilateral owner of participant assets or state authority.
-- Proposed states may exist before verification, but only Ethereum-verified states are economically authoritative.
-- If a proposal is challenged and fails verification, the channel reverts to the last verifiable state.
-- If proposals continue without objection until closure, the final proposed state is verified at closure and the last verified state becomes final.
+- Off-chain candidate execution may exist before verification, but only Ethereum-verified states are economically authoritative.
+- If a Tokamak zkp submission fails verification, the channel remains at the last verified state.
 - For DeFi channels, user funds on Ethereum are determined only by the last verified state until a newer state is verified.

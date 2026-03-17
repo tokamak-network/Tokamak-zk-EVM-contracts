@@ -52,12 +52,98 @@ The document separates:
 The following assumptions are currently treated as the baseline unless later inputs explicitly revise them:
 
 - L1 is the canonical settlement and custody domain.
-- L2 is primarily an execution and accounting domain.
+- L2 is realized as a set of autonomous private channels created, operated, and closed on Ethereum.
 - Bridge acceptance must be proof-gated rather than trust-gated.
 - Public outputs should reveal commitments and state transitions, not full private execution details.
 - The architecture should remain compatible with zk-oriented execution constraints.
 - `docs/spec.md` is currently an important source of structure and constraints, but it is not treated as immutable truth.
 - Future user instructions may refine, replace, or override any provisional interpretation derived from `docs/spec.md`.
+- Each channel is app-specific and is created with a preset DApp surface intended for that channel.
+- A channel failure must remain isolated from other channels.
+- A channel's economic state on Ethereum changes only when Ethereum verifies the relevant new state.
+
+## Higher-Priority User-Provided Channel Model
+
+This section captures the current highest-priority architectural direction provided directly by the user. Where it differs from the earlier spec-derived reading, this section should take precedence.
+
+### Channel as the fundamental Layer 2 unit
+
+Tokamak Private App Channels are currently understood as autonomous Layer 2 channels that participants create, operate, and close on Ethereum.
+
+Implications:
+
+- the system is multi-channel, not one monolithic shared Layer 2 instance
+- each channel operates independently
+- a failure in one channel must not compromise unrelated channels
+- the number of simultaneously active channels is constrained by Ethereum scalability rather than by a single global channel design
+- each channel may have a different lifetime and scale depending on its use case
+
+### Privacy model
+
+Each channel is private through zero-knowledge proofs.
+
+Current interpretation:
+
+- channel transactions are not revealed outside the channel
+- Ethereum can validate channel state transitions without learning the private transaction contents
+- Ethereum validators are not expected to see the underlying channel transactions
+
+### Channel formation and participant roles
+
+Channels are created by a group of users. One participant is designated as the channel leader.
+
+Current leader responsibilities:
+
+- publish channel creation on Ethereum
+- provide the relay server used for channel data exchange
+- close the channel on Ethereum
+
+Current participant model:
+
+- all participants, including the leader, contribute equally to channel operations
+- the leader is an operational coordinator, not the owner of the channel state
+- the channel state machine is produced collaboratively by participants, even if coordination is hosted on the leader's server
+
+### State-machine model
+
+Each channel behaves as an application-specific state machine, analogous in spirit to Ethereum's own state-transition model.
+
+Current interpretation:
+
+- participants generate channel state transitions on the leader-hosted server
+- the resulting state transitions are intended to be validated on Ethereum with zero-knowledge proofs
+- channel state proposals may exist before Ethereum has fully verified them
+- the economically authoritative state remains the last Ethereum-verified state
+
+### Proposal, objection, and finalization model
+
+Participants may propose new channel states to Ethereum together with validity proofs.
+
+Current dispute flow:
+
+1. A participant proposes a new channel state and its corresponding validity proof to Ethereum.
+2. Other participants or third parties may object to the proposal.
+3. If an objection is raised, Ethereum verifies the last proposed channel state.
+4. If that verification fails, the channel reverts to the last verifiable state.
+5. If proposals continue without objection until closure, the final proposed state is verified at channel closure.
+6. The last verified state at closure becomes the final channel state.
+
+This implies a distinction between:
+
+- proposed channel state, which may be live for channel operations
+- verified channel state, which is the only state that is economically authoritative on Ethereum
+
+### DeFi safety model
+
+If a channel is used to run a DeFi application, the assets of all participants, including the leader, must remain protected by the zero-knowledge proof protocol.
+
+Current asset rules:
+
+- when a user opens a channel or enters an existing channel, the validity of the new state must be verified by Ethereum
+- a participant may later move channel-bound funds back to Ethereum using the last Ethereum-verified state
+- if a newly proposed channel state has not been verified by Ethereum, that proposal must not change the participant's authoritative channel asset position on Ethereum
+
+This is a stronger statement than simple eventual settlement. It means channel execution may advance provisionally, but participant asset changes are not recognized by Ethereum until the relevant state is verified.
 
 ## Provisional Interpretation of `docs/spec.md`
 
@@ -263,19 +349,25 @@ This is the best current interpretation of the spec, but it should remain easy t
 
 Responsible for:
 
+- channel creation registration
 - canonical asset custody
+- channel entry validation
 - deposit acceptance
+- objection handling and dispute-triggered verification
 - withdrawal settlement
 - proof verification
 - accepted state-root progression
+- final channel closure settlement
 - bridge configuration and emergency controls
 
 ### 2. L2 Execution and Accounting Layer
 
 Responsible for:
 
-- user-level execution
-- private or reduced-disclosure transaction handling
+- app-specific channel execution
+- private transaction handling inside each channel
+- participant-driven state transition generation
+- provisional state progression between verified checkpoints
 - bridge-relevant accounting transitions
 - production of the state transition witness for proof generation
 
@@ -285,67 +377,136 @@ Responsible for:
 
 - collecting or deriving the transition witness
 - generating proofs
-- submitting proofs and bridge-linked public inputs
-- coordinating state-root advancement
+- submitting state proposals, proofs, and bridge-linked public inputs
+- coordinating objections and verification triggers
+- coordinating verified-state advancement and reversion when needed
+
+### 4. Leader-Hosted Relay Layer
+
+Responsible for:
+
+- relaying channel data among participants
+- hosting the operational server used for channel coordination
+- helping participants assemble candidate state transitions
+
+Operational constraint:
+
+- this layer coordinates the channel but must not be trusted with unilateral authority over participant assets
 
 ## Core Lifecycle Flows
 
-### Deposit Flow
+### Channel Creation Flow
 
-Initial placeholder:
+Current draft:
 
-1. User deposits assets into the L1 bridge custody domain.
-2. The bridge records the deposit event or commitment.
-3. The L2 side incorporates the deposit into the next valid accounting transition.
-4. The bridge accepts the updated L2-related state only after proof verification.
+1. A group of participants agrees to form an app-specific private channel.
+2. One participant is designated as the channel leader.
+3. The leader publishes the channel creation on Ethereum.
+4. The channel is associated with its preset DApp surface and initial participant set.
+5. The initial channel state becomes usable only after the relevant new state is validated by Ethereum.
+
+### Channel Entry Flow
+
+Current draft:
+
+1. A user opens a channel or joins an existing one through a state change.
+2. The resulting new channel state is submitted to Ethereum for validation.
+3. The user is considered safely inside the channel only after Ethereum verifies that new state.
+
+### Deposit and Funding Flow
+
+Current draft:
+
+1. A participant places assets into the Ethereum-side custody path required by the channel or its DeFi app.
+2. The channel incorporates that funding event into a new candidate state.
+3. Until Ethereum verifies that new state, the participant's authoritative asset position remains based on the last verified state.
+4. After verification, the new asset position becomes authoritative on Ethereum.
 
 ### L2 State Transition Flow
 
-Initial placeholder:
+Current draft:
 
 1. Users execute L2 actions.
-2. The system derives the resulting bridge-relevant state transition.
-3. A proof is generated for the transition.
-4. The bridge verifies the proof and advances the accepted state root.
+2. Participants coordinate the next channel state on the leader-hosted server.
+3. The system derives the resulting bridge-relevant state transition.
+4. A validity proof is generated for the proposed state.
+5. The proposed state may be published to Ethereum before it becomes economically final.
+6. The participant asset baseline on Ethereum remains the last verified state until verification occurs.
+
+### Objection and Verification Flow
+
+Current draft:
+
+1. A proposed channel state is visible to Ethereum as a candidate progression.
+2. Another participant or a third party objects to that proposal.
+3. Ethereum verifies the last proposed channel state.
+4. If the proposal is valid, it becomes the new verified reference point.
+5. If the proposal is invalid, the channel falls back to the last verifiable state.
+
+### Channel Closure Flow
+
+Current draft:
+
+1. The channel leader closes the channel on Ethereum.
+2. If there are unverified proposed states, the final proposed state is verified at closure.
+3. The last verified state at closure becomes the final channel state.
+4. Settlement rights are derived from that final verified state.
 
 ### Withdrawal Flow
 
-Initial placeholder:
+Current draft:
 
-1. The user obtains a valid withdrawal entitlement from the accepted L2 state.
-2. The withdrawal claim is submitted to the L1 bridge.
-3. The bridge verifies that the claim is authorized by the accepted state and protocol rules.
-4. The bridge releases the canonical assets from L1 custody.
+1. A participant requests to move channel-bound funds back to Ethereum.
+2. The withdrawal entitlement is determined from the last Ethereum-verified state.
+3. The bridge verifies that the claim matches the authoritative verified state.
+4. The bridge releases assets from Ethereum-side custody.
 
 ## State Model
 
 The exact state model is still open, but the document will track at least the following categories:
 
+- channel definitions
+- channel leaders
+- channel participant sets
+- channel app identifiers or preset DApp templates
+- channel status across creation, operation, objection, and closure
 - canonical L1 custody balances
+- verified channel asset balances
+- provisional channel asset balances
 - L2 accounting balances
 - accepted state roots
 - proposed state roots
+- objection records
+- verified checkpoint history
 - deposit records or commitments
 - withdrawal claims or nullifiers
+- relay-server and coordination metadata
 - operator or prover configuration
 - emergency or governance controls
 
 ## Security and Correctness Invariants
 
-These are the initial invariants that should remain visible throughout the design process:
+These are the current invariants that should remain visible throughout the design process:
 
 - No asset leaves L1 custody without a bridge-authorized settlement path.
-- No L2 balance transition becomes canonical for bridge purposes without proof verification.
+- No proposed state becomes economically authoritative on Ethereum without proof verification.
 - Deposit and withdrawal accounting must remain conservation-safe across layers.
+- Opening a channel or entering a channel must not become final until Ethereum verifies the resulting new state.
+- A failed proposal must not corrupt the last verifiable state.
+- Reversion after failed verification must return the channel to the last verifiable state.
+- A channel failure must remain isolated from other channels.
+- The leader must not gain unilateral control over participant assets merely by hosting the relay server or publishing transactions.
 - State-root progression must be well-defined and non-ambiguous.
 - Replay of already-consumed bridge actions must be impossible or explicitly prevented.
 - Administrative powers must be explicit, minimal, and justified.
 
 ## Open Questions
 
-- The exact trust and operator model is not defined yet.
-- The exact batching and proof-submission model is not defined yet.
+- The exact rights and limits of third-party objections are not defined yet.
+- The exact proof-submission timing model is not defined yet.
+- The exact meaning of "last verifiable state" in operational terms is not defined yet.
 - The exact withdrawal authorization model is not defined yet.
+- The exact relation between provisional in-channel execution and verified Ethereum state is not fully formalized yet.
 - The exact data-availability assumptions are not defined yet.
 - The exact failure and recovery model is not defined yet.
 
@@ -353,7 +514,16 @@ These are the initial invariants that should remain visible throughout the desig
 
 This section will record finalized architectural decisions once they become stable.
 
-Currently no finalized bridge-specific decisions have been recorded in this working note.
+Current working decisions:
+
+- Tokamak Private App Channels are treated as autonomous private Layer 2 channels created, operated, and closed on Ethereum.
+- Each channel is app-specific and uses a preset DApp surface.
+- Each channel has a designated leader responsible for publication, relay-server operation, and closure.
+- The leader is an operational coordinator, not the unilateral owner of participant assets or state authority.
+- Proposed states may exist before verification, but only Ethereum-verified states are economically authoritative.
+- If a proposal is challenged and fails verification, the channel reverts to the last verifiable state.
+- If proposals continue without objection until closure, the final proposed state is verified at closure and the last verified state becomes final.
+- For DeFi channels, user funds on Ethereum are determined only by the last verified state until a newer state is verified.
 
 ## Input Log
 
@@ -363,3 +533,10 @@ Currently no finalized bridge-specific decisions have been recorded in this work
 - The documentation process will be incremental and should absorb spontaneous design ideas while maintaining a coherent system structure.
 - The current task is to read `docs/spec.md`, understand its definitions and constraints, and translate them into a rough Layer 2 system structure in English.
 - The structure derived from `docs/spec.md` is provisional and may be overridden by future user instructions.
+- Tokamak Private App Channels are autonomous Layer 2 channels created, operated, and closed by participants on Ethereum.
+- Channels are independent from one another, app-specific, private through zero-knowledge proofs, and may differ in lifetime and scale.
+- One participant acts as channel leader and is responsible for channel publication, relay-server operation, and channel closure on Ethereum.
+- Channel state transitions are generated by participants on the leader's server and can be proposed to Ethereum with validity proofs.
+- Other participants or third parties may object to a proposed state; upon objection, Ethereum verifies the proposal and reverts to the last verifiable state if verification fails.
+- If proposals continue without objection until closure, the final proposed state is verified at closure and the last verified state becomes final.
+- For DeFi channels, participant assets are protected by the proof protocol, channel entry or opening requires Ethereum verification of the resulting new state, and channel asset balances on Ethereum change only when the new state is verified.

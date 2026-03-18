@@ -249,6 +249,7 @@ Required rules:
 - `previous_state_snapshot.json` and config `registeredKeys` must contain only storage keys that exist in the actual state before the transaction runs.
 - Do not pre-register future write targets just because the tested transaction will touch them.
 - Apply the same rule to L2 vault balance mappings. Only register a balance key if that exact account slot already exists in pre-state.
+- A fixed structural slot that is always present for the contract, such as controller slot `0x00` when the execution model depends on it as a permanent base key, may remain registered.
 - Do not patch configs by replaying once, collecting unregistered-storage warnings, and feeding those keys back into the snapshot as if they were part of pre-state.
 - If a transaction needs access to a key that is absent from real pre-state, treat that as a modeling issue to solve in the execution layer, not as a reason to falsify the pre-state snapshot.
 

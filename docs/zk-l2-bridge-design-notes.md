@@ -357,6 +357,22 @@ When these two properties are composed, the System can provide a much stronger p
 
 However, the phrase `complete privacy` should still be treated cautiously. Even with a private-state DApp, metadata such as timing, note linkage patterns, participant behavior, or channel-operator visibility may still leak information unless the DApp and the surrounding protocol explicitly address those channels as well.
 
+#### 2.3.7 Working Definition of Complete Privacy
+
+For the purpose of this document, `complete privacy` is defined narrowly as a two-criterion standard at the application-state level:
+
+1. `Transaction-content privacy`: observers who do not possess the original transaction cannot recover the user-level transaction content from what is published to Ethereum.
+2. `State-semantic privacy`: observers who can inspect the DApp state cannot directly reconstruct the user-level meaning of state changes from the visible state data alone.
+
+This is intentionally a working definition rather than a universal one. It does not claim to cover every possible metadata leak, such as timing, access patterns, note-linkage heuristics, or operator-side observation. Those broader leaks remain a separate privacy category outside this narrow definition.
+
+Under this working definition, the current privacy picture is concise:
+
+- `System alone` achieves transaction-content privacy, because the original transaction is hidden from Ethereum-side observers, but it does not achieve state-semantic privacy, because a channel operator may still infer user actions from visible state changes.
+- `System + private-state DApp` achieves transaction-content privacy and state-semantic privacy together, because the System hides the original transaction while the private-state DApp hides the user-level meaning of the stored state.
+
+Therefore, under this document's narrow working definition, `System + private-state DApp` achieves complete privacy, while `System alone` does not.
+
 ### 2.4 Provisional Interpretation of `docs/spec.md`
 
 The mathematical model in `docs/spec.md` is currently treated as a structural reference rather than as final protocol truth. The present reading is that the spec describes a bridge-facing model with three major layers.
@@ -655,6 +671,8 @@ The following record is kept so that later revisions can identify which parts of
 - The System provides baseline privacy by hiding the original transaction from L1 observers, but that alone does not prevent channel operators from inferring user actions from state changes.
 - Stronger privacy requires a private-state DApp design, such as a zk-note model in which storage contains note commitments rather than explicit user balances.
 - In the zk-note example, transfer is modeled as spending input notes and creating new output notes, so state observers without the original transaction can see commitments but not the clear transfer record.
+- Under the document's working definition, complete privacy means satisfying both transaction-content privacy and state-semantic privacy.
+- Under that working definition, the System alone satisfies only transaction-content privacy, while `System + private-state DApp` satisfies both criteria.
 
 ## 3. Conclusion
 
@@ -668,11 +686,13 @@ The second major conclusion is that token-vault authorization now depends not on
 
 The third major conclusion is that the System changes the approval condition of DApp state transitions. In an ordinary L1-native DApp, Ethereum validators approve updates by re-executing transactions. In the System, validators approve updates by verifying zero-knowledge proofs, while the original transaction may remain private.
 
-The fourth major conclusion is that System-level privacy and DApp-level private-state design are complementary rather than interchangeable. The System can hide original transactions from L1 observers, but if the DApp state itself is semantically transparent, a channel operator may still infer user actions from state changes. Stronger privacy therefore depends on a private-state DApp design such as a zk-note model.
+The fourth major conclusion is that this document now uses a narrow working definition of complete privacy. Under that definition, complete privacy means satisfying both transaction-content privacy and state-semantic privacy. The System alone satisfies only the first criterion, while the System combined with a private-state DApp satisfies both.
 
-The fifth major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, channel instance, function instance, and function preprocess. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
+The fifth major conclusion is that System-level privacy and DApp-level private-state design are complementary rather than interchangeable. The System can hide original transactions from L1 observers, but if the DApp state itself is semantically transparent, a channel operator may still infer user actions from state changes. Stronger privacy therefore depends on a private-state DApp design such as a zk-note model.
 
-The sixth major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
+The sixth major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, channel instance, function instance, and function preprocess. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
+
+The seventh major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
 
 ### 3.2 Open Questions and Remaining Work
 
@@ -687,6 +707,7 @@ The following questions remain open and will need to be resolved in later revisi
 - the exact recovery, migration, or rotation policy if a user loses access to an immutable registered L2 token-vault key
 - the exact storage and lookup design for enforcing global uniqueness of all registered L2 token-vault keys
 - whether channel operators alone are sufficient as practical data providers for state reconstruction, or whether the System needs stronger data-availability guarantees
+- whether the document's narrow definition of complete privacy should remain limited to transaction content and state semantics, or be expanded to include metadata privacy
 - the exact residual privacy leakage that may remain even in a private-state DApp, including metadata, timing, note-linkage, and operator-observation channels
 - whether a channel manager's inherited contract-and-function subset is immutable after channel creation or can be versioned later
 - the exact lifecycle and governance process for updating channel instances, function instances, and function preprocess data

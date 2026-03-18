@@ -44,6 +44,9 @@ const DEFAULT_PARTICIPANT_COUNT = 4;
 const FIXED_MINT_TO_ACCOUNT = 0;
 const FIXED_REDEEM_TO_ACCOUNT = 0;
 const FIXED_PREV_BLOCK_HASH_COUNT = 4;
+const DEFAULT_RANDOM_SAMPLE_COUNT = 6;
+const DEFAULT_RANDOM_SEED = 'private-state-synth-compat';
+const DEFAULT_EXTRA_COMMITMENT_LIMIT = 3;
 
 type ParticipantEntry = {
   addressL1: `0x${string}`;
@@ -83,6 +86,11 @@ type CliInputBundle = {
   transactionRlp: `0x${string}`;
 };
 
+type CliInputOverrides = {
+  transactionNonce?: bigint;
+  blockInfo?: SynthesizerBlockInfo;
+};
+
 type SynthesizerBlockInfo = {
   coinBase: `0x${string}`;
   timeStamp: `0x${string}`;
@@ -103,7 +111,7 @@ type TestResultSnapshot = {
 type TestSpec = {
   functionName: string;
   family: 'mint' | 'transfer' | 'redeem';
-  buildVariants: (fromAccountIndex: number) => Array<{
+  buildVariants: (fromAccountIndex: number, sampleCount: number, seedLabel: string) => Array<{
     variantName: string;
     generatorArgs: string[];
   }>;
@@ -111,13 +119,54 @@ type TestSpec = {
 
 const buildUniqueAccountSet = (values: number[]): number[] => Array.from(new Set(values));
 
+const hashStringToUint32 = (value: string): number => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const createPrng = (seedLabel: string): (() => number) => {
+  let state = hashStringToUint32(seedLabel) || 1;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 0x100000000;
+  };
+};
+
+const randomInteger = (prng: () => number, maxExclusive: number): number => Math.floor(prng() * maxExclusive);
+
+const randomHexWord = (prng: () => number): `0x${string}` => {
+  let hex = '0x';
+  for (let index = 0; index < 8; index += 1) {
+    hex += randomInteger(prng, 0x100000000).toString(16).padStart(8, '0');
+  }
+  return hex as `0x${string}`;
+};
+
+const randomPermutation = (prng: () => number, values: number[]): number[] => {
+  const next = [...values];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInteger(prng, index + 1);
+    [next[index], next[swapIndex]] = [next[swapIndex]!, next[index]!];
+  }
+  return next;
+};
+
+const randomSubset = (
+  prng: () => number,
+  values: number[],
+  maxSize: number,
+): number[] => randomPermutation(prng, values).slice(0, randomInteger(prng, Math.min(maxSize, values.length) + 1));
+
 const mintSpec = (outputs: 1 | 2 | 3 | 4 | 5 | 6): TestSpec => ({
   functionName: `mintNotes${outputs}`,
   family: 'mint',
-  buildVariants: (fromAccountIndex) => {
-    const altToAccount = (fromAccountIndex + 1) % DEFAULT_PARTICIPANT_COUNT;
-    const extraBalanceOne = (fromAccountIndex + 2) % DEFAULT_PARTICIPANT_COUNT;
-    const extraBalanceTwo = (fromAccountIndex + 3) % DEFAULT_PARTICIPANT_COUNT;
+  buildVariants: (fromAccountIndex, sampleCount, seedLabel) => {
     const baseArgs = [
       '--participants',
       String(DEFAULT_PARTICIPANT_COUNT),
@@ -126,36 +175,34 @@ const mintSpec = (outputs: 1 | 2 | 3 | 4 | 5 | 6): TestSpec => ({
       '--outputs',
       String(outputs),
     ];
-    return [
+    const variants: Array<{ variantName: string; generatorArgs: string[] }> = [
       {
-        variantName: 'base',
+        variantName: 'baseline',
         generatorArgs: [...baseArgs, '--note-owner', String(FIXED_MINT_TO_ACCOUNT)],
       },
-      {
-        variantName: 'to-account-variant',
-        generatorArgs: [...baseArgs, '--note-owner', String(altToAccount)],
-      },
-      {
-        variantName: 'extra-balance-keys',
-        generatorArgs: [
-          ...baseArgs,
-          '--note-owner',
-          String(altToAccount),
-          '--extra-balance-accounts',
-          buildUniqueAccountSet([extraBalanceOne, extraBalanceTwo]).join(','),
-        ],
-      },
     ];
+    const accountIndices = Array.from({ length: DEFAULT_PARTICIPANT_COUNT }, (_, index) => index);
+    for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+      const prng = createPrng(`${seedLabel}:${outputs}:mint:${fromAccountIndex}:${sampleIndex}`);
+      const toAccount = accountIndices[randomInteger(prng, accountIndices.length)] ?? FIXED_MINT_TO_ACCOUNT;
+      const extraBalanceAccounts = randomSubset(prng, accountIndices, accountIndices.length);
+      const generatorArgs = [...baseArgs, '--note-owner', String(toAccount)];
+      if (extraBalanceAccounts.length > 0) {
+        generatorArgs.push('--extra-balance-accounts', buildUniqueAccountSet(extraBalanceAccounts).join(','));
+      }
+      variants.push({
+        variantName: `sample-${String(sampleIndex).padStart(2, '0')}`,
+        generatorArgs,
+      });
+    }
+    return variants;
   },
 });
 
 const transferSpec = (inputs: 1 | 2 | 3 | 4, outputs: 1 | 2 | 3): TestSpec => ({
   functionName: `transferNotes${inputs}To${outputs}`,
   family: 'transfer',
-  buildVariants: (fromAccountIndex) => {
-    const nextAccount = (fromAccountIndex + 1) % DEFAULT_PARTICIPANT_COUNT;
-    const altAccount = (fromAccountIndex + 2) % DEFAULT_PARTICIPANT_COUNT;
-    const thirdAccount = (fromAccountIndex + 3) % DEFAULT_PARTICIPANT_COUNT;
+  buildVariants: (fromAccountIndex, sampleCount, seedLabel) => {
     const baseArgs = [
       '--participants',
       String(DEFAULT_PARTICIPANT_COUNT),
@@ -166,41 +213,46 @@ const transferSpec = (inputs: 1 | 2 | 3 | 4, outputs: 1 | 2 | 3): TestSpec => ({
       '--outputs',
       String(outputs),
     ];
-    const altToAccounts = outputs === 1
-      ? [altAccount]
-      : outputs === 2
-        ? [altAccount, thirdAccount]
-        : [altAccount, thirdAccount, nextAccount];
-    return [
+    const variants: Array<{ variantName: string; generatorArgs: string[] }> = [
       {
-        variantName: 'base',
+        variantName: 'baseline',
         generatorArgs: baseArgs,
       },
-      {
-        variantName: 'to-account-variant',
-        generatorArgs: [...baseArgs, '--to-accounts', altToAccounts.join(',')],
-      },
-      {
-        variantName: 'extra-commitments',
-        generatorArgs: [
-          ...baseArgs,
-          '--to-accounts',
-          altToAccounts.join(','),
-          '--extra-commitments',
-          '2',
-        ],
-      },
     ];
+    const accountIndices = Array.from({ length: DEFAULT_PARTICIPANT_COUNT }, (_, index) => index);
+    for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+      const prng = createPrng(`${seedLabel}:${inputs}:${outputs}:transfer:${fromAccountIndex}:${sampleIndex}`);
+      const isSelfTargetSample = sampleIndex === 0;
+      const toAccounts = isSelfTargetSample
+        ? Array.from({ length: outputs }, () => fromAccountIndex)
+        : randomPermutation(prng, accountIndices).slice(0, outputs);
+      const extraCommitments = randomInteger(prng, DEFAULT_EXTRA_COMMITMENT_LIMIT + 1);
+      const generatorArgs = [
+        ...baseArgs,
+        '--to-accounts',
+        toAccounts.join(','),
+        '--extra-commitments',
+        String(extraCommitments),
+        '--salt-label',
+        isSelfTargetSample
+          ? `self-${fromAccountIndex}-${sampleIndex}`
+          : `sample-${fromAccountIndex}-${sampleIndex}-${randomInteger(prng, 1_000_000)}`,
+      ];
+      variants.push({
+        variantName: isSelfTargetSample
+          ? `sample-${String(sampleIndex).padStart(2, '0')}-self-transfer`
+          : `sample-${String(sampleIndex).padStart(2, '0')}`,
+        generatorArgs,
+      });
+    }
+    return variants;
   },
 });
 
 const redeemSpec = (inputs: 1 | 2 | 3 | 4): TestSpec => ({
   functionName: `redeemNotes${inputs}`,
   family: 'redeem',
-  buildVariants: (fromAccountIndex) => {
-    const altToAccount = (fromAccountIndex + 1) % DEFAULT_PARTICIPANT_COUNT;
-    const extraBalanceOne = (fromAccountIndex + 2) % DEFAULT_PARTICIPANT_COUNT;
-    const extraBalanceTwo = (fromAccountIndex + 3) % DEFAULT_PARTICIPANT_COUNT;
+  buildVariants: (fromAccountIndex, sampleCount, seedLabel) => {
     const baseArgs = [
       '--participants',
       String(DEFAULT_PARTICIPANT_COUNT),
@@ -209,26 +261,30 @@ const redeemSpec = (inputs: 1 | 2 | 3 | 4): TestSpec => ({
       '--inputs',
       String(inputs),
     ];
-    return [
+    const variants: Array<{ variantName: string; generatorArgs: string[] }> = [
       {
-        variantName: 'base',
+        variantName: 'baseline',
         generatorArgs: [...baseArgs, '--receiver', String(FIXED_REDEEM_TO_ACCOUNT)],
       },
-      {
-        variantName: 'to-account-variant',
-        generatorArgs: [...baseArgs, '--receiver', String(altToAccount)],
-      },
-      {
-        variantName: 'extra-balance-keys',
-        generatorArgs: [
-          ...baseArgs,
-          '--receiver',
-          String(altToAccount),
-          '--extra-balance-accounts',
-          buildUniqueAccountSet([altToAccount, extraBalanceOne, extraBalanceTwo]).join(','),
-        ],
-      },
     ];
+    const accountIndices = Array.from({ length: DEFAULT_PARTICIPANT_COUNT }, (_, index) => index);
+    for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+      const prng = createPrng(`${seedLabel}:${inputs}:redeem:${fromAccountIndex}:${sampleIndex}`);
+      const toAccount = accountIndices[randomInteger(prng, accountIndices.length)] ?? FIXED_REDEEM_TO_ACCOUNT;
+      const extraBalanceAccounts = buildUniqueAccountSet([
+        toAccount,
+        ...randomSubset(prng, accountIndices, accountIndices.length),
+      ]);
+      const generatorArgs = [...baseArgs, '--receiver', String(toAccount)];
+      if (extraBalanceAccounts.length > 0) {
+        generatorArgs.push('--extra-balance-accounts', extraBalanceAccounts.join(','));
+      }
+      variants.push({
+        variantName: `sample-${String(sampleIndex).padStart(2, '0')}`,
+        generatorArgs,
+      });
+    }
+    return variants;
   },
 });
 
@@ -414,7 +470,7 @@ const getBlockInfoFromRpc = async (
   };
 };
 
-const createCliInputBundle = async (configPath: string): Promise<CliInputBundle> => {
+const buildStateManagerAndConfig = async (configPath: string) => {
   const config = await loadJson<BaseCompatConfig>(configPath);
   const rpcUrl = process.env.ANVIL_RPC_URL?.trim() || DEFAULT_ANVIL_RPC_URL;
   const stateManagerOpts = createStateManagerOptsFromChannelConfig({
@@ -425,7 +481,14 @@ const createCliInputBundle = async (configPath: string): Promise<CliInputBundle>
     blockNumber: config.blockNumber,
   } satisfies ChannelStateConfig);
   const stateManager = await createTokamakL2StateManagerFromL1RPC(rpcUrl, stateManagerOpts);
-  const blockInfo = await getBlockInfoFromRpc(rpcUrl, config.blockNumber, FIXED_PREV_BLOCK_HASH_COUNT);
+  return { config, rpcUrl, stateManagerOpts, stateManager };
+};
+
+const buildTransactionRlp = (
+  config: BaseCompatConfig,
+  stateManagerOpts: ReturnType<typeof createStateManagerOptsFromChannelConfig>,
+  transactionNonceOverride?: bigint,
+): `0x${string}` => {
   const keyMaterial = deriveParticipantKeys(config.participants);
   const fromAccountIndex = config.senderIndex;
   const fromAccountPrivateKey = keyMaterial.privateKeys[fromAccountIndex];
@@ -435,26 +498,60 @@ const createCliInputBundle = async (configPath: string): Promise<CliInputBundle>
   }
 
   const txData: TokamakL2TxData = {
-    nonce: BigInt(config.txNonce),
+    nonce: transactionNonceOverride ?? BigInt(config.txNonce),
     to: createAddressFromString(config.function.entryContractAddress),
     data: hexToBytes(config.calldata),
     senderPubKey: fromAccountPublicKey.toBytes(),
   };
   const transaction = createTokamakL2Tx(txData, { common: stateManagerOpts.common }).sign(fromAccountPrivateKey);
-  const transactionRlp = addHexPrefix(bytesToHex(transaction.serialize())) as `0x${string}`;
+  return addHexPrefix(bytesToHex(transaction.serialize())) as `0x${string}`;
+};
 
-  const contractCodes = await Promise.all(
-    config.callCodeAddresses.map(async (address) => ({
+const fetchContractCodes = async (
+  rpcUrl: string,
+  callCodeAddresses: `0x${string}`[],
+  blockNumber: number,
+) => Promise.all(
+    callCodeAddresses.map(async (address) => ({
       address,
-      code: await rpcCall<`0x${string}`>(rpcUrl, 'eth_getCode', [address, toRpcHex(config.blockNumber)]),
+      code: await rpcCall<`0x${string}`>(rpcUrl, 'eth_getCode', [address, toRpcHex(blockNumber)]),
     })),
   );
+
+const createCliInputBundle = async (
+  configPath: string,
+  overrides: CliInputOverrides = {},
+): Promise<CliInputBundle> => {
+  const { config, rpcUrl, stateManagerOpts, stateManager } = await buildStateManagerAndConfig(configPath);
+  const blockInfo = overrides.blockInfo ?? await getBlockInfoFromRpc(rpcUrl, config.blockNumber, FIXED_PREV_BLOCK_HASH_COUNT);
+  const contractCodes = await fetchContractCodes(rpcUrl, config.callCodeAddresses, config.blockNumber);
+  const transactionRlp = buildTransactionRlp(config, stateManagerOpts, overrides.transactionNonce);
 
   return {
     previousState: await buildStateSnapshot(stateManager),
     blockInfo,
     contractCodes,
     transactionRlp,
+  };
+};
+
+const buildMutatedBlockInfo = (
+  baseBlockInfo: SynthesizerBlockInfo,
+  seedLabel: string,
+  fromAccountIndex: number,
+  sampleIndex: number,
+): SynthesizerBlockInfo => {
+  const prng = createPrng(`${seedLabel}:block-info:${fromAccountIndex}:${sampleIndex}`);
+  const nextBlockNumber = BigInt(baseBlockInfo.blockNumber) + BigInt(sampleIndex + 1);
+  const nextTimestamp = BigInt(baseBlockInfo.timeStamp) + BigInt((sampleIndex + 1) * 17);
+  const nextBaseFee = BigInt(baseBlockInfo.baseFee) + BigInt(sampleIndex + 1);
+  return {
+    ...baseBlockInfo,
+    blockNumber: `0x${nextBlockNumber.toString(16)}`,
+    timeStamp: `0x${nextTimestamp.toString(16)}`,
+    baseFee: `0x${nextBaseFee.toString(16)}`,
+    prevRanDao: randomHexWord(prng),
+    prevBlockHashes: Array.from({ length: FIXED_PREV_BLOCK_HASH_COUNT }, () => randomHexWord(prng)),
   };
 };
 
@@ -494,29 +591,45 @@ const parseOptions = (argv: string[]) => {
   const options = {
     skipBootstrap: false,
     fromAccounts: [...DEFAULT_FROM_ACCOUNT_SET],
+    samples: DEFAULT_RANDOM_SAMPLE_COUNT,
+    seed: DEFAULT_RANDOM_SEED,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
+    const next = argv[index + 1];
+    const consumeValue = (label: string) => {
+      if (!next) {
+        throw new Error(`Missing value for ${label}`);
+      }
+      index += 1;
+      return next;
+    };
     switch (current) {
       case '--skip-bootstrap':
         options.skipBootstrap = true;
         break;
       case '--from-accounts': {
-        const next = argv[index + 1];
-        if (!next) {
-          throw new Error('Missing value for --from-accounts');
-        }
-        options.fromAccounts = next.split(',').map((value) => {
+        options.fromAccounts = consumeValue('--from-accounts').split(',').map((value) => {
           const parsed = Number(value.trim());
           if (!Number.isInteger(parsed)) {
             throw new Error(`Invalid fromAccount index: ${value}`);
           }
           return parsed;
         });
-        index += 1;
         break;
       }
+      case '--samples': {
+        const parsed = Number(consumeValue('--samples'));
+        if (!Number.isInteger(parsed) || parsed < 0) {
+          throw new Error('--samples must be a non-negative integer');
+        }
+        options.samples = parsed;
+        break;
+      }
+      case '--seed':
+        options.seed = consumeValue('--seed');
+        break;
       default:
         throw new Error(`Unknown argument: ${current}`);
     }
@@ -527,6 +640,33 @@ const parseOptions = (argv: string[]) => {
   }
 
   return options;
+};
+
+const executeSynthesizerCli = async (
+  previousStatePath: string,
+  transactionRlp: `0x${string}`,
+  blockInfoPath: string,
+  contractCodesPath: string,
+) => {
+  await runCommand(
+    'npx',
+    [
+      'tsx',
+      '--tsconfig',
+      synthesizerTsconfigPath,
+      synthesizerCliPath,
+      'tokamak-ch-tx',
+      '--previous-state',
+      previousStatePath,
+      '--transaction',
+      transactionRlp,
+      '--block-info',
+      blockInfoPath,
+      '--contract-code',
+      contractCodesPath,
+    ],
+    synthesizerRoot,
+  );
 };
 
 export const runPrivateStateSynthesizerCompatTest = async (
@@ -547,7 +687,6 @@ export const runPrivateStateSynthesizerCompatTest = async (
   await fs.rm(workDir, { recursive: true, force: true });
   await fs.mkdir(workDir, { recursive: true });
   const fixedDir = path.join(workDir, 'fixed');
-  const baseFromAccount = options.fromAccounts[0];
 
   const buildCaseFiles = async (fromAccountIndex: number, variantName: string, generatorArgs: string[]) => {
     const caseDir = path.join(workDir, `from-account-${fromAccountIndex}`, variantName);
@@ -586,31 +725,18 @@ export const runPrivateStateSynthesizerCompatTest = async (
   let fixedBlockInfoPath = path.join(fixedDir, 'block_info.json');
   let fixedContractCodesPath = path.join(fixedDir, 'contract_codes.json');
   for (const fromAccountIndex of options.fromAccounts) {
-    const variants = spec.buildVariants(fromAccountIndex);
+    const variants = spec.buildVariants(fromAccountIndex, options.samples, options.seed);
     for (const variant of variants) {
       const testCase = await buildCaseFiles(fromAccountIndex, variant.variantName, variant.generatorArgs);
       if (baseline === null) {
         await writeJson(fixedBlockInfoPath, testCase.cliInput.blockInfo);
         await writeJson(fixedContractCodesPath, testCase.cliInput.contractCodes);
       }
-      await runCommand(
-        'npx',
-        [
-          'tsx',
-          '--tsconfig',
-          synthesizerTsconfigPath,
-          synthesizerCliPath,
-          'tokamak-ch-tx',
-          '--previous-state',
-          testCase.previousStatePath,
-          '--transaction',
-          testCase.cliInput.transactionRlp,
-          '--block-info',
-          fixedBlockInfoPath,
-          '--contract-code',
-          fixedContractCodesPath,
-        ],
-        synthesizerRoot,
+      await executeSynthesizerCli(
+        testCase.previousStatePath,
+        testCase.cliInput.transactionRlp,
+        fixedBlockInfoPath,
+        fixedContractCodesPath,
       );
 
       const snapshot = await readResultSnapshot();
@@ -625,6 +751,85 @@ export const runPrivateStateSynthesizerCompatTest = async (
   }
 
   console.log(`${functionName}: compatibility check passed for fromAccounts ${options.fromAccounts.join(', ')}`);
+};
+
+export const runPrivateStateSynthesizerBlockNonceCompatTest = async (
+  functionName: string,
+  argv: string[] = process.argv.slice(2),
+) => {
+  const spec = TEST_SPECS[functionName];
+  if (!spec) {
+    throw new Error(`Unsupported private-state function: ${functionName}`);
+  }
+
+  const options = parseOptions(argv);
+  if (!options.skipBootstrap) {
+    await bootstrapAnvil();
+  }
+
+  const workDir = path.join(generatedArtifactsRoot, `${functionName}-block-nonce`);
+  await fs.rm(workDir, { recursive: true, force: true });
+  await fs.mkdir(workDir, { recursive: true });
+  const fixedDir = path.join(workDir, 'fixed');
+  await fs.mkdir(fixedDir, { recursive: true });
+  const previousStatePath = path.join(fixedDir, 'previous_state_snapshot.json');
+  const contractCodesPath = path.join(fixedDir, 'contract_codes.json');
+
+  const generatorPath =
+    spec.family === 'mint'
+      ? mintGeneratorPath
+      : spec.family === 'transfer'
+        ? transferGeneratorPath
+        : redeemGeneratorPath;
+
+  let baseline: TestResultSnapshot | null = null;
+  for (const fromAccountIndex of options.fromAccounts) {
+    const baselineVariant = spec.buildVariants(fromAccountIndex, 0, options.seed)[0];
+    if (!baselineVariant) {
+      throw new Error(`Missing baseline variant for ${functionName}`);
+    }
+
+    const caseDir = path.join(workDir, `from-account-${fromAccountIndex}`);
+    const configPath = path.join(caseDir, 'config.json');
+    await fs.mkdir(caseDir, { recursive: true });
+
+    await runCommand(
+      'npx',
+      ['tsx', '--tsconfig', synthesizerTsconfigPath, generatorPath, '--output', configPath, ...baselineVariant.generatorArgs],
+      repoRoot,
+    );
+
+    const baseCliInput = await createCliInputBundle(configPath);
+    if (baseline === null) {
+      await writeJson(previousStatePath, baseCliInput.previousState);
+      await writeJson(contractCodesPath, baseCliInput.contractCodes);
+    }
+
+    for (let sampleIndex = 0; sampleIndex <= options.samples; sampleIndex += 1) {
+      const variantName = sampleIndex === 0 ? 'baseline' : `sample-${String(sampleIndex - 1).padStart(2, '0')}`;
+      const blockInfo = sampleIndex === 0
+        ? baseCliInput.blockInfo
+        : buildMutatedBlockInfo(baseCliInput.blockInfo, options.seed, fromAccountIndex, sampleIndex);
+      const transactionRlp = baseCliInput.transactionRlp;
+      const blockInfoPath = path.join(caseDir, `${variantName}-block_info.json`);
+      const transactionPath = path.join(caseDir, `${variantName}-transaction_rlp.txt`);
+
+      await writeJson(blockInfoPath, blockInfo);
+      await writeText(transactionPath, transactionRlp);
+      await executeSynthesizerCli(previousStatePath, transactionRlp, blockInfoPath, contractCodesPath);
+
+      const snapshot = await readResultSnapshot();
+      if (baseline === null) {
+        baseline = snapshot;
+        console.log(`${functionName}: established block/nonce baseline with fromAccount ${fromAccountIndex}`);
+        continue;
+      }
+      compareStableOutputs(functionName, fromAccountIndex, `block-nonce-${variantName}`, baseline, snapshot);
+      console.log(`${functionName}: fromAccount ${fromAccountIndex} block/nonce variant ${variantName} matched baseline`);
+    }
+  }
+
+  console.log(`${functionName}: block/nonce compatibility check passed for fromAccounts ${options.fromAccounts.join(', ')}`);
 };
 
 export const PRIVATE_STATE_SYNTH_COMPAT_FUNCTIONS = Object.keys(TEST_SPECS);

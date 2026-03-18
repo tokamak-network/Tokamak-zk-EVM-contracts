@@ -103,58 +103,133 @@ type TestResultSnapshot = {
 type TestSpec = {
   functionName: string;
   family: 'mint' | 'transfer' | 'redeem';
-  buildGeneratorArgs: (fromAccountIndex: number, outputPath: string) => string[];
+  buildVariants: (fromAccountIndex: number) => Array<{
+    variantName: string;
+    generatorArgs: string[];
+  }>;
 };
+
+const buildUniqueAccountSet = (values: number[]): number[] => Array.from(new Set(values));
 
 const mintSpec = (outputs: 1 | 2 | 3 | 4 | 5 | 6): TestSpec => ({
   functionName: `mintNotes${outputs}`,
   family: 'mint',
-  buildGeneratorArgs: (fromAccountIndex, outputPath) => [
-    '--output',
-    outputPath,
-    '--participants',
-    String(DEFAULT_PARTICIPANT_COUNT),
-    '--sender',
-    String(fromAccountIndex),
-    '--note-owner',
-    String(FIXED_MINT_TO_ACCOUNT),
-    '--outputs',
-    String(outputs),
-  ],
+  buildVariants: (fromAccountIndex) => {
+    const altToAccount = (fromAccountIndex + 1) % DEFAULT_PARTICIPANT_COUNT;
+    const extraBalanceOne = (fromAccountIndex + 2) % DEFAULT_PARTICIPANT_COUNT;
+    const extraBalanceTwo = (fromAccountIndex + 3) % DEFAULT_PARTICIPANT_COUNT;
+    const baseArgs = [
+      '--participants',
+      String(DEFAULT_PARTICIPANT_COUNT),
+      '--sender',
+      String(fromAccountIndex),
+      '--outputs',
+      String(outputs),
+    ];
+    return [
+      {
+        variantName: 'base',
+        generatorArgs: [...baseArgs, '--note-owner', String(FIXED_MINT_TO_ACCOUNT)],
+      },
+      {
+        variantName: 'to-account-variant',
+        generatorArgs: [...baseArgs, '--note-owner', String(altToAccount)],
+      },
+      {
+        variantName: 'extra-balance-keys',
+        generatorArgs: [
+          ...baseArgs,
+          '--note-owner',
+          String(altToAccount),
+          '--extra-balance-accounts',
+          buildUniqueAccountSet([extraBalanceOne, extraBalanceTwo]).join(','),
+        ],
+      },
+    ];
+  },
 });
 
 const transferSpec = (inputs: 1 | 2 | 3 | 4, outputs: 1 | 2 | 3): TestSpec => ({
   functionName: `transferNotes${inputs}To${outputs}`,
   family: 'transfer',
-  buildGeneratorArgs: (fromAccountIndex, outputPath) => [
-    '--output',
-    outputPath,
-    '--participants',
-    String(DEFAULT_PARTICIPANT_COUNT),
-    '--sender',
-    String(fromAccountIndex),
-    '--inputs',
-    String(inputs),
-    '--outputs',
-    String(outputs),
-  ],
+  buildVariants: (fromAccountIndex) => {
+    const nextAccount = (fromAccountIndex + 1) % DEFAULT_PARTICIPANT_COUNT;
+    const altAccount = (fromAccountIndex + 2) % DEFAULT_PARTICIPANT_COUNT;
+    const thirdAccount = (fromAccountIndex + 3) % DEFAULT_PARTICIPANT_COUNT;
+    const baseArgs = [
+      '--participants',
+      String(DEFAULT_PARTICIPANT_COUNT),
+      '--sender',
+      String(fromAccountIndex),
+      '--inputs',
+      String(inputs),
+      '--outputs',
+      String(outputs),
+    ];
+    const altToAccounts = outputs === 1
+      ? [altAccount]
+      : outputs === 2
+        ? [altAccount, thirdAccount]
+        : [altAccount, thirdAccount, nextAccount];
+    return [
+      {
+        variantName: 'base',
+        generatorArgs: baseArgs,
+      },
+      {
+        variantName: 'to-account-variant',
+        generatorArgs: [...baseArgs, '--to-accounts', altToAccounts.join(',')],
+      },
+      {
+        variantName: 'extra-commitments',
+        generatorArgs: [
+          ...baseArgs,
+          '--to-accounts',
+          altToAccounts.join(','),
+          '--extra-commitments',
+          '2',
+        ],
+      },
+    ];
+  },
 });
 
 const redeemSpec = (inputs: 1 | 2 | 3 | 4): TestSpec => ({
   functionName: `redeemNotes${inputs}`,
   family: 'redeem',
-  buildGeneratorArgs: (fromAccountIndex, outputPath) => [
-    '--output',
-    outputPath,
-    '--participants',
-    String(DEFAULT_PARTICIPANT_COUNT),
-    '--sender',
-    String(fromAccountIndex),
-    '--receiver',
-    String(FIXED_REDEEM_TO_ACCOUNT),
-    '--inputs',
-    String(inputs),
-  ],
+  buildVariants: (fromAccountIndex) => {
+    const altToAccount = (fromAccountIndex + 1) % DEFAULT_PARTICIPANT_COUNT;
+    const extraBalanceOne = (fromAccountIndex + 2) % DEFAULT_PARTICIPANT_COUNT;
+    const extraBalanceTwo = (fromAccountIndex + 3) % DEFAULT_PARTICIPANT_COUNT;
+    const baseArgs = [
+      '--participants',
+      String(DEFAULT_PARTICIPANT_COUNT),
+      '--sender',
+      String(fromAccountIndex),
+      '--inputs',
+      String(inputs),
+    ];
+    return [
+      {
+        variantName: 'base',
+        generatorArgs: [...baseArgs, '--receiver', String(FIXED_REDEEM_TO_ACCOUNT)],
+      },
+      {
+        variantName: 'to-account-variant',
+        generatorArgs: [...baseArgs, '--receiver', String(altToAccount)],
+      },
+      {
+        variantName: 'extra-balance-keys',
+        generatorArgs: [
+          ...baseArgs,
+          '--receiver',
+          String(altToAccount),
+          '--extra-balance-accounts',
+          buildUniqueAccountSet([altToAccount, extraBalanceOne, extraBalanceTwo]).join(','),
+        ],
+      },
+    ];
+  },
 });
 
 const TEST_SPECS: Record<string, TestSpec> = {
@@ -397,14 +472,15 @@ const readResultSnapshot = async (): Promise<TestResultSnapshot> => {
 const compareStableOutputs = (
   functionName: string,
   fromAccountIndex: number,
+  variantName: string,
   baseline: TestResultSnapshot,
   candidate: TestResultSnapshot,
 ) => {
   if (JSON.stringify(baseline.aPubFunction) !== JSON.stringify(candidate.aPubFunction)) {
-    throw new Error(`${functionName}: a_pub_function changed for fromAccount ${fromAccountIndex}`);
+    throw new Error(`${functionName}: a_pub_function changed for fromAccount ${fromAccountIndex} variant ${variantName}`);
   }
   if (JSON.stringify(baseline.permutation) !== JSON.stringify(candidate.permutation)) {
-    throw new Error(`${functionName}: permutation changed for fromAccount ${fromAccountIndex}`);
+    throw new Error(`${functionName}: permutation changed for fromAccount ${fromAccountIndex} variant ${variantName}`);
   }
 };
 
@@ -473,8 +549,8 @@ export const runPrivateStateSynthesizerCompatTest = async (
   const fixedDir = path.join(workDir, 'fixed');
   const baseFromAccount = options.fromAccounts[0];
 
-  const buildCaseFiles = async (fromAccountIndex: number) => {
-    const caseDir = path.join(workDir, `from-account-${fromAccountIndex}`);
+  const buildCaseFiles = async (fromAccountIndex: number, variantName: string, generatorArgs: string[]) => {
+    const caseDir = path.join(workDir, `from-account-${fromAccountIndex}`, variantName);
     const configPath = path.join(caseDir, 'config.json');
     const previousStatePath = path.join(caseDir, 'previous_state_snapshot.json');
     const transactionPath = path.join(caseDir, 'transaction_rlp.txt');
@@ -489,7 +565,7 @@ export const runPrivateStateSynthesizerCompatTest = async (
 
     await runCommand(
       'npx',
-      ['tsx', '--tsconfig', synthesizerTsconfigPath, generatorPath, ...spec.buildGeneratorArgs(fromAccountIndex, configPath)],
+      ['tsx', '--tsconfig', synthesizerTsconfigPath, generatorPath, '--output', configPath, ...generatorArgs],
       repoRoot,
     );
 
@@ -499,49 +575,53 @@ export const runPrivateStateSynthesizerCompatTest = async (
 
     return {
       fromAccountIndex,
+      variantName,
       previousStatePath,
       cliInput,
     };
   };
-
-  const baseCase = await buildCaseFiles(baseFromAccount);
   await fs.mkdir(fixedDir, { recursive: true });
-  const fixedBlockInfoPath = path.join(fixedDir, 'block_info.json');
-  const fixedContractCodesPath = path.join(fixedDir, 'contract_codes.json');
-  await writeJson(fixedBlockInfoPath, baseCase.cliInput.blockInfo);
-  await writeJson(fixedContractCodesPath, baseCase.cliInput.contractCodes);
 
   let baseline: TestResultSnapshot | null = null;
+  let fixedBlockInfoPath = path.join(fixedDir, 'block_info.json');
+  let fixedContractCodesPath = path.join(fixedDir, 'contract_codes.json');
   for (const fromAccountIndex of options.fromAccounts) {
-    const testCase = fromAccountIndex === baseFromAccount ? baseCase : await buildCaseFiles(fromAccountIndex);
-    await runCommand(
-      'npx',
-      [
-        'tsx',
-        '--tsconfig',
-        synthesizerTsconfigPath,
-        synthesizerCliPath,
-        'tokamak-ch-tx',
-        '--previous-state',
-        testCase.previousStatePath,
-        '--transaction',
-        testCase.cliInput.transactionRlp,
-        '--block-info',
-        fixedBlockInfoPath,
-        '--contract-code',
-        fixedContractCodesPath,
-      ],
-      synthesizerRoot,
-    );
+    const variants = spec.buildVariants(fromAccountIndex);
+    for (const variant of variants) {
+      const testCase = await buildCaseFiles(fromAccountIndex, variant.variantName, variant.generatorArgs);
+      if (baseline === null) {
+        await writeJson(fixedBlockInfoPath, testCase.cliInput.blockInfo);
+        await writeJson(fixedContractCodesPath, testCase.cliInput.contractCodes);
+      }
+      await runCommand(
+        'npx',
+        [
+          'tsx',
+          '--tsconfig',
+          synthesizerTsconfigPath,
+          synthesizerCliPath,
+          'tokamak-ch-tx',
+          '--previous-state',
+          testCase.previousStatePath,
+          '--transaction',
+          testCase.cliInput.transactionRlp,
+          '--block-info',
+          fixedBlockInfoPath,
+          '--contract-code',
+          fixedContractCodesPath,
+        ],
+        synthesizerRoot,
+      );
 
-    const snapshot = await readResultSnapshot();
-    if (baseline === null) {
-      baseline = snapshot;
-      console.log(`${functionName}: established baseline with fromAccount ${fromAccountIndex}`);
-      continue;
+      const snapshot = await readResultSnapshot();
+      if (baseline === null) {
+        baseline = snapshot;
+        console.log(`${functionName}: established baseline with fromAccount ${fromAccountIndex} variant ${variant.variantName}`);
+        continue;
+      }
+      compareStableOutputs(functionName, fromAccountIndex, variant.variantName, baseline, snapshot);
+      console.log(`${functionName}: fromAccount ${fromAccountIndex} variant ${variant.variantName} matched baseline`);
     }
-    compareStableOutputs(functionName, fromAccountIndex, baseline, snapshot);
-    console.log(`${functionName}: fromAccount ${fromAccountIndex} matched baseline`);
   }
 
   console.log(`${functionName}: compatibility check passed for fromAccounts ${options.fromAccounts.join(', ')}`);

@@ -258,6 +258,34 @@ Review questions:
 
 - Does the design still rely on an owner role that could have been removed?
 - Is the controller relationship immutable after deployment?
+
+## 11. Synthesizer Compatibility Test Scripts
+
+Every DApp under `apps/` must provide function-level Synthesizer compatibility scripts.
+
+Required structure:
+
+- Store them under `apps/<dapp>/script/synthesizer-compat-test`.
+- Provide one entry script per user-facing function.
+- It is acceptable for those entry scripts to delegate to a shared helper, but the function-level entry scripts must still exist.
+
+Required test method:
+
+- Use `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/cli/index.ts` as the execution entrypoint.
+- Keep `block_info.json` and `contract_codes.json` fixed while testing a given function.
+- Vary `previous_state_snapshot.json` and transaction RLP across multiple valid private-input configurations for the same function.
+- Run the Synthesizer CLI once per variant.
+- Assert that:
+  - `outputs/instance.json -> a_pub_function`
+  - `outputs/permutation.json`
+  remain identical across all tested variants for that function.
+
+Review questions:
+
+- Does every user-facing function have a dedicated Synthesizer compatibility entry script?
+- Do the tests hold `block_info.json` and `contract_codes.json` fixed while varying only previous state and transaction witnesses?
+- Do the tests explicitly compare `a_pub_function` and `permutation.json` across variants?
+- Is the tested variation broad enough to cover multiple valid private-input configurations for the same function?
 - If address prediction is used, is the deployment flow deterministic and explicitly documented?
 
 ## 11. Review Output

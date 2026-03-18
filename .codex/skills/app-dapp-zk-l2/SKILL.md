@@ -78,7 +78,15 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Include short commands for local anvil start/bootstrap/stop, local tests, and public-network deployment.
    - Prefer targets such as `make anvil-start`, `make anvil-bootstrap`, `make anvil-stop`, `make test`, `make deploy-sepolia`, `make deploy-mainnet`, and `make cli-list`.
    - If a command must target a different network than the one stored in `apps/.env`, create a temporary env override inside the wrapper instead of requiring the operator to edit `apps/.env`.
-13. Keep the review explicit in the final response:
+13. Require Synthesizer compatibility tests for every user-facing DApp function:
+   - Store them under `apps/<dapp>/script/synthesizer-compat-test`.
+   - Provide one entry script per user-facing function, even if the scripts delegate to shared helpers.
+   - Use `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/cli/index.ts` as the execution entrypoint.
+   - Hold `block_info.json` and `contract_codes.json` fixed for a given function test.
+   - Vary `previous_state_snapshot.json` and the transaction RLP across multiple valid private-input configurations for the same function.
+   - For each variant, run the Synthesizer CLI and assert that `outputs/instance.json -> a_pub_function` and `outputs/permutation.json` remain identical across the tested variants for that function.
+   - Treat the absence of these scripts as a missing DApp deliverable, not as optional test coverage.
+14. Keep the review explicit in the final response:
    - State whether the entrypoints satisfy the zk-L2 privacy assumption.
    - State whether the successful symbolic path for each user-facing function appears unique.
    - State whether the implementation keeps function bytecode focused on strictly necessary operations or still contains avoidable scaffolding.
@@ -90,6 +98,7 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - State whether admin ownership was removed and whether any remaining controller wiring is immutable and deployment-bound.
    - State whether the DApp exposes a local CLI under `apps/<dapp>/cli` that reads `calldata.json` templates, deployment manifests, and callable ABI files.
    - State whether the DApp also exposes concise DApp-local command wrappers for anvil workflows, tests, and deployment.
+   - State whether the DApp also exposes per-function Synthesizer compatibility scripts under `apps/<dapp>/script/synthesizer-compat-test`.
 
 ## Resources
 

@@ -1,5 +1,7 @@
 # Tokamak Private App Channels White Paper
 
+Last updated: 2026-03-18
+
 ## Table of Contents
 
 1. Introduction

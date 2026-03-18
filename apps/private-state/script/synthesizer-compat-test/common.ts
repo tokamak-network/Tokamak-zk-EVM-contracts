@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import fs from 'fs/promises';
-import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -29,6 +28,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 const privateStateAppDir = path.resolve(repoRoot, 'apps', 'private-state');
+const generatedArtifactsRoot = path.resolve(privateStateAppDir, 'script', 'synthesizer-compat-test', 'generated');
 const synthesizerRoot = path.resolve(repoRoot, 'submodules', 'Tokamak-zk-EVM', 'packages', 'frontend', 'synthesizer');
 const synthesizerTsconfigPath = path.resolve(synthesizerRoot, 'tsconfig.dev.json');
 const synthesizerCliPath = path.resolve(synthesizerRoot, 'src', 'interface', 'cli', 'index.ts');
@@ -204,6 +204,11 @@ const runCommand = (
 const writeJson = async (filePath: string, value: unknown) => {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+};
+
+const writeText = async (filePath: string, value: string) => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${value}\n`, 'utf8');
 };
 
 const deriveParticipantKeys = (participants: ParticipantEntry[]): DerivedParticipantKeys => {
@@ -461,7 +466,9 @@ export const runPrivateStateSynthesizerCompatTest = async (
     await bootstrapAnvil();
   }
 
-  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), `${functionName}-compat-`));
+  const workDir = path.join(generatedArtifactsRoot, functionName);
+  await fs.rm(workDir, { recursive: true, force: true });
+  await fs.mkdir(workDir, { recursive: true });
   const fixedDir = path.join(workDir, 'fixed');
   const baseSender = options.senders[0];
 
@@ -469,6 +476,7 @@ export const runPrivateStateSynthesizerCompatTest = async (
     const caseDir = path.join(workDir, `sender-${senderIndex}`);
     const configPath = path.join(caseDir, 'config.json');
     const previousStatePath = path.join(caseDir, 'previous_state_snapshot.json');
+    const transactionPath = path.join(caseDir, 'transaction_rlp.txt');
     await fs.mkdir(caseDir, { recursive: true });
 
     const generatorPath =
@@ -486,6 +494,7 @@ export const runPrivateStateSynthesizerCompatTest = async (
 
     const cliInput = await createCliInputBundle(configPath);
     await writeJson(previousStatePath, cliInput.previousState);
+    await writeText(transactionPath, cliInput.transactionRlp);
 
     return {
       senderIndex,

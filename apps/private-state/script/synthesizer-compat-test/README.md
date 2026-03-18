@@ -13,6 +13,13 @@ Method:
    - `outputs/permutation.json`
    remain identical across all tested variants for the same function.
 
+Generated test inputs are stored under:
+
+- `apps/private-state/script/synthesizer-compat-test/generated/<function-name>/fixed`
+- `apps/private-state/script/synthesizer-compat-test/generated/<function-name>/sender-<index>`
+
+Each sender directory keeps the generated `config.json`, `previous_state_snapshot.json`, and `transaction_rlp.txt` used by the test run. The `generated/` directory is intentionally gitignored.
+
 Usage:
 
 ```bash

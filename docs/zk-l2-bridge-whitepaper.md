@@ -4,28 +4,56 @@
 
 1. Introduction
 2. Main Body
-   2.1 System Overview
-   2.2 Comparison with an Ordinary L1-Native DApp
-   2.3 Architecture
-   2.4 State and Storage Model
-   2.5 Proof Systems
-   2.6 Core Operational Flows
-   2.7 Privacy Model
-   2.8 Data Availability and Safe Exit
-   2.9 Security Properties and Design Tradeoffs
+   2.1 Terminology
+   2.2 System Overview
+   2.3 Comparison with an Ordinary L1-Native DApp
+   2.4 Architecture
+   2.5 State and Storage Model
+   2.6 Proof Systems
+   2.7 Core Operational Flows
+   2.8 Privacy Model
+   2.9 Data Availability and Safe Exit
+   2.10 Security Properties and Design Tradeoffs
 3. Conclusion
 
 ## 1. Introduction
 
-Tokamak Private App Channels are a zk-proof-based Ethereum Layer 2 system designed around independent application-specific channels rather than one shared global execution state. Each channel is created for a specific DApp, operates with its own private state, and is settled through bridge contracts deployed on Ethereum.
+Ethereum can settle assets securely, but ordinary L1 execution reveals transaction contents to the network and forces validators to re-execute application logic. This creates two practical limits for privacy-oriented applications. First, sensitive user activity becomes visible to parties that do not need to know it. Second, application execution remains expensive and difficult to tailor to isolated, app-specific operating environments.
 
-The core design goal is to preserve Ethereum as the canonical settlement and custody layer while moving private application execution into channel-specific L2 environments. Under this model, users execute transactions off-chain, prove correctness with zero-knowledge proofs, and update Ethereum-visible channel state without revealing the original private transaction contents.
+This problem matters because many application classes, especially financial and note-based applications, require both strong asset safety and meaningful execution privacy. If privacy depends only on hiding balances in application state, then transaction contents may still leak. If scalability depends only on off-chain execution without strong settlement guarantees, then users may lose confidence in custody and exit safety. A useful design must therefore preserve Ethereum's settlement guarantees while moving execution into a more private and application-specific environment.
 
-This white paper presents the current architecture in a concise form. It focuses on the present operating model rather than on historical design notes, and it removes intermediate alternatives that are not part of the current version.
+Tokamak Private App Channels address this problem by splitting the system into Ethereum bridge contracts on L1 and independent application-specific channels on L2. Users execute channel transactions off-chain, generate zero-knowledge validity proofs, and submit proofs rather than original transactions to Ethereum. Ethereum remains the canonical layer for custody, proof verification, and final state acceptance, while the channel provides a private execution domain for one specific DApp.
+
+The main features of the current design are concise:
+
+- application-specific channels with isolated state machines
+- Ethereum-controlled state acceptance through validity-proof verification
+- a dual-proof model with Groth zkp for token-vault control and Tokamak zkp for channel transaction execution
+- bridge-managed DApp metadata that constrains which contracts and functions each channel may execute
+- a safe-exit path grounded in Ethereum-visible token-vault state even when app-storage availability fails
+- a privacy model that can be strengthened further when the System is combined with private-state DApps
+
+This white paper presents the current architecture in a concise form. It focuses on the present operating model rather than on historical design notes, and it intentionally allows the introduction to summarize core arguments that are developed in more detail in the main body.
 
 ## 2. Main Body
 
-### 2.1 System Overview
+### 2.1 Terminology
+
+The following terms are used throughout this paper:
+
+- `System`: Tokamak Private App Channels as a whole
+- `channel`: one independent L2 state-machine instance managed by the L1 bridge
+- `L1 bridge`: the Ethereum-deployed contract system that manages channels, DApps, vaults, and proof verification
+- `channel manager`: the bridge component that manages one specific channel
+- `L2 server`: the off-chain execution environment that coordinates channel activity
+- `Merkle-root vector`: the authoritative commitment to a channel state, formed from the roots of that channel's Merkle trees
+- `L2 token vault`: the dedicated vault or accounting storage tree for user asset positions inside a channel
+- `L2 app storage`: all non-vault storage used by the channel's DApp logic
+- `Groth zkp`: the Groth16-based proof system used for token-vault updates
+- `Tokamak zkp`: the Tokamak zk-EVM proof system used for channel transaction execution
+- `DApp manager`: the bridge component that stores supported DApps and their function-specific proof metadata
+
+### 2.2 System Overview
 
 The System has two top-level parts:
 
@@ -36,7 +64,7 @@ Each channel is an independent L2 state-machine instance managed by the bridge. 
 
 The authoritative state of a channel is represented as a Merkle-root vector. Each channel may contain multiple Merkle trees, and an L2 state update means an update of that vector. Even though channels are operationally independent from one another, every accepted state update remains under L1 control.
 
-### 2.2 Comparison with an Ordinary L1-Native DApp
+### 2.3 Comparison with an Ordinary L1-Native DApp
 
 An ordinary L1-native DApp works as follows:
 
@@ -60,7 +88,7 @@ A DApp operating through the System works differently:
 
 Under the System model, DApp users still propose state updates and Ethereum validators still approve them, but the approval condition changes from transaction re-execution to proof verification. This is the central architectural shift of the System.
 
-### 2.3 Architecture
+### 2.4 Architecture
 
 The L1 bridge layer manages channels, asset custody, proof verification, and the Ethereum-visible history of channel state transitions. It also manages the supported DApps of the System and enforces which contracts and functions each channel may use.
 
@@ -70,7 +98,7 @@ The DApp manager is the bridge component that stores the supported DApps and the
 
 This inheritance rule is a hard validation boundary. If a user submits a Tokamak zkp for a contract function outside the channel's inherited subset, verification must fail and the channel state must not change.
 
-### 2.4 State and Storage Model
+### 2.5 State and Storage Model
 
 Each channel has exactly one dedicated L2 token-vault storage domain. It may also contain multiple additional storage domains for application logic. All non-vault storage is grouped under the term `L2 app storage`.
 
@@ -88,7 +116,7 @@ This registration model has four current rules:
 
 Because the System uses one or more Merkle trees per channel, the authoritative checkpoint of a channel is the vector of current Merkle roots rather than one monolithic state root. This model supports both vault accounting and application-specific storage while preserving a bridge-visible commitment structure on Ethereum.
 
-### 2.5 Proof Systems
+### 2.6 Proof Systems
 
 The System uses two distinct proof systems.
 
@@ -125,7 +153,7 @@ The transaction instance contains:
 
 A successful Tokamak verification means that the specified contract function was executed correctly, the execution succeeded, the consumed leaves were correct, and the resulting Merkle-tree updates were valid.
 
-### 2.6 Core Operational Flows
+### 2.7 Core Operational Flows
 
 `Channel creation and entry`
 
@@ -159,7 +187,7 @@ A successful Tokamak verification means that the specified contract function was
 4. Withdrawal entitlement is derived from the last Ethereum-verified state.
 5. If verification succeeds, assets are released from L1 custody.
 
-### 2.7 Privacy Model
+### 2.8 Privacy Model
 
 The System provides baseline privacy because the original transaction is not normally revealed to Ethereum validators or outside observers. However, the System alone does not provide strong application-level privacy, because the channel operator still observes state data and may infer user activity from state changes.
 
@@ -190,7 +218,7 @@ Under that narrow definition, `System + private-state DApp` achieves complete pr
 
 This definition is intentionally narrow. It does not claim to remove all metadata leakage, such as timing, note linkage, access patterns, or operator-side observation.
 
-### 2.8 Data Availability and Safe Exit
+### 2.9 Data Availability and Safe Exit
 
 Data availability is asymmetric across storage classes.
 
@@ -211,7 +239,7 @@ If L2 app-storage data becomes unavailable or unreliable, users may no longer be
 
 This yields an operational recommendation: when operator data availability is weak, frequent use of the token-vault path improves safe-exit robustness. That recommendation is not free of tradeoffs, because heavier reliance on vault-state anchoring may increase overhead and reduce how much application logic remains purely in L2 app storage.
 
-### 2.9 Security Properties and Design Tradeoffs
+### 2.10 Security Properties and Design Tradeoffs
 
 The current architecture aims to preserve the following properties:
 
@@ -236,4 +264,6 @@ Tokamak Private App Channels define a validity-proof-based Ethereum Layer 2 arch
 
 The most important architectural consequence is that the System replaces validator-side transaction re-execution with validator-side proof verification. This makes channel execution private by default, shortens withdrawal latency relative to fault-proof challenge-window models, and preserves a clean settlement boundary on Ethereum. At the same time, the System does not by itself solve all privacy and data-availability problems. Strong privacy requires a private-state DApp model, and strong application-state availability requires assumptions or mechanisms beyond the token-vault path.
 
-The current design is therefore best understood as a layered model. Ethereum guarantees custody, proof-verified state acceptance, and recoverable token-vault state. The System provides private execution and proof-based state advancement. DApp design determines whether application-state semantics remain exposed or hidden. Future work remains in deposit and withdrawal refinement, broader data-availability guarantees, vault-key recovery policy, and any eventual proposal-pool or token-economics model.
+The current design is therefore best understood as a layered model. Ethereum guarantees custody, proof-verified state acceptance, and recoverable token-vault state. The System provides private execution and proof-based state advancement. DApp design determines whether application-state semantics remain exposed or hidden.
+
+Future work remains in four areas. First, the deposit and withdrawal procedures still need a more formal end-to-end specification at the contract and proof-interface level. Second, broader guarantees for L2 app-storage availability remain open beyond the current safe-exit model. Third, the policy for vault-key recovery, replacement impossibility, and related operational edge cases should be specified more rigorously. Fourth, any eventual proposal-pool, dispute incentive, or token-economics layer remains explicitly outside the current version and should be introduced only after its operating rules are made precise.

@@ -410,6 +410,28 @@ This creates the current operational recommendation: if users want a safer escap
 
 This recommendation is pragmatic rather than free of tradeoffs. Greater reliance on token-vault storage may improve safe-exit robustness, but it may also increase operational overhead and constrain how much application logic can remain purely in L2 app storage.
 
+#### 2.3.9 Withdrawal Waiting Time Under Validity Proofs
+
+The System is fundamentally a validity-proof-based design. This has an immediate consequence for withdrawal latency from the L2 token vault back to the L1 token vault.
+
+Under the current interpretation, the System has almost no protocol-level withdrawal waiting time beyond proof production and on-chain verification. The reason is that once the relevant validity proof is verified, the corresponding L2 state transition is no longer open to the same kind of dispute window that is typical in fault-proof systems.
+
+The contrast with a fault-proof model is important:
+
+- in a fault-proof system, the absence of a submitted fault proof does not by itself mean that the proposed state is already known to be valid at that moment
+- instead, the protocol normally relies on a challenge window during which someone may still dispute the state
+- because of that delayed dispute model, withdrawals usually require a nontrivial waiting period before they are treated as safely final
+
+By contrast, in a validity-proof system:
+
+- the protocol checks a positive proof of correctness
+- once that proof verifies, the relevant state transition is accepted as valid immediately under the protocol rules
+- no additional challenge window is needed for that same validity question
+
+From the user's point of view, the main withdrawal delay is therefore the time required to generate the necessary validity proof and submit it for verification. Under the current design direction, that delay is expected to be short, on the order of seconds rather than the extended waiting windows typical of fault-proof exits.
+
+This does not mean the withdrawal path is literally zero-latency. The user still depends on proof generation time, transaction inclusion time, and ordinary Ethereum confirmation behavior. But the System does avoid the long protocol-imposed withdrawal delay characteristic of challenge-window-based fault-proof designs.
+
 ### 2.4 Provisional Interpretation of `docs/spec.md`
 
 The mathematical model in `docs/spec.md` is currently treated as a structural reference rather than as final protocol truth. The present reading is that the spec describes a bridge-facing model with three major layers.
@@ -718,6 +740,7 @@ The following record is kept so that later revisions can identify which parts of
 - Each channel has exactly one L2 token-vault storage domain and may additionally contain multiple L2 app-storage domains.
 - L2 token-vault-storage changes are traceable from Ethereum through Groth-zkp instance data, while L2 app-storage data currently depends on the channel operator for availability and integrity.
 - Even if L2 app-storage data becomes unavailable or unreliable, users can still rely on Ethereum-visible token-vault state to withdraw tokens and escape safely.
+- Because the System is validity-proof-based rather than fault-proof-based, withdrawal waiting time is expected to be dominated by proof generation and ordinary Ethereum inclusion, not by a long challenge window.
 
 ## 3. Conclusion
 
@@ -735,13 +758,15 @@ The fourth major conclusion is that data availability is asymmetric across chann
 
 The fifth major conclusion is that safe channel escape therefore depends on the token-vault path, not on continued availability of L2 app-storage data. Even if the operator stops serving app-storage data or serves it incorrectly, users should still be able to withdraw through the token-vault state that Ethereum can track.
 
-The sixth major conclusion is that this document now uses a narrow working definition of complete privacy. Under that definition, complete privacy means satisfying both transaction-content privacy and state-semantic privacy. The System alone satisfies only the first criterion, while the System combined with a private-state DApp satisfies both.
+The sixth major conclusion is that withdrawal latency is expected to be short because the System uses validity proofs rather than challenge-window-based fault proofs. In the current model, the dominant delay is proof generation plus normal Ethereum inclusion, not a long protocol-level withdrawal waiting period.
 
-The seventh major conclusion is that System-level privacy and DApp-level private-state design are complementary rather than interchangeable. The System can hide original transactions from L1 observers, but if the DApp state itself is semantically transparent, a channel operator may still infer user actions from state changes. Stronger privacy therefore depends on a private-state DApp design such as a zk-note model.
+The seventh major conclusion is that this document now uses a narrow working definition of complete privacy. Under that definition, complete privacy means satisfying both transaction-content privacy and state-semantic privacy. The System alone satisfies only the first criterion, while the System combined with a private-state DApp satisfies both.
 
-The eighth major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, channel instance, function instance, and function preprocess. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
+The eighth major conclusion is that System-level privacy and DApp-level private-state design are complementary rather than interchangeable. The System can hide original transactions from L1 observers, but if the DApp state itself is semantically transparent, a channel operator may still infer user actions from state changes. Stronger privacy therefore depends on a private-state DApp design such as a zk-note model.
 
-The ninth major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
+The ninth major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, channel instance, function instance, and function preprocess. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
+
+The tenth major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
 
 ### 3.2 Open Questions and Remaining Work
 
@@ -787,6 +812,7 @@ The following decisions are stable enough to be treated as the current working p
 - Each channel contains exactly one L2 token-vault storage domain and may additionally contain multiple L2 app-storage domains.
 - L2 token-vault-storage data remains practically available and integrity-protected through Ethereum-visible Groth-zkp submissions, while L2 app-storage data currently depends on the channel operator.
 - Safe channel escape depends on the token-vault path, so frequent use of token-vault storage is currently the recommended robustness strategy when operator data availability is weak.
+- Withdrawal waiting time is expected to be dominated by proof generation and ordinary Ethereum inclusion rather than by a long challenge window.
 - Tokamak zkp is composed of a proof, a transaction instance, a channel instance, a function instance, and a function preprocess.
 - The transaction instance is supplied by the user, while the channel instance, function instance, and function preprocess are supplied and managed by the L1 bridge.
 - Tokamak zkp proofs are submitted directly to each channel manager's verifier on L1, and successful verification immediately updates the channel Merkle-root vector.

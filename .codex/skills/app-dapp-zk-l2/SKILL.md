@@ -85,6 +85,7 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Hold `block_info.json` and `contract_codes.json` fixed for a given function test.
    - Vary `previous_state_snapshot.json` and the transaction RLP across multiple valid private-input configurations for the same function.
    - Keep `previous_state_snapshot.json` faithful to actual pre-state only. Do not pre-register storage keys that exist only because the tested transaction will write them later.
+   - Apply the same rule to L2 vault balance keys. Do not register per-account liquid-balance slots unless those exact keys already exist in pre-state.
    - Do not absorb unregistered-storage warnings back into the config as synthetic `registeredKeys`. If a key is not present in the actual pre-state, leave it absent and fix the modeling issue elsewhere.
    - For each variant, run the Synthesizer CLI and assert that `outputs/instance.json -> a_pub_function` and `outputs/permutation.json` remain identical across the tested variants for that function.
    - Treat the absence of these scripts as a missing DApp deliverable, not as optional test coverage.

@@ -185,7 +185,11 @@ const mintSpec = (outputs: 1 | 2 | 3 | 4 | 5 | 6): TestSpec => ({
     for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
       const prng = createPrng(`${seedLabel}:${outputs}:mint:${fromAccountIndex}:${sampleIndex}`);
       const toAccount = accountIndices[randomInteger(prng, accountIndices.length)] ?? FIXED_MINT_TO_ACCOUNT;
-      const extraBalanceAccounts = randomSubset(prng, accountIndices, accountIndices.length);
+      const extraBalanceAccounts = randomSubset(
+        prng,
+        accountIndices.filter((accountIndex) => accountIndex !== toAccount),
+        Math.max(0, accountIndices.length - 1),
+      );
       const generatorArgs = [...baseArgs, '--note-owner', String(toAccount)];
       if (extraBalanceAccounts.length > 0) {
         generatorArgs.push('--extra-balance-accounts', buildUniqueAccountSet(extraBalanceAccounts).join(','));
@@ -271,13 +275,10 @@ const redeemSpec = (inputs: 1 | 2 | 3 | 4): TestSpec => ({
     for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
       const prng = createPrng(`${seedLabel}:${inputs}:redeem:${fromAccountIndex}:${sampleIndex}`);
       const toAccount = accountIndices[randomInteger(prng, accountIndices.length)] ?? FIXED_REDEEM_TO_ACCOUNT;
-      const extraBalanceAccounts = buildUniqueAccountSet([
-        toAccount,
-        ...randomSubset(prng, accountIndices, accountIndices.length),
-      ]);
+      const extraCommitments = randomInteger(prng, DEFAULT_EXTRA_COMMITMENT_LIMIT + 1);
       const generatorArgs = [...baseArgs, '--receiver', String(toAccount)];
-      if (extraBalanceAccounts.length > 0) {
-        generatorArgs.push('--extra-balance-accounts', extraBalanceAccounts.join(','));
+      if (extraCommitments > 0) {
+        generatorArgs.push('--extra-commitments', String(extraCommitments));
       }
       variants.push({
         variantName: `sample-${String(sampleIndex).padStart(2, '0')}`,

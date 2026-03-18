@@ -85,9 +85,11 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Hold `block_info.json` and `contract_codes.json` fixed for a given function test.
    - Vary `previous_state_snapshot.json` and the transaction RLP across multiple valid private-input configurations for the same function.
    - Keep `previous_state_snapshot.json` faithful to actual pre-state only. Do not pre-register storage keys that exist only because the tested transaction will write them later.
-   - Apply the same rule to L2 vault balance keys. Do not register per-account liquid-balance slots unless those exact keys already exist in pre-state.
+   - Registered keys must include the real from-side keys that the transaction consumes from pre-state, such as the debited liquid-balance slot in mint or the consumed note-commitment slots in transfer and redeem.
+   - To-side keys are optional in compatibility fixtures. For example, receiver or output-side slots may remain absent even if the transaction will read-then-write them during execution.
+   - Apply the same rule to L2 vault balance keys. Register the debited from-side balance key when it exists in pre-state, but do not treat receiver-side balance keys as mandatory fixture inputs.
    - A fixed structural slot that is always part of the real pre-state for the contract, such as controller slot `0x00` when the system relies on it as a permanently present base key, may remain registered.
-   - Do not absorb unregistered-storage warnings back into the config as synthetic `registeredKeys`. If a key is not present in the actual pre-state, leave it absent and fix the modeling issue elsewhere.
+   - Do not absorb unregistered-storage warnings back into the config as synthetic `registeredKeys` beyond the required from-side consumed keys. If an optional key is not present in the actual pre-state, leave it absent and fix the modeling issue elsewhere.
    - For each variant, run the Synthesizer CLI and assert that `outputs/instance.json -> a_pub_function` and `outputs/permutation.json` remain identical across the tested variants for that function.
    - Treat the absence of these scripts as a missing DApp deliverable, not as optional test coverage.
 14. Keep the review explicit in the final response:

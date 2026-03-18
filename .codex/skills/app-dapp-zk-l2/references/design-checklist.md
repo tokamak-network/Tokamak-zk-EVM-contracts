@@ -248,10 +248,12 @@ Required rules:
 
 - `previous_state_snapshot.json` and config `registeredKeys` must contain only storage keys that exist in the actual state before the transaction runs.
 - Do not pre-register future write targets just because the tested transaction will touch them.
-- Apply the same rule to L2 vault balance mappings. Only register a balance key if that exact account slot already exists in pre-state.
+- Registered keys must include the real from-side consumed keys needed by the transaction, such as a sender liquid-balance slot for mint or consumed note-commitment slots for transfer and redeem.
+- To-side keys are optional in compatibility fixtures. Receiver or output-side storage may remain absent even if execution later reads or writes those slots.
+- Apply the same rule to L2 vault balance mappings. The debited from-side balance slot is required when present in real pre-state; receiver-side balance slots are not mandatory fixture inputs.
 - A fixed structural slot that is always present for the contract, such as controller slot `0x00` when the execution model depends on it as a permanent base key, may remain registered.
-- Do not patch configs by replaying once, collecting unregistered-storage warnings, and feeding those keys back into the snapshot as if they were part of pre-state.
-- If a transaction needs access to a key that is absent from real pre-state, treat that as a modeling issue to solve in the execution layer, not as a reason to falsify the pre-state snapshot.
+- Do not patch configs by replaying once, collecting unregistered-storage warnings, and feeding those keys back into the snapshot as if they were part of pre-state, except for the required real from-side consumed keys.
+- If an optional to-side key is absent from real pre-state, leave it absent rather than falsifying the snapshot.
 
 ## 11. Admin and Controller Wiring
 

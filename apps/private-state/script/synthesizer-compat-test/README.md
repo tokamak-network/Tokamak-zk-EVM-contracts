@@ -24,6 +24,11 @@ Transfer samples also vary a salt label so self-target transfers do not reuse th
 
 Separate `*-block-nonce.ts` scripts perform a distinct compatibility pass where block info is varied independently of the main pre-state randomness. Transaction nonce is intentionally kept fixed because changing it under the same pre-state makes the transaction invalid at the VM validation layer instead of producing a meaningful compatibility comparison.
 
+Registered pre-state keys follow a from-side rule:
+
+- required: consumed from-side keys such as the sender liquid-balance slot in mint or consumed note-commitment slots in transfer and redeem
+- optional: to-side keys such as receiver-side vault balances or output-side storage touched later in the transaction
+
 Generated test inputs are stored under:
 
 - `apps/private-state/script/synthesizer-compat-test/generated/<function-name>/fixed`

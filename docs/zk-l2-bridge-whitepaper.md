@@ -18,18 +18,22 @@
 
 ## 1. Introduction
 
-Ethereum can settle assets securely, but ordinary L1 execution reveals transaction contents to the network and forces validators to re-execute application logic. This creates two practical limits for privacy-oriented applications. First, sensitive user activity becomes visible to parties that do not need to know it. Second, application execution remains expensive and difficult to tailor to isolated, app-specific operating environments.
+The first problem that Tokamak Private App Channels aim to solve is to make zero-knowledge-validity-proof-based L2 channels easy to operate. Here, `easy to operate` means that a DApp developer should be able to open an L2 channel dedicated to a specific DApp by developing ordinary Ethereum smart contracts and registering the required contract and function metadata with the bridge, without needing to understand the internal mechanics of zero-knowledge proof construction, proof-system security, or low-level data-availability design.
 
-This problem matters because many application classes, especially financial and note-based applications, require both strong asset safety and meaningful execution privacy. If privacy depends only on hiding balances in application state, then transaction contents may still leak. If scalability depends only on off-chain execution without strong settlement guarantees, then users may lose confidence in custody and exit safety. A useful design must therefore preserve Ethereum's settlement guarantees while moving execution into a more private and application-specific environment.
+This problem matters because a validity-proof-based L2 architecture is useful only if it can be adopted by ordinary application developers rather than only by protocol specialists. If every DApp team must design its own proof architecture, correctness model, and operational data-availability strategy from first principles, then the barrier to deploying application-specific L2 channels remains too high. A practical system should therefore let many kinds of DApps, not only financial or note-based applications, use zk-validity-based channels through a standardized bridge and channel framework.
 
-Tokamak Private App Channels address this problem by splitting the system into Ethereum bridge contracts on L1 and independent application-specific channels on L2. Users execute channel transactions off-chain, generate zero-knowledge validity proofs, and submit proofs rather than original transactions to Ethereum. Ethereum remains the canonical layer for custody, proof verification, and final state acceptance, while the channel provides a private execution domain for one specific DApp.
+The System addresses this problem by splitting responsibility cleanly. The bridge on Ethereum manages channel creation, DApp metadata, proof verification, token-vault control, and authoritative state acceptance. The L2 channel provides an application-specific execution environment. Under this model, the DApp developer focuses on the application contract surface, while the System supplies the validity-proof-based execution and settlement framework needed to operate that DApp as a dedicated channel.
+
+From the user's point of view, the System also addresses a privacy problem. The user does not need to delegate zero-knowledge validity-proof generation to a third party. Instead, the user executes the channel transaction, generates the required proof directly, and submits the proof to Ethereum without revealing the original transaction itself. This self-generated-proof model is an important part of the System's privacy baseline.
 
 The main features of the current design are concise:
 
 - application-specific channels with isolated state machines
+- a deployment model in which general DApp developers can open dedicated validity-proof-based channels without becoming proof-system specialists
 - Ethereum-controlled state acceptance through validity-proof verification
 - a dual-proof model with Groth zkp for token-vault control and Tokamak zkp for channel transaction execution
 - bridge-managed DApp metadata that constrains which contracts and functions each channel may execute
+- user-generated proofs that avoid outsourcing private transaction proving to third parties
 - a safe-exit path grounded in Ethereum-visible token-vault state even when app-storage availability fails
 - a privacy model that can be strengthened further when the System is combined with private-state DApps
 

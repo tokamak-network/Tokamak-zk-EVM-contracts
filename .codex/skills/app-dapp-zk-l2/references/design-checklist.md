@@ -240,7 +240,18 @@ Output expectation:
 
 - A placement analysis should identify the function's total placements, subtract setup overhead, then give exact placement counts per internal logic stage and per external subcall domain.
 
-## 10. Admin and Controller Wiring
+## 10. Synthesizer Pre-State Fidelity
+
+When a DApp ships Synthesizer launch inputs or compatibility tests, the stored pre-state inputs must represent real pre-state only.
+
+Required rules:
+
+- `previous_state_snapshot.json` and config `registeredKeys` must contain only storage keys that exist in the actual state before the transaction runs.
+- Do not pre-register future write targets just because the tested transaction will touch them.
+- Do not patch configs by replaying once, collecting unregistered-storage warnings, and feeding those keys back into the snapshot as if they were part of pre-state.
+- If a transaction needs access to a key that is absent from real pre-state, treat that as a modeling issue to solve in the execution layer, not as a reason to falsify the pre-state snapshot.
+
+## 11. Admin and Controller Wiring
 
 Preferred default:
 

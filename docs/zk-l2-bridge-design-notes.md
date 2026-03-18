@@ -414,13 +414,14 @@ This recommendation is pragmatic rather than free of tradeoffs. Greater reliance
 
 The System is fundamentally a validity-proof-based design. This has an immediate consequence for withdrawal latency from the L2 token vault back to the L1 token vault.
 
-Under the current interpretation, the System has almost no protocol-level withdrawal waiting time beyond proof production and on-chain verification. The reason is that once the relevant validity proof is verified, the corresponding L2 state transition is no longer open to the same kind of dispute window that is typical in fault-proof systems.
+Under the current interpretation, the System has almost no protocol-level withdrawal waiting time beyond proof production and on-chain verification. The reason is that once the relevant validity proof is verified, the corresponding L2 state transition is positively established as valid under the protocol rules.
 
 The contrast with a fault-proof model is important:
 
 - in a fault-proof system, the absence of a submitted fault proof does not by itself mean that the proposed state is already known to be valid at that moment
 - instead, the protocol normally relies on a challenge window during which someone may still dispute the state
-- because of that delayed dispute model, withdrawals usually require a nontrivial waiting period before they are treated as safely final
+- a longer challenge window may increase confidence that an invalid state would have been challenged, but it still does not positively prove that the state is valid
+- because of that delayed and non-positive model, withdrawals usually require a nontrivial waiting period before they are treated as safely final
 
 By contrast, in a validity-proof system:
 
@@ -430,7 +431,7 @@ By contrast, in a validity-proof system:
 
 From the user's point of view, the main withdrawal delay is therefore the time required to generate the necessary validity proof and submit it for verification. Under the current design direction, that delay is expected to be short, on the order of seconds rather than the extended waiting windows typical of fault-proof exits.
 
-This does not mean the withdrawal path is literally zero-latency. The user still depends on proof generation time, transaction inclusion time, and ordinary Ethereum confirmation behavior. But the System does avoid the long protocol-imposed withdrawal delay characteristic of challenge-window-based fault-proof designs.
+This does not mean the withdrawal path is literally zero-latency. The user still depends on proof generation time, transaction inclusion time, and ordinary Ethereum confirmation behavior. But the System does avoid the long protocol-imposed withdrawal delay characteristic of challenge-window-based fault-proof designs, precisely because it uses positive validity proofs rather than waiting for the possible absence of a later fault proof.
 
 ### 2.4 Provisional Interpretation of `docs/spec.md`
 
@@ -740,7 +741,7 @@ The following record is kept so that later revisions can identify which parts of
 - Each channel has exactly one L2 token-vault storage domain and may additionally contain multiple L2 app-storage domains.
 - L2 token-vault-storage changes are traceable from Ethereum through Groth-zkp instance data, while L2 app-storage data currently depends on the channel operator for availability and integrity.
 - Even if L2 app-storage data becomes unavailable or unreliable, users can still rely on Ethereum-visible token-vault state to withdraw tokens and escape safely.
-- Because the System is validity-proof-based rather than fault-proof-based, withdrawal waiting time is expected to be dominated by proof generation and ordinary Ethereum inclusion, not by a long challenge window.
+- Because the System uses positive validity proofs rather than a challenge-window-based fault-proof model, withdrawal waiting time is expected to be dominated by proof generation and ordinary Ethereum inclusion, not by a long challenge window whose expiry still would not positively prove validity.
 
 ## 3. Conclusion
 
@@ -758,7 +759,7 @@ The fourth major conclusion is that data availability is asymmetric across chann
 
 The fifth major conclusion is that safe channel escape therefore depends on the token-vault path, not on continued availability of L2 app-storage data. Even if the operator stops serving app-storage data or serves it incorrectly, users should still be able to withdraw through the token-vault state that Ethereum can track.
 
-The sixth major conclusion is that withdrawal latency is expected to be short because the System uses validity proofs rather than challenge-window-based fault proofs. In the current model, the dominant delay is proof generation plus normal Ethereum inclusion, not a long protocol-level withdrawal waiting period.
+The sixth major conclusion is that withdrawal latency is expected to be short because the System uses positive validity proofs rather than a fault-proof challenge window. In the current model, the dominant delay is proof generation plus normal Ethereum inclusion, not a long protocol-level waiting period whose expiry would still increase confidence only probabilistically rather than positively proving validity.
 
 The seventh major conclusion is that this document now uses a narrow working definition of complete privacy. Under that definition, complete privacy means satisfying both transaction-content privacy and state-semantic privacy. The System alone satisfies only the first criterion, while the System combined with a private-state DApp satisfies both.
 

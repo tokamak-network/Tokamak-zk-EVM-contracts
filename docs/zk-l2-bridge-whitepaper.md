@@ -18,24 +18,21 @@
 
 ## 1. Introduction
 
-The first problem that Tokamak Private App Channels aim to solve is to make zero-knowledge-validity-proof-based L2 channels easy to operate. Here, `easy to operate` means that a DApp developer should be able to open an L2 channel dedicated to a specific DApp by developing ordinary Ethereum smart contracts and registering the required contract and function metadata with the bridge, without needing to understand the internal mechanics of zero-knowledge proof construction, proof-system security, or low-level data-availability design.
+The first problem that Tokamak Private App Channels aim to solve is to make proof-based Layer 2 channels easy to operate. In practical terms, this means that an application developer should be able to open a channel for a specific application by building ordinary Ethereum smart contracts, without needing to become an expert in proof systems, protocol security, or data-availability design.
 
-This problem matters because a validity-proof-based L2 architecture is useful only if it can be adopted by ordinary application developers rather than only by protocol specialists. If every DApp team must design its own proof architecture, correctness model, and operational data-availability strategy from first principles, then the barrier to deploying application-specific L2 channels remains too high. A practical system should therefore let many kinds of DApps, not only financial or note-based applications, use zk-validity-based channels through a standardized bridge and channel framework.
+This problem matters because a Layer 2 architecture is useful only if ordinary developers can adopt it. If every application team must design its own proving model, safety assumptions, and operational rules from first principles, then only protocol specialists will be able to deploy dedicated channels. A practical system should therefore support many kinds of applications through one standardized framework.
 
-The System addresses this problem by splitting responsibility cleanly. The bridge on Ethereum manages channel creation, DApp metadata, proof verification, token-vault control, and authoritative state acceptance. The L2 channel provides an application-specific execution environment. Under this model, the DApp developer focuses on the application contract surface, while the System supplies the validity-proof-based execution and settlement framework needed to operate that DApp as a dedicated channel.
+The System addresses this problem by splitting responsibility cleanly. Ethereum remains the place where assets are settled and accepted state changes are confirmed, while each channel provides a dedicated environment for one application. Under this model, the developer can focus on the application itself, while the System provides the shared framework needed to run that application in a proof-based channel.
 
-From the user's point of view, the System also addresses a privacy problem. The user does not need to delegate zero-knowledge validity-proof generation to a third party. Instead, the user executes the channel transaction, generates the required proof directly, and submits the proof to Ethereum without revealing the original transaction itself. This self-generated-proof model is an important part of the System's privacy baseline.
+From the user's point of view, the System also addresses a privacy problem. The user does not need to hand proof generation to a third party. Instead, the user can generate the needed proof directly and submit it to Ethereum without revealing the original transaction itself. This is an important part of the System's privacy baseline.
 
 The main features of the current design are concise:
 
-- application-specific channels with isolated state machines
-- a deployment model in which general DApp developers can open dedicated validity-proof-based channels without becoming proof-system specialists
-- Ethereum-controlled state acceptance through validity-proof verification
-- a dual-proof model with Groth zkp for token-vault control and Tokamak zkp for channel transaction execution
-- bridge-managed DApp metadata that constrains which contracts and functions each channel may execute
-- user-generated proofs that avoid outsourcing private transaction proving to third parties
-- a safe-exit path grounded in Ethereum-visible token-vault state even when app-storage availability fails
-- a privacy model that can be strengthened further when the System is combined with private-state DApps
+- `Usability`: developers can open dedicated channels for many kinds of applications without building a custom proof framework from scratch.
+- `Security`: assets and authoritative state changes remain anchored to Ethereum rather than to the channel operator.
+- `Anonymity`: the System provides a basic privacy layer by hiding the original user transaction from outside observers, and it avoids outsourcing proof generation to third parties.
+- `Withdrawal latency`: users are not forced to wait through a long dispute period before exiting; delay is expected to come mainly from proof generation and normal Ethereum processing.
+- `Data availability`: asset-related state remains practically recoverable from Ethereum, while broader application data still depends more heavily on the channel operator.
 
 This white paper presents the current architecture in a concise form. It focuses on the present operating model rather than on historical design notes, and it intentionally allows the introduction to summarize core arguments that are developed in more detail in the main body.
 

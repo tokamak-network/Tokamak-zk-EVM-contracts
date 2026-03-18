@@ -6,7 +6,7 @@ Method:
 
 1. Use the Synthesizer CLI entrypoint at `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/cli/index.ts`.
 2. Hold `block_info.json` and `contract_codes.json` fixed from the first generated case.
-3. Regenerate `previous_state_snapshot.json` and transaction RLP across multiple sender variants.
+3. Regenerate `previous_state_snapshot.json` and transaction RLP across multiple `fromAccount` variants.
 4. Run the CLI for each variant.
 5. Assert that:
    - `outputs/instance.json -> a_pub_function`
@@ -16,9 +16,9 @@ Method:
 Generated test inputs are stored under:
 
 - `apps/private-state/script/synthesizer-compat-test/generated/<function-name>/fixed`
-- `apps/private-state/script/synthesizer-compat-test/generated/<function-name>/sender-<index>`
+- `apps/private-state/script/synthesizer-compat-test/generated/<function-name>/from-account-<index>`
 
-Each sender directory keeps the generated `config.json`, `previous_state_snapshot.json`, and `transaction_rlp.txt` used by the test run. The `generated/` directory is intentionally gitignored.
+Each `fromAccount` directory keeps the generated `config.json`, `previous_state_snapshot.json`, and `transaction_rlp.txt` used by the test run. The `generated/` directory is intentionally gitignored.
 
 Usage:
 
@@ -31,6 +31,6 @@ npx tsx apps/private-state/script/synthesizer-compat-test/redeemNotes1.ts --skip
 Optional flags:
 
 - `--skip-bootstrap`
-- `--senders 0,1,2,3`
+- `--from-accounts 0,1,2,3`
 
 `--skip-bootstrap` is useful when running multiple scripts against the same freshly bootstrapped anvil instance.

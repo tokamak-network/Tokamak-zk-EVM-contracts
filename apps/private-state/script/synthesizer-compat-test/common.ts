@@ -39,10 +39,10 @@ const transferGeneratorPath = path.resolve(synthesizerRoot, 'scripts', 'generate
 const redeemGeneratorPath = path.resolve(synthesizerRoot, 'scripts', 'generate-private-state-redeem-config.ts');
 
 const DEFAULT_ANVIL_RPC_URL = 'http://127.0.0.1:8545';
-const DEFAULT_SENDER_SET = [0, 1, 2, 3];
+const DEFAULT_FROM_ACCOUNT_SET = [0, 1, 2, 3];
 const DEFAULT_PARTICIPANT_COUNT = 4;
-const FIXED_NOTE_OWNER = 0;
-const FIXED_REDEEM_RECEIVER = 0;
+const FIXED_MINT_TO_ACCOUNT = 0;
+const FIXED_REDEEM_TO_ACCOUNT = 0;
 const FIXED_PREV_BLOCK_HASH_COUNT = 4;
 
 type ParticipantEntry = {
@@ -103,21 +103,21 @@ type TestResultSnapshot = {
 type TestSpec = {
   functionName: string;
   family: 'mint' | 'transfer' | 'redeem';
-  buildGeneratorArgs: (senderIndex: number, outputPath: string) => string[];
+  buildGeneratorArgs: (fromAccountIndex: number, outputPath: string) => string[];
 };
 
 const mintSpec = (outputs: 1 | 2 | 3 | 4 | 5 | 6): TestSpec => ({
   functionName: `mintNotes${outputs}`,
   family: 'mint',
-  buildGeneratorArgs: (senderIndex, outputPath) => [
+  buildGeneratorArgs: (fromAccountIndex, outputPath) => [
     '--output',
     outputPath,
     '--participants',
     String(DEFAULT_PARTICIPANT_COUNT),
     '--sender',
-    String(senderIndex),
+    String(fromAccountIndex),
     '--note-owner',
-    String(FIXED_NOTE_OWNER),
+    String(FIXED_MINT_TO_ACCOUNT),
     '--outputs',
     String(outputs),
   ],
@@ -126,13 +126,13 @@ const mintSpec = (outputs: 1 | 2 | 3 | 4 | 5 | 6): TestSpec => ({
 const transferSpec = (inputs: 1 | 2 | 3 | 4, outputs: 1 | 2 | 3): TestSpec => ({
   functionName: `transferNotes${inputs}To${outputs}`,
   family: 'transfer',
-  buildGeneratorArgs: (senderIndex, outputPath) => [
+  buildGeneratorArgs: (fromAccountIndex, outputPath) => [
     '--output',
     outputPath,
     '--participants',
     String(DEFAULT_PARTICIPANT_COUNT),
     '--sender',
-    String(senderIndex),
+    String(fromAccountIndex),
     '--inputs',
     String(inputs),
     '--outputs',
@@ -143,15 +143,15 @@ const transferSpec = (inputs: 1 | 2 | 3 | 4, outputs: 1 | 2 | 3): TestSpec => ({
 const redeemSpec = (inputs: 1 | 2 | 3 | 4): TestSpec => ({
   functionName: `redeemNotes${inputs}`,
   family: 'redeem',
-  buildGeneratorArgs: (senderIndex, outputPath) => [
+  buildGeneratorArgs: (fromAccountIndex, outputPath) => [
     '--output',
     outputPath,
     '--participants',
     String(DEFAULT_PARTICIPANT_COUNT),
     '--sender',
-    String(senderIndex),
+    String(fromAccountIndex),
     '--receiver',
-    String(FIXED_REDEEM_RECEIVER),
+    String(FIXED_REDEEM_TO_ACCOUNT),
     '--inputs',
     String(inputs),
   ],
@@ -352,19 +352,20 @@ const createCliInputBundle = async (configPath: string): Promise<CliInputBundle>
   const stateManager = await createTokamakL2StateManagerFromL1RPC(rpcUrl, stateManagerOpts);
   const blockInfo = await getBlockInfoFromRpc(rpcUrl, config.blockNumber, FIXED_PREV_BLOCK_HASH_COUNT);
   const keyMaterial = deriveParticipantKeys(config.participants);
-  const senderPrivateKey = keyMaterial.privateKeys[config.senderIndex];
-  const senderPublicKey = keyMaterial.publicKeys[config.senderIndex];
-  if (senderPrivateKey === undefined || senderPublicKey === undefined) {
-    throw new Error(`senderIndex must point to an existing participant; got ${config.senderIndex}`);
+  const fromAccountIndex = config.senderIndex;
+  const fromAccountPrivateKey = keyMaterial.privateKeys[fromAccountIndex];
+  const fromAccountPublicKey = keyMaterial.publicKeys[fromAccountIndex];
+  if (fromAccountPrivateKey === undefined || fromAccountPublicKey === undefined) {
+    throw new Error(`fromAccountIndex must point to an existing participant; got ${fromAccountIndex}`);
   }
 
   const txData: TokamakL2TxData = {
     nonce: BigInt(config.txNonce),
     to: createAddressFromString(config.function.entryContractAddress),
     data: hexToBytes(config.calldata),
-    senderPubKey: senderPublicKey.toBytes(),
+    senderPubKey: fromAccountPublicKey.toBytes(),
   };
-  const transaction = createTokamakL2Tx(txData, { common: stateManagerOpts.common }).sign(senderPrivateKey);
+  const transaction = createTokamakL2Tx(txData, { common: stateManagerOpts.common }).sign(fromAccountPrivateKey);
   const transactionRlp = addHexPrefix(bytesToHex(transaction.serialize())) as `0x${string}`;
 
   const contractCodes = await Promise.all(
@@ -395,15 +396,15 @@ const readResultSnapshot = async (): Promise<TestResultSnapshot> => {
 
 const compareStableOutputs = (
   functionName: string,
-  senderIndex: number,
+  fromAccountIndex: number,
   baseline: TestResultSnapshot,
   candidate: TestResultSnapshot,
 ) => {
   if (JSON.stringify(baseline.aPubFunction) !== JSON.stringify(candidate.aPubFunction)) {
-    throw new Error(`${functionName}: a_pub_function changed for sender ${senderIndex}`);
+    throw new Error(`${functionName}: a_pub_function changed for fromAccount ${fromAccountIndex}`);
   }
   if (JSON.stringify(baseline.permutation) !== JSON.stringify(candidate.permutation)) {
-    throw new Error(`${functionName}: permutation changed for sender ${senderIndex}`);
+    throw new Error(`${functionName}: permutation changed for fromAccount ${fromAccountIndex}`);
   }
 };
 
@@ -416,7 +417,7 @@ const bootstrapAnvil = async () => {
 const parseOptions = (argv: string[]) => {
   const options = {
     skipBootstrap: false,
-    senders: [...DEFAULT_SENDER_SET],
+    fromAccounts: [...DEFAULT_FROM_ACCOUNT_SET],
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -425,15 +426,15 @@ const parseOptions = (argv: string[]) => {
       case '--skip-bootstrap':
         options.skipBootstrap = true;
         break;
-      case '--senders': {
+      case '--from-accounts': {
         const next = argv[index + 1];
         if (!next) {
-          throw new Error('Missing value for --senders');
+          throw new Error('Missing value for --from-accounts');
         }
-        options.senders = next.split(',').map((value) => {
+        options.fromAccounts = next.split(',').map((value) => {
           const parsed = Number(value.trim());
           if (!Number.isInteger(parsed)) {
-            throw new Error(`Invalid sender index: ${value}`);
+            throw new Error(`Invalid fromAccount index: ${value}`);
           }
           return parsed;
         });
@@ -445,8 +446,8 @@ const parseOptions = (argv: string[]) => {
     }
   }
 
-  if (options.senders.length === 0) {
-    throw new Error('At least one sender index must be provided');
+  if (options.fromAccounts.length === 0) {
+    throw new Error('At least one fromAccount index must be provided');
   }
 
   return options;
@@ -470,10 +471,10 @@ export const runPrivateStateSynthesizerCompatTest = async (
   await fs.rm(workDir, { recursive: true, force: true });
   await fs.mkdir(workDir, { recursive: true });
   const fixedDir = path.join(workDir, 'fixed');
-  const baseSender = options.senders[0];
+  const baseFromAccount = options.fromAccounts[0];
 
-  const buildCaseFiles = async (senderIndex: number) => {
-    const caseDir = path.join(workDir, `sender-${senderIndex}`);
+  const buildCaseFiles = async (fromAccountIndex: number) => {
+    const caseDir = path.join(workDir, `from-account-${fromAccountIndex}`);
     const configPath = path.join(caseDir, 'config.json');
     const previousStatePath = path.join(caseDir, 'previous_state_snapshot.json');
     const transactionPath = path.join(caseDir, 'transaction_rlp.txt');
@@ -488,7 +489,7 @@ export const runPrivateStateSynthesizerCompatTest = async (
 
     await runCommand(
       'npx',
-      ['tsx', '--tsconfig', synthesizerTsconfigPath, generatorPath, ...spec.buildGeneratorArgs(senderIndex, configPath)],
+      ['tsx', '--tsconfig', synthesizerTsconfigPath, generatorPath, ...spec.buildGeneratorArgs(fromAccountIndex, configPath)],
       repoRoot,
     );
 
@@ -497,13 +498,13 @@ export const runPrivateStateSynthesizerCompatTest = async (
     await writeText(transactionPath, cliInput.transactionRlp);
 
     return {
-      senderIndex,
+      fromAccountIndex,
       previousStatePath,
       cliInput,
     };
   };
 
-  const baseCase = await buildCaseFiles(baseSender);
+  const baseCase = await buildCaseFiles(baseFromAccount);
   await fs.mkdir(fixedDir, { recursive: true });
   const fixedBlockInfoPath = path.join(fixedDir, 'block_info.json');
   const fixedContractCodesPath = path.join(fixedDir, 'contract_codes.json');
@@ -511,8 +512,8 @@ export const runPrivateStateSynthesizerCompatTest = async (
   await writeJson(fixedContractCodesPath, baseCase.cliInput.contractCodes);
 
   let baseline: TestResultSnapshot | null = null;
-  for (const senderIndex of options.senders) {
-    const testCase = senderIndex === baseSender ? baseCase : await buildCaseFiles(senderIndex);
+  for (const fromAccountIndex of options.fromAccounts) {
+    const testCase = fromAccountIndex === baseFromAccount ? baseCase : await buildCaseFiles(fromAccountIndex);
     await runCommand(
       'npx',
       [
@@ -536,14 +537,14 @@ export const runPrivateStateSynthesizerCompatTest = async (
     const snapshot = await readResultSnapshot();
     if (baseline === null) {
       baseline = snapshot;
-      console.log(`${functionName}: established baseline with sender ${senderIndex}`);
+      console.log(`${functionName}: established baseline with fromAccount ${fromAccountIndex}`);
       continue;
     }
-    compareStableOutputs(functionName, senderIndex, baseline, snapshot);
-    console.log(`${functionName}: sender ${senderIndex} matched baseline`);
+    compareStableOutputs(functionName, fromAccountIndex, baseline, snapshot);
+    console.log(`${functionName}: fromAccount ${fromAccountIndex} matched baseline`);
   }
 
-  console.log(`${functionName}: compatibility check passed for senders ${options.senders.join(', ')}`);
+  console.log(`${functionName}: compatibility check passed for fromAccounts ${options.fromAccounts.join(', ')}`);
 };
 
 export const PRIVATE_STATE_SYNTH_COMPAT_FUNCTIONS = Object.keys(TEST_SPECS);

@@ -36,6 +36,7 @@ The following terms are used throughout this document:
 - `L1 token vault`: the per-channel vault managed by the L1 bridge contracts for token approval, transfer, deposit, and withdrawal
 - `L2 token vault` or `L2 accounting vault`: the per-channel vault domain represented inside the L2 state, with its own dedicated Merkle tree
 - `L2 token vault key`: the key under which a user's balance is represented in a channel's L2 token-vault tree
+- `L2 app storage`: the collection of all channel storage other than the single L2 token-vault storage
 - `Groth zkp`: the Groth16-based proof system used for token-vault control
 - `Tokamak zkp`: the custom Tokamak zk-EVM proof system used for L2 channel transaction processing
 - `Instance`: the public data paired with a submitted proof
@@ -75,6 +76,7 @@ The following assumptions are currently treated as the baseline unless later inp
 - each channel has its own L1 token vault managed by the bridge
 - each channel's L1 token vault stores both the user's tokens and the user's registered L2 token-vault key for that channel
 - each channel's L2 state always includes one dedicated Merkle tree for an L2 token vault or L2 accounting vault
+- each channel may additionally contain multiple other storage domains, and those are collectively treated as L2 app storage
 - the same user must use a different L2 token-vault key for each channel
 - once a user registers an L2 token-vault key for a channel, that key is immutable
 - every L2 token-vault key must be globally unique across all channels, and the L1 bridge checks uniqueness when a key is registered
@@ -92,6 +94,8 @@ The following assumptions are currently treated as the baseline unless later inp
 - each channel manager inherits only a subset of contracts and functions from the DApp manager, and users may execute only that inherited subset
 - a channel failure must remain isolated from other channels
 - a channel's economically authoritative state on Ethereum changes only when Ethereum verifies the relevant new state
+- L2 token-vault storage changes are traceable from Ethereum because Groth-zkp instances expose the relevant before-and-after data
+- L2 app-storage data availability and integrity currently depend on the channel operator rather than on Ethereum
 - `docs/spec.md` is an important source of structure and constraints, but it is not immutable truth
 - later user instructions may refine, replace, or override any provisional interpretation derived from `docs/spec.md`
 
@@ -373,6 +377,39 @@ Under this working definition, the current privacy picture is concise:
 
 Therefore, under this document's narrow working definition, `System + private-state DApp` achieves complete privacy, while `System alone` does not.
 
+#### 2.3.8 Data Availability Split Between Vault and App Storage
+
+Each channel contains exactly one L2 token-vault storage domain. In addition, a channel may contain multiple other storage domains for application logic. In this document, all such non-vault storage is grouped under the name `L2 app storage`.
+
+The data-availability and integrity assumptions are not the same for these two storage classes.
+
+For `L2 token vault storage`:
+
+- it is managed through Groth zkp
+- the Groth-zkp instance contains the previous value and updated value of the relevant storage data
+- the corresponding state change is therefore traceable from information provided on Ethereum
+- the channel operator does not need to be the exclusive data provider for that storage domain
+
+In practical terms, this means that the data of the L2 token-vault storage is still supplied to Ethereum by users through Groth-zkp submissions, even if the channel operator does not provide it separately. Users can therefore still access the relevant token-vault state through Ethereum full nodes.
+
+For `L2 app storage`:
+
+- its data is not supplied to Ethereum by users in the same way
+- users obtain that data from the channel operator
+- the channel operator may fail to provide it, or may provide it incorrectly, whether by mistake or by malicious intent
+
+If that happens, users may lose the ability to continue normal L2 transaction activity, because they can no longer reconstruct or trust the required app-storage state.
+
+However, this failure does not imply loss of token-vault safety. Even in that scenario:
+
+- users can still access L2 token-vault-storage state through Ethereum full nodes
+- the channel operator does not have a unilateral path to tamper with L2 token-vault-storage state
+- users can still withdraw their own tokens and escape the channel safely
+
+This creates the current operational recommendation: if users want a safer escape path under weak operator data availability, they should rely on L2 token-vault storage frequently enough that their withdrawable position remains anchored in the Ethereum-visible vault state.
+
+This recommendation is pragmatic rather than free of tradeoffs. Greater reliance on token-vault storage may improve safe-exit robustness, but it may also increase operational overhead and constrain how much application logic can remain purely in L2 app storage.
+
 ### 2.4 Provisional Interpretation of `docs/spec.md`
 
 The mathematical model in `docs/spec.md` is currently treated as a structural reference rather than as final protocol truth. The present reading is that the spec describes a bridge-facing model with three major layers.
@@ -455,6 +492,7 @@ Within that L2 server, the execution layer is not one global execution fabric. I
 - provisional state progression between verified checkpoints
 - updates to one or more Merkle trees and therefore to the resulting Merkle-root vector
 - maintenance of one dedicated Merkle tree for the channel's L2 token vault or L2 accounting vault
+- maintenance of additional L2 app-storage domains when required by the DApp
 - bridge-relevant accounting transitions
 - production of the witness required for proof generation
 
@@ -576,6 +614,7 @@ The exact state model remains open, but the system currently needs to track at l
 - L2 accounting balances
 - the set of Merkle trees that realize each L2 state
 - the dedicated Merkle tree for each channel's L2 token vault or L2 accounting vault
+- all non-vault storage grouped as L2 app storage
 - the latest stored leaves of each channel's current Merkle trees
 - accepted Merkle-root vectors
 - per-channel history of Merkle-root-vector changes
@@ -608,6 +647,9 @@ The current invariants are:
 - no channel update becomes authoritative until its submitted Tokamak zkp evidence is verified by L1
 - each user's registered L2 token-vault key for a channel must be immutable once stored
 - no two registered L2 token-vault keys may coincide anywhere across the System
+- L2 token-vault-storage data integrity and practical data availability must remain recoverable from Ethereum-visible Groth-zkp submissions
+- L2 app-storage data integrity and availability currently depend on the channel operator unless stronger DA machinery is introduced
+- failure of L2 app-storage availability must not prevent a user from withdrawing tokens according to the last accessible token-vault state
 - only the System administrator may add a new DApp to the DApp manager
 - a channel manager may accept Tokamak-zkp-based updates only for the contract-and-function subset it inherited from the DApp manager
 - a function-instance or function-preprocess mismatch must prevent channel-state update acceptance
@@ -673,6 +715,9 @@ The following record is kept so that later revisions can identify which parts of
 - In the zk-note example, transfer is modeled as spending input notes and creating new output notes, so state observers without the original transaction can see commitments but not the clear transfer record.
 - Under the document's working definition, complete privacy means satisfying both transaction-content privacy and state-semantic privacy.
 - Under that working definition, the System alone satisfies only transaction-content privacy, while `System + private-state DApp` satisfies both criteria.
+- Each channel has exactly one L2 token-vault storage domain and may additionally contain multiple L2 app-storage domains.
+- L2 token-vault-storage changes are traceable from Ethereum through Groth-zkp instance data, while L2 app-storage data currently depends on the channel operator for availability and integrity.
+- Even if L2 app-storage data becomes unavailable or unreliable, users can still rely on Ethereum-visible token-vault state to withdraw tokens and escape safely.
 
 ## 3. Conclusion
 
@@ -686,13 +731,17 @@ The second major conclusion is that token-vault authorization now depends not on
 
 The third major conclusion is that the System changes the approval condition of DApp state transitions. In an ordinary L1-native DApp, Ethereum validators approve updates by re-executing transactions. In the System, validators approve updates by verifying zero-knowledge proofs, while the original transaction may remain private.
 
-The fourth major conclusion is that this document now uses a narrow working definition of complete privacy. Under that definition, complete privacy means satisfying both transaction-content privacy and state-semantic privacy. The System alone satisfies only the first criterion, while the System combined with a private-state DApp satisfies both.
+The fourth major conclusion is that data availability is asymmetric across channel storage classes. L2 token-vault storage remains practically recoverable from Ethereum-visible Groth-zkp data, whereas L2 app storage currently depends on the channel operator for integrity and availability.
 
-The fifth major conclusion is that System-level privacy and DApp-level private-state design are complementary rather than interchangeable. The System can hide original transactions from L1 observers, but if the DApp state itself is semantically transparent, a channel operator may still infer user actions from state changes. Stronger privacy therefore depends on a private-state DApp design such as a zk-note model.
+The fifth major conclusion is that safe channel escape therefore depends on the token-vault path, not on continued availability of L2 app-storage data. Even if the operator stops serving app-storage data or serves it incorrectly, users should still be able to withdraw through the token-vault state that Ethereum can track.
 
-The sixth major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, channel instance, function instance, and function preprocess. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
+The sixth major conclusion is that this document now uses a narrow working definition of complete privacy. Under that definition, complete privacy means satisfying both transaction-content privacy and state-semantic privacy. The System alone satisfies only the first criterion, while the System combined with a private-state DApp satisfies both.
 
-The seventh major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
+The seventh major conclusion is that System-level privacy and DApp-level private-state design are complementary rather than interchangeable. The System can hide original transactions from L1 observers, but if the DApp state itself is semantically transparent, a channel operator may still infer user actions from state changes. Stronger privacy therefore depends on a private-state DApp design such as a zk-note model.
+
+The eighth major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, channel instance, function instance, and function preprocess. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
+
+The ninth major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
 
 ### 3.2 Open Questions and Remaining Work
 
@@ -709,6 +758,7 @@ The following questions remain open and will need to be resolved in later revisi
 - whether channel operators alone are sufficient as practical data providers for state reconstruction, or whether the System needs stronger data-availability guarantees
 - whether the document's narrow definition of complete privacy should remain limited to transaction content and state semantics, or be expanded to include metadata privacy
 - the exact residual privacy leakage that may remain even in a private-state DApp, including metadata, timing, note-linkage, and operator-observation channels
+- the exact operational tradeoff between frequent token-vault usage for safer escape and richer reliance on L2 app storage for application efficiency
 - whether a channel manager's inherited contract-and-function subset is immutable after channel creation or can be versioned later
 - the exact lifecycle and governance process for updating channel instances, function instances, and function preprocess data
 - the exact future design of proposal-pool operation, if the protocol later reintroduces delayed Tokamak-zkp verification
@@ -734,6 +784,9 @@ The following decisions are stable enough to be treated as the current working p
 - Every Merkle-tree update in a channel, including every L2 vault-tree update, is under L1 control.
 - The System uses Groth zkp for token-vault control and Tokamak zkp for channel transaction processing.
 - Groth zkp proofs directly authorize deposit and withdrawal updates on the L2 token-vault tree and on the channel Merkle-root vector.
+- Each channel contains exactly one L2 token-vault storage domain and may additionally contain multiple L2 app-storage domains.
+- L2 token-vault-storage data remains practically available and integrity-protected through Ethereum-visible Groth-zkp submissions, while L2 app-storage data currently depends on the channel operator.
+- Safe channel escape depends on the token-vault path, so frequent use of token-vault storage is currently the recommended robustness strategy when operator data availability is weak.
 - Tokamak zkp is composed of a proof, a transaction instance, a channel instance, a function instance, and a function preprocess.
 - The transaction instance is supplied by the user, while the channel instance, function instance, and function preprocess are supplied and managed by the L1 bridge.
 - Tokamak zkp proofs are submitted directly to each channel manager's verifier on L1, and successful verification immediately updates the channel Merkle-root vector.

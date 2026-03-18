@@ -267,6 +267,46 @@ Each channel manager inherits only a subset of contracts and functions from the 
 
 This restriction is security-relevant. If a user generates a Tokamak zkp for a channel transaction outside the inherited subset and submits it to L1, the channel state must not update, because the verification path will fail on the function-instance or function-preprocess mismatch.
 
+#### 2.3.5 Comparative Description of DApp Operation
+
+To describe the System more clearly, it is useful to compare an ordinary L1-native DApp with a DApp operating through the System.
+
+An ordinary L1-native DApp operates as follows:
+
+1. The DApp developer deploys the relevant smart contracts to Ethereum.
+2. Those smart contracts contain the storage used by the DApp and the functions that manipulate that storage.
+3. A DApp user creates a transaction that calls one of those functions and submits it to Ethereum.
+4. Ethereum validators verify the transaction by re-executing it.
+5. If re-execution succeeds, Ethereum updates the corresponding storage roots and publishes the result.
+
+Under that model:
+
+- the DApp is a state machine
+- DApp users are the proposers of state updates
+- Ethereum L1 validators are the approvers of state updates
+- the state-update condition is successful transaction re-execution
+- Ethereum full nodes are the data providers from which the DApp state can be reconstructed
+
+A DApp operating through the System works differently:
+
+1. The DApp developer first registers the relevant contract-storage information and function information with the L1 bridge.
+2. A channel operator opens an L2 channel dedicated to that DApp by using the bridge-registered storage and function information.
+3. A DApp user creates a transaction that calls one of the permitted functions.
+4. The user executes that transaction locally, confirms that it is valid, and generates a Tokamak zkp proving that validity.
+5. The user submits the Tokamak zkp proof and the related public inputs to Ethereum without submitting the original transaction itself.
+6. Ethereum validators verify the transaction's validity by verifying the zkp rather than by re-executing the original transaction.
+7. If zkp verification succeeds, Ethereum updates both the DApp-related storage roots and the relevant L1 bridge storage roots and publishes the result.
+
+Under the System model:
+
+- the DApp is a state machine
+- DApp users are the proposers of state updates
+- Ethereum L1 validators are the approvers of state updates
+- the state-update condition is successful zkp verification rather than transaction re-execution
+- the channel operator is the practical data provider from which the DApp state can be reconstructed
+
+This comparison clarifies the central shift introduced by the System: Ethereum validators approve state changes by proof verification instead of by re-executing the private transaction itself. It also exposes a corresponding dependency: if channel operators are the effective data providers for state reconstruction, then the System must make its data-availability assumptions explicit.
+
 ### 2.4 Provisional Interpretation of `docs/spec.md`
 
 The mathematical model in `docs/spec.md` is currently treated as a structural reference rather than as final protocol truth. The present reading is that the spec describes a bridge-facing model with three major layers.
@@ -560,6 +600,8 @@ The following record is kept so that later revisions can identify which parts of
 - When a user first places tokens into a channel's L1 token vault, the user must provide the L2 token-vault key to be used in that channel, and that key becomes immutable once registered.
 - Withdrawal requires both a valid Groth zkp proof and instance and equality between the instance's current user key and the user's registered L2 token-vault key.
 - Deposit requires both a valid Groth zkp proof and instance and equality between the instance's updated user key and the user's registered L2 token-vault key.
+- Compared with an ordinary L1-native DApp, the System replaces validator-side transaction re-execution with validator-side zkp verification.
+- Under this comparative description, DApp users still propose state updates and Ethereum validators still approve them, but the practical data provider for state reconstruction becomes the channel operator rather than Ethereum full nodes.
 
 ## 3. Conclusion
 
@@ -571,9 +613,11 @@ The most important current conclusion is that the bridge must distinguish operat
 
 The second major conclusion is that token-vault authorization now depends not only on proof validity but also on a bridge-managed L2 token-vault key registry. Deposits and withdrawals are tied to the user's immutable registered key for the selected channel, and the bridge enforces global uniqueness of those keys across the System.
 
-The third major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, channel instance, function instance, and function preprocess. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
+The third major conclusion is that the System changes the approval condition of DApp state transitions. In an ordinary L1-native DApp, Ethereum validators approve updates by re-executing transactions. In the System, validators approve updates by verifying zero-knowledge proofs, while the original transaction may remain private.
 
-The fourth major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
+The fourth major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, channel instance, function instance, and function preprocess. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
+
+The fifth major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
 
 ### 3.2 Open Questions and Remaining Work
 
@@ -587,6 +631,7 @@ The following questions remain open and will need to be resolved in later revisi
 - the exact relation between provisional in-channel execution and verified Ethereum state
 - the exact recovery, migration, or rotation policy if a user loses access to an immutable registered L2 token-vault key
 - the exact storage and lookup design for enforcing global uniqueness of all registered L2 token-vault keys
+- whether channel operators alone are sufficient as practical data providers for state reconstruction, or whether the System needs stronger data-availability guarantees
 - whether a channel manager's inherited contract-and-function subset is immutable after channel creation or can be versioned later
 - the exact lifecycle and governance process for updating channel instances, function instances, and function preprocess data
 - the exact future design of proposal-pool operation, if the protocol later reintroduces delayed Tokamak-zkp verification
@@ -615,6 +660,8 @@ The following decisions are stable enough to be treated as the current working p
 - Tokamak zkp is composed of a proof, a transaction instance, a channel instance, a function instance, and a function preprocess.
 - The transaction instance is supplied by the user, while the channel instance, function instance, and function preprocess are supplied and managed by the L1 bridge.
 - Tokamak zkp proofs are submitted directly to each channel manager's verifier on L1, and successful verification immediately updates the channel Merkle-root vector.
+- Compared with an ordinary L1-native DApp, the System uses validator-side zkp verification instead of validator-side transaction re-execution.
+- Under the current comparative description, channel operators are the practical data providers for reconstructing System DApp state.
 - The L1 bridge manages supported DApps, and only the System administrator may add a new DApp.
 - Each channel manager inherits a contract-and-function subset from the DApp manager and may accept only that subset for channel updates.
 - Proposal-pool operation, fork handling, and tokenomics-linked incentives are not part of the current version and remain future work.

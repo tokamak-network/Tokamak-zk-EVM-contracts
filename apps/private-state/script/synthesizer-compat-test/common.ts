@@ -15,6 +15,7 @@ import {
 import { jubjub } from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/node_modules/@noble/curves/misc.js';
 import type { EdwardsPoint } from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/node_modules/@noble/curves/abstract/edwards.js';
 import {
+  createTokamakL2Common,
   createStateManagerOptsFromChannelConfig,
   createTokamakL2StateManagerFromL1RPC,
   createTokamakL2Tx,
@@ -22,7 +23,7 @@ import {
   type ChannelStateConfig,
   type StateSnapshot,
   type TokamakL2TxData,
-} from '../../../../submodules/Tokamak-zk-EVM/submodules/TokamakL2JS/src/index.ts';
+} from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/node_modules/tokamak-l2js/dist/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,6 +48,7 @@ const FIXED_PREV_BLOCK_HASH_COUNT = 4;
 const DEFAULT_RANDOM_SAMPLE_COUNT = 6;
 const DEFAULT_RANDOM_SEED = 'private-state-synth-compat';
 const DEFAULT_EXTRA_COMMITMENT_LIMIT = 3;
+const DEFAULT_CHANNEL_ID = 4;
 
 type ParticipantEntry = {
   addressL1: `0x${string}`;
@@ -359,48 +361,22 @@ const deriveParticipantKeys = (participants: ParticipantEntry[]): DerivedPartici
   return { privateKeys, publicKeys };
 };
 
+const assignChannelId = (
+  stateManager: Awaited<ReturnType<typeof createTokamakL2StateManagerFromL1RPC>>,
+  channelId: number,
+) => {
+  (
+    stateManager as Awaited<ReturnType<typeof createTokamakL2StateManagerFromL1RPC>> & {
+      _channelId?: number;
+    }
+  )._channelId = channelId;
+};
+
 const buildStateSnapshot = async (
   stateManager: Awaited<ReturnType<typeof createTokamakL2StateManagerFromL1RPC>>,
 ): Promise<StateSnapshot> => {
-  if (stateManager.registeredKeys === null) {
-    throw new Error('State manager has no registered keys.');
-  }
-
-  const roots = stateManager.lastMerkleTrees.getRoots();
-  const rootByAddress = new Map<string, string>();
-  for (const [index, address] of stateManager.lastMerkleTrees.addresses.entries()) {
-    rootByAddress.set(address.toString().toLowerCase(), roots[index].toString(16));
-  }
-
-  const storageAddresses: string[] = [];
-  const stateRoots: string[] = [];
-  const registeredKeys: { key: string; value: string }[][] = [];
-
-  for (const registeredKeysForAddress of stateManager.registeredKeys) {
-    const addressString = registeredKeysForAddress.address.toString();
-    const root = rootByAddress.get(addressString.toLowerCase());
-    if (root === undefined) {
-      throw new Error(`Missing Merkle root for ${addressString}`);
-    }
-
-    storageAddresses.push(addressString);
-    stateRoots.push(root);
-    registeredKeys.push(
-      await Promise.all(
-        registeredKeysForAddress.keys.map(async (keyBytes) => ({
-          key: addHexPrefix(bytesToHex(keyBytes)),
-          value: addHexPrefix(bytesToHex(await stateManager.getStorage(registeredKeysForAddress.address, keyBytes))),
-        })),
-      ),
-    );
-  }
-
-  return {
-    channelId: 4,
-    stateRoots,
-    storageAddresses,
-    registeredKeys,
-  };
+  assignChannelId(stateManager, DEFAULT_CHANNEL_ID);
+  return stateManager.captureStateSnapshot();
 };
 
 const loadJson = async <T>(filePath: string): Promise<T> =>
@@ -487,7 +463,6 @@ const buildStateManagerAndConfig = async (configPath: string) => {
 
 const buildTransactionRlp = (
   config: BaseCompatConfig,
-  stateManagerOpts: ReturnType<typeof createStateManagerOptsFromChannelConfig>,
   transactionNonceOverride?: bigint,
 ): `0x${string}` => {
   const keyMaterial = deriveParticipantKeys(config.participants);
@@ -504,7 +479,7 @@ const buildTransactionRlp = (
     data: hexToBytes(config.calldata),
     senderPubKey: fromAccountPublicKey.toBytes(),
   };
-  const transaction = createTokamakL2Tx(txData, { common: stateManagerOpts.common }).sign(fromAccountPrivateKey);
+  const transaction = createTokamakL2Tx(txData, { common: createTokamakL2Common() }).sign(fromAccountPrivateKey);
   return addHexPrefix(bytesToHex(transaction.serialize())) as `0x${string}`;
 };
 
@@ -526,7 +501,7 @@ const createCliInputBundle = async (
   const { config, rpcUrl, stateManagerOpts, stateManager } = await buildStateManagerAndConfig(configPath);
   const blockInfo = overrides.blockInfo ?? await getBlockInfoFromRpc(rpcUrl, config.blockNumber, FIXED_PREV_BLOCK_HASH_COUNT);
   const contractCodes = await fetchContractCodes(rpcUrl, config.callCodeAddresses, config.blockNumber);
-  const transactionRlp = buildTransactionRlp(config, stateManagerOpts, overrides.transactionNonce);
+  const transactionRlp = buildTransactionRlp(config, overrides.transactionNonce);
 
   return {
     previousState: await buildStateSnapshot(stateManager),

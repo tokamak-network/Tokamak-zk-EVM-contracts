@@ -16,6 +16,7 @@ contract BridgeAdminManager is Ownable {
     mapping(bytes4 => address[]) private _functionStorages;
     mapping(address => bytes32[]) private _preAllocatedKeys;
     mapping(address => uint8[]) private _userStorageSlots;
+    mapping(address => bool) private _isTokenVaultStorage;
 
     bytes4[] private _registeredFunctionSigns;
     address[] private _registeredStorageAddresses;
@@ -46,7 +47,8 @@ contract BridgeAdminManager is Ownable {
     function registerStorageMetadata(
         address storageAddr,
         bytes32[] calldata preAllocKeys,
-        uint8[] calldata userSlots
+        uint8[] calldata userSlots,
+        bool isTokenVaultStorage
     ) external onlyOwner {
         if (!_knownStorageAddress[storageAddr]) {
             _knownStorageAddress[storageAddr] = true;
@@ -62,6 +64,8 @@ contract BridgeAdminManager is Ownable {
         for (uint256 i = 0; i < userSlots.length; i++) {
             _userStorageSlots[storageAddr].push(userSlots[i]);
         }
+
+        _isTokenVaultStorage[storageAddr] = isTokenVaultStorage;
 
         emit StorageMetadataRegistered(storageAddr);
     }
@@ -134,6 +138,13 @@ contract BridgeAdminManager is Ownable {
         return _copyUint8(_userStorageSlots[storageAddr]);
     }
 
+    function isTokenVaultStorageAddress(address storageAddr) external view returns (bool) {
+        if (!_knownStorageAddress[storageAddr]) {
+            revert UnknownStorageAddress(storageAddr);
+        }
+        return _isTokenVaultStorage[storageAddr];
+    }
+
     function getRegisteredFunctionSigns() external view returns (bytes4[] memory out) {
         out = new bytes4[](_registeredFunctionSigns.length);
         for (uint256 i = 0; i < out.length; i++) {
@@ -170,4 +181,3 @@ contract BridgeAdminManager is Ownable {
         }
     }
 }
-

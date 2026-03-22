@@ -18,8 +18,11 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
     error MissingChannelStorageAddress(uint256 dappId, bytes4 functionSig, address storageAddr);
     error RootStorageVectorLengthMismatch();
     error InvalidTokenVaultTreeIndex();
-    error DuplicateTokenVaultStorageAddress(address storageAddr);
     error DuplicateManagedStorageAddress(address storageAddr);
+    error MissingTokenVaultStorageAddress();
+    error MultipleTokenVaultStorageAddresses(address firstStorageAddr, address secondStorageAddr);
+    error TokenVaultTreeIndexMustReferenceTokenVaultStorage(address indexedStorageAddr);
+    error TokenVaultTreeIndexStorageMismatch(address expectedStorageAddr, address indexedStorageAddr);
     error OnlyChannelVault();
     error InvalidMerkleTreeConfiguration();
     error GlobalVaultKeyAlreadyRegistered(bytes32 key);
@@ -86,8 +89,20 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
         if (managedStorageAddresses.length != initialRootVector.length) revert RootStorageVectorLengthMismatch();
         if (tokenVaultTreeIndex >= managedStorageAddresses.length) revert InvalidTokenVaultTreeIndex();
-        _assertSingleTokenVaultStorageAddress(managedStorageAddresses, tokenVaultTreeIndex);
         _assertUniqueStorageAddresses(managedStorageAddresses);
+
+        address designatedTokenVaultStorage = managedStorageAddresses[tokenVaultTreeIndex];
+        if (!adminManager.isTokenVaultStorageAddress(designatedTokenVaultStorage)) {
+            revert TokenVaultTreeIndexMustReferenceTokenVaultStorage(designatedTokenVaultStorage);
+        }
+
+        address uniqueTokenVaultStorage = _getUniqueTokenVaultStorage(managedStorageAddresses);
+        if (uniqueTokenVaultStorage == address(0)) {
+            revert MissingTokenVaultStorageAddress();
+        }
+        if (uniqueTokenVaultStorage != designatedTokenVaultStorage) {
+            revert TokenVaultTreeIndexStorageMismatch(uniqueTokenVaultStorage, designatedTokenVaultStorage);
+        }
 
         for (uint256 i = 0; i < allowedFunctions.length; i++) {
             if (!dAppManager.isSupportedFunction(dappId, allowedFunctions[i].entryContract, allowedFunctions[i].functionSig)) {
@@ -98,6 +113,9 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
             for (uint256 j = 0; j < functionStorages.length; j++) {
                 if (!_containsAddress(managedStorageAddresses, functionStorages[j])) {
                     revert MissingChannelStorageAddress(dappId, allowedFunctions[i].functionSig, functionStorages[j]);
+                }
+                if (adminManager.isTokenVaultStorageAddress(functionStorages[j]) && functionStorages[j] != designatedTokenVaultStorage) {
+                    revert MultipleTokenVaultStorageAddresses(designatedTokenVaultStorage, functionStorages[j]);
                 }
             }
         }
@@ -195,19 +213,13 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         }
     }
 
-    function _assertSingleTokenVaultStorageAddress(address[] calldata storageAddresses, uint256 tokenVaultTreeIndex)
-        private
-        pure
-    {
-        address tokenVaultStorageAddress = storageAddresses[tokenVaultTreeIndex];
-        uint256 matches = 0;
-
+    function _getUniqueTokenVaultStorage(address[] calldata storageAddresses) private view returns (address tokenVaultStorage) {
         for (uint256 i = 0; i < storageAddresses.length; i++) {
-            if (storageAddresses[i] == tokenVaultStorageAddress) {
-                matches += 1;
-                if (matches > 1) {
-                    revert DuplicateTokenVaultStorageAddress(tokenVaultStorageAddress);
+            if (adminManager.isTokenVaultStorageAddress(storageAddresses[i])) {
+                if (tokenVaultStorage != address(0) && tokenVaultStorage != storageAddresses[i]) {
+                    revert MultipleTokenVaultStorageAddresses(tokenVaultStorage, storageAddresses[i]);
                 }
+                tokenVaultStorage = storageAddresses[i];
             }
         }
     }

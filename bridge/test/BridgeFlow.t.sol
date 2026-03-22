@@ -16,6 +16,7 @@ import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
 
 contract BridgeFlowTest is Test {
     bytes4 internal constant APP_SIG = bytes4(keccak256("trade(uint256)"));
+    bytes4 internal constant APP_SIG_2 = bytes4(keccak256("rebalance(uint256)"));
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
@@ -30,6 +31,7 @@ contract BridgeFlowTest is Test {
     address internal bob = address(0xB0B);
     address internal leader = address(0x1EAD);
     address internal appContract = address(0xCAFE);
+    address internal appContract2 = address(0xD00D);
 
     uint256 internal channelId = 1;
     uint256 internal secondChannelId = 2;
@@ -42,10 +44,23 @@ contract BridgeFlowTest is Test {
         adminManager.setMerkleTreeLevels(12);
         adminManager.setTokamakPublicInputsLength(16);
 
-        address[] memory storageAddrs = new address[](1);
-        storageAddrs[0] = address(0x1234);
-        adminManager.registerStorageMetadata(storageAddrs[0], _bytes32Array(bytes32(uint256(1))), _uint8Array(0));
+        address vaultStorageAddr = address(0xF00D);
+        address appStorageAddr = address(0x1234);
+        address secondaryVaultStorageAddr = address(0xF00E);
+        adminManager.registerStorageMetadata(vaultStorageAddr, _bytes32Array(bytes32(uint256(0))), _uint8Array(0), true);
+        adminManager.registerStorageMetadata(appStorageAddr, _bytes32Array(bytes32(uint256(1))), _uint8Array(0), false);
+        adminManager.registerStorageMetadata(
+            secondaryVaultStorageAddr, _bytes32Array(bytes32(uint256(2))), _uint8Array(0), true
+        );
+
+        address[] memory storageAddrs = new address[](2);
+        storageAddrs[0] = vaultStorageAddr;
+        storageAddrs[1] = appStorageAddr;
         adminManager.registerFunction(APP_SIG, storageAddrs, bytes32("INSTANCE"), bytes32("PREPROCESS"));
+
+        address[] memory storageAddrs2 = new address[](1);
+        storageAddrs2[0] = secondaryVaultStorageAddr;
+        adminManager.registerFunction(APP_SIG_2, storageAddrs2, bytes32("INSTANCE_2"), bytes32("PREPROCESS_2"));
 
         dAppManager = new DAppManager(address(this), adminManager);
         dAppManager.registerDApp(1, keccak256("private-app"));
@@ -75,7 +90,7 @@ contract BridgeFlowTest is Test {
             asset,
             bytes32("CHANNEL_INSTANCE"),
             _rootVector(bytes32(_depositPublicSignals()[0]), bytes32(uint256(22))),
-            _storageAddressVector(address(0xF00D), address(0x1234)),
+            _storageAddressVector(vaultStorageAddr, appStorageAddr),
             0,
             refs
         );
@@ -139,7 +154,7 @@ contract BridgeFlowTest is Test {
             asset,
             bytes32("CHANNEL_INSTANCE_2"),
             _rootVector(bytes32(uint256(101)), bytes32(uint256(202))),
-            _storageAddressVector(address(0xF00E), address(0x1234)),
+            _storageAddressVector(address(0xF00D), address(0x1234)),
             0,
             refs
         );
@@ -153,19 +168,31 @@ contract BridgeFlowTest is Test {
         secondVault.registerAndFund(reusedKey, 10 ether);
     }
 
-    function testRejectsDuplicateTokenVaultStorageAddress() public {
-        BridgeStructs.FunctionReference[] memory refs = new BridgeStructs.FunctionReference[](1);
+    function testRejectsMultipleTokenVaultStoragesAcrossAllowedFunctions() public {
+        BridgeStructs.FunctionReference[] memory refs = new BridgeStructs.FunctionReference[](2);
         refs[0] = BridgeStructs.FunctionReference({entryContract: appContract, functionSig: APP_SIG});
+        refs[1] = BridgeStructs.FunctionReference({entryContract: appContract2, functionSig: APP_SIG_2});
 
-        vm.expectRevert(abi.encodeWithSelector(BridgeCore.DuplicateTokenVaultStorageAddress.selector, address(0x1234)));
+        dAppManager.registerDAppFunctions(1, refs);
+
+        address[] memory managedStorageAddresses = new address[](3);
+        managedStorageAddresses[0] = address(0xF00D);
+        managedStorageAddresses[1] = address(0x1234);
+        managedStorageAddresses[2] = address(0xF00E);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BridgeCore.MultipleTokenVaultStorageAddresses.selector, address(0xF00D), address(0xF00E)
+            )
+        );
         bridgeCore.createChannel(
             3,
             1,
             leader,
             asset,
             bytes32("CHANNEL_INSTANCE_3"),
-            _rootVector(bytes32(uint256(101)), bytes32(uint256(202))),
-            _storageAddressVector(address(0x1234), address(0x1234)),
+            _rootVector3(bytes32(uint256(101)), bytes32(uint256(202)), bytes32(uint256(303))),
+            managedStorageAddresses,
             0,
             refs
         );
@@ -315,6 +342,17 @@ contract BridgeFlowTest is Test {
         roots = new bytes32[](2);
         roots[0] = left;
         roots[1] = right;
+    }
+
+    function _rootVector3(bytes32 first, bytes32 second, bytes32 third)
+        internal
+        pure
+        returns (bytes32[] memory roots)
+    {
+        roots = new bytes32[](3);
+        roots[0] = first;
+        roots[1] = second;
+        roots[2] = third;
     }
 
     function _storageAddressVector(address tokenVaultStorage, address appStorage)

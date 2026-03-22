@@ -15,46 +15,6 @@ template computeLeaf() {
     leaf <== leaf_hash.out;
 }
 
-// Computes a Merkle root from pre-allocated key/value inputs and zero-filled leaves.
-template computeInitialRoot(N_PRE_ALLOC_KEYS, N_LEVELS) {
-    signal input pre_allocated_keys[N_PRE_ALLOC_KEYS];
-    signal input pre_allocated_values[N_PRE_ALLOC_KEYS];
-    signal output root;
-
-    // Derive the leaf count from the level count: N_LEAVES = 2**N_LEVELS.
-    var N_LEAVES = 2**N_LEVELS;
-
-    // Compile-time guard: N_LEAVES must be strictly greater than N_PRE_ALLOC_KEYS.
-    assert(N_LEAVES > N_PRE_ALLOC_KEYS);
-
-    // Build leaves:
-    // - First N_PRE_ALLOC_KEYS leaves use provided (key, value).
-    // - Remaining leaves use (-1, 0), where -1 is interpreted in Fr(BLS12-381).
-    signal tree_nodes[(2 * N_LEAVES) - 1];
-    for (var i = 0; i < N_LEAVES; i++) {
-        if (i < N_PRE_ALLOC_KEYS) {
-            tree_nodes[(N_LEAVES - 1) + i] <== computeLeaf()(
-                storage_key <== pre_allocated_keys[i],
-                storage_value <== pre_allocated_values[i]
-            );
-        } else {
-            tree_nodes[(N_LEAVES - 1) + i] <== computeLeaf()(storage_key <== -1, storage_value <== 0);
-        }
-    }
-
-    // Build parent nodes bottom-up.
-    component node_hashers[N_LEAVES - 1];
-    for (var i = 0; i < (N_LEAVES - 1); i++) {
-        var node_idx = (N_LEAVES - 2) - i;
-        node_hashers[i] = Poseidon255(2);
-        node_hashers[i].in[0] <== tree_nodes[(2 * node_idx) + 1];
-        node_hashers[i].in[1] <== tree_nodes[(2 * node_idx) + 2];
-        tree_nodes[node_idx] <== node_hashers[i].out;
-    }
-
-    root <== tree_nodes[0];
-}
-
 // Rebuilds a Merkle root from one leaf and its sibling path.
 template verifyMerkleProof(N) {
     signal input leaf;

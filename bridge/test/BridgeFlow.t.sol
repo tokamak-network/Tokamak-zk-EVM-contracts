@@ -167,7 +167,7 @@ contract BridgeFlowTest is Test {
         assertEq(currentRoots[0], bytes32(pubSignals[1]));
         assertEq(
             channelManager.getLatestTokenVaultLeaf(registration.leafIndex),
-            tokenVault.mockTokenVaultLeaf(bytes32(0), 10)
+            tokenVault.encodeTokenVaultLeaf(bytes32(0), 10)
         );
     }
 

@@ -124,7 +124,7 @@ contract L1TokenVault is ReentrancyGuard {
             update.currentRoot,
             update.updatedRoot,
             registration.leafIndex,
-            _mockTokenVaultLeaf(update.updatedUserValue)
+            _encodeTokenVaultLeaf(update.updatedUserValue)
         );
 
         emit DepositAccepted(msg.sender, amount, registration.leafIndex);
@@ -159,7 +159,7 @@ contract L1TokenVault is ReentrancyGuard {
             update.currentRoot,
             update.updatedRoot,
             registration.leafIndex,
-            _mockTokenVaultLeaf(update.updatedUserValue)
+            _encodeTokenVaultLeaf(update.updatedUserValue)
         );
 
         emit WithdrawalAccepted(msg.sender, amount, registration.leafIndex);
@@ -182,8 +182,8 @@ contract L1TokenVault is ReentrancyGuard {
         return _registrations[user];
     }
 
-    function mockTokenVaultLeaf(bytes32, uint256 userValue) external pure returns (bytes32) {
-        return _mockTokenVaultLeaf(userValue);
+    function encodeTokenVaultLeaf(bytes32, uint256 userValue) external pure returns (bytes32) {
+        return _encodeTokenVaultLeaf(userValue);
     }
 
     function _requireRegistration(address user)
@@ -218,7 +218,7 @@ contract L1TokenVault is ReentrancyGuard {
     }
 
     // The current circuit model treats each token-vault leaf as the raw stored value.
-    function _mockTokenVaultLeaf(uint256 userValue) private pure returns (bytes32) {
+    function _encodeTokenVaultLeaf(uint256 userValue) private pure returns (bytes32) {
         return bytes32(userValue);
     }
 }

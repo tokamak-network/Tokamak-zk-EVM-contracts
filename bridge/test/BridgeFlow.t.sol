@@ -16,6 +16,8 @@ import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
 
 contract BridgeFlowTest is Test {
     bytes4 internal constant APP_SIG = bytes4(keccak256("trade(uint256)"));
+    uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
+        0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
     BridgeAdminManager internal adminManager;
     DAppManager internal dAppManager;
@@ -206,6 +208,48 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         tokenVault.claimToWallet(50 ether);
         assertEq(asset.balanceOf(alice), aliceBalanceBefore + 50 ether);
+    }
+
+    function testDepositRejectsL2ValueAtScalarFieldModulus() public {
+        bytes32 key = bytes32(uint256(111));
+        vm.prank(alice);
+        tokenVault.registerAndFund(key, 100 ether);
+
+        BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
+            currentRoot: bytes32(_depositPublicSignals()[0]),
+            updatedRoot: bytes32(_depositPublicSignals()[1]),
+            currentUserKey: key,
+            currentUserValue: 0,
+            updatedUserKey: key,
+            updatedUserValue: BLS12_381_SCALAR_FIELD_MODULUS
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(L1TokenVault.L2ValueOutOfRange.selector, BLS12_381_SCALAR_FIELD_MODULUS)
+        );
+        vm.prank(alice);
+        tokenVault.deposit(_depositProof(), update);
+    }
+
+    function testWithdrawRejectsCurrentL2ValueAtScalarFieldModulus() public {
+        bytes32 key = bytes32(uint256(111));
+        vm.prank(alice);
+        tokenVault.registerAndFund(key, 100 ether);
+
+        BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
+            currentRoot: bytes32(_withdrawPublicSignals()[0]),
+            updatedRoot: bytes32(_withdrawPublicSignals()[1]),
+            currentUserKey: key,
+            currentUserValue: BLS12_381_SCALAR_FIELD_MODULUS,
+            updatedUserKey: key,
+            updatedUserValue: 0
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(L1TokenVault.L2ValueOutOfRange.selector, BLS12_381_SCALAR_FIELD_MODULUS)
+        );
+        vm.prank(alice);
+        tokenVault.withdraw(_withdrawProof(), update);
     }
 
     function testTokamakVerificationRejectsUnsupportedFunction() public {

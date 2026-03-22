@@ -12,12 +12,16 @@ interface IVaultKeyRegistry {
 }
 
 contract L1TokenVault is ReentrancyGuard {
+    uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
+        0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
+
     error AlreadyRegistered(address user);
     error NotRegistered(address user);
     error InvalidAmount();
     error KeyMismatch();
     error UnexpectedCurrentL2Balance();
     error InsufficientAvailableBalance();
+    error L2ValueOutOfRange(uint256 value);
     error GrothProofRejected();
 
     struct VaultRegistration {
@@ -98,6 +102,8 @@ contract L1TokenVault is ReentrancyGuard {
     {
         VaultRegistration storage registration = _requireRegistration(msg.sender);
 
+        _requireL2ValueInField(update.currentUserValue);
+        _requireL2ValueInField(update.updatedUserValue);
         if (update.updatedUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
         if (update.currentUserValue != registration.l2AccountingBalance) {
             revert UnexpectedCurrentL2Balance();
@@ -131,6 +137,8 @@ contract L1TokenVault is ReentrancyGuard {
     {
         VaultRegistration storage registration = _requireRegistration(msg.sender);
 
+        _requireL2ValueInField(update.currentUserValue);
+        _requireL2ValueInField(update.updatedUserValue);
         if (update.currentUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
         if (update.currentUserValue != registration.l2AccountingBalance) {
             revert UnexpectedCurrentL2Balance();
@@ -187,6 +195,12 @@ contract L1TokenVault is ReentrancyGuard {
 
     function _pullAsset(address from, uint256 amount) private {
         require(asset.transferFrom(from, address(this), amount), "TRANSFER_FROM_FAILED");
+    }
+
+    function _requireL2ValueInField(uint256 value) private pure {
+        if (value >= BLS12_381_SCALAR_FIELD_MODULUS) {
+            revert L2ValueOutOfRange(value);
+        }
     }
 
     function _toPublicSignals(BridgeStructs.GrothUpdate calldata update)

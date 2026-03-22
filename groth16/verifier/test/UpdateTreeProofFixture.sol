@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+library UpdateTreeProofFixture {
+    function pA() internal pure returns (uint256[4] memory values) {
+        values = [
+            uint256(0x00000000000000000000000000000000110293d4ef80a82ba37c4199be8dd3fb),
+            uint256(0x0df1462e900a4a290615858236814eb80a3c4297c3972d3ccbb42811e21c062a),
+            uint256(0x000000000000000000000000000000001790ef23df08cc8ec7774279adeca424),
+            uint256(0x8e3bdca91c6f4dfe5d7d51dae3f3e1f3d216f534d4c56bfc58081ec71c751321)
+        ];
+    }
+
+    function pB() internal pure returns (uint256[8] memory values) {
+        values = [
+            uint256(0x00000000000000000000000000000000114248aef53d53fb61fb7f8727b13dbb),
+            uint256(0x28a8615be56211a3daa0535b76555ce943a05a1bddc656b01a9f622de31a32e0),
+            uint256(0x00000000000000000000000000000000178633b45465625838f8994a0bd6ba7b),
+            uint256(0x32f8f226a76cfa05d73b03ddb9b3f9e307d835dc3172f6fa3249f23a298d04e9),
+            uint256(0x00000000000000000000000000000000162b23cf9275fde948b5aefd95747e02),
+            uint256(0xdd8ff4db80dfa2c9ef4a2b9adc7d100d73b086fe977a5276b15e021de837f84f),
+            uint256(0x000000000000000000000000000000000a83fc236e182bee0f799ae2b0bee4a6),
+            uint256(0xe7d9a71908b95d279823e1c42f9e8560a00da703a09bad46834669ac8ab98994)
+        ];
+    }
+
+    function pC() internal pure returns (uint256[4] memory values) {
+        values = [
+            uint256(0x00000000000000000000000000000000084785a9671b286393666a99b820484a),
+            uint256(0x5529f90578404158d9ac6cac7341c7eb8dd39b84cb61a49e6043c166a86383fe),
+            uint256(0x0000000000000000000000000000000001c95427061e612709ddb7a21b4d8fef),
+            uint256(0x792425e6bc9b5317d326c5b8302455f78525c9f107af70c096c73701cd25913d)
+        ];
+    }
+
+    function pubSignals() internal pure returns (uint256[6] memory values) {
+        values = [
+            uint256(40255561155150141550231743832403312546927686848593765927678200069946884587798),
+            uint256(1719477714924642410013324815519986595819084598522787936647414603699375046267),
+            uint256(111),
+            uint256(7),
+            uint256(111),
+            uint256(10)
+        ];
+    }
+}

@@ -1,61 +1,43 @@
-# Tokamak ZK Proof Generator
+# Tokamak Groth16 Prover
 
-This directory contains the proof generation script for the Tokamak Storage Merkle Proof circuit.
+This directory only supports the `updateTree` circuit.
 
-## Files
+## Layout
 
-- `generateProof.js` - Main proof generation script
-- `input.json` - Circuit input data (modify as needed)
-- `input_example.json` - Example input data
-- `proof.json` - Generated proof (output)
-- `public.json` - Public signals (output)
+- `updateTree/generateProof.mjs`: Generates a witness, proof, and public signals for the `updateTree` circuit.
+- `updateTree/input_example.json`: Deterministic example input rendered from `tokamak-l2js`.
+- `updateTree/proof.json`: Example proof output.
+- `updateTree/public.json`: Example public-signal output.
 
-## Prerequisites
+## Hashing Rule
 
-- Node.js installed
-- snarkjs installed globally: `npm install -g snarkjs`
-- Compiled circuit files in `../circuit_js/`
-- Trusted setup files in `../trusted-setup/`
+All leaf and Merkle-path hashing in the prover uses `tokamak-l2js.poseidonChainCompress`.
+
+This choice is deliberate. The circuit hashes field elements directly with pairwise Poseidon calls, so the byte-oriented `poseidon(Uint8Array)` wrapper would introduce extra byte chunking and padding semantics that do not match the circuit.
 
 ## Usage
 
-1. Navigate to the prover directory:
-   ```bash
-   cd prover
-   ```
+```bash
+node groth16/prover/updateTree/generateProof.mjs
+```
 
-2. Ensure your input data is in `input.json` (or copy from `input_example.json`)
+To use a custom input file:
 
-3. Run the proof generation script:
-   ```bash
-   node generateProof.js
-   ```
+```bash
+node groth16/prover/updateTree/generateProof.mjs --input /path/to/input.json
+```
 
-## What the script does
+## Input Shape
 
-1. **Generates witness**: Uses `snarkjs wtns calculate` to create witness from input
-2. **Generates proof**: Uses `snarkjs groth16 prove` to create ZK proof
-3. **Validates output**: Checks that proof and public signal files are created
-4. **Provides summary**: Shows proof details and file locations
+The circuit input JSON must contain:
 
-## Circuit Details
+- `root_before`
+- `root_after`
+- `leaf_index`
+- `storage_key_before`
+- `storage_value_before`
+- `storage_key_after`
+- `storage_value_after`
+- `proof`
 
-- **Circuit**: Tokamak Storage Merkle Proof (depth N=4)
-- **Leaves**: 256 leaves (4^4)
-- **Protocol**: Groth16
-- **Curve**: BLS12-381
-- **Hash function**: Poseidon
-
-## Input Format
-
-The input JSON should contain:
-- `L2PublicKeys_x`: Array of 256 x-coordinates
-- `L2PublicKeys_y`: Array of 256 y-coordinates  
-- `storage_slots`: Array of 256 storage slot values
-- `storage_values`: Array of 256 storage values
-
-## Output Files
-
-- `proof.json`: Contains the ZK proof (pi_a, pi_b, pi_c)
-- `public.json`: Contains public signals (merkle_root)
-- `witness.wtns`: Witness file (intermediate)
+The bundled script regenerates `input_example.json` from `tokamak-l2js` and the trusted-setup metadata before producing `proof.json` and `public.json`.

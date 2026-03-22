@@ -1,0 +1,5 @@
+.tmp/
+proof.json
+public.json
+witness.wtns
+solidity_fixture.json

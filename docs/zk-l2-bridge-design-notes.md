@@ -36,6 +36,7 @@ The following terms are used throughout this document:
 - `L1 token vault`: the per-channel vault managed by the L1 bridge contracts for token approval, transfer, deposit, and withdrawal
 - `L2 token vault` or `L2 accounting vault`: the per-channel vault domain represented inside the L2 state, with its own dedicated Merkle tree
 - `L2 token vault key`: the key under which a user's balance is represented in a channel's L2 token-vault tree
+- `L2 token-vault leaf index`: the index of the user's token-vault leaf in the channel's L2 token-vault tree, deterministically derived from the user's L2 token-vault key
 - `L2 app storage`: the collection of all channel storage other than the single L2 token-vault storage
 - `Groth zkp`: the Groth16-based proof system used for token-vault control
 - `Tokamak zkp`: the custom Tokamak zk-EVM proof system used for L2 channel transaction processing
@@ -74,12 +75,14 @@ The following assumptions are currently treated as the baseline unless later inp
 - L2 is realized as a set of autonomous private channels created, operated, and closed on Ethereum
 - L2 is a state machine, and its concrete state is represented by one or more Merkle trees
 - each channel has its own L1 token vault managed by the bridge
-- each channel's L1 token vault stores both the user's tokens and the user's registered L2 token-vault key for that channel
+- each channel's L1 token vault stores the user's tokens, the user's registered L2 token-vault key for that channel, and the leaf index deterministically derived from that key
 - each channel's L2 state always includes one dedicated Merkle tree for an L2 token vault or L2 accounting vault
 - each channel may additionally contain multiple other storage domains, and those are collectively treated as L2 app storage
 - the same user must use a different L2 token-vault key for each channel
 - once a user registers an L2 token-vault key for a channel, that key is immutable
 - every L2 token-vault key must be globally unique across all channels, and the L1 bridge checks uniqueness when a key is registered
+- the registered L2 token-vault leaf index is determined from the registered key by the `TokamakL2MerkleTrees.getLeafIndex` rule in `TokamakL2JS`, currently `Number(key % BigInt(MAX_MT_LEAVES))`
+- within each channel's token-vault tree, no two registered users may share the same derived leaf index, and the L1 bridge must reject a registration that would create such a collision
 - the System uses two proof systems: Groth zkp for token-vault control and Tokamak zkp for channel transaction processing
 - Tokamak zkp is composed of a proof, a transaction instance, a channel instance, a function instance, and a function preprocess
 - the transaction instance is supplied by the channel user, while the channel instance, function instance, and function preprocess are supplied and managed by the L1 bridge
@@ -152,12 +155,15 @@ The current vault interpretation is channel-specific:
 - the L1 bridge manages a separate L1 token vault for each channel
 - channel users may approve and transfer tokens into a chosen channel's L1 token vault
 - when a user first places tokens into an L1 token vault, the user must choose the target channel and provide the L2 token-vault key to be used in that channel
+- the L1 bridge deterministically derives the user's token-vault leaf index from that supplied key according to `TokamakL2MerkleTrees.getLeafIndex` in `TokamakL2JS`, currently `Number(key % BigInt(MAX_MT_LEAVES))`
 - once registered, that per-channel L2 token-vault key cannot be changed
 - the L1 bridge checks that the supplied L2 token-vault key is globally unique across all channels before accepting the registration
+- the L1 bridge also checks that the derived token-vault leaf index does not collide with any other registered user's leaf index in the selected channel before accepting the registration
+- if the derived leaf index collides inside the selected channel, the attempted registration fails and the user must try a different L2 token-vault key
 - channel users may also withdraw their tokens back out through that channel's L1 token vault
 - the corresponding L2 state always contains one independent Merkle tree dedicated to an L2 token vault or an L2 accounting vault
 
-At the current level of abstraction, deposit means moving a user's position from the L1 token vault into the L2 token-vault domain, and withdraw means moving a user's position from the L2 token-vault domain back into the L1 token vault. Because all channel-tree updates are under L1 control, updates to the L2 token-vault or accounting-vault tree are also under L1 control. The registered L2 token-vault key inside the L1 token vault is part of the authorization path for both deposit and withdrawal.
+At the current level of abstraction, deposit means moving a user's position from the L1 token vault into the L2 token-vault domain, and withdraw means moving a user's position from the L2 token-vault domain back into the L1 token vault. Because all channel-tree updates are under L1 control, updates to the L2 token-vault or accounting-vault tree are also under L1 control. The registered L2 token-vault key and its registered derived leaf index inside the L1 token vault are part of the authorization and placement path for both deposit and withdrawal.
 
 #### 2.3.1 Groth zkp for Token-Vault Control
 
@@ -174,12 +180,15 @@ The Groth zkp proof is paired with an instance. The current instance definition 
 
 The current user leaf is formed by applying a Poseidon hash to the user key and user value. The user value represents the token amount currently held for that user in the token vault.
 
-The L1 token vault also stores the registered L2 token-vault key for each user in that channel. This registration model imposes the following current rules:
+The L1 token vault also stores the registered L2 token-vault key and the leaf index derived from that key for each user in that channel. This registration model imposes the following current rules:
 
 - the user chooses the channel and supplies the L2 token-vault key when first depositing tokens into that channel's L1 token vault
+- the bridge derives the registered token-vault leaf index from that key by following `TokamakL2MerkleTrees.getLeafIndex` in `TokamakL2JS`, currently `Number(key % BigInt(MAX_MT_LEAVES))`
 - the registered key is immutable once stored
 - the same user must use a different L2 token-vault key for each channel
 - every L2 token-vault key must be globally unique across all channels, so the L1 bridge checks for duplicate keys before registration
+- no two registered users in the same channel may share the same derived token-vault leaf index, so the L1 bridge checks for leaf-index collision before registration
+- if the derived leaf index collides with an already-registered user in that channel, the attempted registration fails and the user must try a different L2 token-vault key
 
 Under the current interpretation, successful verification of a Groth zkp proof means:
 
@@ -472,6 +481,7 @@ The L1 bridge layer is responsible for:
 - management of a separate L1 token vault for each channel
 - management of the per-user L2 token-vault key registrations associated with those channel vaults
 - enforcement of system-wide uniqueness for all registered L2 token-vault keys
+- enforcement of per-channel non-collision for the token-vault leaf indices derived from those keys
 - management of channel instances, function instances, and function preprocess data for Tokamak-zkp verification
 - verification of Groth-zkp-based token-vault updates
 - channel entry validation
@@ -492,15 +502,16 @@ More concretely, L1 management of a channel currently means the following:
 1. L1 stores the history of changes to the channel's Merkle-root vector.
 2. L1 stores the latest leaves of the channel's current Merkle trees.
 3. L1 does not store historical leaves once they are no longer current.
-4. L1 stores each user's registered L2 token-vault key for the channel together with that user's token-vault position.
+4. L1 stores each user's registered L2 token-vault key and the leaf index derived from that key for the channel together with that user's token-vault position.
 5. L1 rejects registration of any L2 token-vault key that duplicates a key already registered anywhere in the System.
-6. L1 fixes the channel instance when the channel is created.
-7. L1 associates the channel manager with the subset of DApp contracts and functions that the channel may use.
-8. L1 accepts Tokamak-zkp-based requests to update the channel's Merkle-root vector.
-9. L1 verifies the submitted proof evidence immediately through the channel manager's verifier, using the user-supplied transaction instance and the bridge-managed channel instance, function instance, and function preprocess.
-10. If the proof verifies successfully, L1 updates the channel's Merkle-root vector according to the submitted transaction instance.
-11. L1 manages the channel's token-vault deposit and withdrawal entrypoints.
-12. L1 controls every accepted update to every Merkle tree belonging to the channel.
+6. L1 rejects registration of any user whose derived token-vault leaf index collides with an already-registered user's leaf index in the same channel.
+7. L1 fixes the channel instance when the channel is created.
+8. L1 associates the channel manager with the subset of DApp contracts and functions that the channel may use.
+9. L1 accepts Tokamak-zkp-based requests to update the channel's Merkle-root vector.
+10. L1 verifies the submitted proof evidence immediately through the channel manager's verifier, using the user-supplied transaction instance and the bridge-managed channel instance, function instance, and function preprocess.
+11. If the proof verifies successfully, L1 updates the channel's Merkle-root vector according to the submitted transaction instance.
+12. L1 manages the channel's token-vault deposit and withdrawal entrypoints.
+13. L1 controls every accepted update to every Merkle tree belonging to the channel.
 
 #### 2.5.2 L2 Server and Channel Execution Layer
 
@@ -567,14 +578,17 @@ The channel lifecycle can currently be described as follows.
 
 1. A participant places assets into the Ethereum-side custody path required by the channel or its DeFi application.
 2. When first entering that channel's custody path, the participant provides the L2 token-vault key to be used in that channel.
-3. The L1 bridge checks that the supplied key is globally unique across all channels and, if accepted, stores it immutably for that user and channel.
-4. The participant may approve and transfer tokens to the selected channel's L1 token vault.
-5. The participant invokes the channel's `deposit` function on the L1 token vault.
-6. The participant submits a Groth zkp proof and instance for the L2 token-vault tree update.
-7. The L1 token vault checks that the instance's updated user key matches the user's registered L2 token-vault key.
-8. The channel incorporates that funding event into a new candidate state, including the channel's L2 token-vault or accounting-vault tree.
-9. Until Ethereum verifies that new state, the participant's authoritative asset position remains based on the last verified state.
-10. After verification, the new asset position becomes authoritative on Ethereum.
+3. The L1 bridge derives the corresponding token-vault leaf index by following `TokamakL2MerkleTrees.getLeafIndex` in `TokamakL2JS`, currently `Number(key % BigInt(MAX_MT_LEAVES))`.
+4. The L1 bridge checks that the supplied key is globally unique across all channels and that the derived leaf index does not collide with another registered user's leaf index in the selected channel.
+5. If the derived leaf index collides in that channel, the attempted registration fails and the participant must try a different L2 token-vault key.
+6. If accepted, L1 stores the user's key and the derived leaf index immutably for that user and channel.
+7. The participant may approve and transfer tokens to the selected channel's L1 token vault.
+8. The participant invokes the channel's `deposit` function on the L1 token vault.
+9. The participant submits a Groth zkp proof and instance for the L2 token-vault tree update.
+10. The L1 token vault checks that the instance's updated user key matches the user's registered L2 token-vault key.
+11. The channel incorporates that funding event into a new candidate state, including the channel's L2 token-vault or accounting-vault tree.
+12. Until Ethereum verifies that new state, the participant's authoritative asset position remains based on the last verified state.
+13. After verification, the new asset position becomes authoritative on Ethereum.
 
 #### 2.6.4 In-Channel State Transition
 
@@ -664,11 +678,14 @@ The current invariants are:
 - every deposit or withdrawal must be backed by a valid Groth zkp proof and instance
 - every deposit must require that the Groth instance's updated user key match the user's registered L2 token-vault key in the corresponding L1 token vault
 - every withdrawal must require that the Groth instance's current user key match the user's registered L2 token-vault key in the corresponding L1 token vault
+- every registered token-vault leaf index must be deterministically derived from the registered L2 token-vault key by the `TokamakL2MerkleTrees.getLeafIndex` rule in `TokamakL2JS`
+- no two registered users in the same channel may share the same derived token-vault leaf index
 - every channel transaction update must be backed by a Tokamak zkp proof, a transaction instance, the correct channel instance, the correct function instance, and the correct function preprocess
 - L1 must preserve the history of Merkle-root-vector changes for each channel
 - L1 must store the latest leaves of each current channel tree while not retaining obsolete historical leaves
 - no channel update becomes authoritative until its submitted Tokamak zkp evidence is verified by L1
 - each user's registered L2 token-vault key for a channel must be immutable once stored
+- each user's registered token-vault leaf index for a channel must be immutable once stored because it is derived from the immutable registered key
 - no two registered L2 token-vault keys may coincide anywhere across the System
 - L2 token-vault-storage data integrity and practical data availability must remain recoverable from Ethereum-visible Groth-zkp submissions
 - L2 app-storage data integrity and availability currently depend on the channel operator unless stronger DA machinery is introduced
@@ -743,6 +760,14 @@ The following record is kept so that later revisions can identify which parts of
 - Even if L2 app-storage data becomes unavailable or unreliable, users can still rely on Ethereum-visible token-vault state to withdraw tokens and escape safely.
 - Because the System uses positive validity proofs rather than a challenge-window-based fault-proof model, withdrawal waiting time is expected to be dominated by proof generation and ordinary Ethereum inclusion, not by a long challenge window whose expiry still would not positively prove validity.
 
+#### 2.8.3 2026-03-22
+
+- Each channel's L1 token vault now also records the token-vault leaf index derived from the user's registered L2 token-vault key.
+- That leaf index is not chosen independently; it is determined by the `TokamakL2MerkleTrees.getLeafIndex` rule in `TokamakL2JS`, currently `Number(key % BigInt(MAX_MT_LEAVES))`.
+- When a user tries to place tokens into a channel's L1 token vault, the bridge must check not only global key uniqueness but also whether the derived leaf index collides with another registered user's leaf index in that channel.
+- Registration succeeds only if no such per-channel leaf-index collision exists.
+- If the derived leaf index collides in that channel, the user must try a different L2 token-vault key.
+
 ## 3. Conclusion
 
 ### 3.1 Current Working Conclusions
@@ -751,7 +776,7 @@ At the current stage, Tokamak Private App Channels are best understood as a Syst
 
 The most important current conclusion is that the bridge must distinguish operational state from economically authoritative state. Channel execution may be prepared off-chain, but verified state alone determines the asset position that Ethereum recognizes. This distinction governs channel entry, DeFi safety, verification, channel closure, and withdrawal.
 
-The second major conclusion is that token-vault authorization now depends not only on proof validity but also on a bridge-managed L2 token-vault key registry. Deposits and withdrawals are tied to the user's immutable registered key for the selected channel, and the bridge enforces global uniqueness of those keys across the System.
+The second major conclusion is that token-vault authorization now depends not only on proof validity but also on a bridge-managed registration layer for both L2 token-vault keys and their derived token-vault leaf indices. Deposits and withdrawals are tied to the user's immutable registered key for the selected channel, the bridge enforces global uniqueness of those keys across the System, and the bridge also enforces per-channel non-collision of the leaf indices derived from those keys.
 
 The third major conclusion is that the System changes the approval condition of DApp state transitions. In an ordinary L1-native DApp, Ethereum validators approve updates by re-executing transactions. In the System, validators approve updates by verifying zero-knowledge proofs, while the original transaction may remain private.
 
@@ -781,6 +806,7 @@ The following questions remain open and will need to be resolved in later revisi
 - the exact relation between provisional in-channel execution and verified Ethereum state
 - the exact recovery, migration, or rotation policy if a user loses access to an immutable registered L2 token-vault key
 - the exact storage and lookup design for enforcing global uniqueness of all registered L2 token-vault keys
+- the exact storage and lookup design for enforcing per-channel non-collision of derived token-vault leaf indices
 - whether channel operators alone are sufficient as practical data providers for state reconstruction, or whether the System needs stronger data-availability guarantees
 - whether the document's narrow definition of complete privacy should remain limited to transaction content and state semantics, or be expanded to include metadata privacy
 - the exact residual privacy leakage that may remain even in a private-state DApp, including metadata, timing, note-linkage, and operator-observation channels
@@ -804,8 +830,8 @@ The following decisions are stable enough to be treated as the current working p
 - L1 management of a channel includes storing Merkle-root-vector change history, storing only the latest leaves of the current Merkle trees, immediately verifying submitted Tokamak zkp updates, and committing verified updates.
 - Each channel has its own L1 token vault managed by the bridge.
 - Each channel's L2 state includes exactly one dedicated Merkle tree for an L2 token vault or accounting vault.
-- Each channel's L1 token vault stores the user's tokens together with the user's immutable registered L2 token-vault key for that channel.
-- Users must supply the L2 token-vault key when they first place tokens into a channel's L1 token vault, and the bridge rejects any key that duplicates a registered key anywhere else in the System.
+- Each channel's L1 token vault stores the user's tokens together with the user's immutable registered L2 token-vault key and the leaf index derived from that key for that channel.
+- Users must supply the L2 token-vault key when they first place tokens into a channel's L1 token vault; the bridge derives the corresponding leaf index by the `TokamakL2MerkleTrees.getLeafIndex` rule in `TokamakL2JS`, rejects any key that duplicates a registered key anywhere else in the System, and rejects any derived leaf index that collides with another registered user's leaf index in the same channel.
 - Users may use the channel's L1 token vault to approve, transfer, deposit, and withdraw tokens, but deposit and withdrawal must match the Groth instance against the registered L2 token-vault key.
 - Every Merkle-tree update in a channel, including every L2 vault-tree update, is under L1 control.
 - The System uses Groth zkp for token-vault control and Tokamak zkp for channel transaction processing.

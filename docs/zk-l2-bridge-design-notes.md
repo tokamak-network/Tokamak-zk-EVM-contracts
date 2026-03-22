@@ -85,7 +85,7 @@ The following assumptions are currently treated as the baseline unless later inp
 - within each channel's token-vault tree, no two registered users may share the same derived leaf index, and the L1 bridge must reject a registration that would create such a collision
 - the System uses two proof systems: Groth zkp for token-vault control and Tokamak zkp for channel transaction processing
 - Tokamak zkp is composed of a proof, a transaction instance, a channel instance, a function instance, and a function preprocess
-- the transaction instance is supplied by the channel user, while the channel instance, function instance, and function preprocess are supplied and managed by the L1 bridge
+- the transaction instance is supplied by the channel user, while the channel instance, function instance, and function preprocess are supplied by the L1 bridge through the bridge-managed DApp metadata and the subset inherited by the relevant channel
 - an L2 state can therefore be expressed as a vector of Merkle roots
 - an L2 state update means an update of that Merkle-root vector
 - every Merkle-tree update in a channel is under L1 control
@@ -131,7 +131,7 @@ The model explicitly distinguishes between candidate state and verified state. C
 In the current version, channel verification follows an immediate-verification model:
 
 1. A participant generates a candidate channel state transition together with its validity proof.
-2. The participant submits the proof together with the transaction instance directly to the relevant verifier on L1, while L1 supplies the matching channel instance, function instance, and function preprocess.
+2. The participant submits the proof together with the transaction instance directly to the relevant verifier on L1, while L1 supplies the matching channel instance and the function-specific metadata reachable through the DApp subset inherited by that channel.
 3. Ethereum verifies the submitted proof immediately.
 4. If verification succeeds, the channel's Merkle-root vector is updated immediately.
 5. If verification fails, the attempted update is rejected and the last verified state remains authoritative.
@@ -241,9 +241,9 @@ For the L1 bridge's Tokamak-zkp verifier to validate a proof, it must be given t
 The source of these components is intentionally split:
 
 - the transaction instance is supplied by the channel user
-- the channel instance is supplied and managed by the L1 bridge
-- the function instance is supplied and managed by the L1 bridge
-- the function preprocess is supplied and managed by the L1 bridge
+- the channel instance is fixed per channel and supplied by the L1 bridge
+- the function instance is supplied by the L1 bridge through the bridge-managed DApp metadata inherited by that channel
+- the function preprocess is supplied by the L1 bridge through the bridge-managed DApp metadata inherited by that channel
 
 Under the current interpretation, successful verification of a Tokamak zkp proof means:
 
@@ -253,7 +253,7 @@ Under the current interpretation, successful verification of a Tokamak zkp proof
 - the channel Merkle-tree leaves consumed by execution were correct
 - the resulting channel Merkle trees were updated correctly
 
-Users submit Tokamak zkp proofs and transaction instances directly to the Tokamak-zkp verifier of the relevant channel manager on L1. The channel manager then combines that user-supplied transaction instance with the bridge-managed channel instance, function instance, and function preprocess for verification. In the current version, the submission is verified immediately rather than being stored in a proposal pool.
+Users submit Tokamak zkp proofs and transaction instances directly to the Tokamak-zkp verifier of the relevant channel manager on L1. The channel manager then combines that user-supplied transaction instance with the bridge-supplied channel instance and the function metadata reachable through the bridge-managed DApp metadata inherited by that channel. In the current version, the submission is verified immediately rather than being stored in a proposal pool.
 
 If the Tokamak zkp proof verifies successfully, the channel manager immediately updates the channel's Merkle-root vector to the transaction instance's post-state. If the proof does not verify, the attempted state update is rejected and the previously verified state remains authoritative.
 
@@ -482,7 +482,7 @@ The L1 bridge layer is responsible for:
 - management of the per-user L2 token-vault key registrations associated with those channel vaults
 - enforcement of system-wide uniqueness for all registered L2 token-vault keys
 - enforcement of per-channel non-collision for the token-vault leaf indices derived from those keys
-- management of channel instances, function instances, and function preprocess data for Tokamak-zkp verification
+- management of per-channel channel instances and of the bridge-managed DApp metadata from which each channel inherits the function instances and function preprocess data used for Tokamak-zkp verification
 - verification of Groth-zkp-based token-vault updates
 - channel entry validation
 - deposit acceptance
@@ -491,7 +491,7 @@ The L1 bridge layer is responsible for:
 - proof verification
 - accepted state-root progression
 - storage of each channel's Merkle-root-vector change history
-- storage of the latest leaves of each channel's current Merkle trees, without retaining past leaves
+- storage of the latest leaves of each channel's current L2 token-vault tree, without retaining past leaves
 - immediate verification of Tokamak-zkp-based channel update requests
 - commitment of a verified Merkle-root-vector update immediately after successful verification
 - final channel closure settlement
@@ -500,15 +500,15 @@ The L1 bridge layer is responsible for:
 More concretely, L1 management of a channel currently means the following:
 
 1. L1 stores the history of changes to the channel's Merkle-root vector.
-2. L1 stores the latest leaves of the channel's current Merkle trees.
+2. L1 stores the latest leaves of the channel's current L2 token-vault tree.
 3. L1 does not store historical leaves once they are no longer current.
-4. L1 stores each user's registered L2 token-vault key and the leaf index derived from that key for the channel together with that user's token-vault position.
+4. L1 stores each user's registered L2 token-vault key and the leaf index derived from that key for the channel together with that user's token balance record in the channel's L1 token vault.
 5. L1 rejects registration of any L2 token-vault key that duplicates a key already registered anywhere in the System.
 6. L1 rejects registration of any user whose derived token-vault leaf index collides with an already-registered user's leaf index in the same channel.
 7. L1 fixes the channel instance when the channel is created.
 8. L1 associates the channel manager with the subset of DApp contracts and functions that the channel may use.
 9. L1 accepts Tokamak-zkp-based requests to update the channel's Merkle-root vector.
-10. L1 verifies the submitted proof evidence immediately through the channel manager's verifier, using the user-supplied transaction instance and the bridge-managed channel instance, function instance, and function preprocess.
+10. L1 verifies the submitted proof evidence immediately through the channel manager's verifier, using the user-supplied transaction instance, the per-channel channel instance, and the function metadata reached through the bridge-managed DApp metadata inherited by that channel.
 11. If the proof verifies successfully, L1 updates the channel's Merkle-root vector according to the submitted transaction instance.
 12. L1 manages the channel's token-vault deposit and withdrawal entrypoints.
 13. L1 controls every accepted update to every Merkle tree belonging to the channel.
@@ -652,7 +652,7 @@ The exact state model remains open, but the system currently needs to track at l
 - the set of Merkle trees that realize each L2 state
 - the dedicated Merkle tree for each channel's L2 token vault or L2 accounting vault
 - all non-vault storage grouped as L2 app storage
-- the latest stored leaves of each channel's current Merkle trees
+- the latest stored leaves of each channel's current L2 token-vault tree
 - accepted Merkle-root vectors
 - per-channel history of Merkle-root-vector changes
 - Groth zkp instances for vault updates
@@ -682,7 +682,7 @@ The current invariants are:
 - no two registered users in the same channel may share the same derived token-vault leaf index
 - every channel transaction update must be backed by a Tokamak zkp proof, a transaction instance, the correct channel instance, the correct function instance, and the correct function preprocess
 - L1 must preserve the history of Merkle-root-vector changes for each channel
-- L1 must store the latest leaves of each current channel tree while not retaining obsolete historical leaves
+- L1 must store the latest leaves of each channel's current L2 token-vault tree while not retaining obsolete historical leaves
 - no channel update becomes authoritative until its submitted Tokamak zkp evidence is verified by L1
 - each user's registered L2 token-vault key for a channel must be immutable once stored
 - each user's registered token-vault leaf index for a channel must be immutable once stored because it is derived from the immutable registered key
@@ -738,7 +738,7 @@ The following record is kept so that later revisions can identify which parts of
 - If the submitted Tokamak zkp verifies successfully, the channel's Merkle-root vector is updated immediately.
 - Proposal-pool operation, fork handling, rewards, penalties, and tokenomics are deferred to future work.
 - Tokamak zkp is composed of a proof, a transaction instance, a channel instance, a function instance, and a function preprocess.
-- The transaction instance is supplied by the channel user, while the channel instance, function instance, and function preprocess are supplied and managed by the L1 bridge.
+- The transaction instance is supplied by the channel user, while the channel instance is supplied per channel by the L1 bridge and the function instance and function preprocess are supplied through the bridge-managed DApp metadata inherited by that channel.
 - Each channel is DApp-specific, and the DApp is defined as the set of contracts and functions designed for that channel application.
 - The L1 bridge manages supported DApps through a DApp manager, and only the System administrator may add a new DApp.
 - Each channel manager inherits only a subset of contracts and functions from the DApp manager.
@@ -767,6 +767,8 @@ The following record is kept so that later revisions can identify which parts of
 - When a user tries to place tokens into a channel's L1 token vault, the bridge must check not only global key uniqueness but also whether the derived leaf index collides with another registered user's leaf index in that channel.
 - Registration succeeds only if no such per-channel leaf-index collision exists.
 - If the derived leaf index collides in that channel, the user must try a different L2 token-vault key.
+- L1 no longer stores the latest leaves of all current channel trees; it stores only the latest leaves of each channel's current L2 token-vault tree.
+- The channel instance remains fixed per channel, but function instances and function preprocess data should now be read as bridge-managed DApp metadata that become available to a channel through the DApp subset inherited by that channel, rather than as independently channel-owned metadata blobs.
 
 ## 3. Conclusion
 
@@ -790,7 +792,7 @@ The seventh major conclusion is that this document now uses a narrow working def
 
 The eighth major conclusion is that System-level privacy and DApp-level private-state design are complementary rather than interchangeable. The System can hide original transactions from L1 observers, but if the DApp state itself is semantically transparent, a channel operator may still infer user actions from state changes. Stronger privacy therefore depends on a private-state DApp design such as a zk-note model.
 
-The ninth major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, channel instance, function instance, and function preprocess. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
+The ninth major conclusion is that Tokamak-zkp verification depends on bridge-managed metadata, not only on user-supplied transaction data. A valid channel update now requires the correct combination of proof, transaction instance, the per-channel channel instance, and the function instance and function preprocess reached through the bridge-managed DApp metadata inherited by that channel. This means the bridge controls not only when a state update is accepted, but also which contract functions are even admissible for a given channel.
 
 The tenth major conclusion is that the leader should be modeled as an operational coordinator rather than as a privileged trust anchor. The relay server may coordinate the channel, but it must not create unilateral control over state validity or participant assets.
 
@@ -812,10 +814,10 @@ The following questions remain open and will need to be resolved in later revisi
 - the exact residual privacy leakage that may remain even in a private-state DApp, including metadata, timing, note-linkage, and operator-observation channels
 - the exact operational tradeoff between frequent token-vault usage for safer escape and richer reliance on L2 app storage for application efficiency
 - whether a channel manager's inherited contract-and-function subset is immutable after channel creation or can be versioned later
-- the exact lifecycle and governance process for updating channel instances, function instances, and function preprocess data
+- the exact lifecycle and governance process for updating per-channel channel instances and the bridge-managed DApp metadata from which channels inherit function instances and function preprocess data
 - the exact future design of proposal-pool operation, if the protocol later reintroduces delayed Tokamak-zkp verification
 - the exact tokenomics required to support future proposal-pool operation, fork resolution, penalties, and rewards
-- the exact Ethereum scalability cost of storing the latest leaves for many channels on L1
+- the exact Ethereum scalability cost of storing the latest L2 token-vault-tree leaves for many channels on L1
 - the exact data-availability assumptions
 - the exact failure and recovery model
 
@@ -827,7 +829,7 @@ The following decisions are stable enough to be treated as the current working p
 - The L1 bridge contracts manage multiple L2 instances, each of which is called a channel.
 - L2 is a state machine whose concrete state is represented by a vector of Merkle roots derived from one or more Merkle trees.
 - Tokamak Private App Channels are treated as autonomous private Layer 2 channels created, operated, and closed on Ethereum.
-- L1 management of a channel includes storing Merkle-root-vector change history, storing only the latest leaves of the current Merkle trees, immediately verifying submitted Tokamak zkp updates, and committing verified updates.
+- L1 management of a channel includes storing Merkle-root-vector change history, storing only the latest leaves of the current L2 token-vault tree, immediately verifying submitted Tokamak zkp updates, and committing verified updates.
 - Each channel has its own L1 token vault managed by the bridge.
 - Each channel's L2 state includes exactly one dedicated Merkle tree for an L2 token vault or accounting vault.
 - Each channel's L1 token vault stores the user's tokens together with the user's immutable registered L2 token-vault key and the leaf index derived from that key for that channel.
@@ -841,7 +843,7 @@ The following decisions are stable enough to be treated as the current working p
 - Safe channel escape depends on the token-vault path, so frequent use of token-vault storage is currently the recommended robustness strategy when operator data availability is weak.
 - Withdrawal waiting time is expected to be dominated by proof generation and ordinary Ethereum inclusion rather than by a long challenge window.
 - Tokamak zkp is composed of a proof, a transaction instance, a channel instance, a function instance, and a function preprocess.
-- The transaction instance is supplied by the user, while the channel instance, function instance, and function preprocess are supplied and managed by the L1 bridge.
+- The transaction instance is supplied by the user, while the channel instance is supplied per channel by the L1 bridge and the function instance and function preprocess are supplied through the bridge-managed DApp metadata inherited by that channel.
 - Tokamak zkp proofs are submitted directly to each channel manager's verifier on L1, and successful verification immediately updates the channel Merkle-root vector.
 - Compared with an ordinary L1-native DApp, the System uses validator-side zkp verification instead of validator-side transaction re-execution.
 - Under the current comparative description, channel operators are the practical data providers for reconstructing System DApp state.

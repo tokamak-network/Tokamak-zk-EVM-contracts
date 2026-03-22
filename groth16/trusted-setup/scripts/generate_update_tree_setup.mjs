@@ -209,29 +209,71 @@ function generateSetupArtifacts(constraintCount, manifest) {
     const power = nextPowerOfTwoExponent(constraintCount + 1);
     const workDir = path.join(tmpRoot, `updateTree-setup-${Date.now()}`);
     const ptau0 = path.join(workDir, `powersOfTau_${power}_0000.ptau`);
+    const ptau1 = path.join(workDir, `powersOfTau_${power}_0001.ptau`);
+    const ptauBeacon = path.join(workDir, `powersOfTau_${power}_beacon.ptau`);
     const ptauFinal = path.join(workDir, `powersOfTau_${power}_final.ptau`);
     const zkey0 = path.join(workDir, `${circuitBaseName}_0000.zkey`);
+    const zkey1 = path.join(workDir, `${circuitBaseName}_0001.zkey`);
     const zkeyFinal = path.join(outputDir, "circuit_final.zkey");
     const verificationKey = path.join(outputDir, "verification_key.json");
     const beacon = crypto.randomBytes(32).toString("hex");
-    let verificationWarning = null;
 
     fs.rmSync(workDir, { recursive: true, force: true });
     fs.mkdirSync(workDir, { recursive: true });
     fs.mkdirSync(outputDir, { recursive: true });
 
     run("snarkjs", ["powersoftau", "new", "bls12-381", String(power), ptau0]);
-    run("snarkjs", ["powersoftau", "prepare", "phase2", ptau0, ptauFinal]);
+    run(
+        "snarkjs",
+        [
+            "powersoftau",
+            "contribute",
+            ptau0,
+            ptau1,
+            '--name=updateTree phase1 contribution',
+            '--entropy=updateTree phase1 deterministic entropy'
+        ]
+    );
+    run(
+        "snarkjs",
+        [
+            "powersoftau",
+            "beacon",
+            ptau1,
+            ptauBeacon,
+            "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+            "10",
+            '--name=updateTree phase1 beacon'
+        ]
+    );
+    run("snarkjs", ["powersoftau", "prepare", "phase2", ptauBeacon, ptauFinal]);
     run("snarkjs", ["groth16", "setup", compiledR1csPath, ptauFinal, zkey0]);
-    run("snarkjs", ["zkey", "beacon", zkey0, zkeyFinal, beacon, "10"]);
+    run(
+        "snarkjs",
+        [
+            "zkey",
+            "contribute",
+            zkey0,
+            zkey1,
+            '--name=updateTree phase2 contribution',
+            '--entropy=updateTree phase2 deterministic entropy'
+        ]
+    );
+    run("snarkjs", ["zkey", "verify", compiledR1csPath, ptauFinal, zkey1]);
+    run(
+        "snarkjs",
+        [
+            "zkey",
+            "beacon",
+            zkey1,
+            zkeyFinal,
+            "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+            "10",
+            '--name=updateTree phase2 beacon'
+        ]
+    );
+    run("snarkjs", ["zkey", "verify", compiledR1csPath, ptauFinal, zkeyFinal]);
     run("snarkjs", ["zkey", "export", "verificationkey", zkeyFinal, verificationKey]);
-
-    try {
-        run("snarkjs", ["zkey", "verify", "r1cs", compiledR1csPath, ptauFinal, zkeyFinal]);
-    } catch (error) {
-        verificationWarning =
-            "snarkjs zkey verify r1cs failed after beacon on the local BLS12-381 path, but zkey generation and verification-key export completed.";
-    }
 
     const metadata = {
         circuit: "updateTree",
@@ -240,12 +282,12 @@ function generateSetupArtifacts(constraintCount, manifest) {
         constraintCount,
         powersOfTauPower: power,
         generatedAt: new Date().toISOString(),
-        note: "This is a local single-party setup generated for development. It is not a production ceremony."
+        note: "This is a local deterministic development ceremony, not a production multi-party ceremony.",
+        phase1Contributions: 1,
+        phase2Contributions: 1,
+        phase1BeaconApplied: true,
+        phase2BeaconApplied: true
     };
-
-    if (verificationWarning !== null) {
-        metadata.verificationWarning = verificationWarning;
-    }
 
     fs.writeFileSync(path.join(outputDir, "metadata.json"), JSON.stringify(metadata, null, 2) + "\n");
     fs.rmSync(workDir, { recursive: true, force: true });

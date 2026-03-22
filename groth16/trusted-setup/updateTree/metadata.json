@@ -4,7 +4,10 @@
   "mtDepth": 12,
   "constraintCount": 16322,
   "powersOfTauPower": 14,
-  "generatedAt": "2026-03-22T15:04:23.729Z",
-  "note": "This is a local single-party setup generated for development. It is not a production ceremony.",
-  "verificationWarning": "snarkjs zkey verify r1cs failed after beacon on the local BLS12-381 path, but zkey generation and verification-key export completed."
+  "generatedAt": "2026-03-22T15:24:24.458Z",
+  "note": "This is a local deterministic development ceremony, not a production multi-party ceremony.",
+  "phase1Contributions": 1,
+  "phase2Contributions": 1,
+  "phase1BeaconApplied": true,
+  "phase2BeaconApplied": true
 }

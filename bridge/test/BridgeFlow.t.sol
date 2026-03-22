@@ -19,6 +19,8 @@ contract BridgeFlowTest is Test {
     bytes4 internal constant APP_SIG_2 = bytes4(keccak256("rebalance(uint256)"));
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
+    bytes32 internal constant INITIAL_ZERO_ROOT =
+        bytes32(uint256(24945907954024293787177432702322299921976142807026898956788601490926336931348));
 
     BridgeAdminManager internal adminManager;
     DAppManager internal dAppManager;
@@ -89,7 +91,6 @@ contract BridgeFlowTest is Test {
             leader,
             asset,
             bytes32("CHANNEL_INSTANCE"),
-            _rootVector(bytes32(_depositPublicSignals()[0]), bytes32(uint256(22))),
             _storageAddressVector(vaultStorageAddr, appStorageAddr),
             0,
             refs
@@ -127,6 +128,8 @@ contract BridgeFlowTest is Test {
 
         bytes32[] memory currentRoots = channelManager.getCurrentRootVector();
         assertEq(currentRoots.length, managedStorageAddresses.length);
+        assertEq(currentRoots[0], INITIAL_ZERO_ROOT);
+        assertEq(currentRoots[1], INITIAL_ZERO_ROOT);
     }
 
     function testRejectsPerChannelLeafCollision() public {
@@ -153,7 +156,6 @@ contract BridgeFlowTest is Test {
             leader,
             asset,
             bytes32("CHANNEL_INSTANCE_2"),
-            _rootVector(bytes32(uint256(101)), bytes32(uint256(202))),
             _storageAddressVector(address(0xF00D), address(0x1234)),
             0,
             refs
@@ -191,7 +193,6 @@ contract BridgeFlowTest is Test {
             leader,
             asset,
             bytes32("CHANNEL_INSTANCE_3"),
-            _rootVector3(bytes32(uint256(101)), bytes32(uint256(202)), bytes32(uint256(303))),
             managedStorageAddresses,
             0,
             refs
@@ -311,7 +312,7 @@ contract BridgeFlowTest is Test {
 
     function testTokamakVerificationRejectsUnsupportedFunction() public {
         BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: _rootVector(bytes32(_depositPublicSignals()[0]), bytes32(uint256(22))),
+            currentRootVector: _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT),
             updatedRootVector: _rootVector(bytes32(uint256(12)), bytes32(uint256(23))),
             entryContract: address(0xBEEF),
             functionSig: APP_SIG
@@ -325,7 +326,7 @@ contract BridgeFlowTest is Test {
 
     function testTokamakVerificationUpdatesRootVector() public {
         BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: _rootVector(bytes32(_depositPublicSignals()[0]), bytes32(uint256(22))),
+            currentRootVector: _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT),
             updatedRootVector: _rootVector(bytes32(uint256(33)), bytes32(uint256(44))),
             entryContract: appContract,
             functionSig: APP_SIG
@@ -342,17 +343,6 @@ contract BridgeFlowTest is Test {
         roots = new bytes32[](2);
         roots[0] = left;
         roots[1] = right;
-    }
-
-    function _rootVector3(bytes32 first, bytes32 second, bytes32 third)
-        internal
-        pure
-        returns (bytes32[] memory roots)
-    {
-        roots = new bytes32[](3);
-        roots[0] = first;
-        roots[1] = second;
-        roots[2] = third;
     }
 
     function _storageAddressVector(address tokenVaultStorage, address appStorage)

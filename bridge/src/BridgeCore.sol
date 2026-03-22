@@ -12,11 +12,14 @@ import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract BridgeCore is Ownable, IVaultKeyRegistry {
+    uint8 internal constant SUPPORTED_MT_LEVELS = 12;
+    bytes32 internal constant ZERO_FILLED_TREE_ROOT =
+        bytes32(uint256(24945907954024293787177432702322299921976142807026898956788601490926336931348));
+
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);
     error UnsupportedChannelFunction(uint256 dappId, address entryContract, bytes4 functionSig);
     error MissingChannelStorageAddress(uint256 dappId, bytes4 functionSig, address storageAddr);
-    error RootStorageVectorLengthMismatch();
     error InvalidTokenVaultTreeIndex();
     error DuplicateManagedStorageAddress(address storageAddr);
     error MissingTokenVaultStorageAddress();
@@ -25,6 +28,7 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
     error TokenVaultTreeIndexStorageMismatch(address expectedStorageAddr, address indexedStorageAddr);
     error OnlyChannelVault();
     error InvalidMerkleTreeConfiguration();
+    error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
     error GlobalVaultKeyAlreadyRegistered(bytes32 key);
     error ChannelLeafIndexCollision(uint256 channelId, uint256 leafIndex);
 
@@ -80,14 +84,15 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         address leader,
         IERC20 asset,
         bytes32 channelInstanceHash,
-        bytes32[] calldata initialRootVector,
         address[] calldata managedStorageAddresses,
         uint256 tokenVaultTreeIndex,
         BridgeStructs.FunctionReference[] calldata allowedFunctions
     ) external onlyOwner returns (address manager, address vault) {
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
-        if (managedStorageAddresses.length != initialRootVector.length) revert RootStorageVectorLengthMismatch();
+        if (adminManager.nMerkleTreeLevels() != SUPPORTED_MT_LEVELS) {
+            revert UnsupportedMerkleTreeLevels(adminManager.nMerkleTreeLevels(), SUPPORTED_MT_LEVELS);
+        }
         if (tokenVaultTreeIndex >= managedStorageAddresses.length) revert InvalidTokenVaultTreeIndex();
         _assertUniqueStorageAddresses(managedStorageAddresses);
 
@@ -125,6 +130,8 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         for (uint256 i = 0; i < allowedFunctions.length; i++) {
             copiedAllowedFunctions[i] = allowedFunctions[i];
         }
+
+        bytes32[] memory initialRootVector = _buildInitialRootVector(managedStorageAddresses.length);
 
         ChannelManager channelManager = new ChannelManager(
             channelId,
@@ -221,6 +228,13 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
                 }
                 tokenVaultStorage = storageAddresses[i];
             }
+        }
+    }
+
+    function _buildInitialRootVector(uint256 treeCount) private pure returns (bytes32[] memory initialRootVector) {
+        initialRootVector = new bytes32[](treeCount);
+        for (uint256 i = 0; i < treeCount; i++) {
+            initialRootVector[i] = ZERO_FILLED_TREE_ROOT;
         }
     }
 }

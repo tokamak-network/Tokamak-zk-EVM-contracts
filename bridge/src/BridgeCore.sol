@@ -17,6 +17,8 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
     error UnsupportedChannelFunction(uint256 dappId, address entryContract, bytes4 functionSig);
     error MissingChannelStorageAddress(uint256 dappId, bytes4 functionSig, address storageAddr);
     error RootStorageVectorLengthMismatch();
+    error InvalidTokenVaultTreeIndex();
+    error DuplicateTokenVaultStorageAddress(address storageAddr);
     error DuplicateManagedStorageAddress(address storageAddr);
     error OnlyChannelVault();
     error InvalidMerkleTreeConfiguration();
@@ -83,6 +85,8 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
         if (managedStorageAddresses.length != initialRootVector.length) revert RootStorageVectorLengthMismatch();
+        if (tokenVaultTreeIndex >= managedStorageAddresses.length) revert InvalidTokenVaultTreeIndex();
+        _assertSingleTokenVaultStorageAddress(managedStorageAddresses, tokenVaultTreeIndex);
         _assertUniqueStorageAddresses(managedStorageAddresses);
 
         for (uint256 i = 0; i < allowedFunctions.length; i++) {
@@ -186,6 +190,23 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
             for (uint256 j = i + 1; j < storageAddresses.length; j++) {
                 if (storageAddresses[i] == storageAddresses[j]) {
                     revert DuplicateManagedStorageAddress(storageAddresses[i]);
+                }
+            }
+        }
+    }
+
+    function _assertSingleTokenVaultStorageAddress(address[] calldata storageAddresses, uint256 tokenVaultTreeIndex)
+        private
+        pure
+    {
+        address tokenVaultStorageAddress = storageAddresses[tokenVaultTreeIndex];
+        uint256 matches = 0;
+
+        for (uint256 i = 0; i < storageAddresses.length; i++) {
+            if (storageAddresses[i] == tokenVaultStorageAddress) {
+                matches += 1;
+                if (matches > 1) {
+                    revert DuplicateTokenVaultStorageAddress(tokenVaultStorageAddress);
                 }
             }
         }

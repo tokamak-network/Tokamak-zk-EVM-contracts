@@ -153,11 +153,11 @@ contract BridgeFlowTest is Test {
         secondVault.registerAndFund(reusedKey, 10 ether);
     }
 
-    function testRejectsDuplicateManagedStorageAddresses() public {
+    function testRejectsDuplicateTokenVaultStorageAddress() public {
         BridgeStructs.FunctionReference[] memory refs = new BridgeStructs.FunctionReference[](1);
         refs[0] = BridgeStructs.FunctionReference({entryContract: appContract, functionSig: APP_SIG});
 
-        vm.expectRevert(abi.encodeWithSelector(BridgeCore.DuplicateManagedStorageAddress.selector, address(0x1234)));
+        vm.expectRevert(abi.encodeWithSelector(BridgeCore.DuplicateTokenVaultStorageAddress.selector, address(0x1234)));
         bridgeCore.createChannel(
             3,
             1,

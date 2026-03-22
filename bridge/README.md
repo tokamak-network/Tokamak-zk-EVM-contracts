@@ -20,13 +20,10 @@ This workspace focuses on the current design documented in the notes:
 
 ## Mocked Areas
 
-The documents do not specify enough circuit-level or hashing-level detail to implement production verifiers safely. The following areas are therefore mocked on purpose:
+The documents do not specify enough Tokamak-zkp or onchain hashing detail to implement every production path safely. The following areas are therefore still mocked on purpose:
 
-- Groth proof verification
 - Tokamak proof verification
 - Poseidon leaf hashing, represented here by a mock hash helper
-- exact public-input serialization and circuit-binding formats
 - final proposal-pool and token-economics behavior
 
-Any function or path that depends on these unspecified details is explicitly implemented as a mock-oriented interface or helper rather than as a fake production verifier.
-
+Groth proof verification is no longer mocked. The bridge now expects raw Groth16 proof coordinates and forwards them into the generated `updateTree` verifier under `groth16/verifier/`.

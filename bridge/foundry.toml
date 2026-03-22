@@ -6,6 +6,7 @@ libs = ["../lib"]
 remappings = [
     "@openzeppelin/=../lib/openzeppelin-contracts/contracts/",
     "forge-std/=../lib/forge-std/src/",
+    "groth16-verifier/=../groth16/verifier/",
 ]
 
 optimizer = true
@@ -17,4 +18,3 @@ evm_version = "prague"
 line_length = 100
 tab_width = 4
 bracket_spacing = true
-

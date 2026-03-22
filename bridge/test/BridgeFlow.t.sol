@@ -8,9 +8,11 @@ import {DAppManager} from "../src/DAppManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
 import {ChannelManager} from "../src/ChannelManager.sol";
 import {L1TokenVault} from "../src/L1TokenVault.sol";
-import {MockGrothVerifier} from "../src/mocks/MockGrothVerifier.sol";
+import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
 import {MockTokamakVerifier} from "../src/mocks/MockTokamakVerifier.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
+import {DepositGrothProofFixture, WithdrawGrothProofFixture} from "./GrothProofFixtures.sol";
+import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
 
 contract BridgeFlowTest is Test {
     bytes4 internal constant APP_SIG = bytes4(keccak256("trade(uint256)"));
@@ -18,7 +20,7 @@ contract BridgeFlowTest is Test {
     BridgeAdminManager internal adminManager;
     DAppManager internal dAppManager;
     BridgeCore internal bridgeCore;
-    MockGrothVerifier internal grothVerifier;
+    Groth16Verifier internal grothVerifier;
     MockTokamakVerifier internal tokamakVerifier;
     MockERC20 internal asset;
 
@@ -35,7 +37,7 @@ contract BridgeFlowTest is Test {
 
     function setUp() public {
         adminManager = new BridgeAdminManager(address(this));
-        adminManager.setMerkleTreeLevels(4);
+        adminManager.setMerkleTreeLevels(12);
         adminManager.setTokamakPublicInputsLength(16);
 
         address[] memory storageAddrs = new address[](1);
@@ -50,9 +52,15 @@ contract BridgeFlowTest is Test {
         refs[0] = BridgeStructs.FunctionReference({entryContract: appContract, functionSig: APP_SIG});
         dAppManager.registerDAppFunctions(1, refs);
 
-        grothVerifier = new MockGrothVerifier();
+        grothVerifier = new Groth16Verifier();
         tokamakVerifier = new MockTokamakVerifier();
-        bridgeCore = new BridgeCore(address(this), adminManager, dAppManager, grothVerifier, tokamakVerifier);
+        bridgeCore = new BridgeCore(
+            address(this),
+            adminManager,
+            dAppManager,
+            IGrothVerifier(address(grothVerifier)),
+            tokamakVerifier
+        );
 
         asset = new MockERC20("Mock Asset", "MA");
         asset.mint(alice, 1_000 ether);
@@ -64,7 +72,7 @@ contract BridgeFlowTest is Test {
             leader,
             asset,
             bytes32("CHANNEL_INSTANCE"),
-            _rootVector(bytes32(uint256(11)), bytes32(uint256(22))),
+            _rootVector(bytes32(_depositPublicSignals()[0]), bytes32(uint256(22))),
             0,
             refs
         );
@@ -99,7 +107,7 @@ contract BridgeFlowTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(BridgeCore.ChannelLeafIndexCollision.selector, channelId, 1));
         vm.prank(bob);
-        tokenVault.registerAndFund(bytes32(uint256(17)), 10 ether);
+        tokenVault.registerAndFund(bytes32(uint256(4097)), 10 ether);
     }
 
     function testRejectsGlobalKeyReuseAcrossChannels() public {
@@ -132,64 +140,67 @@ contract BridgeFlowTest is Test {
     }
 
     function testGrothDepositUpdatesVaultStateAndRootVector() public {
-        bytes32 key = bytes32(uint256(9));
+        bytes32 key = bytes32(uint256(111));
         vm.prank(alice);
         tokenVault.registerAndFund(key, 100 ether);
 
+        uint256[6] memory pubSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
-            currentRoot: bytes32(uint256(11)),
-            updatedRoot: bytes32(uint256(111)),
+            currentRoot: bytes32(pubSignals[0]),
+            updatedRoot: bytes32(pubSignals[1]),
             currentUserKey: bytes32(0),
-            currentUserValue: 0,
+            currentUserValue: pubSignals[3],
             updatedUserKey: key,
-            updatedUserValue: 40 ether
+            updatedUserValue: pubSignals[5]
         });
 
         vm.prank(alice);
-        tokenVault.deposit(hex"1234", update);
+        tokenVault.deposit(_depositProof(), update);
 
         L1TokenVault.VaultRegistration memory registration = tokenVault.getRegistration(alice);
-        assertEq(registration.availableBalance, 60 ether);
-        assertEq(registration.l2AccountingBalance, 40 ether);
+        assertEq(registration.availableBalance, 100 ether - 10);
+        assertEq(registration.l2AccountingBalance, 10);
 
         bytes32[] memory currentRoots = channelManager.getCurrentRootVector();
-        assertEq(currentRoots[0], bytes32(uint256(111)));
+        assertEq(currentRoots[0], bytes32(pubSignals[1]));
         assertEq(
             channelManager.getLatestTokenVaultLeaf(registration.leafIndex),
-            tokenVault.mockTokenVaultLeaf(key, 40 ether)
+            tokenVault.mockTokenVaultLeaf(key, 10)
         );
     }
 
     function testGrothWithdrawAndClaimToWallet() public {
-        bytes32 key = bytes32(uint256(9));
+        bytes32 key = bytes32(uint256(111));
         vm.prank(alice);
         tokenVault.registerAndFund(key, 100 ether);
 
+        uint256[6] memory depositSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory depositUpdate = BridgeStructs.GrothUpdate({
-            currentRoot: bytes32(uint256(11)),
-            updatedRoot: bytes32(uint256(111)),
+            currentRoot: bytes32(depositSignals[0]),
+            updatedRoot: bytes32(depositSignals[1]),
             currentUserKey: bytes32(0),
-            currentUserValue: 0,
+            currentUserValue: depositSignals[3],
             updatedUserKey: key,
-            updatedUserValue: 40 ether
+            updatedUserValue: depositSignals[5]
         });
         vm.prank(alice);
-        tokenVault.deposit(hex"1111", depositUpdate);
+        tokenVault.deposit(_depositProof(), depositUpdate);
 
+        uint256[6] memory withdrawSignals = _withdrawPublicSignals();
         BridgeStructs.GrothUpdate memory withdrawUpdate = BridgeStructs.GrothUpdate({
-            currentRoot: bytes32(uint256(111)),
-            updatedRoot: bytes32(uint256(222)),
+            currentRoot: bytes32(withdrawSignals[0]),
+            updatedRoot: bytes32(withdrawSignals[1]),
             currentUserKey: key,
-            currentUserValue: 40 ether,
+            currentUserValue: withdrawSignals[3],
             updatedUserKey: key,
-            updatedUserValue: 10 ether
+            updatedUserValue: withdrawSignals[5]
         });
         vm.prank(alice);
-        tokenVault.withdraw(hex"2222", withdrawUpdate);
+        tokenVault.withdraw(_withdrawProof(), withdrawUpdate);
 
         L1TokenVault.VaultRegistration memory registration = tokenVault.getRegistration(alice);
-        assertEq(registration.availableBalance, 90 ether);
-        assertEq(registration.l2AccountingBalance, 10 ether);
+        assertEq(registration.availableBalance, 100 ether - 4);
+        assertEq(registration.l2AccountingBalance, 4);
 
         uint256 aliceBalanceBefore = asset.balanceOf(alice);
         vm.prank(alice);
@@ -199,7 +210,7 @@ contract BridgeFlowTest is Test {
 
     function testTokamakVerificationRejectsUnsupportedFunction() public {
         BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: _rootVector(bytes32(uint256(11)), bytes32(uint256(22))),
+            currentRootVector: _rootVector(bytes32(_depositPublicSignals()[0]), bytes32(uint256(22))),
             updatedRootVector: _rootVector(bytes32(uint256(12)), bytes32(uint256(23))),
             entryContract: address(0xBEEF),
             functionSig: APP_SIG
@@ -213,7 +224,7 @@ contract BridgeFlowTest is Test {
 
     function testTokamakVerificationUpdatesRootVector() public {
         BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: _rootVector(bytes32(uint256(11)), bytes32(uint256(22))),
+            currentRootVector: _rootVector(bytes32(_depositPublicSignals()[0]), bytes32(uint256(22))),
             updatedRootVector: _rootVector(bytes32(uint256(33)), bytes32(uint256(44))),
             entryContract: appContract,
             functionSig: APP_SIG
@@ -230,6 +241,44 @@ contract BridgeFlowTest is Test {
         roots = new bytes32[](2);
         roots[0] = left;
         roots[1] = right;
+    }
+
+    function _depositProof() private pure returns (BridgeStructs.GrothProof memory proof) {
+        proof = BridgeStructs.GrothProof({
+            pA: DepositGrothProofFixture.pA(),
+            pB: DepositGrothProofFixture.pB(),
+            pC: DepositGrothProofFixture.pC()
+        });
+    }
+
+    function _withdrawProof() private pure returns (BridgeStructs.GrothProof memory proof) {
+        proof = BridgeStructs.GrothProof({
+            pA: WithdrawGrothProofFixture.pA(),
+            pB: WithdrawGrothProofFixture.pB(),
+            pC: WithdrawGrothProofFixture.pC()
+        });
+    }
+
+    function _depositPublicSignals() private pure returns (uint256[6] memory values) {
+        values = [
+            uint256(44959835799483499354865815592197244997246122416870268120316248061820294708663),
+            uint256(1719477714924642410013324815519986595819084598522787936647414603699375046267),
+            uint256(0),
+            uint256(0),
+            uint256(111),
+            uint256(10)
+        ];
+    }
+
+    function _withdrawPublicSignals() private pure returns (uint256[6] memory values) {
+        values = [
+            uint256(1719477714924642410013324815519986595819084598522787936647414603699375046267),
+            uint256(30426797475533419267034522064558509217444337837557502247307286656627174754356),
+            uint256(111),
+            uint256(10),
+            uint256(111),
+            uint256(4)
+        ];
     }
 
     function _bytes32Array(bytes32 value) internal pure returns (bytes32[] memory out) {

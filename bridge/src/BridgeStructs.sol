@@ -2,6 +2,12 @@
 pragma solidity ^0.8.24;
 
 library BridgeStructs {
+    struct GrothProof {
+        uint256[4] pA;
+        uint256[8] pB;
+        uint256[4] pC;
+    }
+
     struct FunctionReference {
         address entryContract;
         bytes4 functionSig;
@@ -29,4 +35,3 @@ library BridgeStructs {
         bytes4 functionSig;
     }
 }
-

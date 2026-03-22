@@ -38,8 +38,10 @@ def main():
     public_signals = json.loads(Path(sys.argv[2]).read_text())
     output_path = Path(sys.argv[3])
 
-    if len(public_signals) != 6:
-        raise ValueError(f"Expected 6 public signals for updateTree, got {len(public_signals)}.")
+    if len(public_signals) == 0:
+        raise ValueError("Expected at least one public signal.")
+
+    public_signal_count = len(public_signals)
 
     p_a = [
         *split_field_element(proof["pi_a"][0]),
@@ -78,7 +80,7 @@ library UpdateTreeProofFixture {{
         ];
     }}
 
-    function pubSignals() internal pure returns (uint256[6] memory values) {{
+    function pubSignals() internal pure returns (uint256[{public_signal_count}] memory values) {{
         values = [
 {solidity_array([f'uint256({int(value)})' for value in public_signals], '            ')}
         ];

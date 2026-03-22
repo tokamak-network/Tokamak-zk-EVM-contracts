@@ -131,19 +131,23 @@ async function buildExampleInput(outputPath) {
   const storageKey = 111n;
   const storageValueBefore = 7n;
   const storageValueAfter = 10n;
-  const leafIndex = 0n;
+  const maxLeaves = BigInt(tokamak.POSEIDON_INPUTS ** tokamak.MT_DEPTH);
+  const leafIndex = storageKey % maxLeaves;
   const proof = Array(metadata.mtDepth).fill(0n);
   const hashPair = (left, right) => tokamak.poseidonChainCompress([left, right]);
+  const computeRoot = (leaf, index, siblings) => {
+    let current = leaf;
+    for (let level = 0; level < siblings.length; level += 1) {
+      const bit = (index >> BigInt(level)) & 1n;
+      current = bit === 0n ? hashPair(current, siblings[level]) : hashPair(siblings[level], current);
+    }
+    return current;
+  };
 
   const leafBefore = hashPair(storageKey, storageValueBefore);
   const leafAfter = hashPair(storageKey, storageValueAfter);
-
-  let rootBefore = leafBefore;
-  let rootAfter = leafAfter;
-  for (const sibling of proof) {
-    rootBefore = hashPair(rootBefore, sibling);
-    rootAfter = hashPair(rootAfter, sibling);
-  }
+  const rootBefore = computeRoot(leafBefore, leafIndex, proof);
+  const rootAfter = computeRoot(leafAfter, leafIndex, proof);
 
   const input = {
     root_before: rootBefore.toString(),

@@ -18,8 +18,8 @@ contract Groth16VerifierTest {
 
     function testVerifyProofRejectsTamperedPublicSignals() public {
         Groth16Verifier verifier = new Groth16Verifier();
-        uint256[6] memory pubSignals = UpdateTreeProofFixture.pubSignals();
-        pubSignals[5] += 1;
+        uint256[7] memory pubSignals = UpdateTreeProofFixture.pubSignals();
+        pubSignals[6] += 1;
 
         bool ok = verifier.verifyProof(
             UpdateTreeProofFixture.pA(),

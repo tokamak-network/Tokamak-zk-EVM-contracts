@@ -107,7 +107,7 @@ contract L1TokenVault is ReentrancyGuard {
         uint256 amount = update.updatedUserValue - update.currentUserValue;
         if (registration.availableBalance < amount) revert InsufficientAvailableBalance();
 
-        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update));
+        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update, registration));
         if (!ok) revert GrothProofRejected();
 
         registration.availableBalance -= amount;
@@ -139,7 +139,7 @@ contract L1TokenVault is ReentrancyGuard {
 
         uint256 amount = update.currentUserValue - update.updatedUserValue;
 
-        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update));
+        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update, registration));
         if (!ok) revert GrothProofRejected();
 
         registration.availableBalance += amount;
@@ -189,17 +189,21 @@ contract L1TokenVault is ReentrancyGuard {
         require(asset.transferFrom(from, address(this), amount), "TRANSFER_FROM_FAILED");
     }
 
-    function _toPublicSignals(BridgeStructs.GrothUpdate calldata update)
+    function _toPublicSignals(
+        BridgeStructs.GrothUpdate calldata update,
+        VaultRegistration storage registration
+    )
         private
-        pure
-        returns (uint256[6] memory pubSignals)
+        view
+        returns (uint256[7] memory pubSignals)
     {
         pubSignals[0] = uint256(update.currentRoot);
         pubSignals[1] = uint256(update.updatedRoot);
-        pubSignals[2] = uint256(update.currentUserKey);
-        pubSignals[3] = update.currentUserValue;
-        pubSignals[4] = uint256(update.updatedUserKey);
-        pubSignals[5] = update.updatedUserValue;
+        pubSignals[2] = registration.leafIndex;
+        pubSignals[3] = uint256(update.currentUserKey);
+        pubSignals[4] = update.currentUserValue;
+        pubSignals[5] = uint256(update.updatedUserKey);
+        pubSignals[6] = update.updatedUserValue;
     }
 
     // The documents specify Poseidon hashing for the leaf shape but do not provide

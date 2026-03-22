@@ -2,18 +2,18 @@ pragma circom 2.2.2;
 
 include "../node_modules/poseidon-bls12381-circom/circuits/poseidon255.circom";
 
-// Derives the Merkle leaf index from the lower N bits of a shared storage key.
+// Derives the Merkle leaf index as the lower N bits of storage_key.
 template deriveLeafIndexFromStorageKey(N) {
     signal input storage_key;
     signal input leaf_index;
 
     signal key_bits[255];
     signal key_acc[256];
+    signal leaf_index_bits[N];
     signal leaf_index_acc[N + 1];
 
     key_acc[0] <== 0;
     leaf_index_acc[0] <== 0;
-
     var bit_weight = 1;
     for (var i = 0; i < 255; i++) {
         key_bits[i] <-- (storage_key \ bit_weight) % 2;
@@ -21,6 +21,7 @@ template deriveLeafIndexFromStorageKey(N) {
         key_acc[i + 1] <== key_acc[i] + key_bits[i] * bit_weight;
 
         if (i < N) {
+            leaf_index_bits[i] <== key_bits[i];
             leaf_index_acc[i + 1] <== leaf_index_acc[i] + key_bits[i] * bit_weight;
         }
 
@@ -79,15 +80,10 @@ template updateTree(N) {
     signal input root_before;          // [PUBLIC]
     signal input root_after;           // [PUBLIC]
     signal input leaf_index;           // [PRIVATE]
-    signal input storage_key_before;   // [PUBLIC]
+    signal input storage_key;          // [PUBLIC]
     signal input storage_value_before; // [PUBLIC]
-    signal input storage_key_after;    // [PUBLIC]
     signal input storage_value_after;  // [PUBLIC]
     signal input proof[N];             // [PRIVATE]
-
-    signal storage_key;
-    storage_key <== storage_key_before;
-    storage_key === storage_key_after;
 
     component leaf_index_constraint = deriveLeafIndexFromStorageKey(N);
     leaf_index_constraint.storage_key <== storage_key;

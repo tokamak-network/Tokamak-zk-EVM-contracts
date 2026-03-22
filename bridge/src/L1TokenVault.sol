@@ -104,6 +104,7 @@ contract L1TokenVault is ReentrancyGuard {
 
         _requireL2ValueInField(update.currentUserValue);
         _requireL2ValueInField(update.updatedUserValue);
+        if (update.currentUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
         if (update.updatedUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
         if (update.currentUserValue != registration.l2AccountingBalance) {
             revert UnexpectedCurrentL2Balance();
@@ -140,6 +141,7 @@ contract L1TokenVault is ReentrancyGuard {
         _requireL2ValueInField(update.currentUserValue);
         _requireL2ValueInField(update.updatedUserValue);
         if (update.currentUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
+        if (update.updatedUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
         if (update.currentUserValue != registration.l2AccountingBalance) {
             revert UnexpectedCurrentL2Balance();
         }
@@ -206,14 +208,13 @@ contract L1TokenVault is ReentrancyGuard {
     function _toPublicSignals(BridgeStructs.GrothUpdate calldata update)
         private
         pure
-        returns (uint256[6] memory pubSignals)
+        returns (uint256[5] memory pubSignals)
     {
         pubSignals[0] = uint256(update.currentRoot);
         pubSignals[1] = uint256(update.updatedRoot);
-        pubSignals[2] = uint256(update.currentUserKey);
+        pubSignals[2] = uint256(update.updatedUserKey);
         pubSignals[3] = update.currentUserValue;
-        pubSignals[4] = uint256(update.updatedUserKey);
-        pubSignals[5] = update.updatedUserValue;
+        pubSignals[4] = update.updatedUserValue;
     }
 
     // The current circuit model treats each token-vault leaf as the raw stored value.

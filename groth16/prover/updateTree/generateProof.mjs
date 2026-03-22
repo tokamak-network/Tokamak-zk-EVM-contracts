@@ -153,9 +153,8 @@ async function buildExampleInput(outputPath) {
     root_before: rootBefore.toString(),
     root_after: rootAfter.toString(),
     leaf_index: leafIndex.toString(),
-    storage_key_before: storageKey.toString(),
+    storage_key: storageKey.toString(),
     storage_value_before: storageValueBefore.toString(),
-    storage_key_after: storageKey.toString(),
     storage_value_after: storageValueAfter.toString(),
     proof: proof.map((value) => value.toString()),
   };
@@ -181,8 +180,8 @@ async function main() {
 
   const proof = readJson(proofPath);
   const publicSignals = readJson(publicPath);
-  if (publicSignals.length !== 6) {
-    throw new Error(`Expected 6 public signals for updateTree, got ${publicSignals.length}.`);
+  if (publicSignals.length !== 5) {
+    throw new Error(`Expected 5 public signals for updateTree, got ${publicSignals.length}.`);
   }
   const fixture = buildSolidityFixture(proof, publicSignals);
   fs.writeFileSync(fixturePath, JSON.stringify(fixture, null, 2) + "\n");

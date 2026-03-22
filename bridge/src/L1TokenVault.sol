@@ -107,7 +107,7 @@ contract L1TokenVault is ReentrancyGuard {
         uint256 amount = update.updatedUserValue - update.currentUserValue;
         if (registration.availableBalance < amount) revert InsufficientAvailableBalance();
 
-        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update, registration));
+        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update));
         if (!ok) revert GrothProofRejected();
 
         registration.availableBalance -= amount;
@@ -117,7 +117,7 @@ contract L1TokenVault is ReentrancyGuard {
             update.currentRoot,
             update.updatedRoot,
             registration.leafIndex,
-            _mockTokenVaultLeaf(update.updatedUserKey, update.updatedUserValue)
+            _mockTokenVaultLeaf(update.updatedUserValue)
         );
 
         emit DepositAccepted(msg.sender, amount, registration.leafIndex);
@@ -139,7 +139,7 @@ contract L1TokenVault is ReentrancyGuard {
 
         uint256 amount = update.currentUserValue - update.updatedUserValue;
 
-        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update, registration));
+        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update));
         if (!ok) revert GrothProofRejected();
 
         registration.availableBalance += amount;
@@ -149,7 +149,7 @@ contract L1TokenVault is ReentrancyGuard {
             update.currentRoot,
             update.updatedRoot,
             registration.leafIndex,
-            _mockTokenVaultLeaf(update.updatedUserKey, update.updatedUserValue)
+            _mockTokenVaultLeaf(update.updatedUserValue)
         );
 
         emit WithdrawalAccepted(msg.sender, amount, registration.leafIndex);
@@ -172,8 +172,8 @@ contract L1TokenVault is ReentrancyGuard {
         return _registrations[user];
     }
 
-    function mockTokenVaultLeaf(bytes32 userKey, uint256 userValue) external pure returns (bytes32) {
-        return _mockTokenVaultLeaf(userKey, userValue);
+    function mockTokenVaultLeaf(bytes32, uint256 userValue) external pure returns (bytes32) {
+        return _mockTokenVaultLeaf(userValue);
     }
 
     function _requireRegistration(address user)
@@ -189,26 +189,21 @@ contract L1TokenVault is ReentrancyGuard {
         require(asset.transferFrom(from, address(this), amount), "TRANSFER_FROM_FAILED");
     }
 
-    function _toPublicSignals(
-        BridgeStructs.GrothUpdate calldata update,
-        VaultRegistration storage registration
-    )
+    function _toPublicSignals(BridgeStructs.GrothUpdate calldata update)
         private
-        view
-        returns (uint256[7] memory pubSignals)
+        pure
+        returns (uint256[6] memory pubSignals)
     {
         pubSignals[0] = uint256(update.currentRoot);
         pubSignals[1] = uint256(update.updatedRoot);
-        pubSignals[2] = registration.leafIndex;
-        pubSignals[3] = uint256(update.currentUserKey);
-        pubSignals[4] = update.currentUserValue;
-        pubSignals[5] = uint256(update.updatedUserKey);
-        pubSignals[6] = update.updatedUserValue;
+        pubSignals[2] = uint256(update.currentUserKey);
+        pubSignals[3] = update.currentUserValue;
+        pubSignals[4] = uint256(update.updatedUserKey);
+        pubSignals[5] = update.updatedUserValue;
     }
 
-    // The documents specify Poseidon hashing for the leaf shape but do not provide
-    // the production integration details here. This helper is intentionally mocked.
-    function _mockTokenVaultLeaf(bytes32 userKey, uint256 userValue) private pure returns (bytes32) {
-        return keccak256(abi.encode(userKey, userValue));
+    // The current circuit model treats each token-vault leaf as the raw stored value.
+    function _mockTokenVaultLeaf(uint256 userValue) private pure returns (bytes32) {
+        return bytes32(userValue);
     }
 }

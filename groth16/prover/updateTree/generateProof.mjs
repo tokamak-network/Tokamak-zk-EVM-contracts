@@ -129,7 +129,7 @@ async function buildExampleInput(outputPath) {
   assertCircuitDepth(metadata.mtDepth);
 
   const storageKey = 111n;
-  const storageValueBefore = 7n;
+  const storageValueBefore = 0n;
   const storageValueAfter = 10n;
   const maxLeaves = BigInt(tokamak.POSEIDON_INPUTS ** tokamak.MT_DEPTH);
   const leafIndex = storageKey % maxLeaves;
@@ -144,8 +144,8 @@ async function buildExampleInput(outputPath) {
     return current;
   };
 
-  const leafBefore = hashPair(storageKey, storageValueBefore);
-  const leafAfter = hashPair(storageKey, storageValueAfter);
+  const leafBefore = storageValueBefore;
+  const leafAfter = storageValueAfter;
   const rootBefore = computeRoot(leafBefore, leafIndex, proof);
   const rootAfter = computeRoot(leafAfter, leafIndex, proof);
 
@@ -181,6 +181,9 @@ async function main() {
 
   const proof = readJson(proofPath);
   const publicSignals = readJson(publicPath);
+  if (publicSignals.length !== 6) {
+    throw new Error(`Expected 6 public signals for updateTree, got ${publicSignals.length}.`);
+  }
   const fixture = buildSolidityFixture(proof, publicSignals);
   fs.writeFileSync(fixturePath, JSON.stringify(fixture, null, 2) + "\n");
 }

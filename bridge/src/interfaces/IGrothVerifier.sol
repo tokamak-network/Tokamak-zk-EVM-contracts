@@ -6,7 +6,7 @@ interface IGrothVerifier {
         uint256[4] calldata pA,
         uint256[8] calldata pB,
         uint256[4] calldata pC,
-        uint256[7] calldata pubSignals
+        uint256[6] calldata pubSignals
     )
         external
         view

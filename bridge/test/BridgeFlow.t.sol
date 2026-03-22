@@ -144,14 +144,14 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         tokenVault.registerAndFund(key, 100 ether);
 
-        uint256[7] memory pubSignals = _depositPublicSignals();
+        uint256[6] memory pubSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
             currentRoot: bytes32(pubSignals[0]),
             updatedRoot: bytes32(pubSignals[1]),
-            currentUserKey: bytes32(pubSignals[3]),
-            currentUserValue: pubSignals[4],
+            currentUserKey: bytes32(pubSignals[2]),
+            currentUserValue: pubSignals[3],
             updatedUserKey: key,
-            updatedUserValue: pubSignals[6]
+            updatedUserValue: pubSignals[5]
         });
 
         vm.prank(alice);
@@ -165,7 +165,7 @@ contract BridgeFlowTest is Test {
         assertEq(currentRoots[0], bytes32(pubSignals[1]));
         assertEq(
             channelManager.getLatestTokenVaultLeaf(registration.leafIndex),
-            tokenVault.mockTokenVaultLeaf(key, 10)
+            tokenVault.mockTokenVaultLeaf(bytes32(0), 10)
         );
     }
 
@@ -174,26 +174,26 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         tokenVault.registerAndFund(key, 100 ether);
 
-        uint256[7] memory depositSignals = _depositPublicSignals();
+        uint256[6] memory depositSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory depositUpdate = BridgeStructs.GrothUpdate({
             currentRoot: bytes32(depositSignals[0]),
             updatedRoot: bytes32(depositSignals[1]),
-            currentUserKey: bytes32(depositSignals[3]),
-            currentUserValue: depositSignals[4],
+            currentUserKey: key,
+            currentUserValue: depositSignals[3],
             updatedUserKey: key,
-            updatedUserValue: depositSignals[6]
+            updatedUserValue: depositSignals[5]
         });
         vm.prank(alice);
         tokenVault.deposit(_depositProof(), depositUpdate);
 
-        uint256[7] memory withdrawSignals = _withdrawPublicSignals();
+        uint256[6] memory withdrawSignals = _withdrawPublicSignals();
         BridgeStructs.GrothUpdate memory withdrawUpdate = BridgeStructs.GrothUpdate({
             currentRoot: bytes32(withdrawSignals[0]),
             updatedRoot: bytes32(withdrawSignals[1]),
             currentUserKey: key,
-            currentUserValue: withdrawSignals[4],
+            currentUserValue: withdrawSignals[3],
             updatedUserKey: key,
-            updatedUserValue: withdrawSignals[6]
+            updatedUserValue: withdrawSignals[5]
         });
         vm.prank(alice);
         tokenVault.withdraw(_withdrawProof(), withdrawUpdate);
@@ -259,23 +259,21 @@ contract BridgeFlowTest is Test {
         });
     }
 
-    function _depositPublicSignals() private pure returns (uint256[7] memory values) {
+    function _depositPublicSignals() private pure returns (uint256[6] memory values) {
         values = [
-            uint256(4415399257419526767538754454034022787035297717553347384326121527396747406863),
-            uint256(1256772619741781574832071795141552311568607260746174091637092412903694395436),
+            uint256(24945907954024293787177432702322299921976142807026898956788601490926336931348),
+            uint256(11491148064932883221377359773083833348868990225682934625748592324693145747493),
             uint256(111),
-            uint256(0),
             uint256(0),
             uint256(111),
             uint256(10)
         ];
     }
 
-    function _withdrawPublicSignals() private pure returns (uint256[7] memory values) {
+    function _withdrawPublicSignals() private pure returns (uint256[6] memory values) {
         values = [
-            uint256(1256772619741781574832071795141552311568607260746174091637092412903694395436),
-            uint256(5479083190761435693891505691846660857780022166614206414393135377507902409502),
-            uint256(111),
+            uint256(11491148064932883221377359773083833348868990225682934625748592324693145747493),
+            uint256(196552937653344953501652676821676363414611775986607266328935428271983687118),
             uint256(111),
             uint256(10),
             uint256(111),

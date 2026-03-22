@@ -2,17 +2,33 @@ pragma circom 2.2.2;
 
 include "../node_modules/poseidon-bls12381-circom/circuits/poseidon255.circom";
 
-// Shared single-leaf template for Tokamak storage inputs.
-template computeLeaf() {
+// Derives the Merkle leaf index from the lower N bits of a shared storage key.
+template deriveLeafIndexFromStorageKey(N) {
     signal input storage_key;
-    signal input storage_value;
-    signal output leaf;
+    signal input leaf_index;
 
-    // leaf = poseidon2(storage_key, storage_value)
-    component leaf_hash = Poseidon255(2);
-    leaf_hash.in[0] <== storage_key;
-    leaf_hash.in[1] <== storage_value;
-    leaf <== leaf_hash.out;
+    signal key_bits[255];
+    signal key_acc[256];
+    signal leaf_index_acc[N + 1];
+
+    key_acc[0] <== 0;
+    leaf_index_acc[0] <== 0;
+
+    var bit_weight = 1;
+    for (var i = 0; i < 255; i++) {
+        key_bits[i] <-- (storage_key \ bit_weight) % 2;
+        key_bits[i] * (key_bits[i] - 1) === 0;
+        key_acc[i + 1] <== key_acc[i] + key_bits[i] * bit_weight;
+
+        if (i < N) {
+            leaf_index_acc[i + 1] <== leaf_index_acc[i] + key_bits[i] * bit_weight;
+        }
+
+        bit_weight = bit_weight * 2;
+    }
+
+    storage_key === key_acc[255];
+    leaf_index === leaf_index_acc[N];
 }
 
 // Rebuilds a Merkle root from one leaf and its sibling path.
@@ -69,14 +85,13 @@ template updateTree(N) {
     signal input storage_value_after;  // [PUBLIC]
     signal input proof[N];             // [PRIVATE]
 
-    // Compute the updated leaf values.
-    component leaf_before = computeLeaf();
-    leaf_before.storage_key <== storage_key_before;
-    leaf_before.storage_value <== storage_value_before;
+    signal storage_key;
+    storage_key <== storage_key_before;
+    storage_key === storage_key_after;
 
-    component leaf_after = computeLeaf();
-    leaf_after.storage_key <== storage_key_after;
-    leaf_after.storage_value <== storage_value_after;
+    component leaf_index_constraint = deriveLeafIndexFromStorageKey(N);
+    leaf_index_constraint.storage_key <== storage_key;
+    leaf_index_constraint.leaf_index <== leaf_index;
 
     // Enforce an actual update happened.
     signal value_delta;
@@ -87,13 +102,13 @@ template updateTree(N) {
 
     // 1) Verify the pre-update Merkle proof.
     component merkle_before = verifyMerkleProof(N);
-    merkle_before.leaf <== leaf_before.leaf;
+    merkle_before.leaf <== storage_value_before;
     merkle_before.leaf_index <== leaf_index;
     merkle_before.expected_root <== root_before;
 
     // 2) Verify the post-update Merkle proof.
     component merkle_after = verifyMerkleProof(N);
-    merkle_after.leaf <== leaf_after.leaf;
+    merkle_after.leaf <== storage_value_after;
     merkle_after.leaf_index <== leaf_index;
     merkle_after.expected_root <== root_after;
 

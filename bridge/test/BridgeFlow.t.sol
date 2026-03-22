@@ -75,6 +75,7 @@ contract BridgeFlowTest is Test {
             asset,
             bytes32("CHANNEL_INSTANCE"),
             _rootVector(bytes32(_depositPublicSignals()[0]), bytes32(uint256(22))),
+            _storageAddressVector(address(0xF00D), address(0x1234)),
             0,
             refs
         );
@@ -103,6 +104,16 @@ contract BridgeFlowTest is Test {
         assertEq(asset.balanceOf(address(tokenVault)), 100 ether);
     }
 
+    function testChannelStoresManagedStorageAddressVector() public view {
+        address[] memory managedStorageAddresses = channelManager.getManagedStorageAddresses();
+        assertEq(managedStorageAddresses.length, 2);
+        assertEq(managedStorageAddresses[0], address(0xF00D));
+        assertEq(managedStorageAddresses[1], address(0x1234));
+
+        bytes32[] memory currentRoots = channelManager.getCurrentRootVector();
+        assertEq(currentRoots.length, managedStorageAddresses.length);
+    }
+
     function testRejectsPerChannelLeafCollision() public {
         vm.prank(alice);
         tokenVault.registerAndFund(bytes32(uint256(1)), 10 ether);
@@ -128,6 +139,7 @@ contract BridgeFlowTest is Test {
             asset,
             bytes32("CHANNEL_INSTANCE_2"),
             _rootVector(bytes32(uint256(101)), bytes32(uint256(202))),
+            _storageAddressVector(address(0xF00E), address(0x1234)),
             0,
             refs
         );
@@ -139,6 +151,24 @@ contract BridgeFlowTest is Test {
         vm.expectRevert(abi.encodeWithSelector(BridgeCore.GlobalVaultKeyAlreadyRegistered.selector, reusedKey));
         vm.prank(bob);
         secondVault.registerAndFund(reusedKey, 10 ether);
+    }
+
+    function testRejectsDuplicateManagedStorageAddresses() public {
+        BridgeStructs.FunctionReference[] memory refs = new BridgeStructs.FunctionReference[](1);
+        refs[0] = BridgeStructs.FunctionReference({entryContract: appContract, functionSig: APP_SIG});
+
+        vm.expectRevert(abi.encodeWithSelector(BridgeCore.DuplicateManagedStorageAddress.selector, address(0x1234)));
+        bridgeCore.createChannel(
+            3,
+            1,
+            leader,
+            asset,
+            bytes32("CHANNEL_INSTANCE_3"),
+            _rootVector(bytes32(uint256(101)), bytes32(uint256(202))),
+            _storageAddressVector(address(0x1234), address(0x1234)),
+            0,
+            refs
+        );
     }
 
     function testGrothDepositUpdatesVaultStateAndRootVector() public {
@@ -285,6 +315,16 @@ contract BridgeFlowTest is Test {
         roots = new bytes32[](2);
         roots[0] = left;
         roots[1] = right;
+    }
+
+    function _storageAddressVector(address tokenVaultStorage, address appStorage)
+        internal
+        pure
+        returns (address[] memory storageAddresses)
+    {
+        storageAddresses = new address[](2);
+        storageAddresses[0] = tokenVaultStorage;
+        storageAddresses[1] = appStorage;
     }
 
     function _depositProof() private pure returns (BridgeStructs.GrothProof memory proof) {

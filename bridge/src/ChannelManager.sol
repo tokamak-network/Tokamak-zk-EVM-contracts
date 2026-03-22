@@ -11,6 +11,7 @@ contract ChannelManager {
     error OnlyTokenVault();
     error TokenVaultAlreadySet();
     error RootVectorLengthMismatch();
+    error StorageAddressVectorLengthMismatch();
     error UnexpectedCurrentRootVector();
     error UnsupportedChannelFunction(address entryContract, bytes4 functionSig);
     error TokamakProofRejected();
@@ -30,6 +31,7 @@ contract ChannelManager {
 
     bytes32[] private _currentRootVector;
     bytes32[][] private _rootHistory;
+    address[] private _managedStorageAddresses;
 
     mapping(bytes32 => bool) private _allowedFunctionKeys;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
@@ -49,6 +51,7 @@ contract ChannelManager {
         bytes32 channelInstanceHash_,
         uint256 tokenVaultTreeIndex_,
         bytes32[] memory initialRootVector_,
+        address[] memory managedStorageAddresses_,
         BridgeStructs.FunctionReference[] memory allowedFunctions_,
         address bridgeCore_,
         BridgeAdminManager adminManager_,
@@ -69,7 +72,12 @@ contract ChannelManager {
         }
         tokenVaultTreeIndex = tokenVaultTreeIndex_;
 
+        if (managedStorageAddresses_.length != initialRootVector_.length) {
+            revert StorageAddressVectorLengthMismatch();
+        }
+
         _replaceCurrentRootVector(initialRootVector_);
+        _replaceManagedStorageAddresses(managedStorageAddresses_);
 
         for (uint256 i = 0; i < allowedFunctions_.length; i++) {
             bytes32 functionKey =
@@ -149,6 +157,14 @@ contract ChannelManager {
         return _copyBytes32Array(_rootHistory[index]);
     }
 
+    function getManagedStorageAddresses() external view returns (address[] memory) {
+        return _copyAddresses(_managedStorageAddresses);
+    }
+
+    function getManagedStorageAddress(uint256 index) external view returns (address) {
+        return _managedStorageAddresses[index];
+    }
+
     function getAllowedFunctions() external view returns (BridgeStructs.FunctionReference[] memory out) {
         out = new BridgeStructs.FunctionReference[](_allowedFunctions.length);
         for (uint256 i = 0; i < _allowedFunctions.length; i++) {
@@ -194,6 +210,13 @@ contract ChannelManager {
         }
     }
 
+    function _replaceManagedStorageAddresses(address[] memory storageAddresses) private {
+        delete _managedStorageAddresses;
+        for (uint256 i = 0; i < storageAddresses.length; i++) {
+            _managedStorageAddresses.push(storageAddresses[i]);
+        }
+    }
+
     function _setLatestTokenVaultLeaf(uint256 leafIndex, bytes32 leafValue) private {
         if (!_knownLeafIndex[leafIndex]) {
             _knownLeafIndex[leafIndex] = true;
@@ -208,5 +231,11 @@ contract ChannelManager {
             out[i] = source[i];
         }
     }
-}
 
+    function _copyAddresses(address[] storage source) private view returns (address[] memory out) {
+        out = new address[](source.length);
+        for (uint256 i = 0; i < source.length; i++) {
+            out[i] = source[i];
+        }
+    }
+}

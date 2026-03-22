@@ -166,6 +166,13 @@ Review questions:
 - Can any dynamic allocation, copying, or generic iteration be removed without weakening validation?
 - Does the current factoring reduce bytecode, or does it only move complexity around?
 
+Deployment and fixture rules:
+
+- Every DApp deployment flow must write one storage-layout manifest under `apps/<dapp>/deploy`.
+- The manifest must include each deployed contract address plus the compiler-reported storage layout for that contract.
+- Example and replay generators must read that manifest when computing statically known storage keys.
+- Do not keep hardcoded default `preAllocatedKeys` that are not derived from the actual deployed storage layout and actual pre-state.
+
 ## 8. Placement Discipline
 
 Treat Synthesizer placements as a primary optimization target for every user-facing contract function.
@@ -248,10 +255,10 @@ Required rules:
 
 - `previous_state_snapshot.json` and config `registeredKeys` must contain only storage keys that exist in the actual state before the transaction runs.
 - Do not pre-register future write targets just because the tested transaction will touch them.
+- Derive any statically known `preAllocatedKeys` from the DApp-local deployed storage-layout manifest under `apps/<dapp>/deploy`, not from hardcoded slot defaults.
 - Registered keys must include the real from-side consumed keys needed by the transaction, such as a sender liquid-balance slot for mint or consumed note-commitment slots for transfer and redeem.
 - To-side keys are optional in compatibility fixtures. Receiver or output-side storage may remain absent even if execution later reads or writes those slots.
 - Apply the same rule to L2 vault balance mappings. The debited from-side balance slot is required when present in real pre-state; receiver-side balance slots are not mandatory fixture inputs.
-- A fixed structural slot that is always present for the contract, such as controller slot `0x00` when the execution model depends on it as a permanent base key, may remain registered.
 - Do not patch configs by replaying once, collecting unregistered-storage warnings, and feeding those keys back into the snapshot as if they were part of pre-state, except for the required real from-side consumed keys.
 - If an optional to-side key is absent from real pre-state, leave it absent rather than falsifying the snapshot.
 

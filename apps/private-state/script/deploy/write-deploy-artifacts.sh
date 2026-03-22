@@ -22,6 +22,8 @@ mkdir -p "$DEPLOY_DIR"
 TIMESTAMP_UTC="$(date -u +"%Y%m%dT%H%M%SZ")"
 DEPLOYMENT_FILE="$DEPLOY_DIR/deployment.${CHAIN_ID}.${TIMESTAMP_UTC}.json"
 CHAIN_LATEST_FILE="$DEPLOY_DIR/deployment.${CHAIN_ID}.latest.json"
+STORAGE_LAYOUT_FILE="$DEPLOY_DIR/storage-layout.${CHAIN_ID}.${TIMESTAMP_UTC}.json"
+STORAGE_LAYOUT_LATEST_FILE="$DEPLOY_DIR/storage-layout.${CHAIN_ID}.latest.json"
 
 ZERO_ADDRESS="0x0000000000000000000000000000000000000000"
 
@@ -58,6 +60,41 @@ jq -n \
     }' > "$DEPLOYMENT_FILE"
 
 cp "$DEPLOYMENT_FILE" "$CHAIN_LATEST_FILE"
+
+CONTROLLER_STORAGE_LAYOUT="$(
+    forge inspect --json PrivateStateController storage-layout
+)"
+L2_ACCOUNTING_VAULT_STORAGE_LAYOUT="$(
+    forge inspect --json L2AccountingVault storage-layout
+)"
+
+jq -n \
+    --arg generatedAtUtc "$TIMESTAMP_UTC" \
+    --arg chainId "$CHAIN_ID" \
+    --arg controllerAddress "$CONTROLLER" \
+    --arg l2AccountingVaultAddress "$L2_ACCOUNTING_VAULT" \
+    --argjson controllerLayout "$CONTROLLER_STORAGE_LAYOUT" \
+    --argjson l2AccountingVaultLayout "$L2_ACCOUNTING_VAULT_STORAGE_LAYOUT" \
+    '{
+        generatedAtUtc: $generatedAtUtc,
+        chainId: ($chainId | tonumber),
+        contracts: {
+            PrivateStateController: {
+                address: $controllerAddress,
+                sourceName: "apps/private-state/src/PrivateStateController.sol",
+                contractName: "PrivateStateController",
+                storageLayout: $controllerLayout
+            },
+            L2AccountingVault: {
+                address: $l2AccountingVaultAddress,
+                sourceName: "apps/private-state/src/L2AccountingVault.sol",
+                contractName: "L2AccountingVault",
+                storageLayout: $l2AccountingVaultLayout
+            }
+        }
+    }' > "$STORAGE_LAYOUT_FILE"
+
+cp "$STORAGE_LAYOUT_FILE" "$STORAGE_LAYOUT_LATEST_FILE"
 
 write_callable_abi() {
     local artifact_path="$1"
@@ -108,4 +145,6 @@ write_callable_abi \
 
 echo "Wrote deployment manifest: $DEPLOYMENT_FILE"
 echo "Updated chain deployment manifest: $CHAIN_LATEST_FILE"
+echo "Wrote storage layout manifest: $STORAGE_LAYOUT_FILE"
+echo "Updated storage layout manifest: $STORAGE_LAYOUT_LATEST_FILE"
 echo "Wrote callable ABI files under: $DEPLOY_DIR"

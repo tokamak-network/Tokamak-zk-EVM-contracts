@@ -134,11 +134,17 @@ Every successful deployment also writes DApp-local JSON artifacts into `apps/pri
 
 - `deployment.<chain-id>.<timestamp>.json`: the deployed addresses and deployment metadata for that run
 - `deployment.<chain-id>.latest.json`: the latest deployment manifest for that chain
+- `storage-layout.<chain-id>.<timestamp>.json`: the deployed-contract storage layouts for that run
+- `storage-layout.<chain-id>.latest.json`: the latest deployed-contract storage-layout manifest for that chain
 - `PrivateStateController.callable-abi.json`
 - `L2AccountingVault.callable-abi.json`
 
 The ABI files intentionally contain only the user-facing or tester-facing callable functions for each contract rather
 than the full contract ABI.
+
+The storage-layout manifest is the canonical app-local source for contract slot metadata. Example and replay generators
+must read this file and derive any statically known `preAllocatedKeys` from the actual deployed storage layout rather
+than hardcoding default keys.
 
 ## Shortcut Commands
 

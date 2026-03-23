@@ -3,16 +3,20 @@ src = "src"
 test = "test"
 out = "out"
 libs = ["../lib"]
+allow_paths = ["../tokamak-zkp", "../src/old"]
 remappings = [
     "@openzeppelin/=../lib/openzeppelin-contracts/contracts/",
     "forge-std/=../lib/forge-std/src/",
     "groth16-verifier/=../groth16/verifier/",
+    "old-src/=../src/old/",
+    "tokamak-zkp/=../tokamak-zkp/",
 ]
 
 optimizer = true
 optimizer_runs = 200
 via_ir = true
 evm_version = "prague"
+fs_permissions = [{ access = "read", path = "./test/fixtures" }]
 
 [fmt]
 line_length = 100

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {stdJson} from "forge-std/StdJson.sol";
 import {BridgeStructs} from "../src/BridgeStructs.sol";
 import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {DAppManager} from "../src/DAppManager.sol";
@@ -9,24 +10,30 @@ import {BridgeCore} from "../src/BridgeCore.sol";
 import {ChannelManager} from "../src/ChannelManager.sol";
 import {L1TokenVault} from "../src/L1TokenVault.sol";
 import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
-import {MockTokamakVerifier} from "../src/mocks/MockTokamakVerifier.sol";
+import {TokamakVerifierAdapter} from "../src/TokamakVerifierAdapter.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {DepositGrothProofFixture, WithdrawGrothProofFixture} from "./GrothProofFixtures.sol";
 import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
+import {TokamakVerifier} from "tokamak-zkp/TokamakVerifier.sol";
+import {ITokamakVerifier as IRootTokamakVerifier} from "old-src/interface/ITokamakVerifier.sol";
 
 contract BridgeFlowTest is Test {
+    using stdJson for string;
+
     bytes4 internal constant APP_SIG = bytes4(keccak256("trade(uint256)"));
     bytes4 internal constant APP_SIG_2 = bytes4(keccak256("rebalance(uint256)"));
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     bytes32 internal constant INITIAL_ZERO_ROOT =
         bytes32(uint256(24945907954024293787177432702322299921976142807026898956788601490926336931348));
+    string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
 
     BridgeAdminManager internal adminManager;
     DAppManager internal dAppManager;
     BridgeCore internal bridgeCore;
     Groth16Verifier internal grothVerifier;
-    MockTokamakVerifier internal tokamakVerifier;
+    TokamakVerifier internal rootTokamakVerifier;
+    TokamakVerifierAdapter internal tokamakVerifier;
     MockERC20 internal asset;
 
     address internal alice = address(0xA11CE);
@@ -42,9 +49,14 @@ contract BridgeFlowTest is Test {
     L1TokenVault internal tokenVault;
 
     function setUp() public {
+        BridgeStructs.TokamakProofPayload memory tokamakFixture = _loadTokamakProofPayload();
+
         adminManager = new BridgeAdminManager(address(this));
         adminManager.setMerkleTreeLevels(12);
-        adminManager.setTokamakPublicInputsLength(16);
+        adminManager.setTokamakPublicInputsLength(uint16(tokamakFixture.publicInputs.length));
+
+        rootTokamakVerifier = new TokamakVerifier();
+        tokamakVerifier = new TokamakVerifierAdapter(IRootTokamakVerifier(address(rootTokamakVerifier)), adminManager);
 
         address vaultStorageAddr = address(0xF00D);
         address appStorageAddr = address(0x1234);
@@ -54,7 +66,13 @@ contract BridgeFlowTest is Test {
             1,
             keccak256("private-app"),
             _defaultStorageLayouts(vaultStorageAddr, appStorageAddr),
-            _defaultDAppFunctions(vaultStorageAddr, appStorageAddr)
+            _defaultDAppFunctions(
+                vaultStorageAddr,
+                appStorageAddr,
+                tokamakVerifier.computePointEncodingHash(
+                    tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2
+                )
+            )
         );
         dAppManager.registerDApp(
             2,
@@ -64,7 +82,6 @@ contract BridgeFlowTest is Test {
         );
 
         grothVerifier = new Groth16Verifier();
-        tokamakVerifier = new MockTokamakVerifier();
         bridgeCore = new BridgeCore(
             address(this),
             adminManager,
@@ -292,7 +309,13 @@ contract BridgeFlowTest is Test {
         channelManager.submitTokamakProof(hex"01", instance);
     }
 
-    function testTokamakVerificationUpdatesRootVector() public {
+    function testChannelUsesRealTokamakVerifierAdapter() public view {
+        assertEq(address(bridgeCore.tokamakVerifier()), address(tokamakVerifier));
+        assertEq(address(tokamakVerifier.rootVerifier()), address(rootTokamakVerifier));
+    }
+
+    function testTokamakVerificationRejectsInvalidRealProof() public {
+        BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
         BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
             currentRootVector: _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT),
             updatedRootVector: _rootVector(bytes32(uint256(33)), bytes32(uint256(44))),
@@ -300,11 +323,24 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG
         });
 
-        channelManager.submitTokamakProof(hex"abcd", instance);
+        vm.expectRevert(bytes("loadProof: Proof is invalid"));
+        channelManager.submitTokamakProof(abi.encode(proofPayload), instance);
+    }
 
-        bytes32[] memory currentRoots = channelManager.getCurrentRootVector();
-        assertEq(currentRoots[0], bytes32(uint256(33)));
-        assertEq(currentRoots[1], bytes32(uint256(44)));
+    function _loadTokamakProofPayload()
+        internal
+        returns (BridgeStructs.TokamakProofPayload memory payload)
+    {
+        string memory json = vm.readFile(TOKAMAK_FIXTURE_PATH);
+
+        payload.proofPart1 = _toUint128Array(json.readUintArray(".proofPart1"));
+        payload.proofPart2 = json.readUintArray(".proofPart2");
+        payload.functionPreprocessPart1 = _toUint128Array(json.readUintArray(".functionPreprocessPart1"));
+        payload.functionPreprocessPart2 = json.readUintArray(".functionPreprocessPart2");
+        payload.functionInstancePart1 = new uint128[](0);
+        payload.functionInstancePart2 = new uint256[](0);
+        payload.publicInputs = json.readUintArray(".publicInputs");
+        payload.smax = abi.decode(vm.parseJson(json, ".smax"), (uint256));
     }
 
     function _rootVector(bytes32 left, bytes32 right) internal pure returns (bytes32[] memory roots) {
@@ -373,7 +409,7 @@ contract BridgeFlowTest is Test {
         });
     }
 
-    function _defaultDAppFunctions(address tokenVaultStorage, address appStorage)
+    function _defaultDAppFunctions(address tokenVaultStorage, address appStorage, bytes32 functionPreprocessHash)
         internal
         view
         returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
@@ -383,8 +419,8 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             storageAddrs: _addressArray(tokenVaultStorage, appStorage),
-            instanceHash: bytes32("INSTANCE"),
-            preprocessHash: bytes32("PREPROCESS")
+            instanceHash: bytes32(0),
+            preprocessHash: functionPreprocessHash
         });
     }
 
@@ -484,5 +520,12 @@ contract BridgeFlowTest is Test {
     function _uint8Array(uint8 value) internal pure returns (uint8[] memory out) {
         out = new uint8[](1);
         out[0] = value;
+    }
+
+    function _toUint128Array(uint256[] memory values) internal pure returns (uint128[] memory out) {
+        out = new uint128[](values.length);
+        for (uint256 i = 0; i < values.length; i++) {
+            out[i] = uint128(values[i]);
+        }
     }
 }

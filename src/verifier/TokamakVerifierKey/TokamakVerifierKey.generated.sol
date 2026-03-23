@@ -4,10 +4,10 @@ pragma solidity 0.8.29;
 /// @dev AUTO-GENERATED FILE. DO NOT EDIT MANUALLY.
 /// Source: src/verifier/TokamakVerifierKey/sigma_verify.json
 library TokamakVerifierKeyGenerated {
-    uint256 internal constant LAGRANGE_KL_X_PART1 = 0x0000000000000000000000000000000004f1e1a2ec023aef31bde5b77da1e69d;
-    uint256 internal constant LAGRANGE_KL_X_PART2 = 0xdf5f0bc762904ccee1e8b0131e517246ccf938b28f294dcaca7dbd0c36ff3607;
-    uint256 internal constant LAGRANGE_KL_Y_PART1 = 0x0000000000000000000000000000000013440b9abcae5c5c5749fbc390065d1e;
-    uint256 internal constant LAGRANGE_KL_Y_PART2 = 0xdea2da1ca7a4f63960dc958c9f32d289c3df14028dc7262642cc1466d6745bef;
+    uint256 internal constant LAGRANGE_KL_X_PART1 = 0x00000000000000000000000000000000099c0ccfe326537f7c1a23cf08994f65;
+    uint256 internal constant LAGRANGE_KL_X_PART2 = 0x44d288c5c26e585f5503b9ae0715a9cf5a2bd68079d0ba73cfc00ddedf060a79;
+    uint256 internal constant LAGRANGE_KL_Y_PART1 = 0x00000000000000000000000000000000008af0b17388af3df99eef527906f978;
+    uint256 internal constant LAGRANGE_KL_Y_PART2 = 0x29d5c31f75bf6db44cf92441635b4839b2a9b989ccb9dd7936bac60666aa1139;
 
     uint256 internal constant IDENTITY_X_PART1 = 0x000000000000000000000000000000000b001b4cc05fa01578be7d4e821d6ff5;
     uint256 internal constant IDENTITY_X_PART2 = 0x8f2a05c584fba3cb31a37942dece65eadec9a878add2282f7c2513abb8d4ab05;

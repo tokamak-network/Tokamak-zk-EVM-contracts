@@ -1,5 +1,9 @@
 {
   "type": "module",
+  "scripts": {
+    "gen:tokamak-vk": "node script/generate-tokamak-verifier-key.js",
+    "prepare:zk": "node script/zk/prepare-zk-artifacts.mjs"
+  },
   "dependencies": {
     "ethers": "^6.14.1",
     "fs": "^0.0.1-security",

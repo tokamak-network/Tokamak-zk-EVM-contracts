@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import {BridgeStructs} from "./BridgeStructs.sol";
-import {BridgeAdminManager} from "./BridgeAdminManager.sol";
 import {DAppManager} from "./DAppManager.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
@@ -25,7 +24,6 @@ contract ChannelManager {
     error InvalidTokenVaultTreeIndex();
     error PreprocessInputHashMismatch(bytes32 expectedHash, bytes32 actualHash);
     error APubBlockHashMismatch(bytes32 expectedHash, bytes32 actualHash);
-    error TokamakPublicInputsLengthMismatch(uint256 expectedLength, uint256 actualLength);
     error APubUserTooShort(uint256 expectedLength, uint256 actualLength);
     error RootVectorExceedsAPubUserLayout(uint256 rootCount);
     error APubUserWordOutOfRange(uint256 index, uint256 value);
@@ -42,7 +40,6 @@ contract ChannelManager {
     bytes32 public immutable aPubBlockHash;
     uint256 public immutable tokenVaultTreeIndex;
     address public immutable bridgeCore;
-    BridgeAdminManager public immutable adminManager;
     DAppManager public immutable dAppManager;
     ITokamakVerifier public immutable tokamakVerifier;
 
@@ -73,7 +70,6 @@ contract ChannelManager {
         address[] memory managedStorageAddresses_,
         BridgeStructs.FunctionReference[] memory allowedFunctions_,
         address bridgeCore_,
-        BridgeAdminManager adminManager_,
         DAppManager dAppManager_,
         ITokamakVerifier tokamakVerifier_
     ) {
@@ -82,7 +78,6 @@ contract ChannelManager {
         leader = leader_;
         aPubBlockHash = aPubBlockHash_;
         bridgeCore = bridgeCore_;
-        adminManager = adminManager_;
         dAppManager = dAppManager_;
         tokamakVerifier = tokamakVerifier_;
 
@@ -130,7 +125,6 @@ contract ChannelManager {
             revert RootVectorLengthMismatch();
         }
         BridgeStructs.TokamakProofPayload memory payload = abi.decode(proof, (BridgeStructs.TokamakProofPayload));
-        _assertTokamakPublicInputLength(payload.aPubUser.length + payload.aPubBlock.length);
         _assertTransactionInstanceMatchesAPubUser(instance, payload.aPubUser);
         _assertCurrentRootVector(instance.currentRootVector);
 
@@ -257,13 +251,6 @@ contract ChannelManager {
         delete _managedStorageAddresses;
         for (uint256 i = 0; i < storageAddresses.length; i++) {
             _managedStorageAddresses.push(storageAddresses[i]);
-        }
-    }
-
-    function _assertTokamakPublicInputLength(uint256 actualLength) private view {
-        uint256 expectedLength = adminManager.nTokamakPublicInputs();
-        if (expectedLength != 0 && actualLength != expectedLength) {
-            revert TokamakPublicInputsLengthMismatch(expectedLength, actualLength);
         }
     }
 

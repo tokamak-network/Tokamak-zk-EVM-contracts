@@ -225,8 +225,6 @@ The old separate `channel instance` model is no longer used in the bridge contra
 
 Likewise, the bridge no longer stores `function instance` and `function preprocess` as separate verification objects. Under the current implementation, both are treated as being embedded in `functionPreprocessPart1` and `functionPreprocessPart2`. The bridge enforces their correctness by comparing `keccak256(abi.encode(functionPreprocessPart1, functionPreprocessPart2))` against the DApp-managed `preprocessInputHash`.
 
-The bridge additionally stores `nTokamakPublicInputs` as the expected total free-public-input length `l_free`. In the current implementation this value is checked against `aPubUser.length + aPubBlock.length` before Tokamak verification is forwarded to the verifier contract.
-
 Under the current interpretation, successful Tokamak verification means:
 
 - the user executed a transaction that called the specified function on the specified contract
@@ -536,7 +534,6 @@ The following decisions are stable enough to be treated as the current working p
 - The bridge stores only the latest leaves of each channel's current L2 token-vault tree.
 - Users must register an immutable per-channel L2 token-vault key.
 - The bridge derives the corresponding token-vault leaf index by the `TokamakL2MerkleTrees.getLeafIndex` rule and rejects per-channel collisions of those derived indices.
-- `nTokamakPublicInputs` should be read as the total Tokamak free-public-input length `l_free`, currently equal to `aPubUser.length + aPubBlock.length`.
 - The bridge treats `aPubBlockHash` as channel-owned metadata and `preprocessInputHash` as DApp-managed metadata.
 - The bridge extracts current roots, updated roots, entry contract, and function signature from `aPubUser` and requires them to match the submitted transaction instance.
 - Safe channel escape currently depends on the token-vault path rather than on full L2 app-storage availability.

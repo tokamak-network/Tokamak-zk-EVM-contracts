@@ -22,8 +22,6 @@ $\mathbb{F}_{b}$ is the field of $b$-bit words.
   - A set of user storage slots
 - $\mathrm{FcnCfgs}\subseteq\mathbb{F}_{256}\times\mathbb{F}_{256}$
   - A set of function-configuration pairs of instance hashes and preprocess hashes
-- $\mathrm{nTokamakPublicInputs}\in\mathbb{F}_{16}$
-  - The length of public inputs required to verify a Tokamak zk-EVM proof
 - $\mathrm{nMerkleTreeLevels}\in\mathbb{F}_{8}$
   - The number of levels for each channel Merkle tree
   - Each Merkle tree has $2^{\mathrm{nMerkleTreeLevels}}$ leaves
@@ -112,7 +110,7 @@ Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel main
     &\qquad\ \mathrm{updateSingleStateLeaf}(s,k,\mathrm{updatedStorageValue},\mathrm{updatedRoot},\mathrm{proofGroth16},\mathrm{publicInputGroth16})=\mathrm{true}\\
     &\qquad\vee\ \exists \mathrm{forkId}\in\mathrm{ForkIds},\ \exists \mathrm{proposedStateIndex}\in\mathrm{StateIndices},\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\\
-    &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
+    &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{*},\\
     &\qquad\ \exists i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \exists j\in\{0,\dots,2^{\mathrm{nMerkleTreeLevels}}-1\},\\
     &\qquad\ \mathrm{appStorageAddrs}_i=s\ \wedge\ \mathrm{storageKeys}_{i,j}=k\ \wedge\ \mathrm{updatedStorageValues}_{i,j}=\mathrm{updatedStorageValue}\ \wedge\\
     &\qquad\ \mathrm{verifyProposedStateRoots}(\mathrm{forkId},\mathrm{proposedStateIndex},\mathrm{appStorageAddrs},\mathrm{storageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
@@ -137,7 +135,7 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
     &\qquad\ \exists \mathrm{forkId}\in\mathrm{ForkIds},\ (\mathrm{forkId},t,s,r)\in\mathcal{N}\ \wedge\\
     &\qquad\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
     &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\\
-    &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}},\\
+    &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{*},\\
     &\qquad\ \exists i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \mathrm{appStorageAddrs}_i=s\ \wedge\ \mathrm{updatedRoots}_i=r\ \wedge\\
     &\qquad\ \mathrm{verifyProposedStateRoots}(\mathrm{forkId},t,\mathrm{appStorageAddrs},\mathrm{storageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
     &\qquad\Big)\\
@@ -191,7 +189,7 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
     - $\mathrm{proofGroth16}\in\mathbb{F}_{256}^{16}$
     - $\mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
-- $\mathrm{verifyProposedStateRoots}:\mathrm{ForkIds}\times\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}\times(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}\to\{\mathrm{true},\mathrm{false}\}$
+- $\mathrm{verifyProposedStateRoots}:\mathrm{ForkIds}\times\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}\times(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{*}\to\{\mathrm{true},\mathrm{false}\}$
   - Inputs:
     - $\mathrm{forkId}\in\mathrm{ForkIds}$
     - $\mathrm{proposedStateIndex}\in\mathrm{StateIndices}$
@@ -201,7 +199,7 @@ Given state-machine indexing and verified/proposed state roots, a channel mainta
     - $\mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}}$
     - $\mathrm{proofTokamak}\in\mathbb{F}_{256}^{42}$
     - $\mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4}$
-    - $\mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{\mathrm{nTokamakPublicInputs}}$
+    - $\mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{*}$
   - Output: $\mathrm{true}$ or $\mathrm{false}$
 
 

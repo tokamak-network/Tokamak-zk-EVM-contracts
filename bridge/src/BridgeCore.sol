@@ -98,7 +98,6 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
             managedStorageAddresses,
             registeredFunctions,
             address(this),
-            adminManager,
             dAppManager,
             tokamakVerifier
         );

@@ -70,9 +70,9 @@ This document lists:
 - Spec requires user-scoped getter domains to include membership witness `(c, u)`.
 - Current getters such as `getValidatedUserSlotValue` and `getL2MptKey` do not enforce this domain rule and can return default values for non-members.
 
-12. Missing explicit spec variables for proof-input and Merkle-level parameters.
-- Spec defines `nTokamakPublicInputs` and `nMerkleTreeLevels` as bridge-manager variables.
-- Current implementation validates input lengths and tree sizes procedurally (16/32/64/128 leaf variants) without exposing these variables in the spec form.
+12. Missing explicit spec variables for Merkle-level parameters.
+- Spec defines `nMerkleTreeLevels` as a bridge-manager variable.
+- Current implementation validates tree sizes procedurally (16/32/64/128 leaf variants) without exposing all parameters in the same spec form.
 
 ## Implemented Features Not Defined in `spec.md`
 

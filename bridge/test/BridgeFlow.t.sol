@@ -51,7 +51,6 @@ contract BridgeFlowTest is Test {
 
         adminManager = new BridgeAdminManager(address(this));
         adminManager.setMerkleTreeLevels(12);
-        adminManager.setTokamakPublicInputsLength(uint16(tokamakFixture.aPubUser.length + tokamakFixture.aPubBlock.length));
 
         tokamakVerifier = new TokamakVerifier();
 

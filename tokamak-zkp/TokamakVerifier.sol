@@ -255,13 +255,6 @@ contract TokamakVerifier is ITokamakVerifier {
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x200;
 
     /*//////////////////////////////////////////////////////////////
-                                trusted-setup param
-    //////////////////////////////////////////////////////////////*/
-
-    // smax
-    uint256 internal constant PARAM_SMAX = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x200 + 0x020;
-
-    /*//////////////////////////////////////////////////////////////
                                 Constants
     //////////////////////////////////////////////////////////////*/
 
@@ -282,6 +275,8 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant OMEGA_512 = 0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
     // m_i = l_D - l, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
     uint256 internal constant CONSTANT_MI = 4096;
+    // l_user, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    uint256 internal constant EXPECTED_L_USER = 50;
     // l_free, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
     uint256 internal constant EXPECTED_L_FREE = 128;
     // ω_{l_free}, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
@@ -499,12 +494,12 @@ contract TokamakVerifier is ITokamakVerifier {
     }
 
     function verify(
-        uint128[] calldata, //_proof part1 (16 bytes)
+        uint128[] calldata, // _proof_part1 (16 bytes)
         uint256[] calldata, // _proof part2 (32 bytes)
-        uint128[] calldata, // _preprocessedPart1 (16 bytes)
-        uint256[] calldata, // _preprocessedPart2 (32 bytes)
-        uint256[] calldata, // publicInputs (used for computing A_eval)
-        uint256 // smax
+        uint128[] calldata, // _preprocessed_part1 (16 bytes)
+        uint256[] calldata, // _preprocessed_part2 (32 bytes)
+        uint256[] calldata, // a_pub_user
+        uint256[] calldata // a_pub_block
     ) public view virtual returns (bool final_result) {
         // No memory was accessed yet, so keys can be loaded into the right place and not corrupt any other memory.
         _loadVerificationKey();
@@ -595,14 +590,21 @@ contract TokamakVerifier is ITokamakVerifier {
                 let offset2 := calldataload(0x24)
                 let offset3 := calldataload(0x44)
                 let offset4 := calldataload(0x64)
+                let aPubUserOffset := calldataload(0x84)
+                let aPubBlockOffset := calldataload(0xa4)
                 let part1LengthInWords := calldataload(add(offset, 0x04))
                 let part2LengthInWords := calldataload(add(offset2, 0x04))
                 let preprocessedPart1LengthInWords := calldataload(add(offset3, 0x04))
                 let preprocessedPart2LengthInWords := calldataload(add(offset4, 0x04))
+                let aPubUserLength := calldataload(add(aPubUserOffset, 0x04))
+                let aPubBlockLength := calldataload(add(aPubBlockOffset, 0x04))
                 let isValid :=
                     and(
-                        and(eq(part1LengthInWords, 38), eq(part2LengthInWords, 42)),
-                        and(eq(preprocessedPart1LengthInWords, 6), eq(preprocessedPart2LengthInWords, 6))
+                        and(
+                            and(eq(part1LengthInWords, 38), eq(part2LengthInWords, 42)),
+                            and(eq(preprocessedPart1LengthInWords, 6), eq(preprocessedPart2LengthInWords, 6))
+                        ),
+                        and(eq(aPubUserLength, EXPECTED_L_USER), eq(aPubBlockLength, sub(EXPECTED_L_FREE, EXPECTED_L_USER)))
                     )
 
                 // revert if the length of the proof is not valid
@@ -813,17 +815,6 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(PROOF_R2XY_SLOT, mod(calldataload(add(offset2, 0x504)), R_MOD))
                 mstore(PROOF_R3XY_SLOT, mod(calldataload(add(offset2, 0x524)), R_MOD))
                 mstore(PROOF_VXY_SLOT, mod(calldataload(add(offset2, 0x544)), R_MOD))
-
-                // load smax
-                let smax := calldataload(0xa4)
-                let isValidSmax
-                {
-                    isValidSmax := eq(smax, EXPECTED_SMAX)
-                    mstore(PARAM_SMAX, smax)
-                }
-
-                // Revert if smax is not valid
-                if iszero(isValidSmax) { revertWithMessage(27, "loadProof: smax is invalid") }
             }
 
             /*//////////////////////////////////////////////////////////////
@@ -935,7 +926,7 @@ contract TokamakVerifier is ITokamakVerifier {
                 // calculate t_smax(ζ)
                 {
                     let zeta := mload(CHALLENGE_ZETA_SLOT)
-                    let t := sub(modexp(zeta, mload(PARAM_SMAX)), 1)
+                    let t := sub(modexp(zeta, EXPECTED_SMAX), 1)
                     mstore(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT, t)
                 }
 
@@ -986,8 +977,10 @@ contract TokamakVerifier is ITokamakVerifier {
             // A(chi) = sum_0^{l-1}(a_j * M_j(chi))
             function computeAPUB() {
                 let chi := mload(CHALLENGE_CHI_SLOT)
-                let offset := calldataload(0x84)
+                let aPubUserOffset := calldataload(0x84)
+                let aPubBlockOffset := calldataload(0xa4)
 
+                let l_user := EXPECTED_L_USER
                 let l_free := EXPECTED_L_FREE
                 let omega := OMEGA_L_FREE
 
@@ -1001,7 +994,12 @@ contract TokamakVerifier is ITokamakVerifier {
                     let omega_power := 1
                     for { let i := 0 } lt(i, l_free) { i := add(i, 1) } {
                         if eq(chi, omega_power) {
-                            let val := calldataload(add(add(offset, 0x24), mul(i, 0x20)))
+                            let val
+                            switch lt(i, l_user)
+                            case 1 { val := calldataload(add(add(aPubUserOffset, 0x24), mul(i, 0x20))) }
+                            default {
+                                val := calldataload(add(add(aPubBlockOffset, 0x24), mul(sub(i, l_user), 0x20)))
+                            }
                             mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
                             leave
                         }
@@ -1023,7 +1021,12 @@ contract TokamakVerifier is ITokamakVerifier {
                 let prefix := 1
 
                 for { let i := 0 } lt(i, l_free) { i := add(i, 1) } {
-                    let val := calldataload(add(add(offset, 0x24), mul(i, 0x20)))
+                    let val
+                    switch lt(i, l_user)
+                    case 1 { val := calldataload(add(add(aPubUserOffset, 0x24), mul(i, 0x20))) }
+                    default {
+                        val := calldataload(add(add(aPubBlockOffset, 0x24), mul(sub(i, l_user), 0x20)))
+                    }
                     if val {
                         let denominator := addmod(chi, sub(R_MOD, omega_power), R_MOD)
 

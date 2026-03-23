@@ -10,12 +10,11 @@ import {BridgeCore} from "../src/BridgeCore.sol";
 import {ChannelManager} from "../src/ChannelManager.sol";
 import {L1TokenVault} from "../src/L1TokenVault.sol";
 import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
-import {TokamakVerifierAdapter} from "../src/TokamakVerifierAdapter.sol";
+import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {DepositGrothProofFixture, WithdrawGrothProofFixture} from "./GrothProofFixtures.sol";
 import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
 import {TokamakVerifier} from "tokamak-zkp/TokamakVerifier.sol";
-import {ITokamakVerifier as IRootTokamakVerifier} from "tokamak-zkp/ITokamakVerifier.sol";
 
 contract BridgeFlowTest is Test {
     using stdJson for string;
@@ -32,8 +31,7 @@ contract BridgeFlowTest is Test {
     DAppManager internal dAppManager;
     BridgeCore internal bridgeCore;
     Groth16Verifier internal grothVerifier;
-    TokamakVerifier internal rootTokamakVerifier;
-    TokamakVerifierAdapter internal tokamakVerifier;
+    TokamakVerifier internal tokamakVerifier;
     MockERC20 internal asset;
 
     address internal alice = address(0xA11CE);
@@ -53,10 +51,9 @@ contract BridgeFlowTest is Test {
 
         adminManager = new BridgeAdminManager(address(this));
         adminManager.setMerkleTreeLevels(12);
-        adminManager.setTokamakPublicInputsLength(uint16(tokamakFixture.publicInputs.length));
+        adminManager.setTokamakPublicInputsLength(uint16(tokamakFixture.aPubUser.length + tokamakFixture.aPubBlock.length));
 
-        rootTokamakVerifier = new TokamakVerifier();
-        tokamakVerifier = new TokamakVerifierAdapter(IRootTokamakVerifier(address(rootTokamakVerifier)), adminManager);
+        tokamakVerifier = new TokamakVerifier();
 
         address vaultStorageAddr = address(0xF00D);
         address appStorageAddr = address(0x1234);
@@ -69,9 +66,7 @@ contract BridgeFlowTest is Test {
             _defaultDAppFunctions(
                 vaultStorageAddr,
                 appStorageAddr,
-                tokamakVerifier.computePointEncodingHash(
-                    tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2
-                )
+                _computePointEncodingHash(tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2)
             )
         );
         dAppManager.registerDApp(
@@ -87,7 +82,7 @@ contract BridgeFlowTest is Test {
             adminManager,
             dAppManager,
             IGrothVerifier(address(grothVerifier)),
-            tokamakVerifier
+            ITokamakVerifier(address(tokamakVerifier))
         );
 
         asset = new MockERC20("Mock Asset", "MA");
@@ -309,9 +304,8 @@ contract BridgeFlowTest is Test {
         channelManager.submitTokamakProof(hex"01", instance);
     }
 
-    function testChannelUsesRealTokamakVerifierAdapter() public view {
+    function testChannelUsesRealTokamakVerifier() public view {
         assertEq(address(bridgeCore.tokamakVerifier()), address(tokamakVerifier));
-        assertEq(address(tokamakVerifier.rootVerifier()), address(rootTokamakVerifier));
     }
 
     function testTokamakVerificationRejectsInvalidRealProof() public {
@@ -337,10 +331,9 @@ contract BridgeFlowTest is Test {
         payload.proofPart2 = json.readUintArray(".proofPart2");
         payload.functionPreprocessPart1 = _toUint128Array(json.readUintArray(".functionPreprocessPart1"));
         payload.functionPreprocessPart2 = json.readUintArray(".functionPreprocessPart2");
-        payload.functionInstancePart1 = new uint128[](0);
-        payload.functionInstancePart2 = new uint256[](0);
-        payload.publicInputs = json.readUintArray(".publicInputs");
-        payload.smax = abi.decode(vm.parseJson(json, ".smax"), (uint256));
+        uint256[] memory publicInputs = json.readUintArray(".publicInputs");
+        payload.aPubUser = _slice(publicInputs, 0, 50);
+        payload.aPubBlock = _slice(publicInputs, 50, 78);
     }
 
     function _rootVector(bytes32 left, bytes32 right) internal pure returns (bytes32[] memory roots) {
@@ -527,5 +520,24 @@ contract BridgeFlowTest is Test {
         for (uint256 i = 0; i < values.length; i++) {
             out[i] = uint128(values[i]);
         }
+    }
+
+    function _slice(uint256[] memory values, uint256 start, uint256 length)
+        internal
+        pure
+        returns (uint256[] memory out)
+    {
+        out = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            out[i] = values[start + i];
+        }
+    }
+
+    function _computePointEncodingHash(uint128[] memory part1, uint256[] memory part2)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(part1, part2));
     }
 }

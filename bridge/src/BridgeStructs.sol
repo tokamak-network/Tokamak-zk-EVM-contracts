@@ -55,9 +55,7 @@ library BridgeStructs {
         uint256[] proofPart2;
         uint128[] functionPreprocessPart1;
         uint256[] functionPreprocessPart2;
-        uint128[] functionInstancePart1;
-        uint256[] functionInstancePart2;
-        uint256[] publicInputs;
-        uint256 smax;
+        uint256[] aPubUser;
+        uint256[] aPubBlock;
     }
 }

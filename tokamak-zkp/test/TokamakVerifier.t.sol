@@ -14,9 +14,6 @@ contract TokamakVerifierTest is Test {
         "./test/fixtures/mintNotes1-proof/resource/preprocess/output/preprocess.json";
     string internal constant INSTANCE_PATH =
         "./test/fixtures/mintNotes1-proof/resource/synthesizer/output/instance.json";
-    string internal constant SETUP_PARAMS_PATH =
-        "../submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json";
-
     TokamakVerifier internal verifier;
 
     function setUp() public {
@@ -27,18 +24,17 @@ contract TokamakVerifierTest is Test {
         string memory proofJson = vm.readFile(PROOF_PATH);
         string memory preprocessJson = vm.readFile(PREPROCESS_PATH);
         string memory instanceJson = vm.readFile(INSTANCE_PATH);
-        string memory setupParamsJson = vm.readFile(SETUP_PARAMS_PATH);
 
         uint128[] memory proofPart1 = _toUint128Array(proofJson.readUintArray(".proof_entries_part1"));
         uint256[] memory proofPart2 = proofJson.readUintArray(".proof_entries_part2");
         uint128[] memory preprocessPart1 =
             _toUint128Array(preprocessJson.readUintArray(".preprocess_entries_part1"));
         uint256[] memory preprocessPart2 = preprocessJson.readUintArray(".preprocess_entries_part2");
-        uint256[] memory publicInputs = _concatInstance(instanceJson);
-        uint256 smax = abi.decode(vm.parseJson(setupParamsJson, ".s_max"), (uint256));
+        uint256[] memory aPubUser = instanceJson.readUintArray(".a_pub_user");
+        uint256[] memory aPubBlock = instanceJson.readUintArray(".a_pub_block");
 
         uint256 gasBefore = gasleft();
-        bool verified = verifier.verify(proofPart1, proofPart2, preprocessPart1, preprocessPart2, publicInputs, smax);
+        bool verified = verifier.verify(proofPart1, proofPart2, preprocessPart1, preprocessPart2, aPubUser, aPubBlock);
         uint256 gasUsed = gasBefore - gasleft();
 
         emit log_named_uint("Tokamak verifier gas", gasUsed);
@@ -49,44 +45,19 @@ contract TokamakVerifierTest is Test {
         string memory proofJson = vm.readFile(PROOF_PATH);
         string memory preprocessJson = vm.readFile(PREPROCESS_PATH);
         string memory instanceJson = vm.readFile(INSTANCE_PATH);
-        string memory setupParamsJson = vm.readFile(SETUP_PARAMS_PATH);
 
         uint128[] memory proofPart1 = _toUint128Array(proofJson.readUintArray(".proof_entries_part1"));
         uint256[] memory proofPart2 = proofJson.readUintArray(".proof_entries_part2");
         uint128[] memory preprocessPart1 =
             _toUint128Array(preprocessJson.readUintArray(".preprocess_entries_part1"));
         uint256[] memory preprocessPart2 = preprocessJson.readUintArray(".preprocess_entries_part2");
-        uint256[] memory publicInputs = _concatInstance(instanceJson);
-        uint256 smax = abi.decode(vm.parseJson(setupParamsJson, ".s_max"), (uint256));
+        uint256[] memory aPubUser = instanceJson.readUintArray(".a_pub_user");
+        uint256[] memory aPubBlock = instanceJson.readUintArray(".a_pub_block");
 
         proofPart2[0] += 1;
 
         vm.expectRevert();
-        verifier.verify(proofPart1, proofPart2, preprocessPart1, preprocessPart2, publicInputs, smax);
-    }
-
-    function _concatInstance(string memory instanceJson) internal pure returns (uint256[] memory combined) {
-        uint256[] memory user = instanceJson.readUintArray(".a_pub_user");
-        uint256[] memory blockInputs = instanceJson.readUintArray(".a_pub_block");
-        uint256[] memory functionInputs = instanceJson.readUintArray(".a_pub_function");
-
-        combined = new uint256[](user.length + blockInputs.length + functionInputs.length);
-
-        uint256 cursor = 0;
-        cursor = _copyInto(combined, cursor, user);
-        cursor = _copyInto(combined, cursor, blockInputs);
-        _copyInto(combined, cursor, functionInputs);
-    }
-
-    function _copyInto(uint256[] memory dest, uint256 cursor, uint256[] memory src)
-        internal
-        pure
-        returns (uint256 nextCursor)
-    {
-        for (uint256 index = 0; index < src.length; index += 1) {
-            dest[cursor + index] = src[index];
-        }
-        return cursor + src.length;
+        verifier.verify(proofPart1, proofPart2, preprocessPart1, preprocessPart2, aPubUser, aPubBlock);
     }
 
     function _toUint128Array(uint256[] memory input) internal pure returns (uint128[] memory output) {

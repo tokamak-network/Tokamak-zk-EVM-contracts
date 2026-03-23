@@ -15,6 +15,7 @@ contract ChannelManager {
     error UnsupportedChannelFunction(address entryContract, bytes4 functionSig);
     error TokamakProofRejected();
     error InvalidTokenVaultTreeIndex();
+    error FunctionPreprocessHashMismatch(bytes32 expectedHash, bytes32 actualHash);
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
@@ -113,8 +114,22 @@ contract ChannelManager {
         BridgeStructs.FunctionConfig memory cfg =
             dAppManager.getFunctionMetadata(dappId, instance.entryContract, instance.functionSig);
 
-        bool ok = tokamakVerifier.verifyTokamakProof(
-            proof, instance, channelInstanceHash, cfg.instanceHash, cfg.preprocessHash
+        BridgeStructs.TokamakProofPayload memory payload = abi.decode(proof, (BridgeStructs.TokamakProofPayload));
+        if (cfg.preprocessHash != bytes32(0)) {
+            bytes32 actualPreprocessHash =
+                keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
+            if (actualPreprocessHash != cfg.preprocessHash) {
+                revert FunctionPreprocessHashMismatch(cfg.preprocessHash, actualPreprocessHash);
+            }
+        }
+
+        bool ok = tokamakVerifier.verify(
+            payload.proofPart1,
+            payload.proofPart2,
+            payload.functionPreprocessPart1,
+            payload.functionPreprocessPart2,
+            payload.aPubUser,
+            payload.aPubBlock
         );
         if (!ok) revert TokamakProofRejected();
 

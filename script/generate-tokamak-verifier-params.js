@@ -28,6 +28,7 @@ const OMEGA_MI_INVERSES = new Map([
 
 function rewriteVerifierSource(
   source,
+  expectedLUser,
   expectedLFree,
   omegaLFree,
   expectedSmax,
@@ -36,6 +37,7 @@ function rewriteVerifierSource(
   expectedMi,
   omegaMiInverse,
 ) {
+  const lUserPattern = /uint256 internal constant EXPECTED_L_USER = \d+;/;
   const lFreePattern = /uint256 internal constant EXPECTED_L_FREE = \d+;/;
   const omegaLFreePattern = /uint256 internal constant OMEGA_L_FREE = 0x[0-9a-f]+;/;
   const nPattern = /uint256 internal constant CONSTANT_N = \d+;/;
@@ -50,6 +52,7 @@ function rewriteVerifierSource(
   const step4CbSlotPattern = /uint256 internal constant STEP4_COEFF_C_B_SLOT = 0x[0-9a-f]+;/;
 
   if (
+    !lUserPattern.test(source) ||
     !lFreePattern.test(source) ||
     !omegaLFreePattern.test(source) ||
     !nPattern.test(source) ||
@@ -76,6 +79,9 @@ function rewriteVerifierSource(
   const step4CbSlot = step4CgSlot + 0x40;
 
   const replacedLFree = source.replace(
+    lUserPattern,
+    `uint256 internal constant EXPECTED_L_USER = ${expectedLUser};`,
+  ).replace(
     lFreePattern,
     `uint256 internal constant EXPECTED_L_FREE = ${expectedLFree};`,
   ).replace(
@@ -127,10 +133,14 @@ function main() {
   const raw = fs.readFileSync(inputPath, "utf8");
   const json = JSON.parse(raw);
 
+  const expectedLUser = Number(json.l_user);
   const expectedLFree = Number(json.l_free);
   const expectedN = Number(json.n);
   const expectedMi = Number(json.l_D) - Number(json.l);
   const expectedSmax = Number(json.s_max);
+  if (!Number.isInteger(expectedLUser) || expectedLUser <= 0) {
+    throw new Error(`setupParams.json l_user must be a positive integer. Received: ${json.l_user}`);
+  }
   if (!Number.isInteger(expectedLFree) || expectedLFree <= 0) {
     throw new Error(`setupParams.json l_free must be a positive integer. Received: ${json.l_free}`);
   }
@@ -166,6 +176,7 @@ function main() {
   const source = fs.readFileSync(outputPath, "utf8");
   const output = rewriteVerifierSource(
     source,
+    expectedLUser,
     expectedLFree,
     omegaLFree,
     expectedSmax,
@@ -177,7 +188,7 @@ function main() {
   fs.writeFileSync(outputPath, output);
 
   console.log(
-    `Updated ${path.relative(process.cwd(), outputPath)} from ${path.relative(process.cwd(), inputPath)} with l_free=${expectedLFree}, n=${expectedN}, m_i=${expectedMi}, s_max=${expectedSmax}`,
+    `Updated ${path.relative(process.cwd(), outputPath)} from ${path.relative(process.cwd(), inputPath)} with l_user=${expectedLUser}, l_free=${expectedLFree}, n=${expectedN}, m_i=${expectedMi}, s_max=${expectedSmax}`,
   );
 }
 

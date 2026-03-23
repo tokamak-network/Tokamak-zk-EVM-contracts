@@ -15,7 +15,7 @@ import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {DepositGrothProofFixture, WithdrawGrothProofFixture} from "./GrothProofFixtures.sol";
 import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
 import {TokamakVerifier} from "tokamak-zkp/TokamakVerifier.sol";
-import {ITokamakVerifier as IRootTokamakVerifier} from "old-src/interface/ITokamakVerifier.sol";
+import {ITokamakVerifier as IRootTokamakVerifier} from "tokamak-zkp/ITokamakVerifier.sol";
 
 contract BridgeFlowTest is Test {
     using stdJson for string;

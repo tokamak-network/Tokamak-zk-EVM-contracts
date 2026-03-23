@@ -4,7 +4,7 @@ pragma solidity 0.8.29;
 import {BridgeAdminManager} from "./BridgeAdminManager.sol";
 import {BridgeStructs} from "./BridgeStructs.sol";
 import {ITokamakVerifier as IBridgeTokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
-import {ITokamakVerifier as IRootTokamakVerifier} from "old-src/interface/ITokamakVerifier.sol";
+import {ITokamakVerifier as IRootTokamakVerifier} from "tokamak-zkp/ITokamakVerifier.sol";
 
 contract TokamakVerifierAdapter is IBridgeTokamakVerifier {
     error TokamakPublicInputLengthMismatch(uint256 actualLength, uint256 expectedLength);

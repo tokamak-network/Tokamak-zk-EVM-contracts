@@ -3,12 +3,11 @@ src = "src"
 test = "test"
 out = "out"
 libs = ["../lib"]
-allow_paths = ["../tokamak-zkp", "../src/old"]
+allow_paths = ["../tokamak-zkp"]
 remappings = [
     "@openzeppelin/=../lib/openzeppelin-contracts/contracts/",
     "forge-std/=../lib/forge-std/src/",
     "groth16-verifier/=../groth16/verifier/",
-    "old-src/=../src/old/",
     "tokamak-zkp/=../tokamak-zkp/",
 ]
 

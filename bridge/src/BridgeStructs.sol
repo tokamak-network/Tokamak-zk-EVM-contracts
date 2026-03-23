@@ -13,8 +13,8 @@ library BridgeStructs {
         address entryContract;
         bytes4 functionSig;
         address[] storageAddrs;
-        bytes32 instanceHash;
-        bytes32 preprocessHash;
+        bytes32 preprocessInputHash;
+        bytes32 aPubBlockHash;
     }
 
     struct GrothProof {
@@ -29,8 +29,8 @@ library BridgeStructs {
     }
 
     struct FunctionConfig {
-        bytes32 instanceHash;
-        bytes32 preprocessHash;
+        bytes32 preprocessInputHash;
+        bytes32 aPubBlockHash;
         bool exists;
     }
 

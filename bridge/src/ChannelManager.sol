@@ -15,7 +15,8 @@ contract ChannelManager {
     error UnsupportedChannelFunction(address entryContract, bytes4 functionSig);
     error TokamakProofRejected();
     error InvalidTokenVaultTreeIndex();
-    error FunctionPreprocessHashMismatch(bytes32 expectedHash, bytes32 actualHash);
+    error PreprocessInputHashMismatch(bytes32 expectedHash, bytes32 actualHash);
+    error APubBlockHashMismatch(bytes32 expectedHash, bytes32 actualHash);
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
@@ -115,11 +116,17 @@ contract ChannelManager {
             dAppManager.getFunctionMetadata(dappId, instance.entryContract, instance.functionSig);
 
         BridgeStructs.TokamakProofPayload memory payload = abi.decode(proof, (BridgeStructs.TokamakProofPayload));
-        if (cfg.preprocessHash != bytes32(0)) {
-            bytes32 actualPreprocessHash =
+        if (cfg.preprocessInputHash != bytes32(0)) {
+            bytes32 actualPreprocessInputHash =
                 keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
-            if (actualPreprocessHash != cfg.preprocessHash) {
-                revert FunctionPreprocessHashMismatch(cfg.preprocessHash, actualPreprocessHash);
+            if (actualPreprocessInputHash != cfg.preprocessInputHash) {
+                revert PreprocessInputHashMismatch(cfg.preprocessInputHash, actualPreprocessInputHash);
+            }
+        }
+        if (cfg.aPubBlockHash != bytes32(0)) {
+            bytes32 actualAPubBlockHash = keccak256(abi.encode(payload.aPubBlock));
+            if (actualAPubBlockHash != cfg.aPubBlockHash) {
+                revert APubBlockHashMismatch(cfg.aPubBlockHash, actualAPubBlockHash);
             }
         }
 

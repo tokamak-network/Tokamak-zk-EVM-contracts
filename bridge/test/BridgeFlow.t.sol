@@ -66,7 +66,8 @@ contract BridgeFlowTest is Test {
             _defaultDAppFunctions(
                 vaultStorageAddr,
                 appStorageAddr,
-                _computePointEncodingHash(tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2)
+                _computePointEncodingHash(tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2),
+                keccak256(abi.encode(tokamakFixture.aPubBlock))
             )
         );
         dAppManager.registerDApp(
@@ -402,7 +403,12 @@ contract BridgeFlowTest is Test {
         });
     }
 
-    function _defaultDAppFunctions(address tokenVaultStorage, address appStorage, bytes32 functionPreprocessHash)
+    function _defaultDAppFunctions(
+        address tokenVaultStorage,
+        address appStorage,
+        bytes32 preprocessInputHash,
+        bytes32 aPubBlockHash
+    )
         internal
         view
         returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
@@ -412,8 +418,8 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             storageAddrs: _addressArray(tokenVaultStorage, appStorage),
-            instanceHash: bytes32(0),
-            preprocessHash: functionPreprocessHash
+            preprocessInputHash: preprocessInputHash,
+            aPubBlockHash: aPubBlockHash
         });
     }
 
@@ -427,8 +433,8 @@ contract BridgeFlowTest is Test {
             entryContract: appContract2,
             functionSig: APP_SIG_2,
             storageAddrs: _singleAddressArray(tokenVaultStorage),
-            instanceHash: bytes32("INSTANCE_2"),
-            preprocessHash: bytes32("PREPROCESS_2")
+            preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
+            aPubBlockHash: bytes32("A_PUB_BLOCK_2")
         });
     }
 
@@ -442,15 +448,15 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             storageAddrs: _addressArray(firstVaultStorage, address(0x1234)),
-            instanceHash: bytes32("INSTANCE"),
-            preprocessHash: bytes32("PREPROCESS")
+            preprocessInputHash: bytes32("PREPROCESS_INPUT"),
+            aPubBlockHash: bytes32("A_PUB_BLOCK")
         });
         functions[1] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract2,
             functionSig: APP_SIG_2,
             storageAddrs: _singleAddressArray(secondVaultStorage),
-            instanceHash: bytes32("INSTANCE_2"),
-            preprocessHash: bytes32("PREPROCESS_2")
+            preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
+            aPubBlockHash: bytes32("A_PUB_BLOCK_2")
         });
     }
 

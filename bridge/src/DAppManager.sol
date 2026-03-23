@@ -3,61 +3,73 @@ pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
 import {BridgeStructs} from "./BridgeStructs.sol";
-import {BridgeAdminManager} from "./BridgeAdminManager.sol";
 
 contract DAppManager is Ownable {
     error UnknownDApp(uint256 dappId);
     error DuplicateDApp(uint256 dappId);
-    error UnsupportedFunctionSignature(bytes4 functionSig);
+    error EmptyStorageLayout(uint256 dappId);
+    error EmptyFunctionList(uint256 dappId);
+    error EmptyFunctionStorageList(bytes4 functionSig);
+    error DuplicateStorageAddress(uint256 dappId, address storageAddr);
+    error UnknownStorageAddress(uint256 dappId, address storageAddr);
+    error DuplicateFunction(uint256 dappId, address entryContract, bytes4 functionSig);
     error UnsupportedChannelFunction(uint256 dappId, address entryContract, bytes4 functionSig);
+    error MissingTokenVaultStorageAddress(uint256 dappId);
+    error MultipleTokenVaultStorageAddresses(uint256 dappId, address firstStorageAddr, address secondStorageAddr);
 
     struct DAppInfo {
         bool exists;
         bytes32 labelHash;
+        uint256 tokenVaultTreeIndex;
     }
-
-    BridgeAdminManager public immutable adminManager;
 
     mapping(uint256 => DAppInfo) private _dapps;
     mapping(uint256 => mapping(bytes32 => bool)) private _supportedFunctions;
+    mapping(uint256 => mapping(bytes32 => BridgeStructs.FunctionConfig)) private _functionConfigs;
+    mapping(uint256 => mapping(bytes32 => address[])) private _functionStorages;
     mapping(uint256 => BridgeStructs.FunctionReference[]) private _registeredFunctions;
 
-    event DAppRegistered(uint256 indexed dappId, bytes32 labelHash);
-    event DAppFunctionsRegistered(uint256 indexed dappId, uint256 count);
+    mapping(uint256 => address[]) private _managedStorageAddresses;
+    mapping(uint256 => mapping(address => bool)) private _knownStorageAddress;
+    mapping(uint256 => mapping(address => bool)) private _isTokenVaultStorage;
+    mapping(uint256 => mapping(address => bytes32[])) private _preAllocatedKeys;
+    mapping(uint256 => mapping(address => uint8[])) private _userStorageSlots;
 
-    constructor(address initialOwner, BridgeAdminManager adminManager_) Ownable(initialOwner) {
-        adminManager = adminManager_;
-    }
+    event DAppRegistered(
+        uint256 indexed dappId,
+        bytes32 labelHash,
+        uint256 storageCount,
+        uint256 functionCount
+    );
 
-    function registerDApp(uint256 dappId, bytes32 labelHash) external onlyOwner {
+    constructor(address initialOwner) Ownable(initialOwner) {}
+
+    function registerDApp(
+        uint256 dappId,
+        bytes32 labelHash,
+        BridgeStructs.StorageMetadata[] calldata storages,
+        BridgeStructs.DAppFunctionMetadata[] calldata functions
+    ) external onlyOwner {
         if (_dapps[dappId].exists) {
             revert DuplicateDApp(dappId);
         }
-        _dapps[dappId] = DAppInfo({exists: true, labelHash: labelHash});
-        emit DAppRegistered(dappId, labelHash);
-    }
-
-    function registerDAppFunctions(uint256 dappId, BridgeStructs.FunctionReference[] calldata refs)
-        external
-        onlyOwner
-    {
-        if (!_dapps[dappId].exists) {
-            revert UnknownDApp(dappId);
+        if (storages.length == 0) {
+            revert EmptyStorageLayout(dappId);
+        }
+        if (functions.length == 0) {
+            revert EmptyFunctionList(dappId);
         }
 
-        for (uint256 i = 0; i < refs.length; i++) {
-            if (!adminManager.hasFunction(refs[i].functionSig)) {
-                revert UnsupportedFunctionSignature(refs[i].functionSig);
-            }
+        (uint256 tokenVaultTreeIndex, address tokenVaultStorageAddress) = _storeStorageLayout(dappId, storages);
+        _storeFunctions(dappId, functions, tokenVaultStorageAddress);
 
-            bytes32 functionKey = computeFunctionKey(refs[i].entryContract, refs[i].functionSig);
-            if (!_supportedFunctions[dappId][functionKey]) {
-                _supportedFunctions[dappId][functionKey] = true;
-                _registeredFunctions[dappId].push(refs[i]);
-            }
-        }
+        _dapps[dappId] = DAppInfo({
+            exists: true,
+            labelHash: labelHash,
+            tokenVaultTreeIndex: tokenVaultTreeIndex
+        });
 
-        emit DAppFunctionsRegistered(dappId, refs.length);
+        emit DAppRegistered(dappId, labelHash, storages.length, functions.length);
     }
 
     function isSupportedFunction(uint256 dappId, address entryContract, bytes4 functionSig)
@@ -65,6 +77,9 @@ contract DAppManager is Ownable {
         view
         returns (bool)
     {
+        if (!_dapps[dappId].exists) {
+            return false;
+        }
         return _supportedFunctions[dappId][computeFunctionKey(entryContract, functionSig)];
     }
 
@@ -73,10 +88,23 @@ contract DAppManager is Ownable {
         view
         returns (BridgeStructs.FunctionConfig memory)
     {
-        if (!_supportedFunctions[dappId][computeFunctionKey(entryContract, functionSig)]) {
+        bytes32 functionKey = computeFunctionKey(entryContract, functionSig);
+        if (!_supportedFunctions[dappId][functionKey]) {
             revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
         }
-        return adminManager.getFunctionConfig(functionSig);
+        return _functionConfigs[dappId][functionKey];
+    }
+
+    function getFunctionStorages(uint256 dappId, address entryContract, bytes4 functionSig)
+        external
+        view
+        returns (address[] memory)
+    {
+        bytes32 functionKey = computeFunctionKey(entryContract, functionSig);
+        if (!_supportedFunctions[dappId][functionKey]) {
+            revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
+        }
+        return _copyAddresses(_functionStorages[dappId][functionKey]);
     }
 
     function getDAppInfo(uint256 dappId) external view returns (DAppInfo memory) {
@@ -91,15 +119,37 @@ contract DAppManager is Ownable {
         view
         returns (BridgeStructs.FunctionReference[] memory out)
     {
-        if (!_dapps[dappId].exists) {
-            revert UnknownDApp(dappId);
-        }
+        _requireDApp(dappId);
 
         BridgeStructs.FunctionReference[] storage refs = _registeredFunctions[dappId];
         out = new BridgeStructs.FunctionReference[](refs.length);
         for (uint256 i = 0; i < refs.length; i++) {
             out[i] = refs[i];
         }
+    }
+
+    function getManagedStorageAddresses(uint256 dappId) external view returns (address[] memory) {
+        _requireDApp(dappId);
+        return _copyAddresses(_managedStorageAddresses[dappId]);
+    }
+
+    function getTokenVaultTreeIndex(uint256 dappId) external view returns (uint256) {
+        return _requireDApp(dappId).tokenVaultTreeIndex;
+    }
+
+    function getPreAllocKeys(uint256 dappId, address storageAddr) external view returns (bytes32[] memory) {
+        _requireKnownStorage(dappId, storageAddr);
+        return _copyBytes32(_preAllocatedKeys[dappId][storageAddr]);
+    }
+
+    function getUserSlots(uint256 dappId, address storageAddr) external view returns (uint8[] memory) {
+        _requireKnownStorage(dappId, storageAddr);
+        return _copyUint8(_userStorageSlots[dappId][storageAddr]);
+    }
+
+    function isTokenVaultStorageAddress(uint256 dappId, address storageAddr) external view returns (bool) {
+        _requireKnownStorage(dappId, storageAddr);
+        return _isTokenVaultStorage[dappId][storageAddr];
     }
 
     function computeFunctionKey(address entryContract, bytes4 functionSig)
@@ -109,5 +159,121 @@ contract DAppManager is Ownable {
     {
         return keccak256(abi.encode(entryContract, functionSig));
     }
-}
 
+    function _storeStorageLayout(uint256 dappId, BridgeStructs.StorageMetadata[] calldata storages)
+        private
+        returns (uint256 tokenVaultTreeIndex, address tokenVaultStorageAddress)
+    {
+        tokenVaultTreeIndex = type(uint256).max;
+
+        for (uint256 i = 0; i < storages.length; i++) {
+            BridgeStructs.StorageMetadata calldata storageMetadata = storages[i];
+            if (_knownStorageAddress[dappId][storageMetadata.storageAddr]) {
+                revert DuplicateStorageAddress(dappId, storageMetadata.storageAddr);
+            }
+
+            _knownStorageAddress[dappId][storageMetadata.storageAddr] = true;
+            _managedStorageAddresses[dappId].push(storageMetadata.storageAddr);
+            _isTokenVaultStorage[dappId][storageMetadata.storageAddr] = storageMetadata.isTokenVaultStorage;
+
+            for (uint256 j = 0; j < storageMetadata.preAllocatedKeys.length; j++) {
+                _preAllocatedKeys[dappId][storageMetadata.storageAddr].push(storageMetadata.preAllocatedKeys[j]);
+            }
+            for (uint256 j = 0; j < storageMetadata.userStorageSlots.length; j++) {
+                _userStorageSlots[dappId][storageMetadata.storageAddr].push(storageMetadata.userStorageSlots[j]);
+            }
+
+            if (storageMetadata.isTokenVaultStorage) {
+                if (tokenVaultStorageAddress != address(0)) {
+                    revert MultipleTokenVaultStorageAddresses(
+                        dappId, tokenVaultStorageAddress, storageMetadata.storageAddr
+                    );
+                }
+                tokenVaultStorageAddress = storageMetadata.storageAddr;
+                tokenVaultTreeIndex = i;
+            }
+        }
+
+        if (tokenVaultStorageAddress == address(0)) {
+            revert MissingTokenVaultStorageAddress(dappId);
+        }
+    }
+
+    function _storeFunctions(
+        uint256 dappId,
+        BridgeStructs.DAppFunctionMetadata[] calldata functions,
+        address tokenVaultStorageAddress
+    ) private {
+        for (uint256 i = 0; i < functions.length; i++) {
+            BridgeStructs.DAppFunctionMetadata calldata fnMetadata = functions[i];
+            if (fnMetadata.storageAddrs.length == 0) {
+                revert EmptyFunctionStorageList(fnMetadata.functionSig);
+            }
+
+            bytes32 functionKey = computeFunctionKey(fnMetadata.entryContract, fnMetadata.functionSig);
+            if (_supportedFunctions[dappId][functionKey]) {
+                revert DuplicateFunction(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
+            }
+
+            _supportedFunctions[dappId][functionKey] = true;
+            _registeredFunctions[dappId].push(
+                BridgeStructs.FunctionReference({
+                    entryContract: fnMetadata.entryContract,
+                    functionSig: fnMetadata.functionSig
+                })
+            );
+
+            for (uint256 j = 0; j < fnMetadata.storageAddrs.length; j++) {
+                address storageAddr = fnMetadata.storageAddrs[j];
+                if (!_knownStorageAddress[dappId][storageAddr]) {
+                    revert UnknownStorageAddress(dappId, storageAddr);
+                }
+                if (_isTokenVaultStorage[dappId][storageAddr] && storageAddr != tokenVaultStorageAddress) {
+                    revert MultipleTokenVaultStorageAddresses(dappId, tokenVaultStorageAddress, storageAddr);
+                }
+                _functionStorages[dappId][functionKey].push(storageAddr);
+            }
+
+            _functionConfigs[dappId][functionKey] = BridgeStructs.FunctionConfig({
+                instanceHash: fnMetadata.instanceHash,
+                preprocessHash: fnMetadata.preprocessHash,
+                exists: true
+            });
+        }
+    }
+
+    function _requireDApp(uint256 dappId) private view returns (DAppInfo memory info) {
+        info = _dapps[dappId];
+        if (!info.exists) {
+            revert UnknownDApp(dappId);
+        }
+    }
+
+    function _requireKnownStorage(uint256 dappId, address storageAddr) private view {
+        _requireDApp(dappId);
+        if (!_knownStorageAddress[dappId][storageAddr]) {
+            revert UnknownStorageAddress(dappId, storageAddr);
+        }
+    }
+
+    function _copyAddresses(address[] storage source) private view returns (address[] memory out) {
+        out = new address[](source.length);
+        for (uint256 i = 0; i < source.length; i++) {
+            out[i] = source[i];
+        }
+    }
+
+    function _copyBytes32(bytes32[] storage source) private view returns (bytes32[] memory out) {
+        out = new bytes32[](source.length);
+        for (uint256 i = 0; i < source.length; i++) {
+            out[i] = source[i];
+        }
+    }
+
+    function _copyUint8(uint8[] storage source) private view returns (uint8[] memory out) {
+        out = new uint8[](source.length);
+        for (uint256 i = 0; i < source.length; i++) {
+            out[i] = source[i];
+        }
+    }
+}

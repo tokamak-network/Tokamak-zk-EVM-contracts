@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import {BridgeStructs} from "./BridgeStructs.sol";
-import {BridgeAdminManager} from "./BridgeAdminManager.sol";
 import {DAppManager} from "./DAppManager.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
@@ -23,7 +22,6 @@ contract ChannelManager {
     bytes32 public immutable channelInstanceHash;
     uint256 public immutable tokenVaultTreeIndex;
     address public immutable bridgeCore;
-    BridgeAdminManager public immutable adminManager;
     DAppManager public immutable dAppManager;
     ITokamakVerifier public immutable tokamakVerifier;
 
@@ -54,7 +52,6 @@ contract ChannelManager {
         address[] memory managedStorageAddresses_,
         BridgeStructs.FunctionReference[] memory allowedFunctions_,
         address bridgeCore_,
-        BridgeAdminManager adminManager_,
         DAppManager dAppManager_,
         ITokamakVerifier tokamakVerifier_
     ) {
@@ -63,7 +60,6 @@ contract ChannelManager {
         leader = leader_;
         channelInstanceHash = channelInstanceHash_;
         bridgeCore = bridgeCore_;
-        adminManager = adminManager_;
         dAppManager = dAppManager_;
         tokamakVerifier = tokamakVerifier_;
 

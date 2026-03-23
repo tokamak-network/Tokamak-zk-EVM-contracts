@@ -2,6 +2,21 @@
 pragma solidity ^0.8.24;
 
 library BridgeStructs {
+    struct StorageMetadata {
+        address storageAddr;
+        bytes32[] preAllocatedKeys;
+        uint8[] userStorageSlots;
+        bool isTokenVaultStorage;
+    }
+
+    struct DAppFunctionMetadata {
+        address entryContract;
+        bytes4 functionSig;
+        address[] storageAddrs;
+        bytes32 instanceHash;
+        bytes32 preprocessHash;
+    }
+
     struct GrothProof {
         uint256[4] pA;
         uint256[8] pB;

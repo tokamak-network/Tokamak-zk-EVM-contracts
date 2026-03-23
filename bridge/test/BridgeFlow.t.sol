@@ -49,27 +49,19 @@ contract BridgeFlowTest is Test {
         address vaultStorageAddr = address(0xF00D);
         address appStorageAddr = address(0x1234);
         address secondaryVaultStorageAddr = address(0xF00E);
-        adminManager.registerStorageMetadata(vaultStorageAddr, _bytes32Array(bytes32(uint256(0))), _uint8Array(0), true);
-        adminManager.registerStorageMetadata(appStorageAddr, _bytes32Array(bytes32(uint256(1))), _uint8Array(0), false);
-        adminManager.registerStorageMetadata(
-            secondaryVaultStorageAddr, _bytes32Array(bytes32(uint256(2))), _uint8Array(0), true
+        dAppManager = new DAppManager(address(this));
+        dAppManager.registerDApp(
+            1,
+            keccak256("private-app"),
+            _defaultStorageLayouts(vaultStorageAddr, appStorageAddr),
+            _defaultDAppFunctions(vaultStorageAddr, appStorageAddr)
         );
-
-        address[] memory storageAddrs = new address[](2);
-        storageAddrs[0] = vaultStorageAddr;
-        storageAddrs[1] = appStorageAddr;
-        adminManager.registerFunction(APP_SIG, storageAddrs, bytes32("INSTANCE"), bytes32("PREPROCESS"));
-
-        address[] memory storageAddrs2 = new address[](1);
-        storageAddrs2[0] = secondaryVaultStorageAddr;
-        adminManager.registerFunction(APP_SIG_2, storageAddrs2, bytes32("INSTANCE_2"), bytes32("PREPROCESS_2"));
-
-        dAppManager = new DAppManager(address(this), adminManager);
-        dAppManager.registerDApp(1, keccak256("private-app"));
-
-        BridgeStructs.FunctionReference[] memory refs = new BridgeStructs.FunctionReference[](1);
-        refs[0] = BridgeStructs.FunctionReference({entryContract: appContract, functionSig: APP_SIG});
-        dAppManager.registerDAppFunctions(1, refs);
+        dAppManager.registerDApp(
+            2,
+            keccak256("alt-private-app"),
+            _singleVaultStorageLayout(secondaryVaultStorageAddr),
+            _singleVaultDAppFunction(secondaryVaultStorageAddr)
+        );
 
         grothVerifier = new Groth16Verifier();
         tokamakVerifier = new MockTokamakVerifier();
@@ -90,10 +82,7 @@ contract BridgeFlowTest is Test {
             1,
             leader,
             asset,
-            bytes32("CHANNEL_INSTANCE"),
-            _storageAddressVector(vaultStorageAddr, appStorageAddr),
-            0,
-            refs
+            bytes32("CHANNEL_INSTANCE")
         );
 
         channelManager = ChannelManager(manager);
@@ -147,18 +136,12 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         tokenVault.registerAndFund(reusedKey, 10 ether);
 
-        BridgeStructs.FunctionReference[] memory refs = new BridgeStructs.FunctionReference[](1);
-        refs[0] = BridgeStructs.FunctionReference({entryContract: appContract, functionSig: APP_SIG});
-
         (, address secondVaultAddress) = bridgeCore.createChannel(
             secondChannelId,
             1,
             leader,
             asset,
-            bytes32("CHANNEL_INSTANCE_2"),
-            _storageAddressVector(address(0xF00D), address(0x1234)),
-            0,
-            refs
+            bytes32("CHANNEL_INSTANCE_2")
         );
 
         L1TokenVault secondVault = L1TokenVault(secondVaultAddress);
@@ -170,32 +153,17 @@ contract BridgeFlowTest is Test {
         secondVault.registerAndFund(reusedKey, 10 ether);
     }
 
-    function testRejectsMultipleTokenVaultStoragesAcrossAllowedFunctions() public {
-        BridgeStructs.FunctionReference[] memory refs = new BridgeStructs.FunctionReference[](2);
-        refs[0] = BridgeStructs.FunctionReference({entryContract: appContract, functionSig: APP_SIG});
-        refs[1] = BridgeStructs.FunctionReference({entryContract: appContract2, functionSig: APP_SIG_2});
-
-        dAppManager.registerDAppFunctions(1, refs);
-
-        address[] memory managedStorageAddresses = new address[](3);
-        managedStorageAddresses[0] = address(0xF00D);
-        managedStorageAddresses[1] = address(0x1234);
-        managedStorageAddresses[2] = address(0xF00E);
-
+    function testRejectsDAppRegistrationWithMultipleTokenVaultStorages() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                BridgeCore.MultipleTokenVaultStorageAddresses.selector, address(0xF00D), address(0xF00E)
+                DAppManager.MultipleTokenVaultStorageAddresses.selector, 3, address(0xF00D), address(0xF00E)
             )
         );
-        bridgeCore.createChannel(
+        dAppManager.registerDApp(
             3,
-            1,
-            leader,
-            asset,
-            bytes32("CHANNEL_INSTANCE_3"),
-            managedStorageAddresses,
-            0,
-            refs
+            keccak256("invalid-private-app"),
+            _threeStorageLayouts(address(0xF00D), address(0x1234), address(0xF00E)),
+            _conflictingDAppFunctions(address(0xF00D), address(0xF00E))
         );
     }
 
@@ -345,14 +313,131 @@ contract BridgeFlowTest is Test {
         roots[1] = right;
     }
 
-    function _storageAddressVector(address tokenVaultStorage, address appStorage)
+    function _defaultStorageLayouts(address tokenVaultStorage, address appStorage)
         internal
         pure
-        returns (address[] memory storageAddresses)
+        returns (BridgeStructs.StorageMetadata[] memory storageLayouts)
     {
-        storageAddresses = new address[](2);
-        storageAddresses[0] = tokenVaultStorage;
-        storageAddresses[1] = appStorage;
+        storageLayouts = new BridgeStructs.StorageMetadata[](2);
+        storageLayouts[0] = BridgeStructs.StorageMetadata({
+            storageAddr: tokenVaultStorage,
+            preAllocatedKeys: _bytes32Array(bytes32(uint256(0))),
+            userStorageSlots: _uint8Array(0),
+            isTokenVaultStorage: true
+        });
+        storageLayouts[1] = BridgeStructs.StorageMetadata({
+            storageAddr: appStorage,
+            preAllocatedKeys: _bytes32Array(bytes32(uint256(1))),
+            userStorageSlots: _uint8Array(0),
+            isTokenVaultStorage: false
+        });
+    }
+
+    function _singleVaultStorageLayout(address tokenVaultStorage)
+        internal
+        pure
+        returns (BridgeStructs.StorageMetadata[] memory storageLayouts)
+    {
+        storageLayouts = new BridgeStructs.StorageMetadata[](1);
+        storageLayouts[0] = BridgeStructs.StorageMetadata({
+            storageAddr: tokenVaultStorage,
+            preAllocatedKeys: _bytes32Array(bytes32(uint256(2))),
+            userStorageSlots: _uint8Array(0),
+            isTokenVaultStorage: true
+        });
+    }
+
+    function _threeStorageLayouts(address firstVaultStorage, address appStorage, address secondVaultStorage)
+        internal
+        pure
+        returns (BridgeStructs.StorageMetadata[] memory storageLayouts)
+    {
+        storageLayouts = new BridgeStructs.StorageMetadata[](3);
+        storageLayouts[0] = BridgeStructs.StorageMetadata({
+            storageAddr: firstVaultStorage,
+            preAllocatedKeys: _bytes32Array(bytes32(uint256(0))),
+            userStorageSlots: _uint8Array(0),
+            isTokenVaultStorage: true
+        });
+        storageLayouts[1] = BridgeStructs.StorageMetadata({
+            storageAddr: appStorage,
+            preAllocatedKeys: _bytes32Array(bytes32(uint256(1))),
+            userStorageSlots: _uint8Array(0),
+            isTokenVaultStorage: false
+        });
+        storageLayouts[2] = BridgeStructs.StorageMetadata({
+            storageAddr: secondVaultStorage,
+            preAllocatedKeys: _bytes32Array(bytes32(uint256(2))),
+            userStorageSlots: _uint8Array(0),
+            isTokenVaultStorage: true
+        });
+    }
+
+    function _defaultDAppFunctions(address tokenVaultStorage, address appStorage)
+        internal
+        view
+        returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
+    {
+        functions = new BridgeStructs.DAppFunctionMetadata[](1);
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: appContract,
+            functionSig: APP_SIG,
+            storageAddrs: _addressArray(tokenVaultStorage, appStorage),
+            instanceHash: bytes32("INSTANCE"),
+            preprocessHash: bytes32("PREPROCESS")
+        });
+    }
+
+    function _singleVaultDAppFunction(address tokenVaultStorage)
+        internal
+        view
+        returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
+    {
+        functions = new BridgeStructs.DAppFunctionMetadata[](1);
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: appContract2,
+            functionSig: APP_SIG_2,
+            storageAddrs: _singleAddressArray(tokenVaultStorage),
+            instanceHash: bytes32("INSTANCE_2"),
+            preprocessHash: bytes32("PREPROCESS_2")
+        });
+    }
+
+    function _conflictingDAppFunctions(address firstVaultStorage, address secondVaultStorage)
+        internal
+        view
+        returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
+    {
+        functions = new BridgeStructs.DAppFunctionMetadata[](2);
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: appContract,
+            functionSig: APP_SIG,
+            storageAddrs: _addressArray(firstVaultStorage, address(0x1234)),
+            instanceHash: bytes32("INSTANCE"),
+            preprocessHash: bytes32("PREPROCESS")
+        });
+        functions[1] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: appContract2,
+            functionSig: APP_SIG_2,
+            storageAddrs: _singleAddressArray(secondVaultStorage),
+            instanceHash: bytes32("INSTANCE_2"),
+            preprocessHash: bytes32("PREPROCESS_2")
+        });
+    }
+
+    function _addressArray(address first, address second)
+        internal
+        pure
+        returns (address[] memory addrs)
+    {
+        addrs = new address[](2);
+        addrs[0] = first;
+        addrs[1] = second;
+    }
+
+    function _singleAddressArray(address value) internal pure returns (address[] memory addrs) {
+        addrs = new address[](1);
+        addrs[0] = value;
     }
 
     function _depositProof() private pure returns (BridgeStructs.GrothProof memory proof) {

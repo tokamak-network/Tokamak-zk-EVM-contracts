@@ -18,14 +18,6 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
 
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);
-    error UnsupportedChannelFunction(uint256 dappId, address entryContract, bytes4 functionSig);
-    error MissingChannelStorageAddress(uint256 dappId, bytes4 functionSig, address storageAddr);
-    error InvalidTokenVaultTreeIndex();
-    error DuplicateManagedStorageAddress(address storageAddr);
-    error MissingTokenVaultStorageAddress();
-    error MultipleTokenVaultStorageAddresses(address firstStorageAddr, address secondStorageAddr);
-    error TokenVaultTreeIndexMustReferenceTokenVaultStorage(address indexedStorageAddr);
-    error TokenVaultTreeIndexStorageMismatch(address expectedStorageAddr, address indexedStorageAddr);
     error OnlyChannelVault();
     error InvalidMerkleTreeConfiguration();
     error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
@@ -83,53 +75,16 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         uint256 dappId,
         address leader,
         IERC20 asset,
-        bytes32 channelInstanceHash,
-        address[] calldata managedStorageAddresses,
-        uint256 tokenVaultTreeIndex,
-        BridgeStructs.FunctionReference[] calldata allowedFunctions
+        bytes32 channelInstanceHash
     ) external onlyOwner returns (address manager, address vault) {
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
         if (adminManager.nMerkleTreeLevels() != SUPPORTED_MT_LEVELS) {
             revert UnsupportedMerkleTreeLevels(adminManager.nMerkleTreeLevels(), SUPPORTED_MT_LEVELS);
         }
-        if (tokenVaultTreeIndex >= managedStorageAddresses.length) revert InvalidTokenVaultTreeIndex();
-        _assertUniqueStorageAddresses(managedStorageAddresses);
-
-        address designatedTokenVaultStorage = managedStorageAddresses[tokenVaultTreeIndex];
-        if (!adminManager.isTokenVaultStorageAddress(designatedTokenVaultStorage)) {
-            revert TokenVaultTreeIndexMustReferenceTokenVaultStorage(designatedTokenVaultStorage);
-        }
-
-        address uniqueTokenVaultStorage = _getUniqueTokenVaultStorage(managedStorageAddresses);
-        if (uniqueTokenVaultStorage == address(0)) {
-            revert MissingTokenVaultStorageAddress();
-        }
-        if (uniqueTokenVaultStorage != designatedTokenVaultStorage) {
-            revert TokenVaultTreeIndexStorageMismatch(uniqueTokenVaultStorage, designatedTokenVaultStorage);
-        }
-
-        for (uint256 i = 0; i < allowedFunctions.length; i++) {
-            if (!dAppManager.isSupportedFunction(dappId, allowedFunctions[i].entryContract, allowedFunctions[i].functionSig)) {
-                revert UnsupportedChannelFunction(dappId, allowedFunctions[i].entryContract, allowedFunctions[i].functionSig);
-            }
-
-            address[] memory functionStorages = adminManager.getFunctionStorages(allowedFunctions[i].functionSig);
-            for (uint256 j = 0; j < functionStorages.length; j++) {
-                if (!_containsAddress(managedStorageAddresses, functionStorages[j])) {
-                    revert MissingChannelStorageAddress(dappId, allowedFunctions[i].functionSig, functionStorages[j]);
-                }
-                if (adminManager.isTokenVaultStorageAddress(functionStorages[j]) && functionStorages[j] != designatedTokenVaultStorage) {
-                    revert MultipleTokenVaultStorageAddresses(designatedTokenVaultStorage, functionStorages[j]);
-                }
-            }
-        }
-
-        BridgeStructs.FunctionReference[] memory copiedAllowedFunctions =
-            new BridgeStructs.FunctionReference[](allowedFunctions.length);
-        for (uint256 i = 0; i < allowedFunctions.length; i++) {
-            copiedAllowedFunctions[i] = allowedFunctions[i];
-        }
+        address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(dappId);
+        uint256 tokenVaultTreeIndex = dAppManager.getTokenVaultTreeIndex(dappId);
+        BridgeStructs.FunctionReference[] memory registeredFunctions = dAppManager.getRegisteredFunctions(dappId);
 
         bytes32[] memory initialRootVector = _buildInitialRootVector(managedStorageAddresses.length);
 
@@ -141,9 +96,8 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
             tokenVaultTreeIndex,
             initialRootVector,
             managedStorageAddresses,
-            copiedAllowedFunctions,
+            registeredFunctions,
             address(this),
-            adminManager,
             dAppManager,
             tokamakVerifier
         );
@@ -199,36 +153,6 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         uint256 maxLeaves = adminManager.getMaxMerkleTreeLeaves();
         if (maxLeaves == 0) revert InvalidMerkleTreeConfiguration();
         return uint256(key) % maxLeaves;
-    }
-
-    function _containsAddress(address[] calldata haystack, address needle) private pure returns (bool) {
-        for (uint256 i = 0; i < haystack.length; i++) {
-            if (haystack[i] == needle) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function _assertUniqueStorageAddresses(address[] calldata storageAddresses) private pure {
-        for (uint256 i = 0; i < storageAddresses.length; i++) {
-            for (uint256 j = i + 1; j < storageAddresses.length; j++) {
-                if (storageAddresses[i] == storageAddresses[j]) {
-                    revert DuplicateManagedStorageAddress(storageAddresses[i]);
-                }
-            }
-        }
-    }
-
-    function _getUniqueTokenVaultStorage(address[] calldata storageAddresses) private view returns (address tokenVaultStorage) {
-        for (uint256 i = 0; i < storageAddresses.length; i++) {
-            if (adminManager.isTokenVaultStorageAddress(storageAddresses[i])) {
-                if (tokenVaultStorage != address(0) && tokenVaultStorage != storageAddresses[i]) {
-                    revert MultipleTokenVaultStorageAddresses(tokenVaultStorage, storageAddresses[i]);
-                }
-                tokenVaultStorage = storageAddresses[i];
-            }
-        }
     }
 
     function _buildInitialRootVector(uint256 treeCount) private pure returns (bytes32[] memory initialRootVector) {

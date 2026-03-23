@@ -22,6 +22,7 @@ contract ChannelManager {
     uint256 public immutable dappId;
     address public immutable leader;
     bytes32 public immutable channelInstanceHash;
+    bytes32 public immutable aPubBlockHash;
     uint256 public immutable tokenVaultTreeIndex;
     address public immutable bridgeCore;
     DAppManager public immutable dAppManager;
@@ -49,6 +50,7 @@ contract ChannelManager {
         uint256 dappId_,
         address leader_,
         bytes32 channelInstanceHash_,
+        bytes32 aPubBlockHash_,
         uint256 tokenVaultTreeIndex_,
         bytes32[] memory initialRootVector_,
         address[] memory managedStorageAddresses_,
@@ -61,6 +63,7 @@ contract ChannelManager {
         dappId = dappId_;
         leader = leader_;
         channelInstanceHash = channelInstanceHash_;
+        aPubBlockHash = aPubBlockHash_;
         bridgeCore = bridgeCore_;
         dAppManager = dAppManager_;
         tokamakVerifier = tokamakVerifier_;
@@ -123,10 +126,10 @@ contract ChannelManager {
                 revert PreprocessInputHashMismatch(cfg.preprocessInputHash, actualPreprocessInputHash);
             }
         }
-        if (cfg.aPubBlockHash != bytes32(0)) {
+        if (aPubBlockHash != bytes32(0)) {
             bytes32 actualAPubBlockHash = keccak256(abi.encode(payload.aPubBlock));
-            if (actualAPubBlockHash != cfg.aPubBlockHash) {
-                revert APubBlockHashMismatch(cfg.aPubBlockHash, actualAPubBlockHash);
+            if (actualAPubBlockHash != aPubBlockHash) {
+                revert APubBlockHashMismatch(aPubBlockHash, actualAPubBlockHash);
             }
         }
 

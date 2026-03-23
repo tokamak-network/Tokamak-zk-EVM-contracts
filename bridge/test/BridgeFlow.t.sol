@@ -66,8 +66,7 @@ contract BridgeFlowTest is Test {
             _defaultDAppFunctions(
                 vaultStorageAddr,
                 appStorageAddr,
-                _computePointEncodingHash(tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2),
-                keccak256(abi.encode(tokamakFixture.aPubBlock))
+                _computePointEncodingHash(tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2)
             )
         );
         dAppManager.registerDApp(
@@ -95,7 +94,8 @@ contract BridgeFlowTest is Test {
             1,
             leader,
             asset,
-            bytes32("CHANNEL_INSTANCE")
+            bytes32("CHANNEL_INSTANCE"),
+            keccak256(abi.encode(tokamakFixture.aPubBlock))
         );
 
         channelManager = ChannelManager(manager);
@@ -154,7 +154,8 @@ contract BridgeFlowTest is Test {
             1,
             leader,
             asset,
-            bytes32("CHANNEL_INSTANCE_2")
+            bytes32("CHANNEL_INSTANCE_2"),
+            keccak256(abi.encode(_loadTokamakProofPayload().aPubBlock))
         );
 
         L1TokenVault secondVault = L1TokenVault(secondVaultAddress);
@@ -406,8 +407,7 @@ contract BridgeFlowTest is Test {
     function _defaultDAppFunctions(
         address tokenVaultStorage,
         address appStorage,
-        bytes32 preprocessInputHash,
-        bytes32 aPubBlockHash
+        bytes32 preprocessInputHash
     )
         internal
         view
@@ -418,8 +418,7 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             storageAddrs: _addressArray(tokenVaultStorage, appStorage),
-            preprocessInputHash: preprocessInputHash,
-            aPubBlockHash: aPubBlockHash
+            preprocessInputHash: preprocessInputHash
         });
     }
 
@@ -433,8 +432,7 @@ contract BridgeFlowTest is Test {
             entryContract: appContract2,
             functionSig: APP_SIG_2,
             storageAddrs: _singleAddressArray(tokenVaultStorage),
-            preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
-            aPubBlockHash: bytes32("A_PUB_BLOCK_2")
+            preprocessInputHash: bytes32("PREPROCESS_INPUT_2")
         });
     }
 
@@ -448,15 +446,13 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             storageAddrs: _addressArray(firstVaultStorage, address(0x1234)),
-            preprocessInputHash: bytes32("PREPROCESS_INPUT"),
-            aPubBlockHash: bytes32("A_PUB_BLOCK")
+            preprocessInputHash: bytes32("PREPROCESS_INPUT")
         });
         functions[1] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract2,
             functionSig: APP_SIG_2,
             storageAddrs: _singleAddressArray(secondVaultStorage),
-            preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
-            aPubBlockHash: bytes32("A_PUB_BLOCK_2")
+            preprocessInputHash: bytes32("PREPROCESS_INPUT_2")
         });
     }
 

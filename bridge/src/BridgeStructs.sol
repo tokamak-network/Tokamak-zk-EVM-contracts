@@ -14,7 +14,6 @@ library BridgeStructs {
         bytes4 functionSig;
         address[] storageAddrs;
         bytes32 preprocessInputHash;
-        bytes32 aPubBlockHash;
     }
 
     struct GrothProof {
@@ -30,7 +29,6 @@ library BridgeStructs {
 
     struct FunctionConfig {
         bytes32 preprocessInputHash;
-        bytes32 aPubBlockHash;
         bool exists;
     }
 

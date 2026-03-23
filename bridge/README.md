@@ -46,9 +46,12 @@ It deploys:
 Required environment variables:
 
 - `BRIDGE_DEPLOYER_PRIVATE_KEY`
+- `BRIDGE_NETWORK`
+- `BRIDGE_ALCHEMY_API_KEY` for `sepolia` or `mainnet`
 
 Optional environment variables:
 
+- `BRIDGE_RPC_URL_OVERRIDE`
 - `BRIDGE_OWNER`
 - `BRIDGE_MERKLE_TREE_LEVELS`
 - `BRIDGE_DEPLOY_MOCK_ASSET`
@@ -56,12 +59,21 @@ Optional environment variables:
 - `BRIDGE_MOCK_ASSET_SYMBOL`
 - `BRIDGE_OUTPUT_PATH`
 
-Example:
+The repository root now includes `.env.example` for bridge deployment. Copy it to `.env`,
+fill in the bridge variables, and use the helper script:
 
 ```bash
-cd bridge
-BRIDGE_DEPLOYER_PRIVATE_KEY=<hex> \
-forge script script/DeployBridgeStack.s.sol:DeployBridgeStackScript --sig "run()" --broadcast --rpc-url <rpc-url>
+cp .env.example .env
+$EDITOR .env
+
+bash bridge/script/deploy-bridge.sh
 ```
+
+The helper derives the correct Alchemy RPC URL from:
+
+- `BRIDGE_NETWORK=sepolia` -> `https://eth-sepolia.g.alchemy.com/v2/<key>`
+- `BRIDGE_NETWORK=mainnet` -> `https://eth-mainnet.g.alchemy.com/v2/<key>`
+
+If you need a non-Alchemy endpoint, set `BRIDGE_RPC_URL_OVERRIDE`.
 
 The script writes a deployment artifact under `bridge/deployments/` by default.

@@ -94,6 +94,7 @@ function usage() {
 
 Options:
   --install-arg <ALCHEMY_API_KEY|ALCHEMY_RPC_URL>  Run tokamak-cli --install before the flow
+  --reuse-generated-artifacts                     Reuse existing Tokamak step artifacts under the output directory
   --keep-anvil                                    Leave anvil running after success
   --help                                          Show this help
 `);
@@ -102,6 +103,7 @@ Options:
 function parseArgs(argv) {
   const options = {
     installArg: null,
+    reuseGeneratedArtifacts: false,
     keepAnvil: false,
   };
 
@@ -118,6 +120,9 @@ function parseArgs(argv) {
         break;
       case "--keep-anvil":
         options.keepAnvil = true;
+        break;
+      case "--reuse-generated-artifacts":
+        options.reuseGeneratedArtifacts = true;
         break;
       case "--help":
       case "-h":
@@ -162,7 +167,11 @@ function expect(condition, message) {
 }
 
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(hexValue, 32);
+  return ethers.zeroPadValue(ethers.toBeHex(BigInt(hexValue)), 32);
+}
+
+function normalizeBytes32Hex(hexValue) {
+  return bytes32FromHex(hexValue).toLowerCase();
 }
 
 function buildL1Wallet(index, provider) {
@@ -381,6 +390,81 @@ function functionSelectorHex(calldata) {
   return calldata.slice(0, 10);
 }
 
+function normalizedRootVector(roots) {
+  return roots.map((value) => normalizeBytes32Hex(value));
+}
+
+function requiredTokamakStepFiles(stepDir) {
+  return [
+    path.join(stepDir, "previous_state_snapshot.json"),
+    path.join(stepDir, "transaction.json"),
+    path.join(stepDir, "block_info.json"),
+    path.join(stepDir, "contract_codes.json"),
+    path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
+    path.join(stepDir, "resource", "prove", "output", "proof.json"),
+    path.join(stepDir, "resource", "synthesizer", "output", "instance.json"),
+    path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"),
+  ];
+}
+
+function hasReusableTokamakArtifacts(stepDir) {
+  return requiredTokamakStepFiles(stepDir).every((filePath) => fs.existsSync(filePath));
+}
+
+function assertStepArtifactsMatchCurrentContext(stepDir, expectedSnapshot, expectedTransactionSnapshot, expectedBlockInfo) {
+  const savedSnapshot = readJson(path.join(stepDir, "previous_state_snapshot.json"));
+  const savedTransaction = readJson(path.join(stepDir, "transaction.json"));
+  const savedBlockInfo = readJson(path.join(stepDir, "block_info.json"));
+
+  expect(
+    JSON.stringify(savedSnapshot) === JSON.stringify(expectedSnapshot),
+    `Saved Tokamak step snapshot does not match current context: ${stepDir}`,
+  );
+  expect(
+    JSON.stringify(savedTransaction) === JSON.stringify(expectedTransactionSnapshot),
+    `Saved Tokamak transaction snapshot does not match current context: ${stepDir}`,
+  );
+  expect(
+    JSON.stringify(savedBlockInfo) === JSON.stringify(expectedBlockInfo),
+    `Saved Tokamak block info does not match current context: ${stepDir}`,
+  );
+}
+
+function loadExistingTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
+  const stepDir = path.join(tokamakStepsDir, step.name);
+  if (!hasReusableTokamakArtifacts(stepDir)) {
+    throw new Error(`Missing reusable Tokamak artifacts for ${step.name}: ${stepDir}`);
+  }
+
+  const transactionSnapshot = buildTokamakTxSnapshot({
+    signerPrivateKey: step.sender.l2PrivateKey,
+    senderPubKey: step.sender.l2PublicKey,
+    to: step.controllerAddress,
+    data: step.calldata,
+    nonce: step.nonce,
+  });
+
+  assertStepArtifactsMatchCurrentContext(stepDir, currentSnapshot, transactionSnapshot, blockInfo);
+
+  const nextSnapshot = readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"));
+  const metadataRecord = buildFunctionDefinition({
+    groupName: "private-state-e2e",
+    exampleName: step.name,
+    transactionJsonPath: path.join(stepDir, "transaction.json"),
+    snapshotJsonPath: path.join(stepDir, "previous_state_snapshot.json"),
+    preprocessJsonPath: path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
+    instanceJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance.json"),
+  });
+
+  return {
+    stepDir,
+    transactionSnapshot,
+    metadataRecord,
+    payload: loadTokamakPayloadFromStep(stepDir),
+    nextSnapshot,
+  };
+}
+
 async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
   const stepDir = path.join(tokamakStepsDir, step.name);
   cleanDir(stepDir);
@@ -569,9 +653,15 @@ function toFunctionMetadata(entries) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  cleanDir(outputRoot);
+  if (options.reuseGeneratedArtifacts) {
+    ensureDir(outputRoot);
+  } else {
+    cleanDir(outputRoot);
+  }
   ensureDir(grothInputDir);
   ensureDir(tokamakStepsDir);
+
+  console.log("E2E: bootstrapping local anvil and app deployment.");
 
   await bootstrapAnvil();
 
@@ -740,7 +830,14 @@ async function main() {
 
   const tokamakResults = [];
   for (const scenario of tokamakScenarios) {
-    const result = await runTokamakStep(scenario, currentSnapshot, blockInfo, contractCodes);
+    let result;
+    if (options.reuseGeneratedArtifacts && hasReusableTokamakArtifacts(path.join(tokamakStepsDir, scenario.name))) {
+      console.log(`E2E: reusing Tokamak artifacts for ${scenario.name}.`);
+      result = loadExistingTokamakStep(scenario, currentSnapshot, blockInfo, contractCodes);
+    } else {
+      console.log(`E2E: generating Tokamak artifacts for ${scenario.name}.`);
+      result = await runTokamakStep(scenario, currentSnapshot, blockInfo, contractCodes);
+    }
     tokamakResults.push({
       ...result,
       scenario,
@@ -766,6 +863,7 @@ async function main() {
   expect(uniqueAPubBlockHashes.size === 1, "All Tokamak steps must share one aPubBlockHash for the channel.");
   const aPubBlockHash = tokamakResults[0].metadataRecord.aPubBlockHash;
 
+  console.log("E2E: deploying bridge stack.");
   const bridgeDeployment = await deployBridgeStack();
   const bridgeDeployer = new Wallet(anvilDeployerPrivateKey, provider);
   const asset = new Contract(bridgeDeployment.mockAsset, mockErc20Abi, bridgeDeployer);
@@ -781,9 +879,11 @@ async function main() {
   }
 
   for (const participant of participants) {
+    console.log(`E2E: funding L1 wallet ${participant.l1.address}.`);
     await (await asset.mint(participant.l1.address, depositAmount, { nonce: bridgeDeployerNonce++ })).wait();
   }
 
+  console.log("E2E: registering derived DApp on bridge.");
   await (
     await dAppManager.registerDApp(
       dappId,
@@ -794,6 +894,7 @@ async function main() {
     )
   ).wait();
 
+  console.log("E2E: creating channel.");
   await (
     await bridgeCore.createChannel(
       channelId,
@@ -810,6 +911,7 @@ async function main() {
   const tokenVault = new Contract(channelDeployment.vault, tokenVaultAbi, deployer);
 
   for (const participant of participants) {
+    console.log(`E2E: approving and funding bridge vault for ${participant.l1.address}.`);
     const participantAsset = asset.connect(participant.l1);
     await (
       await participantAsset.approve(
@@ -830,6 +932,7 @@ async function main() {
   for (let index = 0; index < participants.length; index += 1) {
     const participant = participants[index];
     const depositTransition = depositTransitions[index];
+    console.log(`E2E: applying Groth deposit for participant ${participant.index}.`);
     await (
       await tokenVault.connect(participant.l1).deposit(
         depositTransition.proof,
@@ -841,29 +944,38 @@ async function main() {
 
   let onchainRoots = await channelManager.getCurrentRootVector();
   expect(
-    JSON.stringify(onchainRoots.map((value) => value.toLowerCase()))
-      === JSON.stringify(tokamakResults[0].previousSnapshot.stateRoots.map((value) => value.toLowerCase())),
+    JSON.stringify(normalizedRootVector(onchainRoots))
+      === JSON.stringify(normalizedRootVector(tokamakResults[0].previousSnapshot.stateRoots)),
     "Bridge roots must match the first Tokamak step pre-state after Groth deposits.",
   );
 
   for (const result of tokamakResults) {
+    console.log(`E2E: submitting Tokamak proof for ${result.scenario.name}.`);
     const payloadBytes = encodeTokamakPayload(result.payload);
     const instance = {
-      currentRootVector: result.previousSnapshot.stateRoots,
-      updatedRootVector: result.nextSnapshot.stateRoots,
+      currentRootVector: normalizedRootVector(result.previousSnapshot.stateRoots),
+      updatedRootVector: normalizedRootVector(result.nextSnapshot.stateRoots),
       entryContract: result.scenario.controllerAddress,
       functionSig: functionSelectorHex(result.scenario.calldata),
     };
-    await (await channelManager.submitTokamakProof(payloadBytes, instance)).wait();
+    await (
+      await channelManager.submitTokamakProof(
+        payloadBytes,
+        instance,
+        { nonce: bridgeDeployerNonce++ },
+      )
+    ).wait();
 
     onchainRoots = await channelManager.getCurrentRootVector();
     expect(
-      JSON.stringify(onchainRoots.map((value) => value.toLowerCase()))
-        === JSON.stringify(result.nextSnapshot.stateRoots.map((value) => value.toLowerCase())),
+      JSON.stringify(normalizedRootVector(onchainRoots))
+        === JSON.stringify(normalizedRootVector(result.nextSnapshot.stateRoots)),
       `Bridge roots must match Tokamak post-state for ${result.scenario.name}.`,
     );
+    console.log(`E2E: Tokamak proof accepted for ${result.scenario.name}.`);
   }
 
+  console.log("E2E: applying final Groth withdrawal for account C.");
   await (
     await tokenVault.connect(participants[2].l1).withdraw(
       withdrawTransition.proof,
@@ -873,6 +985,7 @@ async function main() {
   ).wait();
 
   const cBalanceBeforeClaim = await asset.balanceOf(participants[2].l1.address);
+  console.log("E2E: claiming ERC-20 back to account C.");
   await (
     await tokenVault.connect(participants[2].l1).claimToWallet(
       9n * amountUnit,

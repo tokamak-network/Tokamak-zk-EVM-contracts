@@ -183,6 +183,9 @@ export function buildFunctionDefinition({
   const storageMetadata = deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, entryContract);
   const extracted = extractTokamakRegistrationArtifacts(preprocessJsonPath);
   const instance = readJson(instanceJsonPath);
+  const preprocess = readJson(preprocessJsonPath);
+  const preprocessPart1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
+  const preprocessPart2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
 
   return {
     groupName,
@@ -191,7 +194,7 @@ export function buildFunctionDefinition({
     entryContract,
     storageAddresses: storageMetadata.map((entry) => entry.storageAddress),
     storageMetadata,
-    preprocessInputHash: extracted.functionPreprocessHash,
+    preprocessInputHash: hashTokamakPointEncoding(preprocessPart1, preprocessPart2),
     aPubBlockHash: hashTokamakPublicInputs(toBigIntArray(instance.a_pub_block, "a_pub_block")),
     functionInstancePart1: extracted.functionInstancePart1.map((value) => value.toString()),
     functionInstancePart2: extracted.functionInstancePart2.map((value) => value.toString()),

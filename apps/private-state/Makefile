@@ -1,4 +1,4 @@
-.PHONY: help anvil-start anvil-bootstrap anvil-stop test deploy-sepolia deploy-sepolia-verify deploy-mainnet deploy-mainnet-verify cli-list e2e-bridge
+.PHONY: help anvil-start anvil-bootstrap anvil-stop test deploy-sepolia deploy-sepolia-verify deploy-mainnet deploy-mainnet-verify cli-list cli-bridge-help e2e-bridge
 
 APP_ENV_FILE ?= $(abspath ../.env)
 DEPLOY_ENV_MKDIR := /tmp
@@ -24,7 +24,8 @@ help:
 		'  make deploy-sepolia-verify   Deploy to Sepolia and verify on Etherscan' \
 		'  make deploy-mainnet          Deploy to Ethereum mainnet using apps/.env values' \
 		'  make deploy-mainnet-verify   Deploy to Ethereum mainnet and verify on Etherscan' \
-		'  make cli-list                List available CLI function templates'
+		'  make cli-list                List available CLI function templates' \
+		'  make cli-bridge-help         Show the bridge-coupled private-state CLI help'
 
 anvil-start:
 	@APPS_ENV_FILE="$(APP_ENV_FILE)" bash script/anvil/start-anvil.sh
@@ -55,3 +56,6 @@ deploy-mainnet-verify:
 
 cli-list:
 	@node cli/private-state-cli.mjs list
+
+cli-bridge-help:
+	@node cli/private-state-bridge-cli.mjs --help

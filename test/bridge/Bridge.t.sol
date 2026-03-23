@@ -69,7 +69,7 @@ contract MockZecFrost is IZecFrost {
     }
 }
 
-import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
+import {TokamakVerifier} from "../../tokamak-zkp/TokamakVerifier.sol";
 import {Groth16Verifier16Leaves} from "../../src/verifier/Groth16Verifier16Leaves.sol";
 import {Groth16Verifier32Leaves} from "../../src/verifier/Groth16Verifier32Leaves.sol";
 import {Groth16Verifier64Leaves} from "../../src/verifier/Groth16Verifier64Leaves.sol";

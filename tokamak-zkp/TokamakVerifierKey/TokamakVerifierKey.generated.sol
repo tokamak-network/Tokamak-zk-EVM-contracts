@@ -2,7 +2,7 @@
 pragma solidity 0.8.29;
 
 /// @dev AUTO-GENERATED FILE. DO NOT EDIT MANUALLY.
-/// Source: src/verifier/TokamakVerifierKey/sigma_verify.json
+/// Source: tokamak-zkp/TokamakVerifierKey/sigma_verify.json
 library TokamakVerifierKeyGenerated {
     uint256 internal constant LAGRANGE_KL_X_PART1 = 0x00000000000000000000000000000000099c0ccfe326537f7c1a23cf08994f65;
     uint256 internal constant LAGRANGE_KL_X_PART2 = 0x44d288c5c26e585f5503b9ae0715a9cf5a2bd68079d0ba73cfc00ddedf060a79;

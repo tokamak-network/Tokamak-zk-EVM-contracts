@@ -40,15 +40,13 @@ const sigmaVerifyRkyvPath = path.join(
 );
 const sigmaVerifyJsonPath = path.join(
   repoRoot,
-  "src",
-  "verifier",
+  "tokamak-zkp",
   "TokamakVerifierKey",
   "sigma_verify.json",
 );
 const tokamakVerifierGeneratedPath = path.join(
   repoRoot,
-  "src",
-  "verifier",
+  "tokamak-zkp",
   "TokamakVerifierKey",
   "TokamakVerifierKey.generated.sol",
 );

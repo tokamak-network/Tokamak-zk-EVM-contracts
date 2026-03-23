@@ -3,8 +3,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const DEFAULT_INPUT = "src/verifier/TokamakVerifierKey/sigma_verify.json";
-const DEFAULT_OUTPUT = "src/verifier/TokamakVerifierKey/TokamakVerifierKey.generated.sol";
+const DEFAULT_INPUT = "tokamak-zkp/TokamakVerifierKey/sigma_verify.json";
+const DEFAULT_OUTPUT = "tokamak-zkp/TokamakVerifierKey/TokamakVerifierKey.generated.sol";
 
 function normalizeHex(value, label, expectedHexLen) {
     if (typeof value !== "string") {
@@ -48,7 +48,7 @@ function buildGeneratedSolidity(points) {
 pragma solidity 0.8.29;
 
 /// @dev AUTO-GENERATED FILE. DO NOT EDIT MANUALLY.
-/// Source: src/verifier/TokamakVerifierKey/sigma_verify.json
+/// Source: tokamak-zkp/TokamakVerifierKey/sigma_verify.json
 library TokamakVerifierKeyGenerated {
     uint256 internal constant LAGRANGE_KL_X_PART1 = ${points.lagrange.x.part1};
     uint256 internal constant LAGRANGE_KL_X_PART2 = ${points.lagrange.x.part2};

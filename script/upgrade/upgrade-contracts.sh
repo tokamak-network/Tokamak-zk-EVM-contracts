@@ -42,7 +42,7 @@ generate_upgrade_contracts_json() {
     
     # Direct deployment contracts (not proxies) - from environment variables
     local direct_contracts=(
-        "TokamakVerifier:src/verifier/TokamakVerifier.sol"
+        "TokamakVerifier:tokamak-zkp/TokamakVerifier.sol"
         "Groth16Verifier16Leaves:src/verifier/Groth16Verifier16Leaves.sol"
         "Groth16Verifier32Leaves:src/verifier/Groth16Verifier32Leaves.sol"
         "Groth16Verifier64Leaves:src/verifier/Groth16Verifier64Leaves.sol"

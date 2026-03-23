@@ -11,7 +11,7 @@ import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
 import "../../src/interface/IGroth16Verifier16Leaves.sol";
 import {ZecFrost} from "../../src/library/ZecFrost.sol";
-import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
+import {TokamakVerifier} from "../../tokamak-zkp/TokamakVerifier.sol";
 import {Groth16Verifier16Leaves} from "../../src/verifier/Groth16Verifier16Leaves.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";

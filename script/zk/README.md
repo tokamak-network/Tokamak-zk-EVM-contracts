@@ -10,7 +10,7 @@ The pipeline performs the following tasks:
 
 1. Updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`.
 2. Runs `./tokamak-cli --install`.
-3. Regenerates Tokamak verifier key artifacts from `sigma_verify.rkyv`.
+3. Regenerates Tokamak verifier key artifacts from `sigma_verify.rkyv` and refreshes the fixed `smax` constants inside `tokamak-zkp/TokamakVerifier.sol` from `setupParams.json`.
 4. Regenerates Groth16 `updateTree` trusted-setup and Solidity verifier artifacts.
 5. Runs the private-state example matrix (`privateStateMint`, `privateStateTransfer`, `privateStateRedeem`), skipping examples that fail because qap-compiler capacity is insufficient.
 6. Hashes Tokamak `functionInstance` and `functionPreprocess` encodings and optionally registers them on the deployed bridge.

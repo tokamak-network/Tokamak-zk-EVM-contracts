@@ -282,27 +282,14 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant OMEGA_512 = 0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
     // m_i
     uint256 internal constant CONSTANT_MI = 2048;
+    // s_max, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    uint256 internal constant EXPECTED_SMAX = 256;
 
     // ω_{m_i}^{-1}
     uint256 internal constant OMEGA_MI_1 = 0x394fda0d65ba213edeae67bc36f376e13cc5bb329aa58ff53dc9e5600f6fb2ac;
-
-    // ω_smax_64^{-1}
-    uint256 internal constant OMEGA_SMAX_64_MINUS_1 = 0x199cdaee7b3c79d6566009b5882952d6a41e85011d426b52b891fa3f982b68c5;
-    // ω_smax_128^{-1}
-    uint256 internal constant OMEGA_SMAX_128_MINUS_1 =
-        0x1996fa8d52f970ba51420be43501370b166fb582ac74db12571ba2fccf28601b;
-    // ω_smax_256^{-1}
-    uint256 internal constant OMEGA_SMAX_256_MINUS_1 =
+    // ω_{s_max}^{-1}, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    uint256 internal constant OMEGA_SMAX_MINUS_1 =
         0x6d64ed25272e58ee91b000235a5bfd4fc03cae032393991be9561c176a2f777a;
-    // ω_smax_512^{-1}
-    uint256 internal constant OMEGA_SMAX_512_MINUS_1 =
-        0x1907a56e80f82b2df675522e37ad4eca1c510ebfb4543a3efb350dbef02a116e;
-    // ω_smax_1024^{-1}
-    uint256 internal constant OMEGA_SMAX_1024_MINUS_1 =
-        0x2bcd9508a3dad316105f067219141f4450a32c41aa67e0beb0ad80034eb71aa6;
-    // ω_smax_2048^{-1}
-    uint256 internal constant OMEGA_SMAX_2048_MINUS_1 =
-        0x394fda0d65ba213edeae67bc36f376e13cc5bb329aa58ff53dc9e5600f6fb2ac;
 
     // computeAPUB scratch buffers (64 words each), placed above verifier reserved slots.
     uint256 internal constant COMPUTE_APUB_NUMERATOR_BUFFER_SLOT = 0x10000;
@@ -827,11 +814,7 @@ contract TokamakVerifier is ITokamakVerifier {
                 let smax := calldataload(0xa4)
                 let isValidSmax
                 {
-                    isValidSmax :=
-                        or(
-                            or(or(eq(smax, 64), eq(smax, 128)), or(eq(smax, 256), eq(smax, 512))),
-                            or(eq(smax, 1024), eq(smax, 2048))
-                        )
+                    isValidSmax := eq(smax, EXPECTED_SMAX)
                     mstore(PARAM_SMAX, smax)
                 }
 
@@ -1251,7 +1234,7 @@ contract TokamakVerifier is ITokamakVerifier {
                     msmPtr,
                     21,
                     PROOF_POLY_N_ZETA_X_SLOT_PART1,
-                    mulmod(kappa2_pow3, mulmod(getOmegaSmaxInverse(mload(PARAM_SMAX)), zeta, R_MOD), R_MOD)
+                    mulmod(kappa2_pow3, mulmod(OMEGA_SMAX_MINUS_1, zeta, R_MOD), R_MOD)
                 )
 
                 g1msmFromBuffer(msmPtr, 22, PAIRING_AGG_LHS_AUX_X_SLOT_PART1)
@@ -1281,21 +1264,6 @@ contract TokamakVerifier is ITokamakVerifier {
                 msmStoreTerm(msmPtr, 1, PROOF_POLY_M_ZETA_X_SLOT_PART1, kappa2_pow2)
                 msmStoreTerm(msmPtr, 2, PROOF_POLY_N_ZETA_X_SLOT_PART1, kappa2_pow3)
                 g1msmFromBuffer(msmPtr, 3, PAIRING_AGG_RHS_2_X_SLOT_PART1)
-            }
-
-            // @dev Function to get the correct omega_smax^{-1} value based on smax parameter
-            function getOmegaSmaxInverse(smax) -> omega_smax_inv {
-                switch smax
-                case 64 { omega_smax_inv := OMEGA_SMAX_64_MINUS_1 }
-                case 128 { omega_smax_inv := OMEGA_SMAX_128_MINUS_1 }
-                case 256 { omega_smax_inv := OMEGA_SMAX_256_MINUS_1 }
-                case 512 { omega_smax_inv := OMEGA_SMAX_512_MINUS_1 }
-                case 1024 { omega_smax_inv := OMEGA_SMAX_1024_MINUS_1 }
-                case 2048 { omega_smax_inv := OMEGA_SMAX_2048_MINUS_1 }
-                default {
-                    // This should never happen if loadProof validation is correct
-                    revertWithMessage(25, "Invalid smax for omega")
-                }
             }
 
             /*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

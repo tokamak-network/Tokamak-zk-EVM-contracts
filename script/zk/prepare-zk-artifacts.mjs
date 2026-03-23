@@ -38,6 +38,14 @@ const sigmaVerifyRkyvPath = path.join(
   "output",
   "sigma_verify.rkyv",
 );
+const setupParamsPath = path.join(
+  tokamakSubmoduleRoot,
+  "dist",
+  "resource",
+  "qap-compiler",
+  "library",
+  "setupParams.json",
+);
 const sigmaVerifyJsonPath = path.join(
   repoRoot,
   "tokamak-zkp",
@@ -50,6 +58,7 @@ const tokamakVerifierGeneratedPath = path.join(
   "TokamakVerifierKey",
   "TokamakVerifierKey.generated.sol",
 );
+const tokamakVerifierSourcePath = path.join(repoRoot, "tokamak-zkp", "TokamakVerifier.sol");
 const grothVerificationKeyPath = path.join(
   repoRoot,
   "groth16",
@@ -234,6 +243,7 @@ async function runTokamakInstall(installArg) {
 
 async function regenerateTokamakVerifierKey() {
   assertExists(sigmaVerifyRkyvPath, "Tokamak sigma_verify.rkyv");
+  assertExists(setupParamsPath, "Tokamak setupParams.json");
 
   await run(
     "cargo",
@@ -249,9 +259,11 @@ async function regenerateTokamakVerifierKey() {
   );
 
   await run("node", [path.join("script", "generate-tokamak-verifier-key.js")], { cwd: repoRoot });
+  await run("node", [path.join("script", "generate-tokamak-verifier-params.js")], { cwd: repoRoot });
 
   assertExists(sigmaVerifyJsonPath, "Tokamak sigma_verify.json");
   assertExists(tokamakVerifierGeneratedPath, "Tokamak generated verification key");
+  assertExists(tokamakVerifierSourcePath, "Tokamak verifier source");
 }
 
 async function regenerateGrothArtifacts() {

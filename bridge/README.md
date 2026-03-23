@@ -27,3 +27,41 @@ The documents do not specify enough operational detail to implement every produc
 Tokamak proof verification is no longer mocked. The bridge now calls the real verifier under `tokamak-zkp/`, binds the user-supplied transaction instance to fields extracted from `aPubUser`, and checks the channel-scoped `aPubBlockHash` together with the DApp-managed preprocess-input hash.
 
 Groth proof verification is also no longer mocked. The bridge expects raw Groth16 proof coordinates and forwards them into the generated `updateTree` verifier under `groth16/verifier/`. Under the current circuit model, each token-vault leaf is the raw stored balance value rather than a key-value hash.
+
+## Deployment
+
+The standalone bridge workspace now includes a Foundry deployment script:
+
+- `bridge/script/DeployBridgeStack.s.sol`
+
+It deploys:
+
+- `BridgeAdminManager`
+- `DAppManager`
+- `Groth16Verifier`
+- `TokamakVerifier`
+- `BridgeCore`
+- optionally `MockERC20`
+
+Required environment variables:
+
+- `BRIDGE_DEPLOYER_PRIVATE_KEY`
+
+Optional environment variables:
+
+- `BRIDGE_OWNER`
+- `BRIDGE_MERKLE_TREE_LEVELS`
+- `BRIDGE_DEPLOY_MOCK_ASSET`
+- `BRIDGE_MOCK_ASSET_NAME`
+- `BRIDGE_MOCK_ASSET_SYMBOL`
+- `BRIDGE_OUTPUT_PATH`
+
+Example:
+
+```bash
+cd bridge
+BRIDGE_DEPLOYER_PRIVATE_KEY=<hex> \
+forge script script/DeployBridgeStack.s.sol:DeployBridgeStackScript --sig "run()" --broadcast --rpc-url <rpc-url>
+```
+
+The script writes a deployment artifact under `bridge/deployments/` by default.

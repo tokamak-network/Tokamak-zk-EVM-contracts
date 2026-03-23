@@ -104,6 +104,10 @@ export function hashTokamakPointEncoding(part1, part2) {
   return keccak256(abiCoder.encode(["uint128[]", "uint256[]"], [part1, part2]));
 }
 
+export function hashTokamakPublicInputs(values) {
+  return keccak256(abiCoder.encode(["uint256[]"], [values]));
+}
+
 export function deriveFunctionSelectorFromTransaction(transactionJsonPath) {
   const transaction = readJson(transactionJsonPath);
   if (typeof transaction.data !== "string" || transaction.data.length < 10) {
@@ -112,7 +116,34 @@ export function deriveFunctionSelectorFromTransaction(transactionJsonPath) {
   return transaction.data.slice(0, 10).toLowerCase();
 }
 
-export function deriveRegistrationMetadataFromSnapshot(snapshotJsonPath) {
+function inferTokenVaultStorageAddress(storageAddresses, entryContract) {
+  if (!Array.isArray(storageAddresses) || storageAddresses.length === 0) {
+    throw new Error("Snapshot does not declare any managed storage addresses.");
+  }
+
+  if (storageAddresses.length === 1) {
+    return getAddress(storageAddresses[0]);
+  }
+
+  const normalizedEntryContract = getAddress(entryContract);
+  const nonEntryStorageAddresses = storageAddresses
+    .map((storageAddress) => getAddress(storageAddress))
+    .filter((storageAddress) => storageAddress !== normalizedEntryContract);
+
+  if (nonEntryStorageAddresses.length !== 1) {
+    throw new Error(
+      [
+        "Unable to infer a unique token-vault storage address from the snapshot.",
+        `Entry contract: ${normalizedEntryContract}.`,
+        `Storage addresses: ${storageAddresses.join(", ")}.`,
+      ].join(" "),
+    );
+  }
+
+  return nonEntryStorageAddresses[0];
+}
+
+export function deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, entryContract) {
   const snapshot = readJson(snapshotJsonPath);
   if (!Array.isArray(snapshot.storageAddresses) || !Array.isArray(snapshot.storageEntries)) {
     throw new Error(`Snapshot is missing storage vectors: ${snapshotJsonPath}`);
@@ -121,11 +152,13 @@ export function deriveRegistrationMetadataFromSnapshot(snapshotJsonPath) {
     throw new Error(`storageAddresses/storageEntries length mismatch in ${snapshotJsonPath}`);
   }
 
+  const tokenVaultStorageAddress = inferTokenVaultStorageAddress(snapshot.storageAddresses, entryContract);
+
   return snapshot.storageAddresses.map((storageAddress, index) => ({
     storageAddress: getAddress(storageAddress),
     preAllocKeys: snapshot.storageEntries[index].map((entry) => entry.key),
     userSlots: [],
-    isTokenVaultStorage: false,
+    isTokenVaultStorage: getAddress(storageAddress) === tokenVaultStorageAddress,
   }));
 }
 
@@ -143,11 +176,13 @@ export function buildFunctionDefinition({
   transactionJsonPath,
   snapshotJsonPath,
   preprocessJsonPath,
+  instanceJsonPath,
 }) {
   const selector = deriveFunctionSelectorFromTransaction(transactionJsonPath);
   const entryContract = deriveEntryContractFromTransaction(transactionJsonPath);
-  const storageMetadata = deriveRegistrationMetadataFromSnapshot(snapshotJsonPath);
+  const storageMetadata = deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, entryContract);
   const extracted = extractTokamakRegistrationArtifacts(preprocessJsonPath);
+  const instance = readJson(instanceJsonPath);
 
   return {
     groupName,
@@ -156,8 +191,8 @@ export function buildFunctionDefinition({
     entryContract,
     storageAddresses: storageMetadata.map((entry) => entry.storageAddress),
     storageMetadata,
-    functionInstanceHash: extracted.functionInstanceHash,
-    functionPreprocessHash: extracted.functionPreprocessHash,
+    preprocessInputHash: extracted.functionPreprocessHash,
+    aPubBlockHash: hashTokamakPublicInputs(toBigIntArray(instance.a_pub_block, "a_pub_block")),
     functionInstancePart1: extracted.functionInstancePart1.map((value) => value.toString()),
     functionInstancePart2: extracted.functionInstancePart2.map((value) => value.toString()),
     functionPreprocessPart1: extracted.functionPreprocessPart1.map((value) => value.toString()),
@@ -208,9 +243,10 @@ export function mergeFunctionDefinitions(records) {
   const merged = new Map();
 
   for (const record of records) {
-    const existing = merged.get(record.functionSig);
+    const mergedKey = `${record.entryContract.toLowerCase()}:${record.functionSig}`;
+    const existing = merged.get(mergedKey);
     if (!existing) {
-      merged.set(record.functionSig, {
+      merged.set(mergedKey, {
         ...record,
         exampleNames: [`${record.groupName}/${record.exampleName}`],
       });
@@ -218,23 +254,17 @@ export function mergeFunctionDefinitions(records) {
     }
 
     const mismatches = [];
-    if (existing.entryContract !== record.entryContract) {
-      mismatches.push("entry contract");
-    }
     if (JSON.stringify(existing.storageAddresses) !== JSON.stringify(record.storageAddresses)) {
       mismatches.push("managed storage vector");
     }
-    if (existing.functionInstanceHash !== record.functionInstanceHash) {
-      mismatches.push("function instance hash");
-    }
-    if (existing.functionPreprocessHash !== record.functionPreprocessHash) {
-      mismatches.push("function preprocess hash");
+    if (existing.preprocessInputHash !== record.preprocessInputHash) {
+      mismatches.push("preprocess input hash");
     }
 
     if (mismatches.length > 0) {
       throw new Error(
         [
-          `Selector collision for ${record.functionSig}: bridge registration is keyed only by function selector.`,
+          `Function metadata mismatch for ${record.entryContract} ${record.functionSig}.`,
           `Conflicting fields: ${mismatches.join(", ")}.`,
           `Existing example: ${existing.exampleNames.join(", ")}.`,
           `Conflicting example: ${record.groupName}/${record.exampleName}.`,
@@ -246,4 +276,42 @@ export function mergeFunctionDefinitions(records) {
   }
 
   return [...merged.values()];
+}
+
+export function buildDAppDefinitions(records) {
+  const grouped = new Map();
+
+  for (const record of records) {
+    const group = grouped.get(record.groupName) ?? {
+      groupName: record.groupName,
+      labelHash: keccak256(Buffer.from(record.groupName, "utf8")),
+      examples: [],
+      records: [],
+    };
+    group.examples.push({
+      exampleName: record.exampleName,
+      entryContract: record.entryContract,
+      functionSig: record.functionSig,
+      aPubBlockHash: record.aPubBlockHash,
+      storageAddresses: record.storageAddresses,
+    });
+    group.records.push(record);
+    grouped.set(record.groupName, group);
+  }
+
+  return [...grouped.values()]
+    .sort((left, right) => left.groupName.localeCompare(right.groupName))
+    .map((group) => ({
+      groupName: group.groupName,
+      labelHash: group.labelHash,
+      storageMetadata: mergeStorageMetadata(group.records),
+      functions: mergeFunctionDefinitions(group.records).map((record) => ({
+        entryContract: record.entryContract,
+        functionSig: record.functionSig,
+        storageAddresses: record.storageAddresses,
+        preprocessInputHash: record.preprocessInputHash,
+        exampleNames: record.exampleNames,
+      })),
+      examples: group.examples.sort((left, right) => left.exampleName.localeCompare(right.exampleName)),
+    }));
 }

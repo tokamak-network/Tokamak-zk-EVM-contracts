@@ -1,0 +1,629 @@
+{
+  "generatedAt": "2026-03-23T10:33:00.287Z",
+  "tokamak": {
+    "submodulePath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM",
+    "sigmaVerifyRkyvPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv",
+    "sigmaVerifyJsonPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/tokamak-zkp/TokamakVerifierKey/sigma_verify.json",
+    "generatedVerifierKeyPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/tokamak-zkp/TokamakVerifierKey/TokamakVerifierKey.generated.sol"
+  },
+  "groth16": {
+    "verificationKeyPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/trusted-setup/updateTree/verification_key.json",
+    "verifierPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/verifier/src/Groth16Verifier.sol",
+    "metadata": {
+      "circuit": "updateTree",
+      "tokamakL2JsVersion": "0.0.33",
+      "mtDepth": 12,
+      "constraintCount": 15596,
+      "powersOfTauPower": 14,
+      "generatedAt": "2026-03-23T04:53:07.066Z",
+      "note": "This is a local deterministic development ceremony, not a production multi-party ceremony.",
+      "phase1Contributions": 1,
+      "phase2Contributions": 1,
+      "phase1BeaconApplied": true,
+      "phase2BeaconApplied": true
+    }
+  },
+  "privateStateExamples": {
+    "processed": [
+      {
+        "groupName": "privateStateMint",
+        "exampleName": "mintNotes1",
+        "functionSig": "0x0df1a4ac",
+        "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+        "storageAddresses": [
+          "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+          "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+        ],
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [],
+            "userSlots": [],
+            "isTokenVaultStorage": false
+          },
+          {
+            "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
+            "preAllocKeys": [
+              "0x23313b4c8769629dd44617787e41e9d983a632bf0a48e37ee05d518f5a71a122"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "preprocessInputHash": "0x8c79c076a45890a6dc3356228577164979a6375a9e3b41959b5dc86fd00f51da",
+        "aPubBlockHash": "0x45e1519677bccad43fba389009303aeaaba8f05bbc908cca8cc6f7992a2a1ef1",
+        "functionInstancePart1": [
+          "11705115013986264350820012190381246492",
+          "10318859117007867453374526215112016902"
+        ],
+        "functionInstancePart2": [
+          "76352154367723575136615758826651811392986284399767004310088670127642369837042",
+          "83933446129249274424996232583702979634786663663195799955098516921208194416748"
+        ],
+        "functionPreprocessPart1": [
+          "19871021522927400301450333237460584976",
+          "29462468764323140402063194902298608765",
+          "16855055483575784612866044809483021480",
+          "14838360094105467593187461107997572281"
+        ],
+        "functionPreprocessPart2": [
+          "1918965396325969282369145952461311834834190898538514858446034741149680899555",
+          "109205789860360506071602176328200244028295639055316743411678756704114671024360",
+          "37345115863545337648101328937896420157633235192141144892190346185833031816127",
+          "47020097867755683483921961381961105764184858138278969807894210272916317557566"
+        ]
+      },
+      {
+        "groupName": "privateStateMint",
+        "exampleName": "mintNotes2",
+        "functionSig": "0xd8d7cb18",
+        "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+        "storageAddresses": [
+          "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+          "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+        ],
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [],
+            "userSlots": [],
+            "isTokenVaultStorage": false
+          },
+          {
+            "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
+            "preAllocKeys": [
+              "0x23313b4c8769629dd44617787e41e9d983a632bf0a48e37ee05d518f5a71a122"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "preprocessInputHash": "0x335b99f5b22b1becbcf00132b9e3bd2bf32bae4f15cbde7fe31c4ae236d7dc4f",
+        "aPubBlockHash": "0x4183b9fdbec2db963ccfe9930630315c437744d44b13173a05c3b71a8444baf4",
+        "functionInstancePart1": [
+          "23878022919763246367582568089188378860",
+          "1739852204320602446820261812585944462"
+        ],
+        "functionInstancePart2": [
+          "82211798738460374336014660958490535454758265636656003150960723307941719564010",
+          "67807515610025478413338603208383983358602303897740696660069507088020684568975"
+        ],
+        "functionPreprocessPart1": [
+          "11048960971170998429428437728171053545",
+          "15238976360076273852569597816104368595",
+          "20524790234551116639641116678877606223",
+          "13152663157807403449006128081749271465"
+        ],
+        "functionPreprocessPart2": [
+          "82449311055734635591995309587094239258386721151048270109424577481043188550408",
+          "20195683517921196765844658379718380755720754795301835612774194813012909203298",
+          "14079921586509104158676787300738985388330070574835830613010999476955491082241",
+          "109436471392864772154516606086860935082641840939343157446478810669565294564159"
+        ]
+      },
+      {
+        "groupName": "privateStateMint",
+        "exampleName": "mintNotes3",
+        "functionSig": "0xc88b83e2",
+        "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+        "storageAddresses": [
+          "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+          "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+        ],
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [],
+            "userSlots": [],
+            "isTokenVaultStorage": false
+          },
+          {
+            "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
+            "preAllocKeys": [
+              "0x23313b4c8769629dd44617787e41e9d983a632bf0a48e37ee05d518f5a71a122"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "preprocessInputHash": "0xa8d91ae7d66b5ded76d0de85e2cf806f784783016ce26add509780a893341c2a",
+        "aPubBlockHash": "0x7af730898a35672e912cfe86bb117c3124055992327c37d116df7d27a17c0045",
+        "functionInstancePart1": [
+          "7602341042123411391907559252823366036",
+          "8475246438150351214257677649688679135"
+        ],
+        "functionInstancePart2": [
+          "9041110836578891447775324519054065351483142005751823501174147172131181543365",
+          "70327151319188744527982562451832600602071145563187448808980595930281696526305"
+        ],
+        "functionPreprocessPart1": [
+          "27041623372893691489160416119019971250",
+          "2899307006038704713391907320223487774",
+          "25053886442338205408648770930351820834",
+          "6211241151076093143138338499242868640"
+        ],
+        "functionPreprocessPart2": [
+          "30078247431727527771792898164851824037463021971478355593053465245791113569546",
+          "51329273381174302306561238798516383852175417942307435831000120339235531237689",
+          "111077163138911512771721993162924633468127472063419322340272378835360766704645",
+          "46262711989649414576787710508240604770806603209606801105477302680655216297772"
+        ]
+      },
+      {
+        "groupName": "privateStateTransfer",
+        "exampleName": "transferNotes1To1",
+        "functionSig": "0xf350acff",
+        "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+        "storageAddresses": [
+          "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84"
+        ],
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [
+              "0x51a098f79878a7e9b73e0160283138a5f4caabe4bef59058a81ddde74f5f4a08"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "preprocessInputHash": "0xf6eba98f881157fa1d89afd605bb3432e74b286f59cdeeaf386ac599cf227dc4",
+        "aPubBlockHash": "0x029d70c3073f80edc325421aa46a03ffd0b611051832c3f59c3a1fce0c1ea296",
+        "functionInstancePart1": [
+          "19535193706346928246628329469820165817",
+          "34021390017747805486594478584218410482"
+        ],
+        "functionInstancePart2": [
+          "3343570099854010633213887735773270473233481447470415877669908959677262855568",
+          "61787170925147088678276836491047465363852177870383321745102174628435237469567"
+        ],
+        "functionPreprocessPart1": [
+          "8303207921004224798675266018349046081",
+          "21932338551615533036174870008363145508",
+          "28776178265542596941707861553767966468",
+          "21400916497571890465953211506493641764"
+        ],
+        "functionPreprocessPart2": [
+          "106898866346396388789555223398001287271978194046284223667481980993731681791945",
+          "59857879841732609858242525045008405811160392691180082339601310747049456699035",
+          "95292165469686062586835153917741939179670206227524841122782771051141488071400",
+          "59120948392697363840370145015932749139325612824387811899596357030917626502086"
+        ]
+      },
+      {
+        "groupName": "privateStateTransfer",
+        "exampleName": "transferNotes1To2",
+        "functionSig": "0x4bf1bf92",
+        "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+        "storageAddresses": [
+          "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84"
+        ],
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [
+              "0x2418859c3f214b5471e5c13abc5035a2b25526ad859ab54c168fbd0368d046c2"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "preprocessInputHash": "0x6b8e8ed2bf831daeb492b5b971ce05ae18381f2df6a3abada2d471d6d398f11a",
+        "aPubBlockHash": "0x9a9b4c46dbec69b37eaf8241315b6e03de892774d483612a07b17705836f1532",
+        "functionInstancePart1": [
+          "17765870686062319748397813246298145408",
+          "1584817028909259246970047873145117868"
+        ],
+        "functionInstancePart2": [
+          "1900090245689538390395092672987700865331313897218344755870134908318536585536",
+          "114422664259335090174668535859485662284154957924529243816195680439120171158816"
+        ],
+        "functionPreprocessPart1": [
+          "12223491165944027251896741198719840338",
+          "7778638251926220887961665110944023584",
+          "27956192849167410274408524946139400173",
+          "7948637195651964373552344584003742997"
+        ],
+        "functionPreprocessPart2": [
+          "94831878849790159615286597909127462199211546031746691420905787748682659942912",
+          "69641857936160804525389685758960134348226008348942933385662469905865313516373",
+          "31913918326661854113858509375623992234669488961792427544790219018104459233283",
+          "99092466620351740593547814804280564075119989035060187539995666275663012756045"
+        ]
+      },
+      {
+        "groupName": "privateStateTransfer",
+        "exampleName": "transferNotes2To1",
+        "functionSig": "0x82cfd9cc",
+        "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+        "storageAddresses": [
+          "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84"
+        ],
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [
+              "0x5941f324f624f1d6e9256b624c0c7c5af9b90f738ff174c57020edad96768e97",
+              "0x39443375d1b615083e26a0b5cbb86ea1b15e90eda8f3b134d6ac8df8407ee681"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "preprocessInputHash": "0x39e62de6c41fdc76b9782fce70d96b248b6c8689bb3a2fb8914f3433f3905d5d",
+        "aPubBlockHash": "0xc0f12c424255d52806415ac2231c2bb2546851b93a737a9f0ce5c8ceae8213a7",
+        "functionInstancePart1": [
+          "29471646269141928799321958975276374809",
+          "30815934208004679115782445724485681959"
+        ],
+        "functionInstancePart2": [
+          "12466504312546189119490734087051199506461936797218624602837925705677089748989",
+          "102067729339921483015607654263233534159926538612506715265565357050017281464443"
+        ],
+        "functionPreprocessPart1": [
+          "16277084703917925580038388884297331324",
+          "20548502899510082563564442926080662411",
+          "12583769092526470705774183333830113773",
+          "17030800454966311072154674616209906379"
+        ],
+        "functionPreprocessPart2": [
+          "94390253648150769121815431111455619267798659186120183278266227827465773406202",
+          "96193395512386053245833127505816587298438317400075671375434833656000536403128",
+          "46381168699199557500689625566816365676579369713426231722184290929478606012263",
+          "35253871501829956171422059527365685243761112379672600469081095509902908376642"
+        ]
+      },
+      {
+        "groupName": "privateStateRedeem",
+        "exampleName": "redeemNotes1",
+        "functionSig": "0xc0856c7c",
+        "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+        "storageAddresses": [
+          "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+          "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+        ],
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [
+              "0x3d6bbc38cd2d0ff5633f36ed00659bc3dfa526b09f5e0b045376b9ab5b2fbd68"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": false
+          },
+          {
+            "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
+            "preAllocKeys": [],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "preprocessInputHash": "0x39c67f09c6b2009c0f0126947652522fcfb74c9037690cfa8348c8638bfcb09d",
+        "aPubBlockHash": "0xd71727bb04a571f086c492c43854acfe2e78f1fcd09d47397f956f99b4315fac",
+        "functionInstancePart1": [
+          "16686798800264870102577443279790084012",
+          "22179869432445643646459890720090161125"
+        ],
+        "functionInstancePart2": [
+          "3323291492078303488656901509892489524943212236116216441025792438676851472406",
+          "8973462272594738186963013714436567450837102725114979866307263119168746519052"
+        ],
+        "functionPreprocessPart1": [
+          "24323788322616131417954850350024645709",
+          "11556806393367009175047848745655405540",
+          "30568541283325318444845263309934095431",
+          "19036503252513992858810523125798571602"
+        ],
+        "functionPreprocessPart2": [
+          "10264291371665193473190944749559997471567005185737970837438135455172358419128",
+          "52283065553355961510671267531466242249482803873631533414543804121032426288182",
+          "77861237847307282973957794542067467622261184550294750639502706485506661453998",
+          "89457906817923317084989994699167754875995998570791920762348380540622182836698"
+        ]
+      }
+    ],
+    "skipped": [
+      {
+        "groupName": "privateStateMint",
+        "exampleName": "mintNotes4",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateMint",
+        "exampleName": "mintNotes5",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateMint",
+        "exampleName": "mintNotes6",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateTransfer",
+        "exampleName": "transferNotes1To3",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateTransfer",
+        "exampleName": "transferNotes2To2",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateTransfer",
+        "exampleName": "transferNotes3To1",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateTransfer",
+        "exampleName": "transferNotes3To2",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateTransfer",
+        "exampleName": "transferNotes4To1",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateRedeem",
+        "exampleName": "redeemNotes2",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateRedeem",
+        "exampleName": "redeemNotes3",
+        "reason": "qap-compiler capacity exceeded"
+      },
+      {
+        "groupName": "privateStateRedeem",
+        "exampleName": "redeemNotes4",
+        "reason": "qap-compiler capacity exceeded"
+      }
+    ]
+  },
+  "bridge": {
+    "hashEncoding": {
+      "preprocessInputHash": "keccak256(abi.encode(uint128[], uint256[]))",
+      "aPubBlockHash": "keccak256(abi.encode(uint256[]))"
+    },
+    "dapps": [
+      {
+        "groupName": "privateStateMint",
+        "labelHash": "0x0146f5a86eef3695b79d588e0b037afd357e5c804a94d69225f75246758dc875",
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [],
+            "userSlots": [],
+            "isTokenVaultStorage": false
+          },
+          {
+            "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
+            "preAllocKeys": [
+              "0x23313b4c8769629dd44617787e41e9d983a632bf0a48e37ee05d518f5a71a122"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "functions": [
+          {
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0x0df1a4ac",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+              "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+            ],
+            "preprocessInputHash": "0x8c79c076a45890a6dc3356228577164979a6375a9e3b41959b5dc86fd00f51da",
+            "exampleNames": [
+              "privateStateMint/mintNotes1"
+            ]
+          },
+          {
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0xd8d7cb18",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+              "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+            ],
+            "preprocessInputHash": "0x335b99f5b22b1becbcf00132b9e3bd2bf32bae4f15cbde7fe31c4ae236d7dc4f",
+            "exampleNames": [
+              "privateStateMint/mintNotes2"
+            ]
+          },
+          {
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0xc88b83e2",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+              "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+            ],
+            "preprocessInputHash": "0xa8d91ae7d66b5ded76d0de85e2cf806f784783016ce26add509780a893341c2a",
+            "exampleNames": [
+              "privateStateMint/mintNotes3"
+            ]
+          }
+        ],
+        "examples": [
+          {
+            "exampleName": "mintNotes1",
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0x0df1a4ac",
+            "aPubBlockHash": "0x45e1519677bccad43fba389009303aeaaba8f05bbc908cca8cc6f7992a2a1ef1",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+              "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+            ]
+          },
+          {
+            "exampleName": "mintNotes2",
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0xd8d7cb18",
+            "aPubBlockHash": "0x4183b9fdbec2db963ccfe9930630315c437744d44b13173a05c3b71a8444baf4",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+              "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+            ]
+          },
+          {
+            "exampleName": "mintNotes3",
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0xc88b83e2",
+            "aPubBlockHash": "0x7af730898a35672e912cfe86bb117c3124055992327c37d116df7d27a17c0045",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+              "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+            ]
+          }
+        ]
+      },
+      {
+        "groupName": "privateStateRedeem",
+        "labelHash": "0xdb8ca686d61d32a407da6099b2738b68e62de86478b54a190ebd3e30c1cf0ccc",
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [
+              "0x3d6bbc38cd2d0ff5633f36ed00659bc3dfa526b09f5e0b045376b9ab5b2fbd68"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": false
+          },
+          {
+            "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
+            "preAllocKeys": [],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "functions": [
+          {
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0xc0856c7c",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+              "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+            ],
+            "preprocessInputHash": "0x39c67f09c6b2009c0f0126947652522fcfb74c9037690cfa8348c8638bfcb09d",
+            "exampleNames": [
+              "privateStateRedeem/redeemNotes1"
+            ]
+          }
+        ],
+        "examples": [
+          {
+            "exampleName": "redeemNotes1",
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0xc0856c7c",
+            "aPubBlockHash": "0xd71727bb04a571f086c492c43854acfe2e78f1fcd09d47397f956f99b4315fac",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+              "0x8b64A4D3DF1771d7dFC93b374f545563B680b420"
+            ]
+          }
+        ]
+      },
+      {
+        "groupName": "privateStateTransfer",
+        "labelHash": "0xfc89b092001a89e3ff6dabbc322baf5fdc76d9ef90b838336c81998e9adc8f71",
+        "storageMetadata": [
+          {
+            "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "preAllocKeys": [
+              "0x51a098f79878a7e9b73e0160283138a5f4caabe4bef59058a81ddde74f5f4a08",
+              "0x2418859c3f214b5471e5c13abc5035a2b25526ad859ab54c168fbd0368d046c2",
+              "0x5941f324f624f1d6e9256b624c0c7c5af9b90f738ff174c57020edad96768e97",
+              "0x39443375d1b615083e26a0b5cbb86ea1b15e90eda8f3b134d6ac8df8407ee681"
+            ],
+            "userSlots": [],
+            "isTokenVaultStorage": true
+          }
+        ],
+        "functions": [
+          {
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0xf350acff",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84"
+            ],
+            "preprocessInputHash": "0xf6eba98f881157fa1d89afd605bb3432e74b286f59cdeeaf386ac599cf227dc4",
+            "exampleNames": [
+              "privateStateTransfer/transferNotes1To1"
+            ]
+          },
+          {
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0x4bf1bf92",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84"
+            ],
+            "preprocessInputHash": "0x6b8e8ed2bf831daeb492b5b971ce05ae18381f2df6a3abada2d471d6d398f11a",
+            "exampleNames": [
+              "privateStateTransfer/transferNotes1To2"
+            ]
+          },
+          {
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0x82cfd9cc",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84"
+            ],
+            "preprocessInputHash": "0x39e62de6c41fdc76b9782fce70d96b248b6c8689bb3a2fb8914f3433f3905d5d",
+            "exampleNames": [
+              "privateStateTransfer/transferNotes2To1"
+            ]
+          }
+        ],
+        "examples": [
+          {
+            "exampleName": "transferNotes1To1",
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0xf350acff",
+            "aPubBlockHash": "0x029d70c3073f80edc325421aa46a03ffd0b611051832c3f59c3a1fce0c1ea296",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84"
+            ]
+          },
+          {
+            "exampleName": "transferNotes1To2",
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0x4bf1bf92",
+            "aPubBlockHash": "0x9a9b4c46dbec69b37eaf8241315b6e03de892774d483612a07b17705836f1532",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84"
+            ]
+          },
+          {
+            "exampleName": "transferNotes2To1",
+            "entryContract": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
+            "functionSig": "0x82cfd9cc",
+            "aPubBlockHash": "0xc0f12c424255d52806415ac2231c2bb2546851b93a737a9f0ce5c8ceae8213a7",
+            "storageAddresses": [
+              "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84"
+            ]
+          }
+        ]
+      }
+    ],
+    "upload": null
+  }
+}

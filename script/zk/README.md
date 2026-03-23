@@ -13,7 +13,11 @@ The pipeline performs the following tasks:
 3. Regenerates Tokamak verifier key artifacts from `sigma_verify.rkyv` and refreshes the fixed `smax` constants inside `tokamak-zkp/TokamakVerifier.sol` from `setupParams.json`.
 4. Regenerates Groth16 `updateTree` trusted-setup and Solidity verifier artifacts.
 5. Runs the private-state example matrix (`privateStateMint`, `privateStateTransfer`, `privateStateRedeem`), skipping examples that fail because qap-compiler capacity is insufficient.
-6. Hashes Tokamak `functionInstance` and `functionPreprocess` encodings and optionally registers them on the deployed bridge.
+6. Builds a DApp-level bridge manifest:
+   - one registered DApp per example group
+   - one registered function entry per extracted Tokamak function
+   - one channel-ready `aPubBlockHash` per processed example
+7. Optionally uploads the derived DApp metadata to the deployed bridge and can create one channel per processed example.
 
 ## Helper tool
 
@@ -26,7 +30,21 @@ This small Rust utility converts `sigma_verify.rkyv` into the JSON shape expecte
 ```bash
 node script/zk/prepare-zk-artifacts.mjs \
   --install-arg "$ALCHEMY_API_KEY" \
-  --bridge-admin-manager 0xYourBridgeAdminManager \
+  --dapp-manager 0xYourDAppManager \
+  --rpc-url "$RPC_URL" \
+  --private-key "$PRIVATE_KEY"
+```
+
+To create example channels after DApp registration:
+
+```bash
+node script/zk/prepare-zk-artifacts.mjs \
+  --install-arg "$ALCHEMY_API_KEY" \
+  --dapp-manager 0xYourDAppManager \
+  --bridge-core 0xYourBridgeCore \
+  --leader 0xYourChannelLeader \
+  --asset 0xYourL1Token \
+  --create-channels \
   --rpc-url "$RPC_URL" \
   --private-key "$PRIVATE_KEY"
 ```
@@ -40,3 +58,12 @@ node script/zk/prepare-zk-artifacts.mjs \
   --skip-private-state \
   --skip-bridge-upload
 ```
+
+## Current assumptions
+
+The script currently infers the token-vault storage address from each Tokamak example snapshot:
+
+- if the example touches only one storage address, that storage is treated as the token-vault tree
+- if the example touches multiple storage addresses, the single storage address that is not the entry contract is treated as the token-vault tree
+
+That rule matches the current private-state example families, but it is still a bridge-registration assumption rather than an explicit compiler output. If future DApps expose richer storage-role metadata, this inference should be replaced with direct metadata export.

@@ -11,14 +11,13 @@ import {
 } from "ethers";
 import {
   assertExists,
+  buildDAppDefinitions,
   buildFunctionDefinition,
   copyDir,
   copyFile,
   ensureDir,
   isCapacityError,
   loadExampleManifest,
-  mergeFunctionDefinitions,
-  mergeStorageMetadata,
   readJson,
   slugify,
   writeJson,
@@ -75,9 +74,11 @@ const grothVerifierOutputPath = path.join(
 );
 const outputRoot = path.join(repoRoot, "script", "output", "zk-artifacts");
 const defaultManifestPath = path.join(outputRoot, "manifest.json");
-const bridgeAdminManagerAbi = [
-  "function registerStorageMetadata(address storageAddr, bytes32[] preAllocKeys, uint8[] userSlots, bool isTokenVaultStorage) external",
-  "function registerFunction(bytes4 functionSig, address[] storageAddrs, bytes32 instanceHash, bytes32 preprocessHash) external",
+const dAppManagerAbi = [
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, address[] storageAddrs, bytes32 preprocessInputHash)[] functions) external",
+];
+const bridgeCoreAbi = [
+  "function createChannel(uint256 channelId, uint256 dappId, address leader, address asset, bytes32 aPubBlockHash) external returns (address manager, address vault)",
 ];
 
 const privateStateGroups = [
@@ -91,10 +92,16 @@ function usage() {
   node script/zk/prepare-zk-artifacts.mjs --install-arg <ALCHEMY_API_KEY|ALCHEMY_RPC_URL> [options]
 
 Options:
-  --bridge-admin-manager <address>   Register derived Tokamak function hashes on the bridge
+  --dapp-manager <address>           Register derived DApp metadata on the bridge
+  --bridge-core <address>            Create channels after DApp registration
+  --leader <address>                 Channel leader used when creating channels
+  --asset <address>                  L1 token address used when creating channels
+  --dapp-id-base <uint>              Starting DApp ID for uploaded groups (default: 1)
+  --channel-id-base <uint>           Starting channel ID for created example channels (default: 1)
   --rpc-url <url>                    JSON-RPC URL for bridge registration
   --private-key <hex>                Broadcaster key for bridge registration
   --manifest-out <path>              Output manifest path
+  --create-channels                  Create one channel per processed example after DApp registration
   --skip-submodule-update            Skip updating submodules/Tokamak-zk-EVM to origin/dev
   --skip-install                     Skip tokamak-cli --install
   --skip-private-state               Skip private-state example synthesis/preprocess
@@ -107,7 +114,13 @@ Options:
 function parseArgs(argv) {
   const options = {
     installArg: null,
-    bridgeAdminManager: null,
+    dAppManager: null,
+    bridgeCore: null,
+    leader: null,
+    asset: null,
+    dappIdBase: 1,
+    channelIdBase: 1,
+    createChannels: false,
     rpcUrl: null,
     privateKey: null,
     manifestOut: defaultManifestPath,
@@ -135,8 +148,26 @@ function parseArgs(argv) {
       case "--install-arg":
         options.installArg = take(current);
         break;
-      case "--bridge-admin-manager":
-        options.bridgeAdminManager = take(current);
+      case "--dapp-manager":
+        options.dAppManager = take(current);
+        break;
+      case "--bridge-core":
+        options.bridgeCore = take(current);
+        break;
+      case "--leader":
+        options.leader = take(current);
+        break;
+      case "--asset":
+        options.asset = take(current);
+        break;
+      case "--dapp-id-base":
+        options.dappIdBase = Number.parseInt(take(current), 10);
+        break;
+      case "--channel-id-base":
+        options.channelIdBase = Number.parseInt(take(current), 10);
+        break;
+      case "--create-channels":
+        options.createChannels = true;
         break;
       case "--rpc-url":
         options.rpcUrl = take(current);
@@ -180,13 +211,26 @@ function parseArgs(argv) {
 
   if (!options.skipBridgeUpload) {
     const missing = [];
-    if (!options.bridgeAdminManager) missing.push("--bridge-admin-manager");
+    if (!options.dAppManager) missing.push("--dapp-manager");
     if (!options.rpcUrl) missing.push("--rpc-url");
     if (!options.privateKey) missing.push("--private-key");
     if (missing.length > 0) {
       throw new Error(
         `Bridge upload requires ${missing.join(", ")}. Use --skip-bridge-upload to omit on-chain registration.`,
       );
+    }
+  }
+
+  if (options.createChannels) {
+    if (options.skipBridgeUpload) {
+      throw new Error("--create-channels requires bridge upload. Remove --skip-bridge-upload.");
+    }
+    const missing = [];
+    if (!options.bridgeCore) missing.push("--bridge-core");
+    if (!options.leader) missing.push("--leader");
+    if (!options.asset) missing.push("--asset");
+    if (missing.length > 0) {
+      throw new Error(`Channel creation requires ${missing.join(", ")}.`);
     }
   }
 
@@ -386,6 +430,7 @@ async function processPrivateStateExamples() {
           transactionJsonPath: path.join(synthesizerRoot, entry.files.transaction),
           snapshotJsonPath: path.join(synthesizerRoot, entry.files.previousState),
           preprocessJsonPath: path.join(exampleOutputRoot, "preprocess.json"),
+          instanceJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance.json"),
         }),
       );
     }
@@ -397,38 +442,74 @@ async function processPrivateStateExamples() {
 async function uploadBridgeArtifacts(options, manifest) {
   const provider = new JsonRpcProvider(options.rpcUrl);
   const wallet = new Wallet(options.privateKey, provider);
-  const admin = new Contract(options.bridgeAdminManager, bridgeAdminManagerAbi, wallet);
-  const txHashes = { storageMetadata: [], functions: [] };
+  const dAppManager = new Contract(options.dAppManager, dAppManagerAbi, wallet);
+  const bridgeCore = options.createChannels
+    ? new Contract(options.bridgeCore, bridgeCoreAbi, wallet)
+    : null;
+  const upload = { dapps: [], channels: [] };
 
-  for (const storage of manifest.bridge.storageMetadata) {
-    const tx = await admin.registerStorageMetadata(
-      storage.storageAddress,
-      storage.preAllocKeys,
-      storage.userSlots,
-      storage.isTokenVaultStorage,
+  for (let dappIndex = 0; dappIndex < manifest.bridge.dapps.length; dappIndex += 1) {
+    const dapp = manifest.bridge.dapps[dappIndex];
+    const dappId = options.dappIdBase + dappIndex;
+    const tx = await dAppManager.registerDApp(
+      dappId,
+      dapp.labelHash,
+      dapp.storageMetadata.map((storage) => ({
+        storageAddr: storage.storageAddress,
+        preAllocatedKeys: storage.preAllocKeys,
+        userStorageSlots: storage.userSlots,
+        isTokenVaultStorage: storage.isTokenVaultStorage,
+      })),
+      dapp.functions.map((fn) => ({
+        entryContract: fn.entryContract,
+        functionSig: fn.functionSig,
+        storageAddrs: fn.storageAddresses,
+        preprocessInputHash: fn.preprocessInputHash,
+      })),
     );
     await tx.wait();
-    txHashes.storageMetadata.push({
-      storageAddress: storage.storageAddress,
+    upload.dapps.push({
+      dappId,
+      groupName: dapp.groupName,
       txHash: tx.hash,
     });
+
+    if (!options.createChannels) {
+      continue;
+    }
+
+    for (let exampleIndex = 0; exampleIndex < dapp.examples.length; exampleIndex += 1) {
+      const example = dapp.examples[exampleIndex];
+      const channelId = options.channelIdBase + upload.channels.length;
+      const staticResult = await bridgeCore.createChannel.staticCall(
+        channelId,
+        dappId,
+        options.leader,
+        options.asset,
+        example.aPubBlockHash,
+      );
+      const channelTx = await bridgeCore.createChannel(
+        channelId,
+        dappId,
+        options.leader,
+        options.asset,
+        example.aPubBlockHash,
+      );
+      await channelTx.wait();
+      upload.channels.push({
+        channelId,
+        dappId,
+        groupName: dapp.groupName,
+        exampleName: example.exampleName,
+        aPubBlockHash: example.aPubBlockHash,
+        manager: staticResult[0],
+        vault: staticResult[1],
+        txHash: channelTx.hash,
+      });
+    }
   }
 
-  for (const fn of manifest.bridge.functionDefinitions) {
-    const tx = await admin.registerFunction(
-      fn.functionSig,
-      fn.storageAddresses,
-      fn.functionInstanceHash,
-      fn.functionPreprocessHash,
-    );
-    await tx.wait();
-    txHashes.functions.push({
-      functionSig: fn.functionSig,
-      txHash: tx.hash,
-    });
-  }
-
-  return txHashes;
+  return upload;
 }
 
 async function main() {
@@ -474,9 +555,11 @@ async function main() {
       skipped: privateStateResult.skipped,
     },
     bridge: {
-      hashEncoding: "keccak256(abi.encode(uint128[], uint256[]))",
-      storageMetadata: mergeStorageMetadata(privateStateResult.processed),
-      functionDefinitions: mergeFunctionDefinitions(privateStateResult.processed),
+      hashEncoding: {
+        preprocessInputHash: "keccak256(abi.encode(uint128[], uint256[]))",
+        aPubBlockHash: "keccak256(abi.encode(uint256[]))",
+      },
+      dapps: buildDAppDefinitions(privateStateResult.processed),
       upload: null,
     },
   };

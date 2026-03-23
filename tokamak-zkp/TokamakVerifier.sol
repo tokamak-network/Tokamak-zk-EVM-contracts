@@ -272,33 +272,37 @@ contract TokamakVerifier is ITokamakVerifier {
     /// @dev flip of 0xe000000000000000000000000000000000000000000000000000000000000000;
     uint256 internal constant FR_MASK = 0x1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
-    // n
-    uint256 internal constant CONSTANT_N = 2048;
+    // n, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    uint256 internal constant CONSTANT_N = 4096;
     // ω_64
     uint256 internal constant OMEGA_64 = 0x0e4840ac57f86f5e293b1d67bc8de5d9a12a70a615d0b8e4d2fc5e69ac5db47f;
     // ω_128
     uint256 internal constant OMEGA_128 = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
     // ω_512
     uint256 internal constant OMEGA_512 = 0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
-    // m_i
-    uint256 internal constant CONSTANT_MI = 2048;
+    // m_i = l_D - l, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    uint256 internal constant CONSTANT_MI = 4096;
+    // l_free, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    uint256 internal constant EXPECTED_L_FREE = 128;
+    // ω_{l_free}, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    uint256 internal constant OMEGA_L_FREE = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
     // s_max, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
     uint256 internal constant EXPECTED_SMAX = 256;
 
-    // ω_{m_i}^{-1}
-    uint256 internal constant OMEGA_MI_1 = 0x394fda0d65ba213edeae67bc36f376e13cc5bb329aa58ff53dc9e5600f6fb2ac;
+    // ω_{m_i}^{-1}, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    uint256 internal constant OMEGA_MI_1 = 0x58c3ba636d174692ad5a534045625d9514180e0e8b24f12309f239f760b82267;
     // ω_{s_max}^{-1}, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
     uint256 internal constant OMEGA_SMAX_MINUS_1 =
         0x6d64ed25272e58ee91b000235a5bfd4fc03cae032393991be9561c176a2f777a;
 
-    // computeAPUB scratch buffers (64 words each), placed above verifier reserved slots.
+    // computeAPUB scratch buffers, sized to EXPECTED_L_FREE words and placed above verifier reserved slots.
     uint256 internal constant COMPUTE_APUB_NUMERATOR_BUFFER_SLOT = 0x10000;
-    uint256 internal constant COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT = 0x10800;
-    uint256 internal constant COMPUTE_APUB_PREFIX_BUFFER_SLOT = 0x11000;
+    uint256 internal constant COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT = 0x11000;
+    uint256 internal constant COMPUTE_APUB_PREFIX_BUFFER_SLOT = 0x12000;
     // Step 4 temporary coefficients (C_G, C_F, C_B = C_G + C_F), kept outside reserved verifier slots.
-    uint256 internal constant STEP4_COEFF_C_G_SLOT = 0x11800;
-    uint256 internal constant STEP4_COEFF_C_F_SLOT = 0x11820;
-    uint256 internal constant STEP4_COEFF_C_B_SLOT = 0x11840;
+    uint256 internal constant STEP4_COEFF_C_G_SLOT = 0x13000;
+    uint256 internal constant STEP4_COEFF_C_F_SLOT = 0x13020;
+    uint256 internal constant STEP4_COEFF_C_B_SLOT = 0x13040;
 
     /*//////////////////////////////////////////////////////////////
                             G2 elements
@@ -984,8 +988,8 @@ contract TokamakVerifier is ITokamakVerifier {
                 let chi := mload(CHALLENGE_CHI_SLOT)
                 let offset := calldataload(0x84)
 
-                let l_free := 64
-                let omega := OMEGA_64
+                let l_free := EXPECTED_L_FREE
+                let omega := OMEGA_L_FREE
 
                 // Compute chi^64 - 1
                 let chi_n := modexp(chi, l_free)

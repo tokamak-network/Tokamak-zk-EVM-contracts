@@ -1,0 +1,48 @@
+{
+  "sessionId": "benchmark_1774246083666_md7fjmqaw",
+  "timestamp": "2026-03-23T06:09:11Z",
+  "hardwareInfo": {
+  "cpu": {
+    "model": "Apple M4 Pro",
+    "cores": 14,
+    "threads": 14,
+    "architecture": "arm64"
+  },
+  "memory": {
+    "total": 48,
+    "available": 0
+  },
+  "os": {
+    "platform": "macOS",
+    "release": "macOS 26.3.1 25D2128",
+    "version": "darwin 25.3.0 arm64"
+  },
+  "gpu": {
+    "name": "Apple M4 Pro",
+    "memory": 0,
+    "cudaSupported": false
+  }
+},
+  "processes": {
+    "prove": {
+      "startTime": 1774246083666,
+      "endTime": 1774246151808,
+      "duration": 68142,
+      "success": true,
+      "details": {
+        "checkPoints": [],
+        "proverInitTime": null,
+        "prove0Time": null,
+        "prove1Time": null,
+        "prove2Time": null,
+        "prove3Time": null,
+        "prove4Time": null,
+        "totalProvingTime": null
+      }
+    }
+  },
+  "metadata": {
+    "cudaEnabled": false,
+    "totalSessionDuration": 68142
+  }
+}

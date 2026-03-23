@@ -1,51 +1,6 @@
+use libs::iotools::{ArchivedG1SerdeRkyv, ArchivedG2SerdeRkyv, SigmaVerifyRkyv};
 use serde::Serialize;
 use std::{env, fs, path::PathBuf, process};
-
-#[derive(Debug, Clone, Copy, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive(check_bytes)]
-struct G1SerdeRkyv {
-    x: [u8; 48],
-    y: [u8; 48],
-}
-
-#[derive(Debug, Clone, Copy, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive(check_bytes)]
-struct G2SerdeRkyv {
-    x: [u8; 96],
-    y: [u8; 96],
-}
-
-#[derive(Debug, Clone, Copy, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive(check_bytes)]
-struct PartialSigma1VerifyRkyv {
-    x: G1SerdeRkyv,
-    y: G1SerdeRkyv,
-}
-
-#[derive(Debug, Clone, Copy, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive(check_bytes)]
-struct Sigma2Rkyv {
-    alpha: G2SerdeRkyv,
-    alpha2: G2SerdeRkyv,
-    alpha3: G2SerdeRkyv,
-    alpha4: G2SerdeRkyv,
-    gamma: G2SerdeRkyv,
-    delta: G2SerdeRkyv,
-    eta: G2SerdeRkyv,
-    x: G2SerdeRkyv,
-    y: G2SerdeRkyv,
-}
-
-#[allow(non_snake_case)]
-#[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-#[archive(check_bytes)]
-struct SigmaVerifyRkyv {
-    G: G1SerdeRkyv,
-    H: G2SerdeRkyv,
-    sigma_1: PartialSigma1VerifyRkyv,
-    sigma_2: Sigma2Rkyv,
-    lagrange_KL: G1SerdeRkyv,
-}
 
 #[derive(Serialize)]
 struct G1PointJson {
@@ -126,8 +81,13 @@ fn main() {
 
     let bytes = fs::read(&input_path)
         .unwrap_or_else(|err| panic!("Failed to read {}: {}", input_path.display(), err));
-    let archived = rkyv::check_archived_root::<SigmaVerifyRkyv>(&bytes)
-        .unwrap_or_else(|err| panic!("Invalid sigma_verify.rkyv archive at {}: {}", input_path.display(), err));
+    let archived = rkyv::check_archived_root::<SigmaVerifyRkyv>(&bytes).unwrap_or_else(|err| {
+        panic!(
+            "Invalid sigma_verify.rkyv archive at {}: {}",
+            input_path.display(),
+            err
+        )
+    });
 
     let json = SigmaVerifyJson {
         G: g1_to_json(&archived.G),
@@ -155,7 +115,8 @@ fn main() {
             .unwrap_or_else(|err| panic!("Failed to create {}: {}", parent.display(), err));
     }
 
-    let encoded = serde_json::to_string_pretty(&json).expect("Failed to serialize sigma verify JSON");
+    let encoded =
+        serde_json::to_string_pretty(&json).expect("Failed to serialize sigma verify JSON");
     fs::write(&output_path, format!("{encoded}\n"))
         .unwrap_or_else(|err| panic!("Failed to write {}: {}", output_path.display(), err));
 }

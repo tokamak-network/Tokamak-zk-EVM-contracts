@@ -332,6 +332,16 @@ function outputFile(relativePath) {
   return path.join(tokamakRoot, "dist", relativePath);
 }
 
+function consumeAccountNonce(accountNonces, address) {
+  const normalizedAddress = getAddress(address);
+  const nextNonce = accountNonces.get(normalizedAddress);
+  if (nextNonce === undefined) {
+    throw new Error(`Missing cached nonce for ${normalizedAddress}.`);
+  }
+  accountNonces.set(normalizedAddress, nextNonce + 1);
+  return nextNonce;
+}
+
 function copyTokamakArtifacts(stepDir) {
   const resourceRoot = path.join(stepDir, "resource");
   cleanDir(resourceRoot);
@@ -522,7 +532,15 @@ async function deployBridgeStack() {
 
   run(
     "forge",
-    ["script", "script/DeployBridgeStack.s.sol:DeployBridgeStackScript", "--sig", "run()"],
+    [
+      "script",
+      "script/DeployBridgeStack.s.sol:DeployBridgeStackScript",
+      "--sig",
+      "run()",
+      "--rpc-url",
+      providerUrl,
+      "--broadcast",
+    ],
     { cwd: bridgeRoot, env },
   );
 
@@ -754,6 +772,13 @@ async function main() {
   const dAppManager = new Contract(bridgeDeployment.dAppManager, dAppManagerAbi, bridgeDeployer);
   const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeCoreAbi, bridgeDeployer);
   let bridgeDeployerNonce = await provider.getTransactionCount(bridgeDeployer.address, "latest");
+  const participantNonces = new Map();
+  for (const participant of participants) {
+    participantNonces.set(
+      participant.l1.address,
+      await provider.getTransactionCount(participant.l1.address, "latest"),
+    );
+  }
 
   for (const participant of participants) {
     await (await asset.mint(participant.l1.address, depositAmount, { nonce: bridgeDeployerNonce++ })).wait();
@@ -786,15 +811,31 @@ async function main() {
 
   for (const participant of participants) {
     const participantAsset = asset.connect(participant.l1);
-    await (await participantAsset.approve(channelDeployment.vault, depositAmount)).wait();
-    await (await tokenVault.connect(participant.l1).registerAndFund(participantKeys.get(participant.index), depositAmount)).wait();
+    await (
+      await participantAsset.approve(
+        channelDeployment.vault,
+        depositAmount,
+        { nonce: consumeAccountNonce(participantNonces, participant.l1.address) },
+      )
+    ).wait();
+    await (
+      await tokenVault.connect(participant.l1).registerAndFund(
+        participantKeys.get(participant.index),
+        depositAmount,
+        { nonce: consumeAccountNonce(participantNonces, participant.l1.address) },
+      )
+    ).wait();
   }
 
   for (let index = 0; index < participants.length; index += 1) {
     const participant = participants[index];
     const depositTransition = depositTransitions[index];
     await (
-      await tokenVault.connect(participant.l1).deposit(depositTransition.proof, depositTransition.update)
+      await tokenVault.connect(participant.l1).deposit(
+        depositTransition.proof,
+        depositTransition.update,
+        { nonce: consumeAccountNonce(participantNonces, participant.l1.address) },
+      )
     ).wait();
   }
 
@@ -824,11 +865,20 @@ async function main() {
   }
 
   await (
-    await tokenVault.connect(participants[2].l1).withdraw(withdrawTransition.proof, withdrawTransition.update)
+    await tokenVault.connect(participants[2].l1).withdraw(
+      withdrawTransition.proof,
+      withdrawTransition.update,
+      { nonce: consumeAccountNonce(participantNonces, participants[2].l1.address) },
+    )
   ).wait();
 
   const cBalanceBeforeClaim = await asset.balanceOf(participants[2].l1.address);
-  await (await tokenVault.connect(participants[2].l1).claimToWallet(9n * amountUnit)).wait();
+  await (
+    await tokenVault.connect(participants[2].l1).claimToWallet(
+      9n * amountUnit,
+      { nonce: consumeAccountNonce(participantNonces, participants[2].l1.address) },
+    )
+  ).wait();
   const cBalanceAfterClaim = await asset.balanceOf(participants[2].l1.address);
 
   const registrationA = await tokenVault.getRegistration(participants[0].l1.address);

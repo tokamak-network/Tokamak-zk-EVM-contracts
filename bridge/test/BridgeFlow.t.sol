@@ -24,7 +24,7 @@ contract BridgeFlowTest is Test {
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     bytes32 internal constant INITIAL_ZERO_ROOT =
-        bytes32(uint256(24945907954024293787177432702322299921976142807026898956788601490926336931348));
+        bytes32(uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958));
     string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
     string internal constant REAL_TOKAMAK_PROOF_PATH =
         "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/prove/output/proof.json";
@@ -123,7 +123,6 @@ contract BridgeFlowTest is Test {
         assertEq(registration.l2TokenVaultKey, key);
         assertEq(registration.leafIndex, 5);
         assertEq(registration.availableBalance, 100 ether);
-        assertEq(registration.totalCustodyBalance, 100 ether);
         assertEq(asset.balanceOf(address(tokenVault)), 100 ether);
     }
 
@@ -205,7 +204,6 @@ contract BridgeFlowTest is Test {
 
         L1TokenVault.VaultRegistration memory registration = tokenVault.getRegistration(alice);
         assertEq(registration.availableBalance, 100 ether - 10);
-        assertEq(registration.l2AccountingBalance, 10);
 
         bytes32[] memory currentRoots = channelManager.getCurrentRootVector();
         assertEq(currentRoots[0], bytes32(pubSignals[1]));
@@ -246,7 +244,6 @@ contract BridgeFlowTest is Test {
 
         L1TokenVault.VaultRegistration memory registration = tokenVault.getRegistration(alice);
         assertEq(registration.availableBalance, 100 ether - 4);
-        assertEq(registration.l2AccountingBalance, 4);
 
         uint256 aliceBalanceBefore = asset.balanceOf(alice);
         vm.prank(alice);
@@ -701,8 +698,8 @@ contract BridgeFlowTest is Test {
 
     function _depositPublicSignals() private pure returns (uint256[5] memory values) {
         values = [
-            uint256(24945907954024293787177432702322299921976142807026898956788601490926336931348),
-            uint256(11491148064932883221377359773083833348868990225682934625748592324693145747493),
+            uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958),
+            uint256(12649971214846735256928973055327082315338775527920953067671803034981096374020),
             uint256(111),
             uint256(0),
             uint256(10)
@@ -711,8 +708,8 @@ contract BridgeFlowTest is Test {
 
     function _withdrawPublicSignals() private pure returns (uint256[5] memory values) {
         values = [
-            uint256(11491148064932883221377359773083833348868990225682934625748592324693145747493),
-            uint256(196552937653344953501652676821676363414611775986607266328935428271983687118),
+            uint256(12649971214846735256928973055327082315338775527920953067671803034981096374020),
+            uint256(6561881689766049952519769904166055391395720462224322729436837786896958711256),
             uint256(111),
             uint256(10),
             uint256(4)

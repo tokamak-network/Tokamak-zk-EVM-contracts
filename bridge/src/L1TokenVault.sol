@@ -19,7 +19,6 @@ contract L1TokenVault is ReentrancyGuard {
     error NotRegistered(address user);
     error InvalidAmount();
     error KeyMismatch();
-    error UnexpectedCurrentL2Balance();
     error InsufficientAvailableBalance();
     error L2ValueOutOfRange(uint256 value);
     error GrothProofRejected();
@@ -29,8 +28,6 @@ contract L1TokenVault is ReentrancyGuard {
         bytes32 l2TokenVaultKey;
         uint256 leafIndex;
         uint256 availableBalance;
-        uint256 totalCustodyBalance;
-        uint256 l2AccountingBalance;
     }
 
     uint256 public immutable channelId;
@@ -72,9 +69,7 @@ contract L1TokenVault is ReentrancyGuard {
             exists: true,
             l2TokenVaultKey: l2TokenVaultKey,
             leafIndex: leafIndex,
-            availableBalance: amount,
-            totalCustodyBalance: amount,
-            l2AccountingBalance: 0
+            availableBalance: amount
         });
         registeredUserAtLeafIndex[leafIndex] = msg.sender;
 
@@ -89,7 +84,6 @@ contract L1TokenVault is ReentrancyGuard {
         if (amount == 0) revert InvalidAmount();
 
         registration.availableBalance += amount;
-        registration.totalCustodyBalance += amount;
 
         _pullAsset(msg.sender, amount);
         emit AssetsFunded(msg.sender, amount);
@@ -106,9 +100,6 @@ contract L1TokenVault is ReentrancyGuard {
         _requireL2ValueInField(update.updatedUserValue);
         if (update.currentUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
         if (update.updatedUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
-        if (update.currentUserValue != registration.l2AccountingBalance) {
-            revert UnexpectedCurrentL2Balance();
-        }
         if (update.updatedUserValue <= update.currentUserValue) revert InvalidAmount();
 
         uint256 amount = update.updatedUserValue - update.currentUserValue;
@@ -118,7 +109,6 @@ contract L1TokenVault is ReentrancyGuard {
         if (!ok) revert GrothProofRejected();
 
         registration.availableBalance -= amount;
-        registration.l2AccountingBalance = update.updatedUserValue;
 
         channelManager.applyVaultUpdate(
             update.currentRoot,
@@ -142,9 +132,6 @@ contract L1TokenVault is ReentrancyGuard {
         _requireL2ValueInField(update.updatedUserValue);
         if (update.currentUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
         if (update.updatedUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
-        if (update.currentUserValue != registration.l2AccountingBalance) {
-            revert UnexpectedCurrentL2Balance();
-        }
         if (update.currentUserValue <= update.updatedUserValue) revert InvalidAmount();
 
         uint256 amount = update.currentUserValue - update.updatedUserValue;
@@ -153,7 +140,6 @@ contract L1TokenVault is ReentrancyGuard {
         if (!ok) revert GrothProofRejected();
 
         registration.availableBalance += amount;
-        registration.l2AccountingBalance = update.updatedUserValue;
 
         channelManager.applyVaultUpdate(
             update.currentRoot,
@@ -172,7 +158,6 @@ contract L1TokenVault is ReentrancyGuard {
         if (registration.availableBalance < amount) revert InsufficientAvailableBalance();
 
         registration.availableBalance -= amount;
-        registration.totalCustodyBalance -= amount;
 
         require(asset.transfer(msg.sender, amount), "TRANSFER_FAILED");
         emit AssetsClaimed(msg.sender, amount);

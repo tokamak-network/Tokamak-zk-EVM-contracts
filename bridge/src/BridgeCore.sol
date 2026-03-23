@@ -14,7 +14,7 @@ import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 contract BridgeCore is Ownable, IVaultKeyRegistry {
     uint8 internal constant SUPPORTED_MT_LEVELS = 12;
     bytes32 internal constant ZERO_FILLED_TREE_ROOT =
-        bytes32(uint256(24945907954024293787177432702322299921976142807026898956788601490926336931348));
+        bytes32(uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958));
 
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);

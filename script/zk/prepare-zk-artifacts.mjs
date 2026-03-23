@@ -76,6 +76,7 @@ const grothVerifierOutputPath = path.join(
 const outputRoot = path.join(repoRoot, "script", "output", "zk-artifacts");
 const defaultManifestPath = path.join(outputRoot, "manifest.json");
 const bridgeAdminManagerAbi = [
+  "function setTokamakPublicInputsLength(uint16 length_) external",
   "function registerStorageMetadata(address storageAddr, bytes32[] preAllocKeys, uint8[] userSlots, bool isTokenVaultStorage) external",
   "function registerFunction(bytes4 functionSig, address[] storageAddrs, bytes32 instanceHash, bytes32 preprocessHash) external",
 ];
@@ -400,6 +401,13 @@ async function uploadBridgeArtifacts(options, manifest) {
   const admin = new Contract(options.bridgeAdminManager, bridgeAdminManagerAbi, wallet);
   const txHashes = { storageMetadata: [], functions: [] };
 
+  const configTx = await admin.setTokamakPublicInputsLength(manifest.bridge.nTokamakPublicInputs);
+  await configTx.wait();
+  txHashes.nTokamakPublicInputs = {
+    value: manifest.bridge.nTokamakPublicInputs,
+    txHash: configTx.hash,
+  };
+
   for (const storage of manifest.bridge.storageMetadata) {
     const tx = await admin.registerStorageMetadata(
       storage.storageAddress,
@@ -434,6 +442,8 @@ async function uploadBridgeArtifacts(options, manifest) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   ensureDir(outputRoot);
+  assertExists(setupParamsPath, "Tokamak setupParams.json");
+  const setupParams = readJson(setupParamsPath);
 
   if (!options.skipSubmoduleUpdate) {
     await updateTokamakSubmodule();
@@ -460,6 +470,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     tokamak: {
       submodulePath: tokamakSubmoduleRoot,
+      setupParams,
       sigmaVerifyRkyvPath,
       sigmaVerifyJsonPath,
       generatedVerifierKeyPath: tokamakVerifierGeneratedPath,
@@ -474,6 +485,7 @@ async function main() {
       skipped: privateStateResult.skipped,
     },
     bridge: {
+      nTokamakPublicInputs: Number(setupParams.l_free),
       hashEncoding: "keccak256(abi.encode(uint128[], uint256[]))",
       storageMetadata: mergeStorageMetadata(privateStateResult.processed),
       functionDefinitions: mergeFunctionDefinitions(privateStateResult.processed),

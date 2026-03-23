@@ -2,10 +2,18 @@
 pragma solidity ^0.8.24;
 
 import {BridgeStructs} from "./BridgeStructs.sol";
+import {BridgeAdminManager} from "./BridgeAdminManager.sol";
 import {DAppManager} from "./DAppManager.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract ChannelManager {
+    // These offsets follow the current Tokamak synthesizer instance_description.json layout.
+    uint256 internal constant UPDATED_ROOT_VECTOR_OFFSET = 0;
+    uint256 internal constant ENTRY_CONTRACT_OFFSET = 22;
+    uint256 internal constant FUNCTION_SIG_OFFSET = 24;
+    uint256 internal constant CURRENT_ROOT_VECTOR_OFFSET = 26;
+    uint256 internal constant SPLIT_WORD_SIZE = 2;
+
     error OnlyBridgeCore();
     error OnlyTokenVault();
     error TokenVaultAlreadySet();
@@ -17,14 +25,24 @@ contract ChannelManager {
     error InvalidTokenVaultTreeIndex();
     error PreprocessInputHashMismatch(bytes32 expectedHash, bytes32 actualHash);
     error APubBlockHashMismatch(bytes32 expectedHash, bytes32 actualHash);
+    error TokamakPublicInputsLengthMismatch(uint256 expectedLength, uint256 actualLength);
+    error APubUserTooShort(uint256 expectedLength, uint256 actualLength);
+    error RootVectorExceedsAPubUserLayout(uint256 rootCount);
+    error APubUserWordOutOfRange(uint256 index, uint256 value);
+    error EntryContractPublicInputOutOfRange(uint256 value);
+    error FunctionSigPublicInputOutOfRange(uint256 value);
+    error UpdatedRootVectorPublicInputMismatch(uint256 index, bytes32 expectedRoot, bytes32 actualRoot);
+    error CurrentRootVectorPublicInputMismatch(uint256 index, bytes32 expectedRoot, bytes32 actualRoot);
+    error EntryContractPublicInputMismatch(address expectedEntryContract, address actualEntryContract);
+    error FunctionSigPublicInputMismatch(bytes4 expectedFunctionSig, bytes4 actualFunctionSig);
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
     address public immutable leader;
-    bytes32 public immutable channelInstanceHash;
     bytes32 public immutable aPubBlockHash;
     uint256 public immutable tokenVaultTreeIndex;
     address public immutable bridgeCore;
+    BridgeAdminManager public immutable adminManager;
     DAppManager public immutable dAppManager;
     ITokamakVerifier public immutable tokamakVerifier;
 
@@ -49,22 +67,22 @@ contract ChannelManager {
         uint256 channelId_,
         uint256 dappId_,
         address leader_,
-        bytes32 channelInstanceHash_,
         bytes32 aPubBlockHash_,
         uint256 tokenVaultTreeIndex_,
         bytes32[] memory initialRootVector_,
         address[] memory managedStorageAddresses_,
         BridgeStructs.FunctionReference[] memory allowedFunctions_,
         address bridgeCore_,
+        BridgeAdminManager adminManager_,
         DAppManager dAppManager_,
         ITokamakVerifier tokamakVerifier_
     ) {
         channelId = channelId_;
         dappId = dappId_;
         leader = leader_;
-        channelInstanceHash = channelInstanceHash_;
         aPubBlockHash = aPubBlockHash_;
         bridgeCore = bridgeCore_;
+        adminManager = adminManager_;
         dAppManager = dAppManager_;
         tokamakVerifier = tokamakVerifier_;
 
@@ -108,6 +126,12 @@ contract ChannelManager {
         bytes calldata proof,
         BridgeStructs.TokamakTransactionInstance calldata instance
     ) external returns (bool) {
+        if (instance.updatedRootVector.length != instance.currentRootVector.length) {
+            revert RootVectorLengthMismatch();
+        }
+        BridgeStructs.TokamakProofPayload memory payload = abi.decode(proof, (BridgeStructs.TokamakProofPayload));
+        _assertTokamakPublicInputLength(payload.aPubUser.length + payload.aPubBlock.length);
+        _assertTransactionInstanceMatchesAPubUser(instance, payload.aPubUser);
         _assertCurrentRootVector(instance.currentRootVector);
 
         bytes32 functionKey = dAppManager.computeFunctionKey(instance.entryContract, instance.functionSig);
@@ -117,8 +141,6 @@ contract ChannelManager {
 
         BridgeStructs.FunctionConfig memory cfg =
             dAppManager.getFunctionMetadata(dappId, instance.entryContract, instance.functionSig);
-
-        BridgeStructs.TokamakProofPayload memory payload = abi.decode(proof, (BridgeStructs.TokamakProofPayload));
         if (cfg.preprocessInputHash != bytes32(0)) {
             bytes32 actualPreprocessInputHash =
                 keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
@@ -236,6 +258,86 @@ contract ChannelManager {
         for (uint256 i = 0; i < storageAddresses.length; i++) {
             _managedStorageAddresses.push(storageAddresses[i]);
         }
+    }
+
+    function _assertTokamakPublicInputLength(uint256 actualLength) private view {
+        uint256 expectedLength = adminManager.nTokamakPublicInputs();
+        if (expectedLength != 0 && actualLength != expectedLength) {
+            revert TokamakPublicInputsLengthMismatch(expectedLength, actualLength);
+        }
+    }
+
+    function _assertTransactionInstanceMatchesAPubUser(
+        BridgeStructs.TokamakTransactionInstance calldata instance,
+        uint256[] memory aPubUser
+    ) private pure {
+        if (instance.updatedRootVector.length * SPLIT_WORD_SIZE > ENTRY_CONTRACT_OFFSET) {
+            revert RootVectorExceedsAPubUserLayout(instance.updatedRootVector.length);
+        }
+        uint256 requiredLength = CURRENT_ROOT_VECTOR_OFFSET + instance.currentRootVector.length * SPLIT_WORD_SIZE;
+        if (aPubUser.length < requiredLength) {
+            revert APubUserTooShort(requiredLength, aPubUser.length);
+        }
+
+        for (uint256 i = 0; i < instance.updatedRootVector.length; i++) {
+            bytes32 actualUpdatedRoot = _decodeBytes32FromAPubUser(aPubUser, UPDATED_ROOT_VECTOR_OFFSET + i * 2);
+            if (actualUpdatedRoot != instance.updatedRootVector[i]) {
+                revert UpdatedRootVectorPublicInputMismatch(i, instance.updatedRootVector[i], actualUpdatedRoot);
+            }
+        }
+
+        address actualEntryContract = _decodeAddressFromAPubUser(aPubUser, ENTRY_CONTRACT_OFFSET);
+        if (actualEntryContract != instance.entryContract) {
+            revert EntryContractPublicInputMismatch(instance.entryContract, actualEntryContract);
+        }
+
+        bytes4 actualFunctionSig = _decodeFunctionSigFromAPubUser(aPubUser, FUNCTION_SIG_OFFSET);
+        if (actualFunctionSig != instance.functionSig) {
+            revert FunctionSigPublicInputMismatch(instance.functionSig, actualFunctionSig);
+        }
+
+        for (uint256 i = 0; i < instance.currentRootVector.length; i++) {
+            bytes32 actualCurrentRoot = _decodeBytes32FromAPubUser(aPubUser, CURRENT_ROOT_VECTOR_OFFSET + i * 2);
+            if (actualCurrentRoot != instance.currentRootVector[i]) {
+                revert CurrentRootVectorPublicInputMismatch(i, instance.currentRootVector[i], actualCurrentRoot);
+            }
+        }
+    }
+
+    function _decodeBytes32FromAPubUser(uint256[] memory aPubUser, uint256 startIndex) private pure returns (bytes32) {
+        return bytes32(_decodeSplitWord(aPubUser, startIndex));
+    }
+
+    function _decodeAddressFromAPubUser(uint256[] memory aPubUser, uint256 startIndex) private pure returns (address) {
+        uint256 combined = _decodeSplitWord(aPubUser, startIndex);
+        if (combined > type(uint160).max) {
+            revert EntryContractPublicInputOutOfRange(combined);
+        }
+        return address(uint160(combined));
+    }
+
+    function _decodeFunctionSigFromAPubUser(uint256[] memory aPubUser, uint256 startIndex)
+        private
+        pure
+        returns (bytes4)
+    {
+        uint256 combined = _decodeSplitWord(aPubUser, startIndex);
+        if (combined > type(uint32).max) {
+            revert FunctionSigPublicInputOutOfRange(combined);
+        }
+        return bytes4(uint32(combined));
+    }
+
+    function _decodeSplitWord(uint256[] memory words, uint256 startIndex) private pure returns (uint256 combined) {
+        uint256 lower = words[startIndex];
+        uint256 upper = words[startIndex + 1];
+        if (lower > type(uint128).max) {
+            revert APubUserWordOutOfRange(startIndex, lower);
+        }
+        if (upper > type(uint128).max) {
+            revert APubUserWordOutOfRange(startIndex + 1, upper);
+        }
+        combined = lower | (upper << 128);
     }
 
     function _setLatestTokenVaultLeaf(uint256 leafIndex, bytes32 leafValue) private {

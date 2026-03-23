@@ -31,7 +31,6 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         address asset;
         address manager;
         address vault;
-        bytes32 channelInstanceHash;
         bytes32 aPubBlockHash;
     }
 
@@ -76,7 +75,6 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         uint256 dappId,
         address leader,
         IERC20 asset,
-        bytes32 channelInstanceHash,
         bytes32 aPubBlockHash
     ) external onlyOwner returns (address manager, address vault) {
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
@@ -94,13 +92,13 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
             channelId,
             dappId,
             leader,
-            channelInstanceHash,
             aPubBlockHash,
             tokenVaultTreeIndex,
             initialRootVector,
             managedStorageAddresses,
             registeredFunctions,
             address(this),
+            adminManager,
             dAppManager,
             tokamakVerifier
         );
@@ -117,7 +115,6 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
             asset: address(asset),
             manager: address(channelManager),
             vault: address(tokenVault),
-            channelInstanceHash: channelInstanceHash,
             aPubBlockHash: aPubBlockHash
         });
 

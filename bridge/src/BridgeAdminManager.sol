@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
 
 contract BridgeAdminManager is Ownable {
+    // This tracks Tokamak's total free-public-input length l_free, which is
+    // currently the combined length of aPubUser and aPubBlock.
     uint16 public nTokamakPublicInputs;
     uint8 public nMerkleTreeLevels;
 

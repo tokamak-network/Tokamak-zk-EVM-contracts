@@ -41,7 +41,7 @@ The following terms are used throughout this document:
 - `Groth zkp`: the Groth16-based proof system used for token-vault control
 - `Tokamak zkp`: the Tokamak zk-EVM proof system used for channel transaction processing
 - `DApp`: the set of smart contracts and functions designed for a specific channel application
-- `DApp manager`: the bridge component that stores supported DApps and their function-level proof metadata
+- `DApp manager`: the bridge component that stores supported DApps, their storage layout, and their function-level proof metadata
 - `Channel manager`: the per-channel L1 bridge component that verifies channel updates and enforces the channel's inherited DApp surface
 
 ### 1.5 Baseline Assumptions
@@ -111,8 +111,8 @@ At the channel level, the L1 bridge currently manages the following information 
 - each user's registered L2 token-vault key for that channel
 - each user's registered token-vault leaf index derived from that key
 - each user's token balance record in that channel's L1 token vault
-- the fixed channel instance for that channel
-- the DApp contract-and-function subset inherited by that channel
+- the channel-scoped `aPubBlockHash` expected by Tokamak verification
+- the DApp contract-and-function surface inherited by that channel
 - the deposit and withdrawal entrypoints for that channel
 - the verifier path for immediate Tokamak-zkp-based state updates
 
@@ -165,7 +165,7 @@ The Groth proof is paired with an instance containing:
 - the current user key and value in the tree
 - the updated user key and value in the tree
 
-The current user leaf is formed by Poseidon-hashing the user key and user value. The user value represents the token amount currently held for that user in the token-vault tree.
+Under the current bridge implementation, the Groth-controlled token-vault leaf is treated as the raw stored user value. The user key affects authorization and leaf placement through the registered L2 token-vault key and its derived leaf index rather than through direct inclusion in the leaf value.
 
 Under the current interpretation, successful Groth verification means:
 
@@ -192,35 +192,40 @@ The current authorization rules are therefore:
 
 Tokamak zkp is used for channel transaction execution.
 
-It is currently modeled as:
+The current verifier interface is concrete:
 
-- a proof
-- a transaction instance
-- a channel instance
-- a function instance
-- a function preprocess
+- `proofPart1`
+- `proofPart2`
+- `functionPreprocessPart1`
+- `functionPreprocessPart2`
+- `aPubUser`
+- `aPubBlock`
 
-The transaction instance contains:
+The bridge still exposes a user-facing `transaction instance` containing:
 
 - the current channel Merkle-root vector
 - the updated channel Merkle-root vector
 - the entry contract
 - the target function signature
 
-The channel instance contains the channel-environment variables fixed when the channel is created.
+However, under the current implementation, those transaction-instance fields are not passed into the verifier as a separate calldata object. They are encoded inside `aPubUser`, and the channel manager checks that the user-supplied transaction instance matches the relevant words of `aPubUser` before accepting the update.
 
-The function instance contains the function-specific data required when a particular contract function is executed in the EVM.
+Under the current `instance_description.json` layout produced by the Tokamak synthesizer:
 
-The function preprocess contains the circuit information for that particular contract function.
+- `aPubUser[0..2n-1]` contains the updated root vector, split into lower and upper 16-byte words
+- `aPubUser[22..23]` contains the entry contract
+- `aPubUser[24..25]` contains the target function signature
+- `aPubUser[26..26+2n-1]` contains the current root vector, again split into lower and upper 16-byte words
 
-The source of these components is intentionally split:
+where `n` is the number of channel storage trees represented in the root vector.
 
-- the transaction instance is supplied by the channel user
-- the channel instance is fixed per channel and supplied by the L1 bridge
-- the function instance is supplied by the L1 bridge through the bridge-managed DApp metadata inherited by that channel
-- the function preprocess is supplied by the L1 bridge through the bridge-managed DApp metadata inherited by that channel
+Because this layout uses fixed offsets for the entry contract and function signature, the current implementation also assumes that the root vector is small enough to fit within that reserved prefix of `aPubUser`.
 
-For the L1 verifier to validate a Tokamak proof, it must be given the correct combination of all of these components.
+The old separate `channel instance` model is no longer used in the bridge contracts. Its channel-scoped role is currently replaced by `aPubBlock`, whose hash is fixed at channel creation and later checked by the channel manager.
+
+Likewise, the bridge no longer stores `function instance` and `function preprocess` as separate verification objects. Under the current implementation, both are treated as being embedded in `functionPreprocessPart1` and `functionPreprocessPart2`. The bridge enforces their correctness by comparing `keccak256(abi.encode(functionPreprocessPart1, functionPreprocessPart2))` against the DApp-managed `preprocessInputHash`.
+
+The bridge additionally stores `nTokamakPublicInputs` as the expected total free-public-input length `l_free`. In the current implementation this value is checked against `aPubUser.length + aPubBlock.length` before Tokamak verification is forwarded to the verifier contract.
 
 Under the current interpretation, successful Tokamak verification means:
 
@@ -238,20 +243,20 @@ Each channel is operated for a specific DApp. In the current design, a DApp is t
 
 The L1 bridge manages supported DApps through a DApp manager. For each supported contract and function, the DApp manager stores:
 
-- the function instance
-- the function preprocess
+- the DApp storage layout
+- the function-level `preprocessInputHash`
 
 Only the System administrator may add a new DApp to the DApp manager.
 
-Each channel manager inherits only a subset of contracts and functions from the DApp manager. This inherited subset defines the admissible DApp surface of that channel.
+Each channel manager is currently created by selecting one registered DApp. In the present implementation, the channel inherits the full registered contract-and-function surface of that DApp rather than an arbitrary post-registration subset.
 
 This is a hard validation boundary:
 
-- channel users may perform channel activity only with respect to contracts and functions in the inherited subset
-- a Tokamak proof that refers to a function outside that inherited subset must fail through metadata mismatch
+- channel users may perform channel activity only with respect to contracts and functions in the inherited DApp surface
+- a Tokamak proof that refers to a function outside that inherited surface must fail through metadata mismatch
 - such a failed proof must not update channel state
 
-This means that `channel instance` is channel-owned, while `function instance` and `function preprocess` are not independently channel-owned metadata blobs. They are bridge-managed DApp metadata made available to the channel through inheritance.
+This means that the bridge-managed DApp metadata currently consists of storage layout plus per-function preprocess-input commitments, while the channel-owned metadata currently consists primarily of the channel's fixed token-vault position and the expected `aPubBlockHash`.
 
 ### 2.8 Comparative Execution Model
 
@@ -358,8 +363,8 @@ This does not mean withdrawal is literally zero-latency. It means the design avo
 
 1. Participants agree to form a channel for a specific DApp.
 2. A leader publishes the channel on Ethereum.
-3. L1 fixes the channel instance for that channel.
-4. L1 associates the channel with the subset of DApp contracts and functions it may use.
+3. L1 fixes the channel's expected `aPubBlockHash`.
+4. L1 associates the channel with the selected DApp and the storage-address vector derived from that DApp.
 
 #### 2.12.2 Channel Entry
 
@@ -390,9 +395,10 @@ This does not mean withdrawal is literally zero-latency. It means the design avo
 3. Execution updates one or more Merkle trees and therefore updates the Merkle-root vector.
 4. The user generates the Tokamak proof and transaction instance.
 5. The user submits them directly to the relevant channel manager on L1.
-6. The channel manager supplies the fixed channel instance and the function metadata inherited from the bridge-managed DApp metadata.
-7. If the proof verifies, L1 immediately updates the channel's Merkle-root vector.
-8. If the proof fails or the function is outside the inherited subset, the update is rejected and the previous verified state remains authoritative.
+6. The channel manager checks that the user-supplied transaction instance matches the relevant fields encoded inside `aPubUser`.
+7. The channel manager checks that the submitted preprocess input matches the DApp-managed `preprocessInputHash`, and that `aPubBlock` matches the channel-managed `aPubBlockHash`.
+8. If the proof verifies, L1 immediately updates the channel's Merkle-root vector.
+9. If the proof fails or the function is outside the inherited DApp surface, the update is rejected and the previous verified state remains authoritative.
 
 #### 2.12.5 Channel Closure
 
@@ -426,11 +432,13 @@ The following invariants summarize the current design:
 - every withdrawal must require that the Groth instance's current user key match the user's registered L2 token-vault key
 - every registered token-vault leaf index must be deterministically derived from the registered L2 token-vault key by the `TokamakL2MerkleTrees.getLeafIndex` rule
 - no two registered users in the same channel may share the same derived token-vault leaf index
-- every channel transaction update must be backed by a Tokamak proof, a transaction instance, the correct channel instance, the correct function instance, and the correct function preprocess
+- every channel transaction update must be backed by a Tokamak proof whose `aPubUser` fields match the submitted transaction instance
+- every channel transaction update must be backed by the correct channel-scoped `aPubBlock`
+- every channel transaction update must be backed by the correct preprocess input for the called function
 - L1 must preserve the history of Merkle-root-vector changes for each channel
 - L1 must store the latest leaves of each channel's current L2 token-vault tree while not retaining obsolete historical leaves
 - only the System administrator may add a new DApp to the DApp manager
-- a channel manager may accept Tokamak-zkp-based updates only for the contract-and-function subset it inherited from the DApp manager
+- a channel manager may accept Tokamak-zkp-based updates only for the contract-and-function surface it inherited from the selected DApp
 - a function-metadata mismatch must prevent channel-state update acceptance
 - opening a channel or entering a channel must not become final until Ethereum verifies the resulting new state
 - failure of L2 app-storage availability must not prevent safe withdrawal according to the last accessible token-vault state
@@ -450,8 +458,8 @@ The following questions remain open:
 - whether channel operators alone are sufficient as practical data providers for state reconstruction, or whether the System needs stronger data-availability guarantees
 - the exact residual privacy leakage that may remain even in a private-state DApp
 - the exact operational tradeoff between frequent token-vault usage for safer escape and richer reliance on L2 app storage for application efficiency
-- whether a channel manager's inherited contract-and-function subset is immutable after channel creation or can be versioned later
-- the exact lifecycle and governance process for updating per-channel channel instances and the bridge-managed DApp metadata from which channels inherit function instances and function preprocess data
+- whether a channel manager's inherited DApp surface is immutable after channel creation or can be versioned later
+- the exact lifecycle and governance process for updating per-channel `aPubBlockHash` and bridge-managed DApp preprocess metadata
 - the exact Ethereum scalability cost of storing the latest L2 token-vault-tree leaves for many channels on L1
 - the exact future proposal-pool design, if delayed Tokamak-zkp verification is ever reintroduced
 - the exact tokenomics required to support any future proposal-pool operation, fork resolution, penalties, and rewards
@@ -482,8 +490,8 @@ The following condensed log records which major parts of the design were introdu
 #### 2.15.2 2026-03-18
 
 - Tokamak-zkp-based channel updates are verified immediately on L1 in the current version.
-- Tokamak zkp is composed of proof, transaction instance, channel instance, function instance, and function preprocess.
-- Supported DApps are managed by the bridge, and channels inherit only a subset of the supported contract-and-function surface.
+- Tokamak zkp is currently submitted through the verifier interface `proofPart1`, `proofPart2`, `functionPreprocessPart1`, `functionPreprocessPart2`, `aPubUser`, and `aPubBlock`.
+- Supported DApps are managed by the bridge, and channels currently inherit the full registered contract-and-function surface of the selected DApp.
 - Each channel manager's L1 token vault stores the user's tokens together with the user's registered L2 token-vault key for that channel.
 - The same user must use a different L2 token-vault key for each channel, and those keys are globally unique across the System.
 - Deposit and withdrawal require Groth proof validation together with key matching against the registered L2 token-vault key.
@@ -501,7 +509,9 @@ The following condensed log records which major parts of the design were introdu
 - Registration succeeds only if no such per-channel leaf-index collision exists.
 - If the derived leaf index collides in that channel, the user must try a different L2 token-vault key.
 - L1 no longer stores the latest leaves of all current channel trees; it stores only the latest leaves of each channel's current L2 token-vault tree.
-- The channel instance remains fixed per channel, but function instances and function preprocess data should be read as bridge-managed DApp metadata made available to a channel through the DApp subset it inherited.
+- The old separate `channel instance` object is no longer used by the bridge; channel-scoped verification context is currently represented by `aPubBlockHash`.
+- The old separate `function instance` and `function preprocess` objects are currently treated as being embedded in the submitted preprocess calldata and enforced through `preprocessInputHash`.
+- The current bridge implementation reads transaction-instance fields back out of `aPubUser` using the offsets described in `instance_description.json`.
 
 ## 3. Conclusion
 
@@ -513,7 +523,7 @@ At the current stage, the System is best understood as a proof-based Ethereum se
 - Each channel is an application-specific L2 state machine represented by a Merkle-root vector.
 - Every accepted Merkle-tree update remains under L1 control.
 - Token-vault authorization depends on both proof validity and bridge-managed registration of L2 token-vault keys and their derived leaf indices.
-- Tokamak-zkp verification depends not only on user-supplied transaction data but also on bridge-managed metadata, including the per-channel channel instance and the DApp metadata inherited by that channel.
+- Tokamak-zkp verification depends not only on user-supplied transaction data but also on bridge-managed metadata, including the channel-scoped `aPubBlockHash` and the DApp-managed preprocess-input commitments.
 - Privacy and data availability are layered rather than absolute: the System hides original transactions from L1 observers, but stronger privacy and stronger application-data guarantees require additional DApp design or protocol mechanisms.
 
 ### 3.2 Current Working Decisions
@@ -526,5 +536,7 @@ The following decisions are stable enough to be treated as the current working p
 - The bridge stores only the latest leaves of each channel's current L2 token-vault tree.
 - Users must register an immutable per-channel L2 token-vault key.
 - The bridge derives the corresponding token-vault leaf index by the `TokamakL2MerkleTrees.getLeafIndex` rule and rejects per-channel collisions of those derived indices.
-- The channel instance is fixed per channel, while function instance and function preprocess data are inherited from bridge-managed DApp metadata.
+- `nTokamakPublicInputs` should be read as the total Tokamak free-public-input length `l_free`, currently equal to `aPubUser.length + aPubBlock.length`.
+- The bridge treats `aPubBlockHash` as channel-owned metadata and `preprocessInputHash` as DApp-managed metadata.
+- The bridge extracts current roots, updated roots, entry contract, and function signature from `aPubUser` and requires them to match the submitted transaction instance.
 - Safe channel escape currently depends on the token-vault path rather than on full L2 app-storage availability.

@@ -94,7 +94,6 @@ contract BridgeFlowTest is Test {
             1,
             leader,
             asset,
-            bytes32("CHANNEL_INSTANCE"),
             keccak256(abi.encode(tokamakFixture.aPubBlock))
         );
 
@@ -154,7 +153,6 @@ contract BridgeFlowTest is Test {
             1,
             leader,
             asset,
-            bytes32("CHANNEL_INSTANCE_2"),
             keccak256(abi.encode(_loadTokamakProofPayload().aPubBlock))
         );
 
@@ -293,9 +291,15 @@ contract BridgeFlowTest is Test {
     }
 
     function testTokamakVerificationRejectsUnsupportedFunction() public {
+        BridgeStructs.TokamakProofPayload memory proofPayload = _blankTokamakProofPayload();
+        proofPayload.aPubUser[22] = uint160(address(0xBEEF));
+        proofPayload.aPubUser[24] = uint32(APP_SIG);
+        _writeSplitWord(proofPayload.aPubUser, 26, uint256(INITIAL_ZERO_ROOT));
+        _writeSplitWord(proofPayload.aPubUser, 28, uint256(INITIAL_ZERO_ROOT));
+
         BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
             currentRootVector: _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT),
-            updatedRootVector: _rootVector(bytes32(uint256(12)), bytes32(uint256(23))),
+            updatedRootVector: _rootVector(bytes32(0), bytes32(0)),
             entryContract: address(0xBEEF),
             functionSig: APP_SIG
         });
@@ -303,23 +307,65 @@ contract BridgeFlowTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(ChannelManager.UnsupportedChannelFunction.selector, address(0xBEEF), APP_SIG)
         );
-        channelManager.submitTokamakProof(hex"01", instance);
+        channelManager.submitTokamakProof(abi.encode(proofPayload), instance);
+    }
+
+    function testTokamakVerificationRejectsEntryContractMismatchAgainstAPubUser() public {
+        BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
+        BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
+            currentRootVector: _currentRootsFromAPubUser(proofPayload.aPubUser),
+            updatedRootVector: _updatedRootsFromAPubUser(proofPayload.aPubUser),
+            entryContract: address(0xBEEF),
+            functionSig: _functionSigFromAPubUser(proofPayload.aPubUser)
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ChannelManager.EntryContractPublicInputMismatch.selector,
+                address(0xBEEF),
+                _entryContractFromAPubUser(proofPayload.aPubUser)
+            )
+        );
+        channelManager.submitTokamakProof(abi.encode(proofPayload), instance);
+    }
+
+    function testTokamakVerificationRejectsUpdatedRootMismatchAgainstAPubUser() public {
+        BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
+        bytes32[] memory updatedRoots = _updatedRootsFromAPubUser(proofPayload.aPubUser);
+        updatedRoots[0] = bytes32(uint256(updatedRoots[0]) + 1);
+
+        BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
+            currentRootVector: _currentRootsFromAPubUser(proofPayload.aPubUser),
+            updatedRootVector: updatedRoots,
+            entryContract: _entryContractFromAPubUser(proofPayload.aPubUser),
+            functionSig: _functionSigFromAPubUser(proofPayload.aPubUser)
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ChannelManager.UpdatedRootVectorPublicInputMismatch.selector,
+                uint256(0),
+                updatedRoots[0],
+                _updatedRootsFromAPubUser(proofPayload.aPubUser)[0]
+            )
+        );
+        channelManager.submitTokamakProof(abi.encode(proofPayload), instance);
     }
 
     function testChannelUsesRealTokamakVerifier() public view {
         assertEq(address(bridgeCore.tokamakVerifier()), address(tokamakVerifier));
     }
 
-    function testTokamakVerificationRejectsInvalidRealProof() public {
+    function testTokamakVerificationRejectsProofForUnexpectedCurrentState() public {
         BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
         BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT),
-            updatedRootVector: _rootVector(bytes32(uint256(33)), bytes32(uint256(44))),
-            entryContract: appContract,
-            functionSig: APP_SIG
+            currentRootVector: _currentRootsFromAPubUser(proofPayload.aPubUser),
+            updatedRootVector: _updatedRootsFromAPubUser(proofPayload.aPubUser),
+            entryContract: _entryContractFromAPubUser(proofPayload.aPubUser),
+            functionSig: _functionSigFromAPubUser(proofPayload.aPubUser)
         });
 
-        vm.expectRevert(bytes("loadProof: Proof is invalid"));
+        vm.expectRevert(ChannelManager.UnexpectedCurrentRootVector.selector);
         channelManager.submitTokamakProof(abi.encode(proofPayload), instance);
     }
 
@@ -342,6 +388,26 @@ contract BridgeFlowTest is Test {
         roots = new bytes32[](2);
         roots[0] = left;
         roots[1] = right;
+    }
+
+    function _updatedRootsFromAPubUser(uint256[] memory aPubUser) internal pure returns (bytes32[] memory roots) {
+        roots = new bytes32[](2);
+        roots[0] = _decodeBytes32FromSplitWords(aPubUser, 0);
+        roots[1] = _decodeBytes32FromSplitWords(aPubUser, 2);
+    }
+
+    function _currentRootsFromAPubUser(uint256[] memory aPubUser) internal pure returns (bytes32[] memory roots) {
+        roots = new bytes32[](2);
+        roots[0] = _decodeBytes32FromSplitWords(aPubUser, 26);
+        roots[1] = _decodeBytes32FromSplitWords(aPubUser, 28);
+    }
+
+    function _entryContractFromAPubUser(uint256[] memory aPubUser) internal pure returns (address) {
+        return address(uint160(_decodeUint256FromSplitWords(aPubUser, 22)));
+    }
+
+    function _functionSigFromAPubUser(uint256[] memory aPubUser) internal pure returns (bytes4) {
+        return bytes4(uint32(_decodeUint256FromSplitWords(aPubUser, 24)));
     }
 
     function _defaultStorageLayouts(address tokenVaultStorage, address appStorage)
@@ -469,6 +535,32 @@ contract BridgeFlowTest is Test {
     function _singleAddressArray(address value) internal pure returns (address[] memory addrs) {
         addrs = new address[](1);
         addrs[0] = value;
+    }
+
+    function _blankTokamakProofPayload()
+        internal
+        pure
+        returns (BridgeStructs.TokamakProofPayload memory payload)
+    {
+        payload.proofPart1 = new uint128[](0);
+        payload.proofPart2 = new uint256[](0);
+        payload.functionPreprocessPart1 = new uint128[](0);
+        payload.functionPreprocessPart2 = new uint256[](0);
+        payload.aPubUser = new uint256[](50);
+        payload.aPubBlock = new uint256[](78);
+    }
+
+    function _decodeBytes32FromSplitWords(uint256[] memory words, uint256 offset) internal pure returns (bytes32) {
+        return bytes32(_decodeUint256FromSplitWords(words, offset));
+    }
+
+    function _decodeUint256FromSplitWords(uint256[] memory words, uint256 offset) internal pure returns (uint256) {
+        return words[offset] | (words[offset + 1] << 128);
+    }
+
+    function _writeSplitWord(uint256[] memory words, uint256 offset, uint256 value) internal pure {
+        words[offset] = uint128(value);
+        words[offset + 1] = uint128(value >> 128);
     }
 
     function _depositProof() private pure returns (BridgeStructs.GrothProof memory proof) {

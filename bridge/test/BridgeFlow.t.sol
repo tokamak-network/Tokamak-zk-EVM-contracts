@@ -12,6 +12,7 @@ import {L1TokenVault} from "../src/L1TokenVault.sol";
 import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
+import {FeeOnTransferMockERC20} from "../src/mocks/FeeOnTransferMockERC20.sol";
 import {DepositGrothProofFixture, WithdrawGrothProofFixture} from "./GrothProofFixtures.sol";
 import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
 import {TokamakVerifier} from "tokamak-zkp/TokamakVerifier.sol";
@@ -126,6 +127,13 @@ contract BridgeFlowTest is Test {
         assertEq(asset.balanceOf(address(tokenVault)), 100 ether);
     }
 
+    function testRejectsUnsupportedMerkleTreeLevels() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(BridgeAdminManager.UnsupportedMerkleTreeLevels.selector, uint8(13), uint8(12))
+        );
+        adminManager.setMerkleTreeLevels(13);
+    }
+
     function testChannelStoresManagedStorageAddressVector() public view {
         address[] memory managedStorageAddresses = channelManager.getManagedStorageAddresses();
         assertEq(managedStorageAddresses.length, 2);
@@ -182,6 +190,67 @@ contract BridgeFlowTest is Test {
             _threeStorageLayouts(address(0xF00D), address(0x1234), address(0xF00E)),
             _conflictingDAppFunctions(address(0xF00D), address(0xF00E))
         );
+    }
+
+    function testRejectsDAppRegistrationWithoutPreprocessHash() public {
+        BridgeStructs.DAppFunctionMetadata[] memory functions = new BridgeStructs.DAppFunctionMetadata[](1);
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: appContract,
+            functionSig: APP_SIG,
+            storageAddrs: _addressArray(address(0xF00D), address(0x1234)),
+            preprocessInputHash: bytes32(0)
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DAppManager.MissingPreprocessInputHash.selector,
+                uint256(3),
+                appContract,
+                APP_SIG
+            )
+        );
+        dAppManager.registerDApp(
+            3,
+            keccak256("missing-preprocess-hash"),
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            functions
+        );
+    }
+
+    function testRejectsChannelCreationWithoutAPubBlockHash() public {
+        vm.expectRevert(BridgeCore.MissingAPubBlockHash.selector);
+        bridgeCore.createChannel(channelId + 100, 1, leader, asset, bytes32(0));
+    }
+
+    function testRejectsChannelCreationWithTooManyManagedStorages() public {
+        BridgeStructs.StorageMetadata[] memory storages = new BridgeStructs.StorageMetadata[](12);
+        for (uint256 i = 0; i < storages.length; i++) {
+            storages[i] = BridgeStructs.StorageMetadata({
+                storageAddr: address(uint160(0x1000 + i)),
+                preAllocatedKeys: new bytes32[](0),
+                userStorageSlots: new uint8[](0),
+                isTokenVaultStorage: i == 0
+            });
+        }
+
+        BridgeStructs.DAppFunctionMetadata[] memory functions = new BridgeStructs.DAppFunctionMetadata[](1);
+        address[] memory storageAddrs = new address[](storages.length);
+        for (uint256 i = 0; i < storages.length; i++) {
+            storageAddrs[i] = storages[i].storageAddr;
+        }
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: appContract,
+            functionSig: APP_SIG,
+            storageAddrs: storageAddrs,
+            preprocessInputHash: bytes32("PREPROCESS_INPUT")
+        });
+
+        dAppManager.registerDApp(3, keccak256("oversized-dapp"), storages, functions);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(BridgeCore.TooManyManagedStorages.selector, uint256(12), uint256(11))
+        );
+        bridgeCore.createChannel(channelId + 101, 3, leader, asset, keccak256("block"));
     }
 
     function testGrothDepositUpdatesVaultStateAndRootVector() public {
@@ -249,6 +318,25 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         tokenVault.claimToWallet(50 ether);
         assertEq(asset.balanceOf(alice), aliceBalanceBefore + 50 ether);
+    }
+
+    function testRejectsFeeOnTransferAssetDuringRegistration() public {
+        FeeOnTransferMockERC20 feeAsset = new FeeOnTransferMockERC20("Fee Asset", "FEE", 100, address(0xFEE));
+        feeAsset.mint(alice, 100 ether);
+
+        (address manager, address vault) =
+            bridgeCore.createChannel(channelId + 102, 1, leader, feeAsset, keccak256(abi.encode(_loadTokamakProofPayload().aPubBlock)));
+
+        manager;
+        L1TokenVault feeVault = L1TokenVault(vault);
+        vm.prank(alice);
+        feeAsset.approve(address(feeVault), type(uint256).max);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(L1TokenVault.UnsupportedAssetTransferBehavior.selector, 100 ether, 99 ether)
+        );
+        vm.prank(alice);
+        feeVault.registerAndFund(bytes32(uint256(7)), 100 ether);
     }
 
     function testDepositRejectsL2ValueAtScalarFieldModulus() public {

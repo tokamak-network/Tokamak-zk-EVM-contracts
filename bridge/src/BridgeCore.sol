@@ -13,6 +13,8 @@ import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract BridgeCore is Ownable, IVaultKeyRegistry {
     uint8 internal constant SUPPORTED_MT_LEVELS = 12;
+    uint256 internal constant SUPPORTED_MT_LEAVES = uint256(1) << uint256(SUPPORTED_MT_LEVELS);
+    uint256 internal constant MAX_MANAGED_STORAGES = 11;
     bytes32 internal constant ZERO_FILLED_TREE_ROOT =
         bytes32(uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958));
 
@@ -21,8 +23,12 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
     error OnlyChannelVault();
     error InvalidMerkleTreeConfiguration();
     error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
+    error InvalidLeader();
+    error InvalidAsset();
+    error MissingAPubBlockHash();
     error GlobalVaultKeyAlreadyRegistered(bytes32 key);
     error ChannelLeafIndexCollision(uint256 channelId, uint256 leafIndex);
+    error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
 
     struct ChannelDeployment {
         bool exists;
@@ -78,11 +84,17 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         bytes32 aPubBlockHash
     ) external onlyOwner returns (address manager, address vault) {
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
+        if (leader == address(0)) revert InvalidLeader();
+        if (address(asset) == address(0)) revert InvalidAsset();
+        if (aPubBlockHash == bytes32(0)) revert MissingAPubBlockHash();
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
         if (adminManager.nMerkleTreeLevels() != SUPPORTED_MT_LEVELS) {
             revert UnsupportedMerkleTreeLevels(adminManager.nMerkleTreeLevels(), SUPPORTED_MT_LEVELS);
         }
         address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(dappId);
+        if (managedStorageAddresses.length > MAX_MANAGED_STORAGES) {
+            revert TooManyManagedStorages(managedStorageAddresses.length, MAX_MANAGED_STORAGES);
+        }
         uint256 tokenVaultTreeIndex = dAppManager.getTokenVaultTreeIndex(dappId);
         BridgeStructs.FunctionReference[] memory registeredFunctions = dAppManager.getRegisteredFunctions(dappId);
 
@@ -150,9 +162,7 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
     }
 
     function deriveLeafIndex(bytes32 key) public view returns (uint256) {
-        uint256 maxLeaves = adminManager.getMaxMerkleTreeLeaves();
-        if (maxLeaves == 0) revert InvalidMerkleTreeConfiguration();
-        return uint256(key) % maxLeaves;
+        return uint256(key) % SUPPORTED_MT_LEAVES;
     }
 
     function _buildInitialRootVector(uint256 treeCount) private pure returns (bytes32[] memory initialRootVector) {

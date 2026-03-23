@@ -16,6 +16,7 @@ contract DAppManager is Ownable {
     error UnsupportedChannelFunction(uint256 dappId, address entryContract, bytes4 functionSig);
     error MissingTokenVaultStorageAddress(uint256 dappId);
     error MultipleTokenVaultStorageAddresses(uint256 dappId, address firstStorageAddr, address secondStorageAddr);
+    error MissingPreprocessInputHash(uint256 dappId, address entryContract, bytes4 functionSig);
 
     struct DAppInfo {
         bool exists;
@@ -213,6 +214,9 @@ contract DAppManager is Ownable {
             bytes32 functionKey = computeFunctionKey(fnMetadata.entryContract, fnMetadata.functionSig);
             if (_supportedFunctions[dappId][functionKey]) {
                 revert DuplicateFunction(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
+            }
+            if (fnMetadata.preprocessInputHash == bytes32(0)) {
+                revert MissingPreprocessInputHash(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
             }
 
             _supportedFunctions[dappId][functionKey] = true;

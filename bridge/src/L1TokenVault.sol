@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
 import {BridgeStructs} from "./BridgeStructs.sol";
 import {ChannelManager} from "./ChannelManager.sol";
@@ -12,6 +13,8 @@ interface IVaultKeyRegistry {
 }
 
 contract L1TokenVault is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
@@ -22,6 +25,7 @@ contract L1TokenVault is ReentrancyGuard {
     error InsufficientAvailableBalance();
     error L2ValueOutOfRange(uint256 value);
     error GrothProofRejected();
+    error UnsupportedAssetTransferBehavior(uint256 expectedDelta, uint256 actualDelta);
 
     struct VaultRegistration {
         bool exists;
@@ -159,7 +163,17 @@ contract L1TokenVault is ReentrancyGuard {
 
         registration.availableBalance -= amount;
 
-        require(asset.transfer(msg.sender, amount), "TRANSFER_FAILED");
+        uint256 vaultBalanceBefore = asset.balanceOf(address(this));
+        uint256 recipientBalanceBefore = asset.balanceOf(msg.sender);
+        asset.safeTransfer(msg.sender, amount);
+        uint256 vaultBalanceDelta = vaultBalanceBefore - asset.balanceOf(address(this));
+        if (vaultBalanceDelta != amount) {
+            revert UnsupportedAssetTransferBehavior(amount, vaultBalanceDelta);
+        }
+        uint256 recipientBalanceDelta = asset.balanceOf(msg.sender) - recipientBalanceBefore;
+        if (recipientBalanceDelta != amount) {
+            revert UnsupportedAssetTransferBehavior(amount, recipientBalanceDelta);
+        }
         emit AssetsClaimed(msg.sender, amount);
     }
 
@@ -181,7 +195,12 @@ contract L1TokenVault is ReentrancyGuard {
     }
 
     function _pullAsset(address from, uint256 amount) private {
-        require(asset.transferFrom(from, address(this), amount), "TRANSFER_FROM_FAILED");
+        uint256 vaultBalanceBefore = asset.balanceOf(address(this));
+        asset.safeTransferFrom(from, address(this), amount);
+        uint256 vaultBalanceDelta = asset.balanceOf(address(this)) - vaultBalanceBefore;
+        if (vaultBalanceDelta != amount) {
+            revert UnsupportedAssetTransferBehavior(amount, vaultBalanceDelta);
+        }
     }
 
     function _requireL2ValueInField(uint256 value) private pure {

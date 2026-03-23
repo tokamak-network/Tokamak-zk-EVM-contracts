@@ -135,18 +135,14 @@ contract ChannelManager {
 
         BridgeStructs.FunctionConfig memory cfg =
             dAppManager.getFunctionMetadata(dappId, instance.entryContract, instance.functionSig);
-        if (cfg.preprocessInputHash != bytes32(0)) {
-            bytes32 actualPreprocessInputHash =
-                keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
-            if (actualPreprocessInputHash != cfg.preprocessInputHash) {
-                revert PreprocessInputHashMismatch(cfg.preprocessInputHash, actualPreprocessInputHash);
-            }
+        bytes32 actualPreprocessInputHash =
+            keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
+        if (actualPreprocessInputHash != cfg.preprocessInputHash) {
+            revert PreprocessInputHashMismatch(cfg.preprocessInputHash, actualPreprocessInputHash);
         }
-        if (aPubBlockHash != bytes32(0)) {
-            bytes32 actualAPubBlockHash = keccak256(abi.encode(payload.aPubBlock));
-            if (actualAPubBlockHash != aPubBlockHash) {
-                revert APubBlockHashMismatch(aPubBlockHash, actualAPubBlockHash);
-            }
+        bytes32 actualAPubBlockHash = keccak256(abi.encode(payload.aPubBlock));
+        if (actualAPubBlockHash != aPubBlockHash) {
+            revert APubBlockHashMismatch(aPubBlockHash, actualAPubBlockHash);
         }
 
         bool ok = tokamakVerifier.verify(

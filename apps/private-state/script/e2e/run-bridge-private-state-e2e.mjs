@@ -17,6 +17,7 @@ import {
 } from "ethers";
 import {
   MAX_MT_LEAVES,
+  MT_DEPTH,
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
@@ -603,6 +604,7 @@ async function deployBridgeStack() {
   const env = {
     ...process.env,
     BRIDGE_DEPLOYER_PRIVATE_KEY: anvilDeployerPrivateKey,
+    BRIDGE_MERKLE_TREE_LEVELS: String(MT_DEPTH),
     BRIDGE_OUTPUT_PATH: bridgeDeploymentArtifactPath,
     BRIDGE_DEPLOY_MOCK_ASSET: "true",
   };

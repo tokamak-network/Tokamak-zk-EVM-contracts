@@ -42,7 +42,6 @@ const bridgeRoot = path.resolve(projectRoot, "bridge");
 const functionsRoot = path.resolve(__dirname, "functions");
 const channelWorkspacesRoot = path.resolve(__dirname, "workspaces");
 const walletsRoot = path.resolve(__dirname, "wallets");
-const legacyWalletsRoot = path.resolve(__dirname, "user-workspaces");
 const defaultEnvFile = path.resolve(appsRoot, ".env");
 const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
@@ -774,10 +773,9 @@ function ensureWallet({
 }) {
   const walletName = args.wallet ?? defaultWalletName(channelContext.workspace.channelName, l2Identity.l2Address);
   const walletDir = walletPath(walletName);
-  const sourceWalletDir = resolveWalletPath(walletName);
   let wallet;
-  if (walletConfigExists(sourceWalletDir)) {
-    wallet = normalizeWallet(readJson(walletConfigPath(sourceWalletDir)));
+  if (walletConfigExists(walletDir)) {
+    wallet = normalizeWallet(readJson(walletConfigPath(walletDir)));
     expect(
       Number(wallet.channelId) === Number(channelContext.workspace.channelId),
       `Wallet ${walletName} belongs to channel ${wallet.channelId}, not ${channelContext.workspace.channelId}.`,
@@ -1116,7 +1114,10 @@ async function loadChannelContext({ args, networkName, provider, walletContext =
 
 function loadWallet(walletName) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
-  const walletDir = resolveWalletPath(normalizedWalletName);
+  const walletDir = walletPath(normalizedWalletName);
+  if (!walletConfigExists(walletDir)) {
+    throw new Error(`Unknown wallet: ${normalizedWalletName}.`);
+  }
   const wallet = readJson(walletConfigPath(walletDir));
   return {
     walletName: normalizedWalletName,
@@ -1828,35 +1829,12 @@ function walletPath(name) {
   return path.join(walletsRoot, slugify(name));
 }
 
-function legacyWalletPath(name) {
-  return path.join(legacyWalletsRoot, slugify(name));
-}
-
-function resolveWalletPath(name) {
-  const preferredPath = walletPath(name);
-  if (walletConfigExists(preferredPath)) {
-    return preferredPath;
-  }
-
-  const fallbackPath = legacyWalletPath(name);
-  if (walletConfigExists(fallbackPath)) {
-    return fallbackPath;
-  }
-
-  return preferredPath;
-}
-
 function walletConfigPath(walletDir) {
-  const preferredPath = path.join(walletDir, "wallet.json");
-  if (fs.existsSync(preferredPath)) {
-    return preferredPath;
-  }
-  return path.join(walletDir, "workspace.json");
+  return path.join(walletDir, "wallet.json");
 }
 
 function walletConfigExists(walletDir) {
-  return fs.existsSync(path.join(walletDir, "wallet.json"))
-    || fs.existsSync(path.join(walletDir, "workspace.json"));
+  return fs.existsSync(walletConfigPath(walletDir));
 }
 
 function listChannelWorkspaces() {
@@ -1874,26 +1852,17 @@ function listChannelWorkspaces() {
 }
 
 function listWallets() {
-  const roots = [walletsRoot, legacyWalletsRoot];
-  const discovered = new Map();
-  for (const root of roots) {
-    if (!fs.existsSync(root)) {
-      continue;
-    }
-    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-      if (!entry.isDirectory() || discovered.has(entry.name)) {
-        continue;
-      }
-      const configPath = walletConfigPath(path.join(root, entry.name));
-      discovered.set(
-        entry.name,
-        fs.existsSync(configPath)
-          ? readJson(configPath)
-          : { name: entry.name },
-      );
-    }
+  if (!fs.existsSync(walletsRoot)) {
+    return [];
   }
-  return [...discovered.values()];
+  return fs.readdirSync(walletsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const configPath = walletConfigPath(path.join(walletsRoot, entry.name));
+      return fs.existsSync(configPath)
+        ? readJson(configPath)
+        : { name: entry.name };
+    });
 }
 
 function slugify(value) {

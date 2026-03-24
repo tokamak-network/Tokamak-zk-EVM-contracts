@@ -10,6 +10,8 @@ This folder contains the terminal CLI for the private-state DApp.
 - `workspaces/`: optional channel workspaces that cache reconstructed channel snapshots
 - `wallets/`: mandatory per-user wallets that track L2 identity, nonce, and note ledgers
 
+The CLI now assumes a clean-slate wallet model. Legacy CLI data is not reused.
+
 Each `calldata.json` file follows this shape:
 
 ```json
@@ -103,6 +105,12 @@ Per-wallet operations and note ledgers live under:
 
 ```text
 apps/private-state/cli/wallets/<wallet>/
+```
+
+Each wallet is persisted as:
+
+```text
+apps/private-state/cli/wallets/<wallet>/wallet.json
 ```
 
 User-action commands accept channel selection in this order:

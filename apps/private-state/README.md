@@ -183,6 +183,8 @@ The CLI:
 - generates Groth and Tokamak proofs
 - submits bridge transactions for `deposit`, `withdraw`, `claim`, and DApp function execution
 
+The current CLI treats wallet storage as a clean-slate local model. Legacy CLI data is not reused.
+
 Channel workspaces are optional snapshot caches. User-action commands can reconstruct the channel state directly from
 bridge events by using `--channel-name` or an existing `--wallet`. Wallets remain mandatory because
 note plaintexts and note-spend history are not reconstructible from bridge events alone.

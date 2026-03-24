@@ -47,8 +47,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init \
   --workspace demo \
   --network anvil \
   --channel-id 1 \
-  --bridge-deployment bridge/deployments/private-state-bridge-e2e-latest.json \
-  --block-info-file apps/private-state/script/e2e/output/private-state-bridge-genesis/tokamak-steps/mint-a/block_info.json
+  --bridge-deployment bridge/deployments/private-state-bridge-e2e-latest.json
 
 node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund \
   --workspace demo \

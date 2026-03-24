@@ -6,6 +6,8 @@ import {DAppManager} from "./DAppManager.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract ChannelManager {
+    uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 78;
+    uint256 internal constant TOKAMAK_PREVIOUS_BLOCK_HASHES = 4;
     uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = uint256(1) << 12;
     uint256 internal constant SPLIT_WORD_SIZE = 2;
     uint256 internal constant STORAGE_WRITE_VALUE_OFFSET = 2;
@@ -66,7 +68,6 @@ contract ChannelManager {
         uint256 channelId_,
         uint256 dappId_,
         address leader_,
-        bytes32 aPubBlockHash_,
         uint256 tokenVaultTreeIndex_,
         bytes32[] memory initialRootVector_,
         address[] memory managedStorageAddresses_,
@@ -79,7 +80,7 @@ contract ChannelManager {
         dappId = dappId_;
         genesisBlockNumber = block.number;
         leader = leader_;
-        aPubBlockHash = aPubBlockHash_;
+        aPubBlockHash = _hashCurrentBlockInfo();
         bridgeCore = bridgeCore_;
         tokamakVerifier = tokamakVerifier_;
 
@@ -369,6 +370,39 @@ contract ChannelManager {
             revert APubUserWordOutOfRange(startIndex + 1, upper);
         }
         combined = lower | (upper << 128);
+    }
+
+    function _hashCurrentBlockInfo() private view returns (bytes32) {
+        uint256[] memory aPubBlock = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
+        uint256 selfBalance;
+        assembly ("memory-safe") {
+            selfBalance := selfbalance()
+        }
+
+        _writeSplitWord(aPubBlock, 0, uint256(uint160(address(block.coinbase))));
+        _writeSplitWord(aPubBlock, 2, block.timestamp);
+        _writeSplitWord(aPubBlock, 4, block.number);
+        _writeSplitWord(aPubBlock, 6, uint256(block.prevrandao));
+        _writeSplitWord(aPubBlock, 8, block.gaslimit);
+        _writeSplitWord(aPubBlock, 10, block.chainid);
+        _writeSplitWord(aPubBlock, 12, selfBalance);
+        _writeSplitWord(aPubBlock, 14, block.basefee);
+
+        uint256 offsetWords = 16;
+        for (uint256 i = 1; i <= TOKAMAK_PREVIOUS_BLOCK_HASHES; i++) {
+            uint256 blockHashNumber = block.number > i ? block.number - i : 0;
+            _writeSplitWord(aPubBlock, offsetWords, uint256(blockhash(blockHashNumber)));
+            unchecked {
+                offsetWords += SPLIT_WORD_SIZE;
+            }
+        }
+
+        return keccak256(abi.encode(aPubBlock));
+    }
+
+    function _writeSplitWord(uint256[] memory words, uint256 startIndex, uint256 value) private pure {
+        words[startIndex] = uint256(uint128(value));
+        words[startIndex + 1] = value >> 128;
     }
 
     function _computeFunctionKey(address entryContract, bytes4 functionSig) private pure returns (bytes32) {

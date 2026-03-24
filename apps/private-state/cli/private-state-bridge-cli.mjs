@@ -46,6 +46,8 @@ const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
 
 const abiCoder = AbiCoder.defaultAbiCoder();
+const TOKAMAK_APUB_BLOCK_LENGTH = 78;
+const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const INITIAL_ZERO_ROOT =
   "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const BLS12_381_SCALAR_FIELD_MODULUS =
@@ -156,6 +158,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     provider,
   );
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
+  const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
   const deploymentManifestPath = path.resolve(deployRoot, `deployment.${network.chainId}.latest.json`);
   const storageLayoutManifestPath = path.resolve(deployRoot, `storage-layout.${network.chainId}.latest.json`);
@@ -175,7 +178,23 @@ async function handleWorkspaceInit({ args, network, provider }) {
   );
 
   const contractCodes = await fetchContractCodes(provider, managedStorageAddresses);
-  const blockInfo = blockInfoFile ? readJson(blockInfoFile) : null;
+  const blockInfo = await fetchChannelBlockInfo(provider, genesisBlockNumber);
+  const derivedAPubBlockHash = normalizeBytes32Hex(hashTokamakPublicInputs(encodeTokamakBlockInfo(blockInfo)));
+  expect(
+    derivedAPubBlockHash === normalizeBytes32Hex(channelInfo.aPubBlockHash),
+    `Derived channel block-info hash ${derivedAPubBlockHash} does not match onchain ${channelInfo.aPubBlockHash}.`,
+  );
+  if (blockInfoFile) {
+    const suppliedBlockInfo = readJson(blockInfoFile);
+    const suppliedBlockHash = normalizeBytes32Hex(hashTokamakPublicInputs(encodeTokamakBlockInfo(suppliedBlockInfo)));
+    expect(
+      suppliedBlockHash === derivedAPubBlockHash,
+      [
+        `Supplied block_info.json hash ${suppliedBlockHash} does not match the channel block context.`,
+        `Expected ${derivedAPubBlockHash} from genesis block ${genesisBlockNumber}.`,
+      ].join(" "),
+    );
+  }
 
   let currentSnapshot;
   if (importedSnapshotFile) {
@@ -201,15 +220,6 @@ async function handleWorkspaceInit({ args, network, provider }) {
     };
   }
 
-  if (!blockInfo) {
-    throw new Error(
-      [
-        "workspace-init requires --block-info-file.",
-        "Tokamak proof generation must reuse the same block-context model that the channel expects.",
-      ].join(" "),
-    );
-  }
-
   ensureDir(workspaceDir);
   ensureDir(path.join(workspaceDir, "current"));
   ensureDir(path.join(workspaceDir, "operations"));
@@ -224,6 +234,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     storageLayoutPath: storageLayoutManifestPath,
     channelId: Number(channelId),
     dappId: Number(channelInfo.dappId),
+    genesisBlockNumber,
     bridgeCore: getAddress(bridgeDeployment.bridgeCore),
     channelManager: getAddress(channelInfo.manager),
     tokenVault: getAddress(channelInfo.vault),
@@ -253,7 +264,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     tokenVault: workspace.tokenVault,
     controller: workspace.controller,
     l2AccountingVault: workspace.l2AccountingVault,
-    currentRoots,
+    currentRoots: currentSnapshot.stateRoots,
   });
 }
 
@@ -899,6 +910,61 @@ function hashTokamakPublicInputs(values) {
   return keccak256(abiCoder.encode(["uint256[]"], [values]));
 }
 
+function encodeTokamakBlockInfo(blockInfo) {
+  const values = new Array(TOKAMAK_APUB_BLOCK_LENGTH).fill(0n);
+  appendSplitWord(values, 0, BigInt(blockInfo.coinBase));
+  appendSplitWord(values, 2, BigInt(blockInfo.timeStamp));
+  appendSplitWord(values, 4, BigInt(blockInfo.blockNumber));
+  appendSplitWord(values, 6, BigInt(blockInfo.prevRanDao));
+  appendSplitWord(values, 8, BigInt(blockInfo.gasLimit));
+  appendSplitWord(values, 10, BigInt(blockInfo.chainId));
+  appendSplitWord(values, 12, BigInt(blockInfo.selfBalance));
+  appendSplitWord(values, 14, BigInt(blockInfo.baseFee));
+  for (let index = 0; index < TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT; index += 1) {
+    appendSplitWord(values, 16 + index * 2, BigInt(blockInfo.prevBlockHashes[index] ?? 0n));
+  }
+  return values;
+}
+
+function appendSplitWord(target, startIndex, value) {
+  const normalized = BigInt(value);
+  target[startIndex] = normalized & ((1n << 128n) - 1n);
+  target[startIndex + 1] = normalized >> 128n;
+}
+
+async function fetchChannelBlockInfo(provider, blockNumber) {
+  const blockTag = ethers.toQuantity(blockNumber);
+  const block = await provider.send("eth_getBlockByNumber", [blockTag, false]);
+  if (!block) {
+    throw new Error(`Unable to fetch channel genesis block ${blockNumber}.`);
+  }
+
+  const prevBlockHashes = [];
+  for (let offset = 1; offset <= TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT; offset += 1) {
+    if (blockNumber <= offset) {
+      prevBlockHashes.push("0x0");
+      continue;
+    }
+    const previousBlock = await provider.send("eth_getBlockByNumber", [ethers.toQuantity(blockNumber - offset), false]);
+    if (!previousBlock) {
+      throw new Error(`Unable to fetch previous block hash for block ${blockNumber - offset}.`);
+    }
+    prevBlockHashes.push(previousBlock.hash);
+  }
+
+  return {
+    coinBase: block.miner,
+    timeStamp: block.timestamp,
+    blockNumber: block.number,
+    prevRanDao: block.prevRandao ?? block.difficulty ?? "0x0",
+    gasLimit: block.gasLimit,
+    chainId: await provider.send("eth_chainId", []),
+    selfBalance: "0x0",
+    baseFee: block.baseFeePerGas ?? "0x0",
+    prevBlockHashes,
+  };
+}
+
 function toGrothSolidityProof(proof) {
   return {
     pA: [
@@ -1139,7 +1205,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
   node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
   node apps/private-state/cli/private-state-bridge-cli.mjs workspace-list
-  node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init --workspace <name> --channel-id <id> --block-info-file <path> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init --workspace <name> --channel-id <id> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs workspace-show --workspace <name>
   node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --workspace <name> --private-key <hex> --l2-key-signature <seed> --amount <wei> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 --workspace <name> --private-key <hex> --amount <wei> [options]
@@ -1157,6 +1223,7 @@ Common flags:
 workspace-init options:
   --bridge-deployment <path>   Bridge deployment JSON. Default: bridge/deployments/bridge-latest.json
   --bridge-abi-manifest <path> Optional bridge ABI manifest override
+  --block-info-file <path>     Optional block_info.json override; must match the channel genesis block context
   --state-snapshot-file <path> Import an existing non-genesis snapshot
   --force                      Overwrite an existing workspace
 
@@ -1166,7 +1233,7 @@ bridge-send options:
   --template-file <path>   Full JSON template override
 
 Notes:
-  - workspace-init requires a block_info.json that matches the channel's fixed aPubBlock context.
+  - workspace-init derives block_info.json from the channel genesis block on the connected chain.
   - Non-genesis channels cannot be reconstructed from roots alone. Use --state-snapshot-file in that case.
   - Every bridge-coupled action stores its proof artifacts, receipts, and resulting state_snapshot.json under:
       apps/private-state/cli/workspaces/<workspace>/operations/

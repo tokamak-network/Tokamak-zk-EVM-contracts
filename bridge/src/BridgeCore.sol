@@ -25,7 +25,6 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
     error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
     error InvalidLeader();
     error InvalidAsset();
-    error MissingAPubBlockHash();
     error GlobalVaultKeyAlreadyRegistered(bytes32 key);
     error ChannelLeafIndexCollision(uint256 channelId, uint256 leafIndex);
     error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
@@ -80,13 +79,11 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         uint256 channelId,
         uint256 dappId,
         address leader,
-        IERC20 asset,
-        bytes32 aPubBlockHash
+        IERC20 asset
     ) external onlyOwner returns (address manager, address vault) {
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (leader == address(0)) revert InvalidLeader();
         if (address(asset) == address(0)) revert InvalidAsset();
-        if (aPubBlockHash == bytes32(0)) revert MissingAPubBlockHash();
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
         if (adminManager.nMerkleTreeLevels() != SUPPORTED_MT_LEVELS) {
             revert UnsupportedMerkleTreeLevels(adminManager.nMerkleTreeLevels(), SUPPORTED_MT_LEVELS);
@@ -104,7 +101,6 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
             channelId,
             dappId,
             leader,
-            aPubBlockHash,
             tokenVaultTreeIndex,
             initialRootVector,
             managedStorageAddresses,
@@ -119,6 +115,7 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
 
         channelManager.bindTokenVault(address(tokenVault));
 
+        bytes32 channelAPubBlockHash = channelManager.aPubBlockHash();
         _channels[channelId] = ChannelDeployment({
             exists: true,
             dappId: dappId,
@@ -126,7 +123,7 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
             asset: address(asset),
             manager: address(channelManager),
             vault: address(tokenVault),
-            aPubBlockHash: aPubBlockHash
+            aPubBlockHash: channelAPubBlockHash
         });
 
         vaultToChannelId[address(tokenVault)] = channelId;

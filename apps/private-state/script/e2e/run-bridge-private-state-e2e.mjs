@@ -61,6 +61,8 @@ const anvilDeployerPrivateKey =
     || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const channelId = 1;
 const dappId = 1;
+const tokamakAPubBlockLength = 78;
+const tokamakPrevBlockHashCount = 4;
 const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const amountUnit = 10n ** 18n;
 const depositAmount = 3n * amountUnit;
@@ -68,7 +70,7 @@ const blsScalarFieldModulus = BigInt("0x73eda753299d7d483339d80809a1d80553bda402
 const abiCoder = AbiCoder.defaultAbiCoder();
 const deployerAddress = new Wallet(anvilDeployerPrivateKey).address;
 const bridgeCoreAbi = [
-  "function createChannel(uint256 channelId, uint256 dappId, address leader, address asset, bytes32 aPubBlockHash) external returns (address manager, address vault)",
+  "function createChannel(uint256 channelId, uint256 dappId, address leader, address asset) external returns (address manager, address vault)",
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address vault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
@@ -76,6 +78,7 @@ const dAppManagerAbi = [
 ];
 const channelManagerAbi = [
   "function currentRootVectorHash() external view returns (bytes32)",
+  "function genesisBlockNumber() external view returns (uint256)",
   "function executeChannelTransaction((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
 const tokenVaultAbi = [
@@ -217,11 +220,19 @@ async function rpcCall(provider, method, params) {
 async function getFixedBlockInfo(provider) {
   const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
   const latestNumber = Number(BigInt(latestNumberHex));
-  const blockNumber = Math.max(latestNumber, 4);
+  const blockNumber = Math.max(latestNumber, tokamakPrevBlockHashCount);
+  return getBlockInfoAt(provider, blockNumber);
+}
+
+async function getBlockInfoAt(provider, blockNumber) {
   const blockTag = ethers.toQuantity(blockNumber);
   const block = await rpcCall(provider, "eth_getBlockByNumber", [blockTag, false]);
   const prevBlockHashes = [];
-  for (let offset = 1; offset <= 4; offset += 1) {
+  for (let offset = 1; offset <= tokamakPrevBlockHashCount; offset += 1) {
+    if (blockNumber <= offset) {
+      prevBlockHashes.push("0x0");
+      continue;
+    }
     const previousBlock =
       await rpcCall(provider, "eth_getBlockByNumber", [ethers.toQuantity(blockNumber - offset), false]);
     prevBlockHashes.push(previousBlock.hash);
@@ -238,6 +249,28 @@ async function getFixedBlockInfo(provider) {
     baseFee: block.baseFeePerGas ?? "0x0",
     prevBlockHashes,
   };
+}
+
+function encodeTokamakBlockInfo(blockInfo) {
+  const values = new Array(tokamakAPubBlockLength).fill(0n);
+  writeSplitWord(values, 0, BigInt(blockInfo.coinBase));
+  writeSplitWord(values, 2, BigInt(blockInfo.timeStamp));
+  writeSplitWord(values, 4, BigInt(blockInfo.blockNumber));
+  writeSplitWord(values, 6, BigInt(blockInfo.prevRanDao));
+  writeSplitWord(values, 8, BigInt(blockInfo.gasLimit));
+  writeSplitWord(values, 10, BigInt(blockInfo.chainId));
+  writeSplitWord(values, 12, BigInt(blockInfo.selfBalance));
+  writeSplitWord(values, 14, BigInt(blockInfo.baseFee));
+  for (let index = 0; index < tokamakPrevBlockHashCount; index += 1) {
+    writeSplitWord(values, 16 + index * 2, BigInt(blockInfo.prevBlockHashes[index] ?? 0n));
+  }
+  return values;
+}
+
+function writeSplitWord(words, offset, value) {
+  const normalized = BigInt(value);
+  words[offset] = normalized & ((1n << 128n) - 1n);
+  words[offset + 1] = normalized >> 128n;
 }
 
 async function fetchContractCodes(provider, addresses) {
@@ -505,9 +538,10 @@ async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
   ensureTokamakSetupArtifacts();
   run(tokamakCliPath, ["--prove"], { cwd: tokamakRoot });
 
+  const bundlePath = path.join(stepDir, `${step.name}.zip`);
+  run(tokamakCliPath, ["--extract-proof", bundlePath], { cwd: tokamakRoot });
   copyTokamakArtifacts(stepDir);
-  ensureTokamakSetupArtifacts();
-  run(tokamakCliPath, ["--verify", stepDir], { cwd: tokamakRoot });
+  run(tokamakCliPath, ["--verify", bundlePath], { cwd: tokamakRoot });
 
   const nextSnapshot = normalizeStateSnapshot(
     readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json")),
@@ -529,6 +563,40 @@ async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
     metadataRecord,
     payload: loadTokamakPayloadFromStep(stepDir),
     nextSnapshot,
+  };
+}
+
+async function materializeTokamakResults(tokamakScenarios, initialSnapshot, blockInfo, contractCodes, options) {
+  let currentSnapshot = initialSnapshot;
+  const tokamakResults = [];
+
+  for (const scenario of tokamakScenarios) {
+    let result;
+    const stepDir = path.join(tokamakStepsDir, scenario.name);
+    if (options.reuseGeneratedArtifacts && hasReusableTokamakArtifacts(stepDir)) {
+      console.log(`E2E: reusing Tokamak artifacts for ${scenario.name}.`);
+      try {
+        result = loadExistingTokamakStep(scenario, currentSnapshot, blockInfo, contractCodes);
+      } catch (error) {
+        console.log(`E2E: cached Tokamak artifacts for ${scenario.name} do not match current context, regenerating.`);
+        result = await runTokamakStep(scenario, currentSnapshot, blockInfo, contractCodes);
+      }
+    } else {
+      console.log(`E2E: generating Tokamak artifacts for ${scenario.name}.`);
+      result = await runTokamakStep(scenario, currentSnapshot, blockInfo, contractCodes);
+    }
+
+    tokamakResults.push({
+      ...result,
+      scenario,
+      previousSnapshot: currentSnapshot,
+    });
+    currentSnapshot = result.nextSnapshot;
+  }
+
+  return {
+    tokamakResults,
+    finalSnapshot: currentSnapshot,
   };
 }
 
@@ -717,11 +785,7 @@ async function main() {
   );
 
   const contractCodes = await fetchContractCodes(provider, [controllerAddress, vaultAddress]);
-  const blockInfo = await getFixedBlockInfo(provider);
-  const blockHash = keccak256(abiCoder.encode(["uint256[]"], [blockInfo.prevBlockHashes.concat([
-    blockInfo.coinBase,
-  ])]));
-  void blockHash;
+  const bootstrapBlockInfo = await getFixedBlockInfo(provider);
 
   const initialSnapshot = buildGenesisSnapshot(controllerAddress, vaultAddress);
   const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
@@ -747,7 +811,7 @@ async function main() {
     );
   }
 
-  let currentSnapshot = depositTransitions[depositTransitions.length - 1].nextSnapshot;
+  const postDepositSnapshot = depositTransitions[depositTransitions.length - 1].nextSnapshot;
 
   const notes = {
     aMint: note(participants[0].l2Address, depositAmount, "private-state-e2e:a-mint"),
@@ -859,40 +923,19 @@ async function main() {
     },
   ];
 
-  const tokamakResults = [];
-  for (const scenario of tokamakScenarios) {
-    let result;
-    if (options.reuseGeneratedArtifacts && hasReusableTokamakArtifacts(path.join(tokamakStepsDir, scenario.name))) {
-      console.log(`E2E: reusing Tokamak artifacts for ${scenario.name}.`);
-      result = loadExistingTokamakStep(scenario, currentSnapshot, blockInfo, contractCodes);
-    } else {
-      console.log(`E2E: generating Tokamak artifacts for ${scenario.name}.`);
-      result = await runTokamakStep(scenario, currentSnapshot, blockInfo, contractCodes);
-    }
-    tokamakResults.push({
-      ...result,
-      scenario,
-      previousSnapshot: currentSnapshot,
-    });
-    currentSnapshot = result.nextSnapshot;
-  }
-
-  const finalRedeemSnapshot = currentSnapshot;
-  const postRedeemStateManager = await buildStateManager(finalRedeemSnapshot, contractCodes);
-  const withdrawTransition = await buildGrothTransition(
-    "withdraw-c",
-    postRedeemStateManager,
-    vaultAddress,
-    participantKeys.get(participants[2].index),
-    0n,
+  const metadataRun = await materializeTokamakResults(
+    tokamakScenarios,
+    postDepositSnapshot,
+    bootstrapBlockInfo,
+    contractCodes,
+    options,
   );
 
-  const dApps = buildDAppDefinitions(tokamakResults.map((result) => result.metadataRecord));
+  const dApps = buildDAppDefinitions(metadataRun.tokamakResults.map((result) => result.metadataRecord));
   expect(dApps.length === 1, `Expected one derived DApp, found ${dApps.length}.`);
   const derivedDApp = dApps[0];
-  const uniqueAPubBlockHashes = new Set(tokamakResults.map((result) => result.metadataRecord.aPubBlockHash.toLowerCase()));
+  const uniqueAPubBlockHashes = new Set(metadataRun.tokamakResults.map((result) => result.metadataRecord.aPubBlockHash.toLowerCase()));
   expect(uniqueAPubBlockHashes.size === 1, "All Tokamak steps must share one aPubBlockHash for the channel.");
-  const aPubBlockHash = tokamakResults[0].metadataRecord.aPubBlockHash;
 
   console.log("E2E: deploying bridge stack.");
   const bridgeDeployment = await deployBridgeStack();
@@ -932,14 +975,37 @@ async function main() {
       dappId,
       leader,
       bridgeDeployment.mockAsset,
-      aPubBlockHash,
       { nonce: bridgeDeployerNonce++ },
     )
   ).wait();
   const channelDeployment = await bridgeCore.getChannel(channelId);
 
   const channelManager = new Contract(channelDeployment.manager, channelManagerAbi, deployer);
+  const channelBlockInfo = await getBlockInfoAt(provider, Number(await channelManager.genesisBlockNumber()));
+  const channelAPubBlockHash = hashTokamakPublicInputs(encodeTokamakBlockInfo(channelBlockInfo));
+  expect(
+    normalizeBytes32Hex(channelAPubBlockHash) === normalizeBytes32Hex(channelDeployment.aPubBlockHash),
+    "Derived channel block_info hash must match the stored channel aPubBlockHash.",
+  );
   const tokenVault = new Contract(channelDeployment.vault, tokenVaultAbi, deployer);
+
+  const executionRun = await materializeTokamakResults(
+    tokamakScenarios,
+    postDepositSnapshot,
+    channelBlockInfo,
+    contractCodes,
+    options,
+  );
+  const tokamakResults = executionRun.tokamakResults;
+  const finalRedeemSnapshot = executionRun.finalSnapshot;
+  const postRedeemStateManager = await buildStateManager(finalRedeemSnapshot, contractCodes);
+  const withdrawTransition = await buildGrothTransition(
+    "withdraw-c",
+    postRedeemStateManager,
+    vaultAddress,
+    participantKeys.get(participants[2].index),
+    0n,
+  );
 
   for (const participant of participants) {
     console.log(`E2E: approving and funding bridge vault for ${participant.l1.address}.`);

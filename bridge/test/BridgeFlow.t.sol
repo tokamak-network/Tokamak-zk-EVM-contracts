@@ -100,8 +100,7 @@ contract BridgeFlowTest is Test {
             channelId,
             1,
             leader,
-            asset,
-            keccak256(abi.encode(tokamakFixture.aPubBlock))
+            asset
         );
 
         channelManager = ChannelManager(manager);
@@ -168,8 +167,7 @@ contract BridgeFlowTest is Test {
             secondChannelId,
             1,
             leader,
-            asset,
-            keccak256(abi.encode(_loadTokamakProofPayload().aPubBlock))
+            asset
         );
 
         L1TokenVault secondVault = L1TokenVault(secondVaultAddress);
@@ -247,9 +245,9 @@ contract BridgeFlowTest is Test {
         );
     }
 
-    function testRejectsChannelCreationWithoutAPubBlockHash() public {
-        vm.expectRevert(BridgeCore.MissingAPubBlockHash.selector);
-        bridgeCore.createChannel(channelId + 100, 1, leader, asset, bytes32(0));
+    function testChannelDerivesAPubBlockHashOnCreation() public {
+        BridgeCore.ChannelDeployment memory deployment = bridgeCore.getChannel(channelId);
+        assertEq(deployment.aPubBlockHash, channelManager.aPubBlockHash());
     }
 
     function testRejectsChannelCreationWithTooManyManagedStorages() public {
@@ -276,7 +274,7 @@ contract BridgeFlowTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(BridgeCore.TooManyManagedStorages.selector, uint256(12), uint256(11))
         );
-        bridgeCore.createChannel(channelId + 101, 3, leader, asset, keccak256("block"));
+        bridgeCore.createChannel(channelId + 101, 3, leader, asset);
     }
 
     function testGrothDepositUpdatesVaultStateAndRootVector() public {
@@ -384,7 +382,7 @@ contract BridgeFlowTest is Test {
         feeAsset.mint(alice, 100 ether);
 
         (address manager, address vault) =
-            bridgeCore.createChannel(channelId + 102, 1, leader, feeAsset, keccak256(abi.encode(_loadTokamakProofPayload().aPubBlock)));
+            bridgeCore.createChannel(channelId + 102, 1, leader, feeAsset);
 
         manager;
         L1TokenVault feeVault = L1TokenVault(vault);
@@ -498,9 +496,10 @@ contract BridgeFlowTest is Test {
             ITokamakVerifier(address(tokamakVerifier))
         );
         MockERC20 localAsset = new MockERC20("Bridge Unexpected State Asset", "BUSA");
+        _setBlockContextFromAPubBlock(proofPayload.aPubBlock);
 
         (address manager,) =
-            localBridgeCore.createChannel(99, 99, leader, localAsset, keccak256(abi.encode(proofPayload.aPubBlock)));
+            localBridgeCore.createChannel(99, 99, leader, localAsset);
         ChannelManager localChannelManager = ChannelManager(manager);
 
         vm.expectRevert(ChannelManager.UnexpectedCurrentRootVector.selector);
@@ -548,9 +547,10 @@ contract BridgeFlowTest is Test {
             ITokamakVerifier(address(tokamakVerifier))
         );
         MockERC20 localAsset = new MockERC20("Bridge Positive Path Asset", "BPPA");
+        _setBlockContextFromAPubBlock(proofPayload.aPubBlock);
 
         (address manager,) =
-            localBridgeCore.createChannel(99, 99, leader, localAsset, keccak256(abi.encode(proofPayload.aPubBlock)));
+            localBridgeCore.createChannel(99, 99, leader, localAsset);
 
         ChannelManager localChannelManager = ChannelManager(manager);
         bytes32[] memory currentRoots =
@@ -619,7 +619,7 @@ contract BridgeFlowTest is Test {
         payload.functionPreprocessPart2 = json.readUintArray(".functionPreprocessPart2");
         uint256[] memory publicInputs = json.readUintArray(".publicInputs");
         payload.aPubUser = _slice(publicInputs, 0, 50);
-        payload.aPubBlock = _slice(publicInputs, 50, 78);
+        payload.aPubBlock = _currentBlockAPubBlock();
     }
 
     function _loadRealTokamakProofPayload()
@@ -884,6 +884,36 @@ contract BridgeFlowTest is Test {
     function _writeSplitWord(uint256[] memory words, uint256 offset, uint256 value) internal pure {
         words[offset] = uint128(value);
         words[offset + 1] = uint128(value >> 128);
+    }
+
+    function _currentBlockAPubBlock() internal view returns (uint256[] memory words) {
+        words = new uint256[](78);
+        _writeSplitWord(words, 0, uint256(uint160(address(block.coinbase))));
+        _writeSplitWord(words, 2, block.timestamp);
+        _writeSplitWord(words, 4, block.number);
+        _writeSplitWord(words, 6, uint256(block.prevrandao));
+        _writeSplitWord(words, 8, block.gaslimit);
+        _writeSplitWord(words, 10, block.chainid);
+        _writeSplitWord(words, 12, 0);
+        _writeSplitWord(words, 14, block.basefee);
+        for (uint256 i = 0; i < 4; i++) {
+            uint256 blockHashNumber = block.number > (i + 1) ? block.number - (i + 1) : 0;
+            _writeSplitWord(words, 16 + i * 2, uint256(blockhash(blockHashNumber)));
+        }
+    }
+
+    function _setBlockContextFromAPubBlock(uint256[] memory aPubBlock) internal {
+        vm.coinbase(address(uint160(_decodeUint256FromSplitWords(aPubBlock, 0))));
+        vm.warp(_decodeUint256FromSplitWords(aPubBlock, 2));
+        vm.roll(_decodeUint256FromSplitWords(aPubBlock, 4));
+        vm.prevrandao(bytes32(_decodeUint256FromSplitWords(aPubBlock, 6)));
+        vm.fee(_decodeUint256FromSplitWords(aPubBlock, 14));
+        vm.chainId(_decodeUint256FromSplitWords(aPubBlock, 10));
+
+        uint256 currentBlockNumber = block.number;
+        for (uint256 i = 0; i < 4; i++) {
+            vm.setBlockhash(currentBlockNumber - (i + 1), bytes32(_decodeUint256FromSplitWords(aPubBlock, 16 + i * 2)));
+        }
     }
 
     function _depositProof() private pure returns (BridgeStructs.GrothProof memory proof) {

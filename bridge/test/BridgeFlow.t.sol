@@ -473,6 +473,20 @@ contract BridgeFlowTest is Test {
         channelManager.executeChannelTransaction(proofPayload);
     }
 
+    function testTokamakVerificationRejectsTokenVaultRootChangeWithoutStorageWrite() public {
+        BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
+
+        _writeSplitWord(proofPayload.aPubUser, 22, uint256(uint160(appContract)));
+        _writeSplitWord(proofPayload.aPubUser, 24, uint32(APP_SIG));
+        _writeSplitWord(proofPayload.aPubUser, 26, uint256(INITIAL_ZERO_ROOT));
+        _writeSplitWord(proofPayload.aPubUser, 28, uint256(INITIAL_ZERO_ROOT));
+        _writeSplitWord(proofPayload.aPubUser, 0, 123);
+        _writeSplitWord(proofPayload.aPubUser, 2, uint256(INITIAL_ZERO_ROOT));
+
+        vm.expectRevert(ChannelManager.TokenVaultRootUpdateWithoutStorageWrite.selector);
+        channelManager.executeChannelTransaction(proofPayload);
+    }
+
     function testTokamakVerificationAcceptsRealProofBundleAfterSeedingVerifiedPreState() public {
         BridgeStructs.TokamakProofPayload memory proofPayload = _loadRealTokamakProofPayload();
         BridgeStructs.DAppFunctionMetadata memory realFunctionMetadata =

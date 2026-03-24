@@ -24,6 +24,7 @@ contract ChannelManager {
     error EntryContractPublicInputOutOfRange(uint256 value);
     error FunctionSigPublicInputOutOfRange(uint256 value);
     error InvalidStorageWriteStorageIndex(uint8 storageAddrIndex);
+    error TokenVaultRootUpdateWithoutStorageWrite();
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
@@ -158,6 +159,16 @@ contract ChannelManager {
             revert APubBlockHashMismatch(aPubBlockHash, actualAPubBlockHash);
         }
 
+        bytes32[] memory updatedRootVector =
+            _decodeUpdatedRootVectorFromAPubUser(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords);
+        bytes32 currentTokenVaultRoot = _currentRootVector[tokenVaultTreeIndex];
+        bytes32 updatedTokenVaultRoot = updatedRootVector[tokenVaultTreeIndex];
+        bool hasTokenVaultStorageWrite = _hasTokenVaultStorageWrite(functionKey);
+
+        if (updatedTokenVaultRoot != currentTokenVaultRoot && !hasTokenVaultStorageWrite) {
+            revert TokenVaultRootUpdateWithoutStorageWrite();
+        }
+
         bool ok = tokamakVerifier.verify(
             payload.proofPart1,
             payload.proofPart2,
@@ -168,13 +179,14 @@ contract ChannelManager {
         );
         if (!ok) revert TokamakProofRejected();
 
-        bytes32[] memory updatedRootVector =
-            _decodeUpdatedRootVectorFromAPubUser(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords);
-        bytes32 currentTokenVaultRoot = _currentRootVector[tokenVaultTreeIndex];
-        bytes32 updatedTokenVaultRoot = updatedRootVector[tokenVaultTreeIndex];
-
-        _replaceCurrentRootVector(updatedRootVector);
-        _observeStorageWrites(functionKey, payload.aPubUser, currentTokenVaultRoot, updatedTokenVaultRoot);
+        if (!hasTokenVaultStorageWrite) {
+            _replaceCurrentRootVector(updatedRootVector);
+        } else {
+            updatedRootVector[tokenVaultTreeIndex] = currentTokenVaultRoot;
+            _setCurrentRootVector(updatedRootVector);
+            _applyTokenVaultRootUpdate(currentTokenVaultRoot, updatedTokenVaultRoot);
+            _observeStorageWrites(functionKey, payload.aPubUser, currentTokenVaultRoot, updatedTokenVaultRoot);
+        }
 
         emit TokamakStateUpdateAccepted(functionSig, entryContract);
         return true;
@@ -190,8 +202,7 @@ contract ChannelManager {
             revert UnexpectedCurrentRootVector();
         }
 
-        _currentRootVector[tokenVaultTreeIndex] = updatedTokenVaultRoot;
-        _publishCurrentRootVector(_copyBytes32Array(_currentRootVector));
+        _applyTokenVaultRootUpdate(currentTokenVaultRoot, updatedTokenVaultRoot);
         _applyVaultUpdate(currentTokenVaultRoot, updatedTokenVaultRoot, leafIndex, latestLeafValue);
         return true;
     }
@@ -254,11 +265,15 @@ contract ChannelManager {
     }
 
     function _replaceCurrentRootVector(bytes32[] memory newRootVector) private {
+        _setCurrentRootVector(newRootVector);
+        _publishCurrentRootVector(newRootVector);
+    }
+
+    function _setCurrentRootVector(bytes32[] memory newRootVector) private {
         delete _currentRootVector;
         for (uint256 i = 0; i < newRootVector.length; i++) {
             _currentRootVector.push(newRootVector[i]);
         }
-        _publishCurrentRootVector(newRootVector);
     }
 
     function _replaceManagedStorageAddresses(address[] memory storageAddresses) private {
@@ -329,6 +344,23 @@ contract ChannelManager {
         }
     }
 
+    function _hasTokenVaultStorageWrite(bytes32 functionKey) private view returns (bool) {
+        address[] storage functionStorageAddresses = _functionStorageAddresses[functionKey];
+        BridgeStructs.StorageWriteMetadata[] storage storageWrites = _functionStorageWrites[functionKey];
+
+        for (uint256 i = 0; i < storageWrites.length; i++) {
+            BridgeStructs.StorageWriteMetadata storage storageWrite = storageWrites[i];
+            if (storageWrite.storageAddrIndex >= functionStorageAddresses.length) {
+                revert InvalidStorageWriteStorageIndex(storageWrite.storageAddrIndex);
+            }
+            if (functionStorageAddresses[storageWrite.storageAddrIndex] == _managedStorageAddresses[tokenVaultTreeIndex]) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     function _decodeBytes32FromAPubUser(uint256[] calldata aPubUser, uint256 startIndex)
         private
         pure
@@ -380,6 +412,15 @@ contract ChannelManager {
     function _publishCurrentRootVector(bytes32[] memory rootVector) private {
         currentRootVectorHash = keccak256(abi.encode(rootVector));
         emit RootVectorUpdated(currentRootVectorHash, rootVector);
+    }
+
+    function _applyTokenVaultRootUpdate(bytes32 currentTokenVaultRoot, bytes32 updatedTokenVaultRoot) private {
+        if (_currentRootVector[tokenVaultTreeIndex] != currentTokenVaultRoot) {
+            revert UnexpectedCurrentRootVector();
+        }
+
+        _currentRootVector[tokenVaultTreeIndex] = updatedTokenVaultRoot;
+        _publishCurrentRootVector(_copyBytes32Array(_currentRootVector));
     }
 
     function _applyVaultUpdate(

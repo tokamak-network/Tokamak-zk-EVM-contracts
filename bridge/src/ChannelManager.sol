@@ -322,9 +322,8 @@ contract ChannelManager {
             uint256 leafIndex = _decodeSplitWord(aPubUser, storageWrite.aPubOffsetWords);
             uint256 value = _decodeSplitWord(aPubUser, storageWrite.aPubOffsetWords + STORAGE_WRITE_VALUE_OFFSET);
 
-            emit StorageWriteObserved(storageAddr, leafIndex, value);
-
             if (storageAddr == _managedStorageAddresses[tokenVaultTreeIndex]) {
+                emit StorageWriteObserved(storageAddr, leafIndex, value);
                 _applyVaultUpdate(currentTokenVaultRoot, updatedTokenVaultRoot, leafIndex, bytes32(value));
             }
         }

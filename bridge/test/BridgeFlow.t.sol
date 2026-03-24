@@ -553,7 +553,7 @@ contract BridgeFlowTest is Test {
             }
         }
 
-        assertEq(storageWriteCount, 2);
+        assertEq(storageWriteCount, 1);
         assertEq(vaultUpdateCount, 1);
         assertTrue(sawTokenVaultWrite);
     }

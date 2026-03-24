@@ -176,9 +176,15 @@ The CLI:
 - selects a target network through `--network` or `apps/.env`, restricted to `mainnet`, `sepolia`, or `anvil`
 - loads bridge deployment data and the bridge ABI manifest generated at bridge deployment time
 - reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`
-- manages per-channel workspaces and the latest `state_snapshot.json`
+- separates on-chain channel creation from optional channel-workspace caching
+- reconstructs channel `state_snapshot.json` from bridge events when initializing a channel workspace
+- manages mandatory per-user workspaces that store note plaintexts, used/unused note sets, and aggregated unused-note balance
 - generates Groth and Tokamak proofs
 - submits bridge transactions for `deposit`, `withdraw`, `claim`, and DApp function execution
+
+Channel workspaces are optional snapshot caches. User-action commands can reconstruct the channel state directly from
+bridge events by using `--channel-name` or an existing `--user-workspace`. User workspaces remain mandatory because
+note plaintexts and note-spend history are not reconstructible from bridge events alone.
 
 Examples:
 
@@ -187,8 +193,9 @@ cd apps/private-state
 make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
-node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init --workspace demo --network anvil --channel-name demo-channel --bridge-deployment bridge/deployments/bridge-latest.json
-node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --workspace demo --network anvil --private-key <hex> --l2-key-signature "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-id 1 --asset <erc20-address> --private-key <hex> --create-workspace --workspace demo --network anvil --bridge-deployment bridge/deployments/bridge-latest.json
+node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --channel-name demo-channel --user-workspace participant-a --network anvil --private-key <hex> --l2-key-signature "participant-a" --amount 3000000000000000000
+node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --user-workspace participant-a --network anvil --private-key <hex> --l2-key-signature "participant-a"
 ```
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such

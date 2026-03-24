@@ -40,7 +40,8 @@ const appRoot = path.resolve(projectRoot, "apps/private-state");
 const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
 const functionsRoot = path.resolve(__dirname, "functions");
-const workspacesRoot = path.resolve(__dirname, "workspaces");
+const channelWorkspacesRoot = path.resolve(__dirname, "workspaces");
+const userWorkspacesRoot = path.resolve(__dirname, "user-workspaces");
 const defaultEnvFile = path.resolve(appsRoot, ".env");
 const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
@@ -73,7 +74,17 @@ async function main() {
   }
 
   if (args.command === "workspace-list") {
-    printJson(listWorkspaces());
+    printJson(listChannelWorkspaces());
+    return;
+  }
+
+  if (args.command === "channel-workspace-list") {
+    printJson(listChannelWorkspaces());
+    return;
+  }
+
+  if (args.command === "user-workspace-list") {
+    printJson(listUserWorkspaces());
     return;
   }
 
@@ -91,11 +102,19 @@ async function main() {
   const provider = new JsonRpcProvider(rpcUrl);
 
   switch (args.command) {
+    case "channel-create":
+      await handleChannelCreate({ args, env, network, provider });
+      return;
     case "workspace-init":
+    case "channel-workspace-init":
       await handleWorkspaceInit({ args, network, provider });
       return;
     case "workspace-show":
+    case "channel-workspace-show":
       handleWorkspaceShow(args);
+      return;
+    case "user-workspace-show":
+      handleUserWorkspaceShow(args);
       return;
     case "register-and-fund":
       await handleRegisterAndFund({ args, env, network, provider });
@@ -120,32 +139,111 @@ async function main() {
   }
 }
 
-async function handleWorkspaceInit({ args, network, provider }) {
-  const workspaceName = requireWorkspaceName(args);
-  const workspaceDir = workspacePath(workspaceName);
-  const bridgeDeploymentPath = resolveInputPath(
-    args.bridgeDeployment ?? path.resolve(bridgeRoot, "deployments", "bridge-latest.json"),
-  );
-  const bridgeDeployment = readJson(bridgeDeploymentPath);
-  const bridgeAbiManifestPath = resolveBridgeAbiManifestPath({
-    explicitPath: args.bridgeAbiManifest,
-    bridgeDeploymentPath,
-    bridgeDeployment,
-    chainId: network.chainId,
-  });
-  const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
+async function handleChannelCreate({ args, env, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
+  const dappId = Number(requireArg(args.dappId, "--dapp-id"));
+  const asset = getAddress(requireArg(args.asset, "--asset"));
+  const signer = requireL1Signer(args, env, provider);
+  const leader = getAddress(args.leader ?? signer.address);
+  const createWorkspace = parseBooleanFlag(args.createWorkspace);
+  const workspaceName = args.workspace ? requireWorkspaceName(args) : channelName;
+
+  const bridgeResources = loadBridgeResources({ args, chainId: network.chainId });
+  const bridgeCore = new Contract(
+    bridgeResources.bridgeDeployment.bridgeCore,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
+    signer,
+  );
+
+  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelName, dappId, leader, asset));
+  const channelId = BigInt(await bridgeCore.deriveChannelId(channelName));
+  const channelInfo = await bridgeCore.getChannel(channelId);
+
+  let workspaceResult = null;
+  if (createWorkspace) {
+    workspaceResult = await initializeChannelWorkspace({
+      workspaceName,
+      channelName,
+      network,
+      provider,
+      bridgeResources,
+      blockInfoFile: null,
+      importedSnapshotFile: null,
+      force: parseBooleanFlag(args.force),
+      persist: true,
+    });
+  }
+
+  printJson({
+    action: "channel-create",
+    channelName,
+    channelId: channelId.toString(),
+    dappId,
+    leader,
+    asset,
+    manager: channelInfo.manager,
+    tokenVault: channelInfo.vault,
+    receipt: sanitizeReceipt(receipt),
+    workspace: workspaceResult?.workspaceDir ?? null,
+  });
+}
+
+async function handleWorkspaceInit({ args, network, provider }) {
+  const channelName = requireArg(args.channelName, "--channel-name");
+  const workspaceName = args.workspace ? requireWorkspaceName(args) : channelName;
   const blockInfoFile = args.blockInfoFile ? resolveInputPath(args.blockInfoFile) : null;
   const importedSnapshotFile = args.stateSnapshotFile ? resolveInputPath(args.stateSnapshotFile) : null;
   const force = parseBooleanFlag(args.force);
+  const bridgeResources = loadBridgeResources({ args, chainId: network.chainId });
 
-  if (fs.existsSync(workspaceDir)) {
+  const { workspaceDir, workspace, currentSnapshot } = await initializeChannelWorkspace({
+    workspaceName,
+    channelName,
+    network,
+    provider,
+    bridgeResources,
+    blockInfoFile,
+    importedSnapshotFile,
+    force,
+    persist: true,
+  });
+
+  printJson({
+    action: "channel-workspace-init",
+    workspace: workspaceName,
+    workspaceDir,
+    bridgeAbiManifestPath: workspace.bridgeAbiManifestPath,
+    channelName,
+    channelId: workspace.channelId,
+    channelManager: workspace.channelManager,
+    tokenVault: workspace.tokenVault,
+    controller: workspace.controller,
+    l2AccountingVault: workspace.l2AccountingVault,
+    currentRoots: currentSnapshot.stateRoots,
+  });
+}
+
+async function initializeChannelWorkspace({
+  workspaceName,
+  channelName,
+  network,
+  provider,
+  bridgeResources,
+  blockInfoFile,
+  importedSnapshotFile,
+  force,
+  persist,
+}) {
+  const workspaceDir = channelWorkspacePath(workspaceName);
+
+  if (persist && fs.existsSync(workspaceDir)) {
     if (!force) {
       throw new Error(`Workspace already exists: ${workspaceDir}. Use --force to overwrite.`);
     }
     fs.rmSync(workspaceDir, { recursive: true, force: true });
   }
 
+  const { bridgeDeploymentPath, bridgeDeployment, bridgeAbiManifestPath, bridgeAbiManifest } = bridgeResources;
   const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
   const channelId = BigInt(await bridgeCore.deriveChannelId(channelName));
   const channelInfo = await bridgeCore.getChannel(channelId);
@@ -202,28 +300,18 @@ async function handleWorkspaceInit({ args, network, provider }) {
     currentSnapshot = normalizeStateSnapshot(readJson(importedSnapshotFile));
     assertSnapshotMatchesChannel(currentSnapshot, currentRootVectorHash, managedStorageAddresses);
   } else {
-    const zeroRoots = managedStorageAddresses.map(() => normalizeBytes32Hex(INITIAL_ZERO_ROOT));
-    const allZeroRoots = normalizeBytes32Hex(hashRootVector(zeroRoots)) === currentRootVectorHash;
-    if (!allZeroRoots) {
-      throw new Error(
-        [
-          "The current channel roots are not the zero genesis roots.",
-          "Import an existing state snapshot with --state-snapshot-file instead of reconstructing from roots alone.",
-        ].join(" "),
-      );
-    }
-
-    currentSnapshot = {
-      channelId: Number(channelId),
-      stateRoots: zeroRoots,
-      storageAddresses: managedStorageAddresses,
-      storageEntries: managedStorageAddresses.map(() => []),
-    };
+    currentSnapshot = await reconstructChannelSnapshot({
+      provider,
+      bridgeAbiManifest,
+      channelInfo,
+      channelManager,
+      currentRootVectorHash,
+      managedStorageAddresses,
+      contractCodes,
+      genesisBlockNumber,
+      channelId,
+    });
   }
-
-  ensureDir(workspaceDir);
-  ensureDir(path.join(workspaceDir, "current"));
-  ensureDir(path.join(workspaceDir, "operations"));
 
   const workspace = {
     name: workspaceName,
@@ -246,96 +334,123 @@ async function handleWorkspaceInit({ args, network, provider }) {
     aPubBlockHash: normalizeBytes32Hex(channelInfo.aPubBlockHash),
     managedStorageAddresses,
     liquidBalancesSlot: liquidBalancesSlot.toString(),
-    participants: {},
-    l2Nonces: {},
   };
 
-  writeJson(path.join(workspaceDir, "workspace.json"), workspace);
-  writeJson(path.join(workspaceDir, "current", "state_snapshot.json"), currentSnapshot);
-  writeJson(path.join(workspaceDir, "current", "state_snapshot.normalized.json"), normalizeStateSnapshot(currentSnapshot));
-  writeJson(path.join(workspaceDir, "current", "block_info.json"), blockInfo);
-  writeJson(path.join(workspaceDir, "current", "contract_codes.json"), contractCodes);
+  if (persist) {
+    ensureDir(workspaceDir);
+    ensureDir(path.join(workspaceDir, "current"));
+    ensureDir(path.join(workspaceDir, "operations"));
 
-  printJson({
-    action: "workspace-init",
-    workspace: workspaceName,
+    writeJson(path.join(workspaceDir, "workspace.json"), workspace);
+    writeJson(path.join(workspaceDir, "current", "state_snapshot.json"), currentSnapshot);
+    writeJson(path.join(workspaceDir, "current", "state_snapshot.normalized.json"), normalizeStateSnapshot(currentSnapshot));
+    writeJson(path.join(workspaceDir, "current", "block_info.json"), blockInfo);
+    writeJson(path.join(workspaceDir, "current", "contract_codes.json"), contractCodes);
+  }
+
+  return {
     workspaceDir,
-    bridgeAbiManifestPath,
-    channelName,
-    channelId: workspace.channelId,
-    channelManager: workspace.channelManager,
-    tokenVault: workspace.tokenVault,
-    controller: workspace.controller,
-    l2AccountingVault: workspace.l2AccountingVault,
-    currentRoots: currentSnapshot.stateRoots,
-  });
+    workspace,
+    currentSnapshot,
+    blockInfo,
+    contractCodes,
+  };
 }
 
 function handleWorkspaceShow(args) {
   const workspaceName = requireWorkspaceName(args);
-  const workspaceDir = workspacePath(workspaceName);
+  const workspaceDir = channelWorkspacePath(workspaceName);
   printJson({
     workspace: readJson(path.join(workspaceDir, "workspace.json")),
     currentSnapshot: readJson(path.join(workspaceDir, "current", "state_snapshot.json")),
   });
 }
 
-async function handleRegisterAndFund({ args, env, provider }) {
-  const context = await loadWorkspaceContext(args.workspace, provider);
-  const signer = requireL1Signer(args, env, provider);
-  const amount = parseAmountArg(requireArg(args.amount, "--amount"));
-  const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
-  const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
-  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
-  const asset = new Contract(context.workspace.canonicalAsset, context.bridgeAbiManifest.contracts.erc20.abi, signer);
-
-  await saveNoStateChangeOperation({
-    context,
-    operationName: "register-and-fund",
-    actorLabel: signer.address,
-    extraMetadata: {
-      amount: amount.toString(),
-      l2Address: l2Identity.l2Address,
-      l2StorageKey: storageKey,
-    },
-    execute: async (operationDir) => {
-      const approveReceipt = await waitForReceipt(
-        await asset.approve(context.workspace.tokenVault, amount),
-      );
-      const registrationReceipt = await waitForReceipt(
-        await tokenVault.registerAndFund(storageKey, amount),
-      );
-      const registration = await tokenVault.getRegistration(signer.address);
-
-      context.workspace.participants[signer.address.toLowerCase()] = {
-        l1Address: signer.address,
-        l2Address: l2Identity.l2Address,
-        l2StorageKey: storageKey,
-        leafIndex: registration.leafIndex.toString(),
-      };
-      if (context.workspace.l2Nonces[l2Identity.l2Address.toLowerCase()] === undefined) {
-        context.workspace.l2Nonces[l2Identity.l2Address.toLowerCase()] = 0;
-      }
-      persistWorkspace(context);
-
-      writeJson(path.join(operationDir, "approve-receipt.json"), sanitizeReceipt(approveReceipt));
-      writeJson(path.join(operationDir, "registration-receipt.json"), sanitizeReceipt(registrationReceipt));
-      writeJson(path.join(operationDir, "registration.json"), serializeBigInts(registration));
-
-      return {
-        l1Address: signer.address,
-        l2Address: l2Identity.l2Address,
-        l2StorageKey: storageKey,
-        leafIndex: registration.leafIndex.toString(),
-      };
-    },
+function handleUserWorkspaceShow(args) {
+  const workspaceName = requireUserWorkspaceName(args);
+  const workspaceContext = loadUserWorkspace(workspaceName);
+  const spendSelection = args.amount
+    ? selectSpendableNotes(workspaceContext.workspace, parseAmountArg(args.amount))
+    : null;
+  printJson({
+    workspace: workspaceContext.workspace,
+    spendSelection,
   });
 }
 
-async function handleFundL1({ args, env, provider }) {
-  const context = await loadWorkspaceContext(args.workspace, provider);
+async function handleRegisterAndFund({ args, env, network, provider }) {
   const signer = requireL1Signer(args, env, provider);
   const amount = parseAmountArg(requireArg(args.amount, "--amount"));
+  const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
+  const context = await loadChannelContext({
+    args,
+    networkName: network.name,
+    provider,
+  });
+  const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
+  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
+  const asset = new Contract(context.workspace.canonicalAsset, context.bridgeAbiManifest.contracts.erc20.abi, signer);
+  const approveReceipt = await waitForReceipt(await asset.approve(context.workspace.tokenVault, amount));
+  const registrationReceipt = await waitForReceipt(await tokenVault.registerAndFund(storageKey, amount));
+  const registration = await tokenVault.getRegistration(signer.address);
+  const userWorkspaceContext = ensureUserWorkspace({
+    args,
+    channelContext: context,
+    signerAddress: signer.address,
+    l2Identity,
+    storageKey,
+    leafIndex: registration.leafIndex,
+  });
+  const operationDir =
+    createUserOperationDir(userWorkspaceContext.workspaceName, `register-and-fund-${shortAddress(signer.address)}`);
+
+  writeJson(path.join(operationDir, "state_snapshot.json"), context.currentSnapshot);
+  writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(context.currentSnapshot));
+  writeJson(path.join(operationDir, "approve-receipt.json"), sanitizeReceipt(approveReceipt));
+  writeJson(path.join(operationDir, "registration-receipt.json"), sanitizeReceipt(registrationReceipt));
+  writeJson(path.join(operationDir, "registration.json"), serializeBigInts(registration));
+  writeJson(path.join(operationDir, "user-workspace.json"), userWorkspaceContext.workspace);
+  writeJson(path.join(operationDir, "operation.json"), {
+    operationName: "register-and-fund",
+    actorLabel: signer.address,
+    amount: amount.toString(),
+    l2Address: l2Identity.l2Address,
+    l2StorageKey: storageKey,
+    result: {
+      l1Address: signer.address,
+      l2Address: l2Identity.l2Address,
+      l2StorageKey: storageKey,
+      leafIndex: registration.leafIndex.toString(),
+    },
+  });
+
+  printJson({
+    action: "register-and-fund",
+    channelName: context.workspace.channelName,
+    userWorkspace: userWorkspaceContext.workspaceName,
+    operationDir,
+    amount: amount.toString(),
+    l1Address: signer.address,
+    l2Address: l2Identity.l2Address,
+    l2StorageKey: storageKey,
+    leafIndex: registration.leafIndex.toString(),
+  });
+}
+
+async function handleFundL1({ args, env, network, provider }) {
+  const signer = requireL1Signer(args, env, provider);
+  const amount = parseAmountArg(requireArg(args.amount, "--amount"));
+  const userWorkspace = loadUserWorkspace(requireUserWorkspaceName(args));
+  const context = await loadChannelContext({
+    args,
+    networkName: network.name,
+    provider,
+    userWorkspaceContext: userWorkspace,
+  });
+  expect(
+    Number(userWorkspace.workspace.channelId) === Number(context.workspace.channelId),
+    "The provided user workspace does not belong to the selected channel.",
+  );
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
   const asset = new Contract(context.workspace.canonicalAsset, context.bridgeAbiManifest.contracts.erc20.abi, signer);
 
@@ -343,6 +458,8 @@ async function handleFundL1({ args, env, provider }) {
     context,
     operationName: "fund-l1",
     actorLabel: signer.address,
+    operationDir: createUserOperationDir(userWorkspace.workspaceName, `fund-l1-${shortAddress(signer.address)}`),
+    workspaceLabel: userWorkspace.workspaceName,
     extraMetadata: {
       amount: amount.toString(),
     },
@@ -358,8 +475,20 @@ async function handleFundL1({ args, env, provider }) {
   });
 }
 
-async function handleGrothVaultMove({ args, env, provider, direction }) {
-  const context = await loadWorkspaceContext(args.workspace, provider);
+async function handleGrothVaultMove({ args, env, network, provider, direction }) {
+  const userWorkspaceFromFlag = args.userWorkspace ? loadUserWorkspace(requireUserWorkspaceName(args)) : null;
+  const context = await loadChannelContext({
+    args,
+    networkName: network.name,
+    provider,
+    userWorkspaceContext: userWorkspaceFromFlag,
+  });
+  if (userWorkspaceFromFlag) {
+    expect(
+      Number(userWorkspaceFromFlag.workspace.channelId) === Number(context.workspace.channelId),
+      "The provided user workspace does not belong to the selected channel.",
+    );
+  }
   await assertWorkspaceAlignedWithChain(context, provider);
 
   const signer = requireL1Signer(args, env, provider);
@@ -392,7 +521,16 @@ async function handleGrothVaultMove({ args, env, provider, direction }) {
   }
 
   const operationName = direction === "deposit" ? "deposit" : "withdraw";
-  const operationDir = createOperationDir(context.workspaceName, `${operationName}-${shortAddress(signer.address)}`);
+  const userWorkspaceContext = ensureUserWorkspace({
+    args,
+    channelContext: context,
+    signerAddress: signer.address,
+    l2Identity,
+    storageKey,
+    leafIndex: registration.leafIndex,
+  });
+  const operationDir =
+    createUserOperationDir(userWorkspaceContext.workspaceName, `${operationName}-${shortAddress(signer.address)}`);
 
   const transition = await buildGrothTransition({
     operationDir,
@@ -415,6 +553,7 @@ async function handleGrothVaultMove({ args, env, provider, direction }) {
   writeJson(path.join(operationDir, `${operationName}-receipt.json`), sanitizeReceipt(receipt));
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(transition.nextSnapshot));
+  writeJson(path.join(operationDir, "user-workspace.json"), userWorkspaceContext.workspace);
 
   context.currentSnapshot = normalizeStateSnapshot(transition.nextSnapshot);
   persistCurrentState(context);
@@ -422,6 +561,7 @@ async function handleGrothVaultMove({ args, env, provider, direction }) {
   printJson({
     action: operationName,
     workspace: context.workspaceName,
+    userWorkspace: userWorkspaceContext.workspaceName,
     operationDir,
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
@@ -432,7 +572,17 @@ async function handleGrothVaultMove({ args, env, provider, direction }) {
 }
 
 async function handleClaim({ args, env, provider }) {
-  const context = await loadWorkspaceContext(args.workspace, provider);
+  const userWorkspace = loadUserWorkspace(requireUserWorkspaceName(args));
+  const context = await loadChannelContext({
+    args,
+    networkName: null,
+    provider,
+    userWorkspaceContext: userWorkspace,
+  });
+  expect(
+    Number(userWorkspace.workspace.channelId) === Number(context.workspace.channelId),
+    "The provided user workspace does not belong to the selected channel.",
+  );
   const signer = requireL1Signer(args, env, provider);
   const amount = parseAmountArg(requireArg(args.amount, "--amount"));
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
@@ -441,6 +591,8 @@ async function handleClaim({ args, env, provider }) {
     context,
     operationName: "claim",
     actorLabel: signer.address,
+    operationDir: createUserOperationDir(userWorkspace.workspaceName, `claim-${shortAddress(signer.address)}`),
+    workspaceLabel: userWorkspace.workspaceName,
     extraMetadata: {
       amount: amount.toString(),
     },
@@ -453,21 +605,33 @@ async function handleClaim({ args, env, provider }) {
 }
 
 async function handleBridgeSend({ args, env, provider }) {
-  const context = await loadWorkspaceContext(args.workspace, provider);
-  await assertWorkspaceAlignedWithChain(context, provider);
-
   requireFunctionName(args);
   const signer = requireL1Signer(args, env, provider);
   const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
+  const userWorkspace = loadUserWorkspace(requireUserWorkspaceName(args));
+  const context = await loadChannelContext({
+    args,
+    networkName: null,
+    provider,
+    userWorkspaceContext: userWorkspace,
+  });
+  await assertWorkspaceAlignedWithChain(context, provider);
+  expect(
+    Number(userWorkspace.workspace.channelId) === Number(context.workspace.channelId),
+    "The provided user workspace does not belong to the selected channel.",
+  );
+  expect(
+    userWorkspace.workspace.l2Address === l2Identity.l2Address,
+    "The provided user workspace does not match the derived L2 identity.",
+  );
   const templatePayload = buildPayload(args.functionName, args);
   const controllerAbi = readJson(path.resolve(deployRoot, templatePayload.abiFile.replace("../deploy/", "")));
   const fragment = findFunctionFragment(controllerAbi, templatePayload.method);
   const formattedArgs = formatArguments(fragment.inputs ?? [], templatePayload.args ?? []);
   const inputSignature = buildInputSignature(fragment);
   const calldata = runCast(["calldata", inputSignature, ...formattedArgs]).trim();
-  const l2NonceKey = l2Identity.l2Address.toLowerCase();
-  const nonce = Number(context.workspace.l2Nonces[l2NonceKey] ?? 0);
-  const operationDir = createOperationDir(context.workspaceName, `${args.functionName}-${shortAddress(l2Identity.l2Address)}`);
+  const nonce = Number(userWorkspace.workspace.l2Nonce ?? 0);
+  const operationDir = createUserOperationDir(userWorkspace.workspaceName, `${args.functionName}-${shortAddress(l2Identity.l2Address)}`);
   ensureDir(operationDir);
 
   if (args.installArg) {
@@ -519,14 +683,21 @@ async function handleBridgeSend({ args, env, provider }) {
   writeJson(path.join(operationDir, "state_snapshot.json"), nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), nextSnapshot);
 
-  context.workspace.l2Nonces[l2NonceKey] = nonce + 1;
+  userWorkspace.workspace.l2Nonce = nonce + 1;
+  applyNoteLifecycleAcrossKnownUserWorkspaces(
+    userWorkspace,
+    extractNoteLifecycle(args.functionName, templatePayload),
+    args.functionName,
+    receipt.hash,
+  );
   context.currentSnapshot = nextSnapshot;
-  persistWorkspace(context);
+  persistUserWorkspace(userWorkspace);
   persistCurrentState(context);
 
   printJson({
     action: "bridge-send",
     workspace: context.workspaceName,
+    userWorkspace: userWorkspace.workspaceName,
     functionName: args.functionName,
     operationDir,
     l1Submitter: signer.address,
@@ -536,9 +707,271 @@ async function handleBridgeSend({ args, env, provider }) {
   });
 }
 
+function defaultUserWorkspaceName(channelName, l2Address) {
+  return `${channelName}-${l2Address}`;
+}
+
+function ensureUserWorkspace({
+  args,
+  channelContext,
+  signerAddress,
+  l2Identity,
+  storageKey,
+  leafIndex,
+}) {
+  const workspaceName = args.userWorkspace ?? defaultUserWorkspaceName(channelContext.workspace.channelName, l2Identity.l2Address);
+  const workspaceDir = userWorkspacePath(workspaceName);
+  let workspace;
+  if (fs.existsSync(path.join(workspaceDir, "workspace.json"))) {
+    workspace = normalizeUserWorkspace(readJson(path.join(workspaceDir, "workspace.json")));
+    expect(
+      Number(workspace.channelId) === Number(channelContext.workspace.channelId),
+      `User workspace ${workspaceName} belongs to channel ${workspace.channelId}, not ${channelContext.workspace.channelId}.`,
+    );
+    expect(
+      workspace.l2Address === l2Identity.l2Address,
+      `User workspace ${workspaceName} belongs to L2 address ${workspace.l2Address}, not ${l2Identity.l2Address}.`,
+    );
+  } else {
+    ensureDir(workspaceDir);
+    ensureDir(path.join(workspaceDir, "operations"));
+    workspace = normalizeUserWorkspace({
+      name: workspaceName,
+      network: channelContext.workspace.network,
+      chainId: channelContext.workspace.chainId,
+      bridgeDeploymentPath: channelContext.workspace.bridgeDeploymentPath,
+      bridgeAbiManifestPath: channelContext.workspace.bridgeAbiManifestPath,
+      appDeploymentPath: channelContext.workspace.appDeploymentPath,
+      storageLayoutPath: channelContext.workspace.storageLayoutPath,
+      channelName: channelContext.workspace.channelName,
+      channelId: channelContext.workspace.channelId,
+      channelManager: channelContext.workspace.channelManager,
+      tokenVault: channelContext.workspace.tokenVault,
+      canonicalAsset: channelContext.workspace.canonicalAsset,
+      controller: channelContext.workspace.controller,
+      l2AccountingVault: channelContext.workspace.l2AccountingVault,
+      liquidBalancesSlot: channelContext.workspace.liquidBalancesSlot,
+      l1Address: signerAddress,
+      l2Address: l2Identity.l2Address,
+      l2StorageKey: storageKey,
+      leafIndex: leafIndex?.toString() ?? null,
+      l2Nonce: 0,
+      notes: {},
+    });
+  }
+
+  workspace.bridgeDeploymentPath = channelContext.workspace.bridgeDeploymentPath;
+  workspace.bridgeAbiManifestPath = channelContext.workspace.bridgeAbiManifestPath;
+  workspace.appDeploymentPath = channelContext.workspace.appDeploymentPath;
+  workspace.storageLayoutPath = channelContext.workspace.storageLayoutPath;
+  workspace.channelName = channelContext.workspace.channelName;
+  workspace.channelId = channelContext.workspace.channelId;
+  workspace.channelManager = channelContext.workspace.channelManager;
+  workspace.tokenVault = channelContext.workspace.tokenVault;
+  workspace.canonicalAsset = channelContext.workspace.canonicalAsset;
+  workspace.controller = channelContext.workspace.controller;
+  workspace.l2AccountingVault = channelContext.workspace.l2AccountingVault;
+  workspace.liquidBalancesSlot = channelContext.workspace.liquidBalancesSlot;
+  workspace.l1Address = signerAddress;
+  workspace.l2Address = l2Identity.l2Address;
+  workspace.l2StorageKey = storageKey;
+  if (leafIndex !== undefined && leafIndex !== null) {
+    workspace.leafIndex = leafIndex.toString();
+  }
+
+  const context = {
+    workspaceName,
+    workspaceDir,
+    workspace,
+  };
+  persistUserWorkspace(context);
+  return context;
+}
+
+function normalizeUserWorkspace(workspace) {
+  const unusedNotes = Object.values(workspace.notes?.unused ?? {}).map(normalizeTrackedNote);
+  unusedNotes.sort(compareNotesByValueDesc);
+  const spentNotes = Object.values(workspace.notes?.spent ?? {}).map(normalizeTrackedNote);
+
+  return {
+    ...workspace,
+    l2Nonce: Number(workspace.l2Nonce ?? 0),
+    notes: {
+      unused: Object.fromEntries(unusedNotes.map((note) => [note.commitment, note])),
+      spent: Object.fromEntries(spentNotes.map((note) => [note.nullifier, note])),
+      unusedOrder: unusedNotes.map((note) => note.commitment),
+      unusedBalance: unusedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n).toString(),
+    },
+  };
+}
+
+function normalizeTrackedNote(note) {
+  return {
+    owner: getAddress(note.owner),
+    value: BigInt(note.value).toString(),
+    salt: normalizeBytes32Hex(note.salt),
+    commitment: normalizeBytes32Hex(note.commitment),
+    nullifier: normalizeBytes32Hex(note.nullifier),
+    status: note.status,
+    sourceFunction: note.sourceFunction ?? null,
+    sourceTxHash: note.sourceTxHash ?? null,
+  };
+}
+
+function compareNotesByValueDesc(left, right) {
+  const leftValue = BigInt(left.value);
+  const rightValue = BigInt(right.value);
+  if (leftValue === rightValue) {
+    return left.commitment.localeCompare(right.commitment);
+  }
+  return leftValue > rightValue ? -1 : 1;
+}
+
+function buildTrackedNote(note, sourceFunction, sourceTxHash) {
+  const normalizedNote = normalizePlaintextNote(note);
+  return {
+    ...normalizedNote,
+    commitment: normalizeBytes32Hex(computeNoteCommitment(normalizedNote)),
+    nullifier: normalizeBytes32Hex(computeNullifier(normalizedNote)),
+    status: "unused",
+    sourceFunction,
+    sourceTxHash,
+  };
+}
+
+function normalizePlaintextNote(note) {
+  return {
+    owner: getAddress(note.owner),
+    value: BigInt(note.value).toString(),
+    salt: normalizeBytes32Hex(note.salt),
+  };
+}
+
+function computeNoteCommitment(note) {
+  return keccak256(
+    abiCoder.encode(
+      ["bytes32", "address", "uint256", "bytes32"],
+      [ethers.id("PRIVATE_STATE_NOTE_COMMITMENT"), note.owner, BigInt(note.value), note.salt],
+    ),
+  );
+}
+
+function computeNullifier(note) {
+  return keccak256(
+    abiCoder.encode(
+      ["bytes32", "address", "uint256", "bytes32"],
+      [ethers.id("PRIVATE_STATE_NULLIFIER"), note.owner, BigInt(note.value), note.salt],
+    ),
+  );
+}
+
+function extractNoteLifecycle(functionName, templatePayload) {
+  if (functionName.startsWith("mintNotes")) {
+    return {
+      inputs: [],
+      outputs: templatePayload.args[0] ?? [],
+    };
+  }
+  if (functionName.startsWith("transferNotes")) {
+    return {
+      inputs: templatePayload.args[0] ?? [],
+      outputs: templatePayload.args[1] ?? [],
+    };
+  }
+  if (functionName.startsWith("redeemNotes")) {
+    return {
+      inputs: templatePayload.args[0] ?? [],
+      outputs: [],
+    };
+  }
+  return {
+    inputs: [],
+    outputs: [],
+  };
+}
+
+function applyNoteLifecycleToUserWorkspace(userWorkspaceContext, lifecycle, sourceFunction, sourceTxHash) {
+  for (const inputNote of lifecycle.inputs) {
+    const trackedInput = buildTrackedNote(inputNote, sourceFunction, sourceTxHash);
+    const existingUnusedNote = userWorkspaceContext.workspace.notes.unused[trackedInput.commitment];
+    if (!existingUnusedNote) {
+      continue;
+    }
+    delete userWorkspaceContext.workspace.notes.unused[trackedInput.commitment];
+    userWorkspaceContext.workspace.notes.spent[trackedInput.nullifier] = {
+      ...existingUnusedNote,
+      status: "spent",
+      sourceFunction,
+      sourceTxHash,
+    };
+  }
+
+  for (const outputNote of lifecycle.outputs) {
+    const trackedOutput = buildTrackedNote(outputNote, sourceFunction, sourceTxHash);
+    if (trackedOutput.owner !== userWorkspaceContext.workspace.l2Address) {
+      continue;
+    }
+    userWorkspaceContext.workspace.notes.unused[trackedOutput.commitment] = trackedOutput;
+  }
+
+  userWorkspaceContext.workspace = normalizeUserWorkspace(userWorkspaceContext.workspace);
+  persistUserWorkspace(userWorkspaceContext);
+}
+
+function applyNoteLifecycleAcrossKnownUserWorkspaces(primaryUserWorkspaceContext, lifecycle, sourceFunction, sourceTxHash) {
+  const knownWorkspaces = new Map([[primaryUserWorkspaceContext.workspaceName, primaryUserWorkspaceContext]]);
+  for (const descriptor of listUserWorkspaces()) {
+    if (!descriptor.name || knownWorkspaces.has(descriptor.name)) {
+      continue;
+    }
+    const workspaceContext = loadUserWorkspace(descriptor.name);
+    if (workspaceContext.workspace.channelId !== primaryUserWorkspaceContext.workspace.channelId) {
+      continue;
+    }
+    knownWorkspaces.set(workspaceContext.workspaceName, workspaceContext);
+  }
+
+  for (const workspaceContext of knownWorkspaces.values()) {
+    applyNoteLifecycleToUserWorkspace(workspaceContext, lifecycle, sourceFunction, sourceTxHash);
+  }
+}
+
+function selectSpendableNotes(workspace, requestedAmount) {
+  const target = BigInt(requestedAmount);
+  if (target <= 0n) {
+    return {
+      requestedAmount: target.toString(),
+      selectedAmount: "0",
+      noteCommitments: [],
+      sufficient: true,
+    };
+  }
+
+  const selectedCommitments = [];
+  let selectedAmount = 0n;
+  for (const commitment of workspace.notes.unusedOrder) {
+    const note = workspace.notes.unused[commitment];
+    if (!note) {
+      continue;
+    }
+    selectedCommitments.push(commitment);
+    selectedAmount += BigInt(note.value);
+    if (selectedAmount >= target) {
+      break;
+    }
+  }
+
+  return {
+    requestedAmount: target.toString(),
+    selectedAmount: selectedAmount.toString(),
+    noteCommitments: selectedCommitments,
+    sufficient: selectedAmount >= target,
+  };
+}
+
 async function loadWorkspaceContext(workspaceName, provider) {
   const normalizedWorkspaceName = requireWorkspaceName({ workspace: workspaceName });
-  const workspaceDir = workspacePath(normalizedWorkspaceName);
+  const workspaceDir = channelWorkspacePath(normalizedWorkspaceName);
   const workspace = readJson(path.join(workspaceDir, "workspace.json"));
   const bridgeDeployment = readJson(workspace.bridgeDeploymentPath);
   const bridgeAbiManifestPath = resolveBridgeAbiManifestPath({
@@ -558,6 +991,7 @@ async function loadWorkspaceContext(workspaceName, provider) {
   return {
     workspaceName: normalizedWorkspaceName,
     workspaceDir,
+    persistChannelWorkspace: true,
     workspace,
     bridgeAbiManifest,
     currentSnapshot,
@@ -565,6 +999,101 @@ async function loadWorkspaceContext(workspaceName, provider) {
     contractCodes,
     channelManager,
     tokenVault,
+  };
+}
+
+async function loadChannelContext({ args, networkName, provider, userWorkspaceContext = null }) {
+  const explicitWorkspaceName = args.workspace ? requireWorkspaceName(args) : null;
+  if (explicitWorkspaceName) {
+    const explicitWorkspaceDir = channelWorkspacePath(explicitWorkspaceName);
+    if (fs.existsSync(path.join(explicitWorkspaceDir, "workspace.json"))) {
+      return loadWorkspaceContext(explicitWorkspaceName, provider);
+    }
+  }
+
+  const chainId = Number((await provider.getNetwork()).chainId);
+  const resolvedNetworkName = networkName ?? networkNameFromChainId(chainId);
+  const channelName = args.channelName ?? userWorkspaceContext?.workspace.channelName;
+  if (args.channelName && userWorkspaceContext) {
+    expect(
+      args.channelName === userWorkspaceContext.workspace.channelName,
+      [
+        `The provided --channel-name (${args.channelName}) does not match the user workspace channel`,
+        `(${userWorkspaceContext.workspace.channelName}).`,
+      ].join(" "),
+    );
+  }
+  if (!channelName) {
+    throw new Error(
+      "Missing channel selector. Provide either --workspace, --channel-name, or --user-workspace bound to a channel.",
+    );
+  }
+
+  const bridgeResources = loadBridgeResources({ args, chainId });
+  const blockInfoFile = args.blockInfoFile ? resolveInputPath(args.blockInfoFile) : null;
+  const importedSnapshotFile = args.stateSnapshotFile ? resolveInputPath(args.stateSnapshotFile) : null;
+  const initialized = await initializeChannelWorkspace({
+    workspaceName: explicitWorkspaceName ?? channelName,
+    channelName,
+    network: { chainId, name: resolvedNetworkName },
+    provider,
+    bridgeResources,
+    blockInfoFile,
+    importedSnapshotFile,
+    force: false,
+    persist: false,
+  });
+
+  return {
+    workspaceName: explicitWorkspaceName ?? channelName,
+    workspaceDir: null,
+    persistChannelWorkspace: false,
+    workspace: initialized.workspace,
+    bridgeAbiManifest: bridgeResources.bridgeAbiManifest,
+    currentSnapshot: initialized.currentSnapshot,
+    blockInfo: initialized.blockInfo,
+    contractCodes: initialized.contractCodes,
+    channelManager: new Contract(
+      initialized.workspace.channelManager,
+      bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
+      provider,
+    ),
+    tokenVault: new Contract(
+      initialized.workspace.tokenVault,
+      bridgeResources.bridgeAbiManifest.contracts.tokenVault.abi,
+      provider,
+    ),
+  };
+}
+
+function loadUserWorkspace(workspaceName) {
+  const normalizedWorkspaceName = requireUserWorkspaceName({ userWorkspace: workspaceName });
+  const workspaceDir = userWorkspacePath(normalizedWorkspaceName);
+  const workspace = readJson(path.join(workspaceDir, "workspace.json"));
+  return {
+    workspaceName: normalizedWorkspaceName,
+    workspaceDir,
+    workspace: normalizeUserWorkspace(workspace),
+  };
+}
+
+function loadBridgeResources({ args, chainId }) {
+  const bridgeDeploymentPath = resolveInputPath(
+    args.bridgeDeployment ?? path.resolve(bridgeRoot, "deployments", "bridge-latest.json"),
+  );
+  const bridgeDeployment = readJson(bridgeDeploymentPath);
+  const bridgeAbiManifestPath = resolveBridgeAbiManifestPath({
+    explicitPath: args.bridgeAbiManifest,
+    bridgeDeploymentPath,
+    bridgeDeployment,
+    chainId,
+  });
+  const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
+  return {
+    bridgeDeploymentPath,
+    bridgeDeployment,
+    bridgeAbiManifestPath,
+    bridgeAbiManifest,
   };
 }
 
@@ -580,14 +1109,26 @@ async function assertWorkspaceAlignedWithChain(context) {
   );
 }
 
-async function saveNoStateChangeOperation({ context, operationName, actorLabel, extraMetadata, execute }) {
-  const operationDir = createOperationDir(context.workspaceName, `${operationName}-${shortAddress(actorLabel)}`);
-  ensureDir(operationDir);
-  writeJson(path.join(operationDir, "state_snapshot.json"), context.currentSnapshot);
-  writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(context.currentSnapshot));
+async function saveNoStateChangeOperation({
+  context,
+  operationName,
+  actorLabel,
+  extraMetadata,
+  execute,
+  operationDir,
+  workspaceLabel,
+}) {
+  const resolvedOperationDir =
+    operationDir ?? createOperationDir(context.workspaceName, `${operationName}-${shortAddress(actorLabel)}`);
+  ensureDir(resolvedOperationDir);
+  writeJson(path.join(resolvedOperationDir, "state_snapshot.json"), context.currentSnapshot);
+  writeJson(
+    path.join(resolvedOperationDir, "state_snapshot.normalized.json"),
+    normalizeStateSnapshot(context.currentSnapshot),
+  );
 
-  const result = await execute(operationDir);
-  writeJson(path.join(operationDir, "operation.json"), {
+  const result = await execute(resolvedOperationDir);
+  writeJson(path.join(resolvedOperationDir, "operation.json"), {
     operationName,
     actorLabel,
     ...extraMetadata,
@@ -595,8 +1136,9 @@ async function saveNoStateChangeOperation({ context, operationName, actorLabel, 
   });
   printJson({
     action: operationName,
-    workspace: context.workspaceName,
-    operationDir,
+    workspace: workspaceLabel ?? context.workspaceName,
+    channelName: context.workspace.channelName,
+    operationDir: resolvedOperationDir,
     ...extraMetadata,
     result,
   });
@@ -968,6 +1510,99 @@ async function fetchChannelBlockInfo(provider, blockNumber) {
   };
 }
 
+async function reconstructChannelSnapshot({
+  provider,
+  bridgeAbiManifest,
+  channelInfo,
+  channelManager,
+  currentRootVectorHash,
+  managedStorageAddresses,
+  contractCodes,
+  genesisBlockNumber,
+  channelId,
+}) {
+  const genesisSnapshot = {
+    channelId: Number(channelId),
+    stateRoots: managedStorageAddresses.map(() => normalizeBytes32Hex(INITIAL_ZERO_ROOT)),
+    storageAddresses: managedStorageAddresses,
+    storageEntries: managedStorageAddresses.map(() => []),
+  };
+
+  const tokenVault = new Contract(channelInfo.vault, bridgeAbiManifest.contracts.tokenVault.abi, provider);
+  const rootEvents = await channelManager.queryFilter(channelManager.filters.CurrentRootVectorObserved(), genesisBlockNumber);
+  const channelStorageWriteEvents =
+    await channelManager.queryFilter(channelManager.filters.StorageWriteObserved(), genesisBlockNumber);
+  const vaultStorageWriteEvents =
+    await tokenVault.queryFilter(tokenVault.filters.StorageWriteObserved(), genesisBlockNumber);
+
+  const groupedEvents = new Map();
+  for (const event of [...rootEvents, ...channelStorageWriteEvents, ...vaultStorageWriteEvents]) {
+    const key = event.transactionHash;
+    const group = groupedEvents.get(key) ?? [];
+    group.push(event);
+    groupedEvents.set(key, group);
+  }
+
+  const groupedValues = [...groupedEvents.values()].sort((left, right) => compareLogsByPosition(left[0], right[0]));
+  let currentSnapshot = normalizeStateSnapshot(genesisSnapshot);
+  let stateManager = await buildStateManager(currentSnapshot, contractCodes);
+
+  for (const group of groupedValues) {
+    const orderedGroup = [...group].sort(compareLogsByPosition);
+    const rootEvent = orderedGroup.find(
+      (event) => event.address.toLowerCase() === channelInfo.manager.toLowerCase()
+        && event.fragment?.name === "CurrentRootVectorObserved",
+    );
+    if (!rootEvent) {
+      continue;
+    }
+
+    const emittedRootVector = normalizedRootVector(rootEvent.args.rootVector);
+    const emittedRootVectorHash = normalizeBytes32Hex(rootEvent.args.rootVectorHash);
+    expect(
+      normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === emittedRootVectorHash,
+      `CurrentRootVectorObserved hash mismatch at tx ${rootEvent.transactionHash}.`,
+    );
+    expect(
+      JSON.stringify(currentSnapshot.stateRoots) === JSON.stringify(emittedRootVector),
+      `CurrentRootVectorObserved root vector mismatch at tx ${rootEvent.transactionHash}.`,
+    );
+
+    for (const event of orderedGroup) {
+      if (event.fragment?.name !== "StorageWriteObserved") {
+        continue;
+      }
+      const storageAddr = getAddress(event.args.storageAddr);
+      const storageKey = bytes32FromBigInt(BigInt(event.args.storageKey));
+      const storageValue = bigintToHex32(BigInt(event.args.value));
+      await stateManager.putStorage(
+        createAddressFromString(storageAddr),
+        hexToBytes(storageKey),
+        hexToBytes(storageValue),
+      );
+    }
+
+    currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  }
+
+  expect(
+    normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === normalizeBytes32Hex(currentRootVectorHash),
+    "Reconstructed channel snapshot does not match the current on-chain root vector hash.",
+  );
+
+  return currentSnapshot;
+}
+
+function compareLogsByPosition(left, right) {
+  if (left.blockNumber !== right.blockNumber) {
+    return Number(left.blockNumber - right.blockNumber);
+  }
+  if (left.transactionIndex !== right.transactionIndex) {
+    return Number(left.transactionIndex - right.transactionIndex);
+  }
+  return Number(left.index - right.index);
+}
+
 function toGrothSolidityProof(proof) {
   return {
     pA: [
@@ -1143,6 +1778,14 @@ function requireWorkspaceName(args) {
   return String(value);
 }
 
+function requireUserWorkspaceName(args) {
+  const value = typeof args === "string" ? args : args.userWorkspace;
+  if (!value) {
+    throw new Error("Missing --user-workspace.");
+  }
+  return String(value);
+}
+
 function requireFunctionName(args) {
   if (!args.functionName) {
     throw new Error("Missing function name.");
@@ -1157,18 +1800,36 @@ function requireL1Signer(args, env, provider) {
   return new Wallet(normalizePrivateKey(privateKey), provider);
 }
 
-function workspacePath(name) {
-  return path.join(workspacesRoot, slugify(name));
+function channelWorkspacePath(name) {
+  return path.join(channelWorkspacesRoot, slugify(name));
 }
 
-function listWorkspaces() {
-  if (!fs.existsSync(workspacesRoot)) {
+function userWorkspacePath(name) {
+  return path.join(userWorkspacesRoot, slugify(name));
+}
+
+function listChannelWorkspaces() {
+  if (!fs.existsSync(channelWorkspacesRoot)) {
     return [];
   }
-  return fs.readdirSync(workspacesRoot, { withFileTypes: true })
+  return fs.readdirSync(channelWorkspacesRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => {
-      const configPath = path.join(workspacesRoot, entry.name, "workspace.json");
+      const configPath = path.join(channelWorkspacesRoot, entry.name, "workspace.json");
+      return fs.existsSync(configPath)
+        ? readJson(configPath)
+        : { name: entry.name };
+    });
+}
+
+function listUserWorkspaces() {
+  if (!fs.existsSync(userWorkspacesRoot)) {
+    return [];
+  }
+  return fs.readdirSync(userWorkspacesRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const configPath = path.join(userWorkspacesRoot, entry.name, "workspace.json");
       return fs.existsSync(configPath)
         ? readJson(configPath)
         : { name: entry.name };
@@ -1184,7 +1845,14 @@ function slugify(value) {
 
 function createOperationDir(workspaceName, suffix) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
-  const operationDir = path.join(workspacePath(workspaceName), "operations", `${timestamp}-${slugify(suffix)}`);
+  const operationDir = path.join(channelWorkspacePath(workspaceName), "operations", `${timestamp}-${slugify(suffix)}`);
+  ensureDir(operationDir);
+  return operationDir;
+}
+
+function createUserOperationDir(workspaceName, suffix) {
+  const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  const operationDir = path.join(userWorkspacePath(workspaceName), "operations", `${timestamp}-${slugify(suffix)}`);
   ensureDir(operationDir);
   return operationDir;
 }
@@ -1193,7 +1861,14 @@ function persistWorkspace(context) {
   writeJson(path.join(context.workspaceDir, "workspace.json"), context.workspace);
 }
 
+function persistUserWorkspace(context) {
+  writeJson(path.join(context.workspaceDir, "workspace.json"), context.workspace);
+}
+
 function persistCurrentState(context) {
+  if (!context.persistChannelWorkspace || !context.workspaceDir) {
+    return;
+  }
   writeJson(path.join(context.workspaceDir, "current", "state_snapshot.json"), context.currentSnapshot);
   writeJson(
     path.join(context.workspaceDir, "current", "state_snapshot.normalized.json"),
@@ -1207,15 +1882,18 @@ function printHelp() {
 Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
   node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs workspace-list
-  node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init --workspace <name> --channel-name <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs workspace-show --workspace <name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --workspace <name> --private-key <hex> --l2-key-signature <seed> --amount <wei> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 --workspace <name> --private-key <hex> --amount <wei> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit --workspace <name> --private-key <hex> --l2-key-signature <seed> --amount <wei> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw --workspace <name> --private-key <hex> --l2-key-signature <seed> --amount <wei> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs claim --workspace <name> --private-key <hex> --amount <wei> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> --workspace <name> --private-key <hex> --l2-key-signature <seed> [--args-file <path>] [--template-file <path>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name <name> --dapp-id <id> --asset <address> --private-key <hex> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
+  node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-init --channel-name <name> [--workspace <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
+  node apps/private-state/cli/private-state-bridge-cli.mjs user-workspace-list
+  node apps/private-state/cli/private-state-bridge-cli.mjs user-workspace-show --user-workspace <name> [--amount <wei>]
+  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--user-workspace <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --user-workspace <name>) --private-key <hex> --amount <wei> --user-workspace <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--user-workspace <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --user-workspace <name>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--user-workspace <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --user-workspace <name>) --private-key <hex> --amount <wei> --user-workspace <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --user-workspace <name>) --user-workspace <name> --private-key <hex> --l2-key-signature <seed> [--args-file <path>] [--template-file <path>] [options]
 
 Common flags:
   --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia, anvil
@@ -1223,8 +1901,14 @@ Common flags:
   --alchemy-api-key <key>  Explicit Alchemy key override
   --env-file <path>        Alternate apps/.env location
 
-workspace-init options:
+channel-create options:
+  --leader <address>           Optional channel leader. Default: the signing EOA
+  --create-workspace           Also initialize a channel workspace after creation
+  --workspace <name>           Channel workspace name to use with --create-workspace. Default: channel name
+
+channel-workspace-init options:
   --channel-name <name>        User-provided channel name; channelId is derived as keccak256(bytes(name))
+  --workspace <name>           Optional cache name. Default: channel name
   --bridge-deployment <path>   Bridge deployment JSON. Default: bridge/deployments/bridge-latest.json
   --bridge-abi-manifest <path> Optional bridge ABI manifest override
   --block-info-file <path>     Optional block_info.json override; must match the channel genesis block context
@@ -1237,10 +1921,15 @@ bridge-send options:
   --template-file <path>   Full JSON template override
 
 Notes:
-  - workspace-init derives block_info.json from the channel genesis block on the connected chain.
-  - Non-genesis channels cannot be reconstructed from roots alone. Use --state-snapshot-file in that case.
-  - Every bridge-coupled action stores its proof artifacts, receipts, and resulting state_snapshot.json under:
+  - channel-workspace-init derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
+  - Channel workspaces are optional caches for channel snapshots.
+  - User workspaces are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
+  - register-and-fund, deposit, and withdraw can allocate or refresh a user workspace automatically from --l2-key-signature.
+  - fund-l1, claim, and bridge-send require an existing --user-workspace.
+  - Channel workspace operations are stored under:
       apps/private-state/cli/workspaces/<workspace>/operations/
+  - User workspace operations are stored under:
+      apps/private-state/cli/user-workspaces/<workspace>/operations/
 `);
 }
 

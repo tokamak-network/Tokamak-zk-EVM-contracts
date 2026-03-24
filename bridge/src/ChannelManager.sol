@@ -6,8 +6,8 @@ import {DAppManager} from "./DAppManager.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract ChannelManager {
-    // These offsets follow the current Tokamak synthesizer instance_description.json layout.
-    uint256 internal constant UPDATED_ROOT_VECTOR_OFFSET = 0;
+    // These fixed offsets follow the current Tokamak synthesizer instance_description.json layout.
+    // The updated root-vector offset is function-specific and comes from DApp metadata.
     uint256 internal constant ENTRY_CONTRACT_OFFSET = 22;
     uint256 internal constant FUNCTION_SIG_OFFSET = 24;
     uint256 internal constant CURRENT_ROOT_VECTOR_OFFSET = 26;
@@ -44,7 +44,7 @@ contract ChannelManager {
     address[] private _managedStorageAddresses;
 
     mapping(bytes32 => bool) private _allowedFunctionKeys;
-    mapping(bytes32 => bytes32) private _preprocessInputHashes;
+    mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
     mapping(uint256 => bytes32) private _latestTokenVaultLeaves;
@@ -98,7 +98,7 @@ contract ChannelManager {
                 allowedFunctions_[i].entryContract,
                 allowedFunctions_[i].functionSig
             );
-            _preprocessInputHashes[functionKey] = functionConfig.preprocessInputHash;
+            _functionConfigs[functionKey] = functionConfig;
         }
     }
 
@@ -129,10 +129,13 @@ contract ChannelManager {
         if (!_allowedFunctionKeys[functionKey]) {
             revert UnsupportedChannelFunction(entryContract, functionSig);
         }
+        BridgeStructs.FunctionConfig memory functionConfig = _functionConfigs[functionKey];
+
+        _assertUpdatedRootVectorLayout(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords);
 
         bytes32 actualPreprocessInputHash =
             keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
-        bytes32 expectedPreprocessInputHash = _preprocessInputHashes[functionKey];
+        bytes32 expectedPreprocessInputHash = functionConfig.preprocessInputHash;
         if (actualPreprocessInputHash != expectedPreprocessInputHash) {
             revert PreprocessInputHashMismatch(expectedPreprocessInputHash, actualPreprocessInputHash);
         }
@@ -151,7 +154,9 @@ contract ChannelManager {
         );
         if (!ok) revert TokamakProofRejected();
 
-        _replaceCurrentRootVector(_decodeUpdatedRootVectorFromAPubUser(payload.aPubUser));
+        _replaceCurrentRootVector(
+            _decodeUpdatedRootVectorFromAPubUser(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords)
+        );
         emit TokamakStateUpdateAccepted(functionSig, entryContract);
         return true;
     }
@@ -237,14 +242,27 @@ contract ChannelManager {
         }
     }
 
-    function _decodeUpdatedRootVectorFromAPubUser(uint256[] calldata aPubUser)
+    function _assertUpdatedRootVectorLayout(uint256[] calldata aPubUser, uint256 updatedRootVectorOffsetWords)
+        private
+        view
+    {
+        if (updatedRootVectorOffsetWords + _currentRootVector.length * SPLIT_WORD_SIZE > ENTRY_CONTRACT_OFFSET) {
+            revert RootVectorExceedsAPubUserLayout(_currentRootVector.length);
+        }
+        uint256 requiredLength = updatedRootVectorOffsetWords + _currentRootVector.length * SPLIT_WORD_SIZE;
+        if (aPubUser.length < requiredLength) {
+            revert APubUserTooShort(requiredLength, aPubUser.length);
+        }
+    }
+
+    function _decodeUpdatedRootVectorFromAPubUser(uint256[] calldata aPubUser, uint256 updatedRootVectorOffsetWords)
         private
         view
         returns (bytes32[] memory updatedRootVector)
     {
         updatedRootVector = new bytes32[](_currentRootVector.length);
         for (uint256 i = 0; i < _currentRootVector.length; i++) {
-            updatedRootVector[i] = _decodeBytes32FromAPubUser(aPubUser, UPDATED_ROOT_VECTOR_OFFSET + i * 2);
+            updatedRootVector[i] = _decodeBytes32FromAPubUser(aPubUser, updatedRootVectorOffsetWords + i * 2);
         }
     }
 

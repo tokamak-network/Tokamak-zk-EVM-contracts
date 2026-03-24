@@ -108,6 +108,23 @@ export function hashTokamakPublicInputs(values) {
   return keccak256(abiCoder.encode(["uint256[]"], [values]));
 }
 
+function extractUpdatedRootVectorOffsetWords(instanceDescriptionJsonPath) {
+  const description = readJson(instanceDescriptionJsonPath);
+  const entries = description.a_pub_user_description;
+  if (!Array.isArray(entries)) {
+    throw new Error(`instance_description.json is missing a_pub_user_description: ${instanceDescriptionJsonPath}`);
+  }
+
+  const offset = entries.findIndex((entry) => typeof entry === "string" && entry.startsWith("Resulting Merkle tree root hash"));
+  if (offset < 0) {
+    throw new Error(
+      `Unable to locate resulting root vector offset in instance_description.json: ${instanceDescriptionJsonPath}`,
+    );
+  }
+
+  return offset;
+}
+
 export function deriveFunctionSelectorFromTransaction(transactionJsonPath) {
   const transaction = readJson(transactionJsonPath);
   if (typeof transaction.data !== "string" || transaction.data.length < 10) {
@@ -177,6 +194,7 @@ export function buildFunctionDefinition({
   snapshotJsonPath,
   preprocessJsonPath,
   instanceJsonPath,
+  instanceDescriptionJsonPath,
 }) {
   const selector = deriveFunctionSelectorFromTransaction(transactionJsonPath);
   const entryContract = deriveEntryContractFromTransaction(transactionJsonPath);
@@ -186,6 +204,7 @@ export function buildFunctionDefinition({
   const preprocess = readJson(preprocessJsonPath);
   const preprocessPart1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
   const preprocessPart2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
+  const updatedRootVectorOffsetWords = extractUpdatedRootVectorOffsetWords(instanceDescriptionJsonPath);
 
   return {
     groupName,
@@ -195,6 +214,7 @@ export function buildFunctionDefinition({
     storageAddresses: storageMetadata.map((entry) => entry.storageAddress),
     storageMetadata,
     preprocessInputHash: hashTokamakPointEncoding(preprocessPart1, preprocessPart2),
+    updatedRootVectorOffsetWords,
     aPubBlockHash: hashTokamakPublicInputs(toBigIntArray(instance.a_pub_block, "a_pub_block")),
     functionInstancePart1: extracted.functionInstancePart1.map((value) => value.toString()),
     functionInstancePart2: extracted.functionInstancePart2.map((value) => value.toString()),
@@ -263,6 +283,9 @@ export function mergeFunctionDefinitions(records) {
     if (existing.preprocessInputHash !== record.preprocessInputHash) {
       mismatches.push("preprocess input hash");
     }
+    if (existing.updatedRootVectorOffsetWords !== record.updatedRootVectorOffsetWords) {
+      mismatches.push("updated root vector offset");
+    }
 
     if (mismatches.length > 0) {
       throw new Error(
@@ -313,6 +336,7 @@ export function buildDAppDefinitions(records) {
         functionSig: record.functionSig,
         storageAddresses: record.storageAddresses,
         preprocessInputHash: record.preprocessInputHash,
+        updatedRootVectorOffsetWords: record.updatedRootVectorOffsetWords,
         exampleNames: record.exampleNames,
       })),
       examples: group.examples.sort((left, right) => left.exampleName.localeCompare(right.exampleName)),

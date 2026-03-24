@@ -240,6 +240,7 @@ contract DAppManager is Ownable {
 
             _functionConfigs[dappId][functionKey] = BridgeStructs.FunctionConfig({
                 preprocessInputHash: fnMetadata.preprocessInputHash,
+                updatedRootVectorOffsetWords: fnMetadata.updatedRootVectorOffsetWords,
                 exists: true
             });
         }

@@ -16,6 +16,7 @@ The pipeline performs the following tasks:
 6. Builds a DApp-level bridge manifest:
    - one registered DApp per example group
    - one registered function entry per extracted Tokamak function
+   - one `updatedRootVectorOffsetWords` value per function, derived from `instance_description.json`
    - one channel-ready `aPubBlockHash` per processed example
 7. Optionally uploads the derived DApp metadata to the deployed bridge and can create one channel per processed example.
 

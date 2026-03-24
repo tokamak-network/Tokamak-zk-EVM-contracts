@@ -75,7 +75,7 @@ const grothVerifierOutputPath = path.join(
 const outputRoot = path.join(repoRoot, "script", "output", "zk-artifacts");
 const defaultManifestPath = path.join(outputRoot, "manifest.json");
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, address[] storageAddrs, bytes32 preprocessInputHash)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, address[] storageAddrs, bytes32 preprocessInputHash, uint16 updatedRootVectorOffsetWords)[] functions) external",
 ];
 const bridgeCoreAbi = [
   "function createChannel(uint256 channelId, uint256 dappId, address leader, address asset, bytes32 aPubBlockHash) external returns (address manager, address vault)",
@@ -431,6 +431,11 @@ async function processPrivateStateExamples() {
           snapshotJsonPath: path.join(synthesizerRoot, entry.files.previousState),
           preprocessJsonPath: path.join(exampleOutputRoot, "preprocess.json"),
           instanceJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance.json"),
+          instanceDescriptionJsonPath: path.join(
+            exampleOutputRoot,
+            "synthesizer-output",
+            "instance_description.json"
+          ),
         }),
       );
     }
@@ -465,6 +470,7 @@ async function uploadBridgeArtifacts(options, manifest) {
         functionSig: fn.functionSig,
         storageAddrs: fn.storageAddresses,
         preprocessInputHash: fn.preprocessInputHash,
+        updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
       })),
     );
     await tx.wait();

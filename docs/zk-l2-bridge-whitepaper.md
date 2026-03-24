@@ -141,17 +141,20 @@ Groth verification also enforces key matching:
 - for withdrawal, the instance's current user key must match the user's registered L2 token-vault key
 - for deposit, the instance's updated user key must match the user's registered L2 token-vault key
 
-`Tokamak zkp` is used for channel transaction processing. It is composed of:
+`Tokamak zkp` is used for channel transaction processing. Under the current bridge implementation, the verifier interface accepts:
 
-- a proof
-- a transaction instance
-- a channel instance
-- a function instance
-- a function preprocess
+- a proof split into two calldata arrays
+- a preprocess input split into two calldata arrays
+- `aPubUser`
+- `aPubBlock`
 
-The transaction instance is supplied by the user. The channel instance, function instance, and function preprocess are supplied and managed by the bridge.
+The bridge treats `aPubBlock` as channel-scoped metadata and treats the submitted preprocess input as the carrier of the function-scoped verification metadata. The bridge stores and checks:
 
-The transaction instance contains:
+- a channel-scoped `aPubBlockHash`
+- a function-scoped `preprocessInputHash`
+- a function-scoped `updatedRootVectorOffsetWords`
+
+The transaction-instance fields relevant to bridge state updates are encoded inside `aPubUser`. Under the current synthesizer layout, the bridge reads from `aPubUser`:
 
 - the current channel Merkle-root vector
 - the updated channel Merkle-root vector
@@ -173,8 +176,8 @@ A successful Tokamak verification means that the specified contract function was
 
 1. A user executes a DApp transaction locally on the channel server.
 2. The system derives the resulting Merkle-tree update and produces witness data.
-3. The user generates a Tokamak zkp and submits it with the transaction instance.
-4. The channel manager supplies the matching channel instance, function instance, and function preprocess.
+3. The user generates a Tokamak zkp and submits it with `aPubUser`, `aPubBlock`, and the preprocess input required by the verifier.
+4. The channel manager checks that the submitted preprocess input matches the DApp-managed metadata, that `aPubBlock` matches the channel-managed metadata, and that the transaction-instance fields decoded from `aPubUser` are acceptable for the current channel state.
 5. If the proof verifies, Ethereum immediately updates the channel's Merkle-root vector.
 6. If the proof fails, the previous verified state remains authoritative.
 

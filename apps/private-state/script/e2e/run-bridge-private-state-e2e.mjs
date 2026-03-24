@@ -34,7 +34,12 @@ import {
   setLengthLeft,
   utf8ToBytes,
 } from "@ethereumjs/util";
-import { buildDAppDefinitions, buildFunctionDefinition, writeJson } from "../../../../script/zk/lib/tokamak-artifacts.mjs";
+import {
+  buildDAppDefinitions,
+  buildFunctionDefinition,
+  hashTokamakPublicInputs,
+  writeJson,
+} from "../../../../script/zk/lib/tokamak-artifacts.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,7 +66,7 @@ const anvilDeployerPrivateKey =
   process.env.APPS_ANVIL_DEPLOYER_PRIVATE_KEY?.trim()
     || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const channelName = "private-state-bridge-genesis";
-const channelId = Number(deriveChannelIdFromName(channelName));
+const channelId = deriveChannelIdFromName(channelName);
 const dappId = 1;
 const tokamakAPubBlockLength = 78;
 const tokamakPrevBlockHashCount = 4;
@@ -87,11 +92,11 @@ const channelManagerAbi = [
   "function executeChannelTransaction((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
 const tokenVaultAbi = [
-  "function registerAndFund(uint256 amount) external",
+  "function fund(uint256 amount) external",
   "function deposit(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function withdraw(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function claimToWallet(uint256 amount) external",
-  "function getAccount(address user) external view returns (tuple(bool exists, uint256 availableBalance))",
+  "function availableBalanceOf(address user) external view returns (uint256)",
 ];
 const mockErc20Abi = [
   "function mint(address to, uint256 amount) external",
@@ -195,7 +200,7 @@ function deriveChannelIdFromName(name) {
 }
 
 function deriveLeafIndex(storageKey) {
-  return BigInt(storageKey) % MAX_MT_LEAVES;
+  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
 }
 
 function buildL1Wallet(index, provider) {
@@ -255,7 +260,7 @@ async function getBlockInfoAt(provider, blockNumber) {
     coinBase: block.miner,
     timeStamp: block.timestamp,
     blockNumber: block.number,
-    prevRanDao: block.prevRandao ?? block.difficulty ?? "0x0",
+    prevRanDao: block.prevRandao ?? block.mixHash ?? block.difficulty ?? "0x0",
     gasLimit: block.gasLimit,
     chainId,
     selfBalance: "0x0",
@@ -967,13 +972,13 @@ async function main() {
   console.log("E2E: deploying bridge stack.");
   const bridgeDeployment = await deployBridgeStack();
   const bridgeDeployer = new Wallet(anvilDeployerPrivateKey, provider);
+  const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeCoreAbi, bridgeDeployer);
   const canonicalAssetAddress = getAddress(await bridgeCore.canonicalAsset());
   const mockAssetCode = await provider.getCode(bridgeDeployment.mockAsset);
   expect(mockAssetCode !== "0x", "Mock asset deployment must exist before installing canonical asset code.");
   await provider.send("anvil_setCode", [canonicalAssetAddress, mockAssetCode]);
   const asset = new Contract(canonicalAssetAddress, mockErc20Abi, bridgeDeployer);
   const dAppManager = new Contract(bridgeDeployment.dAppManager, dAppManagerAbi, bridgeDeployer);
-  const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeCoreAbi, bridgeDeployer);
   let bridgeDeployerNonce = await provider.getTransactionCount(bridgeDeployer.address, "latest");
   const participantNonces = new Map();
   for (const participant of participants) {
@@ -1043,7 +1048,7 @@ async function main() {
       )
     ).wait();
     await (
-      await tokenVault.connect(participant.l1).registerAndFund(depositAmount, {
+      await tokenVault.connect(participant.l1).fund(depositAmount, {
         nonce: consumeAccountNonce(participantNonces, participant.l1.address),
       })
     ).wait();
@@ -1111,13 +1116,13 @@ async function main() {
   ).wait();
   const cBalanceAfterClaim = await asset.balanceOf(participants[2].l1.address);
 
-  const accountA = await tokenVault.getAccount(participants[0].l1.address);
-  const accountB = await tokenVault.getAccount(participants[1].l1.address);
-  const accountC = await tokenVault.getAccount(participants[2].l1.address);
+  const accountA = await tokenVault.availableBalanceOf(participants[0].l1.address);
+  const accountB = await tokenVault.availableBalanceOf(participants[1].l1.address);
+  const accountC = await tokenVault.availableBalanceOf(participants[2].l1.address);
 
-  expect(accountA.availableBalance === 0n, "Account A should have no L1-claimable balance after transferring all value.");
-  expect(accountB.availableBalance === 0n, "Account B should have no L1-claimable balance after transferring all value.");
-  expect(accountC.availableBalance === 0n, "Account C should have no remaining L1-claimable balance after claiming.");
+  expect(accountA === 0n, "Account A should have no L1-claimable balance after transferring all value.");
+  expect(accountB === 0n, "Account B should have no L1-claimable balance after transferring all value.");
+  expect(accountC === 0n, "Account C should have no remaining L1-claimable balance after claiming.");
   expect(cBalanceAfterClaim - cBalanceBeforeClaim === 9n * amountUnit, "Account C must receive the full redeemed amount.");
 
   const summary = {

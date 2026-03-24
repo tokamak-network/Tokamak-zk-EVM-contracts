@@ -18,8 +18,6 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
-    error AlreadyRegistered(address user);
-    error NotRegistered(address user);
     error InvalidAmount();
     error KeyMismatch();
     error InsufficientAvailableBalance();
@@ -36,9 +34,8 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     IGrothVerifier public grothVerifier;
     IChannelRegistry public channelRegistry;
 
-    mapping(address => BridgeStructs.BridgeBalanceAccount) private _accounts;
+    mapping(address => uint256) private _availableBalances;
 
-    event BridgeAccountRegistered(address indexed user);
     event AssetsFunded(address indexed user, uint256 amount);
     event StorageWriteObserved(address indexed storageAddr, uint256 storageKey, uint256 value);
     event AssetsClaimed(address indexed user, uint256 amount);
@@ -70,25 +67,12 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         channelRegistry = channelRegistry_;
     }
 
-    function registerAndFund(uint256 amount) external nonReentrant {
-        if (_accounts[msg.sender].exists) revert AlreadyRegistered(msg.sender);
-        if (amount == 0) revert InvalidAmount();
-
-        _accounts[msg.sender] = BridgeStructs.BridgeBalanceAccount({exists: true, availableBalance: amount});
-
-        _pullAsset(msg.sender, amount);
-
-        emit BridgeAccountRegistered(msg.sender);
-        emit AssetsFunded(msg.sender, amount);
-    }
-
     function fund(uint256 amount) external nonReentrant {
-        BridgeStructs.BridgeBalanceAccount storage account = _requireAccount(msg.sender);
         if (amount == 0) revert InvalidAmount();
 
-        account.availableBalance += amount;
-
+        _availableBalances[msg.sender] += amount;
         _pullAsset(msg.sender, amount);
+
         emit AssetsFunded(msg.sender, amount);
     }
 
@@ -97,7 +81,6 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         nonReentrant
         returns (bool)
     {
-        BridgeStructs.BridgeBalanceAccount storage account = _requireAccount(msg.sender);
         ChannelManager channelManager = _requireChannelManager(channelId);
         BridgeStructs.TokenVaultRegistration memory registration =
             _requireChannelRegistration(channelManager, msg.sender, channelId);
@@ -110,12 +93,12 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         if (update.updatedUserValue <= update.currentUserValue) revert InvalidAmount();
 
         uint256 amount = update.updatedUserValue - update.currentUserValue;
-        if (account.availableBalance < amount) revert InsufficientAvailableBalance();
+        if (_availableBalances[msg.sender] < amount) revert InsufficientAvailableBalance();
 
         bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(currentRoot, update));
         if (!ok) revert GrothProofRejected();
 
-        account.availableBalance -= amount;
+        _availableBalances[msg.sender] -= amount;
 
         channelManager.applyVaultUpdate(
             update.currentRootVector,
@@ -135,7 +118,6 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         BridgeStructs.GrothProof calldata proof,
         BridgeStructs.GrothUpdate calldata update
     ) external nonReentrant returns (bool) {
-        BridgeStructs.BridgeBalanceAccount storage account = _requireAccount(msg.sender);
         ChannelManager channelManager = _requireChannelManager(channelId);
         BridgeStructs.TokenVaultRegistration memory registration =
             _requireChannelRegistration(channelManager, msg.sender, channelId);
@@ -152,7 +134,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(currentRoot, update));
         if (!ok) revert GrothProofRejected();
 
-        account.availableBalance += amount;
+        _availableBalances[msg.sender] += amount;
 
         channelManager.applyVaultUpdate(
             update.currentRootVector,
@@ -168,11 +150,10 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     }
 
     function claimToWallet(uint256 amount) external nonReentrant {
-        BridgeStructs.BridgeBalanceAccount storage account = _requireAccount(msg.sender);
         if (amount == 0) revert InvalidAmount();
-        if (account.availableBalance < amount) revert InsufficientAvailableBalance();
+        if (_availableBalances[msg.sender] < amount) revert InsufficientAvailableBalance();
 
-        account.availableBalance -= amount;
+        _availableBalances[msg.sender] -= amount;
 
         uint256 vaultBalanceBefore = asset.balanceOf(address(this));
         uint256 recipientBalanceBefore = asset.balanceOf(msg.sender);
@@ -188,21 +169,8 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         emit AssetsClaimed(msg.sender, amount);
     }
 
-    function getAccount(address user) external view returns (BridgeStructs.BridgeBalanceAccount memory) {
-        return _accounts[user];
-    }
-
-    function encodeTokenVaultLeaf(bytes32, uint256 userValue) external pure returns (bytes32) {
-        return _encodeTokenVaultLeaf(userValue);
-    }
-
-    function _requireAccount(address user)
-        private
-        view
-        returns (BridgeStructs.BridgeBalanceAccount storage account)
-    {
-        account = _accounts[user];
-        if (!account.exists) revert NotRegistered(user);
+    function availableBalanceOf(address user) external view returns (uint256) {
+        return _availableBalances[user];
     }
 
     function _requireChannelManager(uint256 channelId) private view returns (ChannelManager channelManager) {

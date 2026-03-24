@@ -28,6 +28,7 @@ contract ChannelManager {
     error InvalidTokenVaultTreeIndex();
     error PreprocessInputHashMismatch(bytes32 expectedHash, bytes32 actualHash);
     error APubBlockHashMismatch(bytes32 expectedHash, bytes32 actualHash);
+    error APubBlockTooLong(uint256 expectedLength, uint256 actualLength);
     error APubUserTooShort(uint256 expectedLength, uint256 actualLength);
     error APubUserWordOutOfRange(uint256 index, uint256 value);
     error EntryContractPublicInputOutOfRange(uint256 value);
@@ -212,7 +213,7 @@ contract ChannelManager {
         if (actualPreprocessInputHash != expectedPreprocessInputHash) {
             revert PreprocessInputHashMismatch(expectedPreprocessInputHash, actualPreprocessInputHash);
         }
-        bytes32 actualAPubBlockHash = keccak256(abi.encode(payload.aPubBlock));
+        bytes32 actualAPubBlockHash = _hashNormalizedAPubBlock(payload.aPubBlock);
         if (actualAPubBlockHash != aPubBlockHash) {
             revert APubBlockHashMismatch(aPubBlockHash, actualAPubBlockHash);
         }
@@ -271,17 +272,6 @@ contract ChannelManager {
 
     function getManagedStorageAddresses() external view returns (address[] memory) {
         return _copyAddresses(_managedStorageAddresses);
-    }
-
-    function getManagedStorageAddress(uint256 index) external view returns (address) {
-        return _managedStorageAddresses[index];
-    }
-
-    function getAllowedFunctions() external view returns (BridgeStructs.FunctionReference[] memory out) {
-        out = new BridgeStructs.FunctionReference[](_allowedFunctions.length);
-        for (uint256 i = 0; i < _allowedFunctions.length; i++) {
-            out[i] = _allowedFunctions[i];
-        }
     }
 
     function getLatestTokenVaultLeaf(uint256 leafIndex) external view returns (bytes32) {
@@ -450,6 +440,18 @@ contract ChannelManager {
         }
 
         return keccak256(abi.encode(aPubBlock));
+    }
+
+    function _hashNormalizedAPubBlock(uint256[] calldata aPubBlock) private pure returns (bytes32) {
+        if (aPubBlock.length > TOKAMAK_APUB_BLOCK_LENGTH) {
+            revert APubBlockTooLong(TOKAMAK_APUB_BLOCK_LENGTH, aPubBlock.length);
+        }
+
+        uint256[] memory normalized = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
+        for (uint256 i = 0; i < aPubBlock.length; i++) {
+            normalized[i] = aPubBlock[i];
+        }
+        return keccak256(abi.encode(normalized));
     }
 
     function _writeSplitWord(uint256[] memory words, uint256 startIndex, uint256 value) private pure {

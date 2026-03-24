@@ -407,7 +407,7 @@ async function initializeChannelWorkspace({
     chainId: network.chainId,
     appDeploymentPath: deploymentManifestPath,
     storageLayoutPath: storageLayoutManifestPath,
-    channelId: Number(channelId),
+    channelId: channelId.toString(),
     channelName,
     dappId: Number(channelInfo.dappId),
     genesisBlockNumber,
@@ -487,18 +487,18 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
     signer,
   );
   const approveReceipt = await waitForReceipt(await asset.approve(bridgeVaultContext.tokenVaultAddress, amount));
-  const registrationReceipt = await waitForReceipt(await tokenVault.registerAndFund(amount));
-  const account = await tokenVault.getAccount(signer.address);
+  const fundReceipt = await waitForReceipt(await tokenVault.fund(amount));
+  const availableBalance = await tokenVault.availableBalanceOf(signer.address);
 
   printJson({
     action: "deposit-bridge",
     amountInput,
     amountBaseUnits: amount.toString(),
     l1Address: signer.address,
-    availableBalance: account.availableBalance.toString(),
+    availableBalance: availableBalance.toString(),
     tokenVault: bridgeVaultContext.tokenVaultAddress,
     approveReceipt: sanitizeReceipt(approveReceipt),
-    registrationReceipt: sanitizeReceipt(registrationReceipt),
+    fundReceipt: sanitizeReceipt(fundReceipt),
   });
 }
 
@@ -521,8 +521,8 @@ async function handleRegisterChannel({ args, env, network, provider }) {
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const leafIndex = deriveTokenVaultLeafIndex(storageKey);
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
-  const account = await tokenVault.getAccount(signer.address);
-  expect(account.exists, `No shared bridge-vault account exists for ${signer.address}. Run deposit-bridge first.`);
+  const availableBalance = await tokenVault.availableBalanceOf(signer.address);
+  expect(availableBalance > 0n, `No shared bridge-vault balance exists for ${signer.address}. Run deposit-bridge first.`);
 
   const existingRegistration = await context.channelManager.getTokenVaultRegistration(signer.address);
   if (!existingRegistration.exists) {
@@ -631,7 +631,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   });
   if (walletFromFlag) {
     expect(
-      Number(walletFromFlag.wallet.channelId) === Number(context.workspace.channelId),
+      BigInt(walletFromFlag.wallet.channelId) === BigInt(context.workspace.channelId),
       "The provided wallet does not belong to the selected channel.",
     );
   }
@@ -648,8 +648,8 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
-  const account = await tokenVault.getAccount(signer.address);
-  expect(account.exists, `No shared bridge-vault account exists for ${signer.address}. Run deposit-bridge first.`);
+  const availableBalance = await tokenVault.availableBalanceOf(signer.address);
+  expect(availableBalance > 0n, `No shared bridge-vault balance exists for ${signer.address}. Run deposit-bridge first.`);
   const registration = await context.channelManager.getTokenVaultRegistration(signer.address);
   expect(registration.exists, `No channel token-vault registration exists for ${signer.address}. Run register-channel first.`);
   expect(
@@ -769,7 +769,7 @@ async function handleBridgeSend({ args, env, provider }) {
   });
   await assertWorkspaceAlignedWithChain(context, provider);
   expect(
-    Number(wallet.wallet.channelId) === Number(context.workspace.channelId),
+      BigInt(wallet.wallet.channelId) === BigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
   );
   expect(
@@ -816,7 +816,7 @@ async function handleBridgeSend({ args, env, provider }) {
   writeJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
   const payload = loadTokamakPayloadFromStep(operationDir);
-  const aPubBlockHash = hashTokamakPublicInputs(payload.aPubBlock);
+  const aPubBlockHash = hashTokamakPublicInputs(normalizeTokamakAPubBlock(payload.aPubBlock));
   expect(
     normalizeBytes32Hex(aPubBlockHash) === normalizeBytes32Hex(context.workspace.aPubBlockHash),
     "Generated Tokamak proof does not match the channel aPubBlockHash. Check the workspace block_info.json context.",
@@ -875,7 +875,7 @@ function ensureWallet({
   if (walletConfigExists(walletDir)) {
     wallet = normalizeWallet(readEncryptedWalletJson(walletConfigPath(walletDir), walletPassword));
     expect(
-      Number(wallet.channelId) === Number(channelContext.workspace.channelId),
+      BigInt(wallet.channelId) === BigInt(channelContext.workspace.channelId),
       `Wallet ${walletName} belongs to channel ${wallet.channelId}, not ${channelContext.workspace.channelId}.`,
     );
     expect(
@@ -1650,6 +1650,15 @@ function encodeTokamakBlockInfo(blockInfo) {
   return values;
 }
 
+function normalizeTokamakAPubBlock(values) {
+  if (values.length > TOKAMAK_APUB_BLOCK_LENGTH) {
+    throw new Error(
+      `a_pub_block length ${values.length} exceeds the fixed Tokamak block input length ${TOKAMAK_APUB_BLOCK_LENGTH}.`,
+    );
+  }
+  return values.concat(new Array(TOKAMAK_APUB_BLOCK_LENGTH - values.length).fill(0n));
+}
+
 function appendSplitWord(target, startIndex, value) {
   const normalized = BigInt(value);
   target[startIndex] = normalized & ((1n << 128n) - 1n);
@@ -1680,7 +1689,7 @@ async function fetchChannelBlockInfo(provider, blockNumber) {
     coinBase: block.miner,
     timeStamp: block.timestamp,
     blockNumber: block.number,
-    prevRanDao: block.prevRandao ?? block.difficulty ?? "0x0",
+    prevRanDao: block.prevRandao ?? block.mixHash ?? block.difficulty ?? "0x0",
     gasLimit: block.gasLimit,
     chainId: await provider.send("eth_chainId", []),
     selfBalance: "0x0",
@@ -1701,7 +1710,7 @@ async function reconstructChannelSnapshot({
   channelId,
 }) {
   const genesisSnapshot = {
-    channelId: Number(channelId),
+    channelId: channelId.toString(),
     stateRoots: managedStorageAddresses.map(() => normalizeBytes32Hex(INITIAL_ZERO_ROOT)),
     storageAddresses: managedStorageAddresses,
     storageEntries: managedStorageAddresses.map(() => []),
@@ -2082,7 +2091,7 @@ Notes:
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
-  - deposit-bridge only registers and funds the shared bridge-level L1 token vault.
+  - deposit-bridge only funds the shared bridge-level L1 token vault.
   - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, token-vault key, and token-vault leaf index in the selected channel.
   - register-channel, deposit-channel, and bridge-send create or refresh the active wallet.
   - Once a wallet exists, wallet-show, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.

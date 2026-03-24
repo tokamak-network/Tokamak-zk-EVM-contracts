@@ -50,7 +50,7 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `channel-create` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
   Token for the selected network.
 - `channel-create --create-workspace` uses the channel name itself as the channel-workspace name.
-- `deposit-bridge` registers a user in the shared bridge-level L1 token vault and funds that shared vault.
+- `deposit-bridge` funds the shared bridge-level L1 token vault.
 - `register-channel` registers the caller's L2 address, L2 token-vault key, and token-vault leaf index in the selected channel.
 - `deposit-channel` moves value from the shared bridge-level L1 token vault into the selected channel's L2 token vault.
 - `recover-workspace` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the stored

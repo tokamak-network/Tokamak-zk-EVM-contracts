@@ -2,11 +2,6 @@
 pragma solidity ^0.8.24;
 
 library BridgeStructs {
-    struct BridgeBalanceAccount {
-        bool exists;
-        uint256 availableBalance;
-    }
-
     struct TokenVaultRegistration {
         bool exists;
         address l2Address;

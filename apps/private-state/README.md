@@ -191,7 +191,7 @@ Every CLI `--amount` input is interpreted as a human Tokamak Network Token amoun
 token decimals.
 Every CLI `--password` input accepts any string. During `register-channel`, `deposit-channel`, and other wallet-aware
 flows, the CLI signs a domain-separated password message with the user's L1 `--private-key` and derives the L2
-private key from the resulting signature. `deposit-bridge` itself only registers and funds the shared bridge-level
+private key from the resulting signature. `deposit-bridge` itself only funds the shared bridge-level
 L1 token vault. `register-channel` performs the channel-specific L2 identity registration. The first channel-specific
 wallet is created or refreshed by `register-channel`, `deposit-channel`, or `bridge-send`, and that wallet file is encrypted with
 `scrypt + AES-256-GCM` under the given password.

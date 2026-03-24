@@ -18,7 +18,12 @@ export function readJson(filePath) {
 
 export function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+  fs.writeFileSync(
+    filePath,
+    `${JSON.stringify(value, (_key, current) => (
+      typeof current === "bigint" ? current.toString() : current
+    ), 2)}\n`,
+  );
 }
 
 export function ensureDir(dirPath) {

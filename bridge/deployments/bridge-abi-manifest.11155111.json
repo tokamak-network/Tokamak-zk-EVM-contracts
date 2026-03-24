@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-24T18:20:13.745Z",
+  "generatedAt": "2026-03-24T18:25:29.036Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -2521,6 +2521,25 @@
         },
         {
           "type": "function",
+          "name": "availableBalanceOf",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "channelRegistry",
           "inputs": [],
           "outputs": [
@@ -2662,37 +2681,6 @@
         },
         {
           "type": "function",
-          "name": "getAccount",
-          "inputs": [
-            {
-              "name": "user",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "tuple",
-              "internalType": "struct BridgeStructs.BridgeBalanceAccount",
-              "components": [
-                {
-                  "name": "exists",
-                  "type": "bool",
-                  "internalType": "bool"
-                },
-                {
-                  "name": "availableBalance",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                }
-              ]
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
           "name": "grothVerifier",
           "inputs": [],
           "outputs": [
@@ -2757,19 +2745,6 @@
             }
           ],
           "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "registerAndFund",
-          "inputs": [
-            {
-              "name": "amount",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "outputs": [],
-          "stateMutability": "nonpayable"
         },
         {
           "type": "function",
@@ -2972,19 +2947,6 @@
         },
         {
           "type": "event",
-          "name": "BridgeAccountRegistered",
-          "inputs": [
-            {
-              "name": "user",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            }
-          ],
-          "anonymous": false
-        },
-        {
-          "type": "event",
           "name": "Initialized",
           "inputs": [
             {
@@ -3055,17 +3017,6 @@
         },
         {
           "type": "error",
-          "name": "AlreadyRegistered",
-          "inputs": [
-            {
-              "name": "user",
-              "type": "address",
-              "internalType": "address"
-            }
-          ]
-        },
-        {
-          "type": "error",
           "name": "GrothProofRejected",
           "inputs": []
         },
@@ -3107,17 +3058,6 @@
               "name": "value",
               "type": "uint256",
               "internalType": "uint256"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "NotRegistered",
-          "inputs": [
-            {
-              "name": "user",
-              "type": "address",
-              "internalType": "address"
             }
           ]
         },

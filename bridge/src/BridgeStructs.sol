@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 library BridgeStructs {
     struct StorageWriteMetadata {
         uint32 mtIndex;
+        uint16 aPubOffsetWords;
         address storageAddr;
     }
 
@@ -19,6 +20,10 @@ library BridgeStructs {
         bytes4 functionSig;
         address[] storageAddrs;
         bytes32 preprocessInputHash;
+        uint16 entryContractOffsetWords;
+        uint16 functionSigOffsetWords;
+        uint16 currentRootVectorOffsetWords;
+        uint16 updatedRootVectorOffsetWords;
         StorageWriteMetadata[] storageWrites;
     }
 
@@ -35,6 +40,10 @@ library BridgeStructs {
 
     struct FunctionConfig {
         bytes32 preprocessInputHash;
+        uint16 entryContractOffsetWords;
+        uint16 functionSigOffsetWords;
+        uint16 currentRootVectorOffsetWords;
+        uint16 updatedRootVectorOffsetWords;
         bool exists;
     }
 

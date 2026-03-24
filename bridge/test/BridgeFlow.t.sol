@@ -200,6 +200,10 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG,
             storageAddrs: _addressArray(address(0xF00D), address(0x1234)),
             preprocessInputHash: bytes32(0),
+            entryContractOffsetWords: 22,
+            functionSigOffsetWords: 24,
+            currentRootVectorOffsetWords: 26,
+            updatedRootVectorOffsetWords: 0,
             storageWrites: _emptyStorageWrites()
         });
 
@@ -214,6 +218,43 @@ contract BridgeFlowTest is Test {
         dAppManager.registerDApp(
             3,
             keccak256("missing-preprocess-hash"),
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            functions
+        );
+    }
+
+    function testRejectsDAppRegistrationWithDuplicatePreprocessHash() public {
+        bytes32 duplicateHash = bytes32("DUPLICATE_PREPROCESS_HASH");
+        BridgeStructs.DAppFunctionMetadata[] memory functions = new BridgeStructs.DAppFunctionMetadata[](2);
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: appContract,
+            functionSig: APP_SIG,
+            storageAddrs: _addressArray(address(0xF00D), address(0x1234)),
+            preprocessInputHash: duplicateHash,
+            entryContractOffsetWords: 22,
+            functionSigOffsetWords: 24,
+            currentRootVectorOffsetWords: 26,
+            updatedRootVectorOffsetWords: 0,
+            storageWrites: _emptyStorageWrites()
+        });
+        functions[1] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: appContract2,
+            functionSig: APP_SIG_2,
+            storageAddrs: _singleAddressArray(address(0x1234)),
+            preprocessInputHash: duplicateHash,
+            entryContractOffsetWords: 22,
+            functionSigOffsetWords: 24,
+            currentRootVectorOffsetWords: 26,
+            updatedRootVectorOffsetWords: 0,
+            storageWrites: _emptyStorageWrites()
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(DAppManager.DuplicatePreprocessInputHash.selector, uint256(3), duplicateHash)
+        );
+        dAppManager.registerDApp(
+            3,
+            keccak256("duplicate-preprocess-hash"),
             _defaultStorageLayouts(address(0xF00D), address(0x1234)),
             functions
         );
@@ -245,6 +286,10 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG,
             storageAddrs: storageAddrs,
             preprocessInputHash: bytes32("PREPROCESS_INPUT"),
+            entryContractOffsetWords: 22,
+            functionSigOffsetWords: 24,
+            currentRootVectorOffsetWords: 26,
+            updatedRootVectorOffsetWords: 0,
             storageWrites: _emptyStorageWrites()
         });
 
@@ -389,7 +434,7 @@ contract BridgeFlowTest is Test {
     }
 
     function testTokamakVerificationRejectsUnsupportedFunction() public {
-        BridgeStructs.TokamakProofPayload memory proofPayload = _blankTokamakProofPayload();
+        BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
         proofPayload.aPubUser[22] = uint160(address(0xBEEF));
         proofPayload.aPubUser[24] = uint32(APP_SIG);
         _writeSplitWord(proofPayload.aPubUser, 26, uint256(INITIAL_ZERO_ROOT));
@@ -429,26 +474,20 @@ contract BridgeFlowTest is Test {
 
     function testTokamakVerificationAcceptsRealProofBundleAfterSeedingVerifiedPreState() public {
         BridgeStructs.TokamakProofPayload memory proofPayload = _loadRealTokamakProofPayload();
-        address entryContract = _entryContractFromAPubUser(proofPayload.aPubUser);
-        bytes4 functionSig = _functionSigFromAPubUser(proofPayload.aPubUser);
+        BridgeStructs.DAppFunctionMetadata memory realFunctionMetadata =
+            _realTokamakFunctionMetadata(_computePointEncodingHash(proofPayload.functionPreprocessPart1, proofPayload.functionPreprocessPart2));
+        address entryContract =
+            _entryContractFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.entryContractOffsetWords);
 
         BridgeAdminManager localAdminManager = new BridgeAdminManager(address(this));
         localAdminManager.setMerkleTreeLevels(12);
 
         DAppManager localDAppManager = new DAppManager(address(this));
-        BridgeStructs.StorageWriteMetadata[] memory storageWrites =
-            _realTokamakStorageWrites(entryContract, REAL_TOKAMAK_APP_STORAGE);
         localDAppManager.registerDApp(
             99,
             keccak256("real-proof-private-state"),
             _realTokamakStorageLayouts(entryContract, REAL_TOKAMAK_APP_STORAGE),
-            _realTokamakFunctions(
-                entryContract,
-                functionSig,
-                REAL_TOKAMAK_APP_STORAGE,
-                _computePointEncodingHash(proofPayload.functionPreprocessPart1, proofPayload.functionPreprocessPart2),
-                storageWrites
-            )
+            _singleFunctionArray(realFunctionMetadata)
         );
 
         Groth16Verifier localGrothVerifier = new Groth16Verifier();
@@ -465,8 +504,10 @@ contract BridgeFlowTest is Test {
             localBridgeCore.createChannel(99, 99, leader, localAsset, keccak256(abi.encode(proofPayload.aPubBlock)));
 
         ChannelManager localChannelManager = ChannelManager(manager);
-        bytes32[] memory currentRoots = _currentRootsFromAPubUser(proofPayload.aPubUser);
-        bytes32[] memory updatedRoots = _updatedRootsFromAPubUser(proofPayload.aPubUser, storageWrites.length * 4);
+        bytes32[] memory currentRoots =
+            _currentRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.currentRootVectorOffsetWords);
+        bytes32[] memory updatedRoots =
+            _updatedRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.updatedRootVectorOffsetWords);
 
         // The extracted proof bundle starts from an already-updated channel state rather than the bridge's zero root.
         _seedChannelCurrentRoots(localChannelManager, currentRoots);
@@ -530,18 +571,22 @@ contract BridgeFlowTest is Test {
         roots[1] = _decodeBytes32FromSplitWords(aPubUser, offset + 2);
     }
 
-    function _currentRootsFromAPubUser(uint256[] memory aPubUser) internal pure returns (bytes32[] memory roots) {
+    function _currentRootsFromAPubUser(uint256[] memory aPubUser, uint256 offset)
+        internal
+        pure
+        returns (bytes32[] memory roots)
+    {
         roots = new bytes32[](2);
-        roots[0] = _decodeBytes32FromSplitWords(aPubUser, 26);
-        roots[1] = _decodeBytes32FromSplitWords(aPubUser, 28);
+        roots[0] = _decodeBytes32FromSplitWords(aPubUser, offset);
+        roots[1] = _decodeBytes32FromSplitWords(aPubUser, offset + 2);
     }
 
-    function _entryContractFromAPubUser(uint256[] memory aPubUser) internal pure returns (address) {
-        return address(uint160(_decodeUint256FromSplitWords(aPubUser, 22)));
+    function _entryContractFromAPubUser(uint256[] memory aPubUser, uint256 offset) internal pure returns (address) {
+        return address(uint160(_decodeUint256FromSplitWords(aPubUser, offset)));
     }
 
-    function _functionSigFromAPubUser(uint256[] memory aPubUser) internal pure returns (bytes4) {
-        return bytes4(uint32(_decodeUint256FromSplitWords(aPubUser, 24)));
+    function _functionSigFromAPubUser(uint256[] memory aPubUser, uint256 offset) internal pure returns (bytes4) {
+        return bytes4(uint32(_decodeUint256FromSplitWords(aPubUser, offset)));
     }
 
     function _defaultStorageLayouts(address tokenVaultStorage, address appStorage)
@@ -639,6 +684,10 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG,
             storageAddrs: _addressArray(tokenVaultStorage, appStorage),
             preprocessInputHash: preprocessInputHash,
+            entryContractOffsetWords: 22,
+            functionSigOffsetWords: 24,
+            currentRootVectorOffsetWords: 26,
+            updatedRootVectorOffsetWords: 0,
             storageWrites: _emptyStorageWrites()
         });
     }
@@ -654,29 +703,39 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG_2,
             storageAddrs: _singleAddressArray(tokenVaultStorage),
             preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
+            entryContractOffsetWords: 22,
+            functionSigOffsetWords: 24,
+            currentRootVectorOffsetWords: 26,
+            updatedRootVectorOffsetWords: 0,
             storageWrites: _emptyStorageWrites()
         });
     }
 
-    function _realTokamakFunctions(
-        address entryContract,
-        bytes4 functionSig,
-        address appStorage,
-        bytes32 preprocessInputHash,
-        BridgeStructs.StorageWriteMetadata[] memory storageWrites
-    )
+    function _realTokamakFunctionMetadata(bytes32 preprocessInputHash)
+        internal
+        pure
+        returns (BridgeStructs.DAppFunctionMetadata memory functionMetadata)
+    {
+        functionMetadata = BridgeStructs.DAppFunctionMetadata({
+            entryContract: 0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84,
+            functionSig: 0x0df1a4ac,
+            storageAddrs: _addressArray(0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84, REAL_TOKAMAK_APP_STORAGE),
+            preprocessInputHash: preprocessInputHash,
+            entryContractOffsetWords: 22,
+            functionSigOffsetWords: 24,
+            currentRootVectorOffsetWords: 26,
+            updatedRootVectorOffsetWords: 8,
+            storageWrites: _realTokamakStorageWrites()
+        });
+    }
+
+    function _singleFunctionArray(BridgeStructs.DAppFunctionMetadata memory functionMetadata)
         internal
         pure
         returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
     {
         functions = new BridgeStructs.DAppFunctionMetadata[](1);
-        functions[0] = BridgeStructs.DAppFunctionMetadata({
-            entryContract: entryContract,
-            functionSig: functionSig,
-            storageAddrs: _addressArray(entryContract, appStorage),
-            preprocessInputHash: preprocessInputHash,
-            storageWrites: storageWrites
-        });
+        functions[0] = functionMetadata;
     }
 
     function _conflictingDAppFunctions(address firstVaultStorage, address secondVaultStorage)
@@ -690,6 +749,10 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG,
             storageAddrs: _addressArray(firstVaultStorage, address(0x1234)),
             preprocessInputHash: bytes32("PREPROCESS_INPUT"),
+            entryContractOffsetWords: 22,
+            functionSigOffsetWords: 24,
+            currentRootVectorOffsetWords: 26,
+            updatedRootVectorOffsetWords: 0,
             storageWrites: _emptyStorageWrites()
         });
         functions[1] = BridgeStructs.DAppFunctionMetadata({
@@ -697,18 +760,30 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG_2,
             storageAddrs: _singleAddressArray(secondVaultStorage),
             preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
+            entryContractOffsetWords: 22,
+            functionSigOffsetWords: 24,
+            currentRootVectorOffsetWords: 26,
+            updatedRootVectorOffsetWords: 0,
             storageWrites: _emptyStorageWrites()
         });
     }
 
-    function _realTokamakStorageWrites(address entryContract, address appStorage)
+    function _realTokamakStorageWrites()
         internal
         pure
         returns (BridgeStructs.StorageWriteMetadata[] memory storageWrites)
     {
         storageWrites = new BridgeStructs.StorageWriteMetadata[](2);
-        storageWrites[0] = BridgeStructs.StorageWriteMetadata({mtIndex: 290, storageAddr: appStorage});
-        storageWrites[1] = BridgeStructs.StorageWriteMetadata({mtIndex: 2414, storageAddr: entryContract});
+        storageWrites[0] = BridgeStructs.StorageWriteMetadata({
+            mtIndex: 290,
+            aPubOffsetWords: 0,
+            storageAddr: REAL_TOKAMAK_APP_STORAGE
+        });
+        storageWrites[1] = BridgeStructs.StorageWriteMetadata({
+            mtIndex: 2414,
+            aPubOffsetWords: 4,
+            storageAddr: 0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84
+        });
     }
 
     function _emptyStorageWrites() internal pure returns (BridgeStructs.StorageWriteMetadata[] memory storageWrites) {

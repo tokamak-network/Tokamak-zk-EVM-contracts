@@ -34,7 +34,7 @@ The current bridge implementation hardens a few assumptions that must remain tru
 
 - The Groth token-vault circuit and the bridge both assume a fixed Merkle-tree depth of `12`. The admin manager rejects other depths.
 - Channel creation requires a nonzero `aPubBlockHash`, so Tokamak proof submissions cannot silently skip block-context binding.
-- DApp registration requires a nonzero `preprocessInputHash`, and each function also carries fixed storage-write descriptors derived from the synthesizer `instance_description.json`. Under the current synthesizer format, every storage write contributes four `aPubUser` words: tree-index lower/upper and storage-write lower/upper. The bridge checks the tree-index words against the registered descriptors and derives the updated-root prefix length from `4 * storageWrites.length`.
+- DApp registration requires a nonzero `preprocessInputHash`, and each function also carries fixed `aPubUser` layout metadata derived from the synthesizer `instance_description.json`. The bridge stores and later caches the per-function entry-contract, selector, current-root, and updated-root offsets, plus storage-write descriptors with both the expected tree index and its `aPubUser` word offset. Under the current synthesizer format, every storage write still contributes four `aPubUser` words: tree-index lower/upper and storage-write lower/upper.
 - The L1 token vault assumes an exact-transfer ERC-20. Fee-on-transfer or other balance-mutating token behaviors are rejected because they can break custody accounting.
 
 ## Deployment

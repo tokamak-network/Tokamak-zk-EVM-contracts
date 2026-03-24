@@ -17,6 +17,7 @@ contract DAppManager is Ownable {
     error MissingTokenVaultStorageAddress(uint256 dappId);
     error MultipleTokenVaultStorageAddresses(uint256 dappId, address firstStorageAddr, address secondStorageAddr);
     error MissingPreprocessInputHash(uint256 dappId, address entryContract, bytes4 functionSig);
+    error DuplicatePreprocessInputHash(uint256 dappId, bytes32 preprocessInputHash);
     error InvalidFunctionStorageWriteTarget(
         uint256 dappId,
         address entryContract,
@@ -35,6 +36,7 @@ contract DAppManager is Ownable {
     mapping(uint256 => mapping(bytes32 => BridgeStructs.FunctionConfig)) private _functionConfigs;
     mapping(uint256 => mapping(bytes32 => address[])) private _functionStorages;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.StorageWriteMetadata[])) private _functionStorageWrites;
+    mapping(uint256 => mapping(bytes32 => bool)) private _knownPreprocessInputHash;
     mapping(uint256 => BridgeStructs.FunctionReference[]) private _registeredFunctions;
 
     mapping(uint256 => address[]) private _managedStorageAddresses;
@@ -237,8 +239,12 @@ contract DAppManager is Ownable {
             if (fnMetadata.preprocessInputHash == bytes32(0)) {
                 revert MissingPreprocessInputHash(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
             }
+            if (_knownPreprocessInputHash[dappId][fnMetadata.preprocessInputHash]) {
+                revert DuplicatePreprocessInputHash(dappId, fnMetadata.preprocessInputHash);
+            }
 
             _supportedFunctions[dappId][functionKey] = true;
+            _knownPreprocessInputHash[dappId][fnMetadata.preprocessInputHash] = true;
             _registeredFunctions[dappId].push(
                 BridgeStructs.FunctionReference({
                     entryContract: fnMetadata.entryContract,
@@ -273,6 +279,7 @@ contract DAppManager is Ownable {
                 _functionStorageWrites[dappId][functionKey].push(
                     BridgeStructs.StorageWriteMetadata({
                         mtIndex: storageWrite.mtIndex,
+                        aPubOffsetWords: storageWrite.aPubOffsetWords,
                         storageAddr: storageWrite.storageAddr
                     })
                 );
@@ -280,6 +287,10 @@ contract DAppManager is Ownable {
 
             _functionConfigs[dappId][functionKey] = BridgeStructs.FunctionConfig({
                 preprocessInputHash: fnMetadata.preprocessInputHash,
+                entryContractOffsetWords: fnMetadata.entryContractOffsetWords,
+                functionSigOffsetWords: fnMetadata.functionSigOffsetWords,
+                currentRootVectorOffsetWords: fnMetadata.currentRootVectorOffsetWords,
+                updatedRootVectorOffsetWords: fnMetadata.updatedRootVectorOffsetWords,
                 exists: true
             });
         }

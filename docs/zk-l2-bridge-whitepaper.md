@@ -163,7 +163,7 @@ The transaction-instance fields relevant to bridge state updates are encoded ins
 - the entry contract
 - the target function signature
 
-The updated root-vector offset is no longer treated as an independent bridge parameter. It is derived from the length of the function-scoped storage-write prefix encoded at the front of `aPubUser`. Under the current synthesizer format, each storage write contributes four words to that prefix: tree-index lower/upper and storage-write lower/upper.
+The bridge now treats the `aPubUser` layout as function-scoped metadata. For each DApp function it stores the relevant `aPubUser` offsets for the entry contract, function signature, current root vector, updated root vector, and storage-write tree-index words. Under the current synthesizer format, each storage write still contributes four words to the prefix of `aPubUser`: tree-index lower/upper and storage-write lower/upper.
 
 A successful Tokamak verification means that the specified contract function was executed correctly, the execution succeeded, the consumed leaves were correct, and the resulting Merkle-tree updates were valid.
 

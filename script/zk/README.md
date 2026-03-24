@@ -19,12 +19,17 @@ The pipeline performs the following tasks:
    - one `storageWrites` list per function, derived from `instance_description.json`, where each entry records:
      - the target storage address
      - the Merkle-tree index written within that storage tree
+     - the `aPubUser` word offset at which that tree index is encoded
+   - one set of function-scoped `aPubUser` offsets per extracted Tokamak function:
+     - `entryContractOffsetWords`
+     - `functionSigOffsetWords`
+     - `currentRootVectorOffsetWords`
+     - `updatedRootVectorOffsetWords`
    - under the current synthesizer format, each storage write contributes four `aPubUser` words:
      - tree-index lower 16 bytes
      - tree-index upper 16 bytes
      - storage-write lower 16 bytes
      - storage-write upper 16 bytes
-   - the bridge therefore derives the updated root-vector offset as `4 * storageWrites.length`
    - one channel-ready `aPubBlockHash` per processed example
 7. Optionally uploads the derived DApp metadata to the deployed bridge and can create one channel per processed example.
 

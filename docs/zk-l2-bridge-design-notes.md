@@ -215,10 +215,7 @@ However, under the current implementation, those transaction-instance fields are
 
 Under the current `instance_description.json` layout produced by the Tokamak synthesizer:
 
-- `aPubUser[22..23]` contains the entry contract
-- `aPubUser[24..25]` contains the target function signature
-- `aPubUser[26..26+2n-1]` contains the current root vector, again split into lower and upper 16-byte words
-- `aPubUser` now begins with a function-specific sequence of storage-write words
+- `aPubUser` begins with a function-specific sequence of storage-write words
 - each storage write contributes four words:
   - tree-index lower 16 bytes
   - tree-index upper 16 bytes
@@ -227,11 +224,16 @@ Under the current `instance_description.json` layout produced by the Tokamak syn
 - each storage write in that prefix is described off-chain by `instance_description.json` through:
   - the target storage address
   - the Merkle-tree index within that storage tree
-- the updated root vector no longer starts at a globally fixed offset; instead, its starting word offset is derived as `4 * storageWrites.length`, where `storageWrites` is the function-scoped descriptor list registered in bridge-managed DApp metadata
+- the bridge no longer hardcodes the relevant `aPubUser` offsets in the channel manager
+- instead, each registered DApp function stores the following layout metadata, derived from `instance_description.json`:
+  - `entryContractOffsetWords`
+  - `functionSigOffsetWords`
+  - `currentRootVectorOffsetWords`
+  - `updatedRootVectorOffsetWords`
+  - `storageWrites[]`, where each element carries both the expected tree index and the `aPubUser` word offset at which that tree index is encoded
+- channel creation copies that function metadata into channel-local storage, so `submitTokamakProof` can validate the `aPubUser` layout without external metadata calls
 
 where `n` is the number of channel storage trees represented in the root vector.
-
-Because this layout uses fixed offsets for the entry contract and function signature, the current implementation also assumes that the root vector is small enough to fit within that reserved prefix of `aPubUser`.
 
 The old separate `channel instance` model is no longer used in the bridge contracts. Its channel-scoped role is currently replaced by `aPubBlock`, whose hash is fixed at channel creation and later checked by the channel manager.
 
@@ -525,7 +527,7 @@ The following condensed log records which major parts of the design were introdu
 - L1 no longer stores full root-vector history in storage; it stores the current root vector and its hash, and emits each accepted root-vector update as an event.
 - The old separate `channel instance` object is no longer used by the bridge; channel-scoped verification context is currently represented by `aPubBlockHash`.
 - The old separate `function instance` and `function preprocess` objects are currently treated as being embedded in the submitted preprocess calldata and enforced through `preprocessInputHash`.
-- The current bridge implementation reads transaction-instance fields back out of `aPubUser` using the offsets described in `instance_description.json`, with the updated-root offset now derived from the per-function storage-write prefix stored in DApp metadata. Under the current synthesizer format, each registered storage write contributes four `aPubUser` words before the updated roots.
+- The current bridge implementation reads transaction-instance fields back out of `aPubUser` using function-scoped layout metadata derived from `instance_description.json` and cached in each channel. Under the current synthesizer format, each registered storage write still contributes four `aPubUser` words, but the bridge now stores the exact per-function `aPub` offsets rather than deriving the updated-root position from prefix length alone.
 
 ## 3. Conclusion
 

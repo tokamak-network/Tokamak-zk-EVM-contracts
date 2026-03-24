@@ -75,7 +75,7 @@ const grothVerifierOutputPath = path.join(
 const outputRoot = path.join(repoRoot, "script", "output", "zk-artifacts");
 const defaultManifestPath = path.join(outputRoot, "manifest.json");
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, address[] storageAddrs, bytes32 preprocessInputHash, tuple(uint32 mtIndex, address storageAddr)[] storageWrites)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, address[] storageAddrs, bytes32 preprocessInputHash, uint16 entryContractOffsetWords, uint16 functionSigOffsetWords, uint16 currentRootVectorOffsetWords, uint16 updatedRootVectorOffsetWords, tuple(uint32 mtIndex, uint16 aPubOffsetWords, address storageAddr)[] storageWrites)[] functions) external",
 ];
 const bridgeCoreAbi = [
   "function createChannel(uint256 channelId, uint256 dappId, address leader, address asset, bytes32 aPubBlockHash) external returns (address manager, address vault)",
@@ -470,6 +470,10 @@ async function uploadBridgeArtifacts(options, manifest) {
         functionSig: fn.functionSig,
         storageAddrs: fn.storageAddresses,
         preprocessInputHash: fn.preprocessInputHash,
+        entryContractOffsetWords: fn.entryContractOffsetWords,
+        functionSigOffsetWords: fn.functionSigOffsetWords,
+        currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
+        updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
         storageWrites: fn.storageWrites,
       })),
     );

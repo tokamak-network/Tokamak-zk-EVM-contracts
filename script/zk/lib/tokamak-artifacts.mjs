@@ -83,6 +83,51 @@ function decodeSplitUint256(words, offset, label) {
   return lower + (upper << 128n);
 }
 
+function findDescriptionOffset(entries, pattern, label, descriptionPath) {
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (typeof entry === "string" && pattern.test(entry)) {
+      return index;
+    }
+  }
+  throw new Error(`Unable to locate ${label} in ${descriptionPath}.`);
+}
+
+function extractFunctionLayout(instanceDescriptionJsonPath) {
+  const description = readJson(instanceDescriptionJsonPath);
+  const entries = description.a_pub_user_description;
+  if (!Array.isArray(entries)) {
+    throw new Error(`instance_description.json is missing a_pub_user_description: ${instanceDescriptionJsonPath}`);
+  }
+
+  return {
+    entryContractOffsetWords: findDescriptionOffset(
+      entries,
+      /^Contract address to call \(lower 16 bytes\)$/,
+      "entry contract offset",
+      instanceDescriptionJsonPath,
+    ),
+    functionSigOffsetWords: findDescriptionOffset(
+      entries,
+      /^Selector for a function to call \(lower 16 bytes\)$/,
+      "function selector offset",
+      instanceDescriptionJsonPath,
+    ),
+    currentRootVectorOffsetWords: findDescriptionOffset(
+      entries,
+      /^Initial Merkle tree root hash of 0x[0-9a-fA-F]{40} \(lower 16 bytes\)$/,
+      "current root-vector offset",
+      instanceDescriptionJsonPath,
+    ),
+    updatedRootVectorOffsetWords: findDescriptionOffset(
+      entries,
+      /^Resulting Merkle tree root hash of 0x[0-9a-fA-F]{40} \(lower 16 bytes\)$/,
+      "updated root-vector offset",
+      instanceDescriptionJsonPath,
+    ),
+  };
+}
+
 export function extractTokamakRegistrationArtifacts(preprocessJsonPath) {
   const preprocess = readJson(preprocessJsonPath);
   const part1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
@@ -146,6 +191,7 @@ function extractStorageWrites(instanceJsonPath, instanceDescriptionJsonPath) {
     }
     writes.push({
       mtIndex: Number(treeIndex),
+      aPubOffsetWords: index,
       storageAddr: getAddress(match[1]),
     });
   }
@@ -233,6 +279,7 @@ export function buildFunctionDefinition({
   const preprocessPart1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
   const preprocessPart2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
   const storageWrites = extractStorageWrites(instanceJsonPath, instanceDescriptionJsonPath);
+  const functionLayout = extractFunctionLayout(instanceDescriptionJsonPath);
 
   return {
     groupName,
@@ -242,6 +289,10 @@ export function buildFunctionDefinition({
     storageAddresses: storageMetadata.map((entry) => entry.storageAddress),
     storageMetadata,
     preprocessInputHash: hashTokamakPointEncoding(preprocessPart1, preprocessPart2),
+    entryContractOffsetWords: functionLayout.entryContractOffsetWords,
+    functionSigOffsetWords: functionLayout.functionSigOffsetWords,
+    currentRootVectorOffsetWords: functionLayout.currentRootVectorOffsetWords,
+    updatedRootVectorOffsetWords: functionLayout.updatedRootVectorOffsetWords,
     storageWrites,
     aPubBlockHash: hashTokamakPublicInputs(toBigIntArray(instance.a_pub_block, "a_pub_block")),
     functionInstancePart1: extracted.functionInstancePart1.map((value) => value.toString()),
@@ -311,6 +362,18 @@ export function mergeFunctionDefinitions(records) {
     if (existing.preprocessInputHash !== record.preprocessInputHash) {
       mismatches.push("preprocess input hash");
     }
+    if (existing.entryContractOffsetWords !== record.entryContractOffsetWords) {
+      mismatches.push("entry-contract offset");
+    }
+    if (existing.functionSigOffsetWords !== record.functionSigOffsetWords) {
+      mismatches.push("function-signature offset");
+    }
+    if (existing.currentRootVectorOffsetWords !== record.currentRootVectorOffsetWords) {
+      mismatches.push("current-root offset");
+    }
+    if (existing.updatedRootVectorOffsetWords !== record.updatedRootVectorOffsetWords) {
+      mismatches.push("updated-root offset");
+    }
     if (JSON.stringify(existing.storageWrites) !== JSON.stringify(record.storageWrites)) {
       mismatches.push("storage write metadata");
     }
@@ -364,6 +427,10 @@ export function buildDAppDefinitions(records) {
         functionSig: record.functionSig,
         storageAddresses: record.storageAddresses,
         preprocessInputHash: record.preprocessInputHash,
+        entryContractOffsetWords: record.entryContractOffsetWords,
+        functionSigOffsetWords: record.functionSigOffsetWords,
+        currentRootVectorOffsetWords: record.currentRootVectorOffsetWords,
+        updatedRootVectorOffsetWords: record.updatedRootVectorOffsetWords,
         storageWrites: record.storageWrites,
         exampleNames: record.exampleNames,
       })),

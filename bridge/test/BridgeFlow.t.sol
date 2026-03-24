@@ -312,7 +312,9 @@ contract BridgeFlowTest is Test {
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bytes32 storageWriteTopic = keccak256("StorageWriteObserved(address,uint256,uint256)");
+        bytes32 rootVectorObservedTopic = keccak256("CurrentRootVectorObserved(bytes32,bytes32[])");
         uint256 storageWriteCount;
+        uint256 rootVectorObservedCount;
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].emitter == address(tokenVault) && logs[i].topics[0] == storageWriteTopic) {
                 storageWriteCount += 1;
@@ -320,9 +322,19 @@ contract BridgeFlowTest is Test {
                 (uint256 storageKey, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
                 assertEq(storageKey, uint256(registration.l2TokenVaultKey));
                 assertEq(value, update.updatedUserValue);
+            } else if (logs[i].emitter == address(channelManager) && logs[i].topics[0] == rootVectorObservedTopic) {
+                rootVectorObservedCount += 1;
+                bytes32 emittedRootVectorHash = bytes32(logs[i].topics[1]);
+                bytes32[] memory emittedRootVector = abi.decode(logs[i].data, (bytes32[]));
+                assertEq(emittedRootVectorHash, _hashRootVector(update.currentRootVector));
+                assertEq(emittedRootVector.length, update.currentRootVector.length);
+                for (uint256 j = 0; j < emittedRootVector.length; j++) {
+                    assertEq(emittedRootVector[j], update.currentRootVector[j]);
+                }
             }
         }
         assertEq(storageWriteCount, 1);
+        assertEq(rootVectorObservedCount, 1);
     }
 
     function testGrothWithdrawAndClaimToWallet() public {
@@ -368,7 +380,9 @@ contract BridgeFlowTest is Test {
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bytes32 storageWriteTopic = keccak256("StorageWriteObserved(address,uint256,uint256)");
+        bytes32 rootVectorObservedTopic = keccak256("CurrentRootVectorObserved(bytes32,bytes32[])");
         uint256 storageWriteCount;
+        uint256 rootVectorObservedCount;
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].emitter == address(tokenVault) && logs[i].topics[0] == storageWriteTopic) {
                 storageWriteCount += 1;
@@ -376,9 +390,19 @@ contract BridgeFlowTest is Test {
                 (uint256 storageKey, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
                 assertEq(storageKey, uint256(registration.l2TokenVaultKey));
                 assertEq(value, withdrawUpdate.updatedUserValue);
+            } else if (logs[i].emitter == address(channelManager) && logs[i].topics[0] == rootVectorObservedTopic) {
+                rootVectorObservedCount += 1;
+                bytes32 emittedRootVectorHash = bytes32(logs[i].topics[1]);
+                bytes32[] memory emittedRootVector = abi.decode(logs[i].data, (bytes32[]));
+                assertEq(emittedRootVectorHash, _hashRootVector(withdrawUpdate.currentRootVector));
+                assertEq(emittedRootVector.length, withdrawUpdate.currentRootVector.length);
+                for (uint256 j = 0; j < emittedRootVector.length; j++) {
+                    assertEq(emittedRootVector[j], withdrawUpdate.currentRootVector[j]);
+                }
             }
         }
         assertEq(storageWriteCount, 1);
+        assertEq(rootVectorObservedCount, 1);
     }
 
     function testRejectsFeeOnTransferAssetDuringRegistration() public {
@@ -440,6 +464,66 @@ contract BridgeFlowTest is Test {
         );
         vm.prank(alice);
         tokenVault.withdraw(_withdrawProof(), update);
+    }
+
+    function testDepositEmitsCurrentRootVectorObserved() public {
+        bytes32 key = bytes32(uint256(111));
+        vm.prank(alice);
+        tokenVault.registerAndFund(key, 100 ether);
+
+        uint256[5] memory pubSignals = _depositPublicSignals();
+        BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
+            currentRootVector: _rootVector(bytes32(pubSignals[0]), INITIAL_ZERO_ROOT),
+            updatedRoot: bytes32(pubSignals[1]),
+            currentUserKey: key,
+            currentUserValue: pubSignals[3],
+            updatedUserKey: key,
+            updatedUserValue: pubSignals[4]
+        });
+
+        _mockGrothVerifierAcceptsAllProofs();
+
+        vm.recordLogs();
+        vm.prank(alice);
+        tokenVault.deposit(_depositProof(), update);
+
+        _assertSingleCurrentRootVectorObserved(vm.getRecordedLogs(), update.currentRootVector);
+    }
+
+    function testWithdrawEmitsCurrentRootVectorObserved() public {
+        bytes32 key = bytes32(uint256(111));
+        vm.prank(alice);
+        tokenVault.registerAndFund(key, 100 ether);
+
+        _mockGrothVerifierAcceptsAllProofs();
+
+        uint256[5] memory depositSignals = _depositPublicSignals();
+        BridgeStructs.GrothUpdate memory depositUpdate = BridgeStructs.GrothUpdate({
+            currentRootVector: _rootVector(bytes32(depositSignals[0]), INITIAL_ZERO_ROOT),
+            updatedRoot: bytes32(depositSignals[1]),
+            currentUserKey: key,
+            currentUserValue: depositSignals[3],
+            updatedUserKey: key,
+            updatedUserValue: depositSignals[4]
+        });
+        vm.prank(alice);
+        tokenVault.deposit(_depositProof(), depositUpdate);
+
+        uint256[5] memory withdrawSignals = _withdrawPublicSignals();
+        BridgeStructs.GrothUpdate memory withdrawUpdate = BridgeStructs.GrothUpdate({
+            currentRootVector: _rootVector(bytes32(withdrawSignals[0]), INITIAL_ZERO_ROOT),
+            updatedRoot: bytes32(withdrawSignals[1]),
+            currentUserKey: key,
+            currentUserValue: withdrawSignals[3],
+            updatedUserKey: key,
+            updatedUserValue: withdrawSignals[4]
+        });
+
+        vm.recordLogs();
+        vm.prank(alice);
+        tokenVault.withdraw(_withdrawProof(), withdrawUpdate);
+
+        _assertSingleCurrentRootVectorObserved(vm.getRecordedLogs(), withdrawUpdate.currentRootVector);
     }
 
     function testTokamakVerificationRejectsUnsupportedFunction() public {
@@ -954,6 +1038,30 @@ contract BridgeFlowTest is Test {
             uint256(10),
             uint256(4)
         ];
+    }
+
+    function _mockGrothVerifierAcceptsAllProofs() private {
+        vm.mockCall(address(grothVerifier), abi.encodeWithSelector(IGrothVerifier.verifyProof.selector), abi.encode(true));
+    }
+
+    function _assertSingleCurrentRootVectorObserved(Vm.Log[] memory logs, bytes32[] memory expectedRootVector) private {
+        bytes32 rootVectorObservedTopic = keccak256("CurrentRootVectorObserved(bytes32,bytes32[])");
+        uint256 rootVectorObservedCount;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(channelManager) && logs[i].topics[0] == rootVectorObservedTopic) {
+                rootVectorObservedCount += 1;
+                bytes32 emittedRootVectorHash = bytes32(logs[i].topics[1]);
+                bytes32[] memory emittedRootVector = abi.decode(logs[i].data, (bytes32[]));
+                assertEq(emittedRootVectorHash, _hashRootVector(expectedRootVector));
+                assertEq(emittedRootVector.length, expectedRootVector.length);
+                for (uint256 j = 0; j < emittedRootVector.length; j++) {
+                    assertEq(emittedRootVector[j], expectedRootVector[j]);
+                }
+            }
+        }
+
+        assertEq(rootVectorObservedCount, 1);
     }
 
     function _bytes32Array(bytes32 value) internal pure returns (bytes32[] memory out) {

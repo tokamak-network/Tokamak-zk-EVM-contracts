@@ -775,14 +775,12 @@ contract BridgeFlowTest is Test {
     {
         storageWrites = new BridgeStructs.StorageWriteMetadata[](2);
         storageWrites[0] = BridgeStructs.StorageWriteMetadata({
-            mtIndex: 290,
             aPubOffsetWords: 0,
-            storageAddr: REAL_TOKAMAK_APP_STORAGE
+            storageAddrIndex: 1
         });
         storageWrites[1] = BridgeStructs.StorageWriteMetadata({
-            mtIndex: 2414,
             aPubOffsetWords: 4,
-            storageAddr: 0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84
+            storageAddrIndex: 0
         });
     }
 

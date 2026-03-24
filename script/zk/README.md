@@ -17,8 +17,7 @@ The pipeline performs the following tasks:
    - one registered DApp per example group
    - one registered function entry per extracted Tokamak function
    - one `storageWrites` list per function, derived from `instance_description.json`, where each entry records:
-     - the target storage address
-     - the Merkle-tree index written within that storage tree
+     - the index of the target storage address within that function's `storageAddresses`
      - the `aPubUser` word offset at which that tree index is encoded
    - one set of function-scoped `aPubUser` offsets per extracted Tokamak function:
      - `entryContractOffsetWords`

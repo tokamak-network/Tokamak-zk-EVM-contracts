@@ -153,8 +153,8 @@ The bridge treats `aPubBlock` as channel-scoped metadata and treats the submitte
 - a channel-scoped `aPubBlockHash`
 - a function-scoped `preprocessInputHash`
 - a function-scoped `storageWrites` list, where each entry fixes:
-  - the target storage address
-  - the Merkle-tree index written within that storage tree
+  - the index of the target storage address within that function's storage surface
+  - the `aPubUser` word offset at which the corresponding storage-write tree index appears
 
 The transaction-instance fields relevant to bridge state updates are encoded inside `aPubUser`. Under the current synthesizer layout, the bridge reads from `aPubUser`:
 

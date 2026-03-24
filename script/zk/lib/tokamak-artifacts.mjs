@@ -74,19 +74,13 @@ function toBigIntArray(values, label) {
   });
 }
 
-function decodeSplitUint256(words, offset, label) {
-  if (offset + 1 >= words.length) {
-    throw new Error(`${label} is missing split words at offset ${offset}.`);
-  }
-  const lower = words[offset];
-  const upper = words[offset + 1];
-  return lower + (upper << 128n);
-}
-
 function findDescriptionOffset(entries, pattern, label, descriptionPath) {
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
     if (typeof entry === "string" && pattern.test(entry)) {
+      if (index > 0xff) {
+        throw new Error(`${label} offset ${index} exceeds uint8 range in ${descriptionPath}.`);
+      }
       return index;
     }
   }
@@ -162,14 +156,12 @@ export function hashTokamakPublicInputs(values) {
   return keccak256(abiCoder.encode(["uint256[]"], [values]));
 }
 
-function extractStorageWrites(instanceJsonPath, instanceDescriptionJsonPath) {
+function extractStorageWrites(instanceDescriptionJsonPath, storageAddresses) {
   const description = readJson(instanceDescriptionJsonPath);
   const entries = description.a_pub_user_description;
   if (!Array.isArray(entries)) {
     throw new Error(`instance_description.json is missing a_pub_user_description: ${instanceDescriptionJsonPath}`);
   }
-  const instance = readJson(instanceJsonPath);
-  const aPubUser = toBigIntArray(instance.a_pub_user, "a_pub_user");
 
   const writes = [];
   const pattern = /^Storage write tree index for address: (0x[0-9a-fA-F]{40}) \(lower 16 bytes\)$/;
@@ -183,16 +175,24 @@ function extractStorageWrites(instanceJsonPath, instanceDescriptionJsonPath) {
     if (!match) {
       continue;
     }
-    const treeIndex = decodeSplitUint256(aPubUser, index, "a_pub_user");
-    if (treeIndex > 0xffffffffn) {
+    const storageAddr = getAddress(match[1]);
+    const storageAddrIndex = storageAddresses.findIndex(
+      (candidateStorageAddr) => getAddress(candidateStorageAddr) === storageAddr,
+    );
+    if (storageAddrIndex === -1) {
       throw new Error(
-        `Storage write tree index ${treeIndex.toString()} exceeds uint32 for ${instanceDescriptionJsonPath}.`,
+        `Storage write target ${storageAddr} is not part of the function storage surface in ${instanceDescriptionJsonPath}.`,
       );
     }
+    if (index > 0xff) {
+      throw new Error(`Storage write offset ${index} exceeds uint8 range in ${instanceDescriptionJsonPath}.`);
+    }
+    if (storageAddrIndex > 0xff) {
+      throw new Error(`Storage address index ${storageAddrIndex} exceeds uint8 range in ${instanceDescriptionJsonPath}.`);
+    }
     writes.push({
-      mtIndex: Number(treeIndex),
       aPubOffsetWords: index,
-      storageAddr: getAddress(match[1]),
+      storageAddrIndex,
     });
   }
 
@@ -278,7 +278,7 @@ export function buildFunctionDefinition({
   const preprocess = readJson(preprocessJsonPath);
   const preprocessPart1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
   const preprocessPart2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
-  const storageWrites = extractStorageWrites(instanceJsonPath, instanceDescriptionJsonPath);
+  const storageWrites = extractStorageWrites(instanceDescriptionJsonPath, storageMetadata.map((entry) => entry.storageAddress));
   const functionLayout = extractFunctionLayout(instanceDescriptionJsonPath);
 
   return {

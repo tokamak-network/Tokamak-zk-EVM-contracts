@@ -19,7 +19,6 @@ contract ChannelManager {
     error PreprocessInputHashMismatch(bytes32 expectedHash, bytes32 actualHash);
     error APubBlockHashMismatch(bytes32 expectedHash, bytes32 actualHash);
     error APubUserTooShort(uint256 expectedLength, uint256 actualLength);
-    error StorageWriteTreeIndexMismatch(uint256 expectedIndex, uint256 actualIndex, uint256 writeOffset);
     error APubUserWordOutOfRange(uint256 index, uint256 value);
     error EntryContractPublicInputOutOfRange(uint256 value);
     error FunctionSigPublicInputOutOfRange(uint256 value);
@@ -40,7 +39,6 @@ contract ChannelManager {
 
     mapping(bytes32 => bool) private _allowedFunctionKeys;
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
-    mapping(bytes32 => BridgeStructs.StorageWriteMetadata[]) private _functionStorageWrites;
     mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
@@ -97,14 +95,6 @@ contract ChannelManager {
             );
             _functionConfigs[functionKey] = functionConfig;
             _functionKeyByPreprocessInputHash[functionConfig.preprocessInputHash] = functionKey;
-            BridgeStructs.StorageWriteMetadata[] memory storageWrites = dAppManager_.getFunctionStorageWrites(
-                dappId_,
-                allowedFunctions_[i].entryContract,
-                allowedFunctions_[i].functionSig
-            );
-            for (uint256 j = 0; j < storageWrites.length; j++) {
-                _functionStorageWrites[functionKey].push(storageWrites[j]);
-            }
         }
     }
 
@@ -132,7 +122,6 @@ contract ChannelManager {
             revert UnsupportedChannelFunction(address(0), bytes4(0));
         }
         BridgeStructs.FunctionConfig memory functionConfig = _functionConfigs[functionKey];
-        BridgeStructs.StorageWriteMetadata[] storage functionStorageWrites = _functionStorageWrites[functionKey];
 
         _assertAPubUserLayout(payload.aPubUser, functionConfig);
         _assertCurrentRootVectorFromAPubUser(payload.aPubUser, functionConfig.currentRootVectorOffsetWords);
@@ -142,8 +131,6 @@ contract ChannelManager {
         if (_computeFunctionKey(entryContract, functionSig) != functionKey) {
             revert UnsupportedChannelFunction(entryContract, functionSig);
         }
-
-        _assertStorageWriteTreeIndices(payload.aPubUser, functionStorageWrites);
 
         bytes32 expectedPreprocessInputHash = functionConfig.preprocessInputHash;
         if (actualPreprocessInputHash != expectedPreprocessInputHash) {
@@ -268,19 +255,6 @@ contract ChannelManager {
         }
         if (aPubUser.length < requiredLength) {
             revert APubUserTooShort(requiredLength, aPubUser.length);
-        }
-    }
-
-    function _assertStorageWriteTreeIndices(
-        uint256[] calldata aPubUser,
-        BridgeStructs.StorageWriteMetadata[] storage storageWrites
-    ) private view {
-        for (uint256 i = 0; i < storageWrites.length; i++) {
-            uint256 actualIndex = _decodeSplitWord(aPubUser, storageWrites[i].aPubOffsetWords);
-            uint256 expectedIndex = storageWrites[i].mtIndex;
-            if (actualIndex != expectedIndex) {
-                revert StorageWriteTreeIndexMismatch(expectedIndex, actualIndex, storageWrites[i].aPubOffsetWords);
-            }
         }
     }
 

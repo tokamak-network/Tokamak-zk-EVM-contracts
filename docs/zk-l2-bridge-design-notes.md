@@ -230,8 +230,8 @@ Under the current `instance_description.json` layout produced by the Tokamak syn
   - `functionSigOffsetWords`
   - `currentRootVectorOffsetWords`
   - `updatedRootVectorOffsetWords`
-  - `storageWrites[]`, where each element carries both the expected tree index and the `aPubUser` word offset at which that tree index is encoded
-- channel creation copies that function metadata into channel-local storage, so `executeChannelTransaction` can validate the `aPubUser` layout without external metadata calls
+  - `storageWrites[]`, where each element carries the `aPubUser` word offset of that write descriptor and the index of the corresponding storage address within the function's `storageAddrs`
+- channel creation copies the per-function offsets and `preprocessInputHash` into channel-local storage, so `executeChannelTransaction` can validate the `aPubUser` layout without external metadata calls; the `storageWrites[]` descriptors remain bridge-managed function metadata
 
 where `n` is the number of channel storage trees represented in the root vector.
 
@@ -258,8 +258,8 @@ The L1 bridge manages supported DApps through a DApp manager. For each supported
 - the DApp storage layout
 - the function-level `preprocessInputHash`
 - the function-level `storageWrites`, where each entry fixes:
-  - the target storage address
-  - the Merkle-tree index written within that storage
+  - the index of the target storage address within that function's `storageAddrs`
+  - the `aPubUser` word offset at which the corresponding storage-write tree index appears
 
 Only the System administrator may add a new DApp to the DApp manager.
 

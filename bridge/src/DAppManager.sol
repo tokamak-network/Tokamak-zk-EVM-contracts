@@ -18,11 +18,11 @@ contract DAppManager is Ownable {
     error MultipleTokenVaultStorageAddresses(uint256 dappId, address firstStorageAddr, address secondStorageAddr);
     error MissingPreprocessInputHash(uint256 dappId, address entryContract, bytes4 functionSig);
     error DuplicatePreprocessInputHash(uint256 dappId, bytes32 preprocessInputHash);
-    error InvalidFunctionStorageWriteTarget(
+    error InvalidFunctionStorageWriteStorageIndex(
         uint256 dappId,
         address entryContract,
         bytes4 functionSig,
-        address storageAddr
+        uint8 storageAddrIndex
     );
 
     struct DAppInfo {
@@ -265,22 +265,18 @@ contract DAppManager is Ownable {
 
             for (uint256 j = 0; j < fnMetadata.storageWrites.length; j++) {
                 BridgeStructs.StorageWriteMetadata calldata storageWrite = fnMetadata.storageWrites[j];
-                if (
-                    !_knownStorageAddress[dappId][storageWrite.storageAddr]
-                        || !_containsAddress(fnMetadata.storageAddrs, storageWrite.storageAddr)
-                ) {
-                    revert InvalidFunctionStorageWriteTarget(
+                if (storageWrite.storageAddrIndex >= fnMetadata.storageAddrs.length) {
+                    revert InvalidFunctionStorageWriteStorageIndex(
                         dappId,
                         fnMetadata.entryContract,
                         fnMetadata.functionSig,
-                        storageWrite.storageAddr
+                        storageWrite.storageAddrIndex
                     );
                 }
                 _functionStorageWrites[dappId][functionKey].push(
                     BridgeStructs.StorageWriteMetadata({
-                        mtIndex: storageWrite.mtIndex,
                         aPubOffsetWords: storageWrite.aPubOffsetWords,
-                        storageAddr: storageWrite.storageAddr
+                        storageAddrIndex: storageWrite.storageAddrIndex
                     })
                 );
             }
@@ -294,15 +290,6 @@ contract DAppManager is Ownable {
                 exists: true
             });
         }
-    }
-
-    function _containsAddress(address[] calldata candidates, address target) private pure returns (bool) {
-        for (uint256 i = 0; i < candidates.length; i++) {
-            if (candidates[i] == target) {
-                return true;
-            }
-        }
-        return false;
     }
 
     function _requireDApp(uint256 dappId) private view returns (DAppInfo memory info) {

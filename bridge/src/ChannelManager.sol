@@ -50,6 +50,7 @@ contract ChannelManager {
     address[] private _managedStorageAddresses;
 
     mapping(bytes32 => bool) private _allowedFunctionKeys;
+    mapping(bytes32 => bytes32) private _preprocessInputHashes;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
     mapping(uint256 => bytes32) private _latestTokenVaultLeaves;
@@ -95,9 +96,15 @@ contract ChannelManager {
 
         for (uint256 i = 0; i < allowedFunctions_.length; i++) {
             bytes32 functionKey =
-                dAppManager.computeFunctionKey(allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
+                _computeFunctionKey(allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
             _allowedFunctionKeys[functionKey] = true;
             _allowedFunctions.push(allowedFunctions_[i]);
+            BridgeStructs.FunctionConfig memory functionConfig = dAppManager_.getFunctionMetadata(
+                dappId_,
+                allowedFunctions_[i].entryContract,
+                allowedFunctions_[i].functionSig
+            );
+            _preprocessInputHashes[functionKey] = functionConfig.preprocessInputHash;
         }
     }
 
@@ -118,27 +125,25 @@ contract ChannelManager {
     }
 
     function submitTokamakProof(
-        bytes calldata proof,
+        BridgeStructs.TokamakProofPayload calldata payload,
         BridgeStructs.TokamakTransactionInstance calldata instance
     ) external returns (bool) {
         if (instance.updatedRootVector.length != instance.currentRootVector.length) {
             revert RootVectorLengthMismatch();
         }
-        BridgeStructs.TokamakProofPayload memory payload = abi.decode(proof, (BridgeStructs.TokamakProofPayload));
         _assertTransactionInstanceMatchesAPubUser(instance, payload.aPubUser);
         _assertCurrentRootVector(instance.currentRootVector);
 
-        bytes32 functionKey = dAppManager.computeFunctionKey(instance.entryContract, instance.functionSig);
+        bytes32 functionKey = _computeFunctionKey(instance.entryContract, instance.functionSig);
         if (!_allowedFunctionKeys[functionKey]) {
             revert UnsupportedChannelFunction(instance.entryContract, instance.functionSig);
         }
 
-        BridgeStructs.FunctionConfig memory cfg =
-            dAppManager.getFunctionMetadata(dappId, instance.entryContract, instance.functionSig);
         bytes32 actualPreprocessInputHash =
             keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
-        if (actualPreprocessInputHash != cfg.preprocessInputHash) {
-            revert PreprocessInputHashMismatch(cfg.preprocessInputHash, actualPreprocessInputHash);
+        bytes32 expectedPreprocessInputHash = _preprocessInputHashes[functionKey];
+        if (actualPreprocessInputHash != expectedPreprocessInputHash) {
+            revert PreprocessInputHashMismatch(expectedPreprocessInputHash, actualPreprocessInputHash);
         }
         bytes32 actualAPubBlockHash = keccak256(abi.encode(payload.aPubBlock));
         if (actualAPubBlockHash != aPubBlockHash) {
@@ -252,7 +257,7 @@ contract ChannelManager {
 
     function _assertTransactionInstanceMatchesAPubUser(
         BridgeStructs.TokamakTransactionInstance calldata instance,
-        uint256[] memory aPubUser
+        uint256[] calldata aPubUser
     ) private pure {
         if (instance.updatedRootVector.length * SPLIT_WORD_SIZE > ENTRY_CONTRACT_OFFSET) {
             revert RootVectorExceedsAPubUserLayout(instance.updatedRootVector.length);
@@ -287,11 +292,19 @@ contract ChannelManager {
         }
     }
 
-    function _decodeBytes32FromAPubUser(uint256[] memory aPubUser, uint256 startIndex) private pure returns (bytes32) {
+    function _decodeBytes32FromAPubUser(uint256[] calldata aPubUser, uint256 startIndex)
+        private
+        pure
+        returns (bytes32)
+    {
         return bytes32(_decodeSplitWord(aPubUser, startIndex));
     }
 
-    function _decodeAddressFromAPubUser(uint256[] memory aPubUser, uint256 startIndex) private pure returns (address) {
+    function _decodeAddressFromAPubUser(uint256[] calldata aPubUser, uint256 startIndex)
+        private
+        pure
+        returns (address)
+    {
         uint256 combined = _decodeSplitWord(aPubUser, startIndex);
         if (combined > type(uint160).max) {
             revert EntryContractPublicInputOutOfRange(combined);
@@ -299,7 +312,7 @@ contract ChannelManager {
         return address(uint160(combined));
     }
 
-    function _decodeFunctionSigFromAPubUser(uint256[] memory aPubUser, uint256 startIndex)
+    function _decodeFunctionSigFromAPubUser(uint256[] calldata aPubUser, uint256 startIndex)
         private
         pure
         returns (bytes4)
@@ -311,7 +324,7 @@ contract ChannelManager {
         return bytes4(uint32(combined));
     }
 
-    function _decodeSplitWord(uint256[] memory words, uint256 startIndex) private pure returns (uint256 combined) {
+    function _decodeSplitWord(uint256[] calldata words, uint256 startIndex) private pure returns (uint256 combined) {
         uint256 lower = words[startIndex];
         uint256 upper = words[startIndex + 1];
         if (lower > type(uint128).max) {
@@ -321,6 +334,10 @@ contract ChannelManager {
             revert APubUserWordOutOfRange(startIndex + 1, upper);
         }
         combined = lower | (upper << 128);
+    }
+
+    function _computeFunctionKey(address entryContract, bytes4 functionSig) private pure returns (bytes32) {
+        return keccak256(abi.encode(entryContract, functionSig));
     }
 
     function _setLatestTokenVaultLeaf(uint256 leafIndex, bytes32 leafValue) private {

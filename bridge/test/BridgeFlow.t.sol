@@ -398,7 +398,7 @@ contract BridgeFlowTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(ChannelManager.UnsupportedChannelFunction.selector, address(0xBEEF), APP_SIG)
         );
-        channelManager.submitTokamakProof(abi.encode(proofPayload), instance);
+        channelManager.submitTokamakProof(proofPayload, instance);
     }
 
     function testTokamakVerificationRejectsEntryContractMismatchAgainstAPubUser() public {
@@ -417,7 +417,7 @@ contract BridgeFlowTest is Test {
                 _entryContractFromAPubUser(proofPayload.aPubUser)
             )
         );
-        channelManager.submitTokamakProof(abi.encode(proofPayload), instance);
+        channelManager.submitTokamakProof(proofPayload, instance);
     }
 
     function testTokamakVerificationRejectsUpdatedRootMismatchAgainstAPubUser() public {
@@ -440,7 +440,7 @@ contract BridgeFlowTest is Test {
                 _updatedRootsFromAPubUser(proofPayload.aPubUser)[0]
             )
         );
-        channelManager.submitTokamakProof(abi.encode(proofPayload), instance);
+        channelManager.submitTokamakProof(proofPayload, instance);
     }
 
     function testChannelUsesRealTokamakVerifier() public view {
@@ -457,7 +457,7 @@ contract BridgeFlowTest is Test {
         });
 
         vm.expectRevert(ChannelManager.UnexpectedCurrentRootVector.selector);
-        channelManager.submitTokamakProof(abi.encode(proofPayload), instance);
+        channelManager.submitTokamakProof(proofPayload, instance);
     }
 
     function testTokamakVerificationAcceptsRealProofBundleAfterSeedingVerifiedPreState() public {
@@ -508,7 +508,7 @@ contract BridgeFlowTest is Test {
             functionSig: functionSig
         });
 
-        bool accepted = localChannelManager.submitTokamakProof(abi.encode(proofPayload), instance);
+        bool accepted = localChannelManager.submitTokamakProof(proofPayload, instance);
         assertTrue(accepted);
 
         bytes32[] memory resultingRoots = localChannelManager.getCurrentRootVector();

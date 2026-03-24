@@ -57,7 +57,7 @@ const bridgeCoreAbi = [
 const channelManagerAbi = [
   "function getCurrentRootVector() external view returns (bytes32[] memory)",
   "function getManagedStorageAddresses() external view returns (address[] memory)",
-  "function submitTokamakProof(bytes proof, (bytes32[] currentRootVector, bytes32[] updatedRootVector, address entryContract, bytes4 functionSig) instance) external returns (bool)",
+  "function submitTokamakProof((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload, (bytes32[] currentRootVector, bytes32[] updatedRootVector, address entryContract, bytes4 functionSig) instance) external returns (bool)",
 ];
 const tokenVaultAbi = [
   "function registerAndFund(bytes32 l2TokenVaultKey, uint256 amount) external",
@@ -505,9 +505,8 @@ async function handleBridgeSend({ args, env, provider }) {
     entryContract: context.workspace.controller,
     functionSig: functionSelectorHex(calldata),
   };
-  const payloadBytes = encodeTokamakPayload(payload);
   const receipt = await waitForReceipt(
-    await context.channelManager.connect(signer).submitTokamakProof(payloadBytes, instance),
+    await context.channelManager.connect(signer).submitTokamakProof(payload, instance),
   );
 
   const onchainRoots = normalizedRootVector(await context.channelManager.getCurrentRootVector());
@@ -785,20 +784,6 @@ function loadTokamakPayloadFromStep(operationDir) {
     aPubUser: instanceJson.a_pub_user.map((value) => BigInt(value)),
     aPubBlock: instanceJson.a_pub_block.map((value) => BigInt(value)),
   };
-}
-
-function encodeTokamakPayload(payload) {
-  return abiCoder.encode(
-    ["tuple(uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock)"],
-    [[
-      payload.proofPart1,
-      payload.proofPart2,
-      payload.functionPreprocessPart1,
-      payload.functionPreprocessPart2,
-      payload.aPubUser,
-      payload.aPubBlock,
-    ]],
-  );
 }
 
 function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {

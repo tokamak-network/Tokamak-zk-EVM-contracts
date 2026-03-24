@@ -73,7 +73,7 @@ const dAppManagerAbi = [
 ];
 const channelManagerAbi = [
   "function getCurrentRootVector() external view returns (bytes32[] memory)",
-  "function submitTokamakProof(bytes proof, (bytes32[] currentRootVector, bytes32[] updatedRootVector, address entryContract, bytes4 functionSig) instance) external returns (bool)",
+  "function submitTokamakProof((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload, (bytes32[] currentRootVector, bytes32[] updatedRootVector, address entryContract, bytes4 functionSig) instance) external returns (bool)",
 ];
 const tokenVaultAbi = [
   "function registerAndFund(bytes32 l2TokenVaultKey, uint256 amount) external",
@@ -370,20 +370,6 @@ function loadTokamakPayloadFromStep(stepDir) {
     aPubUser: instanceJson.a_pub_user.map((value) => BigInt(value)),
     aPubBlock: instanceJson.a_pub_block.map((value) => BigInt(value)),
   };
-}
-
-function encodeTokamakPayload(payload) {
-  return abiCoder.encode(
-    ["tuple(uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock)"],
-    [[
-      payload.proofPart1,
-      payload.proofPart2,
-      payload.functionPreprocessPart1,
-      payload.functionPreprocessPart2,
-      payload.aPubUser,
-      payload.aPubBlock,
-    ]],
-  );
 }
 
 function functionSelectorHex(calldata) {
@@ -951,7 +937,6 @@ async function main() {
 
   for (const result of tokamakResults) {
     console.log(`E2E: submitting Tokamak proof for ${result.scenario.name}.`);
-    const payloadBytes = encodeTokamakPayload(result.payload);
     const instance = {
       currentRootVector: normalizedRootVector(result.previousSnapshot.stateRoots),
       updatedRootVector: normalizedRootVector(result.nextSnapshot.stateRoots),
@@ -960,7 +945,7 @@ async function main() {
     };
     await (
       await channelManager.submitTokamakProof(
-        payloadBytes,
+        result.payload,
         instance,
         { nonce: bridgeDeployerNonce++ },
       )

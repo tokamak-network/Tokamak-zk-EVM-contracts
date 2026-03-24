@@ -9,6 +9,12 @@ contract ChannelManager {
     uint256 internal constant SPLIT_WORD_SIZE = 2;
     uint256 internal constant STORAGE_WRITE_VALUE_OFFSET = 2;
 
+    struct CachedStorageWrite {
+        address storageAddr;
+        uint8 aPubOffsetWords;
+        bool isTokenVault;
+    }
+
     error OnlyBridgeCore();
     error OnlyTokenVault();
     error TokenVaultAlreadySet();
@@ -44,7 +50,7 @@ contract ChannelManager {
     mapping(bytes32 => bool) private _allowedFunctionKeys;
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
     mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
-    mapping(bytes32 => BridgeStructs.StorageWriteMetadata[]) private _functionStorageWrites;
+    mapping(bytes32 => CachedStorageWrite[]) private _functionStorageWrites;
     mapping(bytes32 => bool) private _functionHasTokenVaultWrite;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
@@ -110,9 +116,10 @@ contract ChannelManager {
                     revert InvalidStorageWriteStorageIndex(storageAddrIndex);
                 }
                 _functionStorageWrites[functionKey].push(
-                    BridgeStructs.StorageWriteMetadata({
+                    CachedStorageWrite({
+                        storageAddr: managedStorageAddresses_[storageAddrIndex],
                         aPubOffsetWords: storageWrites[j].aPubOffsetWords,
-                        storageAddrIndex: storageAddrIndex
+                        isTokenVault: managedStorageAddresses_[storageAddrIndex] == tokenVaultStorageAddress
                     })
                 );
                 if (managedStorageAddresses_[storageAddrIndex] == tokenVaultStorageAddress) {
@@ -290,17 +297,16 @@ contract ChannelManager {
     }
 
     function _observeStorageWrites(bytes32 functionKey, uint256[] calldata aPubUser) private {
-        BridgeStructs.StorageWriteMetadata[] storage storageWrites = _functionStorageWrites[functionKey];
+        CachedStorageWrite[] storage storageWrites = _functionStorageWrites[functionKey];
 
         for (uint256 i = 0; i < storageWrites.length; i++) {
-            BridgeStructs.StorageWriteMetadata storage storageWrite = storageWrites[i];
+            CachedStorageWrite storage storageWrite = storageWrites[i];
             uint256 aPubOffsetWords = storageWrite.aPubOffsetWords;
             uint256 leafIndex = _decodeSplitWord(aPubUser, aPubOffsetWords);
             uint256 value = _decodeSplitWord(aPubUser, aPubOffsetWords + STORAGE_WRITE_VALUE_OFFSET);
-            address storageAddr = _managedStorageAddresses[storageWrite.storageAddrIndex];
 
-            emit StorageWriteObserved(storageAddr, leafIndex, value);
-            if (storageWrite.storageAddrIndex == tokenVaultTreeIndex) {
+            emit StorageWriteObserved(storageWrite.storageAddr, leafIndex, value);
+            if (storageWrite.isTokenVault) {
                 _applyVaultLeaf(leafIndex, bytes32(value));
             }
         }

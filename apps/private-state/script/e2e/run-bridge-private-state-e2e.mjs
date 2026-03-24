@@ -49,7 +49,8 @@ const outputRoot = path.resolve(appRoot, "script", "e2e", "output", "private-sta
 const deploymentManifestPath = path.resolve(appRoot, "deploy", "deployment.31337.latest.json");
 const storageLayoutManifestPath = path.resolve(appRoot, "deploy", "storage-layout.31337.latest.json");
 const controllerAbiPath = path.resolve(appRoot, "deploy", "PrivateStateController.callable-abi.json");
-const bridgeDeploymentArtifactPath = path.resolve(bridgeRoot, "deployments", "private-state-bridge-e2e-latest.json");
+const bridgeDeploymentArtifactPath = path.resolve(bridgeRoot, "deployments", "bridge.31337.json");
+const bridgeAbiManifestPath = path.resolve(bridgeRoot, "deployments", "bridge-abi-manifest.31337.json");
 const bridgeDeploymentSummaryPath = path.resolve(outputRoot, "bridge-deployment.json");
 const grothInputDir = path.resolve(outputRoot, "groth-inputs");
 const tokamakStepsDir = path.resolve(outputRoot, "tokamak-steps");
@@ -725,6 +726,20 @@ async function deployBridgeStack() {
       "--broadcast",
     ],
     { cwd: bridgeRoot, env },
+  );
+
+  run(
+    "node",
+    [
+      path.join(bridgeRoot, "script", "generate-bridge-abi-manifest.mjs"),
+      "--output",
+      bridgeAbiManifestPath,
+      "--chain-id",
+      "31337",
+      "--deployment-path",
+      bridgeDeploymentArtifactPath,
+    ],
+    { cwd: repoRoot },
   );
 
   const deployment = readJson(bridgeDeploymentArtifactPath);

@@ -1079,7 +1079,7 @@ function loadUserWorkspace(workspaceName) {
 
 function loadBridgeResources({ args, chainId }) {
   const bridgeDeploymentPath = resolveInputPath(
-    args.bridgeDeployment ?? path.resolve(bridgeRoot, "deployments", "bridge-latest.json"),
+    args.bridgeDeployment ?? defaultBridgeDeploymentPath(chainId),
   );
   const bridgeDeployment = readJson(bridgeDeploymentPath);
   const bridgeAbiManifestPath = resolveBridgeAbiManifestPath({
@@ -1683,14 +1683,9 @@ function resolveBridgeAbiManifestPath({ explicitPath, bridgeDeploymentPath, brid
       : path.resolve(bridgeRoot, bridgeDeployment.abiManifestPath);
   }
 
-  const chainSpecificPath = path.resolve(bridgeRoot, "deployments", `bridge-abi-manifest.${chainId}.latest.json`);
+  const chainSpecificPath = defaultBridgeAbiManifestPath(chainId);
   if (fs.existsSync(chainSpecificPath)) {
     return chainSpecificPath;
-  }
-
-  const latestPath = path.resolve(bridgeRoot, "deployments", "bridge-abi-manifest.latest.json");
-  if (fs.existsSync(latestPath)) {
-    return latestPath;
   }
 
   throw new Error(
@@ -1699,6 +1694,14 @@ function resolveBridgeAbiManifestPath({ explicitPath, bridgeDeploymentPath, brid
       "Run bridge/script/deploy-bridge.sh or provide --bridge-abi-manifest.",
     ].join(" "),
   );
+}
+
+function defaultBridgeDeploymentPath(chainId) {
+  return path.resolve(bridgeRoot, "deployments", `bridge.${chainId}.json`);
+}
+
+function defaultBridgeAbiManifestPath(chainId) {
+  return path.resolve(bridgeRoot, "deployments", `bridge-abi-manifest.${chainId}.json`);
 }
 
 function loadBridgeAbiManifest(manifestPath) {
@@ -1909,8 +1912,8 @@ channel-create options:
 channel-workspace-init options:
   --channel-name <name>        User-provided channel name; channelId is derived as keccak256(bytes(name))
   --workspace <name>           Optional cache name. Default: channel name
-  --bridge-deployment <path>   Bridge deployment JSON. Default: bridge/deployments/bridge-latest.json
-  --bridge-abi-manifest <path> Optional bridge ABI manifest override
+  --bridge-deployment <path>   Optional bridge deployment JSON override. Default: bridge/deployments/bridge.<chain-id>.json
+  --bridge-abi-manifest <path> Optional bridge ABI manifest override. Default: bridge/deployments/bridge-abi-manifest.<chain-id>.json
   --block-info-file <path>     Optional block_info.json override; must match the channel genesis block context
   --state-snapshot-file <path> Import an existing non-genesis snapshot
   --force                      Overwrite an existing workspace

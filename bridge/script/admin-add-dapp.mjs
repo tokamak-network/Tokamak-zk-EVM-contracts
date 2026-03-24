@@ -24,17 +24,15 @@ const repoRoot = path.resolve(__dirname, "..", "..");
 const tokamakSubmoduleRoot = path.join(repoRoot, "submodules", "Tokamak-zk-EVM");
 const synthesizerRoot = path.join(tokamakSubmoduleRoot, "packages", "frontend", "synthesizer");
 const tokamakCliPath = path.join(tokamakSubmoduleRoot, "tokamak-cli");
-const defaultDeploymentPath = path.join(repoRoot, "bridge", "deployments", "bridge-latest.json");
 const defaultArtifactsRoot = path.join(repoRoot, "bridge", "deployments", "dapp-registration-artifacts");
-const defaultManifestPath = path.join(repoRoot, "bridge", "deployments", "dapp-registration.latest.json");
 
 function usage() {
   console.log(`Usage:
   node bridge/script/admin-add-dapp.mjs --group <example-group> [--group <example-group> ...] --dapp-id <uint> [options]
 
 Options:
-  --deployment-path <path>          Bridge deployment JSON path
-  --abi-manifest <path>             ABI manifest path; defaults from deployment JSON
+  --deployment-path <path>          Bridge deployment JSON path; defaults to bridge/deployments/bridge.<chain-id>.json
+  --abi-manifest <path>             ABI manifest path; defaults to bridge/deployments/bridge-abi-manifest.<chain-id>.json
   --dapp-manager <address>          Override DAppManager address; defaults from deployment JSON
   --dapp-label <name>               Logical DApp label used to merge multiple example groups
   --app-deployment-path <path>      App deployment manifest; defaults to private-state latest for the bridge chain
@@ -42,7 +40,7 @@ Options:
   --rpc-url <url>                   JSON-RPC URL; defaults from bridge env variables
   --private-key <hex>               Broadcaster key; defaults from BRIDGE_DEPLOYER_PRIVATE_KEY
   --install-arg <value>             tokamak-cli --install argument; defaults to resolved RPC URL
-  --manifest-out <path>             Output manifest path
+  --manifest-out <path>             Output manifest path; defaults to bridge/deployments/dapp-registration.<chain-id>.json
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
   --skip-submodule-update           Skip updating submodules/Tokamak-zk-EVM to origin/dev
   --skip-install                    Skip tokamak-cli --install
@@ -53,7 +51,7 @@ function parseArgs(argv) {
   const options = {
     groups: [],
     dappId: null,
-    deploymentPath: defaultDeploymentPath,
+    deploymentPath: null,
     abiManifestPath: null,
     dAppManager: null,
     dappLabel: null,
@@ -62,7 +60,7 @@ function parseArgs(argv) {
     rpcUrl: null,
     privateKey: process.env.BRIDGE_DEPLOYER_PRIVATE_KEY ?? null,
     installArg: null,
-    manifestOut: defaultManifestPath,
+    manifestOut: null,
     artifactsOut: defaultArtifactsRoot,
     skipSubmoduleUpdate: false,
     skipInstall: false,
@@ -184,12 +182,12 @@ function normalizePrivateKey(privateKey) {
   return privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
 }
 
-function resolveAbiManifestPath(options, deployment) {
+function resolveAbiManifestPath(options, deployment, deploymentPath) {
   if (options.abiManifestPath) {
     return options.abiManifestPath;
   }
   if (typeof deployment.abiManifestPath === "string" && deployment.abiManifestPath.length > 0) {
-    const deploymentRelativePath = path.resolve(path.dirname(options.deploymentPath), deployment.abiManifestPath);
+    const deploymentRelativePath = path.resolve(path.dirname(deploymentPath), deployment.abiManifestPath);
     if (fs.existsSync(deploymentRelativePath)) {
       return deploymentRelativePath;
     }
@@ -198,7 +196,8 @@ function resolveAbiManifestPath(options, deployment) {
       return bridgeRelativePath;
     }
   }
-  return path.join(repoRoot, "bridge", "deployments", "bridge-abi-manifest.latest.json");
+  const chainId = Number.parseInt(String(deployment.chainId ?? 0), 10);
+  return resolveBridgeAbiManifestPath(chainId);
 }
 
 function loadDAppManagerAbi(abiManifestPath) {
@@ -212,6 +211,14 @@ function loadDAppManagerAbi(abiManifestPath) {
 
 function resolvePrivateStateManifestPath(rootDir, chainId, kind) {
   return path.join(repoRoot, "apps", "private-state", "deploy", `${kind}.${chainId}.latest.json`);
+}
+
+function resolveBridgeDeploymentPath(chainId) {
+  return path.join(repoRoot, "bridge", "deployments", `bridge.${chainId}.json`);
+}
+
+function resolveBridgeAbiManifestPath(chainId) {
+  return path.join(repoRoot, "bridge", "deployments", `bridge-abi-manifest.${chainId}.json`);
 }
 
 function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
@@ -434,21 +441,24 @@ async function assertDAppDoesNotExist(dAppManager, dappId) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const deployment = readJson(options.deploymentPath);
-  const abiManifestPath = resolveAbiManifestPath(options, deployment);
+  const rpcUrl = resolveRpcUrl(options);
+  const installArg = options.installArg ?? rpcUrl;
+  const privateKey = normalizePrivateKey(options.privateKey);
+  const provider = new JsonRpcProvider(rpcUrl);
+  const chainId = Number((await provider.getNetwork()).chainId);
+  const deploymentPath = options.deploymentPath ?? resolveBridgeDeploymentPath(chainId);
+  const deployment = readJson(deploymentPath);
+  const abiManifestPath = resolveAbiManifestPath(options, deployment, deploymentPath);
   const dAppManagerAddress = options.dAppManager ?? deployment.dAppManager;
   if (!dAppManagerAddress) {
     throw new Error("Unable to resolve DAppManager address from arguments or deployment artifact.");
   }
-
-  const rpcUrl = resolveRpcUrl(options);
-  const installArg = options.installArg ?? rpcUrl;
-  const privateKey = normalizePrivateKey(options.privateKey);
-  const chainId = Number.parseInt(String(deployment.chainId ?? 0), 10);
   const appDeploymentPath =
     options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, chainId, "deployment");
   const storageLayoutPath =
     options.storageLayoutPath ?? resolvePrivateStateManifestPath(repoRoot, chainId, "storage-layout");
+  const manifestOut =
+    options.manifestOut ?? path.join(repoRoot, "bridge", "deployments", `dapp-registration.${chainId}.json`);
   const dappLabel = options.dappLabel ?? "private-state";
   const artifactsRoot = path.join(options.artifactsOut, dappLabel);
   ensureDir(artifactsRoot);
@@ -475,7 +485,6 @@ async function main() {
   }
   const dapp = dapps[0];
 
-  const provider = new JsonRpcProvider(rpcUrl);
   const wallet = new Wallet(privateKey, provider);
   const dAppManager = new Contract(dAppManagerAddress, loadDAppManagerAbi(abiManifestPath), wallet);
 
@@ -507,7 +516,7 @@ async function main() {
 
   const manifest = {
     generatedAt: new Date().toISOString(),
-    deploymentPath: options.deploymentPath,
+    deploymentPath,
     abiManifestPath,
     appDeploymentPath,
     storageLayoutPath,
@@ -533,9 +542,9 @@ async function main() {
     },
   };
 
-  writeJson(options.manifestOut, manifest);
+  writeJson(manifestOut, manifest);
   console.log(`Registered DApp ${options.dappId} for groups ${options.groups.join(", ")} as ${dappLabel}.`);
-  console.log(`Wrote manifest: ${options.manifestOut}`);
+  console.log(`Wrote manifest: ${manifestOut}`);
 }
 
 main().catch((error) => {

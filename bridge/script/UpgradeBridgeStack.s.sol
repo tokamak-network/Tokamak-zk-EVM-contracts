@@ -27,8 +27,8 @@ contract UpgradeBridgeStackScript is Script {
     function run() external returns (UpgradeResult memory result) {
         uint256 deployerPrivateKey = vm.envUint("BRIDGE_DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        string memory inputPath = vm.envOr("BRIDGE_INPUT_PATH", string("./deployments/bridge-latest.json"));
-        string memory outputPath = vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge-latest.json"));
+        string memory inputPath = vm.envOr("BRIDGE_INPUT_PATH", string("./deployments/bridge.json"));
+        string memory outputPath = vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge.json"));
 
         string memory existingJson = vm.readFile(inputPath);
         address bridgeAdminManagerProxy = existingJson.readAddress(".bridgeAdminManager");

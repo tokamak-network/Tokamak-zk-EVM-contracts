@@ -1,0 +1,17 @@
+{
+  "bridgeAdminManager": "0xA5358350Fd5B2cd191eC39a0BF20B857d0ec8a1c",
+  "bridgeAdminManagerImplementation": "0x21BDF4De132C0f9A974e0583368a93A00c32BCDb",
+  "bridgeCore": "0xDD73B78C55E5A847AC42526F39563538055d4Cd5",
+  "bridgeCoreImplementation": "0x9F22c3B6dD45B2071FfbE39256F6d6a5666d8af6",
+  "dAppManager": "0x45FD26C15D00e69655D28EB0B0aE9662ae2b8486",
+  "dAppManagerImplementation": "0xc943d1A826aF53F12d77Cf589777f6dcA1a05b84",
+  "deployer": "0x7BA7171625dBbFb546749674BE1731ede8DA4E25",
+  "grothVerifier": "0x44c3997F706de7640b7723494a2a555B0d1B4AC1",
+  "merkleTreeLevels": 12,
+  "mockAsset": "0x0000000000000000000000000000000000000000",
+  "owner": "0x7BA7171625dBbFb546749674BE1731ede8DA4E25",
+  "proxyKind": "uups",
+  "tokamakVerifier": "0xa8bec1600a9dAf6022293f003e389d62F6395727",
+  "chainId": 11155111,
+  "abiManifestPath": "deployments/bridge-abi-manifest.11155111.json"
+}

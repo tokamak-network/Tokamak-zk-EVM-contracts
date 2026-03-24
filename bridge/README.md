@@ -68,6 +68,7 @@ Required environment variables:
 Optional environment variables:
 
 - `BRIDGE_RPC_URL_OVERRIDE`
+- `BRIDGE_DEPLOY_MODE` with `upgrade` or `redeploy-proxy`
 - `BRIDGE_OWNER`
 - `BRIDGE_DEPLOY_MOCK_ASSET`
 - `BRIDGE_MOCK_ASSET_NAME`
@@ -89,6 +90,13 @@ $EDITOR .env
 bash bridge/script/deploy-bridge.sh
 ```
 
+Or select the deployment mode explicitly:
+
+```bash
+bash bridge/script/deploy-bridge.sh --mode upgrade
+bash bridge/script/deploy-bridge.sh --mode redeploy-proxy
+```
+
 The helper derives the correct Alchemy RPC URL from:
 
 - `BRIDGE_NETWORK=sepolia` -> `https://eth-sepolia.g.alchemy.com/v2/<key>`
@@ -108,14 +116,21 @@ The current bridge implementation is still intentionally hard-bound to depth
 `MT_DEPTH`, deployment will fail rather than silently deploying a mismatched
 bridge configuration.
 
-If the existing deployment artifact already declares `proxyKind = "uups"`, the helper automatically switches from fresh deployment to in-place upgrade. If the existing artifact is legacy non-proxy output, the helper performs a fresh proxy deployment instead. Set `BRIDGE_FORCE_FRESH_DEPLOY=1` to force a new proxy deployment even when a proxy artifact already exists.
+The helper now has two explicit modes:
 
-The script writes a deployment artifact under `bridge/deployments/` by default.
+- `upgrade`: redeploy implementations only and upgrade the existing proxies in place
+- `redeploy-proxy`: redeploy fresh proxies and fresh implementations, replacing the network-scoped deployment artifact
 
-It also generates an ABI manifest from the current Foundry build artifacts:
+`upgrade` never creates or replaces proxies. If the network-scoped deployment artifact is missing or is not proxy-based,
+the command fails and you must run `redeploy-proxy` intentionally.
 
-- `bridge/deployments/bridge-abi-manifest.latest.json`
-- `bridge/deployments/bridge-abi-manifest.<chain-id>.latest.json`
+The script writes one deployment artifact per network under `bridge/deployments/` by default:
+
+- `bridge/deployments/bridge.<chain-id>.json`
+
+It also generates one ABI manifest per network from the current Foundry build artifacts:
+
+- `bridge/deployments/bridge-abi-manifest.<chain-id>.json`
 
 The deployment JSON is post-processed to include `chainId` and `abiManifestPath` so downstream tooling can resolve the correct bridge ABI set without hardcoded function signatures.
 

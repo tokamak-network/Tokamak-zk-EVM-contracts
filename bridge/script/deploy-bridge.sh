@@ -3,6 +3,8 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${BRIDGE_ENV_FILE:-$PROJECT_ROOT/.env}"
+DEPLOY_MODE="${BRIDGE_DEPLOY_MODE:-upgrade}"
+FORWARD_ARGS=()
 
 resolve_bridge_path() {
     local input_path="$1"
@@ -19,6 +21,32 @@ PY
         )
     fi
 }
+
+cleanup_broadcast_traces() {
+    local script_name="$1"
+    local chain_id="$2"
+    local trace_dir="$PROJECT_ROOT/bridge/broadcast/${script_name}/${chain_id}"
+    if [[ -d "$trace_dir" ]]; then
+        rm -rf "$trace_dir"
+    fi
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --mode)
+            if [[ $# -lt 2 ]]; then
+                echo "Missing value for --mode" >&2
+                exit 1
+            fi
+            DEPLOY_MODE="$2"
+            shift 2
+            ;;
+        *)
+            FORWARD_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
 
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "Missing $ENV_FILE"
@@ -71,6 +99,16 @@ case "${BRIDGE_NETWORK}" in
         ;;
 esac
 
+case "${DEPLOY_MODE}" in
+    upgrade|redeploy-proxy)
+        ;;
+    *)
+        echo "Unsupported deploy mode: ${DEPLOY_MODE}" >&2
+        echo "Supported modes: upgrade, redeploy-proxy" >&2
+        exit 1
+        ;;
+esac
+
 if [[ -n "${BRIDGE_RPC_URL_OVERRIDE:-}" ]]; then
     BRIDGE_RPC_URL="$BRIDGE_RPC_URL_OVERRIDE"
     NETWORK_LABEL="<override>"
@@ -112,22 +150,27 @@ MT_DEPTH_METADATA="$(cat "$REFLECTION_MANIFEST_PATH")"
 BRIDGE_MERKLE_TREE_LEVELS="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.mtDepth));});')"
 BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.version));});')"
 export BRIDGE_MERKLE_TREE_LEVELS
-BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge-latest.json}"
+BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge.${BRIDGE_CHAIN_ID}.json}"
 export BRIDGE_OUTPUT_PATH
 BRIDGE_INPUT_PATH="${BRIDGE_INPUT_PATH:-$BRIDGE_OUTPUT_PATH}"
 export BRIDGE_INPUT_PATH
 
 BRIDGE_OUTPUT_PATH_ABS_FOR_MODE="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
-DEPLOYMENT_MODE="fresh"
-FORGE_SCRIPT="script/DeployBridgeStack.s.sol:DeployBridgeStackScript"
+FORGE_SCRIPT="script/UpgradeBridgeStack.s.sol:UpgradeBridgeStackScript"
 
-if [[ "${BRIDGE_FORCE_FRESH_DEPLOY:-0}" != "1" && -f "$BRIDGE_OUTPUT_PATH_ABS_FOR_MODE" ]]; then
+if [[ "${DEPLOY_MODE}" == "redeploy-proxy" ]]; then
+    FORGE_SCRIPT="script/DeployBridgeStack.s.sol:DeployBridgeStackScript"
+else
+    if [[ ! -f "$BRIDGE_OUTPUT_PATH_ABS_FOR_MODE" ]]; then
+        echo "Missing proxy deployment artifact for upgrade mode: $BRIDGE_OUTPUT_PATH_ABS_FOR_MODE" >&2
+        echo "Run with --mode redeploy-proxy once to bootstrap proxy addresses on this network." >&2
+        exit 1
+    fi
     EXISTING_PROXY_KIND="$(node -e 'const fs=require("fs"); const p=process.argv[1]; const j=JSON.parse(fs.readFileSync(p,"utf8")); process.stdout.write(String(j.proxyKind || ""));' "$BRIDGE_OUTPUT_PATH_ABS_FOR_MODE")"
-    if [[ "$EXISTING_PROXY_KIND" == "uups" ]]; then
-        DEPLOYMENT_MODE="upgrade"
-        FORGE_SCRIPT="script/UpgradeBridgeStack.s.sol:UpgradeBridgeStackScript"
-    else
-        echo "Existing deployment artifact is not proxy-based. A fresh proxy deployment will be created."
+    if [[ "$EXISTING_PROXY_KIND" != "uups" ]]; then
+        echo "Deployment artifact is not proxy-based: $BRIDGE_OUTPUT_PATH_ABS_FOR_MODE" >&2
+        echo "Run with --mode redeploy-proxy to replace it with a proxy deployment." >&2
+        exit 1
     fi
 fi
 
@@ -138,12 +181,12 @@ FORGE_CMD=(
     --rpc-url "$BRIDGE_RPC_URL"
 )
 
-if [[ $# -gt 0 ]]; then
-    FORGE_CMD+=("$@")
+if [[ ${#FORWARD_ARGS[@]} -gt 0 ]]; then
+    FORGE_CMD+=("${FORWARD_ARGS[@]}")
 fi
 
 echo "Deploying bridge to network ${BRIDGE_NETWORK} (chain ID ${BRIDGE_CHAIN_ID})"
-echo "Deployment mode: ${DEPLOYMENT_MODE}"
+echo "Deployment mode: ${DEPLOY_MODE}"
 echo "RPC network label: ${NETWORK_LABEL}"
 echo "Environment file: ${ENV_FILE}"
 echo "Resolved tokamak-l2js version: ${BRIDGE_MERKLE_TREE_SOURCE_VERSION}"
@@ -155,18 +198,20 @@ echo "Reflection manifest: ${REFLECTION_MANIFEST_PATH}"
     "${FORGE_CMD[@]}"
 )
 
+if [[ "${DEPLOY_MODE}" == "redeploy-proxy" ]]; then
+    cleanup_broadcast_traces "DeployBridgeStack.s.sol" "$BRIDGE_CHAIN_ID"
+else
+    cleanup_broadcast_traces "UpgradeBridgeStack.s.sol" "$BRIDGE_CHAIN_ID"
+fi
+
 BRIDGE_OUTPUT_PATH_ABS="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
-BRIDGE_ABI_MANIFEST_PATH="./deployments/bridge-abi-manifest.latest.json"
+BRIDGE_ABI_MANIFEST_PATH="./deployments/bridge-abi-manifest.${BRIDGE_CHAIN_ID}.json"
 BRIDGE_ABI_MANIFEST_PATH_ABS="$(resolve_bridge_path "$BRIDGE_ABI_MANIFEST_PATH")"
-BRIDGE_CHAIN_ABI_MANIFEST_PATH="./deployments/bridge-abi-manifest.${BRIDGE_CHAIN_ID}.latest.json"
-BRIDGE_CHAIN_ABI_MANIFEST_PATH_ABS="$(resolve_bridge_path "$BRIDGE_CHAIN_ABI_MANIFEST_PATH")"
 
 node "$PROJECT_ROOT/bridge/script/generate-bridge-abi-manifest.mjs" \
     --output "$BRIDGE_ABI_MANIFEST_PATH_ABS" \
     --chain-id "$BRIDGE_CHAIN_ID" \
     --deployment-path "$BRIDGE_OUTPUT_PATH_ABS" >/dev/null
-
-cp "$BRIDGE_ABI_MANIFEST_PATH_ABS" "$BRIDGE_CHAIN_ABI_MANIFEST_PATH_ABS"
 
 echo "Deployment artifact: $BRIDGE_OUTPUT_PATH_ABS"
 echo "ABI manifest: $BRIDGE_ABI_MANIFEST_PATH_ABS"

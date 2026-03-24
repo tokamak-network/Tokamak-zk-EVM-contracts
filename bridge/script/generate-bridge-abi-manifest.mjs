@@ -73,8 +73,11 @@ function loadArtifactAbi(relativeArtifactPath) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const outputPath = resolveBridgePath(args.output ?? "deployments/bridge-abi-manifest.latest.json");
   const chainId = args["chain-id"] ? Number(args["chain-id"]) : null;
+  const defaultOutputPath = chainId === null
+    ? "deployments/bridge-abi-manifest.json"
+    : `deployments/bridge-abi-manifest.${chainId}.json`;
+  const outputPath = resolveBridgePath(args.output ?? defaultOutputPath);
   const deploymentPath = args["deployment-path"] ? resolveBridgePath(args["deployment-path"]) : null;
 
   const contracts = {};

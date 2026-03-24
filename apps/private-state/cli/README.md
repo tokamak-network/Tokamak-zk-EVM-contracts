@@ -49,7 +49,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   note usage, and per-user L2 nonce.
 
 For bridge contract ABIs, the bridge-coupled CLI does not use hardcoded function signatures anymore. It reads the
-bridge deployment JSON plus the bridge ABI manifest generated at deployment time under `bridge/deployments/`.
+network-scoped bridge deployment JSON plus the network-scoped bridge ABI manifest generated at deployment time under
+`bridge/deployments/`.
 
 Example:
 
@@ -61,14 +62,12 @@ node apps/private-state/cli/private-state-bridge-cli.mjs channel-create \
   --private-key <hex> \
   --create-workspace \
   --workspace demo \
-  --network anvil \
-  --bridge-deployment bridge/deployments/private-state-bridge-e2e-latest.json
+  --network anvil
 
 node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-init \
   --network anvil \
   --channel-name demo-channel \
-  --workspace demo \
-  --bridge-deployment bridge/deployments/private-state-bridge-e2e-latest.json
+  --workspace demo
 
 node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund \
   --channel-name demo-channel \

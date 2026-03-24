@@ -35,6 +35,11 @@ for var_name in "${required_vars[@]}"; do
     fi
 done
 
+MT_DEPTH_METADATA="$(node "$PROJECT_ROOT/bridge/script/resolve-latest-mt-depth.mjs")"
+BRIDGE_MERKLE_TREE_LEVELS="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.mtDepth));});')"
+BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.version));});')"
+export BRIDGE_MERKLE_TREE_LEVELS
+
 case "${BRIDGE_NETWORK}" in
     sepolia)
         BRIDGE_CHAIN_ID=11155111
@@ -80,6 +85,8 @@ fi
 echo "Deploying bridge to network ${BRIDGE_NETWORK} (chain ID ${BRIDGE_CHAIN_ID})"
 echo "RPC network label: ${NETWORK_LABEL}"
 echo "Environment file: ${ENV_FILE}"
+echo "Resolved tokamak-l2js version: ${BRIDGE_MERKLE_TREE_SOURCE_VERSION}"
+echo "Resolved tokamak-l2js MT_DEPTH: ${BRIDGE_MERKLE_TREE_LEVELS}"
 
 (
     cd "$PROJECT_ROOT/bridge"

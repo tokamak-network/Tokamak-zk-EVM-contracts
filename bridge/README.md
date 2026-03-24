@@ -62,7 +62,6 @@ Optional environment variables:
 
 - `BRIDGE_RPC_URL_OVERRIDE`
 - `BRIDGE_OWNER`
-- `BRIDGE_MERKLE_TREE_LEVELS`
 - `BRIDGE_DEPLOY_MOCK_ASSET`
 - `BRIDGE_MOCK_ASSET_NAME`
 - `BRIDGE_MOCK_ASSET_SYMBOL`
@@ -84,5 +83,14 @@ The helper derives the correct Alchemy RPC URL from:
 - `BRIDGE_NETWORK=mainnet` -> `https://eth-mainnet.g.alchemy.com/v2/<key>`
 
 If you need a non-Alchemy endpoint, set `BRIDGE_RPC_URL_OVERRIDE`.
+
+The helper also resolves the latest published `tokamak-l2js` package and reads
+its exported `MT_DEPTH` before broadcasting deployment. That value is forwarded
+into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
+
+The current bridge implementation is still intentionally hard-bound to depth
+`12` for soundness. If the latest `tokamak-l2js` publishes a different
+`MT_DEPTH`, deployment will fail rather than silently deploying a mismatched
+bridge configuration.
 
 The script writes a deployment artifact under `bridge/deployments/` by default.

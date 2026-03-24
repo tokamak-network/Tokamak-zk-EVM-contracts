@@ -27,7 +27,7 @@ contract DeployBridgeStackScript is Script {
         uint256 deployerPrivateKey = vm.envUint("BRIDGE_DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         address owner = vm.envOr("BRIDGE_OWNER", deployer);
-        uint8 merkleTreeLevels = uint8(vm.envOr("BRIDGE_MERKLE_TREE_LEVELS", uint256(12)));
+        uint8 merkleTreeLevels = uint8(vm.envUint("BRIDGE_MERKLE_TREE_LEVELS"));
         bool deployMockAsset = vm.envOr("BRIDGE_DEPLOY_MOCK_ASSET", false);
         string memory outputPath = vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge-latest.json"));
 

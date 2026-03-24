@@ -443,7 +443,7 @@ contract BridgeFlowTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(ChannelManager.UnsupportedChannelFunction.selector, address(0xBEEF), APP_SIG)
         );
-        channelManager.submitTokamakProof(proofPayload);
+        channelManager.executeChannelTransaction(proofPayload);
     }
 
     function testTokamakVerificationRejectsShortAPubUser() public {
@@ -458,7 +458,7 @@ contract BridgeFlowTest is Test {
                 uint256(shortened.length)
             )
         );
-        channelManager.submitTokamakProof(proofPayload);
+        channelManager.executeChannelTransaction(proofPayload);
     }
 
     function testChannelUsesRealTokamakVerifier() public view {
@@ -469,7 +469,7 @@ contract BridgeFlowTest is Test {
         BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
 
         vm.expectRevert(ChannelManager.UnexpectedCurrentRootVector.selector);
-        channelManager.submitTokamakProof(proofPayload);
+        channelManager.executeChannelTransaction(proofPayload);
     }
 
     function testTokamakVerificationAcceptsRealProofBundleAfterSeedingVerifiedPreState() public {
@@ -512,7 +512,7 @@ contract BridgeFlowTest is Test {
         // The extracted proof bundle starts from an already-updated channel state rather than the bridge's zero root.
         _seedChannelCurrentRoots(localChannelManager, currentRoots);
 
-        bool accepted = localChannelManager.submitTokamakProof(proofPayload);
+        bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
         assertTrue(accepted);
 
         bytes32[] memory resultingRoots = localChannelManager.getCurrentRootVector();

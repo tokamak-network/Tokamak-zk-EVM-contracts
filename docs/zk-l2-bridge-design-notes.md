@@ -231,7 +231,7 @@ Under the current `instance_description.json` layout produced by the Tokamak syn
   - `currentRootVectorOffsetWords`
   - `updatedRootVectorOffsetWords`
   - `storageWrites[]`, where each element carries both the expected tree index and the `aPubUser` word offset at which that tree index is encoded
-- channel creation copies that function metadata into channel-local storage, so `submitTokamakProof` can validate the `aPubUser` layout without external metadata calls
+- channel creation copies that function metadata into channel-local storage, so `executeChannelTransaction` can validate the `aPubUser` layout without external metadata calls
 
 where `n` is the number of channel storage trees represented in the root vector.
 

@@ -491,7 +491,8 @@ async function handleBridgeSend({ args, env, provider }) {
     "Generated Tokamak proof does not match the channel aPubBlockHash. Check the workspace block_info.json context.",
   );
 
-  const receipt = await waitForReceipt(await context.channelManager.connect(signer).submitTokamakProof(payload));
+  const receipt =
+    await waitForReceipt(await context.channelManager.connect(signer).executeChannelTransaction(payload));
 
   const onchainRoots = normalizedRootVector(await context.channelManager.getCurrentRootVector());
   expect(

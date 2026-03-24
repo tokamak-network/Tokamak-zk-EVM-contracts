@@ -124,7 +124,7 @@ contract ChannelManager {
         emit TokenVaultBound(tokenVault_);
     }
 
-    function submitTokamakProof(BridgeStructs.TokamakProofPayload calldata payload) external returns (bool) {
+    function executeChannelTransaction(BridgeStructs.TokamakProofPayload calldata payload) external returns (bool) {
         bytes32 actualPreprocessInputHash =
             keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
         bytes32 functionKey = _functionKeyByPreprocessInputHash[actualPreprocessInputHash];

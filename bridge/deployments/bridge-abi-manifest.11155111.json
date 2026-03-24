@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-24T17:35:07.818Z",
+  "generatedAt": "2026-03-24T18:20:13.745Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -348,25 +348,6 @@
         },
         {
           "type": "function",
-          "name": "deriveLeafIndex",
-          "inputs": [
-            {
-              "name": "key",
-              "type": "bytes32",
-              "internalType": "bytes32"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "stateMutability": "pure"
-        },
-        {
-          "type": "function",
           "name": "getChannel",
           "inputs": [
             {
@@ -442,19 +423,46 @@
         },
         {
           "type": "function",
-          "name": "globallyRegisteredVaultKeys",
+          "name": "getChannelTokenVaultRegistration",
           "inputs": [
             {
-              "name": "",
-              "type": "bytes32",
-              "internalType": "bytes32"
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "l1Address",
+              "type": "address",
+              "internalType": "address"
             }
           ],
           "outputs": [
             {
               "name": "",
-              "type": "bool",
-              "internalType": "bool"
+              "type": "tuple",
+              "internalType": "struct BridgeStructs.TokenVaultRegistration",
+              "components": [
+                {
+                  "name": "exists",
+                  "type": "bool",
+                  "internalType": "bool"
+                },
+                {
+                  "name": "l2Address",
+                  "type": "address",
+                  "internalType": "address"
+                },
+                {
+                  "name": "l2TokenVaultKey",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+                },
+                {
+                  "name": "leafIndex",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                }
+              ]
             }
           ],
           "stateMutability": "view"
@@ -507,25 +515,6 @@
         },
         {
           "type": "function",
-          "name": "leafIndexOwner",
-          "inputs": [
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
           "name": "owner",
           "inputs": [],
           "outputs": [
@@ -555,30 +544,6 @@
           "name": "renounceOwnership",
           "inputs": [],
           "outputs": [],
-          "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "reserveVaultKey",
-          "inputs": [
-            {
-              "name": "user",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "key",
-              "type": "bytes32",
-              "internalType": "bytes32"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
           "stateMutability": "nonpayable"
         },
         {
@@ -773,31 +738,6 @@
           "anonymous": false
         },
         {
-          "type": "event",
-          "name": "VaultKeyReserved",
-          "inputs": [
-            {
-              "name": "user",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            },
-            {
-              "name": "key",
-              "type": "bytes32",
-              "indexed": true,
-              "internalType": "bytes32"
-            },
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "indexed": false,
-              "internalType": "uint256"
-            }
-          ],
-          "anonymous": false
-        },
-        {
           "type": "error",
           "name": "ChannelAlreadyExists",
           "inputs": [
@@ -805,28 +745,6 @@
               "name": "channelId",
               "type": "uint256",
               "internalType": "uint256"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "GlobalLeafIndexCollision",
-          "inputs": [
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "GlobalVaultKeyAlreadyRegistered",
-          "inputs": [
-            {
-              "name": "key",
-              "type": "bytes32",
-              "internalType": "bytes32"
             }
           ]
         },
@@ -863,11 +781,6 @@
         {
           "type": "error",
           "name": "InvalidTokenVault",
-          "inputs": []
-        },
-        {
-          "type": "error",
-          "name": "OnlySharedTokenVault",
           "inputs": []
         },
         {
@@ -2131,6 +2044,47 @@
         },
         {
           "type": "function",
+          "name": "getTokenVaultRegistration",
+          "inputs": [
+            {
+              "name": "l1Address",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "internalType": "struct BridgeStructs.TokenVaultRegistration",
+              "components": [
+                {
+                  "name": "exists",
+                  "type": "bool",
+                  "internalType": "bool"
+                },
+                {
+                  "name": "l2Address",
+                  "type": "address",
+                  "internalType": "address"
+                },
+                {
+                  "name": "l2TokenVaultKey",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+                },
+                {
+                  "name": "leafIndex",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "leader",
           "inputs": [],
           "outputs": [
@@ -2141,6 +2095,29 @@
             }
           ],
           "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "registerTokenVaultIdentity",
+          "inputs": [
+            {
+              "name": "l2Address",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "l2TokenVaultKey",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "leafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
         },
         {
           "type": "function",
@@ -2271,6 +2248,37 @@
           "anonymous": false
         },
         {
+          "type": "event",
+          "name": "TokenVaultIdentityRegistered",
+          "inputs": [
+            {
+              "name": "l1Address",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            },
+            {
+              "name": "l2Address",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            },
+            {
+              "name": "l2TokenVaultKey",
+              "type": "bytes32",
+              "indexed": true,
+              "internalType": "bytes32"
+            },
+            {
+              "name": "leafIndex",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "uint256"
+            }
+          ],
+          "anonymous": false
+        },
+        {
           "type": "error",
           "name": "APubBlockHashMismatch",
           "inputs": [
@@ -2342,6 +2350,11 @@
         },
         {
           "type": "error",
+          "name": "InvalidL2Address",
+          "inputs": []
+        },
+        {
+          "type": "error",
           "name": "InvalidStorageWriteStorageIndex",
           "inputs": [
             {
@@ -2399,6 +2412,66 @@
         },
         {
           "type": "error",
+          "name": "TokenVaultIdentityAlreadyRegistered",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "internalType": "address"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "TokenVaultKeyAlreadyRegistered",
+          "inputs": [
+            {
+              "name": "key",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "TokenVaultLeafIndexAlreadyRegistered",
+          "inputs": [
+            {
+              "name": "leafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "TokenVaultLeafIndexMismatch",
+          "inputs": [
+            {
+              "name": "expectedLeafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "actualLeafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "TokenVaultLeafIndexOutOfRange",
+          "inputs": [
+            {
+              "name": "leafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
           "name": "TokenVaultRootUpdateWithoutStorageWrite",
           "inputs": []
         },
@@ -2442,6 +2515,19 @@
               "name": "",
               "type": "address",
               "internalType": "contract IERC20"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "channelRegistry",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "contract IChannelRegistry"
             }
           ],
           "stateMutability": "view"
@@ -2576,7 +2662,7 @@
         },
         {
           "type": "function",
-          "name": "getRegistration",
+          "name": "getAccount",
           "inputs": [
             {
               "name": "user",
@@ -2588,22 +2674,12 @@
             {
               "name": "",
               "type": "tuple",
-              "internalType": "struct L1TokenVault.VaultRegistration",
+              "internalType": "struct BridgeStructs.BridgeBalanceAccount",
               "components": [
                 {
                   "name": "exists",
                   "type": "bool",
                   "internalType": "bool"
-                },
-                {
-                  "name": "l2TokenVaultKey",
-                  "type": "bytes32",
-                  "internalType": "bytes32"
-                },
-                {
-                  "name": "leafIndex",
-                  "type": "uint256",
-                  "internalType": "uint256"
                 },
                 {
                   "name": "availableBalance",
@@ -2648,26 +2724,13 @@
               "internalType": "contract IGrothVerifier"
             },
             {
-              "name": "keyRegistry_",
+              "name": "channelRegistry_",
               "type": "address",
-              "internalType": "contract IVaultKeyRegistry"
+              "internalType": "contract IChannelRegistry"
             }
           ],
           "outputs": [],
           "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "keyRegistry",
-          "inputs": [],
-          "outputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "contract IVaultKeyRegistry"
-            }
-          ],
-          "stateMutability": "view"
         },
         {
           "type": "function",
@@ -2700,11 +2763,6 @@
           "name": "registerAndFund",
           "inputs": [
             {
-              "name": "l2TokenVaultKey",
-              "type": "bytes32",
-              "internalType": "bytes32"
-            },
-            {
               "name": "amount",
               "type": "uint256",
               "internalType": "uint256"
@@ -2712,25 +2770,6 @@
           ],
           "outputs": [],
           "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "registeredUserAtLeafIndex",
-          "inputs": [
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "stateMutability": "view"
         },
         {
           "type": "function",
@@ -2933,6 +2972,19 @@
         },
         {
           "type": "event",
+          "name": "BridgeAccountRegistered",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "Initialized",
           "inputs": [
             {
@@ -3002,31 +3054,6 @@
           "anonymous": false
         },
         {
-          "type": "event",
-          "name": "UserRegistered",
-          "inputs": [
-            {
-              "name": "user",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            },
-            {
-              "name": "key",
-              "type": "bytes32",
-              "indexed": true,
-              "internalType": "bytes32"
-            },
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "indexed": false,
-              "internalType": "uint256"
-            }
-          ],
-          "anonymous": false
-        },
-        {
           "type": "error",
           "name": "AlreadyRegistered",
           "inputs": [
@@ -3059,12 +3086,12 @@
         },
         {
           "type": "error",
-          "name": "InvalidGrothVerifier",
+          "name": "InvalidChannelRegistry",
           "inputs": []
         },
         {
           "type": "error",
-          "name": "InvalidKeyRegistry",
+          "name": "InvalidGrothVerifier",
           "inputs": []
         },
         {
@@ -3091,6 +3118,22 @@
               "name": "user",
               "type": "address",
               "internalType": "address"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "NotRegisteredInChannel",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
             }
           ]
         },

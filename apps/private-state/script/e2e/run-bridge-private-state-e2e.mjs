@@ -82,14 +82,16 @@ const dAppManagerAbi = [
 const channelManagerAbi = [
   "function currentRootVectorHash() external view returns (bytes32)",
   "function genesisBlockNumber() external view returns (uint256)",
+  "function registerTokenVaultIdentity(address l2Address, bytes32 l2TokenVaultKey, uint256 leafIndex) external",
+  "function getTokenVaultRegistration(address user) external view returns (tuple(bool exists, address l2Address, bytes32 l2TokenVaultKey, uint256 leafIndex))",
   "function executeChannelTransaction((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
 const tokenVaultAbi = [
-  "function registerAndFund(bytes32 l2TokenVaultKey, uint256 amount) external",
+  "function registerAndFund(uint256 amount) external",
   "function deposit(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function withdraw(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function claimToWallet(uint256 amount) external",
-  "function getRegistration(address user) external view returns (tuple(bool exists, bytes32 l2TokenVaultKey, uint256 leafIndex, uint256 availableBalance))",
+  "function getAccount(address user) external view returns (tuple(bool exists, uint256 availableBalance))",
 ];
 const mockErc20Abi = [
   "function mint(address to, uint256 amount) external",
@@ -190,6 +192,10 @@ function normalizeBytes32Hex(hexValue) {
 
 function deriveChannelIdFromName(name) {
   return BigInt(keccak256(ethers.toUtf8Bytes(name)));
+}
+
+function deriveLeafIndex(storageKey) {
+  return BigInt(storageKey) % MAX_MT_LEAVES;
 }
 
 function buildL1Wallet(index, provider) {
@@ -1037,9 +1043,15 @@ async function main() {
       )
     ).wait();
     await (
-      await tokenVault.connect(participant.l1).registerAndFund(
+      await tokenVault.connect(participant.l1).registerAndFund(depositAmount, {
+        nonce: consumeAccountNonce(participantNonces, participant.l1.address),
+      })
+    ).wait();
+    await (
+      await channelManager.connect(participant.l1).registerTokenVaultIdentity(
+        participant.l2Address,
         participantKeys.get(participant.index),
-        depositAmount,
+        deriveLeafIndex(participantKeys.get(participant.index)),
         { nonce: consumeAccountNonce(participantNonces, participant.l1.address) },
       )
     ).wait();
@@ -1099,13 +1111,13 @@ async function main() {
   ).wait();
   const cBalanceAfterClaim = await asset.balanceOf(participants[2].l1.address);
 
-  const registrationA = await tokenVault.getRegistration(participants[0].l1.address);
-  const registrationB = await tokenVault.getRegistration(participants[1].l1.address);
-  const registrationC = await tokenVault.getRegistration(participants[2].l1.address);
+  const accountA = await tokenVault.getAccount(participants[0].l1.address);
+  const accountB = await tokenVault.getAccount(participants[1].l1.address);
+  const accountC = await tokenVault.getAccount(participants[2].l1.address);
 
-  expect(registrationA.availableBalance === 0n, "Account A should have no L1-claimable balance after transferring all value.");
-  expect(registrationB.availableBalance === 0n, "Account B should have no L1-claimable balance after transferring all value.");
-  expect(registrationC.availableBalance === 0n, "Account C should have no remaining L1-claimable balance after claiming.");
+  expect(accountA.availableBalance === 0n, "Account A should have no L1-claimable balance after transferring all value.");
+  expect(accountB.availableBalance === 0n, "Account B should have no L1-claimable balance after transferring all value.");
+  expect(accountC.availableBalance === 0n, "Account C should have no remaining L1-claimable balance after claiming.");
   expect(cBalanceAfterClaim - cBalanceBeforeClaim === 9n * amountUnit, "Account C must receive the full redeemed amount.");
 
   const summary = {

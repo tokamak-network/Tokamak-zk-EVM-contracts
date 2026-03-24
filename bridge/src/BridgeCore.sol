@@ -9,13 +9,12 @@ import {BridgeStructs} from "./BridgeStructs.sol";
 import {BridgeAdminManager} from "./BridgeAdminManager.sol";
 import {DAppManager} from "./DAppManager.sol";
 import {ChannelManager} from "./ChannelManager.sol";
-import {IVaultKeyRegistry} from "./L1TokenVault.sol";
 import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
+import {IChannelRegistry} from "./interfaces/IChannelRegistry.sol";
 
-contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaultKeyRegistry {
+contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChannelRegistry {
     uint8 internal constant SUPPORTED_MT_LEVELS = 12;
-    uint256 internal constant SUPPORTED_MT_LEAVES = uint256(1) << uint256(SUPPORTED_MT_LEVELS);
     uint256 internal constant MAX_MANAGED_STORAGES = 11;
     address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET = 0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
     address internal constant TOKAMAK_NETWORK_TOKEN_SEPOLIA = 0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
@@ -24,12 +23,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
 
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);
-    error OnlySharedTokenVault();
     error InvalidMerkleTreeConfiguration();
     error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
     error InvalidLeader();
-    error GlobalVaultKeyAlreadyRegistered(bytes32 key);
-    error GlobalLeafIndexCollision(uint256 leafIndex);
     error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
     error InvalidAdminManager();
     error InvalidDAppManager();
@@ -56,8 +52,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
     address public tokenVault;
 
     mapping(uint256 => ChannelDeployment) private _channels;
-    mapping(bytes32 => bool) public globallyRegisteredVaultKeys;
-    mapping(uint256 => address) public leafIndexOwner;
 
     event ChannelCreated(
         uint256 indexed channelId,
@@ -66,12 +60,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
         address vault
     );
     event SharedTokenVaultBound(address indexed tokenVault);
-    event VaultKeyReserved(
-        address indexed user,
-        bytes32 indexed key,
-        uint256 leafIndex
-    );
-
     constructor() {
         _disableInitializers();
     }
@@ -169,37 +157,23 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
         return (address(channelManager), tokenVault);
     }
 
-    function reserveVaultKey(address user, bytes32 key)
-        external
-        override
-        returns (uint256 leafIndex)
-    {
-        if (msg.sender != tokenVault) revert OnlySharedTokenVault();
-        if (globallyRegisteredVaultKeys[key]) revert GlobalVaultKeyAlreadyRegistered(key);
-
-        leafIndex = deriveLeafIndex(key);
-        if (leafIndexOwner[leafIndex] != address(0)) {
-            revert GlobalLeafIndexCollision(leafIndex);
-        }
-
-        globallyRegisteredVaultKeys[key] = true;
-        leafIndexOwner[leafIndex] = user;
-
-        emit VaultKeyReserved(user, key, leafIndex);
-    }
-
     function getChannel(uint256 channelId) external view returns (ChannelDeployment memory) {
         if (!_channels[channelId].exists) revert UnknownChannel(channelId);
         return _channels[channelId];
     }
 
-    function getChannelManager(uint256 channelId) external view returns (address) {
+    function getChannelManager(uint256 channelId) external view override returns (address) {
         if (!_channels[channelId].exists) revert UnknownChannel(channelId);
         return _channels[channelId].manager;
     }
 
-    function deriveLeafIndex(bytes32 key) public pure returns (uint256) {
-        return uint256(key) % SUPPORTED_MT_LEAVES;
+    function getChannelTokenVaultRegistration(uint256 channelId, address l1Address)
+        external
+        view
+        returns (BridgeStructs.TokenVaultRegistration memory)
+    {
+        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
+        return ChannelManager(_channels[channelId].manager).getTokenVaultRegistration(l1Address);
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}

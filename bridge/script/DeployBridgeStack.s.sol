@@ -6,11 +6,12 @@ import {ERC1967Proxy} from "@openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
 import {DAppManager} from "../src/DAppManager.sol";
-import {L1TokenVault, IVaultKeyRegistry} from "../src/L1TokenVault.sol";
+import {L1TokenVault} from "../src/L1TokenVault.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
 import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
+import {IChannelRegistry} from "../src/interfaces/IChannelRegistry.sol";
 import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
 import {TokamakVerifier} from "tokamak-zkp/TokamakVerifier.sol";
 
@@ -77,7 +78,7 @@ contract DeployBridgeStackScript is Script {
                     owner,
                     IERC20(BridgeCore(address(bridgeCoreProxy)).canonicalAsset()),
                     IGrothVerifier(address(grothVerifier)),
-                    IVaultKeyRegistry(address(bridgeCoreProxy))
+                    IChannelRegistry(address(bridgeCoreProxy))
                 )
             )
         );

@@ -129,6 +129,9 @@ async function main() {
     case "deposit-bridge":
       await handleRegisterAndFund({ args, env, network, provider });
       return;
+    case "register-channel":
+      await handleRegisterChannel({ args, env, network, provider });
+      return;
     case "fund-l1":
       await handleFundL1({ args, env, network, provider });
       return;
@@ -466,18 +469,13 @@ async function handleWalletShow({ args, env, provider }) {
 async function handleRegisterAndFund({ args, env, network, provider }) {
   if (args.wallet !== undefined) {
     throw new Error(
-      "--wallet is not supported by deposit-bridge. Channel wallets are created or refreshed by deposit-channel and bridge-send.",
+      "--wallet is not supported by deposit-bridge. Channel wallets are created or refreshed by register-channel, deposit-channel, and bridge-send.",
     );
   }
   const signer = requireL1Signer(args, env, provider);
-  const l2Identity = await deriveParticipantIdentity({
-    password: requireL2Password(args),
-    signer,
-  });
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
-  const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, bridgeVaultContext.liquidBalancesSlot);
   const tokenVault = new Contract(
     bridgeVaultContext.tokenVaultAddress,
     bridgeVaultContext.bridgeAbiManifest.contracts.tokenVault.abi,
@@ -489,20 +487,106 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
     signer,
   );
   const approveReceipt = await waitForReceipt(await asset.approve(bridgeVaultContext.tokenVaultAddress, amount));
-  const registrationReceipt = await waitForReceipt(await tokenVault.registerAndFund(storageKey, amount));
-  const registration = await tokenVault.getRegistration(signer.address);
+  const registrationReceipt = await waitForReceipt(await tokenVault.registerAndFund(amount));
+  const account = await tokenVault.getAccount(signer.address);
 
   printJson({
     action: "deposit-bridge",
     amountInput,
     amountBaseUnits: amount.toString(),
     l1Address: signer.address,
-    l2Address: l2Identity.l2Address,
-    l2StorageKey: storageKey,
-    leafIndex: registration.leafIndex.toString(),
+    availableBalance: account.availableBalance.toString(),
     tokenVault: bridgeVaultContext.tokenVaultAddress,
     approveReceipt: sanitizeReceipt(approveReceipt),
     registrationReceipt: sanitizeReceipt(registrationReceipt),
+  });
+}
+
+async function handleRegisterChannel({ args, env, network, provider }) {
+  const password = requireL2Password(args);
+  const walletFromFlag = args.wallet ? loadWallet(requireWalletName(args), password) : null;
+  const context = await loadChannelContext({
+    args,
+    networkName: network.name,
+    provider,
+    walletContext: walletFromFlag,
+  });
+  const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: walletFromFlag });
+  const l2Identity = walletFromFlag
+    ? restoreParticipantIdentityFromWallet(walletFromFlag.wallet)
+    : await deriveParticipantIdentity({
+      password,
+      signer,
+    });
+  const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
+  const leafIndex = deriveTokenVaultLeafIndex(storageKey);
+  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
+  const account = await tokenVault.getAccount(signer.address);
+  expect(account.exists, `No shared bridge-vault account exists for ${signer.address}. Run deposit-bridge first.`);
+
+  const existingRegistration = await context.channelManager.getTokenVaultRegistration(signer.address);
+  if (!existingRegistration.exists) {
+    const receipt = await waitForReceipt(
+      await context.channelManager.connect(signer).registerTokenVaultIdentity(l2Identity.l2Address, storageKey, leafIndex),
+    );
+
+    const walletContext = ensureWallet({
+      args,
+      channelContext: context,
+      signerAddress: signer.address,
+      signerPrivateKey: signer.privateKey,
+      l2Identity,
+      walletPassword: password,
+      storageKey,
+      leafIndex,
+    });
+
+    printJson({
+      action: "register-channel",
+      workspace: context.workspaceName,
+      wallet: walletContext.walletName,
+      channelName: context.workspace.channelName,
+      channelId: context.workspace.channelId,
+      l1Address: signer.address,
+      l2Address: l2Identity.l2Address,
+      l2StorageKey: storageKey,
+      leafIndex: leafIndex.toString(),
+      receipt: sanitizeReceipt(receipt),
+    });
+    return;
+  }
+
+  expect(
+    normalizeBytes32Hex(existingRegistration.l2TokenVaultKey) === normalizeBytes32Hex(storageKey),
+    "The existing channel registration key does not match the derived L2 token-vault key.",
+  );
+  expect(
+    getAddress(existingRegistration.l2Address) === getAddress(l2Identity.l2Address),
+    "The existing channel registration L2 address does not match the derived L2 address.",
+  );
+
+  const walletContext = ensureWallet({
+    args,
+    channelContext: context,
+    signerAddress: signer.address,
+    signerPrivateKey: signer.privateKey,
+    l2Identity,
+    walletPassword: password,
+    storageKey,
+    leafIndex: existingRegistration.leafIndex,
+  });
+
+  printJson({
+    action: "register-channel",
+    workspace: context.workspaceName,
+    wallet: walletContext.walletName,
+    channelName: context.workspace.channelName,
+    channelId: context.workspace.channelId,
+    l1Address: signer.address,
+    l2Address: l2Identity.l2Address,
+    l2StorageKey: storageKey,
+    leafIndex: existingRegistration.leafIndex.toString(),
+    status: "already-registered",
   });
 }
 
@@ -564,12 +648,17 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
-  const registration = await tokenVault.getRegistration(signer.address);
-
-  expect(registration.exists, `No token-vault registration exists for ${signer.address}.`);
+  const account = await tokenVault.getAccount(signer.address);
+  expect(account.exists, `No shared bridge-vault account exists for ${signer.address}. Run deposit-bridge first.`);
+  const registration = await context.channelManager.getTokenVaultRegistration(signer.address);
+  expect(registration.exists, `No channel token-vault registration exists for ${signer.address}. Run register-channel first.`);
   expect(
     normalizeBytes32Hex(registration.l2TokenVaultKey) === normalizeBytes32Hex(storageKey),
     "The derived L2 storage key does not match the registered token-vault key.",
+  );
+  expect(
+    getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
+    "The derived L2 address does not match the registered channel L2 address.",
   );
 
   const stateManager = await buildStateManager(context.currentSnapshot, context.contractCodes);
@@ -1461,6 +1550,10 @@ function deriveLiquidBalanceStorageKey(l2Address, slot) {
   return bytesToHex(poseidon(hexToBytes(encoded)));
 }
 
+function deriveTokenVaultLeafIndex(storageKey) {
+  return BigInt(storageKey) % (1n << 12n);
+}
+
 async function fetchContractCodes(provider, addresses) {
   const codes = [];
   for (const address of addresses) {
@@ -1954,7 +2047,8 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
   node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --password <string> [--amount <tokens>]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --password <string> --amount <tokens> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --amount <tokens> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
@@ -1988,11 +2082,11 @@ Notes:
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
-  - deposit-bridge signs a domain-separated password message with the provided L1 private key and uses that signature as the seed for L2 key derivation.
-  - deposit-bridge registers and funds the shared bridge-level L1 token vault. It does not create or refresh a channel wallet.
-  - deposit-channel is the first command that creates or refreshes a channel wallet from --private-key plus --password.
+  - deposit-bridge only registers and funds the shared bridge-level L1 token vault.
+  - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, token-vault key, and token-vault leaf index in the selected channel.
+  - register-channel, deposit-channel, and bridge-send create or refresh the active wallet.
   - Once a wallet exists, wallet-show, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
-  - deposit-channel and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
+  - register-channel, deposit-channel, and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.

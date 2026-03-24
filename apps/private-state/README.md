@@ -182,16 +182,18 @@ The CLI:
 - reconstructs channel `state_snapshot.json` from bridge events through `recover-workspace`, writing it into the
   `<channel-name>` channel-workspace folder
 - manages mandatory per-user wallets that store note plaintexts, used/unused note sets, and aggregated unused-note balance
+- separates bridge-level funding from channel-level token-vault registration
 - generates Groth and Tokamak proofs
-- submits bridge transactions for `deposit-bridge`, `deposit-channel`, `withdraw`, `claim`, and DApp function execution
+- submits bridge transactions for `deposit-bridge`, `register-channel`, `deposit-channel`, `withdraw`, `claim`, and DApp function execution
 
 The current CLI treats wallet storage as a clean-slate local model. Legacy CLI data is not reused.
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount and converted with the canonical
 token decimals.
-Every CLI `--password` input accepts any string. During `deposit-bridge`, the CLI signs a domain-separated
-password message with the user's L1 `--private-key` and derives the L2 private key from the resulting signature.
-`deposit-bridge` itself only registers and funds the shared bridge-level L1 token vault. The first channel-specific
-wallet is created or refreshed by `deposit-channel` or `bridge-send`, and that wallet file is encrypted with
+Every CLI `--password` input accepts any string. During `register-channel`, `deposit-channel`, and other wallet-aware
+flows, the CLI signs a domain-separated password message with the user's L1 `--private-key` and derives the L2
+private key from the resulting signature. `deposit-bridge` itself only registers and funds the shared bridge-level
+L1 token vault. `register-channel` performs the channel-specific L2 identity registration. The first channel-specific
+wallet is created or refreshed by `register-channel`, `deposit-channel`, or `bridge-send`, and that wallet file is encrypted with
 `scrypt + AES-256-GCM` under the given password.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other
 wallets.
@@ -208,7 +210,8 @@ make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
 node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
-node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --password "participant-a" --amount 3
+node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --amount 3
+node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a" --amount 1
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --wallet participant-a --network sepolia --password "participant-a"
 ```

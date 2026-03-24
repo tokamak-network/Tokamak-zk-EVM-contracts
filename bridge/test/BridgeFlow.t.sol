@@ -11,7 +11,8 @@ import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {DAppManager} from "../src/DAppManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
 import {ChannelManager} from "../src/ChannelManager.sol";
-import {L1TokenVault, IVaultKeyRegistry} from "../src/L1TokenVault.sol";
+import {L1TokenVault} from "../src/L1TokenVault.sol";
+import {IChannelRegistry} from "../src/interfaces/IChannelRegistry.sol";
 import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
@@ -118,17 +119,13 @@ contract BridgeFlowTest is Test {
         asset.approve(address(tokenVault), type(uint256).max);
     }
 
-    function testRegisterAndFundStoresDerivedLeafIndex() public {
-        bytes32 key = bytes32(uint256(5));
-
+    function testRegisterAndFundStoresBridgeBalanceAccount() public {
         vm.prank(alice);
-        tokenVault.registerAndFund(key, 100 ether);
+        tokenVault.registerAndFund(100 ether);
 
-        L1TokenVault.VaultRegistration memory registration = tokenVault.getRegistration(alice);
-        assertTrue(registration.exists);
-        assertEq(registration.l2TokenVaultKey, key);
-        assertEq(registration.leafIndex, 5);
-        assertEq(registration.availableBalance, 100 ether);
+        BridgeStructs.BridgeBalanceAccount memory account = tokenVault.getAccount(alice);
+        assertTrue(account.exists);
+        assertEq(account.availableBalance, 100 ether);
         assertEq(asset.balanceOf(address(tokenVault)), 100 ether);
     }
 
@@ -154,27 +151,44 @@ contract BridgeFlowTest is Test {
         assertEq(channelManager.genesisBlockNumber(), block.number);
     }
 
-    function testRejectsGlobalLeafCollision() public {
+    function testRejectsPerChannelLeafCollision() public {
         vm.prank(alice);
-        tokenVault.registerAndFund(bytes32(uint256(1)), 10 ether);
+        channelManager.registerTokenVaultIdentity(alice, bytes32(uint256(1)), 1);
 
-        vm.expectRevert(abi.encodeWithSelector(BridgeCore.GlobalLeafIndexCollision.selector, 1));
+        vm.expectRevert(abi.encodeWithSelector(ChannelManager.TokenVaultLeafIndexAlreadyRegistered.selector, 1));
         vm.prank(bob);
-        tokenVault.registerAndFund(bytes32(uint256(4097)), 10 ether);
+        channelManager.registerTokenVaultIdentity(bob, bytes32(uint256(4097)), 1);
     }
 
-    function testRejectsGlobalKeyReuseAcrossChannels() public {
+    function testAllowsKeyReuseAcrossDifferentChannels() public {
         bytes32 reusedKey = bytes32(uint256(8));
 
         vm.prank(alice);
-        tokenVault.registerAndFund(reusedKey, 10 ether);
+        channelManager.registerTokenVaultIdentity(alice, reusedKey, 8);
 
-        (, address secondVaultAddress) = bridgeCore.createChannel(secondChannelId, 1, leader);
-        assertEq(secondVaultAddress, address(tokenVault));
-
-        vm.expectRevert(abi.encodeWithSelector(BridgeCore.GlobalVaultKeyAlreadyRegistered.selector, reusedKey));
+        (address secondManagerAddress, address secondVaultAddress) = bridgeCore.createChannel(secondChannelId, 1, leader);
+        ChannelManager secondChannelManager = ChannelManager(secondManagerAddress);
         vm.prank(bob);
-        tokenVault.registerAndFund(reusedKey, 10 ether);
+        secondChannelManager.registerTokenVaultIdentity(bob, reusedKey, 8);
+
+        assertEq(secondVaultAddress, address(tokenVault));
+        BridgeStructs.TokenVaultRegistration memory secondRegistration = secondChannelManager.getTokenVaultRegistration(bob);
+        assertTrue(secondRegistration.exists);
+        assertEq(secondRegistration.l2TokenVaultKey, reusedKey);
+        assertEq(secondRegistration.leafIndex, 8);
+    }
+
+    function testChannelReturnsRegisteredTokenVaultIdentityForUser() public {
+        bytes32 key = bytes32(uint256(17));
+
+        vm.prank(alice);
+        channelManager.registerTokenVaultIdentity(alice, key, 17);
+
+        BridgeStructs.TokenVaultRegistration memory registration = bridgeCore.getChannelTokenVaultRegistration(channelId, alice);
+        assertTrue(registration.exists);
+        assertEq(registration.l2Address, alice);
+        assertEq(registration.l2TokenVaultKey, key);
+        assertEq(registration.leafIndex, 17);
     }
 
     function testRejectsDAppRegistrationWithMultipleTokenVaultStorages() public {
@@ -278,7 +292,9 @@ contract BridgeFlowTest is Test {
     function testGrothDepositUpdatesVaultStateAndRootVector() public {
         bytes32 key = bytes32(uint256(111));
         vm.prank(alice);
-        tokenVault.registerAndFund(key, 100 ether);
+        tokenVault.registerAndFund(100 ether);
+        vm.prank(alice);
+        channelManager.registerTokenVaultIdentity(alice, key, 111);
         _mockGrothVerifierAcceptsAllProofs();
 
         uint256[5] memory pubSignals = _depositPublicSignals();
@@ -295,8 +311,9 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         tokenVault.deposit(channelId, _depositProof(), update);
 
-        L1TokenVault.VaultRegistration memory registration = tokenVault.getRegistration(alice);
-        assertEq(registration.availableBalance, 100 ether - 10);
+        BridgeStructs.BridgeBalanceAccount memory account = tokenVault.getAccount(alice);
+        BridgeStructs.TokenVaultRegistration memory registration = channelManager.getTokenVaultRegistration(alice);
+        assertEq(account.availableBalance, 100 ether - 10);
 
         bytes32[] memory currentRoots = _rootVector(bytes32(pubSignals[1]), INITIAL_ZERO_ROOT);
         assertEq(channelManager.currentRootVectorHash(), _hashRootVector(currentRoots));
@@ -335,7 +352,9 @@ contract BridgeFlowTest is Test {
     function testGrothWithdrawAndClaimToWallet() public {
         bytes32 key = bytes32(uint256(111));
         vm.prank(alice);
-        tokenVault.registerAndFund(key, 100 ether);
+        tokenVault.registerAndFund(100 ether);
+        vm.prank(alice);
+        channelManager.registerTokenVaultIdentity(alice, key, 111);
         _mockGrothVerifierAcceptsAllProofs();
 
         uint256[5] memory depositSignals = _depositPublicSignals();
@@ -366,8 +385,9 @@ contract BridgeFlowTest is Test {
         bytes32[] memory currentRoots = _rootVector(bytes32(withdrawSignals[1]), INITIAL_ZERO_ROOT);
         assertEq(channelManager.currentRootVectorHash(), _hashRootVector(currentRoots));
 
-        L1TokenVault.VaultRegistration memory registration = tokenVault.getRegistration(alice);
-        assertEq(registration.availableBalance, 100 ether - 4);
+        BridgeStructs.BridgeBalanceAccount memory account = tokenVault.getAccount(alice);
+        BridgeStructs.TokenVaultRegistration memory registration = channelManager.getTokenVaultRegistration(alice);
+        assertEq(account.availableBalance, 100 ether - 4);
 
         uint256 aliceBalanceBefore = asset.balanceOf(alice);
         vm.prank(alice);
@@ -419,13 +439,15 @@ contract BridgeFlowTest is Test {
             abi.encodeWithSelector(L1TokenVault.UnsupportedAssetTransferBehavior.selector, 100 ether, 99 ether)
         );
         vm.prank(alice);
-        feeVault.registerAndFund(bytes32(uint256(7)), 100 ether);
+        feeVault.registerAndFund(100 ether);
     }
 
     function testDepositRejectsL2ValueAtScalarFieldModulus() public {
         bytes32 key = bytes32(uint256(111));
         vm.prank(alice);
-        tokenVault.registerAndFund(key, 100 ether);
+        tokenVault.registerAndFund(100 ether);
+        vm.prank(alice);
+        channelManager.registerTokenVaultIdentity(alice, key, 111);
 
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
             currentRootVector: _rootVector(bytes32(_depositPublicSignals()[0]), INITIAL_ZERO_ROOT),
@@ -446,7 +468,9 @@ contract BridgeFlowTest is Test {
     function testWithdrawRejectsCurrentL2ValueAtScalarFieldModulus() public {
         bytes32 key = bytes32(uint256(111));
         vm.prank(alice);
-        tokenVault.registerAndFund(key, 100 ether);
+        tokenVault.registerAndFund(100 ether);
+        vm.prank(alice);
+        channelManager.registerTokenVaultIdentity(alice, key, 111);
 
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
             currentRootVector: _rootVector(bytes32(_withdrawPublicSignals()[0]), INITIAL_ZERO_ROOT),
@@ -467,7 +491,9 @@ contract BridgeFlowTest is Test {
     function testDepositEmitsCurrentRootVectorObserved() public {
         bytes32 key = bytes32(uint256(111));
         vm.prank(alice);
-        tokenVault.registerAndFund(key, 100 ether);
+        tokenVault.registerAndFund(100 ether);
+        vm.prank(alice);
+        channelManager.registerTokenVaultIdentity(alice, key, 111);
 
         uint256[5] memory pubSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
@@ -491,7 +517,9 @@ contract BridgeFlowTest is Test {
     function testWithdrawEmitsCurrentRootVectorObserved() public {
         bytes32 key = bytes32(uint256(111));
         vm.prank(alice);
-        tokenVault.registerAndFund(key, 100 ether);
+        tokenVault.registerAndFund(100 ether);
+        vm.prank(alice);
+        channelManager.registerTokenVaultIdentity(alice, key, 111);
 
         _mockGrothVerifierAcceptsAllProofs();
 
@@ -809,10 +837,16 @@ contract BridgeFlowTest is Test {
             address(implementation),
             abi.encodeCall(
                 L1TokenVault.initialize,
-                (owner, IERC20(localBridgeCore.canonicalAsset()), localGrothVerifier, IVaultKeyRegistry(address(localBridgeCore)))
+                (owner, IERC20(localBridgeCore.canonicalAsset()), localGrothVerifier, IChannelRegistry(address(localBridgeCore)))
             )
         );
         return L1TokenVault(address(proxy));
+    }
+
+    function _registerTokenVaultIdentity(ChannelManager localChannelManager, address l1Address, bytes32 key) internal {
+        uint256 leafIndex = _deriveLeafIndex(uint256(key));
+        vm.prank(l1Address);
+        localChannelManager.registerTokenVaultIdentity(l1Address, key, leafIndex);
     }
 
     function _updatedRootsFromAPubUser(uint256[] memory aPubUser, uint256 offset)

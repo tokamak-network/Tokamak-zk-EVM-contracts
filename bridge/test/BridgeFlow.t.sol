@@ -144,6 +144,10 @@ contract BridgeFlowTest is Test {
         assertEq(channelManager.currentRootVectorHash(), _hashRootVector(currentRoots));
     }
 
+    function testChannelStoresGenesisBlockNumber() public view {
+        assertEq(channelManager.genesisBlockNumber(), block.number);
+    }
+
     function testRejectsPerChannelLeafCollision() public {
         vm.prank(alice);
         tokenVault.registerAndFund(bytes32(uint256(1)), 10 ether);
@@ -939,6 +943,8 @@ contract BridgeFlowTest is Test {
     }
 
     function _seedChannelCurrentRoots(ChannelManager targetChannelManager, bytes32[] memory currentRoots) internal {
-        vm.store(address(targetChannelManager), bytes32(uint256(1)), _hashRootVector(currentRoots));
+        // ChannelManager layout keeps `genesisBlockNumber` at slot 0, `tokenVault` at slot 1,
+        // and `currentRootVectorHash` at slot 2.
+        vm.store(address(targetChannelManager), bytes32(uint256(2)), _hashRootVector(currentRoots));
     }
 }

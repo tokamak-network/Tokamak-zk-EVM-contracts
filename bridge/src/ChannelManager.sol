@@ -28,6 +28,7 @@ contract ChannelManager {
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
+    uint256 public genesisBlockNumber;
     address public immutable leader;
     bytes32 public immutable aPubBlockHash;
     uint256 public immutable tokenVaultTreeIndex;
@@ -68,6 +69,7 @@ contract ChannelManager {
     ) {
         channelId = channelId_;
         dappId = dappId_;
+        genesisBlockNumber = block.number;
         leader = leader_;
         aPubBlockHash = aPubBlockHash_;
         bridgeCore = bridgeCore_;

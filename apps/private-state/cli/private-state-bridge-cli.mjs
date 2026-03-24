@@ -88,11 +88,6 @@ async function main() {
     return;
   }
 
-  if (args.command === "wallet-list") {
-    printJson(listWallets());
-    return;
-  }
-
   const env = loadEnv(args.envFile ?? defaultEnvFile);
   const networkName = args.network ?? env.APPS_NETWORK;
   if (!networkName) {
@@ -157,7 +152,7 @@ function assertNoLegacyWalletFlags(args) {
     throw new Error("--user-workspace is no longer supported. Use --wallet instead.");
   }
   if (args.command === "user-workspace-list" || args.command === "user-workspace-show") {
-    throw new Error("Legacy user-workspace commands are no longer supported. Use wallet-list or wallet-show.");
+    throw new Error("Legacy user-workspace commands are no longer supported.");
   }
 }
 
@@ -1945,7 +1940,6 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-list
   node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> [--amount <tokens>]
   node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --amount <tokens> --wallet <name> [options]

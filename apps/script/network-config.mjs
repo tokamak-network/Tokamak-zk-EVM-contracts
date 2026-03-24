@@ -48,8 +48,7 @@ export const APP_NETWORKS = {
 
 export const CLI_NETWORKS = {
   mainnet: APP_NETWORKS.mainnet,
-  sepolia: APP_NETWORKS.sepolia,
-  anvil: APP_NETWORKS.anvil
+  sepolia: APP_NETWORKS.sepolia
 };
 
 export function resolveAppNetwork(networkName) {
@@ -66,7 +65,7 @@ export function resolveCliNetwork(networkName) {
   const network = CLI_NETWORKS[networkName];
 
   if (!network) {
-    throw new Error(`Unsupported CLI network: ${networkName}. Allowed values: mainnet, sepolia, anvil.`);
+    throw new Error(`Unsupported CLI network: ${networkName}. Allowed values: mainnet, sepolia.`);
   }
 
   return network;

@@ -173,7 +173,7 @@ private-state now exposes the bridge-coupled operator CLI under
 
 The CLI:
 
-- selects a target network through `--network` or `apps/.env`, restricted to `mainnet`, `sepolia`, or `anvil`
+- selects a target network through `--network` or `apps/.env`, restricted to `mainnet` or `sepolia`
 - loads bridge deployment data and the bridge ABI manifest generated at bridge deployment time
 - reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`
 - separates on-chain channel creation from optional channel-workspace caching
@@ -193,9 +193,9 @@ cd apps/private-state
 make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
-node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-id 1 --asset <erc20-address> --private-key <hex> --create-workspace --workspace demo --network anvil
-node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --channel-name demo-channel --user-workspace participant-a --network anvil --private-key <hex> --l2-key-signature "participant-a" --amount 3000000000000000000
-node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --user-workspace participant-a --network anvil --private-key <hex> --l2-key-signature "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-id 1 --asset <erc20-address> --private-key <hex> --create-workspace --workspace demo --network sepolia
+node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --channel-name demo-channel --user-workspace participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a" --amount 3000000000000000000
+node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --user-workspace participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a"
 ```
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such

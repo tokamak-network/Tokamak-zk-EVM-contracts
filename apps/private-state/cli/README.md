@@ -25,9 +25,9 @@ Each `calldata.json` file follows this shape:
 ```
 
 The bridge-coupled CLI reads a function's `calldata.json`, optionally replaces `args` through `--args-file` or
-replaces the full template through `--template-file`, resolves the bridge deployment and ABI manifest, reconstructs or
-loads the channel state snapshot, maintains per-user note workspaces, generates proofs, and submits the resulting
-bridge transactions.
+replaces the full template through `--template-file`, auto-selects the bridge deployment and ABI manifest from the
+chosen network, reconstructs or loads the channel state snapshot, maintains per-user note workspaces, generates
+proofs, and submits the resulting bridge transactions.
 
 ## Usage
 
@@ -50,7 +50,7 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 
 For bridge contract ABIs, the bridge-coupled CLI does not use hardcoded function signatures anymore. It reads the
 network-scoped bridge deployment JSON plus the network-scoped bridge ABI manifest generated at deployment time under
-`bridge/deployments/`.
+`bridge/deployments/`, selected solely from `--network`.
 
 Example:
 
@@ -62,17 +62,17 @@ node apps/private-state/cli/private-state-bridge-cli.mjs channel-create \
   --private-key <hex> \
   --create-workspace \
   --workspace demo \
-  --network anvil
+  --network sepolia
 
 node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-init \
-  --network anvil \
+  --network sepolia \
   --channel-name demo-channel \
   --workspace demo
 
 node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund \
   --channel-name demo-channel \
   --user-workspace participant-a \
-  --network anvil \
+  --network sepolia \
   --private-key <hex> \
   --l2-key-signature "participant-a" \
   --amount 3000000000000000000
@@ -80,14 +80,14 @@ node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund \
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit \
   --channel-name demo-channel \
   --user-workspace participant-a \
-  --network anvil \
+  --network sepolia \
   --private-key <hex> \
   --l2-key-signature "participant-a" \
   --amount 3000000000000000000
 
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 \
   --user-workspace participant-a \
-  --network anvil \
+  --network sepolia \
   --private-key <hex> \
   --l2-key-signature "participant-a" \
   --template-file apps/private-state/cli/functions/mintNotes1/calldata.json

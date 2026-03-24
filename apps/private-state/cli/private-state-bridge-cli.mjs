@@ -56,6 +56,7 @@ const BLS12_381_SCALAR_FIELD_MODULUS =
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  assertNoLegacyBridgeOverrideFlags(args);
 
   if (args.help || !args.command) {
     printHelp();
@@ -139,6 +140,15 @@ async function main() {
   }
 }
 
+function assertNoLegacyBridgeOverrideFlags(args) {
+  if (args.bridgeDeployment !== undefined) {
+    throw new Error("--bridge-deployment is no longer supported. Select the bridge through --network only.");
+  }
+  if (args.bridgeAbiManifest !== undefined) {
+    throw new Error("--bridge-abi-manifest is no longer supported. Select the bridge through --network only.");
+  }
+}
+
 async function handleChannelCreate({ args, env, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
   const dappId = Number(requireArg(args.dappId, "--dapp-id"));
@@ -148,7 +158,7 @@ async function handleChannelCreate({ args, env, network, provider }) {
   const createWorkspace = parseBooleanFlag(args.createWorkspace);
   const workspaceName = args.workspace ? requireWorkspaceName(args) : channelName;
 
-  const bridgeResources = loadBridgeResources({ args, chainId: network.chainId });
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const bridgeCore = new Contract(
     bridgeResources.bridgeDeployment.bridgeCore,
     bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
@@ -194,7 +204,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
   const blockInfoFile = args.blockInfoFile ? resolveInputPath(args.blockInfoFile) : null;
   const importedSnapshotFile = args.stateSnapshotFile ? resolveInputPath(args.stateSnapshotFile) : null;
   const force = parseBooleanFlag(args.force);
-  const bridgeResources = loadBridgeResources({ args, chainId: network.chainId });
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
 
   const { workspaceDir, workspace, currentSnapshot } = await initializeChannelWorkspace({
     workspaceName,
@@ -212,7 +222,6 @@ async function handleWorkspaceInit({ args, network, provider }) {
     action: "channel-workspace-init",
     workspace: workspaceName,
     workspaceDir,
-    bridgeAbiManifestPath: workspace.bridgeAbiManifestPath,
     channelName,
     channelId: workspace.channelId,
     channelManager: workspace.channelManager,
@@ -243,7 +252,7 @@ async function initializeChannelWorkspace({
     fs.rmSync(workspaceDir, { recursive: true, force: true });
   }
 
-  const { bridgeDeploymentPath, bridgeDeployment, bridgeAbiManifestPath, bridgeAbiManifest } = bridgeResources;
+  const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
   const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
   const channelId = BigInt(await bridgeCore.deriveChannelId(channelName));
   const channelInfo = await bridgeCore.getChannel(channelId);
@@ -317,8 +326,6 @@ async function initializeChannelWorkspace({
     name: workspaceName,
     network: networkNameFromChainId(network.chainId),
     chainId: network.chainId,
-    bridgeDeploymentPath,
-    bridgeAbiManifestPath,
     appDeploymentPath: deploymentManifestPath,
     storageLayoutPath: storageLayoutManifestPath,
     channelId: Number(channelId),
@@ -739,8 +746,6 @@ function ensureUserWorkspace({
       name: workspaceName,
       network: channelContext.workspace.network,
       chainId: channelContext.workspace.chainId,
-      bridgeDeploymentPath: channelContext.workspace.bridgeDeploymentPath,
-      bridgeAbiManifestPath: channelContext.workspace.bridgeAbiManifestPath,
       appDeploymentPath: channelContext.workspace.appDeploymentPath,
       storageLayoutPath: channelContext.workspace.storageLayoutPath,
       channelName: channelContext.workspace.channelName,
@@ -760,8 +765,6 @@ function ensureUserWorkspace({
     });
   }
 
-  workspace.bridgeDeploymentPath = channelContext.workspace.bridgeDeploymentPath;
-  workspace.bridgeAbiManifestPath = channelContext.workspace.bridgeAbiManifestPath;
   workspace.appDeploymentPath = channelContext.workspace.appDeploymentPath;
   workspace.storageLayoutPath = channelContext.workspace.storageLayoutPath;
   workspace.channelName = channelContext.workspace.channelName;
@@ -973,15 +976,10 @@ async function loadWorkspaceContext(workspaceName, provider) {
   const normalizedWorkspaceName = requireWorkspaceName({ workspace: workspaceName });
   const workspaceDir = channelWorkspacePath(normalizedWorkspaceName);
   const workspace = readJson(path.join(workspaceDir, "workspace.json"));
-  const bridgeDeployment = readJson(workspace.bridgeDeploymentPath);
-  const bridgeAbiManifestPath = resolveBridgeAbiManifestPath({
-    explicitPath: workspace.bridgeAbiManifestPath,
-    bridgeDeploymentPath: workspace.bridgeDeploymentPath,
-    bridgeDeployment,
-    chainId: workspace.chainId,
-  });
+  const bridgeDeploymentPath = defaultBridgeDeploymentPath(workspace.chainId);
+  const bridgeAbiManifestPath = defaultBridgeAbiManifestPath(workspace.chainId);
+  const bridgeDeployment = readJson(bridgeDeploymentPath);
   const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
-  workspace.bridgeAbiManifestPath = bridgeAbiManifestPath;
   const currentSnapshot = normalizeStateSnapshot(readJson(path.join(workspaceDir, "current", "state_snapshot.json")));
   const blockInfo = readJson(path.join(workspaceDir, "current", "block_info.json"));
   const contractCodes = readJson(path.join(workspaceDir, "current", "contract_codes.json"));
@@ -1029,7 +1027,7 @@ async function loadChannelContext({ args, networkName, provider, userWorkspaceCo
     );
   }
 
-  const bridgeResources = loadBridgeResources({ args, chainId });
+  const bridgeResources = loadBridgeResources({ chainId });
   const blockInfoFile = args.blockInfoFile ? resolveInputPath(args.blockInfoFile) : null;
   const importedSnapshotFile = args.stateSnapshotFile ? resolveInputPath(args.stateSnapshotFile) : null;
   const initialized = await initializeChannelWorkspace({
@@ -1077,17 +1075,10 @@ function loadUserWorkspace(workspaceName) {
   };
 }
 
-function loadBridgeResources({ args, chainId }) {
-  const bridgeDeploymentPath = resolveInputPath(
-    args.bridgeDeployment ?? defaultBridgeDeploymentPath(chainId),
-  );
+function loadBridgeResources({ chainId }) {
+  const bridgeDeploymentPath = defaultBridgeDeploymentPath(chainId);
   const bridgeDeployment = readJson(bridgeDeploymentPath);
-  const bridgeAbiManifestPath = resolveBridgeAbiManifestPath({
-    explicitPath: args.bridgeAbiManifest,
-    bridgeDeploymentPath,
-    bridgeDeployment,
-    chainId,
-  });
+  const bridgeAbiManifestPath = defaultBridgeAbiManifestPath(chainId);
   const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
   return {
     bridgeDeploymentPath,
@@ -1656,7 +1647,6 @@ async function waitForReceipt(txResponse) {
 function networkNameFromChainId(chainId) {
   if (chainId === 1) return "mainnet";
   if (chainId === 11155111) return "sepolia";
-  if (chainId === 31337) return "anvil";
   throw new Error(`Unsupported chain ID for private-state bridge CLI: ${chainId}`);
 }
 
@@ -1671,29 +1661,6 @@ function findStorageSlot(storageLayoutManifest, contractName, label) {
     throw new Error(`Missing storage slot ${label} in ${contractName}.`);
   }
   return entry.slot;
-}
-
-function resolveBridgeAbiManifestPath({ explicitPath, bridgeDeploymentPath, bridgeDeployment, chainId }) {
-  if (explicitPath) {
-    return resolveInputPath(explicitPath);
-  }
-  if (bridgeDeployment.abiManifestPath) {
-    return path.isAbsolute(bridgeDeployment.abiManifestPath)
-      ? bridgeDeployment.abiManifestPath
-      : path.resolve(bridgeRoot, bridgeDeployment.abiManifestPath);
-  }
-
-  const chainSpecificPath = defaultBridgeAbiManifestPath(chainId);
-  if (fs.existsSync(chainSpecificPath)) {
-    return chainSpecificPath;
-  }
-
-  throw new Error(
-    [
-      `Missing bridge ABI manifest for deployment ${bridgeDeploymentPath}.`,
-      "Run bridge/script/deploy-bridge.sh or provide --bridge-abi-manifest.",
-    ].join(" "),
-  );
 }
 
 function defaultBridgeDeploymentPath(chainId) {
@@ -1899,7 +1866,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --user-workspace <name>) --user-workspace <name> --private-key <hex> --l2-key-signature <seed> [--args-file <path>] [--template-file <path>] [options]
 
 Common flags:
-  --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia, anvil
+  --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia
   --rpc-url <url>          Explicit RPC endpoint override
   --alchemy-api-key <key>  Explicit Alchemy key override
   --env-file <path>        Alternate apps/.env location
@@ -1912,8 +1879,6 @@ channel-create options:
 channel-workspace-init options:
   --channel-name <name>        User-provided channel name; channelId is derived as keccak256(bytes(name))
   --workspace <name>           Optional cache name. Default: channel name
-  --bridge-deployment <path>   Optional bridge deployment JSON override. Default: bridge/deployments/bridge.<chain-id>.json
-  --bridge-abi-manifest <path> Optional bridge ABI manifest override. Default: bridge/deployments/bridge-abi-manifest.<chain-id>.json
   --block-info-file <path>     Optional block_info.json override; must match the channel genesis block context
   --state-snapshot-file <path> Import an existing non-genesis snapshot
   --force                      Overwrite an existing workspace
@@ -1927,6 +1892,7 @@ Notes:
   - channel-workspace-init derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - Channel workspaces are optional caches for channel snapshots.
   - User workspaces are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
+  - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
   - register-and-fund, deposit, and withdraw can allocate or refresh a user workspace automatically from --l2-key-signature.
   - fund-l1, claim, and bridge-send require an existing --user-workspace.
   - Channel workspace operations are stored under:

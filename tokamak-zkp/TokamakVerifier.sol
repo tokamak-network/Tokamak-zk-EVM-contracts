@@ -276,7 +276,7 @@ contract TokamakVerifier is ITokamakVerifier {
     // m_i = l_D - l, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
     uint256 internal constant CONSTANT_MI = 4096;
     // l_user, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
-    uint256 internal constant EXPECTED_L_USER = 50;
+    uint256 internal constant EXPECTED_L_USER = 60;
     // l_free, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
     uint256 internal constant EXPECTED_L_FREE = 128;
     // ω_{l_free}, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js

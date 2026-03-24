@@ -43,6 +43,8 @@ const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
 const tokamakRoot = path.resolve(repoRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
+const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
+const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
 const outputRoot = path.resolve(appRoot, "script", "e2e", "output", "private-state-bridge-genesis");
 const deploymentManifestPath = path.resolve(appRoot, "deploy", "deployment.31337.latest.json");
 const storageLayoutManifestPath = path.resolve(appRoot, "deploy", "storage-layout.31337.latest.json");
@@ -87,6 +89,11 @@ const mockErc20Abi = [
   "function mint(address to, uint256 amount) external",
   "function approve(address spender, uint256 amount) external returns (bool)",
   "function balanceOf(address account) external view returns (uint256)",
+];
+const requiredTokamakSetupArtifacts = [
+  "combined_sigma.rkyv",
+  "sigma_preprocess.rkyv",
+  "sigma_verify.rkyv",
 ];
 
 function usage() {
@@ -359,6 +366,26 @@ function copyTokamakArtifacts(stepDir) {
   fs.cpSync(path.join(tokamakRoot, "dist", "resource"), resourceRoot, { recursive: true });
 }
 
+function ensureTokamakSetupArtifacts() {
+  const missingInDist = requiredTokamakSetupArtifacts
+    .filter((fileName) => !fs.existsSync(path.join(tokamakSetupDistDir, fileName)));
+  if (missingInDist.length === 0) {
+    return;
+  }
+
+  const missingInSource = requiredTokamakSetupArtifacts
+    .filter((fileName) => !fs.existsSync(path.join(tokamakSetupSourceDir, fileName)));
+  expect(
+    missingInSource.length === 0,
+    `Missing Tokamak setup artifacts in trusted setup output: ${missingInSource.join(", ")}`,
+  );
+
+  ensureDir(tokamakSetupDistDir);
+  for (const fileName of requiredTokamakSetupArtifacts) {
+    fs.copyFileSync(path.join(tokamakSetupSourceDir, fileName), path.join(tokamakSetupDistDir, fileName));
+  }
+}
+
 function loadTokamakPayloadFromStep(stepDir) {
   const proofJson = readJson(path.join(stepDir, "resource", "prove", "output", "proof.json"));
   const preprocessJson = readJson(path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"));
@@ -473,14 +500,14 @@ async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
   await writeStepInputs(stepDir, currentSnapshot, transactionSnapshot, blockInfo, contractCodes);
 
   run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], { cwd: tokamakRoot });
+  ensureTokamakSetupArtifacts();
   run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot });
+  ensureTokamakSetupArtifacts();
   run(tokamakCliPath, ["--prove"], { cwd: tokamakRoot });
 
-  const bundlePath = path.join(stepDir, `${step.name}.zip`);
-  run(tokamakCliPath, ["--extract-proof", bundlePath], { cwd: tokamakRoot });
-  run(tokamakCliPath, ["--verify", bundlePath], { cwd: tokamakRoot });
-
   copyTokamakArtifacts(stepDir);
+  ensureTokamakSetupArtifacts();
+  run(tokamakCliPath, ["--verify", stepDir], { cwd: tokamakRoot });
 
   const nextSnapshot = normalizeStateSnapshot(
     readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json")),

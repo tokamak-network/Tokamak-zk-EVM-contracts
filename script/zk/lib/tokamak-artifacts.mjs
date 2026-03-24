@@ -164,7 +164,8 @@ function extractStorageWrites(instanceDescriptionJsonPath, storageAddresses) {
   }
 
   const writes = [];
-  const pattern = /^Storage write (?:storage key|tree index) for address: (0x[0-9a-fA-F]{40}) \(lower 16 bytes\)$/;
+  const pattern =
+    /^Storage write (?:(?:storage key|tree index)|\(restricted to 255-bit word\)) for address: (0x[0-9a-fA-F]{40}) \(lower 16 bytes\)$/;
 
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
@@ -269,17 +270,31 @@ export function buildFunctionDefinition({
   preprocessJsonPath,
   instanceJsonPath,
   instanceDescriptionJsonPath,
+  entryContractOverride,
+  storageMetadataOverride,
 }) {
   const selector = deriveFunctionSelectorFromTransaction(transactionJsonPath);
-  const entryContract = deriveEntryContractFromTransaction(transactionJsonPath);
-  const storageMetadata = deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, entryContract);
+  const derivedEntryContract = deriveEntryContractFromTransaction(transactionJsonPath);
+  const derivedStorageMetadata = deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, derivedEntryContract);
   const extracted = extractTokamakRegistrationArtifacts(preprocessJsonPath);
   const instance = readJson(instanceJsonPath);
   const preprocess = readJson(preprocessJsonPath);
   const preprocessPart1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
   const preprocessPart2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
-  const storageWrites = extractStorageWrites(instanceDescriptionJsonPath, storageMetadata.map((entry) => entry.storageAddress));
+  const storageWrites = extractStorageWrites(
+    instanceDescriptionJsonPath,
+    derivedStorageMetadata.map((entry) => entry.storageAddress),
+  );
   const functionLayout = extractFunctionLayout(instanceDescriptionJsonPath);
+  const entryContract = entryContractOverride ? getAddress(entryContractOverride) : derivedEntryContract;
+  const storageMetadata = storageMetadataOverride
+    ? storageMetadataOverride.map((entry) => ({
+      storageAddress: getAddress(entry.storageAddress),
+      preAllocKeys: [...entry.preAllocKeys],
+      userSlots: [...entry.userSlots],
+      isTokenVaultStorage: entry.isTokenVaultStorage,
+    }))
+    : derivedStorageMetadata;
 
   return {
     groupName,

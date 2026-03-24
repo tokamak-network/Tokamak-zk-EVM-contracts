@@ -1,0 +1,142 @@
+cargo:rerun-if-env-changed=CXXFLAGS
+cargo:rerun-if-changed=/Users/jehyuk/.cargo/git/checkouts/icicle-e4fed18c5a8319f4/42b4f9a/wrappers/rust/icicle-runtime/../../../icicle
+CMAKE_TOOLCHAIN_FILE_aarch64-apple-darwin = None
+CMAKE_TOOLCHAIN_FILE_aarch64_apple_darwin = None
+HOST_CMAKE_TOOLCHAIN_FILE = None
+CMAKE_TOOLCHAIN_FILE = None
+CMAKE_GENERATOR_aarch64-apple-darwin = None
+CMAKE_GENERATOR_aarch64_apple_darwin = None
+HOST_CMAKE_GENERATOR = None
+CMAKE_GENERATOR = None
+CMAKE_PREFIX_PATH_aarch64-apple-darwin = None
+CMAKE_PREFIX_PATH_aarch64_apple_darwin = None
+HOST_CMAKE_PREFIX_PATH = None
+CMAKE_PREFIX_PATH = None
+CMAKE_aarch64-apple-darwin = None
+CMAKE_aarch64_apple_darwin = None
+HOST_CMAKE = None
+CMAKE = None
+-- Configuring for native platform...
+-- ccache not found
+-- Build type: Debug
+-- The C compiler identification is AppleClang 17.0.0.17000604
+-- The CXX compiler identification is AppleClang 17.0.0.17000604
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/clang - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/clang++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- CMAKE_INSTALL_PREFIX=/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle
+-- Fetching Taskflow v3.8.0 (CPU backend)
+-- Configuring done (32.5s)
+-- Generating done (0.0s)
+-- Build files have been written to: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/build/icicle-runtime-b6b5fa1435b428d5/out/build
+[ 20%] Building CXX object CMakeFiles/icicle_device.dir/src/runtime.cpp.o
+[ 40%] Building CXX object CMakeFiles/icicle_device.dir/src/device_api.cpp.o
+[ 80%] Building CXX object CMakeFiles/icicle_device.dir/backend/cpu/src/cpu_device_api.cpp.o
+[ 80%] Building CXX object CMakeFiles/icicle_device.dir/src/config_extension.cpp.o
+[100%] Linking CXX shared library libicicle_device.dylib
+[100%] Built target icicle_device
+Install the project...
+-- Install configuration: "Debug"
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/lib/libicicle_device.dylib
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/semaphore.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/topology.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/tsq.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/flow_builder.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/async.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/atomic_notifier.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/task.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/declarations.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/error.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/worker.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/graph.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/observer.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/nonblocking_notifier.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/async_task.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/executor.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/taskflow.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/freelist.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/core/environment.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_meta.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_capturer.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_task.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_graph.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_error.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_stream.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm/reduce.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm/transform.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm/merge.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm/find.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm/transpose.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm/sort.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm/for_each.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm/scan.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/algorithm/matmul.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_optimizer.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_object.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_device.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_memory.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cudaflow.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/cuda/cuda_execution_policy.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/reduce.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/partitioner.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/transform.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/find.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/pipeline.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/sort.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/for_each.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/launch.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/data_pipeline.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/algorithm/scan.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl/algorithm
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl/algorithm/reduce.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl/algorithm/sycl_for_each.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl/algorithm/sycl_transform.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl/sycl_execution_policy.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl/sycl_graph.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl/syclflow.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl/sycl_task.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/sycl/sycl_meta.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/taskflow.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/dsl
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/dsl/connection.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/dsl/meta_macro.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/dsl/tuple_utils.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/dsl/dsl.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/dsl/task_trait.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/dsl/type_list.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/dsl/task_dsl.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/dsl/task_analyzer.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/serializer.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/uuid.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/macros.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/traits.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/stream.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/small_vector.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/math.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/object_pool.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/mpmc.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/latch.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/singleton.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/os.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/include/taskflow/utility/iterator.hpp
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/lib/cmake/Taskflow/TaskflowTargets.cmake
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/lib/cmake/Taskflow/TaskflowConfig.cmake
+-- Installing: /Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/deps/icicle/lib/cmake/Taskflow/TaskflowConfigVersion.cmake
+cargo:root=/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/build/icicle-runtime-b6b5fa1435b428d5/out
+cargo:rustc-link-search=/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/build/icicle-runtime-b6b5fa1435b428d5/out/../../../deps/icicle//lib
+cargo:rustc-link-lib=icicle_device
+cargo:rustc-link-arg=-Wl,-rpath,/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/build/icicle-runtime-b6b5fa1435b428d5/out/../../../deps/icicle//lib

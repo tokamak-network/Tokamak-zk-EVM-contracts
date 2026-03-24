@@ -30,12 +30,15 @@ const defaultManifestPath = path.join(repoRoot, "bridge", "deployments", "dapp-r
 
 function usage() {
   console.log(`Usage:
-  node bridge/script/admin-add-dapp.mjs --group <example-group> --dapp-id <uint> [options]
+  node bridge/script/admin-add-dapp.mjs --group <example-group> [--group <example-group> ...] --dapp-id <uint> [options]
 
 Options:
   --deployment-path <path>          Bridge deployment JSON path
   --abi-manifest <path>             ABI manifest path; defaults from deployment JSON
   --dapp-manager <address>          Override DAppManager address; defaults from deployment JSON
+  --dapp-label <name>               Logical DApp label used to merge multiple example groups
+  --app-deployment-path <path>      App deployment manifest; defaults to private-state latest for the bridge chain
+  --storage-layout-path <path>      App storage-layout manifest; defaults to private-state latest for the bridge chain
   --rpc-url <url>                   JSON-RPC URL; defaults from bridge env variables
   --private-key <hex>               Broadcaster key; defaults from BRIDGE_DEPLOYER_PRIVATE_KEY
   --install-arg <value>             tokamak-cli --install argument; defaults to resolved RPC URL
@@ -48,11 +51,14 @@ Options:
 
 function parseArgs(argv) {
   const options = {
-    group: null,
+    groups: [],
     dappId: null,
     deploymentPath: defaultDeploymentPath,
     abiManifestPath: null,
     dAppManager: null,
+    dappLabel: null,
+    appDeploymentPath: null,
+    storageLayoutPath: null,
     rpcUrl: null,
     privateKey: process.env.BRIDGE_DEPLOYER_PRIVATE_KEY ?? null,
     installArg: null,
@@ -76,7 +82,7 @@ function parseArgs(argv) {
 
     switch (current) {
       case "--group":
-        options.group = take(current);
+        options.groups.push(take(current));
         break;
       case "--dapp-id":
         options.dappId = Number.parseInt(take(current), 10);
@@ -89,6 +95,15 @@ function parseArgs(argv) {
         break;
       case "--dapp-manager":
         options.dAppManager = take(current);
+        break;
+      case "--dapp-label":
+        options.dappLabel = take(current);
+        break;
+      case "--app-deployment-path":
+        options.appDeploymentPath = path.resolve(process.cwd(), take(current));
+        break;
+      case "--storage-layout-path":
+        options.storageLayoutPath = path.resolve(process.cwd(), take(current));
         break;
       case "--rpc-url":
         options.rpcUrl = take(current);
@@ -120,8 +135,8 @@ function parseArgs(argv) {
     }
   }
 
-  if (!options.group) {
-    throw new Error("--group is required.");
+  if (options.groups.length === 0) {
+    throw new Error("--group is required at least once.");
   }
   if (!Number.isInteger(options.dappId) || options.dappId < 0) {
     throw new Error("--dapp-id must be a non-negative integer.");
@@ -174,7 +189,14 @@ function resolveAbiManifestPath(options, deployment) {
     return options.abiManifestPath;
   }
   if (typeof deployment.abiManifestPath === "string" && deployment.abiManifestPath.length > 0) {
-    return path.resolve(path.dirname(options.deploymentPath), deployment.abiManifestPath);
+    const deploymentRelativePath = path.resolve(path.dirname(options.deploymentPath), deployment.abiManifestPath);
+    if (fs.existsSync(deploymentRelativePath)) {
+      return deploymentRelativePath;
+    }
+    const bridgeRelativePath = path.resolve(repoRoot, "bridge", deployment.abiManifestPath);
+    if (fs.existsSync(bridgeRelativePath)) {
+      return bridgeRelativePath;
+    }
   }
   return path.join(repoRoot, "bridge", "deployments", "bridge-abi-manifest.latest.json");
 }
@@ -186,6 +208,52 @@ function loadDAppManagerAbi(abiManifestPath) {
     throw new Error(`ABI manifest does not include dAppManager ABI: ${abiManifestPath}`);
   }
   return abi;
+}
+
+function resolvePrivateStateManifestPath(rootDir, chainId, kind) {
+  return path.join(repoRoot, "apps", "private-state", "deploy", `${kind}.${chainId}.latest.json`);
+}
+
+function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
+  const deployment = readJson(appDeploymentPath);
+  const storageLayout = readJson(storageLayoutPath);
+
+  const controller = deployment.contracts?.controller;
+  const l2AccountingVault = deployment.contracts?.l2AccountingVault;
+  if (!controller || !l2AccountingVault) {
+    throw new Error(`App deployment manifest is missing controller/L2AccountingVault: ${appDeploymentPath}`);
+  }
+
+  const liquidBalanceSlot = storageLayout.contracts?.L2AccountingVault?.storageLayout?.storage?.find(
+    (entry) => entry.label === "liquidBalances",
+  )?.slot;
+
+  if (liquidBalanceSlot === undefined) {
+    throw new Error(`Unable to locate L2AccountingVault.liquidBalances in ${storageLayoutPath}`);
+  }
+
+  const liquidBalanceSlotNumber = Number.parseInt(String(liquidBalanceSlot), 10);
+  if (!Number.isInteger(liquidBalanceSlotNumber) || liquidBalanceSlotNumber < 0 || liquidBalanceSlotNumber > 0xff) {
+    throw new Error(`L2AccountingVault.liquidBalances slot is out of uint8 range: ${liquidBalanceSlot}`);
+  }
+
+  return {
+    entryContract: controller,
+    storageMetadata: [
+      {
+        storageAddress: controller,
+        preAllocKeys: [],
+        userSlots: [],
+        isTokenVaultStorage: false,
+      },
+      {
+        storageAddress: l2AccountingVault,
+        preAllocKeys: [],
+        userSlots: [liquidBalanceSlotNumber],
+        isTokenVaultStorage: true,
+      },
+    ],
+  };
 }
 
 function run(command, args, { cwd = repoRoot, streamOutput = true } = {}) {
@@ -274,7 +342,7 @@ function collectInstanceDescriptionErrors(instanceDescriptionPath) {
     .filter((line) => /error:/iu.test(line));
 }
 
-async function processDAppGroup(groupName, archiveRoot) {
+async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
   const groupRoot = path.join(synthesizerRoot, "examples", groupName);
   const manifestPath = path.join(groupRoot, "cli-launch-manifest.json");
   if (!fs.existsSync(manifestPath)) {
@@ -327,13 +395,15 @@ async function processDAppGroup(groupName, archiveRoot) {
 
     processed.push(
       buildFunctionDefinition({
-        groupName,
-        exampleName,
+        groupName: dappLabel,
+        exampleName: `${groupName}/${exampleName}`,
         transactionJsonPath: path.join(synthesizerRoot, entry.files.transaction),
         snapshotJsonPath: path.join(synthesizerRoot, entry.files.previousState),
         preprocessJsonPath: path.join(exampleOutputRoot, "preprocess.json"),
         instanceJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance.json"),
         instanceDescriptionJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance_description.json"),
+        entryContractOverride: appContext.entryContract,
+        storageMetadataOverride: appContext.storageMetadata,
       })
     );
   }
@@ -374,8 +444,15 @@ async function main() {
   const rpcUrl = resolveRpcUrl(options);
   const installArg = options.installArg ?? rpcUrl;
   const privateKey = normalizePrivateKey(options.privateKey);
-  const artifactsRoot = path.join(options.artifactsOut, options.group);
+  const chainId = Number.parseInt(String(deployment.chainId ?? 0), 10);
+  const appDeploymentPath =
+    options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, chainId, "deployment");
+  const storageLayoutPath =
+    options.storageLayoutPath ?? resolvePrivateStateManifestPath(repoRoot, chainId, "storage-layout");
+  const dappLabel = options.dappLabel ?? "private-state";
+  const artifactsRoot = path.join(options.artifactsOut, dappLabel);
   ensureDir(artifactsRoot);
+  const appContext = loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath });
 
   if (!options.skipSubmoduleUpdate) {
     await updateTokamakSubmodule();
@@ -384,10 +461,17 @@ async function main() {
     await runTokamakInstall(installArg);
   }
 
-  const processedGroup = await processDAppGroup(options.group, artifactsRoot);
-  const dapps = buildDAppDefinitions(processedGroup.processed);
+  const allProcessed = [];
+  const allSkipped = [];
+  for (const groupName of options.groups) {
+    const processedGroup = await processDAppGroup(groupName, artifactsRoot, appContext, dappLabel);
+    allProcessed.push(...processedGroup.processed);
+    allSkipped.push(...processedGroup.skipped);
+  }
+
+  const dapps = buildDAppDefinitions(allProcessed);
   if (dapps.length !== 1) {
-    throw new Error(`Expected exactly one DApp definition for ${options.group}, received ${dapps.length}.`);
+    throw new Error(`Expected exactly one DApp definition for ${dappLabel}, received ${dapps.length}.`);
   }
   const dapp = dapps[0];
 
@@ -425,18 +509,21 @@ async function main() {
     generatedAt: new Date().toISOString(),
     deploymentPath: options.deploymentPath,
     abiManifestPath,
-    groupName: options.group,
+    appDeploymentPath,
+    storageLayoutPath,
+    groupNames: options.groups,
+    dappLabel,
     dappId: options.dappId,
     dAppManager: dAppManagerAddress,
     rpcUrl,
     artifactsRoot,
-    processedExamples: processedGroup.processed.map((entry) => ({
+    processedExamples: allProcessed.map((entry) => ({
       groupName: entry.groupName,
       exampleName: entry.exampleName,
       entryContract: entry.entryContract,
       functionSig: entry.functionSig,
     })),
-    skippedExamples: processedGroup.skipped,
+    skippedExamples: allSkipped,
     registration: {
       txHash: tx.hash,
       blockNumber: receipt?.blockNumber ?? null,
@@ -447,7 +534,7 @@ async function main() {
   };
 
   writeJson(options.manifestOut, manifest);
-  console.log(`Registered DApp ${options.dappId} for group ${options.group}.`);
+  console.log(`Registered DApp ${options.dappId} for groups ${options.groups.join(", ")} as ${dappLabel}.`);
   console.log(`Wrote manifest: ${options.manifestOut}`);
 }
 

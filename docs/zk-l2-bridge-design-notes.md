@@ -239,7 +239,7 @@ The old separate `channel instance` model is no longer used in the bridge contra
 
 Likewise, the bridge no longer stores `function instance` and `function preprocess` as separate verification objects. Under the current implementation, both are treated as being embedded in `functionPreprocessPart1` and `functionPreprocessPart2`. The bridge enforces their correctness by comparing `keccak256(abi.encode(functionPreprocessPart1, functionPreprocessPart2))` against the DApp-managed `preprocessInputHash`.
 
-The channel manager also no longer stores the full current root vector. It stores only `currentRootVectorHash`. Before `executeChannelTransaction` or the Groth-backed token-vault update path mutates that hash, the full current root vector is emitted in `CurrentRootVectorObserved`. This keeps the contract state minimal while still making the pre-state reconstructible off-chain.
+The channel manager also no longer stores the full current root vector. It stores only `currentRootVectorHash`. Before `executeChannelTransaction` or the Groth-backed token-vault update path mutates that hash, the full current root vector is emitted in `CurrentRootVectorObserved`. This keeps the contract state minimal while still making the pre-state reconstructible off-chain. `executeChannelTransaction` emits `StorageWriteObserved` for every decoded `a_pub_user` storage write, while the Groth-backed `deposit` and `withdraw` flows emit the same event shape for their token-vault storage writes.
 
 Under the current interpretation, successful Tokamak verification means:
 

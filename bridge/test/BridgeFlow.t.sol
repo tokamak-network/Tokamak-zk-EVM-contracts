@@ -293,6 +293,7 @@ contract BridgeFlowTest is Test {
             updatedUserValue: pubSignals[4]
         });
 
+        vm.recordLogs();
         vm.prank(alice);
         tokenVault.deposit(_depositProof(), update);
 
@@ -305,6 +306,20 @@ contract BridgeFlowTest is Test {
             channelManager.getLatestTokenVaultLeaf(registration.leafIndex),
             tokenVault.encodeTokenVaultLeaf(bytes32(0), 10)
         );
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 storageWriteTopic = keccak256("StorageWriteObserved(address,uint256,uint256)");
+        uint256 storageWriteCount;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(tokenVault) && logs[i].topics[0] == storageWriteTopic) {
+                storageWriteCount += 1;
+                assertEq(address(uint160(uint256(logs[i].topics[1]))), channelManager.tokenVaultStorageAddress());
+                (uint256 leafIndex, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
+                assertEq(leafIndex, registration.leafIndex);
+                assertEq(value, update.updatedUserValue);
+            }
+        }
+        assertEq(storageWriteCount, 1);
     }
 
     function testGrothWithdrawAndClaimToWallet() public {
@@ -333,6 +348,7 @@ contract BridgeFlowTest is Test {
             updatedUserKey: key,
             updatedUserValue: withdrawSignals[4]
         });
+        vm.recordLogs();
         vm.prank(alice);
         tokenVault.withdraw(_withdrawProof(), withdrawUpdate);
 
@@ -346,6 +362,20 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         tokenVault.claimToWallet(50 ether);
         assertEq(asset.balanceOf(alice), aliceBalanceBefore + 50 ether);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 storageWriteTopic = keccak256("StorageWriteObserved(address,uint256,uint256)");
+        uint256 storageWriteCount;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(tokenVault) && logs[i].topics[0] == storageWriteTopic) {
+                storageWriteCount += 1;
+                assertEq(address(uint160(uint256(logs[i].topics[1]))), channelManager.tokenVaultStorageAddress());
+                (uint256 leafIndex, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
+                assertEq(leafIndex, registration.leafIndex);
+                assertEq(value, withdrawUpdate.updatedUserValue);
+            }
+        }
+        assertEq(storageWriteCount, 1);
     }
 
     function testRejectsFeeOnTransferAssetDuringRegistration() public {
@@ -528,6 +558,8 @@ contract BridgeFlowTest is Test {
             _updatedRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.updatedRootVectorOffsetWords);
         uint256 expectedTokenVaultLeafIndex = _decodeUint256FromSplitWords(proofPayload.aPubUser, 0);
         uint256 expectedTokenVaultValue = _decodeUint256FromSplitWords(proofPayload.aPubUser, 2);
+        uint256 expectedAppLeafIndex = _decodeUint256FromSplitWords(proofPayload.aPubUser, 4);
+        uint256 expectedAppValue = _decodeUint256FromSplitWords(proofPayload.aPubUser, 6);
 
         // The extracted proof bundle starts from an already-updated channel state rather than the bridge's zero root.
         _seedChannelCurrentRoots(localChannelManager, currentRoots);
@@ -545,6 +577,7 @@ contract BridgeFlowTest is Test {
         uint256 storageWriteCount;
         uint256 rootVectorObservedCount;
         bool sawTokenVaultWrite;
+        bool sawAppStorageWrite;
 
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == storageWriteTopic) {
@@ -555,15 +588,20 @@ contract BridgeFlowTest is Test {
                     sawTokenVaultWrite = true;
                     assertEq(leafIndex, expectedTokenVaultLeafIndex);
                     assertEq(value, expectedTokenVaultValue);
+                } else if (storageAddr == entryContract) {
+                    sawAppStorageWrite = true;
+                    assertEq(leafIndex, expectedAppLeafIndex);
+                    assertEq(value, expectedAppValue);
                 }
             } else if (logs[i].topics[0] == rootVectorObservedTopic) {
                 rootVectorObservedCount += 1;
             }
         }
 
-        assertEq(storageWriteCount, 1);
+        assertEq(storageWriteCount, 2);
         assertEq(rootVectorObservedCount, 1);
         assertTrue(sawTokenVaultWrite);
+        assertTrue(sawAppStorageWrite);
     }
 
     function _loadTokamakProofPayload()

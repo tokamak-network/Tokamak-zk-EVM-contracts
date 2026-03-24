@@ -45,8 +45,7 @@ contract L1TokenVault is ReentrancyGuard {
 
     event UserRegistered(address indexed user, bytes32 indexed key, uint256 leafIndex);
     event AssetsFunded(address indexed user, uint256 amount);
-    event DepositAccepted(address indexed user, uint256 amount, uint256 leafIndex);
-    event WithdrawalAccepted(address indexed user, uint256 amount, uint256 leafIndex);
+    event StorageWriteObserved(address indexed storageAddr, uint256 leafIndex, uint256 value);
     event AssetsClaimed(address indexed user, uint256 amount);
 
     constructor(
@@ -122,7 +121,7 @@ contract L1TokenVault is ReentrancyGuard {
             _encodeTokenVaultLeaf(update.updatedUserValue)
         );
 
-        emit DepositAccepted(msg.sender, amount, registration.leafIndex);
+        emit StorageWriteObserved(channelManager.tokenVaultStorageAddress(), registration.leafIndex, update.updatedUserValue);
         return true;
     }
 
@@ -154,7 +153,7 @@ contract L1TokenVault is ReentrancyGuard {
             _encodeTokenVaultLeaf(update.updatedUserValue)
         );
 
-        emit WithdrawalAccepted(msg.sender, amount, registration.leafIndex);
+        emit StorageWriteObserved(channelManager.tokenVaultStorageAddress(), registration.leafIndex, update.updatedUserValue);
         return true;
     }
 

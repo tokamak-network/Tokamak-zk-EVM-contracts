@@ -44,7 +44,8 @@ contract ChannelManager {
     mapping(bytes32 => bool) private _allowedFunctionKeys;
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
     mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
-    mapping(bytes32 => uint8[]) private _functionTokenVaultWriteOffsets;
+    mapping(bytes32 => BridgeStructs.StorageWriteMetadata[]) private _functionStorageWrites;
+    mapping(bytes32 => bool) private _functionHasTokenVaultWrite;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
     mapping(uint256 => bytes32) private _latestTokenVaultLeaves;
@@ -108,8 +109,14 @@ contract ChannelManager {
                 if (storageAddrIndex >= managedStorageAddresses_.length) {
                     revert InvalidStorageWriteStorageIndex(storageAddrIndex);
                 }
+                _functionStorageWrites[functionKey].push(
+                    BridgeStructs.StorageWriteMetadata({
+                        aPubOffsetWords: storageWrites[j].aPubOffsetWords,
+                        storageAddrIndex: storageAddrIndex
+                    })
+                );
                 if (managedStorageAddresses_[storageAddrIndex] == tokenVaultStorageAddress) {
-                    _functionTokenVaultWriteOffsets[functionKey].push(storageWrites[j].aPubOffsetWords);
+                    _functionHasTokenVaultWrite[functionKey] = true;
                 }
             }
         }
@@ -166,7 +173,7 @@ contract ChannelManager {
             _decodeUpdatedRootVectorFromAPubUser(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords);
         bytes32 currentTokenVaultRoot = currentRootVector[tokenVaultTreeIndex];
         bytes32 updatedTokenVaultRoot = updatedRootVector[tokenVaultTreeIndex];
-        bool hasTokenVaultStorageWrite = _hasTokenVaultStorageWrite(functionKey);
+        bool hasTokenVaultStorageWrite = _functionHasTokenVaultWrite[functionKey];
 
         if (updatedTokenVaultRoot != currentTokenVaultRoot && !hasTokenVaultStorageWrite) {
             revert TokenVaultRootUpdateWithoutStorageWrite();
@@ -183,12 +190,8 @@ contract ChannelManager {
         if (!ok) revert TokamakProofRejected();
 
         emit CurrentRootVectorObserved(currentRootVectorHash, currentRootVector);
-        if (!hasTokenVaultStorageWrite) {
-            currentRootVectorHash = keccak256(abi.encode(updatedRootVector));
-        } else {
-            _observeStorageWrites(functionKey, payload.aPubUser);
-            currentRootVectorHash = keccak256(abi.encode(updatedRootVector));
-        }
+        _observeStorageWrites(functionKey, payload.aPubUser);
+        currentRootVectorHash = keccak256(abi.encode(updatedRootVector));
 
         emit TokamakStateUpdateAccepted(functionSig, entryContract);
         return true;
@@ -230,19 +233,6 @@ contract ChannelManager {
 
     function getLatestTokenVaultLeaf(uint256 leafIndex) external view returns (bytes32) {
         return _latestTokenVaultLeaves[leafIndex];
-    }
-
-    function getFunctionTokenVaultWriteOffsets(address entryContract, bytes4 functionSig)
-        external
-        view
-        returns (uint8[] memory out)
-    {
-        bytes32 functionKey = _computeFunctionKey(entryContract, functionSig);
-        uint8[] storage source = _functionTokenVaultWriteOffsets[functionKey];
-        out = new uint8[](source.length);
-        for (uint256 i = 0; i < source.length; i++) {
-            out[i] = source[i];
-        }
     }
 
     function _replaceManagedStorageAddresses(address[] memory storageAddresses) private {
@@ -300,20 +290,20 @@ contract ChannelManager {
     }
 
     function _observeStorageWrites(bytes32 functionKey, uint256[] calldata aPubUser) private {
-        uint8[] storage tokenVaultWriteOffsets = _functionTokenVaultWriteOffsets[functionKey];
+        BridgeStructs.StorageWriteMetadata[] storage storageWrites = _functionStorageWrites[functionKey];
 
-        for (uint256 i = 0; i < tokenVaultWriteOffsets.length; i++) {
-            uint256 aPubOffsetWords = tokenVaultWriteOffsets[i];
+        for (uint256 i = 0; i < storageWrites.length; i++) {
+            BridgeStructs.StorageWriteMetadata storage storageWrite = storageWrites[i];
+            uint256 aPubOffsetWords = storageWrite.aPubOffsetWords;
             uint256 leafIndex = _decodeSplitWord(aPubUser, aPubOffsetWords);
             uint256 value = _decodeSplitWord(aPubUser, aPubOffsetWords + STORAGE_WRITE_VALUE_OFFSET);
+            address storageAddr = _managedStorageAddresses[storageWrite.storageAddrIndex];
 
-            emit StorageWriteObserved(tokenVaultStorageAddress, leafIndex, value);
-            _applyVaultLeaf(leafIndex, bytes32(value));
+            emit StorageWriteObserved(storageAddr, leafIndex, value);
+            if (storageWrite.storageAddrIndex == tokenVaultTreeIndex) {
+                _applyVaultLeaf(leafIndex, bytes32(value));
+            }
         }
-    }
-
-    function _hasTokenVaultStorageWrite(bytes32 functionKey) private view returns (bool) {
-        return _functionTokenVaultWriteOffsets[functionKey].length != 0;
     }
 
     function _decodeBytes32FromAPubUser(uint256[] calldata aPubUser, uint256 startIndex)

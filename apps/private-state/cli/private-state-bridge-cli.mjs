@@ -155,7 +155,7 @@ async function handleChannelCreate({ args, env, network, provider }) {
   const signer = requireL1Signer(args, env, provider);
   const leader = getAddress(args.leader ?? signer.address);
   const createWorkspace = parseBooleanFlag(args.createWorkspace);
-  const workspaceName = args.workspace ? requireWorkspaceName(args) : channelName;
+  const workspaceName = channelName;
 
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
   const bridgeCore = new Contract(
@@ -1909,8 +1909,7 @@ Common flags:
 channel-create options:
   --dapp-label <label>          Registered bridge DApp label to bind to the new channel
   --leader <address>           Optional channel leader. Default: the signing EOA
-  --create-workspace           Also initialize a channel workspace after creation
-  --workspace <name>           Channel workspace name to use with --create-workspace. Default: channel name
+  --create-workspace           Also initialize a channel workspace after creation using the channel name
 
 channel-workspace-init options:
   --channel-name <name>        User-provided channel name; channelId is derived as keccak256(bytes(name))

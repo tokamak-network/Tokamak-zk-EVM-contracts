@@ -41,6 +41,7 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `channel-create` creates the bridge channel on-chain.
 - `channel-create` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
   Token for the selected network.
+- `channel-create --create-workspace` uses the channel name itself as the channel-workspace name.
 - `channel-workspace-init` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the
   stored `genesisBlockNumber`.
 - `user-workspaces` store per-user note plaintexts, classify notes into used vs unused sets, maintain aggregated
@@ -62,13 +63,11 @@ node apps/private-state/cli/private-state-bridge-cli.mjs channel-create \
   --dapp-label private-state \
   --private-key <hex> \
   --create-workspace \
-  --workspace demo \
   --network sepolia
 
 node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-init \
   --network sepolia \
   --channel-name demo-channel \
-  --workspace demo
 
 node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund \
   --channel-name demo-channel \

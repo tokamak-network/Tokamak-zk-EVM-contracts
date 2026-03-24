@@ -33,10 +33,10 @@ proofs, and submits the resulting bridge transactions.
 
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount. The CLI converts it into base units
 with the canonical token `decimals()` for the selected channel.
-Every CLI `--l2-password` input accepts any string. During `register-and-fund`, the CLI signs a domain-separated
+Every CLI `--password` input accepts any string. During `register-and-fund`, the CLI signs a domain-separated
 password message with the user's L1 `--private-key`, uses the resulting signature as the seed for
 `deriveL2KeysFromSignature`, stores the resulting L1/L2 private keys inside the wallet file, and encrypts that wallet
-file with `scrypt + AES-256-GCM` under `--l2-password`.
+file with `scrypt + AES-256-GCM` under `--password`.
 
 ## Usage
 
@@ -60,9 +60,9 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - Wallets are mandatory for note-carrying users. They are the authoritative local record for note plaintexts,
   note usage, and per-user L2 nonce.
 - Wallet folders are encrypted at rest. After `register-and-fund` creates the wallet, the CLI needs only the matching
-  `--l2-password` to open or update that wallet.
+  `--password` to open or update that wallet.
 - The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
-  cannot be opened without their own `--l2-password`.
+  cannot be opened without their own `--password`.
 
 For bridge contract ABIs, the bridge-coupled CLI does not use hardcoded function signatures anymore. It reads the
 network-scoped bridge deployment JSON plus the network-scoped bridge ABI manifest generated at deployment time under
@@ -87,7 +87,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund \
   --wallet participant-a \
   --network sepolia \
   --private-key <hex> \
-  --l2-password "participant-a" \
+  --password "participant-a" \
   --amount 3
 
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit \
@@ -95,13 +95,13 @@ node apps/private-state/cli/private-state-bridge-cli.mjs deposit \
   --wallet participant-a \
   --network sepolia \
   --private-key <hex> \
-  --l2-password "participant-a" \
+  --password "participant-a" \
   --amount 1.5
 
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 \
   --wallet participant-a \
   --network sepolia \
-  --l2-password "participant-a" \
+  --password "participant-a" \
   --template-file apps/private-state/cli/functions/mintNotes1/calldata.json
 ```
 

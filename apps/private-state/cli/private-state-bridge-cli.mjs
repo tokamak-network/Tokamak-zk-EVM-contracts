@@ -168,7 +168,10 @@ function assertNoLegacyWalletFlags(args) {
 
 function assertNoLegacyL2IdentityFlags(args) {
   if (args.l2KeySignature !== undefined) {
-    throw new Error("--l2-key-signature is no longer supported. Use --l2-password instead.");
+    throw new Error("--l2-key-signature is no longer supported. Use --password instead.");
+  }
+  if (args.l2Password !== undefined) {
+    throw new Error("--l2-password is no longer supported. Use --password instead.");
   }
 }
 
@@ -1869,7 +1872,7 @@ function parseTokenAmount(value, decimals) {
 }
 
 function requireL2Password(args) {
-  return requireArg(args.l2Password, "--l2-password");
+  return requireArg(args.password, "--password");
 }
 
 function toBigIntStrict(value) {
@@ -1997,13 +2000,13 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --l2-password <string> [--amount <tokens>]
-  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-password <string> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --l2-password <string> --amount <tokens> --wallet <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --l2-password <string> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --l2-password <string> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --l2-password <string> --amount <tokens> --wallet <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> [--private-key <hex>] --l2-password <string> [--args-file <path>] [--template-file <path>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --password <string> [--amount <tokens>]
+  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --password <string> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> [--private-key <hex>] --password <string> [--args-file <path>] [--template-file <path>] [options]
 
 Common flags:
   --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia
@@ -2033,14 +2036,14 @@ Notes:
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - register-and-fund signs a domain-separated password message with the provided L1 private key and uses that signature as the seed for L2 key derivation.
-  - register-and-fund stores the resulting L1 and L2 private keys inside wallet.json and encrypts that file with scrypt + AES-256-GCM under --l2-password.
-  - Once a wallet exists, wallet-show, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --l2-password alone.
-  - deposit and withdraw can also use --l2-password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
-  - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --l2-password.
+  - register-and-fund stores the resulting L1 and L2 private keys inside wallet.json and encrypts that file with scrypt + AES-256-GCM under --password.
+  - Once a wallet exists, wallet-show, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
+  - deposit and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
+  - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
-  - register-and-fund allocates or refreshes a wallet from --private-key plus --l2-password.
-  - wallet-show requires an existing --wallet plus the matching --l2-password.
+  - register-and-fund allocates or refreshes a wallet from --private-key plus --password.
+  - wallet-show requires an existing --wallet plus the matching --password.
   - Channel workspace operations are stored under:
       apps/private-state/cli/workspaces/<workspace>/operations/
   - Wallet operations are stored under:
@@ -2065,7 +2068,7 @@ function readEncryptedWalletJson(filePath, walletPassword) {
   try {
     return JSON.parse(readEncryptedWalletFile(filePath, walletPassword).toString("utf8"));
   } catch (error) {
-    throw new Error(`Unable to decrypt wallet data at ${filePath}. Check --l2-password.`, { cause: error });
+    throw new Error(`Unable to decrypt wallet data at ${filePath}. Check --password.`, { cause: error });
   }
 }
 

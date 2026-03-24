@@ -278,10 +278,14 @@ contract ChannelManager {
         view
         returns (bytes32[] memory updatedRootVector)
     {
-        updatedRootVector = new bytes32[](_managedStorageAddresses.length);
-        for (uint256 i = 0; i < _managedStorageAddresses.length; i++) {
+        uint256 rootVectorLength = _managedStorageAddresses.length;
+        updatedRootVector = new bytes32[](rootVectorLength);
+        for (uint256 i = 0; i < rootVectorLength;) {
             updatedRootVector[i] =
                 _decodeBytes32FromAPubUser(aPubUser, updatedRootVectorOffsetWords + i * SPLIT_WORD_SIZE);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -290,9 +294,13 @@ contract ChannelManager {
         view
         returns (bytes32[] memory rootVector)
     {
-        rootVector = new bytes32[](_managedStorageAddresses.length);
-        for (uint256 i = 0; i < _managedStorageAddresses.length; i++) {
+        uint256 rootVectorLength = _managedStorageAddresses.length;
+        rootVector = new bytes32[](rootVectorLength);
+        for (uint256 i = 0; i < rootVectorLength;) {
             rootVector[i] = _decodeBytes32FromAPubUser(aPubUser, rootVectorOffsetWords + i * SPLIT_WORD_SIZE);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -345,8 +353,13 @@ contract ChannelManager {
     }
 
     function _decodeSplitWord(uint256[] calldata words, uint256 startIndex) private pure returns (uint256 combined) {
-        uint256 lower = words[startIndex];
-        uint256 upper = words[startIndex + 1];
+        uint256 lower;
+        uint256 upper;
+        assembly ("memory-safe") {
+            let dataOffset := words.offset
+            lower := calldataload(add(dataOffset, shl(5, startIndex)))
+            upper := calldataload(add(dataOffset, shl(5, add(startIndex, 1))))
+        }
         if (lower > type(uint128).max) {
             revert APubUserWordOutOfRange(startIndex, lower);
         }

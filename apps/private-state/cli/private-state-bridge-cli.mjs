@@ -151,7 +151,7 @@ function assertNoLegacyBridgeOverrideFlags(args) {
 
 async function handleChannelCreate({ args, env, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
-  const dappId = Number(requireArg(args.dappId, "--dapp-id"));
+  const dappLabel = requireArg(args.dappLabel, "--dapp-label");
   const asset = getAddress(requireArg(args.asset, "--asset"));
   const signer = requireL1Signer(args, env, provider);
   const leader = getAddress(args.leader ?? signer.address);
@@ -164,6 +164,11 @@ async function handleChannelCreate({ args, env, network, provider }) {
     bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
     signer,
   );
+  const dappId = await resolveDAppIdByLabel({
+    provider,
+    bridgeResources,
+    dappLabel,
+  });
 
   const receipt = await waitForReceipt(await bridgeCore.createChannel(channelName, dappId, leader, asset));
   const channelId = BigInt(await bridgeCore.deriveChannelId(channelName));
@@ -196,6 +201,37 @@ async function handleChannelCreate({ args, env, network, provider }) {
     receipt: sanitizeReceipt(receipt),
     workspace: workspaceResult?.workspaceDir ?? null,
   });
+}
+
+async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
+  const dAppManager = new Contract(
+    bridgeResources.bridgeDeployment.dAppManager,
+    bridgeResources.bridgeAbiManifest.contracts.dAppManager.abi,
+    provider,
+  );
+  const expectedLabelHash = normalizeBytes32Hex(keccak256(ethers.toUtf8Bytes(dappLabel)));
+  const events = await dAppManager.queryFilter(dAppManager.filters.DAppRegistered(), 0, "latest");
+  const matchingIds = [];
+
+  for (const event of events) {
+    const eventLabelHash = normalizeBytes32Hex(event.args?.labelHash);
+    if (eventLabelHash === expectedLabelHash) {
+      matchingIds.push(Number(event.args.dappId));
+    }
+  }
+
+  if (matchingIds.length === 0) {
+    throw new Error(`No registered DApp matches --dapp-label ${dappLabel}.`);
+  }
+
+  const uniqueIds = [...new Set(matchingIds)];
+  if (uniqueIds.length > 1) {
+    throw new Error(
+      `DApp label ${dappLabel} is ambiguous on-chain; matching dappIds: ${uniqueIds.join(", ")}.`,
+    );
+  }
+
+  return uniqueIds[0];
 }
 
 async function handleWorkspaceInit({ args, network, provider }) {
@@ -1852,7 +1888,7 @@ function printHelp() {
 Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
   node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name <name> --dapp-id <id> --asset <address> --private-key <hex> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name <name> --dapp-label <label> --asset <address> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-init --channel-name <name> [--workspace <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
@@ -1872,6 +1908,7 @@ Common flags:
   --env-file <path>        Alternate apps/.env location
 
 channel-create options:
+  --dapp-label <label>          Registered bridge DApp label to bind to the new channel
   --leader <address>           Optional channel leader. Default: the signing EOA
   --create-workspace           Also initialize a channel workspace after creation
   --workspace <name>           Channel workspace name to use with --create-workspace. Default: channel name

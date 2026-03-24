@@ -193,7 +193,7 @@ cd apps/private-state
 make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
-node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-id 1 --asset <erc20-address> --private-key <hex> --create-workspace --workspace demo --network sepolia
+node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-label private-state --asset <erc20-address> --private-key <hex> --create-workspace --workspace demo --network sepolia
 node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --channel-name demo-channel --user-workspace participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a" --amount 3000000000000000000
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --user-workspace participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a"
 ```

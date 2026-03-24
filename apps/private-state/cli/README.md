@@ -57,7 +57,7 @@ Example:
 ```bash
 node apps/private-state/cli/private-state-bridge-cli.mjs channel-create \
   --channel-name demo-channel \
-  --dapp-id 1 \
+  --dapp-label private-state \
   --asset <erc20-address> \
   --private-key <hex> \
   --create-workspace \

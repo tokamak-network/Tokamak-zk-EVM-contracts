@@ -45,6 +45,9 @@ node apps/private-state/cli/private-state-cli.mjs send mintNotes1 --network anvi
 The bridge-coupled CLI manages a channel workspace, generates Groth or Tokamak proofs, calls the deployed bridge,
 and stores every resulting `state_snapshot.json`.
 
+For bridge contract ABIs, the bridge-coupled CLI does not use hardcoded function signatures anymore. It reads the
+bridge deployment JSON plus the bridge ABI manifest generated at deployment time under `bridge/deployments/`.
+
 Example:
 
 ```bash

@@ -51,27 +51,6 @@ const INITIAL_ZERO_ROOT =
 const BLS12_381_SCALAR_FIELD_MODULUS =
   BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
 
-const bridgeCoreAbi = [
-  "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address vault,bytes32 aPubBlockHash))",
-];
-const channelManagerAbi = [
-  "function getCurrentRootVector() external view returns (bytes32[] memory)",
-  "function getManagedStorageAddresses() external view returns (address[] memory)",
-  "function submitTokamakProof((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
-];
-const tokenVaultAbi = [
-  "function registerAndFund(bytes32 l2TokenVaultKey, uint256 amount) external",
-  "function fund(uint256 amount) external",
-  "function deposit((uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32 currentRoot,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
-  "function withdraw((uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32 currentRoot,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
-  "function claimToWallet(uint256 amount) external",
-  "function getRegistration(address user) external view returns (tuple(bool exists, bytes32 l2TokenVaultKey, uint256 leafIndex, uint256 availableBalance))",
-];
-const erc20Abi = [
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function balanceOf(address account) external view returns (uint256)",
-];
-
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -145,6 +124,14 @@ async function handleWorkspaceInit({ args, network, provider }) {
   const bridgeDeploymentPath = resolveInputPath(
     args.bridgeDeployment ?? path.resolve(bridgeRoot, "deployments", "bridge-latest.json"),
   );
+  const bridgeDeployment = readJson(bridgeDeploymentPath);
+  const bridgeAbiManifestPath = resolveBridgeAbiManifestPath({
+    explicitPath: args.bridgeAbiManifest,
+    bridgeDeploymentPath,
+    bridgeDeployment,
+    chainId: network.chainId,
+  });
+  const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
   const channelId = toBigIntStrict(requireArg(args.channelId, "--channel-id"));
   const blockInfoFile = args.blockInfoFile ? resolveInputPath(args.blockInfoFile) : null;
   const importedSnapshotFile = args.stateSnapshotFile ? resolveInputPath(args.stateSnapshotFile) : null;
@@ -157,14 +144,17 @@ async function handleWorkspaceInit({ args, network, provider }) {
     fs.rmSync(workspaceDir, { recursive: true, force: true });
   }
 
-  const bridgeDeployment = readJson(bridgeDeploymentPath);
-  const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeCoreAbi, provider);
+  const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
   const channelInfo = await bridgeCore.getChannel(channelId);
   if (!channelInfo.exists) {
     throw new Error(`Unknown channel ${channelId.toString()} in bridge core ${bridgeDeployment.bridgeCore}.`);
   }
 
-  const channelManager = new Contract(channelInfo.manager, channelManagerAbi, provider);
+  const channelManager = new Contract(
+    channelInfo.manager,
+    bridgeAbiManifest.contracts.channelManager.abi,
+    provider,
+  );
   const currentRoots = normalizedRootVector(await channelManager.getCurrentRootVector());
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
   const deploymentManifestPath = path.resolve(deployRoot, `deployment.${network.chainId}.latest.json`);
@@ -228,6 +218,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     network: networkNameFromChainId(network.chainId),
     chainId: network.chainId,
     bridgeDeploymentPath,
+    bridgeAbiManifestPath,
     appDeploymentPath: deploymentManifestPath,
     storageLayoutPath: storageLayoutManifestPath,
     channelId: Number(channelId),
@@ -255,6 +246,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     action: "workspace-init",
     workspace: workspaceName,
     workspaceDir,
+    bridgeAbiManifestPath,
     channelId: workspace.channelId,
     channelManager: workspace.channelManager,
     tokenVault: workspace.tokenVault,
@@ -279,8 +271,8 @@ async function handleRegisterAndFund({ args, env, provider }) {
   const amount = parseAmountArg(requireArg(args.amount, "--amount"));
   const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
-  const tokenVault = new Contract(context.workspace.tokenVault, tokenVaultAbi, signer);
-  const asset = new Contract(context.workspace.canonicalAsset, erc20Abi, signer);
+  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
+  const asset = new Contract(context.workspace.canonicalAsset, context.bridgeAbiManifest.contracts.erc20.abi, signer);
 
   await saveNoStateChangeOperation({
     context,
@@ -329,8 +321,8 @@ async function handleFundL1({ args, env, provider }) {
   const context = await loadWorkspaceContext(args.workspace, provider);
   const signer = requireL1Signer(args, env, provider);
   const amount = parseAmountArg(requireArg(args.amount, "--amount"));
-  const tokenVault = new Contract(context.workspace.tokenVault, tokenVaultAbi, signer);
-  const asset = new Contract(context.workspace.canonicalAsset, erc20Abi, signer);
+  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
+  const asset = new Contract(context.workspace.canonicalAsset, context.bridgeAbiManifest.contracts.erc20.abi, signer);
 
   await saveNoStateChangeOperation({
     context,
@@ -359,7 +351,7 @@ async function handleGrothVaultMove({ args, env, provider, direction }) {
   const amount = parseAmountArg(requireArg(args.amount, "--amount"));
   const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
-  const tokenVault = new Contract(context.workspace.tokenVault, tokenVaultAbi, signer);
+  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
   const registration = await tokenVault.getRegistration(signer.address);
 
   expect(registration.exists, `No token-vault registration exists for ${signer.address}.`);
@@ -428,7 +420,7 @@ async function handleClaim({ args, env, provider }) {
   const context = await loadWorkspaceContext(args.workspace, provider);
   const signer = requireL1Signer(args, env, provider);
   const amount = parseAmountArg(requireArg(args.amount, "--amount"));
-  const tokenVault = new Contract(context.workspace.tokenVault, tokenVaultAbi, signer);
+  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
 
   await saveNoStateChangeOperation({
     context,
@@ -532,16 +524,26 @@ async function loadWorkspaceContext(workspaceName, provider) {
   const normalizedWorkspaceName = requireWorkspaceName({ workspace: workspaceName });
   const workspaceDir = workspacePath(normalizedWorkspaceName);
   const workspace = readJson(path.join(workspaceDir, "workspace.json"));
+  const bridgeDeployment = readJson(workspace.bridgeDeploymentPath);
+  const bridgeAbiManifestPath = resolveBridgeAbiManifestPath({
+    explicitPath: workspace.bridgeAbiManifestPath,
+    bridgeDeploymentPath: workspace.bridgeDeploymentPath,
+    bridgeDeployment,
+    chainId: workspace.chainId,
+  });
+  const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
+  workspace.bridgeAbiManifestPath = bridgeAbiManifestPath;
   const currentSnapshot = normalizeStateSnapshot(readJson(path.join(workspaceDir, "current", "state_snapshot.json")));
   const blockInfo = readJson(path.join(workspaceDir, "current", "block_info.json"));
   const contractCodes = readJson(path.join(workspaceDir, "current", "contract_codes.json"));
-  const channelManager = new Contract(workspace.channelManager, channelManagerAbi, provider);
-  const tokenVault = new Contract(workspace.tokenVault, tokenVaultAbi, provider);
+  const channelManager = new Contract(workspace.channelManager, bridgeAbiManifest.contracts.channelManager.abi, provider);
+  const tokenVault = new Contract(workspace.tokenVault, bridgeAbiManifest.contracts.tokenVault.abi, provider);
 
   return {
     workspaceName: normalizedWorkspaceName,
     workspaceDir,
     workspace,
+    bridgeAbiManifest,
     currentSnapshot,
     blockInfo,
     contractCodes,
@@ -961,6 +963,45 @@ function findStorageSlot(storageLayoutManifest, contractName, label) {
   return entry.slot;
 }
 
+function resolveBridgeAbiManifestPath({ explicitPath, bridgeDeploymentPath, bridgeDeployment, chainId }) {
+  if (explicitPath) {
+    return resolveInputPath(explicitPath);
+  }
+  if (bridgeDeployment.abiManifestPath) {
+    return path.isAbsolute(bridgeDeployment.abiManifestPath)
+      ? bridgeDeployment.abiManifestPath
+      : path.resolve(bridgeRoot, bridgeDeployment.abiManifestPath);
+  }
+
+  const chainSpecificPath = path.resolve(bridgeRoot, "deployments", `bridge-abi-manifest.${chainId}.latest.json`);
+  if (fs.existsSync(chainSpecificPath)) {
+    return chainSpecificPath;
+  }
+
+  const latestPath = path.resolve(bridgeRoot, "deployments", "bridge-abi-manifest.latest.json");
+  if (fs.existsSync(latestPath)) {
+    return latestPath;
+  }
+
+  throw new Error(
+    [
+      `Missing bridge ABI manifest for deployment ${bridgeDeploymentPath}.`,
+      "Run bridge/script/deploy-bridge.sh or provide --bridge-abi-manifest.",
+    ].join(" "),
+  );
+}
+
+function loadBridgeAbiManifest(manifestPath) {
+  const manifest = readJson(manifestPath);
+  const requiredContracts = ["bridgeCore", "channelManager", "tokenVault", "erc20"];
+  for (const contractName of requiredContracts) {
+    if (!Array.isArray(manifest.contracts?.[contractName]?.abi)) {
+      throw new Error(`Bridge ABI manifest is missing contracts.${contractName}.abi: ${manifestPath}`);
+    }
+  }
+  return manifest;
+}
+
 function parseArgs(argv) {
   const parsed = { positional: [] };
   for (let index = 0; index < argv.length; index += 1) {
@@ -1109,6 +1150,7 @@ Common flags:
 
 workspace-init options:
   --bridge-deployment <path>   Bridge deployment JSON. Default: bridge/deployments/bridge-latest.json
+  --bridge-abi-manifest <path> Optional bridge ABI manifest override
   --state-snapshot-file <path> Import an existing non-genesis snapshot
   --force                      Overwrite an existing workspace
 

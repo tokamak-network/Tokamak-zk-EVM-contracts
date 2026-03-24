@@ -4,6 +4,22 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${BRIDGE_ENV_FILE:-$PROJECT_ROOT/.env}"
 
+resolve_bridge_path() {
+    local input_path="$1"
+    if [[ "$input_path" = /* ]]; then
+        printf '%s\n' "$input_path"
+    else
+        (
+            cd "$PROJECT_ROOT/bridge"
+            python3 - <<'PY' "$input_path"
+import os
+import sys
+print(os.path.abspath(sys.argv[1]))
+PY
+        )
+    fi
+}
+
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "Missing $ENV_FILE"
     echo "Create it from $PROJECT_ROOT/.env.example"
@@ -39,6 +55,8 @@ MT_DEPTH_METADATA="$(node "$PROJECT_ROOT/bridge/script/resolve-latest-mt-depth.m
 BRIDGE_MERKLE_TREE_LEVELS="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.mtDepth));});')"
 BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.version));});')"
 export BRIDGE_MERKLE_TREE_LEVELS
+BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge-latest.json}"
+export BRIDGE_OUTPUT_PATH
 
 case "${BRIDGE_NETWORK}" in
     sepolia)
@@ -92,3 +110,19 @@ echo "Resolved tokamak-l2js MT_DEPTH: ${BRIDGE_MERKLE_TREE_LEVELS}"
     cd "$PROJECT_ROOT/bridge"
     "${FORGE_CMD[@]}"
 )
+
+BRIDGE_OUTPUT_PATH_ABS="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
+BRIDGE_ABI_MANIFEST_PATH="./deployments/bridge-abi-manifest.latest.json"
+BRIDGE_ABI_MANIFEST_PATH_ABS="$(resolve_bridge_path "$BRIDGE_ABI_MANIFEST_PATH")"
+BRIDGE_CHAIN_ABI_MANIFEST_PATH="./deployments/bridge-abi-manifest.${BRIDGE_CHAIN_ID}.latest.json"
+BRIDGE_CHAIN_ABI_MANIFEST_PATH_ABS="$(resolve_bridge_path "$BRIDGE_CHAIN_ABI_MANIFEST_PATH")"
+
+node "$PROJECT_ROOT/bridge/script/generate-bridge-abi-manifest.mjs" \
+    --output "$BRIDGE_ABI_MANIFEST_PATH_ABS" \
+    --chain-id "$BRIDGE_CHAIN_ID" \
+    --deployment-path "$BRIDGE_OUTPUT_PATH_ABS" >/dev/null
+
+cp "$BRIDGE_ABI_MANIFEST_PATH_ABS" "$BRIDGE_CHAIN_ABI_MANIFEST_PATH_ABS"
+
+echo "Deployment artifact: $BRIDGE_OUTPUT_PATH_ABS"
+echo "ABI manifest: $BRIDGE_ABI_MANIFEST_PATH_ABS"

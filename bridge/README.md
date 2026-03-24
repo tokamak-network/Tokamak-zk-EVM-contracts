@@ -94,3 +94,10 @@ The current bridge implementation is still intentionally hard-bound to depth
 bridge configuration.
 
 The script writes a deployment artifact under `bridge/deployments/` by default.
+
+It also generates an ABI manifest from the current Foundry build artifacts:
+
+- `bridge/deployments/bridge-abi-manifest.latest.json`
+- `bridge/deployments/bridge-abi-manifest.<chain-id>.latest.json`
+
+The deployment JSON is post-processed to include `chainId` and `abiManifestPath` so downstream tooling can resolve the correct bridge ABI set without hardcoded function signatures.

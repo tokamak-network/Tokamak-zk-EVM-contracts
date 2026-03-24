@@ -33,7 +33,7 @@ proofs, and submits the resulting bridge transactions.
 
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount. The CLI converts it into base units
 with the canonical token `decimals()` for the selected channel.
-Every CLI `--password` input accepts any string. During `register-and-fund`, the CLI signs a domain-separated
+Every CLI `--password` input accepts any string. During `deposit-bridge`, the CLI signs a domain-separated
 password message with the user's L1 `--private-key`, uses the resulting signature as the seed for
 `deriveL2KeysFromSignature`, stores the resulting L1/L2 private keys inside the wallet file, and encrypts that wallet
 file with `scrypt + AES-256-GCM` under `--password`.
@@ -59,7 +59,7 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   channel workspace is present.
 - Wallets are mandatory for note-carrying users. They are the authoritative local record for note plaintexts,
   note usage, and per-user L2 nonce.
-- Wallet folders are encrypted at rest. After `register-and-fund` creates the wallet, the CLI needs only the matching
+- Wallet folders are encrypted at rest. After `deposit-bridge` creates the wallet, the CLI needs only the matching
   `--password` to open or update that wallet.
 - The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
   cannot be opened without their own `--password`.
@@ -82,7 +82,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace \
   --network sepolia \
   --channel-name demo-channel \
 
-node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund \
+node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge \
   --channel-name demo-channel \
   --wallet participant-a \
   --network sepolia \

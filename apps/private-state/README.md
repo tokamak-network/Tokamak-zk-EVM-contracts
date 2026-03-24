@@ -187,7 +187,7 @@ The CLI:
 The current CLI treats wallet storage as a clean-slate local model. Legacy CLI data is not reused.
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount and converted with the canonical
 token decimals.
-Every CLI `--password` input accepts any string. During `register-and-fund`, the CLI signs a domain-separated
+Every CLI `--password` input accepts any string. During `deposit-bridge`, the CLI signs a domain-separated
 password message with the user's L1 `--private-key`, derives the L2 private key from the resulting signature, stores
 both the L1 and L2 private keys inside the wallet file, and encrypts that wallet file with `scrypt + AES-256-GCM`
 under the given password.
@@ -206,7 +206,7 @@ make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
 node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
-node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a" --amount 3
+node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a" --amount 3
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --wallet participant-a --network sepolia --password "participant-a"
 ```
 

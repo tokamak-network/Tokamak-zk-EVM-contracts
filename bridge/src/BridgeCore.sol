@@ -9,7 +9,7 @@ import {BridgeStructs} from "./BridgeStructs.sol";
 import {BridgeAdminManager} from "./BridgeAdminManager.sol";
 import {DAppManager} from "./DAppManager.sol";
 import {ChannelManager} from "./ChannelManager.sol";
-import {L1TokenVault, IVaultKeyRegistry} from "./L1TokenVault.sol";
+import {IVaultKeyRegistry} from "./L1TokenVault.sol";
 import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
@@ -24,17 +24,19 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
 
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);
-    error OnlyChannelVault();
+    error OnlySharedTokenVault();
     error InvalidMerkleTreeConfiguration();
     error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
     error InvalidLeader();
     error GlobalVaultKeyAlreadyRegistered(bytes32 key);
-    error ChannelLeafIndexCollision(uint256 channelId, uint256 leafIndex);
+    error GlobalLeafIndexCollision(uint256 leafIndex);
     error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
     error InvalidAdminManager();
     error InvalidDAppManager();
     error InvalidGrothVerifier();
     error InvalidTokamakVerifier();
+    error InvalidTokenVault();
+    error SharedTokenVaultAlreadySet();
     error UnsupportedCanonicalAssetChain(uint256 chainId);
 
     struct ChannelDeployment {
@@ -51,11 +53,11 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
     DAppManager public dAppManager;
     IGrothVerifier public grothVerifier;
     ITokamakVerifier public tokamakVerifier;
+    address public tokenVault;
 
     mapping(uint256 => ChannelDeployment) private _channels;
-    mapping(address => uint256) public vaultToChannelId;
     mapping(bytes32 => bool) public globallyRegisteredVaultKeys;
-    mapping(uint256 => mapping(uint256 => address)) public channelLeafIndexOwner;
+    mapping(uint256 => address) public leafIndexOwner;
 
     event ChannelCreated(
         uint256 indexed channelId,
@@ -63,8 +65,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
         address manager,
         address vault
     );
+    event SharedTokenVaultBound(address indexed tokenVault);
     event VaultKeyReserved(
-        uint256 indexed channelId,
         address indexed user,
         bytes32 indexed key,
         uint256 leafIndex
@@ -98,6 +100,13 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
         tokamakVerifier = tokamakVerifier_;
     }
 
+    function bindSharedTokenVault(address tokenVault_) external onlyOwner {
+        if (tokenVault_ == address(0)) revert InvalidTokenVault();
+        if (tokenVault != address(0)) revert SharedTokenVaultAlreadySet();
+        tokenVault = tokenVault_;
+        emit SharedTokenVaultBound(tokenVault_);
+    }
+
     function canonicalAsset() public view returns (address) {
         if (block.chainid == 1) {
             return TOKAMAK_NETWORK_TOKEN_MAINNET;
@@ -115,6 +124,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
     ) external onlyOwner returns (address manager, address vault) {
         IERC20 asset = IERC20(canonicalAsset());
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
+        if (tokenVault == address(0)) revert InvalidTokenVault();
         if (leader == address(0)) revert InvalidLeader();
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
         if (adminManager.nMerkleTreeLevels() != SUPPORTED_MT_LEVELS) {
@@ -142,10 +152,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
             tokamakVerifier
         );
 
-        L1TokenVault tokenVault =
-            new L1TokenVault(channelId, asset, channelManager, grothVerifier, IVaultKeyRegistry(address(this)));
-
-        channelManager.bindTokenVault(address(tokenVault));
+        channelManager.bindTokenVault(tokenVault);
 
         bytes32 channelAPubBlockHash = channelManager.aPubBlockHash();
         _channels[channelId] = ChannelDeployment({
@@ -154,40 +161,41 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
             leader: leader,
             asset: address(asset),
             manager: address(channelManager),
-            vault: address(tokenVault),
+            vault: tokenVault,
             aPubBlockHash: channelAPubBlockHash
         });
 
-        vaultToChannelId[address(tokenVault)] = channelId;
-
-        emit ChannelCreated(channelId, dappId, address(channelManager), address(tokenVault));
-        return (address(channelManager), address(tokenVault));
+        emit ChannelCreated(channelId, dappId, address(channelManager), tokenVault);
+        return (address(channelManager), tokenVault);
     }
 
-    function reserveVaultKey(uint256 channelId, address user, bytes32 key)
+    function reserveVaultKey(address user, bytes32 key)
         external
         override
         returns (uint256 leafIndex)
     {
-        ChannelDeployment memory deployment = _channels[channelId];
-        if (!deployment.exists) revert UnknownChannel(channelId);
-        if (msg.sender != deployment.vault) revert OnlyChannelVault();
+        if (msg.sender != tokenVault) revert OnlySharedTokenVault();
         if (globallyRegisteredVaultKeys[key]) revert GlobalVaultKeyAlreadyRegistered(key);
 
         leafIndex = deriveLeafIndex(key);
-        if (channelLeafIndexOwner[channelId][leafIndex] != address(0)) {
-            revert ChannelLeafIndexCollision(channelId, leafIndex);
+        if (leafIndexOwner[leafIndex] != address(0)) {
+            revert GlobalLeafIndexCollision(leafIndex);
         }
 
         globallyRegisteredVaultKeys[key] = true;
-        channelLeafIndexOwner[channelId][leafIndex] = user;
+        leafIndexOwner[leafIndex] = user;
 
-        emit VaultKeyReserved(channelId, user, key, leafIndex);
+        emit VaultKeyReserved(user, key, leafIndex);
     }
 
     function getChannel(uint256 channelId) external view returns (ChannelDeployment memory) {
         if (!_channels[channelId].exists) revert UnknownChannel(channelId);
         return _channels[channelId];
+    }
+
+    function getChannelManager(uint256 channelId) external view returns (address) {
+        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
+        return _channels[channelId].manager;
     }
 
     function deriveLeafIndex(bytes32 key) public pure returns (uint256) {

@@ -6,7 +6,9 @@ import {ERC1967Proxy} from "@openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
 import {DAppManager} from "../src/DAppManager.sol";
+import {L1TokenVault, IVaultKeyRegistry} from "../src/L1TokenVault.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
+import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
 import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
 import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
@@ -24,6 +26,8 @@ contract DeployBridgeStackScript is Script {
         address tokamakVerifier;
         address bridgeCore;
         address bridgeCoreImplementation;
+        address tokenVault;
+        address tokenVaultImplementation;
         address mockAsset;
     }
 
@@ -42,6 +46,7 @@ contract DeployBridgeStackScript is Script {
         Groth16Verifier grothVerifier = new Groth16Verifier();
         TokamakVerifier tokamakVerifier = new TokamakVerifier();
         BridgeCore bridgeCoreImplementation = new BridgeCore();
+        L1TokenVault tokenVaultImplementation = new L1TokenVault();
 
         ERC1967Proxy adminManagerProxy = new ERC1967Proxy(
             address(adminManagerImplementation),
@@ -56,7 +61,7 @@ contract DeployBridgeStackScript is Script {
             abi.encodeCall(
                 BridgeCore.initialize,
                 (
-                    owner,
+                    deployer,
                     BridgeAdminManager(address(adminManagerProxy)),
                     DAppManager(address(dAppManagerProxy)),
                     IGrothVerifier(address(grothVerifier)),
@@ -64,6 +69,23 @@ contract DeployBridgeStackScript is Script {
                 )
             )
         );
+        ERC1967Proxy tokenVaultProxy = new ERC1967Proxy(
+            address(tokenVaultImplementation),
+            abi.encodeCall(
+                L1TokenVault.initialize,
+                (
+                    owner,
+                    IERC20(BridgeCore(address(bridgeCoreProxy)).canonicalAsset()),
+                    IGrothVerifier(address(grothVerifier)),
+                    IVaultKeyRegistry(address(bridgeCoreProxy))
+                )
+            )
+        );
+
+        BridgeCore(address(bridgeCoreProxy)).bindSharedTokenVault(address(tokenVaultProxy));
+        if (owner != deployer) {
+            BridgeCore(address(bridgeCoreProxy)).transferOwnership(owner);
+        }
 
         address mockAsset = address(0);
         if (deployMockAsset) {
@@ -85,6 +107,8 @@ contract DeployBridgeStackScript is Script {
             tokamakVerifier: address(tokamakVerifier),
             bridgeCore: address(bridgeCoreProxy),
             bridgeCoreImplementation: address(bridgeCoreImplementation),
+            tokenVault: address(tokenVaultProxy),
+            tokenVaultImplementation: address(tokenVaultImplementation),
             mockAsset: mockAsset
         });
 
@@ -110,6 +134,8 @@ contract DeployBridgeStackScript is Script {
         vm.serializeAddress(deploymentJson, "tokamakVerifier", result.tokamakVerifier);
         vm.serializeAddress(deploymentJson, "bridgeCore", result.bridgeCore);
         vm.serializeAddress(deploymentJson, "bridgeCoreImplementation", result.bridgeCoreImplementation);
+        vm.serializeAddress(deploymentJson, "tokenVault", result.tokenVault);
+        vm.serializeAddress(deploymentJson, "tokenVaultImplementation", result.tokenVaultImplementation);
         string memory finalJson = vm.serializeAddress(deploymentJson, "mockAsset", result.mockAsset);
         vm.writeJson(finalJson, outputPath);
     }
@@ -127,6 +153,8 @@ contract DeployBridgeStackScript is Script {
         console2.log("TokamakVerifier:", result.tokamakVerifier);
         console2.log("BridgeCore proxy:", result.bridgeCore);
         console2.log("BridgeCore implementation:", result.bridgeCoreImplementation);
+        console2.log("L1TokenVault proxy:", result.tokenVault);
+        console2.log("L1TokenVault implementation:", result.tokenVaultImplementation);
         console2.log("Mock asset:", result.mockAsset);
     }
 

@@ -464,111 +464,75 @@ async function handleWalletShow({ args, env, provider }) {
 }
 
 async function handleRegisterAndFund({ args, env, network, provider }) {
+  if (args.wallet !== undefined) {
+    throw new Error(
+      "--wallet is not supported by deposit-bridge. Channel wallets are created or refreshed by deposit-channel and bridge-send.",
+    );
+  }
   const signer = requireL1Signer(args, env, provider);
   const l2Identity = await deriveParticipantIdentity({
     password: requireL2Password(args),
     signer,
   });
-  const context = await loadChannelContext({
-    args,
-    networkName: network.name,
-    provider,
-  });
+  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
   const amountInput = requireArg(args.amount, "--amount");
-  const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
-  const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
-  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
-  const asset = new Contract(context.workspace.canonicalAsset, context.bridgeAbiManifest.contracts.erc20.abi, signer);
-  const approveReceipt = await waitForReceipt(await asset.approve(context.workspace.tokenVault, amount));
+  const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
+  const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, bridgeVaultContext.liquidBalancesSlot);
+  const tokenVault = new Contract(
+    bridgeVaultContext.tokenVaultAddress,
+    bridgeVaultContext.bridgeAbiManifest.contracts.tokenVault.abi,
+    signer,
+  );
+  const asset = new Contract(
+    bridgeVaultContext.canonicalAsset,
+    bridgeVaultContext.bridgeAbiManifest.contracts.erc20.abi,
+    signer,
+  );
+  const approveReceipt = await waitForReceipt(await asset.approve(bridgeVaultContext.tokenVaultAddress, amount));
   const registrationReceipt = await waitForReceipt(await tokenVault.registerAndFund(storageKey, amount));
   const registration = await tokenVault.getRegistration(signer.address);
-  const walletContext = ensureWallet({
-    args,
-    channelContext: context,
-    signerAddress: signer.address,
-    signerPrivateKey: signer.privateKey,
-    l2Identity,
-    walletPassword: requireL2Password(args),
-    storageKey,
-    leafIndex: registration.leafIndex,
-  });
-  const operationDir =
-    createWalletOperationDir(walletContext.walletName, `deposit-bridge-${shortAddress(signer.address)}`);
-
-  writeJson(path.join(operationDir, "state_snapshot.json"), context.currentSnapshot);
-  writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(context.currentSnapshot));
-  writeJson(path.join(operationDir, "approve-receipt.json"), sanitizeReceipt(approveReceipt));
-  writeJson(path.join(operationDir, "registration-receipt.json"), sanitizeReceipt(registrationReceipt));
-  writeJson(path.join(operationDir, "registration.json"), serializeBigInts(registration));
-  writeJson(path.join(operationDir, "wallet.json"), walletContext.wallet);
-  writeJson(path.join(operationDir, "operation.json"), {
-    operationName: "deposit-bridge",
-    actorLabel: signer.address,
-    amountInput,
-    amountBaseUnits: amount.toString(),
-    l2Address: l2Identity.l2Address,
-    l2StorageKey: storageKey,
-    result: {
-      l1Address: signer.address,
-      l2Address: l2Identity.l2Address,
-      l2StorageKey: storageKey,
-      leafIndex: registration.leafIndex.toString(),
-    },
-  });
 
   printJson({
     action: "deposit-bridge",
-    channelName: context.workspace.channelName,
-    wallet: walletContext.walletName,
-    operationDir,
     amountInput,
     amountBaseUnits: amount.toString(),
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
     leafIndex: registration.leafIndex.toString(),
+    tokenVault: bridgeVaultContext.tokenVaultAddress,
+    approveReceipt: sanitizeReceipt(approveReceipt),
+    registrationReceipt: sanitizeReceipt(registrationReceipt),
   });
-  sealWalletOperationDir(operationDir, walletContext.walletPassword);
 }
 
 async function handleFundL1({ args, env, network, provider }) {
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
+  const wallet = args.wallet ? loadWallet(requireWalletName(args), requireL2Password(args)) : null;
   const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: wallet });
-  const context = await loadChannelContext({
-    args,
-    networkName: network.name,
-    provider,
-    walletContext: wallet,
-  });
+  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
   const amountInput = requireArg(args.amount, "--amount");
-  const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
-  expect(
-    Number(wallet.wallet.channelId) === Number(context.workspace.channelId),
-    "The provided wallet does not belong to the selected channel.",
+  const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
+  const tokenVault = new Contract(
+    bridgeVaultContext.tokenVaultAddress,
+    bridgeVaultContext.bridgeAbiManifest.contracts.tokenVault.abi,
+    signer,
   );
-  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
-  const asset = new Contract(context.workspace.canonicalAsset, context.bridgeAbiManifest.contracts.erc20.abi, signer);
+  const asset = new Contract(
+    bridgeVaultContext.canonicalAsset,
+    bridgeVaultContext.bridgeAbiManifest.contracts.erc20.abi,
+    signer,
+  );
+  const approveReceipt = await waitForReceipt(await asset.approve(bridgeVaultContext.tokenVaultAddress, amount));
+  const fundReceipt = await waitForReceipt(await tokenVault.fund(amount));
 
-  await saveNoStateChangeOperation({
-    context,
-    operationName: "fund-l1",
-    actorLabel: signer.address,
-    operationDir: createWalletOperationDir(wallet.walletName, `fund-l1-${shortAddress(signer.address)}`),
-    workspaceLabel: wallet.walletName,
-    extraMetadata: {
-      amountInput,
-      amountBaseUnits: amount.toString(),
-    },
-    walletPassword: wallet.walletPassword,
-    execute: async (operationDir) => {
-      const approveReceipt = await waitForReceipt(
-        await asset.approve(context.workspace.tokenVault, amount),
-      );
-      const fundReceipt = await waitForReceipt(await tokenVault.fund(amount));
-      writeJson(path.join(operationDir, "approve-receipt.json"), sanitizeReceipt(approveReceipt));
-      writeJson(path.join(operationDir, "fund-receipt.json"), sanitizeReceipt(fundReceipt));
-      return { amountInput, amountBaseUnits: amount.toString() };
-    },
+  printJson({
+    action: "fund-l1",
+    wallet: wallet?.walletName ?? null,
+    amountInput,
+    amountBaseUnits: amount.toString(),
+    tokenVault: bridgeVaultContext.tokenVaultAddress,
+    approveReceipt: sanitizeReceipt(approveReceipt),
+    fundReceipt: sanitizeReceipt(fundReceipt),
   });
 }
 
@@ -648,7 +612,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   });
 
   const receipt = await waitForReceipt(
-    await tokenVault[direction](transition.proof, transition.update),
+    await tokenVault[direction](BigInt(context.workspace.channelId), transition.proof, transition.update),
   );
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
@@ -680,38 +644,26 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
 }
 
 async function handleClaim({ args, env, provider }) {
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
+  const wallet = args.wallet ? loadWallet(requireWalletName(args), requireL2Password(args)) : null;
   const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: wallet });
-  const context = await loadChannelContext({
-    args,
-    networkName: null,
-    provider,
-    walletContext: wallet,
-  });
-  expect(
-    Number(wallet.wallet.channelId) === Number(context.workspace.channelId),
-    "The provided wallet does not belong to the selected channel.",
-  );
+  const chainId = Number((await provider.getNetwork()).chainId);
+  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
   const amountInput = requireArg(args.amount, "--amount");
-  const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
-  const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
+  const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
+  const tokenVault = new Contract(
+    bridgeVaultContext.tokenVaultAddress,
+    bridgeVaultContext.bridgeAbiManifest.contracts.tokenVault.abi,
+    signer,
+  );
+  const receipt = await waitForReceipt(await tokenVault.claimToWallet(amount));
 
-  await saveNoStateChangeOperation({
-    context,
-    operationName: "claim",
-    actorLabel: signer.address,
-    operationDir: createWalletOperationDir(wallet.walletName, `claim-${shortAddress(signer.address)}`),
-    workspaceLabel: wallet.walletName,
-    extraMetadata: {
-      amountInput,
-      amountBaseUnits: amount.toString(),
-    },
-    walletPassword: wallet.walletPassword,
-    execute: async (operationDir) => {
-      const receipt = await waitForReceipt(await tokenVault.claimToWallet(amount));
-      writeJson(path.join(operationDir, "claim-receipt.json"), sanitizeReceipt(receipt));
-      return { amountInput, amountBaseUnits: amount.toString() };
-    },
+  printJson({
+    action: "claim",
+    wallet: wallet?.walletName ?? null,
+    amountInput,
+    amountBaseUnits: amount.toString(),
+    tokenVault: bridgeVaultContext.tokenVaultAddress,
+    receipt: sanitizeReceipt(receipt),
   });
 }
 
@@ -1225,6 +1177,32 @@ function loadBridgeResources({ chainId }) {
   };
 }
 
+async function loadBridgeVaultContext({ provider, chainId }) {
+  const bridgeResources = loadBridgeResources({ chainId });
+  const bridgeCore = new Contract(
+    bridgeResources.bridgeDeployment.bridgeCore,
+    bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
+    provider,
+  );
+  const tokenVaultAddress = getAddress(
+    bridgeResources.bridgeDeployment.tokenVault ?? await bridgeCore.tokenVault(),
+  );
+  const canonicalAsset = getAddress(await bridgeCore.canonicalAsset());
+  const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
+  const storageLayoutManifestPath = path.resolve(deployRoot, `storage-layout.${chainId}.latest.json`);
+  const storageLayoutManifest = readJson(storageLayoutManifestPath);
+  const liquidBalancesSlot = BigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
+
+  return {
+    ...bridgeResources,
+    bridgeCore,
+    tokenVaultAddress,
+    canonicalAsset,
+    canonicalAssetDecimals,
+    liquidBalancesSlot,
+  };
+}
+
 async function assertWorkspaceAlignedWithChain(context) {
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   const snapshotRootVectorHash = normalizeBytes32Hex(hashRootVector(context.currentSnapshot.stateRoots));
@@ -1235,45 +1213,6 @@ async function assertWorkspaceAlignedWithChain(context) {
       `Workspace: ${context.workspaceDir}`,
     ].join(" "),
   );
-}
-
-async function saveNoStateChangeOperation({
-  context,
-  operationName,
-  actorLabel,
-  extraMetadata,
-  execute,
-  operationDir,
-  workspaceLabel,
-  walletPrivateKey,
-}) {
-  const resolvedOperationDir =
-    operationDir ?? createOperationDir(context.workspaceName, `${operationName}-${shortAddress(actorLabel)}`);
-  ensureDir(resolvedOperationDir);
-  writeJson(path.join(resolvedOperationDir, "state_snapshot.json"), context.currentSnapshot);
-  writeJson(
-    path.join(resolvedOperationDir, "state_snapshot.normalized.json"),
-    normalizeStateSnapshot(context.currentSnapshot),
-  );
-
-  const result = await execute(resolvedOperationDir);
-  writeJson(path.join(resolvedOperationDir, "operation.json"), {
-    operationName,
-    actorLabel,
-    ...extraMetadata,
-    result,
-  });
-  printJson({
-    action: operationName,
-    workspace: workspaceLabel ?? context.workspaceName,
-    channelName: context.workspace.channelName,
-    operationDir: resolvedOperationDir,
-    ...extraMetadata,
-    result,
-  });
-  if (walletPrivateKey) {
-    sealWalletOperationDir(resolvedOperationDir, walletPrivateKey);
-  }
 }
 
 async function buildGrothTransition({ operationDir, workspace, stateManager, vaultAddress, keyHex, nextValue }) {
@@ -2015,11 +1954,11 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
   node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --password <string> [--amount <tokens>]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --password <string> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --password <string> --amount <tokens> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs claim [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> [--private-key <hex>] --password <string> [--args-file <path>] [--template-file <path>] [options]
 
 Common flags:
@@ -2050,13 +1989,13 @@ Notes:
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - deposit-bridge signs a domain-separated password message with the provided L1 private key and uses that signature as the seed for L2 key derivation.
-  - deposit-bridge stores the resulting L1 and L2 private keys inside wallet.json and encrypts that file with scrypt + AES-256-GCM under --password.
+  - deposit-bridge registers and funds the shared bridge-level L1 token vault. It does not create or refresh a channel wallet.
+  - deposit-channel is the first command that creates or refreshes a channel wallet from --private-key plus --password.
   - Once a wallet exists, wallet-show, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
-  - deposit-bridge allocates or refreshes a wallet from --private-key plus --password.
   - wallet-show requires an existing --wallet plus the matching --password.
   - Channel workspace operations are stored under:
       apps/private-state/cli/workspaces/<workspace>/operations/

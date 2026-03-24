@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
 import {BridgeStructs} from "./BridgeStructs.sol";
 import {ChannelManager} from "./ChannelManager.sol";
 import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
 
 interface IVaultKeyRegistry {
-    function reserveVaultKey(uint256 channelId, address user, bytes32 key) external returns (uint256);
+    function reserveVaultKey(address user, bytes32 key) external returns (uint256);
+    function getChannelManager(uint256 channelId) external view returns (address);
 }
 
-contract L1TokenVault is ReentrancyGuard {
+contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
@@ -25,6 +29,10 @@ contract L1TokenVault is ReentrancyGuard {
     error InsufficientAvailableBalance();
     error L2ValueOutOfRange(uint256 value);
     error GrothProofRejected();
+    error InvalidAsset();
+    error InvalidGrothVerifier();
+    error InvalidKeyRegistry();
+    error UnknownChannel(uint256 channelId);
     error UnsupportedAssetTransferBehavior(uint256 expectedDelta, uint256 actualDelta);
 
     struct VaultRegistration {
@@ -34,11 +42,9 @@ contract L1TokenVault is ReentrancyGuard {
         uint256 availableBalance;
     }
 
-    uint256 public immutable channelId;
-    IERC20 public immutable asset;
-    ChannelManager public immutable channelManager;
-    IGrothVerifier public immutable grothVerifier;
-    IVaultKeyRegistry public immutable keyRegistry;
+    IERC20 public asset;
+    IGrothVerifier public grothVerifier;
+    IVaultKeyRegistry public keyRegistry;
 
     mapping(address => VaultRegistration) private _registrations;
     mapping(uint256 => address) public registeredUserAtLeafIndex;
@@ -48,16 +54,29 @@ contract L1TokenVault is ReentrancyGuard {
     event StorageWriteObserved(address indexed storageAddr, uint256 storageKey, uint256 value);
     event AssetsClaimed(address indexed user, uint256 amount);
 
-    constructor(
-        uint256 channelId_,
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        address initialOwner,
         IERC20 asset_,
-        ChannelManager channelManager_,
         IGrothVerifier grothVerifier_,
         IVaultKeyRegistry keyRegistry_
-    ) {
-        channelId = channelId_;
+    ) external initializer {
+        if (address(asset_) == address(0)) revert InvalidAsset();
+        if (address(grothVerifier_) == address(0)) revert InvalidGrothVerifier();
+        if (address(keyRegistry_) == address(0)) revert InvalidKeyRegistry();
+
+        __Ownable_init();
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
+
+        if (initialOwner != _msgSender()) {
+            _transferOwnership(initialOwner);
+        }
+
         asset = asset_;
-        channelManager = channelManager_;
         grothVerifier = grothVerifier_;
         keyRegistry = keyRegistry_;
     }
@@ -66,7 +85,7 @@ contract L1TokenVault is ReentrancyGuard {
         if (_registrations[msg.sender].exists) revert AlreadyRegistered(msg.sender);
         if (amount == 0) revert InvalidAmount();
 
-        uint256 leafIndex = keyRegistry.reserveVaultKey(channelId, msg.sender, l2TokenVaultKey);
+        uint256 leafIndex = keyRegistry.reserveVaultKey(msg.sender, l2TokenVaultKey);
 
         _registrations[msg.sender] = VaultRegistration({
             exists: true,
@@ -92,13 +111,14 @@ contract L1TokenVault is ReentrancyGuard {
         emit AssetsFunded(msg.sender, amount);
     }
 
-    function deposit(BridgeStructs.GrothProof calldata proof, BridgeStructs.GrothUpdate calldata update)
+    function deposit(uint256 channelId, BridgeStructs.GrothProof calldata proof, BridgeStructs.GrothUpdate calldata update)
         external
         nonReentrant
         returns (bool)
     {
         VaultRegistration storage registration = _requireRegistration(msg.sender);
-        bytes32 currentRoot = _currentTokenVaultRoot(update);
+        ChannelManager channelManager = _requireChannelManager(channelId);
+        bytes32 currentRoot = _currentTokenVaultRoot(channelManager, update);
 
         _requireL2ValueInField(update.currentUserValue);
         _requireL2ValueInField(update.updatedUserValue);
@@ -127,13 +147,14 @@ contract L1TokenVault is ReentrancyGuard {
         return true;
     }
 
-    function withdraw(BridgeStructs.GrothProof calldata proof, BridgeStructs.GrothUpdate calldata update)
-        external
-        nonReentrant
-        returns (bool)
-    {
+    function withdraw(
+        uint256 channelId,
+        BridgeStructs.GrothProof calldata proof,
+        BridgeStructs.GrothUpdate calldata update
+    ) external nonReentrant returns (bool) {
         VaultRegistration storage registration = _requireRegistration(msg.sender);
-        bytes32 currentRoot = _currentTokenVaultRoot(update);
+        ChannelManager channelManager = _requireChannelManager(channelId);
+        bytes32 currentRoot = _currentTokenVaultRoot(channelManager, update);
 
         _requireL2ValueInField(update.currentUserValue);
         _requireL2ValueInField(update.updatedUserValue);
@@ -199,6 +220,12 @@ contract L1TokenVault is ReentrancyGuard {
         if (!registration.exists) revert NotRegistered(user);
     }
 
+    function _requireChannelManager(uint256 channelId) private view returns (ChannelManager channelManager) {
+        address channelManagerAddress = keyRegistry.getChannelManager(channelId);
+        if (channelManagerAddress == address(0)) revert UnknownChannel(channelId);
+        channelManager = ChannelManager(channelManagerAddress);
+    }
+
     function _pullAsset(address from, uint256 amount) private {
         uint256 vaultBalanceBefore = asset.balanceOf(address(this));
         asset.safeTransferFrom(from, address(this), amount);
@@ -214,7 +241,11 @@ contract L1TokenVault is ReentrancyGuard {
         }
     }
 
-    function _currentTokenVaultRoot(BridgeStructs.GrothUpdate calldata update) private view returns (bytes32) {
+    function _currentTokenVaultRoot(ChannelManager channelManager, BridgeStructs.GrothUpdate calldata update)
+        private
+        view
+        returns (bytes32)
+    {
         return update.currentRootVector[channelManager.tokenVaultTreeIndex()];
     }
 
@@ -230,8 +261,9 @@ contract L1TokenVault is ReentrancyGuard {
         pubSignals[4] = update.updatedUserValue;
     }
 
-    // The current circuit model treats each token-vault leaf as the raw stored value.
     function _encodeTokenVaultLeaf(uint256 userValue) private pure returns (bytes32) {
         return bytes32(userValue);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

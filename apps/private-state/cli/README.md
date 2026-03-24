@@ -35,8 +35,7 @@ Every CLI `--amount` input is interpreted as a human Tokamak Network Token amoun
 with the canonical token `decimals()` for the selected channel.
 Every CLI `--password` input accepts any string. During `deposit-bridge`, the CLI signs a domain-separated
 password message with the user's L1 `--private-key`, uses the resulting signature as the seed for
-`deriveL2KeysFromSignature`, stores the resulting L1/L2 private keys inside the wallet file, and encrypts that wallet
-file with `scrypt + AES-256-GCM` under `--password`.
+`deriveL2KeysFromSignature`, and derives the L2 identity that will later be used inside a channel wallet.
 
 ## Usage
 
@@ -51,6 +50,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `channel-create` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
   Token for the selected network.
 - `channel-create --create-workspace` uses the channel name itself as the channel-workspace name.
+- `deposit-bridge` registers a user in the shared bridge-level L1 token vault and funds that shared vault.
+- `deposit-channel` moves value from the shared bridge-level L1 token vault into the selected channel's L2 token vault.
 - `recover-workspace` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the stored
   `genesisBlockNumber` and writes it into `workspaces/<channel-name>/`.
 - `wallets` store per-user note plaintexts, classify notes into used vs unused sets, maintain aggregated
@@ -59,8 +60,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   channel workspace is present.
 - Wallets are mandatory for note-carrying users. They are the authoritative local record for note plaintexts,
   note usage, and per-user L2 nonce.
-- Wallet folders are encrypted at rest. After `deposit-bridge` creates the wallet, the CLI needs only the matching
-  `--password` to open or update that wallet.
+- Wallet folders are encrypted at rest. `deposit-channel` and `bridge-send` create or refresh the active wallet and the
+  CLI then needs only the matching `--password` to open or update that wallet.
 - The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
   cannot be opened without their own `--password`.
 
@@ -83,8 +84,6 @@ node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace \
   --channel-name demo-channel \
 
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge \
-  --channel-name demo-channel \
-  --wallet participant-a \
   --network sepolia \
   --private-key <hex> \
   --password "participant-a" \

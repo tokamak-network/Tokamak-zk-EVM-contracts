@@ -6,6 +6,7 @@ import {stdJson} from "forge-std/StdJson.sol";
 import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
 import {DAppManager} from "../src/DAppManager.sol";
+import {L1TokenVault} from "../src/L1TokenVault.sol";
 
 contract UpgradeBridgeStackScript is Script {
     using stdJson for string;
@@ -21,6 +22,8 @@ contract UpgradeBridgeStackScript is Script {
         address tokamakVerifier;
         address bridgeCore;
         address bridgeCoreImplementation;
+        address tokenVault;
+        address tokenVaultImplementation;
         address mockAsset;
     }
 
@@ -34,20 +37,27 @@ contract UpgradeBridgeStackScript is Script {
         address bridgeAdminManagerProxy = existingJson.readAddress(".bridgeAdminManager");
         address dAppManagerProxy = existingJson.readAddress(".dAppManager");
         address bridgeCoreProxy = existingJson.readAddress(".bridgeCore");
+        if (existingJson.parseRaw(".tokenVault").length == 0) {
+            revert("Existing deployment artifact has no shared token-vault proxy. Use redeploy-proxy mode once.");
+        }
+        address tokenVaultProxy = existingJson.readAddress(".tokenVault");
 
         vm.startBroadcast(deployerPrivateKey);
 
         BridgeAdminManager bridgeAdminManagerImplementation = new BridgeAdminManager();
         DAppManager dAppManagerImplementation = new DAppManager();
         BridgeCore bridgeCoreImplementation = new BridgeCore();
+        L1TokenVault tokenVaultImplementation = new L1TokenVault();
 
         BridgeAdminManager adminManagerProxyContract = BridgeAdminManager(bridgeAdminManagerProxy);
         DAppManager dAppManagerProxyContract = DAppManager(dAppManagerProxy);
         BridgeCore bridgeCoreProxyContract = BridgeCore(bridgeCoreProxy);
+        L1TokenVault tokenVaultProxyContract = L1TokenVault(tokenVaultProxy);
 
         adminManagerProxyContract.upgradeTo(address(bridgeAdminManagerImplementation));
         dAppManagerProxyContract.upgradeTo(address(dAppManagerImplementation));
         bridgeCoreProxyContract.upgradeTo(address(bridgeCoreImplementation));
+        tokenVaultProxyContract.upgradeTo(address(tokenVaultImplementation));
 
         address owner = bridgeCoreProxyContract.owner();
         address grothVerifier = address(bridgeCoreProxyContract.grothVerifier());
@@ -71,6 +81,8 @@ contract UpgradeBridgeStackScript is Script {
             tokamakVerifier: tokamakVerifier,
             bridgeCore: bridgeCoreProxy,
             bridgeCoreImplementation: address(bridgeCoreImplementation),
+            tokenVault: tokenVaultProxy,
+            tokenVaultImplementation: address(tokenVaultImplementation),
             mockAsset: mockAsset
         });
 
@@ -103,6 +115,8 @@ contract UpgradeBridgeStackScript is Script {
         vm.serializeAddress(deploymentJson, "tokamakVerifier", result.tokamakVerifier);
         vm.serializeAddress(deploymentJson, "bridgeCore", result.bridgeCore);
         vm.serializeAddress(deploymentJson, "bridgeCoreImplementation", result.bridgeCoreImplementation);
+        vm.serializeAddress(deploymentJson, "tokenVault", result.tokenVault);
+        vm.serializeAddress(deploymentJson, "tokenVaultImplementation", result.tokenVaultImplementation);
         string memory finalJson = vm.serializeAddress(deploymentJson, "mockAsset", result.mockAsset);
         vm.writeJson(finalJson, outputPath);
     }
@@ -116,6 +130,8 @@ contract UpgradeBridgeStackScript is Script {
         console2.log("DAppManager implementation:", result.dAppManagerImplementation);
         console2.log("BridgeCore proxy:", result.bridgeCore);
         console2.log("BridgeCore implementation:", result.bridgeCoreImplementation);
+        console2.log("L1TokenVault proxy:", result.tokenVault);
+        console2.log("L1TokenVault implementation:", result.tokenVaultImplementation);
     }
 
     function _resolvePath(string memory pathValue) private view returns (string memory) {

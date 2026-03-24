@@ -86,8 +86,8 @@ const channelManagerAbi = [
 ];
 const tokenVaultAbi = [
   "function registerAndFund(bytes32 l2TokenVaultKey, uint256 amount) external",
-  "function deposit((uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
-  "function withdraw((uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
+  "function deposit(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
+  "function withdraw(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function claimToWallet(uint256 amount) external",
   "function getRegistration(address user) external view returns (tuple(bool exists, bytes32 l2TokenVaultKey, uint256 leafIndex, uint256 availableBalance))",
 ];
@@ -1051,6 +1051,7 @@ async function main() {
     console.log(`E2E: applying Groth deposit for participant ${participant.index}.`);
     await (
       await tokenVault.connect(participant.l1).deposit(
+        channelId,
         depositTransition.proof,
         depositTransition.update,
         { nonce: consumeAccountNonce(participantNonces, participant.l1.address) },
@@ -1081,6 +1082,7 @@ async function main() {
   console.log("E2E: applying final Groth withdrawal for account C.");
   await (
     await tokenVault.connect(participants[2].l1).withdraw(
+      channelId,
       withdrawTransition.proof,
       withdrawTransition.update,
       { nonce: consumeAccountNonce(participantNonces, participants[2].l1.address) },

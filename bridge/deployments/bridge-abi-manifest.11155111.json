@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-24T16:04:48.463Z",
+  "generatedAt": "2026-03-24T17:35:07.818Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -275,32 +275,21 @@
         },
         {
           "type": "function",
-          "name": "canonicalAsset",
-          "inputs": [],
-          "outputs": [
+          "name": "bindSharedTokenVault",
+          "inputs": [
             {
-              "name": "",
+              "name": "tokenVault_",
               "type": "address",
               "internalType": "address"
             }
           ],
-          "stateMutability": "view"
+          "outputs": [],
+          "stateMutability": "nonpayable"
         },
         {
           "type": "function",
-          "name": "channelLeafIndexOwner",
-          "inputs": [
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
+          "name": "canonicalAsset",
+          "inputs": [],
           "outputs": [
             {
               "name": "",
@@ -315,9 +304,9 @@
           "name": "createChannel",
           "inputs": [
             {
-              "name": "channelName",
-              "type": "string",
-              "internalType": "string"
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
             },
             {
               "name": "dappId",
@@ -356,25 +345,6 @@
             }
           ],
           "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "deriveChannelId",
-          "inputs": [
-            {
-              "name": "channelName",
-              "type": "string",
-              "internalType": "string"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "stateMutability": "pure"
         },
         {
           "type": "function",
@@ -453,6 +423,25 @@
         },
         {
           "type": "function",
+          "name": "getChannelManager",
+          "inputs": [
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "globallyRegisteredVaultKeys",
           "inputs": [
             {
@@ -518,6 +507,25 @@
         },
         {
           "type": "function",
+          "name": "leafIndexOwner",
+          "inputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "owner",
           "inputs": [],
           "outputs": [
@@ -554,11 +562,6 @@
           "name": "reserveVaultKey",
           "inputs": [
             {
-              "name": "channelId",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
               "name": "user",
               "type": "address",
               "internalType": "address"
@@ -587,6 +590,19 @@
               "name": "",
               "type": "address",
               "internalType": "contract ITokamakVerifier"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "tokenVault",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "address"
             }
           ],
           "stateMutability": "view"
@@ -634,25 +650,6 @@
           ],
           "outputs": [],
           "stateMutability": "payable"
-        },
-        {
-          "type": "function",
-          "name": "vaultToChannelId",
-          "inputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "stateMutability": "view"
         },
         {
           "type": "event",
@@ -751,6 +748,19 @@
         },
         {
           "type": "event",
+          "name": "SharedTokenVaultBound",
+          "inputs": [
+            {
+              "name": "tokenVault",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "Upgraded",
           "inputs": [
             {
@@ -766,12 +776,6 @@
           "type": "event",
           "name": "VaultKeyReserved",
           "inputs": [
-            {
-              "name": "channelId",
-              "type": "uint256",
-              "indexed": true,
-              "internalType": "uint256"
-            },
             {
               "name": "user",
               "type": "address",
@@ -806,13 +810,8 @@
         },
         {
           "type": "error",
-          "name": "ChannelLeafIndexCollision",
+          "name": "GlobalLeafIndexCollision",
           "inputs": [
-            {
-              "name": "channelId",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
             {
               "name": "leafIndex",
               "type": "uint256",
@@ -863,7 +862,17 @@
         },
         {
           "type": "error",
-          "name": "OnlyChannelVault",
+          "name": "InvalidTokenVault",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "OnlySharedTokenVault",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "SharedTokenVaultAlreadySet",
           "inputs": []
         },
         {
@@ -2421,33 +2430,7 @@
       "abi": [
         {
           "type": "constructor",
-          "inputs": [
-            {
-              "name": "channelId_",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "asset_",
-              "type": "address",
-              "internalType": "contract IERC20"
-            },
-            {
-              "name": "channelManager_",
-              "type": "address",
-              "internalType": "contract ChannelManager"
-            },
-            {
-              "name": "grothVerifier_",
-              "type": "address",
-              "internalType": "contract IGrothVerifier"
-            },
-            {
-              "name": "keyRegistry_",
-              "type": "address",
-              "internalType": "contract IVaultKeyRegistry"
-            }
-          ],
+          "inputs": [],
           "stateMutability": "nonpayable"
         },
         {
@@ -2459,32 +2442,6 @@
               "name": "",
               "type": "address",
               "internalType": "contract IERC20"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "channelId",
-          "inputs": [],
-          "outputs": [
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "channelManager",
-          "inputs": [],
-          "outputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "contract ChannelManager"
             }
           ],
           "stateMutability": "view"
@@ -2506,6 +2463,11 @@
           "type": "function",
           "name": "deposit",
           "inputs": [
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
             {
               "name": "proof",
               "type": "tuple",
@@ -2668,6 +2630,34 @@
         },
         {
           "type": "function",
+          "name": "initialize",
+          "inputs": [
+            {
+              "name": "initialOwner",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "asset_",
+              "type": "address",
+              "internalType": "contract IERC20"
+            },
+            {
+              "name": "grothVerifier_",
+              "type": "address",
+              "internalType": "contract IGrothVerifier"
+            },
+            {
+              "name": "keyRegistry_",
+              "type": "address",
+              "internalType": "contract IVaultKeyRegistry"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
           "name": "keyRegistry",
           "inputs": [],
           "outputs": [
@@ -2675,6 +2665,32 @@
               "name": "",
               "type": "address",
               "internalType": "contract IVaultKeyRegistry"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "owner",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "proxiableUUID",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bytes32",
+              "internalType": "bytes32"
             }
           ],
           "stateMutability": "view"
@@ -2718,8 +2734,64 @@
         },
         {
           "type": "function",
+          "name": "renounceOwnership",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "transferOwnership",
+          "inputs": [
+            {
+              "name": "newOwner",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "upgradeTo",
+          "inputs": [
+            {
+              "name": "newImplementation",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "upgradeToAndCall",
+          "inputs": [
+            {
+              "name": "newImplementation",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "data",
+              "type": "bytes",
+              "internalType": "bytes"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "payable"
+        },
+        {
+          "type": "function",
           "name": "withdraw",
           "inputs": [
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
             {
               "name": "proof",
               "type": "tuple",
@@ -2791,6 +2863,25 @@
         },
         {
           "type": "event",
+          "name": "AdminChanged",
+          "inputs": [
+            {
+              "name": "previousAdmin",
+              "type": "address",
+              "indexed": false,
+              "internalType": "address"
+            },
+            {
+              "name": "newAdmin",
+              "type": "address",
+              "indexed": false,
+              "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "AssetsClaimed",
           "inputs": [
             {
@@ -2829,6 +2920,51 @@
         },
         {
           "type": "event",
+          "name": "BeaconUpgraded",
+          "inputs": [
+            {
+              "name": "beacon",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "Initialized",
+          "inputs": [
+            {
+              "name": "version",
+              "type": "uint8",
+              "indexed": false,
+              "internalType": "uint8"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "OwnershipTransferred",
+          "inputs": [
+            {
+              "name": "previousOwner",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            },
+            {
+              "name": "newOwner",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "StorageWriteObserved",
           "inputs": [
             {
@@ -2848,6 +2984,19 @@
               "type": "uint256",
               "indexed": false,
               "internalType": "uint256"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "Upgraded",
+          "inputs": [
+            {
+              "name": "implementation",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
             }
           ],
           "anonymous": false
@@ -2905,6 +3054,21 @@
         },
         {
           "type": "error",
+          "name": "InvalidAsset",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "InvalidGrothVerifier",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "InvalidKeyRegistry",
+          "inputs": []
+        },
+        {
+          "type": "error",
           "name": "KeyMismatch",
           "inputs": []
         },
@@ -2932,17 +3096,23 @@
         },
         {
           "type": "error",
-          "name": "ReentrancyGuardReentrantCall",
-          "inputs": []
-        },
-        {
-          "type": "error",
           "name": "SafeERC20FailedOperation",
           "inputs": [
             {
               "name": "token",
               "type": "address",
               "internalType": "address"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "UnknownChannel",
+          "inputs": [
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
             }
           ]
         },

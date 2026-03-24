@@ -182,7 +182,7 @@ The CLI:
   `<channel-name>` channel-workspace folder
 - manages mandatory per-user wallets that store note plaintexts, used/unused note sets, and aggregated unused-note balance
 - generates Groth and Tokamak proofs
-- submits bridge transactions for `deposit`, `withdraw`, `claim`, and DApp function execution
+- submits bridge transactions for `deposit-channel`, `withdraw`, `claim`, and DApp function execution
 
 The current CLI treats wallet storage as a clean-slate local model. Legacy CLI data is not reused.
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount and converted with the canonical

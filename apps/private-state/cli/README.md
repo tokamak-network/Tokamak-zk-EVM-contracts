@@ -90,7 +90,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge \
   --password "participant-a" \
   --amount 3
 
-node apps/private-state/cli/private-state-bridge-cli.mjs deposit \
+node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel \
   --channel-name demo-channel \
   --wallet participant-a \
   --network sepolia \

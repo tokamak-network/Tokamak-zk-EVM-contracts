@@ -132,7 +132,7 @@ async function main() {
     case "fund-l1":
       await handleFundL1({ args, env, network, provider });
       return;
-    case "deposit":
+    case "deposit-channel":
       await handleGrothVaultMove({ args, env, network, provider, direction: "deposit" });
       return;
     case "withdraw":
@@ -179,6 +179,9 @@ function assertNoLegacyL2IdentityFlags(args) {
 function assertNoLegacyCommandNames(args) {
   if (args.command === "register-and-fund") {
     throw new Error("register-and-fund is no longer supported. Use deposit-bridge instead.");
+  }
+  if (args.command === "deposit") {
+    throw new Error("deposit is no longer supported. Use deposit-channel instead.");
   }
 }
 
@@ -621,7 +624,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
     nextValue = currentValue - amount;
   }
 
-  const operationName = direction === "deposit" ? "deposit" : "withdraw";
+  const operationName = direction === "deposit" ? "deposit-channel" : "withdraw";
   const walletContext = ensureWallet({
     args,
     channelContext: context,
@@ -2010,7 +2013,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --password <string> [--amount <tokens>]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> --wallet <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> --wallet <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> [--private-key <hex>] --password <string> [--args-file <path>] [--template-file <path>] [options]
@@ -2045,7 +2048,7 @@ Notes:
   - deposit-bridge signs a domain-separated password message with the provided L1 private key and uses that signature as the seed for L2 key derivation.
   - deposit-bridge stores the resulting L1 and L2 private keys inside wallet.json and encrypts that file with scrypt + AES-256-GCM under --password.
   - Once a wallet exists, wallet-show, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
-  - deposit and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
+  - deposit-channel and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.

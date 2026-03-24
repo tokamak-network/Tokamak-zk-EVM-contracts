@@ -31,6 +31,7 @@ contract ChannelManager {
     address public immutable leader;
     bytes32 public immutable aPubBlockHash;
     uint256 public immutable tokenVaultTreeIndex;
+    address public immutable tokenVaultStorageAddress;
     address public immutable bridgeCore;
     ITokamakVerifier public immutable tokamakVerifier;
 
@@ -43,8 +44,7 @@ contract ChannelManager {
     mapping(bytes32 => bool) private _allowedFunctionKeys;
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
     mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
-    mapping(bytes32 => address[]) private _functionStorageAddresses;
-    mapping(bytes32 => BridgeStructs.StorageWriteMetadata[]) private _functionStorageWrites;
+    mapping(bytes32 => uint8[]) private _functionTokenVaultWriteOffsets;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
     mapping(uint256 => bytes32) private _latestTokenVaultLeaves;
@@ -81,6 +81,7 @@ contract ChannelManager {
             revert InvalidTokenVaultTreeIndex();
         }
         tokenVaultTreeIndex = tokenVaultTreeIndex_;
+        tokenVaultStorageAddress = managedStorageAddresses_[tokenVaultTreeIndex_];
 
         if (managedStorageAddresses_.length != initialRootVector_.length) {
             revert StorageAddressVectorLengthMismatch();
@@ -104,14 +105,16 @@ contract ChannelManager {
 
             address[] memory functionStorages =
                 dAppManager_.getFunctionStorages(dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
-            for (uint256 j = 0; j < functionStorages.length; j++) {
-                _functionStorageAddresses[functionKey].push(functionStorages[j]);
-            }
-
             BridgeStructs.StorageWriteMetadata[] memory storageWrites =
                 dAppManager_.getFunctionStorageWrites(dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
             for (uint256 j = 0; j < storageWrites.length; j++) {
-                _functionStorageWrites[functionKey].push(storageWrites[j]);
+                uint8 storageAddrIndex = storageWrites[j].storageAddrIndex;
+                if (storageAddrIndex >= functionStorages.length) {
+                    revert InvalidStorageWriteStorageIndex(storageAddrIndex);
+                }
+                if (functionStorages[storageAddrIndex] == tokenVaultStorageAddress) {
+                    _functionTokenVaultWriteOffsets[functionKey].push(storageWrites[j].aPubOffsetWords);
+                }
             }
         }
     }
@@ -237,14 +240,14 @@ contract ChannelManager {
         return _latestTokenVaultLeaves[leafIndex];
     }
 
-    function getFunctionStorageWrites(address entryContract, bytes4 functionSig)
+    function getFunctionTokenVaultWriteOffsets(address entryContract, bytes4 functionSig)
         external
         view
-        returns (BridgeStructs.StorageWriteMetadata[] memory out)
+        returns (uint8[] memory out)
     {
         bytes32 functionKey = _computeFunctionKey(entryContract, functionSig);
-        BridgeStructs.StorageWriteMetadata[] storage source = _functionStorageWrites[functionKey];
-        out = new BridgeStructs.StorageWriteMetadata[](source.length);
+        uint8[] storage source = _functionTokenVaultWriteOffsets[functionKey];
+        out = new uint8[](source.length);
         for (uint256 i = 0; i < source.length; i++) {
             out[i] = source[i];
         }
@@ -324,41 +327,20 @@ contract ChannelManager {
         bytes32 currentTokenVaultRoot,
         bytes32 updatedTokenVaultRoot
     ) private {
-        address[] storage functionStorageAddresses = _functionStorageAddresses[functionKey];
-        BridgeStructs.StorageWriteMetadata[] storage storageWrites = _functionStorageWrites[functionKey];
+        uint8[] storage tokenVaultWriteOffsets = _functionTokenVaultWriteOffsets[functionKey];
 
-        for (uint256 i = 0; i < storageWrites.length; i++) {
-            BridgeStructs.StorageWriteMetadata storage storageWrite = storageWrites[i];
-            if (storageWrite.storageAddrIndex >= functionStorageAddresses.length) {
-                revert InvalidStorageWriteStorageIndex(storageWrite.storageAddrIndex);
-            }
+        for (uint256 i = 0; i < tokenVaultWriteOffsets.length; i++) {
+            uint256 aPubOffsetWords = tokenVaultWriteOffsets[i];
+            uint256 leafIndex = _decodeSplitWord(aPubUser, aPubOffsetWords);
+            uint256 value = _decodeSplitWord(aPubUser, aPubOffsetWords + STORAGE_WRITE_VALUE_OFFSET);
 
-            address storageAddr = functionStorageAddresses[storageWrite.storageAddrIndex];
-            uint256 leafIndex = _decodeSplitWord(aPubUser, storageWrite.aPubOffsetWords);
-            uint256 value = _decodeSplitWord(aPubUser, storageWrite.aPubOffsetWords + STORAGE_WRITE_VALUE_OFFSET);
-
-            if (storageAddr == _managedStorageAddresses[tokenVaultTreeIndex]) {
-                emit StorageWriteObserved(storageAddr, leafIndex, value);
-                _applyVaultUpdate(currentTokenVaultRoot, updatedTokenVaultRoot, leafIndex, bytes32(value));
-            }
+            emit StorageWriteObserved(tokenVaultStorageAddress, leafIndex, value);
+            _applyVaultUpdate(currentTokenVaultRoot, updatedTokenVaultRoot, leafIndex, bytes32(value));
         }
     }
 
     function _hasTokenVaultStorageWrite(bytes32 functionKey) private view returns (bool) {
-        address[] storage functionStorageAddresses = _functionStorageAddresses[functionKey];
-        BridgeStructs.StorageWriteMetadata[] storage storageWrites = _functionStorageWrites[functionKey];
-
-        for (uint256 i = 0; i < storageWrites.length; i++) {
-            BridgeStructs.StorageWriteMetadata storage storageWrite = storageWrites[i];
-            if (storageWrite.storageAddrIndex >= functionStorageAddresses.length) {
-                revert InvalidStorageWriteStorageIndex(storageWrite.storageAddrIndex);
-            }
-            if (functionStorageAddresses[storageWrite.storageAddrIndex] == _managedStorageAddresses[tokenVaultTreeIndex]) {
-                return true;
-            }
-        }
-
-        return false;
+        return _functionTokenVaultWriteOffsets[functionKey].length != 0;
     }
 
     function _decodeBytes32FromAPubUser(uint256[] calldata aPubUser, uint256 startIndex)

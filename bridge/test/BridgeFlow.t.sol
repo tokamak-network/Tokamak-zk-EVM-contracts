@@ -144,6 +144,7 @@ contract BridgeFlowTest is Test {
         assertEq(currentRoots.length, managedStorageAddresses.length);
         assertEq(currentRoots[0], INITIAL_ZERO_ROOT);
         assertEq(currentRoots[1], INITIAL_ZERO_ROOT);
+        assertEq(channelManager.currentRootVectorHash(), _hashRootVector(currentRoots));
     }
 
     function testRejectsPerChannelLeafCollision() public {
@@ -276,6 +277,7 @@ contract BridgeFlowTest is Test {
 
         bytes32[] memory currentRoots = channelManager.getCurrentRootVector();
         assertEq(currentRoots[0], bytes32(pubSignals[1]));
+        assertEq(channelManager.currentRootVectorHash(), _hashRootVector(currentRoots));
         assertEq(
             channelManager.getLatestTokenVaultLeaf(registration.leafIndex),
             tokenVault.encodeTokenVaultLeaf(bytes32(0), 10)
@@ -310,6 +312,9 @@ contract BridgeFlowTest is Test {
         });
         vm.prank(alice);
         tokenVault.withdraw(_withdrawProof(), withdrawUpdate);
+
+        bytes32[] memory currentRoots = channelManager.getCurrentRootVector();
+        assertEq(channelManager.currentRootVectorHash(), _hashRootVector(currentRoots));
 
         L1TokenVault.VaultRegistration memory registration = tokenVault.getRegistration(alice);
         assertEq(registration.availableBalance, 100 ether - 4);
@@ -465,6 +470,7 @@ contract BridgeFlowTest is Test {
         assertTrue(accepted);
 
         bytes32[] memory resultingRoots = localChannelManager.getCurrentRootVector();
+        assertEq(localChannelManager.currentRootVectorHash(), _hashRootVector(resultingRoots));
         assertEq(resultingRoots.length, updatedRoots.length);
         for (uint256 i = 0; i < updatedRoots.length; i++) {
             assertEq(resultingRoots[i], updatedRoots[i]);
@@ -793,11 +799,18 @@ contract BridgeFlowTest is Test {
         return keccak256(abi.encode(part1, part2));
     }
 
+    function _hashRootVector(bytes32[] memory rootVector) internal pure returns (bytes32) {
+        return keccak256(abi.encode(rootVector));
+    }
+
     function _seedChannelCurrentRoots(ChannelManager targetChannelManager, bytes32[] memory currentRoots) internal {
-        vm.store(address(targetChannelManager), bytes32(uint256(1)), bytes32(currentRoots.length));
-        bytes32 dataBaseSlot = keccak256(abi.encode(uint256(1)));
+        // ChannelManager layout keeps `tokenVault` at slot 0, `currentRootVectorHash` at slot 1,
+        // and `_currentRootVector` at slot 2.
+        vm.store(address(targetChannelManager), bytes32(uint256(2)), bytes32(currentRoots.length));
+        bytes32 dataBaseSlot = keccak256(abi.encode(uint256(2)));
         for (uint256 i = 0; i < currentRoots.length; i++) {
             vm.store(address(targetChannelManager), bytes32(uint256(dataBaseSlot) + i), currentRoots[i]);
         }
+        vm.store(address(targetChannelManager), bytes32(uint256(1)), _hashRootVector(currentRoots));
     }
 }

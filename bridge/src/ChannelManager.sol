@@ -16,7 +16,6 @@ contract ChannelManager {
     error OnlyBridgeCore();
     error OnlyTokenVault();
     error TokenVaultAlreadySet();
-    error RootVectorLengthMismatch();
     error StorageAddressVectorLengthMismatch();
     error UnexpectedCurrentRootVector();
     error UnsupportedChannelFunction(address entryContract, bytes4 functionSig);
@@ -39,9 +38,9 @@ contract ChannelManager {
     ITokamakVerifier public immutable tokamakVerifier;
 
     address public tokenVault;
+    bytes32 public currentRootVectorHash;
 
     bytes32[] private _currentRootVector;
-    bytes32[][] private _rootHistory;
     address[] private _managedStorageAddresses;
 
     mapping(bytes32 => bool) private _allowedFunctionKeys;
@@ -55,6 +54,7 @@ contract ChannelManager {
     event TokenVaultBound(address indexed tokenVault);
     event TokamakStateUpdateAccepted(bytes4 indexed functionSig, address indexed entryContract);
     event VaultRootUpdateApplied(bytes32 indexed currentRoot, bytes32 indexed updatedRoot, uint256 leafIndex);
+    event RootVectorUpdated(bytes32 indexed rootVectorHash, bytes32[] rootVector);
 
     constructor(
         uint256 channelId_,
@@ -167,7 +167,7 @@ contract ChannelManager {
         }
 
         _currentRootVector[tokenVaultTreeIndex] = updatedTokenVaultRoot;
-        _pushHistorySnapshot(_currentRootVector);
+        _publishCurrentRootVector(_copyBytes32Array(_currentRootVector));
         _setLatestTokenVaultLeaf(leafIndex, latestLeafValue);
 
         emit VaultRootUpdateApplied(currentTokenVaultRoot, updatedTokenVaultRoot, leafIndex);
@@ -176,14 +176,6 @@ contract ChannelManager {
 
     function getCurrentRootVector() external view returns (bytes32[] memory) {
         return _copyBytes32Array(_currentRootVector);
-    }
-
-    function getRootHistoryLength() external view returns (uint256) {
-        return _rootHistory.length;
-    }
-
-    function getRootHistorySnapshot(uint256 index) external view returns (bytes32[] memory) {
-        return _copyBytes32Array(_rootHistory[index]);
     }
 
     function getManagedStorageAddresses() external view returns (address[] memory) {
@@ -225,15 +217,7 @@ contract ChannelManager {
         for (uint256 i = 0; i < newRootVector.length; i++) {
             _currentRootVector.push(newRootVector[i]);
         }
-        _pushHistorySnapshot(newRootVector);
-    }
-
-    function _pushHistorySnapshot(bytes32[] memory snapshot) private {
-        _rootHistory.push();
-        uint256 snapshotIndex = _rootHistory.length - 1;
-        for (uint256 i = 0; i < snapshot.length; i++) {
-            _rootHistory[snapshotIndex].push(snapshot[i]);
-        }
+        _publishCurrentRootVector(newRootVector);
     }
 
     function _replaceManagedStorageAddresses(address[] memory storageAddresses) private {
@@ -310,6 +294,11 @@ contract ChannelManager {
 
     function _computeFunctionKey(address entryContract, bytes4 functionSig) private pure returns (bytes32) {
         return keccak256(abi.encode(entryContract, functionSig));
+    }
+
+    function _publishCurrentRootVector(bytes32[] memory rootVector) private {
+        currentRootVectorHash = keccak256(abi.encode(rootVector));
+        emit RootVectorUpdated(currentRootVectorHash, rootVector);
     }
 
     function _setLatestTokenVaultLeaf(uint256 leafIndex, bytes32 leafValue) private {

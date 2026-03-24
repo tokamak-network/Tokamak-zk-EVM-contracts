@@ -105,7 +105,8 @@ This split matters because privacy, data availability, and safe exit are not ide
 
 At the channel level, the L1 bridge currently manages the following information and control points:
 
-- the history of changes to the channel's Merkle-root vector
+- the current Merkle-root vector
+- the current `keccak256` hash of that root vector
 - the latest leaves of the channel's current L2 token-vault tree
 - the channel's L1 token vault
 - each user's registered L2 token-vault key for that channel
@@ -119,6 +120,8 @@ At the channel level, the L1 bridge currently manages the following information 
 The bridge currently does not store obsolete historical leaves once they are no longer current.
 
 The bridge no longer stores the latest leaves of every current tree in a channel. The storage rule is now narrower: it stores only the latest leaves of each channel's current L2 token-vault tree.
+
+The bridge also no longer stores full root-vector history on-chain. When the root vector changes, the current vector remains in storage, its `keccak256` hash is stored, and the full updated vector is emitted through an event log instead of being appended to a persistent on-chain history array.
 
 ### 2.4 Vault Registration and Authorization Model
 
@@ -433,7 +436,7 @@ The following invariants summarize the current design:
 - every channel transaction update must be backed by a Tokamak proof whose `aPubUser` fields match the submitted transaction instance
 - every channel transaction update must be backed by the correct channel-scoped `aPubBlock`
 - every channel transaction update must be backed by the correct preprocess input for the called function
-- L1 must preserve the history of Merkle-root-vector changes for each channel
+- L1 must preserve the current Merkle-root vector for each channel and expose the accepted change stream through event logs
 - L1 must store the latest leaves of each channel's current L2 token-vault tree while not retaining obsolete historical leaves
 - only the System administrator may add a new DApp to the DApp manager
 - a channel manager may accept Tokamak-zkp-based updates only for the contract-and-function surface it inherited from the selected DApp
@@ -479,7 +482,7 @@ The following condensed log records which major parts of the design were introdu
 - The term `System` refers to Tokamak Private App Channels.
 - The System is divided into L1 bridge contracts and an L2 server with independent state.
 - L2 is a state machine realized by Merkle trees and represented by a Merkle-root vector.
-- The L1 bridge manages multiple channels by storing root-vector history and accepted state updates.
+- The L1 bridge manages multiple channels by storing the current root vector, its hash, and accepted state-update events.
 - Each channel has its own L1 token vault and one dedicated L2 token-vault or accounting-vault tree.
 - Every accepted Merkle-tree update in a channel is under L1 control.
 - The System uses Groth zkp for token-vault control and Tokamak zkp for channel transaction processing.
@@ -507,6 +510,7 @@ The following condensed log records which major parts of the design were introdu
 - Registration succeeds only if no such per-channel leaf-index collision exists.
 - If the derived leaf index collides in that channel, the user must try a different L2 token-vault key.
 - L1 no longer stores the latest leaves of all current channel trees; it stores only the latest leaves of each channel's current L2 token-vault tree.
+- L1 no longer stores full root-vector history in storage; it stores the current root vector and its hash, and emits each accepted root-vector update as an event.
 - The old separate `channel instance` object is no longer used by the bridge; channel-scoped verification context is currently represented by `aPubBlockHash`.
 - The old separate `function instance` and `function preprocess` objects are currently treated as being embedded in the submitted preprocess calldata and enforced through `preprocessInputHash`.
 - The current bridge implementation reads transaction-instance fields back out of `aPubUser` using the offsets described in `instance_description.json`.

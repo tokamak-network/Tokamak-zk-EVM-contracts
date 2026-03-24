@@ -97,7 +97,7 @@ Under the System model, DApp users still propose state updates and Ethereum vali
 
 ### 2.4 Architecture
 
-The L1 bridge layer manages channels, asset custody, proof verification, and the Ethereum-visible history of channel state transitions. It also manages the supported DApps of the System and enforces which contracts and functions each channel may use.
+The L1 bridge layer manages channels, asset custody, proof verification, and the Ethereum-visible commitment trail of channel state transitions. It also manages the supported DApps of the System and enforces which contracts and functions each channel may use.
 
 The L2 server is the off-chain environment in which private channel execution occurs. It maintains candidate channel state, coordinates user activity, and produces the witness data required for proof generation. It is not a trust anchor. Its role is operational coordination, not authoritative settlement.
 
@@ -267,7 +267,7 @@ The current design also creates explicit tradeoffs:
 
 ## 3. Conclusion
 
-Tokamak Private App Channels define a validity-proof-based Ethereum Layer 2 architecture in which private, application-specific channels execute off-chain while Ethereum remains the canonical layer for custody, state validity, and final settlement. The bridge manages channels, DApps, proof metadata, token vaults, and the Ethereum-visible commitment history of each channel. The L2 server coordinates execution, but authoritative state changes occur only after proof verification on L1.
+Tokamak Private App Channels define a validity-proof-based Ethereum Layer 2 architecture in which private, application-specific channels execute off-chain while Ethereum remains the canonical layer for custody, state validity, and final settlement. The bridge manages channels, DApps, proof metadata, token vaults, and the Ethereum-visible commitment trail of each channel. The L2 server coordinates execution, but authoritative state changes occur only after proof verification on L1.
 
 The most important architectural consequence is that the System replaces validator-side transaction re-execution with validator-side proof verification. This makes channel execution private by default, shortens withdrawal latency relative to fault-proof challenge-window models, and preserves a clean settlement boundary on Ethereum. At the same time, the System does not by itself solve all privacy and data-availability problems. Strong privacy requires a private-state DApp model, and strong application-state availability requires assumptions or mechanisms beyond the token-vault path.
 

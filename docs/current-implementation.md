@@ -41,7 +41,7 @@ This document lists:
 
 7. Missing state-indexed root relation (`R`) and corresponding getter.
 - Spec requires `stateIndex`, `StateIndices`, and `getVerifiedStateRoot(storageAddr, stateIndex)`.
-- Current implementation keeps only `initialStateRoot` and `finalStateRoot` in `Channel`, with no indexed root history.
+- Current implementation keeps the current root vector and its hash in storage and emits accepted root-vector updates through events, but it does not maintain an indexed on-chain root-history relation.
 
 8. Missing required setter functions and signatures from the spec.
 - Spec defines `updateSingleStorage(...) -> bool` and `updateAllStorages(...) -> bool`.

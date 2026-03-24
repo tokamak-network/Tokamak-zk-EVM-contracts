@@ -151,11 +151,13 @@ BRIDGE_MERKLE_TREE_LEVELS="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process
 BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.version));});')"
 export BRIDGE_MERKLE_TREE_LEVELS
 BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge.${BRIDGE_CHAIN_ID}.json}"
-export BRIDGE_OUTPUT_PATH
 BRIDGE_INPUT_PATH="${BRIDGE_INPUT_PATH:-$BRIDGE_OUTPUT_PATH}"
+BRIDGE_OUTPUT_PATH="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
+BRIDGE_INPUT_PATH="$(resolve_bridge_path "$BRIDGE_INPUT_PATH")"
+export BRIDGE_OUTPUT_PATH
 export BRIDGE_INPUT_PATH
 
-BRIDGE_OUTPUT_PATH_ABS_FOR_MODE="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
+BRIDGE_OUTPUT_PATH_ABS_FOR_MODE="$BRIDGE_OUTPUT_PATH"
 FORGE_SCRIPT="script/UpgradeBridgeStack.s.sol:UpgradeBridgeStackScript"
 
 if [[ "${DEPLOY_MODE}" == "redeploy-proxy" ]]; then

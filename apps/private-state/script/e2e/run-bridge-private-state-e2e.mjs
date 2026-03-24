@@ -72,7 +72,8 @@ const blsScalarFieldModulus = BigInt("0x73eda753299d7d483339d80809a1d80553bda402
 const abiCoder = AbiCoder.defaultAbiCoder();
 const deployerAddress = new Wallet(anvilDeployerPrivateKey).address;
 const bridgeCoreAbi = [
-  "function createChannel(string channelName, uint256 dappId, address leader, address asset) external returns (address manager, address vault)",
+  "function canonicalAsset() external view returns (address)",
+  "function createChannel(string channelName, uint256 dappId, address leader) external returns (address manager, address vault)",
   "function deriveChannelId(string channelName) external pure returns (uint256)",
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address vault,bytes32 aPubBlockHash))",
 ];
@@ -961,7 +962,11 @@ async function main() {
   console.log("E2E: deploying bridge stack.");
   const bridgeDeployment = await deployBridgeStack();
   const bridgeDeployer = new Wallet(anvilDeployerPrivateKey, provider);
-  const asset = new Contract(bridgeDeployment.mockAsset, mockErc20Abi, bridgeDeployer);
+  const canonicalAssetAddress = getAddress(await bridgeCore.canonicalAsset());
+  const mockAssetCode = await provider.getCode(bridgeDeployment.mockAsset);
+  expect(mockAssetCode !== "0x", "Mock asset deployment must exist before installing canonical asset code.");
+  await provider.send("anvil_setCode", [canonicalAssetAddress, mockAssetCode]);
+  const asset = new Contract(canonicalAssetAddress, mockErc20Abi, bridgeDeployer);
   const dAppManager = new Contract(bridgeDeployment.dAppManager, dAppManagerAbi, bridgeDeployer);
   const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeCoreAbi, bridgeDeployer);
   let bridgeDeployerNonce = await provider.getTransactionCount(bridgeDeployer.address, "latest");
@@ -991,13 +996,7 @@ async function main() {
 
   console.log("E2E: creating channel.");
   await (
-    await bridgeCore.createChannel(
-      channelName,
-      dappId,
-      leader,
-      bridgeDeployment.mockAsset,
-      { nonce: bridgeDeployerNonce++ },
-    )
+    await bridgeCore.createChannel(channelName, dappId, leader, { nonce: bridgeDeployerNonce++ })
   ).wait();
   const channelDeployment = await bridgeCore.getChannel(channelId);
 

@@ -33,7 +33,7 @@ contract DeployBridgeStackScript is Script {
         address owner = vm.envOr("BRIDGE_OWNER", deployer);
         uint8 merkleTreeLevels = uint8(vm.envUint("BRIDGE_MERKLE_TREE_LEVELS"));
         bool deployMockAsset = vm.envOr("BRIDGE_DEPLOY_MOCK_ASSET", false);
-        string memory outputPath = vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge.json"));
+        string memory outputPath = _resolvePath(vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge.json")));
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -128,5 +128,13 @@ contract DeployBridgeStackScript is Script {
         console2.log("BridgeCore proxy:", result.bridgeCore);
         console2.log("BridgeCore implementation:", result.bridgeCoreImplementation);
         console2.log("Mock asset:", result.mockAsset);
+    }
+
+    function _resolvePath(string memory pathValue) private view returns (string memory) {
+        bytes memory pathBytes = bytes(pathValue);
+        if (pathBytes.length > 0 && pathBytes[0] == "/") {
+            return pathValue;
+        }
+        return string.concat(vm.projectRoot(), "/", pathValue);
     }
 }

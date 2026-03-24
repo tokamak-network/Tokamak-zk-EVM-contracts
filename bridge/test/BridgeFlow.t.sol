@@ -98,16 +98,13 @@ contract BridgeFlowTest is Test {
         channelId = bridgeCore.deriveChannelId(channelName);
         secondChannelId = bridgeCore.deriveChannelId(secondChannelName);
 
-        asset = new MockERC20("Mock Asset", "MA");
+        MockERC20 assetImplementation = new MockERC20("Mock Asset", "MA");
+        asset = MockERC20(bridgeCore.canonicalAsset());
+        vm.etch(address(asset), address(assetImplementation).code);
         asset.mint(alice, 1_000 ether);
         asset.mint(bob, 1_000 ether);
 
-        (address manager, address vault) = bridgeCore.createChannel(
-            channelName,
-            1,
-            leader,
-            asset
-        );
+        (address manager, address vault) = bridgeCore.createChannel(channelName, 1, leader);
 
         channelManager = ChannelManager(manager);
         tokenVault = L1TokenVault(vault);
@@ -169,12 +166,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         tokenVault.registerAndFund(reusedKey, 10 ether);
 
-        (, address secondVaultAddress) = bridgeCore.createChannel(
-            secondChannelName,
-            1,
-            leader,
-            asset
-        );
+        (, address secondVaultAddress) = bridgeCore.createChannel(secondChannelName, 1, leader);
 
         L1TokenVault secondVault = L1TokenVault(secondVaultAddress);
         vm.prank(bob);
@@ -280,7 +272,7 @@ contract BridgeFlowTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(BridgeCore.TooManyManagedStorages.selector, uint256(12), uint256(11))
         );
-        bridgeCore.createChannel("missing-block-context-channel", 3, leader, asset);
+        bridgeCore.createChannel("missing-block-context-channel", 3, leader);
     }
 
     function testGrothDepositUpdatesVaultStateAndRootVector() public {
@@ -408,11 +400,13 @@ contract BridgeFlowTest is Test {
     }
 
     function testRejectsFeeOnTransferAssetDuringRegistration() public {
-        FeeOnTransferMockERC20 feeAsset = new FeeOnTransferMockERC20("Fee Asset", "FEE", 100, address(0xFEE));
+        FeeOnTransferMockERC20 feeAssetImplementation =
+            new FeeOnTransferMockERC20("Fee Asset", "FEE", 100, address(0xFEE));
+        FeeOnTransferMockERC20 feeAsset = FeeOnTransferMockERC20(address(asset));
+        vm.etch(address(feeAsset), address(feeAssetImplementation).code);
         feeAsset.mint(alice, 100 ether);
 
-        (address manager, address vault) =
-            bridgeCore.createChannel("fee-on-transfer-channel", 1, leader, feeAsset);
+        (address manager, address vault) = bridgeCore.createChannel("fee-on-transfer-channel", 1, leader);
 
         manager;
         L1TokenVault feeVault = L1TokenVault(vault);
@@ -613,11 +607,9 @@ contract BridgeFlowTest is Test {
             IGrothVerifier(address(grothVerifier)),
             ITokamakVerifier(address(tokamakVerifier))
         );
-        MockERC20 localAsset = new MockERC20("Bridge Unexpected State Asset", "BUSA");
         _setBlockContextFromAPubBlock(proofPayload.aPubBlock);
 
-        (address manager,) =
-            localBridgeCore.createChannel("local-channel-invalid-layout-a", 99, leader, localAsset);
+        (address manager,) = localBridgeCore.createChannel("local-channel-invalid-layout-a", 99, leader);
         ChannelManager localChannelManager = ChannelManager(manager);
 
         vm.expectRevert(ChannelManager.UnexpectedCurrentRootVector.selector);
@@ -663,11 +655,9 @@ contract BridgeFlowTest is Test {
             IGrothVerifier(address(localGrothVerifier)),
             ITokamakVerifier(address(tokamakVerifier))
         );
-        MockERC20 localAsset = new MockERC20("Bridge Positive Path Asset", "BPPA");
         _setBlockContextFromAPubBlock(proofPayload.aPubBlock);
 
-        (address manager,) =
-            localBridgeCore.createChannel("local-channel-invalid-layout-b", 99, leader, localAsset);
+        (address manager,) = localBridgeCore.createChannel("local-channel-invalid-layout-b", 99, leader);
 
         ChannelManager localChannelManager = ChannelManager(manager);
         bytes32[] memory currentRoots =

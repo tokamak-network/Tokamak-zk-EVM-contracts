@@ -152,7 +152,6 @@ function assertNoLegacyBridgeOverrideFlags(args) {
 async function handleChannelCreate({ args, env, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
   const dappLabel = requireArg(args.dappLabel, "--dapp-label");
-  const asset = getAddress(requireArg(args.asset, "--asset"));
   const signer = requireL1Signer(args, env, provider);
   const leader = getAddress(args.leader ?? signer.address);
   const createWorkspace = parseBooleanFlag(args.createWorkspace);
@@ -170,7 +169,7 @@ async function handleChannelCreate({ args, env, network, provider }) {
     dappLabel,
   });
 
-  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelName, dappId, leader, asset));
+  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelName, dappId, leader));
   const channelId = BigInt(await bridgeCore.deriveChannelId(channelName));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
@@ -195,7 +194,7 @@ async function handleChannelCreate({ args, env, network, provider }) {
     channelId: channelId.toString(),
     dappId,
     leader,
-    asset,
+    asset: channelInfo.asset,
     manager: channelInfo.manager,
     tokenVault: channelInfo.vault,
     receipt: sanitizeReceipt(receipt),
@@ -1888,7 +1887,7 @@ function printHelp() {
 Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
   node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name <name> --dapp-label <label> --asset <address> --private-key <hex> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-init --channel-name <name> [--workspace <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>

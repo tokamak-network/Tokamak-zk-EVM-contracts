@@ -27,8 +27,8 @@ contract UpgradeBridgeStackScript is Script {
     function run() external returns (UpgradeResult memory result) {
         uint256 deployerPrivateKey = vm.envUint("BRIDGE_DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        string memory inputPath = vm.envOr("BRIDGE_INPUT_PATH", string("./deployments/bridge.json"));
-        string memory outputPath = vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge.json"));
+        string memory inputPath = _resolvePath(vm.envOr("BRIDGE_INPUT_PATH", string("./deployments/bridge.json")));
+        string memory outputPath = _resolvePath(vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge.json")));
 
         string memory existingJson = vm.readFile(inputPath);
         address bridgeAdminManagerProxy = existingJson.readAddress(".bridgeAdminManager");
@@ -116,5 +116,13 @@ contract UpgradeBridgeStackScript is Script {
         console2.log("DAppManager implementation:", result.dAppManagerImplementation);
         console2.log("BridgeCore proxy:", result.bridgeCore);
         console2.log("BridgeCore implementation:", result.bridgeCoreImplementation);
+    }
+
+    function _resolvePath(string memory pathValue) private view returns (string memory) {
+        bytes memory pathBytes = bytes(pathValue);
+        if (pathBytes.length > 0 && pathBytes[0] == "/") {
+            return pathValue;
+        }
+        return string.concat(vm.projectRoot(), "/", pathValue);
     }
 }

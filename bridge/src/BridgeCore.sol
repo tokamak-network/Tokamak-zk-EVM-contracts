@@ -17,6 +17,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
     uint8 internal constant SUPPORTED_MT_LEVELS = 12;
     uint256 internal constant SUPPORTED_MT_LEAVES = uint256(1) << uint256(SUPPORTED_MT_LEVELS);
     uint256 internal constant MAX_MANAGED_STORAGES = 11;
+    address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET = 0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
+    address internal constant TOKAMAK_NETWORK_TOKEN_SEPOLIA = 0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
     bytes32 internal constant ZERO_FILLED_TREE_ROOT =
         bytes32(uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958));
 
@@ -26,7 +28,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
     error InvalidMerkleTreeConfiguration();
     error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
     error InvalidLeader();
-    error InvalidAsset();
     error GlobalVaultKeyAlreadyRegistered(bytes32 key);
     error ChannelLeafIndexCollision(uint256 channelId, uint256 leafIndex);
     error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
@@ -34,6 +35,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
     error InvalidDAppManager();
     error InvalidGrothVerifier();
     error InvalidTokamakVerifier();
+    error UnsupportedCanonicalAssetChain(uint256 chainId);
 
     struct ChannelDeployment {
         bool exists;
@@ -100,16 +102,25 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
         return uint256(keccak256(bytes(channelName)));
     }
 
+    function canonicalAsset() public view returns (address) {
+        if (block.chainid == 1) {
+            return TOKAMAK_NETWORK_TOKEN_MAINNET;
+        }
+        if (block.chainid == 11155111 || block.chainid == 31337) {
+            return TOKAMAK_NETWORK_TOKEN_SEPOLIA;
+        }
+        revert UnsupportedCanonicalAssetChain(block.chainid);
+    }
+
     function createChannel(
         string calldata channelName,
         uint256 dappId,
-        address leader,
-        IERC20 asset
+        address leader
     ) external onlyOwner returns (address manager, address vault) {
         uint256 channelId = deriveChannelId(channelName);
+        IERC20 asset = IERC20(canonicalAsset());
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (leader == address(0)) revert InvalidLeader();
-        if (address(asset) == address(0)) revert InvalidAsset();
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
         if (adminManager.nMerkleTreeLevels() != SUPPORTED_MT_LEVELS) {
             revert UnsupportedMerkleTreeLevels(adminManager.nMerkleTreeLevels(), SUPPORTED_MT_LEVELS);

@@ -39,6 +39,8 @@ node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes
 The bridge-coupled CLI separates channel creation from channel-workspace initialization:
 
 - `channel-create` creates the bridge channel on-chain.
+- `channel-create` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
+  Token for the selected network.
 - `channel-workspace-init` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the
   stored `genesisBlockNumber`.
 - `user-workspaces` store per-user note plaintexts, classify notes into used vs unused sets, maintain aggregated
@@ -58,7 +60,6 @@ Example:
 node apps/private-state/cli/private-state-bridge-cli.mjs channel-create \
   --channel-name demo-channel \
   --dapp-label private-state \
-  --asset <erc20-address> \
   --private-key <hex> \
   --create-workspace \
   --workspace demo \

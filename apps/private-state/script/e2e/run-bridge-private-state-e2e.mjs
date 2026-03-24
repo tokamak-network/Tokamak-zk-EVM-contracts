@@ -303,6 +303,7 @@ function isZeroLikeStorageValue(value) {
 function normalizeStateSnapshot(snapshot) {
   return {
     ...snapshot,
+    stateRoots: snapshot.stateRoots.map((value) => normalizeBytes32Hex(value)),
     storageEntries: snapshot.storageEntries.map((entries) => entries
       .filter((entry) => !isZeroLikeStorageValue(entry.value))
       .map((entry) => ({
@@ -518,9 +519,11 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
+  const currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
 
   await stateManager.putStorage(vaultAddressObj, hexToBytes(keyHex), hexToBytes(bigintToHex32(nextValue)));
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
+  const nextSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
 
   const input = {
     root_before: currentRoot.toString(),
@@ -547,7 +550,7 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
 
   const solidityProof = toGrothSolidityProof(proofJson);
   const grothUpdate = {
-    currentRootVector: normalizeStateSnapshot(await stateManager.captureStateSnapshot()).stateRoots,
+    currentRootVector: currentSnapshot.stateRoots,
     updatedRoot: bytes32FromHex(ethers.toBeHex(updatedRoot)),
     currentUserKey: bytes32FromHex(keyHex),
     currentUserValue: currentValue,
@@ -562,7 +565,7 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
     publicSignals,
     proof: solidityProof,
     update: grothUpdate,
-    nextSnapshot: await stateManager.captureStateSnapshot(),
+    nextSnapshot,
   };
 }
 

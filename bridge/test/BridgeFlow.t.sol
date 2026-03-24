@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {stdJson} from "forge-std/StdJson.sol";
+import {ERC1967Proxy} from "@openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {BridgeStructs} from "../src/BridgeStructs.sol";
 import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {DAppManager} from "../src/DAppManager.sol";
@@ -26,6 +27,8 @@ contract BridgeFlowTest is Test {
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = uint256(1) << 12;
+    bytes32 internal constant ERC1967_IMPLEMENTATION_SLOT =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     bytes32 internal constant INITIAL_ZERO_ROOT =
         bytes32(uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958));
     string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
@@ -61,15 +64,14 @@ contract BridgeFlowTest is Test {
     function setUp() public {
         BridgeStructs.TokamakProofPayload memory tokamakFixture = _loadTokamakProofPayload();
 
-        adminManager = new BridgeAdminManager(address(this));
-        adminManager.setMerkleTreeLevels(12);
+        adminManager = _deployAdminManagerProxy(address(this), 12);
 
         tokamakVerifier = new TokamakVerifier();
 
         address vaultStorageAddr = address(0xF00D);
         address appStorageAddr = address(0x1234);
         address secondaryVaultStorageAddr = address(0xF00E);
-        dAppManager = new DAppManager(address(this));
+        dAppManager = _deployDAppManagerProxy(address(this));
         dAppManager.registerDApp(
             1,
             keccak256("private-app"),
@@ -86,7 +88,7 @@ contract BridgeFlowTest is Test {
         );
 
         grothVerifier = new Groth16Verifier();
-        bridgeCore = new BridgeCore(
+        bridgeCore = _deployBridgeCoreProxy(
             address(this),
             adminManager,
             dAppManager,
@@ -558,6 +560,35 @@ contract BridgeFlowTest is Test {
         assertEq(address(bridgeCore.tokamakVerifier()), address(tokamakVerifier));
     }
 
+    function testRootProxyAddressesStayStableAcrossUpgrade() public {
+        address adminProxyAddress = address(adminManager);
+        address dAppProxyAddress = address(dAppManager);
+        address bridgeProxyAddress = address(bridgeCore);
+
+        address previousAdminImplementation = _implementationOf(adminProxyAddress);
+        address previousDAppImplementation = _implementationOf(dAppProxyAddress);
+        address previousBridgeImplementation = _implementationOf(bridgeProxyAddress);
+
+        BridgeAdminManager newAdminImplementation = new BridgeAdminManager();
+        DAppManager newDAppImplementation = new DAppManager();
+        BridgeCore newBridgeImplementation = new BridgeCore();
+
+        adminManager.upgradeTo(address(newAdminImplementation));
+        dAppManager.upgradeTo(address(newDAppImplementation));
+        bridgeCore.upgradeTo(address(newBridgeImplementation));
+
+        assertEq(address(adminManager), adminProxyAddress);
+        assertEq(address(dAppManager), dAppProxyAddress);
+        assertEq(address(bridgeCore), bridgeProxyAddress);
+        assertEq(adminManager.owner(), address(this));
+        assertEq(dAppManager.owner(), address(this));
+        assertEq(bridgeCore.owner(), address(this));
+
+        assertTrue(_implementationOf(adminProxyAddress) != previousAdminImplementation);
+        assertTrue(_implementationOf(dAppProxyAddress) != previousDAppImplementation);
+        assertTrue(_implementationOf(bridgeProxyAddress) != previousBridgeImplementation);
+    }
+
     function testTokamakVerificationRejectsProofForUnexpectedCurrentState() public {
         BridgeStructs.TokamakProofPayload memory proofPayload = _loadRealTokamakProofPayload();
         BridgeStructs.DAppFunctionMetadata memory realFunctionMetadata =
@@ -565,10 +596,9 @@ contract BridgeFlowTest is Test {
         address entryContract =
             _entryContractFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.entryContractOffsetWords);
 
-        BridgeAdminManager localAdminManager = new BridgeAdminManager(address(this));
-        localAdminManager.setMerkleTreeLevels(12);
+        BridgeAdminManager localAdminManager = _deployAdminManagerProxy(address(this), 12);
 
-        DAppManager localDAppManager = new DAppManager(address(this));
+        DAppManager localDAppManager = _deployDAppManagerProxy(address(this));
         localDAppManager.registerDApp(
             99,
             keccak256("real-proof-private-state"),
@@ -576,7 +606,7 @@ contract BridgeFlowTest is Test {
             _singleFunctionArray(realFunctionMetadata)
         );
 
-        BridgeCore localBridgeCore = new BridgeCore(
+        BridgeCore localBridgeCore = _deployBridgeCoreProxy(
             address(this),
             localAdminManager,
             localDAppManager,
@@ -615,10 +645,9 @@ contract BridgeFlowTest is Test {
         address entryContract =
             _entryContractFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.entryContractOffsetWords);
 
-        BridgeAdminManager localAdminManager = new BridgeAdminManager(address(this));
-        localAdminManager.setMerkleTreeLevels(12);
+        BridgeAdminManager localAdminManager = _deployAdminManagerProxy(address(this), 12);
 
-        DAppManager localDAppManager = new DAppManager(address(this));
+        DAppManager localDAppManager = _deployDAppManagerProxy(address(this));
         localDAppManager.registerDApp(
             99,
             keccak256("real-proof-private-state"),
@@ -627,7 +656,7 @@ contract BridgeFlowTest is Test {
         );
 
         Groth16Verifier localGrothVerifier = new Groth16Verifier();
-        BridgeCore localBridgeCore = new BridgeCore(
+        BridgeCore localBridgeCore = _deployBridgeCoreProxy(
             address(this),
             localAdminManager,
             localDAppManager,
@@ -732,6 +761,38 @@ contract BridgeFlowTest is Test {
         roots = new bytes32[](2);
         roots[0] = left;
         roots[1] = right;
+    }
+
+    function _deployAdminManagerProxy(address owner, uint8 levels) internal returns (BridgeAdminManager) {
+        BridgeAdminManager implementation = new BridgeAdminManager();
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(address(implementation), abi.encodeCall(BridgeAdminManager.initialize, (owner, levels)));
+        return BridgeAdminManager(address(proxy));
+    }
+
+    function _deployDAppManagerProxy(address owner) internal returns (DAppManager) {
+        DAppManager implementation = new DAppManager();
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(address(implementation), abi.encodeCall(DAppManager.initialize, (owner)));
+        return DAppManager(address(proxy));
+    }
+
+    function _deployBridgeCoreProxy(
+        address owner,
+        BridgeAdminManager localAdminManager,
+        DAppManager localDAppManager,
+        IGrothVerifier localGrothVerifier,
+        ITokamakVerifier localTokamakVerifier
+    ) internal returns (BridgeCore) {
+        BridgeCore implementation = new BridgeCore();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(implementation),
+            abi.encodeCall(
+                BridgeCore.initialize,
+                (owner, localAdminManager, localDAppManager, localGrothVerifier, localTokamakVerifier)
+            )
+        );
+        return BridgeCore(address(proxy));
     }
 
     function _updatedRootsFromAPubUser(uint256[] memory aPubUser, uint256 offset)
@@ -1112,5 +1173,9 @@ contract BridgeFlowTest is Test {
         // ChannelManager layout keeps `genesisBlockNumber` at slot 0, `tokenVault` at slot 1,
         // and `currentRootVectorHash` at slot 2.
         vm.store(address(targetChannelManager), bytes32(uint256(2)), _hashRootVector(currentRoots));
+    }
+
+    function _implementationOf(address proxyAddress) internal view returns (address) {
+        return address(uint160(uint256(vm.load(proxyAddress, ERC1967_IMPLEMENTATION_SLOT))));
     }
 }

@@ -17,6 +17,7 @@ This workspace focuses on the current design documented in the notes:
 - per-channel `aPubBlockHash` verification context
 - globally unique L2 token-vault keys
 - per-channel non-collision of derived token-vault leaf indices
+- stable root-entry addresses through UUPS proxies
 
 ## Mocked Areas
 
@@ -42,15 +43,21 @@ The current bridge implementation hardens a few assumptions that must remain tru
 The standalone bridge workspace now includes a Foundry deployment script:
 
 - `bridge/script/DeployBridgeStack.s.sol`
+- `bridge/script/UpgradeBridgeStack.s.sol`
 
-It deploys:
+On the first proxy-based deployment it creates:
 
-- `BridgeAdminManager`
-- `DAppManager`
+- `BridgeAdminManager` proxy and implementation
+- `DAppManager` proxy and implementation
 - `Groth16Verifier`
 - `TokamakVerifier`
-- `BridgeCore`
+- `BridgeCore` proxy and implementation
 - optionally `MockERC20`
+
+After that initial migration, the helper script upgrades the existing proxies in place instead of creating new root-entry addresses. In other words:
+
+- first proxy deployment: root bridge addresses change once, because the legacy non-proxy deployment cannot be converted in place
+- later upgrades: `BridgeAdminManager`, `DAppManager`, and `BridgeCore` keep the same proxy addresses while only their implementations are redeployed
 
 Required environment variables:
 
@@ -100,6 +107,8 @@ The current bridge implementation is still intentionally hard-bound to depth
 `12` for soundness. If the latest `tokamak-l2js` publishes a different
 `MT_DEPTH`, deployment will fail rather than silently deploying a mismatched
 bridge configuration.
+
+If the existing deployment artifact already declares `proxyKind = "uups"`, the helper automatically switches from fresh deployment to in-place upgrade. If the existing artifact is legacy non-proxy output, the helper performs a fresh proxy deployment instead. Set `BRIDGE_FORCE_FRESH_DEPLOY=1` to force a new proxy deployment even when a proxy artifact already exists.
 
 The script writes a deployment artifact under `bridge/deployments/` by default.
 

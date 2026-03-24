@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "@openzeppelin/access/Ownable.sol";
+import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
 import {BridgeStructs} from "./BridgeStructs.sol";
 import {BridgeAdminManager} from "./BridgeAdminManager.sol";
@@ -11,7 +13,7 @@ import {L1TokenVault, IVaultKeyRegistry} from "./L1TokenVault.sol";
 import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
-contract BridgeCore is Ownable, IVaultKeyRegistry {
+contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaultKeyRegistry {
     uint8 internal constant SUPPORTED_MT_LEVELS = 12;
     uint256 internal constant SUPPORTED_MT_LEAVES = uint256(1) << uint256(SUPPORTED_MT_LEVELS);
     uint256 internal constant MAX_MANAGED_STORAGES = 11;
@@ -28,6 +30,10 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
     error GlobalVaultKeyAlreadyRegistered(bytes32 key);
     error ChannelLeafIndexCollision(uint256 channelId, uint256 leafIndex);
     error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
+    error InvalidAdminManager();
+    error InvalidDAppManager();
+    error InvalidGrothVerifier();
+    error InvalidTokamakVerifier();
 
     struct ChannelDeployment {
         bool exists;
@@ -39,10 +45,10 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         bytes32 aPubBlockHash;
     }
 
-    BridgeAdminManager public immutable adminManager;
-    DAppManager public immutable dAppManager;
-    IGrothVerifier public immutable grothVerifier;
-    ITokamakVerifier public immutable tokamakVerifier;
+    BridgeAdminManager public adminManager;
+    DAppManager public dAppManager;
+    IGrothVerifier public grothVerifier;
+    ITokamakVerifier public tokamakVerifier;
 
     mapping(uint256 => ChannelDeployment) private _channels;
     mapping(address => uint256) public vaultToChannelId;
@@ -62,13 +68,28 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         uint256 leafIndex
     );
 
-    constructor(
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
         address initialOwner,
         BridgeAdminManager adminManager_,
         DAppManager dAppManager_,
         IGrothVerifier grothVerifier_,
         ITokamakVerifier tokamakVerifier_
-    ) Ownable(initialOwner) {
+    ) external initializer {
+        if (address(adminManager_) == address(0)) revert InvalidAdminManager();
+        if (address(dAppManager_) == address(0)) revert InvalidDAppManager();
+        if (address(grothVerifier_) == address(0)) revert InvalidGrothVerifier();
+        if (address(tokamakVerifier_) == address(0)) revert InvalidTokamakVerifier();
+
+        __Ownable_init();
+        __UUPSUpgradeable_init();
+        if (initialOwner != _msgSender()) {
+            _transferOwnership(initialOwner);
+        }
+
         adminManager = adminManager_;
         dAppManager = dAppManager_;
         grothVerifier = grothVerifier_;
@@ -166,6 +187,8 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
     function deriveLeafIndex(bytes32 key) public pure returns (uint256) {
         return uint256(key) % SUPPORTED_MT_LEAVES;
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function _buildInitialRootVector(uint256 treeCount) private pure returns (bytes32[] memory initialRootVector) {
         initialRootVector = new bytes32[](treeCount);

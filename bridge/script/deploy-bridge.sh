@@ -114,9 +114,25 @@ BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 
 export BRIDGE_MERKLE_TREE_LEVELS
 BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge-latest.json}"
 export BRIDGE_OUTPUT_PATH
+BRIDGE_INPUT_PATH="${BRIDGE_INPUT_PATH:-$BRIDGE_OUTPUT_PATH}"
+export BRIDGE_INPUT_PATH
+
+BRIDGE_OUTPUT_PATH_ABS_FOR_MODE="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
+DEPLOYMENT_MODE="fresh"
+FORGE_SCRIPT="script/DeployBridgeStack.s.sol:DeployBridgeStackScript"
+
+if [[ "${BRIDGE_FORCE_FRESH_DEPLOY:-0}" != "1" && -f "$BRIDGE_OUTPUT_PATH_ABS_FOR_MODE" ]]; then
+    EXISTING_PROXY_KIND="$(node -e 'const fs=require("fs"); const p=process.argv[1]; const j=JSON.parse(fs.readFileSync(p,"utf8")); process.stdout.write(String(j.proxyKind || ""));' "$BRIDGE_OUTPUT_PATH_ABS_FOR_MODE")"
+    if [[ "$EXISTING_PROXY_KIND" == "uups" ]]; then
+        DEPLOYMENT_MODE="upgrade"
+        FORGE_SCRIPT="script/UpgradeBridgeStack.s.sol:UpgradeBridgeStackScript"
+    else
+        echo "Existing deployment artifact is not proxy-based. A fresh proxy deployment will be created."
+    fi
+fi
 
 FORGE_CMD=(
-    forge script script/DeployBridgeStack.s.sol:DeployBridgeStackScript
+    forge script "$FORGE_SCRIPT"
     --sig "run()"
     --broadcast
     --rpc-url "$BRIDGE_RPC_URL"
@@ -127,6 +143,7 @@ if [[ $# -gt 0 ]]; then
 fi
 
 echo "Deploying bridge to network ${BRIDGE_NETWORK} (chain ID ${BRIDGE_CHAIN_ID})"
+echo "Deployment mode: ${DEPLOYMENT_MODE}"
 echo "RPC network label: ${NETWORK_LABEL}"
 echo "Environment file: ${ENV_FILE}"
 echo "Resolved tokamak-l2js version: ${BRIDGE_MERKLE_TREE_SOURCE_VERSION}"

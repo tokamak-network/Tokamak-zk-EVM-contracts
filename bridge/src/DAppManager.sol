@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "@openzeppelin/access/Ownable.sol";
+import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {BridgeStructs} from "./BridgeStructs.sol";
 
-contract DAppManager is Ownable {
+contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     error UnknownDApp(uint256 dappId);
     error DuplicateDApp(uint256 dappId);
     error EmptyStorageLayout(uint256 dappId);
@@ -51,7 +53,17 @@ contract DAppManager is Ownable {
         uint256 functionCount
     );
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address initialOwner) external initializer {
+        __Ownable_init();
+        __UUPSUpgradeable_init();
+        if (initialOwner != _msgSender()) {
+            _transferOwnership(initialOwner);
+        }
+    }
 
     function registerDApp(
         uint256 dappId,
@@ -168,6 +180,8 @@ contract DAppManager is Ownable {
     {
         return keccak256(abi.encode(entryContract, functionSig));
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function _storeStorageLayout(uint256 dappId, BridgeStructs.StorageMetadata[] calldata storages)
         private

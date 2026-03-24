@@ -2,6 +2,11 @@
 pragma solidity ^0.8.24;
 
 library BridgeStructs {
+    struct StorageWriteMetadata {
+        uint32 mtIndex;
+        address storageAddr;
+    }
+
     struct StorageMetadata {
         address storageAddr;
         bytes32[] preAllocatedKeys;
@@ -14,7 +19,7 @@ library BridgeStructs {
         bytes4 functionSig;
         address[] storageAddrs;
         bytes32 preprocessInputHash;
-        uint16 updatedRootVectorOffsetWords;
+        StorageWriteMetadata[] storageWrites;
     }
 
     struct GrothProof {
@@ -30,7 +35,6 @@ library BridgeStructs {
 
     struct FunctionConfig {
         bytes32 preprocessInputHash;
-        uint16 updatedRootVectorOffsetWords;
         bool exists;
     }
 

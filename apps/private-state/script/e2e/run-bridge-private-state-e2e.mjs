@@ -69,7 +69,7 @@ const bridgeCoreAbi = [
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address vault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, address[] storageAddrs, bytes32 preprocessInputHash, uint16 updatedRootVectorOffsetWords)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, address[] storageAddrs, bytes32 preprocessInputHash, tuple(uint32 mtIndex, address storageAddr)[] storageWrites)[] functions) external",
 ];
 const channelManagerAbi = [
   "function getCurrentRootVector() external view returns (bytes32[] memory)",
@@ -634,7 +634,7 @@ function toFunctionMetadata(entries) {
     functionSig: entry.functionSig,
     storageAddrs: entry.storageAddresses,
     preprocessInputHash: entry.preprocessInputHash,
-    updatedRootVectorOffsetWords: entry.updatedRootVectorOffsetWords,
+    storageWrites: entry.storageWrites,
   }));
 }
 

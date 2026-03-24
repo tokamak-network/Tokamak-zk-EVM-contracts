@@ -17,6 +17,12 @@ contract DAppManager is Ownable {
     error MissingTokenVaultStorageAddress(uint256 dappId);
     error MultipleTokenVaultStorageAddresses(uint256 dappId, address firstStorageAddr, address secondStorageAddr);
     error MissingPreprocessInputHash(uint256 dappId, address entryContract, bytes4 functionSig);
+    error InvalidFunctionStorageWriteTarget(
+        uint256 dappId,
+        address entryContract,
+        bytes4 functionSig,
+        address storageAddr
+    );
 
     struct DAppInfo {
         bool exists;
@@ -28,6 +34,7 @@ contract DAppManager is Ownable {
     mapping(uint256 => mapping(bytes32 => bool)) private _supportedFunctions;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.FunctionConfig)) private _functionConfigs;
     mapping(uint256 => mapping(bytes32 => address[])) private _functionStorages;
+    mapping(uint256 => mapping(bytes32 => BridgeStructs.StorageWriteMetadata[])) private _functionStorageWrites;
     mapping(uint256 => BridgeStructs.FunctionReference[]) private _registeredFunctions;
 
     mapping(uint256 => address[]) private _managedStorageAddresses;
@@ -106,6 +113,18 @@ contract DAppManager is Ownable {
             revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
         }
         return _copyAddresses(_functionStorages[dappId][functionKey]);
+    }
+
+    function getFunctionStorageWrites(uint256 dappId, address entryContract, bytes4 functionSig)
+        external
+        view
+        returns (BridgeStructs.StorageWriteMetadata[] memory)
+    {
+        bytes32 functionKey = computeFunctionKey(entryContract, functionSig);
+        if (!_supportedFunctions[dappId][functionKey]) {
+            revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
+        }
+        return _copyStorageWrites(_functionStorageWrites[dappId][functionKey]);
     }
 
     function getDAppInfo(uint256 dappId) external view returns (DAppInfo memory) {
@@ -238,12 +257,41 @@ contract DAppManager is Ownable {
                 _functionStorages[dappId][functionKey].push(storageAddr);
             }
 
+            for (uint256 j = 0; j < fnMetadata.storageWrites.length; j++) {
+                BridgeStructs.StorageWriteMetadata calldata storageWrite = fnMetadata.storageWrites[j];
+                if (
+                    !_knownStorageAddress[dappId][storageWrite.storageAddr]
+                        || !_containsAddress(fnMetadata.storageAddrs, storageWrite.storageAddr)
+                ) {
+                    revert InvalidFunctionStorageWriteTarget(
+                        dappId,
+                        fnMetadata.entryContract,
+                        fnMetadata.functionSig,
+                        storageWrite.storageAddr
+                    );
+                }
+                _functionStorageWrites[dappId][functionKey].push(
+                    BridgeStructs.StorageWriteMetadata({
+                        mtIndex: storageWrite.mtIndex,
+                        storageAddr: storageWrite.storageAddr
+                    })
+                );
+            }
+
             _functionConfigs[dappId][functionKey] = BridgeStructs.FunctionConfig({
                 preprocessInputHash: fnMetadata.preprocessInputHash,
-                updatedRootVectorOffsetWords: fnMetadata.updatedRootVectorOffsetWords,
                 exists: true
             });
         }
+    }
+
+    function _containsAddress(address[] calldata candidates, address target) private pure returns (bool) {
+        for (uint256 i = 0; i < candidates.length; i++) {
+            if (candidates[i] == target) {
+                return true;
+            }
+        }
+        return false;
     }
 
     function _requireDApp(uint256 dappId) private view returns (DAppInfo memory info) {
@@ -276,6 +324,17 @@ contract DAppManager is Ownable {
 
     function _copyUint8(uint8[] storage source) private view returns (uint8[] memory out) {
         out = new uint8[](source.length);
+        for (uint256 i = 0; i < source.length; i++) {
+            out[i] = source[i];
+        }
+    }
+
+    function _copyStorageWrites(BridgeStructs.StorageWriteMetadata[] storage source)
+        private
+        view
+        returns (BridgeStructs.StorageWriteMetadata[] memory out)
+    {
+        out = new BridgeStructs.StorageWriteMetadata[](source.length);
         for (uint256 i = 0; i < source.length; i++) {
             out[i] = source[i];
         }

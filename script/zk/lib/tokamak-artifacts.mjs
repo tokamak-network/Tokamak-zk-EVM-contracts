@@ -74,6 +74,15 @@ function toBigIntArray(values, label) {
   });
 }
 
+function decodeSplitUint256(words, offset, label) {
+  if (offset + 1 >= words.length) {
+    throw new Error(`${label} is missing split words at offset ${offset}.`);
+  }
+  const lower = words[offset];
+  const upper = words[offset + 1];
+  return lower + (upper << 128n);
+}
+
 export function extractTokamakRegistrationArtifacts(preprocessJsonPath) {
   const preprocess = readJson(preprocessJsonPath);
   const part1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
@@ -108,21 +117,40 @@ export function hashTokamakPublicInputs(values) {
   return keccak256(abiCoder.encode(["uint256[]"], [values]));
 }
 
-function extractUpdatedRootVectorOffsetWords(instanceDescriptionJsonPath) {
+function extractStorageWrites(instanceJsonPath, instanceDescriptionJsonPath) {
   const description = readJson(instanceDescriptionJsonPath);
   const entries = description.a_pub_user_description;
   if (!Array.isArray(entries)) {
     throw new Error(`instance_description.json is missing a_pub_user_description: ${instanceDescriptionJsonPath}`);
   }
+  const instance = readJson(instanceJsonPath);
+  const aPubUser = toBigIntArray(instance.a_pub_user, "a_pub_user");
 
-  const offset = entries.findIndex((entry) => typeof entry === "string" && entry.startsWith("Resulting Merkle tree root hash"));
-  if (offset < 0) {
-    throw new Error(
-      `Unable to locate resulting root vector offset in instance_description.json: ${instanceDescriptionJsonPath}`,
-    );
+  const writes = [];
+  const pattern = /^Storage write tree index for address: (0x[0-9a-fA-F]{40}) \(lower 16 bytes\)$/;
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (typeof entry !== "string") {
+      continue;
+    }
+    const match = entry.match(pattern);
+    if (!match) {
+      continue;
+    }
+    const treeIndex = decodeSplitUint256(aPubUser, index, "a_pub_user");
+    if (treeIndex > 0xffffffffn) {
+      throw new Error(
+        `Storage write tree index ${treeIndex.toString()} exceeds uint32 for ${instanceDescriptionJsonPath}.`,
+      );
+    }
+    writes.push({
+      mtIndex: Number(treeIndex),
+      storageAddr: getAddress(match[1]),
+    });
   }
 
-  return offset;
+  return writes;
 }
 
 export function deriveFunctionSelectorFromTransaction(transactionJsonPath) {
@@ -204,7 +232,7 @@ export function buildFunctionDefinition({
   const preprocess = readJson(preprocessJsonPath);
   const preprocessPart1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
   const preprocessPart2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
-  const updatedRootVectorOffsetWords = extractUpdatedRootVectorOffsetWords(instanceDescriptionJsonPath);
+  const storageWrites = extractStorageWrites(instanceJsonPath, instanceDescriptionJsonPath);
 
   return {
     groupName,
@@ -214,7 +242,7 @@ export function buildFunctionDefinition({
     storageAddresses: storageMetadata.map((entry) => entry.storageAddress),
     storageMetadata,
     preprocessInputHash: hashTokamakPointEncoding(preprocessPart1, preprocessPart2),
-    updatedRootVectorOffsetWords,
+    storageWrites,
     aPubBlockHash: hashTokamakPublicInputs(toBigIntArray(instance.a_pub_block, "a_pub_block")),
     functionInstancePart1: extracted.functionInstancePart1.map((value) => value.toString()),
     functionInstancePart2: extracted.functionInstancePart2.map((value) => value.toString()),
@@ -283,8 +311,8 @@ export function mergeFunctionDefinitions(records) {
     if (existing.preprocessInputHash !== record.preprocessInputHash) {
       mismatches.push("preprocess input hash");
     }
-    if (existing.updatedRootVectorOffsetWords !== record.updatedRootVectorOffsetWords) {
-      mismatches.push("updated root vector offset");
+    if (JSON.stringify(existing.storageWrites) !== JSON.stringify(record.storageWrites)) {
+      mismatches.push("storage write metadata");
     }
 
     if (mismatches.length > 0) {
@@ -336,7 +364,7 @@ export function buildDAppDefinitions(records) {
         functionSig: record.functionSig,
         storageAddresses: record.storageAddresses,
         preprocessInputHash: record.preprocessInputHash,
-        updatedRootVectorOffsetWords: record.updatedRootVectorOffsetWords,
+        storageWrites: record.storageWrites,
         exampleNames: record.exampleNames,
       })),
       examples: group.examples.sort((left, right) => left.exampleName.localeCompare(right.exampleName)),

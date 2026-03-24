@@ -218,7 +218,16 @@ Under the current `instance_description.json` layout produced by the Tokamak syn
 - `aPubUser[22..23]` contains the entry contract
 - `aPubUser[24..25]` contains the target function signature
 - `aPubUser[26..26+2n-1]` contains the current root vector, again split into lower and upper 16-byte words
-- the updated root vector no longer starts at a globally fixed offset; instead, its starting word offset is derived from `instance_description.json` for each function and stored in bridge-managed DApp metadata as `updatedRootVectorOffsetWords`
+- `aPubUser` now begins with a function-specific sequence of storage-write words
+- each storage write contributes four words:
+  - tree-index lower 16 bytes
+  - tree-index upper 16 bytes
+  - storage-write lower 16 bytes
+  - storage-write upper 16 bytes
+- each storage write in that prefix is described off-chain by `instance_description.json` through:
+  - the target storage address
+  - the Merkle-tree index within that storage tree
+- the updated root vector no longer starts at a globally fixed offset; instead, its starting word offset is derived as `4 * storageWrites.length`, where `storageWrites` is the function-scoped descriptor list registered in bridge-managed DApp metadata
 
 where `n` is the number of channel storage trees represented in the root vector.
 
@@ -246,7 +255,9 @@ The L1 bridge manages supported DApps through a DApp manager. For each supported
 
 - the DApp storage layout
 - the function-level `preprocessInputHash`
-- the function-level `updatedRootVectorOffsetWords`
+- the function-level `storageWrites`, where each entry fixes:
+  - the target storage address
+  - the Merkle-tree index written within that storage
 
 Only the System administrator may add a new DApp to the DApp manager.
 
@@ -258,7 +269,7 @@ This is a hard validation boundary:
 - a Tokamak proof that refers to a function outside that inherited surface must fail through metadata mismatch
 - such a failed proof must not update channel state
 
-This means that the bridge-managed DApp metadata currently consists of storage layout plus per-function preprocess-input commitments and updated-root-vector offsets, while the channel-owned metadata currently consists primarily of the channel's fixed token-vault position and the expected `aPubBlockHash`.
+This means that the bridge-managed DApp metadata currently consists of storage layout plus per-function preprocess-input commitments and per-function storage-write descriptors, while the channel-owned metadata currently consists primarily of the channel's fixed token-vault position and the expected `aPubBlockHash`.
 
 ### 2.8 Comparative Execution Model
 
@@ -514,7 +525,7 @@ The following condensed log records which major parts of the design were introdu
 - L1 no longer stores full root-vector history in storage; it stores the current root vector and its hash, and emits each accepted root-vector update as an event.
 - The old separate `channel instance` object is no longer used by the bridge; channel-scoped verification context is currently represented by `aPubBlockHash`.
 - The old separate `function instance` and `function preprocess` objects are currently treated as being embedded in the submitted preprocess calldata and enforced through `preprocessInputHash`.
-- The current bridge implementation reads transaction-instance fields back out of `aPubUser` using the offsets described in `instance_description.json`, with `updatedRootVectorOffsetWords` now stored per function in DApp metadata.
+- The current bridge implementation reads transaction-instance fields back out of `aPubUser` using the offsets described in `instance_description.json`, with the updated-root offset now derived from the per-function storage-write prefix stored in DApp metadata. Under the current synthesizer format, each registered storage write contributes four `aPubUser` words before the updated roots.
 
 ## 3. Conclusion
 
@@ -539,6 +550,6 @@ The following decisions are stable enough to be treated as the current working p
 - The bridge stores only the latest leaves of each channel's current L2 token-vault tree.
 - Users must register an immutable per-channel L2 token-vault key.
 - The bridge derives the corresponding token-vault leaf index by the `TokamakL2MerkleTrees.getLeafIndex` rule and rejects per-channel collisions of those derived indices.
-- The bridge treats `aPubBlockHash` as channel-owned metadata and `preprocessInputHash` plus `updatedRootVectorOffsetWords` as DApp-managed metadata.
+- The bridge treats `aPubBlockHash` as channel-owned metadata and `preprocessInputHash` plus per-function storage-write descriptors as DApp-managed metadata.
 - The bridge extracts current roots, updated roots, entry contract, and function signature from `aPubUser` and requires them to match the submitted transaction instance.
 - Safe channel escape currently depends on the token-vault path rather than on full L2 app-storage availability.

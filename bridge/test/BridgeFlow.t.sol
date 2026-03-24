@@ -33,8 +33,6 @@ contract BridgeFlowTest is Test {
         "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/preprocess/output/preprocess.json";
     string internal constant REAL_TOKAMAK_INSTANCE_PATH =
         "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/synthesizer/output/instance.json";
-    string internal constant REAL_TOKAMAK_INSTANCE_DESCRIPTION_PATH =
-        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/synthesizer/output/instance_description.json";
     address internal constant REAL_TOKAMAK_APP_STORAGE = 0x8b64A4D3DF1771d7dFC93b374f545563B680b420;
 
     BridgeAdminManager internal adminManager;
@@ -202,7 +200,7 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG,
             storageAddrs: _addressArray(address(0xF00D), address(0x1234)),
             preprocessInputHash: bytes32(0),
-            updatedRootVectorOffsetWords: 0
+            storageWrites: _emptyStorageWrites()
         });
 
         vm.expectRevert(
@@ -247,7 +245,7 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG,
             storageAddrs: storageAddrs,
             preprocessInputHash: bytes32("PREPROCESS_INPUT"),
-            updatedRootVectorOffsetWords: 0
+            storageWrites: _emptyStorageWrites()
         });
 
         dAppManager.registerDApp(3, keccak256("oversized-dapp"), storages, functions);
@@ -438,7 +436,8 @@ contract BridgeFlowTest is Test {
         localAdminManager.setMerkleTreeLevels(12);
 
         DAppManager localDAppManager = new DAppManager(address(this));
-        uint16 updatedRootVectorOffsetWords = _updatedRootOffsetFromInstanceDescription(REAL_TOKAMAK_INSTANCE_DESCRIPTION_PATH);
+        BridgeStructs.StorageWriteMetadata[] memory storageWrites =
+            _realTokamakStorageWrites(entryContract, REAL_TOKAMAK_APP_STORAGE);
         localDAppManager.registerDApp(
             99,
             keccak256("real-proof-private-state"),
@@ -448,7 +447,7 @@ contract BridgeFlowTest is Test {
                 functionSig,
                 REAL_TOKAMAK_APP_STORAGE,
                 _computePointEncodingHash(proofPayload.functionPreprocessPart1, proofPayload.functionPreprocessPart2),
-                updatedRootVectorOffsetWords
+                storageWrites
             )
         );
 
@@ -467,7 +466,7 @@ contract BridgeFlowTest is Test {
 
         ChannelManager localChannelManager = ChannelManager(manager);
         bytes32[] memory currentRoots = _currentRootsFromAPubUser(proofPayload.aPubUser);
-        bytes32[] memory updatedRoots = _updatedRootsFromAPubUser(proofPayload.aPubUser, updatedRootVectorOffsetWords);
+        bytes32[] memory updatedRoots = _updatedRootsFromAPubUser(proofPayload.aPubUser, storageWrites.length * 4);
 
         // The extracted proof bundle starts from an already-updated channel state rather than the bridge's zero root.
         _seedChannelCurrentRoots(localChannelManager, currentRoots);
@@ -640,7 +639,7 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG,
             storageAddrs: _addressArray(tokenVaultStorage, appStorage),
             preprocessInputHash: preprocessInputHash,
-            updatedRootVectorOffsetWords: 0
+            storageWrites: _emptyStorageWrites()
         });
     }
 
@@ -655,7 +654,7 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG_2,
             storageAddrs: _singleAddressArray(tokenVaultStorage),
             preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
-            updatedRootVectorOffsetWords: 0
+            storageWrites: _emptyStorageWrites()
         });
     }
 
@@ -664,7 +663,7 @@ contract BridgeFlowTest is Test {
         bytes4 functionSig,
         address appStorage,
         bytes32 preprocessInputHash,
-        uint16 updatedRootVectorOffsetWords
+        BridgeStructs.StorageWriteMetadata[] memory storageWrites
     )
         internal
         pure
@@ -676,7 +675,7 @@ contract BridgeFlowTest is Test {
             functionSig: functionSig,
             storageAddrs: _addressArray(entryContract, appStorage),
             preprocessInputHash: preprocessInputHash,
-            updatedRootVectorOffsetWords: updatedRootVectorOffsetWords
+            storageWrites: storageWrites
         });
     }
 
@@ -691,44 +690,29 @@ contract BridgeFlowTest is Test {
             functionSig: APP_SIG,
             storageAddrs: _addressArray(firstVaultStorage, address(0x1234)),
             preprocessInputHash: bytes32("PREPROCESS_INPUT"),
-            updatedRootVectorOffsetWords: 0
+            storageWrites: _emptyStorageWrites()
         });
         functions[1] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract2,
             functionSig: APP_SIG_2,
             storageAddrs: _singleAddressArray(secondVaultStorage),
             preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
-            updatedRootVectorOffsetWords: 0
+            storageWrites: _emptyStorageWrites()
         });
     }
 
-    function _updatedRootOffsetFromInstanceDescription(string memory descriptionPath)
+    function _realTokamakStorageWrites(address entryContract, address appStorage)
         internal
-        view
-        returns (uint16)
+        pure
+        returns (BridgeStructs.StorageWriteMetadata[] memory storageWrites)
     {
-        string memory json = vm.readFile(descriptionPath);
-        string[] memory descriptions = json.readStringArray(".a_pub_user_description");
-        for (uint256 i = 0; i < descriptions.length; i++) {
-            if (_startsWith(descriptions[i], "Resulting Merkle tree root hash")) {
-                return uint16(i);
-            }
-        }
-        revert("missing resulting root offset");
+        storageWrites = new BridgeStructs.StorageWriteMetadata[](2);
+        storageWrites[0] = BridgeStructs.StorageWriteMetadata({mtIndex: 290, storageAddr: appStorage});
+        storageWrites[1] = BridgeStructs.StorageWriteMetadata({mtIndex: 2414, storageAddr: entryContract});
     }
 
-    function _startsWith(string memory value, string memory prefix) internal pure returns (bool) {
-        bytes memory valueBytes = bytes(value);
-        bytes memory prefixBytes = bytes(prefix);
-        if (prefixBytes.length > valueBytes.length) {
-            return false;
-        }
-        for (uint256 i = 0; i < prefixBytes.length; i++) {
-            if (valueBytes[i] != prefixBytes[i]) {
-                return false;
-            }
-        }
-        return true;
+    function _emptyStorageWrites() internal pure returns (BridgeStructs.StorageWriteMetadata[] memory storageWrites) {
+        storageWrites = new BridgeStructs.StorageWriteMetadata[](0);
     }
 
     function _addressArray(address first, address second)

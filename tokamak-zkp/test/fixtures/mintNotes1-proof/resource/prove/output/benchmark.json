@@ -1,6 +1,6 @@
 {
-  "sessionId": "benchmark_1774246083666_md7fjmqaw",
-  "timestamp": "2026-03-23T06:09:11Z",
+  "sessionId": "benchmark_1774323694151_jc2q2bgcj",
+  "timestamp": "2026-03-24T03:42:40Z",
   "hardwareInfo": {
   "cpu": {
     "model": "Apple M4 Pro",
@@ -25,9 +25,9 @@
 },
   "processes": {
     "prove": {
-      "startTime": 1774246083666,
-      "endTime": 1774246151808,
-      "duration": 68142,
+      "startTime": 1774323694151,
+      "endTime": 1774323760447,
+      "duration": 66296,
       "success": true,
       "details": {
         "checkPoints": [],
@@ -43,6 +43,6 @@
   },
   "metadata": {
     "cudaEnabled": false,
-    "totalSessionDuration": 68142
+    "totalSessionDuration": 66296
   }
 }

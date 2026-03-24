@@ -152,7 +152,9 @@ The bridge treats `aPubBlock` as channel-scoped metadata and treats the submitte
 
 - a channel-scoped `aPubBlockHash`
 - a function-scoped `preprocessInputHash`
-- a function-scoped `updatedRootVectorOffsetWords`
+- a function-scoped `storageWrites` list, where each entry fixes:
+  - the target storage address
+  - the Merkle-tree index written within that storage tree
 
 The transaction-instance fields relevant to bridge state updates are encoded inside `aPubUser`. Under the current synthesizer layout, the bridge reads from `aPubUser`:
 
@@ -160,6 +162,8 @@ The transaction-instance fields relevant to bridge state updates are encoded ins
 - the updated channel Merkle-root vector
 - the entry contract
 - the target function signature
+
+The updated root-vector offset is no longer treated as an independent bridge parameter. It is derived from the length of the function-scoped storage-write prefix encoded at the front of `aPubUser`. Under the current synthesizer format, each storage write contributes four words to that prefix: tree-index lower/upper and storage-write lower/upper.
 
 A successful Tokamak verification means that the specified contract function was executed correctly, the execution succeeded, the consumed leaves were correct, and the resulting Merkle-tree updates were valid.
 

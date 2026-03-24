@@ -7,11 +7,12 @@ import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract ChannelManager {
     // These fixed offsets follow the current Tokamak synthesizer instance_description.json layout.
-    // The updated root-vector offset is function-specific and comes from DApp metadata.
+    // The updated root-vector offset is derived from the fixed per-function storage-write prefix.
     uint256 internal constant ENTRY_CONTRACT_OFFSET = 22;
     uint256 internal constant FUNCTION_SIG_OFFSET = 24;
     uint256 internal constant CURRENT_ROOT_VECTOR_OFFSET = 26;
     uint256 internal constant SPLIT_WORD_SIZE = 2;
+    uint256 internal constant STORAGE_WRITE_WORD_SIZE = 4;
 
     error OnlyBridgeCore();
     error OnlyTokenVault();
@@ -25,6 +26,7 @@ contract ChannelManager {
     error APubBlockHashMismatch(bytes32 expectedHash, bytes32 actualHash);
     error APubUserTooShort(uint256 expectedLength, uint256 actualLength);
     error RootVectorExceedsAPubUserLayout(uint256 rootCount);
+    error StorageWriteTreeIndexMismatch(uint256 expectedIndex, uint256 actualIndex, uint256 writeOffset);
     error APubUserWordOutOfRange(uint256 index, uint256 value);
     error EntryContractPublicInputOutOfRange(uint256 value);
     error FunctionSigPublicInputOutOfRange(uint256 value);
@@ -45,6 +47,7 @@ contract ChannelManager {
 
     mapping(bytes32 => bool) private _allowedFunctionKeys;
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
+    mapping(bytes32 => BridgeStructs.StorageWriteMetadata[]) private _functionStorageWrites;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
     mapping(uint256 => bytes32) private _latestTokenVaultLeaves;
@@ -99,6 +102,14 @@ contract ChannelManager {
                 allowedFunctions_[i].functionSig
             );
             _functionConfigs[functionKey] = functionConfig;
+            BridgeStructs.StorageWriteMetadata[] memory storageWrites = dAppManager_.getFunctionStorageWrites(
+                dappId_,
+                allowedFunctions_[i].entryContract,
+                allowedFunctions_[i].functionSig
+            );
+            for (uint256 j = 0; j < storageWrites.length; j++) {
+                _functionStorageWrites[functionKey].push(storageWrites[j]);
+            }
         }
     }
 
@@ -130,8 +141,10 @@ contract ChannelManager {
             revert UnsupportedChannelFunction(entryContract, functionSig);
         }
         BridgeStructs.FunctionConfig memory functionConfig = _functionConfigs[functionKey];
+        BridgeStructs.StorageWriteMetadata[] storage functionStorageWrites = _functionStorageWrites[functionKey];
 
-        _assertUpdatedRootVectorLayout(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords);
+        _assertUpdatedRootVectorLayout(payload.aPubUser, functionStorageWrites.length);
+        _assertStorageWriteTreeIndices(payload.aPubUser, functionStorageWrites);
 
         bytes32 actualPreprocessInputHash =
             keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
@@ -155,7 +168,7 @@ contract ChannelManager {
         if (!ok) revert TokamakProofRejected();
 
         _replaceCurrentRootVector(
-            _decodeUpdatedRootVectorFromAPubUser(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords)
+            _decodeUpdatedRootVectorFromAPubUser(payload.aPubUser, functionStorageWrites.length)
         );
         emit TokamakStateUpdateAccepted(functionSig, entryContract);
         return true;
@@ -242,10 +255,8 @@ contract ChannelManager {
         }
     }
 
-    function _assertUpdatedRootVectorLayout(uint256[] calldata aPubUser, uint256 updatedRootVectorOffsetWords)
-        private
-        view
-    {
+    function _assertUpdatedRootVectorLayout(uint256[] calldata aPubUser, uint256 storageWriteCount) private view {
+        uint256 updatedRootVectorOffsetWords = _updatedRootVectorOffsetWords(storageWriteCount);
         if (updatedRootVectorOffsetWords + _currentRootVector.length * SPLIT_WORD_SIZE > ENTRY_CONTRACT_OFFSET) {
             revert RootVectorExceedsAPubUserLayout(_currentRootVector.length);
         }
@@ -255,15 +266,33 @@ contract ChannelManager {
         }
     }
 
-    function _decodeUpdatedRootVectorFromAPubUser(uint256[] calldata aPubUser, uint256 updatedRootVectorOffsetWords)
+    function _assertStorageWriteTreeIndices(
+        uint256[] calldata aPubUser,
+        BridgeStructs.StorageWriteMetadata[] storage storageWrites
+    ) private view {
+        for (uint256 i = 0; i < storageWrites.length; i++) {
+            uint256 actualIndex = _decodeSplitWord(aPubUser, i * STORAGE_WRITE_WORD_SIZE);
+            uint256 expectedIndex = storageWrites[i].mtIndex;
+            if (actualIndex != expectedIndex) {
+                revert StorageWriteTreeIndexMismatch(expectedIndex, actualIndex, i * STORAGE_WRITE_WORD_SIZE);
+            }
+        }
+    }
+
+    function _decodeUpdatedRootVectorFromAPubUser(uint256[] calldata aPubUser, uint256 storageWriteCount)
         private
         view
         returns (bytes32[] memory updatedRootVector)
     {
+        uint256 updatedRootVectorOffsetWords = _updatedRootVectorOffsetWords(storageWriteCount);
         updatedRootVector = new bytes32[](_currentRootVector.length);
         for (uint256 i = 0; i < _currentRootVector.length; i++) {
             updatedRootVector[i] = _decodeBytes32FromAPubUser(aPubUser, updatedRootVectorOffsetWords + i * 2);
         }
+    }
+
+    function _updatedRootVectorOffsetWords(uint256 storageWriteCount) private pure returns (uint256) {
+        return storageWriteCount * STORAGE_WRITE_WORD_SIZE;
     }
 
     function _decodeBytes32FromAPubUser(uint256[] calldata aPubUser, uint256 startIndex)

@@ -41,7 +41,8 @@ const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
 const functionsRoot = path.resolve(__dirname, "functions");
 const channelWorkspacesRoot = path.resolve(__dirname, "workspaces");
-const userWorkspacesRoot = path.resolve(__dirname, "user-workspaces");
+const walletsRoot = path.resolve(__dirname, "wallets");
+const legacyWalletsRoot = path.resolve(__dirname, "user-workspaces");
 const defaultEnvFile = path.resolve(appsRoot, ".env");
 const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
@@ -57,6 +58,7 @@ const BLS12_381_SCALAR_FIELD_MODULUS =
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   assertNoLegacyBridgeOverrideFlags(args);
+  assertNoLegacyWalletFlags(args);
 
   if (args.help || !args.command) {
     printHelp();
@@ -84,8 +86,8 @@ async function main() {
     return;
   }
 
-  if (args.command === "user-workspace-list") {
-    printJson(listUserWorkspaces());
+  if (args.command === "wallet-list") {
+    printJson(listWallets());
     return;
   }
 
@@ -114,8 +116,8 @@ async function main() {
     case "channel-workspace-show":
       handleWorkspaceShow(args);
       return;
-    case "user-workspace-show":
-      handleUserWorkspaceShow(args);
+    case "wallet-show":
+      handleWalletShow(args);
       return;
     case "register-and-fund":
       await handleRegisterAndFund({ args, env, network, provider });
@@ -146,6 +148,15 @@ function assertNoLegacyBridgeOverrideFlags(args) {
   }
   if (args.bridgeAbiManifest !== undefined) {
     throw new Error("--bridge-abi-manifest is no longer supported. Select the bridge through --network only.");
+  }
+}
+
+function assertNoLegacyWalletFlags(args) {
+  if (args.userWorkspace !== undefined) {
+    throw new Error("--user-workspace is no longer supported. Use --wallet instead.");
+  }
+  if (args.command === "user-workspace-list" || args.command === "user-workspace-show") {
+    throw new Error("Legacy user-workspace commands are no longer supported. Use wallet-list or wallet-show.");
   }
 }
 
@@ -408,14 +419,14 @@ function handleWorkspaceShow(args) {
   });
 }
 
-function handleUserWorkspaceShow(args) {
-  const workspaceName = requireUserWorkspaceName(args);
-  const workspaceContext = loadUserWorkspace(workspaceName);
+function handleWalletShow(args) {
+  const walletName = requireWalletName(args);
+  const walletContext = loadWallet(walletName);
   const spendSelection = args.amount
-    ? selectSpendableNotes(workspaceContext.workspace, parseAmountArg(args.amount))
+    ? selectSpendableNotes(walletContext.wallet, parseAmountArg(args.amount))
     : null;
   printJson({
-    workspace: workspaceContext.workspace,
+    wallet: walletContext.wallet,
     spendSelection,
   });
 }
@@ -435,7 +446,7 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
   const approveReceipt = await waitForReceipt(await asset.approve(context.workspace.tokenVault, amount));
   const registrationReceipt = await waitForReceipt(await tokenVault.registerAndFund(storageKey, amount));
   const registration = await tokenVault.getRegistration(signer.address);
-  const userWorkspaceContext = ensureUserWorkspace({
+  const walletContext = ensureWallet({
     args,
     channelContext: context,
     signerAddress: signer.address,
@@ -444,14 +455,14 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
     leafIndex: registration.leafIndex,
   });
   const operationDir =
-    createUserOperationDir(userWorkspaceContext.workspaceName, `register-and-fund-${shortAddress(signer.address)}`);
+    createWalletOperationDir(walletContext.walletName, `register-and-fund-${shortAddress(signer.address)}`);
 
   writeJson(path.join(operationDir, "state_snapshot.json"), context.currentSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(context.currentSnapshot));
   writeJson(path.join(operationDir, "approve-receipt.json"), sanitizeReceipt(approveReceipt));
   writeJson(path.join(operationDir, "registration-receipt.json"), sanitizeReceipt(registrationReceipt));
   writeJson(path.join(operationDir, "registration.json"), serializeBigInts(registration));
-  writeJson(path.join(operationDir, "user-workspace.json"), userWorkspaceContext.workspace);
+  writeJson(path.join(operationDir, "wallet.json"), walletContext.wallet);
   writeJson(path.join(operationDir, "operation.json"), {
     operationName: "register-and-fund",
     actorLabel: signer.address,
@@ -469,7 +480,7 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
   printJson({
     action: "register-and-fund",
     channelName: context.workspace.channelName,
-    userWorkspace: userWorkspaceContext.workspaceName,
+    wallet: walletContext.walletName,
     operationDir,
     amount: amount.toString(),
     l1Address: signer.address,
@@ -482,16 +493,16 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
 async function handleFundL1({ args, env, network, provider }) {
   const signer = requireL1Signer(args, env, provider);
   const amount = parseAmountArg(requireArg(args.amount, "--amount"));
-  const userWorkspace = loadUserWorkspace(requireUserWorkspaceName(args));
+  const wallet = loadWallet(requireWalletName(args));
   const context = await loadChannelContext({
     args,
     networkName: network.name,
     provider,
-    userWorkspaceContext: userWorkspace,
+    walletContext: wallet,
   });
   expect(
-    Number(userWorkspace.workspace.channelId) === Number(context.workspace.channelId),
-    "The provided user workspace does not belong to the selected channel.",
+    Number(wallet.wallet.channelId) === Number(context.workspace.channelId),
+    "The provided wallet does not belong to the selected channel.",
   );
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
   const asset = new Contract(context.workspace.canonicalAsset, context.bridgeAbiManifest.contracts.erc20.abi, signer);
@@ -500,8 +511,8 @@ async function handleFundL1({ args, env, network, provider }) {
     context,
     operationName: "fund-l1",
     actorLabel: signer.address,
-    operationDir: createUserOperationDir(userWorkspace.workspaceName, `fund-l1-${shortAddress(signer.address)}`),
-    workspaceLabel: userWorkspace.workspaceName,
+    operationDir: createWalletOperationDir(wallet.walletName, `fund-l1-${shortAddress(signer.address)}`),
+    workspaceLabel: wallet.walletName,
     extraMetadata: {
       amount: amount.toString(),
     },
@@ -518,17 +529,17 @@ async function handleFundL1({ args, env, network, provider }) {
 }
 
 async function handleGrothVaultMove({ args, env, network, provider, direction }) {
-  const userWorkspaceFromFlag = args.userWorkspace ? loadUserWorkspace(requireUserWorkspaceName(args)) : null;
+  const walletFromFlag = args.wallet ? loadWallet(requireWalletName(args)) : null;
   const context = await loadChannelContext({
     args,
     networkName: network.name,
     provider,
-    userWorkspaceContext: userWorkspaceFromFlag,
+    walletContext: walletFromFlag,
   });
-  if (userWorkspaceFromFlag) {
+  if (walletFromFlag) {
     expect(
-      Number(userWorkspaceFromFlag.workspace.channelId) === Number(context.workspace.channelId),
-      "The provided user workspace does not belong to the selected channel.",
+      Number(walletFromFlag.wallet.channelId) === Number(context.workspace.channelId),
+      "The provided wallet does not belong to the selected channel.",
     );
   }
   await assertWorkspaceAlignedWithChain(context, provider);
@@ -563,7 +574,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   }
 
   const operationName = direction === "deposit" ? "deposit" : "withdraw";
-  const userWorkspaceContext = ensureUserWorkspace({
+  const walletContext = ensureWallet({
     args,
     channelContext: context,
     signerAddress: signer.address,
@@ -572,7 +583,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
     leafIndex: registration.leafIndex,
   });
   const operationDir =
-    createUserOperationDir(userWorkspaceContext.workspaceName, `${operationName}-${shortAddress(signer.address)}`);
+    createWalletOperationDir(walletContext.walletName, `${operationName}-${shortAddress(signer.address)}`);
 
   const transition = await buildGrothTransition({
     operationDir,
@@ -595,7 +606,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   writeJson(path.join(operationDir, `${operationName}-receipt.json`), sanitizeReceipt(receipt));
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(transition.nextSnapshot));
-  writeJson(path.join(operationDir, "user-workspace.json"), userWorkspaceContext.workspace);
+  writeJson(path.join(operationDir, "wallet.json"), walletContext.wallet);
 
   context.currentSnapshot = normalizeStateSnapshot(transition.nextSnapshot);
   persistCurrentState(context);
@@ -603,7 +614,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   printJson({
     action: operationName,
     workspace: context.workspaceName,
-    userWorkspace: userWorkspaceContext.workspaceName,
+    wallet: walletContext.walletName,
     operationDir,
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
@@ -614,16 +625,16 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
 }
 
 async function handleClaim({ args, env, provider }) {
-  const userWorkspace = loadUserWorkspace(requireUserWorkspaceName(args));
+  const wallet = loadWallet(requireWalletName(args));
   const context = await loadChannelContext({
     args,
     networkName: null,
     provider,
-    userWorkspaceContext: userWorkspace,
+    walletContext: wallet,
   });
   expect(
-    Number(userWorkspace.workspace.channelId) === Number(context.workspace.channelId),
-    "The provided user workspace does not belong to the selected channel.",
+    Number(wallet.wallet.channelId) === Number(context.workspace.channelId),
+    "The provided wallet does not belong to the selected channel.",
   );
   const signer = requireL1Signer(args, env, provider);
   const amount = parseAmountArg(requireArg(args.amount, "--amount"));
@@ -633,8 +644,8 @@ async function handleClaim({ args, env, provider }) {
     context,
     operationName: "claim",
     actorLabel: signer.address,
-    operationDir: createUserOperationDir(userWorkspace.workspaceName, `claim-${shortAddress(signer.address)}`),
-    workspaceLabel: userWorkspace.workspaceName,
+    operationDir: createWalletOperationDir(wallet.walletName, `claim-${shortAddress(signer.address)}`),
+    workspaceLabel: wallet.walletName,
     extraMetadata: {
       amount: amount.toString(),
     },
@@ -650,21 +661,21 @@ async function handleBridgeSend({ args, env, provider }) {
   requireFunctionName(args);
   const signer = requireL1Signer(args, env, provider);
   const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
-  const userWorkspace = loadUserWorkspace(requireUserWorkspaceName(args));
+  const wallet = loadWallet(requireWalletName(args));
   const context = await loadChannelContext({
     args,
     networkName: null,
     provider,
-    userWorkspaceContext: userWorkspace,
+    walletContext: wallet,
   });
   await assertWorkspaceAlignedWithChain(context, provider);
   expect(
-    Number(userWorkspace.workspace.channelId) === Number(context.workspace.channelId),
-    "The provided user workspace does not belong to the selected channel.",
+    Number(wallet.wallet.channelId) === Number(context.workspace.channelId),
+    "The provided wallet does not belong to the selected channel.",
   );
   expect(
-    userWorkspace.workspace.l2Address === l2Identity.l2Address,
-    "The provided user workspace does not match the derived L2 identity.",
+    wallet.wallet.l2Address === l2Identity.l2Address,
+    "The provided wallet does not match the derived L2 identity.",
   );
   const templatePayload = buildPayload(args.functionName, args);
   const controllerAbi = readJson(path.resolve(deployRoot, templatePayload.abiFile.replace("../deploy/", "")));
@@ -672,8 +683,8 @@ async function handleBridgeSend({ args, env, provider }) {
   const formattedArgs = formatArguments(fragment.inputs ?? [], templatePayload.args ?? []);
   const inputSignature = buildInputSignature(fragment);
   const calldata = runCast(["calldata", inputSignature, ...formattedArgs]).trim();
-  const nonce = Number(userWorkspace.workspace.l2Nonce ?? 0);
-  const operationDir = createUserOperationDir(userWorkspace.workspaceName, `${args.functionName}-${shortAddress(l2Identity.l2Address)}`);
+  const nonce = Number(wallet.wallet.l2Nonce ?? 0);
+  const operationDir = createWalletOperationDir(wallet.walletName, `${args.functionName}-${shortAddress(l2Identity.l2Address)}`);
   ensureDir(operationDir);
 
   if (args.installArg) {
@@ -725,21 +736,21 @@ async function handleBridgeSend({ args, env, provider }) {
   writeJson(path.join(operationDir, "state_snapshot.json"), nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), nextSnapshot);
 
-  userWorkspace.workspace.l2Nonce = nonce + 1;
-  applyNoteLifecycleAcrossKnownUserWorkspaces(
-    userWorkspace,
+  wallet.wallet.l2Nonce = nonce + 1;
+  applyNoteLifecycleAcrossKnownWallets(
+    wallet,
     extractNoteLifecycle(args.functionName, templatePayload),
     args.functionName,
     receipt.hash,
   );
   context.currentSnapshot = nextSnapshot;
-  persistUserWorkspace(userWorkspace);
+  persistWallet(wallet);
   persistCurrentState(context);
 
   printJson({
     action: "bridge-send",
     workspace: context.workspaceName,
-    userWorkspace: userWorkspace.workspaceName,
+    wallet: wallet.walletName,
     functionName: args.functionName,
     operationDir,
     l1Submitter: signer.address,
@@ -749,11 +760,11 @@ async function handleBridgeSend({ args, env, provider }) {
   });
 }
 
-function defaultUserWorkspaceName(channelName, l2Address) {
+function defaultWalletName(channelName, l2Address) {
   return `${channelName}-${l2Address}`;
 }
 
-function ensureUserWorkspace({
+function ensureWallet({
   args,
   channelContext,
   signerAddress,
@@ -761,24 +772,25 @@ function ensureUserWorkspace({
   storageKey,
   leafIndex,
 }) {
-  const workspaceName = args.userWorkspace ?? defaultUserWorkspaceName(channelContext.workspace.channelName, l2Identity.l2Address);
-  const workspaceDir = userWorkspacePath(workspaceName);
-  let workspace;
-  if (fs.existsSync(path.join(workspaceDir, "workspace.json"))) {
-    workspace = normalizeUserWorkspace(readJson(path.join(workspaceDir, "workspace.json")));
+  const walletName = args.wallet ?? defaultWalletName(channelContext.workspace.channelName, l2Identity.l2Address);
+  const walletDir = walletPath(walletName);
+  const sourceWalletDir = resolveWalletPath(walletName);
+  let wallet;
+  if (walletConfigExists(sourceWalletDir)) {
+    wallet = normalizeWallet(readJson(walletConfigPath(sourceWalletDir)));
     expect(
-      Number(workspace.channelId) === Number(channelContext.workspace.channelId),
-      `User workspace ${workspaceName} belongs to channel ${workspace.channelId}, not ${channelContext.workspace.channelId}.`,
+      Number(wallet.channelId) === Number(channelContext.workspace.channelId),
+      `Wallet ${walletName} belongs to channel ${wallet.channelId}, not ${channelContext.workspace.channelId}.`,
     );
     expect(
-      workspace.l2Address === l2Identity.l2Address,
-      `User workspace ${workspaceName} belongs to L2 address ${workspace.l2Address}, not ${l2Identity.l2Address}.`,
+      wallet.l2Address === l2Identity.l2Address,
+      `Wallet ${walletName} belongs to L2 address ${wallet.l2Address}, not ${l2Identity.l2Address}.`,
     );
   } else {
-    ensureDir(workspaceDir);
-    ensureDir(path.join(workspaceDir, "operations"));
-    workspace = normalizeUserWorkspace({
-      name: workspaceName,
+    ensureDir(walletDir);
+    ensureDir(path.join(walletDir, "operations"));
+    wallet = normalizeWallet({
+      name: walletName,
       network: channelContext.workspace.network,
       chainId: channelContext.workspace.chainId,
       appDeploymentPath: channelContext.workspace.appDeploymentPath,
@@ -800,40 +812,43 @@ function ensureUserWorkspace({
     });
   }
 
-  workspace.appDeploymentPath = channelContext.workspace.appDeploymentPath;
-  workspace.storageLayoutPath = channelContext.workspace.storageLayoutPath;
-  workspace.channelName = channelContext.workspace.channelName;
-  workspace.channelId = channelContext.workspace.channelId;
-  workspace.channelManager = channelContext.workspace.channelManager;
-  workspace.tokenVault = channelContext.workspace.tokenVault;
-  workspace.canonicalAsset = channelContext.workspace.canonicalAsset;
-  workspace.controller = channelContext.workspace.controller;
-  workspace.l2AccountingVault = channelContext.workspace.l2AccountingVault;
-  workspace.liquidBalancesSlot = channelContext.workspace.liquidBalancesSlot;
-  workspace.l1Address = signerAddress;
-  workspace.l2Address = l2Identity.l2Address;
-  workspace.l2StorageKey = storageKey;
+  ensureDir(walletDir);
+  ensureDir(path.join(walletDir, "operations"));
+
+  wallet.appDeploymentPath = channelContext.workspace.appDeploymentPath;
+  wallet.storageLayoutPath = channelContext.workspace.storageLayoutPath;
+  wallet.channelName = channelContext.workspace.channelName;
+  wallet.channelId = channelContext.workspace.channelId;
+  wallet.channelManager = channelContext.workspace.channelManager;
+  wallet.tokenVault = channelContext.workspace.tokenVault;
+  wallet.canonicalAsset = channelContext.workspace.canonicalAsset;
+  wallet.controller = channelContext.workspace.controller;
+  wallet.l2AccountingVault = channelContext.workspace.l2AccountingVault;
+  wallet.liquidBalancesSlot = channelContext.workspace.liquidBalancesSlot;
+  wallet.l1Address = signerAddress;
+  wallet.l2Address = l2Identity.l2Address;
+  wallet.l2StorageKey = storageKey;
   if (leafIndex !== undefined && leafIndex !== null) {
-    workspace.leafIndex = leafIndex.toString();
+    wallet.leafIndex = leafIndex.toString();
   }
 
   const context = {
-    workspaceName,
-    workspaceDir,
-    workspace,
+    walletName,
+    walletDir,
+    wallet,
   };
-  persistUserWorkspace(context);
+  persistWallet(context);
   return context;
 }
 
-function normalizeUserWorkspace(workspace) {
-  const unusedNotes = Object.values(workspace.notes?.unused ?? {}).map(normalizeTrackedNote);
+function normalizeWallet(wallet) {
+  const unusedNotes = Object.values(wallet.notes?.unused ?? {}).map(normalizeTrackedNote);
   unusedNotes.sort(compareNotesByValueDesc);
-  const spentNotes = Object.values(workspace.notes?.spent ?? {}).map(normalizeTrackedNote);
+  const spentNotes = Object.values(wallet.notes?.spent ?? {}).map(normalizeTrackedNote);
 
   return {
-    ...workspace,
-    l2Nonce: Number(workspace.l2Nonce ?? 0),
+    ...wallet,
+    l2Nonce: Number(wallet.l2Nonce ?? 0),
     notes: {
       unused: Object.fromEntries(unusedNotes.map((note) => [note.commitment, note])),
       spent: Object.fromEntries(spentNotes.map((note) => [note.nullifier, note])),
@@ -928,15 +943,15 @@ function extractNoteLifecycle(functionName, templatePayload) {
   };
 }
 
-function applyNoteLifecycleToUserWorkspace(userWorkspaceContext, lifecycle, sourceFunction, sourceTxHash) {
+function applyNoteLifecycleToWallet(walletContext, lifecycle, sourceFunction, sourceTxHash) {
   for (const inputNote of lifecycle.inputs) {
     const trackedInput = buildTrackedNote(inputNote, sourceFunction, sourceTxHash);
-    const existingUnusedNote = userWorkspaceContext.workspace.notes.unused[trackedInput.commitment];
+    const existingUnusedNote = walletContext.wallet.notes.unused[trackedInput.commitment];
     if (!existingUnusedNote) {
       continue;
     }
-    delete userWorkspaceContext.workspace.notes.unused[trackedInput.commitment];
-    userWorkspaceContext.workspace.notes.spent[trackedInput.nullifier] = {
+    delete walletContext.wallet.notes.unused[trackedInput.commitment];
+    walletContext.wallet.notes.spent[trackedInput.nullifier] = {
       ...existingUnusedNote,
       status: "spent",
       sourceFunction,
@@ -946,31 +961,31 @@ function applyNoteLifecycleToUserWorkspace(userWorkspaceContext, lifecycle, sour
 
   for (const outputNote of lifecycle.outputs) {
     const trackedOutput = buildTrackedNote(outputNote, sourceFunction, sourceTxHash);
-    if (trackedOutput.owner !== userWorkspaceContext.workspace.l2Address) {
+    if (trackedOutput.owner !== walletContext.wallet.l2Address) {
       continue;
     }
-    userWorkspaceContext.workspace.notes.unused[trackedOutput.commitment] = trackedOutput;
+    walletContext.wallet.notes.unused[trackedOutput.commitment] = trackedOutput;
   }
 
-  userWorkspaceContext.workspace = normalizeUserWorkspace(userWorkspaceContext.workspace);
-  persistUserWorkspace(userWorkspaceContext);
+  walletContext.wallet = normalizeWallet(walletContext.wallet);
+  persistWallet(walletContext);
 }
 
-function applyNoteLifecycleAcrossKnownUserWorkspaces(primaryUserWorkspaceContext, lifecycle, sourceFunction, sourceTxHash) {
-  const knownWorkspaces = new Map([[primaryUserWorkspaceContext.workspaceName, primaryUserWorkspaceContext]]);
-  for (const descriptor of listUserWorkspaces()) {
-    if (!descriptor.name || knownWorkspaces.has(descriptor.name)) {
+function applyNoteLifecycleAcrossKnownWallets(primaryWalletContext, lifecycle, sourceFunction, sourceTxHash) {
+  const knownWallets = new Map([[primaryWalletContext.walletName, primaryWalletContext]]);
+  for (const descriptor of listWallets()) {
+    if (!descriptor.name || knownWallets.has(descriptor.name)) {
       continue;
     }
-    const workspaceContext = loadUserWorkspace(descriptor.name);
-    if (workspaceContext.workspace.channelId !== primaryUserWorkspaceContext.workspace.channelId) {
+    const walletContext = loadWallet(descriptor.name);
+    if (walletContext.wallet.channelId !== primaryWalletContext.wallet.channelId) {
       continue;
     }
-    knownWorkspaces.set(workspaceContext.workspaceName, workspaceContext);
+    knownWallets.set(walletContext.walletName, walletContext);
   }
 
-  for (const workspaceContext of knownWorkspaces.values()) {
-    applyNoteLifecycleToUserWorkspace(workspaceContext, lifecycle, sourceFunction, sourceTxHash);
+  for (const walletContext of knownWallets.values()) {
+    applyNoteLifecycleToWallet(walletContext, lifecycle, sourceFunction, sourceTxHash);
   }
 }
 
@@ -1035,7 +1050,7 @@ async function loadWorkspaceContext(workspaceName, provider) {
   };
 }
 
-async function loadChannelContext({ args, networkName, provider, userWorkspaceContext = null }) {
+async function loadChannelContext({ args, networkName, provider, walletContext = null }) {
   const explicitWorkspaceName = args.workspace ? requireWorkspaceName(args) : null;
   if (explicitWorkspaceName) {
     const explicitWorkspaceDir = channelWorkspacePath(explicitWorkspaceName);
@@ -1046,19 +1061,19 @@ async function loadChannelContext({ args, networkName, provider, userWorkspaceCo
 
   const chainId = Number((await provider.getNetwork()).chainId);
   const resolvedNetworkName = networkName ?? networkNameFromChainId(chainId);
-  const channelName = args.channelName ?? userWorkspaceContext?.workspace.channelName;
-  if (args.channelName && userWorkspaceContext) {
+  const channelName = args.channelName ?? walletContext?.wallet.channelName;
+  if (args.channelName && walletContext) {
     expect(
-      args.channelName === userWorkspaceContext.workspace.channelName,
+      args.channelName === walletContext.wallet.channelName,
       [
-        `The provided --channel-name (${args.channelName}) does not match the user workspace channel`,
-        `(${userWorkspaceContext.workspace.channelName}).`,
+        `The provided --channel-name (${args.channelName}) does not match the wallet channel`,
+        `(${walletContext.wallet.channelName}).`,
       ].join(" "),
     );
   }
   if (!channelName) {
     throw new Error(
-      "Missing channel selector. Provide either --workspace, --channel-name, or --user-workspace bound to a channel.",
+      "Missing channel selector. Provide either --workspace, --channel-name, or --wallet bound to a channel.",
     );
   }
 
@@ -1099,14 +1114,14 @@ async function loadChannelContext({ args, networkName, provider, userWorkspaceCo
   };
 }
 
-function loadUserWorkspace(workspaceName) {
-  const normalizedWorkspaceName = requireUserWorkspaceName({ userWorkspace: workspaceName });
-  const workspaceDir = userWorkspacePath(normalizedWorkspaceName);
-  const workspace = readJson(path.join(workspaceDir, "workspace.json"));
+function loadWallet(walletName) {
+  const normalizedWalletName = requireWalletName({ wallet: walletName });
+  const walletDir = resolveWalletPath(normalizedWalletName);
+  const wallet = readJson(walletConfigPath(walletDir));
   return {
-    workspaceName: normalizedWorkspaceName,
-    workspaceDir,
-    workspace: normalizeUserWorkspace(workspace),
+    walletName: normalizedWalletName,
+    walletDir,
+    wallet: normalizeWallet(wallet),
   };
 }
 
@@ -1783,10 +1798,10 @@ function requireWorkspaceName(args) {
   return String(value);
 }
 
-function requireUserWorkspaceName(args) {
-  const value = typeof args === "string" ? args : args.userWorkspace;
+function requireWalletName(args) {
+  const value = typeof args === "string" ? args : args.wallet;
   if (!value) {
-    throw new Error("Missing --user-workspace.");
+    throw new Error("Missing --wallet.");
   }
   return String(value);
 }
@@ -1809,8 +1824,39 @@ function channelWorkspacePath(name) {
   return path.join(channelWorkspacesRoot, slugify(name));
 }
 
-function userWorkspacePath(name) {
-  return path.join(userWorkspacesRoot, slugify(name));
+function walletPath(name) {
+  return path.join(walletsRoot, slugify(name));
+}
+
+function legacyWalletPath(name) {
+  return path.join(legacyWalletsRoot, slugify(name));
+}
+
+function resolveWalletPath(name) {
+  const preferredPath = walletPath(name);
+  if (walletConfigExists(preferredPath)) {
+    return preferredPath;
+  }
+
+  const fallbackPath = legacyWalletPath(name);
+  if (walletConfigExists(fallbackPath)) {
+    return fallbackPath;
+  }
+
+  return preferredPath;
+}
+
+function walletConfigPath(walletDir) {
+  const preferredPath = path.join(walletDir, "wallet.json");
+  if (fs.existsSync(preferredPath)) {
+    return preferredPath;
+  }
+  return path.join(walletDir, "workspace.json");
+}
+
+function walletConfigExists(walletDir) {
+  return fs.existsSync(path.join(walletDir, "wallet.json"))
+    || fs.existsSync(path.join(walletDir, "workspace.json"));
 }
 
 function listChannelWorkspaces() {
@@ -1827,18 +1873,27 @@ function listChannelWorkspaces() {
     });
 }
 
-function listUserWorkspaces() {
-  if (!fs.existsSync(userWorkspacesRoot)) {
-    return [];
+function listWallets() {
+  const roots = [walletsRoot, legacyWalletsRoot];
+  const discovered = new Map();
+  for (const root of roots) {
+    if (!fs.existsSync(root)) {
+      continue;
+    }
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || discovered.has(entry.name)) {
+        continue;
+      }
+      const configPath = walletConfigPath(path.join(root, entry.name));
+      discovered.set(
+        entry.name,
+        fs.existsSync(configPath)
+          ? readJson(configPath)
+          : { name: entry.name },
+      );
+    }
   }
-  return fs.readdirSync(userWorkspacesRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
-      const configPath = path.join(userWorkspacesRoot, entry.name, "workspace.json");
-      return fs.existsSync(configPath)
-        ? readJson(configPath)
-        : { name: entry.name };
-    });
+  return [...discovered.values()];
 }
 
 function slugify(value) {
@@ -1855,9 +1910,9 @@ function createOperationDir(workspaceName, suffix) {
   return operationDir;
 }
 
-function createUserOperationDir(workspaceName, suffix) {
+function createWalletOperationDir(walletName, suffix) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
-  const operationDir = path.join(userWorkspacePath(workspaceName), "operations", `${timestamp}-${slugify(suffix)}`);
+  const operationDir = path.join(walletPath(walletName), "operations", `${timestamp}-${slugify(suffix)}`);
   ensureDir(operationDir);
   return operationDir;
 }
@@ -1866,8 +1921,8 @@ function persistWorkspace(context) {
   writeJson(path.join(context.workspaceDir, "workspace.json"), context.workspace);
 }
 
-function persistUserWorkspace(context) {
-  writeJson(path.join(context.workspaceDir, "workspace.json"), context.workspace);
+function persistWallet(context) {
+  writeJson(path.join(context.walletDir, "wallet.json"), context.wallet);
 }
 
 function persistCurrentState(context) {
@@ -1891,14 +1946,14 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-init --channel-name <name> [--workspace <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs user-workspace-list
-  node apps/private-state/cli/private-state-bridge-cli.mjs user-workspace-show --user-workspace <name> [--amount <wei>]
-  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--user-workspace <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --user-workspace <name>) --private-key <hex> --amount <wei> --user-workspace <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--user-workspace <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --user-workspace <name>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--user-workspace <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --user-workspace <name>) --private-key <hex> --amount <wei> --user-workspace <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --user-workspace <name>) --user-workspace <name> --private-key <hex> --l2-key-signature <seed> [--args-file <path>] [--template-file <path>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-list
+  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> [--amount <wei>]
+  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --amount <wei> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --amount <wei> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> --private-key <hex> --l2-key-signature <seed> [--args-file <path>] [--template-file <path>] [options]
 
 Common flags:
   --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia
@@ -1926,14 +1981,14 @@ bridge-send options:
 Notes:
   - channel-workspace-init derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - Channel workspaces are optional caches for channel snapshots.
-  - User workspaces are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
+  - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
-  - register-and-fund, deposit, and withdraw can allocate or refresh a user workspace automatically from --l2-key-signature.
-  - fund-l1, claim, and bridge-send require an existing --user-workspace.
+  - register-and-fund, deposit, and withdraw can allocate or refresh a wallet automatically from --l2-key-signature.
+  - fund-l1, claim, and bridge-send require an existing --wallet.
   - Channel workspace operations are stored under:
       apps/private-state/cli/workspaces/<workspace>/operations/
-  - User workspace operations are stored under:
-      apps/private-state/cli/user-workspaces/<workspace>/operations/
+  - Wallet operations are stored under:
+      apps/private-state/cli/wallets/<wallet>/operations/
 `);
 }
 

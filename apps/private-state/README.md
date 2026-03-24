@@ -179,12 +179,12 @@ The CLI:
 - reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`
 - separates on-chain channel creation from optional channel-workspace caching
 - reconstructs channel `state_snapshot.json` from bridge events when initializing a channel workspace
-- manages mandatory per-user workspaces that store note plaintexts, used/unused note sets, and aggregated unused-note balance
+- manages mandatory per-user wallets that store note plaintexts, used/unused note sets, and aggregated unused-note balance
 - generates Groth and Tokamak proofs
 - submits bridge transactions for `deposit`, `withdraw`, `claim`, and DApp function execution
 
 Channel workspaces are optional snapshot caches. User-action commands can reconstruct the channel state directly from
-bridge events by using `--channel-name` or an existing `--user-workspace`. User workspaces remain mandatory because
+bridge events by using `--channel-name` or an existing `--wallet`. Wallets remain mandatory because
 note plaintexts and note-spend history are not reconstructible from bridge events alone.
 
 Examples:
@@ -195,8 +195,8 @@ make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
 node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
-node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --channel-name demo-channel --user-workspace participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a" --amount 3000000000000000000
-node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --user-workspace participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a" --amount 3000000000000000000
+node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --wallet participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a"
 ```
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such

@@ -24,7 +24,7 @@ The documents do not specify enough operational detail to implement every produc
 
 - final proposal-pool and token-economics behavior
 
-Tokamak proof verification is no longer mocked. The bridge now calls the real verifier under `tokamak-zkp/`, binds the user-supplied transaction instance to fields extracted from `aPubUser`, and checks the channel-scoped `aPubBlockHash` together with the DApp-managed preprocess-input hash and per-function storage-write metadata.
+Tokamak proof verification is no longer mocked. The bridge now calls the real verifier under `tokamak-zkp/`, binds the user-supplied transaction instance to fields extracted from `aPubUser`, and checks the channel-scoped `aPubBlockHash` together with the DApp-managed preprocess-input hash and per-function storage-write metadata. After a successful verification, `executeChannelTransaction` emits one storage-write event per decoded `aPubUser` write and, when one of those writes targets the channel's L2 token-vault storage, it also updates the token-vault leaf cache through the same internal vault-update path used by Groth-backed deposit and withdraw flows.
 
 Groth proof verification is also no longer mocked. The bridge expects raw Groth16 proof coordinates and forwards them into the generated `updateTree` verifier under `groth16/verifier/`. Under the current circuit model, each token-vault leaf is the raw stored balance value rather than a key-value hash.
 

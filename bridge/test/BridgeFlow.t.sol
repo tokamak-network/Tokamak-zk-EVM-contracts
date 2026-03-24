@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {BridgeStructs} from "../src/BridgeStructs.sol";
 import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
@@ -508,10 +509,13 @@ contract BridgeFlowTest is Test {
             _currentRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.currentRootVectorOffsetWords);
         bytes32[] memory updatedRoots =
             _updatedRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.updatedRootVectorOffsetWords);
+        uint256 expectedTokenVaultLeafIndex = _decodeUint256FromSplitWords(proofPayload.aPubUser, 0);
+        uint256 expectedTokenVaultValue = _decodeUint256FromSplitWords(proofPayload.aPubUser, 2);
 
         // The extracted proof bundle starts from an already-updated channel state rather than the bridge's zero root.
         _seedChannelCurrentRoots(localChannelManager, currentRoots);
 
+        vm.recordLogs();
         bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
         assertTrue(accepted);
 
@@ -521,6 +525,37 @@ contract BridgeFlowTest is Test {
         for (uint256 i = 0; i < updatedRoots.length; i++) {
             assertEq(resultingRoots[i], updatedRoots[i]);
         }
+
+        uint256[] memory storedLeafIndices = localChannelManager.getStoredLeafIndices();
+        assertEq(storedLeafIndices.length, 1);
+        assertEq(storedLeafIndices[0], expectedTokenVaultLeafIndex);
+        assertEq(localChannelManager.getLatestTokenVaultLeaf(expectedTokenVaultLeafIndex), bytes32(expectedTokenVaultValue));
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 storageWriteTopic = keccak256("StorageWriteObserved(address,uint256,uint256)");
+        bytes32 vaultUpdateTopic = keccak256("VaultRootUpdateApplied(bytes32,bytes32,uint256)");
+        uint256 storageWriteCount;
+        uint256 vaultUpdateCount;
+        bool sawTokenVaultWrite;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == storageWriteTopic) {
+                storageWriteCount += 1;
+                address storageAddr = address(uint160(uint256(logs[i].topics[1])));
+                (uint256 leafIndex, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
+                if (storageAddr == REAL_TOKAMAK_APP_STORAGE) {
+                    sawTokenVaultWrite = true;
+                    assertEq(leafIndex, expectedTokenVaultLeafIndex);
+                    assertEq(value, expectedTokenVaultValue);
+                }
+            } else if (logs[i].topics[0] == vaultUpdateTopic) {
+                vaultUpdateCount += 1;
+            }
+        }
+
+        assertEq(storageWriteCount, 2);
+        assertEq(vaultUpdateCount, 1);
+        assertTrue(sawTokenVaultWrite);
     }
 
     function _loadTokamakProofPayload()

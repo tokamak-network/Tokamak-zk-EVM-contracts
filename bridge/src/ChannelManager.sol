@@ -7,6 +7,7 @@ import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract ChannelManager {
     uint256 internal constant SPLIT_WORD_SIZE = 2;
+    uint256 internal constant STORAGE_WRITE_VALUE_OFFSET = 2;
 
     error OnlyBridgeCore();
     error OnlyTokenVault();
@@ -22,6 +23,7 @@ contract ChannelManager {
     error APubUserWordOutOfRange(uint256 index, uint256 value);
     error EntryContractPublicInputOutOfRange(uint256 value);
     error FunctionSigPublicInputOutOfRange(uint256 value);
+    error InvalidStorageWriteStorageIndex(uint8 storageAddrIndex);
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
@@ -40,6 +42,8 @@ contract ChannelManager {
     mapping(bytes32 => bool) private _allowedFunctionKeys;
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
     mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
+    mapping(bytes32 => address[]) private _functionStorageAddresses;
+    mapping(bytes32 => BridgeStructs.StorageWriteMetadata[]) private _functionStorageWrites;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
     mapping(uint256 => bytes32) private _latestTokenVaultLeaves;
@@ -50,6 +54,7 @@ contract ChannelManager {
     event TokamakStateUpdateAccepted(bytes4 indexed functionSig, address indexed entryContract);
     event VaultRootUpdateApplied(bytes32 indexed currentRoot, bytes32 indexed updatedRoot, uint256 leafIndex);
     event RootVectorUpdated(bytes32 indexed rootVectorHash, bytes32[] rootVector);
+    event StorageWriteObserved(address indexed storageAddr, uint256 leafIndex, uint256 value);
 
     constructor(
         uint256 channelId_,
@@ -95,6 +100,18 @@ contract ChannelManager {
             );
             _functionConfigs[functionKey] = functionConfig;
             _functionKeyByPreprocessInputHash[functionConfig.preprocessInputHash] = functionKey;
+
+            address[] memory functionStorages =
+                dAppManager_.getFunctionStorages(dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
+            for (uint256 j = 0; j < functionStorages.length; j++) {
+                _functionStorageAddresses[functionKey].push(functionStorages[j]);
+            }
+
+            BridgeStructs.StorageWriteMetadata[] memory storageWrites =
+                dAppManager_.getFunctionStorageWrites(dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
+            for (uint256 j = 0; j < storageWrites.length; j++) {
+                _functionStorageWrites[functionKey].push(storageWrites[j]);
+            }
         }
     }
 
@@ -151,9 +168,14 @@ contract ChannelManager {
         );
         if (!ok) revert TokamakProofRejected();
 
-        _replaceCurrentRootVector(
-            _decodeUpdatedRootVectorFromAPubUser(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords)
-        );
+        bytes32[] memory updatedRootVector =
+            _decodeUpdatedRootVectorFromAPubUser(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords);
+        bytes32 currentTokenVaultRoot = _currentRootVector[tokenVaultTreeIndex];
+        bytes32 updatedTokenVaultRoot = updatedRootVector[tokenVaultTreeIndex];
+
+        _replaceCurrentRootVector(updatedRootVector);
+        _observeStorageWrites(functionKey, payload.aPubUser, currentTokenVaultRoot, updatedTokenVaultRoot);
+
         emit TokamakStateUpdateAccepted(functionSig, entryContract);
         return true;
     }
@@ -170,9 +192,7 @@ contract ChannelManager {
 
         _currentRootVector[tokenVaultTreeIndex] = updatedTokenVaultRoot;
         _publishCurrentRootVector(_copyBytes32Array(_currentRootVector));
-        _setLatestTokenVaultLeaf(leafIndex, latestLeafValue);
-
-        emit VaultRootUpdateApplied(currentTokenVaultRoot, updatedTokenVaultRoot, leafIndex);
+        _applyVaultUpdate(currentTokenVaultRoot, updatedTokenVaultRoot, leafIndex, latestLeafValue);
         return true;
     }
 
@@ -204,6 +224,19 @@ contract ChannelManager {
 
     function getLatestTokenVaultLeaf(uint256 leafIndex) external view returns (bytes32) {
         return _latestTokenVaultLeaves[leafIndex];
+    }
+
+    function getFunctionStorageWrites(address entryContract, bytes4 functionSig)
+        external
+        view
+        returns (BridgeStructs.StorageWriteMetadata[] memory out)
+    {
+        bytes32 functionKey = _computeFunctionKey(entryContract, functionSig);
+        BridgeStructs.StorageWriteMetadata[] storage source = _functionStorageWrites[functionKey];
+        out = new BridgeStructs.StorageWriteMetadata[](source.length);
+        for (uint256 i = 0; i < source.length; i++) {
+            out[i] = source[i];
+        }
     }
 
     function _assertCurrentRootVectorFromAPubUser(uint256[] calldata aPubUser, uint256 currentRootVectorOffsetWords)
@@ -270,6 +303,33 @@ contract ChannelManager {
         }
     }
 
+    function _observeStorageWrites(
+        bytes32 functionKey,
+        uint256[] calldata aPubUser,
+        bytes32 currentTokenVaultRoot,
+        bytes32 updatedTokenVaultRoot
+    ) private {
+        address[] storage functionStorageAddresses = _functionStorageAddresses[functionKey];
+        BridgeStructs.StorageWriteMetadata[] storage storageWrites = _functionStorageWrites[functionKey];
+
+        for (uint256 i = 0; i < storageWrites.length; i++) {
+            BridgeStructs.StorageWriteMetadata storage storageWrite = storageWrites[i];
+            if (storageWrite.storageAddrIndex >= functionStorageAddresses.length) {
+                revert InvalidStorageWriteStorageIndex(storageWrite.storageAddrIndex);
+            }
+
+            address storageAddr = functionStorageAddresses[storageWrite.storageAddrIndex];
+            uint256 leafIndex = _decodeSplitWord(aPubUser, storageWrite.aPubOffsetWords);
+            uint256 value = _decodeSplitWord(aPubUser, storageWrite.aPubOffsetWords + STORAGE_WRITE_VALUE_OFFSET);
+
+            emit StorageWriteObserved(storageAddr, leafIndex, value);
+
+            if (storageAddr == _managedStorageAddresses[tokenVaultTreeIndex]) {
+                _applyVaultUpdate(currentTokenVaultRoot, updatedTokenVaultRoot, leafIndex, bytes32(value));
+            }
+        }
+    }
+
     function _decodeBytes32FromAPubUser(uint256[] calldata aPubUser, uint256 startIndex)
         private
         pure
@@ -321,6 +381,16 @@ contract ChannelManager {
     function _publishCurrentRootVector(bytes32[] memory rootVector) private {
         currentRootVectorHash = keccak256(abi.encode(rootVector));
         emit RootVectorUpdated(currentRootVectorHash, rootVector);
+    }
+
+    function _applyVaultUpdate(
+        bytes32 currentTokenVaultRoot,
+        bytes32 updatedTokenVaultRoot,
+        uint256 leafIndex,
+        bytes32 latestLeafValue
+    ) private {
+        _setLatestTokenVaultLeaf(leafIndex, latestLeafValue);
+        emit VaultRootUpdateApplied(currentTokenVaultRoot, updatedTokenVaultRoot, leafIndex);
     }
 
     function _setLatestTokenVaultLeaf(uint256 leafIndex, bytes32 leafValue) private {

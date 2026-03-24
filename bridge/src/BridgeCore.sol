@@ -98,10 +98,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
         tokamakVerifier = tokamakVerifier_;
     }
 
-    function deriveChannelId(string memory channelName) public pure returns (uint256) {
-        return uint256(keccak256(bytes(channelName)));
-    }
-
     function canonicalAsset() public view returns (address) {
         if (block.chainid == 1) {
             return TOKAMAK_NETWORK_TOKEN_MAINNET;
@@ -113,11 +109,10 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IVaul
     }
 
     function createChannel(
-        string calldata channelName,
+        uint256 channelId,
         uint256 dappId,
         address leader
     ) external onlyOwner returns (address manager, address vault) {
-        uint256 channelId = deriveChannelId(channelName);
         IERC20 asset = IERC20(canonicalAsset());
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (leader == address(0)) revert InvalidLeader();

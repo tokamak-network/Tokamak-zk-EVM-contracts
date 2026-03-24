@@ -73,8 +73,7 @@ const abiCoder = AbiCoder.defaultAbiCoder();
 const deployerAddress = new Wallet(anvilDeployerPrivateKey).address;
 const bridgeCoreAbi = [
   "function canonicalAsset() external view returns (address)",
-  "function createChannel(string channelName, uint256 dappId, address leader) external returns (address manager, address vault)",
-  "function deriveChannelId(string channelName) external pure returns (uint256)",
+  "function createChannel(uint256 channelId, uint256 dappId, address leader) external returns (address manager, address vault)",
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address vault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
@@ -996,7 +995,7 @@ async function main() {
 
   console.log("E2E: creating channel.");
   await (
-    await bridgeCore.createChannel(channelName, dappId, leader, { nonce: bridgeDeployerNonce++ })
+    await bridgeCore.createChannel(channelId, dappId, leader, { nonce: bridgeDeployerNonce++ })
   ).wait();
   const channelDeployment = await bridgeCore.getChannel(channelId);
 

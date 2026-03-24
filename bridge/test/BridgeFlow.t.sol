@@ -95,8 +95,8 @@ contract BridgeFlowTest is Test {
             IGrothVerifier(address(grothVerifier)),
             ITokamakVerifier(address(tokamakVerifier))
         );
-        channelId = bridgeCore.deriveChannelId(channelName);
-        secondChannelId = bridgeCore.deriveChannelId(secondChannelName);
+        channelId = _deriveChannelId(channelName);
+        secondChannelId = _deriveChannelId(secondChannelName);
 
         MockERC20 assetImplementation = new MockERC20("Mock Asset", "MA");
         asset = MockERC20(bridgeCore.canonicalAsset());
@@ -104,7 +104,7 @@ contract BridgeFlowTest is Test {
         asset.mint(alice, 1_000 ether);
         asset.mint(bob, 1_000 ether);
 
-        (address manager, address vault) = bridgeCore.createChannel(channelName, 1, leader);
+        (address manager, address vault) = bridgeCore.createChannel(channelId, 1, leader);
 
         channelManager = ChannelManager(manager);
         tokenVault = L1TokenVault(vault);
@@ -166,7 +166,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         tokenVault.registerAndFund(reusedKey, 10 ether);
 
-        (, address secondVaultAddress) = bridgeCore.createChannel(secondChannelName, 1, leader);
+        (, address secondVaultAddress) = bridgeCore.createChannel(secondChannelId, 1, leader);
 
         L1TokenVault secondVault = L1TokenVault(secondVaultAddress);
         vm.prank(bob);
@@ -272,7 +272,7 @@ contract BridgeFlowTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(BridgeCore.TooManyManagedStorages.selector, uint256(12), uint256(11))
         );
-        bridgeCore.createChannel("missing-block-context-channel", 3, leader);
+        bridgeCore.createChannel(_deriveChannelId("missing-block-context-channel"), 3, leader);
     }
 
     function testGrothDepositUpdatesVaultStateAndRootVector() public {
@@ -406,7 +406,7 @@ contract BridgeFlowTest is Test {
         vm.etch(address(feeAsset), address(feeAssetImplementation).code);
         feeAsset.mint(alice, 100 ether);
 
-        (address manager, address vault) = bridgeCore.createChannel("fee-on-transfer-channel", 1, leader);
+        (address manager, address vault) = bridgeCore.createChannel(_deriveChannelId("fee-on-transfer-channel"), 1, leader);
 
         manager;
         L1TokenVault feeVault = L1TokenVault(vault);
@@ -609,7 +609,7 @@ contract BridgeFlowTest is Test {
         );
         _setBlockContextFromAPubBlock(proofPayload.aPubBlock);
 
-        (address manager,) = localBridgeCore.createChannel("local-channel-invalid-layout-a", 99, leader);
+        (address manager,) = localBridgeCore.createChannel(_deriveChannelId("local-channel-invalid-layout-a"), 99, leader);
         ChannelManager localChannelManager = ChannelManager(manager);
 
         vm.expectRevert(ChannelManager.UnexpectedCurrentRootVector.selector);
@@ -657,7 +657,7 @@ contract BridgeFlowTest is Test {
         );
         _setBlockContextFromAPubBlock(proofPayload.aPubBlock);
 
-        (address manager,) = localBridgeCore.createChannel("local-channel-invalid-layout-b", 99, leader);
+        (address manager,) = localBridgeCore.createChannel(_deriveChannelId("local-channel-invalid-layout-b"), 99, leader);
 
         ChannelManager localChannelManager = ChannelManager(manager);
         bytes32[] memory currentRoots =
@@ -1153,6 +1153,10 @@ contract BridgeFlowTest is Test {
 
     function _hashRootVector(bytes32[] memory rootVector) internal pure returns (bytes32) {
         return keccak256(abi.encode(rootVector));
+    }
+
+    function _deriveChannelId(string memory name) internal pure returns (uint256) {
+        return uint256(keccak256(bytes(name)));
     }
 
     function _deriveLeafIndex(uint256 storageKey) internal pure returns (uint256) {

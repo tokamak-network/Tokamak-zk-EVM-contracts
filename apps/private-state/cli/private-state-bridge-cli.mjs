@@ -199,14 +199,14 @@ async function handleChannelCreate({ args, env, network, provider }) {
     bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
     signer,
   );
+  const channelId = deriveChannelIdFromName(channelName);
   const dappId = await resolveDAppIdByLabel({
     provider,
     bridgeResources,
     dappLabel,
   });
 
-  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelName, dappId, leader));
-  const channelId = BigInt(await bridgeCore.deriveChannelId(channelName));
+  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
   let workspaceResult = null;
@@ -328,7 +328,7 @@ async function initializeChannelWorkspace({
 
   const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
   const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
-  const channelId = BigInt(await bridgeCore.deriveChannelId(channelName));
+  const channelId = deriveChannelIdFromName(channelName);
   const channelInfo = await bridgeCore.getChannel(channelId);
   if (!channelInfo.exists) {
     throw new Error(`Unknown channel ${channelId.toString()} in bridge core ${bridgeDeployment.bridgeCore}.`);
@@ -1588,6 +1588,10 @@ function bytes32FromHex(hexValue) {
 
 function bytes32FromBigInt(value) {
   return ethers.zeroPadValue(ethers.toBeHex(value), 32);
+}
+
+function deriveChannelIdFromName(channelName) {
+  return BigInt(keccak256(ethers.toUtf8Bytes(channelName)));
 }
 
 function bigintToHex32(value) {

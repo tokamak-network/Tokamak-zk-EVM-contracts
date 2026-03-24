@@ -107,8 +107,7 @@ async function main() {
     case "channel-create":
       await handleChannelCreate({ args, env, network, provider });
       return;
-    case "workspace-init":
-    case "channel-workspace-init":
+    case "recover-workspace":
       await handleWorkspaceInit({ args, network, provider });
       return;
     case "workspace-show":
@@ -245,7 +244,10 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
 
 async function handleWorkspaceInit({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
-  const workspaceName = args.workspace ? requireWorkspaceName(args) : channelName;
+  if (args.workspace !== undefined) {
+    throw new Error("--workspace is not supported by recover-workspace. The workspace name is always the channel name.");
+  }
+  const workspaceName = channelName;
   const blockInfoFile = args.blockInfoFile ? resolveInputPath(args.blockInfoFile) : null;
   const importedSnapshotFile = args.stateSnapshotFile ? resolveInputPath(args.stateSnapshotFile) : null;
   const force = parseBooleanFlag(args.force);
@@ -264,7 +266,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
   });
 
   printJson({
-    action: "channel-workspace-init",
+    action: "recover-workspace",
     workspace: workspaceName,
     workspaceDir,
     channelName,
@@ -1913,7 +1915,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
-  node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-init --channel-name <name> [--workspace <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
   node apps/private-state/cli/private-state-bridge-cli.mjs wallet-list
   node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> [--amount <wei>]
@@ -1935,9 +1937,8 @@ channel-create options:
   --leader <address>           Optional channel leader. Default: the signing EOA
   --create-workspace           Also initialize a channel workspace after creation using the channel name
 
-channel-workspace-init options:
+recover-workspace options:
   --channel-name <name>        User-provided channel name; channelId is derived as keccak256(bytes(name))
-  --workspace <name>           Optional cache name. Default: channel name
   --block-info-file <path>     Optional block_info.json override; must match the channel genesis block context
   --state-snapshot-file <path> Import an existing non-genesis snapshot
   --force                      Overwrite an existing workspace
@@ -1948,7 +1949,8 @@ bridge-send options:
   --template-file <path>   Full JSON template override
 
 Notes:
-  - channel-workspace-init derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
+  - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
+  - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.

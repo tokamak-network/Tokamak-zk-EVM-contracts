@@ -178,7 +178,8 @@ The CLI:
 - binds every channel to the canonical Tokamak Network Token for the selected network
 - reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`
 - separates on-chain channel creation from optional channel-workspace caching
-- reconstructs channel `state_snapshot.json` from bridge events when initializing a channel workspace
+- reconstructs channel `state_snapshot.json` from bridge events through `recover-workspace`, writing it into the
+  `<channel-name>` channel-workspace folder
 - manages mandatory per-user wallets that store note plaintexts, used/unused note sets, and aggregated unused-note balance
 - generates Groth and Tokamak proofs
 - submits bridge transactions for `deposit`, `withdraw`, `claim`, and DApp function execution

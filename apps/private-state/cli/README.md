@@ -44,8 +44,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `channel-create` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
   Token for the selected network.
 - `channel-create --create-workspace` uses the channel name itself as the channel-workspace name.
-- `channel-workspace-init` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the
-  stored `genesisBlockNumber`.
+- `recover-workspace` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the stored
+  `genesisBlockNumber` and writes it into `workspaces/<channel-name>/`.
 - `wallets` store per-user note plaintexts, classify notes into used vs unused sets, maintain aggregated
   unused-note balance, and keep a value-sorted unused-note order for efficient spend selection.
 - Channel workspaces are optional caches. User actions can reconstruct channel state directly from chain events when no
@@ -67,7 +67,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs channel-create \
   --create-workspace \
   --network sepolia
 
-node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-init \
+node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace \
   --network sepolia \
   --channel-name demo-channel \
 

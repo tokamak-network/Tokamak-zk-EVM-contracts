@@ -33,8 +33,9 @@ proofs, and submits the resulting bridge transactions.
 
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount. The CLI converts it into base units
 with the canonical token `decimals()` for the selected channel.
-Every CLI `--l2-password` input accepts any string. The CLI deterministically derives the L2 private key from that
-string, and wallet-folder contents are encrypted at rest with a key derived from the resulting L2 private key.
+Every CLI `--l2-password` input accepts any string. The CLI signs a domain-separated password message with the user's
+L1 `--private-key`, then uses the resulting signature as the seed for `deriveL2KeysFromSignature`. Wallet-folder
+contents are encrypted at rest with a key derived from the resulting L2 private key.
 
 ## Usage
 
@@ -57,9 +58,10 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   channel workspace is present.
 - Wallets are mandatory for note-carrying users. They are the authoritative local record for note plaintexts,
   note usage, and per-user L2 nonce.
-- Wallet folders are encrypted at rest. The CLI needs the matching `--l2-password` to open or update a wallet.
+- Wallet folders are encrypted at rest. The CLI needs the matching `--private-key` and `--l2-password` to open or
+  update a wallet.
 - The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
-  cannot be opened without their own `--l2-password`.
+  cannot be opened without their own `--private-key` and `--l2-password`.
 
 For bridge contract ABIs, the bridge-coupled CLI does not use hardcoded function signatures anymore. It reads the
 network-scoped bridge deployment JSON plus the network-scoped bridge ABI manifest generated at deployment time under

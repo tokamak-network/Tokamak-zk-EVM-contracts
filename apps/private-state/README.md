@@ -187,8 +187,9 @@ The CLI:
 The current CLI treats wallet storage as a clean-slate local model. Legacy CLI data is not reused.
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount and converted with the canonical
 token decimals.
-Every CLI `--l2-password` input accepts any string. The CLI derives the user's L2 private key from it and uses the
-derived private key to encrypt wallet-folder contents at rest.
+Every CLI `--l2-password` input accepts any string. The CLI signs a domain-separated password message with the user's
+L1 `--private-key`, derives the L2 private key from the resulting signature, and uses that derived private key to
+encrypt wallet-folder contents at rest.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other
 wallets.
 

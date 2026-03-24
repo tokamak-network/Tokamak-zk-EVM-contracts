@@ -60,6 +60,7 @@ const TOKAMAK_APUB_BLOCK_LENGTH = 78;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
+const L2_PASSWORD_SIGNING_DOMAIN = "Tokamak private-state L2 password binding";
 const INITIAL_ZERO_ROOT =
   "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const BLS12_381_SCALAR_FIELD_MODULUS =
@@ -122,7 +123,7 @@ async function main() {
       handleWorkspaceShow(args);
       return;
     case "wallet-show":
-      handleWalletShow(args);
+      await handleWalletShow({ args, env, provider });
       return;
     case "register-and-fund":
       await handleRegisterAndFund({ args, env, network, provider });
@@ -436,9 +437,13 @@ function handleWorkspaceShow(args) {
   });
 }
 
-function handleWalletShow(args) {
+async function handleWalletShow({ args, env, provider }) {
   const walletName = requireWalletName(args);
-  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const signer = requireL1Signer(args, env, provider);
+  const l2Identity = await deriveParticipantIdentity({
+    password: requireL2Password(args),
+    signer,
+  });
   const walletContext = loadWallet(walletName, l2Identity);
   const canonicalAssetDecimals = Number(walletContext.wallet.canonicalAssetDecimals);
   const spendSelection = args.amount
@@ -452,7 +457,10 @@ function handleWalletShow(args) {
 
 async function handleRegisterAndFund({ args, env, network, provider }) {
   const signer = requireL1Signer(args, env, provider);
-  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const l2Identity = await deriveParticipantIdentity({
+    password: requireL2Password(args),
+    signer,
+  });
   const context = await loadChannelContext({
     args,
     networkName: network.name,
@@ -515,7 +523,10 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
 
 async function handleFundL1({ args, env, network, provider }) {
   const signer = requireL1Signer(args, env, provider);
-  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const l2Identity = await deriveParticipantIdentity({
+    password: requireL2Password(args),
+    signer,
+  });
   const wallet = loadWallet(requireWalletName(args), l2Identity);
   const context = await loadChannelContext({
     args,
@@ -556,7 +567,11 @@ async function handleFundL1({ args, env, network, provider }) {
 }
 
 async function handleGrothVaultMove({ args, env, network, provider, direction }) {
-  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const signer = requireL1Signer(args, env, provider);
+  const l2Identity = await deriveParticipantIdentity({
+    password: requireL2Password(args),
+    signer,
+  });
   const walletFromFlag = args.wallet ? loadWallet(requireWalletName(args), l2Identity) : null;
   const context = await loadChannelContext({
     args,
@@ -572,7 +587,6 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   }
   await assertWorkspaceAlignedWithChain(context, provider);
 
-  const signer = requireL1Signer(args, env, provider);
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
@@ -655,7 +669,11 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
 }
 
 async function handleClaim({ args, env, provider }) {
-  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const signer = requireL1Signer(args, env, provider);
+  const l2Identity = await deriveParticipantIdentity({
+    password: requireL2Password(args),
+    signer,
+  });
   const wallet = loadWallet(requireWalletName(args), l2Identity);
   const context = await loadChannelContext({
     args,
@@ -667,7 +685,6 @@ async function handleClaim({ args, env, provider }) {
     Number(wallet.wallet.channelId) === Number(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
   );
-  const signer = requireL1Signer(args, env, provider);
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
@@ -694,7 +711,10 @@ async function handleClaim({ args, env, provider }) {
 async function handleBridgeSend({ args, env, provider }) {
   requireFunctionName(args);
   const signer = requireL1Signer(args, env, provider);
-  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const l2Identity = await deriveParticipantIdentity({
+    password: requireL2Password(args),
+    signer,
+  });
   const wallet = loadWallet(requireWalletName(args), l2Identity);
   const context = await loadChannelContext({
     args,
@@ -1138,7 +1158,7 @@ function loadWallet(walletName, l2Identity) {
   const wallet = readEncryptedWalletJson(walletConfigPath(walletDir), l2Identity.l2PrivateKey);
   expect(
     wallet.l2Address === l2Identity.l2Address,
-    `Wallet ${normalizedWalletName} does not match the provided --l2-password.`,
+    `Wallet ${normalizedWalletName} does not match the provided --private-key and --l2-password combination.`,
   );
   return {
     walletName: normalizedWalletName,
@@ -1437,14 +1457,20 @@ async function currentStorageBigInt(stateManager, address, keyHex) {
   return bytesToBigInt(valueBytes);
 }
 
-function deriveParticipantIdentity(password) {
-  const keySet = deriveL2KeysFromSignature(password);
+async function deriveParticipantIdentity({ password, signer }) {
+  const seedSignature = await signer.signMessage(buildL2PasswordSigningMessage(password));
+  const keySet = deriveL2KeysFromSignature(seedSignature);
   const l2Address = getAddress(fromEdwardsToAddress(keySet.publicKey).toString());
   return {
+    seedSignature,
     l2PrivateKey: keySet.privateKey,
     l2PublicKey: keySet.publicKey,
     l2Address,
   };
+}
+
+function buildL2PasswordSigningMessage(password) {
+  return `${L2_PASSWORD_SIGNING_DOMAIN}\n${String(password)}`;
 }
 
 function deriveLiquidBalanceStorageKey(l2Address, slot) {
@@ -1940,7 +1966,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --l2-password <string> [--amount <tokens>]
+  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --private-key <hex> --l2-password <string> [--amount <tokens>]
   node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --l2-password <string> --amount <tokens> --wallet <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-password <string> --amount <tokens> [--wallet <name>] [options]
@@ -1975,13 +2001,14 @@ Notes:
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
-  - --l2-password accepts any string and deterministically derives the user's L2 private key.
-  - Wallet folder contents are encrypted at rest with a key derived from the L2 private key.
-  - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own L2 passwords.
+  - --l2-password accepts any string, but L2 identity derivation also requires --private-key.
+  - The CLI signs a domain-separated password message with the provided L1 private key and uses that signature as the seed for L2 key derivation.
+  - Wallet folder contents are encrypted at rest with a key derived from the resulting L2 private key.
+  - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --private-key and --l2-password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
-  - register-and-fund, deposit, and withdraw can allocate or refresh a wallet automatically from --l2-password.
-  - wallet-show, fund-l1, claim, and bridge-send require an existing --wallet plus the matching --l2-password.
+  - register-and-fund, deposit, and withdraw can allocate or refresh a wallet automatically from --private-key plus --l2-password.
+  - wallet-show, fund-l1, claim, and bridge-send require an existing --wallet plus the matching --private-key and --l2-password.
   - Channel workspace operations are stored under:
       apps/private-state/cli/workspaces/<workspace>/operations/
   - Wallet operations are stored under:
@@ -2006,7 +2033,7 @@ function readEncryptedWalletJson(filePath, walletPrivateKey) {
   try {
     return JSON.parse(readEncryptedWalletFile(filePath, walletPrivateKey).toString("utf8"));
   } catch (error) {
-    throw new Error(`Unable to decrypt wallet data at ${filePath}. Check --l2-password.`, { cause: error });
+    throw new Error(`Unable to decrypt wallet data at ${filePath}. Check --private-key and --l2-password.`, { cause: error });
   }
 }
 

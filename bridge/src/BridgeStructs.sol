@@ -14,15 +14,19 @@ library BridgeStructs {
         bool isTokenVaultStorage;
     }
 
-    struct DAppFunctionMetadata {
-        address entryContract;
-        bytes4 functionSig;
-        bytes32 preprocessInputHash;
+    struct InstanceLayout {
         uint8 entryContractOffsetWords;
         uint8 functionSigOffsetWords;
         uint8 currentRootVectorOffsetWords;
         uint8 updatedRootVectorOffsetWords;
         StorageWriteMetadata[] storageWrites;
+    }
+
+    struct DAppFunctionMetadata {
+        address entryContract;
+        bytes4 functionSig;
+        bytes32 preprocessInputHash;
+        InstanceLayout instanceLayout;
     }
 
     struct GrothProof {

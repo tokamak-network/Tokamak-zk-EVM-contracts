@@ -200,11 +200,7 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             preprocessInputHash: bytes32(0),
-            entryContractOffsetWords: 22,
-            functionSigOffsetWords: 24,
-            currentRootVectorOffsetWords: 26,
-            updatedRootVectorOffsetWords: 0,
-            storageWrites: _emptyStorageWrites()
+            instanceLayout: _instanceLayout(22, 24, 26, 0, _emptyStorageWrites())
         });
 
         vm.expectRevert(
@@ -230,21 +226,13 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             preprocessInputHash: duplicateHash,
-            entryContractOffsetWords: 22,
-            functionSigOffsetWords: 24,
-            currentRootVectorOffsetWords: 26,
-            updatedRootVectorOffsetWords: 0,
-            storageWrites: _emptyStorageWrites()
+            instanceLayout: _instanceLayout(22, 24, 26, 0, _emptyStorageWrites())
         });
         functions[1] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract2,
             functionSig: APP_SIG_2,
             preprocessInputHash: duplicateHash,
-            entryContractOffsetWords: 22,
-            functionSigOffsetWords: 24,
-            currentRootVectorOffsetWords: 26,
-            updatedRootVectorOffsetWords: 0,
-            storageWrites: _emptyStorageWrites()
+            instanceLayout: _instanceLayout(22, 24, 26, 0, _emptyStorageWrites())
         });
 
         vm.expectRevert(
@@ -279,11 +267,7 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             preprocessInputHash: bytes32("PREPROCESS_INPUT"),
-            entryContractOffsetWords: 22,
-            functionSigOffsetWords: 24,
-            currentRootVectorOffsetWords: 26,
-            updatedRootVectorOffsetWords: 0,
-            storageWrites: _emptyStorageWrites()
+            instanceLayout: _instanceLayout(22, 24, 26, 0, _emptyStorageWrites())
         });
 
         dAppManager.registerDApp(3, keccak256("oversized-dapp"), storages, functions);
@@ -462,7 +446,7 @@ contract BridgeFlowTest is Test {
         BridgeStructs.DAppFunctionMetadata memory realFunctionMetadata =
             _realTokamakFunctionMetadata(_computePointEncodingHash(proofPayload.functionPreprocessPart1, proofPayload.functionPreprocessPart2));
         address entryContract =
-            _entryContractFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.entryContractOffsetWords);
+            _entryContractFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.entryContractOffsetWords);
 
         BridgeAdminManager localAdminManager = new BridgeAdminManager(address(this));
         localAdminManager.setMerkleTreeLevels(12);
@@ -511,7 +495,7 @@ contract BridgeFlowTest is Test {
         BridgeStructs.DAppFunctionMetadata memory realFunctionMetadata =
             _realTokamakFunctionMetadata(_computePointEncodingHash(proofPayload.functionPreprocessPart1, proofPayload.functionPreprocessPart2));
         address entryContract =
-            _entryContractFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.entryContractOffsetWords);
+            _entryContractFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.entryContractOffsetWords);
 
         BridgeAdminManager localAdminManager = new BridgeAdminManager(address(this));
         localAdminManager.setMerkleTreeLevels(12);
@@ -539,9 +523,9 @@ contract BridgeFlowTest is Test {
 
         ChannelManager localChannelManager = ChannelManager(manager);
         bytes32[] memory currentRoots =
-            _currentRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.currentRootVectorOffsetWords);
+            _currentRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.currentRootVectorOffsetWords);
         bytes32[] memory updatedRoots =
-            _updatedRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.updatedRootVectorOffsetWords);
+            _updatedRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.updatedRootVectorOffsetWords);
         uint256 expectedTokenVaultLeafIndex = _decodeUint256FromSplitWords(proofPayload.aPubUser, 0);
         uint256 expectedTokenVaultValue = _decodeUint256FromSplitWords(proofPayload.aPubUser, 2);
 
@@ -740,11 +724,7 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             preprocessInputHash: preprocessInputHash,
-            entryContractOffsetWords: 22,
-            functionSigOffsetWords: 24,
-            currentRootVectorOffsetWords: 26,
-            updatedRootVectorOffsetWords: 0,
-            storageWrites: _emptyStorageWrites()
+            instanceLayout: _instanceLayout(22, 24, 26, 0, _emptyStorageWrites())
         });
     }
 
@@ -758,11 +738,7 @@ contract BridgeFlowTest is Test {
             entryContract: appContract2,
             functionSig: APP_SIG_2,
             preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
-            entryContractOffsetWords: 22,
-            functionSigOffsetWords: 24,
-            currentRootVectorOffsetWords: 26,
-            updatedRootVectorOffsetWords: 0,
-            storageWrites: _emptyStorageWrites()
+            instanceLayout: _instanceLayout(22, 24, 26, 0, _emptyStorageWrites())
         });
     }
 
@@ -775,11 +751,7 @@ contract BridgeFlowTest is Test {
             entryContract: 0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84,
             functionSig: 0x0df1a4ac,
             preprocessInputHash: preprocessInputHash,
-            entryContractOffsetWords: 22,
-            functionSigOffsetWords: 24,
-            currentRootVectorOffsetWords: 26,
-            updatedRootVectorOffsetWords: 8,
-            storageWrites: _realTokamakStorageWrites()
+            instanceLayout: _instanceLayout(22, 24, 26, 8, _realTokamakStorageWrites())
         });
     }
 
@@ -802,21 +774,13 @@ contract BridgeFlowTest is Test {
             entryContract: appContract,
             functionSig: APP_SIG,
             preprocessInputHash: bytes32("PREPROCESS_INPUT"),
-            entryContractOffsetWords: 22,
-            functionSigOffsetWords: 24,
-            currentRootVectorOffsetWords: 26,
-            updatedRootVectorOffsetWords: 0,
-            storageWrites: _emptyStorageWrites()
+            instanceLayout: _instanceLayout(22, 24, 26, 0, _emptyStorageWrites())
         });
         functions[1] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract2,
             functionSig: APP_SIG_2,
             preprocessInputHash: bytes32("PREPROCESS_INPUT_2"),
-            entryContractOffsetWords: 22,
-            functionSigOffsetWords: 24,
-            currentRootVectorOffsetWords: 26,
-            updatedRootVectorOffsetWords: 0,
-            storageWrites: _emptyStorageWrites()
+            instanceLayout: _instanceLayout(22, 24, 26, 0, _emptyStorageWrites())
         });
     }
 
@@ -838,6 +802,22 @@ contract BridgeFlowTest is Test {
 
     function _emptyStorageWrites() internal pure returns (BridgeStructs.StorageWriteMetadata[] memory storageWrites) {
         storageWrites = new BridgeStructs.StorageWriteMetadata[](0);
+    }
+
+    function _instanceLayout(
+        uint8 entryContractOffsetWords,
+        uint8 functionSigOffsetWords,
+        uint8 currentRootVectorOffsetWords,
+        uint8 updatedRootVectorOffsetWords,
+        BridgeStructs.StorageWriteMetadata[] memory storageWrites
+    ) internal pure returns (BridgeStructs.InstanceLayout memory layout) {
+        layout = BridgeStructs.InstanceLayout({
+            entryContractOffsetWords: entryContractOffsetWords,
+            functionSigOffsetWords: functionSigOffsetWords,
+            currentRootVectorOffsetWords: currentRootVectorOffsetWords,
+            updatedRootVectorOffsetWords: updatedRootVectorOffsetWords,
+            storageWrites: storageWrites
+        });
     }
 
     function _blankTokamakProofPayload()

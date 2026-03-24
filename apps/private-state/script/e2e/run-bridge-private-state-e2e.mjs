@@ -69,7 +69,7 @@ const bridgeCoreAbi = [
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address vault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites) instanceLayout)[] functions) external",
 ];
 const channelManagerAbi = [
   "function currentRootVectorHash() external view returns (bytes32)",
@@ -637,11 +637,13 @@ function toFunctionMetadata(entries) {
     entryContract: entry.entryContract,
     functionSig: entry.functionSig,
     preprocessInputHash: entry.preprocessInputHash,
-    entryContractOffsetWords: entry.entryContractOffsetWords,
-    functionSigOffsetWords: entry.functionSigOffsetWords,
-    currentRootVectorOffsetWords: entry.currentRootVectorOffsetWords,
-    updatedRootVectorOffsetWords: entry.updatedRootVectorOffsetWords,
-    storageWrites: entry.storageWrites,
+    instanceLayout: {
+      entryContractOffsetWords: entry.entryContractOffsetWords,
+      functionSigOffsetWords: entry.functionSigOffsetWords,
+      currentRootVectorOffsetWords: entry.currentRootVectorOffsetWords,
+      updatedRootVectorOffsetWords: entry.updatedRootVectorOffsetWords,
+      storageWrites: entry.storageWrites,
+    },
   }));
 }
 

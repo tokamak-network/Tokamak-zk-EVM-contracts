@@ -410,11 +410,13 @@ async function main() {
       entryContract: fn.entryContract,
       functionSig: fn.functionSig,
       preprocessInputHash: fn.preprocessInputHash,
-      entryContractOffsetWords: fn.entryContractOffsetWords,
-      functionSigOffsetWords: fn.functionSigOffsetWords,
-      currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
-      updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
-      storageWrites: fn.storageWrites,
+      instanceLayout: {
+        entryContractOffsetWords: fn.entryContractOffsetWords,
+        functionSigOffsetWords: fn.functionSigOffsetWords,
+        currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
+        updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
+        storageWrites: fn.storageWrites,
+      },
     }))
   );
   const receipt = await tx.wait();

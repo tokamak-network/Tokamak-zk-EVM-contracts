@@ -235,8 +235,8 @@ contract DAppManager is Ownable {
                 })
             );
 
-            for (uint256 j = 0; j < fnMetadata.storageWrites.length; j++) {
-                BridgeStructs.StorageWriteMetadata calldata storageWrite = fnMetadata.storageWrites[j];
+            for (uint256 j = 0; j < fnMetadata.instanceLayout.storageWrites.length; j++) {
+                BridgeStructs.StorageWriteMetadata calldata storageWrite = fnMetadata.instanceLayout.storageWrites[j];
                 if (storageWrite.storageAddrIndex >= _managedStorageAddresses[dappId].length) {
                     revert InvalidFunctionStorageWriteStorageIndex(
                         dappId,
@@ -259,10 +259,10 @@ contract DAppManager is Ownable {
 
             _functionConfigs[dappId][functionKey] = BridgeStructs.FunctionConfig({
                 preprocessInputHash: fnMetadata.preprocessInputHash,
-                entryContractOffsetWords: fnMetadata.entryContractOffsetWords,
-                functionSigOffsetWords: fnMetadata.functionSigOffsetWords,
-                currentRootVectorOffsetWords: fnMetadata.currentRootVectorOffsetWords,
-                updatedRootVectorOffsetWords: fnMetadata.updatedRootVectorOffsetWords,
+                entryContractOffsetWords: fnMetadata.instanceLayout.entryContractOffsetWords,
+                functionSigOffsetWords: fnMetadata.instanceLayout.functionSigOffsetWords,
+                currentRootVectorOffsetWords: fnMetadata.instanceLayout.currentRootVectorOffsetWords,
+                updatedRootVectorOffsetWords: fnMetadata.instanceLayout.updatedRootVectorOffsetWords,
                 exists: true
             });
         }

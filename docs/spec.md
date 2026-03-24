@@ -1,256 +1,417 @@
-# Tokamak Private App Channels - Bridge Contract
+# Tokamak Private App Channels Bridge Specification
 
-This document defines the minimal requirements needed to keep the bridge contract's storage structure secure. All mathematical constraints in this document can be converted into security guardrails, in the form of skills, so that any core update to the bridge contract can be safely performed by generative LLMs without security leakage.
+This document describes the current bridge implementation in this repository. It is intentionally implementation-oriented.
 
-Director: Jehyuk Jang, Ph.D
+## 1. Scope
 
-### Finite-Field notation
+The bridge currently consists of five primary contract roles:
 
-$\mathbb{F}_{b}$ is the field of $b$-bit words.
+- `BridgeAdminManager`
+- `DAppManager`
+- `BridgeCore`
+- `ChannelManager`
+- `L1TokenVault`
 
-### Bridge Admin Manager
+It also depends on two proof verifiers:
 
-#### Variables
+- a Groth16 verifier for token-vault updates
+- the Tokamak verifier for channel transaction execution
 
-- $\mathrm{FcnSigns}\subseteq\mathbb{F}_{32}$
-  - A set of contract function signatures
-- $\mathrm{StorageAddrs}\subseteq\mathbb{F}_{160}$
-  - A set of storage addresses
-- $\mathrm{PreAllocKeys}\subseteq\mathbb{F}_{256}$
-  - A set of pre-allocated keys
-- $\mathrm{UserStorageSlots}\subseteq\mathbb{F}_{8}$
-  - A set of user storage slots
-- $\mathrm{FcnCfgs}\subseteq\mathbb{F}_{256}\times\mathbb{F}_{256}$
-  - A set of function-configuration pairs of instance hashes and preprocess hashes
-- $\mathrm{nMerkleTreeLevels}\in\mathbb{F}_{8}$
-  - The number of levels for each channel Merkle tree
-  - Each Merkle tree has $2^{\mathrm{nMerkleTreeLevels}}$ leaves
+This specification describes the current deployed behavior rather than a future abstract model.
 
-#### Relations
+## 2. Global Configuration
 
-Given $\mathrm{FcnSigns}$ and MPT structural information involved with each of the contract functions, the bridge manager maintains and manages the following relations:
+### 2.1 Merkle-tree depth
 
-- $\mathcal{S}_M\subseteq\mathrm{FcnSigns}\times\mathrm{StorageAddrs}$
-  - Existence: $\forall f\in\mathrm{FcnSigns},\ \exists s\in\mathrm{StorageAddrs},\ (f,s)\in\mathcal{S}_M$
-  - Getter: $\mathrm{getFcnStorages}:\mathrm{FcnSigns}\to\mathcal{P}(\mathrm{StorageAddrs})$, where $\mathrm{getFcnStorages}(f):=\{s\in\mathrm{StorageAddrs}\mid(f,s)\in\mathcal{S}_M\}$
-- $\mathcal{P}_M\subseteq\mathrm{StorageAddrs}\times\mathrm{PreAllocKeys}$
-  - Getter: $\mathrm{getPreAllocKeys}:\mathrm{StorageAddrs}\to\mathcal{P}(\mathrm{PreAllocKeys})$, where $\mathrm{getPreAllocKeys}(s):=\{k\in\mathrm{PreAllocKeys}\mid(s,k)\in\mathcal{P}_M\}$
-- $\mathcal{U}_M\subseteq\mathrm{StorageAddrs}\times\mathrm{UserStorageSlots}$
-  - Getter: $\mathrm{getUserSlots}:\mathrm{StorageAddrs}\to\mathcal{P}(\mathrm{UserStorageSlots})$, where $\mathrm{getUserSlots}(s):=\{u\in\mathrm{UserStorageSlots}\mid(s,u)\in\mathcal{U}_M\}$
-- $\mathcal{F}_M\subseteq\mathrm{FcnSigns}\times\mathrm{FcnCfgs}$
-  - Existence and uniqueness (integrated): $\left(\forall f\in\mathrm{FcnSigns},\ \exists!q\in\mathrm{FcnCfgs}\ \text{s.t.}\ (f,q)\in\mathcal{F}_M\right)\ \wedge\ \left(\forall f_1,f_2\in\mathrm{FcnSigns},\ \forall q_1,q_2\in\mathrm{FcnCfgs},\ ((f_1,q_1)\in\mathcal{F}_M\wedge(f_2,q_2)\in\mathcal{F}_M\wedge q_1\neq q_2)\Rightarrow f_1\neq f_2\right)$
-  - Getter: $\mathrm{getFcnCfg}:\mathrm{FcnSigns}\to\mathrm{FcnCfgs}$, where $\mathrm{getFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}_M$
+The bridge currently supports exactly one Merkle-tree depth:
 
-### Channel
+- `nMerkleTreeLevels = 12`
 
-#### Variables
+Any other value is rejected by `BridgeAdminManager`.
 
-- $\mathrm{UserAddrs}\subseteq\mathbb{F}_{256}$
-  - A set of user addresses registered in a channel
-- $\mathrm{AppFcnSigs}\subseteq\mathrm{FcnSigns}$
-  - A set of contract function signatures supported by a channel
-- $\mathrm{AppStorageAddrs}:=\bigcup_{f\in\mathrm{AppFcnSigs}}\mathrm{getFcnStorages}(f)$
-  - A set of storage addresses referenced by the functions in $\mathrm{AppFcnSigs}$
-- $\mathrm{nAppStorages}\in\mathbb{F}_{16}$
-  - The cardinality of $\mathrm{AppStorageAddrs}$
-  - Cardinality: $\mathrm{nAppStorages}=\left|\mathrm{AppStorageAddrs}\right|$
-- $\mathrm{AppPreAllocKeys}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\mathrm{getPreAllocKeys}(s)$
-  - A set of pre-allocated keys associated with $\mathrm{AppStorageAddrs}$
-- $\mathrm{AppUserStorageSlots}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\mathrm{getUserSlots}(s)$
-  - A set of user storage slots associated with $\mathrm{AppStorageAddrs}$
-- $\mathrm{AppFcnCfgs}:=\{q\in\mathrm{FcnCfgs}\mid\exists f\in\mathrm{AppFcnSigs},\ q=\mathrm{getFcnCfg}(f)\}$
-  - A set of function-configuration pairs of instance hash and preprocess hash referenced by the functions in $\mathrm{AppFcnSigs}$
-- $\mathrm{UserChannelStorageKeys}\subseteq\mathbb{F}_{256}$
-  - A set of channel storage access keys used by users, distinct from Ethereum storage access keys
-- $\mathrm{StorageKeys}:=\mathrm{AppPreAllocKeys}\cup\mathrm{UserChannelStorageKeys}$
-  - A unified set of storage keys for channel storage, including both pre-allocated keys and user channel storage keys
-- $\mathrm{ValidatedStorageValues}\subseteq\mathbb{F}_{256}$
-  - A unified set of channel storage values, including validated values and fixed pre-allocated values
-- $\mathrm{StateIndices}\subseteq\mathbb{F}_{16}$
-  - A unified set of state indices used for both verified and unverified channel states
-  - Order and arithmetic semantics: each element of $\mathrm{StateIndices}$ is interpreted as an integer in $\{0,\dots,2^{16}-1\}$; comparisons ($<,\le,>,\ge$), successor ($t+1$), and $\max$ use this integer order
-- Vector indexing convention: for $x\in A^{n}$, $x_i$ denotes the $i$-th component; for $y\in(B^{m})^{n}$, $y_{i,j}$ denotes the $j$-th component of the $i$-th vector
-- $\mathrm{ProposedStateRoots}\subseteq\mathbb{F}_{255}$
-  - A set of proposed state roots
-- $\mathrm{VerifiedStateRoots}\subseteq\mathrm{ProposedStateRoots}$
-  - A set of verified state roots
-- $\mathrm{ForkIds}\subseteq\mathbb{F}_{8}$
-  - A set of fork identifiers for unverified proposed state-root vectors
+The bridge therefore assumes:
 
-#### Relations
+- `MAX_MT_LEAVES = 2^12 = 4096`
 
-Given $\mathrm{AppFcnSigs}$, a channel derives the following projected relations:
+This value is used both for channel creation assumptions and for token-vault leaf-index derivation from storage keys.
 
-- $\mathcal{S}:=\bigcup_{f\in\mathrm{AppFcnSigs}}\left(\{f\}\times\mathrm{getFcnStorages}(f)\right)$
-  - Getter: $\mathrm{getAppFcnStorages}:\mathrm{AppFcnSigs}\to\mathcal{P}(\mathrm{AppStorageAddrs})$, where $\mathrm{getAppFcnStorages}(f):=\{s\in\mathrm{AppStorageAddrs}\mid(f,s)\in\mathcal{S}\}$
-- $\mathcal{D}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\left(\{s\}\times\mathrm{getPreAllocKeys}(s)\right)$
-  - Getter: $\mathrm{getAppPreAllocKeys}:\mathrm{AppStorageAddrs}\to\mathcal{P}(\mathrm{AppPreAllocKeys})$, where $\mathrm{getAppPreAllocKeys}(s):=\{k\in\mathrm{AppPreAllocKeys}\mid(s,k)\in\mathcal{D}\}$
-- $\mathcal{U}:=\bigcup_{s\in\mathrm{AppStorageAddrs}}\left(\{s\}\times\mathrm{getUserSlots}(s)\right)$
-  - Getter: $\mathrm{getAppUserSlots}:\mathrm{AppStorageAddrs}\to\mathcal{P}(\mathrm{AppUserStorageSlots})$, where $\mathrm{getAppUserSlots}(s):=\{u\in\mathrm{AppUserStorageSlots}\mid(s,u)\in\mathcal{U}\}$
-- $\mathcal{F}:=\bigcup_{f\in\mathrm{AppFcnSigs}}\left(\{f\}\times\{\mathrm{getFcnCfg}(f)\}\right)$
-  - Getter: $\mathrm{getAppFcnCfg}:\mathrm{AppFcnSigs}\to\mathrm{AppFcnCfgs}$, where $\mathrm{getAppFcnCfg}(f):=q\ \text{where}\ (f,q)\in\mathcal{F}$
+### 2.2 Zero root
 
-Given $\mathrm{UserAddrs}$ and their channel storage access keys, a channel maintains and manages the following relations:
+Every new channel starts from a zero-filled Merkle-root vector.
 
-- Key-space disjointness: $\mathrm{AppPreAllocKeys}\cap\mathrm{UserChannelStorageKeys}=\varnothing$
-- $\mathcal{K}\subseteq\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\times\mathrm{UserChannelStorageKeys}$
-  - Uniqueness (integrated): $\left(\forall u\in\mathrm{UserAddrs},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys},\ ((u,s,k_1)\in\mathcal{K}\wedge(u,s,k_2)\in\mathcal{K})\Rightarrow k_1=k_2\right)\ \wedge\ \left(\forall u_1,u_2\in\mathrm{UserAddrs},\ \forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys},\ ((u_1,s_1,k_1)\in\mathcal{K}\wedge(u_2,s_2,k_2)\in\mathcal{K}\wedge k_1\neq k_2)\Rightarrow(u_1\neq u_2\vee s_1\neq s_2)\right)$
-  - Conditional existence and uniqueness on validated values: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \forall v\in\mathrm{ValidatedStorageValues},\ \left((s,k,v)\in\mathcal{V}\Rightarrow \exists!u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\right)$
-  - Getter: $\mathrm{getAppUserStorageKey}:\{(u,s)\in\mathrm{UserAddrs}\times\mathrm{AppStorageAddrs}\mid\exists k\in\mathrm{UserChannelStorageKeys},\ (u,s,k)\in\mathcal{K}\}\to\mathrm{UserChannelStorageKeys}$, where $\mathrm{getAppUserStorageKey}(u,s):=k\ \text{where}\ (u,s,k)\in\mathcal{K}$
-- $\mathcal{V}\subseteq\mathrm{AppStorageAddrs}\times\mathrm{StorageKeys}\times\mathrm{ValidatedStorageValues}$
-  - Uniqueness (integrated): $\left(\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{StorageKeys},\ \forall v_1,v_2\in\mathrm{ValidatedStorageValues},\ ((s,k,v_1)\in\mathcal{V}\wedge(s,k,v_2)\in\mathcal{V})\Rightarrow v_1=v_2\right)\ \wedge\ \left(\forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall k_1,k_2\in\mathrm{StorageKeys},\ \forall v_1,v_2\in\mathrm{ValidatedStorageValues},\ ((s_1,k_1,v_1)\in\mathcal{V}\wedge(s_2,k_2,v_2)\in\mathcal{V}\wedge v_1\neq v_2)\Rightarrow(s_1\neq s_2\vee k_1\neq k_2)\right)$
-  - Conditional existence and uniqueness on channel keys: $\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \left((\exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K})\Rightarrow \exists!v\in\mathrm{ValidatedStorageValues},\ (s,k,v)\in\mathcal{V}\right)$
-  - Conditional existence and uniqueness on app pre-allocated keys: $\forall (s,k)\in\mathcal{D},\ \exists!v\in\mathrm{ValidatedStorageValues},\ (s,k,v)\in\mathcal{V}$
-  - Setter-gated value update:
-    $$
-    \begin{aligned}
-    &\forall s\in\mathrm{AppStorageAddrs},\ \forall k\in\mathrm{UserChannelStorageKeys},\ \forall \mathrm{updatedStorageValue}\in\mathbb{F}_{256},\\
-    &\big((s,k,\mathrm{updatedStorageValue})\in\mathcal{V}\big)\Rightarrow\Big(\\
-    &\qquad\exists \mathrm{updatedRoot}\in\mathrm{VerifiedStateRoots},\ \exists \mathrm{proofGroth16}\in\mathbb{F}_{256}^{16},\ \exists \mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5},\\
-    &\qquad\ \mathrm{updateSingleStateLeaf}(s,k,\mathrm{updatedStorageValue},\mathrm{updatedRoot},\mathrm{proofGroth16},\mathrm{publicInputGroth16})=\mathrm{true}\\
-    &\qquad\vee\ \exists \mathrm{forkId}\in\mathrm{ForkIds},\ \exists \mathrm{proposedStateIndex}\in\mathrm{StateIndices},\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
-    &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\\
-    &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{*},\\
-    &\qquad\ \exists i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \exists j\in\{0,\dots,2^{\mathrm{nMerkleTreeLevels}}-1\},\\
-    &\qquad\ \mathrm{appStorageAddrs}_i=s\ \wedge\ \mathrm{storageKeys}_{i,j}=k\ \wedge\ \mathrm{updatedStorageValues}_{i,j}=\mathrm{updatedStorageValue}\ \wedge\\
-    &\qquad\ \mathrm{verifyProposedStateRoots}(\mathrm{forkId},\mathrm{proposedStateIndex},\mathrm{appStorageAddrs},\mathrm{storageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
-    \Big)
-    \end{aligned}
-    $$
-  - Getter: $\mathrm{getAppValidatedStorageValue}:\{(s,k)\in\mathrm{AppStorageAddrs}\times\mathrm{UserChannelStorageKeys}\mid \exists u\in\mathrm{UserAddrs},\ (u,s,k)\in\mathcal{K}\}\to\mathrm{ValidatedStorageValues}$, where $\mathrm{getAppValidatedStorageValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
-  - Getter: $\mathrm{getAppPreAllocValue}:\mathcal{D}\to\mathrm{ValidatedStorageValues}$, where $\mathrm{getAppPreAllocValue}(s,k):=v\ \text{where}\ (s,k,v)\in\mathcal{V}$
+- The bridge does not compute the zero root on-chain.
+- The zero root is hardcoded.
+- `BridgeCore.createChannel(...)` builds an initial root vector of that zero root repeated `managedStorageAddresses.length` times.
 
-Given state-machine indexing and verified/proposed state roots, a channel maintains and manages the following relations:
+## 3. DApp Registration Model
 
-- $\mathcal{R}\subseteq\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{VerifiedStateRoots}$
-  - Uniqueness (integrated) per storage-index pair: $\left(\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{VerifiedStateRoots},\ \left(((t,s,r_1)\in\mathcal{R}\wedge(t,s,r_2)\in\mathcal{R})\Rightarrow r_1=r_2\right)\right)\ \wedge\ \left(\forall t_1,t_2\in\mathrm{StateIndices},\ \forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{VerifiedStateRoots},\ \left(((t_1,s_1,r_1)\in\mathcal{R}\wedge(t_2,s_2,r_2)\in\mathcal{R}\wedge r_1\neq r_2)\Rightarrow(t_1\neq t_2\vee s_1\neq s_2)\right)\right)$
-  - Vector-wise completeness per state-index: $\forall t\in\mathrm{StateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{VerifiedStateRoots},\ (t,s^\prime,r^\prime)\in\mathcal{R}\right)\right)$
-  - State transition by one-step index increment with root update: $\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r,r^\prime\in\mathrm{VerifiedStateRoots},\ \left(((t,s,r)\in\mathcal{R}\wedge(t+1,s,r^\prime)\in\mathcal{R})\Rightarrow r\neq r^\prime\right)$
-  - Setter-gated root update:
-    $$
-    \begin{aligned}
-    &\forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{VerifiedStateRoots},\\
-    &\Big((t,s,r)\in\mathcal{R}\Big)\Rightarrow\Big(\\
-    &\qquad\Big(\\
-    &\qquad\ \exists \mathrm{forkId}\in\mathrm{ForkIds},\ (\mathrm{forkId},t,s,r)\in\mathcal{N}\ \wedge\\
-    &\qquad\ \exists \mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}},\ \exists \mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\\
-    &\qquad\ \exists \mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}},\ \exists \mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}},\\
-    &\qquad\ \exists \mathrm{proofTokamak}\in\mathbb{F}_{256}^{42},\ \exists \mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4},\ \exists \mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{*},\\
-    &\qquad\ \exists i\in\{0,\dots,\mathrm{nAppStorages}-1\},\ \mathrm{appStorageAddrs}_i=s\ \wedge\ \mathrm{updatedRoots}_i=r\ \wedge\\
-    &\qquad\ \mathrm{verifyProposedStateRoots}(\mathrm{forkId},t,\mathrm{appStorageAddrs},\mathrm{storageKeys},\mathrm{updatedStorageValues},\mathrm{updatedRoots},\mathrm{proofTokamak},\mathrm{preprocessTokamak},\mathrm{publicInputTokamak})=\mathrm{true}
-    &\qquad\Big)\\
-    &\qquad\vee\ \Big(\\
-    &\qquad\ \max\left\{\tau_R\in\mathrm{StateIndices}\ \middle|\ \exists s_R\in\mathrm{AppStorageAddrs},\ \exists r_R\in\mathrm{VerifiedStateRoots},\ (\tau_R,s_R,r_R)\in\mathcal{R}\right\}\\
-    &\qquad\ \ge\max\left\{\tau_N\in\mathrm{StateIndices}\ \middle|\ \exists f_N\in\mathrm{ForkIds},\ \exists s_N\in\mathrm{AppStorageAddrs},\ \exists r_N\in\mathrm{ProposedStateRoots},\ (f_N,\tau_N,s_N,r_N)\in\mathcal{N}\right\}\\
-    &\qquad\ \wedge\ \exists \mathrm{userChannelStorageKey}\in\mathrm{UserChannelStorageKeys},\ \exists \mathrm{updatedStorageValue}\in\mathbb{F}_{256},\\
-    &\qquad\ \exists \mathrm{proofGroth16}\in\mathbb{F}_{256}^{16},\ \exists \mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5},\\
-    &\qquad\ \mathrm{updateSingleStateLeaf}(s,\mathrm{userChannelStorageKey},\mathrm{updatedStorageValue},r,\mathrm{proofGroth16},\mathrm{publicInputGroth16})=\mathrm{true}
-    &\qquad\Big)
-    \Big)
-    \end{aligned}
-    $$
-  - Getter: $\mathrm{getVerifiedStateRoot}:\{(s,t)\in\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\mid\exists r\in\mathrm{VerifiedStateRoots},\ (t,s,r)\in\mathcal{R}\}\to\mathrm{VerifiedStateRoots}$, where $\mathrm{getVerifiedStateRoot}(s,t):=r\ \text{where}\ (t,s,r)\in\mathcal{R}$
-- $\mathcal{N}\subseteq\mathrm{ForkIds}\times\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots}$
-  - Uniqueness (integrated) per fork-index-storage triple: $\left(\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ \left(((f,t,s,r_1)\in\mathcal{N}\wedge(f,t,s,r_2)\in\mathcal{N})\Rightarrow r_1=r_2\right)\right)\ \wedge\ \left(\forall f_1,f_2\in\mathrm{ForkIds},\ \forall t_1,t_2\in\mathrm{StateIndices},\ \forall s_1,s_2\in\mathrm{AppStorageAddrs},\ \forall r_1,r_2\in\mathrm{ProposedStateRoots},\ \left(((f_1,t_1,s_1,r_1)\in\mathcal{N}\wedge(f_2,t_2,s_2,r_2)\in\mathcal{N}\wedge r_1\neq r_2)\Rightarrow(f_1\neq f_2\vee t_1\neq t_2\vee s_1\neq s_2)\right)\right)$
-  - Vector-wise completeness per fork-index pair: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \left(\left(\exists s\in\mathrm{AppStorageAddrs},\ \exists r\in\mathrm{ProposedStateRoots},\ (f,t,s,r)\in\mathcal{N}\right)\Rightarrow\left(\forall s^\prime\in\mathrm{AppStorageAddrs},\ \exists r^\prime\in\mathrm{ProposedStateRoots},\ (f,t,s^\prime,r^\prime)\in\mathcal{N}\right)\right)$
-  - State transition by one-step index increment with root update: $\forall f\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r,r^\prime\in\mathrm{ProposedStateRoots},\ \left(((f,t,s,r)\in\mathcal{N}\wedge(f,t+1,s,r^\prime)\in\mathcal{N})\Rightarrow r\neq r^\prime\right)$
-  - Synchronization fork availability when $\mathcal{R}$ is ahead of $\mathcal{N}$:
-    $$
-    \begin{aligned}
-    &\max\left\{\tau_R\in\mathrm{StateIndices}\ \middle|\ \exists s_R\in\mathrm{AppStorageAddrs},\ \exists r_R\in\mathrm{VerifiedStateRoots},\ (\tau_R,s_R,r_R)\in\mathcal{R}\right\}\\
-    &>\max\left\{\tau_N\in\mathrm{StateIndices}\ \middle|\ \exists f_N\in\mathrm{ForkIds},\ \exists s_N\in\mathrm{AppStorageAddrs},\ \exists r_N\in\mathrm{ProposedStateRoots},\ (f_N,\tau_N,s_N,r_N)\in\mathcal{N}\right\}\\
-    &\Rightarrow \exists f_{\mathrm{new}}\in\mathrm{ForkIds},\ \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{ProposedStateRoots},\\
-    &\qquad (f_{\mathrm{new}},t,s,r)\notin\mathcal{N}\ \text{in the pre-state}
-    \end{aligned}
-    $$
-  - Exact synchronization from $\mathcal{R}$ into a fresh fork:
-    $$
-    \begin{aligned}
-    &\max\left\{\tau_R\in\mathrm{StateIndices}\ \middle|\ \exists s_R\in\mathrm{AppStorageAddrs},\ \exists r_R\in\mathrm{VerifiedStateRoots},\ (\tau_R,s_R,r_R)\in\mathcal{R}\right\}\\
-    &>\max\left\{\tau_N\in\mathrm{StateIndices}\ \middle|\ \exists f_N\in\mathrm{ForkIds},\ \exists s_N\in\mathrm{AppStorageAddrs},\ \exists r_N\in\mathrm{ProposedStateRoots},\ (f_N,\tau_N,s_N,r_N)\in\mathcal{N}\right\}\\
-    &\Rightarrow \exists f_{\mathrm{new}}\in\mathrm{ForkIds},\ \Big(\\
-    &\qquad \forall t\in\mathrm{StateIndices},\ \forall s\in\mathrm{AppStorageAddrs},\ \forall r\in\mathrm{ProposedStateRoots},\\
-    &\qquad\ \ (f_{\mathrm{new}},t,s,r)\notin\mathcal{N}\ \text{in the pre-state}\ \wedge\\
-    &\qquad\ \left((f_{\mathrm{new}},t,s,r)\in\mathcal{N}\ \text{in the post-state}\ \Leftrightarrow\ \big(r\in\mathrm{VerifiedStateRoots}\wedge(t,s,r)\in\mathcal{R}\big)\right)
-    \Big)
-    \end{aligned}
-    $$
-  - Getter: $\mathrm{getProposedStateRoot}:\{(f,s,t)\in\mathrm{ForkIds}\times\mathrm{AppStorageAddrs}\times\mathrm{StateIndices}\mid\exists r\in\mathrm{ProposedStateRoots},\ (f,t,s,r)\in\mathcal{N}\}\to\mathrm{ProposedStateRoots}$, where $\mathrm{getProposedStateRoot}(f,s,t):=r\ \text{where}\ (f,t,s,r)\in\mathcal{N}$
-  - Getter: $\mathrm{getProposedStateFork}:\mathrm{ForkIds}\to\mathcal{P}(\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots})$, where $\mathrm{getProposedStateFork}(f):=\{(t,s,r)\in\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}\times\mathrm{ProposedStateRoots}\mid(f,t,s,r)\in\mathcal{N}\}$
+### 3.1 DApp-wide storage layout
 
-#### Setter functions
+`DAppManager.registerDApp(...)` registers one DApp at a time.
 
-- $\mathrm{updateSingleStateLeaf}:\mathrm{AppStorageAddrs}\times\mathrm{UserChannelStorageKeys}\times\mathbb{F}_{256}\times\mathbb{F}_{255}\times\mathbb{F}_{256}^{16}\times\mathbb{F}_{256}^{5}\to\{\mathrm{true},\mathrm{false}\}$
-  - Inputs:
-    - $\mathrm{appStorageAddr}\in\mathrm{AppStorageAddrs}$
-    - $\mathrm{userChannelStorageKey}\in\mathrm{UserChannelStorageKeys}$
-    - $\mathrm{updatedStorageValue}\in\mathbb{F}_{256}$
-    - $\mathrm{updatedRoot}\in\mathbb{F}_{255}$
-    - $\mathrm{proofGroth16}\in\mathbb{F}_{256}^{16}$
-    - $\mathrm{publicInputGroth16}\in\mathbb{F}_{256}^{5}$
-  - Output: $\mathrm{true}$ or $\mathrm{false}$
-- $\mathrm{verifyProposedStateRoots}:\mathrm{ForkIds}\times\mathrm{StateIndices}\times\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}\times(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}\times\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}}\times\mathbb{F}_{256}^{42}\times\mathbb{F}_{256}^{4}\times\mathbb{F}_{256}^{*}\to\{\mathrm{true},\mathrm{false}\}$
-  - Inputs:
-    - $\mathrm{forkId}\in\mathrm{ForkIds}$
-    - $\mathrm{proposedStateIndex}\in\mathrm{StateIndices}$
-    - $\mathrm{appStorageAddrs}\in\mathrm{AppStorageAddrs}^{\mathrm{nAppStorages}}$
-    - $\mathrm{storageKeys}\in(\mathrm{StorageKeys}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}$
-    - $\mathrm{updatedStorageValues}\in(\mathbb{F}_{256}^{(2^{\mathrm{nMerkleTreeLevels}})})^{\mathrm{nAppStorages}}$
-    - $\mathrm{updatedRoots}\in\mathrm{ProposedStateRoots}^{\mathrm{nAppStorages}}$
-    - $\mathrm{proofTokamak}\in\mathbb{F}_{256}^{42}$
-    - $\mathrm{preprocessTokamak}\in\mathbb{F}_{256}^{4}$
-    - $\mathrm{publicInputTokamak}\in\mathbb{F}_{256}^{*}$
-  - Output: $\mathrm{true}$ or $\mathrm{false}$
+Each DApp stores one shared managed storage-address vector:
 
+- every function in that DApp must use that same storage-address vector
+- the DApp must contain exactly one token-vault storage address
+- the token-vault storage address determines the DApp-wide `tokenVaultTreeIndex`
 
-### Bridge Core
+For each registered storage address, the bridge stores:
 
-#### Variables
+- `storageAddr`
+- `preAllocatedKeys`
+- `userStorageSlots`
+- `isTokenVaultStorage`
 
-- $\mathrm{ChannelIds}\subseteq\mathbb{F}_{256}$
-  - A set of registered channel IDs
-- For each $c\in\mathrm{ChannelIds}$, let $X_c$ denote one channel instance satisfying the Channel section:
+### 3.2 Function metadata
 
-$$
-\begin{aligned}
-X_c:=(&\mathrm{UserAddrs}_c,\mathrm{AppFcnSigs}_c,\mathrm{AppStorageAddrs}_c,\mathrm{nAppStorages}_c,\mathrm{AppPreAllocKeys}_c,\mathrm{AppUserStorageSlots}_c,\\
-     &\mathrm{AppFcnCfgs}_c,\mathrm{UserChannelStorageKeys}_c,\mathrm{StorageKeys}_c,\mathrm{ValidatedStorageValues}_c,\\
-     &\mathrm{StateIndices}_c,\mathrm{ProposedStateRoots}_c,\mathrm{VerifiedStateRoots}_c,\mathrm{ForkIds}_c,\\
-     &\mathcal{S}_c,\mathcal{D}_c,\mathcal{U}_c,\mathcal{F}_c,\mathcal{K}_c,\mathcal{V}_c,\mathcal{R}_c,\mathcal{N}_c)
-\end{aligned}
-$$
+For each function in a DApp, the bridge stores:
 
-#### Relations
+- `entryContract`
+- `functionSig`
+- `preprocessInputHash`
+- `instanceLayout`
 
-Given $\mathrm{ChannelIds}$ and channel instances $\{X_c\}_{c\in\mathrm{ChannelIds}}$, the core relations are lifted from channel relations:
+`instanceLayout` currently contains:
 
-- $\widetilde{\mathcal{M}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathrm{UserAddrs}_c\right)$
-  - Getter: $\mathrm{getChannelUsers}:\mathrm{ChannelIds}\to\mathcal{P}(\mathrm{UserAddrs}_c)$, where $\mathrm{getChannelUsers}(c):=\{u\in\mathrm{UserAddrs}_c\mid(c,u)\in\widetilde{\mathcal{M}}\}$
-- $\widetilde{\mathcal{S}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{S}_c\right)$
-  - Getter: $\mathrm{getChannelFcnStorages}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{AppFcnSigs}_c\}\to\mathcal{P}(\mathrm{AppStorageAddrs}_c)$, where $\mathrm{getChannelFcnStorages}(c,f):=\mathrm{getAppFcnStorages}_c(f)$
-- $\widetilde{\mathcal{D}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{D}_c\right)$
-  - Getter: $\mathrm{getChannelPreAllocKeys}:\{(c,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathcal{P}(\mathrm{AppPreAllocKeys}_c)$, where $\mathrm{getChannelPreAllocKeys}(c,s):=\mathrm{getAppPreAllocKeys}_c(s)$
-- $\widetilde{\mathcal{U}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{U}_c\right)$
-  - Getter: $\mathrm{getChannelUserSlots}:\{(c,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\}\to\mathcal{P}(\mathrm{AppUserStorageSlots}_c)$, where $\mathrm{getChannelUserSlots}(c,s):=\mathrm{getAppUserSlots}_c(s)$
-- $\widetilde{\mathcal{F}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{F}_c\right)$
-  - Getter: $\mathrm{getChannelFcnCfg}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{AppFcnSigs}_c\}\to\mathrm{AppFcnCfgs}_c$, where $\mathrm{getChannelFcnCfg}(c,f):=\mathrm{getAppFcnCfg}_c(f)$
-- $\widetilde{\mathcal{K}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{K}_c\right)$
-  - Uniqueness (integrated):
-    $$
-    \begin{aligned}
-    &\left(\forall c\in\mathrm{ChannelIds},\ \forall u\in\mathrm{UserAddrs}_c,\ \forall s\in\mathrm{StorageAddrs},\ \forall k_1,k_2\in\mathrm{UserChannelStorageKeys}_c,\right.\\
-    &\qquad\left.\left(((c,u,s,k_1)\in\widetilde{\mathcal{K}}\wedge(c,u,s,k_2)\in\widetilde{\mathcal{K}})\Rightarrow k_1=k_2\right)\right)\ \wedge\\
-    &\left(\forall c_1,c_2\in\mathrm{ChannelIds},\ \forall u_1\in\mathrm{UserAddrs}_{c_1},\ \forall u_2\in\mathrm{UserAddrs}_{c_2},\ \forall s_1,s_2\in\mathrm{StorageAddrs},\right.\\
-    &\qquad\left.\forall k_1\in\mathrm{UserChannelStorageKeys}_{c_1},\ \forall k_2\in\mathrm{UserChannelStorageKeys}_{c_2},\right.\\
-    &\qquad\left.\left(((c_1,u_1,s_1,k_1)\in\widetilde{\mathcal{K}}\wedge(c_2,u_2,s_2,k_2)\in\widetilde{\mathcal{K}}\wedge k_1\neq k_2)\Rightarrow(c_1\neq c_2\vee u_1\neq u_2\vee s_1\neq s_2)\right)\right)
-    \end{aligned}
-    $$
-  - Getter: $\mathrm{getChannelUserStorageKey}:\{(c,u,s)\mid c\in\mathrm{ChannelIds}\ \wedge\ (c,u)\in\widetilde{\mathcal{M}}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ \exists k\in\mathrm{UserChannelStorageKeys}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}}\}\to\mathrm{UserChannelStorageKeys}_c$, where $\mathrm{getChannelUserStorageKey}(c,u,s):=\mathrm{getAppUserStorageKey}_c(u,s)$
-- $\widetilde{\mathcal{V}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{V}_c\right)$
-  - Getter: $\mathrm{getChannelValidatedStorageValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ k\in\mathrm{UserChannelStorageKeys}_c\ \wedge\ \exists u\in\mathrm{UserAddrs}_c,\ (c,u,s,k)\in\widetilde{\mathcal{K}}\}\to\mathrm{ValidatedStorageValues}_c$, where $\mathrm{getChannelValidatedStorageValue}(c,s,k):=\mathrm{getAppValidatedStorageValue}_c(s,k)$
-  - Getter: $\mathrm{getChannelPreAllocValue}:\{(c,s,k)\mid c\in\mathrm{ChannelIds}\ \wedge\ (s,k)\in\mathcal{D}_c\}\to\mathrm{ValidatedStorageValues}_c$, where $\mathrm{getChannelPreAllocValue}(c,s,k):=\mathrm{getAppPreAllocValue}_c(s,k)$
-- $\widetilde{\mathcal{R}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{R}_c\right)$
-  - Getter: $\mathrm{getChannelVerifiedStateRoot}:\{(c,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\ \wedge\ \exists r\in\mathrm{VerifiedStateRoots}_c,\ (c,t,s,r)\in\widetilde{\mathcal{R}}\}\to\mathrm{VerifiedStateRoots}_c$, where $\mathrm{getChannelVerifiedStateRoot}(c,s,t):=\mathrm{getVerifiedStateRoot}_c(s,t)$
-- $\widetilde{\mathcal{N}}:=\bigcup_{c\in\mathrm{ChannelIds}}\left(\{c\}\times\mathcal{N}_c\right)$
-  - Getter: $\mathrm{getChannelProposedStateRoot}:\{(c,f,s,t)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{ForkIds}_c\ \wedge\ s\in\mathrm{AppStorageAddrs}_c\ \wedge\ t\in\mathrm{StateIndices}_c\ \wedge\ \exists r\in\mathrm{ProposedStateRoots}_c,\ (c,f,t,s,r)\in\widetilde{\mathcal{N}}\}\to\mathrm{ProposedStateRoots}_c$, where $\mathrm{getChannelProposedStateRoot}(c,f,s,t):=\mathrm{getProposedStateRoot}_c(f,s,t)$
-  - Getter: $\mathrm{getChannelProposedStateFork}:\{(c,f)\mid c\in\mathrm{ChannelIds}\ \wedge\ f\in\mathrm{ForkIds}_c\}\to\mathcal{P}(\mathrm{StateIndices}_c\times\mathrm{AppStorageAddrs}_c\times\mathrm{ProposedStateRoots}_c)$, where $\mathrm{getChannelProposedStateFork}(c,f):=\mathrm{getProposedStateFork}_c(f)$
+- `entryContractOffsetWords`
+- `functionSigOffsetWords`
+- `currentRootVectorOffsetWords`
+- `updatedRootVectorOffsetWords`
+- `storageWrites[]`
+
+Each `storageWrites[]` entry contains:
+
+- `aPubOffsetWords`
+- `storageAddrIndex`
+
+This means the bridge stores, per function:
+
+- where the relevant fields live inside `aPubUser`
+- which managed storage address each storage-write descriptor targets
+
+The DApp manager does not currently expose any mutation path for an already-registered DApp. Registration is additive only.
+
+### 3.3 Preprocess uniqueness
+
+Within one DApp:
+
+- every function must have a nonzero `preprocessInputHash`
+- no two functions may share the same `preprocessInputHash`
+
+This lets the channel manager resolve a function from submitted preprocess calldata by hash.
+
+## 4. Channel Creation Model
+
+`BridgeCore.createChannel(...)` creates one channel for one registered DApp.
+
+Inputs:
+
+- `channelId`
+- `dappId`
+- `leader`
+- `asset`
+- `aPubBlockHash`
+
+At creation time the bridge:
+
+1. reads the DApp's shared managed storage-address vector
+2. reads the DApp's `tokenVaultTreeIndex`
+3. reads the full registered function list for that DApp
+4. builds the zero-filled initial root vector
+5. deploys `ChannelManager`
+6. deploys `L1TokenVault`
+7. binds the vault to the channel manager
+
+The resulting channel has:
+
+- a fixed `dappId`
+- a fixed managed storage-address vector
+- a fixed `tokenVaultTreeIndex`
+- a fixed `aPubBlockHash`
+- a fixed zero-root genesis state
+
+`ChannelManager` also stores `genesisBlockNumber = block.number` at deployment time.
+
+## 5. Channel State Model
+
+### 5.1 What the channel stores
+
+The channel manager does not store the full current root vector.
+
+Instead it stores:
+
+- `currentRootVectorHash`
+- the managed storage-address vector
+- resolved function metadata needed at runtime
+- the latest known token-vault leaves by derived leaf index
+
+The full current root vector is supplied by callers and checked by hash.
+
+### 5.2 Current root-vector observation
+
+Before a proof-backed state transition changes the channel state hash, the channel manager emits:
+
+- `CurrentRootVectorObserved(bytes32 rootVectorHash, bytes32[] rootVector)`
+
+This is the bridge's current off-chain reconstruction hook for the pre-state root vector.
+
+### 5.3 No root history array
+
+The channel manager no longer stores root-vector history in contract storage.
+
+- no historical root-vector array is maintained
+- no root-history getter exists
+- only the current root-vector hash is stored
+
+## 6. Token-Vault Registration and Custody
+
+Each channel has one `L1TokenVault`.
+
+When a user first registers in that vault, the user supplies:
+
+- an L2 token-vault key
+- an initial L1 funding amount
+
+The bridge then:
+
+1. derives `leafIndex = uint256(key) % 4096`
+2. checks global key uniqueness
+3. checks per-channel leaf-index non-collision
+4. stores the registration
+
+The L1 token vault stores, per user:
+
+- `l2TokenVaultKey`
+- `leafIndex`
+- `availableBalance`
+
+The bridge also records:
+
+- `registeredUserAtLeafIndex[leafIndex]`
+
+This registration model is used only for L1 token-vault authorization and for derived leaf placement in the L2 token-vault tree.
+
+## 7. Groth16 Token-Vault Update Flow
+
+### 7.1 User-facing operations
+
+The L1 token vault exposes:
+
+- `registerAndFund(...)`
+- `fund(...)`
+- `deposit(...)`
+- `withdraw(...)`
+- `claimToWallet(...)`
+
+### 7.2 Groth update data
+
+`deposit(...)` and `withdraw(...)` both accept:
+
+- `GrothProof`
+- `GrothUpdate`
+
+`GrothUpdate` currently contains:
+
+- `currentRootVector`
+- `updatedRoot`
+- `currentUserKey`
+- `currentUserValue`
+- `updatedUserKey`
+- `updatedUserValue`
+
+The vault derives the Groth verifier public signals from:
+
+- `currentRoot = currentRootVector[tokenVaultTreeIndex]`
+- `updatedRoot`
+- `updatedUserKey`
+- `currentUserValue`
+- `updatedUserValue`
+
+### 7.3 Authorization and settlement
+
+For `deposit(...)`:
+
+- the registered key must match both `currentUserKey` and `updatedUserKey`
+- `updatedUserValue > currentUserValue`
+- `availableBalance >= updatedUserValue - currentUserValue`
+- the Groth proof must verify
+
+For `withdraw(...)`:
+
+- the registered key must match both `currentUserKey` and `updatedUserKey`
+- `currentUserValue > updatedUserValue`
+- the Groth proof must verify
+
+After a successful Groth verification:
+
+- the vault updates `availableBalance`
+- it calls `ChannelManager.applyVaultUpdate(...)`
+- it emits `StorageWriteObserved(address storageAddr, uint256 storageKey, uint256 value)`
+
+For Groth vault updates:
+
+- `storageAddr` is the channel token-vault storage address
+- `storageKey` is the registered L2 token-vault key
+- `value` is the updated L2 token-vault value
+
+The vault no longer emits `DepositAccepted` or `WithdrawalAccepted`.
+
+## 8. Tokamak Channel Execution Flow
+
+### 8.1 User-facing operation
+
+The channel manager exposes:
+
+- `executeChannelTransaction(TokamakProofPayload payload)`
+
+`TokamakProofPayload` contains:
+
+- `proofPart1`
+- `proofPart2`
+- `functionPreprocessPart1`
+- `functionPreprocessPart2`
+- `aPubUser`
+- `aPubBlock`
+
+### 8.2 Function resolution
+
+At runtime the channel manager:
+
+1. hashes the submitted preprocess calldata
+2. resolves the function key from that hash
+3. loads the cached function metadata
+4. decodes `entryContract` and `functionSig` from `aPubUser`
+5. checks that those decoded values match the resolved function key
+
+This means the bridge binds:
+
+- submitted preprocess calldata
+- function identity
+- `aPubUser` layout
+
+inside one proof-acceptance path.
+
+### 8.3 Channel-scoped verification checks
+
+Before calling the Tokamak verifier, the channel manager checks:
+
+- `keccak256(functionPreprocessPart1, functionPreprocessPart2) == preprocessInputHash`
+- `keccak256(aPubBlock) == aPubBlockHash`
+- `keccak256(currentRootVector decoded from aPubUser) == currentRootVectorHash`
+
+It also decodes:
+
+- `currentRootVector`
+- `updatedRootVector`
+- `entryContract`
+- `functionSig`
+
+from `aPubUser` using function-scoped offsets.
+
+### 8.4 Storage-write decoding
+
+Under the current synthesizer format, each storage write contributes four words in `aPubUser`:
+
+- storage-key lower 16 bytes
+- storage-key upper 16 bytes
+- storage-value lower 16 bytes
+- storage-value upper 16 bytes
+
+For every registered storage-write descriptor in that function, `executeChannelTransaction(...)`:
+
+1. decodes the storage key from `aPubUser`
+2. decodes the value from `aPubUser`
+3. resolves the target storage address from cached channel metadata
+4. emits `StorageWriteObserved(address storageAddr, uint256 storageKey, uint256 value)`
+
+If the write targets the channel token-vault storage address, the channel manager also:
+
+1. derives `leafIndex = storageKey % 4096`
+2. updates the cached latest token-vault leaf value at that derived leaf index
+
+### 8.5 Token-vault-root consistency check
+
+`executeChannelTransaction(...)` rejects a proof if:
+
+- `updatedRootVector[tokenVaultTreeIndex] != currentRootVector[tokenVaultTreeIndex]`
+- and the function has no registered token-vault storage write
+
+This prevents a token-vault root change without a matching token-vault storage-write descriptor.
+
+### 8.6 Accepted state mutation
+
+After successful Tokamak verification:
+
+- the channel emits `CurrentRootVectorObserved(...)` for the pre-state
+- it emits `StorageWriteObserved(...)` for all decoded storage writes
+- it updates the token-vault leaf cache for token-vault writes
+- it sets `currentRootVectorHash = keccak256(updatedRootVector)`
+- it emits `TokamakStateUpdateAccepted(functionSig, entryContract)`
+
+The full updated root vector is not stored on-chain.
+
+## 9. Runtime Metadata Caching
+
+At channel creation, the channel manager copies into channel-local storage:
+
+- allowed function references
+- `preprocessInputHash`
+- `entryContractOffsetWords`
+- `functionSigOffsetWords`
+- `currentRootVectorOffsetWords`
+- `updatedRootVectorOffsetWords`
+- resolved storage-write descriptors
+
+The resolved storage-write descriptors are cached as:
+
+- target `storageAddr`
+- `aPubOffsetWords`
+- whether the target is the token-vault storage
+
+This avoids per-call external metadata lookups.
+
+## 10. Events
+
+The bridge currently emits the following state-transition events of interest:
+
+### ChannelManager
+
+- `TokenVaultBound(address tokenVault)`
+- `CurrentRootVectorObserved(bytes32 rootVectorHash, bytes32[] rootVector)`
+- `StorageWriteObserved(address storageAddr, uint256 storageKey, uint256 value)`
+- `TokamakStateUpdateAccepted(bytes4 functionSig, address entryContract)`
+
+### L1TokenVault
+
+- `UserRegistered(address user, bytes32 key, uint256 leafIndex)`
+- `AssetsFunded(address user, uint256 amount)`
+- `StorageWriteObserved(address storageAddr, uint256 storageKey, uint256 value)`
+- `AssetsClaimed(address user, uint256 amount)`
+
+## 11. Current Invariants
+
+The current implementation is intended to maintain the following invariants:
+
+- every channel has exactly one token-vault storage tree
+- every channel uses the managed storage-address vector inherited from exactly one DApp
+- all functions within a DApp share that same managed storage-address vector
+- every channel starts from the hardcoded zero-filled root vector
+- only proof-backed paths may change `currentRootVectorHash` after genesis initialization
+- Groth-backed vault updates must supply the full current root vector and a new token-vault root
+- Tokamak-backed updates must supply a current root vector whose hash matches `currentRootVectorHash`
+- token-vault root changes inside Tokamak execution require at least one registered token-vault storage write
+- the bridge stores only the latest token-vault leaves, not historical leaf versions
+- storage-write events emit storage keys, not derived leaf indices
+- token-vault leaf indices are derived internally from storage keys only when the bridge must update the token-vault leaf cache
+- DApp registration is additive only in the current implementation
+
+## 12. Out of Scope
+
+The following are not part of the current bridge implementation:
+
+- proposal-pool execution
+- fork-choice mechanics for delayed Tokamak settlement
+- mutable DApp metadata updates
+- mutable per-channel DApp surface updates after channel creation
+- on-chain storage of full root-vector history
+- generalized support for Merkle-tree depths other than `12`

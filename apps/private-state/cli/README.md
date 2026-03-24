@@ -31,6 +31,9 @@ replaces the full template through `--template-file`, auto-selects the bridge de
 chosen network, reconstructs or loads the channel state snapshot, maintains per-user note wallets, generates
 proofs, and submits the resulting bridge transactions.
 
+Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount. The CLI converts it into base units
+with the canonical token `decimals()` for the selected channel.
+
 ## Usage
 
 ```bash
@@ -77,7 +80,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund \
   --network sepolia \
   --private-key <hex> \
   --l2-key-signature "participant-a" \
-  --amount 3000000000000000000
+  --amount 3
 
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit \
   --channel-name demo-channel \
@@ -85,7 +88,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs deposit \
   --network sepolia \
   --private-key <hex> \
   --l2-key-signature "participant-a" \
-  --amount 3000000000000000000
+  --amount 1.5
 
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 \
   --wallet participant-a \

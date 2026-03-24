@@ -185,6 +185,8 @@ The CLI:
 - submits bridge transactions for `deposit`, `withdraw`, `claim`, and DApp function execution
 
 The current CLI treats wallet storage as a clean-slate local model. Legacy CLI data is not reused.
+Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount and converted with the canonical
+token decimals.
 
 Channel workspaces are optional snapshot caches. User-action commands can reconstruct the channel state directly from
 bridge events by using `--channel-name` or an existing `--wallet`. Wallets remain mandatory because
@@ -198,7 +200,7 @@ make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
 node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
-node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a" --amount 3000000000000000000
+node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a" --amount 3
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --wallet participant-a --network sepolia --private-key <hex> --l2-key-signature "participant-a"
 ```
 

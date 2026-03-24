@@ -47,6 +47,9 @@ const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
 
 const abiCoder = AbiCoder.defaultAbiCoder();
+const erc20MetadataAbi = [
+  "function decimals() view returns (uint8)",
+];
 const TOKAMAK_APUB_BLOCK_LENGTH = 78;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const INITIAL_ZERO_ROOT =
@@ -312,6 +315,8 @@ async function initializeChannelWorkspace({
     bridgeAbiManifest.contracts.channelManager.abi,
     provider,
   );
+  const canonicalAsset = getAddress(channelInfo.asset);
+  const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
@@ -382,7 +387,8 @@ async function initializeChannelWorkspace({
     bridgeCore: getAddress(bridgeDeployment.bridgeCore),
     channelManager: getAddress(channelInfo.manager),
     tokenVault: getAddress(channelInfo.vault),
-    canonicalAsset: getAddress(channelInfo.asset),
+    canonicalAsset,
+    canonicalAssetDecimals,
     controller: controllerAddress,
     l2AccountingVault: l2AccountingVaultAddress,
     aPubBlockHash: normalizeBytes32Hex(channelInfo.aPubBlockHash),
@@ -423,8 +429,9 @@ function handleWorkspaceShow(args) {
 function handleWalletShow(args) {
   const walletName = requireWalletName(args);
   const walletContext = loadWallet(walletName);
+  const canonicalAssetDecimals = Number(walletContext.wallet.canonicalAssetDecimals);
   const spendSelection = args.amount
-    ? selectSpendableNotes(walletContext.wallet, parseAmountArg(args.amount))
+    ? selectSpendableNotes(walletContext.wallet, parseTokenAmount(args.amount, canonicalAssetDecimals))
     : null;
   printJson({
     wallet: walletContext.wallet,
@@ -434,13 +441,14 @@ function handleWalletShow(args) {
 
 async function handleRegisterAndFund({ args, env, network, provider }) {
   const signer = requireL1Signer(args, env, provider);
-  const amount = parseAmountArg(requireArg(args.amount, "--amount"));
   const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
   const context = await loadChannelContext({
     args,
     networkName: network.name,
     provider,
   });
+  const amountInput = requireArg(args.amount, "--amount");
+  const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
   const asset = new Contract(context.workspace.canonicalAsset, context.bridgeAbiManifest.contracts.erc20.abi, signer);
@@ -467,7 +475,8 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
   writeJson(path.join(operationDir, "operation.json"), {
     operationName: "register-and-fund",
     actorLabel: signer.address,
-    amount: amount.toString(),
+    amountInput,
+    amountBaseUnits: amount.toString(),
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
     result: {
@@ -483,7 +492,8 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
     channelName: context.workspace.channelName,
     wallet: walletContext.walletName,
     operationDir,
-    amount: amount.toString(),
+    amountInput,
+    amountBaseUnits: amount.toString(),
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
@@ -493,7 +503,6 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
 
 async function handleFundL1({ args, env, network, provider }) {
   const signer = requireL1Signer(args, env, provider);
-  const amount = parseAmountArg(requireArg(args.amount, "--amount"));
   const wallet = loadWallet(requireWalletName(args));
   const context = await loadChannelContext({
     args,
@@ -501,6 +510,8 @@ async function handleFundL1({ args, env, network, provider }) {
     provider,
     walletContext: wallet,
   });
+  const amountInput = requireArg(args.amount, "--amount");
+  const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   expect(
     Number(wallet.wallet.channelId) === Number(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
@@ -515,7 +526,8 @@ async function handleFundL1({ args, env, network, provider }) {
     operationDir: createWalletOperationDir(wallet.walletName, `fund-l1-${shortAddress(signer.address)}`),
     workspaceLabel: wallet.walletName,
     extraMetadata: {
-      amount: amount.toString(),
+      amountInput,
+      amountBaseUnits: amount.toString(),
     },
     execute: async (operationDir) => {
       const approveReceipt = await waitForReceipt(
@@ -524,7 +536,7 @@ async function handleFundL1({ args, env, network, provider }) {
       const fundReceipt = await waitForReceipt(await tokenVault.fund(amount));
       writeJson(path.join(operationDir, "approve-receipt.json"), sanitizeReceipt(approveReceipt));
       writeJson(path.join(operationDir, "fund-receipt.json"), sanitizeReceipt(fundReceipt));
-      return { amount: amount.toString() };
+      return { amountInput, amountBaseUnits: amount.toString() };
     },
   });
 }
@@ -546,7 +558,8 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   await assertWorkspaceAlignedWithChain(context, provider);
 
   const signer = requireL1Signer(args, env, provider);
-  const amount = parseAmountArg(requireArg(args.amount, "--amount"));
+  const amountInput = requireArg(args.amount, "--amount");
+  const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
@@ -619,7 +632,8 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
     operationDir,
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
-    amount: amount.toString(),
+    amountInput,
+    amountBaseUnits: amount.toString(),
     currentRootVector: transition.update.currentRootVector,
     updatedRoot: transition.update.updatedRoot,
   });
@@ -638,7 +652,8 @@ async function handleClaim({ args, env, provider }) {
     "The provided wallet does not belong to the selected channel.",
   );
   const signer = requireL1Signer(args, env, provider);
-  const amount = parseAmountArg(requireArg(args.amount, "--amount"));
+  const amountInput = requireArg(args.amount, "--amount");
+  const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
 
   await saveNoStateChangeOperation({
@@ -648,12 +663,13 @@ async function handleClaim({ args, env, provider }) {
     operationDir: createWalletOperationDir(wallet.walletName, `claim-${shortAddress(signer.address)}`),
     workspaceLabel: wallet.walletName,
     extraMetadata: {
-      amount: amount.toString(),
+      amountInput,
+      amountBaseUnits: amount.toString(),
     },
     execute: async (operationDir) => {
       const receipt = await waitForReceipt(await tokenVault.claimToWallet(amount));
       writeJson(path.join(operationDir, "claim-receipt.json"), sanitizeReceipt(receipt));
-      return { amount: amount.toString() };
+      return { amountInput, amountBaseUnits: amount.toString() };
     },
   });
 }
@@ -800,6 +816,7 @@ function ensureWallet({
       channelManager: channelContext.workspace.channelManager,
       tokenVault: channelContext.workspace.tokenVault,
       canonicalAsset: channelContext.workspace.canonicalAsset,
+      canonicalAssetDecimals: channelContext.workspace.canonicalAssetDecimals,
       controller: channelContext.workspace.controller,
       l2AccountingVault: channelContext.workspace.l2AccountingVault,
       liquidBalancesSlot: channelContext.workspace.liquidBalancesSlot,
@@ -822,6 +839,7 @@ function ensureWallet({
   wallet.channelManager = channelContext.workspace.channelManager;
   wallet.tokenVault = channelContext.workspace.tokenVault;
   wallet.canonicalAsset = channelContext.workspace.canonicalAsset;
+  wallet.canonicalAssetDecimals = channelContext.workspace.canonicalAssetDecimals;
   wallet.controller = channelContext.workspace.controller;
   wallet.l2AccountingVault = channelContext.workspace.l2AccountingVault;
   wallet.liquidBalancesSlot = channelContext.workspace.liquidBalancesSlot;
@@ -848,6 +866,7 @@ function normalizeWallet(wallet) {
 
   return {
     ...wallet,
+    canonicalAssetDecimals: Number(wallet.canonicalAssetDecimals),
     l2Nonce: Number(wallet.l2Nonce ?? 0),
     notes: {
       unused: Object.fromEntries(unusedNotes.map((note) => [note.commitment, note])),
@@ -1440,6 +1459,11 @@ async function fetchContractCodes(provider, addresses) {
   return codes;
 }
 
+async function fetchTokenDecimals(provider, assetAddress) {
+  const asset = new Contract(assetAddress, erc20MetadataAbi, provider);
+  return Number(await asset.decimals());
+}
+
 function assertSnapshotMatchesChannel(snapshot, currentRootVectorHash, managedStorageAddresses) {
   const normalizedSnapshot = normalizeStateSnapshot(snapshot);
   expect(
@@ -1774,8 +1798,12 @@ function parseBooleanFlag(value) {
   return Boolean(value);
 }
 
-function parseAmountArg(value) {
-  return toBigIntStrict(value);
+function parseTokenAmount(value, decimals) {
+  try {
+    return ethers.parseUnits(String(value), decimals);
+  } catch {
+    throw new Error(`Invalid token amount ${value} for asset decimals=${decimals}.`);
+  }
 }
 
 function toBigIntStrict(value) {
@@ -1918,12 +1946,12 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
   node apps/private-state/cli/private-state-bridge-cli.mjs wallet-list
-  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> [--amount <wei>]
-  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --amount <wei> --wallet <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --l2-key-signature <seed> --amount <wei> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --amount <wei> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> [--amount <tokens>]
+  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --amount <tokens> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --l2-key-signature <seed> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --amount <tokens> --wallet <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> --private-key <hex> --l2-key-signature <seed> [--args-file <path>] [--template-file <path>] [options]
 
 Common flags:
@@ -1953,6 +1981,7 @@ Notes:
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
+  - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
   - register-and-fund, deposit, and withdraw can allocate or refresh a wallet automatically from --l2-key-signature.
   - fund-l1, claim, and bridge-send require an existing --wallet.

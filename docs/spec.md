@@ -1,389 +1,493 @@
-# Tokamak Private App Channels Bridge Specification
+# Tokamak Private App Channels - Bridge Contract
 
-This document defines an abstract model for the Tokamak Private App Channels bridge.
-It is intended for theoretical analysis, security reasoning, and later paper writing.
-It does not attempt to describe transient implementation details such as concrete ABI
-shapes, event names, calldata layouts, or internal caching strategies.
+This document defines the minimal mathematical constraints needed to keep the bridge
+contract secure.
 
-## 1. Scope
+Director: Jehyuk Jang, Ph.D
 
-The system is an Ethereum-settled bridge that manages many application-specific
-channels. Each channel has:
-
-- one canonical L1 settlement environment
-- one L2 state represented by a vector of Merkle roots
-- one distinguished L2 token-vault storage domain
-- zero or more additional L2 application-storage domains
-- one associated DApp definition
-
-The bridge uses two proof systems:
-
-- a Groth16 proof system for token-vault balance updates
-- a Tokamak zk-EVM proof system for general channel transaction execution
-
-The purpose of the bridge is to ensure that every authoritative channel-state
-transition accepted on L1 is justified by a valid proof and is compatible with
-the registered DApp metadata of the channel.
-
-## 2. Mathematical Objects
-
-### 2.1 Basic sets
-
-Let:
-
-- \(D\) be the set of registered DApps
-- \(C\) be the set of registered channels
-- \(U\) be the set of users
-- \(A\) be the set of storage-domain addresses
-- \(K\) be the set of storage keys
-- \(V\) be the set of storage values
-- \(R\) be the set of Merkle roots
-- \(H\) be the set of 256-bit hash values
-
-Let the current bridge constants be:
-
-- \(m = 12\), the fixed Merkle-tree depth accepted by the bridge
-- \(N = 2^m = 4096\), the corresponding token-vault leaf-capacity bound
-- \(M = 11\), the maximum number of storage domains allowed in one DApp
-
-Let \(F_{\mathrm{BLS}}\) denote the scalar field used by the current Groth16 circuit.
-
-### 2.2 DApp-level objects
-
-For each DApp \(d \in D\), define:
-
-- \(S_d = (s_{d,0}, \ldots, s_{d,n-1})\) as the ordered vector of storage domains used by \(d\)
-- \(tv(d) \in \{0, \ldots, n-1\}\) as the distinguished index of the token-vault storage domain
-- \(F_d\) as the set of functions supported by \(d\)
-
-The current bridge admits only DApps satisfying:
-
-- \(1 \le |S_d| \le M\)
-- \(|F_d| \ge 1\)
-- \(\exists! \, i \in \{0, \ldots, |S_d|-1\}\) such that \(i = tv(d)\)
-
-The ordered vector \(S_d\) is shared by all functions of the same DApp. Therefore:
-
-- \(\forall f \in F_d,\ \text{the root-vector length used by } f \text{ is } |S_d|\)
-- \(\forall f \in F_d,\ \text{the token-vault position used by } f \text{ is } tv(d)\)
-
-For each function \(f \in F_d\), define metadata:
-
-- \(id(f)\) as the abstract function identifier
-- \(p(f) \in H\) as the preprocess commitment associated with \(f\)
-- \(L(f)\) as the abstract layout description needed to interpret the proof's public inputs
-- \(W(f)\) as the ordered set of storage-write descriptors associated with \(f\)
-
-The current bridge further requires:
-
-- \(p(f) \ne 0\)
-- \(\forall f_1, f_2 \in F_d,\ f_1 \ne f_2 \Rightarrow p(f_1) \ne p(f_2)\)
-- every descriptor in \(W(f)\) points to some valid storage-domain position of \(S_d\)
-
-The bridge does not need to model the exact syntax of \(L(f)\). It is sufficient that
-\(L(f)\) deterministically specifies how to extract from the public inputs:
-
-- the called function identifier
-- the pre-state root vector
-- the post-state root vector
-- the storage writes declared by the proof
-
-### 2.3 Channel-level objects
-
-For each channel \(c \in C\), define:
-
-- \(d(c) \in D\) as the DApp selected by channel \(c\)
-- \(leader(c)\) as the distinguished coordinator address of channel \(c\)
-- \(asset(c)\) as the L1 settlement asset of channel \(c\)
-- \(S_c := S_{d(c)}\) as the channel storage-domain vector
-- \(tv(c) := tv(d(c))\) as the token-vault-tree position
-- \(g(c) \in R^{|S_c|}\) as the genesis root vector
-- \(h(c) \in H\) as the hash of the current root vector
-- \(b(c) \in H\) as the channel-scoped block-context commitment
-
-The current bridge admits only channels satisfying:
-
-- \(leader(c) \ne 0\)
-- \(asset(c) \ne 0\)
-- \(b(c) \ne 0\)
-- \(|S_c| = |S_{d(c)}| \le M\)
-
-The bridge stores \(h(c)\) as the authoritative compact commitment to the current
-channel state. The full root vector may be supplied or revealed at transition time,
-but the bridge state itself is modeled by \(h(c)\).
-
-### 2.4 Token-vault registration objects
-
-For each channel \(c\), define:
-
-- \(Reg_c \subseteq U \times K \times I\) as the user registration relation for the L2 token-vault domain
-- \(I = \{0, \ldots, 2^m - 1\}\) as the set of token-vault leaf indices
-
-For \((u, k, i) \in Reg_c\):
-
-- \(k\) is the user's registered L2 token-vault key in channel \(c\)
-- \(i\) is the deterministic leaf index derived from \(k\)
-
-The registration relation is constrained by:
-
-- uniqueness of the registered key per \((c, u)\)
-- uniqueness of the registered key globally across all channels
-- uniqueness of the derived leaf index within a channel
-
-For the current bridge, the deterministic derivation is
+### Finite-Field notation
 
 \[
-i = LeafIndex(k) = k \bmod N,
+\mathbb{F}_{b} := \{0,1\}^{b}.
 \]
-
-where \(k\) is interpreted as an integer representative of the registered storage key.
-
-Each registration also carries an L1 available-balance component:
-
-- \(bal(c,u) \in \mathbb{N}\)
-
-with initial registration requiring a positive funded amount.
-
-### 2.5 Asset-behavior assumption
-
-The current bridge accepts only assets that behave as exact-transfer tokens. Abstractly,
-for any admissible transfer of amount \(a > 0\):
-
-- the sender-side balance decreases by exactly \(a\)
-- the recipient-side balance increases by exactly \(a\)
-
-Assets with fee-on-transfer or other balance-distorting semantics are outside the
-supported asset model.
-
-## 3. State Model
-
-### 3.1 Root-vector model
-
-For each channel \(c\), the L2 state is represented by a root vector
 
 \[
-\rho_c = (r_{c,0}, \ldots, r_{c,n-1}) \in R^{|S_c|}.
+\mathbb{F}_{\mathrm{BLS}} := \{0,\dots,r-1\},
 \]
 
-The bridge stores only
+where \(r\) is the scalar-field modulus of the Groth16 circuit currently used by the
+bridge.
+
+### Global constants
 
 \[
-h(c) = Hash(\rho_c).
+\mathrm{MTDepth}=12,\qquad
+\mathrm{MaxMTLeaves}=2^{\mathrm{MTDepth}}=4096,\qquad
+\mathrm{MaxDAppStorages}=11.
 \]
 
-The token-vault root is always
+### Bridge Admin Manager
+
+#### Variables
+
+- \(\mathrm{MerkleTreeLevels}\subseteq\mathbb{F}_{8}\)
+- \(\mathrm{AllowedMerkleTreeLevels}:=\{12\}\)
+
+#### Relations
+
+- Supported-level constraint:
+  \[
+  \mathrm{MerkleTreeLevels}\subseteq \mathrm{AllowedMerkleTreeLevels}.
+  \]
+
+- Exact-level constraint:
+  \[
+  \forall \ell\in\mathrm{MerkleTreeLevels},\ \ell=\mathrm{MTDepth}.
+  \]
+
+### DApp Manager
+
+#### Variables
+
+- \(\mathrm{DAppIds}\subseteq\mathbb{F}_{256}\)
+- \(\mathrm{EntryContracts}\subseteq\mathbb{F}_{160}\)
+- \(\mathrm{FcnSigns}\subseteq\mathbb{F}_{32}\)
+- \(\mathrm{FcnIds}:=\mathrm{EntryContracts}\times\mathrm{FcnSigns}\)
+- \(\mathrm{StorageAddrs}\subseteq\mathbb{F}_{160}\)
+- \(\mathrm{PreAllocKeys}\subseteq\mathbb{F}_{256}\)
+- \(\mathrm{UserStorageSlots}\subseteq\mathbb{F}_{8}\)
+- \(\mathrm{PreprocessHashes}\subseteq\mathbb{F}_{256}\setminus\{0\}\)
+- \(\mathrm{WordOffsets}\subseteq\mathbb{F}_{8}\)
+- \(\mathrm{StorageAddrIndices}\subseteq\mathbb{F}_{8}\)
+
+- \(\mathrm{StorageWriteMeta}:=\mathrm{WordOffsets}\times\mathrm{StorageAddrIndices}\)
+- \(\mathrm{InstanceLayouts}:=\mathrm{WordOffsets}^{4}\times(\mathrm{StorageWriteMeta})^{*}\)
+
+- \(\mathrm{DAppStorageVectors}\subseteq(\mathrm{StorageAddrs})^{\le \mathrm{MaxDAppStorages}}\)
+- \(\mathrm{TokenVaultPositions}\subseteq\mathbb{F}_{8}\)
+
+#### Relations
+
+- DApp storage-vector relation:
+  \[
+  \mathcal{S}_D\subseteq \mathrm{DAppIds}\times \mathrm{DAppStorageVectors}.
+  \]
+
+- DApp token-vault-position relation:
+  \[
+  \mathcal{T}_D\subseteq \mathrm{DAppIds}\times \mathrm{TokenVaultPositions}.
+  \]
+
+- DApp function relation:
+  \[
+  \mathcal{F}_D\subseteq \mathrm{DAppIds}\times \mathrm{FcnIds}\times \mathrm{PreprocessHashes}\times \mathrm{InstanceLayouts}.
+  \]
+
+- DApp pre-allocated-key relation:
+  \[
+  \mathcal{P}_D\subseteq \mathrm{DAppIds}\times \mathrm{StorageAddrs}\times \mathrm{PreAllocKeys}.
+  \]
+
+- DApp user-slot relation:
+  \[
+  \mathcal{U}_D\subseteq \mathrm{DAppIds}\times \mathrm{StorageAddrs}\times \mathrm{UserStorageSlots}.
+  \]
+
+#### Constraints
+
+- DApp existence and uniqueness:
+  \[
+  \forall d\in\mathrm{DAppIds},\ \exists! S\in\mathrm{DAppStorageVectors},\ (d,S)\in\mathcal{S}_D.
+  \]
+
+- Storage-vector cardinality:
+  \[
+  \forall (d,S)\in\mathcal{S}_D,\ 1\le |S|\le \mathrm{MaxDAppStorages}.
+  \]
+
+- Distinct storage-address constraint:
+  \[
+  \forall (d,S)\in\mathcal{S}_D,\ \forall i,j\in\{0,\dots,|S|-1\},\ i\neq j \Rightarrow S_i\neq S_j.
+  \]
+
+- Token-vault existence and uniqueness:
+  \[
+  \forall d\in\mathrm{DAppIds},\ \exists! t\in\{0,\dots,|S_d|-1\},\ (d,t)\in\mathcal{T}_D,
+  \]
+  where \(S_d\) is the unique storage vector satisfying \((d,S_d)\in\mathcal{S}_D\).
+
+- Function existence:
+  \[
+  \forall d\in\mathrm{DAppIds},\ \exists (f,p,L)\ \text{s.t.}\ (d,f,p,L)\in\mathcal{F}_D.
+  \]
+
+- Function uniqueness inside one DApp:
+  \[
+  \forall d\in\mathrm{DAppIds},\ \forall f\in\mathrm{FcnIds},\ \forall p_1,p_2\in\mathrm{PreprocessHashes},\ \forall L_1,L_2\in\mathrm{InstanceLayouts},
+  \]
+  \[
+  (d,f,p_1,L_1)\in\mathcal{F}_D\wedge(d,f,p_2,L_2)\in\mathcal{F}_D \Rightarrow (p_1,L_1)=(p_2,L_2).
+  \]
+
+- Preprocess-hash uniqueness inside one DApp:
+  \[
+  \forall d\in\mathrm{DAppIds},\ \forall f_1,f_2\in\mathrm{FcnIds},\ \forall p\in\mathrm{PreprocessHashes},\ \forall L_1,L_2\in\mathrm{InstanceLayouts},
+  \]
+  \[
+  (d,f_1,p,L_1)\in\mathcal{F}_D\wedge(d,f_2,p,L_2)\in\mathcal{F}_D \Rightarrow f_1=f_2.
+  \]
+
+- Storage-write-index validity:
+  letting \(L=(o_e,o_s,o_c,o_u,W)\),
+  \[
+  \forall (d,f,p,L)\in\mathcal{F}_D,\ \forall (o,a)\in W,\ a<|S_d|.
+  \]
+
+### Bridge Core
+
+#### Variables
+
+- \(\mathrm{ChannelIds}\subseteq\mathbb{F}_{256}\)
+- \(\mathrm{Leaders}\subseteq\mathbb{F}_{160}\setminus\{0\}\)
+- \(\mathrm{Assets}\subseteq\mathbb{F}_{160}\setminus\{0\}\)
+- \(\mathrm{BlockHashes}\subseteq\mathbb{F}_{256}\setminus\{0\}\)
+- \(\mathrm{ChannelManagers}\subseteq\mathbb{F}_{160}\)
+- \(\mathrm{TokenVaults}\subseteq\mathbb{F}_{160}\)
+- \(\mathrm{VaultKeys}\subseteq\mathbb{F}_{256}\)
+- \(\mathrm{LeafIndices}:=\{0,\dots,\mathrm{MaxMTLeaves}-1\}\)
+
+#### Relations
+
+- Channel deployment relation:
+  \[
+  \mathcal{C}\subseteq
+  \mathrm{ChannelIds}\times
+  \mathrm{DAppIds}\times
+  \mathrm{Leaders}\times
+  \mathrm{Assets}\times
+  \mathrm{ChannelManagers}\times
+  \mathrm{TokenVaults}\times
+  \mathrm{BlockHashes}.
+  \]
+
+- Global vault-key reservation relation:
+  \[
+  \mathcal{K}_G\subseteq \mathrm{VaultKeys}.
+  \]
+
+- Channel leaf-owner relation:
+  \[
+  \mathcal{L}_C\subseteq \mathrm{ChannelIds}\times \mathrm{LeafIndices}\times \mathbb{F}_{160}.
+  \]
+
+#### Constraints
+
+- Channel uniqueness:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \exists! (d,\ell,a,m,v,b)\ \text{s.t.}\ (c,d,\ell,a,m,v,b)\in\mathcal{C}.
+  \]
+
+- DApp existence at creation:
+  \[
+  \forall (c,d,\ell,a,m,v,b)\in\mathcal{C},\ d\in\mathrm{DAppIds}.
+  \]
+
+- Merkle-tree admissibility at creation:
+  \[
+  \forall (c,d,\ell,a,m,v,b)\in\mathcal{C},\ \mathrm{MerkleTreeLevels}=\{12\}.
+  \]
+
+- Global vault-key uniqueness:
+  \[
+  \forall k_1,k_2\in\mathcal{K}_G,\ k_1=k_2 \Rightarrow k_1 \text{ and } k_2 \text{ denote the same reserved key}.
+  \]
+
+- Per-channel leaf-index uniqueness:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \forall i\in\mathrm{LeafIndices},\ \forall u_1,u_2\in\mathbb{F}_{160},
+  \]
+  \[
+  (c,i,u_1)\in\mathcal{L}_C\wedge(c,i,u_2)\in\mathcal{L}_C \Rightarrow u_1=u_2.
+  \]
+
+- Leaf-index derivation:
+  \[
+  \mathrm{LeafIndex}(k):=k\bmod \mathrm{MaxMTLeaves}.
+  \]
+
+### Channel
+
+#### Variables
+
+- \(\mathrm{CurrentRootVectorHashes}\subseteq\mathbb{F}_{256}\)
+- \(\mathrm{RootVectors}:=\bigcup_{d\in\mathrm{DAppIds}} R^{|S_d|}\)
+- \(\mathrm{GenesisBlocks}\subseteq\mathbb{F}_{256}\)
+- \(\mathrm{TokenVaultLeafValues}\subseteq\mathbb{F}_{256}\)
+
+- For each \(c\in\mathrm{ChannelIds}\), define
+  \[
+  d(c),\quad S_c:=S_{d(c)},\quad tv(c):=t_{d(c)},
+  \]
+  where \((d(c),S_{d(c)})\in\mathcal{S}_D\) and \((d(c),t_{d(c)})\in\mathcal{T}_D\).
+
+#### Relations
+
+- Channel-state-commitment relation:
+  \[
+  \mathcal{H}\subseteq \mathrm{ChannelIds}\times \mathrm{CurrentRootVectorHashes}.
+  \]
+
+- Channel genesis-block relation:
+  \[
+  \mathcal{G}_B\subseteq \mathrm{ChannelIds}\times \mathrm{GenesisBlocks}.
+  \]
+
+- Latest token-vault-leaf relation:
+  \[
+  \mathcal{V}_T\subseteq \mathrm{ChannelIds}\times \mathrm{LeafIndices}\times \mathrm{TokenVaultLeafValues}.
+  \]
+
+- Allowed-function relation:
+  \[
+  \mathcal{F}_C\subseteq \mathrm{ChannelIds}\times \mathrm{FcnIds}\times \mathrm{PreprocessHashes}\times \mathrm{InstanceLayouts}.
+  \]
+
+#### Constraints
+
+- State-commitment uniqueness:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \exists! h\in\mathrm{CurrentRootVectorHashes},\ (c,h)\in\mathcal{H}.
+  \]
+
+- Channel/DApp inheritance:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \forall (f,p,L),\ (c,f,p,L)\in\mathcal{F}_C \Leftrightarrow (d(c),f,p,L)\in\mathcal{F}_D.
+  \]
+
+- Root-vector arity:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \forall \rho\in\mathrm{RootVectors}\ \text{admissible for } c,\ |\rho|=|S_c|.
+  \]
+
+- Token-vault-position constancy:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ tv(c)\in\{0,\dots,|S_c|-1\}
+  \]
+  and \(tv(c)\) is fixed for the lifetime of \(c\).
+
+- Genesis commitment:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \exists g_c\in R^{|S_c|},\ Hash(g_c)=h_c,
+  \]
+  where \((c,h_c)\in\mathcal{H}\) immediately after creation.
+
+#### Proof-gated transition constraints
+
+- Groth-only token-vault root replacement:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \forall \rho,\rho'\in R^{|S_c|},
+  \]
+  \[
+  \Big(\rho_i=\rho'_i\ \forall i\neq tv(c)\ \wedge\ \rho_{tv(c)}\neq\rho'_{tv(c)}\Big)
+  \]
+  may be accepted only through the Groth update path or the Tokamak execution path with
+  an explicit token-vault storage write.
+
+- No non-proof root transition after genesis:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \forall h,h'\in\mathrm{CurrentRootVectorHashes},
+  \]
+  \[
+  (c,h)\in\mathcal{H}\wedge(c,h')\in\mathcal{H}\wedge h\neq h'
+  \Rightarrow
+  \]
+  \[
+  \exists \rho,\rho'\in R^{|S_c|}\ \text{s.t.}\ h=Hash(\rho),\ h'=Hash(\rho')
+  \]
+  and the transition \(\rho\to\rho'\) was accepted by a valid proof-backed path.
+
+### L1 Token Vault
+
+#### Variables
+
+- \(\mathrm{Registrations}\subseteq \mathrm{ChannelIds}\times \mathbb{F}_{160}\times \mathrm{VaultKeys}\times \mathrm{LeafIndices}\times \mathbb{N}\)
+- \(\mathrm{GrothProofs}\subseteq\mathbb{F}_{256}^{16}\)
+- \(\mathrm{GrothPublicInputs}\subseteq \mathbb{F}_{256}^{5}\)
+
+#### Constraints
+
+- Registration uniqueness per user:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \forall u\in\mathbb{F}_{160},\ \forall k_1,k_2\in\mathrm{VaultKeys},\ \forall i_1,i_2\in\mathrm{LeafIndices},\ \forall b_1,b_2\in\mathbb{N},
+  \]
+  \[
+  (c,u,k_1,i_1,b_1)\in\mathrm{Registrations}\wedge(c,u,k_2,i_2,b_2)\in\mathrm{Registrations}
+  \Rightarrow
+  (k_1,i_1)=(k_2,i_2).
+  \]
+
+- Registration key uniqueness across the whole system:
+  \[
+  \forall c_1,c_2\in\mathrm{ChannelIds},\ \forall u_1,u_2\in\mathbb{F}_{160},\ \forall k\in\mathrm{VaultKeys},\ \forall i_1,i_2\in\mathrm{LeafIndices},\ \forall b_1,b_2\in\mathbb{N},
+  \]
+  \[
+  (c_1,u_1,k,i_1,b_1)\in\mathrm{Registrations}\wedge(c_2,u_2,k,i_2,b_2)\in\mathrm{Registrations}
+  \Rightarrow
+  (c_1,u_1)=(c_2,u_2).
+  \]
+
+- Registration leaf-index uniqueness inside one channel:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \forall u_1,u_2\in\mathbb{F}_{160},\ \forall k_1,k_2\in\mathrm{VaultKeys},\ \forall i\in\mathrm{LeafIndices},\ \forall b_1,b_2\in\mathbb{N},
+  \]
+  \[
+  (c,u_1,k_1,i,b_1)\in\mathrm{Registrations}\wedge(c,u_2,k_2,i,b_2)\in\mathrm{Registrations}
+  \Rightarrow
+  u_1=u_2.
+  \]
+
+- Positive-funding constraint:
+  \[
+  \forall (c,u,k,i,b)\in\mathrm{Registrations},\ b>0.
+  \]
+
+- Exact-transfer asset assumption:
+  for every accepted transfer amount \(a>0\),
+  \[
+  \Delta_{\mathrm{vault}}=a\quad\text{and}\quad \Delta_{\mathrm{recipient}}=a.
+  \]
+
+- Unsupported-asset exclusion:
+  any asset violating the exact-transfer assumption is inadmissible.
+
+#### Groth setter constraint
+
+Let \(\rho,\rho'\in R^{|S_c|}\). A Groth transition for user \(u\) in channel \(c\) is
+admissible only if:
 
 \[
-\rho_c[tv(c)].
+Hash(\rho)=h_c,\qquad
+\rho_i=\rho'_i\ \forall i\neq tv(c),
+\]
+\[
+\mathrm{currentUserKey}=\mathrm{updatedUserKey}=k_{c,u},
+\]
+\[
+\mathrm{currentUserValue},\mathrm{updatedUserValue}\in\mathbb{F}_{\mathrm{BLS}},
 \]
 
-All other entries represent application storage domains.
+and:
 
-### 3.2 Genesis
+- deposit case:
+  \[
+  \mathrm{updatedUserValue}>\mathrm{currentUserValue}
+  \]
+  \[
+  bal(c,u)\ge \mathrm{updatedUserValue}-\mathrm{currentUserValue}
+  \]
 
-Each channel starts from a deterministic genesis root vector \(g(c)\). The genesis
-transition is the only channel-state initialization that is not justified by a user
-submitted zero-knowledge proof.
+- withdrawal case:
+  \[
+  \mathrm{currentUserValue}>\mathrm{updatedUserValue}.
+  \]
 
-### 3.3 Proof-backed updates
-
-After genesis, every accepted mutation of the current root commitment \(h(c)\) must
-come from one of exactly two proof-backed transition classes:
-
-- a Groth16 token-vault update
-- a Tokamak channel-transaction update
-
-No other transition may alter the authoritative channel-state commitment.
-
-## 4. Transition Systems
-
-### 4.1 Channel creation
+After acceptance:
 
 \[
-CreateChannel(d,b) = c
+h_c:=Hash(\rho'),
 \]
 
-creates a new channel \(c\) such that:
+and the L1 available balance is adjusted by the proved difference.
 
-- \(d(c) = d\)
-- \(S_c = S_d\)
-- \(tv(c) = tv(d)\)
-- \(b(c) = b\)
-- \(h(c) = Hash(g(c))\)
+### Tokamak Execution
 
-It is admissible only if:
+#### Variables
 
-- \(d\) is already registered
-- \(b \ne 0\)
-- the bridge Merkle-tree parameter equals the fixed supported depth \(m\)
-- \(|S_d| \le M\)
+- \(\mathrm{TokamakProofs}\subseteq \mathbb{F}_{256}^{*}\)
+- \(\mathrm{APubUser}\subseteq \mathbb{F}_{256}^{*}\)
+- \(\mathrm{APubBlock}\subseteq \mathbb{F}_{256}^{*}\)
 
-### 4.2 Token-vault registration
+#### Setter constraint
+
+Let \(c\in\mathrm{ChannelIds}\), let \((f,p,L)\in\mathcal{F}_C\), and let
+\(\rho,\rho'\in R^{|S_c|}\) be the pre-state and post-state root vectors decoded from
+the Tokamak public input under \(L\).
+
+The Tokamak transition is admissible only if:
 
 \[
-RegisterUser(c,u,k)
+Hash(\rho)=h_c,
+\]
+\[
+\mathrm{Hash}(\mathrm{submitted\ preprocess})=p,
+\]
+\[
+\mathrm{Hash}(\mathrm{submitted\ block\ context})=b(c),
+\]
+\[
+\mathrm{decodedFunctionId}=f,
+\]
+\[
+\mathrm{declaredWrites}\ \text{are compatible with}\ W(f),
+\]
+\[
+\mathrm{TokamakVerify}(\mathrm{proof},\mathrm{preprocess},\mathrm{aPubUser},\mathrm{aPubBlock})=\mathrm{true}.
 \]
 
-is admissible only if:
+If
+\[
+\rho'_{tv(c)}\neq \rho_{tv(c)},
+\]
+then admissibility further requires
+\[
+\exists w\in W(f)\ \text{s.t.}\ w\ \text{targets the token-vault storage domain}.
+\]
 
-- \(u\) has no prior token-vault registration in \(c\)
-- \(k\) is not already registered anywhere else in the system
-- the derived leaf index \(i = LeafIndex(k)\) is unused within \(c\)
-- the initial funded amount is strictly positive
+After acceptance:
 
-The post-state adds \((u,k,i)\) to \(Reg_c\).
+\[
+h_c:=Hash(\rho').
+\]
 
-### 4.3 Groth16 vault update
+### Security invariants
 
-A Groth update acts only on the token-vault component of a channel state.
+- DApp-wide shared storage surface:
+  \[
+  \forall d\in\mathrm{DAppIds},\ \forall f_1,f_2\in F_d,\ S_{d,f_1}=S_{d,f_2}=S_d.
+  \]
 
-Let:
+- Unique token-vault position per DApp:
+  \[
+  \forall d\in\mathrm{DAppIds},\ \exists! t_d\ \text{s.t.}\ (d,t_d)\in\mathcal{T}_D.
+  \]
 
-- \(\rho\) be the current root vector of channel \(c\)
-- \(\rho'\) be the next root vector
+- Proof-backed channel-state mutation:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \forall h\neq h',\ (c,h)\in\mathcal{H}\wedge(c,h')\in\mathcal{H}
+  \Rightarrow
+  \]
+  \[
+  \text{the transition } h\to h' \text{ was accepted by Groth or Tokamak verification}.
+  \]
 
-A Groth transition is admissible only if:
+- Function-binding:
+  \[
+  \forall d\in\mathrm{DAppIds},\ \forall f_1,f_2\in F_d,\ f_1\neq f_2 \Rightarrow p(f_1)\neq p(f_2).
+  \]
 
-- \(Hash(\rho) = h(c)\)
-- \(\rho_j = \rho'_j\) for all \(j \ne tv(c)\)
-- the Groth proof is valid for the token-vault transition from \(\rho_{tv(c)}\) to \(\rho'_{tv(c)}\)
-- the submitted user key is consistent with the user's registration in \(Reg_c\)
-- the associated L1 balance adjustment is valid for the claimed deposit or withdrawal
-- the submitted current and updated L2 values lie in \(F_{\mathrm{BLS}}\)
+- Channel-binding:
+  \[
+  \forall c_1,c_2\in\mathrm{ChannelIds},\ c_1\neq c_2 \Rightarrow b(c_1)\neq b(c_2)\ \text{is sufficient but not required;}
+  \]
+  the accepted proof context of a channel is always checked against that channel's own
+  \(b(c)\).
 
-More specifically:
-
-- for deposit, the updated L2 value must be strictly larger than the current L2 value
-  and the L1 available balance must cover the increase
-- for withdrawal, the current L2 value must be strictly larger than the updated L2 value
-
-The post-state is:
-
-- \(h(c) := Hash(\rho')\)
-- the relevant L1 vault balance record is updated
-
-### 4.4 Tokamak channel transaction
-
-A Tokamak channel transaction acts on one function \(f \in F_{d(c)}\).
-
-Let:
-
-- \(\rho\) be the current root vector of channel \(c\)
-- \(\rho'\) be the next root vector
-- \(x\) be the public-input payload interpreted under layout \(L(f)\)
-
-A Tokamak transition is admissible only if:
-
-- \(Hash(\rho) = h(c)\)
-- the function identifier extracted from \(x\) equals \(id(f)\)
-- the preprocess commitment submitted with the proof matches \(p(f)\)
-- the channel-scoped block-context commitment submitted with the proof matches \(b(c)\)
-- the pre-state root vector extracted from \(x\) equals \(\rho\)
-- the post-state root vector extracted from \(x\) equals \(\rho'\)
-- the declared storage writes extracted from \(x\) are compatible with \(W(f)\)
-- the Tokamak proof is valid for the submitted execution statement
-- the public-input payload is long enough to contain all fields required by \(L(f)\)
-- any decoded word used as a split-field component lies in the \(128\)-bit range assumed by the bridge decoder
-- any decoded function identifier lies in the valid range of its target type
-- any decoded contract identifier lies in the valid range of an address
-
-The post-state is:
-
-- \(h(c) := Hash(\rho')\)
-
-If the Tokamak transaction changes the token-vault component, then the token-vault
-root transition still remains governed by the same distinguished token-vault position
-\(tv(c)\) inside the shared root vector.
-
-The current bridge adds one more admissibility guard:
-
-- if \(\rho'_{tv(c)} \ne \rho_{tv(c)}\), then the storage writes declared by the proof
-  must include at least one write to the token-vault storage domain
-
-## 5. Observability Model
-
-The bridge stores only the current root commitment \(h(c)\), not an on-chain history
-of full root vectors. Therefore any mechanism that allows off-chain reconstruction of
-the full pre-state or the storage writes of an accepted transition belongs to the
-observability layer rather than to the abstract state itself.
-
-For analysis purposes, it is enough to require:
-
-- each accepted proof-backed transition makes the relevant pre-state root vector
-  observable to off-chain verifiers
-- each accepted storage update makes the corresponding storage-write information
-  observable to off-chain verifiers
-
-The exact transport mechanism is intentionally left unspecified here.
-
-## 6. Invariants
-
-The bridge is intended to maintain the following invariants.
-
-### 6.1 DApp-structure invariants
-
-For every DApp \(d\):
-
-- all functions of \(d\) share the same ordered storage-domain vector \(S_d\)
-- exactly one storage-domain position of \(S_d\) is designated as the token-vault position
-- each registered function has a unique identifier within \(d\)
-- each registered function has a nonzero preprocess commitment
-- preprocess commitments are unique within \(d\)
-- each storage-write descriptor of each function points to a valid index of \(S_d\)
-
-### 6.2 Channel-state invariants
-
-For every channel \(c\):
-
-- \(d(c)\) is fixed for the lifetime of the channel
-- \(S_c\) and \(tv(c)\) are fixed for the lifetime of the channel
-- \(b(c)\) is fixed unless the protocol explicitly defines an authorized update rule
-- after genesis, every change of \(h(c)\) is proof-backed
-- the token-vault storage address of \(c\) is fixed by \(tv(c)\) and never relocates
-
-### 6.3 Token-vault invariants
-
-For every channel \(c\):
-
-- each registered user has at most one registered token-vault key
-- each registered token-vault key is globally unique
-- each derived token-vault leaf index is unique within \(c\)
-- Groth deposit and withdrawal transitions may change only the token-vault root entry
-- only exact-transfer assets belong to the supported custody model
-
-### 6.4 Tokamak soundness invariants
-
-For every accepted Tokamak transition in channel \(c\):
-
-- the proof is checked against metadata of the selected function of \(d(c)\)
-- the submitted preprocess commitment is the one registered for that function
-- the pre-state root vector used by the proof matches the channel's current root commitment
-- the post-state root vector committed by the channel is the one justified by the proof
-- if the token-vault root changes, the proof must also declare a token-vault storage write
-
-## 7. Security Goals
-
-At the abstract level, the bridge aims to satisfy:
-
-- state-integrity: no channel-state commitment changes without an authorized proof-backed transition
-- custody-integrity: no L1 settlement balance changes without a valid token-vault transition
-- function-binding: a Tokamak proof cannot be reused as if it were for another function
-- channel-binding: a proof valid for one channel cannot be replayed as if it were for another channel context
-- token-vault-position consistency: the token-vault storage domain remains fixed within a channel's root vector
-- key-registration integrity: no two users can legitimately claim the same registered token-vault key
-- leaf-position integrity: no two users in one channel can legitimately occupy the same token-vault leaf position
-- asset-model integrity: settlement assumes exact-transfer ERC-20 behavior and rejects assets that violate that assumption
-
-## 8. Deliberate Omissions
-
-This document intentionally does not specify:
-
-- concrete Solidity interfaces
-- calldata encodings
-- event names or event payload layouts
-- internal storage packing
-- caching strategies
-- off-chain script structure
-
-Those belong to developer documentation and implementation notes rather than to the
-abstract bridge specification.
+- Token-vault-isolation:
+  \[
+  \forall c\in\mathrm{ChannelIds},\ \forall \rho,\rho'\in R^{|S_c|},
+  \]
+  \[
+  \rho_i=\rho'_i\ \forall i\neq tv(c)\ \wedge\ \rho_{tv(c)}\neq\rho'_{tv(c)}
+  \]
+  must satisfy the corresponding Groth or Tokamak token-vault-write admissibility
+  conditions.

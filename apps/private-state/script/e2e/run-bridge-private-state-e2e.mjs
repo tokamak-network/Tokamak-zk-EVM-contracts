@@ -59,7 +59,8 @@ const anvilMnemonic = process.env.APPS_ANVIL_MNEMONIC?.trim() || "test test test
 const anvilDeployerPrivateKey =
   process.env.APPS_ANVIL_DEPLOYER_PRIVATE_KEY?.trim()
     || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const channelId = 1;
+const channelName = "private-state-bridge-genesis";
+const channelId = Number(deriveChannelIdFromName(channelName));
 const dappId = 1;
 const tokamakAPubBlockLength = 78;
 const tokamakPrevBlockHashCount = 4;
@@ -70,7 +71,8 @@ const blsScalarFieldModulus = BigInt("0x73eda753299d7d483339d80809a1d80553bda402
 const abiCoder = AbiCoder.defaultAbiCoder();
 const deployerAddress = new Wallet(anvilDeployerPrivateKey).address;
 const bridgeCoreAbi = [
-  "function createChannel(uint256 channelId, uint256 dappId, address leader, address asset) external returns (address manager, address vault)",
+  "function createChannel(string channelName, uint256 dappId, address leader, address asset) external returns (address manager, address vault)",
+  "function deriveChannelId(string channelName) external pure returns (uint256)",
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address vault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
@@ -183,6 +185,10 @@ function bytes32FromHex(hexValue) {
 
 function normalizeBytes32Hex(hexValue) {
   return bytes32FromHex(hexValue).toLowerCase();
+}
+
+function deriveChannelIdFromName(name) {
+  return BigInt(keccak256(ethers.toUtf8Bytes(name)));
 }
 
 function buildL1Wallet(index, provider) {
@@ -971,7 +977,7 @@ async function main() {
   console.log("E2E: creating channel.");
   await (
     await bridgeCore.createChannel(
-      channelId,
+      channelName,
       dappId,
       leader,
       bridgeDeployment.mockAsset,
@@ -1089,6 +1095,7 @@ async function main() {
 
   const summary = {
     providerUrl,
+    channelName,
     channelId,
     dappId,
     bridgeDeployment,

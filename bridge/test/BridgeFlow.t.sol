@@ -50,8 +50,10 @@ contract BridgeFlowTest is Test {
     address internal appContract = address(0xCAFE);
     address internal appContract2 = address(0xD00D);
 
-    uint256 internal channelId = 1;
-    uint256 internal secondChannelId = 2;
+    string internal channelName = "bridge-flow-primary";
+    string internal secondChannelName = "bridge-flow-secondary";
+    uint256 internal channelId;
+    uint256 internal secondChannelId;
 
     ChannelManager internal channelManager;
     L1TokenVault internal tokenVault;
@@ -91,13 +93,15 @@ contract BridgeFlowTest is Test {
             IGrothVerifier(address(grothVerifier)),
             ITokamakVerifier(address(tokamakVerifier))
         );
+        channelId = bridgeCore.deriveChannelId(channelName);
+        secondChannelId = bridgeCore.deriveChannelId(secondChannelName);
 
         asset = new MockERC20("Mock Asset", "MA");
         asset.mint(alice, 1_000 ether);
         asset.mint(bob, 1_000 ether);
 
         (address manager, address vault) = bridgeCore.createChannel(
-            channelId,
+            channelName,
             1,
             leader,
             asset
@@ -164,7 +168,7 @@ contract BridgeFlowTest is Test {
         tokenVault.registerAndFund(reusedKey, 10 ether);
 
         (, address secondVaultAddress) = bridgeCore.createChannel(
-            secondChannelId,
+            secondChannelName,
             1,
             leader,
             asset
@@ -274,7 +278,7 @@ contract BridgeFlowTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(BridgeCore.TooManyManagedStorages.selector, uint256(12), uint256(11))
         );
-        bridgeCore.createChannel(channelId + 101, 3, leader, asset);
+        bridgeCore.createChannel("missing-block-context-channel", 3, leader, asset);
     }
 
     function testGrothDepositUpdatesVaultStateAndRootVector() public {
@@ -382,7 +386,7 @@ contract BridgeFlowTest is Test {
         feeAsset.mint(alice, 100 ether);
 
         (address manager, address vault) =
-            bridgeCore.createChannel(channelId + 102, 1, leader, feeAsset);
+            bridgeCore.createChannel("fee-on-transfer-channel", 1, leader, feeAsset);
 
         manager;
         L1TokenVault feeVault = L1TokenVault(vault);
@@ -499,7 +503,7 @@ contract BridgeFlowTest is Test {
         _setBlockContextFromAPubBlock(proofPayload.aPubBlock);
 
         (address manager,) =
-            localBridgeCore.createChannel(99, 99, leader, localAsset);
+            localBridgeCore.createChannel("local-channel-invalid-layout-a", 99, leader, localAsset);
         ChannelManager localChannelManager = ChannelManager(manager);
 
         vm.expectRevert(ChannelManager.UnexpectedCurrentRootVector.selector);
@@ -550,7 +554,7 @@ contract BridgeFlowTest is Test {
         _setBlockContextFromAPubBlock(proofPayload.aPubBlock);
 
         (address manager,) =
-            localBridgeCore.createChannel(99, 99, leader, localAsset);
+            localBridgeCore.createChannel("local-channel-invalid-layout-b", 99, leader, localAsset);
 
         ChannelManager localChannelManager = ChannelManager(manager);
         bytes32[] memory currentRoots =

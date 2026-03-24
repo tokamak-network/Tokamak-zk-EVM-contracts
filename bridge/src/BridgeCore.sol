@@ -75,12 +75,17 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         tokamakVerifier = tokamakVerifier_;
     }
 
+    function deriveChannelId(string memory channelName) public pure returns (uint256) {
+        return uint256(keccak256(bytes(channelName)));
+    }
+
     function createChannel(
-        uint256 channelId,
+        string calldata channelName,
         uint256 dappId,
         address leader,
         IERC20 asset
     ) external onlyOwner returns (address manager, address vault) {
+        uint256 channelId = deriveChannelId(channelName);
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (leader == address(0)) revert InvalidLeader();
         if (address(asset) == address(0)) revert InvalidAsset();

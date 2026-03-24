@@ -187,7 +187,7 @@ cd apps/private-state
 make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
-node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init --workspace demo --network anvil --channel-id 1 --bridge-deployment bridge/deployments/bridge-latest.json
+node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init --workspace demo --network anvil --channel-name demo-channel --bridge-deployment bridge/deployments/bridge-latest.json
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --workspace demo --network anvil --private-key <hex> --l2-key-signature "participant-a"
 ```
 

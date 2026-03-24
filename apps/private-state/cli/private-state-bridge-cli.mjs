@@ -134,7 +134,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     chainId: network.chainId,
   });
   const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
-  const channelId = toBigIntStrict(requireArg(args.channelId, "--channel-id"));
+  const channelName = requireArg(args.channelName, "--channel-name");
   const blockInfoFile = args.blockInfoFile ? resolveInputPath(args.blockInfoFile) : null;
   const importedSnapshotFile = args.stateSnapshotFile ? resolveInputPath(args.stateSnapshotFile) : null;
   const force = parseBooleanFlag(args.force);
@@ -147,6 +147,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
   }
 
   const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
+  const channelId = BigInt(await bridgeCore.deriveChannelId(channelName));
   const channelInfo = await bridgeCore.getChannel(channelId);
   if (!channelInfo.exists) {
     throw new Error(`Unknown channel ${channelId.toString()} in bridge core ${bridgeDeployment.bridgeCore}.`);
@@ -233,6 +234,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     appDeploymentPath: deploymentManifestPath,
     storageLayoutPath: storageLayoutManifestPath,
     channelId: Number(channelId),
+    channelName,
     dappId: Number(channelInfo.dappId),
     genesisBlockNumber,
     bridgeCore: getAddress(bridgeDeployment.bridgeCore),
@@ -259,6 +261,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     workspace: workspaceName,
     workspaceDir,
     bridgeAbiManifestPath,
+    channelName,
     channelId: workspace.channelId,
     channelManager: workspace.channelManager,
     tokenVault: workspace.tokenVault,
@@ -1205,7 +1208,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
   node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
   node apps/private-state/cli/private-state-bridge-cli.mjs workspace-list
-  node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init --workspace <name> --channel-id <id> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init --workspace <name> --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs workspace-show --workspace <name>
   node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund --workspace <name> --private-key <hex> --l2-key-signature <seed> --amount <wei> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 --workspace <name> --private-key <hex> --amount <wei> [options]
@@ -1221,6 +1224,7 @@ Common flags:
   --env-file <path>        Alternate apps/.env location
 
 workspace-init options:
+  --channel-name <name>        User-provided channel name; channelId is derived as keccak256(bytes(name))
   --bridge-deployment <path>   Bridge deployment JSON. Default: bridge/deployments/bridge-latest.json
   --bridge-abi-manifest <path> Optional bridge ABI manifest override
   --block-info-file <path>     Optional block_info.json override; must match the channel genesis block context

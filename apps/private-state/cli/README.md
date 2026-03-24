@@ -46,7 +46,7 @@ Example:
 node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init \
   --workspace demo \
   --network anvil \
-  --channel-id 1 \
+  --channel-name demo-channel \
   --bridge-deployment bridge/deployments/private-state-bridge-e2e-latest.json
 
 node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund \

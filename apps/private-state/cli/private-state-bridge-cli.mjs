@@ -6,6 +6,12 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
+import {
   AbiCoder,
   Contract,
   Interface,
@@ -52,6 +58,8 @@ const erc20MetadataAbi = [
 ];
 const TOKAMAK_APUB_BLOCK_LENGTH = 78;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
+const WALLET_ENCRYPTION_VERSION = 1;
+const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
 const INITIAL_ZERO_ROOT =
   "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const BLS12_381_SCALAR_FIELD_MODULUS =
@@ -61,6 +69,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   assertNoLegacyBridgeOverrideFlags(args);
   assertNoLegacyWalletFlags(args);
+  assertNoLegacyL2IdentityFlags(args);
 
   if (args.help || !args.command) {
     printHelp();
@@ -153,6 +162,12 @@ function assertNoLegacyWalletFlags(args) {
   }
   if (args.command === "user-workspace-list" || args.command === "user-workspace-show") {
     throw new Error("Legacy user-workspace commands are no longer supported.");
+  }
+}
+
+function assertNoLegacyL2IdentityFlags(args) {
+  if (args.l2KeySignature !== undefined) {
+    throw new Error("--l2-key-signature is no longer supported. Use --l2-password instead.");
   }
 }
 
@@ -423,7 +438,8 @@ function handleWorkspaceShow(args) {
 
 function handleWalletShow(args) {
   const walletName = requireWalletName(args);
-  const walletContext = loadWallet(walletName);
+  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const walletContext = loadWallet(walletName, l2Identity);
   const canonicalAssetDecimals = Number(walletContext.wallet.canonicalAssetDecimals);
   const spendSelection = args.amount
     ? selectSpendableNotes(walletContext.wallet, parseTokenAmount(args.amount, canonicalAssetDecimals))
@@ -436,7 +452,7 @@ function handleWalletShow(args) {
 
 async function handleRegisterAndFund({ args, env, network, provider }) {
   const signer = requireL1Signer(args, env, provider);
-  const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
+  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
   const context = await loadChannelContext({
     args,
     networkName: network.name,
@@ -494,11 +510,13 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
     l2StorageKey: storageKey,
     leafIndex: registration.leafIndex.toString(),
   });
+  sealWalletOperationDir(operationDir, l2Identity.l2PrivateKey);
 }
 
 async function handleFundL1({ args, env, network, provider }) {
   const signer = requireL1Signer(args, env, provider);
-  const wallet = loadWallet(requireWalletName(args));
+  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const wallet = loadWallet(requireWalletName(args), l2Identity);
   const context = await loadChannelContext({
     args,
     networkName: network.name,
@@ -524,6 +542,7 @@ async function handleFundL1({ args, env, network, provider }) {
       amountInput,
       amountBaseUnits: amount.toString(),
     },
+    walletPrivateKey: l2Identity.l2PrivateKey,
     execute: async (operationDir) => {
       const approveReceipt = await waitForReceipt(
         await asset.approve(context.workspace.tokenVault, amount),
@@ -537,7 +556,8 @@ async function handleFundL1({ args, env, network, provider }) {
 }
 
 async function handleGrothVaultMove({ args, env, network, provider, direction }) {
-  const walletFromFlag = args.wallet ? loadWallet(requireWalletName(args)) : null;
+  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const walletFromFlag = args.wallet ? loadWallet(requireWalletName(args), l2Identity) : null;
   const context = await loadChannelContext({
     args,
     networkName: network.name,
@@ -555,7 +575,6 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   const signer = requireL1Signer(args, env, provider);
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
-  const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const tokenVault = new Contract(context.workspace.tokenVault, context.bridgeAbiManifest.contracts.tokenVault.abi, signer);
   const registration = await tokenVault.getRegistration(signer.address);
@@ -616,6 +635,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(transition.nextSnapshot));
   writeJson(path.join(operationDir, "wallet.json"), walletContext.wallet);
+  sealWalletOperationDir(operationDir, l2Identity.l2PrivateKey);
 
   context.currentSnapshot = normalizeStateSnapshot(transition.nextSnapshot);
   persistCurrentState(context);
@@ -635,7 +655,8 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
 }
 
 async function handleClaim({ args, env, provider }) {
-  const wallet = loadWallet(requireWalletName(args));
+  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const wallet = loadWallet(requireWalletName(args), l2Identity);
   const context = await loadChannelContext({
     args,
     networkName: null,
@@ -661,6 +682,7 @@ async function handleClaim({ args, env, provider }) {
       amountInput,
       amountBaseUnits: amount.toString(),
     },
+    walletPrivateKey: l2Identity.l2PrivateKey,
     execute: async (operationDir) => {
       const receipt = await waitForReceipt(await tokenVault.claimToWallet(amount));
       writeJson(path.join(operationDir, "claim-receipt.json"), sanitizeReceipt(receipt));
@@ -672,8 +694,8 @@ async function handleClaim({ args, env, provider }) {
 async function handleBridgeSend({ args, env, provider }) {
   requireFunctionName(args);
   const signer = requireL1Signer(args, env, provider);
-  const l2Identity = deriveParticipantIdentity(requireArg(args.l2KeySignature, "--l2-key-signature"));
-  const wallet = loadWallet(requireWalletName(args));
+  const l2Identity = deriveParticipantIdentity(requireL2Password(args));
+  const wallet = loadWallet(requireWalletName(args), l2Identity);
   const context = await loadChannelContext({
     args,
     networkName: null,
@@ -749,15 +771,11 @@ async function handleBridgeSend({ args, env, provider }) {
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), nextSnapshot);
 
   wallet.wallet.l2Nonce = nonce + 1;
-  applyNoteLifecycleAcrossKnownWallets(
-    wallet,
-    extractNoteLifecycle(args.functionName, templatePayload),
-    args.functionName,
-    receipt.hash,
-  );
+  applyNoteLifecycleToWallet(wallet, extractNoteLifecycle(args.functionName, templatePayload), args.functionName, receipt.hash);
   context.currentSnapshot = nextSnapshot;
   persistWallet(wallet);
   persistCurrentState(context);
+  sealWalletOperationDir(operationDir, l2Identity.l2PrivateKey);
 
   printJson({
     action: "bridge-send",
@@ -788,7 +806,7 @@ function ensureWallet({
   const walletDir = walletPath(walletName);
   let wallet;
   if (walletConfigExists(walletDir)) {
-    wallet = normalizeWallet(readJson(walletConfigPath(walletDir)));
+    wallet = normalizeWallet(readEncryptedWalletJson(walletConfigPath(walletDir), l2Identity.l2PrivateKey));
     expect(
       Number(wallet.channelId) === Number(channelContext.workspace.channelId),
       `Wallet ${walletName} belongs to channel ${wallet.channelId}, not ${channelContext.workspace.channelId}.`,
@@ -849,6 +867,7 @@ function ensureWallet({
     walletName,
     walletDir,
     wallet,
+    walletPrivateKey: l2Identity.l2PrivateKey,
   };
   persistWallet(context);
   return context;
@@ -985,24 +1004,6 @@ function applyNoteLifecycleToWallet(walletContext, lifecycle, sourceFunction, so
   persistWallet(walletContext);
 }
 
-function applyNoteLifecycleAcrossKnownWallets(primaryWalletContext, lifecycle, sourceFunction, sourceTxHash) {
-  const knownWallets = new Map([[primaryWalletContext.walletName, primaryWalletContext]]);
-  for (const descriptor of listWallets()) {
-    if (!descriptor.name || knownWallets.has(descriptor.name)) {
-      continue;
-    }
-    const walletContext = loadWallet(descriptor.name);
-    if (walletContext.wallet.channelId !== primaryWalletContext.wallet.channelId) {
-      continue;
-    }
-    knownWallets.set(walletContext.walletName, walletContext);
-  }
-
-  for (const walletContext of knownWallets.values()) {
-    applyNoteLifecycleToWallet(walletContext, lifecycle, sourceFunction, sourceTxHash);
-  }
-}
-
 function selectSpendableNotes(workspace, requestedAmount) {
   const target = BigInt(requestedAmount);
   if (target <= 0n) {
@@ -1128,17 +1129,22 @@ async function loadChannelContext({ args, networkName, provider, walletContext =
   };
 }
 
-function loadWallet(walletName) {
+function loadWallet(walletName, l2Identity) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
   const walletDir = walletPath(normalizedWalletName);
   if (!walletConfigExists(walletDir)) {
     throw new Error(`Unknown wallet: ${normalizedWalletName}.`);
   }
-  const wallet = readJson(walletConfigPath(walletDir));
+  const wallet = readEncryptedWalletJson(walletConfigPath(walletDir), l2Identity.l2PrivateKey);
+  expect(
+    wallet.l2Address === l2Identity.l2Address,
+    `Wallet ${normalizedWalletName} does not match the provided --l2-password.`,
+  );
   return {
     walletName: normalizedWalletName,
     walletDir,
     wallet: normalizeWallet(wallet),
+    walletPrivateKey: l2Identity.l2PrivateKey,
   };
 }
 
@@ -1175,6 +1181,7 @@ async function saveNoStateChangeOperation({
   execute,
   operationDir,
   workspaceLabel,
+  walletPrivateKey,
 }) {
   const resolvedOperationDir =
     operationDir ?? createOperationDir(context.workspaceName, `${operationName}-${shortAddress(actorLabel)}`);
@@ -1200,6 +1207,9 @@ async function saveNoStateChangeOperation({
     ...extraMetadata,
     result,
   });
+  if (walletPrivateKey) {
+    sealWalletOperationDir(resolvedOperationDir, walletPrivateKey);
+  }
 }
 
 async function buildGrothTransition({ operationDir, workspace, stateManager, vaultAddress, keyHex, nextValue }) {
@@ -1427,8 +1437,8 @@ async function currentStorageBigInt(stateManager, address, keyHex) {
   return bytesToBigInt(valueBytes);
 }
 
-function deriveParticipantIdentity(signatureSeed) {
-  const keySet = deriveL2KeysFromSignature(signatureSeed);
+function deriveParticipantIdentity(password) {
+  const keySet = deriveL2KeysFromSignature(password);
   const l2Address = getAddress(fromEdwardsToAddress(keySet.publicKey).toString());
   return {
     l2PrivateKey: keySet.privateKey,
@@ -1801,6 +1811,10 @@ function parseTokenAmount(value, decimals) {
   }
 }
 
+function requireL2Password(args) {
+  return requireArg(args.l2Password, "--l2-password");
+}
+
 function toBigIntStrict(value) {
   try {
     return BigInt(value);
@@ -1876,20 +1890,6 @@ function listChannelWorkspaces() {
     });
 }
 
-function listWallets() {
-  if (!fs.existsSync(walletsRoot)) {
-    return [];
-  }
-  return fs.readdirSync(walletsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
-      const configPath = walletConfigPath(path.join(walletsRoot, entry.name));
-      return fs.existsSync(configPath)
-        ? readJson(configPath)
-        : { name: entry.name };
-    });
-}
-
 function slugify(value) {
   return String(value)
     .replace(/[^a-zA-Z0-9]+/g, "-")
@@ -1916,7 +1916,7 @@ function persistWorkspace(context) {
 }
 
 function persistWallet(context) {
-  writeJson(path.join(context.walletDir, "wallet.json"), context.wallet);
+  writeEncryptedWalletJson(path.join(context.walletDir, "wallet.json"), context.wallet, context.walletPrivateKey);
 }
 
 function persistCurrentState(context) {
@@ -1940,13 +1940,13 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> [--amount <tokens>]
-  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --amount <tokens> --wallet <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-key-signature <seed> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --l2-key-signature <seed> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --amount <tokens> --wallet <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> --private-key <hex> --l2-key-signature <seed> [--args-file <path>] [--template-file <path>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --l2-password <string> [--amount <tokens>]
+  node apps/private-state/cli/private-state-bridge-cli.mjs register-and-fund (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-password <string> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --l2-password <string> --amount <tokens> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs deposit (--channel-name <name> | --workspace <channel-workspace>) --private-key <hex> --l2-password <string> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --l2-password <string> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs claim (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --private-key <hex> --l2-password <string> --amount <tokens> --wallet <name> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> --private-key <hex> --l2-password <string> [--args-file <path>] [--template-file <path>] [options]
 
 Common flags:
   --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia
@@ -1975,10 +1975,13 @@ Notes:
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
+  - --l2-password accepts any string and deterministically derives the user's L2 private key.
+  - Wallet folder contents are encrypted at rest with a key derived from the L2 private key.
+  - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own L2 passwords.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
-  - register-and-fund, deposit, and withdraw can allocate or refresh a wallet automatically from --l2-key-signature.
-  - fund-l1, claim, and bridge-send require an existing --wallet.
+  - register-and-fund, deposit, and withdraw can allocate or refresh a wallet automatically from --l2-password.
+  - wallet-show, fund-l1, claim, and bridge-send require an existing --wallet plus the matching --l2-password.
   - Channel workspace operations are stored under:
       apps/private-state/cli/workspaces/<workspace>/operations/
   - Wallet operations are stored under:
@@ -1993,6 +1996,73 @@ function readJson(filePath) {
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function writeEncryptedWalletJson(filePath, value, walletPrivateKey) {
+  writeEncryptedWalletFile(filePath, Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8"), walletPrivateKey);
+}
+
+function readEncryptedWalletJson(filePath, walletPrivateKey) {
+  try {
+    return JSON.parse(readEncryptedWalletFile(filePath, walletPrivateKey).toString("utf8"));
+  } catch (error) {
+    throw new Error(`Unable to decrypt wallet data at ${filePath}. Check --l2-password.`, { cause: error });
+  }
+}
+
+function writeEncryptedWalletFile(filePath, plaintextBytes, walletPrivateKey) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const encryptionKey = deriveWalletEncryptionKey(walletPrivateKey);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintextBytes), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const envelope = {
+    version: WALLET_ENCRYPTION_VERSION,
+    algorithm: WALLET_ENCRYPTION_ALGORITHM,
+    iv: ethers.hexlify(iv),
+    tag: ethers.hexlify(tag),
+    ciphertext: ethers.hexlify(ciphertext),
+  };
+  fs.writeFileSync(filePath, `${JSON.stringify(envelope, null, 2)}\n`);
+}
+
+function readEncryptedWalletFile(filePath, walletPrivateKey) {
+  const envelope = readJson(filePath);
+  expect(
+    envelope.version === WALLET_ENCRYPTION_VERSION && envelope.algorithm === WALLET_ENCRYPTION_ALGORITHM,
+    `Unsupported wallet encryption envelope at ${filePath}.`,
+  );
+  const encryptionKey = deriveWalletEncryptionKey(walletPrivateKey);
+  const decipher = createDecipheriv("aes-256-gcm", encryptionKey, Buffer.from(ethers.getBytes(envelope.iv)));
+  decipher.setAuthTag(Buffer.from(ethers.getBytes(envelope.tag)));
+  return Buffer.concat([
+    decipher.update(Buffer.from(ethers.getBytes(envelope.ciphertext))),
+    decipher.final(),
+  ]);
+}
+
+function deriveWalletEncryptionKey(walletPrivateKey) {
+  return createHash("sha256").update(serializeWalletPrivateKey(walletPrivateKey)).digest();
+}
+
+function serializeWalletPrivateKey(walletPrivateKey) {
+  if (typeof walletPrivateKey === "string") {
+    return Buffer.from(ethers.getBytes(walletPrivateKey));
+  }
+  return Buffer.from(walletPrivateKey);
+}
+
+function sealWalletOperationDir(operationDir, walletPrivateKey) {
+  for (const entry of fs.readdirSync(operationDir, { withFileTypes: true })) {
+    const targetPath = path.join(operationDir, entry.name);
+    if (entry.isDirectory()) {
+      sealWalletOperationDir(targetPath, walletPrivateKey);
+      continue;
+    }
+    const plaintextBytes = fs.readFileSync(targetPath);
+    writeEncryptedWalletFile(targetPath, plaintextBytes, walletPrivateKey);
+  }
 }
 
 function ensureDir(dirPath) {

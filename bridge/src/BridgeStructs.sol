@@ -17,7 +17,6 @@ library BridgeStructs {
     struct DAppFunctionMetadata {
         address entryContract;
         bytes4 functionSig;
-        address[] storageAddrs;
         bytes32 preprocessInputHash;
         uint8 entryContractOffsetWords;
         uint8 functionSigOffsetWords;
@@ -47,7 +46,7 @@ library BridgeStructs {
     }
 
     struct GrothUpdate {
-        bytes32 currentRoot;
+        bytes32[] currentRootVector;
         bytes32 updatedRoot;
         bytes32 currentUserKey;
         uint256 currentUserValue;

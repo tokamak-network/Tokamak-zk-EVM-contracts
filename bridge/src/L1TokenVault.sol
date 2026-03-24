@@ -99,6 +99,7 @@ contract L1TokenVault is ReentrancyGuard {
         returns (bool)
     {
         VaultRegistration storage registration = _requireRegistration(msg.sender);
+        bytes32 currentRoot = _currentTokenVaultRoot(update);
 
         _requireL2ValueInField(update.currentUserValue);
         _requireL2ValueInField(update.updatedUserValue);
@@ -109,13 +110,13 @@ contract L1TokenVault is ReentrancyGuard {
         uint256 amount = update.updatedUserValue - update.currentUserValue;
         if (registration.availableBalance < amount) revert InsufficientAvailableBalance();
 
-        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update));
+        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(currentRoot, update));
         if (!ok) revert GrothProofRejected();
 
         registration.availableBalance -= amount;
 
         channelManager.applyVaultUpdate(
-            update.currentRoot,
+            update.currentRootVector,
             update.updatedRoot,
             registration.leafIndex,
             _encodeTokenVaultLeaf(update.updatedUserValue)
@@ -131,6 +132,7 @@ contract L1TokenVault is ReentrancyGuard {
         returns (bool)
     {
         VaultRegistration storage registration = _requireRegistration(msg.sender);
+        bytes32 currentRoot = _currentTokenVaultRoot(update);
 
         _requireL2ValueInField(update.currentUserValue);
         _requireL2ValueInField(update.updatedUserValue);
@@ -140,13 +142,13 @@ contract L1TokenVault is ReentrancyGuard {
 
         uint256 amount = update.currentUserValue - update.updatedUserValue;
 
-        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(update));
+        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(currentRoot, update));
         if (!ok) revert GrothProofRejected();
 
         registration.availableBalance += amount;
 
         channelManager.applyVaultUpdate(
-            update.currentRoot,
+            update.currentRootVector,
             update.updatedRoot,
             registration.leafIndex,
             _encodeTokenVaultLeaf(update.updatedUserValue)
@@ -209,12 +211,16 @@ contract L1TokenVault is ReentrancyGuard {
         }
     }
 
-    function _toPublicSignals(BridgeStructs.GrothUpdate calldata update)
+    function _currentTokenVaultRoot(BridgeStructs.GrothUpdate calldata update) private view returns (bytes32) {
+        return update.currentRootVector[channelManager.tokenVaultTreeIndex()];
+    }
+
+    function _toPublicSignals(bytes32 currentRoot, BridgeStructs.GrothUpdate calldata update)
         private
         pure
         returns (uint256[5] memory pubSignals)
     {
-        pubSignals[0] = uint256(update.currentRoot);
+        pubSignals[0] = uint256(currentRoot);
         pubSignals[1] = uint256(update.updatedRoot);
         pubSignals[2] = uint256(update.updatedUserKey);
         pubSignals[3] = update.currentUserValue;

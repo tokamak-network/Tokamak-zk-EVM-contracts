@@ -161,7 +161,7 @@ contract BridgeCore is Ownable, IVaultKeyRegistry {
         return _channels[channelId];
     }
 
-    function deriveLeafIndex(bytes32 key) public view returns (uint256) {
+    function deriveLeafIndex(bytes32 key) public pure returns (uint256) {
         return uint256(key) % SUPPORTED_MT_LEAVES;
     }
 

@@ -409,7 +409,6 @@ async function main() {
     dapp.functions.map((fn) => ({
       entryContract: fn.entryContract,
       functionSig: fn.functionSig,
-      storageAddrs: fn.storageAddresses,
       preprocessInputHash: fn.preprocessInputHash,
       entryContractOffsetWords: fn.entryContractOffsetWords,
       functionSigOffsetWords: fn.functionSigOffsetWords,

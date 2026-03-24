@@ -155,7 +155,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
     bridgeAbiManifest.contracts.channelManager.abi,
     provider,
   );
-  const currentRoots = normalizedRootVector(await channelManager.getCurrentRootVector());
+  const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
   const deploymentManifestPath = path.resolve(deployRoot, `deployment.${network.chainId}.latest.json`);
   const storageLayoutManifestPath = path.resolve(deployRoot, `storage-layout.${network.chainId}.latest.json`);
@@ -180,9 +180,10 @@ async function handleWorkspaceInit({ args, network, provider }) {
   let currentSnapshot;
   if (importedSnapshotFile) {
     currentSnapshot = normalizeStateSnapshot(readJson(importedSnapshotFile));
-    assertSnapshotMatchesChannel(currentSnapshot, currentRoots, managedStorageAddresses);
+    assertSnapshotMatchesChannel(currentSnapshot, currentRootVectorHash, managedStorageAddresses);
   } else {
-    const allZeroRoots = currentRoots.every((root) => normalizeBytes32Hex(root) === normalizeBytes32Hex(INITIAL_ZERO_ROOT));
+    const zeroRoots = managedStorageAddresses.map(() => normalizeBytes32Hex(INITIAL_ZERO_ROOT));
+    const allZeroRoots = normalizeBytes32Hex(hashRootVector(zeroRoots)) === currentRootVectorHash;
     if (!allZeroRoots) {
       throw new Error(
         [
@@ -194,7 +195,7 @@ async function handleWorkspaceInit({ args, network, provider }) {
 
     currentSnapshot = {
       channelId: Number(channelId),
-      stateRoots: currentRoots,
+      stateRoots: zeroRoots,
       storageAddresses: managedStorageAddresses,
       storageEntries: managedStorageAddresses.map(() => []),
     };
@@ -391,9 +392,9 @@ async function handleGrothVaultMove({ args, env, provider, direction }) {
   const receipt = await waitForReceipt(
     await tokenVault[direction](transition.proof, transition.update),
   );
-  const onchainRoots = normalizedRootVector(await context.channelManager.getCurrentRootVector());
+  const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
-    JSON.stringify(onchainRoots) === JSON.stringify(normalizedRootVector(transition.nextSnapshot.stateRoots)),
+    onchainRootVectorHash === normalizeBytes32Hex(hashRootVector(transition.nextSnapshot.stateRoots)),
     `On-chain roots do not match the ${direction} post-state roots.`,
   );
 
@@ -411,7 +412,7 @@ async function handleGrothVaultMove({ args, env, provider, direction }) {
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     amount: amount.toString(),
-    currentRoot: transition.update.currentRoot,
+    currentRootVector: transition.update.currentRootVector,
     updatedRoot: transition.update.updatedRoot,
   });
 }
@@ -494,9 +495,9 @@ async function handleBridgeSend({ args, env, provider }) {
   const receipt =
     await waitForReceipt(await context.channelManager.connect(signer).executeChannelTransaction(payload));
 
-  const onchainRoots = normalizedRootVector(await context.channelManager.getCurrentRootVector());
+  const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
-    JSON.stringify(onchainRoots) === JSON.stringify(normalizedRootVector(nextSnapshot.stateRoots)),
+    onchainRootVectorHash === normalizeBytes32Hex(hashRootVector(nextSnapshot.stateRoots)),
     `On-chain roots do not match the Tokamak post-state roots for ${args.functionName}.`,
   );
 
@@ -554,10 +555,10 @@ async function loadWorkspaceContext(workspaceName, provider) {
 }
 
 async function assertWorkspaceAlignedWithChain(context) {
-  const onchainRoots = normalizedRootVector(await context.channelManager.getCurrentRootVector());
-  const snapshotRoots = normalizedRootVector(context.currentSnapshot.stateRoots);
+  const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
+  const snapshotRootVectorHash = normalizeBytes32Hex(hashRootVector(context.currentSnapshot.stateRoots));
   expect(
-    JSON.stringify(onchainRoots) === JSON.stringify(snapshotRoots),
+    onchainRootVectorHash === snapshotRootVectorHash,
     [
       "The workspace snapshot is stale relative to the bridge channel state.",
       `Workspace: ${context.workspaceDir}`,
@@ -623,7 +624,7 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
     publicSignals,
     proof: toGrothSolidityProof(proofJson),
     update: {
-      currentRoot: bytes32FromBigInt(currentRoot),
+      currentRootVector: normalizeStateSnapshot(await stateManager.captureStateSnapshot()).stateRoots,
       updatedRoot: bytes32FromBigInt(updatedRoot),
       currentUserKey: bytes32FromHex(keyHex),
       currentUserValue: currentValue,
@@ -839,10 +840,10 @@ async function fetchContractCodes(provider, addresses) {
   return codes;
 }
 
-function assertSnapshotMatchesChannel(snapshot, currentRoots, managedStorageAddresses) {
+function assertSnapshotMatchesChannel(snapshot, currentRootVectorHash, managedStorageAddresses) {
   const normalizedSnapshot = normalizeStateSnapshot(snapshot);
   expect(
-    JSON.stringify(normalizedRootVector(normalizedSnapshot.stateRoots)) === JSON.stringify(normalizedRootVector(currentRoots)),
+    normalizeBytes32Hex(hashRootVector(normalizedSnapshot.stateRoots)) === normalizeBytes32Hex(currentRootVectorHash),
     "Imported snapshot roots do not match the current on-chain channel roots.",
   );
   expect(
@@ -868,6 +869,10 @@ function normalizeStateSnapshot(snapshot) {
 
 function normalizedRootVector(roots) {
   return roots.map((value) => normalizeBytes32Hex(value));
+}
+
+function hashRootVector(roots) {
+  return keccak256(abiCoder.encode(["bytes32[]"], [normalizedRootVector(roots)]));
 }
 
 function normalizedAddressVector(addresses) {

@@ -69,16 +69,16 @@ const bridgeCoreAbi = [
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address vault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, address[] storageAddrs, bytes32 preprocessInputHash, uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites)[] functions) external",
 ];
 const channelManagerAbi = [
-  "function getCurrentRootVector() external view returns (bytes32[] memory)",
+  "function currentRootVectorHash() external view returns (bytes32)",
   "function executeChannelTransaction((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
 const tokenVaultAbi = [
   "function registerAndFund(bytes32 l2TokenVaultKey, uint256 amount) external",
-  "function deposit((uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32 currentRoot,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
-  "function withdraw((uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32 currentRoot,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
+  "function deposit((uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
+  "function withdraw((uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function claimToWallet(uint256 amount) external",
   "function getRegistration(address user) external view returns (tuple(bool exists, bytes32 l2TokenVaultKey, uint256 leafIndex, uint256 availableBalance))",
 ];
@@ -380,6 +380,10 @@ function normalizedRootVector(roots) {
   return roots.map((value) => normalizeBytes32Hex(value));
 }
 
+function hashRootVector(roots) {
+  return keccak256(abiCoder.encode(["bytes32[]"], [normalizedRootVector(roots)]));
+}
+
 function requiredTokamakStepFiles(stepDir) {
   return [
     path.join(stepDir, "previous_state_snapshot.json"),
@@ -539,7 +543,7 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
 
   const solidityProof = toGrothSolidityProof(proofJson);
   const grothUpdate = {
-    currentRoot: bytes32FromHex(ethers.toBeHex(currentRoot)),
+    currentRootVector: normalizeStateSnapshot(await stateManager.captureStateSnapshot()).stateRoots,
     updatedRoot: bytes32FromHex(ethers.toBeHex(updatedRoot)),
     currentUserKey: bytes32FromHex(keyHex),
     currentUserValue: currentValue,
@@ -632,7 +636,6 @@ function toFunctionMetadata(entries) {
   return entries.map((entry) => ({
     entryContract: entry.entryContract,
     functionSig: entry.functionSig,
-    storageAddrs: entry.storageAddresses,
     preprocessInputHash: entry.preprocessInputHash,
     entryContractOffsetWords: entry.entryContractOffsetWords,
     functionSigOffsetWords: entry.functionSigOffsetWords,
@@ -933,10 +936,10 @@ async function main() {
     ).wait();
   }
 
-  let onchainRoots = await channelManager.getCurrentRootVector();
+  let onchainRootVectorHash = await channelManager.currentRootVectorHash();
   expect(
-    JSON.stringify(normalizedRootVector(onchainRoots))
-      === JSON.stringify(normalizedRootVector(tokamakResults[0].previousSnapshot.stateRoots)),
+    normalizeBytes32Hex(onchainRootVectorHash)
+      === normalizeBytes32Hex(hashRootVector(tokamakResults[0].previousSnapshot.stateRoots)),
     "Bridge roots must match the first Tokamak step pre-state after Groth deposits.",
   );
 
@@ -944,10 +947,10 @@ async function main() {
     console.log(`E2E: submitting Tokamak proof for ${result.scenario.name}.`);
     await (await channelManager.executeChannelTransaction(result.payload, { nonce: bridgeDeployerNonce++ })).wait();
 
-    onchainRoots = await channelManager.getCurrentRootVector();
+    onchainRootVectorHash = await channelManager.currentRootVectorHash();
     expect(
-      JSON.stringify(normalizedRootVector(onchainRoots))
-        === JSON.stringify(normalizedRootVector(result.nextSnapshot.stateRoots)),
+      normalizeBytes32Hex(onchainRootVectorHash)
+        === normalizeBytes32Hex(hashRootVector(result.nextSnapshot.stateRoots)),
       `Bridge roots must match Tokamak post-state for ${result.scenario.name}.`,
     );
     console.log(`E2E: Tokamak proof accepted for ${result.scenario.name}.`);
@@ -1002,7 +1005,7 @@ async function main() {
     })),
     finalWithdraw: {
       directory: withdrawTransition.stepDir,
-      currentRoot: withdrawTransition.update.currentRoot,
+      currentRootVector: withdrawTransition.update.currentRootVector,
       updatedRoot: withdrawTransition.update.updatedRoot,
       key: withdrawTransition.update.currentUserKey,
       amount: (9n * amountUnit).toString(),

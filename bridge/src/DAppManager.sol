@@ -34,7 +34,6 @@ contract DAppManager is Ownable {
     mapping(uint256 => DAppInfo) private _dapps;
     mapping(uint256 => mapping(bytes32 => bool)) private _supportedFunctions;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.FunctionConfig)) private _functionConfigs;
-    mapping(uint256 => mapping(bytes32 => address[])) private _functionStorages;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.StorageWriteMetadata[])) private _functionStorageWrites;
     mapping(uint256 => mapping(bytes32 => bool)) private _knownPreprocessInputHash;
     mapping(uint256 => BridgeStructs.FunctionReference[]) private _registeredFunctions;
@@ -103,18 +102,6 @@ contract DAppManager is Ownable {
             revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
         }
         return _functionConfigs[dappId][functionKey];
-    }
-
-    function getFunctionStorages(uint256 dappId, address entryContract, bytes4 functionSig)
-        external
-        view
-        returns (address[] memory)
-    {
-        bytes32 functionKey = computeFunctionKey(entryContract, functionSig);
-        if (!_supportedFunctions[dappId][functionKey]) {
-            revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
-        }
-        return _copyAddresses(_functionStorages[dappId][functionKey]);
     }
 
     function getFunctionStorageWrites(uint256 dappId, address entryContract, bytes4 functionSig)
@@ -228,10 +215,6 @@ contract DAppManager is Ownable {
     ) private {
         for (uint256 i = 0; i < functions.length; i++) {
             BridgeStructs.DAppFunctionMetadata calldata fnMetadata = functions[i];
-            if (fnMetadata.storageAddrs.length == 0) {
-                revert EmptyFunctionStorageList(fnMetadata.functionSig);
-            }
-
             bytes32 functionKey = computeFunctionKey(fnMetadata.entryContract, fnMetadata.functionSig);
             if (_supportedFunctions[dappId][functionKey]) {
                 revert DuplicateFunction(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
@@ -252,26 +235,19 @@ contract DAppManager is Ownable {
                 })
             );
 
-            for (uint256 j = 0; j < fnMetadata.storageAddrs.length; j++) {
-                address storageAddr = fnMetadata.storageAddrs[j];
-                if (!_knownStorageAddress[dappId][storageAddr]) {
-                    revert UnknownStorageAddress(dappId, storageAddr);
-                }
-                if (_isTokenVaultStorage[dappId][storageAddr] && storageAddr != tokenVaultStorageAddress) {
-                    revert MultipleTokenVaultStorageAddresses(dappId, tokenVaultStorageAddress, storageAddr);
-                }
-                _functionStorages[dappId][functionKey].push(storageAddr);
-            }
-
             for (uint256 j = 0; j < fnMetadata.storageWrites.length; j++) {
                 BridgeStructs.StorageWriteMetadata calldata storageWrite = fnMetadata.storageWrites[j];
-                if (storageWrite.storageAddrIndex >= fnMetadata.storageAddrs.length) {
+                if (storageWrite.storageAddrIndex >= _managedStorageAddresses[dappId].length) {
                     revert InvalidFunctionStorageWriteStorageIndex(
                         dappId,
                         fnMetadata.entryContract,
                         fnMetadata.functionSig,
                         storageWrite.storageAddrIndex
                     );
+                }
+                address storageAddr = _managedStorageAddresses[dappId][storageWrite.storageAddrIndex];
+                if (_isTokenVaultStorage[dappId][storageAddr] && storageAddr != tokenVaultStorageAddress) {
+                    revert MultipleTokenVaultStorageAddresses(dappId, tokenVaultStorageAddress, storageAddr);
                 }
                 _functionStorageWrites[dappId][functionKey].push(
                     BridgeStructs.StorageWriteMetadata({

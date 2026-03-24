@@ -418,22 +418,36 @@ export function buildDAppDefinitions(records) {
 
   return [...grouped.values()]
     .sort((left, right) => left.groupName.localeCompare(right.groupName))
-    .map((group) => ({
-      groupName: group.groupName,
-      labelHash: group.labelHash,
-      storageMetadata: mergeStorageMetadata(group.records),
-      functions: mergeFunctionDefinitions(group.records).map((record) => ({
-        entryContract: record.entryContract,
-        functionSig: record.functionSig,
-        storageAddresses: record.storageAddresses,
-        preprocessInputHash: record.preprocessInputHash,
-        entryContractOffsetWords: record.entryContractOffsetWords,
-        functionSigOffsetWords: record.functionSigOffsetWords,
-        currentRootVectorOffsetWords: record.currentRootVectorOffsetWords,
-        updatedRootVectorOffsetWords: record.updatedRootVectorOffsetWords,
-        storageWrites: record.storageWrites,
-        exampleNames: record.exampleNames,
-      })),
-      examples: group.examples.sort((left, right) => left.exampleName.localeCompare(right.exampleName)),
-    }));
+    .map((group) => {
+      const commonStorageAddresses = group.records[0].storageAddresses;
+      for (const record of group.records) {
+        if (JSON.stringify(record.storageAddresses) !== JSON.stringify(commonStorageAddresses)) {
+          throw new Error(
+            [
+              `DApp group ${group.groupName} has inconsistent managed storage vectors across functions.`,
+              `Expected ${JSON.stringify(commonStorageAddresses)}.`,
+              `Observed ${JSON.stringify(record.storageAddresses)} in ${record.exampleName}.`,
+            ].join(" "),
+          );
+        }
+      }
+
+      return {
+        groupName: group.groupName,
+        labelHash: group.labelHash,
+        storageMetadata: mergeStorageMetadata(group.records),
+        functions: mergeFunctionDefinitions(group.records).map((record) => ({
+          entryContract: record.entryContract,
+          functionSig: record.functionSig,
+          preprocessInputHash: record.preprocessInputHash,
+          entryContractOffsetWords: record.entryContractOffsetWords,
+          functionSigOffsetWords: record.functionSigOffsetWords,
+          currentRootVectorOffsetWords: record.currentRootVectorOffsetWords,
+          updatedRootVectorOffsetWords: record.updatedRootVectorOffsetWords,
+          storageWrites: record.storageWrites,
+          exampleNames: record.exampleNames,
+        })),
+        examples: group.examples.sort((left, right) => left.exampleName.localeCompare(right.exampleName)),
+      };
+    });
 }

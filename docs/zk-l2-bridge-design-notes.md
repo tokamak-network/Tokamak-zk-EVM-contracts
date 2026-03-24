@@ -230,7 +230,7 @@ Under the current `instance_description.json` layout produced by the Tokamak syn
   - `functionSigOffsetWords`
   - `currentRootVectorOffsetWords`
   - `updatedRootVectorOffsetWords`
-  - `storageWrites[]`, where each element carries the `aPubUser` word offset of that write descriptor and the index of the corresponding storage address within the function's `storageAddrs`
+  - `storageWrites[]`, where each element carries the `aPubUser` word offset of that write descriptor and the index of the corresponding storage address within the DApp-wide managed storage vector
 - channel creation copies the per-function offsets and `preprocessInputHash` into channel-local storage, so `executeChannelTransaction` can validate the `aPubUser` layout without external metadata calls; the `storageWrites[]` descriptors remain bridge-managed function metadata
 
 where `n` is the number of channel storage trees represented in the root vector.
@@ -238,6 +238,8 @@ where `n` is the number of channel storage trees represented in the root vector.
 The old separate `channel instance` model is no longer used in the bridge contracts. Its channel-scoped role is currently replaced by `aPubBlock`, whose hash is fixed at channel creation and later checked by the channel manager.
 
 Likewise, the bridge no longer stores `function instance` and `function preprocess` as separate verification objects. Under the current implementation, both are treated as being embedded in `functionPreprocessPart1` and `functionPreprocessPart2`. The bridge enforces their correctness by comparing `keccak256(abi.encode(functionPreprocessPart1, functionPreprocessPart2))` against the DApp-managed `preprocessInputHash`.
+
+The channel manager also no longer stores the full current root vector. It stores only `currentRootVectorHash`. Before `executeChannelTransaction` or the Groth-backed token-vault update path mutates that hash, the full current root vector is emitted in `CurrentRootVectorObserved`. This keeps the contract state minimal while still making the pre-state reconstructible off-chain.
 
 Under the current interpretation, successful Tokamak verification means:
 
@@ -258,8 +260,10 @@ The L1 bridge manages supported DApps through a DApp manager. For each supported
 - the DApp storage layout
 - the function-level `preprocessInputHash`
 - the function-level `storageWrites`, where each entry fixes:
-  - the index of the target storage address within that function's `storageAddrs`
+  - the index of the target storage address within the DApp-wide managed storage vector
   - the `aPubUser` word offset at which the corresponding storage-write tree index appears
+
+All functions registered for the same DApp must share that same managed storage-address vector. Therefore every channel created for that DApp has a fixed root-vector length and a fixed token-vault tree index regardless of which DApp function a Tokamak proof executes.
 
 Only the System administrator may add a new DApp to the DApp manager.
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bridge Docs Discipline"
+  short_description: "Keep spec and design notes in their intended roles."
+  default_prompt: "Use this skill when editing docs/spec.md or docs/zk-l2-bridge-design-notes.md so the spec stays math-first and the design notes stay high-level and stable."

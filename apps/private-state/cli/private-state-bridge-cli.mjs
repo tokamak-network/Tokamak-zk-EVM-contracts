@@ -57,7 +57,7 @@ const bridgeCoreAbi = [
 const channelManagerAbi = [
   "function getCurrentRootVector() external view returns (bytes32[] memory)",
   "function getManagedStorageAddresses() external view returns (address[] memory)",
-  "function submitTokamakProof((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload, (bytes32[] currentRootVector, bytes32[] updatedRootVector, address entryContract, bytes4 functionSig) instance) external returns (bool)",
+  "function submitTokamakProof((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
 const tokenVaultAbi = [
   "function registerAndFund(bytes32 l2TokenVaultKey, uint256 amount) external",
@@ -499,15 +499,7 @@ async function handleBridgeSend({ args, env, provider }) {
     "Generated Tokamak proof does not match the channel aPubBlockHash. Check the workspace block_info.json context.",
   );
 
-  const instance = {
-    currentRootVector: normalizedRootVector(context.currentSnapshot.stateRoots),
-    updatedRootVector: normalizedRootVector(nextSnapshot.stateRoots),
-    entryContract: context.workspace.controller,
-    functionSig: functionSelectorHex(calldata),
-  };
-  const receipt = await waitForReceipt(
-    await context.channelManager.connect(signer).submitTokamakProof(payload, instance),
-  );
+  const receipt = await waitForReceipt(await context.channelManager.connect(signer).submitTokamakProof(payload));
 
   const onchainRoots = normalizedRootVector(await context.channelManager.getCurrentRootVector());
   expect(
@@ -1207,10 +1199,6 @@ function isZeroLikeStorageValue(value) {
   }
   const normalized = value.trim().toLowerCase();
   return normalized === "0x" || normalized === "0x0" || normalized === "0x00";
-}
-
-function functionSelectorHex(calldata) {
-  return calldata.slice(0, 10);
 }
 
 main().catch((error) => {

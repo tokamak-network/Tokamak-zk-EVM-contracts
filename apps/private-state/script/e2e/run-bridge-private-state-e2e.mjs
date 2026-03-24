@@ -73,7 +73,7 @@ const dAppManagerAbi = [
 ];
 const channelManagerAbi = [
   "function getCurrentRootVector() external view returns (bytes32[] memory)",
-  "function submitTokamakProof((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload, (bytes32[] currentRootVector, bytes32[] updatedRootVector, address entryContract, bytes4 functionSig) instance) external returns (bool)",
+  "function submitTokamakProof((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
 const tokenVaultAbi = [
   "function registerAndFund(bytes32 l2TokenVaultKey, uint256 amount) external",
@@ -937,19 +937,7 @@ async function main() {
 
   for (const result of tokamakResults) {
     console.log(`E2E: submitting Tokamak proof for ${result.scenario.name}.`);
-    const instance = {
-      currentRootVector: normalizedRootVector(result.previousSnapshot.stateRoots),
-      updatedRootVector: normalizedRootVector(result.nextSnapshot.stateRoots),
-      entryContract: result.scenario.controllerAddress,
-      functionSig: functionSelectorHex(result.scenario.calldata),
-    };
-    await (
-      await channelManager.submitTokamakProof(
-        result.payload,
-        instance,
-        { nonce: bridgeDeployerNonce++ },
-      )
-    ).wait();
+    await (await channelManager.submitTokamakProof(result.payload, { nonce: bridgeDeployerNonce++ })).wait();
 
     onchainRoots = await channelManager.getCurrentRootVector();
     expect(

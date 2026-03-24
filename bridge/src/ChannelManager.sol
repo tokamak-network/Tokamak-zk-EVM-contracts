@@ -29,10 +29,6 @@ contract ChannelManager {
     error APubUserWordOutOfRange(uint256 index, uint256 value);
     error EntryContractPublicInputOutOfRange(uint256 value);
     error FunctionSigPublicInputOutOfRange(uint256 value);
-    error UpdatedRootVectorPublicInputMismatch(uint256 index, bytes32 expectedRoot, bytes32 actualRoot);
-    error CurrentRootVectorPublicInputMismatch(uint256 index, bytes32 expectedRoot, bytes32 actualRoot);
-    error EntryContractPublicInputMismatch(address expectedEntryContract, address actualEntryContract);
-    error FunctionSigPublicInputMismatch(bytes4 expectedFunctionSig, bytes4 actualFunctionSig);
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
@@ -40,7 +36,6 @@ contract ChannelManager {
     bytes32 public immutable aPubBlockHash;
     uint256 public immutable tokenVaultTreeIndex;
     address public immutable bridgeCore;
-    DAppManager public immutable dAppManager;
     ITokamakVerifier public immutable tokamakVerifier;
 
     address public tokenVault;
@@ -79,7 +74,6 @@ contract ChannelManager {
         leader = leader_;
         aPubBlockHash = aPubBlockHash_;
         bridgeCore = bridgeCore_;
-        dAppManager = dAppManager_;
         tokamakVerifier = tokamakVerifier_;
 
         if (tokenVaultTreeIndex_ >= initialRootVector_.length) {
@@ -124,19 +118,16 @@ contract ChannelManager {
         emit TokenVaultBound(tokenVault_);
     }
 
-    function submitTokamakProof(
-        BridgeStructs.TokamakProofPayload calldata payload,
-        BridgeStructs.TokamakTransactionInstance calldata instance
-    ) external returns (bool) {
-        if (instance.updatedRootVector.length != instance.currentRootVector.length) {
-            revert RootVectorLengthMismatch();
-        }
-        _assertTransactionInstanceMatchesAPubUser(instance, payload.aPubUser);
-        _assertCurrentRootVector(instance.currentRootVector);
+    function submitTokamakProof(BridgeStructs.TokamakProofPayload calldata payload) external returns (bool) {
+        _assertAPubUserLayout(payload.aPubUser);
+        _assertCurrentRootVectorFromAPubUser(payload.aPubUser);
 
-        bytes32 functionKey = _computeFunctionKey(instance.entryContract, instance.functionSig);
+        address entryContract = _decodeAddressFromAPubUser(payload.aPubUser, ENTRY_CONTRACT_OFFSET);
+        bytes4 functionSig = _decodeFunctionSigFromAPubUser(payload.aPubUser, FUNCTION_SIG_OFFSET);
+
+        bytes32 functionKey = _computeFunctionKey(entryContract, functionSig);
         if (!_allowedFunctionKeys[functionKey]) {
-            revert UnsupportedChannelFunction(instance.entryContract, instance.functionSig);
+            revert UnsupportedChannelFunction(entryContract, functionSig);
         }
 
         bytes32 actualPreprocessInputHash =
@@ -160,8 +151,8 @@ contract ChannelManager {
         );
         if (!ok) revert TokamakProofRejected();
 
-        _replaceCurrentRootVector(instance.updatedRootVector);
-        emit TokamakStateUpdateAccepted(instance.functionSig, instance.entryContract);
+        _replaceCurrentRootVector(_decodeUpdatedRootVectorFromAPubUser(payload.aPubUser));
+        emit TokamakStateUpdateAccepted(functionSig, entryContract);
         return true;
     }
 
@@ -221,12 +212,9 @@ contract ChannelManager {
         return _latestTokenVaultLeaves[leafIndex];
     }
 
-    function _assertCurrentRootVector(bytes32[] calldata candidateCurrentRootVector) private view {
-        if (candidateCurrentRootVector.length != _currentRootVector.length) {
-            revert RootVectorLengthMismatch();
-        }
-        for (uint256 i = 0; i < candidateCurrentRootVector.length; i++) {
-            if (candidateCurrentRootVector[i] != _currentRootVector[i]) {
+    function _assertCurrentRootVectorFromAPubUser(uint256[] calldata aPubUser) private view {
+        for (uint256 i = 0; i < _currentRootVector.length; i++) {
+            if (_decodeBytes32FromAPubUser(aPubUser, CURRENT_ROOT_VECTOR_OFFSET + i * 2) != _currentRootVector[i]) {
                 revert UnexpectedCurrentRootVector();
             }
         }
@@ -255,40 +243,24 @@ contract ChannelManager {
         }
     }
 
-    function _assertTransactionInstanceMatchesAPubUser(
-        BridgeStructs.TokamakTransactionInstance calldata instance,
-        uint256[] calldata aPubUser
-    ) private pure {
-        if (instance.updatedRootVector.length * SPLIT_WORD_SIZE > ENTRY_CONTRACT_OFFSET) {
-            revert RootVectorExceedsAPubUserLayout(instance.updatedRootVector.length);
+    function _assertAPubUserLayout(uint256[] calldata aPubUser) private view {
+        if (_currentRootVector.length * SPLIT_WORD_SIZE > ENTRY_CONTRACT_OFFSET) {
+            revert RootVectorExceedsAPubUserLayout(_currentRootVector.length);
         }
-        uint256 requiredLength = CURRENT_ROOT_VECTOR_OFFSET + instance.currentRootVector.length * SPLIT_WORD_SIZE;
+        uint256 requiredLength = CURRENT_ROOT_VECTOR_OFFSET + _currentRootVector.length * SPLIT_WORD_SIZE;
         if (aPubUser.length < requiredLength) {
             revert APubUserTooShort(requiredLength, aPubUser.length);
         }
+    }
 
-        for (uint256 i = 0; i < instance.updatedRootVector.length; i++) {
-            bytes32 actualUpdatedRoot = _decodeBytes32FromAPubUser(aPubUser, UPDATED_ROOT_VECTOR_OFFSET + i * 2);
-            if (actualUpdatedRoot != instance.updatedRootVector[i]) {
-                revert UpdatedRootVectorPublicInputMismatch(i, instance.updatedRootVector[i], actualUpdatedRoot);
-            }
-        }
-
-        address actualEntryContract = _decodeAddressFromAPubUser(aPubUser, ENTRY_CONTRACT_OFFSET);
-        if (actualEntryContract != instance.entryContract) {
-            revert EntryContractPublicInputMismatch(instance.entryContract, actualEntryContract);
-        }
-
-        bytes4 actualFunctionSig = _decodeFunctionSigFromAPubUser(aPubUser, FUNCTION_SIG_OFFSET);
-        if (actualFunctionSig != instance.functionSig) {
-            revert FunctionSigPublicInputMismatch(instance.functionSig, actualFunctionSig);
-        }
-
-        for (uint256 i = 0; i < instance.currentRootVector.length; i++) {
-            bytes32 actualCurrentRoot = _decodeBytes32FromAPubUser(aPubUser, CURRENT_ROOT_VECTOR_OFFSET + i * 2);
-            if (actualCurrentRoot != instance.currentRootVector[i]) {
-                revert CurrentRootVectorPublicInputMismatch(i, instance.currentRootVector[i], actualCurrentRoot);
-            }
+    function _decodeUpdatedRootVectorFromAPubUser(uint256[] calldata aPubUser)
+        private
+        view
+        returns (bytes32[] memory updatedRootVector)
+    {
+        updatedRootVector = new bytes32[](_currentRootVector.length);
+        for (uint256 i = 0; i < _currentRootVector.length; i++) {
+            updatedRootVector[i] = _decodeBytes32FromAPubUser(aPubUser, UPDATED_ROOT_VECTOR_OFFSET + i * 2);
         }
     }
 

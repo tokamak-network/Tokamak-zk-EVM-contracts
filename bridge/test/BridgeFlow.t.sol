@@ -388,59 +388,25 @@ contract BridgeFlowTest is Test {
         _writeSplitWord(proofPayload.aPubUser, 26, uint256(INITIAL_ZERO_ROOT));
         _writeSplitWord(proofPayload.aPubUser, 28, uint256(INITIAL_ZERO_ROOT));
 
-        BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT),
-            updatedRootVector: _rootVector(bytes32(0), bytes32(0)),
-            entryContract: address(0xBEEF),
-            functionSig: APP_SIG
-        });
-
         vm.expectRevert(
             abi.encodeWithSelector(ChannelManager.UnsupportedChannelFunction.selector, address(0xBEEF), APP_SIG)
         );
-        channelManager.submitTokamakProof(proofPayload, instance);
+        channelManager.submitTokamakProof(proofPayload);
     }
 
-    function testTokamakVerificationRejectsEntryContractMismatchAgainstAPubUser() public {
+    function testTokamakVerificationRejectsShortAPubUser() public {
         BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
-        BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: _currentRootsFromAPubUser(proofPayload.aPubUser),
-            updatedRootVector: _updatedRootsFromAPubUser(proofPayload.aPubUser),
-            entryContract: address(0xBEEF),
-            functionSig: _functionSigFromAPubUser(proofPayload.aPubUser)
-        });
+        uint256[] memory shortened = _slice(proofPayload.aPubUser, 0, 29);
+        proofPayload.aPubUser = shortened;
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ChannelManager.EntryContractPublicInputMismatch.selector,
-                address(0xBEEF),
-                _entryContractFromAPubUser(proofPayload.aPubUser)
+                ChannelManager.APubUserTooShort.selector,
+                uint256(30),
+                uint256(shortened.length)
             )
         );
-        channelManager.submitTokamakProof(proofPayload, instance);
-    }
-
-    function testTokamakVerificationRejectsUpdatedRootMismatchAgainstAPubUser() public {
-        BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
-        bytes32[] memory updatedRoots = _updatedRootsFromAPubUser(proofPayload.aPubUser);
-        updatedRoots[0] = bytes32(uint256(updatedRoots[0]) + 1);
-
-        BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: _currentRootsFromAPubUser(proofPayload.aPubUser),
-            updatedRootVector: updatedRoots,
-            entryContract: _entryContractFromAPubUser(proofPayload.aPubUser),
-            functionSig: _functionSigFromAPubUser(proofPayload.aPubUser)
-        });
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ChannelManager.UpdatedRootVectorPublicInputMismatch.selector,
-                uint256(0),
-                updatedRoots[0],
-                _updatedRootsFromAPubUser(proofPayload.aPubUser)[0]
-            )
-        );
-        channelManager.submitTokamakProof(proofPayload, instance);
+        channelManager.submitTokamakProof(proofPayload);
     }
 
     function testChannelUsesRealTokamakVerifier() public view {
@@ -449,15 +415,9 @@ contract BridgeFlowTest is Test {
 
     function testTokamakVerificationRejectsProofForUnexpectedCurrentState() public {
         BridgeStructs.TokamakProofPayload memory proofPayload = _loadTokamakProofPayload();
-        BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: _currentRootsFromAPubUser(proofPayload.aPubUser),
-            updatedRootVector: _updatedRootsFromAPubUser(proofPayload.aPubUser),
-            entryContract: _entryContractFromAPubUser(proofPayload.aPubUser),
-            functionSig: _functionSigFromAPubUser(proofPayload.aPubUser)
-        });
 
         vm.expectRevert(ChannelManager.UnexpectedCurrentRootVector.selector);
-        channelManager.submitTokamakProof(proofPayload, instance);
+        channelManager.submitTokamakProof(proofPayload);
     }
 
     function testTokamakVerificationAcceptsRealProofBundleAfterSeedingVerifiedPreState() public {
@@ -501,14 +461,7 @@ contract BridgeFlowTest is Test {
         // The extracted proof bundle starts from an already-updated channel state rather than the bridge's zero root.
         _seedChannelCurrentRoots(localChannelManager, currentRoots);
 
-        BridgeStructs.TokamakTransactionInstance memory instance = BridgeStructs.TokamakTransactionInstance({
-            currentRootVector: currentRoots,
-            updatedRootVector: updatedRoots,
-            entryContract: entryContract,
-            functionSig: functionSig
-        });
-
-        bool accepted = localChannelManager.submitTokamakProof(proofPayload, instance);
+        bool accepted = localChannelManager.submitTokamakProof(proofPayload);
         assertTrue(accepted);
 
         bytes32[] memory resultingRoots = localChannelManager.getCurrentRootVector();

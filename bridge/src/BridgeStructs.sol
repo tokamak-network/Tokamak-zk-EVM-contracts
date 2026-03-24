@@ -41,13 +41,6 @@ library BridgeStructs {
         uint256 updatedUserValue;
     }
 
-    struct TokamakTransactionInstance {
-        bytes32[] currentRootVector;
-        bytes32[] updatedRootVector;
-        address entryContract;
-        bytes4 functionSig;
-    }
-
     struct TokamakProofPayload {
         uint128[] proofPart1;
         uint256[] proofPart2;

@@ -393,6 +393,7 @@ function requiredTokamakStepFiles(stepDir) {
     path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
     path.join(stepDir, "resource", "prove", "output", "proof.json"),
     path.join(stepDir, "resource", "synthesizer", "output", "instance.json"),
+    path.join(stepDir, "resource", "synthesizer", "output", "instance_description.json"),
     path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"),
   ];
 }
@@ -444,6 +445,7 @@ function loadExistingTokamakStep(step, currentSnapshot, blockInfo, contractCodes
     snapshotJsonPath: path.join(stepDir, "previous_state_snapshot.json"),
     preprocessJsonPath: path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
     instanceJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance.json"),
+    instanceDescriptionJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance_description.json"),
   });
 
   return {
@@ -489,6 +491,7 @@ async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
     snapshotJsonPath: path.join(stepDir, "previous_state_snapshot.json"),
     preprocessJsonPath: path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
     instanceJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance.json"),
+    instanceDescriptionJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance_description.json"),
   });
 
   return {

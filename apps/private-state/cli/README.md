@@ -1,10 +1,9 @@
 # private-state CLI
 
-This folder contains terminal CLIs for the private-state DApp.
+This folder contains the terminal CLI for the private-state DApp.
 
 ## Structure
 
-- `private-state-cli.mjs`: the direct ABI/call/send CLI entrypoint
 - `private-state-bridge-cli.mjs`: the bridge-coupled L2 user workflow CLI
 - `functions/index.json`: selectable function list
 - `functions/<function-name>/calldata.json`: default calldata template for that function
@@ -24,26 +23,19 @@ Each `calldata.json` file follows this shape:
 }
 ```
 
-The direct CLI reads a function's `calldata.json`, optionally replaces `args` through `--args-file` or replaces the full
-template through `--template-file`, resolves the deployed contract address from
-`apps/private-state/deploy/deployment.<chain-id>.latest.json`, restricts network selection to `mainnet`, `sepolia`,
-or `anvil`, and then either:
-
-- generates calldata only
-- performs `eth_call`
-- submits a signed transaction using a provided private key
+The bridge-coupled CLI reads a function's `calldata.json`, optionally replaces `args` through `--args-file` or
+replaces the full template through `--template-file`, resolves the bridge deployment and ABI manifest, maintains a
+channel workspace, generates proofs, and submits the resulting bridge transactions.
 
 ## Usage
 
 ```bash
-node apps/private-state/cli/private-state-cli.mjs list
-node apps/private-state/cli/private-state-cli.mjs show-template mintNotes1
-node apps/private-state/cli/private-state-cli.mjs generate mintNotes1 --network sepolia
-node apps/private-state/cli/private-state-cli.mjs send mintNotes1 --network anvil --private-key <hex>
+node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
+node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
 ```
 
-The bridge-coupled CLI manages a channel workspace, generates Groth or Tokamak proofs, calls the deployed bridge,
-and stores every resulting `state_snapshot.json`.
+The bridge-coupled CLI manages a channel workspace, generates Groth or Tokamak proofs, calls the deployed bridge, and
+stores every resulting `state_snapshot.json`.
 
 For bridge contract ABIs, the bridge-coupled CLI does not use hardcoded function signatures anymore. It reads the
 bridge deployment JSON plus the bridge ABI manifest generated at deployment time under `bridge/deployments/`.

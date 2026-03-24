@@ -24,7 +24,7 @@ help:
 		'  make deploy-sepolia-verify   Deploy to Sepolia and verify on Etherscan' \
 		'  make deploy-mainnet          Deploy to Ethereum mainnet using apps/.env values' \
 		'  make deploy-mainnet-verify   Deploy to Ethereum mainnet and verify on Etherscan' \
-		'  make cli-list                List available CLI function templates' \
+		'  make cli-list                List available bridge-coupled CLI function templates' \
 		'  make cli-bridge-help         Show the bridge-coupled private-state CLI help'
 
 anvil-start:
@@ -55,7 +55,7 @@ deploy-mainnet-verify:
 	$(call DEPLOY_RULE,mainnet,--verify)
 
 cli-list:
-	@node cli/private-state-cli.mjs list
+	@node cli/private-state-bridge-cli.mjs list-functions
 
 cli-bridge-help:
 	@node cli/private-state-bridge-cli.mjs --help

@@ -168,27 +168,27 @@ override `APPS_NETWORK` for the requested target, and then call the existing dep
 
 ## CLI
 
-private-state now includes a terminal CLI under `apps/private-state/cli/private-state-cli.mjs`.
+private-state now exposes the bridge-coupled operator CLI under
+`apps/private-state/cli/private-state-bridge-cli.mjs`.
 
 The CLI:
 
 - selects a target network through `--network` or `apps/.env`, restricted to `mainnet`, `sepolia`, or `anvil`
-- loads deployed addresses from `apps/private-state/deploy/deployment.<chain-id>.latest.json`
-- loads callable ABIs from `apps/private-state/deploy/*.callable-abi.json`
+- loads bridge deployment data and the bridge ABI manifest generated at bridge deployment time
 - reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`
-- generates calldata
-- performs `eth_call`
-- submits signed transactions with a private key
+- manages per-channel workspaces and the latest `state_snapshot.json`
+- generates Groth and Tokamak proofs
+- submits bridge transactions for `deposit`, `withdraw`, `claim`, and DApp function execution
 
 Examples:
 
 ```bash
 cd apps/private-state
 make cli-list
-node apps/private-state/cli/private-state-cli.mjs list
-node apps/private-state/cli/private-state-cli.mjs show-template mintNotes1
-node apps/private-state/cli/private-state-cli.mjs generate mintNotes1 --network sepolia
-node apps/private-state/cli/private-state-cli.mjs send mintNotes1 --network anvil --private-key <hex>
+node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
+node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
+node apps/private-state/cli/private-state-bridge-cli.mjs workspace-init --workspace demo --network anvil --channel-id 1 --bridge-deployment bridge/deployments/bridge-latest.json --block-info-file apps/private-state/script/e2e/output/private-state-bridge-genesis/tokamak-steps/mint-a/block_info.json
+node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --workspace demo --network anvil --private-key <hex> --l2-key-signature "participant-a"
 ```
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such

@@ -25,6 +25,7 @@ contract BridgeFlowTest is Test {
     bytes4 internal constant APP_SIG_2 = bytes4(keccak256("rebalance(uint256)"));
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
+    uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = uint256(1) << 12;
     bytes32 internal constant INITIAL_ZERO_ROOT =
         bytes32(uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958));
     string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
@@ -314,8 +315,8 @@ contract BridgeFlowTest is Test {
             if (logs[i].emitter == address(tokenVault) && logs[i].topics[0] == storageWriteTopic) {
                 storageWriteCount += 1;
                 assertEq(address(uint160(uint256(logs[i].topics[1]))), channelManager.tokenVaultStorageAddress());
-                (uint256 leafIndex, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
-                assertEq(leafIndex, registration.leafIndex);
+                (uint256 storageKey, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
+                assertEq(storageKey, uint256(registration.l2TokenVaultKey));
                 assertEq(value, update.updatedUserValue);
             }
         }
@@ -370,8 +371,8 @@ contract BridgeFlowTest is Test {
             if (logs[i].emitter == address(tokenVault) && logs[i].topics[0] == storageWriteTopic) {
                 storageWriteCount += 1;
                 assertEq(address(uint160(uint256(logs[i].topics[1]))), channelManager.tokenVaultStorageAddress());
-                (uint256 leafIndex, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
-                assertEq(leafIndex, registration.leafIndex);
+                (uint256 storageKey, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
+                assertEq(storageKey, uint256(registration.l2TokenVaultKey));
                 assertEq(value, withdrawUpdate.updatedUserValue);
             }
         }
@@ -556,9 +557,10 @@ contract BridgeFlowTest is Test {
             _currentRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.currentRootVectorOffsetWords);
         bytes32[] memory updatedRoots =
             _updatedRootsFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.updatedRootVectorOffsetWords);
-        uint256 expectedTokenVaultLeafIndex = _decodeUint256FromSplitWords(proofPayload.aPubUser, 0);
+        uint256 expectedTokenVaultStorageKey = _decodeUint256FromSplitWords(proofPayload.aPubUser, 0);
+        uint256 expectedTokenVaultLeafIndex = _deriveLeafIndex(expectedTokenVaultStorageKey);
         uint256 expectedTokenVaultValue = _decodeUint256FromSplitWords(proofPayload.aPubUser, 2);
-        uint256 expectedAppLeafIndex = _decodeUint256FromSplitWords(proofPayload.aPubUser, 4);
+        uint256 expectedAppStorageKey = _decodeUint256FromSplitWords(proofPayload.aPubUser, 4);
         uint256 expectedAppValue = _decodeUint256FromSplitWords(proofPayload.aPubUser, 6);
 
         // The extracted proof bundle starts from an already-updated channel state rather than the bridge's zero root.
@@ -583,14 +585,14 @@ contract BridgeFlowTest is Test {
             if (logs[i].topics[0] == storageWriteTopic) {
                 storageWriteCount += 1;
                 address storageAddr = address(uint160(uint256(logs[i].topics[1])));
-                (uint256 leafIndex, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
+                (uint256 storageKey, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
                 if (storageAddr == REAL_TOKAMAK_APP_STORAGE) {
                     sawTokenVaultWrite = true;
-                    assertEq(leafIndex, expectedTokenVaultLeafIndex);
+                    assertEq(storageKey, expectedTokenVaultStorageKey);
                     assertEq(value, expectedTokenVaultValue);
                 } else if (storageAddr == entryContract) {
                     sawAppStorageWrite = true;
-                    assertEq(leafIndex, expectedAppLeafIndex);
+                    assertEq(storageKey, expectedAppStorageKey);
                     assertEq(value, expectedAppValue);
                 }
             } else if (logs[i].topics[0] == rootVectorObservedTopic) {
@@ -958,6 +960,10 @@ contract BridgeFlowTest is Test {
 
     function _hashRootVector(bytes32[] memory rootVector) internal pure returns (bytes32) {
         return keccak256(abi.encode(rootVector));
+    }
+
+    function _deriveLeafIndex(uint256 storageKey) internal pure returns (uint256) {
+        return storageKey % TOKEN_VAULT_MT_LEAF_COUNT;
     }
 
     function _seedChannelCurrentRoots(ChannelManager targetChannelManager, bytes32[] memory currentRoots) internal {

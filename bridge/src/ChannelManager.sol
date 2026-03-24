@@ -6,6 +6,7 @@ import {DAppManager} from "./DAppManager.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract ChannelManager {
+    uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = uint256(1) << 12;
     uint256 internal constant SPLIT_WORD_SIZE = 2;
     uint256 internal constant STORAGE_WRITE_VALUE_OFFSET = 2;
 
@@ -59,7 +60,7 @@ contract ChannelManager {
     event TokenVaultBound(address indexed tokenVault);
     event TokamakStateUpdateAccepted(bytes4 indexed functionSig, address indexed entryContract);
     event CurrentRootVectorObserved(bytes32 indexed rootVectorHash, bytes32[] rootVector);
-    event StorageWriteObserved(address indexed storageAddr, uint256 leafIndex, uint256 value);
+    event StorageWriteObserved(address indexed storageAddr, uint256 storageKey, uint256 value);
 
     constructor(
         uint256 channelId_,
@@ -310,11 +311,12 @@ contract ChannelManager {
         for (uint256 i = 0; i < storageWrites.length; i++) {
             CachedStorageWrite storage storageWrite = storageWrites[i];
             uint256 aPubOffsetWords = storageWrite.aPubOffsetWords;
-            uint256 leafIndex = _decodeSplitWord(aPubUser, aPubOffsetWords);
+            uint256 storageKey = _decodeSplitWord(aPubUser, aPubOffsetWords);
             uint256 value = _decodeSplitWord(aPubUser, aPubOffsetWords + STORAGE_WRITE_VALUE_OFFSET);
 
-            emit StorageWriteObserved(storageWrite.storageAddr, leafIndex, value);
+            emit StorageWriteObserved(storageWrite.storageAddr, storageKey, value);
             if (storageWrite.isTokenVault) {
+                uint256 leafIndex = _deriveLeafIndexFromStorageKey(storageKey);
                 _applyVaultLeaf(leafIndex, bytes32(value));
             }
         }
@@ -388,6 +390,10 @@ contract ChannelManager {
 
     function _applyVaultLeaf(uint256 leafIndex, bytes32 leafValue) private {
         _latestTokenVaultLeaves[leafIndex] = leafValue;
+    }
+
+    function _deriveLeafIndexFromStorageKey(uint256 storageKey) private pure returns (uint256) {
+        return storageKey % TOKEN_VAULT_MT_LEAF_COUNT;
     }
 
     function _copyAddresses(address[] storage source) private view returns (address[] memory out) {

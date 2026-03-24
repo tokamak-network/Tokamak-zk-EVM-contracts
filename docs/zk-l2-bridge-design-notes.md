@@ -217,13 +217,13 @@ Under the current `instance_description.json` layout produced by the Tokamak syn
 
 - `aPubUser` begins with a function-specific sequence of storage-write words
 - each storage write contributes four words:
-  - tree-index lower 16 bytes
-  - tree-index upper 16 bytes
+  - storage-key lower 16 bytes
+  - storage-key upper 16 bytes
   - storage-write lower 16 bytes
   - storage-write upper 16 bytes
 - each storage write in that prefix is described off-chain by `instance_description.json` through:
   - the target storage address
-  - the Merkle-tree index within that storage tree
+  - the storage key within that storage tree
 - the bridge no longer hardcodes the relevant `aPubUser` offsets in the channel manager
 - instead, each registered DApp function stores the following layout metadata, derived from `instance_description.json`:
   - `entryContractOffsetWords`
@@ -239,7 +239,7 @@ The old separate `channel instance` model is no longer used in the bridge contra
 
 Likewise, the bridge no longer stores `function instance` and `function preprocess` as separate verification objects. Under the current implementation, both are treated as being embedded in `functionPreprocessPart1` and `functionPreprocessPart2`. The bridge enforces their correctness by comparing `keccak256(abi.encode(functionPreprocessPart1, functionPreprocessPart2))` against the DApp-managed `preprocessInputHash`.
 
-The channel manager also no longer stores the full current root vector. It stores only `currentRootVectorHash`. Before `executeChannelTransaction` or the Groth-backed token-vault update path mutates that hash, the full current root vector is emitted in `CurrentRootVectorObserved`. This keeps the contract state minimal while still making the pre-state reconstructible off-chain. `executeChannelTransaction` emits `StorageWriteObserved` for every decoded `a_pub_user` storage write, while the Groth-backed `deposit` and `withdraw` flows emit the same event shape for their token-vault storage writes.
+The channel manager also no longer stores the full current root vector. It stores only `currentRootVectorHash`. Before `executeChannelTransaction` or the Groth-backed token-vault update path mutates that hash, the full current root vector is emitted in `CurrentRootVectorObserved`. This keeps the contract state minimal while still making the pre-state reconstructible off-chain. `executeChannelTransaction` emits `StorageWriteObserved` for every decoded `a_pub_user` storage write, while the Groth-backed `deposit` and `withdraw` flows emit the same event shape for their token-vault storage writes. Under the latest synthesizer format, those events emit storage keys rather than derived tree indices; the bridge derives the token-vault leaf index internally only when it must update the cached token-vault leaf value.
 
 Under the current interpretation, successful Tokamak verification means:
 
@@ -261,7 +261,7 @@ The L1 bridge manages supported DApps through a DApp manager. For each supported
 - the function-level `preprocessInputHash`
 - the function-level `storageWrites`, where each entry fixes:
   - the index of the target storage address within the DApp-wide managed storage vector
-  - the `aPubUser` word offset at which the corresponding storage-write tree index appears
+  - the `aPubUser` word offset at which the corresponding storage-write storage key appears
 
 All functions registered for the same DApp must share that same managed storage-address vector. Therefore every channel created for that DApp has a fixed root-vector length and a fixed token-vault tree index regardless of which DApp function a Tokamak proof executes.
 

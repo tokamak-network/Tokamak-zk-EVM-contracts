@@ -66,6 +66,11 @@ Optional environment variables:
 - `BRIDGE_MOCK_ASSET_NAME`
 - `BRIDGE_MOCK_ASSET_SYMBOL`
 - `BRIDGE_OUTPUT_PATH`
+- `BRIDGE_REFLECTION_MANIFEST_PATH`
+- `BRIDGE_SKIP_SUBMODULE_UPDATE=1`
+- `BRIDGE_SKIP_TOKAMAK_INSTALL=1`
+- `BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH=1`
+- `BRIDGE_SKIP_GROTH_REFRESH=1`
 
 The repository root now includes `.env.example` for bridge deployment. Copy it to `.env`,
 fill in the bridge variables, and use the helper script:
@@ -85,8 +90,11 @@ The helper derives the correct Alchemy RPC URL from:
 If you need a non-Alchemy endpoint, set `BRIDGE_RPC_URL_OVERRIDE`.
 
 The helper also resolves the latest published `tokamak-l2js` package and reads
-its exported `MT_DEPTH` before broadcasting deployment. That value is forwarded
-into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
+its exported `MT_DEPTH` before broadcasting deployment. Internally it now runs
+`script/zk/reflect-submodule-updates.mjs`, which also refreshes the Tokamak
+verifier parameters from `setupParams.json` and regenerates the Groth16
+`updateTree` artifacts before deployment. The reflected `MT_DEPTH` value is
+forwarded into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
 
 The current bridge implementation is still intentionally hard-bound to depth
 `12` for soundness. If the latest `tokamak-l2js` publishes a different
@@ -101,3 +109,30 @@ It also generates an ABI manifest from the current Foundry build artifacts:
 - `bridge/deployments/bridge-abi-manifest.<chain-id>.latest.json`
 
 The deployment JSON is post-processed to include `chainId` and `abiManifestPath` so downstream tooling can resolve the correct bridge ABI set without hardcoded function signatures.
+
+## Bridge administration
+
+To add a new DApp metadata bundle to an already deployed bridge, use:
+
+- `bridge/script/admin-add-dapp.mjs`
+
+This script:
+
+- optionally updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`
+- runs `tokamak-cli --install`
+- synthesizes and preprocesses the selected example group
+- derives function metadata from `instance.json` and `instance_description.json`
+- calls `DAppManager.registerDApp(...)` on the deployed bridge
+
+Current constraint:
+
+- existing DApp metadata is add-only
+- modifying an already registered DApp is intentionally rejected, because channel managers cache function metadata at channel-creation time
+
+Example usage:
+
+```bash
+node bridge/script/admin-add-dapp.mjs \
+  --group privateStateMint \
+  --dapp-id 1
+```

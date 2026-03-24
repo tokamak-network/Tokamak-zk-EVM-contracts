@@ -51,13 +51,6 @@ for var_name in "${required_vars[@]}"; do
     fi
 done
 
-MT_DEPTH_METADATA="$(node "$PROJECT_ROOT/bridge/script/resolve-latest-mt-depth.mjs")"
-BRIDGE_MERKLE_TREE_LEVELS="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.mtDepth));});')"
-BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.version));});')"
-export BRIDGE_MERKLE_TREE_LEVELS
-BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge-latest.json}"
-export BRIDGE_OUTPUT_PATH
-
 case "${BRIDGE_NETWORK}" in
     sepolia)
         BRIDGE_CHAIN_ID=11155111
@@ -89,6 +82,39 @@ else
     NETWORK_LABEL="$BRIDGE_ALCHEMY_NETWORK"
 fi
 
+REFLECTION_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$PROJECT_ROOT/script/output/zk-artifacts/reflection.latest.json}"
+
+REFLECTION_CMD=(
+    node "$PROJECT_ROOT/script/zk/reflect-submodule-updates.mjs"
+    --install-arg "$BRIDGE_RPC_URL"
+    --manifest-out "$REFLECTION_MANIFEST_PATH"
+)
+
+if [[ "${BRIDGE_SKIP_SUBMODULE_UPDATE:-0}" == "1" ]]; then
+    REFLECTION_CMD+=("--skip-submodule-update")
+fi
+
+if [[ "${BRIDGE_SKIP_TOKAMAK_INSTALL:-0}" == "1" ]]; then
+    REFLECTION_CMD+=("--skip-install")
+fi
+
+if [[ "${BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH:-0}" == "1" ]]; then
+    REFLECTION_CMD+=("--skip-tokamak-verifier")
+fi
+
+if [[ "${BRIDGE_SKIP_GROTH_REFRESH:-0}" == "1" ]]; then
+    REFLECTION_CMD+=("--skip-groth")
+fi
+
+"${REFLECTION_CMD[@]}"
+
+MT_DEPTH_METADATA="$(cat "$REFLECTION_MANIFEST_PATH")"
+BRIDGE_MERKLE_TREE_LEVELS="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.mtDepth));});')"
+BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.version));});')"
+export BRIDGE_MERKLE_TREE_LEVELS
+BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge-latest.json}"
+export BRIDGE_OUTPUT_PATH
+
 FORGE_CMD=(
     forge script script/DeployBridgeStack.s.sol:DeployBridgeStackScript
     --sig "run()"
@@ -105,6 +131,7 @@ echo "RPC network label: ${NETWORK_LABEL}"
 echo "Environment file: ${ENV_FILE}"
 echo "Resolved tokamak-l2js version: ${BRIDGE_MERKLE_TREE_SOURCE_VERSION}"
 echo "Resolved tokamak-l2js MT_DEPTH: ${BRIDGE_MERKLE_TREE_LEVELS}"
+echo "Reflection manifest: ${REFLECTION_MANIFEST_PATH}"
 
 (
     cd "$PROJECT_ROOT/bridge"

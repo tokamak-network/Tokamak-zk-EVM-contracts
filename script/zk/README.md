@@ -1,36 +1,29 @@
-# ZK Artifact Pipeline
+# ZK Reflection Helpers
 
-This directory contains the integrated Tokamak/Groth artifact pipeline for bridge deployment.
+This directory contains internal helpers that keep the repository aligned with the latest
+`Tokamak-zk-EVM` submodule outputs and the latest published `tokamak-l2js` package.
 
-## Main entrypoint
+## Internal reflection entrypoint
 
-- [prepare-zk-artifacts.mjs](./prepare-zk-artifacts.mjs)
+- [reflect-submodule-updates.mjs](./reflect-submodule-updates.mjs)
 
-The pipeline performs the following tasks:
+This helper is not intended to be the primary user-facing command anymore. It is called
+indirectly by [deploy-bridge.sh](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/script/deploy-bridge.sh)
+before bridge deployment, and it can also be reused by other admin automation.
+
+The reflection step performs the following tasks:
 
 1. Updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`.
 2. Runs `./tokamak-cli --install`.
-3. Regenerates Tokamak verifier key artifacts from `sigma_verify.rkyv` and refreshes the fixed `smax` constants inside `tokamak-zkp/TokamakVerifier.sol` from `setupParams.json`.
-4. Regenerates Groth16 `updateTree` trusted-setup and Solidity verifier artifacts.
-5. Runs the private-state example matrix (`privateStateMint`, `privateStateTransfer`, `privateStateRedeem`), skipping examples that fail because qap-compiler capacity is insufficient.
-6. Builds a DApp-level bridge manifest:
-   - one registered DApp per example group
-   - one registered function entry per extracted Tokamak function
-   - one `storageWrites` list per function, derived from `instance_description.json`, where each entry records:
-     - the index of the target storage address within that function's `storageAddresses`
-     - the `aPubUser` word offset at which that tree index is encoded
-   - one set of function-scoped `aPubUser` offsets per extracted Tokamak function:
-     - `entryContractOffsetWords`
-     - `functionSigOffsetWords`
-     - `currentRootVectorOffsetWords`
-     - `updatedRootVectorOffsetWords`
-   - under the current synthesizer format, each storage write contributes four `aPubUser` words:
-     - tree-index lower 16 bytes
-     - tree-index upper 16 bytes
-     - storage-write lower 16 bytes
-     - storage-write upper 16 bytes
-   - one channel-ready `aPubBlockHash` per processed example
-7. Optionally uploads the derived DApp metadata to the deployed bridge and can create one channel per processed example.
+3. Regenerates Tokamak verifier key artifacts from `sigma_verify.rkyv`.
+4. Refreshes the hardcoded verifier parameters inside `tokamak-zkp/TokamakVerifier.sol` from `setupParams.json`.
+5. Regenerates Groth16 `updateTree` trusted setup and Solidity verifier artifacts.
+6. Resolves the latest published `tokamak-l2js` package and records its `MT_DEPTH`.
+7. Writes a reflection manifest that deployment tooling can consume when it needs updated bridge-facing constants.
+
+The current reflection manifest is written to:
+
+- `script/output/zk-artifacts/reflection.latest.json`
 
 ## Helper tool
 
@@ -38,43 +31,21 @@ The pipeline performs the following tasks:
 
 This small Rust utility converts `sigma_verify.rkyv` into the JSON shape expected by [generate-tokamak-verifier-key.js](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/generate-tokamak-verifier-key.js).
 
-## Example usage
+## DApp registration
 
-```bash
-node script/zk/prepare-zk-artifacts.mjs \
-  --install-arg "$ALCHEMY_API_KEY" \
-  --dapp-manager 0xYourDAppManager \
-  --rpc-url "$RPC_URL" \
-  --private-key "$PRIVATE_KEY"
-```
+Bridge-side DApp metadata registration is now handled by a separate admin script:
 
-To create example channels after DApp registration:
+- [admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/script/admin-add-dapp.mjs)
 
-```bash
-node script/zk/prepare-zk-artifacts.mjs \
-  --install-arg "$ALCHEMY_API_KEY" \
-  --dapp-manager 0xYourDAppManager \
-  --bridge-core 0xYourBridgeCore \
-  --leader 0xYourChannelLeader \
-  --asset 0xYourL1Token \
-  --create-channels \
-  --rpc-url "$RPC_URL" \
-  --private-key "$PRIVATE_KEY"
-```
-
-For local validation without mutating the submodule or broadcasting transactions:
-
-```bash
-node script/zk/prepare-zk-artifacts.mjs \
-  --skip-submodule-update \
-  --skip-install \
-  --skip-private-state \
-  --skip-bridge-upload
-```
+That script runs `tokamak-cli --synthesize --tokamak-ch-tx` and `tokamak-cli --preprocess`
+for a selected example group such as `privateStateMint`, `privateStateTransfer`, or
+`privateStateRedeem`, derives the function metadata from `instance.json` and
+`instance_description.json`, and registers the resulting DApp metadata on an already
+deployed bridge.
 
 ## Current assumptions
 
-The script currently infers the token-vault storage address from each Tokamak example snapshot:
+The DApp-registration flow currently infers the token-vault storage address from each Tokamak example snapshot:
 
 - if the example touches only one storage address, that storage is treated as the token-vault tree
 - if the example touches multiple storage addresses, the single storage address that is not the entry contract is treated as the token-vault tree

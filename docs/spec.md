@@ -21,9 +21,9 @@ bridge.
 ### Global constants
 
 $$
-\mathrm{MTDepth}=12,\qquad
-\mathrm{MaxMTLeaves}=2^{\mathrm{MTDepth}}=4096,\qquad
-\mathrm{MaxDAppStorages}=11.
+m\in\mathbb{N}_{>0},\qquad
+N:=2^{m},\qquad
+M\in\mathbb{N}_{>0}.
 $$
 
 ### Bridge Admin Manager
@@ -31,18 +31,18 @@ $$
 #### Variables
 
 - $\mathrm{MerkleTreeLevels}\subseteq\mathbb{F}_{8}$
-- $\mathrm{AllowedMerkleTreeLevels}:=\{12\}$
+- $\mathrm{RequiredMerkleTreeLevel}\in\mathbb{F}_{8}$
 
 #### Relations
 
 - Supported-level constraint:
   $$
-  \mathrm{MerkleTreeLevels}\subseteq \mathrm{AllowedMerkleTreeLevels}.
+  \forall \ell\in\mathrm{MerkleTreeLevels},\ \ell=\mathrm{RequiredMerkleTreeLevel}.
   $$
 
 - Exact-level constraint:
   $$
-  \forall \ell\in\mathrm{MerkleTreeLevels},\ \ell=\mathrm{MTDepth}.
+  \mathrm{RequiredMerkleTreeLevel}=m.
   $$
 
 ### DApp Manager
@@ -63,7 +63,7 @@ $$
 - $\mathrm{StorageWriteMeta}:=\mathrm{WordOffsets}\times\mathrm{StorageAddrIndices}$
 - $\mathrm{InstanceLayouts}:=\mathrm{WordOffsets}^{4}\times(\mathrm{StorageWriteMeta})^{*}$
 
-- $\mathrm{DAppStorageVectors}\subseteq(\mathrm{StorageAddrs})^{\le \mathrm{MaxDAppStorages}}$
+- $\mathrm{DAppStorageVectors}\subseteq(\mathrm{StorageAddrs})^{\le M}$
 - $\mathrm{TokenVaultPositions}\subseteq\mathbb{F}_{8}$
 
 #### Relations
@@ -102,7 +102,7 @@ $$
 
 - Storage-vector cardinality:
   $$
-  \forall (d,S)\in\mathcal{S}_D,\ 1\le |S|\le \mathrm{MaxDAppStorages}.
+  \forall (d,S)\in\mathcal{S}_D,\ 1\le |S|\le M.
   $$
 
 - Distinct storage-address constraint:
@@ -154,7 +154,7 @@ $$
 - $\mathrm{ChannelManagers}\subseteq\mathbb{F}_{160}$
 - $\mathrm{TokenVaults}\subseteq\mathbb{F}_{160}$
 - $\mathrm{VaultKeys}\subseteq\mathbb{F}_{256}$
-- $\mathrm{LeafIndices}:=\{0,\dots,\mathrm{MaxMTLeaves}-1\}$
+- $\mathrm{LeafIndices}:=\{0,\dots,N-1\}$
 
 #### Relations
 
@@ -194,7 +194,7 @@ $$
 
 - Merkle-tree admissibility at creation:
   $$
-  \forall (c,d,\ell,a,m,v,b)\in\mathcal{C},\ \mathrm{MerkleTreeLevels}=\{12\}.
+  \forall (c,d,\ell,a,m_C,v,b)\in\mathcal{C},\ \forall \ell_M\in\mathrm{MerkleTreeLevels},\ \ell_M=m.
   $$
 
 - Global vault-key uniqueness:
@@ -212,7 +212,7 @@ $$
 
 - Leaf-index derivation:
   $$
-  \mathrm{LeafIndex}(k):=k\bmod \mathrm{MaxMTLeaves}.
+  \mathrm{LeafIndex}(k):=k\bmod N.
   $$
 
 ### Channel

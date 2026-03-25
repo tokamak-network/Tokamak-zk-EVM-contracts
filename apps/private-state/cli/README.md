@@ -94,9 +94,10 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `transfer-notes` directly executes one of `transferNotes1To1`, `transferNotes1To2`, or `transferNotes2To1`
   with only `--wallet`, `--password`, `--note-ids`, `--recipients`,
   and `--amounts`, where all three vector inputs are JSON arrays and `--amounts.length` must equal
-  `--recipients.length`.
+  `--recipients.length`. It also writes each output note into the deterministic recipient wallet folder inbox.
 - `import-notes` imports off-chain note plaintexts into the selected wallet. It accepts only `--wallet`,
   `--password`, and `--notes`, where `--notes` is a JSON array of note objects emitted by `transfer-notes`.
+  It remains available for manual or external note delivery even though `transfer-notes` now writes recipient inbox files automatically.
 - `get-my-notes` reads the local wallet's tracked note sets and checks each note's commitment/nullifier status against
   the current controller state accepted by the bridge. It accepts only `--wallet` and `--password`.
 - `register-channel` registers the caller's L2 address, L2 `channelTokenVault` key, and `channelTokenVault` leaf index in the selected channel.
@@ -117,6 +118,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - Wallets are mandatory for note-carrying users. They are the authoritative local record for note plaintexts,
   note usage, and per-user L2 nonce.
 - Wallet folders are encrypted at rest. Only `register-channel` sets up L1/L2 keys in the active wallet.
+  Recipient inbox sidecars are the exception: `transfer-notes` writes pending note plaintext into
+  `incoming-notes.json` under the recipient wallet folder because the sender does not know the recipient password.
 - `install-zk-evm` currently requires an Alchemy Ethereum RPC URL, because the underlying `tokamak-cli --install`
   implementation only accepts Alchemy mainnet or sepolia URLs and extracts the API key from that URL.
 - Before `install-zk-evm` runs `tokamak-cli --install`, it fetches `origin/dev` in the Tokamak zk-EVM submodule,
@@ -138,11 +141,12 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - After a successful `redeem-notes`, the CLI marks the redeemed input note as spent in the encrypted wallet and updates
   the channel workspace snapshot when that workspace exists.
 - After a successful `transfer-notes`, the CLI updates both spent input notes and newly received output notes inside
-  the encrypted wallet and updates the channel workspace snapshot when that workspace exists.
-- `transfer-notes` also prints the output note plaintext plus bridge commitment keys so the recipient can import that
-  note through `import-notes`.
-- `import-notes` is the explicit recipient-side handoff step. The CLI cannot auto-refresh another wallet because that
-  wallet is encrypted under a different password.
+  the sender's encrypted wallet and updates the channel workspace snapshot when that workspace exists.
+- `transfer-notes` also prints the output note plaintext plus bridge commitment keys and writes those notes into
+  `apps/private-state/cli/wallets/<channelName>-<recipientL2Address>/incoming-notes.json`.
+- The recipient's next wallet-backed command absorbs that inbox into the encrypted wallet and clears the inbox file.
+- `import-notes` remains available as a manual fallback when note delivery happens outside the local deterministic
+  wallet-folder convention.
 - `get-my-notes` reports both the wallet's local note classification and whether each note still matches the
   bridge-accepted controller state.
 - The `noteId` values consumed by `transfer-notes` are note commitments from `get-my-notes`.
@@ -154,8 +158,9 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   on-chain channel registration for the stored channel.
 - `deposit-channel` requires an existing wallet and derives its network, channel, and signer keys from that wallet.
 - `withdraw-channel` requires an existing wallet and derives its network, channel, and signer keys from that wallet.
-- The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
-  cannot be opened without their own `--password`.
+- Because recipient passwords are not available to the sender, `transfer-notes` cannot rewrite another user's
+  encrypted `wallet.json` directly. It stages recipient notes in inbox sidecars, and the recipient's next wallet-backed
+  command absorbs that inbox into the encrypted wallet.
 
 For bridge contract ABIs, the bridge-coupled CLI does not use hardcoded function signatures anymore. It reads the
 network-scoped bridge deployment JSON plus the network-scoped bridge ABI manifest generated at deployment time under
@@ -274,6 +279,12 @@ Each wallet also stores unencrypted metadata as:
 
 ```text
 apps/private-state/cli/wallets/<wallet>/wallet.metadata.json
+```
+
+Pending recipient transfers are staged as:
+
+```text
+apps/private-state/cli/wallets/<wallet>/incoming-notes.json
 ```
 
 That plaintext metadata includes only:

@@ -1283,6 +1283,18 @@ async function handleTransferNotes({ args, provider }) {
     operationName: "transfer-notes",
     templatePayload,
   });
+  const outputNotes = buildLifecycleTrackedOutputs({
+    outputNotes: templatePayload.args[1],
+    sourceFunction: templatePayload.method,
+    sourceTxHash: execution.receipt.hash,
+    bridgeCommitmentKeys: execution.noteLifecycle.outputCommitmentKeys,
+  });
+  const deliveredRecipients = deliverTrackedNotesToRecipientWalletInboxes({
+    senderWalletName: wallet.walletName,
+    channelName: execution.context.workspace.channelName,
+    networkName: execution.context.workspace.network,
+    trackedNotes: outputNotes,
+  });
 
   printJson({
     action: "transfer-notes",
@@ -1297,12 +1309,8 @@ async function handleTransferNotes({ args, provider }) {
     recipients,
     amountInputs,
     amountBaseUnits: outputAmounts.map((value) => value.toString()),
-    outputNotes: buildLifecycleTrackedOutputs({
-      outputNotes: templatePayload.args[1],
-      sourceFunction: templatePayload.method,
-      sourceTxHash: execution.receipt.hash,
-      bridgeCommitmentKeys: execution.noteLifecycle.outputCommitmentKeys,
-    }),
+    outputNotes,
+    deliveredRecipients,
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
@@ -1312,26 +1320,7 @@ async function handleTransferNotes({ args, provider }) {
 async function handleImportNotes({ args }) {
   const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
   const importedNotes = parseImportedNoteVector(requireArg(args.notes, "--notes"));
-  const imported = [];
-
-  for (const note of importedNotes) {
-    const trackedNote = buildImportedTrackedNote(note);
-    expect(
-      trackedNote.owner === wallet.wallet.l2Address,
-      [
-        `Imported note owner ${trackedNote.owner} does not match wallet ${wallet.walletName}`,
-        `owner ${wallet.wallet.l2Address}.`,
-      ].join(" "),
-    );
-    const existingSpent = wallet.wallet.notes.spent[trackedNote.nullifier];
-    if (existingSpent) {
-      throw new Error(`Cannot import note ${trackedNote.commitment} because it is already marked spent in the wallet.`);
-    }
-    wallet.wallet.notes.unused[trackedNote.commitment] = trackedNote;
-    imported.push(trackedNote);
-  }
-
-  wallet.wallet = normalizeWallet(wallet.wallet);
+  const imported = mergeTrackedNotesIntoWallet(wallet, importedNotes);
   persistWallet(wallet);
 
   printJson({
@@ -1344,6 +1333,112 @@ async function handleImportNotes({ args }) {
 
 function defaultWalletName(channelName, l2Address) {
   return `${channelName}-${l2Address}`;
+}
+
+function walletInboxPath(walletDir) {
+  return path.join(walletDir, "incoming-notes.json");
+}
+
+function readWalletInbox(walletDir) {
+  const inboxPath = walletInboxPath(walletDir);
+  if (!fs.existsSync(inboxPath)) {
+    return [];
+  }
+  const inbox = readJson(inboxPath);
+  expect(Array.isArray(inbox), `Invalid wallet inbox at ${inboxPath}.`);
+  return inbox.map(buildImportedTrackedNote);
+}
+
+function writeWalletInbox(walletDir, trackedNotes) {
+  const inboxPath = walletInboxPath(walletDir);
+  const existingNotes = readWalletInbox(walletDir);
+  const mergedNotes = new Map(existingNotes.map((note) => [note.commitment, note]));
+  for (const note of trackedNotes) {
+    mergedNotes.set(note.commitment, buildImportedTrackedNote(note));
+  }
+  writeJson(inboxPath, Array.from(mergedNotes.values()));
+}
+
+function clearWalletInbox(walletDir) {
+  const inboxPath = walletInboxPath(walletDir);
+  if (fs.existsSync(inboxPath)) {
+    fs.unlinkSync(inboxPath);
+  }
+}
+
+function mergeTrackedNotesIntoWallet(walletContext, trackedNotes) {
+  const imported = [];
+  for (const note of trackedNotes) {
+    const trackedNote = buildImportedTrackedNote(note);
+    expect(
+      trackedNote.owner === walletContext.wallet.l2Address,
+      [
+        `Imported note owner ${trackedNote.owner} does not match wallet ${walletContext.walletName}`,
+        `owner ${walletContext.wallet.l2Address}.`,
+      ].join(" "),
+    );
+    const existingSpent = walletContext.wallet.notes.spent[trackedNote.nullifier];
+    if (existingSpent) {
+      continue;
+    }
+    const existingUnused = walletContext.wallet.notes.unused[trackedNote.commitment];
+    if (existingUnused) {
+      continue;
+    }
+    walletContext.wallet.notes.unused[trackedNote.commitment] = trackedNote;
+    imported.push(trackedNote);
+  }
+  walletContext.wallet = normalizeWallet(walletContext.wallet);
+  return imported;
+}
+
+function deliverTrackedNotesToRecipientWalletInboxes({
+  senderWalletName,
+  channelName,
+  networkName,
+  trackedNotes,
+}) {
+  const recipientNotes = new Map();
+  for (const note of trackedNotes) {
+    const walletName = defaultWalletName(channelName, note.owner);
+    if (walletName === senderWalletName) {
+      continue;
+    }
+    if (!recipientNotes.has(walletName)) {
+      recipientNotes.set(walletName, []);
+    }
+    recipientNotes.get(walletName).push(note);
+  }
+
+  const deliveries = [];
+  for (const [walletName, notes] of recipientNotes.entries()) {
+    const walletDir = walletPath(walletName);
+    ensureDir(walletDir);
+    if (!fs.existsSync(walletMetadataPath(walletDir))) {
+      writeJson(walletMetadataPath(walletDir), {
+        network: networkName,
+        channelName,
+      });
+    }
+    writeWalletInbox(walletDir, notes);
+    deliveries.push({
+      wallet: walletName,
+      noteCount: notes.length,
+      inboxPath: walletInboxPath(walletDir),
+    });
+  }
+  return deliveries;
+}
+
+function absorbWalletInbox(walletContext) {
+  const pendingNotes = readWalletInbox(walletContext.walletDir);
+  if (pendingNotes.length === 0) {
+    return [];
+  }
+  const imported = mergeTrackedNotesIntoWallet(walletContext, pendingNotes);
+  persistWallet(walletContext);
+  clearWalletInbox(walletContext.walletDir);
+  return imported;
 }
 
 function ensureWallet({
@@ -1434,6 +1529,7 @@ function ensureWallet({
   };
   persistWallet(context);
   persistWalletMetadata(context);
+  absorbWalletInbox(context);
   return context;
 }
 
@@ -2210,12 +2306,14 @@ function loadWallet(walletName, walletPassword) {
     wallet.l2Address === restoredIdentity.l2Address,
     `Wallet ${normalizedWalletName} is internally inconsistent: stored keys do not match the stored L2 address.`,
   );
-  return {
+  const context = {
     walletName: normalizedWalletName,
     walletDir,
     wallet,
     walletPassword,
   };
+  absorbWalletInbox(context);
+  return context;
 }
 
 function assertWalletHasRequiredKeys(wallet, walletName) {
@@ -3496,12 +3594,12 @@ Notes:
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
   - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
   - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.
-  - import-notes requires --wallet, --password, and --notes only. It imports off-chain note plaintext into the selected wallet so recipients can spend notes delivered by transfer-notes.
+  - import-notes requires --wallet, --password, and --notes only. It remains available for manual or external note delivery, but transfer-notes now also writes recipient notes into deterministic wallet-folder inbox files automatically.
   - get-my-notes requires --wallet and --password only. It reads local encrypted note state and verifies each note status against the current controller commitment/nullifier state accepted by the bridge.
   - If a ready channel workspace exists for the wallet channel, mint-notes tries that cached state first. If tokamak-cli --verify fails, the CLI refreshes the channel workspace through recover-workspace semantics and retries once.
   - redeem-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
   - transfer-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
-  - transfer-notes prints the output note plaintext so it can be delivered off-chain and imported into recipient wallets with import-notes.
+  - transfer-notes prints the output note plaintext and also writes each output note into the recipient wallet folder inbox apps/private-state/cli/wallets/<channelName>-<recipientL2Address>/incoming-notes.json.
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
@@ -3519,7 +3617,7 @@ Notes:
   - Once a wallet exists, get-bridge-deposit, withdraw-bridge, mint-notes, redeem-notes, and transfer-notes can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
   - withdraw-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and calls the bridge withdraw path to move value from the channel L2 accounting vault back into the shared L1 bridgeTokenVault.
-  - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
+  - Because recipient passwords are not available to the sender, transfer-notes cannot rewrite recipient wallet.json directly. It stores pending recipient notes in unencrypted inbox sidecars, and the recipient's next wallet-backed command absorbs that inbox into the encrypted wallet.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
   - Channel workspace operations are stored under:

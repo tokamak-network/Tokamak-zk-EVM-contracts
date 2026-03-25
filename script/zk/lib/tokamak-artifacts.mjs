@@ -3,7 +3,7 @@ import path from "node:path";
 import { AbiCoder, getAddress, keccak256 } from "ethers";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
-const TOKAMAK_APUB_BLOCK_LENGTH = 78;
+const TOKAMAK_APUB_BLOCK_LENGTH = 68;
 
 const CAPACITY_ERROR_PATTERNS = [
   /insufficient .* length/i,
@@ -163,12 +163,17 @@ export function hashTokamakPublicInputs(values) {
 }
 
 export function normalizeTokamakAPubBlock(values) {
-  if (values.length > TOKAMAK_APUB_BLOCK_LENGTH) {
-    throw new Error(
-      `a_pub_block length ${values.length} exceeds the fixed Tokamak block input length ${TOKAMAK_APUB_BLOCK_LENGTH}.`,
-    );
+  let normalizedValues = values.slice();
+  if (normalizedValues.length > TOKAMAK_APUB_BLOCK_LENGTH) {
+    const trailingValues = normalizedValues.slice(TOKAMAK_APUB_BLOCK_LENGTH);
+    if (!trailingValues.every((value) => value === 0n)) {
+      throw new Error(
+        `a_pub_block length ${normalizedValues.length} exceeds the fixed Tokamak block input length ${TOKAMAK_APUB_BLOCK_LENGTH}.`,
+      );
+    }
+    normalizedValues = normalizedValues.slice(0, TOKAMAK_APUB_BLOCK_LENGTH);
   }
-  return values.concat(new Array(TOKAMAK_APUB_BLOCK_LENGTH - values.length).fill(0n));
+  return normalizedValues.concat(new Array(TOKAMAK_APUB_BLOCK_LENGTH - normalizedValues.length).fill(0n));
 }
 
 function extractStorageWrites(instanceDescriptionJsonPath, storageAddresses) {

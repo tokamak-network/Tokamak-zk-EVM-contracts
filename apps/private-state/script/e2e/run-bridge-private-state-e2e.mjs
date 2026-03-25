@@ -68,7 +68,7 @@ const anvilDeployerPrivateKey =
 const channelName = "private-state-bridge-genesis";
 const channelId = deriveChannelIdFromName(channelName);
 const dappId = 1;
-const tokamakAPubBlockLength = 78;
+const tokamakAPubBlockLength = 68;
 const tokamakPrevBlockHashCount = 4;
 const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const amountUnit = 10n ** 18n;
@@ -465,12 +465,17 @@ function hashRootVector(roots) {
 }
 
 function normalizeTokamakAPubBlock(values) {
-  if (values.length > tokamakAPubBlockLength) {
-    throw new Error(
-      `a_pub_block length ${values.length} exceeds the fixed Tokamak block input length ${tokamakAPubBlockLength}.`,
-    );
+  let normalizedValues = values.slice();
+  if (normalizedValues.length > tokamakAPubBlockLength) {
+    const trailingValues = normalizedValues.slice(tokamakAPubBlockLength);
+    if (!trailingValues.every((value) => value === 0n)) {
+      throw new Error(
+        `a_pub_block length ${normalizedValues.length} exceeds the fixed Tokamak block input length ${tokamakAPubBlockLength}.`,
+      );
+    }
+    normalizedValues = normalizedValues.slice(0, tokamakAPubBlockLength);
   }
-  return values.concat(new Array(tokamakAPubBlockLength - values.length).fill(0n));
+  return normalizedValues.concat(new Array(tokamakAPubBlockLength - normalizedValues.length).fill(0n));
 }
 
 function requiredTokamakStepFiles(stepDir) {

@@ -56,7 +56,7 @@ const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
   "function decimals() view returns (uint8)",
 ];
-const TOKAMAK_APUB_BLOCK_LENGTH = 78;
+const TOKAMAK_APUB_BLOCK_LENGTH = 68;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
@@ -128,6 +128,9 @@ async function main() {
       return;
     case "deposit-bridge":
       await handleRegisterAndFund({ args, env, network, provider });
+      return;
+    case "get-bridge-deposit":
+      await handleGetBridgeDeposit({ args, env, network, provider });
       return;
     case "register-channel":
       await handleRegisterChannel({ args, env, network, provider });
@@ -502,6 +505,32 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
     tokenVault: bridgeVaultContext.tokenVaultAddress,
     approveReceipt: sanitizeReceipt(approveReceipt),
     fundReceipt: sanitizeReceipt(fundReceipt),
+  });
+}
+
+async function handleGetBridgeDeposit({ args, env, network, provider }) {
+  const wallet = args.wallet ? loadWallet(requireWalletName(args), requireL2Password(args)) : null;
+  const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: wallet });
+  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
+  const tokenVault = new Contract(
+    bridgeVaultContext.tokenVaultAddress,
+    bridgeVaultContext.bridgeAbiManifest.contracts.tokenVault.abi,
+    signer,
+  );
+  const availableBalance = await tokenVault.availableBalanceOf(signer.address);
+
+  printJson({
+    action: "get-bridge-deposit",
+    wallet: wallet?.walletName ?? null,
+    l1Address: signer.address,
+    tokenVault: bridgeVaultContext.tokenVaultAddress,
+    canonicalAsset: bridgeVaultContext.canonicalAsset,
+    canonicalAssetDecimals: Number(bridgeVaultContext.canonicalAssetDecimals),
+    availableBalanceBaseUnits: availableBalance.toString(),
+    availableBalanceTokens: ethers.formatUnits(
+      availableBalance,
+      Number(bridgeVaultContext.canonicalAssetDecimals),
+    ),
   });
 }
 
@@ -1654,12 +1683,17 @@ function encodeTokamakBlockInfo(blockInfo) {
 }
 
 function normalizeTokamakAPubBlock(values) {
-  if (values.length > TOKAMAK_APUB_BLOCK_LENGTH) {
-    throw new Error(
-      `a_pub_block length ${values.length} exceeds the fixed Tokamak block input length ${TOKAMAK_APUB_BLOCK_LENGTH}.`,
-    );
+  let normalizedValues = values.slice();
+  if (normalizedValues.length > TOKAMAK_APUB_BLOCK_LENGTH) {
+    const trailingValues = normalizedValues.slice(TOKAMAK_APUB_BLOCK_LENGTH);
+    if (!trailingValues.every((value) => value === 0n)) {
+      throw new Error(
+        `a_pub_block length ${normalizedValues.length} exceeds the fixed Tokamak block input length ${TOKAMAK_APUB_BLOCK_LENGTH}.`,
+      );
+    }
+    normalizedValues = normalizedValues.slice(0, TOKAMAK_APUB_BLOCK_LENGTH);
   }
-  return values.concat(new Array(TOKAMAK_APUB_BLOCK_LENGTH - values.length).fill(0n));
+  return normalizedValues.concat(new Array(TOKAMAK_APUB_BLOCK_LENGTH - normalizedValues.length).fill(0n));
 }
 
 function appendSplitWord(target, startIndex, value) {
@@ -2060,6 +2094,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
   node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --password <string> [--amount <tokens>]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --amount <tokens> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit [--private-key <hex>] [--wallet <name> --password <string>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
@@ -2095,9 +2130,10 @@ Notes:
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - deposit-bridge only funds the shared bridge-level L1 token vault.
+  - get-bridge-deposit reads the caller's shared bridge-level L1 token-vault balance.
   - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, token-vault key, and token-vault leaf index in the selected channel.
   - register-channel, deposit-channel, and bridge-send create or refresh the active wallet.
-  - Once a wallet exists, wallet-show, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
+  - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - register-channel, deposit-channel, and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.

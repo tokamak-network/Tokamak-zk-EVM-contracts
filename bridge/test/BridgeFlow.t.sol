@@ -666,6 +666,47 @@ contract BridgeFlowTest is Test {
         channelManager.executeChannelTransaction(proofPayload);
     }
 
+    function testTokamakVerificationRejectsAPubBlockLengthMismatch() public {
+        BridgeStructs.TokamakProofPayload memory proofPayload = _loadRealTokamakProofPayload();
+        BridgeStructs.DAppFunctionMetadata memory realFunctionMetadata =
+            _realTokamakFunctionMetadata(_computePointEncodingHash(proofPayload.functionPreprocessPart1, proofPayload.functionPreprocessPart2));
+        address entryContract =
+            _entryContractFromAPubUser(proofPayload.aPubUser, realFunctionMetadata.instanceLayout.entryContractOffsetWords);
+
+        BridgeAdminManager localAdminManager = _deployAdminManagerProxy(address(this), 12);
+        DAppManager localDAppManager = _deployDAppManagerProxy(address(this));
+        localDAppManager.registerDApp(
+            99,
+            keccak256("real-proof-private-state"),
+            _realTokamakStorageLayouts(entryContract, REAL_TOKAMAK_APP_STORAGE),
+            _singleFunctionArray(realFunctionMetadata)
+        );
+
+        BridgeCore localBridgeCore = _deployBridgeCoreProxy(
+            address(this),
+            localAdminManager,
+            localDAppManager,
+            IGrothVerifier(address(grothVerifier)),
+            ITokamakVerifier(address(tokamakVerifier))
+        );
+        L1TokenVault localTokenVault =
+            _deployTokenVaultProxy(address(this), localBridgeCore, IGrothVerifier(address(grothVerifier)));
+        localBridgeCore.bindSharedTokenVault(address(localTokenVault));
+        _setBlockContextFromAPubBlock(proofPayload.aPubBlock);
+
+        (address manager,) = localBridgeCore.createChannel(_deriveChannelId("local-channel-short-apub-block"), 99, leader);
+        ChannelManager localChannelManager = ChannelManager(manager);
+
+        uint256[] memory shortened = new uint256[](77);
+        for (uint256 i = 0; i < shortened.length; i++) {
+            shortened[i] = proofPayload.aPubBlock[i];
+        }
+        proofPayload.aPubBlock = shortened;
+
+        vm.expectRevert(abi.encodeWithSelector(ChannelManager.APubBlockLengthMismatch.selector, uint256(78), uint256(77)));
+        localChannelManager.executeChannelTransaction(proofPayload);
+    }
+
     function testTokamakVerificationAcceptsRealProofBundleAfterSeedingVerifiedPreState() public {
         BridgeStructs.TokamakProofPayload memory proofPayload = _loadRealTokamakProofPayload();
         BridgeStructs.DAppFunctionMetadata memory realFunctionMetadata =
@@ -783,7 +824,7 @@ contract BridgeFlowTest is Test {
             _toUint128Array(preprocessJson.readUintArray(".preprocess_entries_part1"));
         payload.functionPreprocessPart2 = preprocessJson.readUintArray(".preprocess_entries_part2");
         payload.aPubUser = instanceJson.readUintArray(".a_pub_user");
-        payload.aPubBlock = instanceJson.readUintArray(".a_pub_block");
+        payload.aPubBlock = _normalizeAPubBlock(instanceJson.readUintArray(".a_pub_block"));
     }
 
     function _rootVector(bytes32 left, bytes32 right) internal pure returns (bytes32[] memory roots) {
@@ -1064,6 +1105,17 @@ contract BridgeFlowTest is Test {
         payload.functionPreprocessPart2 = new uint256[](0);
         payload.aPubUser = new uint256[](50);
         payload.aPubBlock = new uint256[](78);
+    }
+
+    function _normalizeAPubBlock(uint256[] memory aPubBlock) internal pure returns (uint256[] memory normalized) {
+        if (aPubBlock.length > 78) {
+            revert("a_pub_block too long");
+        }
+
+        normalized = new uint256[](78);
+        for (uint256 i = 0; i < aPubBlock.length; i++) {
+            normalized[i] = aPubBlock[i];
+        }
     }
 
     function _decodeBytes32FromSplitWords(uint256[] memory words, uint256 offset) internal pure returns (bytes32) {

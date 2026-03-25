@@ -816,7 +816,7 @@ async function handleBridgeSend({ args, env, provider }) {
   writeJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
   const payload = loadTokamakPayloadFromStep(operationDir);
-  const aPubBlockHash = hashTokamakPublicInputs(normalizeTokamakAPubBlock(payload.aPubBlock));
+  const aPubBlockHash = hashTokamakPublicInputs(payload.aPubBlock);
   expect(
     normalizeBytes32Hex(aPubBlockHash) === normalizeBytes32Hex(context.workspace.aPubBlockHash),
     "Generated Tokamak proof does not match the channel aPubBlockHash. Check the workspace block_info.json context.",
@@ -1494,7 +1494,7 @@ function loadTokamakPayloadFromStep(operationDir) {
     functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => BigInt(value)),
     functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => BigInt(value)),
     aPubUser: instanceJson.a_pub_user.map((value) => BigInt(value)),
-    aPubBlock: instanceJson.a_pub_block.map((value) => BigInt(value)),
+    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => BigInt(value))),
   };
 }
 

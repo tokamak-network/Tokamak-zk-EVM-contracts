@@ -448,7 +448,7 @@ function loadTokamakPayloadFromStep(stepDir) {
     functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => BigInt(value)),
     functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => BigInt(value)),
     aPubUser: instanceJson.a_pub_user.map((value) => BigInt(value)),
-    aPubBlock: instanceJson.a_pub_block.map((value) => BigInt(value)),
+    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => BigInt(value))),
   };
 }
 
@@ -462,6 +462,15 @@ function normalizedRootVector(roots) {
 
 function hashRootVector(roots) {
   return keccak256(abiCoder.encode(["bytes32[]"], [normalizedRootVector(roots)]));
+}
+
+function normalizeTokamakAPubBlock(values) {
+  if (values.length > tokamakAPubBlockLength) {
+    throw new Error(
+      `a_pub_block length ${values.length} exceeds the fixed Tokamak block input length ${tokamakAPubBlockLength}.`,
+    );
+  }
+  return values.concat(new Array(tokamakAPubBlockLength - values.length).fill(0n));
 }
 
 function requiredTokamakStepFiles(stepDir) {

@@ -28,7 +28,7 @@ contract ChannelManager {
     error InvalidTokenVaultTreeIndex();
     error PreprocessInputHashMismatch(bytes32 expectedHash, bytes32 actualHash);
     error APubBlockHashMismatch(bytes32 expectedHash, bytes32 actualHash);
-    error APubBlockTooLong(uint256 expectedLength, uint256 actualLength);
+    error APubBlockLengthMismatch(uint256 expectedLength, uint256 actualLength);
     error APubUserTooShort(uint256 expectedLength, uint256 actualLength);
     error APubUserWordOutOfRange(uint256 index, uint256 value);
     error EntryContractPublicInputOutOfRange(uint256 value);
@@ -213,7 +213,10 @@ contract ChannelManager {
         if (actualPreprocessInputHash != expectedPreprocessInputHash) {
             revert PreprocessInputHashMismatch(expectedPreprocessInputHash, actualPreprocessInputHash);
         }
-        bytes32 actualAPubBlockHash = _hashNormalizedAPubBlock(payload.aPubBlock);
+        if (payload.aPubBlock.length != TOKAMAK_APUB_BLOCK_LENGTH) {
+            revert APubBlockLengthMismatch(TOKAMAK_APUB_BLOCK_LENGTH, payload.aPubBlock.length);
+        }
+        bytes32 actualAPubBlockHash = keccak256(abi.encode(payload.aPubBlock));
         if (actualAPubBlockHash != aPubBlockHash) {
             revert APubBlockHashMismatch(aPubBlockHash, actualAPubBlockHash);
         }
@@ -440,18 +443,6 @@ contract ChannelManager {
         }
 
         return keccak256(abi.encode(aPubBlock));
-    }
-
-    function _hashNormalizedAPubBlock(uint256[] calldata aPubBlock) private pure returns (bytes32) {
-        if (aPubBlock.length > TOKAMAK_APUB_BLOCK_LENGTH) {
-            revert APubBlockTooLong(TOKAMAK_APUB_BLOCK_LENGTH, aPubBlock.length);
-        }
-
-        uint256[] memory normalized = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
-        for (uint256 i = 0; i < aPubBlock.length; i++) {
-            normalized[i] = aPubBlock[i];
-        }
-        return keccak256(abi.encode(normalized));
     }
 
     function _writeSplitWord(uint256[] memory words, uint256 startIndex, uint256 value) private pure {

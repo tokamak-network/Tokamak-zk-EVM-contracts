@@ -3,6 +3,7 @@ import path from "node:path";
 import { AbiCoder, getAddress, keccak256 } from "ethers";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
+const TOKAMAK_APUB_BLOCK_LENGTH = 78;
 
 const CAPACITY_ERROR_PATTERNS = [
   /insufficient .* length/i,
@@ -161,6 +162,15 @@ export function hashTokamakPublicInputs(values) {
   return keccak256(abiCoder.encode(["uint256[]"], [values]));
 }
 
+export function normalizeTokamakAPubBlock(values) {
+  if (values.length > TOKAMAK_APUB_BLOCK_LENGTH) {
+    throw new Error(
+      `a_pub_block length ${values.length} exceeds the fixed Tokamak block input length ${TOKAMAK_APUB_BLOCK_LENGTH}.`,
+    );
+  }
+  return values.concat(new Array(TOKAMAK_APUB_BLOCK_LENGTH - values.length).fill(0n));
+}
+
 function extractStorageWrites(instanceDescriptionJsonPath, storageAddresses) {
   const description = readJson(instanceDescriptionJsonPath);
   const entries = description.a_pub_user_description;
@@ -314,7 +324,9 @@ export function buildFunctionDefinition({
     currentRootVectorOffsetWords: functionLayout.currentRootVectorOffsetWords,
     updatedRootVectorOffsetWords: functionLayout.updatedRootVectorOffsetWords,
     storageWrites,
-    aPubBlockHash: hashTokamakPublicInputs(toBigIntArray(instance.a_pub_block, "a_pub_block")),
+    aPubBlockHash: hashTokamakPublicInputs(
+      normalizeTokamakAPubBlock(toBigIntArray(instance.a_pub_block, "a_pub_block")),
+    ),
     functionInstancePart1: extracted.functionInstancePart1.map((value) => value.toString()),
     functionInstancePart2: extracted.functionInstancePart2.map((value) => value.toString()),
     functionPreprocessPart1: extracted.functionPreprocessPart1.map((value) => value.toString()),

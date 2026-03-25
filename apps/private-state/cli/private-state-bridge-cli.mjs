@@ -720,17 +720,7 @@ async function handleGetChannelDeposit({ args, env, network, provider }) {
   assertWalletMatchesMetadata(wallet, walletMetadata);
   const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
   const l2Identity = restoreParticipantIdentityFromWallet(wallet.wallet);
-  let contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
-  try {
-    await assertWorkspaceAlignedWithChain(contextResult.context);
-  } catch (error) {
-    if (!contextResult.usingWorkspaceCache || !isRecoverableWalletWorkspaceFailure(error)) {
-      throw error;
-    }
-    await recoverWalletChannelWorkspace({ walletContext: wallet, provider });
-    contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
-    await assertWorkspaceAlignedWithChain(contextResult.context);
-  }
+  const contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
   const context = contextResult.context;
 
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
@@ -882,16 +872,6 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   let contextResult;
   if (walletOnlyMoveCommand && walletFromFlag) {
     contextResult = await loadPreferredWalletChannelContext({ walletContext: walletFromFlag, provider });
-    try {
-      await assertWorkspaceAlignedWithChain(contextResult.context);
-    } catch (error) {
-      if (!contextResult.usingWorkspaceCache || !isRecoverableWalletWorkspaceFailure(error)) {
-        throw error;
-      }
-      await recoverWalletChannelWorkspace({ walletContext: walletFromFlag, provider });
-      contextResult = await loadPreferredWalletChannelContext({ walletContext: walletFromFlag, provider });
-      await assertWorkspaceAlignedWithChain(contextResult.context);
-    }
   } else {
     contextResult = {
       context: await loadChannelContext({
@@ -1866,20 +1846,27 @@ function walletChannelWorkspaceIsReady(walletContext) {
 }
 
 async function loadPreferredWalletChannelContext({ walletContext, provider }) {
-  if (walletChannelWorkspaceIsReady(walletContext)) {
-    return {
-      context: await loadWorkspaceContext(walletContext.wallet.channelName, provider),
-      usingWorkspaceCache: true,
-    };
+  let recoveredWorkspace = false;
+  if (!walletChannelWorkspaceIsReady(walletContext)) {
+    await recoverWalletChannelWorkspace({ walletContext, provider });
+    recoveredWorkspace = true;
+  }
+  let context = await loadWorkspaceContext(walletContext.wallet.channelName, provider);
+  try {
+    await assertWorkspaceAlignedWithChain(context);
+  } catch (error) {
+    if (!isRecoverableWalletWorkspaceFailure(error)) {
+      throw error;
+    }
+    await recoverWalletChannelWorkspace({ walletContext, provider });
+    recoveredWorkspace = true;
+    context = await loadWorkspaceContext(walletContext.wallet.channelName, provider);
+    await assertWorkspaceAlignedWithChain(context);
   }
   return {
-    context: await loadChannelContext({
-      args: { wallet: walletContext.walletName },
-      networkName: null,
-      provider,
-      walletContext,
-    }),
-    usingWorkspaceCache: false,
+    context,
+    usingWorkspaceCache: !recoveredWorkspace,
+    recoveredWorkspace,
   };
 }
 
@@ -1926,7 +1913,7 @@ async function executeWalletDirectTemplateCommand({
   const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
   const l2Identity = restoreParticipantIdentityFromWallet(wallet.wallet);
   let contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
-  let recoveredWorkspace = false;
+  let recoveredWorkspace = contextResult.recoveredWorkspace;
 
   try {
     const execution = await executeWalletTemplateSend({
@@ -1944,7 +1931,7 @@ async function executeWalletDirectTemplateCommand({
       recoveredWorkspace,
     };
   } catch (error) {
-    if (!contextResult.usingWorkspaceCache || !isRecoverableWalletWorkspaceFailure(error)) {
+    if (!isRecoverableWalletWorkspaceFailure(error)) {
       throw error;
     }
   }
@@ -3387,13 +3374,13 @@ Notes:
   - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
   - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.
   - get-my-notes requires --wallet and --password only. It reads local encrypted note state and verifies each note status against the current controller commitment/nullifier state accepted by the bridge.
-  - If a ready channel workspace exists for the wallet channel, mint-notes tries that cached state first. If tokamak-cli --verify fails, the CLI refreshes the channel workspace through recover-workspace semantics and retries once.
-  - redeem-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
-  - transfer-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
+  - mint-notes, redeem-notes, and transfer-notes always run from the saved channel workspace under apps/private-state/cli/workspaces/<channel-name>/. If that workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, reloads it from disk, and then continues. A tokamak-cli --verify failure is also treated as recoverable once.
+  - redeem-notes updates both the encrypted wallet note sets and the saved channel workspace snapshot after success.
+  - transfer-notes updates both the encrypted wallet note sets and the saved channel workspace snapshot after success.
   - transfer-notes prints the output note plaintext and also writes each output note into the recipient wallet folder inbox apps/private-state/cli/wallets/<channelName>-<recipientL2Address>/incoming-notes.json.
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
-  - Channel workspaces are optional caches for channel snapshots.
+  - Channel workspaces remain optional as user-managed files, but wallet-backed snapshot commands now create or refresh them automatically before execution.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - deposit-bridge only funds the shared bridge-level bridgeTokenVault.
   - withdraw-bridge requires --wallet, --password, and --amount only. It derives the network and signer keys from the local wallet and calls claimToWallet to move value from the shared bridge-level bridgeTokenVault back into Tokamak Network Token in the caller wallet.
@@ -3408,6 +3395,7 @@ Notes:
   - Once a wallet exists, get-bridge-deposit, withdraw-bridge, mint-notes, redeem-notes, and transfer-notes can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
   - withdraw-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and calls the bridge withdraw path to move value from the channel L2 accounting vault back into the shared L1 bridgeTokenVault.
+  - Every wallet-backed command that depends on a channel StateSnapshot first ensures apps/private-state/cli/workspaces/<channel-name>/ exists on disk. If the workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, saves it, reloads it from disk, and only then runs the command.
   - Because recipient passwords are not available to the sender, transfer-notes cannot rewrite recipient wallet.json directly. It stores pending recipient notes in unencrypted inbox sidecars, and the recipient's next wallet-backed command absorbs that inbox into the encrypted wallet.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.

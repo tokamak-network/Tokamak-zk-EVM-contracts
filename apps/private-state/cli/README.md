@@ -76,8 +76,9 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   `genesisBlockNumber` and writes it into `workspaces/<channel-name>/`.
 - `wallets` store per-user note plaintexts, classify notes into used vs unused sets, maintain aggregated
   unused-note balance, and keep a value-sorted unused-note order for efficient spend selection.
-- Channel workspaces are optional caches. User actions can reconstruct channel state directly from chain events when no
-  channel workspace is present.
+- Channel workspaces remain optional as user-managed files, but every wallet-backed command that depends on a
+  `StateSnapshot` now materializes `workspaces/<channel-name>/` automatically when it is missing and then reruns from
+  that saved workspace.
 - Wallets are mandatory for note-carrying users. They are the authoritative local record for note plaintexts,
   note usage, and per-user L2 nonce.
 - Wallet folders are encrypted at rest. Only `register-channel` sets up L1/L2 keys in the active wallet.
@@ -95,16 +96,18 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `redeem-notes` always maps to `redeemNotes1` and credits the wallet owner's own L2 liquid balance.
 - `transfer-notes` maps the `--note-ids.length` and `--recipients.length` pair to `transferNotes1To1`,
   `transferNotes1To2`, or `transferNotes2To1`.
-- If a ready channel workspace exists for the wallet channel, `mint-notes` uses that cached `state_snapshot.json`
-  first. If `tokamak-cli --verify` fails, the CLI refreshes the workspace through `recover-workspace` semantics and retries once.
-- `redeem-notes` uses the same cached-workspace / recover-and-retry flow as `mint-notes`.
-- `transfer-notes` uses the same cached-workspace / recover-and-retry flow as `mint-notes`.
+- `mint-notes`, `redeem-notes`, `transfer-notes`, `deposit-channel`, `withdraw-channel`, `get-channel-deposit`, and
+  `get-my-notes` all follow the same workspace rule: if `workspaces/<channel-name>/` is missing, the CLI rebuilds it
+  through `recover-workspace` semantics, saves it, reloads it from disk, and only then runs the command. If the saved
+  workspace snapshot is stale, the CLI refreshes that workspace on disk and reruns from the refreshed saved workspace.
+- For `mint-notes`, `redeem-notes`, and `transfer-notes`, a `tokamak-cli --verify` failure is also treated as a
+  recoverable workspace issue. The CLI refreshes the saved workspace and retries once from that refreshed workspace.
 - After a successful `mint-notes`, the CLI stores the resulting note plaintexts in the encrypted wallet and updates the
-  channel workspace snapshot when that workspace exists.
+  saved channel workspace snapshot.
 - After a successful `redeem-notes`, the CLI marks the redeemed input note as spent in the encrypted wallet and updates
-  the channel workspace snapshot when that workspace exists.
+  the saved channel workspace snapshot.
 - After a successful `transfer-notes`, the CLI updates both spent input notes and newly received output notes inside
-  the sender's encrypted wallet and updates the channel workspace snapshot when that workspace exists.
+  the sender's encrypted wallet and updates the saved channel workspace snapshot.
 - `transfer-notes` also prints the output note plaintext plus bridge commitment keys and writes those notes into
   `apps/private-state/cli/wallets/<channelName>-<recipientL2Address>/incoming-notes.json`.
 - The recipient's next wallet-backed command absorbs that inbox into the encrypted wallet and clears the inbox file.

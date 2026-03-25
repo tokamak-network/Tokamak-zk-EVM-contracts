@@ -224,19 +224,22 @@ cleared-worktree state produced by `uninstall-zk-evm`, the command fails instead
 The matching `uninstall-zk-evm` entrypoint accepts no options and removes every file and directory inside
 `submodules/Tokamak-zk-EVM/` except the submodule root `.git` pointer file, so the parent-repo submodule entry remains
 intact while the checked-out working tree contents are discarded.
-When a ready channel workspace exists for the wallet channel, `mint-notes` tries that cached state snapshot first. If
-`tokamak-cli --verify` fails, the CLI refreshes the workspace through `recover-workspace` semantics and retries once.
-`redeem-notes` and `transfer-notes` use the same cached-workspace / recover-and-retry flow and update the encrypted
-wallet note sets after success. `transfer-notes` prints the recipient note plaintext plus bridge commitment keys and
-writes those notes into deterministic recipient wallet-folder inbox files. The recipient's next wallet-backed command
-absorbs that inbox into the encrypted wallet.
+Every wallet-backed command that depends on a channel `StateSnapshot` now follows the same rule. If the channel
+workspace is missing, the CLI rebuilds it through `recover-workspace` semantics, saves it under
+`apps/private-state/cli/workspaces/<channel-name>/`, reloads it from disk, and only then runs the command. If the
+saved workspace snapshot is stale, the CLI refreshes that saved workspace and reruns from the refreshed saved
+workspace. For `mint-notes`, `redeem-notes`, and `transfer-notes`, a `tokamak-cli --verify` failure is also treated as
+a recoverable workspace issue, so the CLI refreshes the saved workspace and retries once. `redeem-notes` and
+`transfer-notes` update the encrypted wallet note sets after success. `transfer-notes` prints the recipient note
+plaintext plus bridge commitment keys and writes those notes into deterministic recipient wallet-folder inbox files.
+The recipient's next wallet-backed command absorbs that inbox into the encrypted wallet.
 `get-my-notes` reads the wallet's stored note sets and checks each note against the current controller
 `commitmentExists/nullifierUsed` state accepted by the bridge. The note IDs consumed by `redeem-notes` and
 `transfer-notes` are the note commitments reported by `get-my-notes`.
 
-Channel workspaces are optional snapshot caches. User-action commands can reconstruct the channel state directly from
-bridge events by using `--channel-name` or an existing `--wallet`. Wallets remain mandatory because
-note plaintexts and note-spend history are not reconstructible from bridge events alone.
+Channel workspaces remain optional as user-managed files, but wallet-backed snapshot commands now materialize and
+refresh those workspaces automatically before execution. Wallets remain mandatory because note plaintexts and
+note-spend history are not reconstructible from bridge events alone.
 
 Examples:
 

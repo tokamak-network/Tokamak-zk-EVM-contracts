@@ -25,7 +25,6 @@ import {
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
-  deriveL2KeysFromSignature,
   fromEdwardsToAddress,
   poseidon,
 } from "tokamak-l2js";
@@ -37,6 +36,16 @@ import {
   hexToBytes,
 } from "@ethereumjs/util";
 import { deriveRpcUrl, resolveCliNetwork } from "../../script/network-config.mjs";
+import {
+  CHANNEL_BOUND_L2_DERIVATION_MODE,
+  deriveChannelIdFromName,
+  deriveParticipantIdentityFromSigner,
+  slugifyPathComponent,
+  walletDirForName,
+  walletInboxPathForDir,
+  walletMetadataPathForDir,
+  walletNameForChannelAndAddress,
+} from "./private-state-cli-shared.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,8 +69,6 @@ const TOKAMAK_APUB_BLOCK_LENGTH = 68;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
-const L2_PASSWORD_SIGNING_DOMAIN = "Tokamak private-state L2 password binding";
-const CHANNEL_BOUND_L2_DERIVATION_MODE = "channel-name-plus-password-v1";
 const INITIAL_ZERO_ROOT =
   "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const BLS12_381_SCALAR_FIELD_MODULUS =
@@ -103,45 +110,21 @@ async function main() {
 
   if (args.command === "mint-notes") {
     assertMintNotesArgs(args);
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { provider } = loadWalletCommandRuntime(args);
     await handleMintNotes({ args, provider });
     return;
   }
 
   if (args.command === "redeem-notes") {
     assertRedeemNotesArgs(args);
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { provider } = loadWalletCommandRuntime(args);
     await handleRedeemNotes({ args, provider });
     return;
   }
 
   if (args.command === "get-my-notes") {
     assertGetMyNotesArgs(args);
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { provider } = loadWalletCommandRuntime(args);
     await handleGetMyNotes({ args, provider });
     return;
   }
@@ -154,105 +137,49 @@ async function main() {
 
   if (args.command === "transfer-notes") {
     assertTransferNotesArgs(args);
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { provider } = loadWalletCommandRuntime(args);
     await handleTransferNotes({ args, provider });
     return;
   }
 
   if (args.command === "withdraw-bridge") {
     assertWithdrawBridgeArgs(args);
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    const network = resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { network, provider } = loadWalletCommandRuntime(args);
     await handleWithdrawBridge({ args, network, provider });
     return;
   }
 
   if (args.command === "deposit-channel") {
     assertWalletChannelMoveArgs(args, "deposit-channel");
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    const network = resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { env, network, provider } = loadWalletCommandRuntime(args);
     await handleGrothVaultMove({ args, env, network, provider, direction: "deposit" });
     return;
   }
 
   if (args.command === "withdraw-channel") {
     assertWalletChannelMoveArgs(args, "withdraw-channel");
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    const network = resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { env, network, provider } = loadWalletCommandRuntime(args);
     await handleGrothVaultMove({ args, env, network, provider, direction: "withdraw" });
     return;
   }
 
   if (args.command === "is-channel-registered") {
     assertIsChannelRegisteredArgs(args);
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    const network = resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { env, network, provider } = loadWalletCommandRuntime(args);
     await handleIsChannelRegistered({ args, env, network, provider });
     return;
   }
 
   if (args.command === "get-wallet-address") {
     assertGetWalletAddressArgs(args);
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    const network = resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { env, network, provider } = loadWalletCommandRuntime(args);
     await handleGetWalletAddress({ args, env, network, provider });
     return;
   }
 
   if (args.command === "get-channel-deposit") {
     assertGetChannelDepositArgs(args);
-    const env = loadEnv(defaultEnvFile);
-    const walletMetadata = loadWalletMetadata(requireWalletName(args));
-    const network = resolveCliNetwork(walletMetadata.network);
-    const rpcUrl = deriveRpcUrl({
-      networkName: walletMetadata.network,
-      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
-    });
-    const provider = new JsonRpcProvider(rpcUrl);
+    const { env, network, provider } = loadWalletCommandRuntime(args);
     await handleGetChannelDeposit({ args, env, network, provider });
     return;
   }
@@ -874,7 +801,7 @@ async function handleRegisterChannel({ args, env, network, provider }) {
     provider,
   });
   const signer = resolveWalletBackedSigner({ args, env, provider });
-  const l2Identity = await deriveParticipantIdentity({
+  const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName: context.workspace.channelName,
     password,
     signer,
@@ -989,7 +916,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
     : resolveWalletBackedSigner({ args, env, provider, walletContext: walletFromFlag });
   const l2Identity = (walletOnlyMoveCommand || walletFromFlag)
     ? restoreParticipantIdentityFromWallet(walletFromFlag.wallet)
-    : await deriveParticipantIdentity({
+    : await deriveParticipantIdentityFromSigner({
       channelName: context.workspace.channelName,
       password,
       signer,
@@ -1331,12 +1258,8 @@ async function handleImportNotes({ args }) {
   });
 }
 
-function defaultWalletName(channelName, l2Address) {
-  return `${channelName}-${l2Address}`;
-}
-
 function walletInboxPath(walletDir) {
-  return path.join(walletDir, "incoming-notes.json");
+  return walletInboxPathForDir(walletDir);
 }
 
 function readWalletInbox(walletDir) {
@@ -1400,7 +1323,7 @@ function deliverTrackedNotesToRecipientWalletInboxes({
 }) {
   const recipientNotes = new Map();
   for (const note of trackedNotes) {
-    const walletName = defaultWalletName(channelName, note.owner);
+    const walletName = walletNameForChannelAndAddress(channelName, note.owner);
     if (walletName === senderWalletName) {
       continue;
     }
@@ -1450,7 +1373,7 @@ function ensureWallet({
   storageKey,
   leafIndex,
 }) {
-  const walletName = defaultWalletName(channelContext.workspace.channelName, l2Identity.l2Address);
+  const walletName = walletNameForChannelAndAddress(channelContext.workspace.channelName, l2Identity.l2Address);
   const walletDir = walletPath(walletName);
   let wallet;
   if (walletConfigExists(walletDir)) {
@@ -2724,30 +2647,6 @@ async function currentStorageBigInt(stateManager, address, keyHex) {
   return bytesToBigInt(valueBytes);
 }
 
-async function deriveParticipantIdentity({ channelName, password, signer }) {
-  const seedSignature = await signer.signMessage(buildL2PasswordSigningMessage({ channelName, password }));
-  const keySet = deriveL2KeysFromSignature(seedSignature);
-  const l2Address = getAddress(fromEdwardsToAddress(keySet.publicKey).toString());
-  return {
-    seedSignature,
-    l2PrivateKey: keySet.privateKey,
-    l2PublicKey: keySet.publicKey,
-    l2Address,
-  };
-}
-
-function buildL2PasswordSigningMessage({ channelName, password }) {
-  expect(
-    typeof channelName === "string" && channelName.length > 0,
-    "Missing channel name for L2 identity derivation.",
-  );
-  return [
-    L2_PASSWORD_SIGNING_DOMAIN,
-    `channel:${channelName}`,
-    `password:${String(password)}`,
-  ].join("\n");
-}
-
 function deriveLiquidBalanceStorageKey(l2Address, slot) {
   const encoded = abiCoder.encode(["address", "uint256"], [l2Address, BigInt(slot)]);
   return bytesToHex(poseidon(hexToBytes(encoded)));
@@ -2823,10 +2722,6 @@ function bytes32FromHex(hexValue) {
 
 function bytes32FromBigInt(value) {
   return ethers.zeroPadValue(ethers.toBeHex(value), 32);
-}
-
-function deriveChannelIdFromName(channelName) {
-  return BigInt(keccak256(ethers.toUtf8Bytes(channelName)));
 }
 
 function bigintToHex32(value) {
@@ -3210,11 +3105,11 @@ function requireL1Signer(args, env, provider) {
 }
 
 function channelWorkspacePath(name) {
-  return path.join(channelWorkspacesRoot, slugify(name));
+  return path.join(channelWorkspacesRoot, slugifyPathComponent(name));
 }
 
 function walletPath(name) {
-  return path.join(walletsRoot, slugify(name));
+  return walletDirForName(walletsRoot, name);
 }
 
 function walletConfigPath(walletDir) {
@@ -3222,7 +3117,7 @@ function walletConfigPath(walletDir) {
 }
 
 function walletMetadataPath(walletDir) {
-  return path.join(walletDir, "wallet.metadata.json");
+  return walletMetadataPathForDir(walletDir);
 }
 
 function walletConfigExists(walletDir) {
@@ -3497,23 +3392,24 @@ function assertGetChannelDepositArgs(args) {
   );
 }
 
-function slugify(value) {
-  return String(value)
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
-}
-
 function createOperationDir(workspaceName, suffix) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
-  const operationDir = path.join(channelWorkspacePath(workspaceName), "operations", `${timestamp}-${slugify(suffix)}`);
+  const operationDir = path.join(
+    channelWorkspacePath(workspaceName),
+    "operations",
+    `${timestamp}-${slugifyPathComponent(suffix)}`,
+  );
   ensureDir(operationDir);
   return operationDir;
 }
 
 function createWalletOperationDir(walletName, suffix) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
-  const operationDir = path.join(walletPath(walletName), "operations", `${timestamp}-${slugify(suffix)}`);
+  const operationDir = path.join(
+    walletPath(walletName),
+    "operations",
+    `${timestamp}-${slugifyPathComponent(suffix)}`,
+  );
   ensureDir(operationDir);
   return operationDir;
 }
@@ -3735,6 +3631,23 @@ function loadEnv(envFile) {
     env[key] = stripQuotes(value);
   }
   return env;
+}
+
+function loadWalletCommandRuntime(args) {
+  const env = loadEnv(defaultEnvFile);
+  const walletMetadata = loadWalletMetadata(requireWalletName(args));
+  const network = resolveCliNetwork(walletMetadata.network);
+  const rpcUrl = deriveRpcUrl({
+    networkName: walletMetadata.network,
+    alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
+    rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+  });
+  return {
+    env,
+    walletMetadata,
+    network,
+    provider: new JsonRpcProvider(rpcUrl),
+  };
 }
 
 function stripQuotes(value) {

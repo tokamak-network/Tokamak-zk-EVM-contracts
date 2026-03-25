@@ -14,14 +14,11 @@ import {
   Wallet,
   ethers,
   getAddress,
-  keccak256,
 } from "ethers";
 import {
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
-  deriveL2KeysFromSignature,
-  fromEdwardsToAddress,
   poseidon,
 } from "tokamak-l2js";
 import {
@@ -34,6 +31,13 @@ import {
   buildDAppDefinitions,
   buildFunctionDefinition,
 } from "../../../../script/zk/lib/tokamak-artifacts.mjs";
+import {
+  deriveChannelIdFromName,
+  deriveParticipantIdentityFromSigner,
+  walletDirForName as sharedWalletDirForName,
+  walletInboxPathForDir as sharedWalletInboxPathForDir,
+  walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
+} from "../../cli/private-state-cli-shared.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,7 +71,6 @@ const claimAmountBaseUnits = 9n * amountUnit;
 const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const tokamakAPubBlockLength = 68;
 const tokamakPrevBlockHashCount = 4;
-const l2PasswordSigningDomain = "Tokamak private-state L2 password binding";
 const requiredTokamakSetupArtifacts = [
   "combined_sigma.rkyv",
   "sigma_preprocess.rkyv",
@@ -240,24 +243,13 @@ function normalizeBytes32Hex(hexValue) {
   return bytes32FromHex(hexValue).toLowerCase();
 }
 
-function deriveChannelIdFromName(name) {
-  return BigInt(keccak256(ethers.toUtf8Bytes(name)));
-}
-
-function buildL2PasswordSigningMessage(password) {
-  return `${l2PasswordSigningDomain}\n${String(password)}`;
-}
-
 async function deriveParticipantIdentity(participant, provider) {
   const signer = new Wallet(participant.l1PrivateKey, provider);
-  const seedSignature = await signer.signMessage(buildL2PasswordSigningMessage(participant.password));
-  const keySet = deriveL2KeysFromSignature(seedSignature);
-  const l2Address = getAddress(fromEdwardsToAddress(keySet.publicKey).toString());
-  return {
-    l2Address,
-    l2PrivateKey: keySet.privateKey,
-    l2PublicKey: keySet.publicKey,
-  };
+  return deriveParticipantIdentityFromSigner({
+    channelName,
+    password: participant.password,
+    signer,
+  });
 }
 
 async function rpcCall(provider, method, params) {
@@ -611,23 +603,12 @@ function deriveParticipant(index, alias) {
   };
 }
 
-function slugify(value) {
-  return String(value)
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
-}
-
-function deterministicWalletName(channel, l2Address) {
-  return `${channel}-${getAddress(l2Address)}`;
-}
-
 function walletDirForName(walletName) {
-  return path.resolve(walletsRoot, slugify(walletName));
+  return sharedWalletDirForName(walletsRoot, walletName);
 }
 
 function walletInboxPathForName(walletName) {
-  return path.resolve(walletDirForName(walletName), "incoming-notes.json");
+  return sharedWalletInboxPathForDir(walletDirForName(walletName));
 }
 
 function readWalletInbox(walletName) {
@@ -876,7 +857,7 @@ function registerChannel(participant) {
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;
   expect(
-    result.wallet === deterministicWalletName(channelName, result.l2Address),
+    result.wallet === sharedWalletNameForChannelAndAddress(channelName, result.l2Address),
     `register-channel returned unexpected wallet name ${result.wallet}.`,
   );
   return result;

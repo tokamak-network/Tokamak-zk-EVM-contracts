@@ -23,7 +23,7 @@ channels.
 Each channel is:
 
 - tied to one DApp definition
-- tied to one L1 token vault
+- tied to the shared L1 `bridgeTokenVault`
 - represented on L1 by a compact commitment to its current L2 state
 - advanced only through proof-backed state transitions after genesis
 
@@ -174,7 +174,7 @@ that accepted state transitions remain inspectable off-chain.
 
 ## 8. Token-Vault Registration Model
 
-Each channel has one L1 token vault and one distinguished L2 token-vault storage
+Each channel uses the shared L1 `bridgeTokenVault` and one distinguished L2 `channelTokenVault` storage
 domain.
 
 Users who want to participate in L1 settlement for that channel must register a

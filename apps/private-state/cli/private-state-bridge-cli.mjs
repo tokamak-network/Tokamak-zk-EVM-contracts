@@ -120,6 +120,21 @@ async function main() {
     return;
   }
 
+  if (args.command === "get-my-notes") {
+    assertGetMyNotesArgs(args);
+    const env = loadEnv(defaultEnvFile);
+    const walletMetadata = loadWalletMetadata(requireWalletName(args));
+    resolveCliNetwork(walletMetadata.network);
+    const rpcUrl = deriveRpcUrl({
+      networkName: walletMetadata.network,
+      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
+      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+    });
+    const provider = new JsonRpcProvider(rpcUrl);
+    await handleGetMyNotes({ args, provider });
+    return;
+  }
+
   if (args.command === "deposit-channel") {
     assertDepositChannelArgs(args);
     const env = loadEnv(defaultEnvFile);
@@ -204,6 +219,8 @@ async function main() {
       throw new Error("get-channel-deposit must resolve its network from the local wallet.");
     case "mint-notes":
       throw new Error("mint-notes must resolve its network from the local wallet.");
+    case "get-my-notes":
+      throw new Error("get-my-notes must resolve its network from the local wallet.");
     case "register-channel":
       await handleRegisterChannel({ args, env, network, provider });
       return;
@@ -1037,6 +1054,50 @@ async function handleMintNotes({ args, provider }) {
   });
 }
 
+async function handleGetMyNotes({ args, provider }) {
+  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
+  const walletMetadata = loadWalletMetadata(wallet.walletName);
+  assertWalletMatchesMetadata(wallet, walletMetadata);
+  expect(
+    typeof wallet.wallet.controller === "string" && wallet.wallet.controller.length > 0,
+    `Wallet ${wallet.walletName} is missing the stored controller address.`,
+  );
+
+  const controllerAbi = readJson(path.resolve(deployRoot, "PrivateStateController.callable-abi.json"));
+  const controller = new Contract(wallet.wallet.controller, controllerAbi, provider);
+  const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
+
+  const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
+    .map((commitment) => wallet.wallet.notes.unused[commitment])
+    .filter(Boolean);
+  const spentTrackedNotes = Object.values(wallet.wallet.notes.spent ?? {}).sort(compareNotesByValueDesc);
+
+  const unusedNotes = await Promise.all(
+    unusedTrackedNotes.map((note) => buildWalletNoteBridgeStatus({ note, controller, canonicalAssetDecimals })),
+  );
+  const spentNotes = await Promise.all(
+    spentTrackedNotes.map((note) => buildWalletNoteBridgeStatus({ note, controller, canonicalAssetDecimals })),
+  );
+
+  const unusedTotal = unusedTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
+  const spentTotal = spentTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
+
+  printJson({
+    action: "get-my-notes",
+    wallet: wallet.walletName,
+    network: walletMetadata.network,
+    channelName: walletMetadata.channelName,
+    controller: wallet.wallet.controller,
+    unusedNotes,
+    spentNotes,
+    unusedTotalBaseUnits: unusedTotal.toString(),
+    unusedTotalTokens: ethers.formatUnits(unusedTotal, canonicalAssetDecimals),
+    spentTotalBaseUnits: spentTotal.toString(),
+    spentTotalTokens: ethers.formatUnits(spentTotal, canonicalAssetDecimals),
+    bridgeStatusMismatches: [...unusedNotes, ...spentNotes].filter((note) => !note.walletStatusMatchesBridge).length,
+  });
+}
+
 async function handleBridgeSend({ args, env, provider }) {
   requireFunctionName(args);
   expect(
@@ -1201,6 +1262,25 @@ function normalizeTrackedNote(note) {
     commitment: normalizeBytes32Hex(note.commitment),
     nullifier: normalizeBytes32Hex(note.nullifier),
     status: note.status,
+    sourceFunction: note.sourceFunction ?? null,
+    sourceTxHash: note.sourceTxHash ?? null,
+  };
+}
+
+async function buildWalletNoteBridgeStatus({ note, controller, canonicalAssetDecimals }) {
+  const commitmentExists = Boolean(await controller.commitmentExists(note.commitment));
+  const nullifierUsed = Boolean(await controller.nullifierUsed(note.nullifier));
+  const expectedNullifierUsed = note.status === "spent";
+  return {
+    owner: note.owner,
+    valueBaseUnits: note.value,
+    valueTokens: ethers.formatUnits(BigInt(note.value), canonicalAssetDecimals),
+    commitment: note.commitment,
+    nullifier: note.nullifier,
+    walletStatus: note.status,
+    bridgeCommitmentExists: commitmentExists,
+    bridgeNullifierUsed: nullifierUsed,
+    walletStatusMatchesBridge: commitmentExists && nullifierUsed === expectedNullifierUsed,
     sourceFunction: note.sourceFunction ?? null,
     sourceTxHash: note.sourceTxHash ?? null,
   };
@@ -2589,6 +2669,24 @@ function assertMintNotesArgs(args) {
   parseTokenAmountVector(args.amounts);
 }
 
+function assertGetMyNotesArgs(args) {
+  requireWalletName(args);
+  requireL2Password(args);
+  const allowedKeys = new Set(["command", "positional", "wallet", "password"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `get-my-notes only accepts --wallet and --password. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "get-my-notes does not accept positional arguments beyond the command name.",
+  );
+}
+
 function assertGetChannelDepositArgs(args) {
   requireWalletName(args);
   requireL2Password(args);
@@ -2677,6 +2775,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url <alchemy-rpc-url>
   node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet <name> --password <string> --amounts '[1,2,3]'
+  node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
@@ -2718,6 +2817,7 @@ Notes:
   - install-zk-evm only accepts --rpc-url and forwards it to tokamak-cli --install.
   - install-zk-evm requires an Alchemy Ethereum RPC URL because the current tokamak-cli installer only accepts Alchemy mainnet or sepolia URLs.
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
+  - get-my-notes requires --wallet and --password only. It reads local encrypted note state and verifies each note status against the current controller commitment/nullifier state accepted by the bridge.
   - If a ready channel workspace exists for the wallet channel, mint-notes tries that cached state first. If tokamak-cli --verify fails, the CLI refreshes the channel workspace through recover-workspace semantics and retries once.
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.

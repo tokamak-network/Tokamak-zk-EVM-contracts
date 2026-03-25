@@ -68,7 +68,7 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `create-channel` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
   Token for the selected network.
 - `create-channel --create-workspace` uses the channel name itself as the channel-workspace name.
-- `deposit-bridge` funds the shared bridge-level L1 token vault.
+- `deposit-bridge` funds the shared bridge-level `bridgeTokenVault`.
 - `get-bridge-deposit` reads the caller's shared bridge-level L1 token-vault balance.
 - `is-channel-registered` checks whether the local wallet's L2 identity matches the selected channel's registered
   on-chain participant record. It accepts only `--wallet` and `--password`.
@@ -76,8 +76,10 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   token-vault key. It accepts only `--wallet` and `--password`.
 - `mint-notes` directly mints one to six notes without going through `bridge-send`. It accepts only `--wallet`,
   `--password`, and `--amounts`, where `--amounts` is a JSON vector such as `'[1,2,3]'`.
+- `get-my-notes` reads the local wallet's tracked note sets and checks each note's commitment/nullifier status against
+  the current controller state accepted by the bridge. It accepts only `--wallet` and `--password`.
 - `register-channel` registers the caller's L2 address, L2 token-vault key, and token-vault leaf index in the selected channel.
-- `deposit-channel` moves value from the shared bridge-level L1 token vault into the selected channel's L2 token vault.
+- `deposit-channel` moves value from the shared bridge-level `bridgeTokenVault` into the selected channel's `channelTokenVault`.
   It accepts only `--wallet`, `--password`, and `--amount`, and it fails unless the local wallet already contains
   plaintext network/channel metadata plus encrypted L1/L2 key material.
 - `recover-workspace` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the stored
@@ -96,6 +98,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   first. If `tokamak-cli --verify` fails, the CLI refreshes the workspace through `recover-workspace` semantics and retries once.
 - After a successful `mint-notes`, the CLI stores the resulting note plaintexts in the encrypted wallet and updates the
   channel workspace snapshot when that workspace exists.
+- `get-my-notes` reports both the wallet's local note classification and whether each note still matches the
+  bridge-accepted controller state.
 - `bridge-send` remains only for non-mint template-based calls. It still updates nonce and note state in an existing
   wallet, and the CLI then needs only the matching `--password` to open or update that wallet.
 - `get-bridge-deposit`, `fund-l1`, and `claim` can also recover the L1 signer from an existing encrypted wallet when
@@ -150,6 +154,10 @@ node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes \
   --wallet participant-a \
   --password "participant-a" \
   --amounts '[1,2,3]'
+
+node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes \
+  --wallet participant-a \
+  --password "participant-a"
 
 node apps/private-state/cli/private-state-bridge-cli.mjs register-channel \
   --channel-name demo-channel \

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-24T18:25:29.036Z",
+  "generatedAt": "2026-03-25T03:36:41.855Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -275,16 +275,29 @@
         },
         {
           "type": "function",
-          "name": "bindSharedTokenVault",
+          "name": "bindBridgeTokenVault",
           "inputs": [
             {
-              "name": "tokenVault_",
+              "name": "bridgeTokenVault_",
               "type": "address",
               "internalType": "address"
             }
           ],
           "outputs": [],
           "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "bridgeTokenVault",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "stateMutability": "view"
         },
         {
           "type": "function",
@@ -326,7 +339,7 @@
               "internalType": "address"
             },
             {
-              "name": "vault",
+              "name": "boundBridgeTokenVault",
               "type": "address",
               "internalType": "address"
             }
@@ -388,7 +401,7 @@
                   "internalType": "address"
                 },
                 {
-                  "name": "vault",
+                  "name": "bridgeTokenVault",
                   "type": "address",
                   "internalType": "address"
                 },
@@ -440,7 +453,7 @@
             {
               "name": "",
               "type": "tuple",
-              "internalType": "struct BridgeStructs.TokenVaultRegistration",
+              "internalType": "struct BridgeStructs.ChannelTokenVaultRegistration",
               "components": [
                 {
                   "name": "exists",
@@ -453,7 +466,7 @@
                   "internalType": "address"
                 },
                 {
-                  "name": "l2TokenVaultKey",
+                  "name": "channelTokenVaultKey",
                   "type": "bytes32",
                   "internalType": "bytes32"
                 },
@@ -561,19 +574,6 @@
         },
         {
           "type": "function",
-          "name": "tokenVault",
-          "inputs": [],
-          "outputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
           "name": "transferOwnership",
           "inputs": [
             {
@@ -650,6 +650,19 @@
         },
         {
           "type": "event",
+          "name": "BridgeTokenVaultBound",
+          "inputs": [
+            {
+              "name": "bridgeTokenVault",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "ChannelCreated",
           "inputs": [
             {
@@ -671,7 +684,7 @@
               "internalType": "address"
             },
             {
-              "name": "vault",
+              "name": "bridgeTokenVault",
               "type": "address",
               "indexed": false,
               "internalType": "address"
@@ -713,19 +726,6 @@
         },
         {
           "type": "event",
-          "name": "SharedTokenVaultBound",
-          "inputs": [
-            {
-              "name": "tokenVault",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            }
-          ],
-          "anonymous": false
-        },
-        {
-          "type": "event",
           "name": "Upgraded",
           "inputs": [
             {
@@ -736,6 +736,11 @@
             }
           ],
           "anonymous": false
+        },
+        {
+          "type": "error",
+          "name": "BridgeTokenVaultAlreadySet",
+          "inputs": []
         },
         {
           "type": "error",
@@ -751,6 +756,11 @@
         {
           "type": "error",
           "name": "InvalidAdminManager",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "InvalidBridgeTokenVault",
           "inputs": []
         },
         {
@@ -776,16 +786,6 @@
         {
           "type": "error",
           "name": "InvalidTokamakVerifier",
-          "inputs": []
-        },
-        {
-          "type": "error",
-          "name": "InvalidTokenVault",
-          "inputs": []
-        },
-        {
-          "type": "error",
-          "name": "SharedTokenVaultAlreadySet",
           "inputs": []
         },
         {
@@ -878,6 +878,25 @@
         },
         {
           "type": "function",
+          "name": "getChannelTokenVaultTreeIndex",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "getDAppInfo",
           "inputs": [
             {
@@ -903,7 +922,7 @@
                   "internalType": "bytes32"
                 },
                 {
-                  "name": "tokenVaultTreeIndex",
+                  "name": "channelTokenVaultTreeIndex",
                   "type": "uint256",
                   "internalType": "uint256"
                 }
@@ -1090,25 +1109,6 @@
         },
         {
           "type": "function",
-          "name": "getTokenVaultTreeIndex",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
           "name": "getUserSlots",
           "inputs": [
             {
@@ -1146,6 +1146,30 @@
         },
         {
           "type": "function",
+          "name": "isChannelTokenVaultStorageAddress",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "storageAddr",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "isSupportedFunction",
           "inputs": [
             {
@@ -1162,30 +1186,6 @@
               "name": "functionSig",
               "type": "bytes4",
               "internalType": "bytes4"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "bool",
-              "internalType": "bool"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "isTokenVaultStorageAddress",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "storageAddr",
-              "type": "address",
-              "internalType": "address"
             }
           ],
           "outputs": [
@@ -1258,7 +1258,7 @@
                   "internalType": "uint8[]"
                 },
                 {
-                  "name": "isTokenVaultStorage",
+                  "name": "isChannelTokenVaultStorage",
                   "type": "bool",
                   "internalType": "bool"
                 }
@@ -1618,6 +1618,17 @@
         },
         {
           "type": "error",
+          "name": "MissingChannelTokenVaultStorageAddress",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
           "name": "MissingPreprocessInputHash",
           "inputs": [
             {
@@ -1639,18 +1650,7 @@
         },
         {
           "type": "error",
-          "name": "MissingTokenVaultStorageAddress",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "MultipleTokenVaultStorageAddresses",
+          "name": "MultipleChannelTokenVaultStorageAddresses",
           "inputs": [
             {
               "name": "dappId",
@@ -1741,7 +1741,7 @@
               "internalType": "address"
             },
             {
-              "name": "tokenVaultTreeIndex_",
+              "name": "channelTokenVaultTreeIndex_",
               "type": "uint256",
               "internalType": "uint256"
             },
@@ -1813,7 +1813,7 @@
               "internalType": "bytes32[]"
             },
             {
-              "name": "updatedTokenVaultRoot",
+              "name": "updatedChannelTokenVaultRoot",
               "type": "bytes32",
               "internalType": "bytes32"
             },
@@ -1839,10 +1839,10 @@
         },
         {
           "type": "function",
-          "name": "bindTokenVault",
+          "name": "bindBridgeTokenVault",
           "inputs": [
             {
-              "name": "tokenVault_",
+              "name": "bridgeTokenVault_",
               "type": "address",
               "internalType": "address"
             }
@@ -1865,7 +1865,46 @@
         },
         {
           "type": "function",
+          "name": "bridgeTokenVault",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "channelId",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "channelTokenVaultStorageAddress",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "channelTokenVaultTreeIndex",
           "inputs": [],
           "outputs": [
             {
@@ -1968,23 +2007,39 @@
         },
         {
           "type": "function",
-          "name": "getAllowedFunctions",
-          "inputs": [],
+          "name": "getChannelTokenVaultRegistration",
+          "inputs": [
+            {
+              "name": "l1Address",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
           "outputs": [
             {
-              "name": "out",
-              "type": "tuple[]",
-              "internalType": "struct BridgeStructs.FunctionReference[]",
+              "name": "",
+              "type": "tuple",
+              "internalType": "struct BridgeStructs.ChannelTokenVaultRegistration",
               "components": [
                 {
-                  "name": "entryContract",
+                  "name": "exists",
+                  "type": "bool",
+                  "internalType": "bool"
+                },
+                {
+                  "name": "l2Address",
                   "type": "address",
                   "internalType": "address"
                 },
                 {
-                  "name": "functionSig",
-                  "type": "bytes4",
-                  "internalType": "bytes4"
+                  "name": "channelTokenVaultKey",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+                },
+                {
+                  "name": "leafIndex",
+                  "type": "uint256",
+                  "internalType": "uint256"
                 }
               ]
             }
@@ -1993,7 +2048,7 @@
         },
         {
           "type": "function",
-          "name": "getLatestTokenVaultLeaf",
+          "name": "getLatestChannelTokenVaultLeaf",
           "inputs": [
             {
               "name": "leafIndex",
@@ -2006,25 +2061,6 @@
               "name": "",
               "type": "bytes32",
               "internalType": "bytes32"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "getManagedStorageAddress",
-          "inputs": [
-            {
-              "name": "index",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "address"
             }
           ],
           "stateMutability": "view"
@@ -2044,47 +2080,6 @@
         },
         {
           "type": "function",
-          "name": "getTokenVaultRegistration",
-          "inputs": [
-            {
-              "name": "l1Address",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "tuple",
-              "internalType": "struct BridgeStructs.TokenVaultRegistration",
-              "components": [
-                {
-                  "name": "exists",
-                  "type": "bool",
-                  "internalType": "bool"
-                },
-                {
-                  "name": "l2Address",
-                  "type": "address",
-                  "internalType": "address"
-                },
-                {
-                  "name": "l2TokenVaultKey",
-                  "type": "bytes32",
-                  "internalType": "bytes32"
-                },
-                {
-                  "name": "leafIndex",
-                  "type": "uint256",
-                  "internalType": "uint256"
-                }
-              ]
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
           "name": "leader",
           "inputs": [],
           "outputs": [
@@ -2098,7 +2093,7 @@
         },
         {
           "type": "function",
-          "name": "registerTokenVaultIdentity",
+          "name": "registerChannelTokenVaultIdentity",
           "inputs": [
             {
               "name": "l2Address",
@@ -2106,7 +2101,7 @@
               "internalType": "address"
             },
             {
-              "name": "l2TokenVaultKey",
+              "name": "channelTokenVaultKey",
               "type": "bytes32",
               "internalType": "bytes32"
             },
@@ -2133,43 +2128,48 @@
           "stateMutability": "view"
         },
         {
-          "type": "function",
-          "name": "tokenVault",
-          "inputs": [],
-          "outputs": [
+          "type": "event",
+          "name": "BridgeTokenVaultBound",
+          "inputs": [
             {
-              "name": "",
+              "name": "bridgeTokenVault",
               "type": "address",
+              "indexed": true,
               "internalType": "address"
             }
           ],
-          "stateMutability": "view"
+          "anonymous": false
         },
         {
-          "type": "function",
-          "name": "tokenVaultStorageAddress",
-          "inputs": [],
-          "outputs": [
+          "type": "event",
+          "name": "ChannelTokenVaultIdentityRegistered",
+          "inputs": [
             {
-              "name": "",
+              "name": "l1Address",
               "type": "address",
+              "indexed": true,
               "internalType": "address"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "tokenVaultTreeIndex",
-          "inputs": [],
-          "outputs": [
+            },
             {
-              "name": "",
+              "name": "l2Address",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            },
+            {
+              "name": "channelTokenVaultKey",
+              "type": "bytes32",
+              "indexed": true,
+              "internalType": "bytes32"
+            },
+            {
+              "name": "leafIndex",
               "type": "uint256",
+              "indexed": false,
               "internalType": "uint256"
             }
           ],
-          "stateMutability": "view"
+          "anonymous": false
         },
         {
           "type": "event",
@@ -2235,50 +2235,6 @@
           "anonymous": false
         },
         {
-          "type": "event",
-          "name": "TokenVaultBound",
-          "inputs": [
-            {
-              "name": "tokenVault",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            }
-          ],
-          "anonymous": false
-        },
-        {
-          "type": "event",
-          "name": "TokenVaultIdentityRegistered",
-          "inputs": [
-            {
-              "name": "l1Address",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            },
-            {
-              "name": "l2Address",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            },
-            {
-              "name": "l2TokenVaultKey",
-              "type": "bytes32",
-              "indexed": true,
-              "internalType": "bytes32"
-            },
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "indexed": false,
-              "internalType": "uint256"
-            }
-          ],
-          "anonymous": false
-        },
-        {
           "type": "error",
           "name": "APubBlockHashMismatch",
           "inputs": [
@@ -2291,6 +2247,22 @@
               "name": "actualHash",
               "type": "bytes32",
               "internalType": "bytes32"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "APubBlockLengthMismatch",
+          "inputs": [
+            {
+              "name": "expectedLength",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "actualLength",
+              "type": "uint256",
+              "internalType": "uint256"
             }
           ]
         },
@@ -2328,6 +2300,76 @@
         },
         {
           "type": "error",
+          "name": "BridgeTokenVaultAlreadySet",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "ChannelTokenVaultIdentityAlreadyRegistered",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "internalType": "address"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "ChannelTokenVaultKeyAlreadyRegistered",
+          "inputs": [
+            {
+              "name": "key",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "ChannelTokenVaultLeafIndexAlreadyRegistered",
+          "inputs": [
+            {
+              "name": "leafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "ChannelTokenVaultLeafIndexMismatch",
+          "inputs": [
+            {
+              "name": "expectedLeafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "actualLeafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "ChannelTokenVaultLeafIndexOutOfRange",
+          "inputs": [
+            {
+              "name": "leafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "ChannelTokenVaultRootUpdateWithoutStorageWrite",
+          "inputs": []
+        },
+        {
+          "type": "error",
           "name": "EntryContractPublicInputOutOfRange",
           "inputs": [
             {
@@ -2350,6 +2392,11 @@
         },
         {
           "type": "error",
+          "name": "InvalidChannelTokenVaultTreeIndex",
+          "inputs": []
+        },
+        {
+          "type": "error",
           "name": "InvalidL2Address",
           "inputs": []
         },
@@ -2366,17 +2413,12 @@
         },
         {
           "type": "error",
-          "name": "InvalidTokenVaultTreeIndex",
-          "inputs": []
-        },
-        {
-          "type": "error",
           "name": "OnlyBridgeCore",
           "inputs": []
         },
         {
           "type": "error",
-          "name": "OnlyTokenVault",
+          "name": "OnlyBridgeTokenVault",
           "inputs": []
         },
         {
@@ -2407,76 +2449,6 @@
         },
         {
           "type": "error",
-          "name": "TokenVaultAlreadySet",
-          "inputs": []
-        },
-        {
-          "type": "error",
-          "name": "TokenVaultIdentityAlreadyRegistered",
-          "inputs": [
-            {
-              "name": "user",
-              "type": "address",
-              "internalType": "address"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "TokenVaultKeyAlreadyRegistered",
-          "inputs": [
-            {
-              "name": "key",
-              "type": "bytes32",
-              "internalType": "bytes32"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "TokenVaultLeafIndexAlreadyRegistered",
-          "inputs": [
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "TokenVaultLeafIndexMismatch",
-          "inputs": [
-            {
-              "name": "expectedLeafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "actualLeafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "TokenVaultLeafIndexOutOfRange",
-          "inputs": [
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "TokenVaultRootUpdateWithoutStorageWrite",
-          "inputs": []
-        },
-        {
-          "type": "error",
           "name": "UnexpectedCurrentRootVector",
           "inputs": []
         },
@@ -2498,7 +2470,7 @@
         }
       ]
     },
-    "tokenVault": {
+    "bridgeTokenVault": {
       "artifactPath": "out/L1TokenVault.sol/L1TokenVault.json",
       "abi": [
         {
@@ -2641,30 +2613,6 @@
             }
           ],
           "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "encodeTokenVaultLeaf",
-          "inputs": [
-            {
-              "name": "",
-              "type": "bytes32",
-              "internalType": "bytes32"
-            },
-            {
-              "name": "userValue",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "bytes32",
-              "internalType": "bytes32"
-            }
-          ],
-          "stateMutability": "pure"
         },
         {
           "type": "function",

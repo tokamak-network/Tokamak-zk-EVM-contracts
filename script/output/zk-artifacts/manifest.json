@@ -39,7 +39,7 @@
             "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
             "preAllocKeys": [],
             "userSlots": [],
-            "isTokenVaultStorage": false
+            "isChannelTokenVaultStorage": false
           },
           {
             "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
@@ -47,7 +47,7 @@
               "0x23313b4c8769629dd44617787e41e9d983a632bf0a48e37ee05d518f5a71a122"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "preprocessInputHash": "0x8d9d8099c7cbad85a3282c86acf28874376369c8f4cdc1985990818e68759a12",
@@ -97,7 +97,7 @@
             "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
             "preAllocKeys": [],
             "userSlots": [],
-            "isTokenVaultStorage": false
+            "isChannelTokenVaultStorage": false
           },
           {
             "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
@@ -105,7 +105,7 @@
               "0x23313b4c8769629dd44617787e41e9d983a632bf0a48e37ee05d518f5a71a122"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "preprocessInputHash": "0xc63004549e769a0e4fa18fa7e8fabbc7960346297813125562bb443fee5e6fa7",
@@ -159,7 +159,7 @@
             "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
             "preAllocKeys": [],
             "userSlots": [],
-            "isTokenVaultStorage": false
+            "isChannelTokenVaultStorage": false
           },
           {
             "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
@@ -167,7 +167,7 @@
               "0x23313b4c8769629dd44617787e41e9d983a632bf0a48e37ee05d518f5a71a122"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "preprocessInputHash": "0x2a00ab052fd274110b31189ee12916223120f60f06641628753c863478326753",
@@ -226,7 +226,7 @@
               "0x51a098f79878a7e9b73e0160283138a5f4caabe4bef59058a81ddde74f5f4a08"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "preprocessInputHash": "0x1e9ba2f046b46bdaf172518d1016187f67dceb1f6fb858bc1163a458bafb6505",
@@ -277,7 +277,7 @@
               "0x2418859c3f214b5471e5c13abc5035a2b25526ad859ab54c168fbd0368d046c2"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "preprocessInputHash": "0x2ce03dae3c3a644ef0ff47e1d15acdf3265e526716b2b7e68026b67a56766607",
@@ -333,7 +333,7 @@
               "0x39443375d1b615083e26a0b5cbb86ea1b15e90eda8f3b134d6ac8df8407ee681"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "preprocessInputHash": "0x788e85a144355c140c4240ebd8d65878020b53909897bdf388f54bbce3edd5a2",
@@ -389,13 +389,13 @@
               "0x3d6bbc38cd2d0ff5633f36ed00659bc3dfa526b09f5e0b045376b9ab5b2fbd68"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": false
+            "isChannelTokenVaultStorage": false
           },
           {
             "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
             "preAllocKeys": [],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "preprocessInputHash": "0x7f0f2e87cb51835143098d850d5f0f61aa87fa320e5d17e99dc7245fde4ede50",
@@ -504,7 +504,7 @@
             "storageAddress": "0xB9Dca06940a5dC5cB98BE0fD9E2eD24eBDF05F84",
             "preAllocKeys": [],
             "userSlots": [],
-            "isTokenVaultStorage": false
+            "isChannelTokenVaultStorage": false
           },
           {
             "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
@@ -512,7 +512,7 @@
               "0x23313b4c8769629dd44617787e41e9d983a632bf0a48e37ee05d518f5a71a122"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "functions": [
@@ -638,13 +638,13 @@
               "0x3d6bbc38cd2d0ff5633f36ed00659bc3dfa526b09f5e0b045376b9ab5b2fbd68"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": false
+            "isChannelTokenVaultStorage": false
           },
           {
             "storageAddress": "0x8b64A4D3DF1771d7dFC93b374f545563B680b420",
             "preAllocKeys": [],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "functions": [
@@ -697,7 +697,7 @@
               "0x39443375d1b615083e26a0b5cbb86ea1b15e90eda8f3b134d6ac8df8407ee681"
             ],
             "userSlots": [],
-            "isTokenVaultStorage": true
+            "isChannelTokenVaultStorage": true
           }
         ],
         "functions": [

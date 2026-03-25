@@ -177,7 +177,7 @@ The CLI:
 - selects a target network through `--network` or `apps/.env`, restricted to `mainnet` or `sepolia`
 - loads bridge deployment data and the bridge ABI manifest generated at bridge deployment time
 - binds every channel to the canonical Tokamak Network Token for the selected network
-- treats the bridge-level L1 token vault as a shared vault across all channels
+- treats the bridge-level `bridgeTokenVault` as a shared vault across all channels
 - reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`
 - separates on-chain channel creation from optional channel-workspace caching
 - reconstructs channel `state_snapshot.json` from bridge events through `recover-workspace`, writing it into the
@@ -188,6 +188,7 @@ The CLI:
 - checks each wallet-backed user's on-chain channel registration through `is-channel-registered`
 - reads each wallet-backed user's current channel-level L2 accounting deposit through `get-channel-deposit`
 - exposes direct wallet-backed note minting through `mint-notes`, which selects the underlying fixed-arity `mintNotes<N>` method from the amount-vector length
+- exposes wallet-backed note inspection through `get-my-notes`, including bridge-side status validation for each note
 - generates Groth and Tokamak proofs
 - submits bridge transactions for `deposit-bridge`, `register-channel`, `deposit-channel`, `withdraw`, `claim`, and DApp function execution
 
@@ -196,7 +197,7 @@ Every CLI `--amount` input is interpreted as a human Tokamak Network Token amoun
 token decimals.
 Every CLI `--password` input accepts any string. During `register-channel` and other wallet-aware flows, the CLI signs
 a domain-separated password message with the user's L1 `--private-key` and derives the L2 private key from the
-resulting signature. `deposit-bridge` itself only funds the shared bridge-level L1 token vault. `register-channel`
+resulting signature. `deposit-bridge` itself only funds the shared bridge-level `bridgeTokenVault`. `register-channel`
 performs the channel-specific L2 identity registration and is the only command that sets up the channel-specific wallet
 keys. `mint-notes` and `bridge-send` both update nonce and note state in an existing wallet, and that wallet file is
 encrypted with `scrypt + AES-256-GCM` under the given password.
@@ -209,6 +210,8 @@ flow. Because the current `tokamak-cli` installer only accepts Alchemy Ethereum 
 that URL, `install-zk-evm` validates the same constraint instead of pretending that an arbitrary RPC endpoint will work.
 When a ready channel workspace exists for the wallet channel, `mint-notes` tries that cached state snapshot first. If
 `tokamak-cli --verify` fails, the CLI refreshes the workspace through `recover-workspace` semantics and retries once.
+`get-my-notes` reads the wallet's stored note sets and checks each note against the current controller
+`commitmentExists/nullifierUsed` state accepted by the bridge.
 
 Channel workspaces are optional snapshot caches. User-action commands can reconstruct the channel state directly from
 bridge events by using `--channel-name` or an existing `--wallet`. Wallets remain mandatory because
@@ -228,6 +231,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit --ne
 node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet participant-a --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet participant-a --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet participant-a --password "participant-a" --amounts '[1,2,3]'
+node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet participant-a --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet participant-a --password "participant-a" --amount 1
 ```

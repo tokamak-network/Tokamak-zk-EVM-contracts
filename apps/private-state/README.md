@@ -185,6 +185,7 @@ The CLI:
 - manages mandatory per-user wallets that store note plaintexts, used/unused note sets, and aggregated unused-note balance
 - separates bridge-level funding from channel-level `channelTokenVault` registration
 - reads each user's shared `bridgeTokenVault` deposit through `get-bridge-deposit`
+- exposes wallet-backed bridge withdrawal through `withdraw-bridge`, which claims Tokamak Network Token from the shared bridge-level `bridgeTokenVault` back into the caller wallet
 - checks each wallet-backed user's on-chain channel registration through `is-channel-registered`
 - reads each wallet-backed user's current channel-level L2 accounting deposit through `get-channel-deposit`
 - exposes direct wallet-backed note minting through `mint-notes`, which selects the underlying fixed-arity `mintNotes<N>` method from the amount-vector length
@@ -232,6 +233,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs show-template transferN
 node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
 node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --amount 3
+node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge --wallet participant-a --password "participant-a" --amount 1
 node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit --network sepolia --private-key <hex>
 node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet participant-a --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet participant-a --password "participant-a"

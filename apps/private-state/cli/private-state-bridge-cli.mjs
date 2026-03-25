@@ -165,6 +165,21 @@ async function main() {
     return;
   }
 
+  if (args.command === "withdraw-bridge") {
+    assertWithdrawBridgeArgs(args);
+    const env = loadEnv(defaultEnvFile);
+    const walletMetadata = loadWalletMetadata(requireWalletName(args));
+    const network = resolveCliNetwork(walletMetadata.network);
+    const rpcUrl = deriveRpcUrl({
+      networkName: walletMetadata.network,
+      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
+      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+    });
+    const provider = new JsonRpcProvider(rpcUrl);
+    await handleWithdrawBridge({ args, network, provider });
+    return;
+  }
+
   if (args.command === "deposit-channel") {
     assertWalletChannelMoveArgs(args, "deposit-channel");
     const env = loadEnv(defaultEnvFile);
@@ -270,6 +285,8 @@ async function main() {
       throw new Error("get-my-notes must resolve its network from the local wallet.");
     case "transfer-notes":
       throw new Error("transfer-notes must resolve its network from the local wallet.");
+    case "withdraw-bridge":
+      throw new Error("withdraw-bridge must resolve its network from the local wallet.");
     case "withdraw-channel":
       throw new Error("withdraw-channel must resolve its network from the local wallet.");
     case "register-channel":
@@ -1047,6 +1064,34 @@ async function handleClaim({ args, env, provider }) {
     amountInput,
     amountBaseUnits: amount.toString(),
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
+    receipt: sanitizeReceipt(receipt),
+  });
+}
+
+async function handleWithdrawBridge({ args, network, provider }) {
+  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
+  const walletMetadata = loadWalletMetadata(wallet.walletName);
+  assertWalletMatchesMetadata(wallet, walletMetadata);
+  const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
+  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
+  const amountInput = requireArg(args.amount, "--amount");
+  const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
+  const bridgeTokenVault = new Contract(
+    bridgeVaultContext.bridgeTokenVaultAddress,
+    bridgeVaultContext.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+    signer,
+  );
+  const receipt = await waitForReceipt(await bridgeTokenVault.claimToWallet(amount));
+
+  printJson({
+    action: "withdraw-bridge",
+    wallet: wallet.walletName,
+    l1Address: signer.address,
+    amountInput,
+    amountBaseUnits: amount.toString(),
+    bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
+    canonicalAsset: bridgeVaultContext.canonicalAsset,
+    canonicalAssetDecimals: Number(bridgeVaultContext.canonicalAssetDecimals),
     receipt: sanitizeReceipt(receipt),
   });
 }
@@ -2933,6 +2978,25 @@ function assertInstallZkEvmArgs(args) {
   requireInstallRpcUrl(args);
 }
 
+function assertWithdrawBridgeArgs(args) {
+  requireWalletName(args);
+  requireL2Password(args);
+  requireArg(args.amount, "--amount");
+  const allowedKeys = new Set(["command", "positional", "wallet", "password", "amount"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `withdraw-bridge only accepts --wallet, --password, and --amount. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "withdraw-bridge does not accept positional arguments beyond the command name.",
+  );
+}
+
 function assertMintNotesArgs(args) {
   requireWalletName(args);
   requireL2Password(args);
@@ -3116,6 +3180,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
   node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --password <string> [--amount <tokens>]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --amount <tokens> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge --wallet <name> --password <string> --amount <tokens>
   node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit [--private-key <hex>] [--wallet <name> --password <string>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet <name> --password <string>
@@ -3164,13 +3229,14 @@ Notes:
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - deposit-bridge only funds the shared bridge-level bridgeTokenVault.
+  - withdraw-bridge requires --wallet, --password, and --amount only. It derives the network and signer keys from the local wallet and calls claimToWallet to move value from the shared bridge-level bridgeTokenVault back into Tokamak Network Token in the caller wallet.
   - get-bridge-deposit reads the caller's shared bridge-level bridgeTokenVault balance.
   - is-channel-registered requires --wallet and --password only. It derives the network and channel from the local wallet, then checks whether the wallet's L2 identity matches the on-chain channel registration.
   - get-channel-deposit requires --wallet and --password only. It derives the network and channel from the local wallet, requires the wallet's L2 identity to match the on-chain channel registration, and then reads the current channel L2 accounting balance bound to that registration.
   - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, channelTokenVault key, channelTokenVault leaf index, and local wallet keys for the selected channel.
   - register-channel is the only command that sets up wallet keys in the active wallet.
   - mint-notes, redeem-notes, transfer-notes, and bridge-send update nonce and note state inside an existing wallet, but they do not set up wallet keys.
-  - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, mint-notes, redeem-notes, transfer-notes, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
+  - Once a wallet exists, wallet-show, get-bridge-deposit, withdraw-bridge, fund-l1, claim, mint-notes, redeem-notes, transfer-notes, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
   - withdraw-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and calls the bridge withdraw path to move value from the channel L2 accounting vault back into the shared L1 bridgeTokenVault.
   - register-channel and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.

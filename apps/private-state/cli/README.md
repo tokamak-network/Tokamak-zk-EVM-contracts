@@ -69,6 +69,9 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   Token for the selected network.
 - `create-channel --create-workspace` uses the channel name itself as the channel-workspace name.
 - `deposit-bridge` funds the shared bridge-level `bridgeTokenVault`.
+- `withdraw-bridge` is the wallet-only inverse of `deposit-bridge`. It accepts only `--wallet`, `--password`, and
+  `--amount`, and it calls the bridge `claimToWallet` path to move value from the shared bridge-level `bridgeTokenVault`
+  back into Tokamak Network Token in the caller's L1 wallet.
 - `get-bridge-deposit` reads the caller's shared bridge-level `bridgeTokenVault` balance.
 - `is-channel-registered` checks whether the local wallet's L2 identity matches the selected channel's registered
   on-chain participant record. It accepts only `--wallet` and `--password`.
@@ -121,8 +124,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - The `noteId` values consumed by `transfer-notes` are note commitments from `get-my-notes`.
 - `bridge-send` remains only for non-mint template-based calls. It still updates nonce and note state in an existing
   wallet, and the CLI then needs only the matching `--password` to open or update that wallet.
-- `get-bridge-deposit`, `fund-l1`, and `claim` can also recover the L1 signer from an existing encrypted wallet when
-  `--wallet` and `--password` are provided.
+- `get-bridge-deposit`, `withdraw-bridge`, `fund-l1`, and `claim` can also recover the L1 signer from an existing
+  encrypted wallet when `--wallet` and `--password` are provided.
 - `is-channel-registered` also requires an existing wallet and derives its network and channel from that wallet.
 - `get-channel-deposit` also requires an existing wallet and fails unless the wallet's L2 identity matches the
   on-chain channel registration for the stored channel.
@@ -157,6 +160,11 @@ node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge \
   --network sepolia \
   --private-key <hex> \
   --amount 3
+
+node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge \
+  --wallet participant-a \
+  --password "participant-a" \
+  --amount 1
 
 node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit \
   --network sepolia \

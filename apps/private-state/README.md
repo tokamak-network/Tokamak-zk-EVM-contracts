@@ -173,6 +173,7 @@ private-state now exposes the bridge-coupled operator CLI under
 
 The CLI:
 
+- installs the local Tokamak zk-EVM toolchain through `install-zk-evm`
 - selects a target network through `--network` or `apps/.env`, restricted to `mainnet` or `sepolia`
 - loads bridge deployment data and the bridge ABI manifest generated at bridge deployment time
 - binds every channel to the canonical Tokamak Network Token for the selected network
@@ -202,6 +203,9 @@ Each wallet directory also includes an unencrypted metadata file that stores onl
 `channelName`.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other
 wallets.
+The new `install-zk-evm` entrypoint accepts only `--rpc-url` and forwards it to the submodule `tokamak-cli --install`
+flow. Because the current `tokamak-cli` installer only accepts Alchemy Ethereum RPC URLs and derives an API key from
+that URL, `install-zk-evm` validates the same constraint instead of pretending that an arbitrary RPC endpoint will work.
 
 Channel workspaces are optional snapshot caches. User-action commands can reconstruct the channel state directly from
 bridge events by using `--channel-name` or an existing `--wallet`. Wallets remain mandatory because
@@ -214,6 +218,7 @@ cd apps/private-state
 make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
+node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
 node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --amount 3
 node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit --network sepolia --private-key <hex>

@@ -99,6 +99,12 @@ async function main() {
     return;
   }
 
+  if (args.command === "install-zk-evm") {
+    assertInstallZkEvmArgs(args);
+    await handleInstallZkEvm({ args });
+    return;
+  }
+
   if (args.command === "deposit-channel") {
     assertDepositChannelArgs(args);
     const env = loadEnv(defaultEnvFile);
@@ -577,6 +583,16 @@ async function handleGetBridgeDeposit({ args, env, network, provider }) {
       availableBalance,
       Number(bridgeVaultContext.canonicalAssetDecimals),
     ),
+  });
+}
+
+async function handleInstallZkEvm({ args }) {
+  const rpcUrl = requireInstallRpcUrl(args);
+  run(tokamakCliPath, ["--install", rpcUrl], { cwd: tokamakRoot });
+  printJson({
+    action: "install-zk-evm",
+    rpcUrl,
+    tokamakCli: tokamakCliPath,
   });
 }
 
@@ -2180,6 +2196,25 @@ function requireArg(value, label) {
   return value;
 }
 
+function requireInstallRpcUrl(args) {
+  const rpcUrl = String(requireArg(args.rpcUrl, "--rpc-url"));
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(rpcUrl);
+  } catch {
+    throw new Error("install-zk-evm requires a valid --rpc-url.");
+  }
+  expect(parsedUrl.protocol === "https:", "install-zk-evm requires an https:// --rpc-url.");
+  expect(
+    /^eth-(mainnet|sepolia)\.g\.alchemy\.com$/i.test(parsedUrl.hostname),
+    [
+      "install-zk-evm requires an Alchemy Ethereum RPC URL because",
+      "tokamak-cli --install only accepts Alchemy mainnet or sepolia URLs.",
+    ].join(" "),
+  );
+  return rpcUrl;
+}
+
 function requireWorkspaceName(args) {
   const value = typeof args === "string" ? args : args.workspace;
   if (!value) {
@@ -2267,6 +2302,23 @@ function assertIsChannelRegisteredArgs(args) {
   );
 }
 
+function assertInstallZkEvmArgs(args) {
+  const allowedKeys = new Set(["command", "positional", "rpcUrl"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `install-zk-evm only accepts --rpc-url. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "install-zk-evm does not accept positional arguments beyond the command name.",
+  );
+  requireInstallRpcUrl(args);
+}
+
 function assertGetChannelDepositArgs(args) {
   requireWalletName(args);
   requireL2Password(args);
@@ -2352,6 +2404,7 @@ function printHelp() {
 Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
   node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
+  node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url <alchemy-rpc-url>
   node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
@@ -2391,6 +2444,8 @@ bridge-send options:
   --template-file <path>   Full JSON template override
 
 Notes:
+  - install-zk-evm only accepts --rpc-url and forwards it to tokamak-cli --install.
+  - install-zk-evm requires an Alchemy Ethereum RPC URL because the current tokamak-cli installer only accepts Alchemy mainnet or sepolia URLs.
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.

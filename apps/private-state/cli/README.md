@@ -42,11 +42,14 @@ signature as the seed for `deriveL2KeysFromSignature`, and derives the L2 identi
 ```bash
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
+node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
 ```
 
 The bridge-coupled CLI separates channel creation from channel-workspace initialization:
 
 - `create-channel` creates the bridge channel on-chain.
+- `install-zk-evm` runs `submodules/Tokamak-zk-EVM/tokamak-cli --install <rpc-url>` for the local zk-EVM toolchain.
+  It accepts only `--rpc-url`.
 - `create-channel` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
   Token for the selected network.
 - `create-channel --create-workspace` uses the channel name itself as the channel-workspace name.
@@ -69,6 +72,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - Wallets are mandatory for note-carrying users. They are the authoritative local record for note plaintexts,
   note usage, and per-user L2 nonce.
 - Wallet folders are encrypted at rest. Only `register-channel` sets up L1/L2 keys in the active wallet.
+- `install-zk-evm` currently requires an Alchemy Ethereum RPC URL, because the underlying `tokamak-cli --install`
+  implementation only accepts Alchemy mainnet or sepolia URLs and extracts the API key from that URL.
 - `bridge-send` updates nonce and note state in an existing wallet, and the CLI then needs only the matching
   `--password` to open or update that wallet.
 - `get-bridge-deposit`, `fund-l1`, and `claim` can also recover the L1 signer from an existing encrypted wallet when
@@ -94,6 +99,9 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
   --private-key <hex> \
   --create-workspace \
   --network sepolia
+
+node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm \
+  --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
 
 node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace \
   --network sepolia \

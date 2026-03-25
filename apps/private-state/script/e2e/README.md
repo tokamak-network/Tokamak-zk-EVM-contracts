@@ -52,13 +52,12 @@ The harness writes step-by-step artifacts under:
 
 `apps/private-state/script/e2e/output/private-state-bridge-genesis`
 
-The CLI-driven harness writes its summary under:
+The CLI-driven harness writes its final summary under:
 
-`apps/private-state/script/e2e/output/private-state-bridge-cli`
+`apps/private-state/script/e2e/output/private-state-bridge-cli/summary.json`
 
-That directory contains:
+After a successful run, the harness prunes temporary CLI e2e artifacts and leaves only:
 
-- bridge deployment artifacts
-- Groth prover inputs and generated proofs
-- per-step Tokamak CLI bundles and extracted proof ZIP files
-- a final summary JSON
+- the CLI e2e `summary.json`
+- the channel workspace created for the test under `apps/private-state/cli/workspaces/`
+- the participant wallets created for the test under `apps/private-state/cli/wallets/`

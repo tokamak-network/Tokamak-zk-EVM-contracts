@@ -656,6 +656,18 @@ function removeCliRunState() {
   }
 }
 
+function pruneCliRunOutput() {
+  if (!fs.existsSync(outputRoot)) {
+    return;
+  }
+  for (const entry of fs.readdirSync(outputRoot, { withFileTypes: true })) {
+    if (entry.name === path.basename(summaryPath)) {
+      continue;
+    }
+    fs.rmSync(path.join(outputRoot, entry.name), { recursive: true, force: true });
+  }
+}
+
 function bootstrapAnvil() {
   run("make", ["-C", appRoot, "anvil-stop"], { quiet: true });
   run("make", ["-C", appRoot, "anvil-start"], { quiet: true });
@@ -1166,6 +1178,7 @@ async function main() {
       },
     };
     writeJson(summaryPath, summary);
+    pruneCliRunOutput();
 
     console.log("E2E CLI private-state bridge flow succeeded.");
     console.log(`Summary: ${summaryPath}`);

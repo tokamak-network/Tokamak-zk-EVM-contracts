@@ -26,7 +26,7 @@ import {
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
   fromEdwardsToAddress,
-  poseidon,
+  getUserStorageKey,
 } from "tokamak-l2js";
 import {
   addHexPrefix,
@@ -101,73 +101,52 @@ async function main() {
     return;
   }
 
-  if (args.command === "mint-notes") {
-    assertMintNotesArgs(args);
+  const walletCommandHandlers = {
+    "mint-notes": {
+      assert: assertMintNotesArgs,
+      run: ({ provider }) => handleMintNotes({ args, provider }),
+    },
+    "redeem-notes": {
+      assert: assertRedeemNotesArgs,
+      run: ({ provider }) => handleRedeemNotes({ args, provider }),
+    },
+    "get-my-notes": {
+      assert: assertGetMyNotesArgs,
+      run: ({ provider }) => handleGetMyNotes({ args, provider }),
+    },
+    "transfer-notes": {
+      assert: assertTransferNotesArgs,
+      run: ({ provider }) => handleTransferNotes({ args, provider }),
+    },
+    "withdraw-bridge": {
+      assert: assertWithdrawBridgeArgs,
+      run: ({ provider }) => handleWithdrawBridge({ args, provider }),
+    },
+    "deposit-channel": {
+      assert: (parsedArgs) => assertWalletChannelMoveArgs(parsedArgs, "deposit-channel"),
+      run: ({ provider }) => handleGrothVaultMove({ args, provider, direction: "deposit" }),
+    },
+    "withdraw-channel": {
+      assert: (parsedArgs) => assertWalletChannelMoveArgs(parsedArgs, "withdraw-channel"),
+      run: ({ provider }) => handleGrothVaultMove({ args, provider, direction: "withdraw" }),
+    },
+    "is-channel-registered": {
+      assert: assertIsChannelRegisteredArgs,
+      run: ({ provider }) => handleIsChannelRegistered({ args, provider }),
+    },
+    "get-wallet-address": {
+      assert: assertGetWalletAddressArgs,
+      run: ({ provider }) => handleGetWalletAddress({ args, provider }),
+    },
+    "get-channel-deposit": {
+      assert: assertGetChannelDepositArgs,
+      run: ({ provider }) => handleGetChannelDeposit({ args, provider }),
+    },
+  };
+  if (walletCommandHandlers[args.command]) {
+    walletCommandHandlers[args.command].assert(args);
     const { provider } = loadWalletCommandRuntime(args);
-    await handleMintNotes({ args, provider });
-    return;
-  }
-
-  if (args.command === "redeem-notes") {
-    assertRedeemNotesArgs(args);
-    const { provider } = loadWalletCommandRuntime(args);
-    await handleRedeemNotes({ args, provider });
-    return;
-  }
-
-  if (args.command === "get-my-notes") {
-    assertGetMyNotesArgs(args);
-    const { provider } = loadWalletCommandRuntime(args);
-    await handleGetMyNotes({ args, provider });
-    return;
-  }
-
-  if (args.command === "transfer-notes") {
-    assertTransferNotesArgs(args);
-    const { provider } = loadWalletCommandRuntime(args);
-    await handleTransferNotes({ args, provider });
-    return;
-  }
-
-  if (args.command === "withdraw-bridge") {
-    assertWithdrawBridgeArgs(args);
-    const { network, provider } = loadWalletCommandRuntime(args);
-    await handleWithdrawBridge({ args, network, provider });
-    return;
-  }
-
-  if (args.command === "deposit-channel") {
-    assertWalletChannelMoveArgs(args, "deposit-channel");
-    const { env, network, provider } = loadWalletCommandRuntime(args);
-    await handleGrothVaultMove({ args, env, network, provider, direction: "deposit" });
-    return;
-  }
-
-  if (args.command === "withdraw-channel") {
-    assertWalletChannelMoveArgs(args, "withdraw-channel");
-    const { env, network, provider } = loadWalletCommandRuntime(args);
-    await handleGrothVaultMove({ args, env, network, provider, direction: "withdraw" });
-    return;
-  }
-
-  if (args.command === "is-channel-registered") {
-    assertIsChannelRegisteredArgs(args);
-    const { env, network, provider } = loadWalletCommandRuntime(args);
-    await handleIsChannelRegistered({ args, env, network, provider });
-    return;
-  }
-
-  if (args.command === "get-wallet-address") {
-    assertGetWalletAddressArgs(args);
-    const { env, network, provider } = loadWalletCommandRuntime(args);
-    await handleGetWalletAddress({ args, env, network, provider });
-    return;
-  }
-
-  if (args.command === "get-channel-deposit") {
-    assertGetChannelDepositArgs(args);
-    const { env, network, provider } = loadWalletCommandRuntime(args);
-    await handleGetChannelDeposit({ args, env, network, provider });
+    await walletCommandHandlers[args.command].run({ provider });
     return;
   }
 
@@ -658,13 +637,9 @@ function isTokamakWorktreeDeletionOnly(porcelainStatus) {
     });
 }
 
-async function handleIsChannelRegistered({ args, env, network, provider }) {
-  const password = requireL2Password(args);
-  const wallet = loadWallet(requireWalletName(args), password);
-  const walletMetadata = loadWalletMetadata(wallet.walletName);
-  assertWalletMatchesMetadata(wallet, walletMetadata);
-  const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
-  const l2Identity = restoreParticipantIdentityFromWallet(wallet.wallet);
+async function handleIsChannelRegistered({ args, provider }) {
+  const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
+  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
   const context = await loadChannelContext({
     args,
     networkName: walletMetadata.network,
@@ -694,12 +669,9 @@ async function handleIsChannelRegistered({ args, env, network, provider }) {
   });
 }
 
-async function handleGetWalletAddress({ args, env, network, provider }) {
-  const password = requireL2Password(args);
-  const wallet = loadWallet(requireWalletName(args), password);
-  const walletMetadata = loadWalletMetadata(wallet.walletName);
-  assertWalletMatchesMetadata(wallet, walletMetadata);
-  const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
+async function handleGetWalletAddress({ args, provider }) {
+  const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
+  const signer = restoreWalletSigner(wallet, provider);
   const context = await loadChannelContext({
     args,
     networkName: walletMetadata.network,
@@ -724,13 +696,9 @@ async function handleGetWalletAddress({ args, env, network, provider }) {
   });
 }
 
-async function handleGetChannelDeposit({ args, env, network, provider }) {
-  const password = requireL2Password(args);
-  const wallet = loadWallet(requireWalletName(args), password);
-  const walletMetadata = loadWalletMetadata(wallet.walletName);
-  assertWalletMatchesMetadata(wallet, walletMetadata);
-  const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
-  const l2Identity = restoreParticipantIdentityFromWallet(wallet.wallet);
+async function handleGetChannelDeposit({ args, provider }) {
+  const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
+  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
   const contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
   const context = contextResult.context;
 
@@ -867,52 +835,16 @@ async function handleRegisterChannel({ args, env, network, provider }) {
   });
 }
 
-async function handleGrothVaultMove({ args, env, network, provider, direction }) {
-  const walletOnlyMoveCommand = args.command === "deposit-channel" || args.command === "withdraw-channel";
-  if (walletOnlyMoveCommand) {
-    assertWalletChannelMoveArgs(args, args.command);
-  }
-  const password = requireL2Password(args);
-  const walletFromFlag = args.wallet ? loadWallet(requireWalletName(args), password) : null;
-  let walletMetadata = null;
-  if (walletOnlyMoveCommand) {
-    expect(walletFromFlag, `${args.command} requires an existing local wallet.`);
-    walletMetadata = loadWalletMetadata(walletFromFlag.walletName);
-    assertWalletMatchesMetadata(walletFromFlag, walletMetadata);
-  }
-  let contextResult;
-  if (walletOnlyMoveCommand && walletFromFlag) {
-    contextResult = await loadPreferredWalletChannelContext({ walletContext: walletFromFlag, provider });
-  } else {
-    contextResult = {
-      context: await loadChannelContext({
-        args,
-        networkName: walletMetadata?.network ?? network.name,
-        provider,
-        walletContext: walletFromFlag,
-      }),
-      usingWorkspaceCache: false,
-    };
-    await assertWorkspaceAlignedWithChain(contextResult.context);
-  }
+async function handleGrothVaultMove({ args, provider, direction }) {
+  const { wallet } = loadUnlockedWalletWithMetadata(args);
+  const contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
   const context = contextResult.context;
-  if (walletFromFlag) {
-    expect(
-      BigInt(walletFromFlag.wallet.channelId) === BigInt(context.workspace.channelId),
-      "The provided wallet does not belong to the selected channel.",
-    );
-  }
+  expect(
+    BigInt(wallet.wallet.channelId) === BigInt(context.workspace.channelId),
+    "The provided wallet does not belong to the selected channel.",
+  );
 
-  const signer = walletOnlyMoveCommand
-    ? new Wallet(normalizePrivateKey(walletFromFlag.wallet.l1PrivateKey), provider)
-    : resolveWalletBackedSigner({ args, env, provider, walletContext: walletFromFlag });
-  const l2Identity = (walletOnlyMoveCommand || walletFromFlag)
-    ? restoreParticipantIdentityFromWallet(walletFromFlag.wallet)
-    : await deriveParticipantIdentityFromSigner({
-      channelName: context.workspace.channelName,
-      password,
-      signer,
-    });
+  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
@@ -966,9 +898,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
     : direction === "deposit"
       ? "deposit-channel"
       : "withdraw";
-  const operationDir = walletFromFlag
-    ? createWalletOperationDir(walletFromFlag.walletName, `${operationName}-${shortAddress(signer.address)}`)
-    : createOperationDir(context.workspaceName, `${operationName}-${shortAddress(signer.address)}`);
+  const operationDir = createWalletOperationDir(wallet.walletName, `${operationName}-${shortAddress(signer.address)}`);
 
   const transition = await buildGrothTransition({
     operationDir,
@@ -991,7 +921,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   writeJson(path.join(operationDir, `${operationName}-receipt.json`), sanitizeReceipt(receipt));
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(transition.nextSnapshot));
-  sealWalletOperationDir(operationDir, password);
+  sealWalletOperationDir(operationDir, wallet.walletPassword);
 
   context.currentSnapshot = normalizeStateSnapshot(transition.nextSnapshot);
   persistCurrentState(context);
@@ -999,7 +929,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   printJson({
     action: operationName,
     workspace: context.workspaceName,
-    wallet: walletFromFlag?.walletName ?? null,
+    wallet: wallet.walletName,
     operationDir,
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
@@ -1010,12 +940,11 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   });
 }
 
-async function handleWithdrawBridge({ args, network, provider }) {
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
-  const walletMetadata = loadWalletMetadata(wallet.walletName);
-  assertWalletMatchesMetadata(wallet, walletMetadata);
-  const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
-  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
+async function handleWithdrawBridge({ args, provider }) {
+  const { wallet } = loadUnlockedWalletWithMetadata(args);
+  const signer = restoreWalletSigner(wallet, provider);
+  const chainId = Number((await provider.getNetwork()).chainId);
+  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
   const bridgeTokenVault = new Contract(
@@ -1039,9 +968,7 @@ async function handleWithdrawBridge({ args, network, provider }) {
 }
 
 async function handleMintNotes({ args, provider }) {
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
-  const walletMetadata = loadWalletMetadata(wallet.walletName);
-  assertWalletMatchesMetadata(wallet, walletMetadata);
+  const { wallet } = loadUnlockedWalletWithMetadata(args);
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const amountInputs = parseTokenAmountVector(requireArg(args.amounts, "--amounts"));
   const baseUnitAmounts = amountInputs.map((value) => parseTokenAmount(value, canonicalAssetDecimals));
@@ -1078,9 +1005,7 @@ async function handleMintNotes({ args, provider }) {
 }
 
 async function handleRedeemNotes({ args, provider }) {
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
-  const walletMetadata = loadWalletMetadata(wallet.walletName);
-  assertWalletMatchesMetadata(wallet, walletMetadata);
+  const { wallet } = loadUnlockedWalletWithMetadata(args);
   const noteId = parseNoteId(requireArg(args.noteId, "--note-id"));
   const inputNote = loadRedeemInputNote(wallet, noteId);
   const templatePayload = buildRedeemNotesTemplatePayload({
@@ -1118,9 +1043,7 @@ async function handleRedeemNotes({ args, provider }) {
 }
 
 async function handleGetMyNotes({ args, provider }) {
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
-  const walletMetadata = loadWalletMetadata(wallet.walletName);
-  assertWalletMatchesMetadata(wallet, walletMetadata);
+  const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   expect(
     typeof wallet.wallet.controller === "string" && wallet.wallet.controller.length > 0,
     `Wallet ${wallet.walletName} is missing the stored controller address.`,
@@ -1166,9 +1089,7 @@ async function handleGetMyNotes({ args, provider }) {
 }
 
 async function handleTransferNotes({ args, provider }) {
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
-  const walletMetadata = loadWalletMetadata(wallet.walletName);
-  assertWalletMatchesMetadata(wallet, walletMetadata);
+  const { wallet } = loadUnlockedWalletWithMetadata(args);
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
   const recipients = parseRecipientVector(requireArg(args.recipients, "--recipients"));
@@ -1922,8 +1843,7 @@ async function executeWalletDirectTemplateCommand({
   operationName,
   templatePayload,
 }) {
-  const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
-  const l2Identity = restoreParticipantIdentityFromWallet(wallet.wallet);
+  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
   let contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
   let recoveredWorkspace = contextResult.recoveredWorkspace;
 
@@ -1980,10 +1900,10 @@ async function executeWalletTemplateSend({
   assertWalletMatchesChannelContext(wallet, l2Identity, context);
 
   const controllerAbi = readJson(path.resolve(deployRoot, templatePayload.abiFile.replace("../deploy/", "")));
-  const fragment = findFunctionFragment(controllerAbi, templatePayload.method);
-  const formattedArgs = formatArguments(fragment.inputs ?? [], templatePayload.args ?? []);
-  const inputSignature = buildInputSignature(fragment);
-  const calldata = runCast(["calldata", inputSignature, ...formattedArgs]).trim();
+  const calldata = new Interface(controllerAbi).encodeFunctionData(
+    templatePayload.method,
+    templatePayload.args ?? [],
+  );
   const nonce = Number(wallet.wallet.l2Nonce ?? 0);
   const operationDir = createWalletOperationDir(wallet.walletName, `${operationName}-${shortAddress(l2Identity.l2Address)}`);
   ensureDir(operationDir);
@@ -2176,6 +2096,16 @@ function loadWallet(walletName, walletPassword) {
   return context;
 }
 
+function loadUnlockedWalletWithMetadata(args) {
+  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
+  const walletMetadata = loadWalletMetadata(wallet.walletName);
+  assertWalletMatchesMetadata(wallet, walletMetadata);
+  return {
+    wallet,
+    walletMetadata,
+  };
+}
+
 function assertWalletHasRequiredKeys(wallet, walletName) {
   expect(
     typeof wallet.l1PrivateKey === "string" && wallet.l1PrivateKey.length > 0,
@@ -2219,6 +2149,17 @@ function restoreParticipantIdentityFromWallet(wallet) {
   };
 }
 
+function restoreWalletSigner(walletContext, provider) {
+  return new Wallet(normalizePrivateKey(walletContext.wallet.l1PrivateKey), provider);
+}
+
+function restoreWalletParticipant(walletContext, provider) {
+  return {
+    signer: restoreWalletSigner(walletContext, provider),
+    l2Identity: restoreParticipantIdentityFromWallet(walletContext.wallet),
+  };
+}
+
 function resolveWalletBackedSigner({ args, env, provider, walletContext }) {
   if (args.privateKey !== undefined) {
     const signer = requireL1Signer(args, env, provider);
@@ -2231,7 +2172,7 @@ function resolveWalletBackedSigner({ args, env, provider, walletContext }) {
     return signer;
   }
   if (walletContext?.wallet?.l1PrivateKey) {
-    return new Wallet(normalizePrivateKey(walletContext.wallet.l1PrivateKey), provider);
+    return restoreWalletSigner(walletContext, provider);
   }
   if (env.APPS_DEPLOYER_PRIVATE_KEY) {
     return requireL1Signer(args, env, provider);
@@ -2378,94 +2319,6 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   };
 }
 
-function findFunctionFragment(abi, methodName) {
-  const fragment = abi.find((entry) => entry.type === "function" && entry.name === methodName);
-  if (!fragment) {
-    throw new Error(`Method ${methodName} was not found in the callable ABI.`);
-  }
-  return fragment;
-}
-
-function buildInputSignature(fragment) {
-  const inputTypes = (fragment.inputs ?? []).map(formatCanonicalType).join(",");
-  return `${fragment.name}(${inputTypes})`;
-}
-
-function formatCanonicalType(parameter) {
-  const type = parameter.type;
-  if (!type.startsWith("tuple")) {
-    return type;
-  }
-
-  const suffix = type.slice("tuple".length);
-  const componentTypes = (parameter.components ?? []).map(formatCanonicalType).join(",");
-  return `(${componentTypes})${suffix}`;
-}
-
-function formatArguments(inputs, values) {
-  if (inputs.length !== values.length) {
-    throw new Error(`Expected ${inputs.length} arguments but received ${values.length}.`);
-  }
-
-  return inputs.map((input, index) => formatArgument(input, values[index]));
-}
-
-function formatArgument(parameter, value) {
-  const { baseType, arraySuffix } = splitType(parameter.type);
-
-  if (arraySuffix.length > 0) {
-    if (!Array.isArray(value)) {
-      throw new Error(`Expected array for ${parameter.name || parameter.type}.`);
-    }
-
-    const nestedParameter = {
-      ...parameter,
-      type: `${baseType}${arraySuffix.slice(1).join("")}`,
-    };
-    return `[${value.map((item) => formatArgument(nestedParameter, item)).join(",")}]`;
-  }
-
-  if (baseType === "tuple") {
-    if (Array.isArray(value)) {
-      return `(${value.map((item, index) => formatArgument(parameter.components[index], item)).join(",")})`;
-    }
-
-    if (!value || typeof value !== "object") {
-      throw new Error(`Expected object or array for tuple ${parameter.name || parameter.type}.`);
-    }
-
-    return `(${(parameter.components ?? [])
-      .map((component, index) => formatArgument(component, value[component.name] ?? value[index]))
-      .join(",")})`;
-  }
-
-  return formatScalar(baseType, value);
-}
-
-function splitType(type) {
-  const parts = type.match(/\[[^\]]*\]/g) ?? [];
-  return {
-    baseType: type.replace(/\[[^\]]*\]/g, ""),
-    arraySuffix: parts,
-  };
-}
-
-function formatScalar(type, value) {
-  if (value === null || value === undefined) {
-    throw new Error(`Missing value for ${type}.`);
-  }
-
-  if (type === "bool") {
-    return value ? "true" : "false";
-  }
-
-  if (type === "string") {
-    return String(value);
-  }
-
-  return String(value);
-}
-
 function run(command, args, { cwd = projectRoot, env = process.env, quiet = false } = {}) {
   const result = spawnSync(command, args, {
     cwd,
@@ -2489,17 +2342,6 @@ function runGitInTokamak(args) {
     throw new Error(`git ${args.join(" ")} failed in ${tokamakRoot}: ${detail}`);
   }
   return result.stdout ?? "";
-}
-
-function runCast(args) {
-  const result = spawnSync("cast", args, {
-    cwd: projectRoot,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    throw new Error(`cast ${args.join(" ")} failed with exit code ${result.status ?? "unknown"}.`);
-  }
-  return result.stdout;
 }
 
 function runTokamakProofPipeline({ operationDir, bundlePath }) {
@@ -2577,8 +2419,7 @@ async function currentStorageBigInt(stateManager, address, keyHex) {
 }
 
 function deriveLiquidBalanceStorageKey(l2Address, slot) {
-  const encoded = abiCoder.encode(["address", "uint256"], [l2Address, BigInt(slot)]);
-  return bytesToHex(poseidon(hexToBytes(encoded)));
+  return bytesToHex(getUserStorageKey([l2Address, BigInt(slot)], "TokamakL2"));
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
@@ -2966,14 +2807,6 @@ function requireL2Password(args) {
   return requireArg(args.password, "--password");
 }
 
-function toBigIntStrict(value) {
-  try {
-    return BigInt(value);
-  } catch {
-    throw new Error(`Invalid integer value: ${value}`);
-  }
-}
-
 function requireArg(value, label) {
   if (value === undefined || value === null || value === "") {
     throw new Error(`Missing ${label}.`);
@@ -3116,23 +2949,35 @@ function walletConfigExists(walletDir) {
   return fs.existsSync(walletConfigPath(walletDir));
 }
 
-function assertWalletChannelMoveArgs(args, commandName) {
-  requireWalletName(args);
-  requireL2Password(args);
-  requireArg(args.amount, "--amount");
-  const allowedKeys = new Set(["command", "positional", "wallet", "password", "amount"]);
+function assertAllowedCommandKeys(args, commandName, allowedKeys, acceptedUsage) {
   const unsupported = Object.keys(args)
     .filter((key) => !allowedKeys.has(key))
     .map((key) => `--${toKebabCase(key)}`);
   if (unsupported.length > 0) {
     throw new Error(
-      `${commandName} only accepts --wallet, --password, and --amount. Unsupported option(s): ${unsupported.join(", ")}.`,
+      `${commandName} only accepts ${acceptedUsage}. Unsupported option(s): ${unsupported.join(", ")}.`,
     );
   }
   expect(
     (args.positional ?? []).length === 1,
     `${commandName} does not accept positional arguments beyond the command name.`,
   );
+}
+
+function assertWalletPasswordArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet and --password") {
+  requireWalletName(args);
+  requireL2Password(args);
+  assertAllowedCommandKeys(
+    args,
+    commandName,
+    new Set(["command", "positional", "wallet", "password", ...extraOptionKeys]),
+    acceptedUsage,
+  );
+}
+
+function assertWalletChannelMoveArgs(args, commandName) {
+  requireArg(args.amount, "--amount");
+  assertWalletPasswordArgs(args, commandName, ["amount"], "--wallet, --password, and --amount");
 }
 
 function assertRegisterChannelArgs(args) {
@@ -3172,151 +3017,48 @@ function assertRegisterChannelArgs(args) {
 }
 
 function assertIsChannelRegisteredArgs(args) {
-  requireWalletName(args);
-  requireL2Password(args);
-  const allowedKeys = new Set(["command", "positional", "wallet", "password"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `is-channel-registered only accepts --wallet and --password. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "is-channel-registered does not accept positional arguments beyond the command name.",
-  );
+  assertWalletPasswordArgs(args, "is-channel-registered");
 }
 
 function assertGetWalletAddressArgs(args) {
-  requireWalletName(args);
-  requireL2Password(args);
-  const allowedKeys = new Set(["command", "positional", "wallet", "password"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `get-wallet-address only accepts --wallet and --password. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "get-wallet-address does not accept positional arguments beyond the command name.",
-  );
+  assertWalletPasswordArgs(args, "get-wallet-address");
 }
 
 function assertInstallZkEvmArgs(args) {
-  const allowedKeys = new Set(["command", "positional", "rpcUrl"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `install-zk-evm only accepts --rpc-url. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "install-zk-evm does not accept positional arguments beyond the command name.",
-  );
+  assertAllowedCommandKeys(args, "install-zk-evm", new Set(["command", "positional", "rpcUrl"]), "--rpc-url");
   requireInstallRpcUrl(args);
 }
 
 function assertUninstallZkEvmArgs(args) {
-  const allowedKeys = new Set(["command", "positional"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `uninstall-zk-evm does not accept options. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "uninstall-zk-evm does not accept positional arguments beyond the command name.",
-  );
+  assertAllowedCommandKeys(args, "uninstall-zk-evm", new Set(["command", "positional"]), "no options");
 }
 
 function assertWithdrawBridgeArgs(args) {
-  requireWalletName(args);
-  requireL2Password(args);
   requireArg(args.amount, "--amount");
-  const allowedKeys = new Set(["command", "positional", "wallet", "password", "amount"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `withdraw-bridge only accepts --wallet, --password, and --amount. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "withdraw-bridge does not accept positional arguments beyond the command name.",
-  );
+  assertWalletPasswordArgs(args, "withdraw-bridge", ["amount"], "--wallet, --password, and --amount");
 }
 
 function assertMintNotesArgs(args) {
-  requireWalletName(args);
-  requireL2Password(args);
   requireArg(args.amounts, "--amounts");
-  const allowedKeys = new Set(["command", "positional", "wallet", "password", "amounts"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `mint-notes only accepts --wallet, --password, and --amounts. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "mint-notes does not accept positional arguments beyond the command name.",
-  );
+  assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --password, and --amounts");
   parseTokenAmountVector(args.amounts);
 }
 
 function assertRedeemNotesArgs(args) {
-  requireWalletName(args);
-  requireL2Password(args);
   requireArg(args.noteId, "--note-id");
-  const allowedKeys = new Set(["command", "positional", "wallet", "password", "noteId"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `redeem-notes only accepts --wallet, --password, and --note-id. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "redeem-notes does not accept positional arguments beyond the command name.",
-  );
+  assertWalletPasswordArgs(args, "redeem-notes", ["noteId"], "--wallet, --password, and --note-id");
   parseNoteId(args.noteId);
 }
 
 function assertTransferNotesArgs(args) {
-  requireWalletName(args);
-  requireL2Password(args);
   requireArg(args.noteIds, "--note-ids");
   requireArg(args.recipients, "--recipients");
   requireArg(args.amounts, "--amounts");
-  const allowedKeys = new Set(["command", "positional", "wallet", "password", "noteIds", "recipients", "amounts"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `transfer-notes only accepts --wallet, --password, --note-ids, --recipients, and --amounts. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "transfer-notes does not accept positional arguments beyond the command name.",
+  assertWalletPasswordArgs(
+    args,
+    "transfer-notes",
+    ["noteIds", "recipients", "amounts"],
+    "--wallet, --password, --note-ids, --recipients, and --amounts",
   );
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
@@ -3329,51 +3071,11 @@ function assertTransferNotesArgs(args) {
 }
 
 function assertGetMyNotesArgs(args) {
-  requireWalletName(args);
-  requireL2Password(args);
-  const allowedKeys = new Set(["command", "positional", "wallet", "password"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `get-my-notes only accepts --wallet and --password. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "get-my-notes does not accept positional arguments beyond the command name.",
-  );
+  assertWalletPasswordArgs(args, "get-my-notes");
 }
 
 function assertGetChannelDepositArgs(args) {
-  requireWalletName(args);
-  requireL2Password(args);
-  const allowedKeys = new Set(["command", "positional", "wallet", "password"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `get-channel-deposit only accepts --wallet and --password. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "get-channel-deposit does not accept positional arguments beyond the command name.",
-  );
-}
-
-function createOperationDir(workspaceName, suffix) {
-  const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
-  const workspaceDir = channelWorkspacePath(workspaceName);
-  migrateWorkspaceIfNeeded(workspaceName);
-  const operationDir = path.join(
-    channelWorkspaceOperationsPath(workspaceDir),
-    `${timestamp}-${slugifyPathComponent(suffix)}`,
-  );
-  ensureDir(operationDir);
-  return operationDir;
+  assertWalletPasswordArgs(args, "get-channel-deposit");
 }
 
 function createWalletOperationDir(walletName, suffix) {
@@ -3385,10 +3087,6 @@ function createWalletOperationDir(walletName, suffix) {
   );
   ensureDir(operationDir);
   return operationDir;
-}
-
-function persistWorkspace(context) {
-  writeJson(channelWorkspaceConfigPath(context.workspaceDir), context.workspace);
 }
 
 function persistWallet(context) {
@@ -3602,16 +3300,12 @@ function loadEnv(envFile) {
 function loadWalletCommandRuntime(args) {
   const env = loadEnv(defaultEnvFile);
   const walletMetadata = loadWalletMetadata(requireWalletName(args));
-  const network = resolveCliNetwork(walletMetadata.network);
   const rpcUrl = deriveRpcUrl({
     networkName: walletMetadata.network,
     alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
     rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
   });
   return {
-    env,
-    walletMetadata,
-    network,
     provider: new JsonRpcProvider(rpcUrl),
   };
 }

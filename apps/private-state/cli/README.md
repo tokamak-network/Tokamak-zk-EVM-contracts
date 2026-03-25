@@ -5,10 +5,11 @@ This folder contains the terminal CLI for the private-state DApp.
 ## Structure
 
 - `private-state-bridge-cli.mjs`: the bridge-coupled L2 user workflow CLI
-- `workspaces/`: optional channel workspaces that cache reconstructed channel snapshots
-- `wallets/`: mandatory per-user wallets that track L2 identity, nonce, and note ledgers
+- `workspace/`: per-channel workspace roots
+- `workspace/<channel>/channel/`: channel state, snapshots, and channel-level operations
+- `workspace/<channel>/wallets/`: per-user wallets for that channel
 
-The CLI now assumes a clean-slate wallet model. Legacy CLI data is not reused.
+Legacy CLI data under the old `workspaces/` and `wallets/` roots is migrated into the new `workspace/` layout on access.
 
 The bridge-coupled CLI auto-selects the bridge deployment and ABI manifest from the chosen network, reconstructs or
 loads the channel state snapshot, maintains per-user note wallets, generates proofs, and submits the resulting bridge
@@ -73,12 +74,12 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   and `--amount`, and it calls the bridge `withdraw` path to move value from the channel L2 accounting vault back into
   the shared bridge-level `bridgeTokenVault`.
 - `recover-workspace` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the stored
-  `genesisBlockNumber` and writes it into `workspaces/<channel-name>/`.
+  `genesisBlockNumber` and writes it into `workspace/<channel-name>/channel/`.
 - `wallets` store per-user note plaintexts, classify notes into used vs unused sets, maintain aggregated
   unused-note balance, and keep a value-sorted unused-note order for efficient spend selection.
 - Channel workspaces remain optional as user-managed files, but every wallet-backed command that depends on a
-  `StateSnapshot` now materializes `workspaces/<channel-name>/` automatically when it is missing and then reruns from
-  that saved workspace.
+  `StateSnapshot` now materializes `workspace/<channel-name>/channel/` automatically when it is missing and then reruns
+  from that saved workspace.
 - Wallets are mandatory for note-carrying users. They are the authoritative local record for note plaintexts,
   note usage, and per-user L2 nonce.
 - Wallet folders are encrypted at rest. Only `register-channel` sets up L1/L2 keys in the active wallet.
@@ -97,9 +98,10 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `transfer-notes` maps the `--note-ids.length` and `--recipients.length` pair to `transferNotes1To1`,
   `transferNotes1To2`, or `transferNotes2To1`.
 - `mint-notes`, `redeem-notes`, `transfer-notes`, `deposit-channel`, `withdraw-channel`, `get-channel-deposit`, and
-  `get-my-notes` all follow the same workspace rule: if `workspaces/<channel-name>/` is missing, the CLI rebuilds it
-  through `recover-workspace` semantics, saves it, reloads it from disk, and only then runs the command. If the saved
-  workspace snapshot is stale, the CLI refreshes that workspace on disk and reruns from the refreshed saved workspace.
+  `get-my-notes` all follow the same workspace rule: if `workspace/<channel-name>/channel/` is missing, the CLI
+  rebuilds it through `recover-workspace` semantics, saves it, reloads it from disk, and only then runs the command.
+  If the saved workspace snapshot is stale, the CLI refreshes that workspace on disk and reruns from the refreshed
+  saved workspace.
 - For `mint-notes`, `redeem-notes`, and `transfer-notes`, a `tokamak-cli --verify` failure is also treated as a
   recoverable workspace issue. The CLI refreshes the saved workspace and retries once from that refreshed workspace.
 - After a successful `mint-notes`, the CLI stores the resulting note plaintexts in the encrypted wallet and updates the
@@ -109,7 +111,7 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - After a successful `transfer-notes`, the CLI updates both spent input notes and newly received output notes inside
   the sender's encrypted wallet and updates the saved channel workspace snapshot.
 - `transfer-notes` also prints the output note plaintext plus bridge commitment keys and writes those notes into
-  `apps/private-state/cli/wallets/<channelName>-<recipientL2Address>/incoming-notes.json`.
+  `apps/private-state/cli/workspace/<channel-name>/wallets/<channelName>-<recipientL2Address>/incoming-notes.json`.
 - The recipient's next wallet-backed command absorbs that inbox into the encrypted wallet and clears the inbox file.
 - `get-my-notes` reports both the wallet's local note classification and whether each note still matches the
   bridge-accepted controller state.
@@ -218,19 +220,19 @@ node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel \
 Channel-workspace caches live under:
 
 ```text
-apps/private-state/cli/workspaces/<workspace>/
+apps/private-state/cli/workspace/<workspace>/channel/
 ```
 
 Per-wallet operations and note ledgers live under:
 
 ```text
-apps/private-state/cli/wallets/<wallet>/
+apps/private-state/cli/workspace/<channel-name>/wallets/<wallet>/
 ```
 
 Each wallet is persisted as:
 
 ```text
-apps/private-state/cli/wallets/<wallet>/wallet.json
+apps/private-state/cli/workspace/<channel-name>/wallets/<wallet>/wallet.json
 ```
 
 `register-channel` fixes `<wallet>` to:
@@ -242,13 +244,13 @@ apps/private-state/cli/wallets/<wallet>/wallet.json
 Each wallet also stores unencrypted metadata as:
 
 ```text
-apps/private-state/cli/wallets/<wallet>/wallet.metadata.json
+apps/private-state/cli/workspace/<channel-name>/wallets/<wallet>/wallet.metadata.json
 ```
 
 Pending recipient transfers are staged as:
 
 ```text
-apps/private-state/cli/wallets/<wallet>/incoming-notes.json
+apps/private-state/cli/workspace/<channel-name>/wallets/<wallet>/incoming-notes.json
 ```
 
 That plaintext metadata includes only:

@@ -34,6 +34,8 @@ import {
 import {
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
+  workspaceDirForName as sharedWorkspaceDirForName,
+  workspaceWalletsDir as sharedWorkspaceWalletsDir,
   walletDirForName as sharedWalletDirForName,
   walletInboxPathForDir as sharedWalletInboxPathForDir,
   walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
@@ -79,8 +81,9 @@ const requiredTokamakSetupArtifacts = [
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
 const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
-const walletsRoot = path.resolve(appRoot, "cli", "wallets");
-const workspacesRoot = path.resolve(appRoot, "cli", "workspaces");
+const workspaceRoot = path.resolve(appRoot, "cli", "workspace");
+const legacyWorkspaceRoot = path.resolve(appRoot, "cli", "workspaces");
+const legacyWalletsRoot = path.resolve(appRoot, "cli", "wallets");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const dAppManagerAbi = [
   "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites) instanceLayout)[] functions) external",
@@ -592,6 +595,8 @@ function deriveParticipant(index, alias) {
 }
 
 function walletDirForName(walletName) {
+  const workspaceDir = sharedWorkspaceDirForName(workspaceRoot, channelName);
+  const walletsRoot = sharedWorkspaceWalletsDir(workspaceDir);
   return sharedWalletDirForName(walletsRoot, walletName);
 }
 
@@ -638,21 +643,20 @@ function assertBigIntEq(actual, expected, label) {
 
 function removeCliRunState() {
   cleanDir(outputRoot);
+  fs.rmSync(sharedWorkspaceDirForName(workspaceRoot, channelName), { recursive: true, force: true });
 
-  fs.rmSync(path.join(workspacesRoot, channelName), { recursive: true, force: true });
-
-  if (!fs.existsSync(walletsRoot)) {
+  fs.rmSync(sharedWorkspaceDirForName(legacyWorkspaceRoot, channelName), { recursive: true, force: true });
+  if (!fs.existsSync(legacyWalletsRoot)) {
     return;
   }
-
-  for (const entry of fs.readdirSync(walletsRoot, { withFileTypes: true })) {
+  for (const entry of fs.readdirSync(legacyWalletsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
     if (!entry.name.startsWith(`${channelName}-`)) {
       continue;
     }
-    fs.rmSync(path.join(walletsRoot, entry.name), { recursive: true, force: true });
+    fs.rmSync(path.join(legacyWalletsRoot, entry.name), { recursive: true, force: true });
   }
 }
 

@@ -1,0 +1,4 @@
+{
+  "network": "anvil",
+  "channelName": "private-state-cli-e2e"
+}

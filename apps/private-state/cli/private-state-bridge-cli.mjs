@@ -40,7 +40,11 @@ import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
+  parseWalletName,
   slugifyPathComponent,
+  workspaceChannelDir,
+  workspaceDirForName,
+  workspaceWalletsDir,
   walletDirForName,
   walletInboxPathForDir,
   walletMetadataPathForDir,
@@ -54,8 +58,9 @@ const appsRoot = path.resolve(projectRoot, "apps");
 const appRoot = path.resolve(projectRoot, "apps/private-state");
 const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
-const channelWorkspacesRoot = path.resolve(__dirname, "workspaces");
-const walletsRoot = path.resolve(__dirname, "wallets");
+const workspaceRoot = path.resolve(__dirname, "workspace");
+const legacyWorkspaceRoot = path.resolve(__dirname, "workspaces");
+const legacyWalletsRoot = path.resolve(__dirname, "wallets");
 const defaultEnvFile = path.resolve(appsRoot, ".env");
 const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
@@ -375,13 +380,18 @@ async function initializeChannelWorkspace({
   force,
   persist,
 }) {
+  migrateWorkspaceIfNeeded(workspaceName);
   const workspaceDir = channelWorkspacePath(workspaceName);
+  const channelDir = channelDataPath(workspaceDir);
+  const hasPersistedChannelData = fs.existsSync(channelWorkspaceConfigPath(workspaceDir))
+    || fs.existsSync(channelWorkspaceCurrentPath(workspaceDir))
+    || fs.existsSync(channelWorkspaceOperationsPath(workspaceDir));
 
-  if (persist && fs.existsSync(workspaceDir)) {
+  if (persist && hasPersistedChannelData) {
     if (!force) {
       throw new Error(`Workspace already exists: ${workspaceDir}. Use --force to overwrite.`);
     }
-    fs.rmSync(workspaceDir, { recursive: true, force: true });
+    fs.rmSync(channelDir, { recursive: true, force: true });
   }
 
   const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
@@ -479,15 +489,16 @@ async function initializeChannelWorkspace({
   };
 
   if (persist) {
-    ensureDir(workspaceDir);
-    ensureDir(path.join(workspaceDir, "current"));
-    ensureDir(path.join(workspaceDir, "operations"));
+    ensureDir(channelDir);
+    ensureDir(channelWorkspaceCurrentPath(workspaceDir));
+    ensureDir(channelWorkspaceOperationsPath(workspaceDir));
+    ensureDir(workspaceWalletsDir(workspaceDir));
 
-    writeJson(path.join(workspaceDir, "workspace.json"), workspace);
-    writeJson(path.join(workspaceDir, "current", "state_snapshot.json"), currentSnapshot);
-    writeJson(path.join(workspaceDir, "current", "state_snapshot.normalized.json"), normalizeStateSnapshot(currentSnapshot));
-    writeJson(path.join(workspaceDir, "current", "block_info.json"), blockInfo);
-    writeJson(path.join(workspaceDir, "current", "contract_codes.json"), contractCodes);
+    writeJson(channelWorkspaceConfigPath(workspaceDir), workspace);
+    writeJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"), currentSnapshot);
+    writeJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.normalized.json"), normalizeStateSnapshot(currentSnapshot));
+    writeJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"), blockInfo);
+    writeJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"), contractCodes);
   }
 
   return {
@@ -1839,10 +1850,11 @@ function parseRecipientVector(value) {
 
 function walletChannelWorkspaceIsReady(walletContext) {
   const workspaceDir = channelWorkspacePath(walletContext.wallet.channelName);
-  return fs.existsSync(path.join(workspaceDir, "workspace.json"))
-    && fs.existsSync(path.join(workspaceDir, "current", "state_snapshot.json"))
-    && fs.existsSync(path.join(workspaceDir, "current", "block_info.json"))
-    && fs.existsSync(path.join(workspaceDir, "current", "contract_codes.json"));
+  migrateWorkspaceIfNeeded(walletContext.wallet.channelName);
+  return fs.existsSync(channelWorkspaceConfigPath(workspaceDir))
+    && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"))
+    && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"))
+    && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"));
 }
 
 async function loadPreferredWalletChannelContext({ walletContext, provider }) {
@@ -2044,14 +2056,15 @@ async function executeWalletTemplateSend({
 async function loadWorkspaceContext(workspaceName, provider) {
   const normalizedWorkspaceName = requireWorkspaceName({ workspace: workspaceName });
   const workspaceDir = channelWorkspacePath(normalizedWorkspaceName);
-  const workspace = readJson(path.join(workspaceDir, "workspace.json"));
+  migrateWorkspaceIfNeeded(normalizedWorkspaceName);
+  const workspace = readJson(channelWorkspaceConfigPath(workspaceDir));
   const bridgeDeploymentPath = defaultBridgeDeploymentPath(workspace.chainId);
   const bridgeAbiManifestPath = defaultBridgeAbiManifestPath(workspace.chainId);
   const bridgeDeployment = readJson(bridgeDeploymentPath);
   const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
-  const currentSnapshot = normalizeStateSnapshot(readJson(path.join(workspaceDir, "current", "state_snapshot.json")));
-  const blockInfo = readJson(path.join(workspaceDir, "current", "block_info.json"));
-  const contractCodes = readJson(path.join(workspaceDir, "current", "contract_codes.json"));
+  const currentSnapshot = normalizeStateSnapshot(readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json")));
+  const blockInfo = readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"));
+  const contractCodes = readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"));
   const channelManager = new Contract(workspace.channelManager, bridgeAbiManifest.contracts.channelManager.abi, provider);
   const bridgeTokenVault = new Contract(
     workspace.bridgeTokenVault,
@@ -2077,7 +2090,8 @@ async function loadChannelContext({ args, networkName, provider, walletContext =
   const explicitWorkspaceName = args.workspace ? requireWorkspaceName(args) : null;
   if (explicitWorkspaceName) {
     const explicitWorkspaceDir = channelWorkspacePath(explicitWorkspaceName);
-    if (fs.existsSync(path.join(explicitWorkspaceDir, "workspace.json"))) {
+    migrateWorkspaceIfNeeded(explicitWorkspaceName);
+    if (fs.existsSync(channelWorkspaceConfigPath(explicitWorkspaceDir))) {
       return loadWorkspaceContext(explicitWorkspaceName, provider);
     }
   }
@@ -3011,11 +3025,83 @@ function requireL1Signer(args, env, provider) {
 }
 
 function channelWorkspacePath(name) {
-  return path.join(channelWorkspacesRoot, slugifyPathComponent(name));
+  return workspaceDirForName(workspaceRoot, name);
 }
 
 function walletPath(name) {
-  return walletDirForName(walletsRoot, name);
+  const walletName = String(name);
+  const { channelName } = parseWalletName(walletName);
+  const workspaceDir = channelWorkspacePath(channelName);
+  migrateWorkspaceIfNeeded(channelName);
+  migrateWalletIfNeeded(walletName, workspaceDir);
+  return walletDirForName(workspaceWalletsDir(workspaceDir), walletName);
+}
+
+function channelDataPath(workspaceDir) {
+  return workspaceChannelDir(workspaceDir);
+}
+
+function channelWorkspaceConfigPath(workspaceDir) {
+  return path.join(channelDataPath(workspaceDir), "workspace.json");
+}
+
+function channelWorkspaceCurrentPath(workspaceDir) {
+  return path.join(channelDataPath(workspaceDir), "current");
+}
+
+function channelWorkspaceOperationsPath(workspaceDir) {
+  return path.join(channelDataPath(workspaceDir), "operations");
+}
+
+function migrateWorkspaceIfNeeded(workspaceName) {
+  const workspaceDir = workspaceDirForName(workspaceRoot, workspaceName);
+  const channelDir = channelDataPath(workspaceDir);
+  const legacyWorkspaceDir = workspaceDirForName(legacyWorkspaceRoot, workspaceName);
+
+  if (!fs.existsSync(workspaceDir) && fs.existsSync(legacyWorkspaceDir)) {
+    ensureDir(path.dirname(workspaceDir));
+    fs.renameSync(legacyWorkspaceDir, workspaceDir);
+  }
+
+  if (!fs.existsSync(workspaceDir)) {
+    return;
+  }
+
+  const legacyWorkspaceJson = path.join(workspaceDir, "workspace.json");
+  const legacyCurrentDir = path.join(workspaceDir, "current");
+  const legacyOperationsDir = path.join(workspaceDir, "operations");
+  if (!fs.existsSync(legacyWorkspaceJson)
+    && !fs.existsSync(legacyCurrentDir)
+    && !fs.existsSync(legacyOperationsDir)) {
+    return;
+  }
+
+  ensureDir(channelDir);
+  if (fs.existsSync(legacyWorkspaceJson)) {
+    fs.renameSync(legacyWorkspaceJson, channelWorkspaceConfigPath(workspaceDir));
+  }
+  if (fs.existsSync(legacyCurrentDir)) {
+    fs.renameSync(legacyCurrentDir, channelWorkspaceCurrentPath(workspaceDir));
+  }
+  if (fs.existsSync(legacyOperationsDir)) {
+    fs.renameSync(legacyOperationsDir, channelWorkspaceOperationsPath(workspaceDir));
+  }
+}
+
+function migrateWalletIfNeeded(walletName, workspaceDir = null) {
+  const resolvedWorkspaceDir = workspaceDir ?? channelWorkspacePath(parseWalletName(walletName).channelName);
+  const targetWalletDir = walletDirForName(workspaceWalletsDir(resolvedWorkspaceDir), walletName);
+  if (fs.existsSync(targetWalletDir)) {
+    return;
+  }
+
+  const legacyWalletDir = walletDirForName(legacyWalletsRoot, walletName);
+  if (!fs.existsSync(legacyWalletDir)) {
+    return;
+  }
+
+  ensureDir(workspaceWalletsDir(resolvedWorkspaceDir));
+  fs.renameSync(legacyWalletDir, targetWalletDir);
 }
 
 function walletConfigPath(walletDir) {
@@ -3280,9 +3366,10 @@ function assertGetChannelDepositArgs(args) {
 
 function createOperationDir(workspaceName, suffix) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  const workspaceDir = channelWorkspacePath(workspaceName);
+  migrateWorkspaceIfNeeded(workspaceName);
   const operationDir = path.join(
-    channelWorkspacePath(workspaceName),
-    "operations",
+    channelWorkspaceOperationsPath(workspaceDir),
     `${timestamp}-${slugifyPathComponent(suffix)}`,
   );
   ensureDir(operationDir);
@@ -3301,7 +3388,7 @@ function createWalletOperationDir(walletName, suffix) {
 }
 
 function persistWorkspace(context) {
-  writeJson(path.join(context.workspaceDir, "workspace.json"), context.workspace);
+  writeJson(channelWorkspaceConfigPath(context.workspaceDir), context.workspace);
 }
 
 function persistWallet(context) {
@@ -3319,9 +3406,9 @@ function persistCurrentState(context) {
   if (!context.persistChannelWorkspace || !context.workspaceDir) {
     return;
   }
-  writeJson(path.join(context.workspaceDir, "current", "state_snapshot.json"), context.currentSnapshot);
+  writeJson(path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.json"), context.currentSnapshot);
   writeJson(
-    path.join(context.workspaceDir, "current", "state_snapshot.normalized.json"),
+    path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.normalized.json"),
     normalizeStateSnapshot(context.currentSnapshot),
   );
 }
@@ -3374,13 +3461,14 @@ Notes:
   - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
   - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.
   - get-my-notes requires --wallet and --password only. It reads local encrypted note state and verifies each note status against the current controller commitment/nullifier state accepted by the bridge.
-  - mint-notes, redeem-notes, and transfer-notes always run from the saved channel workspace under apps/private-state/cli/workspaces/<channel-name>/. If that workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, reloads it from disk, and then continues. A tokamak-cli --verify failure is also treated as recoverable once.
+  - mint-notes, redeem-notes, and transfer-notes always run from the saved channel workspace under apps/private-state/cli/workspace/<channel-name>/channel/. If that workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, reloads it from disk, and then continues. A tokamak-cli --verify failure is also treated as recoverable once.
   - redeem-notes updates both the encrypted wallet note sets and the saved channel workspace snapshot after success.
   - transfer-notes updates both the encrypted wallet note sets and the saved channel workspace snapshot after success.
-  - transfer-notes prints the output note plaintext and also writes each output note into the recipient wallet folder inbox apps/private-state/cli/wallets/<channelName>-<recipientL2Address>/incoming-notes.json.
+  - transfer-notes prints the output note plaintext and also writes each output note into the recipient wallet folder inbox apps/private-state/cli/workspace/<channel-name>/wallets/<channelName>-<recipientL2Address>/incoming-notes.json.
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
-  - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
+  - recover-workspace always writes into apps/private-state/cli/workspace/<channel-name>/channel/.
   - Channel workspaces remain optional as user-managed files, but wallet-backed snapshot commands now create or refresh them automatically before execution.
+  - Existing legacy apps/private-state/cli/workspaces/ and apps/private-state/cli/wallets/ entries are migrated into the new workspace layout on access.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - deposit-bridge only funds the shared bridge-level bridgeTokenVault.
   - withdraw-bridge requires --wallet, --password, and --amount only. It derives the network and signer keys from the local wallet and calls claimToWallet to move value from the shared bridge-level bridgeTokenVault back into Tokamak Network Token in the caller wallet.
@@ -3395,14 +3483,14 @@ Notes:
   - Once a wallet exists, get-bridge-deposit, withdraw-bridge, mint-notes, redeem-notes, and transfer-notes can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
   - withdraw-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and calls the bridge withdraw path to move value from the channel L2 accounting vault back into the shared L1 bridgeTokenVault.
-  - Every wallet-backed command that depends on a channel StateSnapshot first ensures apps/private-state/cli/workspaces/<channel-name>/ exists on disk. If the workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, saves it, reloads it from disk, and only then runs the command.
+  - Every wallet-backed command that depends on a channel StateSnapshot first ensures apps/private-state/cli/workspace/<channel-name>/channel/ exists on disk. If the workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, saves it, reloads it from disk, and only then runs the command.
   - Because recipient passwords are not available to the sender, transfer-notes cannot rewrite recipient wallet.json directly. It stores pending recipient notes in unencrypted inbox sidecars, and the recipient's next wallet-backed command absorbs that inbox into the encrypted wallet.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
   - Channel workspace operations are stored under:
-      apps/private-state/cli/workspaces/<workspace>/operations/
+      apps/private-state/cli/workspace/<workspace>/channel/operations/
   - Wallet operations are stored under:
-      apps/private-state/cli/wallets/<wallet>/operations/
+      apps/private-state/cli/workspace/<channel-name>/wallets/<wallet>/operations/
 `);
 }
 

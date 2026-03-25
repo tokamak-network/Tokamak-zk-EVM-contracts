@@ -50,6 +50,34 @@ export function walletNameForChannelAndAddress(channelName, l2Address) {
   return `${channelName}-${getAddress(l2Address)}`;
 }
 
+export function parseWalletName(walletName) {
+  const match = /^(.*)-(0x[a-fA-F0-9]{40})$/.exec(String(walletName));
+  if (!match || match[1].length === 0) {
+    throw new Error(
+      [
+        `Unable to derive the channel name from wallet ${walletName}.`,
+        "Expected the deterministic <channelName>-<l2Address> format.",
+      ].join(" "),
+    );
+  }
+  return {
+    channelName: match[1],
+    l2Address: getAddress(match[2]),
+  };
+}
+
+export function workspaceDirForName(workspaceRoot, workspaceName) {
+  return path.join(workspaceRoot, slugifyPathComponent(workspaceName));
+}
+
+export function workspaceChannelDir(workspaceDir) {
+  return path.join(workspaceDir, "channel");
+}
+
+export function workspaceWalletsDir(workspaceDir) {
+  return path.join(workspaceDir, "wallets");
+}
+
 export function walletDirForName(walletsRoot, walletName) {
   return path.join(walletsRoot, slugifyPathComponent(walletName));
 }

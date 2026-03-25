@@ -226,7 +226,7 @@ The matching `uninstall-zk-evm` entrypoint accepts no options and removes every 
 intact while the checked-out working tree contents are discarded.
 Every wallet-backed command that depends on a channel `StateSnapshot` now follows the same rule. If the channel
 workspace is missing, the CLI rebuilds it through `recover-workspace` semantics, saves it under
-`apps/private-state/cli/workspaces/<channel-name>/`, reloads it from disk, and only then runs the command. If the
+`apps/private-state/cli/workspace/<channel-name>/channel/`, reloads it from disk, and only then runs the command. If the
 saved workspace snapshot is stale, the CLI refreshes that saved workspace and reruns from the refreshed saved
 workspace. For `mint-notes`, `redeem-notes`, and `transfer-notes`, a `tokamak-cli --verify` failure is also treated as
 a recoverable workspace issue, so the CLI refreshes the saved workspace and retries once. `redeem-notes` and
@@ -240,6 +240,8 @@ The recipient's next wallet-backed command absorbs that inbox into the encrypted
 Channel workspaces remain optional as user-managed files, but wallet-backed snapshot commands now materialize and
 refresh those workspaces automatically before execution. Wallets remain mandatory because note plaintexts and
 note-spend history are not reconstructible from bridge events alone.
+Legacy CLI data under `apps/private-state/cli/workspaces/` and `apps/private-state/cli/wallets/` is migrated into the
+new `apps/private-state/cli/workspace/` layout on access.
 
 Examples:
 

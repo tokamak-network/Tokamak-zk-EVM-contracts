@@ -194,7 +194,7 @@ The CLI:
 - exposes direct wallet-backed note transfer through `transfer-notes`, which selects `transferNotes1To1`, `transferNotes1To2`, or `transferNotes2To1` from the note-id and recipient vector lengths
 - exposes wallet-backed note inspection through `get-my-notes`, including bridge-side status validation for each note
 - generates Groth and Tokamak proofs
-- submits bridge transactions for `deposit-bridge`, `register-channel`, `deposit-channel`, `withdraw-channel`, `withdraw`, `claim`, and DApp function execution
+- submits bridge transactions for `deposit-bridge`, `withdraw-bridge`, `register-channel`, `deposit-channel`, `withdraw-channel`, and the direct note commands
 
 The current CLI treats wallet storage as a clean-slate local model. Legacy CLI data is not reused.
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount and converted with the canonical
@@ -203,8 +203,8 @@ Every CLI `--password` input accepts any string. During `register-channel` and o
 a domain-separated password message with the user's L1 `--private-key` and derives the L2 private key from the
 resulting signature. `deposit-bridge` itself only funds the shared bridge-level `bridgeTokenVault`. `register-channel`
 performs the channel-specific L2 identity registration and is the only command that sets up the channel-specific wallet
-keys. `mint-notes`, `redeem-notes`, `transfer-notes`, and `bridge-send` update nonce and note state in an existing
-wallet, and that wallet file is encrypted with `scrypt + AES-256-GCM` under the given password.
+keys. `mint-notes`, `redeem-notes`, and `transfer-notes` update nonce and note state in an existing wallet, and that
+wallet file is encrypted with `scrypt + AES-256-GCM` under the given password.
 Each wallet directory also includes an unencrypted metadata file that stores only the target `network` and
 `channelName`.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other

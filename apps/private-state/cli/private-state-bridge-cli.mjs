@@ -71,7 +71,6 @@ async function main() {
   assertNoLegacyBridgeOverrideFlags(args);
   assertNoLegacyWalletFlags(args);
   assertNoLegacyL2IdentityFlags(args);
-  assertNoLegacyCommandNames(args);
 
   if (args.help || !args.command) {
     printHelp();
@@ -86,16 +85,6 @@ async function main() {
   if (args.command === "show-template") {
     requireFunctionName(args);
     printJson(loadTemplate(args.functionName));
-    return;
-  }
-
-  if (args.command === "workspace-list") {
-    printJson(listChannelWorkspaces());
-    return;
-  }
-
-  if (args.command === "channel-workspace-list") {
-    printJson(listChannelWorkspaces());
     return;
   }
 
@@ -266,13 +255,6 @@ async function main() {
     case "recover-workspace":
       await handleWorkspaceInit({ args, network, provider });
       return;
-    case "workspace-show":
-    case "channel-workspace-show":
-      handleWorkspaceShow(args);
-      return;
-    case "wallet-show":
-      await handleWalletShow({ args, env, provider });
-      return;
     case "deposit-bridge":
       await handleRegisterAndFund({ args, env, network, provider });
       return;
@@ -298,18 +280,6 @@ async function main() {
     case "register-channel":
       await handleRegisterChannel({ args, env, network, provider });
       return;
-    case "fund-l1":
-      await handleFundL1({ args, env, network, provider });
-      return;
-    case "withdraw":
-      await handleGrothVaultMove({ args, env, network, provider, direction: "withdraw" });
-      return;
-    case "claim":
-      await handleClaim({ args, env, network, provider });
-      return;
-    case "bridge-send":
-      await handleBridgeSend({ args, env, network, provider });
-      return;
     default:
       throw new Error(`Unsupported command: ${args.command}`);
   }
@@ -328,9 +298,6 @@ function assertNoLegacyWalletFlags(args) {
   if (args.userWorkspace !== undefined) {
     throw new Error("--user-workspace is no longer supported. Use --wallet instead.");
   }
-  if (args.command === "user-workspace-list" || args.command === "user-workspace-show") {
-    throw new Error("Legacy user-workspace commands are no longer supported.");
-  }
 }
 
 function assertNoLegacyL2IdentityFlags(args) {
@@ -339,18 +306,6 @@ function assertNoLegacyL2IdentityFlags(args) {
   }
   if (args.l2Password !== undefined) {
     throw new Error("--l2-password is no longer supported. Use --password instead.");
-  }
-}
-
-function assertNoLegacyCommandNames(args) {
-  if (args.command === "register-and-fund") {
-    throw new Error("register-and-fund is no longer supported. Use deposit-bridge instead.");
-  }
-  if (args.command === "deposit") {
-    throw new Error("deposit is no longer supported. Use deposit-channel instead.");
-  }
-  if (args.command === "channel-create") {
-    throw new Error("channel-create is no longer supported. Use create-channel instead.");
   }
 }
 
@@ -608,28 +563,6 @@ async function initializeChannelWorkspace({
     blockInfo,
     contractCodes,
   };
-}
-
-function handleWorkspaceShow(args) {
-  const workspaceName = requireWorkspaceName(args);
-  const workspaceDir = channelWorkspacePath(workspaceName);
-  printJson({
-    workspace: readJson(path.join(workspaceDir, "workspace.json")),
-    currentSnapshot: readJson(path.join(workspaceDir, "current", "state_snapshot.json")),
-  });
-}
-
-async function handleWalletShow({ args, env, provider }) {
-  const walletName = requireWalletName(args);
-  const walletContext = loadWallet(walletName, requireL2Password(args));
-  const canonicalAssetDecimals = Number(walletContext.wallet.canonicalAssetDecimals);
-  const spendSelection = args.amount
-    ? selectSpendableNotes(walletContext.wallet, parseTokenAmount(args.amount, canonicalAssetDecimals))
-    : null;
-  printJson({
-    wallet: sanitizeWalletForOutput(walletContext.wallet),
-    spendSelection,
-  });
 }
 
 async function handleRegisterAndFund({ args, env, network, provider }) {
@@ -968,37 +901,6 @@ async function handleRegisterChannel({ args, env, network, provider }) {
   });
 }
 
-async function handleFundL1({ args, env, network, provider }) {
-  const wallet = args.wallet ? loadWallet(requireWalletName(args), requireL2Password(args)) : null;
-  const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: wallet });
-  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
-  const amountInput = requireArg(args.amount, "--amount");
-  const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
-  const bridgeTokenVault = new Contract(
-    bridgeVaultContext.bridgeTokenVaultAddress,
-    bridgeVaultContext.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
-    signer,
-  );
-  const asset = new Contract(
-    bridgeVaultContext.canonicalAsset,
-    bridgeVaultContext.bridgeAbiManifest.contracts.erc20.abi,
-    signer,
-  );
-  const approveReceipt =
-    await waitForReceipt(await asset.approve(bridgeVaultContext.bridgeTokenVaultAddress, amount));
-  const fundReceipt = await waitForReceipt(await bridgeTokenVault.fund(amount));
-
-  printJson({
-    action: "fund-l1",
-    wallet: wallet?.walletName ?? null,
-    amountInput,
-    amountBaseUnits: amount.toString(),
-    bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
-    approveReceipt: sanitizeReceipt(approveReceipt),
-    fundReceipt: sanitizeReceipt(fundReceipt),
-  });
-}
-
 async function handleGrothVaultMove({ args, env, network, provider, direction }) {
   const walletOnlyMoveCommand = args.command === "deposit-channel" || args.command === "withdraw-channel";
   if (walletOnlyMoveCommand) {
@@ -1121,30 +1023,6 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
     amountBaseUnits: amount.toString(),
     currentRootVector: transition.update.currentRootVector,
     updatedRoot: transition.update.updatedRoot,
-  });
-}
-
-async function handleClaim({ args, env, provider }) {
-  const wallet = args.wallet ? loadWallet(requireWalletName(args), requireL2Password(args)) : null;
-  const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: wallet });
-  const chainId = Number((await provider.getNetwork()).chainId);
-  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
-  const amountInput = requireArg(args.amount, "--amount");
-  const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
-  const bridgeTokenVault = new Contract(
-    bridgeVaultContext.bridgeTokenVaultAddress,
-    bridgeVaultContext.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
-    signer,
-  );
-  const receipt = await waitForReceipt(await bridgeTokenVault.claimToWallet(amount));
-
-  printJson({
-    action: "claim",
-    wallet: wallet?.walletName ?? null,
-    amountInput,
-    amountBaseUnits: amount.toString(),
-    bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
-    receipt: sanitizeReceipt(receipt),
   });
 }
 
@@ -1353,49 +1231,6 @@ async function handleTransferNotes({ args, provider }) {
     outputNotes: templatePayload.args[1].map((note) => buildTrackedNote(note, templatePayload.method, execution.receipt.hash)),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
-    updatedRoots: execution.context.currentSnapshot.stateRoots,
-  });
-}
-
-async function handleBridgeSend({ args, env, provider }) {
-  requireFunctionName(args);
-  expect(
-    !/^mintNotes[1-6]$/.test(args.functionName),
-    "Mint functions are no longer exposed through bridge-send. Use mint-notes instead.",
-  );
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
-  const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: wallet });
-  const l2Identity = restoreParticipantIdentityFromWallet(wallet.wallet);
-  const context = await loadChannelContext({
-    args,
-    networkName: null,
-    provider,
-    walletContext: wallet,
-  });
-  await assertWorkspaceAlignedWithChain(context, provider);
-  const templatePayload = buildPayload(args.functionName, args);
-  if (args.installArg) {
-    run(tokamakCliPath, ["--install", args.installArg], { cwd: tokamakRoot });
-  }
-  const execution = await executeWalletTemplateSend({
-    wallet,
-    signer,
-    l2Identity,
-    context,
-    operationName: args.functionName,
-    functionName: args.functionName,
-    templatePayload,
-  });
-
-  printJson({
-    action: "bridge-send",
-    workspace: execution.context.workspaceName,
-    wallet: wallet.walletName,
-    functionName: args.functionName,
-    operationDir: execution.operationDir,
-    l1Submitter: execution.signer.address,
-    l2Address: execution.l2Identity.l2Address,
-    nonce: execution.nonce,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
 }
@@ -2315,22 +2150,10 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   };
 }
 
-function buildPayload(functionName, args) {
-  requireFunctionName(args);
-  const template = args.templateFile
-    ? readJson(resolveInputPath(args.templateFile))
-    : loadTemplate(functionName);
-
-  if (args.argsFile) {
-    template.args = readJson(resolveInputPath(args.argsFile));
-  }
-  return template;
-}
-
 function loadTemplate(functionName) {
   expect(
     !/^mintNotes[1-6]$/.test(functionName),
-    "Mint templates are no longer exposed through show-template or bridge-send. Use mint-notes instead.",
+    "Mint templates are no longer exposed through show-template. Use mint-notes instead.",
   );
   return readJson(path.resolve(functionsRoot, functionName, "calldata.json"));
 }
@@ -2900,8 +2723,6 @@ function parseArgs(argv) {
   parsed.command = parsed.positional[0];
   if (parsed.command === "show-template") {
     parsed.functionName = parsed.positional[1];
-  } else if (parsed.command === "bridge-send") {
-    parsed.functionName = parsed.positional[1];
   }
   return parsed;
 }
@@ -3213,20 +3034,6 @@ function assertGetChannelDepositArgs(args) {
   );
 }
 
-function listChannelWorkspaces() {
-  if (!fs.existsSync(channelWorkspacesRoot)) {
-    return [];
-  }
-  return fs.readdirSync(channelWorkspacesRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
-      const configPath = path.join(channelWorkspacesRoot, entry.name, "workspace.json");
-      return fs.existsSync(configPath)
-        ? readJson(configPath)
-        : { name: entry.name };
-    });
-}
-
 function slugify(value) {
   return String(value)
     .replace(/[^a-zA-Z0-9]+/g, "-")
@@ -3287,22 +3094,15 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes --wallet <name> --password <string> --note-id <commitment>
   node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes --wallet <name> --password <string> --note-ids '["0x..."]' --recipients '["0x..."]' --amounts '[1]'
   node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet <name> --password <string>
-  node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs wallet-show --wallet <name> --password <string> [--amount <tokens>]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --amount <tokens> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge --wallet <name> --password <string> --amount <tokens>
   node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit [--private-key <hex>] [--wallet <name> --password <string>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet <name> --password <string> --amount <tokens>
   node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel --wallet <name> --password <string> --amount <tokens>
-  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs claim [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> [--private-key <hex>] --password <string> [--args-file <path>] [--template-file <path>] [options]
 
 Common flags:
   --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia, anvil
@@ -3320,11 +3120,6 @@ recover-workspace options:
   --block-info-file <path>     Optional block_info.json override; must match the channel genesis block context
   --state-snapshot-file <path> Import an existing non-genesis snapshot
   --force                      Overwrite an existing workspace
-
-bridge-send options:
-  --install-arg <value>    Optional tokamak-cli --install input before synthesis/proving
-  --args-file <path>       JSON file whose value replaces template.args
-  --template-file <path>   Full JSON template override
 
 Notes:
   - install-zk-evm only accepts --rpc-url. Before running tokamak-cli --install, it fetches origin/dev in submodules/Tokamak-zk-EVM, switches to the local dev branch, fast-forwards it, and then runs the installer.
@@ -3349,15 +3144,14 @@ Notes:
   - get-channel-deposit requires --wallet and --password only. It derives the network and channel from the local wallet, requires the wallet's L2 identity to match the on-chain channel registration, and then reads the current channel L2 accounting balance bound to that registration.
   - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, channelTokenVault key, channelTokenVault leaf index, and local wallet keys for the selected channel.
   - register-channel is the only command that sets up wallet keys in the active wallet.
-  - mint-notes, redeem-notes, transfer-notes, and bridge-send update nonce and note state inside an existing wallet, but they do not set up wallet keys.
-  - Once a wallet exists, wallet-show, get-bridge-deposit, withdraw-bridge, fund-l1, claim, mint-notes, redeem-notes, transfer-notes, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
+  - mint-notes, redeem-notes, and transfer-notes update nonce and note state inside an existing wallet, but they do not set up wallet keys.
+  - Once a wallet exists, get-bridge-deposit, withdraw-bridge, mint-notes, redeem-notes, and transfer-notes can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
   - withdraw-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and calls the bridge withdraw path to move value from the channel L2 accounting vault back into the shared L1 bridgeTokenVault.
-  - register-channel and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
+  - register-channel can also use --password alone when a matching --wallet is present. Without a wallet, it still needs --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
-  - wallet-show requires an existing --wallet plus the matching --password.
   - Channel workspace operations are stored under:
       apps/private-state/cli/workspaces/<workspace>/operations/
   - Wallet operations are stored under:

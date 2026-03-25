@@ -41,10 +41,10 @@ Each `calldata.json` file follows this shape:
 }
 ```
 
-The bridge-coupled CLI reads a function's `calldata.json`, optionally replaces `args` through `--args-file` or
-replaces the full template through `--template-file`, auto-selects the bridge deployment and ABI manifest from the
-chosen network, reconstructs or loads the channel state snapshot, maintains per-user note wallets, generates
-proofs, and submits the resulting bridge transactions.
+The bridge-coupled CLI uses the function templates as operator-facing references through `list-functions` and
+`show-template`, auto-selects the bridge deployment and ABI manifest from the chosen network, reconstructs or loads the
+channel state snapshot, maintains per-user note wallets, generates proofs, and submits the resulting bridge
+transactions for the supported direct commands.
 
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount. The CLI converts it into base units
 with the canonical token `decimals()` for the selected channel.
@@ -82,12 +82,12 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   on-chain participant record. It accepts only `--wallet` and `--password`.
 - `get-channel-deposit` reads the current channel-level L2 accounting balance bound to the local wallet's registered
   `channelTokenVault` key. It accepts only `--wallet` and `--password`.
-- `mint-notes` directly mints one to six notes without going through `bridge-send`. It accepts only `--wallet`,
+- `mint-notes` directly mints one to six notes. It accepts only `--wallet`,
   `--password`, and `--amounts`, where `--amounts` is a JSON vector such as `'[1,2,3]'`.
-- `redeem-notes` directly executes `redeemNotes1` without going through `bridge-send`. It accepts only `--wallet`,
+- `redeem-notes` directly executes `redeemNotes1`. It accepts only `--wallet`,
   `--password`, and `--note-id`, where `--note-id` is a note commitment string from `get-my-notes`.
 - `transfer-notes` directly executes one of `transferNotes1To1`, `transferNotes1To2`, or `transferNotes2To1`
-  without going through `bridge-send`. It accepts only `--wallet`, `--password`, `--note-ids`, `--recipients`,
+  with only `--wallet`, `--password`, `--note-ids`, `--recipients`,
   and `--amounts`, where all three vector inputs are JSON arrays and `--amounts.length` must equal
   `--recipients.length`.
 - `get-my-notes` reads the local wallet's tracked note sets and checks each note's commitment/nullifier status against
@@ -133,16 +133,13 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `get-my-notes` reports both the wallet's local note classification and whether each note still matches the
   bridge-accepted controller state.
 - The `noteId` values consumed by `transfer-notes` are note commitments from `get-my-notes`.
-- `bridge-send` remains only for non-mint template-based calls. It still updates nonce and note state in an existing
-  wallet, and the CLI then needs only the matching `--password` to open or update that wallet.
-- `get-bridge-deposit`, `withdraw-bridge`, `fund-l1`, and `claim` can also recover the L1 signer from an existing
+- `get-bridge-deposit` and `withdraw-bridge` can also recover the L1 signer from an existing
   encrypted wallet when `--wallet` and `--password` are provided.
 - `is-channel-registered` also requires an existing wallet and derives its network and channel from that wallet.
 - `get-channel-deposit` also requires an existing wallet and fails unless the wallet's L2 identity matches the
   on-chain channel registration for the stored channel.
 - `deposit-channel` requires an existing wallet and derives its network, channel, and signer keys from that wallet.
 - `withdraw-channel` requires an existing wallet and derives its network, channel, and signer keys from that wallet.
-- `withdraw` can still reuse an existing wallet when one is provided, but it does not set up wallet keys.
 - The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
   cannot be opened without their own `--password`.
 

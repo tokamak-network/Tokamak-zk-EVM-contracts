@@ -8,6 +8,10 @@
 - Groth-backed L2 -> L1 withdrawal
 - Final ERC-20 claim on L1
 
+`run-bridge-private-state-cli-e2e.mjs` executes the same participant scenario through command-line entrypoints.
+It keeps bridge deployment, DApp registration, and canonical-asset minting in existing helper commands because the
+current private-state CLI intentionally starts at user-facing bridge and note flows rather than admin bootstrap flows.
+
 ## Scenario
 
 The harness uses three participants:
@@ -17,10 +21,13 @@ The harness uses three participants:
 3. `A` calls `transferNotes1To2` and splits its `3`-token note into:
    - `1` token to `B`
    - `2` tokens to `C`
+   The CLI harness then uses `import-notes` so `B` and `C` can accept the off-chain note plaintext that
+   `transfer-notes` emits.
 4. `B` calls `transferNotes2To1` and transfers:
    - its own `3`-token note
    - the `1`-token note received from `A`
    into one `4`-token note for `C`.
+   The CLI harness again uses `import-notes` so `C` can accept that received note before redeeming it.
 5. `C` redeems all notes. With the current Tokamak setup capacity, the harness realizes that as three `redeemNotes1` calls over:
    - the `2`-token note received directly from `A`
    - the `4`-token note received from `B`
@@ -31,6 +38,7 @@ The harness uses three participants:
 
 ```bash
 node apps/private-state/script/e2e/run-bridge-private-state-e2e.mjs
+node apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs
 ```
 
 Optional installation step:
@@ -38,6 +46,8 @@ Optional installation step:
 ```bash
 node apps/private-state/script/e2e/run-bridge-private-state-e2e.mjs \
   --install-arg <ALCHEMY_API_KEY|ALCHEMY_RPC_URL>
+node apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs \
+  --install-rpc-url <ALCHEMY_RPC_URL>
 ```
 
 Optional flag:
@@ -49,6 +59,10 @@ Optional flag:
 The harness writes step-by-step artifacts under:
 
 `apps/private-state/script/e2e/output/private-state-bridge-genesis`
+
+The CLI-driven harness writes its summary under:
+
+`apps/private-state/script/e2e/output/private-state-bridge-cli`
 
 That directory contains:
 

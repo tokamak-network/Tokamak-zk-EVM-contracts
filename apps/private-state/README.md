@@ -193,6 +193,7 @@ The CLI:
 - exposes direct wallet-backed note minting through `mint-notes`, which selects the underlying fixed-arity `mintNotes<N>` method from the amount-vector length
 - exposes direct wallet-backed note redemption through `redeem-notes`, which fixes the path to `redeemNotes1` and credits the wallet owner's L2 liquid balance
 - exposes direct wallet-backed note transfer through `transfer-notes`, which selects `transferNotes1To1`, `transferNotes1To2`, or `transferNotes2To1` from the note-id and recipient vector lengths
+- exposes explicit recipient-side note import through `import-notes`, which loads note plaintexts emitted by `transfer-notes` into the recipient wallet
 - exposes wallet-backed note inspection through `get-my-notes`, including bridge-side status validation for each note
 - generates Groth and Tokamak proofs
 - submits bridge transactions for `deposit-bridge`, `withdraw-bridge`, `register-channel`, `deposit-channel`, `withdraw-channel`, and the direct note commands
@@ -209,7 +210,8 @@ wallet file is encrypted with `scrypt + AES-256-GCM` under the given password.
 Each wallet directory also includes an unencrypted metadata file that stores only the target `network` and
 `channelName`.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other
-wallets.
+wallets. Recipient wallets therefore need an explicit `import-notes` step to accept note plaintext delivered by
+`transfer-notes`.
 The CLI accepts `anvil` only so end-to-end tests can drive the full workflow through the same user commands on a local
 chain. That allowance is for automated or operator-driven local testing, not for real user operation.
 The new `install-zk-evm` entrypoint accepts only `--rpc-url` and forwards it to the submodule `tokamak-cli --install`
@@ -224,7 +226,8 @@ intact while the checked-out working tree contents are discarded.
 When a ready channel workspace exists for the wallet channel, `mint-notes` tries that cached state snapshot first. If
 `tokamak-cli --verify` fails, the CLI refreshes the workspace through `recover-workspace` semantics and retries once.
 `redeem-notes` and `transfer-notes` use the same cached-workspace / recover-and-retry flow and update the encrypted
-wallet note sets after success.
+wallet note sets after success. `transfer-notes` prints the recipient note plaintext plus bridge commitment keys, and
+`import-notes` stores that handoff inside the recipient wallet.
 `get-my-notes` reads the wallet's stored note sets and checks each note against the current controller
 `commitmentExists/nullifierUsed` state accepted by the bridge. The note IDs consumed by `redeem-notes` and
 `transfer-notes` are the note commitments reported by `get-my-notes`.
@@ -238,6 +241,7 @@ Examples:
 ```bash
 cd apps/private-state
 make cli-list
+make e2e-bridge-cli
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template transferNotes1To1
 node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>

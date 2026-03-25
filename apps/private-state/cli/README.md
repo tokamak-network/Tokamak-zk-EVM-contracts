@@ -92,6 +92,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   with only `--wallet`, `--password`, `--note-ids`, `--recipients`,
   and `--amounts`, where all three vector inputs are JSON arrays and `--amounts.length` must equal
   `--recipients.length`.
+- `import-notes` imports off-chain note plaintexts into the selected wallet. It accepts only `--wallet`,
+  `--password`, and `--notes`, where `--notes` is a JSON array of note objects emitted by `transfer-notes`.
 - `get-my-notes` reads the local wallet's tracked note sets and checks each note's commitment/nullifier status against
   the current controller state accepted by the bridge. It accepts only `--wallet` and `--password`.
 - `register-channel` registers the caller's L2 address, L2 `channelTokenVault` key, and `channelTokenVault` leaf index in the selected channel.
@@ -132,6 +134,10 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   the channel workspace snapshot when that workspace exists.
 - After a successful `transfer-notes`, the CLI updates both spent input notes and newly received output notes inside
   the encrypted wallet and updates the channel workspace snapshot when that workspace exists.
+- `transfer-notes` also prints the output note plaintext plus bridge commitment keys so the recipient can import that
+  note through `import-notes`.
+- `import-notes` is the explicit recipient-side handoff step. The CLI cannot auto-refresh another wallet because that
+  wallet is encrypted under a different password.
 - `get-my-notes` reports both the wallet's local note classification and whether each note still matches the
   bridge-accepted controller state.
 - The `noteId` values consumed by `transfer-notes` are note commitments from `get-my-notes`.

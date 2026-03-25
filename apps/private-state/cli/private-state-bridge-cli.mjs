@@ -145,6 +145,12 @@ async function main() {
     return;
   }
 
+  if (args.command === "import-notes") {
+    assertImportNotesArgs(args);
+    await handleImportNotes({ args });
+    return;
+  }
+
   if (args.command === "transfer-notes") {
     assertTransferNotesArgs(args);
     const env = loadEnv(defaultEnvFile);
@@ -602,9 +608,10 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
     bridgeVaultContext.bridgeAbiManifest.contracts.erc20.abi,
     signer,
   );
+  let nextNonce = await provider.getTransactionCount(signer.address, "pending");
   const approveReceipt =
-    await waitForReceipt(await asset.approve(bridgeVaultContext.bridgeTokenVaultAddress, amount));
-  const fundReceipt = await waitForReceipt(await bridgeTokenVault.fund(amount));
+    await waitForReceipt(await asset.approve(bridgeVaultContext.bridgeTokenVaultAddress, amount, { nonce: nextNonce++ }));
+  const fundReceipt = await waitForReceipt(await bridgeTokenVault.fund(amount, { nonce: nextNonce++ }));
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
   printJson({
@@ -802,13 +809,18 @@ async function handleGetChannelDeposit({ args, env, network, provider }) {
   assertWalletMatchesMetadata(wallet, walletMetadata);
   const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
   const l2Identity = restoreParticipantIdentityFromWallet(wallet.wallet);
-  const context = await loadChannelContext({
-    args,
-    networkName: walletMetadata.network,
-    provider,
-    walletContext: wallet,
-  });
-  await assertWorkspaceAlignedWithChain(context);
+  let contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+  try {
+    await assertWorkspaceAlignedWithChain(contextResult.context);
+  } catch (error) {
+    if (!contextResult.usingWorkspaceCache || !isRecoverableWalletWorkspaceFailure(error)) {
+      throw error;
+    }
+    await recoverWalletChannelWorkspace({ walletContext: wallet, provider });
+    contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+    await assertWorkspaceAlignedWithChain(contextResult.context);
+  }
+  const context = contextResult.context;
 
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   expect(
@@ -993,7 +1005,15 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
     signer,
   );
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
-  expect(availableBalance > 0n, `No shared bridge-vault balance exists for ${signer.address}. Run deposit-bridge first.`);
+  if (direction === "deposit") {
+    expect(
+      availableBalance >= amount,
+      [
+        `Deposit amount ${amount.toString()} exceeds the shared bridge-vault balance`,
+        `${availableBalance.toString()} for ${signer.address}. Run deposit-bridge first.`,
+      ].join(" "),
+    );
+  }
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   expect(
     registration.exists,
@@ -1188,22 +1208,26 @@ async function handleGetMyNotes({ args, provider }) {
     typeof wallet.wallet.controller === "string" && wallet.wallet.controller.length > 0,
     `Wallet ${wallet.walletName} is missing the stored controller address.`,
   );
-
-  const controllerAbi = readJson(path.resolve(deployRoot, "PrivateStateController.callable-abi.json"));
-  const controller = new Contract(wallet.wallet.controller, controllerAbi, provider);
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
+  const { context } = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
     .map((commitment) => wallet.wallet.notes.unused[commitment])
     .filter(Boolean);
   const spentTrackedNotes = Object.values(wallet.wallet.notes.spent ?? {}).sort(compareNotesByValueDesc);
 
-  const unusedNotes = await Promise.all(
-    unusedTrackedNotes.map((note) => buildWalletNoteBridgeStatus({ note, controller, canonicalAssetDecimals })),
-  );
-  const spentNotes = await Promise.all(
-    spentTrackedNotes.map((note) => buildWalletNoteBridgeStatus({ note, controller, canonicalAssetDecimals })),
-  );
+  const unusedNotes = unusedTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
+    note,
+    currentSnapshot: context.currentSnapshot,
+    controllerAddress: wallet.wallet.controller,
+    canonicalAssetDecimals,
+  }));
+  const spentNotes = spentTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
+    note,
+    currentSnapshot: context.currentSnapshot,
+    controllerAddress: wallet.wallet.controller,
+    canonicalAssetDecimals,
+  }));
 
   const unusedTotal = unusedTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
   const spentTotal = spentTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
@@ -1275,10 +1299,48 @@ async function handleTransferNotes({ args, provider }) {
     recipients,
     amountInputs,
     amountBaseUnits: outputAmounts.map((value) => value.toString()),
-    outputNotes: templatePayload.args[1].map((note) => buildTrackedNote(note, templatePayload.method, execution.receipt.hash)),
+    outputNotes: buildLifecycleTrackedOutputs({
+      outputNotes: templatePayload.args[1],
+      sourceFunction: templatePayload.method,
+      sourceTxHash: execution.receipt.hash,
+      bridgeCommitmentKeys: execution.noteLifecycle.outputCommitmentKeys,
+    }),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
+  });
+}
+
+async function handleImportNotes({ args }) {
+  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
+  const importedNotes = parseImportedNoteVector(requireArg(args.notes, "--notes"));
+  const imported = [];
+
+  for (const note of importedNotes) {
+    const trackedNote = buildImportedTrackedNote(note);
+    expect(
+      trackedNote.owner === wallet.wallet.l2Address,
+      [
+        `Imported note owner ${trackedNote.owner} does not match wallet ${wallet.walletName}`,
+        `owner ${wallet.wallet.l2Address}.`,
+      ].join(" "),
+    );
+    const existingSpent = wallet.wallet.notes.spent[trackedNote.nullifier];
+    if (existingSpent) {
+      throw new Error(`Cannot import note ${trackedNote.commitment} because it is already marked spent in the wallet.`);
+    }
+    wallet.wallet.notes.unused[trackedNote.commitment] = trackedNote;
+    imported.push(trackedNote);
+  }
+
+  wallet.wallet = normalizeWallet(wallet.wallet);
+  persistWallet(wallet);
+
+  printJson({
+    action: "import-notes",
+    wallet: wallet.walletName,
+    importedCount: imported.length,
+    importedNotes: imported,
   });
 }
 
@@ -1405,12 +1467,27 @@ function normalizeTrackedNote(note) {
     status: note.status,
     sourceFunction: note.sourceFunction ?? null,
     sourceTxHash: note.sourceTxHash ?? null,
+    bridgeCommitmentKey: note.bridgeCommitmentKey ? normalizeBytes32Hex(note.bridgeCommitmentKey) : null,
+    bridgeNullifierKey: note.bridgeNullifierKey ? normalizeBytes32Hex(note.bridgeNullifierKey) : null,
   };
 }
 
-async function buildWalletNoteBridgeStatus({ note, controller, canonicalAssetDecimals }) {
-  const commitmentExists = Boolean(await controller.commitmentExists(note.commitment));
-  const nullifierUsed = Boolean(await controller.nullifierUsed(note.nullifier));
+function buildWalletNoteBridgeStatus({
+  note,
+  currentSnapshot,
+  controllerAddress,
+  canonicalAssetDecimals,
+}) {
+  const commitmentExists = readBooleanStorageValueFromSnapshot({
+    snapshot: currentSnapshot,
+    storageAddress: controllerAddress,
+    storageKey: note.bridgeCommitmentKey,
+  });
+  const nullifierUsed = readBooleanStorageValueFromSnapshot({
+    snapshot: currentSnapshot,
+    storageAddress: controllerAddress,
+    storageKey: note.bridgeNullifierKey,
+  });
   const expectedNullifierUsed = note.status === "spent";
   return {
     owner: note.owner,
@@ -1427,6 +1504,25 @@ async function buildWalletNoteBridgeStatus({ note, controller, canonicalAssetDec
   };
 }
 
+function readBooleanStorageValueFromSnapshot({ snapshot, storageAddress, storageKey }) {
+  if (!storageKey) {
+    return false;
+  }
+  const normalizedAddress = getAddress(storageAddress);
+  const addressIndex = snapshot.storageAddresses.findIndex(
+    (entry) => getAddress(entry) === normalizedAddress,
+  );
+  expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
+
+  const entry = snapshot.storageEntries[addressIndex]?.find(
+    (item) => normalizeBytes32Hex(item.key) === normalizeBytes32Hex(storageKey),
+  );
+  if (!entry) {
+    return false;
+  }
+  return BigInt(entry.value) !== 0n;
+}
+
 function compareNotesByValueDesc(left, right) {
   const leftValue = BigInt(left.value);
   const rightValue = BigInt(right.value);
@@ -1436,7 +1532,7 @@ function compareNotesByValueDesc(left, right) {
   return leftValue > rightValue ? -1 : 1;
 }
 
-function buildTrackedNote(note, sourceFunction, sourceTxHash) {
+function buildTrackedNote(note, sourceFunction, sourceTxHash, bridgeKeys = {}) {
   const normalizedNote = normalizePlaintextNote(note);
   return {
     ...normalizedNote,
@@ -1445,7 +1541,44 @@ function buildTrackedNote(note, sourceFunction, sourceTxHash) {
     status: "unused",
     sourceFunction,
     sourceTxHash,
+    bridgeCommitmentKey: bridgeKeys.bridgeCommitmentKey
+      ? normalizeBytes32Hex(bridgeKeys.bridgeCommitmentKey)
+      : null,
+    bridgeNullifierKey: bridgeKeys.bridgeNullifierKey
+      ? normalizeBytes32Hex(bridgeKeys.bridgeNullifierKey)
+      : null,
   };
+}
+
+function buildLifecycleTrackedOutputs({
+  outputNotes,
+  sourceFunction,
+  sourceTxHash,
+  bridgeCommitmentKeys,
+}) {
+  return (outputNotes ?? []).map((note, index) => buildTrackedNote(note, sourceFunction, sourceTxHash, {
+    bridgeCommitmentKey: bridgeCommitmentKeys?.[index] ?? null,
+  }));
+}
+
+function buildImportedTrackedNote(note) {
+  const trackedNote = buildTrackedNote(note, note.sourceFunction ?? null, note.sourceTxHash ?? null, {
+    bridgeCommitmentKey: note.bridgeCommitmentKey ?? null,
+    bridgeNullifierKey: note.bridgeNullifierKey ?? null,
+  });
+  if (note.commitment !== undefined) {
+    expect(
+      normalizeBytes32Hex(note.commitment) === trackedNote.commitment,
+      `Imported note commitment mismatch for ${trackedNote.commitment}.`,
+    );
+  }
+  if (note.nullifier !== undefined) {
+    expect(
+      normalizeBytes32Hex(note.nullifier) === trackedNote.nullifier,
+      `Imported note nullifier mismatch for ${trackedNote.commitment}.`,
+    );
+  }
+  return trackedNote;
 }
 
 function normalizePlaintextNote(note) {
@@ -1499,8 +1632,40 @@ function extractNoteLifecycle(functionName, templatePayload) {
   };
 }
 
+function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, controllerAddress, lifecycle }) {
+  const previousEntries = snapshotStorageEntriesForAddress(previousSnapshot, controllerAddress);
+  const previousKeys = new Set(previousEntries.map((entry) => normalizeBytes32Hex(entry.key)));
+  const newKeys = snapshotStorageEntriesForAddress(nextSnapshot, controllerAddress)
+    .map((entry) => normalizeBytes32Hex(entry.key))
+    .filter((key) => !previousKeys.has(key));
+  const inputCount = lifecycle.inputs.length;
+  const outputCount = lifecycle.outputs.length;
+  const expectedNewKeyCount = inputCount + outputCount;
+  expect(
+    newKeys.length >= expectedNewKeyCount,
+    [
+      "The controller snapshot delta did not expose enough new storage keys",
+      `for ${inputCount} input note(s) and ${outputCount} output note(s).`,
+    ].join(" "),
+  );
+  return {
+    ...lifecycle,
+    inputNullifierKeys: newKeys.slice(0, inputCount),
+    outputCommitmentKeys: newKeys.slice(inputCount, inputCount + outputCount),
+  };
+}
+
+function snapshotStorageEntriesForAddress(snapshot, storageAddress) {
+  const normalizedAddress = getAddress(storageAddress);
+  const addressIndex = snapshot.storageAddresses.findIndex(
+    (entry) => getAddress(entry) === normalizedAddress,
+  );
+  expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
+  return snapshot.storageEntries[addressIndex] ?? [];
+}
+
 function applyNoteLifecycleToWallet(walletContext, lifecycle, sourceFunction, sourceTxHash) {
-  for (const inputNote of lifecycle.inputs) {
+  for (const [index, inputNote] of lifecycle.inputs.entries()) {
     const trackedInput = buildTrackedNote(inputNote, sourceFunction, sourceTxHash);
     const existingUnusedNote = walletContext.wallet.notes.unused[trackedInput.commitment];
     if (!existingUnusedNote) {
@@ -1512,11 +1677,14 @@ function applyNoteLifecycleToWallet(walletContext, lifecycle, sourceFunction, so
       status: "spent",
       sourceFunction,
       sourceTxHash,
+      bridgeNullifierKey: lifecycle.inputNullifierKeys?.[index] ?? existingUnusedNote.bridgeNullifierKey ?? null,
     };
   }
 
-  for (const outputNote of lifecycle.outputs) {
-    const trackedOutput = buildTrackedNote(outputNote, sourceFunction, sourceTxHash);
+  for (const [index, outputNote] of lifecycle.outputs.entries()) {
+    const trackedOutput = buildTrackedNote(outputNote, sourceFunction, sourceTxHash, {
+      bridgeCommitmentKey: lifecycle.outputCommitmentKeys?.[index] ?? null,
+    });
     if (trackedOutput.owner !== walletContext.wallet.l2Address) {
       continue;
     }
@@ -1558,7 +1726,7 @@ function buildMintOutputNotes({ owner, values }) {
   return values.map((value) => ({
     owner: getAddress(owner),
     value: BigInt(value).toString(),
-    salt: ethers.hexlify(randomBytes(32)),
+    salt: generateNoteSalt(),
   }));
 }
 
@@ -1567,7 +1735,7 @@ function buildTransferNotesTemplatePayload({ inputNotes, recipients, outputAmoun
   const outputs = recipients.map((recipient, index) => ({
     owner: getAddress(recipient),
     value: BigInt(outputAmounts[index]).toString(),
-    salt: ethers.hexlify(randomBytes(32)),
+    salt: generateNoteSalt(),
   }));
   return {
     abiFile: "../deploy/PrivateStateController.callable-abi.json",
@@ -1587,6 +1755,12 @@ function selectTransferNotesMethod(inputCount, outputCount) {
     return "transferNotes2To1";
   }
   throw new Error("transfer-notes supports only 1->1, 1->2, and 2->1 note transfers.");
+}
+
+function generateNoteSalt() {
+  const raw = BigInt(ethers.hexlify(randomBytes(32)));
+  const normalized = (raw % (BLS12_381_SCALAR_FIELD_MODULUS - 1n)) + 1n;
+  return bytes32FromHex(ethers.toBeHex(normalized));
 }
 
 function loadTransferInputNotes(walletContext, noteIds) {
@@ -1673,6 +1847,24 @@ function parseRecipientVector(value) {
       `Invalid --recipients[${index}]. Each recipient must be a non-empty address string.`,
     );
     return getAddress(entry);
+  });
+}
+
+function parseImportedNoteVector(value) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(value));
+  } catch {
+    throw new Error("Invalid --notes. Expected a JSON array of tracked notes.");
+  }
+  expect(Array.isArray(parsed), "Invalid --notes. Expected a JSON array.");
+  expect(parsed.length > 0, "Invalid --notes. The array must not be empty.");
+  return parsed.map((entry, index) => {
+    expect(entry && typeof entry === "object" && !Array.isArray(entry), `Invalid --notes[${index}]. Each note must be an object.`);
+    expect(typeof entry.owner === "string" && entry.owner.length > 0, `Invalid --notes[${index}]. Missing owner.`);
+    expect(entry.value !== undefined && entry.value !== null, `Invalid --notes[${index}]. Missing value.`);
+    expect(typeof entry.salt === "string" && entry.salt.length > 0, `Invalid --notes[${index}]. Missing salt.`);
+    return entry;
   });
 }
 
@@ -1829,6 +2021,12 @@ async function executeWalletTemplateSend({
   writeJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
   const payload = loadTokamakPayloadFromStep(operationDir);
+  const noteLifecycle = extractControllerStorageDelta({
+    previousSnapshot: context.currentSnapshot,
+    nextSnapshot,
+    controllerAddress: context.workspace.controller,
+    lifecycle: extractNoteLifecycle(functionName, templatePayload),
+  });
   const aPubBlockHash = hashTokamakPublicInputs(payload.aPubBlock);
   expect(
     normalizeBytes32Hex(aPubBlockHash) === normalizeBytes32Hex(context.workspace.aPubBlockHash),
@@ -1849,7 +2047,7 @@ async function executeWalletTemplateSend({
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), nextSnapshot);
 
   wallet.wallet.l2Nonce = nonce + 1;
-  applyNoteLifecycleToWallet(wallet, extractNoteLifecycle(functionName, templatePayload), functionName, receipt.hash);
+  applyNoteLifecycleToWallet(wallet, noteLifecycle, functionName, receipt.hash);
   context.currentSnapshot = nextSnapshot;
   persistWallet(wallet);
   persistCurrentState(context);
@@ -1860,6 +2058,7 @@ async function executeWalletTemplateSend({
     signer,
     l2Identity,
     context,
+    noteLifecycle,
     nonce,
     operationDir,
     receipt,
@@ -2044,7 +2243,7 @@ function restoreParticipantIdentityFromWallet(wallet) {
 }
 
 function resolveWalletBackedSigner({ args, env, provider, walletContext }) {
-  if (args.privateKey !== undefined || env.APPS_DEPLOYER_PRIVATE_KEY) {
+  if (args.privateKey !== undefined) {
     const signer = requireL1Signer(args, env, provider);
     if (walletContext?.wallet?.l1Address) {
       expect(
@@ -2056,6 +2255,9 @@ function resolveWalletBackedSigner({ args, env, provider, walletContext }) {
   }
   if (walletContext?.wallet?.l1PrivateKey) {
     return new Wallet(normalizePrivateKey(walletContext.wallet.l1PrivateKey), provider);
+  }
+  if (env.APPS_DEPLOYER_PRIVATE_KEY) {
+    return requireL1Signer(args, env, provider);
   }
   throw new Error("Missing --private-key and no encrypted L1 private key is available in the selected wallet.");
 }
@@ -2156,9 +2358,11 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
+  const currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
 
   await stateManager.putStorage(vaultAddressObj, hexToBytes(keyHex), hexToBytes(bigintToHex32(nextValue)));
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
+  const nextSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
 
   const input = {
     root_before: currentRoot.toString(),
@@ -2186,14 +2390,14 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
     publicSignals,
     proof: toGrothSolidityProof(proofJson),
     update: {
-      currentRootVector: normalizeStateSnapshot(await stateManager.captureStateSnapshot()).stateRoots,
+      currentRootVector: currentSnapshot.stateRoots,
       updatedRoot: bytes32FromBigInt(updatedRoot),
       currentUserKey: bytes32FromHex(keyHex),
       currentUserValue: currentValue,
       updatedUserKey: bytes32FromHex(keyHex),
       updatedUserValue: nextValue,
     },
-    nextSnapshot: normalizeStateSnapshot(await stateManager.captureStateSnapshot()),
+    nextSnapshot,
   };
 }
 
@@ -2293,11 +2497,11 @@ function formatScalar(type, value) {
   return String(value);
 }
 
-function run(command, args, { cwd = projectRoot, env = process.env } = {}) {
+function run(command, args, { cwd = projectRoot, env = process.env, quiet = false } = {}) {
   const result = spawnSync(command, args, {
     cwd,
     env,
-    stdio: "inherit",
+    stdio: quiet ? ["ignore", "ignore", "ignore"] : "inherit",
   });
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(" ")} failed with exit code ${result.status ?? "unknown"}.`);
@@ -2330,18 +2534,31 @@ function runCast(args) {
 }
 
 function runTokamakProofPipeline({ operationDir, bundlePath }) {
-  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", operationDir], { cwd: tokamakRoot });
-  run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot });
-  run(tokamakCliPath, ["--prove"], { cwd: tokamakRoot });
-  run(tokamakCliPath, ["--extract-proof", bundlePath], { cwd: tokamakRoot });
-  run(tokamakCliPath, ["--verify", bundlePath], { cwd: tokamakRoot });
-  copyTokamakArtifacts(operationDir);
+  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", operationDir], { cwd: tokamakRoot, quiet: true });
+  run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot, quiet: true });
+  run(tokamakCliPath, ["--prove"], { cwd: tokamakRoot, quiet: true });
+  run(tokamakCliPath, ["--extract-proof", bundlePath], { cwd: tokamakRoot, quiet: true });
+  run(tokamakCliPath, ["--verify", bundlePath], { cwd: tokamakRoot, quiet: true });
+  copyTokamakOperationArtifacts(operationDir);
 }
 
-function copyTokamakArtifacts(operationDir) {
+function copyTokamakOperationArtifacts(operationDir) {
   const resourceRoot = path.join(operationDir, "resource");
   fs.rmSync(resourceRoot, { recursive: true, force: true });
-  fs.cpSync(path.join(tokamakRoot, "dist", "resource"), resourceRoot, { recursive: true });
+
+  const requiredFiles = [
+    ["preprocess", "output", "preprocess.json"],
+    ["prove", "output", "proof.json"],
+    ["synthesizer", "output", "instance.json"],
+    ["synthesizer", "output", "state_snapshot.json"],
+  ];
+
+  for (const segments of requiredFiles) {
+    const sourcePath = path.join(tokamakRoot, "dist", "resource", ...segments);
+    const targetPath = path.join(resourceRoot, ...segments);
+    ensureDir(path.dirname(targetPath));
+    fs.copyFileSync(sourcePath, targetPath);
+  }
 }
 
 function loadTokamakPayloadFromStep(operationDir) {
@@ -3063,6 +3280,26 @@ function assertTransferNotesArgs(args) {
   selectTransferNotesMethod(noteIds.length, recipients.length);
 }
 
+function assertImportNotesArgs(args) {
+  requireWalletName(args);
+  requireL2Password(args);
+  requireArg(args.notes, "--notes");
+  const allowedKeys = new Set(["command", "positional", "wallet", "password", "notes"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `import-notes only accepts --wallet, --password, and --notes. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "import-notes does not accept positional arguments beyond the command name.",
+  );
+  parseImportedNoteVector(args.notes);
+}
+
 function assertGetMyNotesArgs(args) {
   requireWalletName(args);
   requireL2Password(args);
@@ -3158,6 +3395,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet <name> --password <string> --amounts '[1,2,3]'
   node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes --wallet <name> --password <string> --note-id <commitment>
   node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes --wallet <name> --password <string> --note-ids '["0x..."]' --recipients '["0x..."]' --amounts '[1]'
+  node apps/private-state/cli/private-state-bridge-cli.mjs import-notes --wallet <name> --password <string> --notes '[{"owner":"0x...","value":"1","salt":"0x..."}]'
   node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --amount <tokens> [options]
@@ -3195,10 +3433,12 @@ Notes:
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
   - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
   - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.
+  - import-notes requires --wallet, --password, and --notes only. It imports off-chain note plaintext into the selected wallet so recipients can spend notes delivered by transfer-notes.
   - get-my-notes requires --wallet and --password only. It reads local encrypted note state and verifies each note status against the current controller commitment/nullifier state accepted by the bridge.
   - If a ready channel workspace exists for the wallet channel, mint-notes tries that cached state first. If tokamak-cli --verify fails, the CLI refreshes the channel workspace through recover-workspace semantics and retries once.
   - redeem-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
   - transfer-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
+  - transfer-notes prints the output note plaintext so it can be delivered off-chain and imported into recipient wallets with import-notes.
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
@@ -3351,7 +3591,14 @@ function normalizePrivateKey(value) {
 }
 
 function printJson(value) {
-  console.log(JSON.stringify(value, null, 2));
+  const output = `${JSON.stringify(value, null, 2)}\n`;
+  const outputPath = process.env.PRIVATE_STATE_CLI_JSON_OUTPUT?.trim();
+  if (outputPath) {
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, output);
+    return;
+  }
+  console.log(output.trimEnd());
 }
 
 function shortAddress(address) {

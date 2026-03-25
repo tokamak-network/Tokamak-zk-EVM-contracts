@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-24T16:04:21.690Z",
+  "generatedAt": "2026-03-25T09:47:25.298Z",
   "tokamakSubmodule": {
     "path": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM",
     "branch": "dev",
@@ -36,7 +36,7 @@
       "mtDepth": 12,
       "constraintCount": 15596,
       "powersOfTauPower": 14,
-      "generatedAt": "2026-03-24T15:36:29.228Z",
+      "generatedAt": "2026-03-25T07:52:06.444Z",
       "note": "This is a local deterministic development ceremony, not a production multi-party ceremony.",
       "phase1Contributions": 1,
       "phase2Contributions": 1,

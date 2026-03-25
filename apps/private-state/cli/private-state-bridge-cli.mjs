@@ -697,11 +697,14 @@ async function handleGetBridgeDeposit({ args, env, network, provider }) {
 
 async function handleInstallZkEvm({ args }) {
   const rpcUrl = requireInstallRpcUrl(args);
+  const syncedDevCommit = syncTokamakSubmoduleToLatestDev();
   run(tokamakCliPath, ["--install", rpcUrl], { cwd: tokamakRoot });
   printJson({
     action: "install-zk-evm",
     rpcUrl,
     tokamakCli: tokamakCliPath,
+    syncedBranch: "dev",
+    syncedCommit: syncedDevCommit,
   });
 }
 
@@ -730,6 +733,50 @@ async function handleUninstallZkEvm() {
     removedEntriesCount: removedEntries.length,
     removedEntries,
   });
+}
+
+function syncTokamakSubmoduleToLatestDev() {
+  expect(fs.existsSync(tokamakRoot), `Tokamak zk-EVM submodule path does not exist: ${tokamakRoot}.`);
+  expect(
+    fs.existsSync(path.join(tokamakRoot, ".git")),
+    `Tokamak zk-EVM submodule metadata is missing at ${path.join(tokamakRoot, ".git")}.`,
+  );
+
+  const porcelainStatus = runGitInTokamak(["status", "--porcelain"]).trim();
+  const canRestoreClearedWorktree = porcelainStatus.length > 0 && isTokamakWorktreeDeletionOnly(porcelainStatus);
+  expect(
+    porcelainStatus.length === 0 || canRestoreClearedWorktree,
+    [
+      "Tokamak zk-EVM submodule has uncommitted changes.",
+      "Clean submodules/Tokamak-zk-EVM before install-zk-evm so the CLI can fast-forward dev safely.",
+    ].join(" "),
+  );
+
+  runGitInTokamak(["fetch", "origin", "dev"]);
+
+  try {
+    runGitInTokamak(["switch", "dev"]);
+  } catch {
+    runGitInTokamak(["switch", "--track", "origin/dev"]);
+  }
+
+  if (canRestoreClearedWorktree) {
+    runGitInTokamak(["restore", "--source", "origin/dev", "--staged", "--worktree", "."]);
+  }
+
+  runGitInTokamak(["pull", "--ff-only", "origin", "dev"]);
+  return runGitInTokamak(["rev-parse", "HEAD"]).trim();
+}
+
+function isTokamakWorktreeDeletionOnly(porcelainStatus) {
+  return porcelainStatus
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .every((line) => {
+      const x = line[0];
+      const y = line[1];
+      return (x === " " || x === "D") && (y === " " || y === "D") && (x === "D" || y === "D");
+    });
 }
 
 async function handleIsChannelRegistered({ args, env, network, provider }) {
@@ -2387,6 +2434,20 @@ function run(command, args, { cwd = projectRoot, env = process.env } = {}) {
   }
 }
 
+function runGitInTokamak(args) {
+  const result = spawnSync("git", args, {
+    cwd: tokamakRoot,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    const stderr = result.stderr?.trim();
+    const stdout = result.stdout?.trim();
+    const detail = stderr || stdout || `exit code ${result.status ?? "unknown"}`;
+    throw new Error(`git ${args.join(" ")} failed in ${tokamakRoot}: ${detail}`);
+  }
+  return result.stdout ?? "";
+}
+
 function runCast(args) {
   const result = spawnSync("cast", args, {
     cwd: projectRoot,
@@ -3265,7 +3326,7 @@ bridge-send options:
   --template-file <path>   Full JSON template override
 
 Notes:
-  - install-zk-evm only accepts --rpc-url and forwards it to tokamak-cli --install.
+  - install-zk-evm only accepts --rpc-url. Before running tokamak-cli --install, it fetches origin/dev in submodules/Tokamak-zk-EVM, switches to the local dev branch, fast-forwards it, and then runs the installer.
   - install-zk-evm requires an Alchemy Ethereum RPC URL because the current tokamak-cli installer only accepts Alchemy mainnet or sepolia URLs.
   - uninstall-zk-evm accepts no options and removes every file and directory inside submodules/Tokamak-zk-EVM except the submodule's .git pointer file.
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.

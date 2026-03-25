@@ -212,6 +212,9 @@ wallets.
 The new `install-zk-evm` entrypoint accepts only `--rpc-url` and forwards it to the submodule `tokamak-cli --install`
 flow. Because the current `tokamak-cli` installer only accepts Alchemy Ethereum RPC URLs and derives an API key from
 that URL, `install-zk-evm` validates the same constraint instead of pretending that an arbitrary RPC endpoint will work.
+Before it runs the installer, it fetches `origin/dev` inside `submodules/Tokamak-zk-EVM`, switches to the local `dev`
+branch, and fast-forwards that branch to the latest remote commit. If the submodule has local changes other than the
+cleared-worktree state produced by `uninstall-zk-evm`, the command fails instead of overwriting them.
 The matching `uninstall-zk-evm` entrypoint accepts no options and removes every file and directory inside
 `submodules/Tokamak-zk-EVM/` except the submodule root `.git` pointer file, so the parent-repo submodule entry remains
 intact while the checked-out working tree contents are discarded.

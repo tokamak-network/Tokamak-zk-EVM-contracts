@@ -108,6 +108,10 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - Wallet folders are encrypted at rest. Only `register-channel` sets up L1/L2 keys in the active wallet.
 - `install-zk-evm` currently requires an Alchemy Ethereum RPC URL, because the underlying `tokamak-cli --install`
   implementation only accepts Alchemy mainnet or sepolia URLs and extracts the API key from that URL.
+- Before `install-zk-evm` runs `tokamak-cli --install`, it fetches `origin/dev` in the Tokamak zk-EVM submodule,
+  switches to the local `dev` branch, and fast-forwards that branch to the latest remote commit. If the submodule has
+  local changes other than the cleared-worktree state produced by `uninstall-zk-evm`, the command fails instead of
+  overwriting them.
 - `uninstall-zk-evm` preserves the submodule pointer itself but removes the checked-out working tree contents that
   `install-zk-evm` relies on.
 - `mint-notes` maps the `--amounts` vector length to the underlying fixed-arity `mintNotes<N>` controller method.

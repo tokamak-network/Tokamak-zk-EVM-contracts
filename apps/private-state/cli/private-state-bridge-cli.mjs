@@ -120,6 +120,21 @@ async function main() {
     return;
   }
 
+  if (args.command === "redeem-notes") {
+    assertRedeemNotesArgs(args);
+    const env = loadEnv(defaultEnvFile);
+    const walletMetadata = loadWalletMetadata(requireWalletName(args));
+    resolveCliNetwork(walletMetadata.network);
+    const rpcUrl = deriveRpcUrl({
+      networkName: walletMetadata.network,
+      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
+      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+    });
+    const provider = new JsonRpcProvider(rpcUrl);
+    await handleRedeemNotes({ args, provider });
+    return;
+  }
+
   if (args.command === "get-my-notes") {
     assertGetMyNotesArgs(args);
     const env = loadEnv(defaultEnvFile);
@@ -234,6 +249,8 @@ async function main() {
       throw new Error("get-channel-deposit must resolve its network from the local wallet.");
     case "mint-notes":
       throw new Error("mint-notes must resolve its network from the local wallet.");
+    case "redeem-notes":
+      throw new Error("redeem-notes must resolve its network from the local wallet.");
     case "get-my-notes":
       throw new Error("get-my-notes must resolve its network from the local wallet.");
     case "transfer-notes":
@@ -1051,6 +1068,46 @@ async function handleMintNotes({ args, provider }) {
   });
 }
 
+async function handleRedeemNotes({ args, provider }) {
+  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
+  const walletMetadata = loadWalletMetadata(wallet.walletName);
+  assertWalletMatchesMetadata(wallet, walletMetadata);
+  const noteId = parseNoteId(requireArg(args.noteId, "--note-id"));
+  const inputNote = loadRedeemInputNote(wallet, noteId);
+  const templatePayload = buildRedeemNotesTemplatePayload({
+    wallet,
+    inputNote,
+  });
+  const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+    wallet,
+    provider,
+    operationName: "redeem-notes",
+    templatePayload,
+  });
+
+  printJson({
+    action: "redeem-notes",
+    wallet: wallet.walletName,
+    workspace: execution.context.workspaceName,
+    operationDir: execution.operationDir,
+    l1Submitter: execution.signer.address,
+    l2Address: execution.l2Identity.l2Address,
+    receiver: wallet.wallet.l2Address,
+    underlyingMethod: templatePayload.method,
+    nonce: execution.nonce,
+    noteId,
+    redeemedNote: buildTrackedNote(inputNote, templatePayload.method, execution.receipt.hash),
+    redeemedAmountBaseUnits: inputNote.value,
+    redeemedAmountTokens: ethers.formatUnits(
+      BigInt(inputNote.value),
+      Number(wallet.wallet.canonicalAssetDecimals),
+    ),
+    usedWorkspaceCache: contextResult.usingWorkspaceCache,
+    recoveredWorkspace,
+    updatedRoots: execution.context.currentSnapshot.stateRoots,
+  });
+}
+
 async function handleGetMyNotes({ args, provider }) {
   const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
   const walletMetadata = loadWalletMetadata(wallet.walletName);
@@ -1454,6 +1511,14 @@ function buildMintNotesTemplatePayload({ wallet, baseUnitAmounts }) {
   };
 }
 
+function buildRedeemNotesTemplatePayload({ wallet, inputNote }) {
+  return {
+    abiFile: "../deploy/PrivateStateController.callable-abi.json",
+    method: "redeemNotes1",
+    args: [[inputNote], wallet.wallet.l2Address],
+  };
+}
+
 function selectMintNotesMethod(noteCount) {
   expect(noteCount >= 1, "mint-notes requires at least one output amount.");
   expect(noteCount <= 6, "mint-notes supports at most six output amounts.");
@@ -1503,6 +1568,12 @@ function loadTransferInputNotes(walletContext, noteIds) {
   });
 }
 
+function loadRedeemInputNote(walletContext, noteId) {
+  const trackedNote = walletContext.wallet.notes.unused[noteId];
+  expect(trackedNote, `Unknown unused note commitment: ${noteId}.`);
+  return normalizePlaintextNote(trackedNote);
+}
+
 function parseTokenAmountVector(value) {
   let parsed;
   try {
@@ -1548,6 +1619,14 @@ function parseNoteIdVector(value) {
     "Invalid --note-ids. Duplicate note commitments are not allowed.",
   );
   return noteIds;
+}
+
+function parseNoteId(value) {
+  expect(
+    typeof value === "string" && value.length > 0,
+    "Invalid --note-id. Expected a note commitment string.",
+  );
+  return normalizeBytes32Hex(value);
 }
 
 function parseRecipientVector(value) {
@@ -2507,14 +2586,6 @@ async function reconstructChannelSnapshot({
 
     const emittedRootVector = normalizedRootVector(rootEvent.args.rootVector);
     const emittedRootVectorHash = normalizeBytes32Hex(rootEvent.args.rootVectorHash);
-    expect(
-      normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === emittedRootVectorHash,
-      `CurrentRootVectorObserved hash mismatch at tx ${rootEvent.transactionHash}.`,
-    );
-    expect(
-      JSON.stringify(currentSnapshot.stateRoots) === JSON.stringify(emittedRootVector),
-      `CurrentRootVectorObserved root vector mismatch at tx ${rootEvent.transactionHash}.`,
-    );
 
     for (const event of orderedGroup) {
       if (event.fragment?.name !== "StorageWriteObserved") {
@@ -2531,6 +2602,14 @@ async function reconstructChannelSnapshot({
     }
 
     currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+    expect(
+      normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === emittedRootVectorHash,
+      `CurrentRootVectorObserved hash mismatch at tx ${rootEvent.transactionHash}.`,
+    );
+    expect(
+      JSON.stringify(currentSnapshot.stateRoots) === JSON.stringify(emittedRootVector),
+      `CurrentRootVectorObserved root vector mismatch at tx ${rootEvent.transactionHash}.`,
+    );
   }
 
   expect(
@@ -2852,6 +2931,26 @@ function assertMintNotesArgs(args) {
   parseTokenAmountVector(args.amounts);
 }
 
+function assertRedeemNotesArgs(args) {
+  requireWalletName(args);
+  requireL2Password(args);
+  requireArg(args.noteId, "--note-id");
+  const allowedKeys = new Set(["command", "positional", "wallet", "password", "noteId"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `redeem-notes only accepts --wallet, --password, and --note-id. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "redeem-notes does not accept positional arguments beyond the command name.",
+  );
+  parseNoteId(args.noteId);
+}
+
 function assertTransferNotesArgs(args) {
   requireWalletName(args);
   requireL2Password(args);
@@ -2987,6 +3086,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url <alchemy-rpc-url>
   node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet <name> --password <string> --amounts '[1,2,3]'
+  node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes --wallet <name> --password <string> --note-id <commitment>
   node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes --wallet <name> --password <string> --note-ids '["0x..."]' --recipients '["0x..."]' --amounts '[1]'
   node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
@@ -3030,9 +3130,11 @@ Notes:
   - install-zk-evm only accepts --rpc-url and forwards it to tokamak-cli --install.
   - install-zk-evm requires an Alchemy Ethereum RPC URL because the current tokamak-cli installer only accepts Alchemy mainnet or sepolia URLs.
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
+  - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
   - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.
   - get-my-notes requires --wallet and --password only. It reads local encrypted note state and verifies each note status against the current controller commitment/nullifier state accepted by the bridge.
   - If a ready channel workspace exists for the wallet channel, mint-notes tries that cached state first. If tokamak-cli --verify fails, the CLI refreshes the channel workspace through recover-workspace semantics and retries once.
+  - redeem-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
   - transfer-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
@@ -3044,8 +3146,8 @@ Notes:
   - get-channel-deposit requires --wallet and --password only. It derives the network and channel from the local wallet, requires the wallet's L2 identity to match the on-chain channel registration, and then reads the current channel L2 accounting balance bound to that registration.
   - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, channelTokenVault key, channelTokenVault leaf index, and local wallet keys for the selected channel.
   - register-channel is the only command that sets up wallet keys in the active wallet.
-  - mint-notes, transfer-notes, and bridge-send update nonce and note state inside an existing wallet, but they do not set up wallet keys.
-  - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, mint-notes, transfer-notes, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
+  - mint-notes, redeem-notes, transfer-notes, and bridge-send update nonce and note state inside an existing wallet, but they do not set up wallet keys.
+  - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, mint-notes, redeem-notes, transfer-notes, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
   - register-channel and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.

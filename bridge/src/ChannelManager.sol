@@ -306,7 +306,6 @@ contract ChannelManager {
         );
         if (!ok) revert TokamakProofRejected();
 
-        emit CurrentRootVectorObserved(currentRootVectorHash, currentRootVector);
         CachedStorageWrite[] storage storageWrites = _functionStorageWrites[functionKey];
         for (uint256 i = 0; i < storageWrites.length; i++) {
             CachedStorageWrite storage storageWrite = storageWrites[i];
@@ -321,6 +320,7 @@ contract ChannelManager {
             }
         }
         currentRootVectorHash = keccak256(abi.encode(updatedRootVector));
+        emit CurrentRootVectorObserved(currentRootVectorHash, updatedRootVector);
 
         return true;
     }
@@ -338,7 +338,6 @@ contract ChannelManager {
             revert UnexpectedCurrentRootVector();
         }
 
-        emit CurrentRootVectorObserved(currentRootVectorHash, currentRootVector);
         _applyChannelTokenVaultLeaf(leafIndex, latestLeafValue);
         bytes32[] memory updatedRootVector = new bytes32[](currentRootVector.length);
         for (uint256 i = 0; i < currentRootVector.length; i++) {
@@ -346,6 +345,7 @@ contract ChannelManager {
         }
         updatedRootVector[channelTokenVaultTreeIndex] = updatedChannelTokenVaultRoot;
         currentRootVectorHash = keccak256(abi.encode(updatedRootVector));
+        emit CurrentRootVectorObserved(currentRootVectorHash, updatedRootVector);
         return true;
     }
 

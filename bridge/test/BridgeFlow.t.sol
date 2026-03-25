@@ -345,10 +345,11 @@ contract BridgeFlowTest is Test {
                 rootVectorObservedCount += 1;
                 bytes32 emittedRootVectorHash = bytes32(logs[i].topics[1]);
                 bytes32[] memory emittedRootVector = abi.decode(logs[i].data, (bytes32[]));
-                assertEq(emittedRootVectorHash, _hashRootVector(update.currentRootVector));
-                assertEq(emittedRootVector.length, update.currentRootVector.length);
+                bytes32[] memory expectedRootVector = _rootVector(bytes32(pubSignals[1]), INITIAL_ZERO_ROOT);
+                assertEq(emittedRootVectorHash, _hashRootVector(expectedRootVector));
+                assertEq(emittedRootVector.length, expectedRootVector.length);
                 for (uint256 j = 0; j < emittedRootVector.length; j++) {
-                    assertEq(emittedRootVector[j], update.currentRootVector[j]);
+                    assertEq(emittedRootVector[j], expectedRootVector[j]);
                 }
             }
         }
@@ -419,10 +420,11 @@ contract BridgeFlowTest is Test {
                 rootVectorObservedCount += 1;
                 bytes32 emittedRootVectorHash = bytes32(logs[i].topics[1]);
                 bytes32[] memory emittedRootVector = abi.decode(logs[i].data, (bytes32[]));
-                assertEq(emittedRootVectorHash, _hashRootVector(withdrawUpdate.currentRootVector));
-                assertEq(emittedRootVector.length, withdrawUpdate.currentRootVector.length);
+                bytes32[] memory expectedRootVector = _rootVector(bytes32(withdrawSignals[1]), INITIAL_ZERO_ROOT);
+                assertEq(emittedRootVectorHash, _hashRootVector(expectedRootVector));
+                assertEq(emittedRootVector.length, expectedRootVector.length);
                 for (uint256 j = 0; j < emittedRootVector.length; j++) {
-                    assertEq(emittedRootVector[j], withdrawUpdate.currentRootVector[j]);
+                    assertEq(emittedRootVector[j], expectedRootVector[j]);
                 }
             }
         }
@@ -520,7 +522,9 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.deposit(channelId, _depositProof(), update);
 
-        _assertSingleCurrentRootVectorObserved(vm.getRecordedLogs(), update.currentRootVector);
+        _assertSingleCurrentRootVectorObserved(
+            vm.getRecordedLogs(), _rootVector(bytes32(pubSignals[1]), INITIAL_ZERO_ROOT)
+        );
     }
 
     function testWithdrawEmitsCurrentRootVectorObserved() public {
@@ -558,7 +562,9 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.withdraw(channelId, _withdrawProof(), withdrawUpdate);
 
-        _assertSingleCurrentRootVectorObserved(vm.getRecordedLogs(), withdrawUpdate.currentRootVector);
+        _assertSingleCurrentRootVectorObserved(
+            vm.getRecordedLogs(), _rootVector(bytes32(withdrawSignals[1]), INITIAL_ZERO_ROOT)
+        );
     }
 
     function testTokamakVerificationRejectsUnsupportedFunction() public {

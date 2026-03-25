@@ -611,6 +611,55 @@ function deriveParticipant(index, alias) {
   };
 }
 
+function slugify(value) {
+  return String(value)
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+function deterministicWalletName(channel, l2Address) {
+  return `${channel}-${getAddress(l2Address)}`;
+}
+
+function walletDirForName(walletName) {
+  return path.resolve(walletsRoot, slugify(walletName));
+}
+
+function walletInboxPathForName(walletName) {
+  return path.resolve(walletDirForName(walletName), "incoming-notes.json");
+}
+
+function readWalletInbox(walletName) {
+  const inboxPath = walletInboxPathForName(walletName);
+  if (!fs.existsSync(inboxPath)) {
+    return [];
+  }
+  return readJson(inboxPath);
+}
+
+function assertWalletInboxCount(walletName, expectedCount, label) {
+  const inbox = readWalletInbox(walletName);
+  expect(
+    inbox.length === expectedCount,
+    `${label} inbox count mismatch. Expected ${expectedCount}, got ${inbox.length}.`,
+  );
+  return inbox;
+}
+
+function assertWalletInboxCleared(walletName, label) {
+  expect(
+    readWalletInbox(walletName).length === 0,
+    `${label} inbox should be empty.`,
+  );
+}
+
+function pickDeliveredRecipient(deliveries, participant) {
+  const delivery = (deliveries ?? []).find((entry) => entry.wallet === participant.walletName);
+  expect(delivery, `Missing delivered recipient entry for ${participant.alias}.`);
+  return delivery;
+}
+
 function normalizeBigIntString(value, label) {
   try {
     return BigInt(value);
@@ -826,6 +875,10 @@ function registerChannel(participant) {
   ]);
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;
+  expect(
+    result.wallet === deterministicWalletName(channelName, result.l2Address),
+    `register-channel returned unexpected wallet name ${result.wallet}.`,
+  );
   return result;
 }
 
@@ -893,15 +946,6 @@ function getMyNotes(participant) {
     "get-my-notes",
     "--wallet", participant.walletName,
     "--password", participant.password,
-  ]);
-}
-
-function importNotes(participant, notes) {
-  return runPrivateStateCli([
-    "import-notes",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-    "--notes", JSON.stringify(notes),
   ]);
 }
 
@@ -1058,8 +1102,12 @@ async function main() {
     );
     const noteAToB = pickOutputNoteByOwner(transferA.outputNotes, participants[1].l2Address, 1n * amountUnit);
     const noteAToC = pickOutputNoteByOwner(transferA.outputNotes, participants[2].l2Address, 2n * amountUnit);
-    const importAToB = importNotes(participants[1], [noteAToB]);
-    const importAToC = importNotes(participants[2], [noteAToC]);
+    const deliveredAToB = pickDeliveredRecipient(transferA.deliveredRecipients, participants[1]);
+    const deliveredAToC = pickDeliveredRecipient(transferA.deliveredRecipients, participants[2]);
+    assertBigIntEq(deliveredAToB.noteCount, 1n, "transfer A delivery count to B");
+    assertBigIntEq(deliveredAToC.noteCount, 1n, "transfer A delivery count to C");
+    assertWalletInboxCount(participants[1].walletName, 1, "participant-b after transfer A");
+    assertWalletInboxCount(participants[2].walletName, 1, "participant-c after transfer A");
 
     const transferB = transferNotes(
       participants[1],
@@ -1068,11 +1116,15 @@ async function main() {
       [4],
     );
     const noteBToC = pickOutputNoteByOwner(transferB.outputNotes, participants[2].l2Address, 4n * amountUnit);
-    const importBToC = importNotes(participants[2], [noteBToC]);
+    const deliveredBToC = pickDeliveredRecipient(transferB.deliveredRecipients, participants[2]);
+    assertBigIntEq(deliveredBToC.noteCount, 1n, "transfer B delivery count to C");
+    assertWalletInboxCleared(participants[1].walletName, "participant-b after transfer B");
+    assertWalletInboxCount(participants[2].walletName, 2, "participant-c after transfer B");
 
     const notesAfterTransferA = getMyNotes(participants[0]);
     const notesAfterTransferB = getMyNotes(participants[1]);
     const notesAfterTransferC = getMyNotes(participants[2]);
+    assertWalletInboxCleared(participants[2].walletName, "participant-c after wallet sync");
     assertWalletNoteSnapshot(notesAfterTransferA, { unusedCount: 0, spentCount: 1, unusedTotal: 0n, spentTotal: depositAmountBaseUnits });
     assertWalletNoteSnapshot(notesAfterTransferB, { unusedCount: 0, spentCount: 2, unusedTotal: 0n, spentTotal: 4n * amountUnit });
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });
@@ -1142,10 +1194,7 @@ async function main() {
         mintB,
         mintC,
         transferA,
-        importAToB,
-        importAToC,
         transferB,
-        importBToC,
         redeemAToC,
         redeemBToC,
         redeemCMint,

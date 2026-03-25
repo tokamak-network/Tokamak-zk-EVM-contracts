@@ -81,8 +81,100 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             revert EmptyFunctionList(dappId);
         }
 
-        (uint256 channelTokenVaultTreeIndex, address channelTokenVaultStorageAddress) = _storeStorageLayout(dappId, storages);
-        _storeFunctions(dappId, functions, channelTokenVaultStorageAddress);
+        uint256 channelTokenVaultTreeIndex = type(uint256).max;
+        address channelTokenVaultStorageAddress;
+
+        for (uint256 i = 0; i < storages.length; i++) {
+            BridgeStructs.StorageMetadata calldata storageMetadata = storages[i];
+            if (_knownStorageAddress[dappId][storageMetadata.storageAddr]) {
+                revert DuplicateStorageAddress(dappId, storageMetadata.storageAddr);
+            }
+
+            _knownStorageAddress[dappId][storageMetadata.storageAddr] = true;
+            _managedStorageAddresses[dappId].push(storageMetadata.storageAddr);
+            _isChannelTokenVaultStorage[dappId][storageMetadata.storageAddr] =
+                storageMetadata.isChannelTokenVaultStorage;
+
+            for (uint256 j = 0; j < storageMetadata.preAllocatedKeys.length; j++) {
+                _preAllocatedKeys[dappId][storageMetadata.storageAddr].push(storageMetadata.preAllocatedKeys[j]);
+            }
+            for (uint256 j = 0; j < storageMetadata.userStorageSlots.length; j++) {
+                _userStorageSlots[dappId][storageMetadata.storageAddr].push(storageMetadata.userStorageSlots[j]);
+            }
+
+            if (storageMetadata.isChannelTokenVaultStorage) {
+                if (channelTokenVaultStorageAddress != address(0)) {
+                    revert MultipleChannelTokenVaultStorageAddresses(
+                        dappId, channelTokenVaultStorageAddress, storageMetadata.storageAddr
+                    );
+                }
+                channelTokenVaultStorageAddress = storageMetadata.storageAddr;
+                channelTokenVaultTreeIndex = i;
+            }
+        }
+
+        if (channelTokenVaultStorageAddress == address(0)) {
+            revert MissingChannelTokenVaultStorageAddress(dappId);
+        }
+
+        for (uint256 i = 0; i < functions.length; i++) {
+            BridgeStructs.DAppFunctionMetadata calldata fnMetadata = functions[i];
+            bytes32 functionKey = computeFunctionKey(fnMetadata.entryContract, fnMetadata.functionSig);
+            if (_supportedFunctions[dappId][functionKey]) {
+                revert DuplicateFunction(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
+            }
+            if (fnMetadata.preprocessInputHash == bytes32(0)) {
+                revert MissingPreprocessInputHash(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
+            }
+            if (_knownPreprocessInputHash[dappId][fnMetadata.preprocessInputHash]) {
+                revert DuplicatePreprocessInputHash(dappId, fnMetadata.preprocessInputHash);
+            }
+
+            _supportedFunctions[dappId][functionKey] = true;
+            _knownPreprocessInputHash[dappId][fnMetadata.preprocessInputHash] = true;
+            _registeredFunctions[dappId].push(
+                BridgeStructs.FunctionReference({
+                    entryContract: fnMetadata.entryContract,
+                    functionSig: fnMetadata.functionSig
+                })
+            );
+
+            for (uint256 j = 0; j < fnMetadata.instanceLayout.storageWrites.length; j++) {
+                BridgeStructs.StorageWriteMetadata calldata storageWrite = fnMetadata.instanceLayout.storageWrites[j];
+                if (storageWrite.storageAddrIndex >= _managedStorageAddresses[dappId].length) {
+                    revert InvalidFunctionStorageWriteStorageIndex(
+                        dappId,
+                        fnMetadata.entryContract,
+                        fnMetadata.functionSig,
+                        storageWrite.storageAddrIndex
+                    );
+                }
+                address storageAddr = _managedStorageAddresses[dappId][storageWrite.storageAddrIndex];
+                if (
+                    _isChannelTokenVaultStorage[dappId][storageAddr]
+                        && storageAddr != channelTokenVaultStorageAddress
+                ) {
+                    revert MultipleChannelTokenVaultStorageAddresses(
+                        dappId, channelTokenVaultStorageAddress, storageAddr
+                    );
+                }
+                _functionStorageWrites[dappId][functionKey].push(
+                    BridgeStructs.StorageWriteMetadata({
+                        aPubOffsetWords: storageWrite.aPubOffsetWords,
+                        storageAddrIndex: storageWrite.storageAddrIndex
+                    })
+                );
+            }
+
+            _functionConfigs[dappId][functionKey] = BridgeStructs.FunctionConfig({
+                preprocessInputHash: fnMetadata.preprocessInputHash,
+                entryContractOffsetWords: fnMetadata.instanceLayout.entryContractOffsetWords,
+                functionSigOffsetWords: fnMetadata.instanceLayout.functionSigOffsetWords,
+                currentRootVectorOffsetWords: fnMetadata.instanceLayout.currentRootVectorOffsetWords,
+                updatedRootVectorOffsetWords: fnMetadata.instanceLayout.updatedRootVectorOffsetWords,
+                exists: true
+            });
+        }
 
         _dapps[dappId] = DAppInfo({
             exists: true,
@@ -198,111 +290,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
-
-    function _storeStorageLayout(uint256 dappId, BridgeStructs.StorageMetadata[] calldata storages)
-        private
-        returns (uint256 channelTokenVaultTreeIndex, address channelTokenVaultStorageAddress)
-    {
-        channelTokenVaultTreeIndex = type(uint256).max;
-
-        for (uint256 i = 0; i < storages.length; i++) {
-            BridgeStructs.StorageMetadata calldata storageMetadata = storages[i];
-            if (_knownStorageAddress[dappId][storageMetadata.storageAddr]) {
-                revert DuplicateStorageAddress(dappId, storageMetadata.storageAddr);
-            }
-
-            _knownStorageAddress[dappId][storageMetadata.storageAddr] = true;
-            _managedStorageAddresses[dappId].push(storageMetadata.storageAddr);
-            _isChannelTokenVaultStorage[dappId][storageMetadata.storageAddr] =
-                storageMetadata.isChannelTokenVaultStorage;
-
-            for (uint256 j = 0; j < storageMetadata.preAllocatedKeys.length; j++) {
-                _preAllocatedKeys[dappId][storageMetadata.storageAddr].push(storageMetadata.preAllocatedKeys[j]);
-            }
-            for (uint256 j = 0; j < storageMetadata.userStorageSlots.length; j++) {
-                _userStorageSlots[dappId][storageMetadata.storageAddr].push(storageMetadata.userStorageSlots[j]);
-            }
-
-            if (storageMetadata.isChannelTokenVaultStorage) {
-                if (channelTokenVaultStorageAddress != address(0)) {
-                    revert MultipleChannelTokenVaultStorageAddresses(
-                        dappId, channelTokenVaultStorageAddress, storageMetadata.storageAddr
-                    );
-                }
-                channelTokenVaultStorageAddress = storageMetadata.storageAddr;
-                channelTokenVaultTreeIndex = i;
-            }
-        }
-
-        if (channelTokenVaultStorageAddress == address(0)) {
-            revert MissingChannelTokenVaultStorageAddress(dappId);
-        }
-    }
-
-    function _storeFunctions(
-        uint256 dappId,
-        BridgeStructs.DAppFunctionMetadata[] calldata functions,
-        address channelTokenVaultStorageAddress
-    ) private {
-        for (uint256 i = 0; i < functions.length; i++) {
-            BridgeStructs.DAppFunctionMetadata calldata fnMetadata = functions[i];
-            bytes32 functionKey = computeFunctionKey(fnMetadata.entryContract, fnMetadata.functionSig);
-            if (_supportedFunctions[dappId][functionKey]) {
-                revert DuplicateFunction(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
-            }
-            if (fnMetadata.preprocessInputHash == bytes32(0)) {
-                revert MissingPreprocessInputHash(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
-            }
-            if (_knownPreprocessInputHash[dappId][fnMetadata.preprocessInputHash]) {
-                revert DuplicatePreprocessInputHash(dappId, fnMetadata.preprocessInputHash);
-            }
-
-            _supportedFunctions[dappId][functionKey] = true;
-            _knownPreprocessInputHash[dappId][fnMetadata.preprocessInputHash] = true;
-            _registeredFunctions[dappId].push(
-                BridgeStructs.FunctionReference({
-                    entryContract: fnMetadata.entryContract,
-                    functionSig: fnMetadata.functionSig
-                })
-            );
-
-            for (uint256 j = 0; j < fnMetadata.instanceLayout.storageWrites.length; j++) {
-                BridgeStructs.StorageWriteMetadata calldata storageWrite = fnMetadata.instanceLayout.storageWrites[j];
-                if (storageWrite.storageAddrIndex >= _managedStorageAddresses[dappId].length) {
-                    revert InvalidFunctionStorageWriteStorageIndex(
-                        dappId,
-                        fnMetadata.entryContract,
-                        fnMetadata.functionSig,
-                        storageWrite.storageAddrIndex
-                    );
-                }
-                address storageAddr = _managedStorageAddresses[dappId][storageWrite.storageAddrIndex];
-                if (
-                    _isChannelTokenVaultStorage[dappId][storageAddr]
-                        && storageAddr != channelTokenVaultStorageAddress
-                ) {
-                    revert MultipleChannelTokenVaultStorageAddresses(
-                        dappId, channelTokenVaultStorageAddress, storageAddr
-                    );
-                }
-                _functionStorageWrites[dappId][functionKey].push(
-                    BridgeStructs.StorageWriteMetadata({
-                        aPubOffsetWords: storageWrite.aPubOffsetWords,
-                        storageAddrIndex: storageWrite.storageAddrIndex
-                    })
-                );
-            }
-
-            _functionConfigs[dappId][functionKey] = BridgeStructs.FunctionConfig({
-                preprocessInputHash: fnMetadata.preprocessInputHash,
-                entryContractOffsetWords: fnMetadata.instanceLayout.entryContractOffsetWords,
-                functionSigOffsetWords: fnMetadata.instanceLayout.functionSigOffsetWords,
-                currentRootVectorOffsetWords: fnMetadata.instanceLayout.currentRootVectorOffsetWords,
-                updatedRootVectorOffsetWords: fnMetadata.instanceLayout.updatedRootVectorOffsetWords,
-                exists: true
-            });
-        }
-    }
 
     function _requireDApp(uint256 dappId) private view returns (DAppInfo memory info) {
         info = _dapps[dappId];

@@ -100,6 +100,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `get-my-notes` reads the local wallet's tracked note sets and checks each note's commitment/nullifier status against
   the current controller state accepted by the bridge. It accepts only `--wallet` and `--password`.
 - `register-channel` registers the caller's L2 address, L2 `channelTokenVault` key, and `channelTokenVault` leaf index in the selected channel.
+  It does not accept `--wallet`. The wallet folder name is fixed to `<channelName>-<l2Address>`, and the command
+  returns that generated wallet name in its JSON output. Channel selection still uses `--channel-name` or `--workspace`.
 - `deposit-channel` moves value from the shared bridge-level `bridgeTokenVault` into the selected channel's `channelTokenVault`.
   It accepts only `--wallet`, `--password`, and `--amount`, and it fails unless the local wallet already contains
   plaintext network/channel metadata plus encrypted L1/L2 key material.
@@ -184,7 +186,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge \
   --amount 3
 
 node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a" \
   --amount 1
 
@@ -193,52 +195,53 @@ node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit \
   --private-key <hex>
 
 node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a"
 
 node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a"
 
 node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a"
 
 node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a" \
   --amounts '[1,2,3]'
 
 node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a" \
   --note-id 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a" \
   --note-ids '["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]' \
   --recipients '["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]' \
   --amounts '[3]'
 
 node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a"
 
 node apps/private-state/cli/private-state-bridge-cli.mjs register-channel \
   --channel-name demo-channel \
-  --wallet participant-a \
   --network sepolia \
   --private-key <hex> \
   --password "participant-a"
 
+# Then use the returned wallet name: demo-channel-<l2Address>
+
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a" \
   --amount 1.5
 
 node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel \
-  --wallet participant-a \
+  --wallet demo-channel-<l2Address> \
   --password "participant-a" \
   --amount 0.5
 ```
@@ -259,6 +262,12 @@ Each wallet is persisted as:
 
 ```text
 apps/private-state/cli/wallets/<wallet>/wallet.json
+```
+
+`register-channel` fixes `<wallet>` to:
+
+```text
+<channelName>-<l2Address>
 ```
 
 Each wallet also stores unencrypted metadata as:

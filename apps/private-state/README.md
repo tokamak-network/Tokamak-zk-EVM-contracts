@@ -251,18 +251,18 @@ node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-ur
 node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
 node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --amount 3
-node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge --wallet participant-a --password "participant-a" --amount 1
+node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge --wallet demo-channel-<l2Address> --password "participant-a" --amount 1
 node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit --network sepolia --private-key <hex>
-node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet participant-a --password "participant-a"
-node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address --wallet participant-a --password "participant-a"
-node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet participant-a --password "participant-a"
-node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet participant-a --password "participant-a" --amounts '[1,2,3]'
-node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes --wallet participant-a --password "participant-a" --note-id 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes --wallet participant-a --password "participant-a" --note-ids '["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]' --recipients '["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]' --amounts '[3]'
-node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet participant-a --password "participant-a"
-node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a"
-node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet participant-a --password "participant-a" --amount 1
-node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel --wallet participant-a --password "participant-a" --amount 0.5
+node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet demo-channel-<l2Address> --password "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address --wallet demo-channel-<l2Address> --password "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet demo-channel-<l2Address> --password "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet demo-channel-<l2Address> --password "participant-a" --amounts '[1,2,3]'
+node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes --wallet demo-channel-<l2Address> --password "participant-a" --note-id 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes --wallet demo-channel-<l2Address> --password "participant-a" --note-ids '["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]' --recipients '["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]' --amounts '[3]'
+node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet demo-channel-<l2Address> --password "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --channel-name demo-channel --network sepolia --private-key <hex> --password "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet demo-channel-<l2Address> --password "participant-a" --amount 1
+node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel --wallet demo-channel-<l2Address> --password "participant-a" --amount 0.5
 ```
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such

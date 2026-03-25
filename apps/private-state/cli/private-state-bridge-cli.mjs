@@ -302,6 +302,7 @@ async function main() {
     case "withdraw-channel":
       throw new Error("withdraw-channel must resolve its network from the local wallet.");
     case "register-channel":
+      assertRegisterChannelArgs(args);
       await handleRegisterChannel({ args, env, network, provider });
       return;
     default:
@@ -867,21 +868,17 @@ async function handleGetChannelDeposit({ args, env, network, provider }) {
 
 async function handleRegisterChannel({ args, env, network, provider }) {
   const password = requireL2Password(args);
-  const walletFromFlag = args.wallet ? loadWallet(requireWalletName(args), password) : null;
   const context = await loadChannelContext({
     args,
     networkName: network.name,
     provider,
-    walletContext: walletFromFlag,
   });
-  const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: walletFromFlag });
-  const l2Identity = walletFromFlag
-    ? restoreParticipantIdentityFromWallet(walletFromFlag.wallet)
-    : await deriveParticipantIdentity({
-      channelName: context.workspace.channelName,
-      password,
-      signer,
-    });
+  const signer = resolveWalletBackedSigner({ args, env, provider });
+  const l2Identity = await deriveParticipantIdentity({
+    channelName: context.workspace.channelName,
+    password,
+    signer,
+  });
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
   const bridgeTokenVault = new Contract(
@@ -903,7 +900,6 @@ async function handleRegisterChannel({ args, env, network, provider }) {
     );
 
     const walletContext = ensureWallet({
-      args,
       channelContext: context,
       signerAddress: signer.address,
       signerPrivateKey: signer.privateKey,
@@ -938,7 +934,6 @@ async function handleRegisterChannel({ args, env, network, provider }) {
   );
 
   const walletContext = ensureWallet({
-    args,
     channelContext: context,
     signerAddress: signer.address,
     signerPrivateKey: signer.privateKey,
@@ -1352,7 +1347,6 @@ function defaultWalletName(channelName, l2Address) {
 }
 
 function ensureWallet({
-  args,
   channelContext,
   signerAddress,
   signerPrivateKey,
@@ -1361,7 +1355,7 @@ function ensureWallet({
   storageKey,
   leafIndex,
 }) {
-  const walletName = args.wallet ?? defaultWalletName(channelContext.workspace.channelName, l2Identity.l2Address);
+  const walletName = defaultWalletName(channelContext.workspace.channelName, l2Identity.l2Address);
   const walletDir = walletPath(walletName);
   let wallet;
   if (walletConfigExists(walletDir)) {
@@ -3156,6 +3150,42 @@ function assertWalletChannelMoveArgs(args, commandName) {
   );
 }
 
+function assertRegisterChannelArgs(args) {
+  requireL2Password(args);
+  expect(
+    args.channelName !== undefined || args.workspace !== undefined,
+    "register-channel requires either --channel-name or --workspace.",
+  );
+  const allowedKeys = new Set([
+    "command",
+    "positional",
+    "channelName",
+    "workspace",
+    "network",
+    "privateKey",
+    "password",
+    "envFile",
+    "rpcUrl",
+    "alchemyApiKey",
+  ]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      [
+        "register-channel only accepts --channel-name or --workspace, plus",
+        "--network, --rpc-url, --alchemy-api-key, --private-key, --password, and --env-file.",
+        `Unsupported option(s): ${unsupported.join(", ")}.`,
+      ].join(" "),
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "register-channel does not accept positional arguments beyond the command name.",
+  );
+}
+
 function assertIsChannelRegisteredArgs(args) {
   requireWalletName(args);
   requireL2Password(args);
@@ -3437,7 +3467,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet <name> --password <string>
-  node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet <name> --password <string> --amount <tokens>
   node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel --wallet <name> --password <string> --amount <tokens>
 
@@ -3483,12 +3513,12 @@ Notes:
   - get-wallet-address requires --wallet and --password only. It derives the network and channel from the local wallet, then reads the caller's registered L2 address from the bridge channel registration.
   - get-channel-deposit requires --wallet and --password only. It derives the network and channel from the local wallet, requires the wallet's L2 identity to match the on-chain channel registration, and then reads the current channel L2 accounting balance bound to that registration.
   - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, channelTokenVault key, channelTokenVault leaf index, and local wallet keys for the selected channel.
+  - register-channel always creates or reuses the deterministic wallet folder name <channelName>-<l2Address>. It does not accept --wallet.
   - register-channel is the only command that sets up wallet keys in the active wallet.
   - mint-notes, redeem-notes, and transfer-notes update nonce and note state inside an existing wallet, but they do not set up wallet keys.
   - Once a wallet exists, get-bridge-deposit, withdraw-bridge, mint-notes, redeem-notes, and transfer-notes can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
   - withdraw-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and calls the bridge withdraw path to move value from the channel L2 accounting vault back into the shared L1 bridgeTokenVault.
-  - register-channel can also use --password alone when a matching --wallet is present. Without a wallet, it still needs --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.

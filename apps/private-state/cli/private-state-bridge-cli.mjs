@@ -879,19 +879,38 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
     walletMetadata = loadWalletMetadata(walletFromFlag.walletName);
     assertWalletMatchesMetadata(walletFromFlag, walletMetadata);
   }
-  const context = await loadChannelContext({
-    args,
-    networkName: walletMetadata?.network ?? network.name,
-    provider,
-    walletContext: walletFromFlag,
-  });
+  let contextResult;
+  if (walletOnlyMoveCommand && walletFromFlag) {
+    contextResult = await loadPreferredWalletChannelContext({ walletContext: walletFromFlag, provider });
+    try {
+      await assertWorkspaceAlignedWithChain(contextResult.context);
+    } catch (error) {
+      if (!contextResult.usingWorkspaceCache || !isRecoverableWalletWorkspaceFailure(error)) {
+        throw error;
+      }
+      await recoverWalletChannelWorkspace({ walletContext: walletFromFlag, provider });
+      contextResult = await loadPreferredWalletChannelContext({ walletContext: walletFromFlag, provider });
+      await assertWorkspaceAlignedWithChain(contextResult.context);
+    }
+  } else {
+    contextResult = {
+      context: await loadChannelContext({
+        args,
+        networkName: walletMetadata?.network ?? network.name,
+        provider,
+        walletContext: walletFromFlag,
+      }),
+      usingWorkspaceCache: false,
+    };
+    await assertWorkspaceAlignedWithChain(contextResult.context);
+  }
+  const context = contextResult.context;
   if (walletFromFlag) {
     expect(
       BigInt(walletFromFlag.wallet.channelId) === BigInt(context.workspace.channelId),
       "The provided wallet does not belong to the selected channel.",
     );
   }
-  await assertWorkspaceAlignedWithChain(context, provider);
 
   const signer = walletOnlyMoveCommand
     ? new Wallet(normalizePrivateKey(walletFromFlag.wallet.l1PrivateKey), provider)

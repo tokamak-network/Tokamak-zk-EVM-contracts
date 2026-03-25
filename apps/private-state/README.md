@@ -184,6 +184,7 @@ The CLI:
 - manages mandatory per-user wallets that store note plaintexts, used/unused note sets, and aggregated unused-note balance
 - separates bridge-level funding from channel-level token-vault registration
 - reads each user's shared bridge-level token-vault deposit through `get-bridge-deposit`
+- checks each wallet-backed user's on-chain channel registration through `is-channel-registered`
 - generates Groth and Tokamak proofs
 - submits bridge transactions for `deposit-bridge`, `register-channel`, `deposit-channel`, `withdraw`, `claim`, and DApp function execution
 
@@ -215,6 +216,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes
 node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --amount 3
 node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit --network sepolia --private-key <hex>
+node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet participant-a --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet participant-a --password "participant-a" --amount 1
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --wallet participant-a --network sepolia --password "participant-a"

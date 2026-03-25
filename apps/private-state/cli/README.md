@@ -54,6 +54,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `get-bridge-deposit` reads the caller's shared bridge-level L1 token-vault balance.
 - `is-channel-registered` checks whether the local wallet's L2 identity matches the selected channel's registered
   on-chain participant record. It accepts only `--wallet` and `--password`.
+- `get-channel-deposit` reads the current channel-level L2 accounting balance bound to the local wallet's registered
+  token-vault key. It accepts only `--wallet` and `--password`.
 - `register-channel` registers the caller's L2 address, L2 token-vault key, and token-vault leaf index in the selected channel.
 - `deposit-channel` moves value from the shared bridge-level L1 token vault into the selected channel's L2 token vault.
   It accepts only `--wallet`, `--password`, and `--amount`, and it fails unless the local wallet already contains
@@ -72,6 +74,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `get-bridge-deposit`, `fund-l1`, and `claim` can also recover the L1 signer from an existing encrypted wallet when
   `--wallet` and `--password` are provided.
 - `is-channel-registered` also requires an existing wallet and derives its network and channel from that wallet.
+- `get-channel-deposit` also requires an existing wallet and fails unless the wallet's L2 identity matches the
+  on-chain channel registration for the stored channel.
 - `deposit-channel` requires an existing wallet and derives its network, channel, and signer keys from that wallet.
 - `withdraw` can still reuse an existing wallet when one is provided, but it does not set up wallet keys.
 - The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
@@ -105,6 +109,10 @@ node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit \
   --private-key <hex>
 
 node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered \
+  --wallet participant-a \
+  --password "participant-a"
+
+node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit \
   --wallet participant-a \
   --password "participant-a"
 

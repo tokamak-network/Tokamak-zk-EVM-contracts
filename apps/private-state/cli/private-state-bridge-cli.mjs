@@ -129,6 +129,21 @@ async function main() {
     return;
   }
 
+  if (args.command === "get-channel-deposit") {
+    assertGetChannelDepositArgs(args);
+    const env = loadEnv(defaultEnvFile);
+    const walletMetadata = loadWalletMetadata(requireWalletName(args));
+    const network = resolveCliNetwork(walletMetadata.network);
+    const rpcUrl = deriveRpcUrl({
+      networkName: walletMetadata.network,
+      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
+      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+    });
+    const provider = new JsonRpcProvider(rpcUrl);
+    await handleGetChannelDeposit({ args, env, network, provider });
+    return;
+  }
+
   const env = loadEnv(args.envFile ?? defaultEnvFile);
   const networkName = args.network ?? env.APPS_NETWORK;
   if (!networkName) {
@@ -164,6 +179,8 @@ async function main() {
       return;
     case "is-channel-registered":
       throw new Error("is-channel-registered must resolve its network from the local wallet.");
+    case "get-channel-deposit":
+      throw new Error("get-channel-deposit must resolve its network from the local wallet.");
     case "register-channel":
       await handleRegisterChannel({ args, env, network, provider });
       return;
@@ -596,6 +613,60 @@ async function handleIsChannelRegistered({ args, env, network, provider }) {
     registeredL2Address: registration.exists ? getAddress(registration.l2Address) : null,
     registeredL2StorageKey: registration.exists ? normalizeBytes32Hex(registration.l2TokenVaultKey) : null,
     registeredLeafIndex: registration.exists ? registration.leafIndex.toString() : null,
+  });
+}
+
+async function handleGetChannelDeposit({ args, env, network, provider }) {
+  const password = requireL2Password(args);
+  const wallet = loadWallet(requireWalletName(args), password);
+  const walletMetadata = loadWalletMetadata(wallet.walletName);
+  assertWalletMatchesMetadata(wallet, walletMetadata);
+  const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
+  const l2Identity = restoreParticipantIdentityFromWallet(wallet.wallet);
+  const context = await loadChannelContext({
+    args,
+    networkName: walletMetadata.network,
+    provider,
+    walletContext: wallet,
+  });
+  await assertWorkspaceAlignedWithChain(context);
+
+  const registration = await context.channelManager.getTokenVaultRegistration(signer.address);
+  expect(registration.exists, `No channel token-vault registration exists for ${signer.address}. Run register-channel first.`);
+  const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
+  expect(
+    getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
+    "The local wallet L2 address does not match the registered channel L2 address.",
+  );
+  expect(
+    normalizeBytes32Hex(registration.l2TokenVaultKey) === normalizeBytes32Hex(expectedStorageKey),
+    "The local wallet L2 storage key does not match the registered token-vault key.",
+  );
+
+  const stateManager = await buildStateManager(context.currentSnapshot, context.contractCodes);
+  const channelDeposit = await currentStorageBigInt(
+    stateManager,
+    context.workspace.l2AccountingVault,
+    normalizeBytes32Hex(registration.l2TokenVaultKey),
+  );
+
+  printJson({
+    action: "get-channel-deposit",
+    wallet: wallet.walletName,
+    network: walletMetadata.network,
+    channelName: walletMetadata.channelName,
+    l1Address: signer.address,
+    walletL2Address: l2Identity.l2Address,
+    walletL2StorageKey: expectedStorageKey,
+    registeredLeafIndex: registration.leafIndex.toString(),
+    channelDepositBaseUnits: channelDeposit.toString(),
+    channelDepositTokens: ethers.formatUnits(
+      channelDeposit,
+      Number(context.workspace.canonicalAssetDecimals),
+    ),
+    canonicalAsset: context.workspace.canonicalAsset,
+    canonicalAssetDecimals: Number(context.workspace.canonicalAssetDecimals),
+    l2AccountingVault: context.workspace.l2AccountingVault,
   });
 }
 
@@ -2196,6 +2267,24 @@ function assertIsChannelRegisteredArgs(args) {
   );
 }
 
+function assertGetChannelDepositArgs(args) {
+  requireWalletName(args);
+  requireL2Password(args);
+  const allowedKeys = new Set(["command", "positional", "wallet", "password"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `get-channel-deposit only accepts --wallet and --password. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "get-channel-deposit does not accept positional arguments beyond the command name.",
+  );
+}
+
 function listChannelWorkspaces() {
   if (!fs.existsSync(channelWorkspacesRoot)) {
     return [];
@@ -2271,6 +2360,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --amount <tokens> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit [--private-key <hex>] [--wallet <name> --password <string>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet <name> --password <string>
+  node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet <name> --password <string> --amount <tokens>
@@ -2308,6 +2398,7 @@ Notes:
   - deposit-bridge only funds the shared bridge-level L1 token vault.
   - get-bridge-deposit reads the caller's shared bridge-level L1 token-vault balance.
   - is-channel-registered requires --wallet and --password only. It derives the network and channel from the local wallet, then checks whether the wallet's L2 identity matches the on-chain channel registration.
+  - get-channel-deposit requires --wallet and --password only. It derives the network and channel from the local wallet, requires the wallet's L2 identity to match the on-chain channel registration, and then reads the current channel L2 accounting balance bound to that registration.
   - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, token-vault key, token-vault leaf index, and local wallet keys for the selected channel.
   - register-channel is the only command that sets up wallet keys in the active wallet.
   - bridge-send updates nonce and note state inside an existing wallet, but it does not set up wallet keys.

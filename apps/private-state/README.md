@@ -202,11 +202,14 @@ The current CLI treats wallet storage as a clean-slate local model. Legacy CLI d
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount and converted with the canonical
 token decimals.
 Every CLI `--password` input accepts any string. During `register-channel` and other wallet-aware flows, the CLI signs
-a domain-separated password message with the user's L1 `--private-key` and derives the L2 private key from the
-resulting signature. `deposit-bridge` itself only funds the shared bridge-level `bridgeTokenVault`. `register-channel`
-performs the channel-specific L2 identity registration and is the only command that sets up the channel-specific wallet
-keys. `mint-notes`, `redeem-notes`, and `transfer-notes` update nonce and note state in an existing wallet, and that
-wallet file is encrypted with `scrypt + AES-256-GCM` under the given password.
+a domain-separated message that binds the selected channel name and the user's password to the user's L1
+`--private-key`, then derives the L2 private key from the resulting signature. `deposit-bridge` itself only funds the
+shared bridge-level `bridgeTokenVault`. `register-channel` performs the channel-specific L2 identity registration and is
+the only command that sets up the channel-specific wallet keys. `mint-notes`, `redeem-notes`, and `transfer-notes`
+update nonce and note state in an existing wallet, and that wallet file is encrypted with `scrypt + AES-256-GCM`
+under the given password.
+Wallets created before this channel-bound derivation rule are no longer supported and must be recreated with
+`register-channel`.
 Each wallet directory also includes an unencrypted metadata file that stores only the target `network` and
 `channelName`.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other

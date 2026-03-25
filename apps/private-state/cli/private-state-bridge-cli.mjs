@@ -61,6 +61,7 @@ const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
 const L2_PASSWORD_SIGNING_DOMAIN = "Tokamak private-state L2 password binding";
+const CHANNEL_BOUND_L2_DERIVATION_MODE = "channel-name-plus-password-v1";
 const INITIAL_ZERO_ROOT =
   "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const BLS12_381_SCALAR_FIELD_MODULUS =
@@ -877,6 +878,7 @@ async function handleRegisterChannel({ args, env, network, provider }) {
   const l2Identity = walletFromFlag
     ? restoreParticipantIdentityFromWallet(walletFromFlag.wallet)
     : await deriveParticipantIdentity({
+      channelName: context.workspace.channelName,
       password,
       signer,
     });
@@ -993,6 +995,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   const l2Identity = (walletOnlyMoveCommand || walletFromFlag)
     ? restoreParticipantIdentityFromWallet(walletFromFlag.wallet)
     : await deriveParticipantIdentity({
+      channelName: context.workspace.channelName,
       password,
       signer,
     });
@@ -1394,6 +1397,8 @@ function ensureWallet({
       l2Address: l2Identity.l2Address,
       l2PrivateKey: ethers.hexlify(l2Identity.l2PrivateKey),
       l2PublicKey: ethers.hexlify(l2Identity.l2PublicKey),
+      l2DerivationMode: CHANNEL_BOUND_L2_DERIVATION_MODE,
+      l2DerivationChannelName: channelContext.workspace.channelName,
       l2StorageKey: storageKey,
       leafIndex: leafIndex?.toString() ?? null,
       l2Nonce: 0,
@@ -1420,6 +1425,8 @@ function ensureWallet({
   wallet.l2Address = l2Identity.l2Address;
   wallet.l2PrivateKey = ethers.hexlify(l2Identity.l2PrivateKey);
   wallet.l2PublicKey = ethers.hexlify(l2Identity.l2PublicKey);
+  wallet.l2DerivationMode = CHANNEL_BOUND_L2_DERIVATION_MODE;
+  wallet.l2DerivationChannelName = channelContext.workspace.channelName;
   wallet.l2StorageKey = storageKey;
   if (leafIndex !== undefined && leafIndex !== null) {
     wallet.leafIndex = leafIndex.toString();
@@ -2203,6 +2210,7 @@ function loadWallet(walletName, walletPassword) {
   const rawWallet = readEncryptedWalletJson(walletConfigPath(walletDir), walletPassword);
   assertWalletHasRequiredKeys(rawWallet, normalizedWalletName);
   const wallet = normalizeWallet(rawWallet);
+  assertWalletUsesChannelBoundDerivation(wallet, normalizedWalletName);
   const restoredIdentity = restoreParticipantIdentityFromWallet(wallet);
   expect(
     wallet.l2Address === restoredIdentity.l2Address,
@@ -2228,6 +2236,23 @@ function assertWalletHasRequiredKeys(wallet, walletName) {
   expect(
     typeof wallet.l2PublicKey === "string" && wallet.l2PublicKey.length > 0,
     `Wallet ${walletName} is missing the stored L2 public key.`,
+  );
+}
+
+function assertWalletUsesChannelBoundDerivation(wallet, walletName) {
+  expect(
+    wallet.l2DerivationMode === CHANNEL_BOUND_L2_DERIVATION_MODE,
+    [
+      `Wallet ${walletName} was not created with the current channel-bound L2 derivation rule.`,
+      "Create a fresh wallet with register-channel.",
+    ].join(" "),
+  );
+  expect(
+    wallet.l2DerivationChannelName === wallet.channelName,
+    [
+      `Wallet ${walletName} derivation channel (${wallet.l2DerivationChannelName ?? "missing"})`,
+      `does not match the wallet channel (${wallet.channelName}).`,
+    ].join(" "),
   );
 }
 
@@ -2607,8 +2632,8 @@ async function currentStorageBigInt(stateManager, address, keyHex) {
   return bytesToBigInt(valueBytes);
 }
 
-async function deriveParticipantIdentity({ password, signer }) {
-  const seedSignature = await signer.signMessage(buildL2PasswordSigningMessage(password));
+async function deriveParticipantIdentity({ channelName, password, signer }) {
+  const seedSignature = await signer.signMessage(buildL2PasswordSigningMessage({ channelName, password }));
   const keySet = deriveL2KeysFromSignature(seedSignature);
   const l2Address = getAddress(fromEdwardsToAddress(keySet.publicKey).toString());
   return {
@@ -2619,8 +2644,16 @@ async function deriveParticipantIdentity({ password, signer }) {
   };
 }
 
-function buildL2PasswordSigningMessage(password) {
-  return `${L2_PASSWORD_SIGNING_DOMAIN}\n${String(password)}`;
+function buildL2PasswordSigningMessage({ channelName, password }) {
+  expect(
+    typeof channelName === "string" && channelName.length > 0,
+    "Missing channel name for L2 identity derivation.",
+  );
+  return [
+    L2_PASSWORD_SIGNING_DOMAIN,
+    `channel:${channelName}`,
+    `password:${String(password)}`,
+  ].join("\n");
 }
 
 function deriveLiquidBalanceStorageKey(l2Address, slot) {

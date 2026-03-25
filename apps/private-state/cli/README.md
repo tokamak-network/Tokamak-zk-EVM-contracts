@@ -49,8 +49,11 @@ transactions for the supported direct commands.
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount. The CLI converts it into base units
 with the canonical token `decimals()` for the selected channel.
 Every CLI `--password` input accepts any string. During `register-channel` and other wallet-aware
-flows, the CLI signs a domain-separated password message with the user's L1 `--private-key`, uses the resulting
-signature as the seed for `deriveL2KeysFromSignature`, and derives the L2 identity that is stored in the channel wallet.
+flows, the CLI signs a domain-separated message that binds both the selected channel name and the user's password to
+the user's L1 `--private-key`, uses the resulting signature as the seed for `deriveL2KeysFromSignature`, and derives
+the channel-specific L2 identity that is stored in the channel wallet.
+Existing wallets created before this channel-bound derivation rule are not supported and must be recreated with
+`register-channel`.
 
 ## Usage
 

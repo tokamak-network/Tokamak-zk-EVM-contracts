@@ -62,10 +62,13 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   channel workspace is present.
 - Wallets are mandatory for note-carrying users. They are the authoritative local record for note plaintexts,
   note usage, and per-user L2 nonce.
-- Wallet folders are encrypted at rest. `register-channel`, `deposit-channel`, and `bridge-send` create or refresh the active wallet and the
-  CLI then needs only the matching `--password` to open or update that wallet.
+- Wallet folders are encrypted at rest. Only `register-channel` sets up L1/L2 keys in the active wallet.
+- `bridge-send` updates nonce and note state in an existing wallet, and the CLI then needs only the matching
+  `--password` to open or update that wallet.
 - `get-bridge-deposit`, `fund-l1`, and `claim` can also recover the L1 signer from an existing encrypted wallet when
   `--wallet` and `--password` are provided.
+- `deposit-channel` and `withdraw` can reuse an existing wallet when one is provided, but they do not set up wallet
+  keys anymore.
 - The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
   cannot be opened without their own `--password`.
 

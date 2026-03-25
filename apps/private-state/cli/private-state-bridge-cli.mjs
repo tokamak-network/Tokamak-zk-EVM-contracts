@@ -475,7 +475,7 @@ async function handleWalletShow({ args, env, provider }) {
 async function handleRegisterAndFund({ args, env, network, provider }) {
   if (args.wallet !== undefined) {
     throw new Error(
-      "--wallet is not supported by deposit-bridge. Channel wallets are created or refreshed by register-channel, deposit-channel, and bridge-send.",
+      "--wallet is not supported by deposit-bridge. Channel wallet keys are set up only by register-channel.",
     );
   }
   const signer = requireL1Signer(args, env, provider);
@@ -710,18 +710,9 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   }
 
   const operationName = direction === "deposit" ? "deposit-channel" : "withdraw";
-  const walletContext = ensureWallet({
-    args,
-    channelContext: context,
-    signerAddress: signer.address,
-    signerPrivateKey: signer.privateKey,
-    l2Identity,
-    walletPassword: password,
-    storageKey,
-    leafIndex: registration.leafIndex,
-  });
-  const operationDir =
-    createWalletOperationDir(walletContext.walletName, `${operationName}-${shortAddress(signer.address)}`);
+  const operationDir = walletFromFlag
+    ? createWalletOperationDir(walletFromFlag.walletName, `${operationName}-${shortAddress(signer.address)}`)
+    : createOperationDir(context.workspaceName, `${operationName}-${shortAddress(signer.address)}`);
 
   const transition = await buildGrothTransition({
     operationDir,
@@ -744,8 +735,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   writeJson(path.join(operationDir, `${operationName}-receipt.json`), sanitizeReceipt(receipt));
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(transition.nextSnapshot));
-  writeJson(path.join(operationDir, "wallet.json"), walletContext.wallet);
-  sealWalletOperationDir(operationDir, walletContext.walletPassword);
+  sealWalletOperationDir(operationDir, password);
 
   context.currentSnapshot = normalizeStateSnapshot(transition.nextSnapshot);
   persistCurrentState(context);
@@ -753,7 +743,7 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   printJson({
     action: operationName,
     workspace: context.workspaceName,
-    wallet: walletContext.walletName,
+    wallet: walletFromFlag?.walletName ?? null,
     operationDir,
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
@@ -2131,8 +2121,9 @@ Notes:
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - deposit-bridge only funds the shared bridge-level L1 token vault.
   - get-bridge-deposit reads the caller's shared bridge-level L1 token-vault balance.
-  - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, token-vault key, and token-vault leaf index in the selected channel.
-  - register-channel, deposit-channel, and bridge-send create or refresh the active wallet.
+  - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, token-vault key, token-vault leaf index, and local wallet keys for the selected channel.
+  - register-channel is the only command that sets up wallet keys in the active wallet.
+  - bridge-send updates nonce and note state inside an existing wallet, but it does not set up wallet keys.
   - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - register-channel, deposit-channel, and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.

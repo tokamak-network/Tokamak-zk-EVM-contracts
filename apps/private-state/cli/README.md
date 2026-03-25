@@ -128,6 +128,111 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   encrypted `wallet.json` directly. It stages recipient notes in inbox sidecars, and the recipient's next wallet-backed
   command absorbs that inbox into the encrypted wallet.
 
+## Getter Output Formats
+
+Each getter prints a single JSON object to stdout.
+
+### `get-bridge-deposit`
+
+```json
+{
+  "action": "get-bridge-deposit",
+  "wallet": "<wallet-name-or-null>",
+  "l1Address": "<address>",
+  "bridgeTokenVault": "<address>",
+  "canonicalAsset": "<address>",
+  "canonicalAssetDecimals": 18,
+  "availableBalanceBaseUnits": "<uint256-string>",
+  "availableBalanceTokens": "<decimal-string>"
+}
+```
+
+### `is-channel-registered`
+
+```json
+{
+  "action": "is-channel-registered",
+  "wallet": "<wallet-name>",
+  "network": "anvil|sepolia|mainnet",
+  "channelName": "<channel-name>",
+  "l1Address": "<address>",
+  "walletL2Address": "<address>",
+  "walletL2StorageKey": "<bytes32>",
+  "registrationExists": true,
+  "matchesWallet": true,
+  "registeredL2Address": "<address-or-null>",
+  "registeredL2StorageKey": "<bytes32-or-null>",
+  "registeredLeafIndex": "<string-or-null>"
+}
+```
+
+### `get-wallet-address`
+
+```json
+{
+  "action": "get-wallet-address",
+  "wallet": "<wallet-name>",
+  "network": "anvil|sepolia|mainnet",
+  "channelName": "<channel-name>",
+  "l1Address": "<address>",
+  "l2Address": "<address>",
+  "registeredLeafIndex": "<string>"
+}
+```
+
+### `get-channel-deposit`
+
+```json
+{
+  "action": "get-channel-deposit",
+  "wallet": "<wallet-name>",
+  "network": "anvil|sepolia|mainnet",
+  "channelName": "<channel-name>",
+  "l1Address": "<address>",
+  "walletL2Address": "<address>",
+  "walletL2StorageKey": "<bytes32>",
+  "registeredLeafIndex": "<string>",
+  "channelDepositBaseUnits": "<uint256-string>",
+  "channelDepositTokens": "<decimal-string>",
+  "canonicalAsset": "<address>",
+  "canonicalAssetDecimals": 18,
+  "l2AccountingVault": "<address>"
+}
+```
+
+### `get-my-notes`
+
+```json
+{
+  "action": "get-my-notes",
+  "wallet": "<wallet-name>",
+  "network": "anvil|sepolia|mainnet",
+  "channelName": "<channel-name>",
+  "controller": "<address>",
+  "unusedNotes": [
+    {
+      "owner": "<l2-address>",
+      "valueBaseUnits": "<uint256-string>",
+      "valueTokens": "<decimal-string>",
+      "commitment": "<bytes32>",
+      "nullifier": "<bytes32>",
+      "walletStatus": "unused|spent",
+      "bridgeCommitmentExists": true,
+      "bridgeNullifierUsed": false,
+      "walletStatusMatchesBridge": true,
+      "sourceFunction": "<string-or-null>",
+      "sourceTxHash": "<tx-hash-or-null>"
+    }
+  ],
+  "spentNotes": [],
+  "unusedTotalBaseUnits": "<uint256-string>",
+  "unusedTotalTokens": "<decimal-string>",
+  "spentTotalBaseUnits": "<uint256-string>",
+  "spentTotalTokens": "<decimal-string>",
+  "bridgeStatusMismatches": 0
+}
+```
+
 For bridge contract ABIs, the bridge-coupled CLI does not use hardcoded function signatures anymore. It reads the
 network-scoped bridge deployment JSON plus the network-scoped bridge ABI manifest generated at deployment time under
 `bridge/deployments/`, selected solely from `--network`.

@@ -125,7 +125,10 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint256 channelTokenVaultTreeIndex = dAppManager.getChannelTokenVaultTreeIndex(dappId);
         BridgeStructs.FunctionReference[] memory registeredFunctions = dAppManager.getRegisteredFunctions(dappId);
 
-        bytes32[] memory initialRootVector = _buildInitialRootVector(managedStorageAddresses.length);
+        bytes32[] memory initialRootVector = new bytes32[](managedStorageAddresses.length);
+        for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
+            initialRootVector[i] = ZERO_FILLED_TREE_ROOT;
+        }
 
         ChannelManager channelManager = new ChannelManager(
             channelId,
@@ -177,11 +180,4 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
-
-    function _buildInitialRootVector(uint256 treeCount) private pure returns (bytes32[] memory initialRootVector) {
-        initialRootVector = new bytes32[](treeCount);
-        for (uint256 i = 0; i < treeCount; i++) {
-            initialRootVector[i] = ZERO_FILLED_TREE_ROOT;
-        }
-    }
 }

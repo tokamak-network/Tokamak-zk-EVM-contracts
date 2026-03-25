@@ -135,6 +135,21 @@ async function main() {
     return;
   }
 
+  if (args.command === "transfer-notes") {
+    assertTransferNotesArgs(args);
+    const env = loadEnv(defaultEnvFile);
+    const walletMetadata = loadWalletMetadata(requireWalletName(args));
+    resolveCliNetwork(walletMetadata.network);
+    const rpcUrl = deriveRpcUrl({
+      networkName: walletMetadata.network,
+      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
+      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+    });
+    const provider = new JsonRpcProvider(rpcUrl);
+    await handleTransferNotes({ args, provider });
+    return;
+  }
+
   if (args.command === "deposit-channel") {
     assertDepositChannelArgs(args);
     const env = loadEnv(defaultEnvFile);
@@ -221,6 +236,8 @@ async function main() {
       throw new Error("mint-notes must resolve its network from the local wallet.");
     case "get-my-notes":
       throw new Error("get-my-notes must resolve its network from the local wallet.");
+    case "transfer-notes":
+      throw new Error("transfer-notes must resolve its network from the local wallet.");
     case "register-channel":
       await handleRegisterChannel({ args, env, network, provider });
       return;
@@ -1009,38 +1026,12 @@ async function handleMintNotes({ args, provider }) {
     wallet,
     baseUnitAmounts,
   });
-  const initialContextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
-
-  let contextResult = initialContextResult;
-  let execution;
-  let recoveredWorkspace = false;
-  try {
-    execution = await executeWalletTemplateSend({
-      wallet,
-      signer: new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider),
-      l2Identity: restoreParticipantIdentityFromWallet(wallet.wallet),
-      context: contextResult.context,
-      operationName: "mint-notes",
-      functionName: templatePayload.method,
-      templatePayload,
-    });
-  } catch (error) {
-    if (!(contextResult.usingWorkspaceCache && isRecoverableMintWorkspaceFailure(error))) {
-      throw error;
-    }
-    await recoverWalletChannelWorkspace({ walletContext: wallet, provider });
-    contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
-    execution = await executeWalletTemplateSend({
-      wallet,
-      signer: new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider),
-      l2Identity: restoreParticipantIdentityFromWallet(wallet.wallet),
-      context: contextResult.context,
-      operationName: "mint-notes",
-      functionName: templatePayload.method,
-      templatePayload,
-    });
-    recoveredWorkspace = true;
-  }
+  const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+    wallet,
+    provider,
+    operationName: "mint-notes",
+    templatePayload,
+  });
 
   printJson({
     action: "mint-notes",
@@ -1101,6 +1092,64 @@ async function handleGetMyNotes({ args, provider }) {
     spentTotalBaseUnits: spentTotal.toString(),
     spentTotalTokens: ethers.formatUnits(spentTotal, canonicalAssetDecimals),
     bridgeStatusMismatches: [...unusedNotes, ...spentNotes].filter((note) => !note.walletStatusMatchesBridge).length,
+  });
+}
+
+async function handleTransferNotes({ args, provider }) {
+  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
+  const walletMetadata = loadWalletMetadata(wallet.walletName);
+  assertWalletMatchesMetadata(wallet, walletMetadata);
+  const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
+  const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
+  const recipients = parseRecipientVector(requireArg(args.recipients, "--recipients"));
+  const amountInputs = parseTokenAmountVector(requireArg(args.amounts, "--amounts"));
+  expect(
+    recipients.length === amountInputs.length,
+    "--amounts length must match --recipients length.",
+  );
+
+  const inputNotes = loadTransferInputNotes(wallet, noteIds);
+  const outputAmounts = amountInputs.map((value, index) => {
+    const parsed = parseTokenAmount(value, canonicalAssetDecimals);
+    expect(parsed > 0n, `Invalid --amounts[${index}]. Each amount must be greater than zero.`);
+    return parsed;
+  });
+  const totalInput = inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
+  const totalOutput = outputAmounts.reduce((sum, value) => sum + value, 0n);
+  expect(
+    totalInput === totalOutput,
+    "The sum of --amounts must equal the sum of the selected input note values.",
+  );
+
+  const templatePayload = buildTransferNotesTemplatePayload({
+    inputNotes,
+    recipients,
+    outputAmounts,
+  });
+  const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
+    wallet,
+    provider,
+    operationName: "transfer-notes",
+    templatePayload,
+  });
+
+  printJson({
+    action: "transfer-notes",
+    wallet: wallet.walletName,
+    workspace: execution.context.workspaceName,
+    operationDir: execution.operationDir,
+    l1Submitter: execution.signer.address,
+    l2Address: execution.l2Identity.l2Address,
+    underlyingMethod: templatePayload.method,
+    nonce: execution.nonce,
+    noteIds,
+    recipients,
+    amountInputs,
+    amountBaseUnits: outputAmounts.map((value) => value.toString()),
+    outputNotes: templatePayload.args[1].map((note) => buildTrackedNote(note, templatePayload.method, execution.receipt.hash)),
+    usedWorkspaceCache: contextResult.usingWorkspaceCache,
+    recoveredWorkspace,
+    updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
 }
 
@@ -1419,6 +1468,41 @@ function buildMintOutputNotes({ owner, values }) {
   }));
 }
 
+function buildTransferNotesTemplatePayload({ inputNotes, recipients, outputAmounts }) {
+  const method = selectTransferNotesMethod(inputNotes.length, recipients.length);
+  const outputs = recipients.map((recipient, index) => ({
+    owner: getAddress(recipient),
+    value: BigInt(outputAmounts[index]).toString(),
+    salt: ethers.hexlify(randomBytes(32)),
+  }));
+  return {
+    abiFile: "../deploy/PrivateStateController.callable-abi.json",
+    method,
+    args: [inputNotes, outputs],
+  };
+}
+
+function selectTransferNotesMethod(inputCount, outputCount) {
+  if (inputCount === 1 && outputCount === 1) {
+    return "transferNotes1To1";
+  }
+  if (inputCount === 1 && outputCount === 2) {
+    return "transferNotes1To2";
+  }
+  if (inputCount === 2 && outputCount === 1) {
+    return "transferNotes2To1";
+  }
+  throw new Error("transfer-notes supports only 1->1, 1->2, and 2->1 note transfers.");
+}
+
+function loadTransferInputNotes(walletContext, noteIds) {
+  return noteIds.map((noteId) => {
+    const trackedNote = walletContext.wallet.notes.unused[noteId];
+    expect(trackedNote, `Unknown unused note commitment: ${noteId}.`);
+    return normalizePlaintextNote(trackedNote);
+  });
+}
+
 function parseTokenAmountVector(value) {
   let parsed;
   try {
@@ -1439,6 +1523,48 @@ function parseTokenAmountVector(value) {
       `Invalid --amounts[${index}]. Each amount must be greater than zero.`,
     );
     return normalized;
+  });
+}
+
+function parseNoteIdVector(value) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(value));
+  } catch {
+    throw new Error("Invalid --note-ids. Expected a JSON array of note commitments.");
+  }
+  expect(Array.isArray(parsed), "Invalid --note-ids. Expected a JSON array.");
+  expect(parsed.length > 0, "Invalid --note-ids. The array must not be empty.");
+
+  const noteIds = parsed.map((entry, index) => {
+    expect(
+      typeof entry === "string" && entry.length > 0,
+      `Invalid --note-ids[${index}]. Each note ID must be a non-empty string.`,
+    );
+    return normalizeBytes32Hex(entry);
+  });
+  expect(
+    new Set(noteIds).size === noteIds.length,
+    "Invalid --note-ids. Duplicate note commitments are not allowed.",
+  );
+  return noteIds;
+}
+
+function parseRecipientVector(value) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(value));
+  } catch {
+    throw new Error("Invalid --recipients. Expected a JSON array of L2 addresses.");
+  }
+  expect(Array.isArray(parsed), "Invalid --recipients. Expected a JSON array.");
+  expect(parsed.length > 0, "Invalid --recipients. The array must not be empty.");
+  return parsed.map((entry, index) => {
+    expect(
+      typeof entry === "string" && entry.length > 0,
+      `Invalid --recipients[${index}]. Each recipient must be a non-empty address string.`,
+    );
+    return getAddress(entry);
   });
 }
 
@@ -1485,7 +1611,7 @@ async function recoverWalletChannelWorkspace({ walletContext, provider }) {
   });
 }
 
-function isRecoverableMintWorkspaceFailure(error) {
+function isRecoverableWalletWorkspaceFailure(error) {
   const message = String(error?.message ?? error);
   return (message.includes("--verify") && message.includes("failed with exit code"))
     || message.includes("The workspace snapshot is stale relative to the bridge channel state.");
@@ -1500,6 +1626,57 @@ function assertWalletMatchesChannelContext(walletContext, l2Identity, context) {
     walletContext.wallet.l2Address === l2Identity.l2Address,
     "The provided wallet does not match the derived L2 identity.",
   );
+}
+
+async function executeWalletDirectTemplateCommand({
+  wallet,
+  provider,
+  operationName,
+  templatePayload,
+}) {
+  const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
+  const l2Identity = restoreParticipantIdentityFromWallet(wallet.wallet);
+  let contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+  let recoveredWorkspace = false;
+
+  try {
+    const execution = await executeWalletTemplateSend({
+      wallet,
+      signer,
+      l2Identity,
+      context: contextResult.context,
+      operationName,
+      functionName: templatePayload.method,
+      templatePayload,
+    });
+    return {
+      execution,
+      contextResult,
+      recoveredWorkspace,
+    };
+  } catch (error) {
+    if (!contextResult.usingWorkspaceCache || !isRecoverableWalletWorkspaceFailure(error)) {
+      throw error;
+    }
+  }
+
+  await recoverWalletChannelWorkspace({ walletContext: wallet, provider });
+  contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+  recoveredWorkspace = true;
+  const execution = await executeWalletTemplateSend({
+    wallet,
+    signer,
+    l2Identity,
+    context: contextResult.context,
+    operationName,
+    functionName: templatePayload.method,
+    templatePayload,
+  });
+  return {
+    execution,
+    contextResult,
+    recoveredWorkspace,
+  };
 }
 
 async function executeWalletTemplateSend({
@@ -2675,6 +2852,35 @@ function assertMintNotesArgs(args) {
   parseTokenAmountVector(args.amounts);
 }
 
+function assertTransferNotesArgs(args) {
+  requireWalletName(args);
+  requireL2Password(args);
+  requireArg(args.noteIds, "--note-ids");
+  requireArg(args.recipients, "--recipients");
+  requireArg(args.amounts, "--amounts");
+  const allowedKeys = new Set(["command", "positional", "wallet", "password", "noteIds", "recipients", "amounts"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `transfer-notes only accepts --wallet, --password, --note-ids, --recipients, and --amounts. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "transfer-notes does not accept positional arguments beyond the command name.",
+  );
+  const noteIds = parseNoteIdVector(args.noteIds);
+  const recipients = parseRecipientVector(args.recipients);
+  const amounts = parseTokenAmountVector(args.amounts);
+  expect(
+    recipients.length === amounts.length,
+    "--amounts length must match --recipients length.",
+  );
+  selectTransferNotesMethod(noteIds.length, recipients.length);
+}
+
 function assertGetMyNotesArgs(args) {
   requireWalletName(args);
   requireL2Password(args);
@@ -2781,6 +2987,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url <alchemy-rpc-url>
   node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet <name> --password <string> --amounts '[1,2,3]'
+  node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes --wallet <name> --password <string> --note-ids '["0x..."]' --recipients '["0x..."]' --amounts '[1]'
   node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
@@ -2823,8 +3030,10 @@ Notes:
   - install-zk-evm only accepts --rpc-url and forwards it to tokamak-cli --install.
   - install-zk-evm requires an Alchemy Ethereum RPC URL because the current tokamak-cli installer only accepts Alchemy mainnet or sepolia URLs.
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
+  - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.
   - get-my-notes requires --wallet and --password only. It reads local encrypted note state and verifies each note status against the current controller commitment/nullifier state accepted by the bridge.
   - If a ready channel workspace exists for the wallet channel, mint-notes tries that cached state first. If tokamak-cli --verify fails, the CLI refreshes the channel workspace through recover-workspace semantics and retries once.
+  - transfer-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
@@ -2835,8 +3044,8 @@ Notes:
   - get-channel-deposit requires --wallet and --password only. It derives the network and channel from the local wallet, requires the wallet's L2 identity to match the on-chain channel registration, and then reads the current channel L2 accounting balance bound to that registration.
   - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, channelTokenVault key, channelTokenVault leaf index, and local wallet keys for the selected channel.
   - register-channel is the only command that sets up wallet keys in the active wallet.
-  - mint-notes and bridge-send both update nonce and note state inside an existing wallet, but they do not set up wallet keys.
-  - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, mint-notes, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
+  - mint-notes, transfer-notes, and bridge-send update nonce and note state inside an existing wallet, but they do not set up wallet keys.
+  - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, mint-notes, transfer-notes, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
   - register-channel and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.

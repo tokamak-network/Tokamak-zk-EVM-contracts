@@ -76,6 +76,10 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   `channelTokenVault` key. It accepts only `--wallet` and `--password`.
 - `mint-notes` directly mints one to six notes without going through `bridge-send`. It accepts only `--wallet`,
   `--password`, and `--amounts`, where `--amounts` is a JSON vector such as `'[1,2,3]'`.
+- `transfer-notes` directly executes one of `transferNotes1To1`, `transferNotes1To2`, or `transferNotes2To1`
+  without going through `bridge-send`. It accepts only `--wallet`, `--password`, `--note-ids`, `--recipients`,
+  and `--amounts`, where all three vector inputs are JSON arrays and `--amounts.length` must equal
+  `--recipients.length`.
 - `get-my-notes` reads the local wallet's tracked note sets and checks each note's commitment/nullifier status against
   the current controller state accepted by the bridge. It accepts only `--wallet` and `--password`.
 - `register-channel` registers the caller's L2 address, L2 `channelTokenVault` key, and `channelTokenVault` leaf index in the selected channel.
@@ -94,12 +98,18 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `install-zk-evm` currently requires an Alchemy Ethereum RPC URL, because the underlying `tokamak-cli --install`
   implementation only accepts Alchemy mainnet or sepolia URLs and extracts the API key from that URL.
 - `mint-notes` maps the `--amounts` vector length to the underlying fixed-arity `mintNotes<N>` controller method.
+- `transfer-notes` maps the `--note-ids.length` and `--recipients.length` pair to `transferNotes1To1`,
+  `transferNotes1To2`, or `transferNotes2To1`.
 - If a ready channel workspace exists for the wallet channel, `mint-notes` uses that cached `state_snapshot.json`
   first. If `tokamak-cli --verify` fails, the CLI refreshes the workspace through `recover-workspace` semantics and retries once.
+- `transfer-notes` uses the same cached-workspace / recover-and-retry flow as `mint-notes`.
 - After a successful `mint-notes`, the CLI stores the resulting note plaintexts in the encrypted wallet and updates the
   channel workspace snapshot when that workspace exists.
+- After a successful `transfer-notes`, the CLI updates both spent input notes and newly received output notes inside
+  the encrypted wallet and updates the channel workspace snapshot when that workspace exists.
 - `get-my-notes` reports both the wallet's local note classification and whether each note still matches the
   bridge-accepted controller state.
+- The `noteId` values consumed by `transfer-notes` are note commitments from `get-my-notes`.
 - `bridge-send` remains only for non-mint template-based calls. It still updates nonce and note state in an existing
   wallet, and the CLI then needs only the matching `--password` to open or update that wallet.
 - `get-bridge-deposit`, `fund-l1`, and `claim` can also recover the L1 signer from an existing encrypted wallet when
@@ -154,6 +164,13 @@ node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes \
   --wallet participant-a \
   --password "participant-a" \
   --amounts '[1,2,3]'
+
+node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes \
+  --wallet participant-a \
+  --password "participant-a" \
+  --note-ids '["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]' \
+  --recipients '["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]' \
+  --amounts '[3]'
 
 node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes \
   --wallet participant-a \

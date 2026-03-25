@@ -119,13 +119,17 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     function getFunctionStorageWrites(uint256 dappId, address entryContract, bytes4 functionSig)
         external
         view
-        returns (BridgeStructs.StorageWriteMetadata[] memory)
+        returns (BridgeStructs.StorageWriteMetadata[] memory out)
     {
         bytes32 functionKey = computeFunctionKey(entryContract, functionSig);
         if (!_supportedFunctions[dappId][functionKey]) {
             revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
         }
-        return _copyStorageWrites(_functionStorageWrites[dappId][functionKey]);
+        BridgeStructs.StorageWriteMetadata[] storage storageWrites = _functionStorageWrites[dappId][functionKey];
+        out = new BridgeStructs.StorageWriteMetadata[](storageWrites.length);
+        for (uint256 i = 0; i < storageWrites.length; i++) {
+            out[i] = storageWrites[i];
+        }
     }
 
     function getDAppInfo(uint256 dappId) external view returns (DAppInfo memory) {
@@ -149,23 +153,35 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         }
     }
 
-    function getManagedStorageAddresses(uint256 dappId) external view returns (address[] memory) {
+    function getManagedStorageAddresses(uint256 dappId) external view returns (address[] memory out) {
         _requireDApp(dappId);
-        return _copyAddresses(_managedStorageAddresses[dappId]);
+        address[] storage managedStorageAddresses = _managedStorageAddresses[dappId];
+        out = new address[](managedStorageAddresses.length);
+        for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
+            out[i] = managedStorageAddresses[i];
+        }
     }
 
     function getChannelTokenVaultTreeIndex(uint256 dappId) external view returns (uint256) {
         return _requireDApp(dappId).channelTokenVaultTreeIndex;
     }
 
-    function getPreAllocKeys(uint256 dappId, address storageAddr) external view returns (bytes32[] memory) {
+    function getPreAllocKeys(uint256 dappId, address storageAddr) external view returns (bytes32[] memory out) {
         _requireKnownStorage(dappId, storageAddr);
-        return _copyBytes32(_preAllocatedKeys[dappId][storageAddr]);
+        bytes32[] storage preAllocatedKeys = _preAllocatedKeys[dappId][storageAddr];
+        out = new bytes32[](preAllocatedKeys.length);
+        for (uint256 i = 0; i < preAllocatedKeys.length; i++) {
+            out[i] = preAllocatedKeys[i];
+        }
     }
 
-    function getUserSlots(uint256 dappId, address storageAddr) external view returns (uint8[] memory) {
+    function getUserSlots(uint256 dappId, address storageAddr) external view returns (uint8[] memory out) {
         _requireKnownStorage(dappId, storageAddr);
-        return _copyUint8(_userStorageSlots[dappId][storageAddr]);
+        uint8[] storage userStorageSlots = _userStorageSlots[dappId][storageAddr];
+        out = new uint8[](userStorageSlots.length);
+        for (uint256 i = 0; i < userStorageSlots.length; i++) {
+            out[i] = userStorageSlots[i];
+        }
     }
 
     function isChannelTokenVaultStorageAddress(uint256 dappId, address storageAddr) external view returns (bool) {
@@ -302,35 +318,4 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         }
     }
 
-    function _copyAddresses(address[] storage source) private view returns (address[] memory out) {
-        out = new address[](source.length);
-        for (uint256 i = 0; i < source.length; i++) {
-            out[i] = source[i];
-        }
-    }
-
-    function _copyBytes32(bytes32[] storage source) private view returns (bytes32[] memory out) {
-        out = new bytes32[](source.length);
-        for (uint256 i = 0; i < source.length; i++) {
-            out[i] = source[i];
-        }
-    }
-
-    function _copyUint8(uint8[] storage source) private view returns (uint8[] memory out) {
-        out = new uint8[](source.length);
-        for (uint256 i = 0; i < source.length; i++) {
-            out[i] = source[i];
-        }
-    }
-
-    function _copyStorageWrites(BridgeStructs.StorageWriteMetadata[] storage source)
-        private
-        view
-        returns (BridgeStructs.StorageWriteMetadata[] memory out)
-    {
-        out = new BridgeStructs.StorageWriteMetadata[](source.length);
-        for (uint256 i = 0; i < source.length; i++) {
-            out[i] = source[i];
-        }
-    }
 }

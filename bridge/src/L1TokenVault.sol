@@ -30,6 +30,12 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     error UnsupportedAssetTransferBehavior(uint256 expectedDelta, uint256 actualDelta);
     error NotRegisteredInChannel(address user, uint256 channelId);
 
+    struct ChannelVaultUpdateContext {
+        ChannelManager channelManager;
+        BridgeStructs.ChannelTokenVaultRegistration registration;
+        bytes32 currentRoot;
+    }
+
     IERC20 public asset;
     IGrothVerifier public grothVerifier;
     IChannelRegistry public channelRegistry;
@@ -71,7 +77,12 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         if (amount == 0) revert InvalidAmount();
 
         _availableBalances[msg.sender] += amount;
-        _pullAsset(msg.sender, amount);
+        uint256 vaultBalanceBefore = asset.balanceOf(address(this));
+        asset.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 vaultBalanceDelta = asset.balanceOf(address(this)) - vaultBalanceBefore;
+        if (vaultBalanceDelta != amount) {
+            revert UnsupportedAssetTransferBehavior(amount, vaultBalanceDelta);
+        }
 
         emit AssetsFunded(msg.sender, amount);
     }
@@ -81,37 +92,14 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         nonReentrant
         returns (bool)
     {
-        ChannelManager channelManager = _requireChannelManager(channelId);
-        BridgeStructs.ChannelTokenVaultRegistration memory registration =
-            _requireChannelRegistration(channelManager, msg.sender, channelId);
-        bytes32 currentRoot = _currentChannelTokenVaultRoot(channelManager, update);
-
-        _requireL2ValueInField(update.currentUserValue);
-        _requireL2ValueInField(update.updatedUserValue);
-        if (update.currentUserKey != registration.channelTokenVaultKey) revert KeyMismatch();
-        if (update.updatedUserKey != registration.channelTokenVaultKey) revert KeyMismatch();
+        ChannelVaultUpdateContext memory context = _prepareChannelVaultUpdate(channelId, msg.sender, update);
         if (update.updatedUserValue <= update.currentUserValue) revert InvalidAmount();
 
         uint256 amount = update.updatedUserValue - update.currentUserValue;
         if (_availableBalances[msg.sender] < amount) revert InsufficientAvailableBalance();
 
-        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(currentRoot, update));
-        if (!ok) revert GrothProofRejected();
-
         _availableBalances[msg.sender] -= amount;
-
-        channelManager.applyVaultUpdate(
-            update.currentRootVector,
-            update.updatedRoot,
-            registration.leafIndex,
-            _encodeChannelTokenVaultLeaf(update.updatedUserValue)
-        );
-
-        emit StorageWriteObserved(
-            channelManager.channelTokenVaultStorageAddress(),
-            uint256(registration.channelTokenVaultKey),
-            update.updatedUserValue
-        );
+        _verifyAndApplyChannelVaultUpdate(context, proof, update);
         return true;
     }
 
@@ -120,36 +108,12 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         BridgeStructs.GrothProof calldata proof,
         BridgeStructs.GrothUpdate calldata update
     ) external nonReentrant returns (bool) {
-        ChannelManager channelManager = _requireChannelManager(channelId);
-        BridgeStructs.ChannelTokenVaultRegistration memory registration =
-            _requireChannelRegistration(channelManager, msg.sender, channelId);
-        bytes32 currentRoot = _currentChannelTokenVaultRoot(channelManager, update);
-
-        _requireL2ValueInField(update.currentUserValue);
-        _requireL2ValueInField(update.updatedUserValue);
-        if (update.currentUserKey != registration.channelTokenVaultKey) revert KeyMismatch();
-        if (update.updatedUserKey != registration.channelTokenVaultKey) revert KeyMismatch();
+        ChannelVaultUpdateContext memory context = _prepareChannelVaultUpdate(channelId, msg.sender, update);
         if (update.currentUserValue <= update.updatedUserValue) revert InvalidAmount();
 
         uint256 amount = update.currentUserValue - update.updatedUserValue;
-
-        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, _toPublicSignals(currentRoot, update));
-        if (!ok) revert GrothProofRejected();
-
         _availableBalances[msg.sender] += amount;
-
-        channelManager.applyVaultUpdate(
-            update.currentRootVector,
-            update.updatedRoot,
-            registration.leafIndex,
-            _encodeChannelTokenVaultLeaf(update.updatedUserValue)
-        );
-
-        emit StorageWriteObserved(
-            channelManager.channelTokenVaultStorageAddress(),
-            uint256(registration.channelTokenVaultKey),
-            update.updatedUserValue
-        );
+        _verifyAndApplyChannelVaultUpdate(context, proof, update);
         return true;
     }
 
@@ -177,58 +141,57 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         return _availableBalances[user];
     }
 
-    function _requireChannelManager(uint256 channelId) private view returns (ChannelManager channelManager) {
-        address channelManagerAddress = channelRegistry.getChannelManager(channelId);
-        if (channelManagerAddress == address(0)) revert UnknownChannel(channelId);
-        channelManager = ChannelManager(channelManagerAddress);
-    }
-
-    function _requireChannelRegistration(ChannelManager channelManager, address user, uint256 channelId)
-        private
-        view
-        returns (BridgeStructs.ChannelTokenVaultRegistration memory registration)
-    {
-        registration = channelManager.getChannelTokenVaultRegistration(user);
-        if (!registration.exists) revert NotRegisteredInChannel(user, channelId);
-    }
-
-    function _pullAsset(address from, uint256 amount) private {
-        uint256 vaultBalanceBefore = asset.balanceOf(address(this));
-        asset.safeTransferFrom(from, address(this), amount);
-        uint256 vaultBalanceDelta = asset.balanceOf(address(this)) - vaultBalanceBefore;
-        if (vaultBalanceDelta != amount) {
-            revert UnsupportedAssetTransferBehavior(amount, vaultBalanceDelta);
-        }
-    }
-
     function _requireL2ValueInField(uint256 value) private pure {
         if (value >= BLS12_381_SCALAR_FIELD_MODULUS) {
             revert L2ValueOutOfRange(value);
         }
     }
 
-    function _currentChannelTokenVaultRoot(ChannelManager channelManager, BridgeStructs.GrothUpdate calldata update)
+    function _prepareChannelVaultUpdate(uint256 channelId, address user, BridgeStructs.GrothUpdate calldata update)
         private
         view
-        returns (bytes32)
+        returns (ChannelVaultUpdateContext memory context)
     {
-        return update.currentRootVector[channelManager.channelTokenVaultTreeIndex()];
+        address channelManagerAddress = channelRegistry.getChannelManager(channelId);
+        if (channelManagerAddress == address(0)) revert UnknownChannel(channelId);
+        context.channelManager = ChannelManager(channelManagerAddress);
+        context.registration = context.channelManager.getChannelTokenVaultRegistration(user);
+        if (!context.registration.exists) revert NotRegisteredInChannel(user, channelId);
+        context.currentRoot = update.currentRootVector[context.channelManager.channelTokenVaultTreeIndex()];
+
+        _requireL2ValueInField(update.currentUserValue);
+        _requireL2ValueInField(update.updatedUserValue);
+        if (update.currentUserKey != context.registration.channelTokenVaultKey) revert KeyMismatch();
+        if (update.updatedUserKey != context.registration.channelTokenVaultKey) revert KeyMismatch();
     }
 
-    function _toPublicSignals(bytes32 currentRoot, BridgeStructs.GrothUpdate calldata update)
-        private
-        pure
-        returns (uint256[5] memory pubSignals)
-    {
-        pubSignals[0] = uint256(currentRoot);
-        pubSignals[1] = uint256(update.updatedRoot);
-        pubSignals[2] = uint256(update.updatedUserKey);
-        pubSignals[3] = update.currentUserValue;
-        pubSignals[4] = update.updatedUserValue;
-    }
+    function _verifyAndApplyChannelVaultUpdate(
+        ChannelVaultUpdateContext memory context,
+        BridgeStructs.GrothProof calldata proof,
+        BridgeStructs.GrothUpdate calldata update
+    ) private {
+        uint256[5] memory publicSignals;
+        publicSignals[0] = uint256(context.currentRoot);
+        publicSignals[1] = uint256(update.updatedRoot);
+        publicSignals[2] = uint256(update.updatedUserKey);
+        publicSignals[3] = update.currentUserValue;
+        publicSignals[4] = update.updatedUserValue;
 
-    function _encodeChannelTokenVaultLeaf(uint256 userValue) private pure returns (bytes32) {
-        return bytes32(userValue);
+        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
+        if (!ok) revert GrothProofRejected();
+
+        context.channelManager.applyVaultUpdate(
+            update.currentRootVector,
+            update.updatedRoot,
+            context.registration.leafIndex,
+            bytes32(update.updatedUserValue)
+        );
+
+        emit StorageWriteObserved(
+            context.channelManager.channelTokenVaultStorageAddress(),
+            uint256(context.registration.channelTokenVaultKey),
+            update.updatedUserValue
+        );
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}

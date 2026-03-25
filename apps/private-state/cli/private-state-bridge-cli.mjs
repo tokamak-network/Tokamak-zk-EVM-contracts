@@ -99,6 +99,21 @@ async function main() {
     return;
   }
 
+  if (args.command === "deposit-channel") {
+    assertDepositChannelArgs(args);
+    const env = loadEnv(defaultEnvFile);
+    const walletMetadata = loadWalletMetadata(requireWalletName(args));
+    const network = resolveCliNetwork(walletMetadata.network);
+    const rpcUrl = deriveRpcUrl({
+      networkName: walletMetadata.network,
+      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
+      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+    });
+    const provider = new JsonRpcProvider(rpcUrl);
+    await handleGrothVaultMove({ args, env, network, provider, direction: "deposit" });
+    return;
+  }
+
   const env = loadEnv(args.envFile ?? defaultEnvFile);
   const networkName = args.network ?? env.APPS_NETWORK;
   if (!networkName) {
@@ -137,9 +152,6 @@ async function main() {
       return;
     case "fund-l1":
       await handleFundL1({ args, env, network, provider });
-      return;
-    case "deposit-channel":
-      await handleGrothVaultMove({ args, env, network, provider, direction: "deposit" });
       return;
     case "withdraw":
       await handleGrothVaultMove({ args, env, network, provider, direction: "withdraw" });
@@ -653,11 +665,20 @@ async function handleFundL1({ args, env, network, provider }) {
 }
 
 async function handleGrothVaultMove({ args, env, network, provider, direction }) {
+  if (direction === "deposit") {
+    assertDepositChannelArgs(args);
+  }
   const password = requireL2Password(args);
   const walletFromFlag = args.wallet ? loadWallet(requireWalletName(args), password) : null;
+  let walletMetadata = null;
+  if (direction === "deposit") {
+    expect(walletFromFlag, "deposit-channel requires an existing local wallet.");
+    walletMetadata = loadWalletMetadata(walletFromFlag.walletName);
+    assertWalletMatchesMetadata(walletFromFlag, walletMetadata);
+  }
   const context = await loadChannelContext({
     args,
-    networkName: network.name,
+    networkName: walletMetadata?.network ?? network.name,
     provider,
     walletContext: walletFromFlag,
   });
@@ -669,8 +690,10 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   }
   await assertWorkspaceAlignedWithChain(context, provider);
 
-  const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: walletFromFlag });
-  const l2Identity = walletFromFlag
+  const signer = direction === "deposit"
+    ? new Wallet(normalizePrivateKey(walletFromFlag.wallet.l1PrivateKey), provider)
+    : resolveWalletBackedSigner({ args, env, provider, walletContext: walletFromFlag });
+  const l2Identity = (direction === "deposit" || walletFromFlag)
     ? restoreParticipantIdentityFromWallet(walletFromFlag.wallet)
     : await deriveParticipantIdentity({
       password,
@@ -1234,7 +1257,9 @@ function loadWallet(walletName, walletPassword) {
   if (!walletConfigExists(walletDir)) {
     throw new Error(`Unknown wallet: ${normalizedWalletName}.`);
   }
-  const wallet = normalizeWallet(readEncryptedWalletJson(walletConfigPath(walletDir), walletPassword));
+  const rawWallet = readEncryptedWalletJson(walletConfigPath(walletDir), walletPassword);
+  assertWalletHasRequiredKeys(rawWallet, normalizedWalletName);
+  const wallet = normalizeWallet(rawWallet);
   const restoredIdentity = restoreParticipantIdentityFromWallet(wallet);
   expect(
     wallet.l2Address === restoredIdentity.l2Address,
@@ -1246,6 +1271,21 @@ function loadWallet(walletName, walletPassword) {
     wallet,
     walletPassword,
   };
+}
+
+function assertWalletHasRequiredKeys(wallet, walletName) {
+  expect(
+    typeof wallet.l1PrivateKey === "string" && wallet.l1PrivateKey.length > 0,
+    `Wallet ${walletName} is missing the stored L1 private key.`,
+  );
+  expect(
+    typeof wallet.l2PrivateKey === "string" && wallet.l2PrivateKey.length > 0,
+    `Wallet ${walletName} is missing the stored L2 private key.`,
+  );
+  expect(
+    typeof wallet.l2PublicKey === "string" && wallet.l2PublicKey.length > 0,
+    `Wallet ${walletName} is missing the stored L2 public key.`,
+  );
 }
 
 function restoreParticipantIdentityFromWallet(wallet) {
@@ -1287,6 +1327,45 @@ function loadBridgeResources({ chainId }) {
     bridgeAbiManifestPath,
     bridgeAbiManifest,
   };
+}
+
+function loadWalletMetadata(walletName) {
+  const normalizedWalletName = requireWalletName({ wallet: walletName });
+  const walletDir = walletPath(normalizedWalletName);
+  if (!walletConfigExists(walletDir)) {
+    throw new Error(`Unknown wallet: ${normalizedWalletName}.`);
+  }
+  const metadataPath = walletMetadataPath(walletDir);
+  if (!fs.existsSync(metadataPath)) {
+    throw new Error(`Wallet ${normalizedWalletName} is missing unencrypted metadata at ${metadataPath}.`);
+  }
+  const metadata = readJson(metadataPath);
+  expect(
+    typeof metadata.network === "string" && metadata.network.length > 0,
+    `Wallet ${normalizedWalletName} metadata is missing network.`,
+  );
+  expect(
+    typeof metadata.channelName === "string" && metadata.channelName.length > 0,
+    `Wallet ${normalizedWalletName} metadata is missing channelName.`,
+  );
+  return metadata;
+}
+
+function assertWalletMatchesMetadata(walletContext, walletMetadata) {
+  expect(
+    walletContext.wallet.network === walletMetadata.network,
+    [
+      `Wallet ${walletContext.walletName} metadata network (${walletMetadata.network}) does not match`,
+      `the encrypted wallet network (${walletContext.wallet.network}).`,
+    ].join(" "),
+  );
+  expect(
+    walletContext.wallet.channelName === walletMetadata.channelName,
+    [
+      `Wallet ${walletContext.walletName} metadata channelName (${walletMetadata.channelName}) does not match`,
+      `the encrypted wallet channel (${walletContext.wallet.channelName}).`,
+    ].join(" "),
+  );
 }
 
 async function loadBridgeVaultContext({ provider, chainId }) {
@@ -1937,6 +2016,10 @@ function toCamelCase(value) {
   return value.replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase());
 }
 
+function toKebabCase(value) {
+  return value.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+}
+
 function parseBooleanFlag(value) {
   if (value === undefined) return false;
   if (value === true) return true;
@@ -2023,6 +2106,25 @@ function walletConfigExists(walletDir) {
   return fs.existsSync(walletConfigPath(walletDir));
 }
 
+function assertDepositChannelArgs(args) {
+  requireWalletName(args);
+  requireL2Password(args);
+  requireArg(args.amount, "--amount");
+  const allowedKeys = new Set(["command", "positional", "wallet", "password", "amount"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `deposit-channel only accepts --wallet, --password, and --amount. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "deposit-channel does not accept positional arguments beyond the command name.",
+  );
+}
+
 function listChannelWorkspaces() {
   if (!fs.existsSync(channelWorkspacesRoot)) {
     return [];
@@ -2099,7 +2201,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit [--private-key <hex>] [--wallet <name> --password <string>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet <name> --password <string> --amount <tokens>
   node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs claim [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> [--private-key <hex>] --password <string> [--args-file <path>] [--template-file <path>] [options]
@@ -2137,7 +2239,8 @@ Notes:
   - register-channel is the only command that sets up wallet keys in the active wallet.
   - bridge-send updates nonce and note state inside an existing wallet, but it does not set up wallet keys.
   - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
-  - register-channel, deposit-channel, and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
+  - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
+  - register-channel and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.

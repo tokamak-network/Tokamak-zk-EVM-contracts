@@ -216,7 +216,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channe
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --amount 3
 node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit --network sepolia --private-key <hex>
 node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a"
-node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a" --amount 1
+node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet participant-a --password "participant-a" --amount 1
 node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --wallet participant-a --network sepolia --password "participant-a"
 ```
 

@@ -33,7 +33,7 @@ proofs, and submits the resulting bridge transactions.
 
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount. The CLI converts it into base units
 with the canonical token `decimals()` for the selected channel.
-Every CLI `--password` input accepts any string. During `register-channel`, `deposit-channel`, and other wallet-aware
+Every CLI `--password` input accepts any string. During `register-channel` and other wallet-aware
 flows, the CLI signs a domain-separated password message with the user's L1 `--private-key`, uses the resulting
 signature as the seed for `deriveL2KeysFromSignature`, and derives the L2 identity that is stored in the channel wallet.
 
@@ -54,6 +54,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `get-bridge-deposit` reads the caller's shared bridge-level L1 token-vault balance.
 - `register-channel` registers the caller's L2 address, L2 token-vault key, and token-vault leaf index in the selected channel.
 - `deposit-channel` moves value from the shared bridge-level L1 token vault into the selected channel's L2 token vault.
+  It accepts only `--wallet`, `--password`, and `--amount`, and it fails unless the local wallet already contains
+  plaintext network/channel metadata plus encrypted L1/L2 key material.
 - `recover-workspace` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the stored
   `genesisBlockNumber` and writes it into `workspaces/<channel-name>/`.
 - `wallets` store per-user note plaintexts, classify notes into used vs unused sets, maintain aggregated
@@ -67,8 +69,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   `--password` to open or update that wallet.
 - `get-bridge-deposit`, `fund-l1`, and `claim` can also recover the L1 signer from an existing encrypted wallet when
   `--wallet` and `--password` are provided.
-- `deposit-channel` and `withdraw` can reuse an existing wallet when one is provided, but they do not set up wallet
-  keys anymore.
+- `deposit-channel` requires an existing wallet and derives its network, channel, and signer keys from that wallet.
+- `withdraw` can still reuse an existing wallet when one is provided, but it does not set up wallet keys.
 - The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
   cannot be opened without their own `--password`.
 
@@ -107,10 +109,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs register-channel \
   --password "participant-a"
 
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel \
-  --channel-name demo-channel \
   --wallet participant-a \
-  --network sepolia \
-  --private-key <hex> \
   --password "participant-a" \
   --amount 1.5
 

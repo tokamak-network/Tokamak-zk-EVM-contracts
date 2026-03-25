@@ -220,6 +220,21 @@ async function main() {
     return;
   }
 
+  if (args.command === "get-wallet-address") {
+    assertGetWalletAddressArgs(args);
+    const env = loadEnv(defaultEnvFile);
+    const walletMetadata = loadWalletMetadata(requireWalletName(args));
+    const network = resolveCliNetwork(walletMetadata.network);
+    const rpcUrl = deriveRpcUrl({
+      networkName: walletMetadata.network,
+      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
+      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+    });
+    const provider = new JsonRpcProvider(rpcUrl);
+    await handleGetWalletAddress({ args, env, network, provider });
+    return;
+  }
+
   if (args.command === "get-channel-deposit") {
     assertGetChannelDepositArgs(args);
     const env = loadEnv(defaultEnvFile);
@@ -263,6 +278,8 @@ async function main() {
       return;
     case "is-channel-registered":
       throw new Error("is-channel-registered must resolve its network from the local wallet.");
+    case "get-wallet-address":
+      throw new Error("get-wallet-address must resolve its network from the local wallet.");
     case "get-channel-deposit":
       throw new Error("get-channel-deposit must resolve its network from the local wallet.");
     case "mint-notes":
@@ -745,6 +762,36 @@ async function handleIsChannelRegistered({ args, env, network, provider }) {
     registeredL2Address: registration.exists ? getAddress(registration.l2Address) : null,
     registeredL2StorageKey: registration.exists ? normalizeBytes32Hex(registration.channelTokenVaultKey) : null,
     registeredLeafIndex: registration.exists ? registration.leafIndex.toString() : null,
+  });
+}
+
+async function handleGetWalletAddress({ args, env, network, provider }) {
+  const password = requireL2Password(args);
+  const wallet = loadWallet(requireWalletName(args), password);
+  const walletMetadata = loadWalletMetadata(wallet.walletName);
+  assertWalletMatchesMetadata(wallet, walletMetadata);
+  const signer = new Wallet(normalizePrivateKey(wallet.wallet.l1PrivateKey), provider);
+  const context = await loadChannelContext({
+    args,
+    networkName: walletMetadata.network,
+    provider,
+    walletContext: wallet,
+  });
+
+  const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
+  expect(
+    registration.exists,
+    `No channelTokenVault registration exists for ${signer.address}. Run register-channel first.`,
+  );
+
+  printJson({
+    action: "get-wallet-address",
+    wallet: wallet.walletName,
+    network: walletMetadata.network,
+    channelName: walletMetadata.channelName,
+    l1Address: signer.address,
+    l2Address: getAddress(registration.l2Address),
+    registeredLeafIndex: registration.leafIndex.toString(),
   });
 }
 
@@ -2045,19 +2092,7 @@ function loadWalletMetadata(walletName) {
     typeof metadata.channelName === "string" && metadata.channelName.length > 0,
     `Wallet ${normalizedWalletName} metadata is missing channelName.`,
   );
-  if (metadata.l2PublicKey !== undefined && metadata.l2PublicKey !== null) {
-    expect(
-      typeof metadata.l2PublicKey === "string" && metadata.l2PublicKey.length > 0,
-      `Wallet ${normalizedWalletName} metadata has an invalid l2PublicKey.`,
-    );
-  }
-  return {
-    ...metadata,
-    l2PublicKey:
-      typeof metadata.l2PublicKey === "string" && metadata.l2PublicKey.length > 0
-        ? ethers.hexlify(metadata.l2PublicKey)
-        : null,
-  };
+  return metadata;
 }
 
 function assertWalletMatchesMetadata(walletContext, walletMetadata) {
@@ -2075,15 +2110,6 @@ function assertWalletMatchesMetadata(walletContext, walletMetadata) {
       `the encrypted wallet channel (${walletContext.wallet.channelName}).`,
     ].join(" "),
   );
-  if (walletMetadata.l2PublicKey) {
-    expect(
-      walletContext.wallet.l2PublicKey === walletMetadata.l2PublicKey,
-      [
-        `Wallet ${walletContext.walletName} metadata l2PublicKey (${walletMetadata.l2PublicKey}) does not match`,
-        `the encrypted wallet l2PublicKey (${walletContext.wallet.l2PublicKey}).`,
-      ].join(" "),
-    );
-  }
 }
 
 async function loadBridgeVaultContext({ provider, chainId }) {
@@ -2898,6 +2924,24 @@ function assertIsChannelRegisteredArgs(args) {
   );
 }
 
+function assertGetWalletAddressArgs(args) {
+  requireWalletName(args);
+  requireL2Password(args);
+  const allowedKeys = new Set(["command", "positional", "wallet", "password"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `get-wallet-address only accepts --wallet and --password. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "get-wallet-address does not accept positional arguments beyond the command name.",
+  );
+}
+
 function assertInstallZkEvmArgs(args) {
   const allowedKeys = new Set(["command", "positional", "rpcUrl"]);
   const unsupported = Object.keys(args)
@@ -3088,7 +3132,6 @@ function persistWalletMetadata(context) {
   writeJson(walletMetadataPath(context.walletDir), {
     network: context.wallet.network,
     channelName: context.wallet.channelName,
-    l2PublicKey: context.wallet.l2PublicKey,
   });
 }
 
@@ -3121,6 +3164,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge --wallet <name> --password <string> --amount <tokens>
   node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit [--private-key <hex>] [--wallet <name> --password <string>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet <name> --password <string>
+  node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet <name> --password <string> --amount <tokens>
@@ -3163,6 +3207,7 @@ Notes:
   - withdraw-bridge requires --wallet, --password, and --amount only. It derives the network and signer keys from the local wallet and calls claimToWallet to move value from the shared bridge-level bridgeTokenVault back into Tokamak Network Token in the caller wallet.
   - get-bridge-deposit reads the caller's shared bridge-level bridgeTokenVault balance.
   - is-channel-registered requires --wallet and --password only. It derives the network and channel from the local wallet, then checks whether the wallet's L2 identity matches the on-chain channel registration.
+  - get-wallet-address requires --wallet and --password only. It derives the network and channel from the local wallet, then reads the caller's registered L2 address from the bridge channel registration.
   - get-channel-deposit requires --wallet and --password only. It derives the network and channel from the local wallet, requires the wallet's L2 identity to match the on-chain channel registration, and then reads the current channel L2 accounting balance bound to that registration.
   - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, channelTokenVault key, channelTokenVault leaf index, and local wallet keys for the selected channel.
   - register-channel is the only command that sets up wallet keys in the active wallet.

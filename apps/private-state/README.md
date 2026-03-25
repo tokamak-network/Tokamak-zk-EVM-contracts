@@ -188,6 +188,7 @@ The CLI:
 - reads each user's shared `bridgeTokenVault` deposit through `get-bridge-deposit`
 - exposes wallet-backed bridge withdrawal through `withdraw-bridge`, which claims Tokamak Network Token from the shared bridge-level `bridgeTokenVault` back into the caller wallet
 - checks each wallet-backed user's on-chain channel registration through `is-channel-registered`
+- reads each wallet-backed user's registered L2 address from the bridge through `get-wallet-address`
 - reads each wallet-backed user's current channel-level L2 accounting deposit through `get-channel-deposit`
 - exposes direct wallet-backed note minting through `mint-notes`, which selects the underlying fixed-arity `mintNotes<N>` method from the amount-vector length
 - exposes direct wallet-backed note redemption through `redeem-notes`, which fixes the path to `redeemNotes1` and credits the wallet owner's L2 liquid balance
@@ -205,8 +206,8 @@ resulting signature. `deposit-bridge` itself only funds the shared bridge-level 
 performs the channel-specific L2 identity registration and is the only command that sets up the channel-specific wallet
 keys. `mint-notes`, `redeem-notes`, and `transfer-notes` update nonce and note state in an existing wallet, and that
 wallet file is encrypted with `scrypt + AES-256-GCM` under the given password.
-Each wallet directory also includes an unencrypted metadata file that stores the target `network`,
-`channelName`, and `l2PublicKey`.
+Each wallet directory also includes an unencrypted metadata file that stores only the target `network` and
+`channelName`.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other
 wallets.
 The CLI accepts `anvil` only so end-to-end tests can drive the full workflow through the same user commands on a local
@@ -246,6 +247,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --networ
 node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge --wallet participant-a --password "participant-a" --amount 1
 node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit --network sepolia --private-key <hex>
 node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet participant-a --password "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address --wallet participant-a --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet participant-a --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet participant-a --password "participant-a" --amounts '[1,2,3]'
 node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes --wallet participant-a --password "participant-a" --note-id 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

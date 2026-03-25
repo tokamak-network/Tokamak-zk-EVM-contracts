@@ -80,6 +80,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `get-bridge-deposit` reads the caller's shared bridge-level `bridgeTokenVault` balance.
 - `is-channel-registered` checks whether the local wallet's L2 identity matches the selected channel's registered
   on-chain participant record. It accepts only `--wallet` and `--password`.
+- `get-wallet-address` reads the caller's registered L2 address from the selected channel's bridge registration.
+  It accepts only `--wallet` and `--password`.
 - `get-channel-deposit` reads the current channel-level L2 accounting balance bound to the local wallet's registered
   `channelTokenVault` key. It accepts only `--wallet` and `--password`.
 - `mint-notes` directly mints one to six notes. It accepts only `--wallet`,
@@ -136,6 +138,7 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `get-bridge-deposit` and `withdraw-bridge` can also recover the L1 signer from an existing
   encrypted wallet when `--wallet` and `--password` are provided.
 - `is-channel-registered` also requires an existing wallet and derives its network and channel from that wallet.
+- `get-wallet-address` also requires an existing wallet and derives its network and channel from that wallet.
 - `get-channel-deposit` also requires an existing wallet and fails unless the wallet's L2 identity matches the
   on-chain channel registration for the stored channel.
 - `deposit-channel` requires an existing wallet and derives its network, channel, and signer keys from that wallet.
@@ -181,6 +184,10 @@ node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit \
   --private-key <hex>
 
 node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered \
+  --wallet participant-a \
+  --password "participant-a"
+
+node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address \
   --wallet participant-a \
   --password "participant-a"
 
@@ -251,11 +258,10 @@ Each wallet also stores unencrypted metadata as:
 apps/private-state/cli/wallets/<wallet>/wallet.metadata.json
 ```
 
-That plaintext metadata includes:
+That plaintext metadata includes only:
 
 - `network`
 - `channelName`
-- `l2PublicKey`
 
 User-action commands accept channel selection in this order:
 

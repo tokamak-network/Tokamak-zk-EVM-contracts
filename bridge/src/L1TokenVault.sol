@@ -82,14 +82,14 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         returns (bool)
     {
         ChannelManager channelManager = _requireChannelManager(channelId);
-        BridgeStructs.TokenVaultRegistration memory registration =
+        BridgeStructs.ChannelTokenVaultRegistration memory registration =
             _requireChannelRegistration(channelManager, msg.sender, channelId);
-        bytes32 currentRoot = _currentTokenVaultRoot(channelManager, update);
+        bytes32 currentRoot = _currentChannelTokenVaultRoot(channelManager, update);
 
         _requireL2ValueInField(update.currentUserValue);
         _requireL2ValueInField(update.updatedUserValue);
-        if (update.currentUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
-        if (update.updatedUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
+        if (update.currentUserKey != registration.channelTokenVaultKey) revert KeyMismatch();
+        if (update.updatedUserKey != registration.channelTokenVaultKey) revert KeyMismatch();
         if (update.updatedUserValue <= update.currentUserValue) revert InvalidAmount();
 
         uint256 amount = update.updatedUserValue - update.currentUserValue;
@@ -104,11 +104,13 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
             update.currentRootVector,
             update.updatedRoot,
             registration.leafIndex,
-            _encodeTokenVaultLeaf(update.updatedUserValue)
+            _encodeChannelTokenVaultLeaf(update.updatedUserValue)
         );
 
         emit StorageWriteObserved(
-            channelManager.tokenVaultStorageAddress(), uint256(registration.l2TokenVaultKey), update.updatedUserValue
+            channelManager.channelTokenVaultStorageAddress(),
+            uint256(registration.channelTokenVaultKey),
+            update.updatedUserValue
         );
         return true;
     }
@@ -119,14 +121,14 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         BridgeStructs.GrothUpdate calldata update
     ) external nonReentrant returns (bool) {
         ChannelManager channelManager = _requireChannelManager(channelId);
-        BridgeStructs.TokenVaultRegistration memory registration =
+        BridgeStructs.ChannelTokenVaultRegistration memory registration =
             _requireChannelRegistration(channelManager, msg.sender, channelId);
-        bytes32 currentRoot = _currentTokenVaultRoot(channelManager, update);
+        bytes32 currentRoot = _currentChannelTokenVaultRoot(channelManager, update);
 
         _requireL2ValueInField(update.currentUserValue);
         _requireL2ValueInField(update.updatedUserValue);
-        if (update.currentUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
-        if (update.updatedUserKey != registration.l2TokenVaultKey) revert KeyMismatch();
+        if (update.currentUserKey != registration.channelTokenVaultKey) revert KeyMismatch();
+        if (update.updatedUserKey != registration.channelTokenVaultKey) revert KeyMismatch();
         if (update.currentUserValue <= update.updatedUserValue) revert InvalidAmount();
 
         uint256 amount = update.currentUserValue - update.updatedUserValue;
@@ -140,11 +142,13 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
             update.currentRootVector,
             update.updatedRoot,
             registration.leafIndex,
-            _encodeTokenVaultLeaf(update.updatedUserValue)
+            _encodeChannelTokenVaultLeaf(update.updatedUserValue)
         );
 
         emit StorageWriteObserved(
-            channelManager.tokenVaultStorageAddress(), uint256(registration.l2TokenVaultKey), update.updatedUserValue
+            channelManager.channelTokenVaultStorageAddress(),
+            uint256(registration.channelTokenVaultKey),
+            update.updatedUserValue
         );
         return true;
     }
@@ -182,9 +186,9 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     function _requireChannelRegistration(ChannelManager channelManager, address user, uint256 channelId)
         private
         view
-        returns (BridgeStructs.TokenVaultRegistration memory registration)
+        returns (BridgeStructs.ChannelTokenVaultRegistration memory registration)
     {
-        registration = channelManager.getTokenVaultRegistration(user);
+        registration = channelManager.getChannelTokenVaultRegistration(user);
         if (!registration.exists) revert NotRegisteredInChannel(user, channelId);
     }
 
@@ -203,12 +207,12 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         }
     }
 
-    function _currentTokenVaultRoot(ChannelManager channelManager, BridgeStructs.GrothUpdate calldata update)
+    function _currentChannelTokenVaultRoot(ChannelManager channelManager, BridgeStructs.GrothUpdate calldata update)
         private
         view
         returns (bytes32)
     {
-        return update.currentRootVector[channelManager.tokenVaultTreeIndex()];
+        return update.currentRootVector[channelManager.channelTokenVaultTreeIndex()];
     }
 
     function _toPublicSignals(bytes32 currentRoot, BridgeStructs.GrothUpdate calldata update)
@@ -223,7 +227,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         pubSignals[4] = update.updatedUserValue;
     }
 
-    function _encodeTokenVaultLeaf(uint256 userValue) private pure returns (bytes32) {
+    function _encodeChannelTokenVaultLeaf(uint256 userValue) private pure returns (bytes32) {
         return bytes32(userValue);
     }
 

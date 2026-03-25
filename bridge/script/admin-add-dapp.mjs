@@ -251,13 +251,13 @@ function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
         storageAddress: controller,
         preAllocKeys: [],
         userSlots: [],
-        isTokenVaultStorage: false,
+        isChannelTokenVaultStorage: false,
       },
       {
         storageAddress: l2AccountingVault,
         preAllocKeys: [],
         userSlots: [liquidBalanceSlotNumber],
-        isTokenVaultStorage: true,
+        isChannelTokenVaultStorage: true,
       },
     ],
   };
@@ -497,7 +497,7 @@ async function main() {
       storageAddr: storage.storageAddress,
       preAllocatedKeys: storage.preAllocKeys,
       userStorageSlots: storage.userSlots,
-      isTokenVaultStorage: storage.isTokenVaultStorage,
+      isChannelTokenVaultStorage: storage.isChannelTokenVaultStorage,
     })),
     dapp.functions.map((fn) => ({
       entryContract: fn.entryContract,

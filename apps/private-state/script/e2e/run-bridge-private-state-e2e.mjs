@@ -78,20 +78,20 @@ const abiCoder = AbiCoder.defaultAbiCoder();
 const deployerAddress = new Wallet(anvilDeployerPrivateKey).address;
 const bridgeCoreAbi = [
   "function canonicalAsset() external view returns (address)",
-  "function createChannel(uint256 channelId, uint256 dappId, address leader) external returns (address manager, address vault)",
-  "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address vault,bytes32 aPubBlockHash))",
+  "function createChannel(uint256 channelId, uint256 dappId, address leader) external returns (address manager, address bridgeTokenVault)",
+  "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address bridgeTokenVault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites) instanceLayout)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites) instanceLayout)[] functions) external",
 ];
 const channelManagerAbi = [
   "function currentRootVectorHash() external view returns (bytes32)",
   "function genesisBlockNumber() external view returns (uint256)",
-  "function registerTokenVaultIdentity(address l2Address, bytes32 l2TokenVaultKey, uint256 leafIndex) external",
-  "function getTokenVaultRegistration(address user) external view returns (tuple(bool exists, address l2Address, bytes32 l2TokenVaultKey, uint256 leafIndex))",
+  "function registerChannelTokenVaultIdentity(address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex) external",
+  "function getChannelTokenVaultRegistration(address user) external view returns (tuple(bool exists, address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex))",
   "function executeChannelTransaction((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
-const tokenVaultAbi = [
+const bridgeTokenVaultAbi = [
   "function fund(uint256 amount) external",
   "function deposit(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function withdraw(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
@@ -777,7 +777,7 @@ function toStorageMetadata(entries) {
     storageAddr: entry.storageAddress,
     preAllocatedKeys: entry.preAllocKeys,
     userStorageSlots: entry.userSlots,
-    isTokenVaultStorage: entry.isTokenVaultStorage,
+    isChannelTokenVaultStorage: entry.isChannelTokenVaultStorage,
   }));
 }
 
@@ -1031,7 +1031,7 @@ async function main() {
     normalizeBytes32Hex(channelAPubBlockHash) === normalizeBytes32Hex(channelDeployment.aPubBlockHash),
     "Derived channel block_info hash must match the stored channel aPubBlockHash.",
   );
-  const tokenVault = new Contract(channelDeployment.vault, tokenVaultAbi, deployer);
+  const bridgeTokenVault = new Contract(channelDeployment.bridgeTokenVault, bridgeTokenVaultAbi, deployer);
 
   const executionRun = await materializeTokamakResults(
     tokamakScenarios,
@@ -1056,18 +1056,18 @@ async function main() {
     const participantAsset = asset.connect(participant.l1);
     await (
       await participantAsset.approve(
-        channelDeployment.vault,
+        channelDeployment.bridgeTokenVault,
         depositAmount,
         { nonce: consumeAccountNonce(participantNonces, participant.l1.address) },
       )
     ).wait();
     await (
-      await tokenVault.connect(participant.l1).fund(depositAmount, {
+      await bridgeTokenVault.connect(participant.l1).fund(depositAmount, {
         nonce: consumeAccountNonce(participantNonces, participant.l1.address),
       })
     ).wait();
     await (
-      await channelManager.connect(participant.l1).registerTokenVaultIdentity(
+      await channelManager.connect(participant.l1).registerChannelTokenVaultIdentity(
         participant.l2Address,
         participantKeys.get(participant.index),
         deriveLeafIndex(participantKeys.get(participant.index)),
@@ -1081,7 +1081,7 @@ async function main() {
     const depositTransition = depositTransitions[index];
     console.log(`E2E: applying Groth deposit for participant ${participant.index}.`);
     await (
-      await tokenVault.connect(participant.l1).deposit(
+      await bridgeTokenVault.connect(participant.l1).deposit(
         channelId,
         depositTransition.proof,
         depositTransition.update,
@@ -1112,7 +1112,7 @@ async function main() {
 
   console.log("E2E: applying final Groth withdrawal for account C.");
   await (
-    await tokenVault.connect(participants[2].l1).withdraw(
+    await bridgeTokenVault.connect(participants[2].l1).withdraw(
       channelId,
       withdrawTransition.proof,
       withdrawTransition.update,
@@ -1123,16 +1123,16 @@ async function main() {
   const cBalanceBeforeClaim = await asset.balanceOf(participants[2].l1.address);
   console.log("E2E: claiming ERC-20 back to account C.");
   await (
-    await tokenVault.connect(participants[2].l1).claimToWallet(
+    await bridgeTokenVault.connect(participants[2].l1).claimToWallet(
       9n * amountUnit,
       { nonce: consumeAccountNonce(participantNonces, participants[2].l1.address) },
     )
   ).wait();
   const cBalanceAfterClaim = await asset.balanceOf(participants[2].l1.address);
 
-  const accountA = await tokenVault.availableBalanceOf(participants[0].l1.address);
-  const accountB = await tokenVault.availableBalanceOf(participants[1].l1.address);
-  const accountC = await tokenVault.availableBalanceOf(participants[2].l1.address);
+  const accountA = await bridgeTokenVault.availableBalanceOf(participants[0].l1.address);
+  const accountB = await bridgeTokenVault.availableBalanceOf(participants[1].l1.address);
+  const accountC = await bridgeTokenVault.availableBalanceOf(participants[2].l1.address);
 
   expect(accountA === 0n, "Account A should have no L1-claimable balance after transferring all value.");
   expect(accountB === 0n, "Account B should have no L1-claimable balance after transferring all value.");

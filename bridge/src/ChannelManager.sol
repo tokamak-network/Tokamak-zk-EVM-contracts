@@ -15,17 +15,17 @@ contract ChannelManager {
     struct CachedStorageWrite {
         address storageAddr;
         uint8 aPubOffsetWords;
-        bool isTokenVault;
+        bool isChannelTokenVault;
     }
 
     error OnlyBridgeCore();
-    error OnlyTokenVault();
-    error TokenVaultAlreadySet();
+    error OnlyBridgeTokenVault();
+    error BridgeTokenVaultAlreadySet();
     error StorageAddressVectorLengthMismatch();
     error UnexpectedCurrentRootVector();
     error UnsupportedChannelFunction(address entryContract, bytes4 functionSig);
     error TokamakProofRejected();
-    error InvalidTokenVaultTreeIndex();
+    error InvalidChannelTokenVaultTreeIndex();
     error PreprocessInputHashMismatch(bytes32 expectedHash, bytes32 actualHash);
     error APubBlockHashMismatch(bytes32 expectedHash, bytes32 actualHash);
     error APubBlockLengthMismatch(uint256 expectedLength, uint256 actualLength);
@@ -34,25 +34,25 @@ contract ChannelManager {
     error EntryContractPublicInputOutOfRange(uint256 value);
     error FunctionSigPublicInputOutOfRange(uint256 value);
     error InvalidStorageWriteStorageIndex(uint8 storageAddrIndex);
-    error TokenVaultRootUpdateWithoutStorageWrite();
+    error ChannelTokenVaultRootUpdateWithoutStorageWrite();
     error InvalidL2Address();
-    error TokenVaultIdentityAlreadyRegistered(address user);
-    error TokenVaultKeyAlreadyRegistered(bytes32 key);
-    error TokenVaultLeafIndexAlreadyRegistered(uint256 leafIndex);
-    error TokenVaultLeafIndexOutOfRange(uint256 leafIndex);
-    error TokenVaultLeafIndexMismatch(uint256 expectedLeafIndex, uint256 actualLeafIndex);
+    error ChannelTokenVaultIdentityAlreadyRegistered(address user);
+    error ChannelTokenVaultKeyAlreadyRegistered(bytes32 key);
+    error ChannelTokenVaultLeafIndexAlreadyRegistered(uint256 leafIndex);
+    error ChannelTokenVaultLeafIndexOutOfRange(uint256 leafIndex);
+    error ChannelTokenVaultLeafIndexMismatch(uint256 expectedLeafIndex, uint256 actualLeafIndex);
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
     uint256 public genesisBlockNumber;
     address public immutable leader;
     bytes32 public immutable aPubBlockHash;
-    uint256 public immutable tokenVaultTreeIndex;
-    address public immutable tokenVaultStorageAddress;
+    uint256 public immutable channelTokenVaultTreeIndex;
+    address public immutable channelTokenVaultStorageAddress;
     address public immutable bridgeCore;
     ITokamakVerifier public immutable tokamakVerifier;
 
-    address public tokenVault;
+    address public bridgeTokenVault;
     bytes32 public currentRootVectorHash;
 
     address[] private _managedStorageAddresses;
@@ -61,17 +61,17 @@ contract ChannelManager {
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
     mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
     mapping(bytes32 => CachedStorageWrite[]) private _functionStorageWrites;
-    mapping(bytes32 => bool) private _functionHasTokenVaultWrite;
+    mapping(bytes32 => bool) private _functionHasChannelTokenVaultWrite;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
-    mapping(uint256 => bytes32) private _latestTokenVaultLeaves;
-    mapping(address => BridgeStructs.TokenVaultRegistration) private _tokenVaultRegistrations;
-    mapping(bytes32 => address) private _tokenVaultKeyOwners;
-    mapping(uint256 => address) private _tokenVaultLeafOwners;
+    mapping(uint256 => bytes32) private _latestChannelTokenVaultLeaves;
+    mapping(address => BridgeStructs.ChannelTokenVaultRegistration) private _channelTokenVaultRegistrations;
+    mapping(bytes32 => address) private _channelTokenVaultKeyOwners;
+    mapping(uint256 => address) private _channelTokenVaultLeafOwners;
 
-    event TokenVaultBound(address indexed tokenVault);
-    event TokenVaultIdentityRegistered(
-        address indexed l1Address, address indexed l2Address, bytes32 indexed l2TokenVaultKey, uint256 leafIndex
+    event BridgeTokenVaultBound(address indexed bridgeTokenVault);
+    event ChannelTokenVaultIdentityRegistered(
+        address indexed l1Address, address indexed l2Address, bytes32 indexed channelTokenVaultKey, uint256 leafIndex
     );
     event TokamakStateUpdateAccepted(bytes4 indexed functionSig, address indexed entryContract);
     event CurrentRootVectorObserved(bytes32 indexed rootVectorHash, bytes32[] rootVector);
@@ -81,7 +81,7 @@ contract ChannelManager {
         uint256 channelId_,
         uint256 dappId_,
         address leader_,
-        uint256 tokenVaultTreeIndex_,
+        uint256 channelTokenVaultTreeIndex_,
         bytes32[] memory initialRootVector_,
         address[] memory managedStorageAddresses_,
         BridgeStructs.FunctionReference[] memory allowedFunctions_,
@@ -97,11 +97,11 @@ contract ChannelManager {
         bridgeCore = bridgeCore_;
         tokamakVerifier = tokamakVerifier_;
 
-        if (tokenVaultTreeIndex_ >= initialRootVector_.length) {
-            revert InvalidTokenVaultTreeIndex();
+        if (channelTokenVaultTreeIndex_ >= initialRootVector_.length) {
+            revert InvalidChannelTokenVaultTreeIndex();
         }
-        tokenVaultTreeIndex = tokenVaultTreeIndex_;
-        tokenVaultStorageAddress = managedStorageAddresses_[tokenVaultTreeIndex_];
+        channelTokenVaultTreeIndex = channelTokenVaultTreeIndex_;
+        channelTokenVaultStorageAddress = managedStorageAddresses_[channelTokenVaultTreeIndex_];
 
         if (managedStorageAddresses_.length != initialRootVector_.length) {
             revert StorageAddressVectorLengthMismatch();
@@ -134,11 +134,11 @@ contract ChannelManager {
                     CachedStorageWrite({
                         storageAddr: managedStorageAddresses_[storageAddrIndex],
                         aPubOffsetWords: storageWrites[j].aPubOffsetWords,
-                        isTokenVault: managedStorageAddresses_[storageAddrIndex] == tokenVaultStorageAddress
+                        isChannelTokenVault: managedStorageAddresses_[storageAddrIndex] == channelTokenVaultStorageAddress
                     })
                 );
-                if (managedStorageAddresses_[storageAddrIndex] == tokenVaultStorageAddress) {
-                    _functionHasTokenVaultWrite[functionKey] = true;
+                if (managedStorageAddresses_[storageAddrIndex] == channelTokenVaultStorageAddress) {
+                    _functionHasChannelTokenVaultWrite[functionKey] = true;
                 }
             }
         }
@@ -149,47 +149,49 @@ contract ChannelManager {
         _;
     }
 
-    modifier onlyTokenVault() {
-        if (msg.sender != tokenVault) revert OnlyTokenVault();
+    modifier onlyBridgeTokenVault() {
+        if (msg.sender != bridgeTokenVault) revert OnlyBridgeTokenVault();
         _;
     }
 
-    function bindTokenVault(address tokenVault_) external onlyBridgeCore {
-        if (tokenVault != address(0)) revert TokenVaultAlreadySet();
-        tokenVault = tokenVault_;
-        emit TokenVaultBound(tokenVault_);
+    function bindBridgeTokenVault(address bridgeTokenVault_) external onlyBridgeCore {
+        if (bridgeTokenVault != address(0)) revert BridgeTokenVaultAlreadySet();
+        bridgeTokenVault = bridgeTokenVault_;
+        emit BridgeTokenVaultBound(bridgeTokenVault_);
     }
 
-    function registerTokenVaultIdentity(address l2Address, bytes32 l2TokenVaultKey, uint256 leafIndex) external {
+    function registerChannelTokenVaultIdentity(address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex)
+        external
+    {
         if (l2Address == address(0)) revert InvalidL2Address();
-        if (_tokenVaultRegistrations[msg.sender].exists) {
-            revert TokenVaultIdentityAlreadyRegistered(msg.sender);
+        if (_channelTokenVaultRegistrations[msg.sender].exists) {
+            revert ChannelTokenVaultIdentityAlreadyRegistered(msg.sender);
         }
         if (leafIndex >= TOKEN_VAULT_MT_LEAF_COUNT) {
-            revert TokenVaultLeafIndexOutOfRange(leafIndex);
+            revert ChannelTokenVaultLeafIndexOutOfRange(leafIndex);
         }
 
-        uint256 expectedLeafIndex = _deriveLeafIndexFromStorageKey(uint256(l2TokenVaultKey));
+        uint256 expectedLeafIndex = _deriveLeafIndexFromStorageKey(uint256(channelTokenVaultKey));
         if (leafIndex != expectedLeafIndex) {
-            revert TokenVaultLeafIndexMismatch(expectedLeafIndex, leafIndex);
+            revert ChannelTokenVaultLeafIndexMismatch(expectedLeafIndex, leafIndex);
         }
-        if (_tokenVaultKeyOwners[l2TokenVaultKey] != address(0)) {
-            revert TokenVaultKeyAlreadyRegistered(l2TokenVaultKey);
+        if (_channelTokenVaultKeyOwners[channelTokenVaultKey] != address(0)) {
+            revert ChannelTokenVaultKeyAlreadyRegistered(channelTokenVaultKey);
         }
-        if (_tokenVaultLeafOwners[leafIndex] != address(0)) {
-            revert TokenVaultLeafIndexAlreadyRegistered(leafIndex);
+        if (_channelTokenVaultLeafOwners[leafIndex] != address(0)) {
+            revert ChannelTokenVaultLeafIndexAlreadyRegistered(leafIndex);
         }
 
-        _tokenVaultRegistrations[msg.sender] = BridgeStructs.TokenVaultRegistration({
+        _channelTokenVaultRegistrations[msg.sender] = BridgeStructs.ChannelTokenVaultRegistration({
             exists: true,
             l2Address: l2Address,
-            l2TokenVaultKey: l2TokenVaultKey,
+            channelTokenVaultKey: channelTokenVaultKey,
             leafIndex: leafIndex
         });
-        _tokenVaultKeyOwners[l2TokenVaultKey] = msg.sender;
-        _tokenVaultLeafOwners[leafIndex] = msg.sender;
+        _channelTokenVaultKeyOwners[channelTokenVaultKey] = msg.sender;
+        _channelTokenVaultLeafOwners[leafIndex] = msg.sender;
 
-        emit TokenVaultIdentityRegistered(msg.sender, l2Address, l2TokenVaultKey, leafIndex);
+        emit ChannelTokenVaultIdentityRegistered(msg.sender, l2Address, channelTokenVaultKey, leafIndex);
     }
 
     function executeChannelTransaction(BridgeStructs.TokamakProofPayload calldata payload) external returns (bool) {
@@ -228,12 +230,12 @@ contract ChannelManager {
         }
         bytes32[] memory updatedRootVector =
             _decodeUpdatedRootVectorFromAPubUser(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords);
-        bytes32 currentTokenVaultRoot = currentRootVector[tokenVaultTreeIndex];
-        bytes32 updatedTokenVaultRoot = updatedRootVector[tokenVaultTreeIndex];
-        bool hasTokenVaultStorageWrite = _functionHasTokenVaultWrite[functionKey];
+        bytes32 currentChannelTokenVaultRoot = currentRootVector[channelTokenVaultTreeIndex];
+        bytes32 updatedChannelTokenVaultRoot = updatedRootVector[channelTokenVaultTreeIndex];
+        bool hasChannelTokenVaultStorageWrite = _functionHasChannelTokenVaultWrite[functionKey];
 
-        if (updatedTokenVaultRoot != currentTokenVaultRoot && !hasTokenVaultStorageWrite) {
-            revert TokenVaultRootUpdateWithoutStorageWrite();
+        if (updatedChannelTokenVaultRoot != currentChannelTokenVaultRoot && !hasChannelTokenVaultStorageWrite) {
+            revert ChannelTokenVaultRootUpdateWithoutStorageWrite();
         }
 
         bool ok = tokamakVerifier.verify(
@@ -256,10 +258,10 @@ contract ChannelManager {
 
     function applyVaultUpdate(
         bytes32[] calldata currentRootVector,
-        bytes32 updatedTokenVaultRoot,
+        bytes32 updatedChannelTokenVaultRoot,
         uint256 leafIndex,
         bytes32 latestLeafValue
-    ) external onlyTokenVault returns (bool) {
+    ) external onlyBridgeTokenVault returns (bool) {
         if (currentRootVector.length != _managedStorageAddresses.length) {
             revert APubUserTooShort(_managedStorageAddresses.length, currentRootVector.length);
         }
@@ -268,8 +270,8 @@ contract ChannelManager {
         }
 
         emit CurrentRootVectorObserved(currentRootVectorHash, currentRootVector);
-        _applyVaultLeaf(leafIndex, latestLeafValue);
-        currentRootVectorHash = _deriveUpdatedRootVectorHash(currentRootVector, updatedTokenVaultRoot);
+        _applyChannelTokenVaultLeaf(leafIndex, latestLeafValue);
+        currentRootVectorHash = _deriveUpdatedRootVectorHash(currentRootVector, updatedChannelTokenVaultRoot);
         return true;
     }
 
@@ -277,16 +279,16 @@ contract ChannelManager {
         return _copyAddresses(_managedStorageAddresses);
     }
 
-    function getLatestTokenVaultLeaf(uint256 leafIndex) external view returns (bytes32) {
-        return _latestTokenVaultLeaves[leafIndex];
+    function getLatestChannelTokenVaultLeaf(uint256 leafIndex) external view returns (bytes32) {
+        return _latestChannelTokenVaultLeaves[leafIndex];
     }
 
-    function getTokenVaultRegistration(address l1Address)
+    function getChannelTokenVaultRegistration(address l1Address)
         external
         view
-        returns (BridgeStructs.TokenVaultRegistration memory)
+        returns (BridgeStructs.ChannelTokenVaultRegistration memory)
     {
-        return _tokenVaultRegistrations[l1Address];
+        return _channelTokenVaultRegistrations[l1Address];
     }
 
     function _replaceManagedStorageAddresses(address[] memory storageAddresses) private {
@@ -361,9 +363,9 @@ contract ChannelManager {
             uint256 value = _decodeSplitWord(aPubUser, aPubOffsetWords + STORAGE_WRITE_VALUE_OFFSET);
 
             emit StorageWriteObserved(storageWrite.storageAddr, storageKey, value);
-            if (storageWrite.isTokenVault) {
+            if (storageWrite.isChannelTokenVault) {
                 uint256 leafIndex = _deriveLeafIndexFromStorageKey(storageKey);
-                _applyVaultLeaf(leafIndex, bytes32(value));
+                _applyChannelTokenVaultLeaf(leafIndex, bytes32(value));
             }
         }
     }
@@ -454,7 +456,7 @@ contract ChannelManager {
         return keccak256(abi.encode(entryContract, functionSig));
     }
 
-    function _deriveUpdatedRootVectorHash(bytes32[] calldata currentRootVector, bytes32 updatedTokenVaultRoot)
+    function _deriveUpdatedRootVectorHash(bytes32[] calldata currentRootVector, bytes32 updatedChannelTokenVaultRoot)
         private
         view
         returns (bytes32)
@@ -463,12 +465,12 @@ contract ChannelManager {
         for (uint256 i = 0; i < currentRootVector.length; i++) {
             updatedRootVector[i] = currentRootVector[i];
         }
-        updatedRootVector[tokenVaultTreeIndex] = updatedTokenVaultRoot;
+        updatedRootVector[channelTokenVaultTreeIndex] = updatedChannelTokenVaultRoot;
         return keccak256(abi.encode(updatedRootVector));
     }
 
-    function _applyVaultLeaf(uint256 leafIndex, bytes32 leafValue) private {
-        _latestTokenVaultLeaves[leafIndex] = leafValue;
+    function _applyChannelTokenVaultLeaf(uint256 leafIndex, bytes32 leafValue) private {
+        _latestChannelTokenVaultLeaves[leafIndex] = leafValue;
     }
 
     function _deriveLeafIndexFromStorageKey(uint256 storageKey) private pure returns (uint256) {

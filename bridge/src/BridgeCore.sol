@@ -31,8 +31,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     error InvalidDAppManager();
     error InvalidGrothVerifier();
     error InvalidTokamakVerifier();
-    error InvalidTokenVault();
-    error SharedTokenVaultAlreadySet();
+    error InvalidBridgeTokenVault();
+    error BridgeTokenVaultAlreadySet();
     error UnsupportedCanonicalAssetChain(uint256 chainId);
 
     struct ChannelDeployment {
@@ -41,7 +41,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         address leader;
         address asset;
         address manager;
-        address vault;
+        address bridgeTokenVault;
         bytes32 aPubBlockHash;
     }
 
@@ -49,7 +49,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     DAppManager public dAppManager;
     IGrothVerifier public grothVerifier;
     ITokamakVerifier public tokamakVerifier;
-    address public tokenVault;
+    address public bridgeTokenVault;
 
     mapping(uint256 => ChannelDeployment) private _channels;
 
@@ -57,9 +57,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint256 indexed channelId,
         uint256 indexed dappId,
         address manager,
-        address vault
+        address bridgeTokenVault
     );
-    event SharedTokenVaultBound(address indexed tokenVault);
+    event BridgeTokenVaultBound(address indexed bridgeTokenVault);
     constructor() {
         _disableInitializers();
     }
@@ -88,11 +88,11 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         tokamakVerifier = tokamakVerifier_;
     }
 
-    function bindSharedTokenVault(address tokenVault_) external onlyOwner {
-        if (tokenVault_ == address(0)) revert InvalidTokenVault();
-        if (tokenVault != address(0)) revert SharedTokenVaultAlreadySet();
-        tokenVault = tokenVault_;
-        emit SharedTokenVaultBound(tokenVault_);
+    function bindBridgeTokenVault(address bridgeTokenVault_) external onlyOwner {
+        if (bridgeTokenVault_ == address(0)) revert InvalidBridgeTokenVault();
+        if (bridgeTokenVault != address(0)) revert BridgeTokenVaultAlreadySet();
+        bridgeTokenVault = bridgeTokenVault_;
+        emit BridgeTokenVaultBound(bridgeTokenVault_);
     }
 
     function canonicalAsset() public view returns (address) {
@@ -109,10 +109,10 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint256 channelId,
         uint256 dappId,
         address leader
-    ) external onlyOwner returns (address manager, address vault) {
+    ) external onlyOwner returns (address manager, address boundBridgeTokenVault) {
         IERC20 asset = IERC20(canonicalAsset());
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
-        if (tokenVault == address(0)) revert InvalidTokenVault();
+        if (bridgeTokenVault == address(0)) revert InvalidBridgeTokenVault();
         if (leader == address(0)) revert InvalidLeader();
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
         if (adminManager.nMerkleTreeLevels() != SUPPORTED_MT_LEVELS) {
@@ -122,7 +122,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         if (managedStorageAddresses.length > MAX_MANAGED_STORAGES) {
             revert TooManyManagedStorages(managedStorageAddresses.length, MAX_MANAGED_STORAGES);
         }
-        uint256 tokenVaultTreeIndex = dAppManager.getTokenVaultTreeIndex(dappId);
+        uint256 channelTokenVaultTreeIndex = dAppManager.getChannelTokenVaultTreeIndex(dappId);
         BridgeStructs.FunctionReference[] memory registeredFunctions = dAppManager.getRegisteredFunctions(dappId);
 
         bytes32[] memory initialRootVector = _buildInitialRootVector(managedStorageAddresses.length);
@@ -131,7 +131,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             channelId,
             dappId,
             leader,
-            tokenVaultTreeIndex,
+            channelTokenVaultTreeIndex,
             initialRootVector,
             managedStorageAddresses,
             registeredFunctions,
@@ -140,7 +140,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             tokamakVerifier
         );
 
-        channelManager.bindTokenVault(tokenVault);
+        channelManager.bindBridgeTokenVault(bridgeTokenVault);
 
         bytes32 channelAPubBlockHash = channelManager.aPubBlockHash();
         _channels[channelId] = ChannelDeployment({
@@ -149,12 +149,12 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             leader: leader,
             asset: address(asset),
             manager: address(channelManager),
-            vault: tokenVault,
+            bridgeTokenVault: bridgeTokenVault,
             aPubBlockHash: channelAPubBlockHash
         });
 
-        emit ChannelCreated(channelId, dappId, address(channelManager), tokenVault);
-        return (address(channelManager), tokenVault);
+        emit ChannelCreated(channelId, dappId, address(channelManager), bridgeTokenVault);
+        return (address(channelManager), bridgeTokenVault);
     }
 
     function getChannel(uint256 channelId) external view returns (ChannelDeployment memory) {
@@ -170,10 +170,10 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     function getChannelTokenVaultRegistration(uint256 channelId, address l1Address)
         external
         view
-        returns (BridgeStructs.TokenVaultRegistration memory)
+        returns (BridgeStructs.ChannelTokenVaultRegistration memory)
     {
         if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return ChannelManager(_channels[channelId].manager).getTokenVaultRegistration(l1Address);
+        return ChannelManager(_channels[channelId].manager).getChannelTokenVaultRegistration(l1Address);
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}

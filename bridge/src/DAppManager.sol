@@ -16,8 +16,8 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     error UnknownStorageAddress(uint256 dappId, address storageAddr);
     error DuplicateFunction(uint256 dappId, address entryContract, bytes4 functionSig);
     error UnsupportedChannelFunction(uint256 dappId, address entryContract, bytes4 functionSig);
-    error MissingTokenVaultStorageAddress(uint256 dappId);
-    error MultipleTokenVaultStorageAddresses(uint256 dappId, address firstStorageAddr, address secondStorageAddr);
+    error MissingChannelTokenVaultStorageAddress(uint256 dappId);
+    error MultipleChannelTokenVaultStorageAddresses(uint256 dappId, address firstStorageAddr, address secondStorageAddr);
     error MissingPreprocessInputHash(uint256 dappId, address entryContract, bytes4 functionSig);
     error DuplicatePreprocessInputHash(uint256 dappId, bytes32 preprocessInputHash);
     error InvalidFunctionStorageWriteStorageIndex(
@@ -30,7 +30,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     struct DAppInfo {
         bool exists;
         bytes32 labelHash;
-        uint256 tokenVaultTreeIndex;
+        uint256 channelTokenVaultTreeIndex;
     }
 
     mapping(uint256 => DAppInfo) private _dapps;
@@ -42,7 +42,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     mapping(uint256 => address[]) private _managedStorageAddresses;
     mapping(uint256 => mapping(address => bool)) private _knownStorageAddress;
-    mapping(uint256 => mapping(address => bool)) private _isTokenVaultStorage;
+    mapping(uint256 => mapping(address => bool)) private _isChannelTokenVaultStorage;
     mapping(uint256 => mapping(address => bytes32[])) private _preAllocatedKeys;
     mapping(uint256 => mapping(address => uint8[])) private _userStorageSlots;
 
@@ -81,13 +81,13 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             revert EmptyFunctionList(dappId);
         }
 
-        (uint256 tokenVaultTreeIndex, address tokenVaultStorageAddress) = _storeStorageLayout(dappId, storages);
-        _storeFunctions(dappId, functions, tokenVaultStorageAddress);
+        (uint256 channelTokenVaultTreeIndex, address channelTokenVaultStorageAddress) = _storeStorageLayout(dappId, storages);
+        _storeFunctions(dappId, functions, channelTokenVaultStorageAddress);
 
         _dapps[dappId] = DAppInfo({
             exists: true,
             labelHash: labelHash,
-            tokenVaultTreeIndex: tokenVaultTreeIndex
+            channelTokenVaultTreeIndex: channelTokenVaultTreeIndex
         });
 
         emit DAppRegistered(dappId, labelHash, storages.length, functions.length);
@@ -154,8 +154,8 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return _copyAddresses(_managedStorageAddresses[dappId]);
     }
 
-    function getTokenVaultTreeIndex(uint256 dappId) external view returns (uint256) {
-        return _requireDApp(dappId).tokenVaultTreeIndex;
+    function getChannelTokenVaultTreeIndex(uint256 dappId) external view returns (uint256) {
+        return _requireDApp(dappId).channelTokenVaultTreeIndex;
     }
 
     function getPreAllocKeys(uint256 dappId, address storageAddr) external view returns (bytes32[] memory) {
@@ -168,9 +168,9 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return _copyUint8(_userStorageSlots[dappId][storageAddr]);
     }
 
-    function isTokenVaultStorageAddress(uint256 dappId, address storageAddr) external view returns (bool) {
+    function isChannelTokenVaultStorageAddress(uint256 dappId, address storageAddr) external view returns (bool) {
         _requireKnownStorage(dappId, storageAddr);
-        return _isTokenVaultStorage[dappId][storageAddr];
+        return _isChannelTokenVaultStorage[dappId][storageAddr];
     }
 
     function computeFunctionKey(address entryContract, bytes4 functionSig)
@@ -185,9 +185,9 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     function _storeStorageLayout(uint256 dappId, BridgeStructs.StorageMetadata[] calldata storages)
         private
-        returns (uint256 tokenVaultTreeIndex, address tokenVaultStorageAddress)
+        returns (uint256 channelTokenVaultTreeIndex, address channelTokenVaultStorageAddress)
     {
-        tokenVaultTreeIndex = type(uint256).max;
+        channelTokenVaultTreeIndex = type(uint256).max;
 
         for (uint256 i = 0; i < storages.length; i++) {
             BridgeStructs.StorageMetadata calldata storageMetadata = storages[i];
@@ -197,7 +197,8 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
             _knownStorageAddress[dappId][storageMetadata.storageAddr] = true;
             _managedStorageAddresses[dappId].push(storageMetadata.storageAddr);
-            _isTokenVaultStorage[dappId][storageMetadata.storageAddr] = storageMetadata.isTokenVaultStorage;
+            _isChannelTokenVaultStorage[dappId][storageMetadata.storageAddr] =
+                storageMetadata.isChannelTokenVaultStorage;
 
             for (uint256 j = 0; j < storageMetadata.preAllocatedKeys.length; j++) {
                 _preAllocatedKeys[dappId][storageMetadata.storageAddr].push(storageMetadata.preAllocatedKeys[j]);
@@ -206,26 +207,26 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                 _userStorageSlots[dappId][storageMetadata.storageAddr].push(storageMetadata.userStorageSlots[j]);
             }
 
-            if (storageMetadata.isTokenVaultStorage) {
-                if (tokenVaultStorageAddress != address(0)) {
-                    revert MultipleTokenVaultStorageAddresses(
-                        dappId, tokenVaultStorageAddress, storageMetadata.storageAddr
+            if (storageMetadata.isChannelTokenVaultStorage) {
+                if (channelTokenVaultStorageAddress != address(0)) {
+                    revert MultipleChannelTokenVaultStorageAddresses(
+                        dappId, channelTokenVaultStorageAddress, storageMetadata.storageAddr
                     );
                 }
-                tokenVaultStorageAddress = storageMetadata.storageAddr;
-                tokenVaultTreeIndex = i;
+                channelTokenVaultStorageAddress = storageMetadata.storageAddr;
+                channelTokenVaultTreeIndex = i;
             }
         }
 
-        if (tokenVaultStorageAddress == address(0)) {
-            revert MissingTokenVaultStorageAddress(dappId);
+        if (channelTokenVaultStorageAddress == address(0)) {
+            revert MissingChannelTokenVaultStorageAddress(dappId);
         }
     }
 
     function _storeFunctions(
         uint256 dappId,
         BridgeStructs.DAppFunctionMetadata[] calldata functions,
-        address tokenVaultStorageAddress
+        address channelTokenVaultStorageAddress
     ) private {
         for (uint256 i = 0; i < functions.length; i++) {
             BridgeStructs.DAppFunctionMetadata calldata fnMetadata = functions[i];
@@ -260,8 +261,13 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                     );
                 }
                 address storageAddr = _managedStorageAddresses[dappId][storageWrite.storageAddrIndex];
-                if (_isTokenVaultStorage[dappId][storageAddr] && storageAddr != tokenVaultStorageAddress) {
-                    revert MultipleTokenVaultStorageAddresses(dappId, tokenVaultStorageAddress, storageAddr);
+                if (
+                    _isChannelTokenVaultStorage[dappId][storageAddr]
+                        && storageAddr != channelTokenVaultStorageAddress
+                ) {
+                    revert MultipleChannelTokenVaultStorageAddresses(
+                        dappId, channelTokenVaultStorageAddress, storageAddr
+                    );
                 }
                 _functionStorageWrites[dappId][functionKey].push(
                     BridgeStructs.StorageWriteMetadata({

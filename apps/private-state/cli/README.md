@@ -19,10 +19,25 @@ Each `calldata.json` file follows this shape:
   "description": "Human-readable note for the operator",
   "contractKey": "controller",
   "abiFile": "../deploy/PrivateStateController.callable-abi.json",
-  "method": "mintNotes1",
+  "method": "transferNotes1To1",
   "mode": "send",
   "value": "0x0",
-  "args": [[{"owner":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266","value":"1000000000000000000","salt":"0x1000000000000000000000000000000000000000000000000000000000000001"}]]
+  "args": [
+    [
+      {
+        "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "value": "1000000000000000000",
+        "salt": "0xa100000000000000000000000000000000000000000000000000000000000001"
+      }
+    ],
+    [
+      {
+        "owner": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "value": "1000000000000000000",
+        "salt": "0xa110000000000000000000000000000000000000000000000000000000000001"
+      }
+    ]
+  ]
 }
 ```
 
@@ -41,7 +56,7 @@ signature as the seed for `deriveL2KeysFromSignature`, and derives the L2 identi
 
 ```bash
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
-node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
+node apps/private-state/cli/private-state-bridge-cli.mjs show-template transferNotes1To1
 node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
 ```
 
@@ -59,6 +74,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   on-chain participant record. It accepts only `--wallet` and `--password`.
 - `get-channel-deposit` reads the current channel-level L2 accounting balance bound to the local wallet's registered
   token-vault key. It accepts only `--wallet` and `--password`.
+- `mint-notes` directly mints one to six notes without going through `bridge-send`. It accepts only `--wallet`,
+  `--password`, and `--amounts`, where `--amounts` is a JSON vector such as `'[1,2,3]'`.
 - `register-channel` registers the caller's L2 address, L2 token-vault key, and token-vault leaf index in the selected channel.
 - `deposit-channel` moves value from the shared bridge-level L1 token vault into the selected channel's L2 token vault.
   It accepts only `--wallet`, `--password`, and `--amount`, and it fails unless the local wallet already contains
@@ -74,8 +91,13 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - Wallet folders are encrypted at rest. Only `register-channel` sets up L1/L2 keys in the active wallet.
 - `install-zk-evm` currently requires an Alchemy Ethereum RPC URL, because the underlying `tokamak-cli --install`
   implementation only accepts Alchemy mainnet or sepolia URLs and extracts the API key from that URL.
-- `bridge-send` updates nonce and note state in an existing wallet, and the CLI then needs only the matching
-  `--password` to open or update that wallet.
+- `mint-notes` maps the `--amounts` vector length to the underlying fixed-arity `mintNotes<N>` controller method.
+- If a ready channel workspace exists for the wallet channel, `mint-notes` uses that cached `state_snapshot.json`
+  first. If `tokamak-cli --verify` fails, the CLI refreshes the workspace through `recover-workspace` semantics and retries once.
+- After a successful `mint-notes`, the CLI stores the resulting note plaintexts in the encrypted wallet and updates the
+  channel workspace snapshot when that workspace exists.
+- `bridge-send` remains only for non-mint template-based calls. It still updates nonce and note state in an existing
+  wallet, and the CLI then needs only the matching `--password` to open or update that wallet.
 - `get-bridge-deposit`, `fund-l1`, and `claim` can also recover the L1 signer from an existing encrypted wallet when
   `--wallet` and `--password` are provided.
 - `is-channel-registered` also requires an existing wallet and derives its network and channel from that wallet.
@@ -124,6 +146,11 @@ node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit \
   --wallet participant-a \
   --password "participant-a"
 
+node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes \
+  --wallet participant-a \
+  --password "participant-a" \
+  --amounts '[1,2,3]'
+
 node apps/private-state/cli/private-state-bridge-cli.mjs register-channel \
   --channel-name demo-channel \
   --wallet participant-a \
@@ -135,12 +162,6 @@ node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel \
   --wallet participant-a \
   --password "participant-a" \
   --amount 1.5
-
-node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 \
-  --wallet participant-a \
-  --network sepolia \
-  --password "participant-a" \
-  --template-file apps/private-state/cli/functions/mintNotes1/calldata.json
 ```
 
 Channel-workspace caches live under:

@@ -187,6 +187,7 @@ The CLI:
 - reads each user's shared bridge-level token-vault deposit through `get-bridge-deposit`
 - checks each wallet-backed user's on-chain channel registration through `is-channel-registered`
 - reads each wallet-backed user's current channel-level L2 accounting deposit through `get-channel-deposit`
+- exposes direct wallet-backed note minting through `mint-notes`, which selects the underlying fixed-arity `mintNotes<N>` method from the amount-vector length
 - generates Groth and Tokamak proofs
 - submits bridge transactions for `deposit-bridge`, `register-channel`, `deposit-channel`, `withdraw`, `claim`, and DApp function execution
 
@@ -197,8 +198,8 @@ Every CLI `--password` input accepts any string. During `register-channel` and o
 a domain-separated password message with the user's L1 `--private-key` and derives the L2 private key from the
 resulting signature. `deposit-bridge` itself only funds the shared bridge-level L1 token vault. `register-channel`
 performs the channel-specific L2 identity registration and is the only command that sets up the channel-specific wallet
-keys. `bridge-send` only updates nonce and note state in an existing wallet, and that wallet file is encrypted with
-`scrypt + AES-256-GCM` under the given password.
+keys. `mint-notes` and `bridge-send` both update nonce and note state in an existing wallet, and that wallet file is
+encrypted with `scrypt + AES-256-GCM` under the given password.
 Each wallet directory also includes an unencrypted metadata file that stores only the target `network` and
 `channelName`.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other
@@ -206,6 +207,8 @@ wallets.
 The new `install-zk-evm` entrypoint accepts only `--rpc-url` and forwards it to the submodule `tokamak-cli --install`
 flow. Because the current `tokamak-cli` installer only accepts Alchemy Ethereum RPC URLs and derives an API key from
 that URL, `install-zk-evm` validates the same constraint instead of pretending that an arbitrary RPC endpoint will work.
+When a ready channel workspace exists for the wallet channel, `mint-notes` tries that cached state snapshot first. If
+`tokamak-cli --verify` fails, the CLI refreshes the workspace through `recover-workspace` semantics and retries once.
 
 Channel workspaces are optional snapshot caches. User-action commands can reconstruct the channel state directly from
 bridge events by using `--channel-name` or an existing `--wallet`. Wallets remain mandatory because
@@ -217,16 +220,16 @@ Examples:
 cd apps/private-state
 make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
-node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
+node apps/private-state/cli/private-state-bridge-cli.mjs show-template transferNotes1To1
 node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
 node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --amount 3
 node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit --network sepolia --private-key <hex>
 node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet participant-a --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet participant-a --password "participant-a"
+node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet participant-a --password "participant-a" --amounts '[1,2,3]'
 node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet participant-a --password "participant-a" --amount 1
-node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send mintNotes1 --wallet participant-a --network sepolia --password "participant-a"
 ```
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such

@@ -15,7 +15,7 @@ const artifactMap = {
   bridgeCore: "out/BridgeCore.sol/BridgeCore.json",
   dAppManager: "out/DAppManager.sol/DAppManager.json",
   channelManager: "out/ChannelManager.sol/ChannelManager.json",
-  tokenVault: "out/L1TokenVault.sol/L1TokenVault.json",
+  bridgeTokenVault: "out/L1TokenVault.sol/L1TokenVault.json",
   erc20: "out/IERC20.sol/IERC20.json",
 };
 

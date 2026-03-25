@@ -2,10 +2,10 @@
 pragma solidity ^0.8.24;
 
 library BridgeStructs {
-    struct TokenVaultRegistration {
+    struct ChannelTokenVaultRegistration {
         bool exists;
         address l2Address;
-        bytes32 l2TokenVaultKey;
+        bytes32 channelTokenVaultKey;
         uint256 leafIndex;
     }
 
@@ -18,7 +18,7 @@ library BridgeStructs {
         address storageAddr;
         bytes32[] preAllocatedKeys;
         uint8[] userStorageSlots;
-        bool isTokenVaultStorage;
+        bool isChannelTokenVaultStorage;
     }
 
     struct InstanceLayout {

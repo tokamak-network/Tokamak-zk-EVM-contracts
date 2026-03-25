@@ -228,7 +228,7 @@ export function deriveFunctionSelectorFromTransaction(transactionJsonPath) {
   return transaction.data.slice(0, 10).toLowerCase();
 }
 
-function inferTokenVaultStorageAddress(storageAddresses, entryContract) {
+function inferChannelTokenVaultStorageAddress(storageAddresses, entryContract) {
   if (!Array.isArray(storageAddresses) || storageAddresses.length === 0) {
     throw new Error("Snapshot does not declare any managed storage addresses.");
   }
@@ -264,13 +264,13 @@ export function deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, entryCo
     throw new Error(`storageAddresses/storageEntries length mismatch in ${snapshotJsonPath}`);
   }
 
-  const tokenVaultStorageAddress = inferTokenVaultStorageAddress(snapshot.storageAddresses, entryContract);
+  const channelTokenVaultStorageAddress = inferChannelTokenVaultStorageAddress(snapshot.storageAddresses, entryContract);
 
   return snapshot.storageAddresses.map((storageAddress, index) => ({
     storageAddress: getAddress(storageAddress),
     preAllocKeys: snapshot.storageEntries[index].map((entry) => entry.key),
     userSlots: [],
-    isTokenVaultStorage: getAddress(storageAddress) === tokenVaultStorageAddress,
+    isChannelTokenVaultStorage: getAddress(storageAddress) === channelTokenVaultStorageAddress,
   }));
 }
 
@@ -312,7 +312,7 @@ export function buildFunctionDefinition({
       storageAddress: getAddress(entry.storageAddress),
       preAllocKeys: [...entry.preAllocKeys],
       userSlots: [...entry.userSlots],
-      isTokenVaultStorage: entry.isTokenVaultStorage,
+      isChannelTokenVaultStorage: entry.isChannelTokenVaultStorage,
     }))
     : derivedStorageMetadata;
 
@@ -350,7 +350,7 @@ export function mergeStorageMetadata(records) {
           storageAddress: storage.storageAddress,
           preAllocKeys: [...storage.preAllocKeys],
           userSlots: [...storage.userSlots],
-          isTokenVaultStorage: storage.isTokenVaultStorage,
+          isChannelTokenVaultStorage: storage.isChannelTokenVaultStorage,
         });
         continue;
       }
@@ -367,7 +367,7 @@ export function mergeStorageMetadata(records) {
       }
       existing.userSlots = [...slotSet].sort((a, b) => a - b);
 
-      if (existing.isTokenVaultStorage !== storage.isTokenVaultStorage) {
+      if (existing.isChannelTokenVaultStorage !== storage.isChannelTokenVaultStorage) {
         throw new Error(
           `Conflicting token-vault classification for storage address ${storage.storageAddress}.`,
         );

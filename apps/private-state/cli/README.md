@@ -139,6 +139,17 @@ Each wallet is persisted as:
 apps/private-state/cli/wallets/<wallet>/wallet.json
 ```
 
+Each wallet also stores unencrypted metadata as:
+
+```text
+apps/private-state/cli/wallets/<wallet>/wallet.metadata.json
+```
+
+That plaintext metadata includes only:
+
+- `network`
+- `channelName`
+
 User-action commands accept channel selection in this order:
 
 1. `--workspace` when a channel workspace cache exists

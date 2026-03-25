@@ -196,6 +196,8 @@ resulting signature. `deposit-bridge` itself only funds the shared bridge-level 
 performs the channel-specific L2 identity registration and is the only command that sets up the channel-specific wallet
 keys. `bridge-send` only updates nonce and note state in an existing wallet, and that wallet file is encrypted with
 `scrypt + AES-256-GCM` under the given password.
+Each wallet directory also includes an unencrypted metadata file that stores only the target `network` and
+`channelName`.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other
 wallets.
 

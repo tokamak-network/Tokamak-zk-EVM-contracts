@@ -965,6 +965,7 @@ function ensureWallet({
     walletPassword,
   };
   persistWallet(context);
+  persistWalletMetadata(context);
   return context;
 }
 
@@ -2014,6 +2015,10 @@ function walletConfigPath(walletDir) {
   return path.join(walletDir, "wallet.json");
 }
 
+function walletMetadataPath(walletDir) {
+  return path.join(walletDir, "wallet.metadata.json");
+}
+
 function walletConfigExists(walletDir) {
   return fs.existsSync(walletConfigPath(walletDir));
 }
@@ -2059,6 +2064,13 @@ function persistWorkspace(context) {
 
 function persistWallet(context) {
   writeEncryptedWalletJson(path.join(context.walletDir, "wallet.json"), context.wallet, context.walletPassword);
+}
+
+function persistWalletMetadata(context) {
+  writeJson(walletMetadataPath(context.walletDir), {
+    network: context.wallet.network,
+    channelName: context.wallet.channelName,
+  });
 }
 
 function persistCurrentState(context) {

@@ -2844,6 +2844,7 @@ async function waitForReceipt(txResponse) {
 function networkNameFromChainId(chainId) {
   if (chainId === 1) return "mainnet";
   if (chainId === 11155111) return "sepolia";
+  if (chainId === 31337) return "anvil";
   throw new Error(`Unsupported chain ID for private-state bridge CLI: ${chainId}`);
 }
 
@@ -3304,7 +3305,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> [--private-key <hex>] --password <string> [--args-file <path>] [--template-file <path>] [options]
 
 Common flags:
-  --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia
+  --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia, anvil
   --rpc-url <url>          Explicit RPC endpoint override
   --alchemy-api-key <key>  Explicit Alchemy key override
   --env-file <path>        Alternate apps/.env location
@@ -3329,6 +3330,7 @@ Notes:
   - install-zk-evm only accepts --rpc-url. Before running tokamak-cli --install, it fetches origin/dev in submodules/Tokamak-zk-EVM, switches to the local dev branch, fast-forwards it, and then runs the installer.
   - install-zk-evm requires an Alchemy Ethereum RPC URL because the current tokamak-cli installer only accepts Alchemy mainnet or sepolia URLs.
   - uninstall-zk-evm accepts no options and removes every file and directory inside submodules/Tokamak-zk-EVM except the submodule's .git pointer file.
+  - anvil is allowed as a CLI network only for command-driven end-to-end testing. It is not the intended network for user-facing real-world operation.
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
   - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
   - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.

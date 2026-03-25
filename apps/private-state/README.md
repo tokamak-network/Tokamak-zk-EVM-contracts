@@ -175,7 +175,7 @@ The CLI:
 
 - installs the local Tokamak zk-EVM toolchain through `install-zk-evm`
 - removes the checked-out Tokamak zk-EVM working tree through `uninstall-zk-evm` while preserving the submodule pointer
-- selects a target network through `--network` or `apps/.env`, restricted to `mainnet` or `sepolia`
+- selects a target network through `--network` or `apps/.env`, supporting `mainnet`, `sepolia`, and `anvil`
 - loads bridge deployment data and the bridge ABI manifest generated at bridge deployment time
 - binds every channel to the canonical Tokamak Network Token for the selected network
 - treats the bridge-level `bridgeTokenVault` as a shared vault across all channels
@@ -209,6 +209,8 @@ Each wallet directory also includes an unencrypted metadata file that stores onl
 `channelName`.
 Because wallet folders are encrypted per user, the CLI only updates the active wallet and does not auto-refresh other
 wallets.
+The CLI accepts `anvil` only so end-to-end tests can drive the full workflow through the same user commands on a local
+chain. That allowance is for automated or operator-driven local testing, not for real user operation.
 The new `install-zk-evm` entrypoint accepts only `--rpc-url` and forwards it to the submodule `tokamak-cli --install`
 flow. Because the current `tokamak-cli` installer only accepts Alchemy Ethereum RPC URLs and derives an API key from
 that URL, `install-zk-evm` validates the same constraint instead of pretending that an arbitrary RPC endpoint will work.

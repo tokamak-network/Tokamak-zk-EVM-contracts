@@ -71,6 +71,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `create-channel` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
   Token for the selected network.
 - `create-channel --create-workspace` uses the channel name itself as the channel-workspace name.
+- The CLI now accepts `anvil` as a target network, but only for command-driven end-to-end tests. It is not meant as a
+  user-facing real-world network mode.
 - `deposit-bridge` funds the shared bridge-level `bridgeTokenVault`.
 - `withdraw-bridge` is the wallet-only inverse of `deposit-bridge`. It accepts only `--wallet`, `--password`, and
   `--amount`, and it calls the bridge `claimToWallet` path to move value from the shared bridge-level `bridgeTokenVault`

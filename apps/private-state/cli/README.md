@@ -69,16 +69,16 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   Token for the selected network.
 - `create-channel --create-workspace` uses the channel name itself as the channel-workspace name.
 - `deposit-bridge` funds the shared bridge-level `bridgeTokenVault`.
-- `get-bridge-deposit` reads the caller's shared bridge-level L1 token-vault balance.
+- `get-bridge-deposit` reads the caller's shared bridge-level `bridgeTokenVault` balance.
 - `is-channel-registered` checks whether the local wallet's L2 identity matches the selected channel's registered
   on-chain participant record. It accepts only `--wallet` and `--password`.
 - `get-channel-deposit` reads the current channel-level L2 accounting balance bound to the local wallet's registered
-  token-vault key. It accepts only `--wallet` and `--password`.
+  `channelTokenVault` key. It accepts only `--wallet` and `--password`.
 - `mint-notes` directly mints one to six notes without going through `bridge-send`. It accepts only `--wallet`,
   `--password`, and `--amounts`, where `--amounts` is a JSON vector such as `'[1,2,3]'`.
 - `get-my-notes` reads the local wallet's tracked note sets and checks each note's commitment/nullifier status against
   the current controller state accepted by the bridge. It accepts only `--wallet` and `--password`.
-- `register-channel` registers the caller's L2 address, L2 token-vault key, and token-vault leaf index in the selected channel.
+- `register-channel` registers the caller's L2 address, L2 `channelTokenVault` key, and `channelTokenVault` leaf index in the selected channel.
 - `deposit-channel` moves value from the shared bridge-level `bridgeTokenVault` into the selected channel's `channelTokenVault`.
   It accepts only `--wallet`, `--password`, and `--amount`, and it fails unless the local wallet already contains
   plaintext network/channel metadata plus encrypted L1/L2 key material.

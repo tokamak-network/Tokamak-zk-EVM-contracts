@@ -39,7 +39,7 @@ The L2 state of a channel is modeled as an ordered vector of Merkle roots.
 
 The vector contains:
 
-- exactly one token-vault root
+- exactly one `channelTokenVault` root
 - zero or more application-storage roots
 
 The bridge keeps only a compact commitment to the current root vector in channel
@@ -52,7 +52,7 @@ Each channel starts from a deterministic genesis root vector.
 
 After genesis, a channel-state commitment may change only through:
 
-- a Groth16-backed token-vault update
+- a Groth16-backed `channelTokenVault` update
 - a Tokamak-zkp-backed channel transaction update
 
 No administrative or convenience path should be allowed to bypass that rule.
@@ -73,7 +73,7 @@ deliberate design decision.
 The consequences are:
 
 - the root-vector length of a channel is fixed once its DApp is chosen
-- the token-vault storage domain has one fixed position for the whole DApp
+- the `channelTokenVault` storage domain has one fixed position for the whole DApp
 - function-specific proof interpretation may vary, but the channel-wide storage
   surface does not
 
@@ -103,7 +103,7 @@ When a channel is created, it chooses exactly one registered DApp.
 The channel then inherits:
 
 - the DApp's shared storage-domain vector
-- the DApp's fixed token-vault position
+- the DApp's fixed `channelTokenVault` position
 - the DApp's supported function set
 - the per-function proof-interpretation metadata needed at runtime
 
@@ -120,17 +120,17 @@ The important architectural boundary is:
 
 ### 6.1 Groth16 path
 
-The Groth16 path is reserved for token-vault balance updates.
+The Groth16 path is reserved for `channelTokenVault` balance updates.
 
-Its job is to justify transitions of the distinguished token-vault root and the
+Its job is to justify transitions of the distinguished `channelTokenVault` root and the
 associated L1 settlement changes. This path is responsible for:
 
 - L1-to-L2 deposit settlement
 - L2-to-L1 withdrawal settlement
 - maintaining the authorization link between a user and the user's registered
-  token-vault key
+  `channelTokenVault` key
 
-At the design level, the Groth path should affect only the token-vault component of
+At the design level, the Groth path should affect only the `channelTokenVault` component of
 the channel state.
 
 ### 6.2 Tokamak path
@@ -165,7 +165,7 @@ off-chain observers to reconstruct:
 
 This observability requirement applies to both proof systems:
 
-- Groth updates should make the token-vault storage update observable
+- Groth updates should make the `channelTokenVault` storage update observable
 - Tokamak updates should make the decoded storage writes of the accepted function
   observable
 
@@ -178,14 +178,14 @@ Each channel uses the shared L1 `bridgeTokenVault` and one distinguished L2 `cha
 domain.
 
 Users who want to participate in L1 settlement for that channel must register a
-channel-specific L2 token-vault key. The bridge derives a token-vault position from
+channel-specific L2 `channelTokenVault` key. The bridge derives a `channelTokenVault` position from
 that key according to the bridge's Merkle-tree indexing rule.
 
 The stable registration requirements are:
 
-- a user has at most one registered token-vault key per channel
-- registered token-vault keys are globally unique
-- derived token-vault positions are unique within a channel
+- a user has at most one registered `channelTokenVault` key per channel
+- registered `channelTokenVault` keys are globally unique
+- derived `channelTokenVault` positions are unique within a channel
 
 This registration model provides the authorization anchor for Groth-backed deposit
 and withdrawal.
@@ -218,8 +218,8 @@ channel's actual current state commitment.
 
 ### 9.5 Token-vault isolation
 
-The distinguished token-vault storage domain has special settlement meaning. Any
-design that lets arbitrary non-vault logic mutate the token-vault state without the
+The distinguished `channelTokenVault` storage domain has special settlement meaning. Any
+design that lets arbitrary non-vault logic mutate the `channelTokenVault` state without the
 intended proof discipline should be treated as suspicious.
 
 ## 10. Design Preferences
@@ -270,7 +270,7 @@ The stable architectural picture is:
 - one DApp defines one shared storage surface and a set of supported functions
 - one channel selects one DApp and one channel-scoped proof context
 - one channel state is one root-vector commitment
-- Groth controls token-vault settlement transitions
+- Groth controls `channelTokenVault` settlement transitions
 - Tokamak controls general channel transaction transitions
 - the bridge keeps compact commitments on-chain and relies on observable transition
   data for richer off-chain reconstruction

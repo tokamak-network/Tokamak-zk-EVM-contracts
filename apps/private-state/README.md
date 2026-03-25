@@ -183,8 +183,8 @@ The CLI:
 - reconstructs channel `state_snapshot.json` from bridge events through `recover-workspace`, writing it into the
   `<channel-name>` channel-workspace folder
 - manages mandatory per-user wallets that store note plaintexts, used/unused note sets, and aggregated unused-note balance
-- separates bridge-level funding from channel-level token-vault registration
-- reads each user's shared bridge-level token-vault deposit through `get-bridge-deposit`
+- separates bridge-level funding from channel-level `channelTokenVault` registration
+- reads each user's shared `bridgeTokenVault` deposit through `get-bridge-deposit`
 - checks each wallet-backed user's on-chain channel registration through `is-channel-registered`
 - reads each wallet-backed user's current channel-level L2 accounting deposit through `get-channel-deposit`
 - exposes direct wallet-backed note minting through `mint-notes`, which selects the underlying fixed-arity `mintNotes<N>` method from the amount-vector length

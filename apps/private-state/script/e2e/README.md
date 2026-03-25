@@ -12,7 +12,7 @@
 
 The harness uses three participants:
 
-1. `A`, `B`, and `C` each fund the L1 token vault and deposit `3` tokens into the L2 accounting tree.
+1. `A`, `B`, and `C` each fund the shared `bridgeTokenVault` and deposit `3` tokens into the channel `channelTokenVault` accounting tree.
 2. `A`, `B`, and `C` each call `mintNotes1`.
 3. `A` calls `transferNotes1To2` and splits its `3`-token note into:
    - `1` token to `B`
@@ -25,7 +25,7 @@ The harness uses three participants:
    - the `2`-token note received directly from `A`
    - the `4`-token note received from `B`
    - its own minted `3`-token note
-6. `C` withdraws `9` tokens from the L2 accounting tree back into the L1 token vault and then claims the ERC-20 balance on L1.
+6. `C` withdraws `9` tokens from the channel `channelTokenVault` accounting tree back into the shared `bridgeTokenVault` and then claims the ERC-20 balance on L1.
 
 ## Run
 

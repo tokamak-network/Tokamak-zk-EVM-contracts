@@ -15,8 +15,8 @@ This workspace focuses on the current design documented in the notes:
 - one shared bridgeTokenVault on L1
 - bridge-managed DApp metadata
 - per-channel `aPubBlockHash` verification context
-- globally unique L2 token-vault keys
-- per-channel non-collision of derived token-vault leaf indices
+- globally unique channelTokenVault keys
+- per-channel non-collision of derived channelTokenVault leaf indices
 - stable root-entry addresses through UUPS proxies
 
 ## Mocked Areas
@@ -25,17 +25,17 @@ The documents do not specify enough operational detail to implement every produc
 
 - final proposal-pool and token-economics behavior
 
-Tokamak proof verification is no longer mocked. The bridge now calls the real verifier under `tokamak-zkp/`, binds the user-supplied transaction instance to fields extracted from `aPubUser`, and checks the channel-scoped `aPubBlockHash` together with the DApp-managed preprocess-input hash and per-function storage-write metadata. The channel manager no longer stores the full current root vector on-chain; it stores only `currentRootVectorHash`. The full current root vector is emitted as `CurrentRootVectorObserved` before every proof-backed state transition so off-chain indexers can reconstruct the pre-state that produced the new hash. After a successful verification, `executeChannelTransaction` emits `StorageWriteObserved` for every decoded `aPubUser` storage write, and the Groth-backed `deposit` and `withdraw` paths emit the same event format for their token-vault writes. Under the latest synthesizer format, those events now expose the storage key rather than the derived tree index. The bridge still derives the token-vault leaf index internally from that storage key when it updates the local token-vault leaf cache. A Tokamak proof that changes the token-vault root without a matching token-vault storage write is rejected.
+Tokamak proof verification is no longer mocked. The bridge now calls the real verifier under `tokamak-zkp/`, binds the user-supplied transaction instance to fields extracted from `aPubUser`, and checks the channel-scoped `aPubBlockHash` together with the DApp-managed preprocess-input hash and per-function storage-write metadata. The channel manager no longer stores the full current root vector on-chain; it stores only `currentRootVectorHash`. The full current root vector is emitted as `CurrentRootVectorObserved` before every proof-backed state transition so off-chain indexers can reconstruct the pre-state that produced the new hash. After a successful verification, `executeChannelTransaction` emits `StorageWriteObserved` for every decoded `aPubUser` storage write, and the Groth-backed `deposit` and `withdraw` paths emit the same event format for their `channelTokenVault` writes. Under the latest synthesizer format, those events now expose the storage key rather than the derived tree index. The bridge still derives the `channelTokenVault` leaf index internally from that storage key when it updates the local leaf cache. A Tokamak proof that changes the `channelTokenVault` root without a matching `channelTokenVault` storage write is rejected.
 
-Groth proof verification is also no longer mocked. The bridge expects raw Groth16 proof coordinates and forwards them into the generated `updateTree` verifier under `groth16/verifier/`. Under the current circuit model, each token-vault leaf is the raw stored balance value rather than a key-value hash.
+Groth proof verification is also no longer mocked. The bridge expects raw Groth16 proof coordinates and forwards them into the generated `updateTree` verifier under `groth16/verifier/`. Under the current circuit model, each `channelTokenVault` leaf is the raw stored balance value rather than a key-value hash.
 
 ## Security-Critical Assumptions
 
 The current bridge implementation hardens a few assumptions that must remain true in production:
 
-- The Groth token-vault circuit and the bridge both assume a fixed Merkle-tree depth of `12`. The admin manager rejects other depths.
+- The Groth `channelTokenVault` circuit and the bridge both assume a fixed Merkle-tree depth of `12`. The admin manager rejects other depths.
 - Channel creation derives the channel-scoped `aPubBlockHash` from the channel-creation block context on-chain, so Tokamak proof submissions cannot silently skip block-context binding.
-- DApp registration requires a nonzero `preprocessInputHash`, and each function also carries fixed `aPubUser` layout metadata derived from the synthesizer `instance_description.json`. All functions in a DApp share one managed storage-address vector, so the root-vector length and the token-vault tree index are fixed at channel creation. The bridge stores and later caches the per-function entry-contract, selector, current-root, and updated-root offsets, plus storage-write descriptors that identify the target storage through the DApp-wide managed storage-address index and record the `aPubUser` word offset at which the corresponding storage key appears. Under the current synthesizer format, every storage write still contributes four `aPubUser` words: storage-key lower/upper and storage-write lower/upper.
+- DApp registration requires a nonzero `preprocessInputHash`, and each function also carries fixed `aPubUser` layout metadata derived from the synthesizer `instance_description.json`. All functions in a DApp share one managed storage-address vector, so the root-vector length and the `channelTokenVault` tree index are fixed at channel creation. The bridge stores and later caches the per-function entry-contract, selector, current-root, and updated-root offsets, plus storage-write descriptors that identify the target storage through the DApp-wide managed storage-address index and record the `aPubUser` word offset at which the corresponding storage key appears. Under the current synthesizer format, every storage write still contributes four `aPubUser` words: storage-key lower/upper and storage-write lower/upper.
 - The shared `bridgeTokenVault` assumes an exact-transfer ERC-20. Fee-on-transfer or other balance-mutating token behaviors are rejected because they can break custody accounting.
 
 ## Deployment

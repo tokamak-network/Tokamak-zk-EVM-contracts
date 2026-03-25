@@ -683,7 +683,10 @@ async function handleGetChannelDeposit({ args, env, network, provider }) {
   await assertWorkspaceAlignedWithChain(context);
 
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-  expect(registration.exists, `No channel token-vault registration exists for ${signer.address}. Run register-channel first.`);
+  expect(
+    registration.exists,
+    `No channelTokenVault registration exists for ${signer.address}. Run register-channel first.`,
+  );
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   expect(
     getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
@@ -691,7 +694,7 @@ async function handleGetChannelDeposit({ args, env, network, provider }) {
   );
   expect(
     normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(expectedStorageKey),
-    "The local wallet L2 storage key does not match the registered token-vault key.",
+    "The local wallet L2 storage key does not match the registered channelTokenVault key.",
   );
 
   const stateManager = await buildStateManager(context.currentSnapshot, context.contractCodes);
@@ -785,7 +788,7 @@ async function handleRegisterChannel({ args, env, network, provider }) {
 
   expect(
     normalizeBytes32Hex(existingRegistration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
-    "The existing channel registration key does not match the derived L2 token-vault key.",
+    "The existing channel registration key does not match the derived channelTokenVault key.",
   );
   expect(
     getAddress(existingRegistration.l2Address) === getAddress(l2Identity.l2Address),
@@ -894,10 +897,13 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
   expect(availableBalance > 0n, `No shared bridge-vault balance exists for ${signer.address}. Run deposit-bridge first.`);
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-  expect(registration.exists, `No channel token-vault registration exists for ${signer.address}. Run register-channel first.`);
+  expect(
+    registration.exists,
+    `No channelTokenVault registration exists for ${signer.address}. Run register-channel first.`,
+  );
   expect(
     normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
-    "The derived L2 storage key does not match the registered token-vault key.",
+    "The derived L2 storage key does not match the registered channelTokenVault key.",
   );
   expect(
     getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
@@ -2823,11 +2829,11 @@ Notes:
   - recover-workspace always writes into apps/private-state/cli/workspaces/<channel-name>/.
   - Channel workspaces are optional caches for channel snapshots.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
-  - deposit-bridge only funds the shared bridge-level L1 token vault.
-  - get-bridge-deposit reads the caller's shared bridge-level L1 token-vault balance.
+  - deposit-bridge only funds the shared bridge-level bridgeTokenVault.
+  - get-bridge-deposit reads the caller's shared bridge-level bridgeTokenVault balance.
   - is-channel-registered requires --wallet and --password only. It derives the network and channel from the local wallet, then checks whether the wallet's L2 identity matches the on-chain channel registration.
   - get-channel-deposit requires --wallet and --password only. It derives the network and channel from the local wallet, requires the wallet's L2 identity to match the on-chain channel registration, and then reads the current channel L2 accounting balance bound to that registration.
-  - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, token-vault key, token-vault leaf index, and local wallet keys for the selected channel.
+  - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, channelTokenVault key, channelTokenVault leaf index, and local wallet keys for the selected channel.
   - register-channel is the only command that sets up wallet keys in the active wallet.
   - mint-notes and bridge-send both update nonce and note state inside an existing wallet, but they do not set up wallet keys.
   - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, mint-notes, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.

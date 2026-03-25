@@ -209,7 +209,7 @@ cd apps/private-state
 make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes1
-node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
+node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --amount 3
 node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a" --amount 1

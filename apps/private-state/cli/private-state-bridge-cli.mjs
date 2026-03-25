@@ -113,7 +113,7 @@ async function main() {
   const provider = new JsonRpcProvider(rpcUrl);
 
   switch (args.command) {
-    case "channel-create":
+    case "create-channel":
       await handleChannelCreate({ args, env, network, provider });
       return;
     case "recover-workspace":
@@ -186,6 +186,9 @@ function assertNoLegacyCommandNames(args) {
   if (args.command === "deposit") {
     throw new Error("deposit is no longer supported. Use deposit-channel instead.");
   }
+  if (args.command === "channel-create") {
+    throw new Error("channel-create is no longer supported. Use create-channel instead.");
+  }
 }
 
 async function handleChannelCreate({ args, env, network, provider }) {
@@ -228,7 +231,7 @@ async function handleChannelCreate({ args, env, network, provider }) {
   }
 
   printJson({
-    action: "channel-create",
+    action: "create-channel",
     channelName,
     channelId: channelId.toString(),
     dappId,
@@ -2051,7 +2054,7 @@ function printHelp() {
 Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
   node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
-  node apps/private-state/cli/private-state-bridge-cli.mjs channel-create --channel-name <name> --dapp-label <label> --private-key <hex> [options]
+  node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-list
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs channel-workspace-show --workspace <name>
@@ -2070,7 +2073,7 @@ Common flags:
   --alchemy-api-key <key>  Explicit Alchemy key override
   --env-file <path>        Alternate apps/.env location
 
-channel-create options:
+create-channel options:
   --dapp-label <label>          Registered bridge DApp label to bind to the new channel
   --leader <address>           Optional channel leader. Default: the signing EOA
   --create-workspace           Also initialize a channel workspace after creation using the channel name

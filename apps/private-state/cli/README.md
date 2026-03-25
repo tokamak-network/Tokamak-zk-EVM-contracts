@@ -46,10 +46,10 @@ node apps/private-state/cli/private-state-bridge-cli.mjs show-template mintNotes
 
 The bridge-coupled CLI separates channel creation from channel-workspace initialization:
 
-- `channel-create` creates the bridge channel on-chain.
-- `channel-create` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
+- `create-channel` creates the bridge channel on-chain.
+- `create-channel` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
   Token for the selected network.
-- `channel-create --create-workspace` uses the channel name itself as the channel-workspace name.
+- `create-channel --create-workspace` uses the channel name itself as the channel-workspace name.
 - `deposit-bridge` funds the shared bridge-level L1 token vault.
 - `register-channel` registers the caller's L2 address, L2 token-vault key, and token-vault leaf index in the selected channel.
 - `deposit-channel` moves value from the shared bridge-level L1 token vault into the selected channel's L2 token vault.
@@ -73,7 +73,7 @@ network-scoped bridge deployment JSON plus the network-scoped bridge ABI manifes
 Example:
 
 ```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs channel-create \
+node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
   --channel-name demo-channel \
   --dapp-label private-state \
   --private-key <hex> \

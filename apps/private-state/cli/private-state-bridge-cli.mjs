@@ -166,7 +166,7 @@ async function main() {
   }
 
   if (args.command === "deposit-channel") {
-    assertDepositChannelArgs(args);
+    assertWalletChannelMoveArgs(args, "deposit-channel");
     const env = loadEnv(defaultEnvFile);
     const walletMetadata = loadWalletMetadata(requireWalletName(args));
     const network = resolveCliNetwork(walletMetadata.network);
@@ -177,6 +177,21 @@ async function main() {
     });
     const provider = new JsonRpcProvider(rpcUrl);
     await handleGrothVaultMove({ args, env, network, provider, direction: "deposit" });
+    return;
+  }
+
+  if (args.command === "withdraw-channel") {
+    assertWalletChannelMoveArgs(args, "withdraw-channel");
+    const env = loadEnv(defaultEnvFile);
+    const walletMetadata = loadWalletMetadata(requireWalletName(args));
+    const network = resolveCliNetwork(walletMetadata.network);
+    const rpcUrl = deriveRpcUrl({
+      networkName: walletMetadata.network,
+      alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
+      rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+    });
+    const provider = new JsonRpcProvider(rpcUrl);
+    await handleGrothVaultMove({ args, env, network, provider, direction: "withdraw" });
     return;
   }
 
@@ -255,6 +270,8 @@ async function main() {
       throw new Error("get-my-notes must resolve its network from the local wallet.");
     case "transfer-notes":
       throw new Error("transfer-notes must resolve its network from the local wallet.");
+    case "withdraw-channel":
+      throw new Error("withdraw-channel must resolve its network from the local wallet.");
     case "register-channel":
       await handleRegisterChannel({ args, env, network, provider });
       return;
@@ -886,14 +903,15 @@ async function handleFundL1({ args, env, network, provider }) {
 }
 
 async function handleGrothVaultMove({ args, env, network, provider, direction }) {
-  if (direction === "deposit") {
-    assertDepositChannelArgs(args);
+  const walletOnlyMoveCommand = args.command === "deposit-channel" || args.command === "withdraw-channel";
+  if (walletOnlyMoveCommand) {
+    assertWalletChannelMoveArgs(args, args.command);
   }
   const password = requireL2Password(args);
   const walletFromFlag = args.wallet ? loadWallet(requireWalletName(args), password) : null;
   let walletMetadata = null;
-  if (direction === "deposit") {
-    expect(walletFromFlag, "deposit-channel requires an existing local wallet.");
+  if (walletOnlyMoveCommand) {
+    expect(walletFromFlag, `${args.command} requires an existing local wallet.`);
     walletMetadata = loadWalletMetadata(walletFromFlag.walletName);
     assertWalletMatchesMetadata(walletFromFlag, walletMetadata);
   }
@@ -911,10 +929,10 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
   }
   await assertWorkspaceAlignedWithChain(context, provider);
 
-  const signer = direction === "deposit"
+  const signer = walletOnlyMoveCommand
     ? new Wallet(normalizePrivateKey(walletFromFlag.wallet.l1PrivateKey), provider)
     : resolveWalletBackedSigner({ args, env, provider, walletContext: walletFromFlag });
-  const l2Identity = (direction === "deposit" || walletFromFlag)
+  const l2Identity = (walletOnlyMoveCommand || walletFromFlag)
     ? restoreParticipantIdentityFromWallet(walletFromFlag.wallet)
     : await deriveParticipantIdentity({
       password,
@@ -960,7 +978,11 @@ async function handleGrothVaultMove({ args, env, network, provider, direction })
     nextValue = currentValue - amount;
   }
 
-  const operationName = direction === "deposit" ? "deposit-channel" : "withdraw";
+  const operationName = args.command === "withdraw-channel"
+    ? "withdraw-channel"
+    : direction === "deposit"
+      ? "deposit-channel"
+      : "withdraw";
   const operationDir = walletFromFlag
     ? createWalletOperationDir(walletFromFlag.walletName, `${operationName}-${shortAddress(signer.address)}`)
     : createOperationDir(context.workspaceName, `${operationName}-${shortAddress(signer.address)}`);
@@ -2857,7 +2879,7 @@ function walletConfigExists(walletDir) {
   return fs.existsSync(walletConfigPath(walletDir));
 }
 
-function assertDepositChannelArgs(args) {
+function assertWalletChannelMoveArgs(args, commandName) {
   requireWalletName(args);
   requireL2Password(args);
   requireArg(args.amount, "--amount");
@@ -2867,12 +2889,12 @@ function assertDepositChannelArgs(args) {
     .map((key) => `--${toKebabCase(key)}`);
   if (unsupported.length > 0) {
     throw new Error(
-      `deposit-channel only accepts --wallet, --password, and --amount. Unsupported option(s): ${unsupported.join(", ")}.`,
+      `${commandName} only accepts --wallet, --password, and --amount. Unsupported option(s): ${unsupported.join(", ")}.`,
     );
   }
   expect(
     (args.positional ?? []).length === 1,
-    "deposit-channel does not accept positional arguments beyond the command name.",
+    `${commandName} does not accept positional arguments beyond the command name.`,
   );
 }
 
@@ -3100,6 +3122,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs fund-l1 [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet <name> --password <string> --amount <tokens>
+  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel --wallet <name> --password <string> --amount <tokens>
   node apps/private-state/cli/private-state-bridge-cli.mjs withdraw (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs claim [--private-key <hex>] --password <string> --amount <tokens> [--wallet <name>] [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs bridge-send <function-name> (--channel-name <name> | --workspace <channel-workspace> | --wallet <name>) --wallet <name> [--private-key <hex>] --password <string> [--args-file <path>] [--template-file <path>] [options]
@@ -3149,6 +3172,7 @@ Notes:
   - mint-notes, redeem-notes, transfer-notes, and bridge-send update nonce and note state inside an existing wallet, but they do not set up wallet keys.
   - Once a wallet exists, wallet-show, get-bridge-deposit, fund-l1, claim, mint-notes, redeem-notes, transfer-notes, and bridge-send can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
+  - withdraw-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and calls the bridge withdraw path to move value from the channel L2 accounting vault back into the shared L1 bridgeTokenVault.
   - register-channel and withdraw can also use --password alone when a matching --wallet is present. Without a wallet, they still need --private-key to derive a fresh L2 identity.
   - The CLI only updates the active wallet. It does not auto-refresh other wallets because their encrypted data cannot be decrypted without their own --password.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.

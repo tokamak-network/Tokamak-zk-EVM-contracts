@@ -192,7 +192,7 @@ The CLI:
 - exposes direct wallet-backed note transfer through `transfer-notes`, which selects `transferNotes1To1`, `transferNotes1To2`, or `transferNotes2To1` from the note-id and recipient vector lengths
 - exposes wallet-backed note inspection through `get-my-notes`, including bridge-side status validation for each note
 - generates Groth and Tokamak proofs
-- submits bridge transactions for `deposit-bridge`, `register-channel`, `deposit-channel`, `withdraw`, `claim`, and DApp function execution
+- submits bridge transactions for `deposit-bridge`, `register-channel`, `deposit-channel`, `withdraw-channel`, `withdraw`, `claim`, and DApp function execution
 
 The current CLI treats wallet storage as a clean-slate local model. Legacy CLI data is not reused.
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount and converted with the canonical
@@ -241,6 +241,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes --wallet
 node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet participant-a --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --channel-name demo-channel --wallet participant-a --network sepolia --private-key <hex> --password "participant-a"
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet participant-a --password "participant-a" --amount 1
+node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel --wallet participant-a --password "participant-a" --amount 0.5
 ```
 
 The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such

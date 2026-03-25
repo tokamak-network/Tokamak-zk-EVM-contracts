@@ -88,6 +88,9 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `deposit-channel` moves value from the shared bridge-level `bridgeTokenVault` into the selected channel's `channelTokenVault`.
   It accepts only `--wallet`, `--password`, and `--amount`, and it fails unless the local wallet already contains
   plaintext network/channel metadata plus encrypted L1/L2 key material.
+- `withdraw-channel` is the wallet-only inverse of `deposit-channel`. It accepts only `--wallet`, `--password`,
+  and `--amount`, and it calls the bridge `withdraw` path to move value from the channel L2 accounting vault back into
+  the shared bridge-level `bridgeTokenVault`.
 - `recover-workspace` reconstructs the latest channel `state_snapshot.json` from bridge events starting at the stored
   `genesisBlockNumber` and writes it into `workspaces/<channel-name>/`.
 - `wallets` store per-user note plaintexts, classify notes into used vs unused sets, maintain aggregated
@@ -124,6 +127,7 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `get-channel-deposit` also requires an existing wallet and fails unless the wallet's L2 identity matches the
   on-chain channel registration for the stored channel.
 - `deposit-channel` requires an existing wallet and derives its network, channel, and signer keys from that wallet.
+- `withdraw-channel` requires an existing wallet and derives its network, channel, and signer keys from that wallet.
 - `withdraw` can still reuse an existing wallet when one is provided, but it does not set up wallet keys.
 - The CLI only updates the active wallet. It does not auto-refresh other wallets, because their encrypted folders
   cannot be opened without their own `--password`.
@@ -198,6 +202,11 @@ node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel \
   --wallet participant-a \
   --password "participant-a" \
   --amount 1.5
+
+node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel \
+  --wallet participant-a \
+  --password "participant-a" \
+  --amount 0.5
 ```
 
 Channel-workspace caches live under:

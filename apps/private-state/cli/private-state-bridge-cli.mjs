@@ -2045,7 +2045,19 @@ function loadWalletMetadata(walletName) {
     typeof metadata.channelName === "string" && metadata.channelName.length > 0,
     `Wallet ${normalizedWalletName} metadata is missing channelName.`,
   );
-  return metadata;
+  if (metadata.l2PublicKey !== undefined && metadata.l2PublicKey !== null) {
+    expect(
+      typeof metadata.l2PublicKey === "string" && metadata.l2PublicKey.length > 0,
+      `Wallet ${normalizedWalletName} metadata has an invalid l2PublicKey.`,
+    );
+  }
+  return {
+    ...metadata,
+    l2PublicKey:
+      typeof metadata.l2PublicKey === "string" && metadata.l2PublicKey.length > 0
+        ? ethers.hexlify(metadata.l2PublicKey)
+        : null,
+  };
 }
 
 function assertWalletMatchesMetadata(walletContext, walletMetadata) {
@@ -2063,6 +2075,15 @@ function assertWalletMatchesMetadata(walletContext, walletMetadata) {
       `the encrypted wallet channel (${walletContext.wallet.channelName}).`,
     ].join(" "),
   );
+  if (walletMetadata.l2PublicKey) {
+    expect(
+      walletContext.wallet.l2PublicKey === walletMetadata.l2PublicKey,
+      [
+        `Wallet ${walletContext.walletName} metadata l2PublicKey (${walletMetadata.l2PublicKey}) does not match`,
+        `the encrypted wallet l2PublicKey (${walletContext.wallet.l2PublicKey}).`,
+      ].join(" "),
+    );
+  }
 }
 
 async function loadBridgeVaultContext({ provider, chainId }) {
@@ -3067,6 +3088,7 @@ function persistWalletMetadata(context) {
   writeJson(walletMetadataPath(context.walletDir), {
     network: context.wallet.network,
     channelName: context.wallet.channelName,
+    l2PublicKey: context.wallet.l2PublicKey,
   });
 }
 

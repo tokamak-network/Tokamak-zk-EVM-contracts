@@ -251,10 +251,11 @@ Each wallet also stores unencrypted metadata as:
 apps/private-state/cli/wallets/<wallet>/wallet.metadata.json
 ```
 
-That plaintext metadata includes only:
+That plaintext metadata includes:
 
 - `network`
 - `channelName`
+- `l2PublicKey`
 
 User-action commands accept channel selection in this order:
 

@@ -174,6 +174,7 @@ private-state now exposes the bridge-coupled operator CLI under
 The CLI:
 
 - installs the local Tokamak zk-EVM toolchain through `install-zk-evm`
+- removes the checked-out Tokamak zk-EVM working tree through `uninstall-zk-evm` while preserving the submodule pointer
 - selects a target network through `--network` or `apps/.env`, restricted to `mainnet` or `sepolia`
 - loads bridge deployment data and the bridge ABI manifest generated at bridge deployment time
 - binds every channel to the canonical Tokamak Network Token for the selected network
@@ -211,6 +212,9 @@ wallets.
 The new `install-zk-evm` entrypoint accepts only `--rpc-url` and forwards it to the submodule `tokamak-cli --install`
 flow. Because the current `tokamak-cli` installer only accepts Alchemy Ethereum RPC URLs and derives an API key from
 that URL, `install-zk-evm` validates the same constraint instead of pretending that an arbitrary RPC endpoint will work.
+The matching `uninstall-zk-evm` entrypoint accepts no options and removes every file and directory inside
+`submodules/Tokamak-zk-EVM/` except the submodule root `.git` pointer file, so the parent-repo submodule entry remains
+intact while the checked-out working tree contents are discarded.
 When a ready channel workspace exists for the wallet channel, `mint-notes` tries that cached state snapshot first. If
 `tokamak-cli --verify` fails, the CLI refreshes the workspace through `recover-workspace` semantics and retries once.
 `redeem-notes` and `transfer-notes` use the same cached-workspace / recover-and-retry flow and update the encrypted
@@ -231,6 +235,7 @@ make cli-list
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template transferNotes1To1
 node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
+node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
 node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --network sepolia --private-key <hex> --amount 3
 node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge --wallet participant-a --password "participant-a" --amount 1

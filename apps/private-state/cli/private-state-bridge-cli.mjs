@@ -105,6 +105,12 @@ async function main() {
     return;
   }
 
+  if (args.command === "uninstall-zk-evm") {
+    assertUninstallZkEvmArgs(args);
+    await handleUninstallZkEvm();
+    return;
+  }
+
   if (args.command === "mint-notes") {
     assertMintNotesArgs(args);
     const env = loadEnv(defaultEnvFile);
@@ -696,6 +702,33 @@ async function handleInstallZkEvm({ args }) {
     action: "install-zk-evm",
     rpcUrl,
     tokamakCli: tokamakCliPath,
+  });
+}
+
+async function handleUninstallZkEvm() {
+  expect(fs.existsSync(tokamakRoot), `Tokamak zk-EVM submodule path does not exist: ${tokamakRoot}.`);
+  const submoduleGitPath = path.join(tokamakRoot, ".git");
+  expect(
+    fs.existsSync(submoduleGitPath),
+    `Tokamak zk-EVM submodule metadata is missing at ${submoduleGitPath}. Refusing to remove the directory.`,
+  );
+
+  const removedEntries = [];
+  for (const entry of fs.readdirSync(tokamakRoot, { withFileTypes: true })) {
+    if (entry.name === ".git") {
+      continue;
+    }
+    const entryPath = path.join(tokamakRoot, entry.name);
+    fs.rmSync(entryPath, { recursive: true, force: true });
+    removedEntries.push(entry.name);
+  }
+
+  printJson({
+    action: "uninstall-zk-evm",
+    tokamakRoot,
+    preservedEntries: [".git"],
+    removedEntriesCount: removedEntries.length,
+    removedEntries,
   });
 }
 
@@ -2978,6 +3011,22 @@ function assertInstallZkEvmArgs(args) {
   requireInstallRpcUrl(args);
 }
 
+function assertUninstallZkEvmArgs(args) {
+  const allowedKeys = new Set(["command", "positional"]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `uninstall-zk-evm does not accept options. Unsupported option(s): ${unsupported.join(", ")}.`,
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "uninstall-zk-evm does not accept positional arguments beyond the command name.",
+  );
+}
+
 function assertWithdrawBridgeArgs(args) {
   requireWalletName(args);
   requireL2Password(args);
@@ -3170,6 +3219,7 @@ Usage:
   node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
   node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
   node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url <alchemy-rpc-url>
+  node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
   node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet <name> --password <string> --amounts '[1,2,3]'
   node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes --wallet <name> --password <string> --note-id <commitment>
@@ -3217,6 +3267,7 @@ bridge-send options:
 Notes:
   - install-zk-evm only accepts --rpc-url and forwards it to tokamak-cli --install.
   - install-zk-evm requires an Alchemy Ethereum RPC URL because the current tokamak-cli installer only accepts Alchemy mainnet or sepolia URLs.
+  - uninstall-zk-evm accepts no options and removes every file and directory inside submodules/Tokamak-zk-EVM except the submodule's .git pointer file.
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
   - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
   - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.

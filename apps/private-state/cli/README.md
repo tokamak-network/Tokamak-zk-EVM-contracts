@@ -58,6 +58,7 @@ signature as the seed for `deriveL2KeysFromSignature`, and derives the L2 identi
 node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
 node apps/private-state/cli/private-state-bridge-cli.mjs show-template transferNotes1To1
 node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
+node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
 ```
 
 The bridge-coupled CLI separates channel creation from channel-workspace initialization:
@@ -65,6 +66,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `create-channel` creates the bridge channel on-chain.
 - `install-zk-evm` runs `submodules/Tokamak-zk-EVM/tokamak-cli --install <rpc-url>` for the local zk-EVM toolchain.
   It accepts only `--rpc-url`.
+- `uninstall-zk-evm` removes every file and directory inside `submodules/Tokamak-zk-EVM/` except the submodule's
+  root `.git` pointer file. It accepts no options.
 - `create-channel` does not accept an asset address. The bridge binds the channel to the canonical Tokamak Network
   Token for the selected network.
 - `create-channel --create-workspace` uses the channel name itself as the channel-workspace name.
@@ -105,6 +108,8 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - Wallet folders are encrypted at rest. Only `register-channel` sets up L1/L2 keys in the active wallet.
 - `install-zk-evm` currently requires an Alchemy Ethereum RPC URL, because the underlying `tokamak-cli --install`
   implementation only accepts Alchemy mainnet or sepolia URLs and extracts the API key from that URL.
+- `uninstall-zk-evm` preserves the submodule pointer itself but removes the checked-out working tree contents that
+  `install-zk-evm` relies on.
 - `mint-notes` maps the `--amounts` vector length to the underlying fixed-arity `mintNotes<N>` controller method.
 - `redeem-notes` always maps to `redeemNotes1` and credits the wallet owner's own L2 liquid balance.
 - `transfer-notes` maps the `--note-ids.length` and `--recipients.length` pair to `transferNotes1To1`,
@@ -151,6 +156,8 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 
 node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm \
   --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
+
+node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
 
 node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace \
   --network sepolia \

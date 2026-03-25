@@ -91,8 +91,6 @@ function usage() {
   node apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs [options]
 
 Options:
-  --install-rpc-url <alchemy-rpc-url>  Run install-zk-evm before DApp registration
-  --install-arg <alchemy-rpc-url>      Alias for --install-rpc-url
   --keep-anvil                         Leave anvil running after success
   --help                               Show this help
 
@@ -105,22 +103,12 @@ Notes:
 
 function parseArgs(argv) {
   const options = {
-    installRpcUrl: null,
     keepAnvil: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
-    const next = argv[index + 1];
     switch (current) {
-      case "--install-rpc-url":
-      case "--install-arg":
-        if (!next || next.startsWith("--")) {
-          throw new Error(`Missing value for ${current}.`);
-        }
-        options.installRpcUrl = next;
-        index += 1;
-        break;
       case "--keep-anvil":
         options.keepAnvil = true;
         break;
@@ -641,25 +629,10 @@ function pickDeliveredRecipient(deliveries, participant) {
   return delivery;
 }
 
-function normalizeBigIntString(value, label) {
-  try {
-    return BigInt(value);
-  } catch {
-    throw new Error(`Invalid bigint string for ${label}: ${String(value)}`);
-  }
-}
-
 function assertBigIntEq(actual, expected, label) {
   expect(
     BigInt(actual) === BigInt(expected),
     `${label} mismatch. Expected ${expected.toString()}, got ${actual.toString()}.`,
-  );
-}
-
-function assertHexEq(actual, expected, label) {
-  expect(
-    String(actual).toLowerCase() === String(expected).toLowerCase(),
-    `${label} mismatch. Expected ${expected}, got ${actual}.`,
   );
 }
 
@@ -687,13 +660,6 @@ function bootstrapAnvil() {
   run("make", ["-C", appRoot, "anvil-stop"], { quiet: true });
   run("make", ["-C", appRoot, "anvil-start"], { quiet: true });
   run("make", ["-C", appRoot, "anvil-bootstrap"], { quiet: true });
-}
-
-function installZkEvmIfRequested(options) {
-  if (!options.installRpcUrl) {
-    return null;
-  }
-  return runPrivateStateCli(["install-zk-evm", "--rpc-url", options.installRpcUrl]);
 }
 
 function deployBridgeStack() {
@@ -1003,7 +969,6 @@ async function main() {
 
   removeCliRunState();
 
-  let installResult = null;
   let createChannelResult = null;
   let recoverWorkspaceResult = null;
   let bridgeDeployment = null;
@@ -1016,7 +981,6 @@ async function main() {
   try {
     console.log("E2E CLI: bootstrapping anvil and local deployments.");
     bootstrapAnvil();
-    installResult = installZkEvmIfRequested(options);
     bridgeDeployment = deployBridgeStack();
     canonicalAsset = prepareCanonicalAsset(bridgeDeployment, participants);
     dappRegistrationResult = await registerPrivateStateDApp(provider, bridgeDeployment, participants);
@@ -1034,10 +998,10 @@ async function main() {
       participantResults.getChannelDeposit = getChannelDeposit(participant);
       participantResults.getBridgeDeposit = getBridgeDeposit(participant);
 
-      assertHexEq(
-        participantResults.getWalletAddress.l2Address,
-        participantResults.registerChannel.l2Address,
-        `${participant.alias} registered L2 address`,
+      expect(
+        String(participantResults.getWalletAddress.l2Address).toLowerCase()
+          === String(participantResults.registerChannel.l2Address).toLowerCase(),
+        `${participant.alias} registered L2 address mismatch.`,
       );
       expect(
         participantResults.isChannelRegistered.registrationExists === true
@@ -1157,7 +1121,6 @@ async function main() {
     const summary = {
       providerUrl,
       channelName,
-      installResult,
       bridgeDeployment,
       canonicalAsset,
       dappRegistration: dappRegistrationResult,

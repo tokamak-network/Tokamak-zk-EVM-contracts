@@ -42,15 +42,6 @@ node apps/private-state/script/e2e/run-bridge-private-state-e2e.mjs
 node apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs
 ```
 
-Optional installation step:
-
-```bash
-node apps/private-state/script/e2e/run-bridge-private-state-e2e.mjs \
-  --install-arg <ALCHEMY_API_KEY|ALCHEMY_RPC_URL>
-node apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs \
-  --install-rpc-url <ALCHEMY_RPC_URL>
-```
-
 Optional flag:
 
 - `--keep-anvil`: leave the local anvil process running after success

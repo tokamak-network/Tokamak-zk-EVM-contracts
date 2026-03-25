@@ -54,7 +54,6 @@ const appsRoot = path.resolve(projectRoot, "apps");
 const appRoot = path.resolve(projectRoot, "apps/private-state");
 const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
-const functionsRoot = path.resolve(__dirname, "functions");
 const channelWorkspacesRoot = path.resolve(__dirname, "workspaces");
 const walletsRoot = path.resolve(__dirname, "wallets");
 const defaultEnvFile = path.resolve(appsRoot, ".env");
@@ -82,17 +81,6 @@ async function main() {
 
   if (args.help || !args.command) {
     printHelp();
-    return;
-  }
-
-  if (args.command === "list-functions") {
-    printJson(readJson(path.resolve(functionsRoot, "index.json")));
-    return;
-  }
-
-  if (args.command === "show-template") {
-    requireFunctionName(args);
-    printJson(loadTemplate(args.functionName));
     return;
   }
 
@@ -126,12 +114,6 @@ async function main() {
     assertGetMyNotesArgs(args);
     const { provider } = loadWalletCommandRuntime(args);
     await handleGetMyNotes({ args, provider });
-    return;
-  }
-
-  if (args.command === "import-notes") {
-    assertImportNotesArgs(args);
-    await handleImportNotes({ args });
     return;
   }
 
@@ -1244,20 +1226,6 @@ async function handleTransferNotes({ args, provider }) {
   });
 }
 
-async function handleImportNotes({ args }) {
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
-  const importedNotes = parseImportedNoteVector(requireArg(args.notes, "--notes"));
-  const imported = mergeTrackedNotesIntoWallet(wallet, importedNotes);
-  persistWallet(wallet);
-
-  printJson({
-    action: "import-notes",
-    wallet: wallet.walletName,
-    importedCount: imported.length,
-    importedNotes: imported,
-  });
-}
-
 function walletInboxPath(walletDir) {
   return walletInboxPathForDir(walletDir);
 }
@@ -1870,24 +1838,6 @@ function parseRecipientVector(value) {
   });
 }
 
-function parseImportedNoteVector(value) {
-  let parsed;
-  try {
-    parsed = JSON.parse(String(value));
-  } catch {
-    throw new Error("Invalid --notes. Expected a JSON array of tracked notes.");
-  }
-  expect(Array.isArray(parsed), "Invalid --notes. Expected a JSON array.");
-  expect(parsed.length > 0, "Invalid --notes. The array must not be empty.");
-  return parsed.map((entry, index) => {
-    expect(entry && typeof entry === "object" && !Array.isArray(entry), `Invalid --notes[${index}]. Each note must be an object.`);
-    expect(typeof entry.owner === "string" && entry.owner.length > 0, `Invalid --notes[${index}]. Missing owner.`);
-    expect(entry.value !== undefined && entry.value !== null, `Invalid --notes[${index}]. Missing value.`);
-    expect(typeof entry.salt === "string" && entry.salt.length > 0, `Invalid --notes[${index}]. Missing salt.`);
-    return entry;
-  });
-}
-
 function walletChannelWorkspaceIsReady(walletContext) {
   const workspaceDir = channelWorkspacePath(walletContext.wallet.channelName);
   return fs.existsSync(path.join(workspaceDir, "workspace.json"))
@@ -2082,39 +2032,6 @@ async function executeWalletTemplateSend({
     nonce,
     operationDir,
     receipt,
-  };
-}
-
-function selectSpendableNotes(workspace, requestedAmount) {
-  const target = BigInt(requestedAmount);
-  if (target <= 0n) {
-    return {
-      requestedAmount: target.toString(),
-      selectedAmount: "0",
-      noteCommitments: [],
-      sufficient: true,
-    };
-  }
-
-  const selectedCommitments = [];
-  let selectedAmount = 0n;
-  for (const commitment of workspace.notes.unusedOrder) {
-    const note = workspace.notes.unused[commitment];
-    if (!note) {
-      continue;
-    }
-    selectedCommitments.push(commitment);
-    selectedAmount += BigInt(note.value);
-    if (selectedAmount >= target) {
-      break;
-    }
-  }
-
-  return {
-    requestedAmount: target.toString(),
-    selectedAmount: selectedAmount.toString(),
-    noteCommitments: selectedCommitments,
-    sufficient: selectedAmount >= target,
   };
 }
 
@@ -2439,14 +2356,6 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
     },
     nextSnapshot,
   };
-}
-
-function loadTemplate(functionName) {
-  expect(
-    !/^mintNotes[1-6]$/.test(functionName),
-    "Mint templates are no longer exposed through show-template. Use mint-notes instead.",
-  );
-  return readJson(path.resolve(functionsRoot, functionName, "calldata.json"));
 }
 
 function findFunctionFragment(abi, methodName) {
@@ -3005,9 +2914,6 @@ function parseArgs(argv) {
   }
 
   parsed.command = parsed.positional[0];
-  if (parsed.command === "show-template") {
-    parsed.functionName = parsed.positional[1];
-  }
   return parsed;
 }
 
@@ -3088,12 +2994,6 @@ function requireWalletName(args) {
     throw new Error("Missing --wallet.");
   }
   return String(value);
-}
-
-function requireFunctionName(args) {
-  if (!args.functionName) {
-    throw new Error("Missing function name.");
-  }
 }
 
 function requireL1Signer(args, env, provider) {
@@ -3336,26 +3236,6 @@ function assertTransferNotesArgs(args) {
   selectTransferNotesMethod(noteIds.length, recipients.length);
 }
 
-function assertImportNotesArgs(args) {
-  requireWalletName(args);
-  requireL2Password(args);
-  requireArg(args.notes, "--notes");
-  const allowedKeys = new Set(["command", "positional", "wallet", "password", "notes"]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      `import-notes only accepts --wallet, --password, and --notes. Unsupported option(s): ${unsupported.join(", ")}.`,
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "import-notes does not accept positional arguments beyond the command name.",
-  );
-  parseImportedNoteVector(args.notes);
-}
-
 function assertGetMyNotesArgs(args) {
   requireWalletName(args);
   requireL2Password(args);
@@ -3444,15 +3324,12 @@ function printHelp() {
   console.log(`private-state bridge CLI
 
 Usage:
-  node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
-  node apps/private-state/cli/private-state-bridge-cli.mjs show-template <function-name>
   node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url <alchemy-rpc-url>
   node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
   node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet <name> --password <string> --amounts '[1,2,3]'
   node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes --wallet <name> --password <string> --note-id <commitment>
   node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes --wallet <name> --password <string> --note-ids '["0x..."]' --recipients '["0x..."]' --amounts '[1]'
-  node apps/private-state/cli/private-state-bridge-cli.mjs import-notes --wallet <name> --password <string> --notes '[{"owner":"0x...","value":"1","salt":"0x..."}]'
   node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet <name> --password <string>
   node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --amount <tokens> [options]
@@ -3490,7 +3367,6 @@ Notes:
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
   - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
   - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.
-  - import-notes requires --wallet, --password, and --notes only. It remains available for manual or external note delivery, but transfer-notes now also writes recipient notes into deterministic wallet-folder inbox files automatically.
   - get-my-notes requires --wallet and --password only. It reads local encrypted note state and verifies each note status against the current controller commitment/nullifier state accepted by the bridge.
   - If a ready channel workspace exists for the wallet channel, mint-notes tries that cached state first. If tokamak-cli --verify fails, the CLI refreshes the channel workspace through recover-workspace semantics and retries once.
   - redeem-notes uses the same workspace-cache / recover-and-retry flow as mint-notes and updates both the encrypted wallet note sets and the cached channel workspace snapshot after success.
@@ -3595,11 +3471,6 @@ function sealWalletOperationDir(operationDir, walletPassword) {
     const plaintextBytes = fs.readFileSync(targetPath);
     writeEncryptedWalletFile(targetPath, plaintextBytes, walletPassword);
   }
-}
-
-function sanitizeWalletForOutput(wallet) {
-  const { l1PrivateKey: _l1PrivateKey, l2PrivateKey: _l2PrivateKey, l2PublicKey: _l2PublicKey, ...rest } = wallet;
-  return rest;
 }
 
 function ensureDir(dirPath) {

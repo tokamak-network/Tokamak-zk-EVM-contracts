@@ -160,7 +160,7 @@ make anvil-bootstrap
 make test
 make deploy-sepolia
 make deploy-mainnet
-make cli-list
+make cli-bridge-help
 ```
 
 The deployment shortcuts do not require editing `apps/.env` just to switch networks. They create a temporary env file,
@@ -179,7 +179,6 @@ The CLI:
 - loads bridge deployment data and the bridge ABI manifest generated at bridge deployment time
 - binds every channel to the canonical Tokamak Network Token for the selected network
 - treats the bridge-level `bridgeTokenVault` as a shared vault across all channels
-- reads default function templates from `apps/private-state/cli/functions/<function-name>/calldata.json`
 - separates on-chain channel creation from optional channel-workspace caching
 - reconstructs channel `state_snapshot.json` from bridge events through `recover-workspace`, writing it into the
   `<channel-name>` channel-workspace folder
@@ -193,7 +192,6 @@ The CLI:
 - exposes direct wallet-backed note minting through `mint-notes`, which selects the underlying fixed-arity `mintNotes<N>` method from the amount-vector length
 - exposes direct wallet-backed note redemption through `redeem-notes`, which fixes the path to `redeemNotes1` and credits the wallet owner's L2 liquid balance
 - exposes direct wallet-backed note transfer through `transfer-notes`, which selects `transferNotes1To1`, `transferNotes1To2`, or `transferNotes2To1` from the note-id and recipient vector lengths
-- exposes explicit recipient-side note import through `import-notes`, which remains available for manual note delivery even though `transfer-notes` now writes recipient wallet-folder inbox files automatically
 - exposes wallet-backed note inspection through `get-my-notes`, including bridge-side status validation for each note
 - generates Groth and Tokamak proofs
 - submits bridge transactions for `deposit-bridge`, `withdraw-bridge`, `register-channel`, `deposit-channel`, `withdraw-channel`, and the direct note commands
@@ -214,8 +212,7 @@ Each wallet directory also includes an unencrypted metadata file that stores onl
 `channelName`.
 Because recipient passwords are not available to the sender, `transfer-notes` cannot rewrite recipient `wallet.json`
 files directly. Instead it writes pending note plaintext into deterministic recipient wallet-folder inbox files, and
-the recipient's next wallet-backed command absorbs that inbox into the encrypted wallet. `import-notes` remains
-available for manual or external note delivery.
+the recipient's next wallet-backed command absorbs that inbox into the encrypted wallet.
 The CLI accepts `anvil` only so end-to-end tests can drive the full workflow through the same user commands on a local
 chain. That allowance is for automated or operator-driven local testing, not for real user operation.
 The new `install-zk-evm` entrypoint accepts only `--rpc-url` and forwards it to the submodule `tokamak-cli --install`
@@ -245,10 +242,8 @@ Examples:
 
 ```bash
 cd apps/private-state
-make cli-list
+make cli-bridge-help
 make e2e-bridge-cli
-node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
-node apps/private-state/cli/private-state-bridge-cli.mjs show-template transferNotes1To1
 node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
 node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
 node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name demo-channel --dapp-label private-state --private-key <hex> --create-workspace --network sepolia
@@ -266,10 +261,6 @@ node apps/private-state/cli/private-state-bridge-cli.mjs register-channel --chan
 node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet demo-channel-<l2Address> --password "participant-a" --amount 1
 node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel --wallet demo-channel-<l2Address> --password "participant-a" --amount 0.5
 ```
-
-The function-folder rule is based on function names. Because several contracts expose duplicate low-signal getters such
-as `controller()`, those duplicates are intentionally omitted from the CLI function-folder set to avoid path
-collisions.
 
 ## Local anvil Workflow
 

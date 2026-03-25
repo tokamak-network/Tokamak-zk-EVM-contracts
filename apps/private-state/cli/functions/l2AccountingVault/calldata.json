@@ -1,9 +1,0 @@
-{
-  "description": "Read the deployed L2 accounting vault address from the controller.",
-  "contractKey": "controller",
-  "abiFile": "../deploy/PrivateStateController.callable-abi.json",
-  "method": "l2AccountingVault",
-  "mode": "call",
-  "value": "0x0",
-  "args": []
-}

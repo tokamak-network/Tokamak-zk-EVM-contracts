@@ -5,45 +5,13 @@ This folder contains the terminal CLI for the private-state DApp.
 ## Structure
 
 - `private-state-bridge-cli.mjs`: the bridge-coupled L2 user workflow CLI
-- `functions/index.json`: selectable function list
-- `functions/<function-name>/calldata.json`: default calldata template for that function
 - `workspaces/`: optional channel workspaces that cache reconstructed channel snapshots
 - `wallets/`: mandatory per-user wallets that track L2 identity, nonce, and note ledgers
 
 The CLI now assumes a clean-slate wallet model. Legacy CLI data is not reused.
 
-Each `calldata.json` file follows this shape:
-
-```json
-{
-  "description": "Human-readable note for the operator",
-  "contractKey": "controller",
-  "abiFile": "../deploy/PrivateStateController.callable-abi.json",
-  "method": "transferNotes1To1",
-  "mode": "send",
-  "value": "0x0",
-  "args": [
-    [
-      {
-        "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "value": "1000000000000000000",
-        "salt": "0xa100000000000000000000000000000000000000000000000000000000000001"
-      }
-    ],
-    [
-      {
-        "owner": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-        "value": "1000000000000000000",
-        "salt": "0xa110000000000000000000000000000000000000000000000000000000000001"
-      }
-    ]
-  ]
-}
-```
-
-The bridge-coupled CLI uses the function templates as operator-facing references through `list-functions` and
-`show-template`, auto-selects the bridge deployment and ABI manifest from the chosen network, reconstructs or loads the
-channel state snapshot, maintains per-user note wallets, generates proofs, and submits the resulting bridge
+The bridge-coupled CLI auto-selects the bridge deployment and ABI manifest from the chosen network, reconstructs or
+loads the channel state snapshot, maintains per-user note wallets, generates proofs, and submits the resulting bridge
 transactions for the supported direct commands.
 
 Every CLI `--amount` input is interpreted as a human Tokamak Network Token amount. The CLI converts it into base units
@@ -58,8 +26,6 @@ Existing wallets created before this channel-bound derivation rule are not suppo
 ## Usage
 
 ```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs list-functions
-node apps/private-state/cli/private-state-bridge-cli.mjs show-template transferNotes1To1
 node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
 node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
 ```
@@ -95,9 +61,6 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
   with only `--wallet`, `--password`, `--note-ids`, `--recipients`,
   and `--amounts`, where all three vector inputs are JSON arrays and `--amounts.length` must equal
   `--recipients.length`. It also writes each output note into the deterministic recipient wallet folder inbox.
-- `import-notes` imports off-chain note plaintexts into the selected wallet. It accepts only `--wallet`,
-  `--password`, and `--notes`, where `--notes` is a JSON array of note objects emitted by `transfer-notes`.
-  It remains available for manual or external note delivery even though `transfer-notes` now writes recipient inbox files automatically.
 - `get-my-notes` reads the local wallet's tracked note sets and checks each note's commitment/nullifier status against
   the current controller state accepted by the bridge. It accepts only `--wallet` and `--password`.
 - `register-channel` registers the caller's L2 address, L2 `channelTokenVault` key, and `channelTokenVault` leaf index in the selected channel.
@@ -145,8 +108,6 @@ The bridge-coupled CLI separates channel creation from channel-workspace initial
 - `transfer-notes` also prints the output note plaintext plus bridge commitment keys and writes those notes into
   `apps/private-state/cli/wallets/<channelName>-<recipientL2Address>/incoming-notes.json`.
 - The recipient's next wallet-backed command absorbs that inbox into the encrypted wallet and clears the inbox file.
-- `import-notes` remains available as a manual fallback when note delivery happens outside the local deterministic
-  wallet-folder convention.
 - `get-my-notes` reports both the wallet's local note classification and whether each note still matches the
   bridge-accepted controller state.
 - The `noteId` values consumed by `transfer-notes` are note commitments from `get-my-notes`.

@@ -52,7 +52,7 @@ Recommended targets:
 - `make test`
 - `make deploy-sepolia`
 - `make deploy-mainnet`
-- `make cli-list`
+- `make cli-bridge-help`
 
 If a deployment target needs a different network than the one stored in `apps/.env`, prefer creating a temporary
 app-local env override inside the command wrapper instead of asking the operator to rewrite `apps/.env`.
@@ -65,8 +65,6 @@ Recommended structure:
 
 - `apps/<dapp>/cli/<dapp>-cli.mjs`
 - `apps/<dapp>/cli/README.md`
-- `apps/<dapp>/cli/functions/index.json`
-- `apps/<dapp>/cli/functions/<function-name>/calldata.json`
 
 The CLI should:
 
@@ -74,5 +72,5 @@ The CLI should:
 - optionally accept a wallet private key for signed transactions
 - resolve deployed contract addresses from `apps/<dapp>/deploy/deployment.<chain-id>.latest.json`
 - load callable ABIs from `apps/<dapp>/deploy/*.callable-abi.json`
-- read each function template from `cli/functions/<function-name>/calldata.json`
+- expose direct operator commands instead of maintaining a separate function-template layer
 - generate calldata and support `eth_call` or signed transaction submission as appropriate

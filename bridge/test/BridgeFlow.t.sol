@@ -35,11 +35,11 @@ contract BridgeFlowTest is Test {
         bytes32(uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958));
     string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
     string internal constant REAL_TOKAMAK_PROOF_PATH =
-        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/prove/output/proof.json";
+        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/prove/fixture/proof.json";
     string internal constant REAL_TOKAMAK_PREPROCESS_PATH =
-        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/preprocess/output/preprocess.json";
+        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/preprocess/fixture/preprocess.json";
     string internal constant REAL_TOKAMAK_INSTANCE_PATH =
-        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/synthesizer/output/instance.json";
+        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/synthesizer/fixture/instance.json";
     address internal constant REAL_TOKAMAK_APP_STORAGE = 0x8b64A4D3DF1771d7dFC93b374f545563B680b420;
 
     BridgeAdminManager internal adminManager;

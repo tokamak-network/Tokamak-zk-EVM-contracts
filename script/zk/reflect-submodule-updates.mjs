@@ -59,8 +59,8 @@ const grothVerifierOutputPath = path.join(
   "src",
   "Groth16Verifier.sol"
 );
-const outputRoot = path.join(repoRoot, "script", "output", "zk-artifacts");
-const defaultManifestPath = path.join(outputRoot, "reflection.latest.json");
+const artifactRoot = path.join(repoRoot, "script", "zk", "artifacts");
+const defaultManifestPath = path.join(artifactRoot, "reflection.latest.json");
 
 function usage() {
   console.log(`Usage:

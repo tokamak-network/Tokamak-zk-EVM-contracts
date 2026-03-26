@@ -23,7 +23,7 @@ The reflection step performs the following tasks:
 
 The current reflection manifest is written to:
 
-- `script/output/zk-artifacts/reflection.latest.json`
+- `script/zk/artifacts/reflection.latest.json`
 
 ## Helper tool
 

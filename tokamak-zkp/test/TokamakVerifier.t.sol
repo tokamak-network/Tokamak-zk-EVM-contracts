@@ -9,11 +9,11 @@ import {TokamakVerifier} from "../TokamakVerifier.sol";
 contract TokamakVerifierTest is Test {
     using stdJson for string;
 
-    string internal constant PROOF_PATH = "./test/fixtures/mintNotes1-proof/resource/prove/output/proof.json";
+    string internal constant PROOF_PATH = "./test/fixtures/mintNotes1-proof/resource/prove/fixture/proof.json";
     string internal constant PREPROCESS_PATH =
-        "./test/fixtures/mintNotes1-proof/resource/preprocess/output/preprocess.json";
+        "./test/fixtures/mintNotes1-proof/resource/preprocess/fixture/preprocess.json";
     string internal constant INSTANCE_PATH =
-        "./test/fixtures/mintNotes1-proof/resource/synthesizer/output/instance.json";
+        "./test/fixtures/mintNotes1-proof/resource/synthesizer/fixture/instance.json";
     TokamakVerifier internal verifier;
 
     function setUp() public {

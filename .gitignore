@@ -58,3 +58,5 @@ apps/private-state/cli/workspace/*
 !apps/private-state/cli/workspace/.gitignore
 script/zk/rkyv-to-json/target/
 script/output/zk-artifacts/private-state/
+**/output/
+**/output/**

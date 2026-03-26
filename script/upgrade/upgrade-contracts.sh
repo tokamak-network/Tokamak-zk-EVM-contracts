@@ -402,10 +402,10 @@ if eval $FORGE_CMD; then
         # Generate single comprehensive JSON with all contract info
         print_status "Generating comprehensive upgrade JSON with addresses and ABIs..."
         
-        # Create output directory
-        OUTPUT_DIR="$PROJECT_ROOT/script/output"
+        # Create long-lived contract artifact directory
+        OUTPUT_DIR="$PROJECT_ROOT/script/artifacts/contracts"
         mkdir -p "$OUTPUT_DIR"
-        
+
         CONTRACTS_JSON="$OUTPUT_DIR/contracts-$NETWORK.json"
         
         # Create the upgrade contracts JSON

@@ -120,7 +120,7 @@ else
     NETWORK_LABEL="$BRIDGE_ALCHEMY_NETWORK"
 fi
 
-REFLECTION_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$PROJECT_ROOT/script/output/zk-artifacts/reflection.latest.json}"
+REFLECTION_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$PROJECT_ROOT/script/zk/artifacts/reflection.latest.json}"
 
 REFLECTION_CMD=(
     node "$PROJECT_ROOT/script/zk/reflect-submodule-updates.mjs"

@@ -161,11 +161,12 @@ forge script script/UpgradeContracts.s.sol:UpgradeContractsScript \
     --etherscan-api-key $ETHERSCAN_API_KEY
 ```
 
-## 📁 Output Files
+## 📁 Generated Files
 
 ### Deployment Outputs
 - **`broadcast/`** - Foundry broadcast files with transaction details
 - **`deployments-{network}-{timestamp}.json`** - Deployment summary
+- **`script/artifacts/contracts/contracts-{network}.json`** - Long-lived contract address and ABI manifest
 - **Console logs** - Addresses and configuration details
 
 ### Important Addresses to Save

@@ -54,6 +54,7 @@ groth16/trusted-setup/pow_of_tau/
 groth16/circuits/build/
 *.ptau
 .DS_Store
+# Keep the private-state CLI workspace out of git while preserving the sentinel file.
 apps/private-state/cli/workspace/*
 !apps/private-state/cli/workspace/.gitignore
 script/zk/rkyv-to-json/target/

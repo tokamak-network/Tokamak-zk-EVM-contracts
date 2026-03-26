@@ -242,7 +242,7 @@ async function resolveSubmoduleRevision() {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  ensureDir(outputRoot);
+  ensureDir(artifactRoot);
 
   if (!options.skipSubmoduleUpdate) {
     await updateTokamakSubmodule();

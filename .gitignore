@@ -54,10 +54,11 @@ groth16/trusted-setup/pow_of_tau/
 groth16/circuits/build/
 *.ptau
 .DS_Store
-# Keep the private-state CLI workspace out of git while preserving the sentinel file.
-apps/private-state/cli/workspace/*
-!apps/private-state/cli/workspace/.gitignore
+# Keep app CLI workspaces out of git while preserving sentinel files.
+apps/*/cli/workspace/*
+!apps/*/cli/workspace/.gitignore
 script/zk/rkyv-to-json/target/
-script/output/zk-artifacts/private-state/
+# Ignore per-DApp generated zk artifacts while keeping shared manifests.
+script/output/zk-artifacts/*/
 **/output/
 **/output/**

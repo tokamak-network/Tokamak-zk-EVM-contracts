@@ -1,9 +1,0 @@
-running: cd "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/build/icicle-bls12-381-1207ea060a13d909/out/build" && CMAKE_PREFIX_PATH="" LC_ALL="C" "cmake" "/Users/jehyuk/.cargo/git/checkouts/icicle-e4fed18c5a8319f4/42b4f9a/wrappers/rust/icicle-curves/icicle-bls12-381/../../../../icicle" "-B" "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/build/icicle-bls12-381-1207ea060a13d909/out/build" "-DCMAKE_OSX_ARCHITECTURES=arm64" "-DCURVE=bls12_381" "-DFIELD=bls12_381" "-DHASH=ON" "-DCMAKE_INSTALL_PREFIX=/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/build/icicle-bls12-381-1207ea060a13d909/out/../../../deps/icicle/" "-DCMAKE_C_FLAGS= -ffunction-sections -fdata-sections -fPIC --target=arm64-apple-macosx -mmacosx-version-min=26.2 -w" "-DCMAKE_C_COMPILER=/usr/bin/cc" "-DCMAKE_CXX_FLAGS= -ffunction-sections -fdata-sections -fPIC --target=arm64-apple-macosx -mmacosx-version-min=26.2 -w" "-DCMAKE_CXX_COMPILER=/usr/bin/c++" "-DCMAKE_ASM_FLAGS= -ffunction-sections -fdata-sections -fPIC --target=arm64-apple-macosx -mmacosx-version-min=26.2 -w" "-DCMAKE_ASM_COMPILER=/usr/bin/cc" "-DCMAKE_BUILD_TYPE=Debug"
-CMake Warning:
-  Manually-specified variables were not used by the project:
-
-    CMAKE_ASM_COMPILER
-    CMAKE_ASM_FLAGS
-
-
-running: cd "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/build/icicle-bls12-381-1207ea060a13d909/out/build" && LC_ALL="C" "cmake" "--build" "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/script/zk/rkyv-to-json/target/debug/build/icicle-bls12-381-1207ea060a13d909/out/build" "--target" "install" "--config" "Debug" "--parallel" "14"

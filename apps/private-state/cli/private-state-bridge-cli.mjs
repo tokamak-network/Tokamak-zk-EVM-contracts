@@ -59,8 +59,6 @@ const appRoot = path.resolve(projectRoot, "apps/private-state");
 const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
 const workspaceRoot = path.resolve(__dirname, "workspace");
-const legacyWorkspaceRoot = path.resolve(__dirname, "workspaces");
-const legacyWalletsRoot = path.resolve(__dirname, "wallets");
 const defaultEnvFile = path.resolve(appsRoot, ".env");
 const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
@@ -359,7 +357,6 @@ async function initializeChannelWorkspace({
   force,
   persist,
 }) {
-  migrateWorkspaceIfNeeded(workspaceName);
   const workspaceDir = channelWorkspacePath(workspaceName);
   const channelDir = channelDataPath(workspaceDir);
   const hasPersistedChannelData = fs.existsSync(channelWorkspaceConfigPath(workspaceDir))
@@ -1771,7 +1768,6 @@ function parseRecipientVector(value) {
 
 function walletChannelWorkspaceIsReady(walletContext) {
   const workspaceDir = channelWorkspacePath(walletContext.wallet.channelName);
-  migrateWorkspaceIfNeeded(walletContext.wallet.channelName);
   return fs.existsSync(channelWorkspaceConfigPath(workspaceDir))
     && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"))
     && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"))
@@ -1976,7 +1972,6 @@ async function executeWalletTemplateSend({
 async function loadWorkspaceContext(workspaceName, provider) {
   const normalizedWorkspaceName = requireWorkspaceName({ workspace: workspaceName });
   const workspaceDir = channelWorkspacePath(normalizedWorkspaceName);
-  migrateWorkspaceIfNeeded(normalizedWorkspaceName);
   const workspace = readJson(channelWorkspaceConfigPath(workspaceDir));
   const bridgeDeploymentPath = defaultBridgeDeploymentPath(workspace.chainId);
   const bridgeAbiManifestPath = defaultBridgeAbiManifestPath(workspace.chainId);
@@ -2010,7 +2005,6 @@ async function loadChannelContext({ args, networkName, provider, walletContext =
   const explicitWorkspaceName = args.workspace ? requireWorkspaceName(args) : null;
   if (explicitWorkspaceName) {
     const explicitWorkspaceDir = channelWorkspacePath(explicitWorkspaceName);
-    migrateWorkspaceIfNeeded(explicitWorkspaceName);
     if (fs.existsSync(channelWorkspaceConfigPath(explicitWorkspaceDir))) {
       return loadWorkspaceContext(explicitWorkspaceName, provider);
     }
@@ -2865,8 +2859,6 @@ function walletPath(name) {
   const walletName = String(name);
   const { channelName } = parseWalletName(walletName);
   const workspaceDir = channelWorkspacePath(channelName);
-  migrateWorkspaceIfNeeded(channelName);
-  migrateWalletIfNeeded(walletName, workspaceDir);
   return walletDirForName(workspaceWalletsDir(workspaceDir), walletName);
 }
 
@@ -2884,57 +2876,6 @@ function channelWorkspaceCurrentPath(workspaceDir) {
 
 function channelWorkspaceOperationsPath(workspaceDir) {
   return path.join(channelDataPath(workspaceDir), "operations");
-}
-
-function migrateWorkspaceIfNeeded(workspaceName) {
-  const workspaceDir = workspaceDirForName(workspaceRoot, workspaceName);
-  const channelDir = channelDataPath(workspaceDir);
-  const legacyWorkspaceDir = workspaceDirForName(legacyWorkspaceRoot, workspaceName);
-
-  if (!fs.existsSync(workspaceDir) && fs.existsSync(legacyWorkspaceDir)) {
-    ensureDir(path.dirname(workspaceDir));
-    fs.renameSync(legacyWorkspaceDir, workspaceDir);
-  }
-
-  if (!fs.existsSync(workspaceDir)) {
-    return;
-  }
-
-  const legacyWorkspaceJson = path.join(workspaceDir, "workspace.json");
-  const legacyCurrentDir = path.join(workspaceDir, "current");
-  const legacyOperationsDir = path.join(workspaceDir, "operations");
-  if (!fs.existsSync(legacyWorkspaceJson)
-    && !fs.existsSync(legacyCurrentDir)
-    && !fs.existsSync(legacyOperationsDir)) {
-    return;
-  }
-
-  ensureDir(channelDir);
-  if (fs.existsSync(legacyWorkspaceJson)) {
-    fs.renameSync(legacyWorkspaceJson, channelWorkspaceConfigPath(workspaceDir));
-  }
-  if (fs.existsSync(legacyCurrentDir)) {
-    fs.renameSync(legacyCurrentDir, channelWorkspaceCurrentPath(workspaceDir));
-  }
-  if (fs.existsSync(legacyOperationsDir)) {
-    fs.renameSync(legacyOperationsDir, channelWorkspaceOperationsPath(workspaceDir));
-  }
-}
-
-function migrateWalletIfNeeded(walletName, workspaceDir = null) {
-  const resolvedWorkspaceDir = workspaceDir ?? channelWorkspacePath(parseWalletName(walletName).channelName);
-  const targetWalletDir = walletDirForName(workspaceWalletsDir(resolvedWorkspaceDir), walletName);
-  if (fs.existsSync(targetWalletDir)) {
-    return;
-  }
-
-  const legacyWalletDir = walletDirForName(legacyWalletsRoot, walletName);
-  if (!fs.existsSync(legacyWalletDir)) {
-    return;
-  }
-
-  ensureDir(workspaceWalletsDir(resolvedWorkspaceDir));
-  fs.renameSync(legacyWalletDir, targetWalletDir);
 }
 
 function walletConfigPath(walletDir) {
@@ -3166,7 +3107,6 @@ Notes:
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - recover-workspace always writes into apps/private-state/cli/workspace/<channel-name>/channel/.
   - Channel workspaces remain optional as user-managed files, but wallet-backed snapshot commands now create or refresh them automatically before execution.
-  - Existing legacy apps/private-state/cli/workspaces/ and apps/private-state/cli/wallets/ entries are migrated into the new workspace layout on access.
   - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
   - deposit-bridge only funds the shared bridge-level bridgeTokenVault.
   - withdraw-bridge requires --wallet, --password, and --amount only. It derives the network and signer keys from the local wallet and calls claimToWallet to move value from the shared bridge-level bridgeTokenVault back into Tokamak Network Token in the caller wallet.

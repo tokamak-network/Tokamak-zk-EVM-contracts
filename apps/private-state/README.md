@@ -90,9 +90,6 @@ Important rules:
 - recipient note delivery is staged through `incoming-notes.json` because the sender does not know the recipient password
 - `anvil` support exists only for command-driven local end-to-end testing
 
-Legacy CLI data under the old `apps/private-state/cli/workspaces/` and `apps/private-state/cli/wallets/` roots is
-migrated into the new `apps/private-state/cli/workspace/` layout on access.
-
 ## CLI Command Flow
 
 The commands below are ordered by the normal execution flow.

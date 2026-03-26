@@ -170,8 +170,8 @@ function run(command, args, {
     env,
     encoding: "utf8",
     stdio: captureStdout
-      ? ["ignore", "pipe", quiet ? "ignore" : "inherit"]
-      : (quiet ? ["ignore", "ignore", "ignore"] : "inherit"),
+      ? ["ignore", "pipe", quiet ? "pipe" : "inherit"]
+      : (quiet ? ["ignore", "ignore", "pipe"] : "inherit"),
   });
 
   if (result.status !== 0) {
@@ -179,6 +179,7 @@ function run(command, args, {
       [
         `${printable} failed with exit code ${result.status ?? "unknown"}.`,
         captureStdout && (result.stdout ?? "").trim().length > 0 ? `stdout:\n${result.stdout}` : null,
+        quiet && (result.stderr ?? "").trim().length > 0 ? `stderr:\n${result.stderr}` : null,
       ].filter(Boolean).join("\n"),
     );
   }

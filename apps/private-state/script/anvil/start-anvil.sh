@@ -16,8 +16,9 @@ if [[ -f "$ENV_FILE" ]]; then
     set +a
 fi
 
+# The anvil wrapper must stay self-contained even when apps/.env targets a public network.
 RPC_URL="${APPS_RPC_URL_OVERRIDE:-http://127.0.0.1:8545}"
-APPS_NETWORK="${APPS_NETWORK:-anvil}"
+APPS_NETWORK="anvil"
 resolve_app_network "$APPS_NETWORK"
 CHAIN_ID="$APPS_CHAIN_ID"
 MNEMONIC="${APPS_ANVIL_MNEMONIC:-test test test test test test test test test test test junk}"
@@ -29,11 +30,6 @@ PORT="${HOST_PORT##*:}"
 
 if [[ "$HOST" == "$PORT" ]]; then
     PORT="8545"
-fi
-
-if [[ "$APPS_NETWORK" != "anvil" ]]; then
-    echo "start-anvil.sh requires APPS_NETWORK=anvil" >&2
-    exit 1
 fi
 
 if [[ -f "$PID_FILE" ]]; then

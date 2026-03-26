@@ -8,33 +8,26 @@ source "$PROJECT_ROOT/apps/script/network-config.sh"
 
 ANVIL_DEFAULT_DEPLOYER_PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-if [[ ! -f "$ENV_FILE" ]]; then
-    echo "Missing $ENV_FILE" >&2
-    exit 1
-fi
-
 cleanup() {
     rm -f "$TEMP_ENV_FILE"
 }
 trap cleanup EXIT
 
-set -a
-source "$ENV_FILE"
-set +a
+if [[ -f "$ENV_FILE" ]]; then
+    set -a
+    source "$ENV_FILE"
+    set +a
+fi
 
 if [[ -n "${APPS_DEPLOYER_PRIVATE_KEY:-}" && "${APPS_DEPLOYER_PRIVATE_KEY}" != 0x* ]]; then
     APPS_DEPLOYER_PRIVATE_KEY="0x${APPS_DEPLOYER_PRIVATE_KEY}"
     export APPS_DEPLOYER_PRIVATE_KEY
 fi
 
+# The anvil bootstrap flow must not depend on apps/.env being present or set to an anvil network.
 APPS_RPC_URL="${APPS_RPC_URL_OVERRIDE:-http://127.0.0.1:8545}"
-APPS_NETWORK="${APPS_NETWORK:-anvil}"
+APPS_NETWORK="anvil"
 resolve_app_network "$APPS_NETWORK"
-
-if [[ "$APPS_NETWORK" != "anvil" ]]; then
-    echo "bootstrap-private-state-anvil.sh requires APPS_NETWORK=anvil" >&2
-    exit 1
-fi
 
 APPS_DEPLOYER_PRIVATE_KEY="${APPS_ANVIL_DEPLOYER_PRIVATE_KEY:-$ANVIL_DEFAULT_DEPLOYER_PRIVATE_KEY}"
 export APPS_DEPLOYER_PRIVATE_KEY
@@ -48,22 +41,10 @@ if ! curl -sS \
 fi
 
 export APPS_RPC_URL_OVERRIDE="$APPS_RPC_URL"
-cp "$ENV_FILE" "$TEMP_ENV_FILE"
-awk -v deployer_private_key="$APPS_DEPLOYER_PRIVATE_KEY" '
-BEGIN { replaced_deployer = 0 }
-/^APPS_DEPLOYER_PRIVATE_KEY=/ {
-    print "APPS_DEPLOYER_PRIVATE_KEY=" deployer_private_key
-    replaced_deployer = 1
-    next
-}
-{ print }
-END {
-    if (replaced_deployer == 0) {
-        print "APPS_DEPLOYER_PRIVATE_KEY=" deployer_private_key
-    }
-}
-' "$TEMP_ENV_FILE" > "${TEMP_ENV_FILE}.next"
-mv "${TEMP_ENV_FILE}.next" "$TEMP_ENV_FILE"
+cat > "$TEMP_ENV_FILE" <<EOF
+APPS_NETWORK=anvil
+APPS_DEPLOYER_PRIVATE_KEY=$APPS_DEPLOYER_PRIVATE_KEY
+EOF
 
 APPS_ENV_FILE="$TEMP_ENV_FILE" bash "$PROJECT_ROOT/apps/private-state/script/deploy/deploy-private-state.sh"
 

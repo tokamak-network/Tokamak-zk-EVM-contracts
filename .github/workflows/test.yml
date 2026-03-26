@@ -6,6 +6,9 @@ on:
       - main
       - dev
   pull_request:
+    branches:
+      - main
+      - dev
   workflow_dispatch:
 
 env:
@@ -14,7 +17,6 @@ env:
 jobs:
   bridge-unit-tests:
     name: Bridge Unit Tests
-    if: github.event_name != 'pull_request' || (github.head_ref != 'main' && github.head_ref != 'dev')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -43,7 +45,6 @@ jobs:
 
   private-state-cli-e2e:
     name: Private-State CLI E2E
-    if: github.event_name != 'pull_request' || (github.head_ref != 'main' && github.head_ref != 'dev')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     needs: bridge-unit-tests

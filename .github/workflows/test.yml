@@ -40,7 +40,7 @@ jobs:
   private-state-cli-e2e:
     name: Private-State CLI E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     needs: bridge-unit-tests
 
     steps:
@@ -54,6 +54,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install npm dependencies
         run: npm ci
@@ -70,6 +76,20 @@ jobs:
           forge --version
           cast --version
           anvil --version
+
+      - name: Install Tokamak zk-EVM Artifacts
+        env:
+          TOKAMAK_ALCHEMY_RPC_URL: ${{ secrets.TOKAMAK_ALCHEMY_RPC_URL }}
+        run: |
+          if [ -z "${TOKAMAK_ALCHEMY_RPC_URL}" ]; then
+            echo "Missing required GitHub secret: TOKAMAK_ALCHEMY_RPC_URL" >&2
+            exit 1
+          fi
+          rm -rf submodules/Tokamak-zk-EVM/dist
+          (
+            cd submodules/Tokamak-zk-EVM
+            ./tokamak-cli --install "${TOKAMAK_ALCHEMY_RPC_URL}"
+          )
 
       - name: Run private-state bridge CLI end-to-end test
         run: npm run test:private-state:cli-e2e

@@ -45,21 +45,25 @@ if [[ -f "$PID_FILE" ]]; then
     rm -f "$PID_FILE"
 fi
 
-anvil \
+nohup anvil \
     --host "$HOST" \
     --port "$PORT" \
     --chain-id "$CHAIN_ID" \
     --mnemonic "$MNEMONIC" \
-    >"$LOG_FILE" 2>&1 &
+    >"$LOG_FILE" 2>&1 </dev/null &
 
 ANVIL_PID=$!
-echo "$ANVIL_PID" > "$PID_FILE"
 
 for _ in $(seq 1 20); do
     if curl -sS \
         -H "Content-Type: application/json" \
         -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
         "$RPC_URL" >/dev/null 2>&1; then
+        RESOLVED_PID="$(pgrep -n -f "anvil.*--host $HOST.*--port $PORT" || true)"
+        if [[ -n "$RESOLVED_PID" ]]; then
+            ANVIL_PID="$RESOLVED_PID"
+        fi
+        echo "$ANVIL_PID" > "$PID_FILE"
         echo "Started anvil on $RPC_URL with PID $ANVIL_PID"
         echo "Log file: $LOG_FILE"
         exit 0

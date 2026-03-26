@@ -69,7 +69,19 @@ jobs:
       - name: Install system dependencies for Tokamak toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libssl-dev cmake dos2unix
+          sudo apt-get install -y \
+            git \
+            curl \
+            make \
+            build-essential \
+            unzip \
+            pkg-config \
+            libssl-dev \
+            jq \
+            git-lfs \
+            cmake \
+            dos2unix
+          git lfs install --skip-repo
 
       - name: Install Circom
         run: |
@@ -83,6 +95,30 @@ jobs:
           )
           circom --version
 
+      - name: Verify Tokamak install prerequisites
+        run: |
+          for cmd in \
+            git \
+            curl \
+            tar \
+            unzip \
+            make \
+            jq \
+            git-lfs \
+            node \
+            npm \
+            bun \
+            rustc \
+            cargo \
+            cmake \
+            dos2unix \
+            circom; do
+            command -v "${cmd}" >/dev/null 2>&1 || {
+              echo "Missing required command: ${cmd}" >&2
+              exit 1
+            }
+          done
+
       - name: Install npm dependencies
         run: npm ci
 
@@ -95,6 +131,17 @@ jobs:
         run: |
           node --version
           npm --version
+          bun --version
+          rustc --version
+          cargo --version
+          git --version
+          curl --version | head -n 1
+          tar --version | head -n 1
+          unzip -v | head -n 1
+          jq --version
+          git-lfs version
+          cmake --version | head -n 1
+          dos2unix --version | head -n 1
           circom --version
           forge --version
           cast --version
@@ -112,6 +159,13 @@ jobs:
           (
             cd submodules/Tokamak-zk-EVM
             ./tokamak-cli --install "${TOKAMAK_ALCHEMY_API_KEY}"
+          )
+
+      - name: Run Tokamak doctor
+        run: |
+          (
+            cd submodules/Tokamak-zk-EVM
+            ./tokamak-cli --doctor --verbose
           )
 
       - name: Run private-state bridge CLI end-to-end test

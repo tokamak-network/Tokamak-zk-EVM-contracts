@@ -183,6 +183,9 @@ contract BridgeCore is ReentrancyGuardUpgradeable, OwnableUpgradeable, UUPSUpgra
         channel.preAllocatedLeavesCount = uint32(preAllocatedCount);
         channel.frostSignatureEnabled = params.enableFrostSignature;
 
+        // Automatically whitelist the channel leader
+        channel.isWhiteListed[msg.sender] = true;
+
         uint256 whitelistedLength = params.whitelisted.length;
         for (uint256 i = 0; i < whitelistedLength;) {
             address whitelistedUser = params.whitelisted[i];

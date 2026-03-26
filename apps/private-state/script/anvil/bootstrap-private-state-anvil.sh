@@ -66,10 +66,8 @@ END {
 mv "${TEMP_ENV_FILE}.next" "$TEMP_ENV_FILE"
 
 APPS_ENV_FILE="$TEMP_ENV_FILE" bash "$PROJECT_ROOT/apps/private-state/script/deploy/deploy-private-state.sh"
-bash "$PROJECT_ROOT/apps/private-state/script/anvil/write-anvil-artifacts.sh" "$APPS_CHAIN_ID"
 
 echo "Bootstrapped private-state on anvil"
 echo "RPC URL: $APPS_RPC_URL"
 echo "Anvil deployer: $(cast wallet address --private-key "$APPS_DEPLOYER_PRIVATE_KEY")"
 echo "Deployment manifest: $PROJECT_ROOT/apps/private-state/deploy/deployment.${APPS_CHAIN_ID}.latest.json"
-echo "Anvil bootstrap manifest: $PROJECT_ROOT/apps/private-state/deploy/anvil-bootstrap.latest.json"

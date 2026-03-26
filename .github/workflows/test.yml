@@ -79,16 +79,16 @@ jobs:
 
       - name: Install Tokamak zk-EVM Artifacts
         env:
-          TOKAMAK_ALCHEMY_RPC_URL: ${{ secrets.TOKAMAK_ALCHEMY_RPC_URL }}
+          TOKAMAK_ALCHEMY_API_KEY: ${{ secrets.TOKAMAK_ALCHEMY_API_KEY }}
         run: |
-          if [ -z "${TOKAMAK_ALCHEMY_RPC_URL}" ]; then
-            echo "Missing required GitHub secret: TOKAMAK_ALCHEMY_RPC_URL" >&2
+          if [ -z "${TOKAMAK_ALCHEMY_API_KEY}" ]; then
+            echo "Missing required GitHub secret: TOKAMAK_ALCHEMY_API_KEY" >&2
             exit 1
           fi
           rm -rf submodules/Tokamak-zk-EVM/dist
           (
             cd submodules/Tokamak-zk-EVM
-            ./tokamak-cli --install "${TOKAMAK_ALCHEMY_RPC_URL}"
+            ./tokamak-cli --install "${TOKAMAK_ALCHEMY_API_KEY}"
           )
 
       - name: Run private-state bridge CLI end-to-end test

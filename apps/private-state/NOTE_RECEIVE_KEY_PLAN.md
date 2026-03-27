@@ -295,16 +295,21 @@ The ciphertext must be published on Ethereum so the recipient can discover the i
 
 The current preferred channel is an event log emitted by the transfer path.
 
-The event should carry enough information for the recipient wallet to scan and attempt decryption, while the on-chain
-state transition remains bound to the ciphertext hash through the salt rule above.
+The event should carry only enough information for the recipient wallet to scan and attempt decryption, while the
+on-chain state transition remains bound to the ciphertext hash through the salt rule above.
+
+The event must not reveal any recipient-identifying note metadata such as:
+
+- recipient owner address
+- note commitment
+- ciphertext hash as a separate field
+
+Those values are either privacy-sensitive or derivable locally by the recipient from the ciphertext itself.
 
 Recommended DApp event shape:
 
 ```solidity
 event NoteValueEncrypted(
-    address indexed owner,
-    bytes32 indexed commitment,
-    bytes32 indexed ciphertextHash,
     EncryptedNoteValue encryptedValue
 );
 ```
@@ -484,7 +489,8 @@ When the recipient later wants to recover received notes:
      - `owner = recipient L2 address`
      - `value = decrypted value`
      - `salt = keccak256(serializedEncryptedNoteValue)`
-5. Recompute the note commitment locally and match it against the expected incoming output note commitment.
+5. Recompute the note commitment locally and optionally confirm that the controller state recognizes that commitment as
+   existing before persisting the recovered note into wallet state.
 
 ## Why This Plan Was Chosen
 

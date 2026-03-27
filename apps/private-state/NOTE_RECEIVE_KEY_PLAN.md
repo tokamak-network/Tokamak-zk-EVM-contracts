@@ -316,14 +316,122 @@ event NoteValueEncrypted(
 
 Each transfer output emits one such event after its commitment is registered.
 
-## Bridge Log Propagation Plan
+## DApp Contract Update Plan
+
+The private-state DApp changes should be implemented in `PrivateStateController` and in the app-local metadata
+generation path. This section describes only the DApp-side contract and registration-output changes. Bridge and CLI
+changes are covered separately below.
+
+### A. Transfer Output Shape and Salt Derivation
+
+Every transfer entrypoint should stop accepting a caller-chosen recipient salt and instead accept an encrypted output
+payload:
+
+```solidity
+struct TransferOutput {
+    address owner;
+    uint256 value;
+    EncryptedNoteValue encryptedValue;
+}
+```
+
+That implies the following contract-side updates:
+
+- replace transfer output calldata shapes from `Note` to `TransferOutput`
+- derive `salt = keccak256(serializedEncryptedNoteValue)` inside the contract
+- compute output commitments from `(owner, value, derivedSalt)` rather than from caller-supplied salt
+- apply the same output shape to sender change notes so that transfer entrypoints keep one successful path only
+
+### B. Contract Execution Delta
+
+For each `transferNotes*` function, the new logic should add only the minimum extra work required by the new delivery
+model:
+
+- decode `EncryptedNoteValue` from calldata
+- compute one `keccak256` over the fixed serialized ciphertext
+- emit one ciphertext-bearing DApp event per output
+
+This plan does not add:
+
+- recipient inbox storage
+- note-delivery nonce storage
+- on-chain decryption
+- on-chain ciphertext semantic validation
+
+### C. DApp Event Shape
+
+The DApp must emit a ciphertext delivery event for each transfer output, but the event must not leak recipient note
+ownership or note identifiers.
+
+Required privacy rule:
+
+- do not emit recipient owner address
+- do not emit note commitment
+- do not emit ciphertext hash as a separate field
+
+Recommended event shape:
+
+```solidity
+event NoteValueEncrypted(
+    EncryptedNoteValue encryptedValue
+);
+```
+
+The ciphertext hash remains available implicitly because both the sender and the recipient can compute it from
+`encryptedValue`.
+
+### D. DApp Metadata Generation
+
+The app-local function metadata generation path must start describing event-log outputs in addition to storage writes.
+
+Concrete DApp-side deliverables:
+
+- extend the private-state metadata generator so each transfer function declares its emitted event-log records
+- keep `mintNotes*` and `redeemNotes*` unchanged unless they later need note-delivery logs as well
+- regenerate the DApp registration payloads consumed by the bridge e2e and deployment flows
+
+## Bridge Contract Update Plan
 
 This plan assumes the pending Synthesizer update is complete and that `instance.json -> a_pub_user` now includes DApp
 event-log records in addition to the existing storage-write records.
 
 Under that assumption, the bridge execution flow should change as follows.
 
-### 6. Bridge Function Metadata
+### A. Channel Registration and Recipient-Key Lookup
+
+The bridge registration layer is responsible for storing and serving the recipient note-receive public key.
+
+Required bridge-side shape:
+
+```solidity
+struct NoteReceivePubKey {
+    bytes32 x;
+    uint8 yParity;
+}
+
+struct ChannelTokenVaultRegistration {
+    bool exists;
+    address l2Address;
+    bytes32 channelTokenVaultKey;
+    uint256 leafIndex;
+    NoteReceivePubKey noteReceivePubKey;
+}
+```
+
+Required registration-path changes:
+
+- add `BridgeStructs.NoteReceivePubKey`
+- extend `BridgeStructs.ChannelTokenVaultRegistration`
+- extend `ChannelManager.registerChannelTokenVaultIdentity(...)` to accept the note-receive public key
+- extend bridge-facing registration getters to return the new field
+- maintain an `l2Address -> registration` or `l2Address -> noteReceivePubKey` lookup path
+- expose a view path so senders can resolve `NoteReceivePubKey` by recipient `l2Address`
+- extend the registration event to include the note-receive public key
+
+The lookup must be keyed by recipient `l2Address`, because private-state transfer flows naturally identify recipients by
+L2 owner address rather than by the L1 registration address.
+
+### B. Bridge Function Metadata
 
 The bridge-side function metadata must stop assuming that `a_pub_user` contains storage writes only.
 
@@ -391,7 +499,7 @@ Bridge ownership of this metadata:
 - `ChannelManager.executeChannelTransaction(...)` loads the cached event descriptors and uses them to decode the
   event-log section from `payload.aPubUser`
 
-### 7. Bridge Runtime Emission
+### C. Bridge Runtime Emission
 
 `ChannelManager.executeChannelTransaction(...)` currently observes storage writes and emits bridge-local storage-write
 events only.
@@ -408,27 +516,11 @@ decoded topic count.
 
 That preserves the DApp event identity as seen by downstream indexers.
 
-### 8. DApp Metadata Generation
-
-The DApp registration metadata generation path must also be updated so the bridge learns the new event-log layout.
-
-That affects:
-
-- DApp metadata generation scripts
-- DApp registration helpers used by bridge e2e flows
-- any `buildFunctionDefinition(...)` or equivalent helper that currently assumes storage writes are the only observable
-  user outputs
-
-The DApp metadata that is registered through `DAppManager.registerDApp(...)` must include both:
-
-- storage-write layout metadata
-- event-log layout metadata
-
 ## CLI Update Plan
 
 The private-state CLI will need changes in three areas.
 
-### 9. Channel Registration CLI
+### A. Channel Registration CLI
 
 The `register-channel` flow must:
 
@@ -444,7 +536,7 @@ The persisted wallet metadata must store at least:
 - the exact typed-data payload template inputs
 - the registered compressed public key
 
-### 10. Transfer CLI
+### B. Transfer CLI
 
 The `transfer-notes` flow must stop writing plaintext recipient notes into local inbox sidecars as the canonical
 delivery mechanism.
@@ -460,7 +552,7 @@ Instead it should:
 The current `incoming-notes.json` sidecar flow should then become a legacy compatibility path rather than the primary
 delivery path.
 
-### 11. Recipient Recovery CLI
+### C. Recipient Recovery CLI
 
 Wallet-backed commands that need note discovery should:
 

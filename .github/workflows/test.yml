@@ -95,6 +95,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Install Groth16 circuit dependencies
+        run: npm ci --prefix groth16/circuits
+
       - name: Make Tokamak scripts executable
         run: |
           chmod +x submodules/Tokamak-zk-EVM/tokamak-cli

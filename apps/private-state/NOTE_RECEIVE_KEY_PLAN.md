@@ -113,12 +113,51 @@ That public key becomes the canonical encryption target for incoming private-sta
 The sender never guesses or reconstructs the recipient key from the recipient address alone. The sender reads the
 registered note-receive public key from channel state.
 
+### 2A. Sender Lookup Path
+
+The sender-facing lookup path must be keyed by recipient `l2Address`, not only by the recipient's L1 registration
+address.
+
+Reason:
+
+- private-state transfers target recipient L2 note owners
+- the transfer CLI and future web flow naturally identify recipients by L2 address
+- requiring the sender to know the recipient's L1 registration address would add an unnecessary lookup dependency and
+  make the UX worse
+
+Therefore the bridge registration layer should maintain a second lookup path:
+
+```solidity
+mapping(address l2Address => NoteReceivePubKey) private _noteReceivePubKeysByL2Address;
+```
+
+or an equivalent registration index that returns the full registration record by `l2Address`.
+
+Recommended view methods:
+
+```solidity
+function getChannelTokenVaultRegistrationByL2Address(address l2Address)
+    external
+    view
+    returns (BridgeStructs.ChannelTokenVaultRegistration memory);
+
+function getNoteReceivePubKeyByL2Address(address l2Address)
+    external
+    view
+    returns (BridgeStructs.NoteReceivePubKey memory);
+```
+
+The second method is optional if the first already exists and is cheap to consume, but at least one `l2Address`
+lookup path must exist.
+
 Concrete bridge-side changes:
 
 - add `BridgeStructs.NoteReceivePubKey`
 - extend `BridgeStructs.ChannelTokenVaultRegistration`
 - extend `ChannelManager.registerChannelTokenVaultIdentity(...)` to accept the note-receive public key
 - extend `BridgeCore.getChannelTokenVaultRegistration(...)` and all ABI consumers to return the new field
+- maintain an `l2Address -> registration` or `l2Address -> noteReceivePubKey` lookup path
+- expose that `l2Address` lookup through `ChannelManager` and `BridgeCore`
 - extend the channel registration event to include the note-receive public key
 
 This key belongs in the bridge channel registration layer, not in `PrivateStateController`, because it is channel user
@@ -356,7 +395,7 @@ delivery mechanism.
 
 Instead it should:
 
-1. query each recipient's `NoteReceivePubKey` from channel registration state
+1. query each recipient's `NoteReceivePubKey` from channel registration state by recipient `l2Address`
 2. derive or recover the sender's own note-receive public key for change outputs
 3. encrypt each transfer output value into an `EncryptedNoteValue`
 4. build the new transfer calldata with encrypted outputs

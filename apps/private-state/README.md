@@ -98,9 +98,10 @@ replacement is documented in [NOTE_RECEIVE_KEY_PLAN.md](NOTE_RECEIVE_KEY_PLAN.md
 That plan introduces:
 
 - a channel-scoped note-receive auxiliary public key registered on-chain
-- deterministic recovery of the corresponding auxiliary private key from a fixed Ethereum-wallet signature
+- deterministic recovery of the corresponding auxiliary private key from a fixed MetaMask-compatible typed-data signature
 - recipient note ciphertext publication on Ethereum
 - recipient note salt derived from `keccak256(ciphertext)` instead of sender-chosen salt
+- bridge propagation of DApp event logs emitted from channel execution
 
 ## CLI Command Flow
 

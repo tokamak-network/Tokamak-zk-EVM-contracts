@@ -76,6 +76,7 @@ jobs:
             wget \
             make \
             build-essential \
+            zip \
             unzip \
             pkg-config \
             libssl-dev \
@@ -94,6 +95,9 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci
+
+      - name: Install Tokamak root npm dependencies
+        run: npm ci --prefix submodules/Tokamak-zk-EVM
 
       - name: Install Groth16 circuit dependencies
         run: npm ci --prefix groth16/circuits
@@ -175,6 +179,7 @@ jobs:
             find . -name "*.sh" -exec dos2unix {} \; 2>/dev/null || true
             ./tokamak-cli --install --bun
           )
+          rm -f submodules/Tokamak-zk-EVM/dist/bin/synthesizer
 
       - name: Run private-state bridge CLI end-to-end test
         run: npm run test:private-state:cli-e2e

@@ -586,11 +586,6 @@ async function materializeCurrentDAppDefinition(provider, participants) {
 function runPrivateStateCli(args, options = {}) {
   return runJsonCommand("node", [cliPath, ...args], {
     ...options,
-    env: {
-      ...process.env,
-      APPS_NETWORK: "anvil",
-      ...(options.env ?? {}),
-    },
     quiet: options.quiet ?? true,
   });
 }
@@ -901,6 +896,7 @@ function isChannelRegistered(participant) {
 function getBridgeDeposit(participant) {
   return runPrivateStateCli([
     "get-bridge-deposit",
+    "--network", "anvil",
     "--wallet", participant.walletName,
     "--password", participant.password,
   ]);

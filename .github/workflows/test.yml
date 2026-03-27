@@ -96,6 +96,14 @@ jobs:
           )
           circom --version
 
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Tokamak root CLI dependencies
+        run: |
+          npm ci --prefix submodules/Tokamak-zk-EVM
+          echo "${GITHUB_WORKSPACE}/submodules/Tokamak-zk-EVM/node_modules/.bin" >> "${GITHUB_PATH}"
+
       - name: Verify Tokamak install prerequisites
         run: |
           for cmd in \
@@ -113,15 +121,13 @@ jobs:
             cargo \
             cmake \
             dos2unix \
-            circom; do
+            circom \
+            tsx; do
             command -v "${cmd}" >/dev/null 2>&1 || {
               echo "Missing required command: ${cmd}" >&2
               exit 1
             }
           done
-
-      - name: Install npm dependencies
-        run: npm ci
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -144,6 +150,7 @@ jobs:
           cmake --version | head -n 1
           dos2unix --version | head -n 1
           circom --version
+          tsx --version
           forge --version
           cast --version
           anvil --version

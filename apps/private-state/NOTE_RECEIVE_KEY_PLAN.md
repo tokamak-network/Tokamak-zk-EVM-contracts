@@ -328,9 +328,8 @@ The correct shape should be expressed in two layers, because the bridge already 
 - runtime lookup metadata: `BridgeStructs.FunctionConfig`
 
 That distinction matters because `DAppFunctionMetadata` currently carries an `InstanceLayout`, while `FunctionConfig`
-stores a flattened runtime copy of selected fields instead of storing the whole `InstanceLayout` struct directly.
-
-The event metadata should therefore be modeled explicitly in both layers.
+stores only fixed-size hot-path fields. Variable-length arrays such as `storageWrites` are already stored outside
+`FunctionConfig`, and `eventLogs` should follow the same pattern rather than being embedded into `FunctionConfig`.
 
 Recommended registration metadata shape:
 
@@ -360,8 +359,14 @@ struct FunctionConfig {
     uint8 currentRootVectorOffsetWords;
     uint8 updatedRootVectorOffsetWords;
     bool exists;
-    EventLogMetadata[] eventLogs;
 }
+```
+
+Recommended separate runtime stores:
+
+```solidity
+mapping(uint256 => mapping(bytes32 => StorageWriteMetadata[])) private _functionStorageWrites;
+mapping(uint256 => mapping(bytes32 => EventLogMetadata[])) private _functionEventLogs;
 ```
 
 Why this shape is better:
@@ -369,16 +374,17 @@ Why this shape is better:
 - `EventLogMetadata` is a better name than `EventLogLayout`, because the struct is describing one decoded event record
   shape, not the whole layout section
 - `InstanceLayout.eventLogs` makes the registration input explicit and parallel to `storageWrites`
-- `FunctionConfig.eventLogs` makes the runtime data structure explicit instead of pretending that
-  `FunctionConfig` directly references `InstanceLayout`
+- `FunctionConfig` remains a compact fixed-size hot-path struct instead of becoming a mixed fixed/dynamic container
+- `EventLogMetadata[]` is handled with the same storage discipline as `StorageWriteMetadata[]`
 
 Bridge ownership of this metadata:
 
 - `BridgeStructs` defines `EventLogMetadata`, `InstanceLayout`, and `FunctionConfig`
 - `DAppManager.registerDApp(...)` receives `DAppFunctionMetadata.instanceLayout.eventLogs`
-- `DAppManager` persists a runtime copy of those event descriptors into the function config store
-- `ChannelManager.executeChannelTransaction(...)` loads `FunctionConfig.eventLogs` and uses it to decode the event-log
-  section from `payload.aPubUser`
+- `DAppManager` persists a runtime copy of those event descriptors into a dedicated function-event-log store
+- `ChannelManager` copies those event descriptors into a channel-local event-log cache when the channel is created
+- `ChannelManager.executeChannelTransaction(...)` loads the cached event descriptors and uses them to decode the
+  event-log section from `payload.aPubUser`
 
 ### 7. Bridge Runtime Emission
 

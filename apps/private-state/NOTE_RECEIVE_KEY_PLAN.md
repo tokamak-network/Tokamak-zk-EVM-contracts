@@ -322,24 +322,22 @@ Under that assumption, the bridge execution flow should change as follows.
 
 The bridge-side function metadata must stop assuming that `a_pub_user` contains storage writes only.
 
-`BridgeStructs.InstanceLayout` should gain explicit event-log layout metadata, for example:
+The correct shape should be expressed in two layers, because the bridge already has two metadata forms:
+
+- registration input metadata: `BridgeStructs.DAppFunctionMetadata`
+- runtime lookup metadata: `BridgeStructs.FunctionConfig`
+
+That distinction matters because `DAppFunctionMetadata` currently carries an `InstanceLayout`, while `FunctionConfig`
+stores a flattened runtime copy of selected fields instead of storing the whole `InstanceLayout` struct directly.
+
+The event metadata should therefore be modeled explicitly in both layers.
+
+Recommended registration metadata shape:
 
 ```solidity
-struct EventLogLayout {
+struct EventLogMetadata {
     uint16 startOffsetWords;
-}
-```
-
-or an equivalent event-log section descriptor.
-
-The exact shape can follow the final Synthesizer output format, but the bridge metadata must explicitly tell
-`executeChannelTransaction` where the log records begin.
-
-Recommended bridge-side storage shape:
-
-```solidity
-struct EventLogLayout {
-    uint16 startOffsetWords;
+    uint8 topicCount;
 }
 
 struct InstanceLayout {
@@ -348,9 +346,13 @@ struct InstanceLayout {
     uint8 currentRootVectorOffsetWords;
     uint8 updatedRootVectorOffsetWords;
     StorageWriteMetadata[] storageWrites;
-    EventLogLayout eventLogLayout;
+    EventLogMetadata[] eventLogs;
 }
+```
 
+Recommended runtime storage shape:
+
+```solidity
 struct FunctionConfig {
     bytes32 preprocessInputHash;
     uint8 entryContractOffsetWords;
@@ -358,15 +360,25 @@ struct FunctionConfig {
     uint8 currentRootVectorOffsetWords;
     uint8 updatedRootVectorOffsetWords;
     bool exists;
-    EventLogLayout eventLogLayout;
+    EventLogMetadata[] eventLogs;
 }
 ```
 
-In that model:
+Why this shape is better:
 
-- `BridgeStructs` defines the `EventLogLayout` type and the expanded `InstanceLayout`
-- `DAppManager` stores the concrete per-function `eventLogLayout` values inside the registered function metadata
-- `ChannelManager.executeChannelTransaction(...)` reads those stored values through the loaded function config
+- `EventLogMetadata` is a better name than `EventLogLayout`, because the struct is describing one decoded event record
+  shape, not the whole layout section
+- `InstanceLayout.eventLogs` makes the registration input explicit and parallel to `storageWrites`
+- `FunctionConfig.eventLogs` makes the runtime data structure explicit instead of pretending that
+  `FunctionConfig` directly references `InstanceLayout`
+
+Bridge ownership of this metadata:
+
+- `BridgeStructs` defines `EventLogMetadata`, `InstanceLayout`, and `FunctionConfig`
+- `DAppManager.registerDApp(...)` receives `DAppFunctionMetadata.instanceLayout.eventLogs`
+- `DAppManager` persists a runtime copy of those event descriptors into the function config store
+- `ChannelManager.executeChannelTransaction(...)` loads `FunctionConfig.eventLogs` and uses it to decode the event-log
+  section from `payload.aPubUser`
 
 ### 7. Bridge Runtime Emission
 

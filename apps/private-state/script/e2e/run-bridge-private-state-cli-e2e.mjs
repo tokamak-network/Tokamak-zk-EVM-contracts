@@ -586,6 +586,11 @@ async function materializeCurrentDAppDefinition(provider, participants) {
 function runPrivateStateCli(args, options = {}) {
   return runJsonCommand("node", [cliPath, ...args], {
     ...options,
+    env: {
+      ...process.env,
+      APPS_NETWORK: "anvil",
+      ...(options.env ?? {}),
+    },
     quiet: options.quiet ?? true,
   });
 }

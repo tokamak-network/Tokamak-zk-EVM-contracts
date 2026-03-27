@@ -173,12 +173,5 @@ jobs:
             ./tokamak-cli --install --bun
           )
 
-      - name: Run Tokamak doctor
-        run: |
-          (
-            cd submodules/Tokamak-zk-EVM
-            ./tokamak-cli --doctor --verbose
-          )
-
       - name: Run private-state bridge CLI end-to-end test
         run: npm run test:private-state:cli-e2e

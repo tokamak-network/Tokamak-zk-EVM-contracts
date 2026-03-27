@@ -1,4 +1,5 @@
 circuits/build/
+circuits/build-ci-check-*/
 trusted-setup/pow_of_tau/
 
 input.json

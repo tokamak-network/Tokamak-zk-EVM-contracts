@@ -45,7 +45,7 @@ jobs:
 
   private-state-cli-e2e:
     name: Private-State CLI E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
     needs: bridge-unit-tests
 

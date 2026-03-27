@@ -90,6 +90,18 @@ Important rules:
 - recipient note delivery is staged through `incoming-notes.json` because the sender does not know the recipient password
 - `anvil` support exists only for command-driven local end-to-end testing
 
+## Planned Recipient Note Delivery
+
+The current CLI still stages recipient note plaintext through local inbox sidecars. The intended protocol-level
+replacement is documented in [NOTE_RECEIVE_KEY_PLAN.md](NOTE_RECEIVE_KEY_PLAN.md).
+
+That plan introduces:
+
+- a channel-scoped note-receive auxiliary public key registered on-chain
+- deterministic recovery of the corresponding auxiliary private key from a fixed Ethereum-wallet signature
+- recipient note ciphertext publication on Ethereum
+- recipient note salt derived from `keccak256(ciphertext)` instead of sender-chosen salt
+
 ## CLI Command Flow
 
 The commands below are ordered by the normal execution flow.

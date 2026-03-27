@@ -14,7 +14,7 @@ before bridge deployment, and it can also be reused by other admin automation.
 The reflection step performs the following tasks:
 
 1. Updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`.
-2. Runs `./tokamak-cli --install`.
+2. Runs `./tokamak-cli --install` with no positional argument.
 3. Regenerates Tokamak verifier key artifacts from `sigma_verify.rkyv`.
 4. Refreshes the hardcoded verifier parameters inside `tokamak-zkp/TokamakVerifier.sol` from `setupParams.json`.
 5. Regenerates Groth16 `updateTree` trusted setup and Solidity verifier artifacts.

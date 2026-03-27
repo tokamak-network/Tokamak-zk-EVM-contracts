@@ -124,7 +124,6 @@ REFLECTION_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$PROJECT_ROOT/scrip
 
 REFLECTION_CMD=(
     node "$PROJECT_ROOT/script/zk/reflect-submodule-updates.mjs"
-    --install-arg "$BRIDGE_RPC_URL"
     --manifest-out "$REFLECTION_MANIFEST_PATH"
 )
 

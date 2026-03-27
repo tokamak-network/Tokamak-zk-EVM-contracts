@@ -64,7 +64,7 @@ const defaultManifestPath = path.join(artifactRoot, "reflection.latest.json");
 
 function usage() {
   console.log(`Usage:
-  node script/zk/reflect-submodule-updates.mjs --install-arg <ALCHEMY_API_KEY|ALCHEMY_RPC_URL> [options]
+  node script/zk/reflect-submodule-updates.mjs [options]
 
 Options:
   --manifest-out <path>              Output manifest path
@@ -77,7 +77,6 @@ Options:
 
 function parseArgs(argv) {
   const options = {
-    installArg: null,
     manifestOut: defaultManifestPath,
     skipSubmoduleUpdate: false,
     skipInstall: false,
@@ -98,9 +97,6 @@ function parseArgs(argv) {
     };
 
     switch (current) {
-      case "--install-arg":
-        options.installArg = take(current);
-        break;
       case "--manifest-out":
         options.manifestOut = path.resolve(process.cwd(), take(current));
         break;
@@ -123,10 +119,6 @@ function parseArgs(argv) {
       default:
         throw new Error(`Unknown option: ${current}`);
     }
-  }
-
-  if (!options.skipInstall && !options.installArg) {
-    throw new Error("--install-arg is required unless --skip-install is used.");
   }
 
   return options;
@@ -176,8 +168,8 @@ async function updateTokamakSubmodule() {
   await run("git", ["pull", "--ff-only", "origin", "dev"], { cwd: tokamakSubmoduleRoot });
 }
 
-async function runTokamakInstall(installArg) {
-  await run(tokamakCliPath, ["--install", installArg], { cwd: tokamakSubmoduleRoot });
+async function runTokamakInstall() {
+  await run(tokamakCliPath, ["--install"], { cwd: tokamakSubmoduleRoot });
 }
 
 async function regenerateTokamakVerifierKey() {
@@ -249,7 +241,7 @@ async function main() {
   }
 
   if (!options.skipInstall) {
-    await runTokamakInstall(options.installArg);
+    await runTokamakInstall();
   }
 
   if (!options.skipTokamakVerifier) {

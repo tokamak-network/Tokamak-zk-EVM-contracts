@@ -252,8 +252,7 @@ async function rpcCall(provider, method, params) {
 async function getFixedBlockInfo(provider) {
   const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
   const latestNumber = Number(BigInt(latestNumberHex));
-  const blockNumber = Math.max(latestNumber, tokamakPrevBlockHashCount);
-  return getBlockInfoAt(provider, blockNumber);
+  return getBlockInfoAt(provider, latestNumber);
 }
 
 async function getBlockInfoAt(provider, blockNumber) {

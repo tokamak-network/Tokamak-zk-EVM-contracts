@@ -99,15 +99,13 @@ The commands below are ordered by the normal execution flow.
 `install-zk-evm`
 
 - installs the local Tokamak zk-EVM toolchain through `submodules/Tokamak-zk-EVM/tokamak-cli --install`
-- accepts only `--rpc-url`
-- requires an Alchemy Ethereum mainnet or sepolia RPC URL because the upstream installer extracts the API key from that URL
+- accepts no options
 - fetches `origin/dev` inside the submodule, switches to `dev`, and fast-forwards before running the installer
 
 Example:
 
 ```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm \
-  --rpc-url https://eth-sepolia.g.alchemy.com/v2/<key>
+node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm
 ```
 
 `uninstall-zk-evm`

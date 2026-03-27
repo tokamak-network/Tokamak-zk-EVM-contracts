@@ -114,7 +114,7 @@ function usage() {
   node apps/private-state/script/e2e/run-bridge-private-state-e2e.mjs [options]
 
 Options:
-  --install-arg <ALCHEMY_API_KEY|ALCHEMY_RPC_URL>  Run tokamak-cli --install before the flow
+  --run-install                                   Run tokamak-cli --install before the flow
   --reuse-generated-artifacts                     Reuse existing Tokamak step artifacts under the output directory
   --keep-anvil                                    Leave anvil running after success
   --help                                          Show this help
@@ -123,21 +123,16 @@ Options:
 
 function parseArgs(argv) {
   const options = {
-    installArg: null,
+    runInstall: false,
     reuseGeneratedArtifacts: false,
     keepAnvil: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
-    const next = argv[index + 1];
     switch (current) {
-      case "--install-arg":
-        if (!next || next.startsWith("--")) {
-          throw new Error("Missing value for --install-arg.");
-        }
-        options.installArg = next;
-        index += 1;
+      case "--run-install":
+        options.runInstall = true;
         break;
       case "--keep-anvil":
         options.keepAnvil = true;
@@ -238,8 +233,7 @@ async function rpcCall(provider, method, params) {
 async function getFixedBlockInfo(provider) {
   const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
   const latestNumber = Number(BigInt(latestNumberHex));
-  const blockNumber = Math.max(latestNumber, tokamakPrevBlockHashCount);
-  return getBlockInfoAt(provider, blockNumber);
+  return getBlockInfoAt(provider, latestNumber);
 }
 
 async function getBlockInfoAt(provider, blockNumber) {
@@ -810,8 +804,8 @@ async function main() {
 
   await bootstrapAnvil();
 
-  if (options.installArg !== null) {
-    run(tokamakCliPath, ["--install", options.installArg], { cwd: tokamakRoot });
+  if (options.runInstall) {
+    run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
   }
 
   const provider = new JsonRpcProvider(providerUrl);

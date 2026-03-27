@@ -551,12 +551,10 @@ async function handleGetBridgeDeposit({ args, env, network, provider }) {
 }
 
 async function handleInstallZkEvm({ args }) {
-  const rpcUrl = requireInstallRpcUrl(args);
   const syncedDevCommit = syncTokamakSubmoduleToLatestDev();
-  run(tokamakCliPath, ["--install", rpcUrl], { cwd: tokamakRoot });
+  run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
   printJson({
     action: "install-zk-evm",
-    rpcUrl,
     tokamakCli: tokamakCliPath,
     syncedBranch: "dev",
     syncedCommit: syncedDevCommit,
@@ -2808,25 +2806,6 @@ function requireArg(value, label) {
   return value;
 }
 
-function requireInstallRpcUrl(args) {
-  const rpcUrl = String(requireArg(args.rpcUrl, "--rpc-url"));
-  let parsedUrl;
-  try {
-    parsedUrl = new URL(rpcUrl);
-  } catch {
-    throw new Error("install-zk-evm requires a valid --rpc-url.");
-  }
-  expect(parsedUrl.protocol === "https:", "install-zk-evm requires an https:// --rpc-url.");
-  expect(
-    /^eth-(mainnet|sepolia)\.g\.alchemy\.com$/i.test(parsedUrl.hostname),
-    [
-      "install-zk-evm requires an Alchemy Ethereum RPC URL because",
-      "tokamak-cli --install only accepts Alchemy mainnet or sepolia URLs.",
-    ].join(" "),
-  );
-  return rpcUrl;
-}
-
 function requireWorkspaceName(args) {
   const value = typeof args === "string" ? args : args.workspace;
   if (!value) {
@@ -2966,8 +2945,7 @@ function assertGetWalletAddressArgs(args) {
 }
 
 function assertInstallZkEvmArgs(args) {
-  assertAllowedCommandKeys(args, "install-zk-evm", new Set(["command", "positional", "rpcUrl"]), "--rpc-url");
-  requireInstallRpcUrl(args);
+  assertAllowedCommandKeys(args, "install-zk-evm", new Set(["command", "positional"]), "no options");
 }
 
 function assertUninstallZkEvmArgs(args) {
@@ -3056,7 +3034,7 @@ function printHelp() {
   console.log(`private-state bridge CLI
 
 Usage:
-  node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm --rpc-url <alchemy-rpc-url>
+  node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm
   node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
   node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name <name> --dapp-label <label> --private-key <hex> [options]
   node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet <name> --password <string> --amounts '[1,2,3]'
@@ -3092,8 +3070,7 @@ recover-workspace options:
   --force                      Overwrite an existing workspace
 
 Notes:
-  - install-zk-evm only accepts --rpc-url. Before running tokamak-cli --install, it fetches origin/dev in submodules/Tokamak-zk-EVM, switches to the local dev branch, fast-forwards it, and then runs the installer.
-  - install-zk-evm requires an Alchemy Ethereum RPC URL because the current tokamak-cli installer only accepts Alchemy mainnet or sepolia URLs.
+  - install-zk-evm accepts no options. Before running tokamak-cli --install, it fetches origin/dev in submodules/Tokamak-zk-EVM, switches to the local dev branch, fast-forwards it, and then runs the installer.
   - uninstall-zk-evm accepts no options and removes every file and directory inside submodules/Tokamak-zk-EVM except the submodule's .git pointer file.
   - anvil is allowed as a CLI network only for command-driven end-to-end testing. It is not the intended network for user-facing real-world operation.
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.

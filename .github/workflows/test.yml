@@ -73,6 +73,7 @@ jobs:
           sudo apt-get install -y \
             git \
             curl \
+            wget \
             make \
             build-essential \
             unzip \
@@ -86,29 +87,35 @@ jobs:
 
       - name: Install Circom
         run: |
-          tmp_dir="$(mktemp -d)"
-          trap 'rm -rf "${tmp_dir}"' EXIT
-          git clone --depth 1 --branch v2.2.2 https://github.com/iden3/circom.git "${tmp_dir}/circom"
-          (
-            cd "${tmp_dir}/circom"
-            cargo build --release
-            sudo install -m 0755 target/release/circom /usr/local/bin/circom
-          )
+          wget https://github.com/iden3/circom/releases/download/v2.2.2/circom-linux-amd64
+          chmod +x circom-linux-amd64
+          sudo mv circom-linux-amd64 /usr/local/bin/circom
           circom --version
 
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Install Tokamak root CLI dependencies
+      - name: Make Tokamak scripts executable
         run: |
-          npm ci --prefix submodules/Tokamak-zk-EVM
-          echo "${GITHUB_WORKSPACE}/submodules/Tokamak-zk-EVM/node_modules/.bin" >> "${GITHUB_PATH}"
+          chmod +x submodules/Tokamak-zk-EVM/tokamak-cli
+          chmod +x submodules/Tokamak-zk-EVM/scripts/tokamak-cli-core
+
+      - name: Install Tokamak frontend dependencies
+        run: |
+          cd submodules/Tokamak-zk-EVM/packages/frontend/qap-compiler
+          npm install --legacy-peer-deps
+          cd ../synthesizer
+          npm install --legacy-peer-deps
+
+      - name: Install tsx
+        run: npm install -g tsx
 
       - name: Verify Tokamak install prerequisites
         run: |
           for cmd in \
             git \
             curl \
+            wget \
             tar \
             unzip \
             make \
@@ -143,6 +150,7 @@ jobs:
           cargo --version
           git --version
           curl --version | head -n 1
+          wget --version | head -n 1
           tar --version | head -n 1
           unzip -v | head -n 1
           jq --version
@@ -156,17 +164,13 @@ jobs:
           anvil --version
 
       - name: Install Tokamak zk-EVM Artifacts
-        env:
-          TOKAMAK_ALCHEMY_API_KEY: ${{ secrets.TOKAMAK_ALCHEMY_API_KEY }}
         run: |
-          if [ -z "${TOKAMAK_ALCHEMY_API_KEY}" ]; then
-            echo "Missing required GitHub secret: TOKAMAK_ALCHEMY_API_KEY" >&2
-            exit 1
-          fi
           rm -rf submodules/Tokamak-zk-EVM/dist
           (
             cd submodules/Tokamak-zk-EVM
-            ./tokamak-cli --install "${TOKAMAK_ALCHEMY_API_KEY}"
+            find . -name "*.sh" -exec chmod +x {} \;
+            find . -name "*.sh" -exec dos2unix {} \; 2>/dev/null || true
+            ./tokamak-cli --install --bun
           )
 
       - name: Run Tokamak doctor

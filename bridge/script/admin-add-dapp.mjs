@@ -39,7 +39,6 @@ Options:
   --storage-layout-path <path>      App storage-layout manifest; defaults to private-state latest for the bridge chain
   --rpc-url <url>                   JSON-RPC URL; defaults from bridge env variables
   --private-key <hex>               Broadcaster key; defaults from BRIDGE_DEPLOYER_PRIVATE_KEY
-  --install-arg <value>             tokamak-cli --install argument; defaults to resolved RPC URL
   --manifest-out <path>             Output manifest path; defaults to bridge/deployments/dapp-registration.<chain-id>.json
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
   --skip-submodule-update           Skip updating submodules/Tokamak-zk-EVM to origin/dev
@@ -59,7 +58,6 @@ function parseArgs(argv) {
     storageLayoutPath: null,
     rpcUrl: null,
     privateKey: process.env.BRIDGE_DEPLOYER_PRIVATE_KEY ?? null,
-    installArg: null,
     manifestOut: null,
     artifactsOut: defaultArtifactsRoot,
     skipSubmoduleUpdate: false,
@@ -108,9 +106,6 @@ function parseArgs(argv) {
         break;
       case "--private-key":
         options.privateKey = take(current);
-        break;
-      case "--install-arg":
-        options.installArg = take(current);
         break;
       case "--manifest-out":
         options.manifestOut = path.resolve(process.cwd(), take(current));
@@ -307,8 +302,8 @@ async function updateTokamakSubmodule() {
   await run("git", ["pull", "--ff-only", "origin", "dev"], { cwd: tokamakSubmoduleRoot });
 }
 
-async function runTokamakInstall(installArg) {
-  await run(tokamakCliPath, ["--install", installArg], { cwd: tokamakSubmoduleRoot });
+async function runTokamakInstall() {
+  await run(tokamakCliPath, ["--install"], { cwd: tokamakSubmoduleRoot });
 }
 
 function buildTokamakCliArgs(files) {
@@ -442,7 +437,6 @@ async function assertDAppDoesNotExist(dAppManager, dappId) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const rpcUrl = resolveRpcUrl(options);
-  const installArg = options.installArg ?? rpcUrl;
   const privateKey = normalizePrivateKey(options.privateKey);
   const provider = new JsonRpcProvider(rpcUrl);
   const chainId = Number((await provider.getNetwork()).chainId);
@@ -468,7 +462,7 @@ async function main() {
     await updateTokamakSubmodule();
   }
   if (!options.skipInstall) {
-    await runTokamakInstall(installArg);
+    await runTokamakInstall();
   }
 
   const allProcessed = [];

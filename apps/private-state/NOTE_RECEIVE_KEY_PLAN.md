@@ -335,6 +335,39 @@ or an equivalent event-log section descriptor.
 The exact shape can follow the final Synthesizer output format, but the bridge metadata must explicitly tell
 `executeChannelTransaction` where the log records begin.
 
+Recommended bridge-side storage shape:
+
+```solidity
+struct EventLogLayout {
+    uint16 startOffsetWords;
+}
+
+struct InstanceLayout {
+    uint8 entryContractOffsetWords;
+    uint8 functionSigOffsetWords;
+    uint8 currentRootVectorOffsetWords;
+    uint8 updatedRootVectorOffsetWords;
+    StorageWriteMetadata[] storageWrites;
+    EventLogLayout eventLogLayout;
+}
+
+struct FunctionConfig {
+    bytes32 preprocessInputHash;
+    uint8 entryContractOffsetWords;
+    uint8 functionSigOffsetWords;
+    uint8 currentRootVectorOffsetWords;
+    uint8 updatedRootVectorOffsetWords;
+    bool exists;
+    EventLogLayout eventLogLayout;
+}
+```
+
+In that model:
+
+- `BridgeStructs` defines the `EventLogLayout` type and the expanded `InstanceLayout`
+- `DAppManager` stores the concrete per-function `eventLogLayout` values inside the registered function metadata
+- `ChannelManager.executeChannelTransaction(...)` reads those stored values through the loaded function config
+
 ### 7. Bridge Runtime Emission
 
 `ChannelManager.executeChannelTransaction(...)` currently observes storage writes and emits bridge-local storage-write

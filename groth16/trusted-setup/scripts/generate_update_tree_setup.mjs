@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolveCircomBinaryPath } from '../../circuits/circom-platform.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -84,8 +85,10 @@ function ensureTooling() {
         }
     }
 
-    if (!fs.existsSync(path.join(circuitsRoot, "circom-2.0"))) {
-        throw new Error("Missing groth16/circuits/circom-2.0");
+    try {
+        resolveCircomBinaryPath();
+    } catch (error) {
+        throw new Error(error instanceof Error ? error.message : String(error));
     }
 }
 
@@ -181,7 +184,7 @@ function compileCircuit() {
     fs.mkdirSync(buildDir, { recursive: true });
 
     run(
-        path.join(circuitsRoot, "circom-2.0"),
+        resolveCircomBinaryPath(),
         [
             "src/circuit_updateTree.circom",
             "--r1cs",

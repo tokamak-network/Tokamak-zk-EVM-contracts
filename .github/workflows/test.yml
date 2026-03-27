@@ -92,11 +92,6 @@ jobs:
           sudo mv circom-linux-amd64 /usr/local/bin/circom
           circom --version
 
-      - name: Replace Groth16 Circom binary for Linux CI
-        run: |
-          install -m 755 /usr/local/bin/circom groth16/circuits/circom-2.0
-          file groth16/circuits/circom-2.0
-
       - name: Install npm dependencies
         run: npm ci
 

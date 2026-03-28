@@ -195,11 +195,13 @@ Definition:
 Required implementation rule:
 
 - Every DApp contract function should be implemented to minimize placement usage while preserving correctness and the single-success-path rule.
+- When analyzing placement cost, distinguish raw memory movement from encoding and decoding work. Fixed-shape word copies are often cheap; ABI scaffolding, packing, unpacking, and dynamic shape conversion are the usual placement sink.
 
 Allowed optimization techniques:
 
 - Inline fixed-arity logic when generic helper layers only add scaffolding.
 - Remove avoidable calldata-to-memory copies.
+- Remove avoidable ABI encoding, ABI decoding, packing, unpacking, and generic shape-conversion steps before optimizing plain fixed-shape memory copies.
 - Remove generic dynamic-array helpers when the entrypoint arity is fixed.
 - Replace fixed-arity loops with flat, explicitly repeated operations so that loop control does not consume placements.
 - Collapse repeated validation or repeated hashing when the same intermediate value can be reused.
@@ -212,6 +214,7 @@ Review questions:
 
 - Which placements are caused by the function itself, and which are caused by subcalls into storage/helper contracts?
 - Is the function paying placements for abstraction rather than for state-transition requirements?
+- Is the expensive part really the memory movement, or is it the encoding/decoding logic wrapped around that movement?
 - Can fixed-arity calldata access replace generic loops or dynamic copies?
 - Is any remaining loop in a fixed-arity user-facing function paying avoidable placement overhead?
 - Can a shared intermediate hash or decoded field be computed once and reused?

@@ -204,6 +204,8 @@ Allowed optimization techniques:
 - Replace fixed-arity loops with flat, explicitly repeated operations so that loop control does not consume placements.
 - Collapse repeated validation or repeated hashing when the same intermediate value can be reused.
 - Use assembly when it materially reduces placement usage and does not weaken validation or make the control flow ambiguous.
+- For fixed-shape hash inputs, replace `abi.encode(...)+keccak256(...)` scaffolding with `memory-safe` assembly that stages words directly in memory and hashes the exact byte span.
+- When doing manual memory staging for hashing, reserve scratch space from the free-memory pointer and advance it after use so future assembly blocks cannot collide with the same offsets.
 
 Review questions:
 
@@ -213,6 +215,7 @@ Review questions:
 - Is any remaining loop in a fixed-arity user-facing function paying avoidable placement overhead?
 - Can a shared intermediate hash or decoded field be computed once and reused?
 - Would an assembly block remove measurable placement-heavy scaffolding without obscuring correctness?
+- Is any fixed-shape runtime hash still paying placement overhead for generic ABI encoding that could be replaced with direct `mstore` plus `keccak256(ptr, len)`?
 
 ## 9. Placement Analysis Methodology
 

@@ -316,6 +316,66 @@ event NoteValueEncrypted(
 
 Each transfer output emits one such event after its commitment is registered.
 
+## Implementation Order
+
+The Synthesizer prerequisite is no longer pending. The `tokamak-zk-evm` submodule already exposes the updated
+`instance.json -> a_pub_user` format with appended DApp event-log records, and the remaining work should now be
+implemented in the following order.
+
+### 1. Update the Private-State DApp Contracts
+
+Implement only the DApp contract changes first:
+
+- update `PrivateStateController` transfer entrypoints and helpers
+- introduce the encrypted transfer-output shape
+- derive transfer output salts from ciphertext inside the contract
+- emit one encrypted-note delivery event per transfer output
+
+No bridge or CLI behavior should be changed in this step.
+
+### 2. Re-Run the Private-State Function Examples with Synthesizer
+
+After the DApp contract update is complete:
+
+- regenerate the private-state example inputs
+- run every private-state function example through the updated Synthesizer
+- archive the resulting per-function outputs
+- record the exact `instance.json -> a_pub_user` layout for each function using the corresponding
+  `instance_description.json`
+
+This step exists to secure the real emitted `a_pub_user` layouts before bridge metadata is changed.
+
+### 3. Update and Deploy the Bridge Contracts
+
+After the new function outputs are known:
+
+- update the bridge contracts to support note-receive public keys and event-log metadata
+- deploy the updated bridge contracts to Sepolia
+
+### 4. Upload the New `a_pub_user` Layouts to the Bridge
+
+After the bridge deployment is complete:
+
+- encode the new private-state per-function metadata
+- upload the new `a_pub_user` layouts for each private-state function to the bridge registration layer
+
+### 5. Implement the CLI Changes
+
+Only after the bridge metadata is in place:
+
+- update `--transfer-note` so it no longer writes recipient output notes directly into the recipient wallet
+- implement `--get-my-notes` so it scans Ethereum for `transferNotes` delivery events, decrypts matching notes, and
+  stores the recovered notes in the local wallet
+- add a cache layer so repeated event scanning remains practical
+
+### 6. Run E2E and CLI-E2E Tests and Debug Logical Errors
+
+When all prior steps are in place:
+
+- run the bridge e2e flows
+- run the CLI e2e flows
+- debug any logical inconsistencies discovered across the DApp, bridge, metadata, and CLI layers
+
 ## DApp Contract Update Plan
 
 The private-state DApp changes should be implemented in `PrivateStateController` and in the app-local metadata
@@ -392,10 +452,10 @@ Concrete DApp-side deliverables:
 
 ## Bridge Contract Update Plan
 
-This plan assumes the pending Synthesizer update is complete and that `instance.json -> a_pub_user` now includes DApp
-event-log records in addition to the existing storage-write records.
+The Synthesizer update is already complete, and `instance.json -> a_pub_user` now includes DApp event-log records in
+addition to the existing storage-write records.
 
-Under that assumption, the bridge execution flow should change as follows.
+Given that current output format, the bridge execution flow should change as follows.
 
 ### A. Channel Registration and Recipient-Key Lookup
 

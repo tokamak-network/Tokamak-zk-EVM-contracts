@@ -524,12 +524,38 @@ contract PrivateStateController {
         }
     }
 
-    function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
-        return keccak256(abi.encode(NOTE_COMMITMENT_DOMAIN, owner, value, salt));
+    function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt)
+        internal
+        pure
+        returns (bytes32 digest)
+    {
+        bytes32 domain = NOTE_COMMITMENT_DOMAIN;
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, domain)
+            mstore(add(ptr, 0x20), and(owner, 0xffffffffffffffffffffffffffffffffffffffff))
+            mstore(add(ptr, 0x40), value)
+            mstore(add(ptr, 0x60), salt)
+            digest := keccak256(ptr, 0x80)
+            mstore(0x40, add(ptr, 0x80))
+        }
     }
 
-    function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
-        return keccak256(abi.encode(NULLIFIER_DOMAIN, owner, value, salt));
+    function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt)
+        internal
+        pure
+        returns (bytes32 digest)
+    {
+        bytes32 domain = NULLIFIER_DOMAIN;
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, domain)
+            mstore(add(ptr, 0x20), and(owner, 0xffffffffffffffffffffffffffffffffffffffff))
+            mstore(add(ptr, 0x40), value)
+            mstore(add(ptr, 0x60), salt)
+            digest := keccak256(ptr, 0x80)
+            mstore(0x40, add(ptr, 0x80))
+        }
     }
 
     function _prepareOutputNote(Note calldata outputNote)
@@ -605,8 +631,20 @@ contract PrivateStateController {
         _validateNoteFields(value, owner);
     }
 
-    function _computeEncryptedNoteSalt(bytes32[3] calldata encryptedNoteValue) internal pure returns (bytes32) {
-        return keccak256(abi.encode(encryptedNoteValue));
+    function _computeEncryptedNoteSalt(bytes32[3] calldata encryptedNoteValue)
+        internal
+        pure
+        returns (bytes32 digest)
+    {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            let offset := encryptedNoteValue
+            mstore(ptr, calldataload(offset))
+            mstore(add(ptr, 0x20), calldataload(add(offset, 0x20)))
+            mstore(add(ptr, 0x40), calldataload(add(offset, 0x40)))
+            digest := keccak256(ptr, 0x60)
+            mstore(0x40, add(ptr, 0x60))
+        }
     }
 
 }

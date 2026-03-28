@@ -10,12 +10,21 @@ Treat the following as fixed system assumptions:
 - L1 verifies proofs rather than the raw transaction body.
 - The original transaction body is visible only to the caller.
 - Other users and L1 observers see proofs and the resulting state transitions, not the original calldata.
+- The target DApp functions do not execute under raw Ethereum L1 cryptographic semantics.
+- Under the TokamakL2JS execution spec, runtime `keccak256` behavior is replaced by Poseidon-based hashing.
+- Under the same spec, transaction signatures and public-key recovery follow EdDSA-compatible semantics rather than Ethereum ECDSA assumptions.
 
 Design implications:
 
 - Do not justify plaintext leakage by assuming direct L1 execution.
 - Do not add calldata privacy workarounds whose only purpose is to hide data from public L1 mempools.
 - Focus privacy review on the data that becomes state, events, or proof-linked public outputs.
+- Do not mirror contract execution off-chain with default L1 helpers when the modeled computation depends on hashing or signature recovery.
+- When reproducing contract-side runtime hashes off-chain, use `tokamak-l2js` Poseidon helpers:
+  - `poseidon(msg)` for byte-oriented runtime inputs.
+  - `poseidonChainCompress(inVals)` for field-element sequences that are already split.
+- Treat `ecrecover`-style reasoning as invalid for this environment. When the spec requires public-key recovery, use `getEddsaPublicKey(...)` instead.
+- Distinguish runtime hashes from Solidity compile-time constants. A compile-time constant such as `bytes32 constant X = keccak256("...")` remains the Solidity-compiled literal, while a runtime `keccak256(...)` execution must be modeled with the TokamakL2 Poseidon replacement semantics.
 
 ## 2. Bridge-Managed Custody and Accounting
 

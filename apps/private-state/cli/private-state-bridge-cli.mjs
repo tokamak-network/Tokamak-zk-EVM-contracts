@@ -94,7 +94,7 @@ const NOTE_RECEIVE_TYPED_DATA_DAPP = "private-state";
 const NOTE_RECEIVE_ECIES_INFO = Buffer.from("PRIVATE_STATE_NOTE_ECIES_V1", "utf8");
 const NOTE_RECEIVE_AAD_LABEL = "PRIVATE_STATE_TRANSFER_NOTE_V1";
 const NOTE_RECEIVE_EVENT_ABI = [
-  "event NoteValueEncrypted((bytes32 ephemeralPubKeyX,uint8 ephemeralPubKeyYParity,bytes12 nonce,bytes32 ciphertextValue,bytes16 tag) encryptedValue)",
+  "event NoteValueEncrypted(bytes32[3] encryptedNoteValue)",
 ];
 const noteValueEncryptedEventInterface = new Interface(NOTE_RECEIVE_EVENT_ABI);
 const NOTE_VALUE_ENCRYPTED_TOPIC = noteValueEncryptedEventInterface.getEvent("NoteValueEncrypted").topicHash;
@@ -1527,11 +1527,11 @@ async function recoverDeliveredNotesFromEventLogs({
       continue;
     }
 
-    const encryptedValue = normalizeEncryptedNoteValue(parsedLog.args.encryptedValue);
+    const encryptedNoteValue = normalizeEncryptedNoteValueWords(parsedLog.args.encryptedNoteValue);
     let recoveredValue;
     try {
       recoveredValue = decryptEncryptedNoteValue({
-        encryptedValue,
+        encryptedValue: encryptedNoteValue,
         noteReceivePrivateKey,
         chainId: context.workspace.chainId,
         channelId: context.workspace.channelId,
@@ -1544,7 +1544,7 @@ async function recoverDeliveredNotesFromEventLogs({
     const plaintextNote = normalizePlaintextNote({
       owner: walletContext.wallet.l2Address,
       value: recoveredValue,
-      salt: computeEncryptedNoteSalt(encryptedValue),
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
     });
     const commitment = normalizeBytes32Hex(computeNoteCommitment(plaintextNote));
     const nullifier = normalizeBytes32Hex(computeNullifier(plaintextNote));
@@ -1657,13 +1657,44 @@ function compressedHexFromNoteReceivePubKey(noteReceivePubKey) {
   return `0x${prefix}${ethers.zeroPadValue(noteReceivePubKey.x, 32).slice(2)}`;
 }
 
-function normalizeEncryptedNoteValue(encryptedValue) {
+function normalizeEncryptedNoteValueWords(encryptedNoteValue) {
+  expect(
+    Array.isArray(encryptedNoteValue) && encryptedNoteValue.length === 3,
+    "Encrypted note value must be a bytes32[3] payload.",
+  );
+  return encryptedNoteValue.map((word) => normalizeBytes32Hex(word));
+}
+
+function packEncryptedNoteValue({
+  ephemeralPubKeyX,
+  ephemeralPubKeyYParity,
+  nonce,
+  ciphertextValue,
+  tag,
+}) {
+  const parity = Number(ephemeralPubKeyYParity);
+  expect(parity === 0 || parity === 1, "Encrypted note value y parity must be 0 or 1.");
+  return normalizeEncryptedNoteValueWords([
+    normalizeBytes32Hex(ephemeralPubKeyX),
+    ethers.hexlify(ethers.concat([
+      Uint8Array.from([parity]),
+      ethers.getBytes(ethers.zeroPadValue(nonce, 12)),
+      ethers.getBytes(ethers.zeroPadValue(tag, 16)),
+      new Uint8Array(3),
+    ])),
+    normalizeBytes32Hex(ciphertextValue),
+  ]);
+}
+
+function unpackEncryptedNoteValue(encryptedNoteValue) {
+  const [ephemeralPubKeyX, packedMeta, ciphertextValue] = normalizeEncryptedNoteValueWords(encryptedNoteValue);
+  const packedMetaBytes = ethers.getBytes(packedMeta);
   return {
-    ephemeralPubKeyX: normalizeBytes32Hex(encryptedValue.ephemeralPubKeyX),
-    ephemeralPubKeyYParity: Number(encryptedValue.ephemeralPubKeyYParity),
-    nonce: ethers.hexlify(ethers.getBytes(encryptedValue.nonce)),
-    ciphertextValue: normalizeBytes32Hex(encryptedValue.ciphertextValue),
-    tag: ethers.hexlify(ethers.getBytes(encryptedValue.tag)),
+    ephemeralPubKeyX,
+    ephemeralPubKeyYParity: packedMetaBytes[0],
+    nonce: ethers.hexlify(packedMetaBytes.slice(1, 13)),
+    ciphertextValue,
+    tag: ethers.hexlify(packedMetaBytes.slice(13, 29)),
   };
 }
 
@@ -1673,21 +1704,8 @@ function derivePrivateStateControllerMappingStorageKey(keyHex, slot) {
 }
 
 function computeEncryptedNoteSalt(encryptedValue) {
-  const normalized = normalizeEncryptedNoteValue(encryptedValue);
-  return normalizeBytes32Hex(
-    keccak256(
-      abiCoder.encode(
-        ["bytes32", "uint8", "bytes12", "bytes32", "bytes16"],
-        [
-          normalized.ephemeralPubKeyX,
-          normalized.ephemeralPubKeyYParity,
-          normalized.nonce,
-          normalized.ciphertextValue,
-          normalized.tag,
-        ],
-      ),
-    ),
-  );
+  const normalized = normalizeEncryptedNoteValueWords(encryptedValue);
+  return normalizeBytes32Hex(keccak256(abiCoder.encode(["bytes32[3]"], [normalized])));
 }
 
 function encodeNoteValuePlaintext(value) {
@@ -1746,7 +1764,7 @@ function encryptNoteValueForRecipient({ value, recipientNoteReceivePubKey, chain
   expect(ciphertextValue.length === 32, "Encrypted note value ciphertext must remain 32 bytes.");
   expect(tag.length === 16, "Encrypted note value tag must remain 16 bytes.");
 
-  return normalizeEncryptedNoteValue({
+  return packEncryptedNoteValue({
     ephemeralPubKeyX: parsedEphemeralPubKey.x,
     ephemeralPubKeyYParity: parsedEphemeralPubKey.yParity,
     nonce: ethers.hexlify(nonce),
@@ -1756,7 +1774,7 @@ function encryptNoteValueForRecipient({ value, recipientNoteReceivePubKey, chain
 }
 
 function decryptEncryptedNoteValue({ encryptedValue, noteReceivePrivateKey, chainId, channelId, owner }) {
-  const normalized = normalizeEncryptedNoteValue(encryptedValue);
+  const normalized = unpackEncryptedNoteValue(encryptedValue);
   const recipient = createECDH("secp256k1");
   recipient.setPrivateKey(Buffer.from(ethers.getBytes(noteReceivePrivateKey)));
   const sharedSecret = recipient.computeSecret(
@@ -1930,18 +1948,18 @@ async function buildTransferNotesTemplatePayload({
     const recipient = getAddress(recipients[index]);
     const noteReceivePubKey = await context.channelManager.getNoteReceivePubKeyByL2Address(recipient);
     assertRegisteredNoteReceivePubKey(noteReceivePubKey, recipient);
-    const encryptedValue = encryptNoteValueForRecipient({
+    const encryptedNoteValue = encryptNoteValueForRecipient({
       value: outputAmounts[index],
       recipientNoteReceivePubKey: noteReceivePubKey,
       chainId: context.workspace.chainId,
       channelId: context.workspace.channelId,
       owner: recipient,
     });
-    const salt = computeEncryptedNoteSalt(encryptedValue);
+    const salt = computeEncryptedNoteSalt(encryptedNoteValue);
     transferOutputs.push({
       owner: recipient,
       value: BigInt(outputAmounts[index]).toString(),
-      encryptedValue,
+      encryptedNoteValue,
     });
     lifecycleOutputs.push({
       owner: recipient,

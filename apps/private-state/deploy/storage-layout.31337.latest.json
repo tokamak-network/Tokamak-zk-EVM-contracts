@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "20260328T124927Z",
+  "generatedAtUtc": "20260328T155535Z",
   "chainId": 31337,
   "contracts": {
     "PrivateStateController": {
@@ -9,7 +9,7 @@
       "storageLayout": {
         "storage": [
           {
-            "astId": 284,
+            "astId": 275,
             "contract": "apps/private-state/src/PrivateStateController.sol:PrivateStateController",
             "label": "commitmentExists",
             "offset": 0,
@@ -17,7 +17,7 @@
             "type": "t_mapping(t_bytes32,t_bool)"
           },
           {
-            "astId": 288,
+            "astId": 279,
             "contract": "apps/private-state/src/PrivateStateController.sol:PrivateStateController",
             "label": "nullifierUsed",
             "offset": 0,

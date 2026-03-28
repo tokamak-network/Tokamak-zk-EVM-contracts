@@ -508,36 +508,9 @@
             "internalType": "uint256"
           },
           {
-            "name": "encryptedValue",
-            "type": "tuple",
-            "internalType": "struct PrivateStateController.EncryptedNoteValue",
-            "components": [
-              {
-                "name": "ephemeralPubKeyX",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "ephemeralPubKeyYParity",
-                "type": "uint8",
-                "internalType": "uint8"
-              },
-              {
-                "name": "nonce",
-                "type": "bytes12",
-                "internalType": "bytes12"
-              },
-              {
-                "name": "ciphertextValue",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "tag",
-                "type": "bytes16",
-                "internalType": "bytes16"
-              }
-            ]
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
@@ -598,36 +571,9 @@
             "internalType": "uint256"
           },
           {
-            "name": "encryptedValue",
-            "type": "tuple",
-            "internalType": "struct PrivateStateController.EncryptedNoteValue",
-            "components": [
-              {
-                "name": "ephemeralPubKeyX",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "ephemeralPubKeyYParity",
-                "type": "uint8",
-                "internalType": "uint8"
-              },
-              {
-                "name": "nonce",
-                "type": "bytes12",
-                "internalType": "bytes12"
-              },
-              {
-                "name": "ciphertextValue",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "tag",
-                "type": "bytes16",
-                "internalType": "bytes16"
-              }
-            ]
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
@@ -688,36 +634,9 @@
             "internalType": "uint256"
           },
           {
-            "name": "encryptedValue",
-            "type": "tuple",
-            "internalType": "struct PrivateStateController.EncryptedNoteValue",
-            "components": [
-              {
-                "name": "ephemeralPubKeyX",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "ephemeralPubKeyYParity",
-                "type": "uint8",
-                "internalType": "uint8"
-              },
-              {
-                "name": "nonce",
-                "type": "bytes12",
-                "internalType": "bytes12"
-              },
-              {
-                "name": "ciphertextValue",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "tag",
-                "type": "bytes16",
-                "internalType": "bytes16"
-              }
-            ]
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
@@ -778,36 +697,9 @@
             "internalType": "uint256"
           },
           {
-            "name": "encryptedValue",
-            "type": "tuple",
-            "internalType": "struct PrivateStateController.EncryptedNoteValue",
-            "components": [
-              {
-                "name": "ephemeralPubKeyX",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "ephemeralPubKeyYParity",
-                "type": "uint8",
-                "internalType": "uint8"
-              },
-              {
-                "name": "nonce",
-                "type": "bytes12",
-                "internalType": "bytes12"
-              },
-              {
-                "name": "ciphertextValue",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "tag",
-                "type": "bytes16",
-                "internalType": "bytes16"
-              }
-            ]
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
@@ -868,36 +760,9 @@
             "internalType": "uint256"
           },
           {
-            "name": "encryptedValue",
-            "type": "tuple",
-            "internalType": "struct PrivateStateController.EncryptedNoteValue",
-            "components": [
-              {
-                "name": "ephemeralPubKeyX",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "ephemeralPubKeyYParity",
-                "type": "uint8",
-                "internalType": "uint8"
-              },
-              {
-                "name": "nonce",
-                "type": "bytes12",
-                "internalType": "bytes12"
-              },
-              {
-                "name": "ciphertextValue",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "tag",
-                "type": "bytes16",
-                "internalType": "bytes16"
-              }
-            ]
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
@@ -958,36 +823,9 @@
             "internalType": "uint256"
           },
           {
-            "name": "encryptedValue",
-            "type": "tuple",
-            "internalType": "struct PrivateStateController.EncryptedNoteValue",
-            "components": [
-              {
-                "name": "ephemeralPubKeyX",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "ephemeralPubKeyYParity",
-                "type": "uint8",
-                "internalType": "uint8"
-              },
-              {
-                "name": "nonce",
-                "type": "bytes12",
-                "internalType": "bytes12"
-              },
-              {
-                "name": "ciphertextValue",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "tag",
-                "type": "bytes16",
-                "internalType": "bytes16"
-              }
-            ]
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
@@ -1048,36 +886,9 @@
             "internalType": "uint256"
           },
           {
-            "name": "encryptedValue",
-            "type": "tuple",
-            "internalType": "struct PrivateStateController.EncryptedNoteValue",
-            "components": [
-              {
-                "name": "ephemeralPubKeyX",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "ephemeralPubKeyYParity",
-                "type": "uint8",
-                "internalType": "uint8"
-              },
-              {
-                "name": "nonce",
-                "type": "bytes12",
-                "internalType": "bytes12"
-              },
-              {
-                "name": "ciphertextValue",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "tag",
-                "type": "bytes16",
-                "internalType": "bytes16"
-              }
-            ]
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
@@ -1138,36 +949,9 @@
             "internalType": "uint256"
           },
           {
-            "name": "encryptedValue",
-            "type": "tuple",
-            "internalType": "struct PrivateStateController.EncryptedNoteValue",
-            "components": [
-              {
-                "name": "ephemeralPubKeyX",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "ephemeralPubKeyYParity",
-                "type": "uint8",
-                "internalType": "uint8"
-              },
-              {
-                "name": "nonce",
-                "type": "bytes12",
-                "internalType": "bytes12"
-              },
-              {
-                "name": "ciphertextValue",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "tag",
-                "type": "bytes16",
-                "internalType": "bytes16"
-              }
-            ]
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },

@@ -20,8 +20,7 @@ contract PrivateStateControllerTest is Test {
     PrivateStateController private controller;
     PrivateStateDeploymentFactory private deploymentFactory;
 
-    bytes32 private constant NOTE_VALUE_ENCRYPTED_TOPIC =
-        keccak256("NoteValueEncrypted((bytes32,uint8,bytes12,bytes32,bytes16))");
+    bytes32 private constant NOTE_VALUE_ENCRYPTED_TOPIC = keccak256("NoteValueEncrypted(bytes32[3])");
 
     function setUp() public {
         deploymentFactory = new PrivateStateDeploymentFactory();
@@ -260,13 +259,11 @@ contract PrivateStateControllerTest is Test {
         assertEq(entries[0].topics[0], NOTE_VALUE_ENCRYPTED_TOPIC);
         assertEq(entries[1].topics[0], NOTE_VALUE_ENCRYPTED_TOPIC);
 
-        PrivateStateController.EncryptedNoteValue memory event0 =
-            abi.decode(entries[0].data, (PrivateStateController.EncryptedNoteValue));
-        PrivateStateController.EncryptedNoteValue memory event1 =
-            abi.decode(entries[1].data, (PrivateStateController.EncryptedNoteValue));
+        bytes32[3] memory event0 = abi.decode(entries[0].data, (bytes32[3]));
+        bytes32[3] memory event1 = abi.decode(entries[1].data, (bytes32[3]));
 
-        _assertEncryptedNoteValueEq(event0, outputs[0].encryptedValue);
-        _assertEncryptedNoteValueEq(event1, outputs[1].encryptedValue);
+        _assertEncryptedNoteValueEq(event0, outputs[0].encryptedNoteValue);
+        _assertEncryptedNoteValueEq(event1, outputs[1].encryptedNoteValue);
     }
 
     function testRedeemNotes1OwnerCanRedeemDirectly() public {
@@ -527,7 +524,7 @@ contract PrivateStateControllerTest is Test {
         return PrivateStateController.TransferOutput({
             owner: owner_,
             value: value_,
-            encryptedValue: _encryptedNoteValue(label)
+            encryptedNoteValue: _encryptedNoteValue(label)
         });
     }
 
@@ -686,44 +683,20 @@ contract PrivateStateControllerTest is Test {
         return PrivateStateController.Note({
             owner: output.owner,
             value: output.value,
-            salt: keccak256(
-                abi.encode(
-                    output.encryptedValue.ephemeralPubKeyX,
-                    output.encryptedValue.ephemeralPubKeyYParity,
-                    output.encryptedValue.nonce,
-                    output.encryptedValue.ciphertextValue,
-                    output.encryptedValue.tag
-                )
-            )
+            salt: keccak256(abi.encode(output.encryptedNoteValue))
         });
     }
 
-    function _encryptedNoteValue(string memory label)
-        internal
-        pure
-        returns (PrivateStateController.EncryptedNoteValue memory)
-    {
-        bytes32 prefix = keccak256(bytes(label));
-        bytes32 nonceSeed = keccak256(abi.encodePacked(label, ":nonce"));
-        bytes32 tagSeed = keccak256(abi.encodePacked(label, ":tag"));
-        return PrivateStateController.EncryptedNoteValue({
-            ephemeralPubKeyX: keccak256(abi.encodePacked(label, ":ephemeralPubKeyX")),
-            ephemeralPubKeyYParity: uint8(uint256(keccak256(abi.encodePacked(label, ":yParity"))) & 1),
-            nonce: bytes12(nonceSeed),
-            ciphertextValue: keccak256(abi.encodePacked(label, ":ciphertextValue", prefix)),
-            tag: bytes16(tagSeed)
-        });
+    function _encryptedNoteValue(string memory label) internal pure returns (bytes32[3] memory encryptedNoteValue) {
+        encryptedNoteValue[0] = keccak256(abi.encodePacked(label, ":ephemeralPubKeyX"));
+        encryptedNoteValue[1] = keccak256(abi.encodePacked(label, ":packedMeta"));
+        encryptedNoteValue[2] = keccak256(abi.encodePacked(label, ":ciphertextValue"));
     }
 
-    function _assertEncryptedNoteValueEq(
-        PrivateStateController.EncryptedNoteValue memory left,
-        PrivateStateController.EncryptedNoteValue memory right
-    ) internal pure {
-        assertEq(left.ephemeralPubKeyX, right.ephemeralPubKeyX);
-        assertEq(left.ephemeralPubKeyYParity, right.ephemeralPubKeyYParity);
-        assertEq(left.nonce, right.nonce);
-        assertEq(left.ciphertextValue, right.ciphertextValue);
-        assertEq(left.tag, right.tag);
+    function _assertEncryptedNoteValueEq(bytes32[3] memory left, bytes32[3] memory right) internal pure {
+        assertEq(left[0], right[0]);
+        assertEq(left[1], right[1]);
+        assertEq(left[2], right[2]);
     }
 
     function _l2AccountingVaultInitCodeHash(address controller_) internal pure returns (bytes32) {

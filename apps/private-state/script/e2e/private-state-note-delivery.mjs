@@ -1,6 +1,7 @@
 import {
   createECDH,
   createCipheriv,
+  createDecipheriv,
   hkdfSync,
   randomBytes,
 } from "node:crypto";
@@ -52,13 +53,49 @@ function compressedHexFromNoteReceivePubKey(noteReceivePubKey) {
   return `0x${prefix}${ethers.zeroPadValue(noteReceivePubKey.x, 32).slice(2)}`;
 }
 
-function normalizeEncryptedNoteValue(encryptedValue) {
+function normalizeBytes32Hex(value) {
+  return ethers.hexlify(ethers.zeroPadValue(ethers.hexlify(value), 32)).toLowerCase();
+}
+
+function normalizeEncryptedNoteValueWords(encryptedNoteValue) {
+  if (!Array.isArray(encryptedNoteValue) || encryptedNoteValue.length !== 3) {
+    throw new Error("Encrypted note value must be a bytes32[3] payload.");
+  }
+  return encryptedNoteValue.map((word) => normalizeBytes32Hex(word));
+}
+
+function packEncryptedNoteValue({
+  ephemeralPubKeyX,
+  ephemeralPubKeyYParity,
+  nonce,
+  ciphertextValue,
+  tag,
+}) {
+  const parity = Number(ephemeralPubKeyYParity);
+  if (parity !== 0 && parity !== 1) {
+    throw new Error("Encrypted note value y parity must be 0 or 1.");
+  }
+  return normalizeEncryptedNoteValueWords([
+    ephemeralPubKeyX,
+    ethers.hexlify(ethers.concat([
+      Uint8Array.from([parity]),
+      ethers.getBytes(ethers.zeroPadValue(nonce, 12)),
+      ethers.getBytes(ethers.zeroPadValue(tag, 16)),
+      new Uint8Array(3),
+    ])),
+    ciphertextValue,
+  ]);
+}
+
+function unpackEncryptedNoteValue(encryptedNoteValue) {
+  const [ephemeralPubKeyX, packedMeta, ciphertextValue] = normalizeEncryptedNoteValueWords(encryptedNoteValue);
+  const packedMetaBytes = ethers.getBytes(packedMeta);
   return {
-    ephemeralPubKeyX: ethers.zeroPadValue(ethers.toBeHex(BigInt(encryptedValue.ephemeralPubKeyX)), 32).toLowerCase(),
-    ephemeralPubKeyYParity: Number(encryptedValue.ephemeralPubKeyYParity),
-    nonce: ethers.hexlify(ethers.getBytes(encryptedValue.nonce)),
-    ciphertextValue: ethers.zeroPadValue(ethers.toBeHex(BigInt(encryptedValue.ciphertextValue)), 32).toLowerCase(),
-    tag: ethers.hexlify(ethers.getBytes(encryptedValue.tag)),
+    ephemeralPubKeyX,
+    ephemeralPubKeyYParity: packedMetaBytes[0],
+    nonce: ethers.hexlify(packedMetaBytes.slice(1, 13)),
+    ciphertextValue,
+    tag: ethers.hexlify(packedMetaBytes.slice(13, 29)),
   };
 }
 
@@ -119,20 +156,9 @@ export async function deriveNoteReceiveKeyMaterial({
 }
 
 export function computeEncryptedNoteSalt(encryptedValue) {
-  const normalized = normalizeEncryptedNoteValue(encryptedValue);
+  const normalized = normalizeEncryptedNoteValueWords(encryptedValue);
   return ethers.zeroPadValue(
-    keccak256(
-      abiCoder.encode(
-        ["bytes32", "uint8", "bytes12", "bytes32", "bytes16"],
-        [
-          normalized.ephemeralPubKeyX,
-          normalized.ephemeralPubKeyYParity,
-          normalized.nonce,
-          normalized.ciphertextValue,
-          normalized.tag,
-        ],
-      ),
-    ),
+    keccak256(abiCoder.encode(["bytes32[3]"], [normalized])),
     32,
   ).toLowerCase();
 }
@@ -166,11 +192,47 @@ export function encryptNoteValueForRecipient({
     throw new Error("Encrypted note value tag must remain 16 bytes.");
   }
 
-  return normalizeEncryptedNoteValue({
+  return packEncryptedNoteValue({
     ephemeralPubKeyX: parsedEphemeralPubKey.x,
     ephemeralPubKeyYParity: parsedEphemeralPubKey.yParity,
     nonce: ethers.hexlify(cipherNonce),
     ciphertextValue: ethers.hexlify(ciphertextValue),
     tag: ethers.hexlify(tag),
   });
+}
+
+export function decryptEncryptedNoteValue({
+  encryptedValue,
+  noteReceivePrivateKey,
+  chainId,
+  channelId,
+  owner,
+}) {
+  const normalized = unpackEncryptedNoteValue(encryptedValue);
+  const recipient = createECDH("secp256k1");
+  recipient.setPrivateKey(Buffer.from(ethers.getBytes(noteReceivePrivateKey)));
+  const sharedSecret = recipient.computeSecret(
+    Buffer.from(ethers.getBytes(compressedHexFromNoteReceivePubKey({
+      x: normalized.ephemeralPubKeyX,
+      yParity: normalized.ephemeralPubKeyYParity,
+    }))),
+  );
+  const aad = buildNoteReceiveAAD({ chainId, channelId, owner });
+  const encryptionKey = Buffer.from(hkdfSync("sha256", sharedSecret, NOTE_RECEIVE_ECIES_INFO, aad, 32));
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    encryptionKey,
+    Buffer.from(ethers.getBytes(normalized.nonce)),
+  );
+  decipher.setAAD(aad);
+  decipher.setAuthTag(Buffer.from(ethers.getBytes(normalized.tag)));
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(ethers.getBytes(normalized.ciphertextValue))),
+    decipher.final(),
+  ]);
+  return decodeNoteValuePlaintext(plaintext);
+}
+
+export function encryptedNoteValueTuple(encryptedValue) {
+  return normalizeEncryptedNoteValueWords(encryptedValue);
 }

@@ -210,33 +210,26 @@ plaintext does not need to carry owner or salt.
 
 #### Fixed Ciphertext Struct
 
-To keep the calldata fixed-shape, recipient note ciphertext should be represented as:
+To keep the calldata fixed-shape and avoid per-field decode overhead inside transfer entrypoints, recipient note
+ciphertext should be represented as an opaque three-word payload:
 
 ```solidity
-struct EncryptedNoteValue {
-    bytes32 ephemeralPubKeyX;
-    uint8 ephemeralPubKeyYParity;
-    bytes12 nonce;
-    bytes32 ciphertextValue;
-    bytes16 tag;
-}
+type EncryptedNoteValue is bytes32[3];
 ```
 
 The serialized hash for salt derivation should be:
 
 ```solidity
-keccak256(
-    abi.encode(
-        encrypted.ephemeralPubKeyX,
-        encrypted.ephemeralPubKeyYParity,
-        encrypted.nonce,
-        encrypted.ciphertextValue,
-        encrypted.tag
-    )
-)
+keccak256(abi.encode(encryptedNoteValue))
 ```
 
-This gives a fixed-size note ciphertext without dynamic memory or variable-length calldata.
+The off-chain ECIES packing is:
+
+- word 0: `ephemeralPubKeyX`
+- word 1: packed `yParity || nonce || tag || reserved`
+- word 2: `ciphertextValue`
+
+The contract does not decode those words. It only hashes the opaque payload and emits it.
 
 ### 4. Bind the On-Chain Note to the Ciphertext
 
@@ -282,7 +275,7 @@ where:
 struct TransferOutput {
     address owner;
     uint256 value;
-    EncryptedNoteValue encryptedValue;
+    EncryptedNoteValue encryptedNoteValue;
 }
 ```
 
@@ -310,7 +303,7 @@ Recommended DApp event shape:
 
 ```solidity
 event NoteValueEncrypted(
-    EncryptedNoteValue encryptedValue
+    EncryptedNoteValue encryptedNoteValue
 );
 ```
 
@@ -391,7 +384,7 @@ payload:
 struct TransferOutput {
     address owner;
     uint256 value;
-    EncryptedNoteValue encryptedValue;
+    EncryptedNoteValue encryptedNoteValue;
 }
 ```
 
@@ -407,7 +400,7 @@ That implies the following contract-side updates:
 For each `transferNotes*` function, the new logic should add only the minimum extra work required by the new delivery
 model:
 
-- decode `EncryptedNoteValue` from calldata
+- read an opaque `bytes32[3]` ciphertext payload from calldata
 - compute one `keccak256` over the fixed serialized ciphertext
 - emit one ciphertext-bearing DApp event per output
 
@@ -433,12 +426,12 @@ Recommended event shape:
 
 ```solidity
 event NoteValueEncrypted(
-    EncryptedNoteValue encryptedValue
+    EncryptedNoteValue encryptedNoteValue
 );
 ```
 
 The ciphertext hash remains available implicitly because both the sender and the recipient can compute it from
-`encryptedValue`.
+`encryptedNoteValue`.
 
 ### D. DApp Metadata Generation
 
@@ -605,7 +598,7 @@ Instead it should:
 
 1. query each recipient's `NoteReceivePubKey` from channel registration state by recipient `l2Address`
 2. derive or recover the sender's own note-receive public key for change outputs
-3. encrypt each transfer output value into an `EncryptedNoteValue`
+3. encrypt each transfer output value into an opaque `EncryptedNoteValue`
 4. build the new transfer calldata with encrypted outputs
 5. submit the channel transaction
 
@@ -712,7 +705,7 @@ The expected implementation work is:
 2. extend channel registration state and registration ABI with `NoteReceivePubKey`
 3. add deterministic typed-data-based note-receive key derivation to the CLI and future web client flow
 4. replace sender-provided transfer output salt with `keccak256(serializedEncryptedNoteValue)`
-5. add fixed-shape `EncryptedNoteValue` calldata to transfer entrypoints
+5. add fixed-shape opaque `EncryptedNoteValue` calldata to transfer entrypoints
 6. add ciphertext-bearing transfer event logs in the DApp
 7. extend bridge function metadata so `executeChannelTransaction(...)` can decode event-log sections from
    `payload.aPubUser`

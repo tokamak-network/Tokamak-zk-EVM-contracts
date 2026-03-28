@@ -44,6 +44,7 @@ import {
 import {
   computeEncryptedNoteSalt,
   deriveNoteReceiveKeyMaterial,
+  encryptedNoteValueTuple,
   encryptNoteValueForRecipient,
 } from "./private-state-note-delivery.mjs";
 
@@ -353,7 +354,7 @@ function buildEncryptedTransferOutput({
   channelId,
 }) {
   const deterministicNonce = ethers.dataSlice(ethers.id(`${label}:nonce`), 0, 12);
-  const encryptedValue = encryptNoteValueForRecipient({
+  const encryptedNoteValue = encryptNoteValueForRecipient({
     value,
     recipientNoteReceivePubKey,
     chainId,
@@ -365,24 +366,14 @@ function buildEncryptedTransferOutput({
     output: {
       owner: getAddress(owner),
       value,
-      encryptedValue,
+      encryptedNoteValue,
     },
     note: {
       owner: getAddress(owner),
       value,
-      salt: computeEncryptedNoteSalt(encryptedValue),
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
     },
   };
-}
-
-function encryptedValueTuple(encryptedValue) {
-  return [
-    encryptedValue.ephemeralPubKeyX,
-    encryptedValue.ephemeralPubKeyYParity,
-    encryptedValue.nonce,
-    encryptedValue.ciphertextValue,
-    encryptedValue.tag,
-  ];
 }
 
 function serializeBigInts(value) {
@@ -983,12 +974,12 @@ async function main() {
             [
               encryptedTransfers.aToB.output.owner,
               encryptedTransfers.aToB.output.value,
-              encryptedValueTuple(encryptedTransfers.aToB.output.encryptedValue),
+              encryptedNoteValueTuple(encryptedTransfers.aToB.output.encryptedNoteValue),
             ],
             [
               encryptedTransfers.aToC.output.owner,
               encryptedTransfers.aToC.output.value,
-              encryptedValueTuple(encryptedTransfers.aToC.output.encryptedValue),
+              encryptedNoteValueTuple(encryptedTransfers.aToC.output.encryptedNoteValue),
             ],
           ],
           [[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]],
@@ -1007,7 +998,7 @@ async function main() {
             [
               encryptedTransfers.bToC.output.owner,
               encryptedTransfers.bToC.output.value,
-              encryptedValueTuple(encryptedTransfers.bToC.output.encryptedValue),
+              encryptedNoteValueTuple(encryptedTransfers.bToC.output.encryptedNoteValue),
             ],
           ],
           [

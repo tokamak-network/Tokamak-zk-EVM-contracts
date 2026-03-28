@@ -55,7 +55,7 @@ contract DeployBridgeStackScript is Script {
         );
         ERC1967Proxy dAppManagerProxy = new ERC1967Proxy(
             address(dAppManagerImplementation),
-            abi.encodeCall(DAppManager.initialize, (owner))
+            abi.encodeCall(DAppManager.initialize, (deployer))
         );
         ERC1967Proxy bridgeCoreProxy = new ERC1967Proxy(
             address(bridgeCoreImplementation),
@@ -83,8 +83,10 @@ contract DeployBridgeStackScript is Script {
             )
         );
 
+        DAppManager(address(dAppManagerProxy)).bindBridgeCore(address(bridgeCoreProxy));
         BridgeCore(address(bridgeCoreProxy)).bindBridgeTokenVault(address(bridgeTokenVaultProxy));
         if (owner != deployer) {
+            DAppManager(address(dAppManagerProxy)).transferOwnership(owner);
             BridgeCore(address(bridgeCoreProxy)).transferOwnership(owner);
         }
 

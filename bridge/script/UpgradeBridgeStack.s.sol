@@ -58,6 +58,7 @@ contract UpgradeBridgeStackScript is Script {
         dAppManagerProxyContract.upgradeTo(address(dAppManagerImplementation));
         bridgeCoreProxyContract.upgradeTo(address(bridgeCoreImplementation));
         bridgeTokenVaultProxyContract.upgradeTo(address(bridgeTokenVaultImplementation));
+        dAppManagerProxyContract.bindBridgeCore(address(bridgeCoreProxyContract));
 
         address owner = bridgeCoreProxyContract.owner();
         address grothVerifier = address(bridgeCoreProxyContract.grothVerifier());

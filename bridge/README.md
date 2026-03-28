@@ -150,8 +150,9 @@ This script:
 
 Current constraint:
 
-- existing DApp metadata is add-only
-- modifying an already registered DApp is intentionally rejected, because channel managers cache function metadata at channel-creation time
+- DApp deletion is allowed only while `DAppManager.dAppDeletionEnabled()` remains true
+- deleting a DApp with one or more active channels is intentionally rejected, because channel managers cache function metadata at channel-creation time
+- after the owner calls `disableDAppDeletionForever()`, DApp registration becomes add-only again
 
 Example usage:
 

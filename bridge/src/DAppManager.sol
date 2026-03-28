@@ -9,6 +9,9 @@ import {BridgeStructs} from "./BridgeStructs.sol";
 contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     error UnknownDApp(uint256 dappId);
     error DuplicateDApp(uint256 dappId);
+    error InvalidBridgeCore();
+    error BridgeCoreAlreadyBound(address currentBridgeCore, address candidateBridgeCore);
+    error OnlyBridgeCore();
     error EmptyStorageLayout(uint256 dappId);
     error EmptyFunctionList(uint256 dappId);
     error EmptyFunctionStorageList(bytes4 functionSig);
@@ -27,6 +30,8 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint8 storageAddrIndex
     );
     error InvalidFunctionEventTopicCount(uint256 dappId, address entryContract, bytes4 functionSig, uint8 topicCount);
+    error DAppDeletionDisabled();
+    error ActiveChannelsExist(uint256 dappId, uint256 activeChannelCount);
 
     struct DAppInfo {
         bool exists;
@@ -34,7 +39,11 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint256 channelTokenVaultTreeIndex;
     }
 
+    address public bridgeCore;
+    bool public dAppDeletionEnabled;
+
     mapping(uint256 => DAppInfo) private _dapps;
+    mapping(uint256 => uint256) private _activeChannelCounts;
     mapping(uint256 => mapping(bytes32 => bool)) private _supportedFunctions;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.FunctionConfig)) private _functionConfigs;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.StorageWriteMetadata[])) private _functionStorageWrites;
@@ -54,6 +63,9 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint256 storageCount,
         uint256 functionCount
     );
+    event BridgeCoreBound(address indexed bridgeCore);
+    event DAppDeleted(uint256 indexed dappId, bytes32 labelHash);
+    event DAppDeletionDisabledForever();
 
     constructor() {
         _disableInitializers();
@@ -65,6 +77,79 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (initialOwner != _msgSender()) {
             _transferOwnership(initialOwner);
         }
+        dAppDeletionEnabled = true;
+    }
+
+    modifier onlyBridgeCore() {
+        if (msg.sender != bridgeCore) revert OnlyBridgeCore();
+        _;
+    }
+
+    function bindBridgeCore(address bridgeCore_) external onlyOwner {
+        if (bridgeCore_ == address(0)) revert InvalidBridgeCore();
+        if (bridgeCore == bridgeCore_) {
+            return;
+        }
+        if (bridgeCore != address(0)) {
+            revert BridgeCoreAlreadyBound(bridgeCore, bridgeCore_);
+        }
+        bridgeCore = bridgeCore_;
+        emit BridgeCoreBound(bridgeCore_);
+    }
+
+    function noteChannelCreated(uint256 dappId) external onlyBridgeCore {
+        _requireDApp(dappId);
+        unchecked {
+            _activeChannelCounts[dappId] += 1;
+        }
+    }
+
+    function getActiveChannelCount(uint256 dappId) external view returns (uint256) {
+        _requireDApp(dappId);
+        return _activeChannelCounts[dappId];
+    }
+
+    function disableDAppDeletionForever() external onlyOwner {
+        dAppDeletionEnabled = false;
+        emit DAppDeletionDisabledForever();
+    }
+
+    function deleteDApp(uint256 dappId) external onlyOwner {
+        DAppInfo memory info = _requireDApp(dappId);
+        if (!dAppDeletionEnabled) revert DAppDeletionDisabled();
+
+        uint256 activeChannelCount = _activeChannelCounts[dappId];
+        if (activeChannelCount != 0) {
+            revert ActiveChannelsExist(dappId, activeChannelCount);
+        }
+
+        BridgeStructs.FunctionReference[] storage refs = _registeredFunctions[dappId];
+        for (uint256 i = 0; i < refs.length; i++) {
+            bytes32 functionKey = computeFunctionKey(refs[i].entryContract, refs[i].functionSig);
+            bytes32 preprocessInputHash = _functionConfigs[dappId][functionKey].preprocessInputHash;
+            if (preprocessInputHash != bytes32(0)) {
+                delete _knownPreprocessInputHash[dappId][preprocessInputHash];
+            }
+            delete _supportedFunctions[dappId][functionKey];
+            delete _functionConfigs[dappId][functionKey];
+            delete _functionStorageWrites[dappId][functionKey];
+            delete _functionEventLogs[dappId][functionKey];
+        }
+        delete _registeredFunctions[dappId];
+
+        address[] storage managedStorageAddresses = _managedStorageAddresses[dappId];
+        for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
+            address storageAddr = managedStorageAddresses[i];
+            delete _knownStorageAddress[dappId][storageAddr];
+            delete _isChannelTokenVaultStorage[dappId][storageAddr];
+            delete _preAllocatedKeys[dappId][storageAddr];
+            delete _userStorageSlots[dappId][storageAddr];
+        }
+        delete _managedStorageAddresses[dappId];
+        delete _activeChannelCounts[dappId];
+        delete _dapps[dappId];
+
+        emit DAppDeleted(dappId, info.labelHash);
     }
 
     function registerDApp(

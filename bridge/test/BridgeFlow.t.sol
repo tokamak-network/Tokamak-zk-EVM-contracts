@@ -98,6 +98,7 @@ contract BridgeFlowTest is Test {
             IGrothVerifier(address(grothVerifier)),
             ITokamakVerifier(address(tokamakVerifier))
         );
+        dAppManager.bindBridgeCore(address(bridgeCore));
         channelId = _deriveChannelId(channelName);
         secondChannelId = _deriveChannelId(secondChannelName);
         bridgeTokenVault = _deployTokenVaultProxy(address(this), bridgeCore, IGrothVerifier(address(grothVerifier)));
@@ -173,6 +174,46 @@ contract BridgeFlowTest is Test {
         assertEq(userSlots[0], 0);
         assertTrue(dAppManager.isChannelTokenVaultStorageAddress(1, address(0xF00D)));
         assertFalse(dAppManager.isChannelTokenVaultStorageAddress(1, address(0x1234)));
+    }
+
+    function testDAppManagerTracksBoundBridgeCoreAndActiveChannels() public view {
+        assertEq(dAppManager.bridgeCore(), address(bridgeCore));
+        assertEq(dAppManager.getActiveChannelCount(1), 1);
+        assertEq(dAppManager.getActiveChannelCount(2), 0);
+    }
+
+    function testOwnerCanDeleteUnboundDAppWhileDeletionIsEnabled() public {
+        dAppManager.deleteDApp(2);
+
+        vm.expectRevert(abi.encodeWithSelector(DAppManager.UnknownDApp.selector, 2));
+        dAppManager.getDAppInfo(2);
+    }
+
+    function testDeletedDAppIdCanBeRegisteredAgain() public {
+        dAppManager.deleteDApp(2);
+
+        dAppManager.registerDApp(
+            2,
+            keccak256("alt-private-app-reloaded"),
+            _singleVaultStorageLayout(address(0xF11D)),
+            _singleVaultDAppFunction()
+        );
+
+        DAppManager.DAppInfo memory info = dAppManager.getDAppInfo(2);
+        assertTrue(info.exists);
+        assertEq(info.labelHash, keccak256("alt-private-app-reloaded"));
+    }
+
+    function testRejectsDeletingDAppWithActiveChannels() public {
+        vm.expectRevert(abi.encodeWithSelector(DAppManager.ActiveChannelsExist.selector, 1, 1));
+        dAppManager.deleteDApp(1);
+    }
+
+    function testRejectsDeletingDAppAfterDeletionIsDisabledForever() public {
+        dAppManager.disableDAppDeletionForever();
+
+        vm.expectRevert(DAppManager.DAppDeletionDisabled.selector);
+        dAppManager.deleteDApp(2);
     }
 
     function testChannelStoresManagedStorageAddressVector() public view {
@@ -687,6 +728,7 @@ contract BridgeFlowTest is Test {
         dAppManager.upgradeTo(address(newDAppImplementation));
         bridgeCore.upgradeTo(address(newBridgeImplementation));
         bridgeTokenVault.upgradeTo(address(newTokenVaultImplementation));
+        dAppManager.bindBridgeCore(address(bridgeCore));
 
         assertEq(address(adminManager), adminProxyAddress);
         assertEq(address(dAppManager), dAppProxyAddress);
@@ -701,6 +743,7 @@ contract BridgeFlowTest is Test {
         assertTrue(_implementationOf(dAppProxyAddress) != previousDAppImplementation);
         assertTrue(_implementationOf(bridgeProxyAddress) != previousBridgeImplementation);
         assertTrue(_implementationOf(bridgeTokenVaultProxyAddress) != previousTokenVaultImplementation);
+        assertEq(dAppManager.bridgeCore(), address(bridgeCore));
     }
 
     function testTokamakVerificationRejectsProofForUnexpectedCurrentState() public {

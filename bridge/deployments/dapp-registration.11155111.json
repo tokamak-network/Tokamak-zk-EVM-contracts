@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-28T22:37:02.091Z",
+  "generatedAt": "2026-03-28T23:08:14.301Z",
   "deploymentPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge.11155111.json",
   "abiManifestPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge-abi-manifest.11155111.json",
   "appDeploymentPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/deploy/deployment.11155111.latest.json",
@@ -18,44 +18,50 @@
     {
       "groupName": "private-state",
       "exampleName": "privateStateMint/mintNotes1",
-      "entryContract": "0x9d5ddB866c22744A4F0B6f3306d5de1E0bEbe1FF",
+      "entryContract": "0xD051C803183a9D442e8e4df7e01eF98deBB0EFBA",
       "functionSig": "0x0df1a4ac"
     },
     {
       "groupName": "private-state",
       "exampleName": "privateStateMint/mintNotes2",
-      "entryContract": "0x9d5ddB866c22744A4F0B6f3306d5de1E0bEbe1FF",
+      "entryContract": "0xD051C803183a9D442e8e4df7e01eF98deBB0EFBA",
       "functionSig": "0xd8d7cb18"
     },
     {
       "groupName": "private-state",
       "exampleName": "privateStateMint/mintNotes3",
-      "entryContract": "0x9d5ddB866c22744A4F0B6f3306d5de1E0bEbe1FF",
+      "entryContract": "0xD051C803183a9D442e8e4df7e01eF98deBB0EFBA",
       "functionSig": "0xc88b83e2"
     },
     {
       "groupName": "private-state",
       "exampleName": "privateStateTransfer/transferNotes1To1",
-      "entryContract": "0x9d5ddB866c22744A4F0B6f3306d5de1E0bEbe1FF",
-      "functionSig": "0xf350acff"
+      "entryContract": "0xD051C803183a9D442e8e4df7e01eF98deBB0EFBA",
+      "functionSig": "0x224c3c60"
     },
     {
       "groupName": "private-state",
       "exampleName": "privateStateTransfer/transferNotes1To2",
-      "entryContract": "0x9d5ddB866c22744A4F0B6f3306d5de1E0bEbe1FF",
-      "functionSig": "0x4bf1bf92"
+      "entryContract": "0xD051C803183a9D442e8e4df7e01eF98deBB0EFBA",
+      "functionSig": "0x6b24ef62"
     },
     {
       "groupName": "private-state",
       "exampleName": "privateStateTransfer/transferNotes2To1",
-      "entryContract": "0x9d5ddB866c22744A4F0B6f3306d5de1E0bEbe1FF",
-      "functionSig": "0x82cfd9cc"
+      "entryContract": "0xD051C803183a9D442e8e4df7e01eF98deBB0EFBA",
+      "functionSig": "0x3f97509c"
     },
     {
       "groupName": "private-state",
       "exampleName": "privateStateRedeem/redeemNotes1",
-      "entryContract": "0x9d5ddB866c22744A4F0B6f3306d5de1E0bEbe1FF",
+      "entryContract": "0xD051C803183a9D442e8e4df7e01eF98deBB0EFBA",
       "functionSig": "0xc0856c7c"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "privateStateRedeem/redeemNotes2",
+      "entryContract": "0xD051C803183a9D442e8e4df7e01eF98deBB0EFBA",
+      "functionSig": "0xd1c880d8"
     }
   ],
   "skippedExamples": [
@@ -101,11 +107,6 @@
     },
     {
       "groupName": "privateStateRedeem",
-      "exampleName": "redeemNotes2",
-      "reason": "qap-compiler capacity exceeded"
-    },
-    {
-      "groupName": "privateStateRedeem",
       "exampleName": "redeemNotes3",
       "reason": "qap-compiler capacity exceeded"
     },
@@ -116,10 +117,10 @@
     }
   ],
   "registration": {
-    "txHash": "0x3ad76added897f7a6a80dd4cdd1da4036dede8de80b918ba2d95cdb0201335a1",
-    "blockNumber": 10542544,
+    "txHash": "0xec4843d335253e1a5a1c3879b0702c9e35680dfc085ff40a480c6762534fcfb9",
+    "blockNumber": 10542696,
     "labelHash": "0x280fff58e494db3de12ebbdf607529639a8dce993a3771df1774946231ec4d35",
     "storageCount": 2,
-    "functionCount": 7
+    "functionCount": 8
   }
 }

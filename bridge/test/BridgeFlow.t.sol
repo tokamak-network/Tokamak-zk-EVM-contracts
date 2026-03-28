@@ -216,6 +216,13 @@ contract BridgeFlowTest is Test {
         dAppManager.deleteDApp(2);
     }
 
+    function testOwnerCanReEnableDeletionBeforePermanentLock() public {
+        dAppManager.disableDAppDeletionForever();
+
+        vm.expectRevert(DAppManager.DAppDeletionLockedForever.selector);
+        dAppManager.enableDAppDeletion();
+    }
+
     function testChannelStoresManagedStorageAddressVector() public view {
         address[] memory managedStorageAddresses = channelManager.getManagedStorageAddresses();
         assertEq(managedStorageAddresses.length, 2);

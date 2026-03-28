@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-28T22:34:00.805Z",
+  "generatedAt": "2026-03-28T22:51:48.984Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -1033,6 +1033,19 @@
         },
         {
           "type": "function",
+          "name": "dAppDeletionLockedForever",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "deleteDApp",
           "inputs": [
             {
@@ -1047,6 +1060,13 @@
         {
           "type": "function",
           "name": "disableDAppDeletionForever",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "enableDAppDeletion",
           "inputs": [],
           "outputs": [],
           "stateMutability": "nonpayable"
@@ -1722,6 +1742,12 @@
         },
         {
           "type": "event",
+          "name": "DAppDeletionEnabled",
+          "inputs": [],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "DAppRegistered",
           "inputs": [
             {
@@ -1831,6 +1857,11 @@
         {
           "type": "error",
           "name": "DAppDeletionDisabled",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "DAppDeletionLockedForever",
           "inputs": []
         },
         {

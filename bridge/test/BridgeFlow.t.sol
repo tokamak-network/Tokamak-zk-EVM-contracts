@@ -192,25 +192,25 @@ contract BridgeFlowTest is Test {
 
     function testRejectsPerChannelLeafCollision() public {
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, bytes32(uint256(1)), 1);
+        channelManager.registerChannelTokenVaultIdentity(alice, bytes32(uint256(1)), 1, _defaultNoteReceivePubKey());
 
         vm.expectRevert(
             abi.encodeWithSelector(ChannelManager.ChannelTokenVaultLeafIndexAlreadyRegistered.selector, 1)
         );
         vm.prank(bob);
-        channelManager.registerChannelTokenVaultIdentity(bob, bytes32(uint256(4097)), 1);
+        channelManager.registerChannelTokenVaultIdentity(bob, bytes32(uint256(4097)), 1, _defaultNoteReceivePubKey());
     }
 
     function testAllowsKeyReuseAcrossDifferentChannels() public {
         bytes32 reusedKey = bytes32(uint256(8));
 
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, reusedKey, 8);
+        channelManager.registerChannelTokenVaultIdentity(alice, reusedKey, 8, _defaultNoteReceivePubKey());
 
         (address secondManagerAddress, address secondVaultAddress) = bridgeCore.createChannel(secondChannelId, 1, leader);
         ChannelManager secondChannelManager = ChannelManager(secondManagerAddress);
         vm.prank(bob);
-        secondChannelManager.registerChannelTokenVaultIdentity(bob, reusedKey, 8);
+        secondChannelManager.registerChannelTokenVaultIdentity(bob, reusedKey, 8, _defaultNoteReceivePubKey());
 
         assertEq(secondVaultAddress, address(bridgeTokenVault));
         BridgeStructs.ChannelTokenVaultRegistration memory secondRegistration =
@@ -224,7 +224,7 @@ contract BridgeFlowTest is Test {
         bytes32 key = bytes32(uint256(17));
 
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 17);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 17, _defaultNoteReceivePubKey());
 
         BridgeStructs.ChannelTokenVaultRegistration memory registration =
             bridgeCore.getChannelTokenVaultRegistration(channelId, alice);
@@ -349,7 +349,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
         _mockGrothVerifierAcceptsAllProofs();
 
         uint256[5] memory pubSignals = _depositPublicSignals();
@@ -412,7 +412,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
         _mockGrothVerifierAcceptsAllProofs();
 
         uint256[5] memory depositSignals = _depositPublicSignals();
@@ -526,7 +526,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
 
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
             currentRootVector: _rootVector(bytes32(_depositPublicSignals()[0]), INITIAL_ZERO_ROOT),
@@ -549,7 +549,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
 
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
             currentRootVector: _rootVector(bytes32(_withdrawPublicSignals()[0]), INITIAL_ZERO_ROOT),
@@ -572,7 +572,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
 
         uint256[5] memory pubSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
@@ -600,7 +600,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
 
         _mockGrothVerifierAcceptsAllProofs();
 
@@ -1136,6 +1136,17 @@ contract BridgeFlowTest is Test {
         storageWrites = new BridgeStructs.StorageWriteMetadata[](0);
     }
 
+    function _emptyEventLogs() internal pure returns (BridgeStructs.EventLogMetadata[] memory eventLogs) {
+        eventLogs = new BridgeStructs.EventLogMetadata[](0);
+    }
+
+    function _defaultNoteReceivePubKey() internal pure returns (BridgeStructs.NoteReceivePubKey memory noteReceivePubKey) {
+        noteReceivePubKey = BridgeStructs.NoteReceivePubKey({
+            x: bytes32(uint256(0x1234)),
+            yParity: 1
+        });
+    }
+
     function _instanceLayout(
         uint8 entryContractOffsetWords,
         uint8 functionSigOffsetWords,
@@ -1148,7 +1159,8 @@ contract BridgeFlowTest is Test {
             functionSigOffsetWords: functionSigOffsetWords,
             currentRootVectorOffsetWords: currentRootVectorOffsetWords,
             updatedRootVectorOffsetWords: updatedRootVectorOffsetWords,
-            storageWrites: storageWrites
+            storageWrites: storageWrites,
+            eventLogs: _emptyEventLogs()
         });
     }
 

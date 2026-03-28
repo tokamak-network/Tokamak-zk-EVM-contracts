@@ -85,7 +85,3 @@ export function walletDirForName(walletsRoot, walletName) {
 export function walletMetadataPathForDir(walletDir) {
   return path.join(walletDir, "wallet.metadata.json");
 }
-
-export function walletInboxPathForDir(walletDir) {
-  return path.join(walletDir, "incoming-notes.json");
-}

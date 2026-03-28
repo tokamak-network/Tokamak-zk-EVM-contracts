@@ -6,8 +6,10 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import {
+  createECDH,
   createCipheriv,
   createDecipheriv,
+  hkdfSync,
   randomBytes,
   scryptSync,
 } from "node:crypto";
@@ -16,6 +18,7 @@ import {
   Contract,
   Interface,
   JsonRpcProvider,
+  SigningKey,
   Wallet,
   ethers,
   getAddress,
@@ -27,6 +30,7 @@ import {
   createTokamakL2Tx,
   fromEdwardsToAddress,
   getUserStorageKey,
+  poseidon,
 } from "tokamak-l2js";
 import {
   addHexPrefix,
@@ -46,7 +50,6 @@ import {
   workspaceDirForName,
   workspaceWalletsDir,
   walletDirForName,
-  walletInboxPathForDir,
   walletMetadataPathForDir,
   walletNameForChannelAndAddress,
 } from "./private-state-cli-shared.mjs";
@@ -71,6 +74,32 @@ const TOKAMAK_APUB_BLOCK_LENGTH = 68;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
+const NOTE_RECEIVE_TYPED_DATA_METHOD = "eth_signTypedData_v4";
+const NOTE_RECEIVE_KEY_DERIVATION_VERSION = 1;
+const NOTE_RECEIVE_TYPED_DATA_DOMAIN = {
+  name: "TokamakPrivateState",
+  version: "1",
+};
+const NOTE_RECEIVE_TYPED_DATA_TYPES = {
+  NoteReceiveKey: [
+    { name: "protocol", type: "string" },
+    { name: "dapp", type: "string" },
+    { name: "channelId", type: "uint256" },
+    { name: "channelName", type: "string" },
+    { name: "account", type: "address" },
+  ],
+};
+const NOTE_RECEIVE_TYPED_DATA_PROTOCOL = "PRIVATE_STATE_NOTE_RECEIVE_KEY_V1";
+const NOTE_RECEIVE_TYPED_DATA_DAPP = "private-state";
+const NOTE_RECEIVE_ECIES_INFO = Buffer.from("PRIVATE_STATE_NOTE_ECIES_V1", "utf8");
+const NOTE_RECEIVE_AAD_LABEL = "PRIVATE_STATE_TRANSFER_NOTE_V1";
+const NOTE_RECEIVE_EVENT_ABI = [
+  "event NoteValueEncrypted((bytes32 ephemeralPubKeyX,uint8 ephemeralPubKeyYParity,bytes12 nonce,bytes32 ciphertextValue,bytes16 tag) encryptedValue)",
+];
+const noteValueEncryptedEventInterface = new Interface(NOTE_RECEIVE_EVENT_ABI);
+const NOTE_VALUE_ENCRYPTED_TOPIC = noteValueEncryptedEventInterface.getEvent("NoteValueEncrypted").topicHash;
+const SECP256K1_ORDER =
+  BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
 const INITIAL_ZERO_ROOT =
   "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const BLS12_381_SCALAR_FIELD_MODULUS =
@@ -752,6 +781,13 @@ async function handleRegisterChannel({ args, env, network, provider }) {
     password,
     signer,
   });
+  const noteReceiveKeyMaterial = await deriveNoteReceiveKeyMaterial({
+    signer,
+    chainId: network.chainId,
+    channelId: context.workspace.channelId,
+    channelName: context.workspace.channelName,
+    account: signer.address,
+  });
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
   const bridgeTokenVault = new Contract(
@@ -769,6 +805,7 @@ async function handleRegisterChannel({ args, env, network, provider }) {
         l2Identity.l2Address,
         storageKey,
         leafIndex,
+        noteReceiveKeyMaterial.noteReceivePubKey,
       ),
     );
 
@@ -780,6 +817,7 @@ async function handleRegisterChannel({ args, env, network, provider }) {
       walletPassword: password,
       storageKey,
       leafIndex,
+      noteReceiveKeyMaterial,
     });
 
     printJson({
@@ -792,6 +830,7 @@ async function handleRegisterChannel({ args, env, network, provider }) {
       l2Address: l2Identity.l2Address,
       l2StorageKey: storageKey,
       leafIndex: leafIndex.toString(),
+      noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
       receipt: sanitizeReceipt(receipt),
     });
     return;
@@ -805,6 +844,14 @@ async function handleRegisterChannel({ args, env, network, provider }) {
     getAddress(existingRegistration.l2Address) === getAddress(l2Identity.l2Address),
     "The existing channel registration L2 address does not match the derived L2 address.",
   );
+  expect(
+    normalizeBytes32Hex(existingRegistration.noteReceivePubKey.x) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
+    "The existing note-receive public key X does not match the derived note-receive public key.",
+  );
+  expect(
+    Number(existingRegistration.noteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
+    "The existing note-receive public key parity does not match the derived note-receive public key.",
+  );
 
   const walletContext = ensureWallet({
     channelContext: context,
@@ -814,6 +861,7 @@ async function handleRegisterChannel({ args, env, network, provider }) {
     walletPassword: password,
     storageKey,
     leafIndex: existingRegistration.leafIndex,
+    noteReceiveKeyMaterial,
   });
 
   printJson({
@@ -826,6 +874,7 @@ async function handleRegisterChannel({ args, env, network, provider }) {
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
     leafIndex: existingRegistration.leafIndex.toString(),
+    noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
     status: "already-registered",
   });
 }
@@ -1045,6 +1094,20 @@ async function handleGetMyNotes({ args, provider }) {
   );
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const { context } = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+  const signer = restoreWalletSigner(wallet, provider);
+  const noteReceiveKeyMaterial = await deriveNoteReceiveKeyMaterial({
+    signer,
+    chainId: context.workspace.chainId,
+    channelId: context.workspace.channelId,
+    channelName: context.workspace.channelName,
+    account: signer.address,
+  });
+  const recoveredDeliveryState = await recoverDeliveredNotesFromEventLogs({
+    walletContext: wallet,
+    context,
+    provider,
+    noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
+  });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
     .map((commitment) => wallet.wallet.notes.unused[commitment])
@@ -1080,11 +1143,17 @@ async function handleGetMyNotes({ args, provider }) {
     spentTotalBaseUnits: spentTotal.toString(),
     spentTotalTokens: ethers.formatUnits(spentTotal, canonicalAssetDecimals),
     bridgeStatusMismatches: [...unusedNotes, ...spentNotes].filter((note) => !note.walletStatusMatchesBridge).length,
+    recoveredFromLogs: recoveredDeliveryState.importedNotes,
+    scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
+    noteReceiveScanRange: recoveredDeliveryState.scanRange,
   });
 }
 
 async function handleTransferNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
+  const { signer } = restoreWalletParticipant(wallet, provider);
+  const preparedContextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+  const context = preparedContextResult.context;
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
   const recipients = parseRecipientVector(requireArg(args.recipients, "--recipients"));
@@ -1107,7 +1176,9 @@ async function handleTransferNotes({ args, provider }) {
     "The sum of --amounts must equal the sum of the selected input note values.",
   );
 
-  const templatePayload = buildTransferNotesTemplatePayload({
+  const templatePayload = await buildTransferNotesTemplatePayload({
+    context,
+    signer,
     inputNotes,
     recipients,
     outputAmounts,
@@ -1119,16 +1190,10 @@ async function handleTransferNotes({ args, provider }) {
     templatePayload,
   });
   const outputNotes = buildLifecycleTrackedOutputs({
-    outputNotes: templatePayload.args[1],
+    outputNotes: templatePayload.lifecycleOutputs,
     sourceFunction: templatePayload.method,
     sourceTxHash: execution.receipt.hash,
     bridgeCommitmentKeys: execution.noteLifecycle.outputCommitmentKeys,
-  });
-  const deliveredRecipients = deliverTrackedNotesToRecipientWalletInboxes({
-    senderWalletName: wallet.walletName,
-    channelName: execution.context.workspace.channelName,
-    networkName: execution.context.workspace.network,
-    trackedNotes: outputNotes,
   });
 
   printJson({
@@ -1145,42 +1210,12 @@ async function handleTransferNotes({ args, provider }) {
     amountInputs,
     amountBaseUnits: outputAmounts.map((value) => value.toString()),
     outputNotes,
-    deliveredRecipients,
+    deliveredRecipients: [],
+    noteDelivery: "ethereum-event-log",
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
   });
-}
-
-function walletInboxPath(walletDir) {
-  return walletInboxPathForDir(walletDir);
-}
-
-function readWalletInbox(walletDir) {
-  const inboxPath = walletInboxPath(walletDir);
-  if (!fs.existsSync(inboxPath)) {
-    return [];
-  }
-  const inbox = readJson(inboxPath);
-  expect(Array.isArray(inbox), `Invalid wallet inbox at ${inboxPath}.`);
-  return inbox.map(buildImportedTrackedNote);
-}
-
-function writeWalletInbox(walletDir, trackedNotes) {
-  const inboxPath = walletInboxPath(walletDir);
-  const existingNotes = readWalletInbox(walletDir);
-  const mergedNotes = new Map(existingNotes.map((note) => [note.commitment, note]));
-  for (const note of trackedNotes) {
-    mergedNotes.set(note.commitment, buildImportedTrackedNote(note));
-  }
-  writeJson(inboxPath, Array.from(mergedNotes.values()));
-}
-
-function clearWalletInbox(walletDir) {
-  const inboxPath = walletInboxPath(walletDir);
-  if (fs.existsSync(inboxPath)) {
-    fs.unlinkSync(inboxPath);
-  }
 }
 
 function mergeTrackedNotesIntoWallet(walletContext, trackedNotes) {
@@ -1209,55 +1244,6 @@ function mergeTrackedNotesIntoWallet(walletContext, trackedNotes) {
   return imported;
 }
 
-function deliverTrackedNotesToRecipientWalletInboxes({
-  senderWalletName,
-  channelName,
-  networkName,
-  trackedNotes,
-}) {
-  const recipientNotes = new Map();
-  for (const note of trackedNotes) {
-    const walletName = walletNameForChannelAndAddress(channelName, note.owner);
-    if (walletName === senderWalletName) {
-      continue;
-    }
-    if (!recipientNotes.has(walletName)) {
-      recipientNotes.set(walletName, []);
-    }
-    recipientNotes.get(walletName).push(note);
-  }
-
-  const deliveries = [];
-  for (const [walletName, notes] of recipientNotes.entries()) {
-    const walletDir = walletPath(walletName);
-    ensureDir(walletDir);
-    if (!fs.existsSync(walletMetadataPath(walletDir))) {
-      writeJson(walletMetadataPath(walletDir), {
-        network: networkName,
-        channelName,
-      });
-    }
-    writeWalletInbox(walletDir, notes);
-    deliveries.push({
-      wallet: walletName,
-      noteCount: notes.length,
-      inboxPath: walletInboxPath(walletDir),
-    });
-  }
-  return deliveries;
-}
-
-function absorbWalletInbox(walletContext) {
-  const pendingNotes = readWalletInbox(walletContext.walletDir);
-  if (pendingNotes.length === 0) {
-    return [];
-  }
-  const imported = mergeTrackedNotesIntoWallet(walletContext, pendingNotes);
-  persistWallet(walletContext);
-  clearWalletInbox(walletContext.walletDir);
-  return imported;
-}
-
 function ensureWallet({
   channelContext,
   signerAddress,
@@ -1266,6 +1252,7 @@ function ensureWallet({
   walletPassword,
   storageKey,
   leafIndex,
+  noteReceiveKeyMaterial,
 }) {
   const walletName = walletNameForChannelAndAddress(channelContext.workspace.channelName, l2Identity.l2Address);
   const walletDir = walletPath(walletName);
@@ -1307,6 +1294,11 @@ function ensureWallet({
       l2DerivationChannelName: channelContext.workspace.channelName,
       l2StorageKey: storageKey,
       leafIndex: leafIndex?.toString() ?? null,
+      noteReceiveDerivationVersion: NOTE_RECEIVE_KEY_DERIVATION_VERSION,
+      noteReceiveTypedDataMethod: NOTE_RECEIVE_TYPED_DATA_METHOD,
+      noteReceivePubKeyX: noteReceiveKeyMaterial.noteReceivePubKey.x,
+      noteReceivePubKeyYParity: noteReceiveKeyMaterial.noteReceivePubKey.yParity,
+      noteReceiveLastScannedBlock: Number(channelContext.workspace.genesisBlockNumber),
       l2Nonce: 0,
       notes: {},
     });
@@ -1334,6 +1326,13 @@ function ensureWallet({
   wallet.l2DerivationMode = CHANNEL_BOUND_L2_DERIVATION_MODE;
   wallet.l2DerivationChannelName = channelContext.workspace.channelName;
   wallet.l2StorageKey = storageKey;
+  wallet.noteReceiveDerivationVersion = NOTE_RECEIVE_KEY_DERIVATION_VERSION;
+  wallet.noteReceiveTypedDataMethod = NOTE_RECEIVE_TYPED_DATA_METHOD;
+  wallet.noteReceivePubKeyX = normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x);
+  wallet.noteReceivePubKeyYParity = Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity);
+  wallet.noteReceiveLastScannedBlock = Number(
+    wallet.noteReceiveLastScannedBlock ?? channelContext.workspace.genesisBlockNumber,
+  );
   if (leafIndex !== undefined && leafIndex !== null) {
     wallet.leafIndex = leafIndex.toString();
   }
@@ -1346,7 +1345,6 @@ function ensureWallet({
   };
   persistWallet(context);
   persistWalletMetadata(context);
-  absorbWalletInbox(context);
   return context;
 }
 
@@ -1362,6 +1360,13 @@ function normalizeWallet(wallet) {
     l1PrivateKey: normalizePrivateKey(wallet.l1PrivateKey),
     l2PrivateKey: ethers.hexlify(wallet.l2PrivateKey),
     l2PublicKey: ethers.hexlify(wallet.l2PublicKey),
+    noteReceiveDerivationVersion: Number(wallet.noteReceiveDerivationVersion ?? NOTE_RECEIVE_KEY_DERIVATION_VERSION),
+    noteReceiveTypedDataMethod: wallet.noteReceiveTypedDataMethod ?? NOTE_RECEIVE_TYPED_DATA_METHOD,
+    noteReceivePubKeyX: wallet.noteReceivePubKeyX ? normalizeBytes32Hex(wallet.noteReceivePubKeyX) : null,
+    noteReceivePubKeyYParity: wallet.noteReceivePubKeyYParity === undefined
+      ? null
+      : Number(wallet.noteReceivePubKeyYParity),
+    noteReceiveLastScannedBlock: Number(wallet.noteReceiveLastScannedBlock ?? 0),
     notes: {
       unused: Object.fromEntries(unusedNotes.map((note) => [note.commitment, note])),
       spent: Object.fromEntries(spentNotes.map((note) => [note.nullifier, note])),
@@ -1475,6 +1480,99 @@ function buildLifecycleTrackedOutputs({
   }));
 }
 
+async function recoverDeliveredNotesFromEventLogs({
+  walletContext,
+  context,
+  provider,
+  noteReceivePrivateKey,
+}) {
+  const scanStartBlock = Math.max(
+    Number(walletContext.wallet.noteReceiveLastScannedBlock ?? 0),
+    Number(context.workspace.genesisBlockNumber),
+  );
+  const latestBlock = await provider.getBlockNumber();
+  const scanRange = {
+    fromBlock: scanStartBlock,
+    toBlock: latestBlock,
+  };
+
+  if (scanStartBlock > latestBlock) {
+    walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
+    persistWallet(walletContext);
+    return {
+      importedNotes: [],
+      scannedLogs: 0,
+      scanRange,
+    };
+  }
+
+  const storageLayoutManifest = readJson(
+    walletContext.wallet.storageLayoutPath ?? context.workspace.storageLayoutPath,
+  );
+  const commitmentExistsSlot = BigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "commitmentExists"));
+  const nullifierUsedSlot = BigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
+  const observedLogs = await provider.getLogs({
+    address: context.workspace.channelManager,
+    fromBlock: scanStartBlock,
+    toBlock: latestBlock,
+    topics: [NOTE_VALUE_ENCRYPTED_TOPIC],
+  });
+
+  const importedCandidates = [];
+  for (const log of observedLogs) {
+    let parsedLog;
+    try {
+      parsedLog = noteValueEncryptedEventInterface.parseLog(log);
+    } catch {
+      continue;
+    }
+
+    const encryptedValue = normalizeEncryptedNoteValue(parsedLog.args.encryptedValue);
+    let recoveredValue;
+    try {
+      recoveredValue = decryptEncryptedNoteValue({
+        encryptedValue,
+        noteReceivePrivateKey,
+        chainId: context.workspace.chainId,
+        channelId: context.workspace.channelId,
+        owner: walletContext.wallet.l2Address,
+      });
+    } catch {
+      continue;
+    }
+
+    const plaintextNote = normalizePlaintextNote({
+      owner: walletContext.wallet.l2Address,
+      value: recoveredValue,
+      salt: computeEncryptedNoteSalt(encryptedValue),
+    });
+    const commitment = normalizeBytes32Hex(computeNoteCommitment(plaintextNote));
+    const nullifier = normalizeBytes32Hex(computeNullifier(plaintextNote));
+    const trackedNote = buildTrackedNote(plaintextNote, "transferNotes", log.transactionHash, {
+      bridgeCommitmentKey: derivePrivateStateControllerMappingStorageKey(commitment, commitmentExistsSlot),
+      bridgeNullifierKey: derivePrivateStateControllerMappingStorageKey(nullifier, nullifierUsedSlot),
+    });
+    const commitmentExists = readBooleanStorageValueFromSnapshot({
+      snapshot: context.currentSnapshot,
+      storageAddress: context.workspace.controller,
+      storageKey: trackedNote.bridgeCommitmentKey,
+    });
+    if (!commitmentExists) {
+      continue;
+    }
+    importedCandidates.push(trackedNote);
+  }
+
+  const importedNotes = mergeTrackedNotesIntoWallet(walletContext, importedCandidates);
+  walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
+  persistWallet(walletContext);
+  return {
+    importedNotes,
+    scannedLogs: observedLogs.length,
+    scanRange,
+  };
+}
+
 function buildImportedTrackedNote(note) {
   const trackedNote = buildTrackedNote(note, note.sourceFunction ?? null, note.sourceTxHash ?? null, {
     bridgeCommitmentKey: note.bridgeCommitmentKey ?? null,
@@ -1521,6 +1619,168 @@ function computeNullifier(note) {
   );
 }
 
+function buildNoteReceiveTypedData({ chainId, channelId, channelName, account }) {
+  return {
+    domain: {
+      ...NOTE_RECEIVE_TYPED_DATA_DOMAIN,
+      chainId,
+    },
+    types: NOTE_RECEIVE_TYPED_DATA_TYPES,
+    value: {
+      protocol: NOTE_RECEIVE_TYPED_DATA_PROTOCOL,
+      dapp: NOTE_RECEIVE_TYPED_DATA_DAPP,
+      channelId: BigInt(channelId).toString(),
+      channelName,
+      account: getAddress(account),
+    },
+  };
+}
+
+function deriveSecp256k1PrivateKeyFromSeed(seedHex) {
+  const seed = BigInt(seedHex);
+  const scalar = (seed % (SECP256K1_ORDER - 1n)) + 1n;
+  return ethers.zeroPadValue(ethers.toBeHex(scalar), 32);
+}
+
+function noteReceivePubKeyFromCompressedHex(compressedHex) {
+  const bytes = ethers.getBytes(compressedHex);
+  expect(bytes.length === 33, "Compressed secp256k1 public key must be 33 bytes.");
+  expect(bytes[0] === 0x02 || bytes[0] === 0x03, "Compressed secp256k1 public key must use prefix 0x02 or 0x03.");
+  return {
+    x: ethers.hexlify(bytes.slice(1)),
+    yParity: bytes[0] === 0x03 ? 1 : 0,
+  };
+}
+
+function compressedHexFromNoteReceivePubKey(noteReceivePubKey) {
+  const prefix = Number(noteReceivePubKey.yParity) === 1 ? "03" : "02";
+  return `0x${prefix}${ethers.zeroPadValue(noteReceivePubKey.x, 32).slice(2)}`;
+}
+
+function normalizeEncryptedNoteValue(encryptedValue) {
+  return {
+    ephemeralPubKeyX: normalizeBytes32Hex(encryptedValue.ephemeralPubKeyX),
+    ephemeralPubKeyYParity: Number(encryptedValue.ephemeralPubKeyYParity),
+    nonce: ethers.hexlify(ethers.getBytes(encryptedValue.nonce)),
+    ciphertextValue: normalizeBytes32Hex(encryptedValue.ciphertextValue),
+    tag: ethers.hexlify(ethers.getBytes(encryptedValue.tag)),
+  };
+}
+
+function derivePrivateStateControllerMappingStorageKey(keyHex, slot) {
+  const encoded = abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(keyHex), BigInt(slot)]);
+  return normalizeBytes32Hex(bytesToHex(poseidon(hexToBytes(encoded))));
+}
+
+function computeEncryptedNoteSalt(encryptedValue) {
+  const normalized = normalizeEncryptedNoteValue(encryptedValue);
+  return normalizeBytes32Hex(
+    keccak256(
+      abiCoder.encode(
+        ["bytes32", "uint8", "bytes12", "bytes32", "bytes16"],
+        [
+          normalized.ephemeralPubKeyX,
+          normalized.ephemeralPubKeyYParity,
+          normalized.nonce,
+          normalized.ciphertextValue,
+          normalized.tag,
+        ],
+      ),
+    ),
+  );
+}
+
+function encodeNoteValuePlaintext(value) {
+  return Buffer.from(ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(BigInt(value)), 32)));
+}
+
+function decodeNoteValuePlaintext(valueBytes) {
+  expect(valueBytes.length === 32, "Encrypted note plaintext must decode to 32 bytes.");
+  return BigInt(ethers.hexlify(valueBytes)).toString();
+}
+
+function buildNoteReceiveAAD({ chainId, channelId, owner }) {
+  return Buffer.from(
+    ethers.getBytes(
+      abiCoder.encode(
+        ["string", "uint256", "uint256", "address"],
+        [NOTE_RECEIVE_AAD_LABEL, BigInt(chainId), BigInt(channelId), getAddress(owner)],
+      ),
+    ),
+  );
+}
+
+async function deriveNoteReceiveKeyMaterial({ signer, chainId, channelId, channelName, account }) {
+  const typedData = buildNoteReceiveTypedData({
+    chainId,
+    channelId,
+    channelName,
+    account,
+  });
+  const signature = await signer.signTypedData(typedData.domain, typedData.types, typedData.value);
+  const derivedPrivateKey = deriveSecp256k1PrivateKeyFromSeed(keccak256(signature));
+  const compressedPubKey = SigningKey.computePublicKey(derivedPrivateKey, true);
+  return {
+    typedData,
+    signature,
+    privateKey: derivedPrivateKey,
+    noteReceivePubKey: noteReceivePubKeyFromCompressedHex(compressedPubKey),
+  };
+}
+
+function encryptNoteValueForRecipient({ value, recipientNoteReceivePubKey, chainId, channelId, owner }) {
+  const recipientCompressedPubKey = compressedHexFromNoteReceivePubKey(recipientNoteReceivePubKey);
+  const ephemeral = createECDH("secp256k1");
+  ephemeral.generateKeys();
+  const sharedSecret = ephemeral.computeSecret(Buffer.from(ethers.getBytes(recipientCompressedPubKey)));
+  const aad = buildNoteReceiveAAD({ chainId, channelId, owner });
+  const encryptionKey = Buffer.from(hkdfSync("sha256", sharedSecret, NOTE_RECEIVE_ECIES_INFO, aad, 32));
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey, nonce);
+  cipher.setAAD(aad);
+  const ciphertextValue = Buffer.concat([cipher.update(encodeNoteValuePlaintext(value)), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const ephemeralCompressedPubKey = ethers.hexlify(ephemeral.getPublicKey(undefined, "compressed"));
+  const parsedEphemeralPubKey = noteReceivePubKeyFromCompressedHex(ephemeralCompressedPubKey);
+
+  expect(ciphertextValue.length === 32, "Encrypted note value ciphertext must remain 32 bytes.");
+  expect(tag.length === 16, "Encrypted note value tag must remain 16 bytes.");
+
+  return normalizeEncryptedNoteValue({
+    ephemeralPubKeyX: parsedEphemeralPubKey.x,
+    ephemeralPubKeyYParity: parsedEphemeralPubKey.yParity,
+    nonce: ethers.hexlify(nonce),
+    ciphertextValue: ethers.hexlify(ciphertextValue),
+    tag: ethers.hexlify(tag),
+  });
+}
+
+function decryptEncryptedNoteValue({ encryptedValue, noteReceivePrivateKey, chainId, channelId, owner }) {
+  const normalized = normalizeEncryptedNoteValue(encryptedValue);
+  const recipient = createECDH("secp256k1");
+  recipient.setPrivateKey(Buffer.from(ethers.getBytes(noteReceivePrivateKey)));
+  const sharedSecret = recipient.computeSecret(
+    Buffer.from(ethers.getBytes(compressedHexFromNoteReceivePubKey({
+      x: normalized.ephemeralPubKeyX,
+      yParity: normalized.ephemeralPubKeyYParity,
+    }))),
+  );
+  const aad = buildNoteReceiveAAD({ chainId, channelId, owner });
+  const encryptionKey = Buffer.from(hkdfSync("sha256", sharedSecret, NOTE_RECEIVE_ECIES_INFO, aad, 32));
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    encryptionKey,
+    Buffer.from(ethers.getBytes(normalized.nonce)),
+  );
+  decipher.setAAD(aad);
+  decipher.setAuthTag(Buffer.from(ethers.getBytes(normalized.tag)));
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(ethers.getBytes(normalized.ciphertextValue))),
+    decipher.final(),
+  ]);
+  return decodeNoteValuePlaintext(plaintext);
+}
+
 function extractNoteLifecycle(functionName, templatePayload) {
   if (functionName.startsWith("mintNotes")) {
     return {
@@ -1530,8 +1790,8 @@ function extractNoteLifecycle(functionName, templatePayload) {
   }
   if (functionName.startsWith("transferNotes")) {
     return {
-      inputs: templatePayload.args[0] ?? [],
-      outputs: templatePayload.args[1] ?? [],
+      inputs: templatePayload.lifecycleInputs ?? [],
+      outputs: templatePayload.lifecycleOutputs ?? [],
     };
   }
   if (functionName.startsWith("redeemNotes")) {
@@ -1644,17 +1904,57 @@ function buildMintOutputNotes({ owner, values }) {
   }));
 }
 
-function buildTransferNotesTemplatePayload({ inputNotes, recipients, outputAmounts }) {
+function assertRegisteredNoteReceivePubKey(noteReceivePubKey, recipient) {
+  expect(noteReceivePubKey, `Missing note-receive public key for ${recipient}.`);
+  expect(
+    noteReceivePubKey.x && normalizeBytes32Hex(noteReceivePubKey.x) !== normalizeBytes32Hex("0x0"),
+    `Recipient ${recipient} is missing a registered note-receive public key.`,
+  );
+  expect(
+    Number(noteReceivePubKey.yParity) === 0 || Number(noteReceivePubKey.yParity) === 1,
+    `Recipient ${recipient} has an invalid note-receive public key parity.`,
+  );
+}
+
+async function buildTransferNotesTemplatePayload({
+  context,
+  signer,
+  inputNotes,
+  recipients,
+  outputAmounts,
+}) {
   const method = selectTransferNotesMethod(inputNotes.length, recipients.length);
-  const outputs = recipients.map((recipient, index) => ({
-    owner: getAddress(recipient),
-    value: BigInt(outputAmounts[index]).toString(),
-    salt: generateNoteSalt(),
-  }));
+  const transferOutputs = [];
+  const lifecycleOutputs = [];
+  for (let index = 0; index < recipients.length; index += 1) {
+    const recipient = getAddress(recipients[index]);
+    const noteReceivePubKey = await context.channelManager.getNoteReceivePubKeyByL2Address(recipient);
+    assertRegisteredNoteReceivePubKey(noteReceivePubKey, recipient);
+    const encryptedValue = encryptNoteValueForRecipient({
+      value: outputAmounts[index],
+      recipientNoteReceivePubKey: noteReceivePubKey,
+      chainId: context.workspace.chainId,
+      channelId: context.workspace.channelId,
+      owner: recipient,
+    });
+    const salt = computeEncryptedNoteSalt(encryptedValue);
+    transferOutputs.push({
+      owner: recipient,
+      value: BigInt(outputAmounts[index]).toString(),
+      encryptedValue,
+    });
+    lifecycleOutputs.push({
+      owner: recipient,
+      value: BigInt(outputAmounts[index]).toString(),
+      salt,
+    });
+  }
   return {
     abiFile: "../deploy/PrivateStateController.callable-abi.json",
     method,
-    args: [inputNotes, outputs],
+    args: [transferOutputs, inputNotes],
+    lifecycleInputs: inputNotes,
+    lifecycleOutputs,
   };
 }
 
@@ -2084,7 +2384,6 @@ function loadWallet(walletName, walletPassword) {
     wallet,
     walletPassword,
   };
-  absorbWalletInbox(context);
   return context;
 }
 
@@ -3076,11 +3375,11 @@ Notes:
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
   - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
   - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.
-  - get-my-notes requires --wallet and --password only. It reads local encrypted note state and verifies each note status against the current controller commitment/nullifier state accepted by the bridge.
+  - get-my-notes requires --wallet and --password only. It scans bridge-propagated private-state transfer events from Ethereum, decrypts the caller's incoming note payloads, merges any newly discovered notes into the encrypted wallet, and then verifies each tracked note against the current controller commitment/nullifier state accepted by the bridge.
   - mint-notes, redeem-notes, and transfer-notes always run from the saved channel workspace under apps/private-state/cli/workspace/<channel-name>/channel/. If that workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, reloads it from disk, and then continues. A tokamak-cli --verify failure is also treated as recoverable once.
   - redeem-notes updates both the encrypted wallet note sets and the saved channel workspace snapshot after success.
   - transfer-notes updates both the encrypted wallet note sets and the saved channel workspace snapshot after success.
-  - transfer-notes prints the output note plaintext and also writes each output note into the recipient wallet folder inbox apps/private-state/cli/workspace/<channel-name>/wallets/<channelName>-<recipientL2Address>/incoming-notes.json.
+  - transfer-notes updates the sender wallet and relies on Ethereum event logs for recipient note discovery. It does not rewrite recipient wallet files.
   - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
   - recover-workspace always writes into apps/private-state/cli/workspace/<channel-name>/channel/.
   - Channel workspaces remain optional as user-managed files, but wallet-backed snapshot commands now create or refresh them automatically before execution.
@@ -3099,7 +3398,7 @@ Notes:
   - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
   - withdraw-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and calls the bridge withdraw path to move value from the channel L2 accounting vault back into the shared L1 bridgeTokenVault.
   - Every wallet-backed command that depends on a channel StateSnapshot first ensures apps/private-state/cli/workspace/<channel-name>/channel/ exists on disk. If the workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, saves it, reloads it from disk, and only then runs the command.
-  - Because recipient passwords are not available to the sender, transfer-notes cannot rewrite recipient wallet.json directly. It stores pending recipient notes in unencrypted inbox sidecars, and the recipient's next wallet-backed command absorbs that inbox into the encrypted wallet.
+  - Recipients discover incoming notes by running get-my-notes, which decrypts NoteValueEncrypted event logs emitted through the bridge execution path and caches the last scanned block in the local wallet.
   - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
   - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
   - Channel workspace operations are stored under:

@@ -10,6 +10,7 @@ import {
   buildFunctionDefinition,
   copyDir,
   copyFile,
+  ensureTokamakDistBackendBinaries,
   ensureDir,
   isCapacityError,
   loadExampleManifest,
@@ -461,6 +462,7 @@ async function main() {
   if (!options.skipSubmoduleUpdate) {
     await updateTokamakSubmodule();
   }
+  ensureTokamakDistBackendBinaries(tokamakSubmoduleRoot);
   if (!options.skipInstall) {
     await runTokamakInstall();
   }
@@ -503,6 +505,7 @@ async function main() {
         currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
         updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
         storageWrites: fn.storageWrites,
+        eventLogs: fn.eventLogs,
       },
     }))
   );

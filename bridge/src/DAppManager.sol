@@ -26,6 +26,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         bytes4 functionSig,
         uint8 storageAddrIndex
     );
+    error InvalidFunctionEventTopicCount(uint256 dappId, address entryContract, bytes4 functionSig, uint8 topicCount);
 
     struct DAppInfo {
         bool exists;
@@ -37,6 +38,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     mapping(uint256 => mapping(bytes32 => bool)) private _supportedFunctions;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.FunctionConfig)) private _functionConfigs;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.StorageWriteMetadata[])) private _functionStorageWrites;
+    mapping(uint256 => mapping(bytes32 => BridgeStructs.EventLogMetadata[])) private _functionEventLogs;
     mapping(uint256 => mapping(bytes32 => bool)) private _knownPreprocessInputHash;
     mapping(uint256 => BridgeStructs.FunctionReference[]) private _registeredFunctions;
 
@@ -166,6 +168,24 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                 );
             }
 
+            for (uint256 j = 0; j < fnMetadata.instanceLayout.eventLogs.length; j++) {
+                BridgeStructs.EventLogMetadata calldata eventLog = fnMetadata.instanceLayout.eventLogs[j];
+                if (eventLog.topicCount > 4) {
+                    revert InvalidFunctionEventTopicCount(
+                        dappId,
+                        fnMetadata.entryContract,
+                        fnMetadata.functionSig,
+                        eventLog.topicCount
+                    );
+                }
+                _functionEventLogs[dappId][functionKey].push(
+                    BridgeStructs.EventLogMetadata({
+                        startOffsetWords: eventLog.startOffsetWords,
+                        topicCount: eventLog.topicCount
+                    })
+                );
+            }
+
             _functionConfigs[dappId][functionKey] = BridgeStructs.FunctionConfig({
                 preprocessInputHash: fnMetadata.preprocessInputHash,
                 entryContractOffsetWords: fnMetadata.instanceLayout.entryContractOffsetWords,
@@ -221,6 +241,22 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         out = new BridgeStructs.StorageWriteMetadata[](storageWrites.length);
         for (uint256 i = 0; i < storageWrites.length; i++) {
             out[i] = storageWrites[i];
+        }
+    }
+
+    function getFunctionEventLogs(uint256 dappId, address entryContract, bytes4 functionSig)
+        external
+        view
+        returns (BridgeStructs.EventLogMetadata[] memory out)
+    {
+        bytes32 functionKey = computeFunctionKey(entryContract, functionSig);
+        if (!_supportedFunctions[dappId][functionKey]) {
+            revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
+        }
+        BridgeStructs.EventLogMetadata[] storage eventLogs = _functionEventLogs[dappId][functionKey];
+        out = new BridgeStructs.EventLogMetadata[](eventLogs.length);
+        for (uint256 i = 0; i < eventLogs.length; i++) {
+            out[i] = eventLogs[i];
         }
     }
 

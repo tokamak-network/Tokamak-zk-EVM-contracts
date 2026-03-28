@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-24T15:39:52.479Z",
+  "generatedAt": "2026-03-28T22:37:02.091Z",
   "deploymentPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge.11155111.json",
   "abiManifestPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge-abi-manifest.11155111.json",
   "appDeploymentPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/deploy/deployment.11155111.latest.json",
@@ -11,7 +11,7 @@
   ],
   "dappLabel": "private-state",
   "dappId": 1,
-  "dAppManager": "0x45FD26C15D00e69655D28EB0B0aE9662ae2b8486",
+  "dAppManager": "0x0fFbD1e7111cF7B0A191De15962eE88Ab1481031",
   "rpcUrl": "https://eth-sepolia.g.alchemy.com/v2/TpjY8YLL9pFoo3KWFlNJh",
   "artifactsRoot": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/dapp-registration-artifacts/private-state",
   "processedExamples": [
@@ -116,8 +116,8 @@
     }
   ],
   "registration": {
-    "txHash": "0xfc2ff07a1ad7ba702562b36916dfc8184bc1055893200451bbb4fdb9c3de07d6",
-    "blockNumber": 10512658,
+    "txHash": "0x3ad76added897f7a6a80dd4cdd1da4036dede8de80b918ba2d95cdb0201335a1",
+    "blockNumber": 10542544,
     "labelHash": "0x280fff58e494db3de12ebbdf607529639a8dce993a3771df1774946231ec4d35",
     "storageCount": 2,
     "functionCount": 7

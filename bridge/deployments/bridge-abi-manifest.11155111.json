@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-25T20:34:14.914Z",
+  "generatedAt": "2026-03-28T22:34:00.805Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -474,6 +474,122 @@
                   "name": "leafIndex",
                   "type": "uint256",
                   "internalType": "uint256"
+                },
+                {
+                  "name": "noteReceivePubKey",
+                  "type": "tuple",
+                  "internalType": "struct BridgeStructs.NoteReceivePubKey",
+                  "components": [
+                    {
+                      "name": "x",
+                      "type": "bytes32",
+                      "internalType": "bytes32"
+                    },
+                    {
+                      "name": "yParity",
+                      "type": "uint8",
+                      "internalType": "uint8"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "getChannelTokenVaultRegistrationByL2Address",
+          "inputs": [
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "l2Address",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "internalType": "struct BridgeStructs.ChannelTokenVaultRegistration",
+              "components": [
+                {
+                  "name": "exists",
+                  "type": "bool",
+                  "internalType": "bool"
+                },
+                {
+                  "name": "l2Address",
+                  "type": "address",
+                  "internalType": "address"
+                },
+                {
+                  "name": "channelTokenVaultKey",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+                },
+                {
+                  "name": "leafIndex",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "noteReceivePubKey",
+                  "type": "tuple",
+                  "internalType": "struct BridgeStructs.NoteReceivePubKey",
+                  "components": [
+                    {
+                      "name": "x",
+                      "type": "bytes32",
+                      "internalType": "bytes32"
+                    },
+                    {
+                      "name": "yParity",
+                      "type": "uint8",
+                      "internalType": "uint8"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "getNoteReceivePubKeyByL2Address",
+          "inputs": [
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "l2Address",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "internalType": "struct BridgeStructs.NoteReceivePubKey",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+                },
+                {
+                  "name": "yParity",
+                  "type": "uint8",
+                  "internalType": "uint8"
                 }
               ]
             }
@@ -854,6 +970,32 @@
         },
         {
           "type": "function",
+          "name": "bindBridgeCore",
+          "inputs": [
+            {
+              "name": "bridgeCore_",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "bridgeCore",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "computeFunctionKey",
           "inputs": [
             {
@@ -875,6 +1017,58 @@
             }
           ],
           "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "dAppDeletionEnabled",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "deleteDApp",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "disableDAppDeletionForever",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "getActiveChannelCount",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "view"
         },
         {
           "type": "function",
@@ -925,6 +1119,47 @@
                   "name": "channelTokenVaultTreeIndex",
                   "type": "uint256",
                   "internalType": "uint256"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "getFunctionEventLogs",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "entryContract",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "functionSig",
+              "type": "bytes4",
+              "internalType": "bytes4"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "out",
+              "type": "tuple[]",
+              "internalType": "struct BridgeStructs.EventLogMetadata[]",
+              "components": [
+                {
+                  "name": "startOffsetWords",
+                  "type": "uint16",
+                  "internalType": "uint16"
+                },
+                {
+                  "name": "topicCount",
+                  "type": "uint8",
+                  "internalType": "uint8"
                 }
               ]
             }
@@ -1199,6 +1434,19 @@
         },
         {
           "type": "function",
+          "name": "noteChannelCreated",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
           "name": "owner",
           "inputs": [],
           "outputs": [
@@ -1325,6 +1573,23 @@
                           "internalType": "uint8"
                         }
                       ]
+                    },
+                    {
+                      "name": "eventLogs",
+                      "type": "tuple[]",
+                      "internalType": "struct BridgeStructs.EventLogMetadata[]",
+                      "components": [
+                        {
+                          "name": "startOffsetWords",
+                          "type": "uint16",
+                          "internalType": "uint16"
+                        },
+                        {
+                          "name": "topicCount",
+                          "type": "uint8",
+                          "internalType": "uint8"
+                        }
+                      ]
                     }
                   ]
                 }
@@ -1419,6 +1684,44 @@
         },
         {
           "type": "event",
+          "name": "BridgeCoreBound",
+          "inputs": [
+            {
+              "name": "bridgeCore",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "DAppDeleted",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "uint256"
+            },
+            {
+              "name": "labelHash",
+              "type": "bytes32",
+              "indexed": false,
+              "internalType": "bytes32"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "DAppDeletionDisabledForever",
+          "inputs": [],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "DAppRegistered",
           "inputs": [
             {
@@ -1492,6 +1795,43 @@
             }
           ],
           "anonymous": false
+        },
+        {
+          "type": "error",
+          "name": "ActiveChannelsExist",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "activeChannelCount",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "BridgeCoreAlreadyBound",
+          "inputs": [
+            {
+              "name": "currentBridgeCore",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "candidateBridgeCore",
+              "type": "address",
+              "internalType": "address"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "DAppDeletionDisabled",
+          "inputs": []
         },
         {
           "type": "error",
@@ -1592,6 +1932,37 @@
         },
         {
           "type": "error",
+          "name": "InvalidBridgeCore",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "InvalidFunctionEventTopicCount",
+          "inputs": [
+            {
+              "name": "dappId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "entryContract",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "functionSig",
+              "type": "bytes4",
+              "internalType": "bytes4"
+            },
+            {
+              "name": "topicCount",
+              "type": "uint8",
+              "internalType": "uint8"
+            }
+          ]
+        },
+        {
+          "type": "error",
           "name": "InvalidFunctionStorageWriteStorageIndex",
           "inputs": [
             {
@@ -1668,6 +2039,11 @@
               "internalType": "address"
             }
           ]
+        },
+        {
+          "type": "error",
+          "name": "OnlyBridgeCore",
+          "inputs": []
         },
         {
           "type": "error",
@@ -2040,6 +2416,81 @@
                   "name": "leafIndex",
                   "type": "uint256",
                   "internalType": "uint256"
+                },
+                {
+                  "name": "noteReceivePubKey",
+                  "type": "tuple",
+                  "internalType": "struct BridgeStructs.NoteReceivePubKey",
+                  "components": [
+                    {
+                      "name": "x",
+                      "type": "bytes32",
+                      "internalType": "bytes32"
+                    },
+                    {
+                      "name": "yParity",
+                      "type": "uint8",
+                      "internalType": "uint8"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "getChannelTokenVaultRegistrationByL2Address",
+          "inputs": [
+            {
+              "name": "l2Address",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "internalType": "struct BridgeStructs.ChannelTokenVaultRegistration",
+              "components": [
+                {
+                  "name": "exists",
+                  "type": "bool",
+                  "internalType": "bool"
+                },
+                {
+                  "name": "l2Address",
+                  "type": "address",
+                  "internalType": "address"
+                },
+                {
+                  "name": "channelTokenVaultKey",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+                },
+                {
+                  "name": "leafIndex",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "noteReceivePubKey",
+                  "type": "tuple",
+                  "internalType": "struct BridgeStructs.NoteReceivePubKey",
+                  "components": [
+                    {
+                      "name": "x",
+                      "type": "bytes32",
+                      "internalType": "bytes32"
+                    },
+                    {
+                      "name": "yParity",
+                      "type": "uint8",
+                      "internalType": "uint8"
+                    }
+                  ]
                 }
               ]
             }
@@ -2080,6 +2531,37 @@
         },
         {
           "type": "function",
+          "name": "getNoteReceivePubKeyByL2Address",
+          "inputs": [
+            {
+              "name": "l2Address",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "tuple",
+              "internalType": "struct BridgeStructs.NoteReceivePubKey",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+                },
+                {
+                  "name": "yParity",
+                  "type": "uint8",
+                  "internalType": "uint8"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "leader",
           "inputs": [],
           "outputs": [
@@ -2109,6 +2591,23 @@
               "name": "leafIndex",
               "type": "uint256",
               "internalType": "uint256"
+            },
+            {
+              "name": "noteReceivePubKey",
+              "type": "tuple",
+              "internalType": "struct BridgeStructs.NoteReceivePubKey",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+                },
+                {
+                  "name": "yParity",
+                  "type": "uint8",
+                  "internalType": "uint8"
+                }
+              ]
             }
           ],
           "outputs": [],
@@ -2167,6 +2666,18 @@
               "type": "uint256",
               "indexed": false,
               "internalType": "uint256"
+            },
+            {
+              "name": "noteReceivePubKeyX",
+              "type": "bytes32",
+              "indexed": false,
+              "internalType": "bytes32"
+            },
+            {
+              "name": "noteReceivePubKeyYParity",
+              "type": "uint8",
+              "indexed": false,
+              "internalType": "uint8"
             }
           ],
           "anonymous": false
@@ -2308,6 +2819,17 @@
         },
         {
           "type": "error",
+          "name": "ChannelTokenVaultL2AddressAlreadyRegistered",
+          "inputs": [
+            {
+              "name": "l2Address",
+              "type": "address",
+              "internalType": "address"
+            }
+          ]
+        },
+        {
+          "type": "error",
           "name": "ChannelTokenVaultLeafIndexAlreadyRegistered",
           "inputs": [
             {
@@ -2383,6 +2905,54 @@
         },
         {
           "type": "error",
+          "name": "InvalidNoteReceivePubKey",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "InvalidNoteReceivePubKeyYParity",
+          "inputs": [
+            {
+              "name": "yParity",
+              "type": "uint8",
+              "internalType": "uint8"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "InvalidObservedEventBoundary",
+          "inputs": [
+            {
+              "name": "startOffsetWords",
+              "type": "uint16",
+              "internalType": "uint16"
+            },
+            {
+              "name": "endOffsetWords",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "InvalidObservedEventDataLength",
+          "inputs": [
+            {
+              "name": "startOffsetWords",
+              "type": "uint16",
+              "internalType": "uint16"
+            },
+            {
+              "name": "dataWordLength",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
+        },
+        {
+          "type": "error",
           "name": "InvalidStorageWriteStorageIndex",
           "inputs": [
             {
@@ -2446,6 +3016,17 @@
               "name": "functionSig",
               "type": "bytes4",
               "internalType": "bytes4"
+            }
+          ]
+        },
+        {
+          "type": "error",
+          "name": "UnsupportedObservedEventTopicCount",
+          "inputs": [
+            {
+              "name": "topicCount",
+              "type": "uint8",
+              "internalType": "uint8"
             }
           ]
         }

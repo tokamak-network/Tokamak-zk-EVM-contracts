@@ -49,6 +49,7 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - For fixed-shape runtime hash inputs, do not default to `keccak256(abi.encode(...))` or equivalent scaffolding when the input words are already known statically. Prefer `memory-safe` assembly that writes each word directly with `mstore` and then calls `keccak256(ptr, len)`.
    - When using assembly for hash-input staging, allocate scratch space from the current free-memory pointer (`mload(0x40)`) and advance the free-memory pointer afterward. Do not reuse ad hoc offsets such as `0x00` or `0x80` in ways that can collide with future manual memory management.
    - Apply the same discipline to any L2-runtime hash mirror that is modeled off-chain. If the contract executes a fixed-shape runtime hash, the off-chain generator or test harness should mirror the same fixed-shape input layout rather than rebuild it through avoidable generic encoding layers.
+   - Do not add explicit zero-hash guards by default for note commitments, nullifiers, or similar cryptographic digests. Treat a zero hash output as practically impossible unless the task explicitly requires a defensive zero-value guard for some non-cryptographic reason.
 8. Every DApp under `apps/` must use the same L2 accounting vault shape:
    - Prefer naming such as `L1BridgeAssetVault` for L1 custody and `L2AccountingVault` for the L2 mirror state.
    - The L2 vault is not a real token custody contract.

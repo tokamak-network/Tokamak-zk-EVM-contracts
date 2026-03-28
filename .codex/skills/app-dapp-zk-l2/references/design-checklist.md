@@ -206,6 +206,7 @@ Allowed optimization techniques:
 - Use assembly when it materially reduces placement usage and does not weaken validation or make the control flow ambiguous.
 - For fixed-shape hash inputs, replace `abi.encode(...)+keccak256(...)` scaffolding with `memory-safe` assembly that stages words directly in memory and hashes the exact byte span.
 - When doing manual memory staging for hashing, reserve scratch space from the free-memory pointer and advance it after use so future assembly blocks cannot collide with the same offsets.
+- Do not spend placements on explicit zero-hash guards for commitments, nullifiers, or similar cryptographic digests unless the design has a concrete reason to treat a zero digest as semantically special.
 
 Review questions:
 
@@ -216,6 +217,7 @@ Review questions:
 - Can a shared intermediate hash or decoded field be computed once and reused?
 - Would an assembly block remove measurable placement-heavy scaffolding without obscuring correctness?
 - Is any fixed-shape runtime hash still paying placement overhead for generic ABI encoding that could be replaced with direct `mstore` plus `keccak256(ptr, len)`?
+- Is the function still paying placements for a zero-hash guard on a cryptographic digest that can be treated as practically impossible instead?
 
 ## 9. Placement Analysis Methodology
 

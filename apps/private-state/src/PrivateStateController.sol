@@ -6,8 +6,6 @@ import {L2AccountingVault} from "./L2AccountingVault.sol";
 /// @title PrivateStateController
 /// @notice User-facing application logic for the non-private zk-note DApp.
 contract PrivateStateController {
-    error ZeroCommitment();
-    error ZeroNullifier();
     error ZeroAddress();
     error ZeroAmount();
     error CommitmentAlreadyExists(bytes32 commitment);
@@ -598,9 +596,6 @@ contract PrivateStateController {
     }
 
     function _registerCommitment(bytes32 commitment) internal {
-        if (commitment == bytes32(0)) {
-            revert ZeroCommitment();
-        }
         if (commitmentExists[commitment]) {
             revert CommitmentAlreadyExists(commitment);
         }
@@ -608,9 +603,6 @@ contract PrivateStateController {
     }
 
     function _useNullifier(bytes32 nullifier) internal {
-        if (nullifier == bytes32(0)) {
-            revert ZeroNullifier();
-        }
         if (nullifierUsed[nullifier]) {
             revert NullifierAlreadyUsed(nullifier);
         }

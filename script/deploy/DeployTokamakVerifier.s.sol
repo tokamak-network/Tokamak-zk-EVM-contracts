@@ -2,7 +2,7 @@
 pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
-import "../../src/verifier/TokamakVerifier.sol";
+import "../../tokamak-zkp/TokamakVerifier.sol";
 
 contract DeployTokamakVerifierScript is Script {
     address public tokamakVerifier;
@@ -69,7 +69,7 @@ contract DeployTokamakVerifierScript is Script {
         verifierCmd[0] = "forge";
         verifierCmd[1] = "verify-contract";
         verifierCmd[2] = vm.toString(tokamakVerifier);
-        verifierCmd[3] = "src/verifier/TokamakVerifier.sol:TokamakVerifier";
+        verifierCmd[3] = "tokamak-zkp/TokamakVerifier.sol:TokamakVerifier";
         verifierCmd[4] = "--etherscan-api-key";
         verifierCmd[5] = etherscanApiKey;
         _verifyWithRetry(verifierCmd, "TokamakVerifier");

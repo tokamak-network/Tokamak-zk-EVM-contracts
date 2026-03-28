@@ -2,7 +2,7 @@
 pragma solidity 0.8.29;
 
 import {Test} from "forge-std/Test.sol";
-import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
+import {TokamakVerifier} from "../../tokamak-zkp/TokamakVerifier.sol";
 
 import "forge-std/console.sol";
 

@@ -172,10 +172,6 @@ src/
 │   ├── IGroth16Verifier*.sol          # Groth16 verifier interfaces
 │   ├── ITokamakVerifier.sol           # Tokamak verifier interface
 │   └── IZecFrost.sol                  # FROST signature interface
-├── verifier/                          # ZK proof verification
-│   ├── TokamakVerifier.sol            # Main Tokamak verifier
-│   ├── Groth16Verifier*.sol           # Groth16 verifiers for different tree sizes
-│   └── Verifier.sol                   # Base verifier contract
 ├── library/                           # Utility libraries
 │   ├── RLP.sol                        # RLP encoding utilities
 │   └── ZecFrost.sol                   # FROST signature library
@@ -184,6 +180,10 @@ src/
 ├── BridgeProofManager.sol             # Proof management
 ├── BridgeWithdrawManager.sol          # Per-token withdrawal management
 └── BridgeAdminManager.sol             # Administrative functions
+
+tokamak-zkp/
+├── TokamakVerifier.sol                # Main Tokamak verifier
+└── TokamakVerifierKey/                # Generated verification-key artifacts
 
 test/
 ├── bridge/                            # Bridge-specific tests

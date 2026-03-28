@@ -63,6 +63,7 @@ cd script/deploy
 
 # Test Groth16 integration
 ./test-groth16-integration.sh
+
 ```
 
 ## Important Notes
@@ -76,6 +77,9 @@ cd script/deploy
 4. **Gas Costs**: Deployment can be expensive on mainnet. Test thoroughly on testnet first.
 
 5. **Security**: Never commit your `.env` file with real private keys to version control.
+
+6. **App-local deployments**: DApps under `apps/` should keep their deployment scripts inside each DApp folder, for example `apps/<dapp>/script/deploy`, and should use `apps/.env` rather than the bridge deployment `.env`.
+7. **Generated contract manifests**: Long-lived deployment manifests with addresses and ABIs are written to `script/artifacts/contracts/contracts-<network>.json`. Temporary execution output should stay under ignored `output/` directories.
 
 ## Script Features
 

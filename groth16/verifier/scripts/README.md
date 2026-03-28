@@ -1,31 +1,29 @@
 # Verifier Generation Scripts
 
-Scripts to generate Solidity Groth16 verifier contracts from verification keys.
+This directory only contains `updateTree` tooling.
 
-## Prerequisites
+## Files
 
-- Python 3.6 or higher
-- Standard library modules: `json`, `sys`, `os`
+- `generate_update_tree_verifier.py`: Generates `src/Groth16Verifier.sol` from the `updateTree` verification key.
+- `generate_update_tree_fixture.py`: Converts `proof.json` and `public.json` into a Solidity fixture library for Foundry tests.
 
 ## Usage
 
+Generate the verifier contract:
+
 ```bash
-# Generate 16 leaves verifier (single contract)
-python3 generate_verifier_16_leaves.py ../trusted-setup/16_leaves_vk/verification_key.json output.sol
-
-# Generate 32 leaves verifier (single contract)  
-python3 generate_verifier_32_leaves.py ../trusted-setup/32_leaves_vk/verification_key.json output.sol
-
-# Generate 64 leaves verifier (main + IC contract)
-python3 generate_verifier_64_leaves.py ../trusted-setup/64_leaves_vk/verification_key.json output_dir/
-
-# Generate 128 leaves verifier (main + IC1 + IC2 contracts)
-python3 generate_verifier_128_leaves.py ../trusted-setup/128_leaves_vk/verification_key.json output_dir/
+python3 groth16/verifier/scripts/generate_update_tree_verifier.py \
+  groth16/trusted-setup/updateTree/verification_key.json \
+  groth16/verifier/src/Groth16Verifier.sol
 ```
 
-## Notes
+Generate the Foundry fixture library:
 
-- 16/32 leaves: Single contract with inline IC arrays
-- 64/128 leaves: Split into multiple contracts for size optimization
-- All scripts use proper BLS12-381 field element formatting
-- Generated contracts are ready for deployment
+```bash
+python3 groth16/verifier/scripts/generate_update_tree_fixture.py \
+  groth16/prover/updateTree/proof.json \
+  groth16/prover/updateTree/public.json \
+  groth16/verifier/test/UpdateTreeProofFixture.sol
+```
+
+Both scripts assume the `updateTree` circuit uses the BLS12-381 verification-key format already used by this repository.

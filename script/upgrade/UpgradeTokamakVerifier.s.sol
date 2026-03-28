@@ -3,7 +3,7 @@ pragma solidity ^0.8.29;
 
 import "forge-std/Script.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "../../src/verifier/TokamakVerifier.sol";
+import "../../tokamak-zkp/TokamakVerifier.sol";
 
 contract UpgradeTokamakVerifierScript is Script {
     function run() external {

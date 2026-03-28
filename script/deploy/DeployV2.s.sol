@@ -8,7 +8,7 @@ import "../../src/BridgeDepositManager.sol";
 import "../../src/BridgeProofManager.sol";
 import "../../src/BridgeWithdrawManager.sol";
 import "../../src/BridgeAdminManager.sol";
-import "../../src/verifier/TokamakVerifier.sol";
+import "../../tokamak-zkp/TokamakVerifier.sol";
 import "../../src/verifier/Groth16Verifier16Leaves.sol";
 import "../../src/verifier/Groth16Verifier32Leaves.sol";
 import "../../src/verifier/Groth16Verifier64Leaves.sol";
@@ -262,7 +262,7 @@ contract DeployV2Script is Script {
         verifierCmd[0] = "forge";
         verifierCmd[1] = "verify-contract";
         verifierCmd[2] = vm.toString(zkVerifier);
-        verifierCmd[3] = "src/verifier/TokamakVerifier.sol:TokamakVerifier";
+        verifierCmd[3] = "tokamak-zkp/TokamakVerifier.sol:TokamakVerifier";
         verifierCmd[4] = "--etherscan-api-key";
         verifierCmd[5] = etherscanApiKey;
         _verifyWithRetry(verifierCmd, "TokamakVerifier");

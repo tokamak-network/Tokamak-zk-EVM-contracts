@@ -87,6 +87,7 @@ cd script/upgrade
 4. **Permissions**: The account associated with `PRIVATE_KEY` must have upgrade permissions (usually the owner) for the contracts being upgraded.
 
 5. **Testing**: Always test upgrades on testnet before deploying to mainnet.
+6. **Generated contract manifests**: Long-lived upgrade manifests with addresses and ABIs are written to `script/artifacts/contracts/contracts-<network>.json`. Temporary execution output should stay under ignored `output/` directories.
 
 ## Script Structure
 

@@ -61,8 +61,8 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-# Create output directory
-OUTPUT_DIR="$SCRIPT_DIR/output"
+# Create long-lived contract artifact directory
+OUTPUT_DIR="$SCRIPT_DIR/artifacts/contracts"
 mkdir -p "$OUTPUT_DIR"
 
 # Output file

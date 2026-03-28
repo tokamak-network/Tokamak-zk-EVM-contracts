@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-03-27T06:58:10.165Z",
+  "tokamakSubmodule": {
+    "path": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM",
+    "branch": "dev",
+    "head": "4ca0c291505bc2f636961faa659ed8dd2836da06",
+    "setupParamsPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json",
+    "sigmaVerifyRkyvPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv"
+  },
+  "tokamakL2js": {
+    "version": "0.0.33",
+    "mtDepth": 12
+  },
+  "tokamakVerifier": {
+    "sigmaVerifyJsonPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/tokamak-zkp/TokamakVerifierKey/sigma_verify.json",
+    "generatedVerifierKeyPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/tokamak-zkp/TokamakVerifierKey/TokamakVerifierKey.generated.sol",
+    "verifierSourcePath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/tokamak-zkp/TokamakVerifier.sol",
+    "setupParams": {
+      "l_free": 128,
+      "l_user_out": 40,
+      "l_user": 60,
+      "l": 728,
+      "l_D": 4824,
+      "m_D": 26725,
+      "n": 4096,
+      "s_D": 14,
+      "s_max": 256
+    }
+  },
+  "groth16": {
+    "verificationKeyPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/trusted-setup/updateTree/verification_key.json",
+    "verifierPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/verifier/src/Groth16Verifier.sol",
+    "metadata": {
+      "circuit": "updateTree",
+      "tokamakL2JsVersion": "0.0.33",
+      "mtDepth": 12,
+      "constraintCount": 15596,
+      "powersOfTauPower": 14,
+      "generatedAt": "2026-03-25T20:33:54.392Z",
+      "note": "This is a local deterministic development ceremony, not a production multi-party ceremony.",
+      "phase1Contributions": 1,
+      "phase2Contributions": 1,
+      "phase1BeaconApplied": true,
+      "phase2BeaconApplied": true
+    }
+  },
+  "bridge": {
+    "recommendedMerkleTreeLevels": 12
+  }
+}

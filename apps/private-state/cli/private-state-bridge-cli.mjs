@@ -92,11 +92,14 @@ const NOTE_RECEIVE_TYPED_DATA_TYPES = {
 const NOTE_RECEIVE_TYPED_DATA_PROTOCOL = "PRIVATE_STATE_NOTE_RECEIVE_KEY_V2";
 const NOTE_RECEIVE_TYPED_DATA_DAPP = "private-state";
 const NOTE_RECEIVE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_NOTE_FIELD_ENCRYPTION_V1";
+const NOTE_COMMITMENT_DOMAIN = ethers.keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NOTE_COMMITMENT"));
+const NULLIFIER_DOMAIN = ethers.keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NULLIFIER"));
 const NOTE_RECEIVE_EVENT_ABI = [
   "event NoteValueEncrypted(bytes32[3] encryptedNoteValue)",
 ];
 const noteValueEncryptedEventInterface = new Interface(NOTE_RECEIVE_EVENT_ABI);
 const NOTE_VALUE_ENCRYPTED_TOPIC = noteValueEncryptedEventInterface.getEvent("NoteValueEncrypted").topicHash;
+const ZERO_TOPIC = normalizeBytes32Hex(ethers.ZeroHash);
 const JUBJUB_ORDER = jubjub.CURVE.n;
 const JUBJUB_FP = jubjub.CURVE.Fp;
 const JUBJUB_A = jubjub.CURVE.a;
@@ -1516,19 +1519,14 @@ async function recoverDeliveredNotesFromEventLogs({
     address: context.workspace.channelManager,
     fromBlock: scanStartBlock,
     toBlock: latestBlock,
-    topics: [NOTE_VALUE_ENCRYPTED_TOPIC],
   });
 
   const importedCandidates = [];
   for (const log of observedLogs) {
-    let parsedLog;
-    try {
-      parsedLog = noteValueEncryptedEventInterface.parseLog(log);
-    } catch {
+    const encryptedNoteValue = extractEncryptedNoteValueFromBridgeLog(log);
+    if (!encryptedNoteValue) {
       continue;
     }
-
-    const encryptedNoteValue = normalizeEncryptedNoteValueWords(parsedLog.args.encryptedNoteValue);
     let recoveredValue;
     try {
       recoveredValue = decryptEncryptedNoteValue({
@@ -1574,6 +1572,38 @@ async function recoverDeliveredNotesFromEventLogs({
   };
 }
 
+function extractEncryptedNoteValueFromBridgeLog(log) {
+  if (!Array.isArray(log?.topics) || log.topics.length !== 1) {
+    return null;
+  }
+
+  const normalizedTopic0 = normalizeBytes32Hex(log.topics[0]);
+  if (normalizedTopic0 === normalizeBytes32Hex(NOTE_VALUE_ENCRYPTED_TOPIC)) {
+    try {
+      const parsedLog = noteValueEncryptedEventInterface.parseLog(log);
+      return normalizeEncryptedNoteValueWords(parsedLog.args.encryptedNoteValue);
+    } catch {
+      return null;
+    }
+  }
+
+  if (normalizedTopic0 !== ZERO_TOPIC) {
+    return null;
+  }
+
+  const dataBytes = ethers.getBytes(log.data ?? "0x");
+  if (dataBytes.length !== 96) {
+    return null;
+  }
+
+  try {
+    const [encryptedNoteValue] = abiCoder.decode(["bytes32[3]"], log.data);
+    return normalizeEncryptedNoteValueWords(encryptedNoteValue);
+  } catch {
+    return null;
+  }
+}
+
 function buildImportedTrackedNote(note) {
   const trackedNote = buildTrackedNote(note, note.sourceFunction ?? null, note.sourceTxHash ?? null, {
     bridgeCommitmentKey: note.bridgeCommitmentKey ?? null,
@@ -1603,19 +1633,31 @@ function normalizePlaintextNote(note) {
 }
 
 function computeNoteCommitment(note) {
-  return keccak256(
-    abiCoder.encode(
-      ["bytes32", "address", "uint256", "bytes32"],
-      [ethers.id("PRIVATE_STATE_NOTE_COMMITMENT"), note.owner, BigInt(note.value), note.salt],
+  return normalizeBytes32Hex(
+    bytesToHex(
+      poseidon(
+        hexToBytes(
+          abiCoder.encode(
+            ["bytes32", "address", "uint256", "bytes32"],
+            [NOTE_COMMITMENT_DOMAIN, note.owner, BigInt(note.value), note.salt],
+          ),
+        ),
+      ),
     ),
   );
 }
 
 function computeNullifier(note) {
-  return keccak256(
-    abiCoder.encode(
-      ["bytes32", "address", "uint256", "bytes32"],
-      [ethers.id("PRIVATE_STATE_NULLIFIER"), note.owner, BigInt(note.value), note.salt],
+  return normalizeBytes32Hex(
+    bytesToHex(
+      poseidon(
+        hexToBytes(
+          abiCoder.encode(
+            ["bytes32", "address", "uint256", "bytes32"],
+            [NULLIFIER_DOMAIN, note.owner, BigInt(note.value), note.salt],
+          ),
+        ),
+      ),
     ),
   );
 }

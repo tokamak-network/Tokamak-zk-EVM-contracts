@@ -151,9 +151,9 @@ This script:
 
 Current constraint:
 
-- DApp deletion is allowed only while `DAppManager.dAppDeletionEnabled()` remains true
+- DApp deletion remains available on Sepolia-style test deployments while `DAppManager.dAppDeletionEnabled()` remains true
 - deleting a DApp with one or more active channels is intentionally rejected, because channel managers cache function metadata at channel-creation time
-- after the owner calls `disableDAppDeletionForever()`, DApp registration becomes add-only again
+- mainnet deployment and upgrade flows automatically call `disableDAppDeletionForever()`, after which DApp registration becomes add-only again
 
 Example usage:
 

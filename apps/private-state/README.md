@@ -523,7 +523,6 @@ Important files:
 
 - `wallet.json`: encrypted wallet state
 - `wallet.metadata.json`: plaintext `network` and `channelName`
-- `incoming-notes.json`: staged recipient note delivery
 
 ## Local anvil Workflow
 

@@ -595,7 +595,7 @@ Current behavior:
 Deployment policy:
 
 - Sepolia keeps this path available as a test-deployment-only operational tool
-- mainnet deployment must call `disableDAppDeletionForever()` and keep DApp deletion permanently disabled
+- mainnet deployment and upgrade flows call `disableDAppDeletionForever()` and keep DApp deletion permanently disabled
 
 This policy is operational scaffolding for test deployments rather than part of the private-state note-delivery design
 itself.
@@ -630,7 +630,7 @@ Current `transfer-notes` behavior:
 4. build the new transfer calldata with encrypted outputs
 5. submit the channel transaction
 
-The legacy `incoming-notes.json` sidecar flow is no longer the primary delivery path.
+The legacy `incoming-notes.json` sidecar flow is no longer used.
 
 ### C. Recipient Recovery CLI
 
@@ -645,7 +645,7 @@ Current recipient note recovery behavior:
    - salt = ciphertext hash
 5. absorb recovered notes into the encrypted wallet state
 
-This replaces the sender-written `incoming-notes.json` sidecar as the long-term recovery path.
+This replaces the old sender-written `incoming-notes.json` sidecar path entirely.
 
 ## Recipient Recovery Flow
 
@@ -730,8 +730,5 @@ The following work remains outside the already implemented core path:
 
 1. increase supported private-state function coverage beyond the current Synthesizer capacity ceiling
 2. re-run and stabilize the full bridge e2e and CLI-e2e matrix against the current deployed contracts and fixtures
-3. remove any remaining legacy `incoming-notes.json` compatibility path instead of keeping it as a supported fallback
-4. keep the temporary bridge-side `deleteDApp(...)` policy as a Sepolia-only test operation and permanently disable it
-   in any mainnet deployment
 
 This document describes the implemented architecture plus the remaining gaps to full operational completion.

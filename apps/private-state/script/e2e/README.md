@@ -21,14 +21,13 @@ The harness uses three participants:
 3. `A` calls `transferNotes1To2` and splits its `3`-token note into:
    - `1` token to `B`
    - `2` tokens to `C`
-   The CLI harness verifies that `transfer-notes` writes those output notes into the deterministic recipient wallet
-   inbox files for `B` and `C`.
+   The CLI harness verifies that `transfer-notes` does not write recipient wallet inbox sidecars and that recipients
+   recover those notes later through `get-my-notes`.
 4. `B` calls `transferNotes2To1` and transfers:
    - its own `3`-token note
    - the `1`-token note received from `A`
    into one `4`-token note for `C`.
-   The CLI harness verifies that `B` absorbs its own inbox before spending and that `C` receives the new note in its
-   wallet inbox before redeeming it.
+   The CLI harness verifies that `C` recovers the new note from Ethereum event logs before redeeming it.
 5. `C` redeems all notes. With the current Tokamak setup capacity, the harness realizes that as three `redeemNotes1` calls over:
    - the `2`-token note received directly from `A`
    - the `4`-token note received from `B`

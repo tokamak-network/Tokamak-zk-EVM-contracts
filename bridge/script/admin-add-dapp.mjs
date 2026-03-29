@@ -48,6 +48,9 @@ Options:
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
   --skip-submodule-update           Skip updating submodules/Tokamak-zk-EVM to origin/dev
   --skip-install                    Skip tokamak-cli --install
+
+Example groups are resolved relative to:
+  submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/<group>/cli-launch-manifest.json
 `);
 }
 
@@ -427,7 +430,7 @@ function collectInstanceDescriptionErrors(instanceDescriptionPath) {
 }
 
 async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
-  const groupRoot = path.join(synthesizerRoot, "examples", groupName);
+  const groupRoot = path.join(synthesizerRoot, "examples", "privateState", groupName);
   const manifestPath = path.join(groupRoot, "cli-launch-manifest.json");
   if (!fs.existsSync(manifestPath)) {
     throw new Error(`Unknown DApp example group: ${groupName}`);

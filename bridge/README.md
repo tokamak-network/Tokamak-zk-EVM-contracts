@@ -159,7 +159,7 @@ Example usage:
 
 ```bash
 node bridge/script/admin-add-dapp.mjs \
-  --group privateStateMint \
+  --group mintNotes \
   --dapp-id 1
 ```
 
@@ -167,9 +167,9 @@ If the app must be deployed to a different network before registration, select i
 
 ```bash
 node bridge/script/admin-add-dapp.mjs \
-  --group privateStateMint \
-  --group privateStateTransfer \
-  --group privateStateRedeem \
+  --group mintNotes \
+  --group transferNotes \
+  --group redeemNotes \
   --dapp-id 1 \
   --app-network sepolia
 ```

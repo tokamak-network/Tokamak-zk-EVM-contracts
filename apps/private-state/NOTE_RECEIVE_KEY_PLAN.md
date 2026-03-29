@@ -592,6 +592,11 @@ Current behavior:
 - `disableDAppDeletionForever()` can permanently close that path
 - deletion is blocked when the DApp already has active channels
 
+Deployment policy:
+
+- Sepolia keeps this path available as a test-deployment-only operational tool
+- mainnet deployment must call `disableDAppDeletionForever()` and keep DApp deletion permanently disabled
+
 This policy is operational scaffolding for test deployments rather than part of the private-state note-delivery design
 itself.
 
@@ -725,7 +730,8 @@ The following work remains outside the already implemented core path:
 
 1. increase supported private-state function coverage beyond the current Synthesizer capacity ceiling
 2. re-run and stabilize the full bridge e2e and CLI-e2e matrix against the current deployed contracts and fixtures
-3. decide whether legacy `incoming-notes.json` compatibility should remain available or be removed entirely
-4. decide whether the temporary bridge-side DApp deletion policy should remain enabled on test deployments only
+3. remove any remaining legacy `incoming-notes.json` compatibility path instead of keeping it as a supported fallback
+4. keep the temporary bridge-side `deleteDApp(...)` policy as a Sepolia-only test operation and permanently disable it
+   in any mainnet deployment
 
 This document describes the implemented architecture plus the remaining gaps to full operational completion.

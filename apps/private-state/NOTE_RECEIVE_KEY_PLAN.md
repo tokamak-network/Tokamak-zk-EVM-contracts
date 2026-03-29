@@ -55,7 +55,7 @@ not mix this derivation with `personal_sign` or other signing RPCs.
 
 Recommended typed-data fields:
 
-- protocol label: `PRIVATE_STATE_NOTE_RECEIVE_KEY_V1`
+- protocol label: `PRIVATE_STATE_NOTE_RECEIVE_KEY_V2`
 - chain id
 - channel id or channel name
 - DApp label: `private-state`
@@ -65,8 +65,8 @@ Derivation flow:
 
 1. The wallet signs the fixed message with the user's Ethereum key.
 2. The signature bytes are hashed to a 32-byte seed.
-3. The seed is reduced into a valid secp256k1 private scalar.
-4. The corresponding public key becomes the note-receive public key.
+3. The signature deterministically derives a valid Jubjub/EdDSA private scalar.
+4. The corresponding Jubjub Edwards public key becomes the note-receive public key.
 
 This gives the user a channel-scoped note-receive key pair without introducing a second independently managed secret.
 The same wallet can reproduce the same auxiliary key later by signing the same message again.
@@ -80,6 +80,9 @@ change without a migration:
 - field encoding
 - the MetaMask signing RPC method
 
+The current implementation uses the TokamakL2JS `deriveL2KeysFromSignature(...)` flow so that note-receive keys follow
+the same Jubjub/EdDSA model as other Tokamak L2 user keys.
+
 ### 1A. On-Chain Public-Key Shape
 
 The bridge registration state should introduce a dedicated public-key struct for readability:
@@ -90,6 +93,9 @@ struct NoteReceivePubKey {
     uint8 yParity;
 }
 ```
+
+In the current implementation, this struct stores the affine Jubjub x-coordinate and the low-bit parity of the affine
+y-coordinate. The bridge stores the value opaquely and does not perform curve arithmetic itself.
 
 That struct should then be embedded inside the channel registration record rather than flattened into loose fields.
 
@@ -168,29 +174,29 @@ identity metadata rather than DApp-local note state.
 ### 3. Sender Encrypts Recipient Note Data Off-Chain
 
 For recipient-facing outputs, the sender encrypts a compact note payload to the recipient note-receive public key using
-an ECIES-style flow.
+a Jubjub-based ephemeral Diffie-Hellman flow.
 
 Recommended construction:
 
-- curve agreement: ECDH on secp256k1
-- one fresh ephemeral key pair per encrypted recipient note
+- curve agreement: scalar multiplication on Jubjub Edwards
+- one fresh ephemeral Jubjub key pair per encrypted recipient note
 - symmetric encryption: authenticated AEAD
 
-#### Canonical ECIES Profile
+#### Canonical Encryption Profile
 
 This plan narrows the construction to a fixed ciphertext shape so that transfer entrypoints stay fixed-arity and do not
 need dynamic bytes payloads.
 
 Curve and agreement:
 
-- secp256k1
-- sender creates one fresh ephemeral secp256k1 key pair per recipient note
-- shared secret = ECDH(senderEphemeralPriv, recipientNoteReceivePubKey)
+- Jubjub Edwards over the BLS12-381 scalar field
+- sender creates one fresh ephemeral Jubjub key pair per recipient note
+- shared secret = `recipientNoteReceivePubKey * senderEphemeralPriv`
 
 Key derivation:
 
 - HKDF-SHA256
-- domain string: `PRIVATE_STATE_NOTE_ECIES_V1`
+- domain string: `PRIVATE_STATE_NOTE_ECIES_V2`
 
 Symmetric encryption:
 
@@ -198,7 +204,7 @@ Symmetric encryption:
 
 Associated data:
 
-- protocol label: `PRIVATE_STATE_TRANSFER_NOTE_V1`
+- protocol label: `PRIVATE_STATE_TRANSFER_NOTE_V2`
 - chain id
 - channel id
 - recipient L2 owner address
@@ -222,10 +228,10 @@ bytes32[3] encryptedNoteValue;
 The serialized hash for salt derivation should be:
 
 ```solidity
-keccak256(abi.encode(encryptedNoteValue))
+poseidon(abi.encode(encryptedNoteValue))
 ```
 
-The off-chain ECIES packing is:
+The off-chain ciphertext packing is:
 
 - word 0: `ephemeralPubKeyX`
 - word 1: packed `yParity || nonce || tag || reserved`
@@ -240,12 +246,12 @@ The transfer entrypoint should stop accepting the recipient note salt directly.
 For recipient-facing outputs:
 
 - the sender supplies a fixed `bytes32[3] encryptedNoteValue`
-- the contract computes `ciphertextHash = keccak256(serializedEncryptedNoteValue)`
+- the contract computes `ciphertextHash = poseidon(serializedEncryptedNoteValue)`
 - the contract sets `salt = ciphertextHash`
 - the recipient note commitment is then computed from:
   - recipient owner
   - note value
-  - `salt = keccak256(serializedEncryptedNoteValue)`
+  - `salt = poseidon(serializedEncryptedNoteValue)`
 
 This is the cheapest consistency binding available under the current architecture.
 
@@ -406,7 +412,7 @@ struct TransferOutput {
 That implies the following contract-side updates:
 
 - replace transfer output calldata shapes from `Note` to `TransferOutput`
-- derive `salt = keccak256(serializedEncryptedNoteValue)` inside the contract
+- derive `salt = poseidon(serializedEncryptedNoteValue)` inside the contract
 - compute output commitments from `(owner, value, derivedSalt)` rather than from caller-supplied salt
 - apply the same output shape to sender change notes so that transfer entrypoints keep one successful path only
 
@@ -415,7 +421,7 @@ That implies the following contract-side updates:
 For each `transferNotes*` function, the new logic adds only the minimum extra work required by the new delivery model:
 
 - read an opaque `bytes32[3]` ciphertext payload from calldata
-- compute one `keccak256` over the fixed serialized ciphertext
+- compute one Poseidon hash over the fixed serialized ciphertext
 - emit one ciphertext-bearing DApp event per output
 
 This plan does not add:
@@ -610,7 +616,7 @@ Current `register-channel` behavior:
 
 1. build the fixed EIP-712 typed data for note-receive key derivation
 2. sign it through the MetaMask-compatible off-chain signing method
-3. derive the auxiliary secp256k1 note-receive key pair
+3. derive the auxiliary Jubjub note-receive key pair
 4. submit the derived `NoteReceivePubKey` during channel registration
 5. persist enough local metadata to reproduce the same typed-data request later
 
@@ -638,7 +644,7 @@ Current recipient note recovery behavior:
 
 1. rebuild the deterministic note-receive auxiliary private key from the fixed typed-data signature
 2. scan bridge-propagated DApp logs for `NoteValueEncrypted`
-3. attempt ECIES decryption for logs targeting the current channel
+3. attempt Jubjub-based ciphertext decryption for logs targeting the current channel
 4. reconstruct note plaintext using:
    - owner = local wallet L2 address
    - value = decrypted note value
@@ -653,14 +659,14 @@ When the recipient later wants to recover received notes:
 
 1. Re-derive the note-receive auxiliary private key by signing the fixed typed-data registration message again.
 2. Scan Ethereum logs for bridge-propagated `NoteValueEncrypted` records for the current channel.
-3. Attempt ECIES decryption using the auxiliary private key.
+3. Attempt Jubjub-based ciphertext decryption using the auxiliary private key.
 4. If decryption succeeds:
    - read the note value from the decrypted payload
-   - compute `salt = keccak256(serializedEncryptedNoteValue)`
+   - compute `salt = poseidon(serializedEncryptedNoteValue)`
    - reconstruct the note plaintext as:
      - `owner = recipient L2 address`
      - `value = decrypted value`
-     - `salt = keccak256(serializedEncryptedNoteValue)`
+     - `salt = poseidon(serializedEncryptedNoteValue)`
 5. Recompute the note commitment locally and optionally confirm that the controller state recognizes that commitment as
    existing before persisting the recovered note into wallet state.
 

@@ -1,12 +1,12 @@
 import {
-  createECDH,
   createCipheriv,
   createDecipheriv,
   hkdfSync,
   randomBytes,
 } from "node:crypto";
-import { AbiCoder, SigningKey, ethers } from "ethers";
-import { poseidon } from "tokamak-l2js";
+import { AbiCoder, ethers } from "ethers";
+import { deriveL2KeysFromSignature, poseidon } from "tokamak-l2js";
+import { jubjub } from "@noble/curves/jubjub";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const NOTE_RECEIVE_TYPED_DATA_DOMAIN = {
@@ -22,36 +22,49 @@ const NOTE_RECEIVE_TYPED_DATA_TYPES = {
     { name: "account", type: "address" },
   ],
 };
-const NOTE_RECEIVE_TYPED_DATA_PROTOCOL = "PRIVATE_STATE_NOTE_RECEIVE_KEY_V1";
+const NOTE_RECEIVE_TYPED_DATA_PROTOCOL = "PRIVATE_STATE_NOTE_RECEIVE_KEY_V2";
 const NOTE_RECEIVE_TYPED_DATA_DAPP = "private-state";
-const NOTE_RECEIVE_ECIES_INFO = Buffer.from("PRIVATE_STATE_NOTE_ECIES_V1", "utf8");
-const NOTE_RECEIVE_AAD_LABEL = "PRIVATE_STATE_TRANSFER_NOTE_V1";
-const SECP256K1_ORDER =
-  BigInt("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
+const NOTE_RECEIVE_ECIES_INFO = Buffer.from("PRIVATE_STATE_NOTE_ECIES_V2", "utf8");
+const NOTE_RECEIVE_AAD_LABEL = "PRIVATE_STATE_TRANSFER_NOTE_V2";
+const JUBJUB_ORDER = jubjub.CURVE.n;
+const JUBJUB_FP = jubjub.CURVE.Fp;
+const JUBJUB_A = jubjub.CURVE.a;
+const JUBJUB_D = jubjub.CURVE.d;
 
-function deriveSecp256k1PrivateKeyFromSeed(seedHex) {
-  const seed = BigInt(seedHex);
-  const scalar = (seed % (SECP256K1_ORDER - 1n)) + 1n;
-  return ethers.zeroPadValue(ethers.toBeHex(scalar), 32);
-}
-
-function noteReceivePubKeyFromCompressedHex(compressedHex) {
-  const bytes = ethers.getBytes(compressedHex);
-  if (bytes.length !== 33) {
-    throw new Error("Compressed secp256k1 public key must be 33 bytes.");
-  }
-  if (bytes[0] !== 0x02 && bytes[0] !== 0x03) {
-    throw new Error("Compressed secp256k1 public key must use prefix 0x02 or 0x03.");
-  }
+function noteReceivePubKeyFromPoint(point) {
+  const affine = point.toAffine();
   return {
-    x: ethers.hexlify(bytes.slice(1)),
-    yParity: bytes[0] === 0x03 ? 1 : 0,
+    x: normalizeBytes32Hex(ethers.toBeHex(affine.x)),
+    yParity: Number(affine.y & 1n),
   };
 }
 
-function compressedHexFromNoteReceivePubKey(noteReceivePubKey) {
-  const prefix = Number(noteReceivePubKey.yParity) === 1 ? "03" : "02";
-  return `0x${prefix}${ethers.zeroPadValue(noteReceivePubKey.x, 32).slice(2)}`;
+function pointFromNoteReceivePubKey(noteReceivePubKey) {
+  const x = ethers.toBigInt(noteReceivePubKey.x);
+  if (x >= JUBJUB_FP.ORDER) {
+    throw new Error("Jubjub note-receive public key x-coordinate is out of range.");
+  }
+  const xSquared = JUBJUB_FP.mul(x, x);
+  const numerator = JUBJUB_FP.sub(1n, JUBJUB_FP.mul(JUBJUB_A, xSquared));
+  const denominator = JUBJUB_FP.sub(1n, JUBJUB_FP.mul(JUBJUB_D, xSquared));
+  let y = JUBJUB_FP.sqrt(JUBJUB_FP.div(numerator, denominator));
+  if (Number(y & 1n) !== Number(noteReceivePubKey.yParity)) {
+    y = JUBJUB_FP.neg(y);
+  }
+  return jubjub.ExtendedPoint.fromAffine({ x, y });
+}
+
+function parseJubjubPrivateScalar(privateKey) {
+  const scalar = ethers.toBigInt(privateKey);
+  if (scalar <= 0n || scalar >= JUBJUB_ORDER) {
+    throw new Error("Jubjub note-receive private key must be within the scalar field range.");
+  }
+  return scalar;
+}
+
+function deriveEphemeralJubjubScalar() {
+  const raw = ethers.toBigInt(ethers.hexlify(jubjub.utils.randomPrivateKey(randomBytes(32))));
+  return (raw % (JUBJUB_ORDER - 1n)) + 1n;
 }
 
 function normalizeBytes32Hex(value) {
@@ -136,6 +149,13 @@ function encodeNoteValuePlaintext(value) {
   return Buffer.from(ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(BigInt(value)), 32)));
 }
 
+function decodeNoteValuePlaintext(valueBytes) {
+  if (valueBytes.length !== 32) {
+    throw new Error("Encrypted note plaintext must decode to 32 bytes.");
+  }
+  return BigInt(ethers.hexlify(valueBytes)).toString();
+}
+
 export async function deriveNoteReceiveKeyMaterial({
   signer,
   chainId,
@@ -150,13 +170,14 @@ export async function deriveNoteReceiveKeyMaterial({
     account,
   });
   const signature = await signer.signTypedData(typedData.domain, typedData.types, typedData.value);
-  const privateKey = deriveSecp256k1PrivateKeyFromSeed(poseidonHexFromBytes(signature));
-  const compressedPubKey = SigningKey.computePublicKey(privateKey, true);
+  const derivedKeys = deriveL2KeysFromSignature(signature);
+  const privateKey = ethers.hexlify(derivedKeys.privateKey);
+  const noteReceivePoint = jubjub.ExtendedPoint.fromHex(derivedKeys.publicKey);
   return {
     typedData,
     signature,
     privateKey,
-    noteReceivePubKey: noteReceivePubKeyFromCompressedHex(compressedPubKey),
+    noteReceivePubKey: noteReceivePubKeyFromPoint(noteReceivePoint),
   };
 }
 
@@ -176,10 +197,10 @@ export function encryptNoteValueForRecipient({
   owner,
   nonce = null,
 }) {
-  const recipientCompressedPubKey = compressedHexFromNoteReceivePubKey(recipientNoteReceivePubKey);
-  const ephemeral = createECDH("secp256k1");
-  ephemeral.generateKeys();
-  const sharedSecret = ephemeral.computeSecret(Buffer.from(ethers.getBytes(recipientCompressedPubKey)));
+  const recipientPoint = pointFromNoteReceivePubKey(recipientNoteReceivePubKey);
+  const ephemeralPrivateScalar = deriveEphemeralJubjubScalar();
+  const ephemeralPoint = jubjub.ExtendedPoint.BASE.multiply(ephemeralPrivateScalar);
+  const sharedSecret = Buffer.from(recipientPoint.multiply(ephemeralPrivateScalar).toRawBytes());
   const aad = buildNoteReceiveAAD({ chainId, channelId, owner });
   const encryptionKey = Buffer.from(hkdfSync("sha256", sharedSecret, NOTE_RECEIVE_ECIES_INFO, aad, 32));
   const cipherNonce = nonce ? Buffer.from(ethers.getBytes(nonce)) : randomBytes(12);
@@ -187,8 +208,7 @@ export function encryptNoteValueForRecipient({
   cipher.setAAD(aad);
   const ciphertextValue = Buffer.concat([cipher.update(encodeNoteValuePlaintext(value)), cipher.final()]);
   const tag = cipher.getAuthTag();
-  const ephemeralCompressedPubKey = ethers.hexlify(ephemeral.getPublicKey(undefined, "compressed"));
-  const parsedEphemeralPubKey = noteReceivePubKeyFromCompressedHex(ephemeralCompressedPubKey);
+  const parsedEphemeralPubKey = noteReceivePubKeyFromPoint(ephemeralPoint);
 
   if (ciphertextValue.length !== 32) {
     throw new Error("Encrypted note value ciphertext must remain 32 bytes.");
@@ -214,13 +234,11 @@ export function decryptEncryptedNoteValue({
   owner,
 }) {
   const normalized = unpackEncryptedNoteValue(encryptedValue);
-  const recipient = createECDH("secp256k1");
-  recipient.setPrivateKey(Buffer.from(ethers.getBytes(noteReceivePrivateKey)));
-  const sharedSecret = recipient.computeSecret(
-    Buffer.from(ethers.getBytes(compressedHexFromNoteReceivePubKey({
+  const sharedSecret = Buffer.from(
+    pointFromNoteReceivePubKey({
       x: normalized.ephemeralPubKeyX,
       yParity: normalized.ephemeralPubKeyYParity,
-    }))),
+    }).multiply(parseJubjubPrivateScalar(noteReceivePrivateKey)).toRawBytes(),
   );
   const aad = buildNoteReceiveAAD({ chainId, channelId, owner });
   const encryptionKey = Buffer.from(hkdfSync("sha256", sharedSecret, NOTE_RECEIVE_ECIES_INFO, aad, 32));

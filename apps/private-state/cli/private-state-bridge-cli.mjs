@@ -63,6 +63,8 @@ const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
 const workspaceRoot = path.resolve(__dirname, "workspace");
 const defaultEnvFile = path.resolve(appsRoot, ".env");
+const gitmodulesPath = path.resolve(projectRoot, ".gitmodules");
+const tokamakSubmodulePath = "submodules/Tokamak-zk-EVM";
 const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
 
@@ -622,6 +624,7 @@ async function handleUninstallZkEvm() {
 }
 
 function syncTokamakSubmoduleToLatestDev() {
+  ensureTokamakSubmoduleWorktree();
   expect(fs.existsSync(tokamakRoot), `Tokamak zk-EVM submodule path does not exist: ${tokamakRoot}.`);
   expect(
     fs.existsSync(path.join(tokamakRoot, ".git")),
@@ -652,6 +655,33 @@ function syncTokamakSubmoduleToLatestDev() {
 
   runGitInTokamak(["pull", "--ff-only", "origin", "dev"]);
   return runGitInTokamak(["rev-parse", "HEAD"]).trim();
+}
+
+function ensureTokamakSubmoduleWorktree() {
+  expect(
+    fs.existsSync(gitmodulesPath),
+    `Repository gitmodules file does not exist: ${gitmodulesPath}.`,
+  );
+
+  const configuredPaths = runGitInProjectRoot([
+    "config",
+    "-f",
+    gitmodulesPath,
+    "--get-regexp",
+    "^submodule\\..*\\.path$",
+  ])
+    .trim()
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/, 2)[1])
+    .filter(Boolean);
+
+  expect(
+    configuredPaths.includes(tokamakSubmodulePath),
+    `.gitmodules does not declare the Tokamak zk-EVM submodule path ${tokamakSubmodulePath}.`,
+  );
+
+  runGitInProjectRoot(["submodule", "sync", "--", tokamakSubmodulePath]);
+  runGitInProjectRoot(["submodule", "update", "--init", "--recursive", tokamakSubmodulePath]);
 }
 
 function isTokamakWorktreeDeletionOnly(porcelainStatus) {
@@ -2776,6 +2806,20 @@ function runGitInTokamak(args) {
   return result.stdout ?? "";
 }
 
+function runGitInProjectRoot(args) {
+  const result = spawnSync("git", args, {
+    cwd: projectRoot,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    const stderr = result.stderr?.trim();
+    const stdout = result.stdout?.trim();
+    const detail = stderr || stdout || `exit code ${result.status ?? "unknown"}`;
+    throw new Error(`git ${args.join(" ")} failed in ${projectRoot}: ${detail}`);
+  }
+  return result.stdout ?? "";
+}
+
 function runTokamakProofPipeline({ operationDir, bundlePath }) {
   run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", operationDir], { cwd: tokamakRoot, quiet: true });
   run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot, quiet: true });
@@ -3510,7 +3554,7 @@ recover-workspace options:
   --force                      Overwrite an existing workspace
 
 Notes:
-  - install-zk-evm accepts no options. Before running tokamak-cli --install, it fetches origin/dev in submodules/Tokamak-zk-EVM, switches to the local dev branch, fast-forwards it, and then runs the installer.
+  - install-zk-evm accepts no options. If submodules/Tokamak-zk-EVM has no checked-out worktree yet, it first bootstraps it from the repository's .gitmodules definition with git submodule update --init --recursive. It then fetches origin/dev in submodules/Tokamak-zk-EVM, switches to the local dev branch, fast-forwards it, and runs the installer.
   - uninstall-zk-evm accepts no options and removes every file and directory inside submodules/Tokamak-zk-EVM except the submodule's .git pointer file.
   - anvil is allowed as a CLI network only for command-driven end-to-end testing. It is not the intended network for user-facing real-world operation.
   - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.

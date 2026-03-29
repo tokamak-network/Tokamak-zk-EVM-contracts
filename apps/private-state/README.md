@@ -118,7 +118,8 @@ The commands below are ordered by the normal execution flow.
 
 - installs the local Tokamak zk-EVM toolchain through `submodules/Tokamak-zk-EVM/tokamak-cli --install`
 - accepts no options
-- fetches `origin/dev` inside the submodule, switches to `dev`, and fast-forwards before running the installer
+- bootstraps `submodules/Tokamak-zk-EVM` from the repository `.gitmodules` definition if the submodule worktree is missing
+- then fetches `origin/dev` inside the submodule, switches to `dev`, and fast-forwards before running the installer
 
 Example:
 

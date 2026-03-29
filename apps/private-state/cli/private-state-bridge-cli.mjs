@@ -6,6 +6,8 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import {
+  createCipheriv,
+  createDecipheriv,
   randomBytes,
   scryptSync,
 } from "node:crypto";

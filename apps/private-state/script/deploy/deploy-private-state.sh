@@ -84,3 +84,7 @@ echo "Environment file: $ENV_FILE"
 )
 
 bash "$PROJECT_ROOT/apps/private-state/script/deploy/write-deploy-artifacts.sh" "$APPS_CHAIN_ID"
+
+npx --prefix "$PROJECT_ROOT/submodules/Tokamak-zk-EVM" tsx \
+    --tsconfig "$PROJECT_ROOT/submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/tsconfig.dev.json" \
+    "$PROJECT_ROOT/apps/private-state/script/deploy/generate-synthesizer-launch-inputs.ts"

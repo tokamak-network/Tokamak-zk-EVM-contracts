@@ -47,6 +47,11 @@ Successful deployments write app-local artifacts into `apps/private-state/deploy
 - `PrivateStateController.callable-abi.json`
 - `L2AccountingVault.callable-abi.json`
 
+Successful deployments also refresh the checked-in Synthesizer private-state launch inputs under:
+
+- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/`
+- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/.vscode/launch.json`
+
 ## Local Commands
 
 The DApp Makefile exposes the shortest local workflows:

@@ -80,7 +80,6 @@ const tokamakPrevBlockHashCount = 4;
 const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const amountUnit = 10n ** 18n;
 const depositAmount = 3n * amountUnit;
-const blsScalarFieldModulus = BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const deployerAddress = new Wallet(anvilDeployerPrivateKey).address;
 const bridgeCoreAbi = [
@@ -211,7 +210,7 @@ function buildL1Wallet(index, provider) {
 }
 
 function buildParticipant(index) {
-  const signature = ethers.id(`private-state participant ${index}`);
+  const signature = poseidonHexFromBytes(ethers.toUtf8Bytes(`private-state participant ${index}`));
   const keySet = deriveL2KeysFromSignature(signature);
   const l2Address = fromEdwardsToAddress(keySet.publicKey).toString();
   return {
@@ -327,14 +326,16 @@ function mappingKeyHex(address, slot) {
   return bytesToHex(poseidon(hexToBytes(encoded)));
 }
 
+function poseidonHexFromBytes(bytesLike) {
+  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
+}
+
 function bigintToHex32(value) {
   return ethers.zeroPadValue(ethers.toBeHex(value), 32);
 }
 
 function saltHex(label) {
-  const raw = BigInt(ethers.id(label));
-  const normalized = (raw % (blsScalarFieldModulus - 1n)) + 1n;
-  return bytes32FromHex(ethers.toBeHex(normalized));
+  return bytes32FromHex(poseidonHexFromBytes(ethers.toUtf8Bytes(label)));
 }
 
 function note(owner, value, saltLabel) {
@@ -353,7 +354,11 @@ function buildEncryptedTransferOutput({
   chainId,
   channelId,
 }) {
-  const deterministicNonce = ethers.dataSlice(ethers.id(`${label}:nonce`), 0, 12);
+  const deterministicNonce = ethers.dataSlice(
+    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
+    0,
+    12,
+  );
   const encryptedNoteValue = encryptNoteValueForRecipient({
     value,
     recipientNoteReceivePubKey,

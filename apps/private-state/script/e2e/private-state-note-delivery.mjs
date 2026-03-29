@@ -5,7 +5,8 @@ import {
   hkdfSync,
   randomBytes,
 } from "node:crypto";
-import { AbiCoder, SigningKey, ethers, keccak256 } from "ethers";
+import { AbiCoder, SigningKey, ethers } from "ethers";
+import { poseidon } from "tokamak-l2js";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const NOTE_RECEIVE_TYPED_DATA_DOMAIN = {
@@ -62,6 +63,10 @@ function normalizeEncryptedNoteValueWords(encryptedNoteValue) {
     throw new Error("Encrypted note value must be a bytes32[3] payload.");
   }
   return encryptedNoteValue.map((word) => normalizeBytes32Hex(word));
+}
+
+function poseidonHexFromBytes(bytesLike) {
+  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
 }
 
 function packEncryptedNoteValue({
@@ -145,7 +150,7 @@ export async function deriveNoteReceiveKeyMaterial({
     account,
   });
   const signature = await signer.signTypedData(typedData.domain, typedData.types, typedData.value);
-  const privateKey = deriveSecp256k1PrivateKeyFromSeed(keccak256(signature));
+  const privateKey = deriveSecp256k1PrivateKeyFromSeed(poseidonHexFromBytes(signature));
   const compressedPubKey = SigningKey.computePublicKey(privateKey, true);
   return {
     typedData,
@@ -158,7 +163,7 @@ export async function deriveNoteReceiveKeyMaterial({
 export function computeEncryptedNoteSalt(encryptedValue) {
   const normalized = normalizeEncryptedNoteValueWords(encryptedValue);
   return ethers.zeroPadValue(
-    keccak256(abiCoder.encode(["bytes32[3]"], [normalized])),
+    poseidonHexFromBytes(abiCoder.encode(["bytes32[3]"], [normalized])),
     32,
   ).toLowerCase();
 }

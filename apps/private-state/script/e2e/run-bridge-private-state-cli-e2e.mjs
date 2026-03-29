@@ -347,6 +347,10 @@ function mappingKeyHex(address, slot) {
   return bytesToHex(poseidon(hexToBytes(encoded)));
 }
 
+function poseidonHexFromBytes(bytesLike) {
+  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
+}
+
 function serializeBigInts(value) {
   return JSON.parse(JSON.stringify(value, (_key, current) => (
     typeof current === "bigint" ? current.toString() : current
@@ -367,12 +371,10 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
 }
 
 function note(owner, value, saltLabel) {
-  const raw = BigInt(ethers.id(saltLabel));
-  const normalized = (raw % ((1n << 255n) - 1n)) + 1n;
   return {
     owner: getAddress(owner),
     value,
-    salt: bytes32FromHex(ethers.toBeHex(normalized)),
+    salt: bytes32FromHex(poseidonHexFromBytes(ethers.toUtf8Bytes(saltLabel))),
   };
 }
 
@@ -667,7 +669,11 @@ function buildEncryptedTransferOutput({
   label,
   recipientNoteReceivePubKey,
 }) {
-  const deterministicNonce = ethers.dataSlice(ethers.id(`${label}:nonce`), 0, 12);
+  const deterministicNonce = ethers.dataSlice(
+    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
+    0,
+    12,
+  );
   const encryptedNoteValue = encryptNoteValueForRecipient({
     value,
     recipientNoteReceivePubKey,

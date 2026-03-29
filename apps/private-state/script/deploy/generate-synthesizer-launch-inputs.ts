@@ -45,12 +45,10 @@ import {
   computeReplayPrivateStateMappingKey,
   computeReplayPrivateStateNoteCommitment,
   deriveReplayPrivateStateFieldValue,
-} from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/private-state-hash.ts';
-import {
   getPrivateStateControllerCommitmentExistsSlot,
   getPrivateStateVaultLiquidBalancesSlot,
   loadPrivateStateStorageLayoutManifest,
-} from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/private-state-storage-layout.ts';
+} from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/utils/private-state.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

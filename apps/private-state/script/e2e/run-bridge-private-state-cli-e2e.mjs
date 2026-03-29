@@ -16,6 +16,7 @@ import {
   getAddress,
 } from "ethers";
 import {
+  MAX_MT_LEAVES,
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
@@ -351,7 +352,7 @@ function deriveLiquidBalanceStorageKey(l2Address, slot) {
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return BigInt(storageKey) % (1n << 12n);
+  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
 }
 
 function poseidonHexFromBytes(bytesLike) {

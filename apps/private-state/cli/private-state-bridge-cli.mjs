@@ -22,6 +22,7 @@ import {
   keccak256,
 } from "ethers";
 import {
+  MAX_MT_LEAVES,
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
@@ -1747,38 +1748,48 @@ function normalizeTagHex(value) {
 
 function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce }) {
   const affine = sharedSecretPoint.toAffine();
-  return BigInt(poseidonHexFromBytes(
-    abiCoder.encode(
-      ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12"],
-      [
-        NOTE_RECEIVE_FIELD_ENCRYPTION_INFO,
-        BigInt(chainId),
-        BigInt(channelId),
-        getAddress(owner),
-        affine.x,
-        affine.y,
-        ethers.zeroPadValue(nonce, 12),
-      ],
+  return BigInt(
+    bytesToHex(
+      poseidon(
+        ethers.getBytes(
+          abiCoder.encode(
+            ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12"],
+            [
+              NOTE_RECEIVE_FIELD_ENCRYPTION_INFO,
+              BigInt(chainId),
+              BigInt(channelId),
+              getAddress(owner),
+              affine.x,
+              affine.y,
+              ethers.zeroPadValue(nonce, 12),
+            ],
+          ),
+        ),
+      ),
     ),
-  ));
+  );
 }
 
 function deriveCipherTag({ sharedSecretPoint, chainId, channelId, owner, nonce, ciphertextValue }) {
   const affine = sharedSecretPoint.toAffine();
   return ethers.dataSlice(
-    poseidonHexFromBytes(
-      abiCoder.encode(
-        ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12", "bytes32"],
-        [
-          `${NOTE_RECEIVE_FIELD_ENCRYPTION_INFO}:tag`,
-          BigInt(chainId),
-          BigInt(channelId),
-          getAddress(owner),
-          affine.x,
-          affine.y,
-          ethers.zeroPadValue(nonce, 12),
-          fieldElementHex(ciphertextValue),
-        ],
+    bytesToHex(
+      poseidon(
+        ethers.getBytes(
+          abiCoder.encode(
+            ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12", "bytes32"],
+            [
+              `${NOTE_RECEIVE_FIELD_ENCRYPTION_INFO}:tag`,
+              BigInt(chainId),
+              BigInt(channelId),
+              getAddress(owner),
+              affine.x,
+              affine.y,
+              ethers.zeroPadValue(nonce, 12),
+              fieldElementHex(ciphertextValue),
+            ],
+          ),
+        ),
       ),
     ),
     0,
@@ -2802,7 +2813,7 @@ function deriveLiquidBalanceStorageKey(l2Address, slot) {
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return BigInt(storageKey) % (1n << 12n);
+  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
 }
 
 async function fetchContractCodes(provider, addresses) {

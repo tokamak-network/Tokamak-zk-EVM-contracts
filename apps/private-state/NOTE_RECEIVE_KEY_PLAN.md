@@ -180,7 +180,7 @@ Recommended construction:
 
 - curve agreement: scalar multiplication on Jubjub Edwards
 - one fresh ephemeral Jubjub key pair per encrypted recipient note
-- symmetric encryption: authenticated AEAD
+- field-native masking and authentication over BLS12-381 scalar elements
 
 #### Canonical Encryption Profile
 
@@ -195,23 +195,35 @@ Curve and agreement:
 
 Key derivation:
 
-- HKDF-SHA256
-- domain string: `PRIVATE_STATE_NOTE_ECIES_V2`
+- Poseidon-based field derivation
+- domain string: `PRIVATE_STATE_NOTE_FIELD_ENCRYPTION_V1`
 
-Symmetric encryption:
+Ciphertext construction:
 
-- `AES-256-GCM`
+- plaintext note value is treated as one BLS12-381 scalar field element
+- derive one field mask from the shared Jubjub secret, owner, chain id, channel id, and nonce
+- compute `ciphertextValue = plaintextValue + mask mod Fr`
+- derive an integrity tag from the same shared secret and ciphertext tuple
+
+Integrity check:
+
+- one truncated tag packed into the metadata word
+- recipient recomputes the tag before accepting the decrypted note
 
 Associated data:
 
-- protocol label: `PRIVATE_STATE_TRANSFER_NOTE_V2`
+- protocol label: `PRIVATE_STATE_TRANSFER_NOTE_V3`
 - chain id
 - channel id
 - recipient L2 owner address
 
 Plaintext:
 
-- note value only
+- note value only, encoded as one BLS12-381 scalar field element
+
+Current implementation rule:
+
+- the encrypted note value path rejects note values that do not fit into the BLS12-381 scalar field
 
 The recipient already knows the owner address, and the salt will be derived from the ciphertext hash. Therefore the
 plaintext does not need to carry owner or salt.
@@ -235,7 +247,7 @@ The off-chain ciphertext packing is:
 
 - word 0: `ephemeralPubKeyX`
 - word 1: packed `yParity || nonce || tag || reserved`
-- word 2: `ciphertextValue`
+- word 2: `ciphertextValue` as one BLS12-381 scalar field element
 
 The contract does not decode those words. It only hashes the opaque payload and emits it.
 

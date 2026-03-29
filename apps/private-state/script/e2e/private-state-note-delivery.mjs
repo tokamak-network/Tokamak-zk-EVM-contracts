@@ -1,7 +1,4 @@
 import {
-  createCipheriv,
-  createDecipheriv,
-  hkdfSync,
   randomBytes,
 } from "node:crypto";
 import { AbiCoder, ethers } from "ethers";
@@ -24,8 +21,9 @@ const NOTE_RECEIVE_TYPED_DATA_TYPES = {
 };
 const NOTE_RECEIVE_TYPED_DATA_PROTOCOL = "PRIVATE_STATE_NOTE_RECEIVE_KEY_V2";
 const NOTE_RECEIVE_TYPED_DATA_DAPP = "private-state";
-const NOTE_RECEIVE_ECIES_INFO = Buffer.from("PRIVATE_STATE_NOTE_ECIES_V2", "utf8");
-const NOTE_RECEIVE_AAD_LABEL = "PRIVATE_STATE_TRANSFER_NOTE_V2";
+const NOTE_RECEIVE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_NOTE_FIELD_ENCRYPTION_V1";
+const BLS12_381_SCALAR_FIELD_MODULUS =
+  BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
 const JUBJUB_ORDER = jubjub.CURVE.n;
 const JUBJUB_FP = jubjub.CURVE.Fp;
 const JUBJUB_A = jubjub.CURVE.a;
@@ -82,6 +80,14 @@ function poseidonHexFromBytes(bytesLike) {
   return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
 }
 
+function fieldElementHex(value) {
+  return normalizeBytes32Hex(ethers.toBeHex(value));
+}
+
+function normalizeTagHex(value) {
+  return ethers.hexlify(ethers.zeroPadValue(value, 16)).toLowerCase();
+}
+
 function packEncryptedNoteValue({
   ephemeralPubKeyX,
   ephemeralPubKeyYParity,
@@ -134,26 +140,70 @@ function buildNoteReceiveTypedData({ chainId, channelId, channelName, account })
   };
 }
 
-function buildNoteReceiveAAD({ chainId, channelId, owner }) {
-  return Buffer.from(
-    ethers.getBytes(
+function encodeNoteValuePlaintext(value) {
+  const scalar = BigInt(value);
+  if (scalar < 0n || scalar >= BLS12_381_SCALAR_FIELD_MODULUS) {
+    throw new Error("Encrypted note plaintext value must fit within the BLS12-381 scalar field.");
+  }
+  return scalar;
+}
+
+function decodeNoteValuePlaintext(valueField) {
+  return BigInt(valueField).toString();
+}
+
+function deriveFieldMask({
+  sharedSecretPoint,
+  chainId,
+  channelId,
+  owner,
+  nonce,
+}) {
+  const affine = sharedSecretPoint.toAffine();
+  return BigInt(poseidonHexFromBytes(
+    abiCoder.encode(
+      ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12"],
+      [
+        NOTE_RECEIVE_FIELD_ENCRYPTION_INFO,
+        BigInt(chainId),
+        BigInt(channelId),
+        ethers.getAddress(owner),
+        affine.x,
+        affine.y,
+        ethers.zeroPadValue(nonce, 12),
+      ],
+    ),
+  ));
+}
+
+function deriveCipherTag({
+  sharedSecretPoint,
+  chainId,
+  channelId,
+  owner,
+  nonce,
+  ciphertextValue,
+}) {
+  const affine = sharedSecretPoint.toAffine();
+  return ethers.dataSlice(
+    poseidonHexFromBytes(
       abiCoder.encode(
-        ["string", "uint256", "uint256", "address"],
-        [NOTE_RECEIVE_AAD_LABEL, BigInt(chainId), BigInt(channelId), ethers.getAddress(owner)],
+        ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12", "bytes32"],
+        [
+          `${NOTE_RECEIVE_FIELD_ENCRYPTION_INFO}:tag`,
+          BigInt(chainId),
+          BigInt(channelId),
+          ethers.getAddress(owner),
+          affine.x,
+          affine.y,
+          ethers.zeroPadValue(nonce, 12),
+          fieldElementHex(ciphertextValue),
+        ],
       ),
     ),
+    0,
+    16,
   );
-}
-
-function encodeNoteValuePlaintext(value) {
-  return Buffer.from(ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(BigInt(value)), 32)));
-}
-
-function decodeNoteValuePlaintext(valueBytes) {
-  if (valueBytes.length !== 32) {
-    throw new Error("Encrypted note plaintext must decode to 32 bytes.");
-  }
-  return BigInt(ethers.hexlify(valueBytes)).toString();
 }
 
 export async function deriveNoteReceiveKeyMaterial({
@@ -200,29 +250,33 @@ export function encryptNoteValueForRecipient({
   const recipientPoint = pointFromNoteReceivePubKey(recipientNoteReceivePubKey);
   const ephemeralPrivateScalar = deriveEphemeralJubjubScalar();
   const ephemeralPoint = jubjub.ExtendedPoint.BASE.multiply(ephemeralPrivateScalar);
-  const sharedSecret = Buffer.from(recipientPoint.multiply(ephemeralPrivateScalar).toRawBytes());
-  const aad = buildNoteReceiveAAD({ chainId, channelId, owner });
-  const encryptionKey = Buffer.from(hkdfSync("sha256", sharedSecret, NOTE_RECEIVE_ECIES_INFO, aad, 32));
-  const cipherNonce = nonce ? Buffer.from(ethers.getBytes(nonce)) : randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", encryptionKey, cipherNonce);
-  cipher.setAAD(aad);
-  const ciphertextValue = Buffer.concat([cipher.update(encodeNoteValuePlaintext(value)), cipher.final()]);
-  const tag = cipher.getAuthTag();
+  const sharedSecretPoint = recipientPoint.multiply(ephemeralPrivateScalar);
+  const cipherNonce = nonce ? ethers.zeroPadValue(nonce, 12) : ethers.hexlify(randomBytes(12));
+  const plaintextValue = encodeNoteValuePlaintext(value);
+  const fieldMask = deriveFieldMask({
+    sharedSecretPoint,
+    chainId,
+    channelId,
+    owner,
+    nonce: cipherNonce,
+  });
+  const ciphertextValue = (plaintextValue + fieldMask) % BLS12_381_SCALAR_FIELD_MODULUS;
+  const tag = deriveCipherTag({
+    sharedSecretPoint,
+    chainId,
+    channelId,
+    owner,
+    nonce: cipherNonce,
+    ciphertextValue,
+  });
   const parsedEphemeralPubKey = noteReceivePubKeyFromPoint(ephemeralPoint);
-
-  if (ciphertextValue.length !== 32) {
-    throw new Error("Encrypted note value ciphertext must remain 32 bytes.");
-  }
-  if (tag.length !== 16) {
-    throw new Error("Encrypted note value tag must remain 16 bytes.");
-  }
 
   return packEncryptedNoteValue({
     ephemeralPubKeyX: parsedEphemeralPubKey.x,
     ephemeralPubKeyYParity: parsedEphemeralPubKey.yParity,
-    nonce: ethers.hexlify(cipherNonce),
-    ciphertextValue: ethers.hexlify(ciphertextValue),
-    tag: ethers.hexlify(tag),
+    nonce: cipherNonce,
+    ciphertextValue: fieldElementHex(ciphertextValue),
+    tag,
   });
 }
 
@@ -234,25 +288,33 @@ export function decryptEncryptedNoteValue({
   owner,
 }) {
   const normalized = unpackEncryptedNoteValue(encryptedValue);
-  const sharedSecret = Buffer.from(
-    pointFromNoteReceivePubKey({
+  const sharedSecretPoint = pointFromNoteReceivePubKey({
       x: normalized.ephemeralPubKeyX,
       yParity: normalized.ephemeralPubKeyYParity,
-    }).multiply(parseJubjubPrivateScalar(noteReceivePrivateKey)).toRawBytes(),
-  );
-  const aad = buildNoteReceiveAAD({ chainId, channelId, owner });
-  const encryptionKey = Buffer.from(hkdfSync("sha256", sharedSecret, NOTE_RECEIVE_ECIES_INFO, aad, 32));
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    encryptionKey,
-    Buffer.from(ethers.getBytes(normalized.nonce)),
-  );
-  decipher.setAAD(aad);
-  decipher.setAuthTag(Buffer.from(ethers.getBytes(normalized.tag)));
-  const plaintext = Buffer.concat([
-    decipher.update(Buffer.from(ethers.getBytes(normalized.ciphertextValue))),
-    decipher.final(),
-  ]);
+    }).multiply(parseJubjubPrivateScalar(noteReceivePrivateKey));
+  const expectedTag = deriveCipherTag({
+    sharedSecretPoint,
+    chainId,
+    channelId,
+    owner,
+    nonce: normalized.nonce,
+    ciphertextValue: ethers.toBigInt(normalized.ciphertextValue),
+  });
+  if (normalizeTagHex(expectedTag) !== normalizeTagHex(normalized.tag)) {
+    throw new Error("Encrypted note value integrity tag mismatch.");
+  }
+  const fieldMask = deriveFieldMask({
+    sharedSecretPoint,
+    chainId,
+    channelId,
+    owner,
+    nonce: normalized.nonce,
+  });
+  const plaintext = (
+    ethers.toBigInt(normalized.ciphertextValue)
+    - fieldMask
+    + BLS12_381_SCALAR_FIELD_MODULUS
+  ) % BLS12_381_SCALAR_FIELD_MODULUS;
   return decodeNoteValuePlaintext(plaintext);
 }
 

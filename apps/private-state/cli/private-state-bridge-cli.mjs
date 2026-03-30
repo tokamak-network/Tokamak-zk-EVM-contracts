@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -60,7 +61,7 @@ const projectRoot = path.resolve(__dirname, "../../..");
 const appRoot = path.resolve(projectRoot, "apps/private-state");
 const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
-const workspaceRoot = path.resolve(__dirname, "workspace");
+const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-state", "workspace");
 const gitmodulesPath = path.resolve(projectRoot, ".gitmodules");
 const tokamakSubmodulePath = "submodules/Tokamak-zk-EVM";
 const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");

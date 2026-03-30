@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -89,7 +90,7 @@ const requiredTokamakSetupArtifacts = [
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
 const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
-const workspaceRoot = path.resolve(appRoot, "cli", "workspace");
+const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-state", "workspace");
 const legacyWorkspaceRoot = path.resolve(appRoot, "cli", "workspaces");
 const legacyWalletsRoot = path.resolve(appRoot, "cli", "wallets");
 const abiCoder = AbiCoder.defaultAbiCoder();

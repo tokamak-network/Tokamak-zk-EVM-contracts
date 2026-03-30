@@ -143,6 +143,7 @@
         <section>
           <h2>Shared Inputs</h2>
           <form class="box">
+            <div id="workspace-picker" class="field-stack"></div>
             <div id="memory-fields" class="fields"></div>
           </form>
         </section>
@@ -194,6 +195,9 @@
     <script>
       const storageKey = "private-state-cli-assistant:v2";
       const cliEntry = "node apps/private-state/cli/private-state-bridge-cli.mjs";
+      const defaultWorkspaceRootLabel = navigator.userAgent.includes("Windows")
+        ? "%USERPROFILE%\\\\tokamak-private-state\\\\workspace"
+        : "~/tokamak-private-state/workspace";
 
       const fieldCatalog = {
         channelName: {
@@ -295,11 +299,13 @@
       ];
 
       const state = loadState();
-      const walletDirectoryState = {
+      const workspaceDirectoryState = {
         handle: null,
-        options: [],
+        channelOptions: [],
+        walletOptions: [],
       };
 
+      const workspacePickerEl = document.getElementById("workspace-picker");
       const memoryFieldsEl = document.getElementById("memory-fields");
       const commandSelectEl = document.getElementById("command-select");
       const commandDescriptionEl = document.getElementById("command-description");
@@ -359,6 +365,10 @@
 
       function commandNeedsWallet(command = currentCommand()) {
         return command.fields.includes("wallet");
+      }
+
+      function commandNeedsExistingChannel(command = currentCommand()) {
+        return command.fields.includes("channelName") && command.id !== "create-channel";
       }
 
       function needsAlchemy(command) {
@@ -443,7 +453,65 @@
         }, "");
       }
 
-      async function chooseWalletDirectory() {
+      async function loadWorkspaceDirectoryOptions(handle) {
+        const channelEntries = [];
+
+        for await (const [folderName, childHandle] of handle.entries()) {
+          if (childHandle.kind !== "directory") {
+            continue;
+          }
+
+          const channelDirHandle = await childHandle.getDirectoryHandle("channel").catch(() => null);
+          if (!channelDirHandle) {
+            continue;
+          }
+
+          const workspaceFileHandle = await channelDirHandle.getFileHandle("workspace.json").catch(() => null);
+          if (!workspaceFileHandle) {
+            continue;
+          }
+
+          let workspaceJson;
+          try {
+            workspaceJson = JSON.parse(await (await workspaceFileHandle.getFile()).text());
+          } catch {
+            continue;
+          }
+
+          const channelName = typeof workspaceJson.channelName === "string" && workspaceJson.channelName.length > 0
+            ? workspaceJson.channelName
+            : folderName;
+
+          const walletsHandle = await childHandle.getDirectoryHandle("wallets").catch(() => null);
+          const walletNames = [];
+          if (walletsHandle) {
+            for await (const [walletFolderName, walletHandle] of walletsHandle.entries()) {
+              if (walletHandle.kind !== "directory") {
+                continue;
+              }
+              const addressMatch = /-(0x[a-fA-F0-9]{40})$/.exec(walletFolderName);
+              walletNames.push(addressMatch ? `${channelName}-${addressMatch[1]}` : walletFolderName);
+            }
+          }
+
+          channelEntries.push({
+            channelName,
+            walletNames,
+          });
+        }
+
+        channelEntries.sort((left, right) => left.channelName.localeCompare(right.channelName));
+        const channelOptions = channelEntries.map((entry) => entry.channelName);
+        const walletOptions = [...new Set(channelEntries.flatMap((entry) => entry.walletNames))]
+          .sort((left, right) => left.localeCompare(right));
+
+        return {
+          channelOptions,
+          walletOptions,
+        };
+      }
+
+      async function chooseWorkspaceDirectory() {
         if (typeof window.showDirectoryPicker !== "function") {
           setStatus("This browser does not support directory selection.");
           return;
@@ -451,63 +519,72 @@
 
         try {
           const handle = await window.showDirectoryPicker();
-          const options = [];
-          for await (const [name, childHandle] of handle.entries()) {
-            if (childHandle.kind === "directory") {
-              options.push(name);
-            }
+          const options = await loadWorkspaceDirectoryOptions(handle);
+          workspaceDirectoryState.handle = handle;
+          workspaceDirectoryState.channelOptions = options.channelOptions;
+          workspaceDirectoryState.walletOptions = options.walletOptions;
+          if (!options.channelOptions.includes(state.channelName) && currentCommand().id !== "create-channel") {
+            state.channelName = options.channelOptions[0] ?? "";
           }
-          options.sort((left, right) => left.localeCompare(right));
-          walletDirectoryState.handle = handle;
-          walletDirectoryState.options = options;
-          if (!options.includes(state.wallet)) {
-            state.wallet = options[0] ?? "";
+          if (!options.walletOptions.includes(state.wallet)) {
+            state.wallet = options.walletOptions[0] ?? "";
           }
           persistState();
+          renderWorkspacePicker();
           renderCommandFields();
           renderPreview();
           setStatus(
-            options.length === 0
-              ? "Selected directory does not contain wallet folders."
-              : `Loaded ${options.length} wallet folder${options.length === 1 ? "" : "s"}.`,
+            options.channelOptions.length === 0
+              ? "Selected workspace directory does not contain channel folders."
+              : `Loaded ${options.channelOptions.length} channel folder${options.channelOptions.length === 1 ? "" : "s"} and ${options.walletOptions.length} wallet folder${options.walletOptions.length === 1 ? "" : "s"}.`,
           );
         } catch (error) {
           if (error?.name === "AbortError") {
             return;
           }
-          setStatus("Failed to read the selected wallet directory.");
+          setStatus("Failed to read the selected workspace directory.");
         }
+      }
+
+      function renderWorkspacePicker() {
+        workspacePickerEl.innerHTML = "";
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Select workspace directory";
+        button.addEventListener("click", async () => {
+          await chooseWorkspaceDirectory();
+        });
+        workspacePickerEl.appendChild(button);
+
+        const hint = document.createElement("p");
+        hint.className = "hint";
+        hint.textContent = workspaceDirectoryState.handle === null
+          ? `Default CLI workspace root: ${defaultWorkspaceRootLabel}`
+          : `Workspace directory: ${workspaceDirectoryState.handle.name}`;
+        workspacePickerEl.appendChild(hint);
       }
 
       function createWalletField() {
         const wrapper = document.createElement("div");
         wrapper.className = "field-stack";
-
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = "Select wallet directory";
-        button.addEventListener("click", async () => {
-          await chooseWalletDirectory();
-        });
-        wrapper.appendChild(button);
-
         const label = document.createElement("label");
         label.textContent = fieldCatalog.wallet.label;
         const select = document.createElement("select");
         const placeholder = document.createElement("option");
         placeholder.value = "";
-        placeholder.textContent = walletDirectoryState.options.length === 0
-          ? "Select a wallet directory first"
+        placeholder.textContent = workspaceDirectoryState.walletOptions.length === 0
+          ? "Select a workspace directory first"
           : "Choose wallet";
         select.appendChild(placeholder);
-        for (const option of walletDirectoryState.options) {
+        for (const option of workspaceDirectoryState.walletOptions) {
           const optionEl = document.createElement("option");
           optionEl.value = option;
           optionEl.textContent = option;
           select.appendChild(optionEl);
         }
-        select.value = walletDirectoryState.options.includes(state.wallet) ? state.wallet : "";
-        select.disabled = walletDirectoryState.options.length === 0;
+        select.value = workspaceDirectoryState.walletOptions.includes(state.wallet) ? state.wallet : "";
+        select.disabled = workspaceDirectoryState.walletOptions.length === 0;
         select.addEventListener("change", (event) => {
           state.wallet = event.target.value;
           persistState();
@@ -516,20 +593,43 @@
         label.appendChild(select);
         wrapper.appendChild(label);
 
-        const hint = document.createElement("p");
-        hint.className = "hint";
-        hint.textContent = walletDirectoryState.handle === null
-          ? "Choose the local wallets parent directory."
-          : `Wallet directory: ${walletDirectoryState.handle.name}`;
-        wrapper.appendChild(hint);
-
         return wrapper;
+      }
+
+      function createExistingChannelField() {
+        const label = document.createElement("label");
+        label.textContent = fieldCatalog.channelName.label;
+        const select = document.createElement("select");
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = workspaceDirectoryState.channelOptions.length === 0
+          ? "Select a workspace directory first"
+          : "Choose channel";
+        select.appendChild(placeholder);
+        for (const option of workspaceDirectoryState.channelOptions) {
+          const optionEl = document.createElement("option");
+          optionEl.value = option;
+          optionEl.textContent = option;
+          select.appendChild(optionEl);
+        }
+        select.value = workspaceDirectoryState.channelOptions.includes(state.channelName) ? state.channelName : "";
+        select.disabled = workspaceDirectoryState.channelOptions.length === 0;
+        select.addEventListener("change", (event) => {
+          state.channelName = event.target.value;
+          persistState();
+          renderPreview();
+        });
+        label.appendChild(select);
+        return label;
       }
 
       function createField(fieldKey) {
         const config = fieldCatalog[fieldKey];
         if (fieldKey === "wallet") {
           return createWalletField();
+        }
+        if (fieldKey === "channelName" && currentCommand().id !== "create-channel") {
+          return createExistingChannelField();
         }
         const label = document.createElement("label");
         label.textContent = config.label;
@@ -615,14 +715,19 @@
         const command = currentCommand();
         const missing = missingFields(command);
         previewEl.textContent = buildCommand(false);
-        const walletWarning = commandNeedsWallet(command) && walletDirectoryState.handle === null
-          ? " Select a wallet directory to populate the wallet dropdown."
-          : "";
+        const workspaceWarnings = [
+          commandNeedsExistingChannel(command) && workspaceDirectoryState.handle === null
+            ? " Select a workspace directory to populate the channel dropdown."
+            : "",
+          commandNeedsWallet(command) && workspaceDirectoryState.handle === null
+            ? " Select a workspace directory to populate the wallet dropdown."
+            : "",
+        ].join("");
         warningEl.textContent = missing.length === 0
           ? state.network === "anvil"
-            ? `Ready. --alchemy-api-key is omitted automatically on anvil.${walletWarning}`
-            : `Ready.${walletWarning}`
-          : `Missing inputs: ${missing.map((fieldKey) => fieldCatalog[fieldKey].label).join(", ")}.${walletWarning}`;
+            ? `Ready. --alchemy-api-key is omitted automatically on anvil.${workspaceWarnings}`
+            : `Ready.${workspaceWarnings}`
+          : `Missing inputs: ${missing.map((fieldKey) => fieldCatalog[fieldKey].label).join(", ")}.${workspaceWarnings}`;
       }
 
       async function copyText(value) {
@@ -643,6 +748,7 @@
       }
 
       function render() {
+        renderWorkspacePicker();
         renderMemoryFields();
         renderCommandFields();
         renderPreview();

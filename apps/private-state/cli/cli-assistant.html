@@ -512,7 +512,7 @@
       function renderPreview() {
         const command = currentCommand();
         const missing = missingFields(command);
-        previewEl.textContent = buildCommand(true);
+        previewEl.textContent = buildCommand(false);
         warningEl.textContent = missing.length === 0
           ? state.network === "anvil"
             ? "Ready. --alchemy-api-key is omitted automatically on anvil."

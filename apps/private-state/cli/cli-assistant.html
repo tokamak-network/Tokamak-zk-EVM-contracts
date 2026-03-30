@@ -272,12 +272,10 @@
       };
 
       const sharedFieldKeys = [
-        "channelName",
         "network",
         "alchemyApiKey",
         "privateKey",
         "password",
-        "wallet",
       ];
 
       const state = loadState();
@@ -467,12 +465,10 @@
       function renderMemoryFields() {
         memoryFieldsEl.innerHTML = "";
         [
-          "channelName",
           "network",
           "alchemyApiKey",
           "privateKey",
           "password",
-          "wallet",
         ].forEach((fieldKey) => {
           memoryFieldsEl.appendChild(createField(fieldKey));
         });

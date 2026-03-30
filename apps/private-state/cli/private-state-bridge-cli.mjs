@@ -219,19 +219,19 @@ async function main() {
       return;
     }
     case "get-my-address":
-      throw new Error("get-my-address must resolve its network from the local wallet.");
+      throw new Error("get-my-address requires explicit --network.");
     case "get-my-channel-fund":
-      throw new Error("get-my-channel-fund must resolve its network from the local wallet.");
+      throw new Error("get-my-channel-fund requires explicit --network.");
     case "mint-notes":
-      throw new Error("mint-notes must resolve its network from the local wallet.");
+      throw new Error("mint-notes requires explicit --network.");
     case "redeem-notes":
-      throw new Error("redeem-notes must resolve its network from the local wallet.");
+      throw new Error("redeem-notes requires explicit --network.");
     case "get-my-notes":
-      throw new Error("get-my-notes must resolve its network from the local wallet.");
+      throw new Error("get-my-notes requires explicit --network.");
     case "transfer-notes":
-      throw new Error("transfer-notes must resolve its network from the local wallet.");
+      throw new Error("transfer-notes requires explicit --network.");
     case "withdraw-channel":
-      throw new Error("withdraw-channel must resolve its network from the local wallet.");
+      throw new Error("withdraw-channel requires explicit --network.");
     default:
       throw new Error(`Unsupported command: ${args.command}`);
   }
@@ -728,8 +728,8 @@ function tryLoadRecoverableWallet({
   }
 
   try {
-    const walletMetadata = loadWalletMetadata(walletName);
-    const walletContext = loadWallet(walletName, walletPassword);
+    const walletMetadata = loadWalletMetadata(walletName, channelContext.workspace.network);
+    const walletContext = loadWallet(walletName, walletPassword, channelContext.workspace.network);
     assertWalletMatchesMetadata(walletContext, walletMetadata);
     assertExistingRecoverableWallet({
       walletContext,
@@ -2753,11 +2753,12 @@ async function loadChannelContext({ args, networkName, provider, walletContext =
   };
 }
 
-function loadWallet(walletName, walletPassword) {
+function loadWallet(walletName, walletPassword, networkName) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
-  const walletDir = walletPath(normalizedWalletName);
+  const normalizedNetworkName = requireNetworkName({ network: networkName });
+  const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
   if (!walletConfigExists(walletDir)) {
-    throw new Error(`Unknown wallet: ${normalizedWalletName}.`);
+    throw new Error(`Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
   }
   const rawWallet = readEncryptedWalletJson(walletConfigPath(walletDir), walletPassword);
   assertWalletHasRequiredKeys(rawWallet, normalizedWalletName);
@@ -2778,9 +2779,17 @@ function loadWallet(walletName, walletPassword) {
 }
 
 function loadUnlockedWalletWithMetadata(args) {
-  const wallet = loadWallet(requireWalletName(args), requireL2Password(args));
-  const walletMetadata = loadWalletMetadata(wallet.walletName);
+  const networkName = requireNetworkName(args);
+  const wallet = loadWallet(requireWalletName(args), requireL2Password(args), networkName);
+  const walletMetadata = loadWalletMetadata(wallet.walletName, networkName);
   assertWalletMatchesMetadata(wallet, walletMetadata);
+  expect(
+    wallet.wallet.network === networkName,
+    [
+      `Wallet ${wallet.walletName} belongs to network ${wallet.wallet.network},`,
+      `but the command requested --network ${networkName}.`,
+    ].join(" "),
+  );
   return {
     wallet,
     walletMetadata,
@@ -2854,11 +2863,12 @@ function loadBridgeResources({ chainId }) {
   };
 }
 
-function loadWalletMetadata(walletName) {
+function loadWalletMetadata(walletName, networkName) {
   const normalizedWalletName = requireWalletName({ wallet: walletName });
-  const walletDir = walletPath(normalizedWalletName);
+  const normalizedNetworkName = requireNetworkName({ network: networkName });
+  const walletDir = walletPath(normalizedWalletName, normalizedNetworkName);
   if (!walletConfigExists(walletDir)) {
-    throw new Error(`Unknown wallet: ${normalizedWalletName}.`);
+    throw new Error(`Unknown wallet: ${normalizedWalletName} on ${normalizedNetworkName}.`);
   }
   const metadataPath = walletMetadataPath(walletDir);
   if (!fs.existsSync(metadataPath)) {
@@ -2876,6 +2886,10 @@ function loadWalletMetadata(walletName) {
   expect(
     typeof metadata.channelName === "string" && metadata.channelName.length > 0,
       `Wallet ${normalizedWalletName} metadata is missing channelName.`,
+  );
+  expect(
+    metadata.network === normalizedNetworkName,
+    `Wallet ${normalizedWalletName} metadata network (${metadata.network}) does not match --network ${normalizedNetworkName}.`,
   );
   return metadata;
 }
@@ -3615,20 +3629,21 @@ function assertAllowedCommandKeys(args, commandName, allowedKeys, acceptedUsage)
   );
 }
 
-function assertWalletPasswordArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet and --password") {
+function assertWalletPasswordArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet, --password, and --network") {
   requireWalletName(args);
   requireL2Password(args);
+  requireNetworkName(args);
   assertAllowedCommandKeys(
     args,
     commandName,
-    new Set(["command", "positional", "wallet", "password", ...extraOptionKeys]),
+    new Set(["command", "positional", "wallet", "password", "network", ...extraOptionKeys]),
     acceptedUsage,
   );
 }
 
 function assertWalletChannelMoveArgs(args, commandName) {
   requireArg(args.amount, "--amount");
-  assertWalletPasswordArgs(args, commandName, ["amount"], "--wallet, --password, and --amount");
+  assertWalletPasswordArgs(args, commandName, ["amount"], "--wallet, --password, --network, and --amount");
 }
 
 function assertInstallZkEvmArgs(args) {
@@ -3641,13 +3656,13 @@ function assertUninstallZkEvmArgs(args) {
 
 function assertMintNotesArgs(args) {
   requireArg(args.amounts, "--amounts");
-  assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --password, and --amounts");
+  assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --password, --network, and --amounts");
   parseTokenAmountVector(args.amounts);
 }
 
 function assertRedeemNotesArgs(args) {
   requireArg(args.noteId, "--note-id");
-  assertWalletPasswordArgs(args, "redeem-notes", ["noteId"], "--wallet, --password, and --note-id");
+  assertWalletPasswordArgs(args, "redeem-notes", ["noteId"], "--wallet, --password, --network, and --note-id");
   parseNoteId(args.noteId);
 }
 
@@ -3659,7 +3674,7 @@ function assertTransferNotesArgs(args) {
     args,
     "transfer-notes",
     ["noteIds", "recipients", "amounts"],
-    "--wallet, --password, --note-ids, --recipients, and --amounts",
+    "--wallet, --password, --network, --note-ids, --recipients, and --amounts",
   );
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
@@ -3672,7 +3687,7 @@ function assertTransferNotesArgs(args) {
 }
 
 function assertGetMyNotesArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-notes");
+  assertWalletPasswordArgs(args, "get-my-notes", [], "--wallet, --password, and --network");
 }
 
 function assertCreateChannelArgs(args) {
@@ -3748,7 +3763,7 @@ function assertJoinChannelArgs(args) {
 }
 
 function assertGetMyAddressArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-address");
+  assertWalletPasswordArgs(args, "get-my-address", [], "--wallet, --password, and --network");
 }
 
 function assertWithdrawBridgeArgs(args) {
@@ -3765,7 +3780,7 @@ function assertWithdrawBridgeArgs(args) {
 }
 
 function assertGetMyChannelFundArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-channel-fund");
+  assertWalletPasswordArgs(args, "get-my-channel-fund", [], "--wallet, --password, and --network");
 }
 
 function createWalletOperationDir(walletName, suffix) {
@@ -3832,28 +3847,28 @@ Commands:
   join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Bind a wallet to a channel-specific L2 identity
 
-  get-my-address --wallet <NAME> --password <PASSWORD>
+  get-my-address --wallet <NAME> --password <PASSWORD> --network <NAME>
       Check whether a wallet matches the on-chain channel registration
 
-  deposit-channel --wallet <NAME> --password <PASSWORD> --amount <TOKENS>
+  deposit-channel --wallet <NAME> --password <PASSWORD> --network <NAME> --amount <TOKENS>
       Move bridged funds into the channel L2 accounting balance
 
-  withdraw-channel --wallet <NAME> --password <PASSWORD> --amount <TOKENS>
+  withdraw-channel --wallet <NAME> --password <PASSWORD> --network <NAME> --amount <TOKENS>
       Move channel L2 balance back into the shared bridge vault
 
-  get-my-channel-fund --wallet <NAME> --password <PASSWORD>
+  get-my-channel-fund --wallet <NAME> --password <PASSWORD> --network <NAME>
       Read the current channel L2 accounting balance
 
-  mint-notes --wallet <NAME> --password <PASSWORD> --amounts <A,B,...>
+  mint-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --amounts <A,B,...>
       Mint private-state notes from the wallet's channel balance
 
-  transfer-notes --wallet <NAME> --password <PASSWORD> --note-ids <ID,ID,...> --recipients <ADDR,ADDR,...> --amounts <A,B,...>
+  transfer-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-ids <ID,ID,...> --recipients <ADDR,ADDR,...> --amounts <A,B,...>
       Spend input notes into supported private transfer outputs
 
-  redeem-notes --wallet <NAME> --password <PASSWORD> --note-id <ID>
+  redeem-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-id <ID>
       Redeem a tracked note back into the wallet's channel balance
 
-  get-my-notes --wallet <NAME> --password <PASSWORD>
+  get-my-notes --wallet <NAME> --password <PASSWORD> --network <NAME>
       Show the wallet's tracked note state and refresh received notes
 
 Options:
@@ -4012,7 +4027,7 @@ function loadExplicitCommandRuntime(args) {
 }
 
 function loadWalletCommandRuntime(args) {
-  const walletMetadata = loadWalletMetadata(requireWalletName(args));
+  const walletMetadata = loadWalletMetadata(requireWalletName(args), requireNetworkName(args));
   return {
     provider: new JsonRpcProvider(walletMetadata.rpcUrl),
   };

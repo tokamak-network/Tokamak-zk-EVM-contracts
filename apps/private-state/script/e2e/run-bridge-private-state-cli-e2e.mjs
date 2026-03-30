@@ -1015,6 +1015,7 @@ function getMyAddress(participant) {
     "get-my-address",
     "--wallet", participant.walletName,
     "--password", participant.password,
+    "--network", "anvil",
   ]);
 }
 
@@ -1031,6 +1032,7 @@ function depositChannel(participant) {
     "deposit-channel",
     "--wallet", participant.walletName,
     "--password", participant.password,
+    "--network", "anvil",
     "--amount", depositAmountTokens,
   ]);
 }
@@ -1040,6 +1042,7 @@ function getMyChannelFund(participant) {
     "get-my-channel-fund",
     "--wallet", participant.walletName,
     "--password", participant.password,
+    "--network", "anvil",
   ]);
 }
 
@@ -1061,6 +1064,7 @@ function mintNotes(participant, amounts) {
     "mint-notes",
     "--wallet", participant.walletName,
     "--password", participant.password,
+    "--network", "anvil",
     "--amounts", JSON.stringify(amounts),
   ]);
 }
@@ -1070,6 +1074,7 @@ function getMyNotes(participant) {
     "get-my-notes",
     "--wallet", participant.walletName,
     "--password", participant.password,
+    "--network", "anvil",
   ]);
 }
 
@@ -1078,6 +1083,7 @@ function transferNotes(participant, noteIds, recipients, amounts) {
     "transfer-notes",
     "--wallet", participant.walletName,
     "--password", participant.password,
+    "--network", "anvil",
     "--note-ids", JSON.stringify(noteIds),
     "--recipients", JSON.stringify(recipients),
     "--amounts", JSON.stringify(amounts),
@@ -1089,6 +1095,7 @@ function redeemNote(participant, noteId) {
     "redeem-notes",
     "--wallet", participant.walletName,
     "--password", participant.password,
+    "--network", "anvil",
     "--note-id", noteId,
   ]);
 }
@@ -1098,6 +1105,7 @@ function withdrawChannel(participant, amount) {
     "withdraw-channel",
     "--wallet", participant.walletName,
     "--password", participant.password,
+    "--network", "anvil",
     "--amount", amount,
   ]);
 }

@@ -267,14 +267,14 @@
         { id: "get-my-bridge-fund", description: "Read the current bridge-vault balance.", fields: ["network", "privateKey", "alchemyApiKey"] },
         { id: "join-channel", description: "Bind the caller to a channel-specific L2 identity.", fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"] },
         { id: "recover-wallet", description: "Rebuild the recoverable portion of a wallet.", fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"] },
-        { id: "get-my-address", description: "Check whether a saved wallet matches on-chain registration.", fields: ["wallet", "password"] },
-        { id: "deposit-channel", description: "Move bridged funds into the channel L2 accounting balance.", fields: ["wallet", "password", "amount"] },
-        { id: "withdraw-channel", description: "Move channel L2 balance back into the shared bridge vault.", fields: ["wallet", "password", "amount"] },
-        { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "password"] },
-        { id: "mint-notes", description: "Mint private-state notes from the wallet channel balance.", fields: ["wallet", "password", "amounts"] },
-        { id: "transfer-notes", description: "Spend tracked notes into encrypted recipient outputs.", fields: ["wallet", "password", "noteIds", "recipients", "amounts"] },
-        { id: "redeem-notes", description: "Redeem one tracked note back into liquid accounting balance.", fields: ["wallet", "password", "noteId"] },
-        { id: "get-my-notes", description: "Refresh encrypted note-log recovery and show current wallet notes.", fields: ["wallet", "password"] },
+        { id: "get-my-address", description: "Check whether a saved wallet matches on-chain registration.", fields: ["wallet", "password", "network"] },
+        { id: "deposit-channel", description: "Move bridged funds into the channel L2 accounting balance.", fields: ["wallet", "password", "network", "amount"] },
+        { id: "withdraw-channel", description: "Move channel L2 balance back into the shared bridge vault.", fields: ["wallet", "password", "network", "amount"] },
+        { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "password", "network"] },
+        { id: "mint-notes", description: "Mint private-state notes from the wallet channel balance.", fields: ["wallet", "password", "network", "amounts"] },
+        { id: "transfer-notes", description: "Spend tracked notes into encrypted recipient outputs.", fields: ["wallet", "password", "network", "noteIds", "recipients", "amounts"] },
+        { id: "redeem-notes", description: "Redeem one tracked note back into liquid accounting balance.", fields: ["wallet", "password", "network", "noteId"] },
+        { id: "get-my-notes", description: "Refresh encrypted note-log recovery and show current wallet notes.", fields: ["wallet", "password", "network"] },
       ];
 
       const defaultState = {

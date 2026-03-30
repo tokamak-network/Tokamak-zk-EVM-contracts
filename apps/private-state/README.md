@@ -198,27 +198,27 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 
 - checks whether the wallet's stored L2 identity matches the on-chain registration
 - returns the wallet L2 address, registered L2 address, storage key, leaf index, and match status
-- accepts only `--wallet` and `--password`
+- accepts `--wallet`, `--password`, and `--network`
 
 ### 7. Move value into the channel L2 accounting vault
 
 `deposit-channel`
 
 - moves value from the shared bridge-level `bridgeTokenVault` into the channel-level L2 accounting vault
-- accepts only `--wallet`, `--password`, and `--amount`
+- accepts `--wallet`, `--password`, `--network`, and `--amount`
 - requires an existing wallet with plaintext network/channel metadata and encrypted L1/L2 keys
 
 `get-my-channel-fund`
 
 - reads the current channel L2 accounting balance bound to the wallet registration
-- accepts only `--wallet` and `--password`
+- accepts `--wallet`, `--password`, and `--network`
 
 ### 8. Mint private notes from the wallet balance
 
 `mint-notes`
 
 - mints one to six notes owned by the wallet's L2 address
-- accepts `--wallet`, `--password`, and `--amounts`
+- accepts `--wallet`, `--password`, `--network`, and `--amounts`
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
 
 ### 9. Transfer notes
@@ -226,7 +226,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 `transfer-notes`
 
 - consumes tracked input notes and creates encrypted recipient note payloads
-- accepts `--wallet`, `--password`, `--note-ids`, `--recipients`, and `--amounts`
+- accepts `--wallet`, `--password`, `--network`, `--note-ids`, `--recipients`, and `--amounts`
 - supports only `1->1`, `1->2`, and `2->1` note transfer shapes
 - updates the sender wallet immediately and relies on recipient-side event-log recovery rather than local recipient inbox files
 
@@ -238,21 +238,21 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 - decrypts note payloads addressed to the caller
 - merges newly discovered notes into the encrypted wallet
 - reports both unused and spent note sets plus bridge-consistency status
-- accepts only `--wallet` and `--password`
+- accepts `--wallet`, `--password`, and `--network`
 
 ### 11. Redeem notes
 
 `redeem-notes`
 
 - redeems one tracked note back into liquid accounting balance
-- accepts `--wallet`, `--password`, and `--note-id`
+- accepts `--wallet`, `--password`, `--network`, and `--note-id`
 
 ### 12. Move value back to the shared L1 bridge vault
 
 `withdraw-channel`
 
 - moves value from the channel L2 accounting vault back into the shared bridge-level `bridgeTokenVault`
-- accepts only `--wallet`, `--password`, and `--amount`
+- accepts `--wallet`, `--password`, `--network`, and `--amount`
 
 ### 13. Claim the shared L1 bridge deposit
 

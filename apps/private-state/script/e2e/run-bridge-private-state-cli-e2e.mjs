@@ -720,7 +720,7 @@ async function resolveParticipantRegistrations(provider, participants) {
     }
     expect(
       resolved !== null,
-      `Failed to resolve a collision-free register-channel password for ${participant.alias} within 64 attempts.`,
+      `Failed to resolve a collision-free join-channel password for ${participant.alias} within 64 attempts.`,
     );
     participant.password = resolved.password;
     participant.registration = resolved;
@@ -969,9 +969,7 @@ function createChannel() {
   return runPrivateStateCli([
     "create-channel",
     "--channel-name", channelName,
-    "--dapp-label", dappLabel,
     "--private-key", anvilDeployerPrivateKey,
-    "--create-workspace",
     "--network", "anvil",
   ]);
 }
@@ -985,9 +983,9 @@ function depositBridge(participant) {
   ]);
 }
 
-function registerChannel(participant) {
+function joinChannel(participant) {
   const result = runPrivateStateCli([
-    "register-channel",
+    "join-channel",
     "--channel-name", channelName,
     "--network", "anvil",
     "--private-key", participant.l1PrivateKey,
@@ -998,46 +996,37 @@ function registerChannel(participant) {
   if (participant.registration !== null) {
     expect(
       getAddress(result.l2Address) === getAddress(participant.registration.l2Identity.l2Address),
-      `${participant.alias} register-channel resolved an unexpected L2 address.`,
+      `${participant.alias} join-channel resolved an unexpected L2 address.`,
     );
     expect(
       normalizeBytes32Hex(result.l2StorageKey) === normalizeBytes32Hex(participant.registration.storageKey),
-      `${participant.alias} register-channel resolved an unexpected storage key.`,
+      `${participant.alias} join-channel resolved an unexpected storage key.`,
     );
     expect(
       BigInt(result.leafIndex) === BigInt(participant.registration.leafIndex),
-      `${participant.alias} register-channel resolved an unexpected leaf index.`,
+      `${participant.alias} join-channel resolved an unexpected leaf index.`,
     );
   }
   expect(
     result.wallet === sharedWalletNameForChannelAndAddress(channelName, result.l2Address),
-    `register-channel returned unexpected wallet name ${result.wallet}.`,
+    `join-channel returned unexpected wallet name ${result.wallet}.`,
   );
   return result;
 }
 
-function getWalletAddress(participant) {
+function getMyAddress(participant) {
   return runPrivateStateCli([
-    "get-wallet-address",
+    "get-my-address",
     "--wallet", participant.walletName,
     "--password", participant.password,
   ]);
 }
 
-function isChannelRegistered(participant) {
+function getMyBridgeFund(participant) {
   return runPrivateStateCli([
-    "is-channel-registered",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-  ]);
-}
-
-function getBridgeDeposit(participant) {
-  return runPrivateStateCli([
-    "get-bridge-deposit",
+    "get-my-bridge-fund",
     "--network", "anvil",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
+    "--private-key", participant.l1PrivateKey,
   ]);
 }
 
@@ -1050,9 +1039,9 @@ function depositChannel(participant) {
   ]);
 }
 
-function getChannelDeposit(participant) {
+function getMyChannelFund(participant) {
   return runPrivateStateCli([
-    "get-channel-deposit",
+    "get-my-channel-fund",
     "--wallet", participant.walletName,
     "--password", participant.password,
   ]);
@@ -1063,7 +1052,6 @@ function recoverWorkspace() {
     "recover-workspace",
     "--channel-name", channelName,
     "--network", "anvil",
-    "--force",
   ]);
 }
 
@@ -1116,8 +1104,8 @@ function withdrawChannel(participant, amount) {
 function withdrawBridge(participant, amount) {
   return runPrivateStateCli([
     "withdraw-bridge",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
+    "--network", "anvil",
+    "--private-key", participant.l1PrivateKey,
     "--amount", amount,
   ]);
 }
@@ -1184,30 +1172,29 @@ async function main() {
     for (const participant of participants) {
       const participantResults = {};
       participantResults.depositBridge = depositBridge(participant);
-      participantResults.registerChannel = registerChannel(participant);
-      participantResults.getWalletAddress = getWalletAddress(participant);
-      participantResults.isChannelRegistered = isChannelRegistered(participant);
+      participantResults.joinChannel = joinChannel(participant);
+      participantResults.getMyAddress = getMyAddress(participant);
       participantResults.depositChannel = depositChannel(participant);
-      participantResults.getChannelDeposit = getChannelDeposit(participant);
-      participantResults.getBridgeDeposit = getBridgeDeposit(participant);
+      participantResults.getMyChannelFund = getMyChannelFund(participant);
+      participantResults.getMyBridgeFund = getMyBridgeFund(participant);
 
       expect(
-        String(participantResults.getWalletAddress.l2Address).toLowerCase()
-          === String(participantResults.registerChannel.l2Address).toLowerCase(),
+        String(participantResults.getMyAddress.registeredL2Address).toLowerCase()
+          === String(participantResults.joinChannel.l2Address).toLowerCase(),
         `${participant.alias} registered L2 address mismatch.`,
       );
       expect(
-        participantResults.isChannelRegistered.registrationExists === true
-          && participantResults.isChannelRegistered.matchesWallet === true,
+        participantResults.getMyAddress.registrationExists === true
+          && participantResults.getMyAddress.matchesWallet === true,
         `${participant.alias} channel registration does not match the local wallet.`,
       );
       assertBigIntEq(
-        participantResults.getChannelDeposit.channelDepositBaseUnits,
+        participantResults.getMyChannelFund.channelDepositBaseUnits,
         depositAmountBaseUnits,
         `${participant.alias} channel deposit`,
       );
       assertBigIntEq(
-        participantResults.getBridgeDeposit.availableBalanceBaseUnits,
+        participantResults.getMyBridgeFund.availableBalanceBaseUnits,
         0n,
         `${participant.alias} bridge deposit after deposit-channel`,
       );
@@ -1274,7 +1261,7 @@ async function main() {
     const notesAfterRedeemC = getMyNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
 
-    const channelDepositBeforeWithdraw = getChannelDeposit(participants[2]);
+    const channelDepositBeforeWithdraw = getMyChannelFund(participants[2]);
     assertBigIntEq(
       channelDepositBeforeWithdraw.channelDepositBaseUnits,
       claimAmountBaseUnits,
@@ -1283,8 +1270,8 @@ async function main() {
 
     const l1BalanceBeforeClaim = readErc20Balance(canonicalAsset, participants[2].l1Address);
     const withdrawChannelResult = withdrawChannel(participants[2], claimAmountTokens);
-    const bridgeDepositAfterWithdraw = getBridgeDeposit(participants[2]);
-    const channelDepositAfterWithdraw = getChannelDeposit(participants[2]);
+    const bridgeDepositAfterWithdraw = getMyBridgeFund(participants[2]);
+    const channelDepositAfterWithdraw = getMyChannelFund(participants[2]);
     assertBigIntEq(
       bridgeDepositAfterWithdraw.availableBalanceBaseUnits,
       claimAmountBaseUnits,
@@ -1297,7 +1284,7 @@ async function main() {
     );
 
     const withdrawBridgeResult = withdrawBridge(participants[2], claimAmountTokens);
-    const bridgeDepositAfterClaim = getBridgeDeposit(participants[2]);
+    const bridgeDepositAfterClaim = getMyBridgeFund(participants[2]);
     const l1BalanceAfterClaim = readErc20Balance(canonicalAsset, participants[2].l1Address);
     assertBigIntEq(
       bridgeDepositAfterClaim.availableBalanceBaseUnits,
@@ -1309,8 +1296,8 @@ async function main() {
       claimAmountBaseUnits,
       "participant-c L1 ERC20 claim delta",
     );
-    assertBigIntEq(getBridgeDeposit(participants[0]).availableBalanceBaseUnits, 0n, "participant-a final bridge deposit");
-    assertBigIntEq(getBridgeDeposit(participants[1]).availableBalanceBaseUnits, 0n, "participant-b final bridge deposit");
+    assertBigIntEq(getMyBridgeFund(participants[0]).availableBalanceBaseUnits, 0n, "participant-a final bridge deposit");
+    assertBigIntEq(getMyBridgeFund(participants[1]).availableBalanceBaseUnits, 0n, "participant-b final bridge deposit");
 
     const summary = {
       providerUrl,

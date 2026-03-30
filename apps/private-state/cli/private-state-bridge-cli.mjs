@@ -57,12 +57,10 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../../..");
-const appsRoot = path.resolve(projectRoot, "apps");
 const appRoot = path.resolve(projectRoot, "apps/private-state");
 const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
 const workspaceRoot = path.resolve(__dirname, "workspace");
-const defaultEnvFile = path.resolve(appsRoot, ".env");
 const gitmodulesPath = path.resolve(projectRoot, ".gitmodules");
 const tokamakSubmodulePath = "submodules/Tokamak-zk-EVM";
 const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
@@ -76,6 +74,7 @@ const TOKAMAK_APUB_BLOCK_LENGTH = 68;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
+const PRIVATE_STATE_DAPP_LABEL = "private-state";
 const NOTE_RECEIVE_TYPED_DATA_METHOD = "eth_signTypedData_v4";
 const NOTE_RECEIVE_KEY_DERIVATION_VERSION = 2;
 const NOTE_RECEIVE_TYPED_DATA_DOMAIN = {
@@ -151,10 +150,6 @@ async function main() {
       assert: assertTransferNotesArgs,
       run: ({ provider }) => handleTransferNotes({ args, provider }),
     },
-    "withdraw-bridge": {
-      assert: assertWithdrawBridgeArgs,
-      run: ({ provider }) => handleWithdrawBridge({ args, provider }),
-    },
     "deposit-channel": {
       assert: (parsedArgs) => assertWalletChannelMoveArgs(parsedArgs, "deposit-channel"),
       run: ({ provider }) => handleGrothVaultMove({ args, provider, direction: "deposit" }),
@@ -163,17 +158,13 @@ async function main() {
       assert: (parsedArgs) => assertWalletChannelMoveArgs(parsedArgs, "withdraw-channel"),
       run: ({ provider }) => handleGrothVaultMove({ args, provider, direction: "withdraw" }),
     },
-    "is-channel-registered": {
-      assert: assertIsChannelRegisteredArgs,
-      run: ({ provider }) => handleIsChannelRegistered({ args, provider }),
+    "get-my-address": {
+      assert: assertGetMyAddressArgs,
+      run: ({ provider }) => handleGetMyAddress({ args, provider }),
     },
-    "get-wallet-address": {
-      assert: assertGetWalletAddressArgs,
-      run: ({ provider }) => handleGetWalletAddress({ args, provider }),
-    },
-    "get-channel-deposit": {
-      assert: assertGetChannelDepositArgs,
-      run: ({ provider }) => handleGetChannelDeposit({ args, provider }),
+    "get-my-channel-fund": {
+      assert: assertGetMyChannelFundArgs,
+      run: ({ provider }) => handleGetMyChannelFund({ args, provider }),
     },
   };
   if (walletCommandHandlers[args.command]) {
@@ -183,38 +174,47 @@ async function main() {
     return;
   }
 
-  const env = loadEnv(args.envFile ?? defaultEnvFile);
-  const networkName = args.network ?? env.APPS_NETWORK;
-  if (!networkName) {
-    throw new Error("Missing --network and APPS_NETWORK.");
-  }
-  const network = resolveCliNetwork(networkName);
-  const rpcUrl = deriveRpcUrl({
-    networkName,
-    alchemyApiKey: args.alchemyApiKey ?? env.APPS_ALCHEMY_API_KEY,
-    rpcUrlOverride: args.rpcUrl ?? env.APPS_RPC_URL_OVERRIDE,
-  });
-  const provider = new JsonRpcProvider(rpcUrl);
-
   switch (args.command) {
-    case "create-channel":
-      await handleChannelCreate({ args, env, network, provider });
+    case "create-channel": {
+      assertCreateChannelArgs(args);
+      const { network, provider } = loadExplicitCommandRuntime(args);
+      await handleChannelCreate({ args, network, provider });
       return;
-    case "recover-workspace":
+    }
+    case "recover-workspace": {
+      assertRecoverWorkspaceArgs(args);
+      const { network, provider } = loadExplicitCommandRuntime(args);
       await handleWorkspaceInit({ args, network, provider });
       return;
-    case "deposit-bridge":
-      await handleRegisterAndFund({ args, env, network, provider });
+    }
+    case "deposit-bridge": {
+      assertDepositBridgeArgs(args);
+      const { network, provider } = loadExplicitCommandRuntime(args);
+      await handleRegisterAndFund({ args, network, provider });
       return;
-    case "get-bridge-deposit":
-      await handleGetBridgeDeposit({ args, env, network, provider });
+    }
+    case "withdraw-bridge": {
+      assertWithdrawBridgeArgs(args);
+      const { provider } = loadExplicitCommandRuntime(args);
+      await handleWithdrawBridge({ args, provider });
       return;
-    case "is-channel-registered":
-      throw new Error("is-channel-registered must resolve its network from the local wallet.");
-    case "get-wallet-address":
-      throw new Error("get-wallet-address must resolve its network from the local wallet.");
-    case "get-channel-deposit":
-      throw new Error("get-channel-deposit must resolve its network from the local wallet.");
+    }
+    case "get-my-bridge-fund": {
+      assertGetMyBridgeFundArgs(args);
+      const { provider } = loadExplicitCommandRuntime(args);
+      await handleGetMyBridgeFund({ args, provider });
+      return;
+    }
+    case "join-channel": {
+      assertJoinChannelArgs(args);
+      const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
+      await handleJoinChannel({ args, network, provider, rpcUrl });
+      return;
+    }
+    case "get-my-address":
+      throw new Error("get-my-address must resolve its network from the local wallet.");
+    case "get-my-channel-fund":
+      throw new Error("get-my-channel-fund must resolve its network from the local wallet.");
     case "mint-notes":
       throw new Error("mint-notes must resolve its network from the local wallet.");
     case "redeem-notes":
@@ -223,14 +223,8 @@ async function main() {
       throw new Error("get-my-notes must resolve its network from the local wallet.");
     case "transfer-notes":
       throw new Error("transfer-notes must resolve its network from the local wallet.");
-    case "withdraw-bridge":
-      throw new Error("withdraw-bridge must resolve its network from the local wallet.");
     case "withdraw-channel":
       throw new Error("withdraw-channel must resolve its network from the local wallet.");
-    case "register-channel":
-      assertRegisterChannelArgs(args);
-      await handleRegisterChannel({ args, env, network, provider });
-      return;
     default:
       throw new Error(`Unsupported command: ${args.command}`);
   }
@@ -260,12 +254,10 @@ function assertNoLegacyL2IdentityFlags(args) {
   }
 }
 
-async function handleChannelCreate({ args, env, network, provider }) {
+async function handleChannelCreate({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
-  const dappLabel = requireArg(args.dappLabel, "--dapp-label");
-  const signer = requireL1Signer(args, env, provider);
-  const leader = getAddress(args.leader ?? signer.address);
-  const createWorkspace = parseBooleanFlag(args.createWorkspace);
+  const signer = requireL1Signer(args, provider);
+  const leader = getAddress(signer.address);
   const workspaceName = channelName;
 
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
@@ -278,26 +270,20 @@ async function handleChannelCreate({ args, env, network, provider }) {
   const dappId = await resolveDAppIdByLabel({
     provider,
     bridgeResources,
-    dappLabel,
+    dappLabel: PRIVATE_STATE_DAPP_LABEL,
   });
 
   const receipt = await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
-  let workspaceResult = null;
-  if (createWorkspace) {
-    workspaceResult = await initializeChannelWorkspace({
-      workspaceName,
-      channelName,
-      network,
-      provider,
-      bridgeResources,
-      blockInfoFile: null,
-      importedSnapshotFile: null,
-      force: parseBooleanFlag(args.force),
-      persist: true,
-    });
-  }
+  const workspaceResult = await initializeChannelWorkspace({
+    workspaceName,
+    channelName,
+    network,
+    provider,
+    bridgeResources,
+    persist: true,
+  });
 
   printJson({
     action: "create-channel",
@@ -331,7 +317,7 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
   }
 
   if (matchingIds.length === 0) {
-    throw new Error(`No registered DApp matches --dapp-label ${dappLabel}.`);
+    throw new Error(`No registered DApp matches the hardcoded label ${dappLabel}.`);
   }
 
   const uniqueIds = [...new Set(matchingIds)];
@@ -350,9 +336,6 @@ async function handleWorkspaceInit({ args, network, provider }) {
     throw new Error("--workspace is not supported by recover-workspace. The workspace name is always the channel name.");
   }
   const workspaceName = channelName;
-  const blockInfoFile = args.blockInfoFile ? resolveInputPath(args.blockInfoFile) : null;
-  const importedSnapshotFile = args.stateSnapshotFile ? resolveInputPath(args.stateSnapshotFile) : null;
-  const force = parseBooleanFlag(args.force);
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
 
   const { workspaceDir, workspace, currentSnapshot } = await initializeChannelWorkspace({
@@ -361,10 +344,8 @@ async function handleWorkspaceInit({ args, network, provider }) {
     network,
     provider,
     bridgeResources,
-    blockInfoFile,
-    importedSnapshotFile,
-    force,
     persist: true,
+    allowExistingWorkspaceSync: true,
   });
 
   printJson({
@@ -387,10 +368,8 @@ async function initializeChannelWorkspace({
   network,
   provider,
   bridgeResources,
-  blockInfoFile,
-  importedSnapshotFile,
-  force,
   persist,
+  allowExistingWorkspaceSync = false,
 }) {
   const workspaceDir = channelWorkspacePath(workspaceName);
   const channelDir = channelDataPath(workspaceDir);
@@ -398,12 +377,13 @@ async function initializeChannelWorkspace({
     || fs.existsSync(channelWorkspaceCurrentPath(workspaceDir))
     || fs.existsSync(channelWorkspaceOperationsPath(workspaceDir));
 
-  if (persist && hasPersistedChannelData) {
-    if (!force) {
-      throw new Error(`Workspace already exists: ${workspaceDir}. Use --force to overwrite.`);
-    }
-    fs.rmSync(channelDir, { recursive: true, force: true });
+  if (persist && hasPersistedChannelData && !allowExistingWorkspaceSync) {
+    throw new Error(`Workspace already exists: ${workspaceDir}.`);
   }
+
+  const existingArtifacts = persist && hasPersistedChannelData
+    ? loadExistingWorkspaceArtifacts(workspaceDir)
+    : null;
 
   const { bridgeDeployment, bridgeAbiManifest } = bridgeResources;
   const bridgeCore = new Contract(bridgeDeployment.bridgeCore, bridgeAbiManifest.contracts.bridgeCore.abi, provider);
@@ -447,24 +427,14 @@ async function initializeChannelWorkspace({
     derivedAPubBlockHash === normalizeBytes32Hex(channelInfo.aPubBlockHash),
     `Derived channel block-info hash ${derivedAPubBlockHash} does not match onchain ${channelInfo.aPubBlockHash}.`,
   );
-  if (blockInfoFile) {
-    const suppliedBlockInfo = readJson(blockInfoFile);
-    const suppliedBlockHash = normalizeBytes32Hex(hashTokamakPublicInputs(encodeTokamakBlockInfo(suppliedBlockInfo)));
-    expect(
-      suppliedBlockHash === derivedAPubBlockHash,
-      [
-        `Supplied block_info.json hash ${suppliedBlockHash} does not match the channel block context.`,
-        `Expected ${derivedAPubBlockHash} from genesis block ${genesisBlockNumber}.`,
-      ].join(" "),
-    );
-  }
-
-  let currentSnapshot;
-  if (importedSnapshotFile) {
-    currentSnapshot = normalizeStateSnapshot(readJson(importedSnapshotFile));
-    assertSnapshotMatchesChannel(currentSnapshot, currentRootVectorHash, managedStorageAddresses);
-  } else {
-    currentSnapshot = await reconstructChannelSnapshot({
+  const localSnapshotReusable = canReuseLocalWorkspaceSnapshot({
+    existingArtifacts,
+    currentRootVectorHash,
+    managedStorageAddresses,
+  });
+  const currentSnapshot = localSnapshotReusable
+    ? existingArtifacts.stateSnapshot
+    : await reconstructChannelSnapshot({
       provider,
       bridgeAbiManifest,
       channelInfo,
@@ -475,7 +445,6 @@ async function initializeChannelWorkspace({
       genesisBlockNumber,
       channelId,
     });
-  }
 
   const workspace = {
     name: workspaceName,
@@ -505,11 +474,14 @@ async function initializeChannelWorkspace({
     ensureDir(channelWorkspaceOperationsPath(workspaceDir));
     ensureDir(workspaceWalletsDir(workspaceDir));
 
-    writeJson(channelWorkspaceConfigPath(workspaceDir), workspace);
-    writeJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"), currentSnapshot);
-    writeJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.normalized.json"), normalizeStateSnapshot(currentSnapshot));
-    writeJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"), blockInfo);
-    writeJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"), contractCodes);
+    writeJsonIfChanged(channelWorkspaceConfigPath(workspaceDir), workspace);
+    writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"), currentSnapshot);
+    writeJsonIfChanged(
+      path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.normalized.json"),
+      normalizeStateSnapshot(currentSnapshot),
+    );
+    writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"), blockInfo);
+    writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"), contractCodes);
   }
 
   return {
@@ -521,13 +493,13 @@ async function initializeChannelWorkspace({
   };
 }
 
-async function handleRegisterAndFund({ args, env, network, provider }) {
+async function handleRegisterAndFund({ args, network, provider }) {
   if (args.wallet !== undefined) {
     throw new Error(
-      "--wallet is not supported by deposit-bridge. Channel wallet keys are set up only by register-channel.",
+      "--wallet is not supported by deposit-bridge. Channel wallet keys are set up only by join-channel.",
     );
   }
-  const signer = requireL1Signer(args, env, provider);
+  const signer = requireL1Signer(args, provider);
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(bridgeVaultContext.canonicalAssetDecimals));
@@ -559,10 +531,10 @@ async function handleRegisterAndFund({ args, env, network, provider }) {
   });
 }
 
-async function handleGetBridgeDeposit({ args, env, network, provider }) {
-  const wallet = args.wallet ? loadWallet(requireWalletName(args), requireL2Password(args)) : null;
-  const signer = resolveWalletBackedSigner({ args, env, provider, walletContext: wallet });
-  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
+async function handleGetMyBridgeFund({ args, provider }) {
+  const signer = requireL1Signer(args, provider);
+  const chainId = Number((await provider.getNetwork()).chainId);
+  const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
   const bridgeTokenVault = new Contract(
     bridgeVaultContext.bridgeTokenVaultAddress,
     bridgeVaultContext.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
@@ -571,8 +543,7 @@ async function handleGetBridgeDeposit({ args, env, network, provider }) {
   const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
 
   printJson({
-    action: "get-bridge-deposit",
-    wallet: wallet?.walletName ?? null,
+    action: "get-my-bridge-fund",
     l1Address: signer.address,
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
     canonicalAsset: bridgeVaultContext.canonicalAsset,
@@ -695,7 +666,7 @@ function isTokamakWorktreeDeletionOnly(porcelainStatus) {
     });
 }
 
-async function handleIsChannelRegistered({ args, provider }) {
+async function handleGetMyAddress({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
   const context = await loadChannelContext({
@@ -712,7 +683,7 @@ async function handleIsChannelRegistered({ args, provider }) {
     && normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(expectedStorageKey);
 
   printJson({
-    action: "is-channel-registered",
+    action: "get-my-address",
     wallet: wallet.walletName,
     network: walletMetadata.network,
     channelName: walletMetadata.channelName,
@@ -727,34 +698,7 @@ async function handleIsChannelRegistered({ args, provider }) {
   });
 }
 
-async function handleGetWalletAddress({ args, provider }) {
-  const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
-  const signer = restoreWalletSigner(wallet, provider);
-  const context = await loadChannelContext({
-    args,
-    networkName: walletMetadata.network,
-    provider,
-    walletContext: wallet,
-  });
-
-  const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-  expect(
-    registration.exists,
-    `No channelTokenVault registration exists for ${signer.address}. Run register-channel first.`,
-  );
-
-  printJson({
-    action: "get-wallet-address",
-    wallet: wallet.walletName,
-    network: walletMetadata.network,
-    channelName: walletMetadata.channelName,
-    l1Address: signer.address,
-    l2Address: getAddress(registration.l2Address),
-    registeredLeafIndex: registration.leafIndex.toString(),
-  });
-}
-
-async function handleGetChannelDeposit({ args, provider }) {
+async function handleGetMyChannelFund({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
   const contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
@@ -763,7 +707,7 @@ async function handleGetChannelDeposit({ args, provider }) {
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   expect(
     registration.exists,
-    `No channelTokenVault registration exists for ${signer.address}. Run register-channel first.`,
+    `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
   );
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   expect(
@@ -783,7 +727,7 @@ async function handleGetChannelDeposit({ args, provider }) {
   );
 
   printJson({
-    action: "get-channel-deposit",
+    action: "get-my-channel-fund",
     wallet: wallet.walletName,
     network: walletMetadata.network,
     channelName: walletMetadata.channelName,
@@ -802,14 +746,14 @@ async function handleGetChannelDeposit({ args, provider }) {
   });
 }
 
-async function handleRegisterChannel({ args, env, network, provider }) {
+async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   const password = requireL2Password(args);
   const context = await loadChannelContext({
     args,
     networkName: network.name,
     provider,
   });
-  const signer = resolveWalletBackedSigner({ args, env, provider });
+  const signer = resolveWalletBackedSigner({ args, provider });
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName: context.workspace.channelName,
     password,
@@ -852,10 +796,11 @@ async function handleRegisterChannel({ args, env, network, provider }) {
       storageKey,
       leafIndex,
       noteReceiveKeyMaterial,
+      rpcUrl,
     });
 
     printJson({
-      action: "register-channel",
+      action: "join-channel",
       workspace: context.workspaceName,
       wallet: walletContext.walletName,
       channelName: context.workspace.channelName,
@@ -887,19 +832,20 @@ async function handleRegisterChannel({ args, env, network, provider }) {
     "The existing note-receive public key parity does not match the derived note-receive public key.",
   );
 
-  const walletContext = ensureWallet({
-    channelContext: context,
-    signerAddress: signer.address,
-    signerPrivateKey: signer.privateKey,
-    l2Identity,
-    walletPassword: password,
-    storageKey,
-    leafIndex: existingRegistration.leafIndex,
-    noteReceiveKeyMaterial,
-  });
+    const walletContext = ensureWallet({
+      channelContext: context,
+      signerAddress: signer.address,
+      signerPrivateKey: signer.privateKey,
+      l2Identity,
+      walletPassword: password,
+      storageKey,
+      leafIndex: existingRegistration.leafIndex,
+      noteReceiveKeyMaterial,
+      rpcUrl,
+    });
 
   printJson({
-    action: "register-channel",
+    action: "join-channel",
     workspace: context.workspaceName,
     wallet: walletContext.walletName,
     channelName: context.workspace.channelName,
@@ -944,7 +890,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   expect(
     registration.exists,
-    `No channelTokenVault registration exists for ${signer.address}. Run register-channel first.`,
+    `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
   );
   expect(
     normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
@@ -1019,8 +965,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
 }
 
 async function handleWithdrawBridge({ args, provider }) {
-  const { wallet } = loadUnlockedWalletWithMetadata(args);
-  const signer = restoreWalletSigner(wallet, provider);
+  const signer = requireL1Signer(args, provider);
   const chainId = Number((await provider.getNetwork()).chainId);
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
   const amountInput = requireArg(args.amount, "--amount");
@@ -1034,7 +979,6 @@ async function handleWithdrawBridge({ args, provider }) {
 
   printJson({
     action: "withdraw-bridge",
-    wallet: wallet.walletName,
     l1Address: signer.address,
     amountInput,
     amountBaseUnits: amount.toString(),
@@ -1287,6 +1231,7 @@ function ensureWallet({
   storageKey,
   leafIndex,
   noteReceiveKeyMaterial,
+  rpcUrl,
 }) {
   const walletName = walletNameForChannelAndAddress(channelContext.workspace.channelName, l2Identity.l2Address);
   const walletDir = walletPath(walletName);
@@ -1307,6 +1252,7 @@ function ensureWallet({
     wallet = normalizeWallet({
       name: walletName,
       network: channelContext.workspace.network,
+      rpcUrl,
       chainId: channelContext.workspace.chainId,
       appDeploymentPath: channelContext.workspace.appDeploymentPath,
       storageLayoutPath: channelContext.workspace.storageLayoutPath,
@@ -1343,6 +1289,7 @@ function ensureWallet({
 
   wallet.appDeploymentPath = channelContext.workspace.appDeploymentPath;
   wallet.storageLayoutPath = channelContext.workspace.storageLayoutPath;
+  wallet.rpcUrl = rpcUrl;
   wallet.channelName = channelContext.workspace.channelName;
   wallet.channelId = channelContext.workspace.channelId;
   wallet.channelManager = channelContext.workspace.channelManager;
@@ -2281,10 +2228,8 @@ async function recoverWalletChannelWorkspace({ walletContext, provider }) {
     network,
     provider,
     bridgeResources,
-    blockInfoFile: null,
-    importedSnapshotFile: null,
-    force: true,
     persist: true,
+    allowExistingWorkspaceSync: true,
   });
 }
 
@@ -2501,17 +2446,12 @@ async function loadChannelContext({ args, networkName, provider, walletContext =
   }
 
   const bridgeResources = loadBridgeResources({ chainId });
-  const blockInfoFile = args.blockInfoFile ? resolveInputPath(args.blockInfoFile) : null;
-  const importedSnapshotFile = args.stateSnapshotFile ? resolveInputPath(args.stateSnapshotFile) : null;
   const initialized = await initializeChannelWorkspace({
     workspaceName: explicitWorkspaceName ?? channelName,
     channelName,
     network: { chainId, name: resolvedNetworkName },
     provider,
     bridgeResources,
-    blockInfoFile,
-    importedSnapshotFile,
-    force: false,
     persist: false,
   });
 
@@ -2591,7 +2531,7 @@ function assertWalletUsesChannelBoundDerivation(wallet, walletName) {
     wallet.l2DerivationMode === CHANNEL_BOUND_L2_DERIVATION_MODE,
     [
       `Wallet ${walletName} was not created with the current channel-bound L2 derivation rule.`,
-      "Create a fresh wallet with register-channel.",
+      "Create a fresh wallet with join-channel.",
     ].join(" "),
   );
   expect(
@@ -2625,9 +2565,9 @@ function restoreWalletParticipant(walletContext, provider) {
   };
 }
 
-function resolveWalletBackedSigner({ args, env, provider, walletContext }) {
+function resolveWalletBackedSigner({ args, provider, walletContext }) {
   if (args.privateKey !== undefined) {
-    const signer = requireL1Signer(args, env, provider);
+    const signer = requireL1Signer(args, provider);
     if (walletContext?.wallet?.l1Address) {
       expect(
         getAddress(walletContext.wallet.l1Address) === getAddress(signer.address),
@@ -2638,9 +2578,6 @@ function resolveWalletBackedSigner({ args, env, provider, walletContext }) {
   }
   if (walletContext?.wallet?.l1PrivateKey) {
     return restoreWalletSigner(walletContext, provider);
-  }
-  if (env.APPS_DEPLOYER_PRIVATE_KEY) {
-    return requireL1Signer(args, env, provider);
   }
   throw new Error("Missing --private-key and no encrypted L1 private key is available in the selected wallet.");
 }
@@ -2674,8 +2611,12 @@ function loadWalletMetadata(walletName) {
     `Wallet ${normalizedWalletName} metadata is missing network.`,
   );
   expect(
+    typeof metadata.rpcUrl === "string" && metadata.rpcUrl.length > 0,
+    `Wallet ${normalizedWalletName} metadata is missing rpcUrl.`,
+  );
+  expect(
     typeof metadata.channelName === "string" && metadata.channelName.length > 0,
-    `Wallet ${normalizedWalletName} metadata is missing channelName.`,
+      `Wallet ${normalizedWalletName} metadata is missing channelName.`,
   );
   return metadata;
 }
@@ -3309,11 +3250,22 @@ function requireWalletName(args) {
   return String(value);
 }
 
-function requireL1Signer(args, env, provider) {
-  const privateKey = args.privateKey ?? env.APPS_DEPLOYER_PRIVATE_KEY;
-  if (!privateKey) {
-    throw new Error("Missing --private-key and APPS_DEPLOYER_PRIVATE_KEY.");
+function requireNetworkName(args) {
+  return String(requireArg(args.network, "--network"));
+}
+
+function requireAlchemyApiKeyForPublicNetwork(args, commandName) {
+  const networkName = requireNetworkName(args);
+  if (networkName !== "anvil") {
+    requireArg(
+      args.alchemyApiKey,
+      `--alchemy-api-key (required for ${commandName} on ${networkName})`,
+    );
   }
+}
+
+function requireL1Signer(args, provider) {
+  const privateKey = requireArg(args.privateKey, "--private-key");
   return new Wallet(normalizePrivateKey(privateKey), provider);
 }
 
@@ -3387,61 +3339,12 @@ function assertWalletChannelMoveArgs(args, commandName) {
   assertWalletPasswordArgs(args, commandName, ["amount"], "--wallet, --password, and --amount");
 }
 
-function assertRegisterChannelArgs(args) {
-  requireL2Password(args);
-  expect(
-    args.channelName !== undefined || args.workspace !== undefined,
-    "register-channel requires either --channel-name or --workspace.",
-  );
-  const allowedKeys = new Set([
-    "command",
-    "positional",
-    "channelName",
-    "workspace",
-    "network",
-    "privateKey",
-    "password",
-    "envFile",
-    "rpcUrl",
-    "alchemyApiKey",
-  ]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      [
-        "register-channel only accepts --channel-name or --workspace, plus",
-        "--network, --rpc-url, --alchemy-api-key, --private-key, --password, and --env-file.",
-        `Unsupported option(s): ${unsupported.join(", ")}.`,
-      ].join(" "),
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "register-channel does not accept positional arguments beyond the command name.",
-  );
-}
-
-function assertIsChannelRegisteredArgs(args) {
-  assertWalletPasswordArgs(args, "is-channel-registered");
-}
-
-function assertGetWalletAddressArgs(args) {
-  assertWalletPasswordArgs(args, "get-wallet-address");
-}
-
 function assertInstallZkEvmArgs(args) {
   assertAllowedCommandKeys(args, "install-zk-evm", new Set(["command", "positional"]), "no options");
 }
 
 function assertUninstallZkEvmArgs(args) {
   assertAllowedCommandKeys(args, "uninstall-zk-evm", new Set(["command", "positional"]), "no options");
-}
-
-function assertWithdrawBridgeArgs(args) {
-  requireArg(args.amount, "--amount");
-  assertWalletPasswordArgs(args, "withdraw-bridge", ["amount"], "--wallet, --password, and --amount");
 }
 
 function assertMintNotesArgs(args) {
@@ -3480,8 +3383,108 @@ function assertGetMyNotesArgs(args) {
   assertWalletPasswordArgs(args, "get-my-notes");
 }
 
-function assertGetChannelDepositArgs(args) {
-  assertWalletPasswordArgs(args, "get-channel-deposit");
+function assertCreateChannelArgs(args) {
+  requireArg(args.channelName, "--channel-name");
+  requireNetworkName(args);
+  requireAlchemyApiKeyForPublicNetwork(args, "create-channel");
+  requireArg(args.privateKey, "--private-key");
+  assertAllowedCommandKeys(
+    args,
+    "create-channel",
+    new Set(["command", "positional", "channelName", "network", "alchemyApiKey", "privateKey"]),
+    "--channel-name, --network, --private-key, and --alchemy-api-key on public networks",
+  );
+}
+
+function assertRecoverWorkspaceArgs(args) {
+  requireArg(args.channelName, "--channel-name");
+  requireNetworkName(args);
+  requireAlchemyApiKeyForPublicNetwork(args, "recover-workspace");
+  assertAllowedCommandKeys(
+    args,
+    "recover-workspace",
+    new Set(["command", "positional", "channelName", "network", "alchemyApiKey"]),
+    "--channel-name, --network, and --alchemy-api-key on public networks",
+  );
+}
+
+function assertDepositBridgeArgs(args) {
+  requireArg(args.amount, "--amount");
+  requireNetworkName(args);
+  requireAlchemyApiKeyForPublicNetwork(args, "deposit-bridge");
+  requireArg(args.privateKey, "--private-key");
+  assertAllowedCommandKeys(
+    args,
+    "deposit-bridge",
+    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "privateKey"]),
+    "--amount, --network, --private-key, and --alchemy-api-key on public networks",
+  );
+}
+
+function assertGetMyBridgeFundArgs(args) {
+  requireNetworkName(args);
+  requireAlchemyApiKeyForPublicNetwork(args, "get-my-bridge-fund");
+  requireArg(args.privateKey, "--private-key");
+  assertAllowedCommandKeys(
+    args,
+    "get-my-bridge-fund",
+    new Set(["command", "positional", "network", "alchemyApiKey", "privateKey"]),
+    "--network, --private-key, and --alchemy-api-key on public networks",
+  );
+}
+
+function assertJoinChannelArgs(args) {
+  requireL2Password(args);
+  requireArg(args.channelName, "--channel-name");
+  requireNetworkName(args);
+  requireAlchemyApiKeyForPublicNetwork(args, "join-channel");
+  requireArg(args.privateKey, "--private-key");
+  const allowedKeys = new Set([
+    "command",
+    "positional",
+    "channelName",
+    "network",
+    "privateKey",
+    "password",
+    "alchemyApiKey",
+  ]);
+  const unsupported = Object.keys(args)
+    .filter((key) => !allowedKeys.has(key))
+    .map((key) => `--${toKebabCase(key)}`);
+  if (unsupported.length > 0) {
+    throw new Error(
+      [
+        "join-channel only accepts --channel-name, plus",
+        "--network, --private-key, --password, and --alchemy-api-key on public networks.",
+        `Unsupported option(s): ${unsupported.join(", ")}.`,
+      ].join(" "),
+    );
+  }
+  expect(
+    (args.positional ?? []).length === 1,
+    "join-channel does not accept positional arguments beyond the command name.",
+  );
+}
+
+function assertGetMyAddressArgs(args) {
+  assertWalletPasswordArgs(args, "get-my-address");
+}
+
+function assertWithdrawBridgeArgs(args) {
+  requireArg(args.amount, "--amount");
+  requireNetworkName(args);
+  requireAlchemyApiKeyForPublicNetwork(args, "withdraw-bridge");
+  requireArg(args.privateKey, "--private-key");
+  assertAllowedCommandKeys(
+    args,
+    "withdraw-bridge",
+    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "privateKey"]),
+    "--amount, --network, --private-key, and --alchemy-api-key on public networks",
+  );
+}
+
+function assertGetMyChannelFundArgs(args) {
+  assertWalletPasswordArgs(args, "get-my-channel-fund");
 }
 
 function createWalletOperationDir(walletName, suffix) {
@@ -3502,6 +3505,7 @@ function persistWallet(context) {
 function persistWalletMetadata(context) {
   writeJson(walletMetadataPath(context.walletDir), {
     network: context.wallet.network,
+    rpcUrl: context.wallet.rpcUrl,
     channelName: context.wallet.channelName,
   });
 }
@@ -3518,81 +3522,59 @@ function persistCurrentState(context) {
 }
 
 function printHelp() {
-  console.log(`private-state bridge CLI
+  console.log(`
+Commands:
+  install-zk-evm
+      Install the local Tokamak zk-EVM toolchain
 
-Usage:
-  node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm
-  node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
-  node apps/private-state/cli/private-state-bridge-cli.mjs create-channel --channel-name <name> --dapp-label <label> --private-key <hex> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes --wallet <name> --password <string> --amounts '[1,2,3]'
-  node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes --wallet <name> --password <string> --note-id <commitment>
-  node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes --wallet <name> --password <string> --note-ids '["0x..."]' --recipients '["0x..."]' --amounts '[1]'
-  node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes --wallet <name> --password <string>
-  node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace --channel-name <name> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge --private-key <hex> --amount <tokens> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge --wallet <name> --password <string> --amount <tokens>
-  node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit [--private-key <hex>] [--wallet <name> --password <string>] [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered --wallet <name> --password <string>
-  node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address --wallet <name> --password <string>
-  node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit --wallet <name> --password <string>
-  node apps/private-state/cli/private-state-bridge-cli.mjs register-channel (--channel-name <name> | --workspace <channel-workspace>) [--private-key <hex>] --password <string> [options]
-  node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel --wallet <name> --password <string> --amount <tokens>
-  node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel --wallet <name> --password <string> --amount <tokens>
+  uninstall-zk-evm
+      Remove the checked-out Tokamak zk-EVM worktree contents
 
-Common flags:
-  --network <name>         Override APPS_NETWORK from apps/.env. Allowed: mainnet, sepolia, anvil
-  --rpc-url <url>          Explicit RPC endpoint override
-  --alchemy-api-key <key>  Explicit Alchemy key override
-  --env-file <path>        Alternate apps/.env location
+  create-channel --channel-name <NAME> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+      Create a bridge channel and initialize its workspace
 
-create-channel options:
-  --dapp-label <label>          Registered bridge DApp label to bind to the new channel
-  --leader <address>           Optional channel leader. Default: the signing EOA
-  --create-workspace           Also initialize a channel workspace after creation using the channel name
+  recover-workspace --channel-name <NAME> --network <NAME> --alchemy-api-key <KEY>
+      Rebuild the local channel workspace from bridge state
 
-recover-workspace options:
-  --channel-name <name>        User-provided channel name; channelId is derived as keccak256(bytes(name))
-  --block-info-file <path>     Optional block_info.json override; must match the channel genesis block context
-  --state-snapshot-file <path> Import an existing non-genesis snapshot
-  --force                      Overwrite an existing workspace
+  deposit-bridge --amount <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+      Deposit canonical tokens into the shared bridge vault
 
-Notes:
-  - install-zk-evm accepts no options. If submodules/Tokamak-zk-EVM has no checked-out worktree yet, it first bootstraps it from the repository's .gitmodules definition with git submodule update --init --recursive. It then fetches origin/dev in submodules/Tokamak-zk-EVM, switches to the local dev branch, fast-forwards it, and runs the installer.
-  - uninstall-zk-evm accepts no options and removes every file and directory inside submodules/Tokamak-zk-EVM except the submodule's .git pointer file.
-  - anvil is allowed as a CLI network only for command-driven end-to-end testing. It is not the intended network for user-facing real-world operation.
-  - mint-notes requires --wallet, --password, and --amounts only. It derives the network and channel from the local wallet, maps the amount-vector length to the underlying fixed-arity mintNotes<N> call, and stores minted notes back into the encrypted wallet.
-  - redeem-notes requires --wallet, --password, and --note-id only. It uses a note commitment from get-my-notes, redeems through redeemNotes1, and credits the wallet owner's L2 liquid balance.
-  - transfer-notes requires --wallet, --password, --note-ids, --recipients, and --amounts only. It uses note commitments from get-my-notes as note IDs, enforces --amounts.length === --recipients.length, and supports only 1->1, 1->2, and 2->1 transfer shapes.
-  - get-my-notes requires --wallet and --password only. It scans bridge-propagated private-state transfer events from Ethereum, decrypts the caller's incoming note payloads, merges any newly discovered notes into the encrypted wallet, and then verifies each tracked note against the current controller commitment/nullifier state accepted by the bridge.
-  - mint-notes, redeem-notes, and transfer-notes always run from the saved channel workspace under apps/private-state/cli/workspace/<channel-name>/channel/. If that workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, reloads it from disk, and then continues. A tokamak-cli --verify failure is also treated as recoverable once.
-  - redeem-notes updates both the encrypted wallet note sets and the saved channel workspace snapshot after success.
-  - transfer-notes updates both the encrypted wallet note sets and the saved channel workspace snapshot after success.
-  - transfer-notes updates the sender wallet and relies on Ethereum event logs for recipient note discovery. It does not rewrite recipient wallet files.
-  - recover-workspace derives block_info.json from the channel genesis block and reconstructs the latest channel state from bridge events.
-  - recover-workspace always writes into apps/private-state/cli/workspace/<channel-name>/channel/.
-  - Channel workspaces remain optional as user-managed files, but wallet-backed snapshot commands now create or refresh them automatically before execution.
-  - Wallets are the mandatory local state for note-carrying users. They track L2 identity, nonce, and used/unused notes.
-  - deposit-bridge only funds the shared bridge-level bridgeTokenVault.
-  - withdraw-bridge requires --wallet, --password, and --amount only. It derives the network and signer keys from the local wallet and calls claimToWallet to move value from the shared bridge-level bridgeTokenVault back into Tokamak Network Token in the caller wallet.
-  - get-bridge-deposit reads the caller's shared bridge-level bridgeTokenVault balance.
-  - is-channel-registered requires --wallet and --password only. It derives the network and channel from the local wallet, then checks whether the wallet's L2 identity matches the on-chain channel registration.
-  - get-wallet-address requires --wallet and --password only. It derives the network and channel from the local wallet, then reads the caller's registered L2 address from the bridge channel registration.
-  - get-channel-deposit requires --wallet and --password only. It derives the network and channel from the local wallet, requires the wallet's L2 identity to match the on-chain channel registration, and then reads the current channel L2 accounting balance bound to that registration.
-  - register-channel is the channel-specific identity binding step. It stores the caller's L2 address, channelTokenVault key, channelTokenVault leaf index, and local wallet keys for the selected channel.
-  - register-channel always creates or reuses the deterministic wallet folder name <channelName>-<l2Address>. It does not accept --wallet.
-  - register-channel is the only command that sets up wallet keys in the active wallet.
-  - mint-notes, redeem-notes, and transfer-notes update nonce and note state inside an existing wallet, but they do not set up wallet keys.
-  - Once a wallet exists, get-bridge-deposit, withdraw-bridge, mint-notes, redeem-notes, and transfer-notes can recover the stored signer and L2 identity from the encrypted wallet using --password alone.
-  - deposit-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and fails if wallet metadata or keys are missing.
-  - withdraw-channel requires --wallet, --password, and --amount only. It derives the network, channel, and signer keys from the local wallet and calls the bridge withdraw path to move value from the channel L2 accounting vault back into the shared L1 bridgeTokenVault.
-  - Every wallet-backed command that depends on a channel StateSnapshot first ensures apps/private-state/cli/workspace/<channel-name>/channel/ exists on disk. If the workspace is missing or stale, the CLI rebuilds it through recover-workspace semantics, saves it, reloads it from disk, and only then runs the command.
-  - Recipients discover incoming notes by running get-my-notes, which decrypts NoteValueEncrypted event logs emitted through the bridge execution path and caches the last scanned block in the local wallet.
-  - Every --amount value is interpreted as a human token amount using the canonical Tokamak Network Token decimals.
-  - The CLI auto-selects bridge deployment and ABI files from the chosen network's chain ID.
-  - Channel workspace operations are stored under:
-      apps/private-state/cli/workspace/<workspace>/channel/operations/
-  - Wallet operations are stored under:
-      apps/private-state/cli/workspace/<channel-name>/wallets/<wallet>/operations/
+  withdraw-bridge --amount <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+      Withdraw tokens from the shared bridge vault back to the wallet
+
+  get-my-bridge-fund --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+      Read the current shared bridge vault balance
+
+  join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+      Bind a wallet to a channel-specific L2 identity
+
+  get-my-address --wallet <NAME> --password <PASSWORD>
+      Check whether a wallet matches the on-chain channel registration
+
+  deposit-channel --wallet <NAME> --password <PASSWORD> --amount <TOKENS>
+      Move bridged funds into the channel L2 accounting balance
+
+  withdraw-channel --wallet <NAME> --password <PASSWORD> --amount <TOKENS>
+      Move channel L2 balance back into the shared bridge vault
+
+  get-my-channel-fund --wallet <NAME> --password <PASSWORD>
+      Read the current channel L2 accounting balance
+
+  mint-notes --wallet <NAME> --password <PASSWORD> --amounts <A,B,...>
+      Mint private-state notes from the wallet's channel balance
+
+  transfer-notes --wallet <NAME> --password <PASSWORD> --note-ids <ID,ID,...> --recipients <ADDR,ADDR,...> --amounts <A,B,...>
+      Spend input notes into supported private transfer outputs
+
+  redeem-notes --wallet <NAME> --password <PASSWORD> --note-id <ID>
+      Redeem a tracked note back into the wallet's channel balance
+
+  get-my-notes --wallet <NAME> --password <PASSWORD>
+      Show the wallet's tracked note state and refresh received notes
+
+Options:
+  --help
+      Show this help
 `);
 }
 
@@ -3600,9 +3582,66 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
+function readJsonIfExists(filePath) {
+  return fs.existsSync(filePath) ? readJson(filePath) : null;
+}
+
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function canonicalizeJsonValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeJsonValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((accumulator, key) => {
+        accumulator[key] = canonicalizeJsonValue(value[key]);
+        return accumulator;
+      }, {});
+  }
+  return value;
+}
+
+function hashJsonValue(value) {
+  return keccak256(
+    ethers.toUtf8Bytes(
+      JSON.stringify(canonicalizeJsonValue(serializeBigInts(value))),
+    ),
+  );
+}
+
+function writeJsonIfChanged(filePath, value) {
+  const nextHash = hashJsonValue(value);
+  if (fs.existsSync(filePath) && hashJsonValue(readJson(filePath)) === nextHash) {
+    return false;
+  }
+  writeJson(filePath, value);
+  return true;
+}
+
+function loadExistingWorkspaceArtifacts(workspaceDir) {
+  const currentDir = channelWorkspaceCurrentPath(workspaceDir);
+  const stateSnapshot = readJsonIfExists(path.join(currentDir, "state_snapshot.json"));
+  return {
+    workspace: readJsonIfExists(channelWorkspaceConfigPath(workspaceDir)),
+    stateSnapshot: stateSnapshot ? normalizeStateSnapshot(stateSnapshot) : null,
+    blockInfo: readJsonIfExists(path.join(currentDir, "block_info.json")),
+    contractCodes: readJsonIfExists(path.join(currentDir, "contract_codes.json")),
+  };
+}
+
+function canReuseLocalWorkspaceSnapshot({ existingArtifacts, currentRootVectorHash, managedStorageAddresses }) {
+  const localSnapshot = existingArtifacts?.stateSnapshot;
+  if (!localSnapshot) {
+    return false;
+  }
+  return normalizeBytes32Hex(hashRootVector(localSnapshot.stateRoots)) === normalizeBytes32Hex(currentRootVectorHash)
+    && hashJsonValue(normalizedAddressVector(localSnapshot.storageAddresses))
+      === hashJsonValue(normalizedAddressVector(managedStorageAddresses));
 }
 
 function writeEncryptedWalletJson(filePath, value, walletPassword) {
@@ -3674,54 +3713,25 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function resolveInputPath(inputPath) {
-  return path.isAbsolute(inputPath) ? inputPath : path.resolve(projectRoot, inputPath);
-}
-
-function loadEnv(envFile) {
-  if (!fs.existsSync(envFile)) {
-    return {};
-  }
-
-  const env = {};
-  const lines = fs.readFileSync(envFile, "utf8").split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-    const separator = trimmed.indexOf("=");
-    if (separator === -1) {
-      continue;
-    }
-    const key = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim();
-    env[key] = stripQuotes(value);
-  }
-  return env;
-}
-
-function loadWalletCommandRuntime(args) {
-  const env = loadEnv(defaultEnvFile);
-  const walletMetadata = loadWalletMetadata(requireWalletName(args));
+function loadExplicitCommandRuntime(args) {
+  const networkName = requireNetworkName(args);
+  const network = resolveCliNetwork(networkName);
   const rpcUrl = deriveRpcUrl({
-    networkName: walletMetadata.network,
-    alchemyApiKey: env.APPS_ALCHEMY_API_KEY,
-    rpcUrlOverride: env.APPS_RPC_URL_OVERRIDE,
+    networkName,
+    alchemyApiKey: args.alchemyApiKey,
   });
   return {
+    network,
+    rpcUrl,
     provider: new JsonRpcProvider(rpcUrl),
   };
 }
 
-function stripQuotes(value) {
-  if (
-    (value.startsWith("\"") && value.endsWith("\""))
-    || (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
-  }
-  return value;
+function loadWalletCommandRuntime(args) {
+  const walletMetadata = loadWalletMetadata(requireWalletName(args));
+  return {
+    provider: new JsonRpcProvider(walletMetadata.rpcUrl),
+  };
 }
 
 function normalizePrivateKey(value) {

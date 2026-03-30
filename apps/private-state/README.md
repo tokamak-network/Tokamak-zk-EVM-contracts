@@ -1,6 +1,6 @@
 # Private State zk-note DApp
 
-private-state is a bridge-coupled zk-note style payment DApp for the Tokamak Network Token.
+private-state is a bridge-coupled zk-note payment DApp for the Tokamak Network Token.
 Canonical asset custody remains on L1. The DApp keeps accounting balances and note state on the proving-based L2 side,
 while the bridge accepts proof-backed state transitions.
 
@@ -9,13 +9,14 @@ while the bridge accepts proof-backed state transitions.
 The user-facing state machine is:
 
 1. fund the shared L1 bridge vault
-2. register a channel-specific L2 identity
+2. join a channel-specific L2 identity
 3. move value into the channel L2 accounting vault
 4. mint notes from liquid accounting balance
-5. transfer notes by consuming input notes and creating output notes
-6. redeem notes back into liquid accounting balance
-7. move value back from the channel L2 accounting vault into the shared L1 bridge vault
-8. claim the shared L1 bridge deposit back into the user's L1 wallet
+5. transfer notes by consuming input notes and creating encrypted output payloads
+6. recover received notes from bridge-propagated event logs
+7. redeem notes back into liquid accounting balance
+8. move value back from the channel L2 accounting vault into the shared L1 bridge vault
+9. claim the shared L1 bridge deposit back into the user's L1 wallet
 
 This repository does not implement note-ownership privacy inside the DApp contracts themselves. Privacy depends on the
 surrounding proving-based L2 execution model.
@@ -78,7 +79,9 @@ node apps/private-state/cli/private-state-bridge-cli.mjs <command> ...
 
 The CLI:
 
-- selects the network from `--network` or wallet metadata
+- requires `--network` on bridge-facing commands that do not already have a local wallet
+- does not read `apps/.env`
+- rebuilds wallet-backed providers from the wallet metadata `rpcUrl`
 - reads the bridge deployment manifest and ABI manifest from `bridge/deployments/`
 - binds every channel to the canonical Tokamak Network Token for the selected network
 - stores channel state under `apps/private-state/cli/workspace/<channel>/channel/`
@@ -89,24 +92,25 @@ Important rules:
 
 - `--amount` is always a human token amount and is converted with the canonical token decimals
 - `--password` accepts any string
-- `register-channel` binds `channelName + password` to the user's L1 private key and derives the channel-specific L2 identity
-- `register-channel` is the only command that sets up encrypted L1/L2 wallet keys
+- `join-channel` binds `channelName + password` to the user's L1 private key and derives the channel-specific L2 identity
+- `join-channel` is the only command that sets up encrypted L1/L2 wallet keys
 - wallet folder names are fixed to `<channelName>-<l2Address>`
-- recipient note delivery is now recovered from bridge-propagated Ethereum event logs through `get-my-notes`
+- recipient note delivery is recovered from bridge-propagated Ethereum event logs through `get-my-notes`
 - `anvil` support exists only for command-driven local end-to-end testing
 
-## Recipient Note Delivery Plan
+## Recipient Note Delivery
 
 The protocol-level recipient note delivery design is documented in
 [NOTE_RECEIVE_KEY_PLAN.md](NOTE_RECEIVE_KEY_PLAN.md).
 
-The implemented direction introduces:
+The current implementation includes:
 
 - a channel-scoped note-receive auxiliary public key registered on-chain
 - deterministic recovery of the corresponding auxiliary private key from a fixed MetaMask-compatible typed-data signature
 - recipient note ciphertext publication on Ethereum
-- recipient note salt derived from `keccak256(ciphertext)` instead of sender-chosen salt
+- recipient note salt derived from the encrypted payload
 - bridge propagation of DApp event logs emitted from channel execution
+- wallet-side event-log scanning and decryption in `get-my-notes`
 
 ## CLI Command Flow
 
@@ -121,40 +125,28 @@ The commands below are ordered by the normal execution flow.
 - bootstraps `submodules/Tokamak-zk-EVM` from the repository `.gitmodules` definition if the submodule worktree is missing
 - then fetches `origin/dev` inside the submodule, switches to `dev`, and fast-forwards before running the installer
 
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs install-zk-evm
-```
-
 `uninstall-zk-evm`
 
 - removes the checked-out contents of `submodules/Tokamak-zk-EVM/`
 - preserves the submodule pointer itself
 - accepts no options
 
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs uninstall-zk-evm
-```
-
 ### 2. Create the channel
 
 `create-channel`
 
 - creates the bridge channel on-chain
-- binds the channel to the canonical Tokamak Network Token for the selected network
-- optionally creates the saved channel workspace with `--create-workspace`
+- always binds the channel to the `private-state` DApp
+- always creates the saved channel workspace for the channel
+- requires `--alchemy-api-key` on public networks
 
 Example:
 
 ```bash
 node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
   --channel-name demo-channel \
-  --dapp-label private-state \
   --private-key <hex> \
-  --create-workspace \
+  --alchemy-api-key <key> \
   --network sepolia
 ```
 
@@ -164,15 +156,9 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 
 - reconstructs the latest channel snapshot from bridge events
 - writes the saved workspace into `apps/private-state/cli/workspace/<channel-name>/channel/`
+- reuses existing local artifacts when their hashes still match the current on-chain channel state
 - is optional in the happy path because wallet-backed snapshot commands now materialize and refresh the saved workspace automatically
-
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace \
-  --network sepolia \
-  --channel-name demo-channel
-```
+- requires `--alchemy-api-key` on public networks
 
 ### 4. Fund the shared L1 bridge vault
 
@@ -180,75 +166,31 @@ node apps/private-state/cli/private-state-bridge-cli.mjs recover-workspace \
 
 - deposits Tokamak Network Token into the shared bridge-level `bridgeTokenVault`
 - does not register the user in the channel
+- requires `--alchemy-api-key` on public networks
 
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs deposit-bridge \
-  --network sepolia \
-  --private-key <hex> \
-  --amount 3
-```
-
-`get-bridge-deposit`
+`get-my-bridge-fund`
 
 - reads the caller's balance in the shared bridge-level `bridgeTokenVault`
+- requires `--network`, `--private-key`, and `--alchemy-api-key` on public networks
 
-Example:
+### 5. Join the channel-specific wallet and L2 identity
 
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs get-bridge-deposit \
-  --network sepolia \
-  --private-key <hex>
-```
-
-### 5. Register the channel-specific wallet and L2 identity
-
-`register-channel`
+`join-channel`
 
 - derives the channel-specific L2 identity
-- registers the caller's L2 address, channel token-vault storage key, and leaf index on-chain
+- registers the caller's L2 address, channel token-vault storage key, leaf index, and note-receive public key on-chain
 - creates the encrypted wallet
+- stores the resolved `rpcUrl` in the wallet metadata so later wallet-backed commands do not need CLI RPC inputs
 - returns the deterministic wallet name `<channelName>-<l2Address>`
-- accepts `--channel-name`, `--network`, `--private-key`, and `--password`
+- requires `--alchemy-api-key` on public networks
 
-Example:
+### 6. Inspect wallet-to-channel registration
 
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs register-channel \
-  --channel-name demo-channel \
-  --network sepolia \
-  --private-key <hex> \
-  --password "participant-a"
-```
-
-### 6. Inspect bridge-side registration derived from the wallet
-
-`is-channel-registered`
+`get-my-address`
 
 - checks whether the wallet's stored L2 identity matches the on-chain registration
+- returns the wallet L2 address, registered L2 address, storage key, leaf index, and match status
 - accepts only `--wallet` and `--password`
-
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs is-channel-registered \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a"
-```
-
-`get-wallet-address`
-
-- reads the registered L2 address for the wallet's channel registration
-- accepts only `--wallet` and `--password`
-
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a"
-```
 
 ### 7. Move value into the channel L2 accounting vault
 
@@ -258,295 +200,56 @@ node apps/private-state/cli/private-state-bridge-cli.mjs get-wallet-address \
 - accepts only `--wallet`, `--password`, and `--amount`
 - requires an existing wallet with plaintext network/channel metadata and encrypted L1/L2 keys
 
-Example:
+`get-my-channel-fund`
 
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs deposit-channel \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a" \
-  --amount 1.5
-```
-
-`get-channel-deposit`
-
-- reads the wallet's current channel-level L2 accounting deposit
+- reads the current channel L2 accounting balance bound to the wallet registration
 - accepts only `--wallet` and `--password`
 
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs get-channel-deposit \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a"
-```
-
-### 8. Mint notes from liquid accounting balance
+### 8. Mint private notes from the wallet balance
 
 `mint-notes`
 
-- mints one to six notes
-- accepts only `--wallet`, `--password`, and `--amounts`
-- maps the `--amounts` vector length to the underlying `mintNotes<N>` controller entrypoint
-- stores the resulting note plaintexts in the encrypted wallet
+- mints one to six notes owned by the wallet's L2 address
+- accepts `--wallet`, `--password`, and `--amounts`
+- maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
 
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a" \
-  --amounts '[1,2,3]'
-```
-
-### 9. Discover and inspect tracked notes
-
-`get-my-notes`
-
-- scans bridge-propagated `transferNotes` delivery events from Ethereum
-- decrypts any newly discovered incoming note payloads for the wallet owner
-- merges newly discovered notes into the encrypted wallet
-- checks each note's commitment and nullifier status against the current controller state accepted by the bridge
-- accepts only `--wallet` and `--password`
-
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a"
-```
-
-### 10. Transfer notes
+### 9. Transfer notes
 
 `transfer-notes`
 
-- executes one of `transferNotes1To1`, `transferNotes1To2`, or `transferNotes2To1`
-- accepts only `--wallet`, `--password`, `--note-ids`, `--recipients`, and `--amounts`
-- requires JSON arrays for all vector inputs
-- requires `--amounts.length == --recipients.length`
-- consumes note commitments returned by `get-my-notes`
-- updates the sender wallet only
-- does not write recipient wallet files directly
-- relies on recipients running `get-my-notes` to recover incoming notes from Ethereum event logs
+- consumes tracked input notes and creates encrypted recipient note payloads
+- accepts `--wallet`, `--password`, `--note-ids`, `--recipients`, and `--amounts`
+- supports only `1->1`, `1->2`, and `2->1` note transfer shapes
+- updates the sender wallet immediately and relies on recipient-side event-log recovery rather than local recipient inbox files
 
-Example:
+### 10. Recover and inspect received notes
 
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs transfer-notes \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a" \
-  --note-ids '["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]' \
-  --recipients '["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]' \
-  --amounts '[3]'
-```
+`get-my-notes`
 
-### 11. Redeem notes back into liquid accounting balance
+- scans bridge-propagated private-state transfer events from Ethereum
+- decrypts note payloads addressed to the caller
+- merges newly discovered notes into the encrypted wallet
+- reports both unused and spent note sets plus bridge-consistency status
+- accepts only `--wallet` and `--password`
+
+### 11. Redeem notes
 
 `redeem-notes`
 
-- executes `redeemNotes1`
-- accepts only `--wallet`, `--password`, and `--note-id`
-- marks the redeemed note as spent in the encrypted wallet
+- redeems one tracked note back into liquid accounting balance
+- accepts `--wallet`, `--password`, and `--note-id`
 
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs redeem-notes \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a" \
-  --note-id 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-```
-
-### 12. Move value back out of the channel and then out of the bridge
+### 12. Move value back to the shared L1 bridge vault
 
 `withdraw-channel`
 
 - moves value from the channel L2 accounting vault back into the shared bridge-level `bridgeTokenVault`
 - accepts only `--wallet`, `--password`, and `--amount`
 
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-channel \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a" \
-  --amount 0.5
-```
+### 13. Claim the shared L1 bridge deposit
 
 `withdraw-bridge`
 
-- claims Tokamak Network Token from the shared bridge-level `bridgeTokenVault` back into the caller's L1 wallet
-- accepts only `--wallet`, `--password`, and `--amount`
-
-Example:
-
-```bash
-node apps/private-state/cli/private-state-bridge-cli.mjs withdraw-bridge \
-  --wallet demo-channel-<l2Address> \
-  --password "participant-a" \
-  --amount 1
-```
-
-## Getter Output Formats
-
-Each getter prints a single JSON object to stdout.
-
-### `get-bridge-deposit`
-
-```json
-{
-  "action": "get-bridge-deposit",
-  "wallet": "<wallet-name-or-null>",
-  "l1Address": "<address>",
-  "bridgeTokenVault": "<address>",
-  "canonicalAsset": "<address>",
-  "canonicalAssetDecimals": 18,
-  "availableBalanceBaseUnits": "<uint256-string>",
-  "availableBalanceTokens": "<decimal-string>"
-}
-```
-
-### `is-channel-registered`
-
-```json
-{
-  "action": "is-channel-registered",
-  "wallet": "<wallet-name>",
-  "network": "anvil|sepolia|mainnet",
-  "channelName": "<channel-name>",
-  "l1Address": "<address>",
-  "walletL2Address": "<address>",
-  "walletL2StorageKey": "<bytes32>",
-  "registrationExists": true,
-  "matchesWallet": true,
-  "registeredL2Address": "<address-or-null>",
-  "registeredL2StorageKey": "<bytes32-or-null>",
-  "registeredLeafIndex": "<string-or-null>"
-}
-```
-
-### `get-wallet-address`
-
-```json
-{
-  "action": "get-wallet-address",
-  "wallet": "<wallet-name>",
-  "network": "anvil|sepolia|mainnet",
-  "channelName": "<channel-name>",
-  "l1Address": "<address>",
-  "l2Address": "<address>",
-  "registeredLeafIndex": "<string>"
-}
-```
-
-### `get-channel-deposit`
-
-```json
-{
-  "action": "get-channel-deposit",
-  "wallet": "<wallet-name>",
-  "network": "anvil|sepolia|mainnet",
-  "channelName": "<channel-name>",
-  "l1Address": "<address>",
-  "walletL2Address": "<address>",
-  "walletL2StorageKey": "<bytes32>",
-  "registeredLeafIndex": "<string>",
-  "channelDepositBaseUnits": "<uint256-string>",
-  "channelDepositTokens": "<decimal-string>",
-  "canonicalAsset": "<address>",
-  "canonicalAssetDecimals": 18,
-  "l2AccountingVault": "<address>"
-}
-```
-
-### `get-my-notes`
-
-```json
-{
-  "action": "get-my-notes",
-  "wallet": "<wallet-name>",
-  "network": "anvil|sepolia|mainnet",
-  "channelName": "<channel-name>",
-  "controller": "<address>",
-  "recoveredFromLogs": [
-    {
-      "owner": "<l2-address>",
-      "value": "<uint256-string>",
-      "salt": "<bytes32>",
-      "commitment": "<bytes32>",
-      "nullifier": "<bytes32>"
-    }
-  ],
-  "scannedDeliveryLogs": 0,
-  "noteReceiveScanRange": {
-    "fromBlock": 0,
-    "toBlock": 0
-  },
-  "unusedNotes": [
-    {
-      "owner": "<l2-address>",
-      "valueBaseUnits": "<uint256-string>",
-      "valueTokens": "<decimal-string>",
-      "commitment": "<bytes32>",
-      "nullifier": "<bytes32>",
-      "walletStatus": "unused|spent",
-      "bridgeCommitmentExists": true,
-      "bridgeNullifierUsed": false,
-      "walletStatusMatchesBridge": true,
-      "sourceFunction": "<string-or-null>",
-      "sourceTxHash": "<tx-hash-or-null>"
-    }
-  ],
-  "spentNotes": [],
-  "unusedTotalBaseUnits": "<uint256-string>",
-  "unusedTotalTokens": "<decimal-string>",
-  "spentTotalBaseUnits": "<uint256-string>",
-  "spentTotalTokens": "<decimal-string>",
-  "bridgeStatusMismatches": 0
-}
-```
-
-## CLI Storage Layout
-
-Saved channel data lives under:
-
-```text
-apps/private-state/cli/workspace/<channel-name>/channel/
-```
-
-Wallet data lives under:
-
-```text
-apps/private-state/cli/workspace/<channel-name>/wallets/<wallet>/
-```
-
-Important files:
-
-- `wallet.json`: encrypted wallet state
-- `wallet.metadata.json`: plaintext `network` and `channelName`
-
-## Local anvil Workflow
-
-The shortest local workflow is:
-
-```bash
-cd apps/private-state
-make anvil-start
-make anvil-bootstrap
-make test
-make anvil-stop
-```
-
-The CLI also supports a command-driven local end-to-end flow:
-
-```bash
-cd apps/private-state
-make e2e-bridge-cli
-```
-
-## Security Tradeoffs
-
-- note validity and spend authorization are still checked directly in contract code
-- the system still relies on invariants between the controller and the accounting vault
-- privacy depends on the surrounding L2 execution model, not only on the contracts
-- note plaintexts and note-spend history remain local wallet state and cannot be reconstructed from bridge events alone
+- claims value from the shared bridge-level `bridgeTokenVault` back into the caller wallet
+- uses explicit signer input instead of local wallet state
+- requires `--amount`, `--network`, `--private-key`, and `--alchemy-api-key` on public networks

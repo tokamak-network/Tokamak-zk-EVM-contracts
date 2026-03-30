@@ -302,6 +302,8 @@
       const workspaceDirectoryState = {
         handle: null,
         byNetwork: {},
+        loaded: false,
+        statusMessage: "",
       };
 
       const workspacePickerEl = document.getElementById("workspace-picker");
@@ -356,12 +358,16 @@
       }
 
       function setWorkspaceStatus(message) {
+        workspaceDirectoryState.statusMessage = message;
         if (workspaceStatusEl) {
           workspaceStatusEl.textContent = message;
         }
       }
 
       function showWorkspaceSelectionError(message) {
+        workspaceDirectoryState.handle = null;
+        workspaceDirectoryState.byNetwork = {};
+        workspaceDirectoryState.loaded = false;
         setWorkspaceStatus(message);
         warningEl.textContent = message;
       }
@@ -387,6 +393,19 @@
           channelOptions: [],
           walletOptions: [],
         };
+      }
+
+      function buildWorkspaceStatusMessage() {
+        if (!workspaceDirectoryState.loaded) {
+          return `Default CLI workspace root: ${defaultWorkspaceRootLabel}`;
+        }
+
+        const loadedNetworkCount = Object.keys(workspaceDirectoryState.byNetwork).length;
+        const currentOptions = currentWorkspaceOptions();
+        if (currentOptions.channelOptions.length === 0) {
+          return `Loaded ${loadedNetworkCount} network folder${loadedNetworkCount === 1 ? "" : "s"}, but none contains channel folders for ${state.network}.`;
+        }
+        return `Loaded ${loadedNetworkCount} network folder${loadedNetworkCount === 1 ? "" : "s"}, ${currentOptions.channelOptions.length} channel folder${currentOptions.channelOptions.length === 1 ? "" : "s"}, and ${currentOptions.walletOptions.length} wallet folder${currentOptions.walletOptions.length === 1 ? "" : "s"} for ${state.network}.`;
       }
 
       function syncWorkspaceSelectionsForCurrentNetwork() {
@@ -568,6 +587,7 @@
           const byNetwork = await loadWorkspaceDirectoryOptions(handle);
           workspaceDirectoryState.handle = handle;
           workspaceDirectoryState.byNetwork = byNetwork;
+          workspaceDirectoryState.loaded = true;
           const currentOptions = currentWorkspaceOptions();
           if (!currentOptions.channelOptions.includes(state.channelName) && currentCommand().id !== "create-channel") {
             state.channelName = currentOptions.channelOptions[0] ?? "";
@@ -579,12 +599,7 @@
           renderWorkspacePicker();
           renderCommandFields();
           renderPreview();
-          const loadedNetworkCount = Object.keys(byNetwork).length;
-          setWorkspaceStatus(
-            currentOptions.channelOptions.length === 0
-              ? `Selected workspace directory does not contain channel folders for ${state.network}.`
-              : `Loaded ${loadedNetworkCount} network folder${loadedNetworkCount === 1 ? "" : "s"}, ${currentOptions.channelOptions.length} channel folder${currentOptions.channelOptions.length === 1 ? "" : "s"}, and ${currentOptions.walletOptions.length} wallet folder${currentOptions.walletOptions.length === 1 ? "" : "s"} for ${state.network}.`,
-          );
+          setWorkspaceStatus(buildWorkspaceStatusMessage());
         } catch (error) {
           if (error?.name === "AbortError") {
             return;
@@ -606,9 +621,7 @@
 
         workspaceStatusEl = document.createElement("p");
         workspaceStatusEl.className = "hint";
-        workspaceStatusEl.textContent = workspaceDirectoryState.handle === null
-          ? `Default CLI workspace root: ${defaultWorkspaceRootLabel}`
-          : "";
+        workspaceStatusEl.textContent = workspaceDirectoryState.statusMessage || buildWorkspaceStatusMessage();
         workspacePickerEl.appendChild(workspaceStatusEl);
       }
 
@@ -801,6 +814,7 @@
 
       function render() {
         syncWorkspaceSelectionsForCurrentNetwork();
+        workspaceDirectoryState.statusMessage = buildWorkspaceStatusMessage();
         renderWorkspacePicker();
         renderMemoryFields();
         renderCommandFields();

@@ -212,12 +212,12 @@
         },
         alchemyApiKey: {
           label: "Alchemy API Key",
-          type: "text",
+          type: "password",
           placeholder: "alchemy-key",
         },
         privateKey: {
           label: "L1 Private Key",
-          type: "text",
+          type: "password",
           placeholder: "0x...",
         },
         password: {
@@ -315,19 +315,23 @@
       const previewEl = document.getElementById("command-preview");
       const statusEl = document.getElementById("status");
       let workspaceStatusEl = null;
+      const maskedSecretValues = {
+        alchemyApiKey: "__ALCHEMY_API_KEY__",
+        privateKey: "__L1_PRIVATE_KEY__",
+      };
 
       document.getElementById("copy-command").addEventListener("click", async () => {
-        await copyText(buildCommand(false));
+        await copyText(buildCommand({ multiline: false, maskSecrets: false }));
         setStatus("Command copied.");
       });
 
       document.getElementById("copy-multiline").addEventListener("click", async () => {
-        await copyText(buildCommand(true));
+        await copyText(buildCommand({ multiline: true, maskSecrets: false }));
         setStatus("Multiline command copied.");
       });
 
       document.getElementById("download-script").addEventListener("click", () => {
-        const content = `#!/usr/bin/env bash\nset -euo pipefail\n\n${buildCommand(true)}\n`;
+        const content = `#!/usr/bin/env bash\nset -euo pipefail\n\n${buildCommand({ multiline: true, maskSecrets: false })}\n`;
         const blob = new Blob([content], { type: "text/x-shellscript" });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
@@ -437,7 +441,7 @@
         });
       }
 
-      function buildCommand(multiline) {
+      function buildCommand({ multiline, maskSecrets }) {
         const command = currentCommand();
         const parts = [cliEntry, command.id];
 
@@ -450,40 +454,43 @@
           if (!value) {
             continue;
           }
+          const renderedValue = maskSecrets && Object.hasOwn(maskedSecretValues, fieldKey)
+            ? maskedSecretValues[fieldKey]
+            : value;
 
           switch (fieldKey) {
             case "channelName":
-              appendOption(parts, "--channel-name", value);
+              appendOption(parts, "--channel-name", renderedValue);
               break;
             case "network":
-              appendOption(parts, "--network", value);
+              appendOption(parts, "--network", renderedValue);
               break;
             case "alchemyApiKey":
-              appendOption(parts, "--alchemy-api-key", value);
+              appendOption(parts, "--alchemy-api-key", renderedValue);
               break;
             case "privateKey":
-              appendOption(parts, "--private-key", value);
+              appendOption(parts, "--private-key", renderedValue);
               break;
             case "password":
-              appendOption(parts, "--password", value);
+              appendOption(parts, "--password", renderedValue);
               break;
             case "wallet":
-              appendOption(parts, "--wallet", value);
+              appendOption(parts, "--wallet", renderedValue);
               break;
             case "amount":
-              appendOption(parts, "--amount", value);
+              appendOption(parts, "--amount", renderedValue);
               break;
             case "amounts":
-              appendOption(parts, "--amounts", value);
+              appendOption(parts, "--amounts", renderedValue);
               break;
             case "noteId":
-              appendOption(parts, "--note-id", value);
+              appendOption(parts, "--note-id", renderedValue);
               break;
             case "noteIds":
-              appendOption(parts, "--note-ids", value);
+              appendOption(parts, "--note-ids", renderedValue);
               break;
             case "recipients":
-              appendOption(parts, "--recipients", value);
+              appendOption(parts, "--recipients", renderedValue);
               break;
             default:
               break;
@@ -791,7 +798,7 @@
       function renderPreview() {
         const command = currentCommand();
         const missing = missingFields(command);
-        previewEl.textContent = buildCommand(false);
+        previewEl.textContent = buildCommand({ multiline: false, maskSecrets: true });
         const workspaceWarnings = [
           commandNeedsExistingChannel(command) && workspaceDirectoryState.handle === null
             ? " Select a workspace directory to populate the channel dropdown."

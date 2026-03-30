@@ -728,6 +728,7 @@
           state[fieldKey] = event.target.value;
           if (fieldKey === "network") {
             syncWorkspaceSelectionsForCurrentNetwork();
+            workspaceDirectoryState.statusMessage = buildWorkspaceStatusMessage();
           }
           persistState();
           renderPreview();

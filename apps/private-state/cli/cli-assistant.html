@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Private-State CLI Assistant</title>
+    <style>
+      :root {
+        --bg: #f4f0e8;
+        --panel: rgba(255, 252, 247, 0.94);
+        --panel-strong: #fffaf2;
+        --line: rgba(76, 58, 38, 0.12);
+        --ink: #26190f;
+        --muted: #736150;
+        --accent: #b24c1a;
+        --accent-strong: #8e3507;
+        --accent-soft: rgba(178, 76, 26, 0.12);
+        --good: #255d39;
+        --shadow: 0 24px 80px rgba(59, 40, 20, 0.12);
+        --radius: 24px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(178, 76, 26, 0.18), transparent 32%),
+          radial-gradient(circle at bottom right, rgba(37, 93, 57, 0.12), transparent 28%),
+          linear-gradient(160deg, #f8f4ed 0%, #efe5d7 48%, #eadfce 100%);
+      }
+
+      .page {
+        width: min(1400px, calc(100vw - 40px));
+        margin: 28px auto 44px;
+      }
+
+      .hero {
+        padding: 32px 34px 26px;
+        border: 1px solid var(--line);
+        border-radius: calc(var(--radius) + 6px);
+        background:
+          linear-gradient(135deg, rgba(255, 250, 242, 0.98), rgba(255, 248, 238, 0.9)),
+          repeating-linear-gradient(
+            -45deg,
+            rgba(178, 76, 26, 0.03) 0,
+            rgba(178, 76, 26, 0.03) 10px,
+            rgba(255, 255, 255, 0) 10px,
+            rgba(255, 255, 255, 0) 20px
+          );
+        box-shadow: var(--shadow);
+      }
+
+      .eyebrow {
+        font-family: "Avenir Next Condensed", "Helvetica Neue", sans-serif;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        font-size: 12px;
+        color: var(--accent-strong);
+        margin-bottom: 10px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(34px, 4vw, 58px);
+        line-height: 0.96;
+        max-width: 11ch;
+      }
+
+      .hero-copy {
+        display: grid;
+        gap: 12px;
+        max-width: 70ch;
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.6;
+      }
+
+      .hero-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      .badge {
+        padding: 9px 13px;
+        border-radius: 999px;
+        border: 1px solid rgba(178, 76, 26, 0.16);
+        background: rgba(255, 255, 255, 0.66);
+        font-size: 13px;
+        color: var(--ink);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        gap: 22px;
+        margin-top: 22px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .panel-header {
+        padding: 20px 22px 14px;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0));
+      }
+
+      .panel-title {
+        margin: 0;
+        font-size: 20px;
+      }
+
+      .panel-subtitle {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .panel-body {
+        padding: 18px 22px 24px;
+      }
+
+      .field-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .field {
+        display: grid;
+        gap: 8px;
+      }
+
+      .field.inline {
+        grid-template-columns: 1fr;
+      }
+
+      label {
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid rgba(54, 41, 28, 0.16);
+        border-radius: 14px;
+        padding: 13px 14px;
+        background: rgba(255, 255, 255, 0.85);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 110px;
+        resize: vertical;
+      }
+
+      input:focus,
+      select:focus,
+      textarea:focus {
+        outline: 2px solid rgba(178, 76, 26, 0.18);
+        border-color: rgba(178, 76, 26, 0.32);
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .catalog {
+        display: grid;
+        gap: 14px;
+      }
+
+      .catalog-group {
+        display: grid;
+        gap: 10px;
+      }
+
+      .catalog-heading {
+        margin: 0;
+        font-family: "Avenir Next Condensed", "Helvetica Neue", sans-serif;
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .command-button {
+        width: 100%;
+        text-align: left;
+        border: 1px solid transparent;
+        border-radius: 18px;
+        padding: 14px 15px;
+        background: var(--panel-strong);
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+      }
+
+      .command-button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(178, 76, 26, 0.2);
+      }
+
+      .command-button.active {
+        border-color: rgba(178, 76, 26, 0.42);
+        background: linear-gradient(180deg, rgba(178, 76, 26, 0.12), rgba(255, 255, 255, 0.92));
+      }
+
+      .command-name {
+        font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+        font-size: 14px;
+        color: var(--ink);
+      }
+
+      .command-desc {
+        margin-top: 7px;
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 420px;
+        gap: 20px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 18px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      button.action {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 12px 18px;
+        cursor: pointer;
+        font: inherit;
+        transition: transform 120ms ease, opacity 120ms ease;
+      }
+
+      button.action:hover {
+        transform: translateY(-1px);
+      }
+
+      .primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        color: #fff9f3;
+      }
+
+      .secondary {
+        background: rgba(37, 93, 57, 0.1);
+        color: var(--good);
+      }
+
+      .ghost {
+        background: rgba(38, 25, 15, 0.06);
+        color: var(--ink);
+      }
+
+      .disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .preview {
+        min-height: 250px;
+        border-radius: 18px;
+        border: 1px solid rgba(40, 26, 16, 0.12);
+        background: #1b1612;
+        color: #f8f0e6;
+        padding: 18px;
+        overflow: auto;
+        font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .warning {
+        border-radius: 18px;
+        padding: 14px 16px;
+        background: rgba(178, 76, 26, 0.1);
+        border: 1px solid rgba(178, 76, 26, 0.18);
+        color: #6f2d09;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .status {
+        min-height: 24px;
+        font-size: 14px;
+        color: var(--good);
+      }
+
+      .small-list {
+        display: grid;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      code.inline {
+        padding: 2px 6px;
+        border-radius: 8px;
+        background: rgba(38, 25, 15, 0.08);
+        font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+        font-size: 0.95em;
+      }
+
+      @media (max-width: 1120px) {
+        .grid,
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .page {
+          width: min(100vw - 22px, 1400px);
+          margin: 12px auto 24px;
+        }
+
+        .hero,
+        .panel-header,
+        .panel-body {
+          padding-left: 18px;
+          padding-right: 18px;
+        }
+
+        h1 {
+          max-width: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="eyebrow">Private-State Operator Companion</div>
+        <h1>Build the exact CLI command before your terminal does.</h1>
+        <div class="hero-copy">
+          <div>
+            This single-file assistant remembers your channel, wallet, and signer inputs, then assembles the
+            current <code class="inline">private-state-bridge-cli.mjs</code> command with one click.
+          </div>
+          <div>
+            A plain browser page cannot push arbitrary commands into your shell directly. This demo focuses on
+            the safe part: accurate command construction, copy-to-clipboard handoff, and one-click shell-script export.
+          </div>
+        </div>
+        <div class="hero-badges">
+          <div class="badge">Current command names only</div>
+          <div class="badge">Shared inputs saved in localStorage</div>
+          <div class="badge">Copy command or export script</div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <aside class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Assistant Memory</h2>
+            <p class="panel-subtitle">
+              Store the values you keep retyping. Every command below reuses these fields.
+            </p>
+          </div>
+          <div class="panel-body">
+            <div id="memory-fields" class="field-grid"></div>
+            <div class="actions" style="margin-top: 16px;">
+              <button id="reset-memory" class="action ghost" type="button">Reset saved inputs</button>
+            </div>
+          </div>
+        </aside>
+
+        <section class="workspace">
+          <div class="stack">
+            <section class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">Command Catalog</h2>
+                <p class="panel-subtitle">
+                  Pick a current CLI command. The assistant will render only the fields that command actually needs.
+                </p>
+              </div>
+              <div id="command-catalog" class="panel-body catalog"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <h2 id="editor-title" class="panel-title">Command Builder</h2>
+                <p id="editor-subtitle" class="panel-subtitle"></p>
+              </div>
+              <div class="panel-body">
+                <div id="command-fields" class="field-grid"></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="stack">
+            <section class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">Command Preview</h2>
+                <p class="panel-subtitle">
+                  Review the exact shell command before you copy it into a terminal.
+                </p>
+              </div>
+              <div class="panel-body">
+                <div id="preview-warning" class="warning"></div>
+                <div id="command-preview" class="preview"></div>
+                <div class="actions" style="margin-top: 16px;">
+                  <button id="copy-command" class="action primary" type="button">Copy command</button>
+                  <button id="copy-multiline" class="action secondary" type="button">Copy multiline shell</button>
+                  <button id="download-script" class="action ghost" type="button">Download shell script</button>
+                  <button id="run-terminal" class="action ghost disabled" type="button" aria-disabled="true">
+                    Run in terminal
+                  </button>
+                </div>
+                <div id="status" class="status" aria-live="polite"></div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <h2 class="panel-title">Handoff Notes</h2>
+              </div>
+              <div class="panel-body">
+                <div class="small-list">
+                  <div>
+                    Commands are built against
+                    <code class="inline">node apps/private-state/cli/private-state-bridge-cli.mjs</code>.
+                  </div>
+                  <div>
+                    On <code class="inline">anvil</code>, the assistant omits <code class="inline">--alchemy-api-key</code>
+                    because the current CLI does not require it there.
+                  </div>
+                  <div>
+                    For JSON-array arguments such as <code class="inline">--amounts</code>,
+                    <code class="inline">--note-ids</code>, and <code class="inline">--recipients</code>,
+                    keep valid JSON in the stored field.
+                  </div>
+                  <div>
+                    True one-click shell execution would need a native bridge, browser extension, terminal protocol,
+                    or host application. This demo deliberately stops at safe command handoff.
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const storageKey = "private-state-cli-assistant:v1";
+      const cliEntry = "node apps/private-state/cli/private-state-bridge-cli.mjs";
+
+      const fieldCatalog = {
+        channelName: {
+          label: "Channel Name",
+          type: "text",
+          placeholder: "demo-channel",
+          hint: "Used by create-channel, recover-workspace, recover-wallet, and join-channel.",
+        },
+        network: {
+          label: "Network",
+          type: "select",
+          options: ["sepolia", "mainnet", "anvil"],
+          hint: "Public networks require --alchemy-api-key in the current CLI.",
+        },
+        alchemyApiKey: {
+          label: "Alchemy API Key",
+          type: "password",
+          placeholder: "alchemy-key",
+          hint: "Stored locally in your browser only. Omitted automatically on anvil.",
+        },
+        privateKey: {
+          label: "L1 Private Key",
+          type: "password",
+          placeholder: "0x...",
+          hint: "Explicit signer commands use this directly.",
+        },
+        password: {
+          label: "Wallet Password",
+          type: "password",
+          placeholder: "channel-scoped-password",
+          hint: "Used for join-channel, recover-wallet, and wallet-backed commands.",
+        },
+        wallet: {
+          label: "Wallet Name",
+          type: "text",
+          placeholder: "demo-channel-0xYourL2Address",
+          hint: "Paste the deterministic wallet name returned by join-channel or recover-wallet.",
+        },
+        amount: {
+          label: "Amount",
+          type: "text",
+          placeholder: "3",
+          hint: "Human token amount, not base units.",
+        },
+        amounts: {
+          label: "Amounts JSON",
+          type: "textarea",
+          placeholder: "[1,2,3]",
+          hint: "Valid JSON array. Used by mint-notes and transfer-notes.",
+        },
+        noteId: {
+          label: "Note ID",
+          type: "text",
+          placeholder: "0x...",
+          hint: "One note commitment.",
+        },
+        noteIds: {
+          label: "Note IDs JSON",
+          type: "textarea",
+          placeholder: "[\"0x...\"]",
+          hint: "Valid JSON array of note commitments.",
+        },
+        recipients: {
+          label: "Recipients JSON",
+          type: "textarea",
+          placeholder: "[\"0xRecipientL2Address\"]",
+          hint: "Valid JSON array of L2 recipient addresses.",
+        },
+      };
+
+      const commands = [
+        {
+          id: "install-zk-evm",
+          category: "Toolchain",
+          description: "Install the local Tokamak zk-EVM toolchain.",
+          fields: [],
+        },
+        {
+          id: "uninstall-zk-evm",
+          category: "Toolchain",
+          description: "Remove the checked-out Tokamak zk-EVM worktree contents.",
+          fields: [],
+        },
+        {
+          id: "create-channel",
+          category: "Bridge Setup",
+          description: "Create the private-state bridge channel and initialize its workspace.",
+          fields: ["channelName", "network", "privateKey", "alchemyApiKey"],
+        },
+        {
+          id: "recover-workspace",
+          category: "Bridge Setup",
+          description: "Rebuild the saved channel workspace from bridge state.",
+          fields: ["channelName", "network", "alchemyApiKey"],
+        },
+        {
+          id: "deposit-bridge",
+          category: "Bridge Funds",
+          description: "Deposit canonical tokens into the shared bridge vault.",
+          fields: ["amount", "network", "privateKey", "alchemyApiKey"],
+        },
+        {
+          id: "withdraw-bridge",
+          category: "Bridge Funds",
+          description: "Withdraw shared bridge-vault funds back to the L1 wallet.",
+          fields: ["amount", "network", "privateKey", "alchemyApiKey"],
+        },
+        {
+          id: "get-my-bridge-fund",
+          category: "Bridge Funds",
+          description: "Read the caller's current bridge-vault balance.",
+          fields: ["network", "privateKey", "alchemyApiKey"],
+        },
+        {
+          id: "join-channel",
+          category: "Wallet Setup",
+          description: "Bind the caller to a channel-specific L2 identity and create the encrypted wallet.",
+          fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"],
+        },
+        {
+          id: "recover-wallet",
+          category: "Wallet Setup",
+          description: "Rebuild the recoverable portion of a wallet from on-chain state and encrypted note logs.",
+          fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"],
+        },
+        {
+          id: "get-my-address",
+          category: "Wallet Inspection",
+          description: "Check whether a saved wallet matches the on-chain channel registration.",
+          fields: ["wallet", "password"],
+        },
+        {
+          id: "deposit-channel",
+          category: "Channel Funds",
+          description: "Move bridged funds into the channel L2 accounting balance.",
+          fields: ["wallet", "password", "amount"],
+        },
+        {
+          id: "withdraw-channel",
+          category: "Channel Funds",
+          description: "Move channel L2 balance back into the shared bridge vault.",
+          fields: ["wallet", "password", "amount"],
+        },
+        {
+          id: "get-my-channel-fund",
+          category: "Channel Funds",
+          description: "Read the current channel L2 accounting balance tied to the saved wallet.",
+          fields: ["wallet", "password"],
+        },
+        {
+          id: "mint-notes",
+          category: "Notes",
+          description: "Mint private-state notes from the wallet's channel balance.",
+          fields: ["wallet", "password", "amounts"],
+        },
+        {
+          id: "transfer-notes",
+          category: "Notes",
+          description: "Spend tracked notes into encrypted recipient outputs.",
+          fields: ["wallet", "password", "noteIds", "recipients", "amounts"],
+        },
+        {
+          id: "redeem-notes",
+          category: "Notes",
+          description: "Redeem one tracked note back into liquid accounting balance.",
+          fields: ["wallet", "password", "noteId"],
+        },
+        {
+          id: "get-my-notes",
+          category: "Notes",
+          description: "Refresh encrypted note-log recovery and show current wallet notes.",
+          fields: ["wallet", "password"],
+        },
+      ];
+
+      const groupedCommands = commands.reduce((accumulator, command) => {
+        if (!accumulator[command.category]) {
+          accumulator[command.category] = [];
+        }
+        accumulator[command.category].push(command);
+        return accumulator;
+      }, {});
+
+      const defaultState = {
+        commandId: "join-channel",
+        channelName: "",
+        network: "sepolia",
+        alchemyApiKey: "",
+        privateKey: "",
+        password: "",
+        wallet: "",
+        amount: "",
+        amounts: "[3]",
+        noteId: "",
+        noteIds: "[\"0x...\"]",
+        recipients: "[\"0xRecipientL2Address\"]",
+      };
+
+      const state = loadState();
+
+      const memoryFieldsEl = document.getElementById("memory-fields");
+      const commandCatalogEl = document.getElementById("command-catalog");
+      const commandFieldsEl = document.getElementById("command-fields");
+      const editorTitleEl = document.getElementById("editor-title");
+      const editorSubtitleEl = document.getElementById("editor-subtitle");
+      const previewEl = document.getElementById("command-preview");
+      const previewWarningEl = document.getElementById("preview-warning");
+      const statusEl = document.getElementById("status");
+
+      document.getElementById("reset-memory").addEventListener("click", () => {
+        Object.assign(state, structuredClone(defaultState));
+        persistState();
+        render();
+        setStatus("Saved inputs reset.");
+      });
+
+      document.getElementById("copy-command").addEventListener("click", async () => {
+        await copyText(buildCommand(false));
+        setStatus("Single-line command copied.");
+      });
+
+      document.getElementById("copy-multiline").addEventListener("click", async () => {
+        await copyText(buildCommand(true));
+        setStatus("Multi-line shell command copied.");
+      });
+
+      document.getElementById("download-script").addEventListener("click", () => {
+        const command = buildCommand(true);
+        const script = `#!/usr/bin/env bash\nset -euo pipefail\n\n${command}\n`;
+        const blob = new Blob([script], { type: "text/x-shellscript" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `${state.commandId || "private-state-cli"}.sh`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+        setStatus("Shell script downloaded.");
+      });
+
+      document.getElementById("run-terminal").addEventListener("click", () => {
+        setStatus("A plain browser page cannot execute your terminal directly. Copy or export the command instead.");
+      });
+
+      function loadState() {
+        try {
+          const raw = window.localStorage.getItem(storageKey);
+          return raw ? { ...structuredClone(defaultState), ...JSON.parse(raw) } : structuredClone(defaultState);
+        } catch {
+          return structuredClone(defaultState);
+        }
+      }
+
+      function persistState() {
+        window.localStorage.setItem(storageKey, JSON.stringify(state));
+      }
+
+      function setStatus(message) {
+        statusEl.textContent = message;
+      }
+
+      function shellEscape(value) {
+        return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
+      }
+
+      function appendOption(parts, optionName, value) {
+        parts.push(optionName, shellEscape(value));
+      }
+
+      function needsAlchemy(command) {
+        return command.fields.includes("alchemyApiKey") && state.network !== "anvil";
+      }
+
+      function commandArgs(command) {
+        const parts = [cliEntry, command.id];
+
+        for (const fieldKey of command.fields) {
+          if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
+            continue;
+          }
+
+          const value = state[fieldKey];
+          if (!value) {
+            continue;
+          }
+
+          switch (fieldKey) {
+            case "channelName":
+              appendOption(parts, "--channel-name", value);
+              break;
+            case "network":
+              appendOption(parts, "--network", value);
+              break;
+            case "alchemyApiKey":
+              appendOption(parts, "--alchemy-api-key", value);
+              break;
+            case "privateKey":
+              appendOption(parts, "--private-key", value);
+              break;
+            case "password":
+              appendOption(parts, "--password", value);
+              break;
+            case "wallet":
+              appendOption(parts, "--wallet", value);
+              break;
+            case "amount":
+              appendOption(parts, "--amount", value);
+              break;
+            case "amounts":
+              appendOption(parts, "--amounts", value);
+              break;
+            case "noteId":
+              appendOption(parts, "--note-id", value);
+              break;
+            case "noteIds":
+              appendOption(parts, "--note-ids", value);
+              break;
+            case "recipients":
+              appendOption(parts, "--recipients", value);
+              break;
+            default:
+              break;
+          }
+        }
+
+        return parts;
+      }
+
+      function missingFields(command) {
+        return command.fields.filter((fieldKey) => {
+          if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
+            return false;
+          }
+          return !String(state[fieldKey] ?? "").trim();
+        });
+      }
+
+      function buildCommand(multiline) {
+        const command = commands.find((entry) => entry.id === state.commandId) ?? commands[0];
+        const parts = commandArgs(command);
+        if (!multiline) {
+          return parts.join(" ");
+        }
+
+        return parts.reduce((accumulator, part, index) => {
+          if (index < 2) {
+            return `${accumulator}${index === 0 ? "" : " "}${part}`;
+          }
+          return `${accumulator} \\\n  ${part}`;
+        }, "");
+      }
+
+      function fieldInput(fieldKey, useCompactHint = false) {
+        const config = fieldCatalog[fieldKey];
+        const fieldEl = document.createElement("div");
+        fieldEl.className = "field";
+
+        const label = document.createElement("label");
+        label.htmlFor = fieldKey;
+        label.textContent = config.label;
+        fieldEl.appendChild(label);
+
+        let input;
+        if (config.type === "select") {
+          input = document.createElement("select");
+          for (const option of config.options) {
+            const optionEl = document.createElement("option");
+            optionEl.value = option;
+            optionEl.textContent = option;
+            input.appendChild(optionEl);
+          }
+        } else if (config.type === "textarea") {
+          input = document.createElement("textarea");
+        } else {
+          input = document.createElement("input");
+          input.type = config.type;
+        }
+
+        input.id = fieldKey;
+        input.placeholder = config.placeholder;
+        input.value = state[fieldKey] ?? "";
+        input.addEventListener("input", (event) => {
+          state[fieldKey] = event.target.value;
+          persistState();
+          renderCommandEditor();
+          renderPreview();
+        });
+        fieldEl.appendChild(input);
+
+        const hint = document.createElement("div");
+        hint.className = "hint";
+        hint.textContent = useCompactHint ? config.hint.split(".")[0] + "." : config.hint;
+        fieldEl.appendChild(hint);
+
+        return fieldEl;
+      }
+
+      function renderMemoryFields() {
+        memoryFieldsEl.innerHTML = "";
+        [
+          "channelName",
+          "network",
+          "alchemyApiKey",
+          "privateKey",
+          "password",
+          "wallet",
+          "amount",
+          "amounts",
+          "noteId",
+          "noteIds",
+          "recipients",
+        ].forEach((fieldKey) => {
+          memoryFieldsEl.appendChild(fieldInput(fieldKey, false));
+        });
+      }
+
+      function renderCatalog() {
+        commandCatalogEl.innerHTML = "";
+        for (const [category, entries] of Object.entries(groupedCommands)) {
+          const groupEl = document.createElement("section");
+          groupEl.className = "catalog-group";
+
+          const headingEl = document.createElement("h3");
+          headingEl.className = "catalog-heading";
+          headingEl.textContent = category;
+          groupEl.appendChild(headingEl);
+
+          for (const command of entries) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = `command-button${state.commandId === command.id ? " active" : ""}`;
+            button.addEventListener("click", () => {
+              state.commandId = command.id;
+              persistState();
+              render();
+            });
+
+            const nameEl = document.createElement("div");
+            nameEl.className = "command-name";
+            nameEl.textContent = command.id;
+
+            const descEl = document.createElement("div");
+            descEl.className = "command-desc";
+            descEl.textContent = command.description;
+
+            button.appendChild(nameEl);
+            button.appendChild(descEl);
+            groupEl.appendChild(button);
+          }
+
+          commandCatalogEl.appendChild(groupEl);
+        }
+      }
+
+      function renderCommandEditor() {
+        const command = commands.find((entry) => entry.id === state.commandId) ?? commands[0];
+        editorTitleEl.textContent = command.id;
+        editorSubtitleEl.textContent = command.description;
+        commandFieldsEl.innerHTML = "";
+
+        if (command.fields.length === 0) {
+          const note = document.createElement("div");
+          note.className = "warning";
+          note.textContent = "This command has no inputs. The preview is already complete.";
+          commandFieldsEl.appendChild(note);
+          return;
+        }
+
+        for (const fieldKey of command.fields) {
+          if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
+            continue;
+          }
+          commandFieldsEl.appendChild(fieldInput(fieldKey, true));
+        }
+      }
+
+      function renderPreview() {
+        const command = commands.find((entry) => entry.id === state.commandId) ?? commands[0];
+        const missing = missingFields(command);
+        previewEl.textContent = buildCommand(true);
+
+        if (missing.length === 0) {
+          previewWarningEl.textContent = state.network === "anvil"
+            ? "Ready to copy. On anvil, this command intentionally omits --alchemy-api-key."
+            : "Ready to copy. Review the command once before running it in your terminal.";
+        } else {
+          previewWarningEl.textContent = `Missing inputs: ${missing.map((fieldKey) => fieldCatalog[fieldKey].label).join(", ")}`;
+        }
+      }
+
+      async function copyText(value) {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+          return;
+        }
+
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+
+      function render() {
+        renderMemoryFields();
+        renderCatalog();
+        renderCommandEditor();
+        renderPreview();
+      }
+
+      render();
+    </script>
+  </body>
+</html>

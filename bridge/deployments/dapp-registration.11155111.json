@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-30T22:14:52.225Z",
+  "generatedAt": "2026-03-30T22:47:38.821Z",
   "deploymentPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge.11155111.json",
   "abiManifestPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge-abi-manifest.11155111.json",
   "appNetwork": "sepolia",
@@ -28,6 +28,12 @@
       "exampleName": "mintNotes/mintNotes2",
       "entryContract": "0x53344c3484c833A651DEA2B97C92343cED291cd2",
       "functionSig": "0x516a9d53"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "mintNotes/mintNotes3",
+      "entryContract": "0x53344c3484c833A651DEA2B97C92343cED291cd2",
+      "functionSig": "0x7ba2116d"
     },
     {
       "groupName": "private-state",
@@ -61,11 +67,6 @@
     }
   ],
   "skippedExamples": [
-    {
-      "groupName": "mintNotes",
-      "exampleName": "mintNotes3",
-      "reason": "qap-compiler capacity exceeded"
-    },
     {
       "groupName": "mintNotes",
       "exampleName": "mintNotes4",
@@ -118,10 +119,10 @@
     }
   ],
   "registration": {
-    "txHash": "0xd29fc53e3855f33f78524fb2ce4106b661e076915f13edabdce50d5cfbd1d47f",
-    "blockNumber": 10556410,
+    "txHash": "0x5b9b9afbfc0dde3bb25812bd0568c3bdfb36f90a862041880743b8d6d1aa2521",
+    "blockNumber": 10556573,
     "labelHash": "0x280fff58e494db3de12ebbdf607529639a8dce993a3771df1774946231ec4d35",
     "storageCount": 2,
-    "functionCount": 7
+    "functionCount": 8
   }
 }

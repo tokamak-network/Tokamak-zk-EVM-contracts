@@ -338,9 +338,6 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
 
 async function handleWorkspaceInit({ args, network, provider }) {
   const channelName = requireArg(args.channelName, "--channel-name");
-  if (args.workspace !== undefined) {
-    throw new Error("--workspace is not supported by recover-workspace. The workspace name is always the channel name.");
-  }
   const workspaceName = channelName;
   const bridgeResources = loadBridgeResources({ chainId: network.chainId });
 
@@ -1039,7 +1036,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     networkName: network.name,
     provider,
   });
-  const signer = resolveWalletBackedSigner({ args, provider });
+  const signer = requireL1Signer(args, provider);
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName: context.workspace.channelName,
     password,
@@ -2705,14 +2702,6 @@ async function loadWorkspaceContext(workspaceName, provider) {
 }
 
 async function loadChannelContext({ args, networkName, provider, walletContext = null }) {
-  const explicitWorkspaceName = args.workspace ? requireWorkspaceName(args) : null;
-  if (explicitWorkspaceName) {
-    const explicitWorkspaceDir = channelWorkspacePath(explicitWorkspaceName);
-    if (fs.existsSync(channelWorkspaceConfigPath(explicitWorkspaceDir))) {
-      return loadWorkspaceContext(explicitWorkspaceName, provider);
-    }
-  }
-
   const chainId = Number((await provider.getNetwork()).chainId);
   const resolvedNetworkName = networkName ?? networkNameFromChainId(chainId);
   const channelName = args.channelName ?? walletContext?.wallet.channelName;
@@ -2727,7 +2716,7 @@ async function loadChannelContext({ args, networkName, provider, walletContext =
   }
   if (!channelName) {
     throw new Error(
-      "Missing channel selector. Provide either --workspace, --channel-name, or --wallet bound to a channel.",
+      "Missing channel selector. Provide either --channel-name or --wallet bound to a channel.",
     );
   }
 
@@ -2742,7 +2731,7 @@ async function loadChannelContext({ args, networkName, provider, walletContext =
   });
 
   return {
-    workspaceName: explicitWorkspaceName ?? channelName,
+    workspaceName: channelName,
     workspaceDir: null,
     persistChannelWorkspace: false,
     workspace: initialized.workspace,
@@ -2849,23 +2838,6 @@ function restoreWalletParticipant(walletContext, provider) {
     signer: restoreWalletSigner(walletContext, provider),
     l2Identity: restoreParticipantIdentityFromWallet(walletContext.wallet),
   };
-}
-
-function resolveWalletBackedSigner({ args, provider, walletContext }) {
-  if (args.privateKey !== undefined) {
-    const signer = requireL1Signer(args, provider);
-    if (walletContext?.wallet?.l1Address) {
-      expect(
-        getAddress(walletContext.wallet.l1Address) === getAddress(signer.address),
-        "The provided --private-key does not match the encrypted wallet's stored L1 address.",
-      );
-    }
-    return signer;
-  }
-  if (walletContext?.wallet?.l1PrivateKey) {
-    return restoreWalletSigner(walletContext, provider);
-  }
-  throw new Error("Missing --private-key and no encrypted L1 private key is available in the selected wallet.");
 }
 
 function loadBridgeResources({ chainId }) {
@@ -3147,19 +3119,6 @@ async function fetchContractCodes(provider, addresses) {
 async function fetchTokenDecimals(provider, assetAddress) {
   const asset = new Contract(assetAddress, erc20MetadataAbi, provider);
   return Number(await asset.decimals());
-}
-
-function assertSnapshotMatchesChannel(snapshot, currentRootVectorHash, managedStorageAddresses) {
-  const normalizedSnapshot = normalizeStateSnapshot(snapshot);
-  expect(
-    normalizeBytes32Hex(hashRootVector(normalizedSnapshot.stateRoots)) === normalizeBytes32Hex(currentRootVectorHash),
-    "Imported snapshot roots do not match the current on-chain channel roots.",
-  );
-  expect(
-    JSON.stringify(normalizedAddressVector(normalizedSnapshot.storageAddresses))
-      === JSON.stringify(normalizedAddressVector(managedStorageAddresses)),
-    "Imported snapshot storage-address vector does not match the channel-managed storage vector.",
-  );
 }
 
 function normalizeStateSnapshot(snapshot) {
@@ -3492,15 +3451,6 @@ function toKebabCase(value) {
   return value.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 }
 
-function parseBooleanFlag(value) {
-  if (value === undefined) return false;
-  if (value === true) return true;
-  if (typeof value === "string") {
-    return value === "true" || value === "1";
-  }
-  return Boolean(value);
-}
-
 function parseTokenAmount(value, decimals) {
   try {
     return ethers.parseUnits(String(value), decimals);
@@ -3719,51 +3669,26 @@ function assertGetMyBridgeFundArgs(args) {
   );
 }
 
-function assertRecoverWalletArgs(args) {
+function assertExplicitSignerPasswordCommandArgs(args, commandName) {
   requireL2Password(args);
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, "recover-wallet");
+  requireAlchemyApiKeyForPublicNetwork(args, commandName);
   requireArg(args.privateKey, "--private-key");
   assertAllowedCommandKeys(
     args,
-    "recover-wallet",
+    commandName,
     new Set(["command", "positional", "channelName", "network", "privateKey", "password", "alchemyApiKey"]),
     "--channel-name, --password, --network, --private-key, and --alchemy-api-key on public networks",
   );
 }
 
+function assertRecoverWalletArgs(args) {
+  assertExplicitSignerPasswordCommandArgs(args, "recover-wallet");
+}
+
 function assertJoinChannelArgs(args) {
-  requireL2Password(args);
-  requireArg(args.channelName, "--channel-name");
-  requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, "join-channel");
-  requireArg(args.privateKey, "--private-key");
-  const allowedKeys = new Set([
-    "command",
-    "positional",
-    "channelName",
-    "network",
-    "privateKey",
-    "password",
-    "alchemyApiKey",
-  ]);
-  const unsupported = Object.keys(args)
-    .filter((key) => !allowedKeys.has(key))
-    .map((key) => `--${toKebabCase(key)}`);
-  if (unsupported.length > 0) {
-    throw new Error(
-      [
-        "join-channel only accepts --channel-name, plus",
-        "--network, --private-key, --password, and --alchemy-api-key on public networks.",
-        `Unsupported option(s): ${unsupported.join(", ")}.`,
-      ].join(" "),
-    );
-  }
-  expect(
-    (args.positional ?? []).length === 1,
-    "join-channel does not accept positional arguments beyond the command name.",
-  );
+  assertExplicitSignerPasswordCommandArgs(args, "join-channel");
 }
 
 function assertGetMyAddressArgs(args) {

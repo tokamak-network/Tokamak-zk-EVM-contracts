@@ -232,11 +232,6 @@
           type: "textarea",
           placeholder: "[1,2,3]",
         },
-        noteId: {
-          label: "Note ID",
-          type: "text",
-          placeholder: "0x...",
-        },
         noteIds: {
           label: "Note IDs JSON",
           type: "textarea",
@@ -265,7 +260,7 @@
         { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "password", "network"] },
         { id: "mint-notes", description: "Mint private-state notes from the wallet channel balance.", fields: ["wallet", "password", "network", "amounts"] },
         { id: "transfer-notes", description: "Spend tracked notes into encrypted recipient outputs.", fields: ["wallet", "password", "network", "noteIds", "recipients", "amounts"] },
-        { id: "redeem-notes", description: "Redeem one tracked note back into liquid accounting balance.", fields: ["wallet", "password", "network", "noteId"] },
+        { id: "redeem-notes", description: "Redeem one or two tracked notes back into liquid accounting balance.", fields: ["wallet", "password", "network", "noteIds"] },
         { id: "get-my-notes", description: "Refresh encrypted note-log recovery and show current wallet notes.", fields: ["wallet", "password", "network"] },
       ];
 
@@ -279,7 +274,6 @@
         wallet: "",
         amount: "",
         amounts: "[3]",
-        noteId: "",
         noteIds: "[\"0x...\"]",
         recipients: "[\"0xRecipientL2Address\"]",
       };
@@ -474,9 +468,6 @@
               break;
             case "amounts":
               appendOption(parts, "--amounts", renderedValue);
-              break;
-            case "noteId":
-              appendOption(parts, "--note-id", renderedValue);
               break;
             case "noteIds":
               appendOption(parts, "--note-ids", renderedValue);

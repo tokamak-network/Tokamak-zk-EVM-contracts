@@ -1312,11 +1312,11 @@ async function handleMintNotes({ args, provider }) {
 
 async function handleRedeemNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
-  const noteId = parseNoteId(requireArg(args.noteId, "--note-id"));
-  const inputNote = loadRedeemInputNote(wallet, noteId);
+  const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
+  const inputNotes = loadRedeemInputNotes(wallet, noteIds);
   const templatePayload = buildRedeemNotesTemplatePayload({
     wallet,
-    inputNote,
+    inputNotes,
   });
   const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
     wallet,
@@ -1335,11 +1335,11 @@ async function handleRedeemNotes({ args, provider }) {
     receiver: wallet.wallet.l2Address,
     underlyingMethod: templatePayload.method,
     nonce: execution.nonce,
-    noteId,
-    redeemedNote: buildTrackedNote(inputNote, templatePayload.method, execution.receipt.hash),
-    redeemedAmountBaseUnits: inputNote.value,
+    noteIds,
+    redeemedNotes: inputNotes.map((note) => buildTrackedNote(note, templatePayload.method, execution.receipt.hash)),
+    redeemedAmountBaseUnits: inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n).toString(),
     redeemedAmountTokens: ethers.formatUnits(
-      BigInt(inputNote.value),
+      inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n),
       Number(wallet.wallet.canonicalAssetDecimals),
     ),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
@@ -2282,11 +2282,11 @@ function buildMintNotesTemplatePayload({ wallet, baseUnitAmounts }) {
   };
 }
 
-function buildRedeemNotesTemplatePayload({ wallet, inputNote }) {
+function buildRedeemNotesTemplatePayload({ wallet, inputNotes }) {
   return {
     abiFile: "../deploy/PrivateStateController.callable-abi.json",
-    method: "redeemNotes1",
-    args: [[inputNote], wallet.wallet.l2Address],
+    method: selectRedeemNotesMethod(inputNotes.length),
+    args: [inputNotes, wallet.wallet.l2Address],
   };
 }
 
@@ -2294,6 +2294,12 @@ function selectMintNotesMethod(noteCount) {
   expect(noteCount >= 1, "mint-notes requires at least one output amount.");
   expect(noteCount <= 6, "mint-notes supports at most six output amounts.");
   return `mintNotes${noteCount}`;
+}
+
+function selectRedeemNotesMethod(noteCount) {
+  expect(noteCount >= 1, "redeem-notes requires at least one input note.");
+  expect(noteCount <= 2, "redeem-notes supports at most two input notes.");
+  return `redeemNotes${noteCount}`;
 }
 
 function buildMintOutputNotes({ owner, values }) {
@@ -2390,10 +2396,12 @@ function loadTransferInputNotes(walletContext, noteIds) {
   });
 }
 
-function loadRedeemInputNote(walletContext, noteId) {
-  const trackedNote = walletContext.wallet.notes.unused[noteId];
-  expect(trackedNote, `Unknown unused note commitment: ${noteId}.`);
-  return normalizePlaintextNote(trackedNote);
+function loadRedeemInputNotes(walletContext, noteIds) {
+  return noteIds.map((noteId) => {
+    const trackedNote = walletContext.wallet.notes.unused[noteId];
+    expect(trackedNote, `Unknown unused note commitment: ${noteId}.`);
+    return normalizePlaintextNote(trackedNote);
+  });
 }
 
 function parseTokenAmountVector(value) {
@@ -2441,14 +2449,6 @@ function parseNoteIdVector(value) {
     "Invalid --note-ids. Duplicate note commitments are not allowed.",
   );
   return noteIds;
-}
-
-function parseNoteId(value) {
-  expect(
-    typeof value === "string" && value.length > 0,
-    "Invalid --note-id. Expected a note commitment string.",
-  );
-  return normalizeBytes32Hex(value);
 }
 
 function parseRecipientVector(value) {
@@ -3661,9 +3661,9 @@ function assertMintNotesArgs(args) {
 }
 
 function assertRedeemNotesArgs(args) {
-  requireArg(args.noteId, "--note-id");
-  assertWalletPasswordArgs(args, "redeem-notes", ["noteId"], "--wallet, --password, --network, and --note-id");
-  parseNoteId(args.noteId);
+  requireArg(args.noteIds, "--note-ids");
+  assertWalletPasswordArgs(args, "redeem-notes", ["noteIds"], "--wallet, --password, --network, and --note-ids");
+  selectRedeemNotesMethod(parseNoteIdVector(args.noteIds).length);
 }
 
 function assertTransferNotesArgs(args) {
@@ -3865,8 +3865,8 @@ Commands:
   transfer-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-ids <ID,ID,...> --recipients <ADDR,ADDR,...> --amounts <A,B,...>
       Spend input notes into supported private transfer outputs
 
-  redeem-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-id <ID>
-      Redeem a tracked note back into the wallet's channel balance
+  redeem-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-ids <ID,ID,...>
+      Redeem one or two tracked notes back into the wallet's channel balance
 
   get-my-notes --wallet <NAME> --password <PASSWORD> --network <NAME>
       Show the wallet's tracked note state and refresh received notes

@@ -610,14 +610,30 @@ async function materializeCurrentDAppDefinition(provider, participants) {
       calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.cMint.owner, notes.cMint.value, notes.cMint.salt]]]),
     },
     {
-      name: "redeem-notes-1",
+      name: "redeem-notes-2",
       sender: participants[2].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData(
+        "redeemNotes2",
+        [
+          [
+            [notes.aToC.owner, notes.aToC.value, notes.aToC.salt],
+            [notes.bToC.owner, notes.bToC.value, notes.bToC.salt],
+          ],
+          participants[2].registration.l2Identity.l2Address,
+        ],
+      ),
+    },
+    {
+      name: "redeem-notes-1",
+      sender: participants[2].registration.l2Identity,
+      nonce: 1,
+      controllerAddress: controller,
+      calldata: controllerInterface.encodeFunctionData(
         "redeemNotes1",
         [
-          [[notes.aToC.owner, notes.aToC.value, notes.aToC.salt]],
+          [[notes.cMint.owner, notes.cMint.value, notes.cMint.salt]],
           participants[2].registration.l2Identity.l2Address,
         ],
       ),
@@ -1090,13 +1106,13 @@ function transferNotes(participant, noteIds, recipients, amounts) {
   ]);
 }
 
-function redeemNote(participant, noteId) {
+function redeemNotes(participant, noteIds) {
   return runPrivateStateCli([
     "redeem-notes",
     "--wallet", participant.walletName,
     "--password", participant.password,
     "--network", "anvil",
-    "--note-id", noteId,
+    "--note-ids", JSON.stringify(noteIds),
   ]);
 }
 
@@ -1299,9 +1315,8 @@ async function main() {
     assertWalletNoteSnapshot(notesAfterTransferB, { unusedCount: 0, spentCount: 2, unusedTotal: 0n, spentTotal: 4n * amountUnit });
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });
 
-    const redeemAToC = redeemNote(participants[2], noteAToC.commitment);
-    const redeemBToC = redeemNote(participants[2], noteBToC.commitment);
-    const redeemCMint = redeemNote(participants[2], cMintNote.commitment);
+    redeemNotes(participants[2], [noteAToC.commitment, noteBToC.commitment]);
+    redeemNotes(participants[2], [cMintNote.commitment]);
     const notesAfterRedeemC = getMyNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
 

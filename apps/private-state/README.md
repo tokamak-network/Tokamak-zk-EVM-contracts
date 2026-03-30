@@ -244,8 +244,8 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 
 `redeem-notes`
 
-- redeems one tracked note back into liquid accounting balance
-- accepts `--wallet`, `--password`, `--network`, and `--note-id`
+- redeems one or two tracked notes back into liquid accounting balance
+- accepts `--wallet`, `--password`, `--network`, and `--note-ids`
 
 ### 12. Move value back to the shared L1 bridge vault
 

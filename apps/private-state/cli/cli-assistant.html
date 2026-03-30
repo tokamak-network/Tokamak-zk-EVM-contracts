@@ -62,6 +62,11 @@
         margin-top: 8px;
       }
 
+      .field-stack {
+        display: grid;
+        gap: 6px;
+      }
+
       pre {
         margin: 0;
         white-space: pre-wrap;
@@ -275,6 +280,10 @@
       ];
 
       const state = loadState();
+      const walletDirectoryState = {
+        handle: null,
+        options: [],
+      };
 
       const memoryFieldsEl = document.getElementById("memory-fields");
       const commandSelectEl = document.getElementById("command-select");
@@ -331,6 +340,10 @@
 
       function appendOption(parts, optionName, value) {
         parts.push(optionName, shellEscape(value));
+      }
+
+      function commandNeedsWallet(command = currentCommand()) {
+        return command.fields.includes("wallet");
       }
 
       function needsAlchemy(command) {
@@ -415,8 +428,94 @@
         }, "");
       }
 
+      async function chooseWalletDirectory() {
+        if (typeof window.showDirectoryPicker !== "function") {
+          setStatus("This browser does not support directory selection.");
+          return;
+        }
+
+        try {
+          const handle = await window.showDirectoryPicker();
+          const options = [];
+          for await (const [name, childHandle] of handle.entries()) {
+            if (childHandle.kind === "directory") {
+              options.push(name);
+            }
+          }
+          options.sort((left, right) => left.localeCompare(right));
+          walletDirectoryState.handle = handle;
+          walletDirectoryState.options = options;
+          if (!options.includes(state.wallet)) {
+            state.wallet = options[0] ?? "";
+          }
+          persistState();
+          renderCommandFields();
+          renderPreview();
+          setStatus(
+            options.length === 0
+              ? "Selected directory does not contain wallet folders."
+              : `Loaded ${options.length} wallet folder${options.length === 1 ? "" : "s"}.`,
+          );
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            return;
+          }
+          setStatus("Failed to read the selected wallet directory.");
+        }
+      }
+
+      function createWalletField() {
+        const wrapper = document.createElement("div");
+        wrapper.className = "field-stack";
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Select wallet directory";
+        button.addEventListener("click", async () => {
+          await chooseWalletDirectory();
+        });
+        wrapper.appendChild(button);
+
+        const label = document.createElement("label");
+        label.textContent = fieldCatalog.wallet.label;
+        const select = document.createElement("select");
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = walletDirectoryState.options.length === 0
+          ? "Select a wallet directory first"
+          : "Choose wallet";
+        select.appendChild(placeholder);
+        for (const option of walletDirectoryState.options) {
+          const optionEl = document.createElement("option");
+          optionEl.value = option;
+          optionEl.textContent = option;
+          select.appendChild(optionEl);
+        }
+        select.value = walletDirectoryState.options.includes(state.wallet) ? state.wallet : "";
+        select.disabled = walletDirectoryState.options.length === 0;
+        select.addEventListener("change", (event) => {
+          state.wallet = event.target.value;
+          persistState();
+          renderPreview();
+        });
+        label.appendChild(select);
+        wrapper.appendChild(label);
+
+        const hint = document.createElement("p");
+        hint.className = "hint";
+        hint.textContent = walletDirectoryState.handle === null
+          ? "Choose the local wallets parent directory."
+          : `Wallet directory: ${walletDirectoryState.handle.name}`;
+        wrapper.appendChild(hint);
+
+        return wrapper;
+      }
+
       function createField(fieldKey) {
         const config = fieldCatalog[fieldKey];
+        if (fieldKey === "wallet") {
+          return createWalletField();
+        }
         const label = document.createElement("label");
         label.textContent = config.label;
 
@@ -501,11 +600,14 @@
         const command = currentCommand();
         const missing = missingFields(command);
         previewEl.textContent = buildCommand(false);
+        const walletWarning = commandNeedsWallet(command) && walletDirectoryState.handle === null
+          ? " Select a wallet directory to populate the wallet dropdown."
+          : "";
         warningEl.textContent = missing.length === 0
           ? state.network === "anvil"
-            ? "Ready. --alchemy-api-key is omitted automatically on anvil."
-            : "Ready."
-          : `Missing inputs: ${missing.map((fieldKey) => fieldCatalog[fieldKey].label).join(", ")}`;
+            ? `Ready. --alchemy-api-key is omitted automatically on anvil.${walletWarning}`
+            : `Ready.${walletWarning}`
+          : `Missing inputs: ${missing.map((fieldKey) => fieldCatalog[fieldKey].label).join(", ")}.${walletWarning}`;
       }
 
       async function copyText(value) {

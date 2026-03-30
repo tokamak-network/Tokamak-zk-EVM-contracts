@@ -271,6 +271,15 @@
         recipients: "[\"0xRecipientL2Address\"]",
       };
 
+      const sharedFieldKeys = [
+        "channelName",
+        "network",
+        "alchemyApiKey",
+        "privateKey",
+        "password",
+        "wallet",
+      ];
+
       const state = loadState();
 
       const memoryFieldsEl = document.getElementById("memory-fields");
@@ -464,11 +473,6 @@
           "privateKey",
           "password",
           "wallet",
-          "amount",
-          "amounts",
-          "noteId",
-          "noteIds",
-          "recipients",
         ].forEach((fieldKey) => {
           memoryFieldsEl.appendChild(createField(fieldKey));
         });
@@ -494,13 +498,14 @@
         const command = currentCommand();
         commandDescriptionEl.textContent = command.description;
         commandFieldsEl.innerHTML = "";
+        const commandOnlyFields = command.fields.filter((fieldKey) => !sharedFieldKeys.includes(fieldKey));
 
-        if (command.fields.length === 0) {
-          commandFieldsEl.textContent = "This command has no inputs.";
+        if (commandOnlyFields.length === 0) {
+          commandFieldsEl.textContent = "This command does not need extra command-specific inputs.";
           return;
         }
 
-        for (const fieldKey of command.fields) {
+        for (const fieldKey of commandOnlyFields) {
           if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
             continue;
           }

@@ -124,9 +124,6 @@
           <h2>Shared Inputs</h2>
           <form class="box">
             <div id="memory-fields" class="fields"></div>
-            <div class="actions">
-              <button id="reset-memory" type="button">Reset saved inputs</button>
-            </div>
           </form>
         </section>
 
@@ -286,13 +283,6 @@
       const warningEl = document.getElementById("warning");
       const previewEl = document.getElementById("command-preview");
       const statusEl = document.getElementById("status");
-
-      document.getElementById("reset-memory").addEventListener("click", () => {
-        Object.assign(state, structuredClone(defaultState));
-        persistState();
-        render();
-        setStatus("Saved inputs reset.");
-      });
 
       document.getElementById("copy-command").addEventListener("click", async () => {
         await copyText(buildCommand(false));

@@ -184,12 +184,18 @@
 
     </main>
 
-    <script>
+    <script type="module">
+      import { scrypt } from "../../../node_modules/@noble/hashes/esm/scrypt.js";
+
       const storageKey = "private-state-cli-assistant:v2";
       const cliEntry = "node apps/private-state/cli/private-state-bridge-cli.mjs";
       const defaultWorkspaceRootLabel = navigator.userAgent.includes("Windows")
         ? "%USERPROFILE%\\\\tokamak-private-channels\\\\workspace"
         : "~/tokamak-private-channels/workspace";
+      const walletEncryptionVersion = 1;
+      const walletEncryptionAlgorithm = "aes-256-gcm";
+      const textEncoder = new TextEncoder();
+      const textDecoder = new TextDecoder();
 
       const fieldCatalog = {
         channelName: {
@@ -233,7 +239,7 @@
           placeholder: "[1,2,3]",
         },
         noteIds: {
-          label: "Note IDs JSON",
+          label: "Note IDs",
           type: "textarea",
           placeholder: "[\"0x...\"]",
         },
@@ -290,6 +296,12 @@
         byNetwork: {},
         loaded: false,
         statusMessage: "",
+      };
+      const walletNoteState = {
+        cacheKey: "",
+        options: [],
+        statusMessage: "",
+        hasLoaded: false,
       };
 
       const workspacePickerEl = document.getElementById("workspace-picker");
@@ -374,6 +386,10 @@
         return command.fields.includes("wallet");
       }
 
+      function commandNeedsWalletNotes(command = currentCommand()) {
+        return command.id === "transfer-notes" || command.id === "redeem-notes";
+      }
+
       function commandNeedsExistingChannel(command = currentCommand()) {
         return command.fields.includes("channelName")
           && command.id !== "create-channel"
@@ -384,7 +400,12 @@
         return workspaceDirectoryState.byNetwork[state.network] ?? {
           channelOptions: [],
           walletOptions: [],
+          walletEntriesByName: {},
         };
+      }
+
+      function currentWalletEntry() {
+        return currentWorkspaceOptions().walletEntriesByName?.[state.wallet] ?? null;
       }
 
       function buildWorkspaceStatusMessage() {
@@ -407,6 +428,141 @@
         }
         if (commandNeedsWallet() && !options.walletOptions.includes(state.wallet)) {
           state.wallet = options.walletOptions[0] ?? "";
+        }
+      }
+
+      function clearWalletNoteState(message = "") {
+        walletNoteState.cacheKey = "";
+        walletNoteState.options = [];
+        walletNoteState.statusMessage = message;
+        walletNoteState.hasLoaded = false;
+        if (commandNeedsWalletNotes()) {
+          state.noteIds = "";
+        }
+      }
+
+      function parseSelectedNoteIds() {
+        if (!state.noteIds) {
+          return [];
+        }
+        try {
+          const parsed = JSON.parse(state.noteIds);
+          return Array.isArray(parsed)
+            ? parsed.filter((entry) => typeof entry === "string" && entry.length > 0)
+            : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function syncSelectedNoteIdsToAvailableOptions() {
+        const available = new Set(walletNoteState.options.map((option) => option.value));
+        const selected = parseSelectedNoteIds().filter((noteId) => available.has(noteId));
+        state.noteIds = selected.length === 0 ? "" : JSON.stringify(selected);
+      }
+
+      function hexToBytes(value) {
+        const normalized = String(value).startsWith("0x") ? String(value).slice(2) : String(value);
+        if (normalized.length === 0) {
+          return new Uint8Array();
+        }
+        return Uint8Array.from(
+          normalized.match(/.{1,2}/g).map((pair) => Number.parseInt(pair, 16)),
+        );
+      }
+
+      async function decryptWalletJson(envelope, walletPassword) {
+        if (
+          envelope?.version !== walletEncryptionVersion
+          || envelope?.algorithm !== walletEncryptionAlgorithm
+          || envelope?.kdf !== "scrypt"
+        ) {
+          throw new Error("Unsupported wallet encryption envelope.");
+        }
+
+        const encryptionKeyBytes = scrypt(textEncoder.encode(String(walletPassword)), hexToBytes(envelope.salt), {
+          N: 16384,
+          r: 8,
+          p: 1,
+          dkLen: 32,
+        });
+        const cryptoKey = await crypto.subtle.importKey("raw", encryptionKeyBytes, "AES-GCM", false, ["decrypt"]);
+        const ciphertext = hexToBytes(envelope.ciphertext);
+        const tag = hexToBytes(envelope.tag);
+        const combinedCiphertext = new Uint8Array(ciphertext.length + tag.length);
+        combinedCiphertext.set(ciphertext, 0);
+        combinedCiphertext.set(tag, ciphertext.length);
+        const plaintextBuffer = await crypto.subtle.decrypt(
+          {
+            name: "AES-GCM",
+            iv: hexToBytes(envelope.iv),
+            tagLength: 128,
+          },
+          cryptoKey,
+          combinedCiphertext,
+        );
+        return JSON.parse(textDecoder.decode(new Uint8Array(plaintextBuffer)));
+      }
+
+      function extractUnusedNoteOptions(walletJson) {
+        const notes = walletJson?.notes ?? {};
+        const unusedNotes = notes.unused ?? {};
+        const unusedOrder = Array.isArray(notes.unusedOrder) ? notes.unusedOrder : Object.keys(unusedNotes);
+        return unusedOrder
+          .map((commitment) => unusedNotes[commitment])
+          .filter((note) => note && typeof note.commitment === "string")
+          .map((note) => ({
+            value: note.commitment,
+            label: typeof note.value === "string"
+              ? `${note.commitment} (${note.value})`
+              : note.commitment,
+          }));
+      }
+
+      async function refreshWalletNoteOptions() {
+        if (!commandNeedsWalletNotes()) {
+          return;
+        }
+        if (!workspaceDirectoryState.loaded) {
+          clearWalletNoteState("Select a workspace directory to load wallet note IDs.");
+          return;
+        }
+        if (!state.wallet) {
+          clearWalletNoteState("Choose a wallet to load note IDs.");
+          return;
+        }
+        if (!state.password) {
+          clearWalletNoteState("Enter the wallet password to load note IDs.");
+          return;
+        }
+
+        const walletEntry = currentWalletEntry();
+        if (!walletEntry) {
+          clearWalletNoteState("Selected wallet is unavailable for the current network.");
+          return;
+        }
+
+        const cacheKey = `${state.network}::${state.wallet}::${state.password}`;
+        if (walletNoteState.cacheKey === cacheKey && walletNoteState.hasLoaded) {
+          return;
+        }
+
+        walletNoteState.cacheKey = cacheKey;
+        walletNoteState.statusMessage = "Loading wallet note IDs...";
+        walletNoteState.hasLoaded = false;
+
+        try {
+          const walletFileHandle = await walletEntry.handle.getFileHandle("wallet.json");
+          const walletEnvelope = JSON.parse(await (await walletFileHandle.getFile()).text());
+          const walletJson = await decryptWalletJson(walletEnvelope, state.password);
+          walletNoteState.options = extractUnusedNoteOptions(walletJson);
+          walletNoteState.statusMessage = walletNoteState.options.length === 0
+            ? "This wallet has no unused note IDs."
+            : `Loaded ${walletNoteState.options.length} unused note ID${walletNoteState.options.length === 1 ? "" : "s"}.`;
+          walletNoteState.hasLoaded = true;
+          syncSelectedNoteIdsToAvailableOptions();
+        } catch {
+          clearWalletNoteState("Unable to decrypt the selected wallet. Check the wallet and password.");
         }
       }
 
@@ -531,14 +687,17 @@
               : channelFolderName;
 
             const walletsHandle = await channelHandle.getDirectoryHandle("wallets").catch(() => null);
-            const walletNames = [];
+            const walletEntries = [];
             if (walletsHandle) {
               for await (const [walletFolderName, walletHandle] of walletsHandle.entries()) {
                 if (walletHandle.kind !== "directory") {
                   continue;
                 }
                 const addressMatch = /-(0x[a-fA-F0-9]{40})$/.exec(walletFolderName);
-                walletNames.push(addressMatch ? `${channelName}-${addressMatch[1]}` : walletFolderName);
+                walletEntries.push({
+                  name: addressMatch ? `${channelName}-${addressMatch[1]}` : walletFolderName,
+                  handle: walletHandle,
+                });
               }
             }
 
@@ -547,7 +706,7 @@
             }
             byNetwork[resolvedNetworkName].push({
               channelName,
-              walletNames,
+              walletEntries,
             });
           }
         }
@@ -555,10 +714,17 @@
         return Object.fromEntries(
           Object.entries(byNetwork).map(([networkName, channelEntries]) => {
             channelEntries.sort((left, right) => left.channelName.localeCompare(right.channelName));
+            const walletEntriesByName = {};
+            for (const entry of channelEntries) {
+              for (const walletEntry of entry.walletEntries) {
+                walletEntriesByName[walletEntry.name] = walletEntry;
+              }
+            }
             return [networkName, {
               channelOptions: channelEntries.map((entry) => entry.channelName),
-              walletOptions: [...new Set(channelEntries.flatMap((entry) => entry.walletNames))]
+              walletOptions: [...new Set(channelEntries.flatMap((entry) => entry.walletEntries.map((walletEntry) => walletEntry.name)))]
                 .sort((left, right) => left.localeCompare(right)),
+              walletEntriesByName,
             }];
           }),
         );
@@ -591,8 +757,10 @@
           if (!currentOptions.walletOptions.includes(state.wallet)) {
             state.wallet = currentOptions.walletOptions[0] ?? "";
           }
+          clearWalletNoteState();
           persistState();
           renderWorkspacePicker();
+          await refreshWalletNoteOptions();
           renderCommandFields();
           renderPreview();
           setWorkspaceStatus(buildWorkspaceStatusMessage());
@@ -642,9 +810,12 @@
         }
         select.value = options.walletOptions.includes(state.wallet) ? state.wallet : "";
         select.disabled = options.walletOptions.length === 0;
-        select.addEventListener("change", (event) => {
+        select.addEventListener("change", async (event) => {
           state.wallet = event.target.value;
+          clearWalletNoteState();
           persistState();
+          await refreshWalletNoteOptions();
+          renderCommandFields();
           renderPreview();
         });
         label.appendChild(select);
@@ -681,10 +852,50 @@
         return label;
       }
 
+      function createNoteIdsField() {
+        const wrapper = document.createElement("div");
+        wrapper.className = "field-stack";
+        const label = document.createElement("label");
+        label.textContent = fieldCatalog.noteIds.label;
+
+        const select = document.createElement("select");
+        select.multiple = true;
+        select.size = Math.min(Math.max(walletNoteState.options.length, 3), 8);
+        select.disabled = walletNoteState.options.length === 0;
+
+        const selectedIds = new Set(parseSelectedNoteIds());
+        for (const option of walletNoteState.options) {
+          const optionEl = document.createElement("option");
+          optionEl.value = option.value;
+          optionEl.textContent = option.label;
+          optionEl.selected = selectedIds.has(option.value);
+          select.appendChild(optionEl);
+        }
+
+        select.addEventListener("change", (event) => {
+          const selectedValues = [...event.target.selectedOptions].map((option) => option.value);
+          state.noteIds = selectedValues.length === 0 ? "" : JSON.stringify(selectedValues);
+          persistState();
+          renderPreview();
+        });
+
+        label.appendChild(select);
+        wrapper.appendChild(label);
+
+        const hint = document.createElement("p");
+        hint.className = "hint";
+        hint.textContent = walletNoteState.statusMessage || "Choose a wallet and enter its password to load note IDs.";
+        wrapper.appendChild(hint);
+        return wrapper;
+      }
+
       function createField(fieldKey) {
         const config = fieldCatalog[fieldKey];
         if (fieldKey === "wallet") {
           return createWalletField();
+        }
+        if (fieldKey === "noteIds" && commandNeedsWalletNotes()) {
+          return createNoteIdsField();
         }
         if (
           fieldKey === "channelName"
@@ -714,16 +925,26 @@
 
         input.value = state[fieldKey] ?? "";
         input.placeholder = config.placeholder;
-        input.addEventListener("input", (event) => {
+        input.addEventListener("input", async (event) => {
           state[fieldKey] = event.target.value;
           if (fieldKey === "network") {
             syncWorkspaceSelectionsForCurrentNetwork();
             workspaceDirectoryState.statusMessage = buildWorkspaceStatusMessage();
+            clearWalletNoteState();
+          }
+          if (fieldKey === "password") {
+            clearWalletNoteState();
           }
           persistState();
+          if (fieldKey === "network" || fieldKey === "password") {
+            await refreshWalletNoteOptions();
+          }
           renderPreview();
           if (fieldKey === "network") {
             renderWorkspacePicker();
+            renderCommandFields();
+          }
+          if (fieldKey === "password" && commandNeedsWalletNotes()) {
             renderCommandFields();
           }
         });
@@ -752,10 +973,10 @@
           commandSelectEl.appendChild(option);
         }
         commandSelectEl.value = state.commandId;
-        commandSelectEl.addEventListener("change", (event) => {
+        commandSelectEl.addEventListener("change", async (event) => {
           state.commandId = event.target.value;
           persistState();
-          render();
+          await render();
         });
       }
 
@@ -814,9 +1035,10 @@
         textarea.remove();
       }
 
-      function render() {
+      async function render() {
         syncWorkspaceSelectionsForCurrentNetwork();
         workspaceDirectoryState.statusMessage = buildWorkspaceStatusMessage();
+        await refreshWalletNoteOptions();
         renderWorkspacePicker();
         renderMemoryFields();
         renderCommandFields();
@@ -824,7 +1046,7 @@
       }
 
       renderCommandSelect();
-      render();
+      await render();
     </script>
   </body>
 </html>

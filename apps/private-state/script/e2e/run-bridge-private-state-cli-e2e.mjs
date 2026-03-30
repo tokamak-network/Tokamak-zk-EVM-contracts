@@ -67,6 +67,7 @@ const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
 const summaryPath = path.resolve(outputRoot, "summary.json");
 const dappMetadataRoot = path.resolve(outputRoot, "dapp-metadata");
 const providerUrl = process.env.ANVIL_RPC_URL?.trim() || "http://127.0.0.1:8545";
+const workspaceNetworkName = "anvil";
 const anvilMnemonic = process.env.APPS_ANVIL_MNEMONIC?.trim() || "test test test test test test test test test test test junk";
 const anvilDeployerPrivateKey =
   process.env.APPS_ANVIL_DEPLOYER_PRIVATE_KEY?.trim()
@@ -91,8 +92,6 @@ const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
 const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
-const legacyWorkspaceRoot = path.resolve(appRoot, "cli", "workspaces");
-const legacyWalletsRoot = path.resolve(appRoot, "cli", "wallets");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const dAppManagerAbi = [
   "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
@@ -729,7 +728,7 @@ async function resolveParticipantRegistrations(provider, participants) {
 }
 
 function walletDirForName(walletName) {
-  const workspaceDir = sharedWorkspaceDirForName(workspaceRoot, channelName);
+  const workspaceDir = sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
   const walletsRoot = sharedWorkspaceWalletsDir(workspaceDir);
   return sharedWalletDirForName(walletsRoot, walletName);
 }
@@ -776,21 +775,7 @@ function assertBigIntEq(actual, expected, label) {
 
 function removeCliRunState() {
   cleanDir(outputRoot);
-  fs.rmSync(sharedWorkspaceDirForName(workspaceRoot, channelName), { recursive: true, force: true });
-
-  fs.rmSync(sharedWorkspaceDirForName(legacyWorkspaceRoot, channelName), { recursive: true, force: true });
-  if (!fs.existsSync(legacyWalletsRoot)) {
-    return;
-  }
-  for (const entry of fs.readdirSync(legacyWalletsRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    if (!entry.name.startsWith(`${channelName}-`)) {
-      continue;
-    }
-    fs.rmSync(path.join(legacyWalletsRoot, entry.name), { recursive: true, force: true });
-  }
+  fs.rmSync(sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName), { recursive: true, force: true });
 }
 
 function pruneCliRunOutput() {

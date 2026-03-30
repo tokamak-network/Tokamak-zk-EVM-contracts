@@ -301,8 +301,7 @@
       const state = loadState();
       const workspaceDirectoryState = {
         handle: null,
-        channelOptions: [],
-        walletOptions: [],
+        byNetwork: {},
       };
 
       const workspacePickerEl = document.getElementById("workspace-picker");
@@ -374,6 +373,23 @@
 
       function commandNeedsExistingChannel(command = currentCommand()) {
         return command.fields.includes("channelName") && command.id !== "create-channel";
+      }
+
+      function currentWorkspaceOptions() {
+        return workspaceDirectoryState.byNetwork[state.network] ?? {
+          channelOptions: [],
+          walletOptions: [],
+        };
+      }
+
+      function syncWorkspaceSelectionsForCurrentNetwork() {
+        const options = currentWorkspaceOptions();
+        if (commandNeedsExistingChannel() && !options.channelOptions.includes(state.channelName)) {
+          state.channelName = options.channelOptions[0] ?? "";
+        }
+        if (commandNeedsWallet() && !options.walletOptions.includes(state.wallet)) {
+          state.wallet = options.walletOptions[0] ?? "";
+        }
       }
 
       function needsAlchemy(command) {
@@ -459,61 +475,75 @@
       }
 
       async function loadWorkspaceDirectoryOptions(handle) {
-        const channelEntries = [];
+        const byNetwork = {};
 
-        for await (const [folderName, childHandle] of handle.entries()) {
-          if (childHandle.kind !== "directory") {
+        for await (const [networkFolderName, networkHandle] of handle.entries()) {
+          if (networkHandle.kind !== "directory") {
             continue;
           }
 
-          const channelDirHandle = await childHandle.getDirectoryHandle("channel").catch(() => null);
-          if (!channelDirHandle) {
-            continue;
-          }
-
-          const workspaceFileHandle = await channelDirHandle.getFileHandle("workspace.json").catch(() => null);
-          if (!workspaceFileHandle) {
-            continue;
-          }
-
-          let workspaceJson;
-          try {
-            workspaceJson = JSON.parse(await (await workspaceFileHandle.getFile()).text());
-          } catch {
-            continue;
-          }
-
-          const channelName = typeof workspaceJson.channelName === "string" && workspaceJson.channelName.length > 0
-            ? workspaceJson.channelName
-            : folderName;
-
-          const walletsHandle = await childHandle.getDirectoryHandle("wallets").catch(() => null);
-          const walletNames = [];
-          if (walletsHandle) {
-            for await (const [walletFolderName, walletHandle] of walletsHandle.entries()) {
-              if (walletHandle.kind !== "directory") {
-                continue;
-              }
-              const addressMatch = /-(0x[a-fA-F0-9]{40})$/.exec(walletFolderName);
-              walletNames.push(addressMatch ? `${channelName}-${addressMatch[1]}` : walletFolderName);
+          const channelEntries = [];
+          for await (const [channelFolderName, channelHandle] of networkHandle.entries()) {
+            if (channelHandle.kind !== "directory") {
+              continue;
             }
-          }
 
-          channelEntries.push({
-            channelName,
-            walletNames,
-          });
+            const channelDirHandle = await channelHandle.getDirectoryHandle("channel").catch(() => null);
+            if (!channelDirHandle) {
+              continue;
+            }
+
+            const workspaceFileHandle = await channelDirHandle.getFileHandle("workspace.json").catch(() => null);
+            if (!workspaceFileHandle) {
+              continue;
+            }
+
+            let workspaceJson;
+            try {
+              workspaceJson = JSON.parse(await (await workspaceFileHandle.getFile()).text());
+            } catch {
+              continue;
+            }
+
+            const resolvedNetworkName = typeof workspaceJson.network === "string" && workspaceJson.network.length > 0
+              ? workspaceJson.network
+              : networkFolderName;
+            const channelName = typeof workspaceJson.channelName === "string" && workspaceJson.channelName.length > 0
+              ? workspaceJson.channelName
+              : channelFolderName;
+
+            const walletsHandle = await channelHandle.getDirectoryHandle("wallets").catch(() => null);
+            const walletNames = [];
+            if (walletsHandle) {
+              for await (const [walletFolderName, walletHandle] of walletsHandle.entries()) {
+                if (walletHandle.kind !== "directory") {
+                  continue;
+                }
+                const addressMatch = /-(0x[a-fA-F0-9]{40})$/.exec(walletFolderName);
+                walletNames.push(addressMatch ? `${channelName}-${addressMatch[1]}` : walletFolderName);
+              }
+            }
+
+            if (!byNetwork[resolvedNetworkName]) {
+              byNetwork[resolvedNetworkName] = [];
+            }
+            byNetwork[resolvedNetworkName].push({
+              channelName,
+              walletNames,
+            });
+          }
         }
 
-        channelEntries.sort((left, right) => left.channelName.localeCompare(right.channelName));
-        const channelOptions = channelEntries.map((entry) => entry.channelName);
-        const walletOptions = [...new Set(channelEntries.flatMap((entry) => entry.walletNames))]
-          .sort((left, right) => left.localeCompare(right));
-
-        return {
-          channelOptions,
-          walletOptions,
-        };
+        return Object.fromEntries(
+          Object.entries(byNetwork).map(([networkName, channelEntries]) => {
+            channelEntries.sort((left, right) => left.channelName.localeCompare(right.channelName));
+            return [networkName, {
+              channelOptions: channelEntries.map((entry) => entry.channelName),
+              walletOptions: [...new Set(channelEntries.flatMap((entry) => entry.walletNames))]
+                .sort((left, right) => left.localeCompare(right)),
+            }];
+          }),
+        );
       }
 
       async function chooseWorkspaceDirectory() {
@@ -528,24 +558,25 @@
             showWorkspaceSelectionError('Selected directory must be named "workspace".');
             return;
           }
-          const options = await loadWorkspaceDirectoryOptions(handle);
+          const byNetwork = await loadWorkspaceDirectoryOptions(handle);
           workspaceDirectoryState.handle = handle;
-          workspaceDirectoryState.channelOptions = options.channelOptions;
-          workspaceDirectoryState.walletOptions = options.walletOptions;
-          if (!options.channelOptions.includes(state.channelName) && currentCommand().id !== "create-channel") {
-            state.channelName = options.channelOptions[0] ?? "";
+          workspaceDirectoryState.byNetwork = byNetwork;
+          const currentOptions = currentWorkspaceOptions();
+          if (!currentOptions.channelOptions.includes(state.channelName) && currentCommand().id !== "create-channel") {
+            state.channelName = currentOptions.channelOptions[0] ?? "";
           }
-          if (!options.walletOptions.includes(state.wallet)) {
-            state.wallet = options.walletOptions[0] ?? "";
+          if (!currentOptions.walletOptions.includes(state.wallet)) {
+            state.wallet = currentOptions.walletOptions[0] ?? "";
           }
           persistState();
           renderWorkspacePicker();
           renderCommandFields();
           renderPreview();
+          const loadedNetworkCount = Object.keys(byNetwork).length;
           setStatus(
-            options.channelOptions.length === 0
-              ? "Selected workspace directory does not contain channel folders."
-              : `Loaded ${options.channelOptions.length} channel folder${options.channelOptions.length === 1 ? "" : "s"} and ${options.walletOptions.length} wallet folder${options.walletOptions.length === 1 ? "" : "s"}.`,
+            currentOptions.channelOptions.length === 0
+              ? `Selected workspace directory does not contain channel folders for ${state.network}.`
+              : `Loaded ${loadedNetworkCount} network folder${loadedNetworkCount === 1 ? "" : "s"}, ${currentOptions.channelOptions.length} channel folder${currentOptions.channelOptions.length === 1 ? "" : "s"}, and ${currentOptions.walletOptions.length} wallet folder${currentOptions.walletOptions.length === 1 ? "" : "s"} for ${state.network}.`,
           );
         } catch (error) {
           if (error?.name === "AbortError") {
@@ -580,20 +611,21 @@
         const label = document.createElement("label");
         label.textContent = fieldCatalog.wallet.label;
         const select = document.createElement("select");
+        const options = currentWorkspaceOptions();
         const placeholder = document.createElement("option");
         placeholder.value = "";
-        placeholder.textContent = workspaceDirectoryState.walletOptions.length === 0
-          ? "Select a workspace directory first"
+        placeholder.textContent = options.walletOptions.length === 0
+          ? "Select a workspace directory for this network first"
           : "Choose wallet";
         select.appendChild(placeholder);
-        for (const option of workspaceDirectoryState.walletOptions) {
+        for (const option of options.walletOptions) {
           const optionEl = document.createElement("option");
           optionEl.value = option;
           optionEl.textContent = option;
           select.appendChild(optionEl);
         }
-        select.value = workspaceDirectoryState.walletOptions.includes(state.wallet) ? state.wallet : "";
-        select.disabled = workspaceDirectoryState.walletOptions.length === 0;
+        select.value = options.walletOptions.includes(state.wallet) ? state.wallet : "";
+        select.disabled = options.walletOptions.length === 0;
         select.addEventListener("change", (event) => {
           state.wallet = event.target.value;
           persistState();
@@ -609,20 +641,21 @@
         const label = document.createElement("label");
         label.textContent = fieldCatalog.channelName.label;
         const select = document.createElement("select");
+        const options = currentWorkspaceOptions();
         const placeholder = document.createElement("option");
         placeholder.value = "";
-        placeholder.textContent = workspaceDirectoryState.channelOptions.length === 0
-          ? "Select a workspace directory first"
+        placeholder.textContent = options.channelOptions.length === 0
+          ? "Select a workspace directory for this network first"
           : "Choose channel";
         select.appendChild(placeholder);
-        for (const option of workspaceDirectoryState.channelOptions) {
+        for (const option of options.channelOptions) {
           const optionEl = document.createElement("option");
           optionEl.value = option;
           optionEl.textContent = option;
           select.appendChild(optionEl);
         }
-        select.value = workspaceDirectoryState.channelOptions.includes(state.channelName) ? state.channelName : "";
-        select.disabled = workspaceDirectoryState.channelOptions.length === 0;
+        select.value = options.channelOptions.includes(state.channelName) ? state.channelName : "";
+        select.disabled = options.channelOptions.length === 0;
         select.addEventListener("change", (event) => {
           state.channelName = event.target.value;
           persistState();
@@ -663,6 +696,9 @@
         input.placeholder = config.placeholder;
         input.addEventListener("input", (event) => {
           state[fieldKey] = event.target.value;
+          if (fieldKey === "network") {
+            syncWorkspaceSelectionsForCurrentNetwork();
+          }
           persistState();
           renderPreview();
           if (fieldKey === "network") {
@@ -757,6 +793,7 @@
       }
 
       function render() {
+        syncWorkspaceSelectionsForCurrentNetwork();
         renderWorkspacePicker();
         renderMemoryFields();
         renderCommandFields();

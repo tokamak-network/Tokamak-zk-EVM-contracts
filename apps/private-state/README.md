@@ -84,8 +84,8 @@ The CLI:
 - rebuilds wallet-backed providers from the wallet metadata `rpcUrl`
 - reads the bridge deployment manifest and ABI manifest from `bridge/deployments/`
 - binds every channel to the canonical Tokamak Network Token for the selected network
-- stores channel state under `apps/private-state/cli/workspace/<channel>/channel/`
-- stores per-user wallets under `apps/private-state/cli/workspace/<channel>/wallets/<wallet>/`
+- stores channel state under `~/tokamak-private-channels/workspace/<network>/<channel>/channel/`
+- stores per-user wallets under `~/tokamak-private-channels/workspace/<network>/<channel>/wallets/<wallet>/`
 - materializes or refreshes saved channel workspaces automatically for wallet-backed snapshot commands
 
 Important rules:
@@ -155,7 +155,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 `recover-workspace`
 
 - reconstructs the latest channel snapshot from bridge events
-- writes the saved workspace into `apps/private-state/cli/workspace/<channel-name>/channel/`
+- writes the saved workspace into `~/tokamak-private-channels/workspace/<network>/<channel-name>/channel/`
 - reuses existing local artifacts when their hashes still match the current on-chain channel state
 - is optional in the happy path because wallet-backed snapshot commands now materialize and refresh the saved workspace automatically
 - requires `--alchemy-api-key` on public networks

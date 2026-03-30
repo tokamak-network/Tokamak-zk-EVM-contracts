@@ -58,5 +58,5 @@ The CLI-driven harness writes its final summary under:
 After a successful run, the harness prunes temporary CLI e2e artifacts and leaves only:
 
 - the CLI e2e `summary.json`
-- the channel workspace created for the test under `apps/private-state/cli/workspace/<channel>/channel/`
-- the participant wallets created for the test under `apps/private-state/cli/workspace/<channel>/wallets/`
+- the channel workspace created for the test under `~/tokamak-private-channels/workspace/<network>/<channel>/channel/`
+- the participant wallets created for the test under `~/tokamak-private-channels/workspace/<network>/<channel>/wallets/`

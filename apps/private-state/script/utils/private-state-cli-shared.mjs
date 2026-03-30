@@ -66,8 +66,15 @@ export function parseWalletName(walletName) {
   };
 }
 
-export function workspaceDirForName(workspaceRoot, workspaceName) {
-  return path.join(workspaceRoot, slugifyPathComponent(workspaceName));
+export function workspaceNetworkDir(workspaceRoot, networkName) {
+  return path.join(workspaceRoot, slugifyPathComponent(networkName));
+}
+
+export function workspaceDirForName(workspaceRoot, networkName, workspaceName) {
+  return path.join(
+    workspaceNetworkDir(workspaceRoot, networkName),
+    slugifyPathComponent(workspaceName),
+  );
 }
 
 export function workspaceChannelDir(workspaceDir) {

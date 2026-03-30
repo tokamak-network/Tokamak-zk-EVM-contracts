@@ -375,7 +375,7 @@ async function initializeChannelWorkspace({
   persist,
   allowExistingWorkspaceSync = false,
 }) {
-  const workspaceDir = channelWorkspacePath(workspaceName);
+  const workspaceDir = channelWorkspacePath(networkNameFromChainId(network.chainId), workspaceName);
   const channelDir = channelDataPath(workspaceDir);
   const hasPersistedChannelData = fs.existsSync(channelWorkspaceConfigPath(workspaceDir))
     || fs.existsSync(channelWorkspaceCurrentPath(workspaceDir))
@@ -667,7 +667,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     return;
   }
 
-  clearWalletRecoveryArtifacts(walletPath(walletName));
+  clearWalletRecoveryArtifacts(walletPath(walletName, context.workspace.network));
 
   const walletContext = ensureWallet({
     channelContext: context,
@@ -722,7 +722,7 @@ function tryLoadRecoverableWallet({
   channelContext,
   noteReceiveKeyMaterial,
 }) {
-  const walletDir = walletPath(walletName);
+  const walletDir = walletPath(walletName, channelContext.workspace.network);
   if (!walletConfigExists(walletDir)) {
     return null;
   }
@@ -1518,7 +1518,7 @@ function ensureWallet({
   rpcUrl,
 }) {
   const walletName = walletNameForChannelAndAddress(channelContext.workspace.channelName, l2Identity.l2Address);
-  const walletDir = walletPath(walletName);
+  const walletDir = walletPath(walletName, channelContext.workspace.network);
   let wallet;
   if (walletConfigExists(walletDir)) {
     wallet = normalizeWallet(readEncryptedWalletJson(walletConfigPath(walletDir), walletPassword));
@@ -2470,7 +2470,7 @@ function parseRecipientVector(value) {
 }
 
 function walletChannelWorkspaceIsReady(walletContext) {
-  const workspaceDir = channelWorkspacePath(walletContext.wallet.channelName);
+  const workspaceDir = channelWorkspacePath(walletContext.wallet.network, walletContext.wallet.channelName);
   return fs.existsSync(channelWorkspaceConfigPath(workspaceDir))
     && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"))
     && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"))
@@ -2483,7 +2483,7 @@ async function loadPreferredWalletChannelContext({ walletContext, provider }) {
     await recoverWalletChannelWorkspace({ walletContext, provider });
     recoveredWorkspace = true;
   }
-  let context = await loadWorkspaceContext(walletContext.wallet.channelName, provider);
+  let context = await loadWorkspaceContext(walletContext.wallet.channelName, walletContext.wallet.network, provider);
   try {
     await assertWorkspaceAlignedWithChain(context);
   } catch (error) {
@@ -2492,7 +2492,7 @@ async function loadPreferredWalletChannelContext({ walletContext, provider }) {
     }
     await recoverWalletChannelWorkspace({ walletContext, provider });
     recoveredWorkspace = true;
-    context = await loadWorkspaceContext(walletContext.wallet.channelName, provider);
+    context = await loadWorkspaceContext(walletContext.wallet.channelName, walletContext.wallet.network, provider);
     await assertWorkspaceAlignedWithChain(context);
   }
   return {
@@ -2670,9 +2670,9 @@ async function executeWalletTemplateSend({
   };
 }
 
-async function loadWorkspaceContext(workspaceName, provider) {
+async function loadWorkspaceContext(workspaceName, networkName, provider) {
   const normalizedWorkspaceName = requireWorkspaceName({ workspace: workspaceName });
-  const workspaceDir = channelWorkspacePath(normalizedWorkspaceName);
+  const workspaceDir = channelWorkspacePath(networkName, normalizedWorkspaceName);
   const workspace = readJson(channelWorkspaceConfigPath(workspaceDir));
   const bridgeDeploymentPath = defaultBridgeDeploymentPath(workspace.chainId);
   const bridgeAbiManifestPath = defaultBridgeAbiManifestPath(workspace.chainId);
@@ -3506,15 +3506,70 @@ function requireL1Signer(args, provider) {
   return new Wallet(normalizePrivateKey(privateKey), provider);
 }
 
-function channelWorkspacePath(name) {
-  return workspaceDirForName(workspaceRoot, name);
+function channelWorkspacePath(networkName, name) {
+  return workspaceDirForName(workspaceRoot, networkName, name);
 }
 
-function walletPath(name) {
+function walletPath(name, networkName = null) {
   const walletName = String(name);
   const { channelName } = parseWalletName(walletName);
-  const workspaceDir = channelWorkspacePath(channelName);
-  return walletDirForName(workspaceWalletsDir(workspaceDir), walletName);
+  if (networkName) {
+    const workspaceDir = channelWorkspacePath(networkName, channelName);
+    return walletDirForName(workspaceWalletsDir(workspaceDir), walletName);
+  }
+
+  const candidates = resolveWalletPathCandidates(walletName);
+  if (candidates.length === 1) {
+    return candidates[0];
+  }
+  if (candidates.length > 1) {
+    throw new Error(
+      `Wallet ${walletName} exists under multiple networks. Remove duplicates or disambiguate the local workspace layout.`,
+    );
+  }
+
+  const networkDirs = fs.existsSync(workspaceRoot)
+    ? fs.readdirSync(workspaceRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory())
+    : [];
+  if (networkDirs.length === 0) {
+    return walletDirForName(
+      workspaceWalletsDir(channelWorkspacePath("unknown-network", channelName)),
+      walletName,
+    );
+  }
+  return walletDirForName(
+    workspaceWalletsDir(channelWorkspacePath(networkDirs[0].name, channelName)),
+    walletName,
+  );
+}
+
+function resolveWalletPathCandidates(walletName) {
+  if (!fs.existsSync(workspaceRoot)) {
+    return [];
+  }
+
+  const { channelName } = parseWalletName(walletName);
+  const channelSlug = slugifyPathComponent(channelName);
+  const walletSlug = slugifyPathComponent(walletName);
+  const candidates = [];
+
+  for (const entry of fs.readdirSync(workspaceRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const candidate = path.join(
+      workspaceRoot,
+      entry.name,
+      channelSlug,
+      "wallets",
+      walletSlug,
+    );
+    if (walletConfigExists(candidate)) {
+      candidates.push(candidate);
+    }
+  }
+
+  return candidates;
 }
 
 function channelDataPath(workspaceDir) {
@@ -3716,7 +3771,7 @@ function assertGetMyChannelFundArgs(args) {
 function createWalletOperationDir(walletName, suffix) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const operationDir = path.join(
-    walletPath(walletName),
+    walletPath(walletName, wallet.network),
     "operations",
     `${timestamp}-${slugifyPathComponent(suffix)}`,
   );

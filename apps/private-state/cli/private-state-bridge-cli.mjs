@@ -205,6 +205,12 @@ async function main() {
       await handleGetMyBridgeFund({ args, provider });
       return;
     }
+    case "recover-wallet": {
+      assertRecoverWalletArgs(args);
+      const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
+      await handleRecoverWallet({ args, network, provider, rpcUrl });
+      return;
+    }
     case "join-channel": {
       assertJoinChannelArgs(args);
       const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
@@ -554,6 +560,286 @@ async function handleGetMyBridgeFund({ args, provider }) {
       Number(bridgeVaultContext.canonicalAssetDecimals),
     ),
   });
+}
+
+async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
+  const password = requireL2Password(args);
+  const channelName = requireArg(args.channelName, "--channel-name");
+  const signer = requireL1Signer(args, provider);
+  const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+  const initialized = await initializeChannelWorkspace({
+    workspaceName: channelName,
+    channelName,
+    network,
+    provider,
+    bridgeResources,
+    persist: true,
+    allowExistingWorkspaceSync: true,
+  });
+  const context = {
+    workspaceName: channelName,
+    workspaceDir: initialized.workspaceDir,
+    persistChannelWorkspace: true,
+    workspace: initialized.workspace,
+    bridgeAbiManifest: bridgeResources.bridgeAbiManifest,
+    currentSnapshot: initialized.currentSnapshot,
+    blockInfo: initialized.blockInfo,
+    contractCodes: initialized.contractCodes,
+    channelManager: new Contract(
+      initialized.workspace.channelManager,
+      bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
+      provider,
+    ),
+    bridgeTokenVault: new Contract(
+      initialized.workspace.bridgeTokenVault,
+      bridgeResources.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+      provider,
+    ),
+  };
+  const l2Identity = await deriveParticipantIdentityFromSigner({
+    channelName,
+    password,
+    signer,
+  });
+  const noteReceiveKeyMaterial = await deriveNoteReceiveKeyMaterial({
+    signer,
+    chainId: network.chainId,
+    channelId: context.workspace.channelId,
+    channelName,
+    account: signer.address,
+  });
+  const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
+  const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
+  const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
+
+  expect(
+    registration.exists,
+    `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+  );
+  expect(
+    getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
+    "The existing channel registration L2 address does not match the derived L2 address.",
+  );
+  expect(
+    normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
+    "The existing channel registration key does not match the derived channelTokenVault key.",
+  );
+  expect(
+    BigInt(registration.leafIndex) === BigInt(leafIndex),
+    "The existing channel registration leaf index does not match the derived leaf index.",
+  );
+  expect(
+    normalizeBytes32Hex(registration.noteReceivePubKey.x) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
+    "The existing note-receive public key X does not match the derived note-receive public key.",
+  );
+  expect(
+    Number(registration.noteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
+    "The existing note-receive public key parity does not match the derived note-receive public key.",
+  );
+
+  const walletName = walletNameForChannelAndAddress(channelName, l2Identity.l2Address);
+  const existingWallet = tryLoadRecoverableWallet({
+    walletName,
+    walletPassword: password,
+    signerAddress: signer.address,
+    signerPrivateKey: signer.privateKey,
+    l2Identity,
+    storageKey,
+    leafIndex,
+    rpcUrl,
+    channelContext: context,
+    noteReceiveKeyMaterial,
+  });
+
+  if (existingWallet) {
+    printJson({
+      action: "recover-wallet",
+      status: "already-recovered",
+      wallet: walletName,
+      walletDir: existingWallet.walletDir,
+      workspace: context.workspaceName,
+      channelName: context.workspace.channelName,
+      channelId: context.workspace.channelId,
+      l1Address: signer.address,
+      l2Address: l2Identity.l2Address,
+      l2StorageKey: storageKey,
+      leafIndex: registration.leafIndex.toString(),
+      noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
+    });
+    return;
+  }
+
+  clearWalletRecoveryArtifacts(walletPath(walletName));
+
+  const walletContext = ensureWallet({
+    channelContext: context,
+    signerAddress: signer.address,
+    signerPrivateKey: signer.privateKey,
+    l2Identity,
+    walletPassword: password,
+    storageKey,
+    leafIndex: registration.leafIndex,
+    noteReceiveKeyMaterial,
+    rpcUrl,
+  });
+  walletContext.wallet.l2Nonce = 0;
+  persistWallet(walletContext);
+
+  const recoveredDeliveryState = await recoverDeliveredNotesFromEventLogs({
+    walletContext,
+    context,
+    provider,
+    noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
+  });
+
+  printJson({
+    action: "recover-wallet",
+    status: "recovered",
+    wallet: walletName,
+    walletDir: walletContext.walletDir,
+    workspace: context.workspaceName,
+    channelName: context.workspace.channelName,
+    channelId: context.workspace.channelId,
+    l1Address: signer.address,
+    l2Address: l2Identity.l2Address,
+    l2StorageKey: storageKey,
+    leafIndex: registration.leafIndex.toString(),
+    noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
+    l2Nonce: walletContext.wallet.l2Nonce,
+    recoveredFromLogs: recoveredDeliveryState.importedNotes,
+    scannedDeliveryLogs: recoveredDeliveryState.scannedLogs,
+    noteReceiveScanRange: recoveredDeliveryState.scanRange,
+  });
+}
+
+function tryLoadRecoverableWallet({
+  walletName,
+  walletPassword,
+  signerAddress,
+  signerPrivateKey,
+  l2Identity,
+  storageKey,
+  leafIndex,
+  rpcUrl,
+  channelContext,
+  noteReceiveKeyMaterial,
+}) {
+  const walletDir = walletPath(walletName);
+  if (!walletConfigExists(walletDir)) {
+    return null;
+  }
+
+  try {
+    const walletMetadata = loadWalletMetadata(walletName);
+    const walletContext = loadWallet(walletName, walletPassword);
+    assertWalletMatchesMetadata(walletContext, walletMetadata);
+    assertExistingRecoverableWallet({
+      walletContext,
+      walletMetadata,
+      signerAddress,
+      signerPrivateKey,
+      l2Identity,
+      storageKey,
+      leafIndex,
+      rpcUrl,
+      channelContext,
+      noteReceiveKeyMaterial,
+    });
+    return walletContext;
+  } catch {
+    return null;
+  }
+}
+
+function assertExistingRecoverableWallet({
+  walletContext,
+  walletMetadata,
+  signerAddress,
+  signerPrivateKey,
+  l2Identity,
+  storageKey,
+  leafIndex,
+  rpcUrl,
+  channelContext,
+  noteReceiveKeyMaterial,
+}) {
+  const wallet = walletContext.wallet;
+  expect(
+    walletMetadata.network === channelContext.workspace.network,
+    `Wallet ${walletContext.walletName} metadata network does not match the requested network.`,
+  );
+  expect(
+    walletMetadata.channelName === channelContext.workspace.channelName,
+    `Wallet ${walletContext.walletName} metadata channel does not match the requested channel.`,
+  );
+  expect(
+    walletMetadata.rpcUrl === rpcUrl,
+    `Wallet ${walletContext.walletName} metadata rpcUrl does not match the requested runtime RPC URL.`,
+  );
+  expect(
+    normalizePrivateKey(wallet.l1PrivateKey) === normalizePrivateKey(signerPrivateKey),
+    `Wallet ${walletContext.walletName} does not decrypt to the requested L1 private key.`,
+  );
+  expect(
+    getAddress(wallet.l1Address) === getAddress(signerAddress),
+    `Wallet ${walletContext.walletName} L1 address does not match the requested signer.`,
+  );
+  expect(
+    getAddress(wallet.l2Address) === getAddress(l2Identity.l2Address),
+    `Wallet ${walletContext.walletName} L2 address does not match the derived channel identity.`,
+  );
+  expect(
+    normalizeBytes32Hex(wallet.l2StorageKey) === normalizeBytes32Hex(storageKey),
+    `Wallet ${walletContext.walletName} storage key does not match the derived registration key.`,
+  );
+  expect(
+    BigInt(wallet.leafIndex) === BigInt(leafIndex),
+    `Wallet ${walletContext.walletName} leaf index does not match the derived registration leaf index.`,
+  );
+  expect(
+    BigInt(wallet.channelId) === BigInt(channelContext.workspace.channelId),
+    `Wallet ${walletContext.walletName} channel ID does not match the requested channel.`,
+  );
+  expect(
+    wallet.channelName === channelContext.workspace.channelName,
+    `Wallet ${walletContext.walletName} channel name does not match the requested channel.`,
+  );
+  expect(
+    wallet.network === channelContext.workspace.network,
+    `Wallet ${walletContext.walletName} network does not match the requested network.`,
+  );
+  expect(
+    wallet.rpcUrl === rpcUrl,
+    `Wallet ${walletContext.walletName} rpcUrl does not match the requested runtime RPC URL.`,
+  );
+  expect(
+    getAddress(wallet.channelManager) === getAddress(channelContext.workspace.channelManager),
+    `Wallet ${walletContext.walletName} channel manager does not match the recovered workspace.`,
+  );
+  expect(
+    getAddress(wallet.bridgeTokenVault) === getAddress(channelContext.workspace.bridgeTokenVault),
+    `Wallet ${walletContext.walletName} bridge token vault does not match the recovered workspace.`,
+  );
+  expect(
+    getAddress(wallet.controller) === getAddress(channelContext.workspace.controller),
+    `Wallet ${walletContext.walletName} controller does not match the recovered workspace.`,
+  );
+  expect(
+    getAddress(wallet.l2AccountingVault) === getAddress(channelContext.workspace.l2AccountingVault),
+    `Wallet ${walletContext.walletName} L2 accounting vault does not match the recovered workspace.`,
+  );
+  expect(
+    normalizeBytes32Hex(wallet.noteReceivePubKeyX) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
+    `Wallet ${walletContext.walletName} note-receive public key X does not match the derived key.`,
+  );
+  expect(
+    Number(wallet.noteReceivePubKeyYParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
+    `Wallet ${walletContext.walletName} note-receive public key parity does not match the derived key.`,
+  );
+}
+
+function clearWalletRecoveryArtifacts(walletDir) {
+  fs.rmSync(walletDir, { recursive: true, force: true });
 }
 
 async function handleInstallZkEvm({ args }) {
@@ -3433,6 +3719,20 @@ function assertGetMyBridgeFundArgs(args) {
   );
 }
 
+function assertRecoverWalletArgs(args) {
+  requireL2Password(args);
+  requireArg(args.channelName, "--channel-name");
+  requireNetworkName(args);
+  requireAlchemyApiKeyForPublicNetwork(args, "recover-wallet");
+  requireArg(args.privateKey, "--private-key");
+  assertAllowedCommandKeys(
+    args,
+    "recover-wallet",
+    new Set(["command", "positional", "channelName", "network", "privateKey", "password", "alchemyApiKey"]),
+    "--channel-name, --password, --network, --private-key, and --alchemy-api-key on public networks",
+  );
+}
+
 function assertJoinChannelArgs(args) {
   requireL2Password(args);
   requireArg(args.channelName, "--channel-name");
@@ -3544,6 +3844,9 @@ Commands:
 
   get-my-bridge-fund --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Read the current shared bridge vault balance
+
+  recover-wallet --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+      Rebuild a recoverable local wallet from on-chain channel state
 
   join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Bind a wallet to a channel-specific L2 identity

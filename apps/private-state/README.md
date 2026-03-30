@@ -184,6 +184,14 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 - returns the deterministic wallet name `<channelName>-<l2Address>`
 - requires `--alchemy-api-key` on public networks
 
+`recover-wallet`
+
+- rebuilds the encrypted wallet only up to the subset that can be recovered from the current channel workspace, channel registration, and bridge-propagated encrypted note logs
+- recreates the channel-bound wallet keys from `--channel-name`, `--password`, and `--private-key`
+- resets `l2Nonce` to `0`
+- stops early if the target wallet folder already exists and decrypts to valid metadata and registration state for the requested channel
+- requires `--alchemy-api-key` on public networks
+
 ### 6. Inspect wallet-to-channel registration
 
 `get-my-address`

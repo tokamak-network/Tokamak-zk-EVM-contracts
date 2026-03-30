@@ -10,12 +10,21 @@ Treat the following as fixed system assumptions:
 - L1 verifies proofs rather than the raw transaction body.
 - The original transaction body is visible only to the caller.
 - Other users and L1 observers see proofs and the resulting state transitions, not the original calldata.
+- The target DApp functions do not execute under raw Ethereum L1 cryptographic semantics.
+- Under the TokamakL2JS execution spec, runtime `keccak256` behavior is replaced by Poseidon-based hashing.
+- Under the same spec, transaction signatures and public-key recovery follow EdDSA-compatible semantics rather than Ethereum ECDSA assumptions.
 
 Design implications:
 
 - Do not justify plaintext leakage by assuming direct L1 execution.
 - Do not add calldata privacy workarounds whose only purpose is to hide data from public L1 mempools.
 - Focus privacy review on the data that becomes state, events, or proof-linked public outputs.
+- Do not mirror contract execution off-chain with default L1 helpers when the modeled computation depends on hashing or signature recovery.
+- When reproducing contract-side runtime hashes off-chain, use `tokamak-l2js` Poseidon helpers:
+  - `poseidon(msg)` for byte-oriented runtime inputs.
+  - `poseidonChainCompress(inVals)` for field-element sequences that are already split.
+- Treat `ecrecover`-style reasoning as invalid for this environment. When the spec requires public-key recovery, use `getEddsaPublicKey(...)` instead.
+- Distinguish runtime hashes from Solidity compile-time constants. A compile-time constant such as `bytes32 constant X = keccak256("...")` remains the Solidity-compiled literal, while a runtime `keccak256(...)` execution must be modeled with the TokamakL2 Poseidon replacement semantics.
 
 ## 2. Bridge-Managed Custody and Accounting
 
@@ -186,24 +195,32 @@ Definition:
 Required implementation rule:
 
 - Every DApp contract function should be implemented to minimize placement usage while preserving correctness and the single-success-path rule.
+- When analyzing placement cost, distinguish raw memory movement from encoding and decoding work. Fixed-shape word copies are often cheap; ABI scaffolding, packing, unpacking, and dynamic shape conversion are the usual placement sink.
 
 Allowed optimization techniques:
 
 - Inline fixed-arity logic when generic helper layers only add scaffolding.
 - Remove avoidable calldata-to-memory copies.
+- Remove avoidable ABI encoding, ABI decoding, packing, unpacking, and generic shape-conversion steps before optimizing plain fixed-shape memory copies.
 - Remove generic dynamic-array helpers when the entrypoint arity is fixed.
 - Replace fixed-arity loops with flat, explicitly repeated operations so that loop control does not consume placements.
 - Collapse repeated validation or repeated hashing when the same intermediate value can be reused.
 - Use assembly when it materially reduces placement usage and does not weaken validation or make the control flow ambiguous.
+- For fixed-shape hash inputs, replace `abi.encode(...)+keccak256(...)` scaffolding with `memory-safe` assembly that stages words directly in memory and hashes the exact byte span.
+- When doing manual memory staging for hashing, reserve scratch space from the free-memory pointer and advance it after use so future assembly blocks cannot collide with the same offsets.
+- Do not spend placements on explicit zero-hash guards for commitments, nullifiers, or similar cryptographic digests unless the design has a concrete reason to treat a zero digest as semantically special.
 
 Review questions:
 
 - Which placements are caused by the function itself, and which are caused by subcalls into storage/helper contracts?
 - Is the function paying placements for abstraction rather than for state-transition requirements?
+- Is the expensive part really the memory movement, or is it the encoding/decoding logic wrapped around that movement?
 - Can fixed-arity calldata access replace generic loops or dynamic copies?
 - Is any remaining loop in a fixed-arity user-facing function paying avoidable placement overhead?
 - Can a shared intermediate hash or decoded field be computed once and reused?
 - Would an assembly block remove measurable placement-heavy scaffolding without obscuring correctness?
+- Is any fixed-shape runtime hash still paying placement overhead for generic ABI encoding that could be replaced with direct `mstore` plus `keccak256(ptr, len)`?
+- Is the function still paying placements for a zero-hash guard on a cryptographic digest that can be treated as practically impossible instead?
 
 ## 9. Placement Analysis Methodology
 

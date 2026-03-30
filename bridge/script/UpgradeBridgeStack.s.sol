@@ -30,6 +30,7 @@ contract UpgradeBridgeStackScript is Script {
     function run() external returns (UpgradeResult memory result) {
         uint256 deployerPrivateKey = vm.envUint("BRIDGE_DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
+        bool disableDAppDeletionOnMainnet = block.chainid == 1;
         string memory inputPath = _resolvePath(vm.envOr("BRIDGE_INPUT_PATH", string("./deployments/bridge.json")));
         string memory outputPath = _resolvePath(vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge.json")));
 
@@ -58,6 +59,10 @@ contract UpgradeBridgeStackScript is Script {
         dAppManagerProxyContract.upgradeTo(address(dAppManagerImplementation));
         bridgeCoreProxyContract.upgradeTo(address(bridgeCoreImplementation));
         bridgeTokenVaultProxyContract.upgradeTo(address(bridgeTokenVaultImplementation));
+        dAppManagerProxyContract.bindBridgeCore(address(bridgeCoreProxyContract));
+        if (disableDAppDeletionOnMainnet && !dAppManagerProxyContract.dAppDeletionLockedForever()) {
+            dAppManagerProxyContract.disableDAppDeletionForever();
+        }
 
         address owner = bridgeCoreProxyContract.owner();
         address grothVerifier = address(bridgeCoreProxyContract.grothVerifier());

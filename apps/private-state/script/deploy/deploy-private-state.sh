@@ -5,6 +5,12 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 ENV_FILE="${APPS_ENV_FILE:-$PROJECT_ROOT/apps/.env}"
 source "$PROJECT_ROOT/apps/script/network-config.sh"
 
+INPUT_APPS_DEPLOYER_PRIVATE_KEY="${APPS_DEPLOYER_PRIVATE_KEY:-}"
+INPUT_APPS_NETWORK="${APPS_NETWORK:-}"
+INPUT_APPS_ALCHEMY_API_KEY="${APPS_ALCHEMY_API_KEY:-}"
+INPUT_APPS_RPC_URL_OVERRIDE="${APPS_RPC_URL_OVERRIDE:-}"
+INPUT_APPS_ETHERSCAN_API_KEY="${APPS_ETHERSCAN_API_KEY:-}"
+
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "Missing $ENV_FILE"
     exit 1
@@ -13,6 +19,22 @@ fi
 set -a
 source "$ENV_FILE"
 set +a
+
+if [[ -n "$INPUT_APPS_DEPLOYER_PRIVATE_KEY" ]]; then
+    APPS_DEPLOYER_PRIVATE_KEY="$INPUT_APPS_DEPLOYER_PRIVATE_KEY"
+fi
+if [[ -n "$INPUT_APPS_NETWORK" ]]; then
+    APPS_NETWORK="$INPUT_APPS_NETWORK"
+fi
+if [[ -n "$INPUT_APPS_ALCHEMY_API_KEY" ]]; then
+    APPS_ALCHEMY_API_KEY="$INPUT_APPS_ALCHEMY_API_KEY"
+fi
+if [[ -n "$INPUT_APPS_RPC_URL_OVERRIDE" ]]; then
+    APPS_RPC_URL_OVERRIDE="$INPUT_APPS_RPC_URL_OVERRIDE"
+fi
+if [[ -n "$INPUT_APPS_ETHERSCAN_API_KEY" ]]; then
+    APPS_ETHERSCAN_API_KEY="$INPUT_APPS_ETHERSCAN_API_KEY"
+fi
 
 if [[ -n "${APPS_DEPLOYER_PRIVATE_KEY:-}" && "${APPS_DEPLOYER_PRIVATE_KEY}" != 0x* ]]; then
     APPS_DEPLOYER_PRIVATE_KEY="0x${APPS_DEPLOYER_PRIVATE_KEY}"
@@ -84,3 +106,7 @@ echo "Environment file: $ENV_FILE"
 )
 
 bash "$PROJECT_ROOT/apps/private-state/script/deploy/write-deploy-artifacts.sh" "$APPS_CHAIN_ID"
+
+npx --prefix "$PROJECT_ROOT/submodules/Tokamak-zk-EVM" tsx \
+    --tsconfig "$PROJECT_ROOT/submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/tsconfig.dev.json" \
+    "$PROJECT_ROOT/apps/private-state/script/deploy/generate-synthesizer-launch-inputs.ts"

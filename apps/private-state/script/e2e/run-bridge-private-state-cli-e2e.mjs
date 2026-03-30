@@ -16,9 +16,11 @@ import {
   getAddress,
 } from "ethers";
 import {
+  MAX_MT_LEAVES,
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
+  getUserStorageKey,
   poseidon,
 } from "tokamak-l2js";
 import {
@@ -30,6 +32,7 @@ import {
 import {
   buildDAppDefinitions,
   buildFunctionDefinition,
+  ensureTokamakDistBackendBinaries,
 } from "../../../../script/zk/lib/tokamak-artifacts.mjs";
 import {
   deriveChannelIdFromName,
@@ -37,9 +40,14 @@ import {
   workspaceDirForName as sharedWorkspaceDirForName,
   workspaceWalletsDir as sharedWorkspaceWalletsDir,
   walletDirForName as sharedWalletDirForName,
-  walletInboxPathForDir as sharedWalletInboxPathForDir,
   walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
-} from "../../cli/private-state-cli-shared.mjs";
+} from "../utils/private-state-cli-shared.mjs";
+import {
+  computeEncryptedNoteSalt,
+  deriveNoteReceiveKeyMaterial,
+  encryptedNoteValueTuple,
+  encryptNoteValueForRecipient,
+} from "./private-state-note-delivery.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,7 +94,7 @@ const legacyWorkspaceRoot = path.resolve(appRoot, "cli", "workspaces");
 const legacyWalletsRoot = path.resolve(appRoot, "cli", "wallets");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites) instanceLayout)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
   "function getDAppInfo(uint256 dappId) external view returns (tuple(bool exists, bytes32 labelHash, uint256 channelTokenVaultTreeIndex))",
 ];
 
@@ -95,6 +103,7 @@ function usage() {
   node apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs [options]
 
 Options:
+  --skip-install                      Skip tokamak-cli --install before metadata generation
   --keep-anvil                         Leave anvil running after success
   --help                               Show this help
 
@@ -107,12 +116,16 @@ Notes:
 
 function parseArgs(argv) {
   const options = {
+    runInstall: true,
     keepAnvil: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
     switch (current) {
+      case "--skip-install":
+        options.runInstall = false;
+        break;
       case "--keep-anvil":
         options.keepAnvil = true;
         break;
@@ -236,17 +249,15 @@ function normalizeBytes32Hex(hexValue) {
   return bytes32FromHex(hexValue).toLowerCase();
 }
 
-async function deriveParticipantIdentity(participant, provider) {
-  const signer = new Wallet(participant.l1PrivateKey, provider);
-  return deriveParticipantIdentityFromSigner({
-    channelName,
-    password: participant.password,
-    signer,
-  });
-}
-
 async function rpcCall(provider, method, params) {
   return provider.send(method, params);
+}
+
+function loadLiquidBalancesSlot() {
+  const storageLayout = readJson(storageLayoutManifestPath);
+  return BigInt(
+    storageLayout.contracts.L2AccountingVault.storageLayout.storage.find((entry) => entry.label === "liquidBalances").slot,
+  );
 }
 
 async function getFixedBlockInfo(provider) {
@@ -336,6 +347,18 @@ function mappingKeyHex(address, slot) {
   return bytesToHex(poseidon(hexToBytes(encoded)));
 }
 
+function deriveLiquidBalanceStorageKey(l2Address, slot) {
+  return normalizeBytes32Hex(bytesToHex(getUserStorageKey([l2Address, BigInt(slot)], "TokamakL2")));
+}
+
+function deriveChannelTokenVaultLeafIndex(storageKey) {
+  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
+}
+
+function poseidonHexFromBytes(bytesLike) {
+  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
+}
+
 function serializeBigInts(value) {
   return JSON.parse(JSON.stringify(value, (_key, current) => (
     typeof current === "bigint" ? current.toString() : current
@@ -356,12 +379,10 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
 }
 
 function note(owner, value, saltLabel) {
-  const raw = BigInt(ethers.id(saltLabel));
-  const normalized = (raw % ((1n << 255n) - 1n)) + 1n;
   return {
     owner: getAddress(owner),
     value,
-    salt: bytes32FromHex(ethers.toBeHex(normalized)),
+    salt: bytes32FromHex(poseidonHexFromBytes(ethers.toUtf8Bytes(saltLabel))),
   };
 }
 
@@ -454,17 +475,17 @@ async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contrac
 
 async function materializeCurrentDAppDefinition(provider, participants) {
   const appDeployment = readJson(deploymentManifestPath);
-  const storageLayout = readJson(storageLayoutManifestPath);
   const controllerAbi = readJson(controllerAbiPath);
   const controller = getAddress(appDeployment.contracts.controller);
   const vault = getAddress(appDeployment.contracts.l2AccountingVault);
   const controllerInterface = new Interface(controllerAbi);
-  const liquidBalancesSlot = BigInt(
-    storageLayout.contracts.L2AccountingVault.storageLayout.storage.find((entry) => entry.label === "liquidBalances").slot,
-  );
+  const liquidBalancesSlot = loadLiquidBalancesSlot();
 
   for (const participant of participants) {
-    participant.metadataIdentity = await deriveParticipantIdentity(participant, provider);
+    expect(
+      participant.registration !== null,
+      `Participant ${participant.alias} is missing a resolved registration candidate.`,
+    );
   }
 
   const contractCodes = await fetchContractCodes(provider, [controller, vault]);
@@ -476,7 +497,7 @@ async function materializeCurrentDAppDefinition(provider, participants) {
   for (const participant of participants) {
     participantKeys.set(
       participant.alias,
-      mappingKeyHex(participant.metadataIdentity.l2Address, liquidBalancesSlot),
+      mappingKeyHex(participant.registration.l2Identity.l2Address, liquidBalancesSlot),
     );
   }
 
@@ -490,79 +511,114 @@ async function materializeCurrentDAppDefinition(provider, participants) {
     );
   }
 
+  const encryptedTransfers = {
+    aToB: buildEncryptedTransferOutput({
+      owner: participants[1].registration.l2Identity.l2Address,
+      value: 1n * amountUnit,
+      label: `${channelName}:a-to-b`,
+      recipientNoteReceivePubKey: participants[1].registration.noteReceive.noteReceivePubKey,
+    }),
+    aToC: buildEncryptedTransferOutput({
+      owner: participants[2].registration.l2Identity.l2Address,
+      value: 2n * amountUnit,
+      label: `${channelName}:a-to-c`,
+      recipientNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
+    }),
+    bToC: buildEncryptedTransferOutput({
+      owner: participants[2].registration.l2Identity.l2Address,
+      value: 4n * amountUnit,
+      label: `${channelName}:b-to-c`,
+      recipientNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
+    }),
+  };
+
   const notes = {
-    aMint: note(participants[0].metadataIdentity.l2Address, depositAmountBaseUnits, `${channelName}:a-mint`),
-    bMint: note(participants[1].metadataIdentity.l2Address, depositAmountBaseUnits, `${channelName}:b-mint`),
-    cMint: note(participants[2].metadataIdentity.l2Address, depositAmountBaseUnits, `${channelName}:c-mint`),
-    aToB: note(participants[1].metadataIdentity.l2Address, 1n * amountUnit, `${channelName}:a-to-b`),
-    aToC: note(participants[2].metadataIdentity.l2Address, 2n * amountUnit, `${channelName}:a-to-c`),
-    bToC: note(participants[2].metadataIdentity.l2Address, 4n * amountUnit, `${channelName}:b-to-c`),
+    aMint: note(participants[0].registration.l2Identity.l2Address, depositAmountBaseUnits, `${channelName}:a-mint`),
+    bMint: note(participants[1].registration.l2Identity.l2Address, depositAmountBaseUnits, `${channelName}:b-mint`),
+    cMint: note(participants[2].registration.l2Identity.l2Address, depositAmountBaseUnits, `${channelName}:c-mint`),
+    aToB: encryptedTransfers.aToB.note,
+    aToC: encryptedTransfers.aToC.note,
+    bToC: encryptedTransfers.bToC.note,
   };
 
   const scenarios = [
     {
       name: "mint-notes-1",
-      sender: participants[0].metadataIdentity,
+      sender: participants[0].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]]]),
     },
     {
       name: "transfer-notes-1-to-2",
-      sender: participants[0].metadataIdentity,
+      sender: participants[0].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData(
         "transferNotes1To2",
         [
-          [[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]],
           [
-            [notes.aToB.owner, notes.aToB.value, notes.aToB.salt],
-            [notes.aToC.owner, notes.aToC.value, notes.aToC.salt],
+            [
+              encryptedTransfers.aToB.output.owner,
+              encryptedTransfers.aToB.output.value,
+              encryptedNoteValueTuple(encryptedTransfers.aToB.output.encryptedNoteValue),
+            ],
+            [
+              encryptedTransfers.aToC.output.owner,
+              encryptedTransfers.aToC.output.value,
+              encryptedNoteValueTuple(encryptedTransfers.aToC.output.encryptedNoteValue),
+            ],
           ],
+          [[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]],
         ],
       ),
     },
     {
       name: "mint-notes-2",
-      sender: participants[1].metadataIdentity,
+      sender: participants[1].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.bMint.owner, notes.bMint.value, notes.bMint.salt]]]),
     },
     {
       name: "transfer-notes-2-to-1",
-      sender: participants[1].metadataIdentity,
+      sender: participants[1].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData(
         "transferNotes2To1",
         [
           [
+            [
+              encryptedTransfers.bToC.output.owner,
+              encryptedTransfers.bToC.output.value,
+              encryptedNoteValueTuple(encryptedTransfers.bToC.output.encryptedNoteValue),
+            ],
+          ],
+          [
             [notes.bMint.owner, notes.bMint.value, notes.bMint.salt],
             [notes.aToB.owner, notes.aToB.value, notes.aToB.salt],
           ],
-          [[notes.bToC.owner, notes.bToC.value, notes.bToC.salt]],
         ],
       ),
     },
     {
       name: "mint-notes-3",
-      sender: participants[2].metadataIdentity,
+      sender: participants[2].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.cMint.owner, notes.cMint.value, notes.cMint.salt]]]),
     },
     {
       name: "redeem-notes-1",
-      sender: participants[2].metadataIdentity,
+      sender: participants[2].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData(
         "redeemNotes1",
         [
           [[notes.aToC.owner, notes.aToC.value, notes.aToC.salt]],
-          participants[2].metadataIdentity.l2Address,
+          participants[2].registration.l2Identity.l2Address,
         ],
       ),
     },
@@ -595,11 +651,80 @@ function deriveParticipant(index, alias) {
   return {
     alias,
     password: alias,
+    passwordSeed: alias,
     l1Address: getAddress(wallet.address),
     l1PrivateKey: wallet.privateKey,
     walletName: null,
     l2Address: null,
+    registration: null,
   };
+}
+
+async function deriveRegistrationCandidate({ participant, provider, password, liquidBalancesSlot }) {
+  const signer = new Wallet(participant.l1PrivateKey, provider);
+  const l2Identity = await deriveParticipantIdentityFromSigner({
+    channelName,
+    password,
+    signer,
+  });
+  const noteReceive = await deriveNoteReceiveKeyMaterial({
+    signer,
+    chainId: 31337,
+    channelId: deriveChannelIdFromName(channelName),
+    channelName,
+    account: participant.l1Address,
+  });
+  const storageKey = normalizeBytes32Hex(deriveLiquidBalanceStorageKey(l2Identity.l2Address, liquidBalancesSlot));
+  const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
+  return {
+    password,
+    l2Identity,
+    noteReceive,
+    storageKey,
+    leafIndex,
+  };
+}
+
+async function resolveParticipantRegistrations(provider, participants) {
+  const liquidBalancesSlot = loadLiquidBalancesSlot();
+  const usedL2Addresses = new Set();
+  const usedStorageKeys = new Set();
+  const usedLeafIndices = new Set();
+
+  for (const participant of participants) {
+    let resolved = null;
+    for (let attempt = 0; attempt < 64; attempt += 1) {
+      const password = attempt === 0
+        ? participant.passwordSeed
+        : `${participant.passwordSeed}-retry-${attempt}`;
+      const candidate = await deriveRegistrationCandidate({
+        participant,
+        provider,
+        password,
+        liquidBalancesSlot,
+      });
+      const l2AddressKey = getAddress(candidate.l2Identity.l2Address).toLowerCase();
+      const storageKey = normalizeBytes32Hex(candidate.storageKey);
+      const leafIndexKey = candidate.leafIndex.toString();
+      if (usedL2Addresses.has(l2AddressKey) || usedStorageKeys.has(storageKey) || usedLeafIndices.has(leafIndexKey)) {
+        continue;
+      }
+      usedL2Addresses.add(l2AddressKey);
+      usedStorageKeys.add(storageKey);
+      usedLeafIndices.add(leafIndexKey);
+      resolved = {
+        ...candidate,
+        attempts: attempt + 1,
+      };
+      break;
+    }
+    expect(
+      resolved !== null,
+      `Failed to resolve a collision-free register-channel password for ${participant.alias} within 64 attempts.`,
+    );
+    participant.password = resolved.password;
+    participant.registration = resolved;
+  }
 }
 
 function walletDirForName(walletName) {
@@ -608,38 +733,37 @@ function walletDirForName(walletName) {
   return sharedWalletDirForName(walletsRoot, walletName);
 }
 
-function walletInboxPathForName(walletName) {
-  return sharedWalletInboxPathForDir(walletDirForName(walletName));
-}
-
-function readWalletInbox(walletName) {
-  const inboxPath = walletInboxPathForName(walletName);
-  if (!fs.existsSync(inboxPath)) {
-    return [];
-  }
-  return readJson(inboxPath);
-}
-
-function assertWalletInboxCount(walletName, expectedCount, label) {
-  const inbox = readWalletInbox(walletName);
-  expect(
-    inbox.length === expectedCount,
-    `${label} inbox count mismatch. Expected ${expectedCount}, got ${inbox.length}.`,
+function buildEncryptedTransferOutput({
+  owner,
+  value,
+  label,
+  recipientNoteReceivePubKey,
+}) {
+  const deterministicNonce = ethers.dataSlice(
+    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
+    0,
+    12,
   );
-  return inbox;
-}
-
-function assertWalletInboxCleared(walletName, label) {
-  expect(
-    readWalletInbox(walletName).length === 0,
-    `${label} inbox should be empty.`,
-  );
-}
-
-function pickDeliveredRecipient(deliveries, participant) {
-  const delivery = (deliveries ?? []).find((entry) => entry.wallet === participant.walletName);
-  expect(delivery, `Missing delivered recipient entry for ${participant.alias}.`);
-  return delivery;
+  const encryptedNoteValue = encryptNoteValueForRecipient({
+    value,
+    recipientNoteReceivePubKey,
+    chainId: 31337,
+    channelId: deriveChannelIdFromName(channelName),
+    owner,
+    nonce: deterministicNonce,
+  });
+  return {
+    output: {
+      owner: getAddress(owner),
+      value,
+      encryptedNoteValue,
+    },
+    note: {
+      owner: getAddress(owner),
+      value,
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
+    },
+  };
 }
 
 function assertBigIntEq(actual, expected, label) {
@@ -806,6 +930,7 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
           currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
           updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
           storageWrites: fn.storageWrites,
+          eventLogs: fn.eventLogs,
         },
       })),
     );
@@ -870,6 +995,20 @@ function registerChannel(participant) {
   ]);
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;
+  if (participant.registration !== null) {
+    expect(
+      getAddress(result.l2Address) === getAddress(participant.registration.l2Identity.l2Address),
+      `${participant.alias} register-channel resolved an unexpected L2 address.`,
+    );
+    expect(
+      normalizeBytes32Hex(result.l2StorageKey) === normalizeBytes32Hex(participant.registration.storageKey),
+      `${participant.alias} register-channel resolved an unexpected storage key.`,
+    );
+    expect(
+      BigInt(result.leafIndex) === BigInt(participant.registration.leafIndex),
+      `${participant.alias} register-channel resolved an unexpected leaf index.`,
+    );
+  }
   expect(
     result.wallet === sharedWalletNameForChannelAndAddress(channelName, result.l2Address),
     `register-channel returned unexpected wallet name ${result.wallet}.`,
@@ -1009,6 +1148,10 @@ function assertWalletNoteSnapshot(noteSnapshot, { unusedCount, spentCount, unuse
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  ensureTokamakDistBackendBinaries(tokamakRoot);
+  if (options.runInstall) {
+    run(tokamakCliPath, ["--install"], { cwd: tokamakRoot, quiet: true });
+  }
   const provider = new JsonRpcProvider(providerUrl);
   const participants = [
     deriveParticipant(1, "participant-a"),
@@ -1030,6 +1173,7 @@ async function main() {
   try {
     console.log("E2E CLI: bootstrapping anvil and local deployments.");
     bootstrapAnvil();
+    await resolveParticipantRegistrations(provider, participants);
     bridgeDeployment = deployBridgeStack();
     canonicalAsset = prepareCanonicalAsset(bridgeDeployment, participants);
     dappRegistrationResult = await registerPrivateStateDApp(provider, bridgeDeployment, participants);
@@ -1096,12 +1240,14 @@ async function main() {
     );
     const noteAToB = pickOutputNoteByOwner(transferA.outputNotes, participants[1].l2Address, 1n * amountUnit);
     const noteAToC = pickOutputNoteByOwner(transferA.outputNotes, participants[2].l2Address, 2n * amountUnit);
-    const deliveredAToB = pickDeliveredRecipient(transferA.deliveredRecipients, participants[1]);
-    const deliveredAToC = pickDeliveredRecipient(transferA.deliveredRecipients, participants[2]);
-    assertBigIntEq(deliveredAToB.noteCount, 1n, "transfer A delivery count to B");
-    assertBigIntEq(deliveredAToC.noteCount, 1n, "transfer A delivery count to C");
-    assertWalletInboxCount(participants[1].walletName, 1, "participant-b after transfer A");
-    assertWalletInboxCount(participants[2].walletName, 1, "participant-c after transfer A");
+    expect(
+      Array.isArray(transferA.deliveredRecipients) && transferA.deliveredRecipients.length === 0,
+      "transfer-notes must not write recipient inbox sidecars anymore.",
+    );
+    const notesAfterTransferALogScanB = getMyNotes(participants[1]);
+    const notesAfterTransferALogScanC = getMyNotes(participants[2]);
+    assertWalletNoteSnapshot(notesAfterTransferALogScanB, { unusedCount: 2, spentCount: 0, unusedTotal: 4n * amountUnit, spentTotal: 0n });
+    assertWalletNoteSnapshot(notesAfterTransferALogScanC, { unusedCount: 2, spentCount: 0, unusedTotal: 5n * amountUnit, spentTotal: 0n });
 
     const transferB = transferNotes(
       participants[1],
@@ -1110,15 +1256,14 @@ async function main() {
       [4],
     );
     const noteBToC = pickOutputNoteByOwner(transferB.outputNotes, participants[2].l2Address, 4n * amountUnit);
-    const deliveredBToC = pickDeliveredRecipient(transferB.deliveredRecipients, participants[2]);
-    assertBigIntEq(deliveredBToC.noteCount, 1n, "transfer B delivery count to C");
-    assertWalletInboxCleared(participants[1].walletName, "participant-b after transfer B");
-    assertWalletInboxCount(participants[2].walletName, 2, "participant-c after transfer B");
+    expect(
+      Array.isArray(transferB.deliveredRecipients) && transferB.deliveredRecipients.length === 0,
+      "transfer-notes must not write recipient inbox sidecars anymore.",
+    );
 
     const notesAfterTransferA = getMyNotes(participants[0]);
     const notesAfterTransferB = getMyNotes(participants[1]);
     const notesAfterTransferC = getMyNotes(participants[2]);
-    assertWalletInboxCleared(participants[2].walletName, "participant-c after wallet sync");
     assertWalletNoteSnapshot(notesAfterTransferA, { unusedCount: 0, spentCount: 1, unusedTotal: 0n, spentTotal: depositAmountBaseUnits });
     assertWalletNoteSnapshot(notesAfterTransferB, { unusedCount: 0, spentCount: 2, unusedTotal: 0n, spentTotal: 4n * amountUnit });
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });

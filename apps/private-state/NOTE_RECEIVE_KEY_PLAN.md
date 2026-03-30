@@ -1,5 +1,7 @@
 # Private-State Recipient Note Delivery Plan
 
+This document records both the intended recipient note-delivery architecture and the current implementation status.
+
 ## Problem Statement
 
 The current `transferNotes` model lets the sender choose the recipient output note salt.
@@ -53,7 +55,7 @@ not mix this derivation with `personal_sign` or other signing RPCs.
 
 Recommended typed-data fields:
 
-- protocol label: `PRIVATE_STATE_NOTE_RECEIVE_KEY_V1`
+- protocol label: `PRIVATE_STATE_NOTE_RECEIVE_KEY_V2`
 - chain id
 - channel id or channel name
 - DApp label: `private-state`
@@ -63,8 +65,8 @@ Derivation flow:
 
 1. The wallet signs the fixed message with the user's Ethereum key.
 2. The signature bytes are hashed to a 32-byte seed.
-3. The seed is reduced into a valid secp256k1 private scalar.
-4. The corresponding public key becomes the note-receive public key.
+3. The signature deterministically derives a valid Jubjub/EdDSA private scalar.
+4. The corresponding Jubjub Edwards public key becomes the note-receive public key.
 
 This gives the user a channel-scoped note-receive key pair without introducing a second independently managed secret.
 The same wallet can reproduce the same auxiliary key later by signing the same message again.
@@ -78,6 +80,9 @@ change without a migration:
 - field encoding
 - the MetaMask signing RPC method
 
+The current implementation uses the TokamakL2JS `deriveL2KeysFromSignature(...)` flow so that note-receive keys follow
+the same Jubjub/EdDSA model as other Tokamak L2 user keys.
+
 ### 1A. On-Chain Public-Key Shape
 
 The bridge registration state should introduce a dedicated public-key struct for readability:
@@ -88,6 +93,9 @@ struct NoteReceivePubKey {
     uint8 yParity;
 }
 ```
+
+In the current implementation, this struct stores the affine Jubjub x-coordinate and the low-bit parity of the affine
+y-coordinate. The bridge stores the value opaquely and does not perform curve arithmetic itself.
 
 That struct should then be embedded inside the channel registration record rather than flattened into loose fields.
 
@@ -166,77 +174,82 @@ identity metadata rather than DApp-local note state.
 ### 3. Sender Encrypts Recipient Note Data Off-Chain
 
 For recipient-facing outputs, the sender encrypts a compact note payload to the recipient note-receive public key using
-an ECIES-style flow.
+a Jubjub-based ephemeral Diffie-Hellman flow.
 
 Recommended construction:
 
-- curve agreement: ECDH on secp256k1
-- one fresh ephemeral key pair per encrypted recipient note
-- symmetric encryption: authenticated AEAD
+- curve agreement: scalar multiplication on Jubjub Edwards
+- one fresh ephemeral Jubjub key pair per encrypted recipient note
+- field-native masking and authentication over BLS12-381 scalar elements
 
-#### Canonical ECIES Profile
+#### Canonical Encryption Profile
 
 This plan narrows the construction to a fixed ciphertext shape so that transfer entrypoints stay fixed-arity and do not
 need dynamic bytes payloads.
 
 Curve and agreement:
 
-- secp256k1
-- sender creates one fresh ephemeral secp256k1 key pair per recipient note
-- shared secret = ECDH(senderEphemeralPriv, recipientNoteReceivePubKey)
+- Jubjub Edwards over the BLS12-381 scalar field
+- sender creates one fresh ephemeral Jubjub key pair per recipient note
+- shared secret = `recipientNoteReceivePubKey * senderEphemeralPriv`
 
 Key derivation:
 
-- HKDF-SHA256
-- domain string: `PRIVATE_STATE_NOTE_ECIES_V1`
+- Poseidon-based field derivation
+- domain string: `PRIVATE_STATE_NOTE_FIELD_ENCRYPTION_V1`
 
-Symmetric encryption:
+Ciphertext construction:
 
-- `AES-256-GCM`
+- plaintext note value is treated as one BLS12-381 scalar field element
+- derive one field mask from the shared Jubjub secret, owner, chain id, channel id, and nonce
+- compute `ciphertextValue = plaintextValue + mask mod Fr`
+- derive an integrity tag from the same shared secret and ciphertext tuple
+
+Integrity check:
+
+- one truncated tag packed into the metadata word
+- recipient recomputes the tag before accepting the decrypted note
 
 Associated data:
 
-- protocol label: `PRIVATE_STATE_TRANSFER_NOTE_V1`
+- protocol label: `PRIVATE_STATE_TRANSFER_NOTE_V3`
 - chain id
 - channel id
 - recipient L2 owner address
 
 Plaintext:
 
-- note value only
+- note value only, encoded as one BLS12-381 scalar field element
+
+Current implementation rule:
+
+- the encrypted note value path rejects note values that do not fit into the BLS12-381 scalar field
 
 The recipient already knows the owner address, and the salt will be derived from the ciphertext hash. Therefore the
 plaintext does not need to carry owner or salt.
 
 #### Fixed Ciphertext Struct
 
-To keep the calldata fixed-shape, recipient note ciphertext should be represented as:
+To keep the calldata fixed-shape and avoid per-field decode overhead inside transfer entrypoints, recipient note
+ciphertext should be represented as an opaque three-word payload:
 
 ```solidity
-struct EncryptedNoteValue {
-    bytes32 ephemeralPubKeyX;
-    uint8 ephemeralPubKeyYParity;
-    bytes12 nonce;
-    bytes32 ciphertextValue;
-    bytes16 tag;
-}
+bytes32[3] encryptedNoteValue;
 ```
 
 The serialized hash for salt derivation should be:
 
 ```solidity
-keccak256(
-    abi.encode(
-        encrypted.ephemeralPubKeyX,
-        encrypted.ephemeralPubKeyYParity,
-        encrypted.nonce,
-        encrypted.ciphertextValue,
-        encrypted.tag
-    )
-)
+poseidon(abi.encode(encryptedNoteValue))
 ```
 
-This gives a fixed-size note ciphertext without dynamic memory or variable-length calldata.
+The off-chain ciphertext packing is:
+
+- word 0: `ephemeralPubKeyX`
+- word 1: packed `yParity || nonce || tag || reserved`
+- word 2: `ciphertextValue` as one BLS12-381 scalar field element
+
+The contract does not decode those words. It only hashes the opaque payload and emits it.
 
 ### 4. Bind the On-Chain Note to the Ciphertext
 
@@ -244,13 +257,13 @@ The transfer entrypoint should stop accepting the recipient note salt directly.
 
 For recipient-facing outputs:
 
-- the sender supplies a fixed `EncryptedNoteValue`
-- the contract computes `ciphertextHash = keccak256(serializedEncryptedNoteValue)`
+- the sender supplies a fixed `bytes32[3] encryptedNoteValue`
+- the contract computes `ciphertextHash = poseidon(serializedEncryptedNoteValue)`
 - the contract sets `salt = ciphertextHash`
 - the recipient note commitment is then computed from:
   - recipient owner
   - note value
-  - `salt = keccak256(serializedEncryptedNoteValue)`
+  - `salt = poseidon(serializedEncryptedNoteValue)`
 
 This is the cheapest consistency binding available under the current architecture.
 
@@ -282,7 +295,7 @@ where:
 struct TransferOutput {
     address owner;
     uint256 value;
-    EncryptedNoteValue encryptedValue;
+    bytes32[3] encryptedNoteValue;
 }
 ```
 
@@ -310,45 +323,117 @@ Recommended DApp event shape:
 
 ```solidity
 event NoteValueEncrypted(
-    EncryptedNoteValue encryptedValue
+    bytes32[3] encryptedNoteValue
 );
 ```
 
 Each transfer output emits one such event after its commitment is registered.
 
+## Implementation Status
+
+The Synthesizer prerequisite is no longer pending. The `tokamak-zk-evm` submodule already exposes the updated
+`instance.json -> a_pub_user` format with appended DApp event-log records, and the implementation status is now:
+
+### 1. Private-State DApp Contracts
+
+Completed.
+
+Implemented changes:
+
+- `PrivateStateController` transfer entrypoints now use `TransferOutput`
+- each transfer output carries an opaque `bytes32[3] encryptedNoteValue`
+- transfer output salts are derived inside the contract from the encrypted payload
+- one `NoteValueEncrypted(bytes32[3])` event is emitted per transfer output
+
+### 2. Private-State Synthesizer Example Regeneration
+
+Completed.
+
+Implemented changes:
+
+- the private-state example inputs are generated from the app deploy flow
+- per-function `previous_state_snapshot.json`, `transaction.json`, `block_info.json`, and `contract_codes.json` are
+  regenerated under the Synthesizer package
+- the corresponding `cli-launch-manifest.json` files and VS Code launch entries are updated from the same flow
+
+### 3. Bridge Contract Update and Deployment
+
+Completed.
+
+Implemented changes:
+
+- the bridge contracts now support note-receive public keys and DApp event-log metadata
+- the updated bridge stack has been deployed to Sepolia
+
+### 4. Bridge Metadata Upload
+
+Completed, subject to current Synthesizer capacity limits.
+
+Current Sepolia registration status:
+
+- registered examples: `mintNotes1`, `mintNotes2`, `mintNotes3`, `mintNotes4`, `transferNotes1To1`,
+  `transferNotes1To2`, `transferNotes2To1`, `redeemNotes1`, `redeemNotes2`
+- currently skipped due to `qap-compiler` capacity: `mintNotes5`, `mintNotes6`, `transferNotes1To3`,
+  `transferNotes2To2`, `transferNotes3To1`, `transferNotes3To2`, `transferNotes4To1`, `redeemNotes3`,
+  `redeemNotes4`
+
+Latest Sepolia deployment and registration artifacts:
+
+- controller: `0xE787f8aBf3848daDD80512028086Ea2aafA26CC1`
+- vault: `0x703aa404333DCA0B12921a5a47A9bbf6c8950db2`
+- registration tx: `0xa42e1b56ef7522d02a8746cd923a64431abfb004d3a21185605d1a4f2cd86c6e`
+
+### 5. CLI Changes
+
+Completed for the intended delivery model.
+
+Implemented changes:
+
+- channel registration submits the derived `NoteReceivePubKey`
+- `transfer-notes` resolves recipient note-receive keys from bridge channel state and encrypts transfer outputs
+- `transfer-notes` no longer treats recipient wallet sidecar writes as the canonical delivery path
+- `get-my-notes` scans Ethereum logs for `NoteValueEncrypted`, decrypts matching outputs, reconstructs notes, and
+  caches the last scanned block
+
+### 6. E2E and CLI-E2E Stabilization
+
+Still pending as a formal completion criterion.
+
+The core feature path is implemented, but this document should not claim that the full bridge e2e and CLI-e2e matrix
+has been re-run and stabilized for every private-state example variant.
+
 ## DApp Contract Update Plan
 
-The private-state DApp changes should be implemented in `PrivateStateController` and in the app-local metadata
-generation path. This section describes only the DApp-side contract and registration-output changes. Bridge and CLI
-changes are covered separately below.
+The private-state DApp changes are implemented in `PrivateStateController` and in the app-local metadata generation
+path. This section describes the DApp-side contract and registration-output changes. Bridge and CLI changes are covered
+separately below.
 
 ### A. Transfer Output Shape and Salt Derivation
 
-Every transfer entrypoint should stop accepting a caller-chosen recipient salt and instead accept an encrypted output
+Every transfer entrypoint now stops accepting a caller-chosen recipient salt and instead accepts an encrypted output
 payload:
 
 ```solidity
 struct TransferOutput {
     address owner;
     uint256 value;
-    EncryptedNoteValue encryptedValue;
+    bytes32[3] encryptedNoteValue;
 }
 ```
 
 That implies the following contract-side updates:
 
 - replace transfer output calldata shapes from `Note` to `TransferOutput`
-- derive `salt = keccak256(serializedEncryptedNoteValue)` inside the contract
+- derive `salt = poseidon(serializedEncryptedNoteValue)` inside the contract
 - compute output commitments from `(owner, value, derivedSalt)` rather than from caller-supplied salt
 - apply the same output shape to sender change notes so that transfer entrypoints keep one successful path only
 
 ### B. Contract Execution Delta
 
-For each `transferNotes*` function, the new logic should add only the minimum extra work required by the new delivery
-model:
+For each `transferNotes*` function, the new logic adds only the minimum extra work required by the new delivery model:
 
-- decode `EncryptedNoteValue` from calldata
-- compute one `keccak256` over the fixed serialized ciphertext
+- read an opaque `bytes32[3]` ciphertext payload from calldata
+- compute one Poseidon hash over the fixed serialized ciphertext
 - emit one ciphertext-bearing DApp event per output
 
 This plan does not add:
@@ -373,35 +458,35 @@ Recommended event shape:
 
 ```solidity
 event NoteValueEncrypted(
-    EncryptedNoteValue encryptedValue
+    bytes32[3] encryptedNoteValue
 );
 ```
 
 The ciphertext hash remains available implicitly because both the sender and the recipient can compute it from
-`encryptedValue`.
+`encryptedNoteValue`.
 
 ### D. DApp Metadata Generation
 
-The app-local function metadata generation path must start describing event-log outputs in addition to storage writes.
+The app-local function metadata generation path now describes event-log outputs in addition to storage writes.
 
-Concrete DApp-side deliverables:
+Current DApp-side status:
 
-- extend the private-state metadata generator so each transfer function declares its emitted event-log records
-- keep `mintNotes*` and `redeemNotes*` unchanged unless they later need note-delivery logs as well
-- regenerate the DApp registration payloads consumed by the bridge e2e and deployment flows
+- transfer function metadata already declares emitted event-log records
+- `mintNotes*` and `redeemNotes*` remain note-delivery-log free
+- the app deploy flow now regenerates the Synthesizer example inputs directly after deployment
 
 ## Bridge Contract Update Plan
 
-This plan assumes the pending Synthesizer update is complete and that `instance.json -> a_pub_user` now includes DApp
-event-log records in addition to the existing storage-write records.
+The Synthesizer update is already complete, and `instance.json -> a_pub_user` now includes DApp event-log records in
+addition to the existing storage-write records.
 
-Under that assumption, the bridge execution flow should change as follows.
+Given that current output format, the bridge execution flow now behaves as follows.
 
 ### A. Channel Registration and Recipient-Key Lookup
 
 The bridge registration layer is responsible for storing and serving the recipient note-receive public key.
 
-Required bridge-side shape:
+Implemented bridge-side shape:
 
 ```solidity
 struct NoteReceivePubKey {
@@ -418,7 +503,7 @@ struct ChannelTokenVaultRegistration {
 }
 ```
 
-Required registration-path changes:
+Implemented registration-path changes:
 
 - add `BridgeStructs.NoteReceivePubKey`
 - extend `BridgeStructs.ChannelTokenVaultRegistration`
@@ -433,7 +518,7 @@ L2 owner address rather than by the L1 registration address.
 
 ### B. Bridge Function Metadata
 
-The bridge-side function metadata must stop assuming that `a_pub_user` contains storage writes only.
+The bridge-side function metadata no longer assumes that `a_pub_user` contains storage writes only.
 
 The correct shape should be expressed in two layers, because the bridge already has two metadata forms:
 
@@ -444,7 +529,7 @@ That distinction matters because `DAppFunctionMetadata` currently carries an `In
 stores only fixed-size hot-path fields. Variable-length arrays such as `storageWrites` are already stored outside
 `FunctionConfig`, and `eventLogs` should follow the same pattern rather than being embedded into `FunctionConfig`.
 
-Recommended registration metadata shape:
+Implemented registration metadata shape:
 
 ```solidity
 struct EventLogMetadata {
@@ -462,7 +547,7 @@ struct InstanceLayout {
 }
 ```
 
-Recommended runtime storage shape:
+Implemented runtime storage shape:
 
 ```solidity
 struct FunctionConfig {
@@ -490,7 +575,7 @@ Why this shape is better:
 - `FunctionConfig` remains a compact fixed-size hot-path struct instead of becoming a mixed fixed/dynamic container
 - `EventLogMetadata[]` is handled with the same storage discipline as `StorageWriteMetadata[]`
 
-Bridge ownership of this metadata:
+Current bridge ownership of this metadata:
 
 - `BridgeStructs` defines `EventLogMetadata`, `InstanceLayout`, and `FunctionConfig`
 - `DAppManager.registerDApp(...)` receives `DAppFunctionMetadata.instanceLayout.eventLogs`
@@ -501,10 +586,9 @@ Bridge ownership of this metadata:
 
 ### C. Bridge Runtime Emission
 
-`ChannelManager.executeChannelTransaction(...)` currently observes storage writes and emits bridge-local storage-write
-events only.
+`ChannelManager.executeChannelTransaction(...)` now observes storage writes and the appended event-log section.
 
-After the Synthesizer update, it should:
+Current behavior:
 
 1. decode the storage-write section as today
 2. decode the appended event-log section from `payload.aPubUser`
@@ -516,17 +600,35 @@ decoded topic count.
 
 That preserves the DApp event identity as seen by downstream indexers.
 
+### D. Current Bridge Management Policy
+
+The current bridge implementation also includes a temporary owner-controlled DApp deletion path for test deployments.
+
+Current behavior:
+
+- `DAppManager.deleteDApp(...)` is available while `dAppDeletionEnabled` is true
+- `disableDAppDeletionForever()` can permanently close that path
+- deletion is blocked when the DApp already has active channels
+
+Deployment policy:
+
+- Sepolia keeps this path available as a test-deployment-only operational tool
+- mainnet deployment and upgrade flows call `disableDAppDeletionForever()` and keep DApp deletion permanently disabled
+
+This policy is operational scaffolding for test deployments rather than part of the private-state note-delivery design
+itself.
+
 ## CLI Update Plan
 
-The private-state CLI will need changes in three areas.
+The private-state CLI has changed in three areas.
 
 ### A. Channel Registration CLI
 
-The `register-channel` flow must:
+Current `register-channel` behavior:
 
 1. build the fixed EIP-712 typed data for note-receive key derivation
 2. sign it through the MetaMask-compatible off-chain signing method
-3. derive the auxiliary secp256k1 note-receive key pair
+3. derive the auxiliary Jubjub note-receive key pair
 4. submit the derived `NoteReceivePubKey` during channel registration
 5. persist enough local metadata to reproduce the same typed-data request later
 
@@ -538,34 +640,30 @@ The persisted wallet metadata must store at least:
 
 ### B. Transfer CLI
 
-The `transfer-notes` flow must stop writing plaintext recipient notes into local inbox sidecars as the canonical
-delivery mechanism.
-
-Instead it should:
+Current `transfer-notes` behavior:
 
 1. query each recipient's `NoteReceivePubKey` from channel registration state by recipient `l2Address`
 2. derive or recover the sender's own note-receive public key for change outputs
-3. encrypt each transfer output value into an `EncryptedNoteValue`
+3. encrypt each transfer output value into an opaque `bytes32[3] encryptedNoteValue`
 4. build the new transfer calldata with encrypted outputs
 5. submit the channel transaction
 
-The current `incoming-notes.json` sidecar flow should then become a legacy compatibility path rather than the primary
-delivery path.
+The legacy `incoming-notes.json` sidecar flow is no longer used.
 
 ### C. Recipient Recovery CLI
 
-Wallet-backed commands that need note discovery should:
+Current recipient note recovery behavior:
 
 1. rebuild the deterministic note-receive auxiliary private key from the fixed typed-data signature
 2. scan bridge-propagated DApp logs for `NoteValueEncrypted`
-3. attempt ECIES decryption for logs targeting the current channel
+3. attempt Jubjub-based ciphertext decryption for logs targeting the current channel
 4. reconstruct note plaintext using:
    - owner = local wallet L2 address
    - value = decrypted note value
    - salt = ciphertext hash
 5. absorb recovered notes into the encrypted wallet state
 
-This replaces the sender-written `incoming-notes.json` sidecar as the long-term recovery path.
+This replaces the old sender-written `incoming-notes.json` sidecar path entirely.
 
 ## Recipient Recovery Flow
 
@@ -573,14 +671,14 @@ When the recipient later wants to recover received notes:
 
 1. Re-derive the note-receive auxiliary private key by signing the fixed typed-data registration message again.
 2. Scan Ethereum logs for bridge-propagated `NoteValueEncrypted` records for the current channel.
-3. Attempt ECIES decryption using the auxiliary private key.
+3. Attempt Jubjub-based ciphertext decryption using the auxiliary private key.
 4. If decryption succeeds:
    - read the note value from the decrypted payload
-   - compute `salt = keccak256(serializedEncryptedNoteValue)`
+   - compute `salt = poseidon(serializedEncryptedNoteValue)`
    - reconstruct the note plaintext as:
      - `owner = recipient L2 address`
      - `value = decrypted value`
-     - `salt = keccak256(serializedEncryptedNoteValue)`
+     - `salt = poseidon(serializedEncryptedNoteValue)`
 5. Recompute the note commitment locally and optionally confirm that the controller state recognizes that commitment as
    existing before persisting the recovered note into wallet state.
 
@@ -644,20 +742,11 @@ The system must not silently substitute:
 
 for the same derivation rule without an explicit migration.
 
-## Planned Implementation Scope
+## Remaining Scope
 
-The expected implementation work is:
+The following work remains outside the already implemented core path:
 
-1. add `BridgeStructs.NoteReceivePubKey`
-2. extend channel registration state and registration ABI with `NoteReceivePubKey`
-3. add deterministic typed-data-based note-receive key derivation to the CLI and future web client flow
-4. replace sender-provided transfer output salt with `keccak256(serializedEncryptedNoteValue)`
-5. add fixed-shape `EncryptedNoteValue` calldata to transfer entrypoints
-6. add ciphertext-bearing transfer event logs in the DApp
-7. extend bridge function metadata so `executeChannelTransaction(...)` can decode event-log sections from
-   `payload.aPubUser`
-8. emit raw bridge-side logs for those DApp events in `executeChannelTransaction(...)`
-9. update wallet recovery and note discovery flows to scan and decrypt bridge-propagated ciphertext logs
-10. retire `incoming-notes.json` as the primary delivery mechanism once the log-based path is live
+1. increase supported private-state function coverage beyond the current Synthesizer capacity ceiling
+2. re-run and stabilize the full bridge e2e and CLI-e2e matrix against the current deployed contracts and fixtures
 
-This document describes the current intended direction only. It is not yet implemented.
+This document describes the implemented architecture plus the remaining gaps to full operational completion.

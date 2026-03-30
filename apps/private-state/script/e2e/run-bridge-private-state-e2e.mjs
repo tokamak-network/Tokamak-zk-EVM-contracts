@@ -37,9 +37,16 @@ import {
 import {
   buildDAppDefinitions,
   buildFunctionDefinition,
+  ensureTokamakDistBackendBinaries,
   hashTokamakPublicInputs,
   writeJson,
 } from "../../../../script/zk/lib/tokamak-artifacts.mjs";
+import {
+  computeEncryptedNoteSalt,
+  deriveNoteReceiveKeyMaterial,
+  encryptedNoteValueTuple,
+  encryptNoteValueForRecipient,
+} from "./private-state-note-delivery.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,7 +80,6 @@ const tokamakPrevBlockHashCount = 4;
 const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const amountUnit = 10n ** 18n;
 const depositAmount = 3n * amountUnit;
-const blsScalarFieldModulus = BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const deployerAddress = new Wallet(anvilDeployerPrivateKey).address;
 const bridgeCoreAbi = [
@@ -82,13 +88,13 @@ const bridgeCoreAbi = [
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address bridgeTokenVault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites) instanceLayout)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
 ];
 const channelManagerAbi = [
   "function currentRootVectorHash() external view returns (bytes32)",
   "function genesisBlockNumber() external view returns (uint256)",
-  "function registerChannelTokenVaultIdentity(address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex) external",
-  "function getChannelTokenVaultRegistration(address user) external view returns (tuple(bool exists, address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex))",
+  "function registerChannelTokenVaultIdentity(address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, (bytes32 x,uint8 yParity) noteReceivePubKey) external",
+  "function getChannelTokenVaultRegistration(address user) external view returns (tuple(bool exists, address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, (bytes32 x,uint8 yParity) noteReceivePubKey))",
   "function executeChannelTransaction((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
 const bridgeTokenVaultAbi = [
@@ -114,7 +120,7 @@ function usage() {
   node apps/private-state/script/e2e/run-bridge-private-state-e2e.mjs [options]
 
 Options:
-  --run-install                                   Run tokamak-cli --install before the flow
+  --skip-install                                  Skip tokamak-cli --install before the flow
   --reuse-generated-artifacts                     Reuse existing Tokamak step artifacts under the output directory
   --keep-anvil                                    Leave anvil running after success
   --help                                          Show this help
@@ -123,7 +129,7 @@ Options:
 
 function parseArgs(argv) {
   const options = {
-    runInstall: false,
+    runInstall: true,
     reuseGeneratedArtifacts: false,
     keepAnvil: false,
   };
@@ -131,8 +137,8 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
     switch (current) {
-      case "--run-install":
-        options.runInstall = true;
+      case "--skip-install":
+        options.runInstall = false;
         break;
       case "--keep-anvil":
         options.keepAnvil = true;
@@ -204,7 +210,7 @@ function buildL1Wallet(index, provider) {
 }
 
 function buildParticipant(index) {
-  const signature = ethers.id(`private-state participant ${index}`);
+  const signature = poseidonHexFromBytes(ethers.toUtf8Bytes(`private-state participant ${index}`));
   const keySet = deriveL2KeysFromSignature(signature);
   const l2Address = fromEdwardsToAddress(keySet.publicKey).toString();
   return {
@@ -320,14 +326,16 @@ function mappingKeyHex(address, slot) {
   return bytesToHex(poseidon(hexToBytes(encoded)));
 }
 
+function poseidonHexFromBytes(bytesLike) {
+  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
+}
+
 function bigintToHex32(value) {
   return ethers.zeroPadValue(ethers.toBeHex(value), 32);
 }
 
 function saltHex(label) {
-  const raw = BigInt(ethers.id(label));
-  const normalized = (raw % (blsScalarFieldModulus - 1n)) + 1n;
-  return bytes32FromHex(ethers.toBeHex(normalized));
+  return bytes32FromHex(poseidonHexFromBytes(ethers.toUtf8Bytes(label)));
 }
 
 function note(owner, value, saltLabel) {
@@ -335,6 +343,41 @@ function note(owner, value, saltLabel) {
     owner: getAddress(owner),
     value,
     salt: saltHex(saltLabel),
+  };
+}
+
+function buildEncryptedTransferOutput({
+  owner,
+  value,
+  label,
+  recipientNoteReceivePubKey,
+  chainId,
+  channelId,
+}) {
+  const deterministicNonce = ethers.dataSlice(
+    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
+    0,
+    12,
+  );
+  const encryptedNoteValue = encryptNoteValueForRecipient({
+    value,
+    recipientNoteReceivePubKey,
+    chainId,
+    channelId,
+    owner,
+    nonce: deterministicNonce,
+  });
+  return {
+    output: {
+      owner: getAddress(owner),
+      value,
+      encryptedNoteValue,
+    },
+    note: {
+      owner: getAddress(owner),
+      value,
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
+    },
   };
 }
 
@@ -786,6 +829,7 @@ function toFunctionMetadata(entries) {
       currentRootVectorOffsetWords: entry.currentRootVectorOffsetWords,
       updatedRootVectorOffsetWords: entry.updatedRootVectorOffsetWords,
       storageWrites: entry.storageWrites,
+      eventLogs: entry.eventLogs,
     },
   }));
 }
@@ -803,6 +847,8 @@ async function main() {
   console.log("E2E: bootstrapping local anvil and app deployment.");
 
   await bootstrapAnvil();
+
+  ensureTokamakDistBackendBinaries(tokamakRoot);
 
   if (options.runInstall) {
     run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
@@ -830,6 +876,16 @@ async function main() {
   const initialSnapshot = buildGenesisSnapshot(controllerAddress, vaultAddress);
   const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
 
+  for (const participant of participants) {
+    participant.noteReceive = await deriveNoteReceiveKeyMaterial({
+      signer: participant.l1,
+      chainId: 31337,
+      channelId,
+      channelName,
+      account: participant.l1.address,
+    });
+  }
+
   const participantKeys = new Map();
   for (const participant of participants) {
     const key = mappingKeyHex(participant.l2Address, liquidBalancesSlot);
@@ -853,13 +909,40 @@ async function main() {
 
   const postDepositSnapshot = depositTransitions[depositTransitions.length - 1].nextSnapshot;
 
+  const encryptedTransfers = {
+    aToB: buildEncryptedTransferOutput({
+      owner: participants[1].l2Address,
+      value: 1n * amountUnit,
+      label: "private-state-e2e:a-to-b",
+      recipientNoteReceivePubKey: participants[1].noteReceive.noteReceivePubKey,
+      chainId: 31337,
+      channelId,
+    }),
+    aToC: buildEncryptedTransferOutput({
+      owner: participants[2].l2Address,
+      value: 2n * amountUnit,
+      label: "private-state-e2e:a-to-c",
+      recipientNoteReceivePubKey: participants[2].noteReceive.noteReceivePubKey,
+      chainId: 31337,
+      channelId,
+    }),
+    bToC: buildEncryptedTransferOutput({
+      owner: participants[2].l2Address,
+      value: 4n * amountUnit,
+      label: "private-state-e2e:b-to-c",
+      recipientNoteReceivePubKey: participants[2].noteReceive.noteReceivePubKey,
+      chainId: 31337,
+      channelId,
+    }),
+  };
+
   const notes = {
     aMint: note(participants[0].l2Address, depositAmount, "private-state-e2e:a-mint"),
     bMint: note(participants[1].l2Address, depositAmount, "private-state-e2e:b-mint"),
     cMint: note(participants[2].l2Address, depositAmount, "private-state-e2e:c-mint"),
-    aToB: note(participants[1].l2Address, 1n * amountUnit, "private-state-e2e:a-to-b"),
-    aToC: note(participants[2].l2Address, 2n * amountUnit, "private-state-e2e:a-to-c"),
-    bToC: note(participants[2].l2Address, 4n * amountUnit, "private-state-e2e:b-to-c"),
+    aToB: encryptedTransfers.aToB.note,
+    aToC: encryptedTransfers.aToC.note,
+    bToC: encryptedTransfers.bToC.note,
   };
 
   const tokamakScenarios = [
@@ -892,11 +975,19 @@ async function main() {
       calldata: controllerInterface.encodeFunctionData(
         "transferNotes1To2",
         [
-          [[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]],
           [
-            [notes.aToB.owner, notes.aToB.value, notes.aToB.salt],
-            [notes.aToC.owner, notes.aToC.value, notes.aToC.salt],
+            [
+              encryptedTransfers.aToB.output.owner,
+              encryptedTransfers.aToB.output.value,
+              encryptedNoteValueTuple(encryptedTransfers.aToB.output.encryptedNoteValue),
+            ],
+            [
+              encryptedTransfers.aToC.output.owner,
+              encryptedTransfers.aToC.output.value,
+              encryptedNoteValueTuple(encryptedTransfers.aToC.output.encryptedNoteValue),
+            ],
           ],
+          [[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]],
         ],
       ),
     },
@@ -909,10 +1000,16 @@ async function main() {
         "transferNotes2To1",
         [
           [
+            [
+              encryptedTransfers.bToC.output.owner,
+              encryptedTransfers.bToC.output.value,
+              encryptedNoteValueTuple(encryptedTransfers.bToC.output.encryptedNoteValue),
+            ],
+          ],
+          [
             [notes.bMint.owner, notes.bMint.value, notes.bMint.salt],
             [notes.aToB.owner, notes.aToB.value, notes.aToB.salt],
           ],
-          [[notes.bToC.owner, notes.bToC.value, notes.bToC.salt]],
         ],
       ),
     },
@@ -1065,6 +1162,7 @@ async function main() {
         participant.l2Address,
         participantKeys.get(participant.index),
         deriveLeafIndex(participantKeys.get(participant.index)),
+        participant.noteReceive.noteReceivePubKey,
         { nonce: consumeAccountNonce(participantNonces, participant.l1.address) },
       )
     ).wait();

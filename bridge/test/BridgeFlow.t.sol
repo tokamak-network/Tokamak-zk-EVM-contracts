@@ -98,6 +98,7 @@ contract BridgeFlowTest is Test {
             IGrothVerifier(address(grothVerifier)),
             ITokamakVerifier(address(tokamakVerifier))
         );
+        dAppManager.bindBridgeCore(address(bridgeCore));
         channelId = _deriveChannelId(channelName);
         secondChannelId = _deriveChannelId(secondChannelName);
         bridgeTokenVault = _deployTokenVaultProxy(address(this), bridgeCore, IGrothVerifier(address(grothVerifier)));
@@ -175,6 +176,53 @@ contract BridgeFlowTest is Test {
         assertFalse(dAppManager.isChannelTokenVaultStorageAddress(1, address(0x1234)));
     }
 
+    function testDAppManagerTracksBoundBridgeCoreAndActiveChannels() public view {
+        assertEq(dAppManager.bridgeCore(), address(bridgeCore));
+        assertEq(dAppManager.getActiveChannelCount(1), 1);
+        assertEq(dAppManager.getActiveChannelCount(2), 0);
+    }
+
+    function testOwnerCanDeleteUnboundDAppWhileDeletionIsEnabled() public {
+        dAppManager.deleteDApp(2);
+
+        vm.expectRevert(abi.encodeWithSelector(DAppManager.UnknownDApp.selector, 2));
+        dAppManager.getDAppInfo(2);
+    }
+
+    function testDeletedDAppIdCanBeRegisteredAgain() public {
+        dAppManager.deleteDApp(2);
+
+        dAppManager.registerDApp(
+            2,
+            keccak256("alt-private-app-reloaded"),
+            _singleVaultStorageLayout(address(0xF11D)),
+            _singleVaultDAppFunction()
+        );
+
+        DAppManager.DAppInfo memory info = dAppManager.getDAppInfo(2);
+        assertTrue(info.exists);
+        assertEq(info.labelHash, keccak256("alt-private-app-reloaded"));
+    }
+
+    function testRejectsDeletingDAppWithActiveChannels() public {
+        vm.expectRevert(abi.encodeWithSelector(DAppManager.ActiveChannelsExist.selector, 1, 1));
+        dAppManager.deleteDApp(1);
+    }
+
+    function testRejectsDeletingDAppAfterDeletionIsDisabledForever() public {
+        dAppManager.disableDAppDeletionForever();
+
+        vm.expectRevert(DAppManager.DAppDeletionDisabled.selector);
+        dAppManager.deleteDApp(2);
+    }
+
+    function testOwnerCanReEnableDeletionBeforePermanentLock() public {
+        dAppManager.disableDAppDeletionForever();
+
+        vm.expectRevert(DAppManager.DAppDeletionLockedForever.selector);
+        dAppManager.enableDAppDeletion();
+    }
+
     function testChannelStoresManagedStorageAddressVector() public view {
         address[] memory managedStorageAddresses = channelManager.getManagedStorageAddresses();
         assertEq(managedStorageAddresses.length, 2);
@@ -192,25 +240,25 @@ contract BridgeFlowTest is Test {
 
     function testRejectsPerChannelLeafCollision() public {
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, bytes32(uint256(1)), 1);
+        channelManager.registerChannelTokenVaultIdentity(alice, bytes32(uint256(1)), 1, _defaultNoteReceivePubKey());
 
         vm.expectRevert(
             abi.encodeWithSelector(ChannelManager.ChannelTokenVaultLeafIndexAlreadyRegistered.selector, 1)
         );
         vm.prank(bob);
-        channelManager.registerChannelTokenVaultIdentity(bob, bytes32(uint256(4097)), 1);
+        channelManager.registerChannelTokenVaultIdentity(bob, bytes32(uint256(4097)), 1, _defaultNoteReceivePubKey());
     }
 
     function testAllowsKeyReuseAcrossDifferentChannels() public {
         bytes32 reusedKey = bytes32(uint256(8));
 
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, reusedKey, 8);
+        channelManager.registerChannelTokenVaultIdentity(alice, reusedKey, 8, _defaultNoteReceivePubKey());
 
         (address secondManagerAddress, address secondVaultAddress) = bridgeCore.createChannel(secondChannelId, 1, leader);
         ChannelManager secondChannelManager = ChannelManager(secondManagerAddress);
         vm.prank(bob);
-        secondChannelManager.registerChannelTokenVaultIdentity(bob, reusedKey, 8);
+        secondChannelManager.registerChannelTokenVaultIdentity(bob, reusedKey, 8, _defaultNoteReceivePubKey());
 
         assertEq(secondVaultAddress, address(bridgeTokenVault));
         BridgeStructs.ChannelTokenVaultRegistration memory secondRegistration =
@@ -224,7 +272,7 @@ contract BridgeFlowTest is Test {
         bytes32 key = bytes32(uint256(17));
 
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 17);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 17, _defaultNoteReceivePubKey());
 
         BridgeStructs.ChannelTokenVaultRegistration memory registration =
             bridgeCore.getChannelTokenVaultRegistration(channelId, alice);
@@ -349,7 +397,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
         _mockGrothVerifierAcceptsAllProofs();
 
         uint256[5] memory pubSignals = _depositPublicSignals();
@@ -412,7 +460,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
         _mockGrothVerifierAcceptsAllProofs();
 
         uint256[5] memory depositSignals = _depositPublicSignals();
@@ -526,7 +574,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
 
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
             currentRootVector: _rootVector(bytes32(_depositPublicSignals()[0]), INITIAL_ZERO_ROOT),
@@ -549,7 +597,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
 
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
             currentRootVector: _rootVector(bytes32(_withdrawPublicSignals()[0]), INITIAL_ZERO_ROOT),
@@ -572,7 +620,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
 
         uint256[5] memory pubSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
@@ -600,7 +648,7 @@ contract BridgeFlowTest is Test {
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
         vm.prank(alice);
-        channelManager.registerChannelTokenVaultIdentity(alice, key, 111);
+        channelManager.registerChannelTokenVaultIdentity(alice, key, 111, _defaultNoteReceivePubKey());
 
         _mockGrothVerifierAcceptsAllProofs();
 
@@ -687,6 +735,7 @@ contract BridgeFlowTest is Test {
         dAppManager.upgradeTo(address(newDAppImplementation));
         bridgeCore.upgradeTo(address(newBridgeImplementation));
         bridgeTokenVault.upgradeTo(address(newTokenVaultImplementation));
+        dAppManager.bindBridgeCore(address(bridgeCore));
 
         assertEq(address(adminManager), adminProxyAddress);
         assertEq(address(dAppManager), dAppProxyAddress);
@@ -701,6 +750,7 @@ contract BridgeFlowTest is Test {
         assertTrue(_implementationOf(dAppProxyAddress) != previousDAppImplementation);
         assertTrue(_implementationOf(bridgeProxyAddress) != previousBridgeImplementation);
         assertTrue(_implementationOf(bridgeTokenVaultProxyAddress) != previousTokenVaultImplementation);
+        assertEq(dAppManager.bridgeCore(), address(bridgeCore));
     }
 
     function testTokamakVerificationRejectsProofForUnexpectedCurrentState() public {
@@ -1136,6 +1186,17 @@ contract BridgeFlowTest is Test {
         storageWrites = new BridgeStructs.StorageWriteMetadata[](0);
     }
 
+    function _emptyEventLogs() internal pure returns (BridgeStructs.EventLogMetadata[] memory eventLogs) {
+        eventLogs = new BridgeStructs.EventLogMetadata[](0);
+    }
+
+    function _defaultNoteReceivePubKey() internal pure returns (BridgeStructs.NoteReceivePubKey memory noteReceivePubKey) {
+        noteReceivePubKey = BridgeStructs.NoteReceivePubKey({
+            x: bytes32(uint256(0x1234)),
+            yParity: 1
+        });
+    }
+
     function _instanceLayout(
         uint8 entryContractOffsetWords,
         uint8 functionSigOffsetWords,
@@ -1148,7 +1209,8 @@ contract BridgeFlowTest is Test {
             functionSigOffsetWords: functionSigOffsetWords,
             currentRootVectorOffsetWords: currentRootVectorOffsetWords,
             updatedRootVectorOffsetWords: updatedRootVectorOffsetWords,
-            storageWrites: storageWrites
+            storageWrites: storageWrites,
+            eventLogs: _emptyEventLogs()
         });
     }
 

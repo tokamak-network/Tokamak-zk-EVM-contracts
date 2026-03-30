@@ -18,6 +18,11 @@ contract ChannelManager {
         bool isChannelTokenVault;
     }
 
+    struct CachedEventLog {
+        uint16 startOffsetWords;
+        uint8 topicCount;
+    }
+
     error OnlyBridgeCore();
     error OnlyBridgeTokenVault();
     error BridgeTokenVaultAlreadySet();
@@ -39,8 +44,14 @@ contract ChannelManager {
     error ChannelTokenVaultIdentityAlreadyRegistered(address user);
     error ChannelTokenVaultKeyAlreadyRegistered(bytes32 key);
     error ChannelTokenVaultLeafIndexAlreadyRegistered(uint256 leafIndex);
+    error ChannelTokenVaultL2AddressAlreadyRegistered(address l2Address);
     error ChannelTokenVaultLeafIndexOutOfRange(uint256 leafIndex);
     error ChannelTokenVaultLeafIndexMismatch(uint256 expectedLeafIndex, uint256 actualLeafIndex);
+    error InvalidNoteReceivePubKey();
+    error InvalidNoteReceivePubKeyYParity(uint8 yParity);
+    error UnsupportedObservedEventTopicCount(uint8 topicCount);
+    error InvalidObservedEventBoundary(uint16 startOffsetWords, uint256 endOffsetWords);
+    error InvalidObservedEventDataLength(uint16 startOffsetWords, uint256 dataWordLength);
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
@@ -61,6 +72,7 @@ contract ChannelManager {
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
     mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
     mapping(bytes32 => CachedStorageWrite[]) private _functionStorageWrites;
+    mapping(bytes32 => CachedEventLog[]) private _functionEventLogs;
     mapping(bytes32 => bool) private _functionHasChannelTokenVaultWrite;
     BridgeStructs.FunctionReference[] private _allowedFunctions;
 
@@ -68,10 +80,16 @@ contract ChannelManager {
     mapping(address => BridgeStructs.ChannelTokenVaultRegistration) private _channelTokenVaultRegistrations;
     mapping(bytes32 => address) private _channelTokenVaultKeyOwners;
     mapping(uint256 => address) private _channelTokenVaultLeafOwners;
+    mapping(address => address) private _channelTokenVaultL2AddressOwners;
 
     event BridgeTokenVaultBound(address indexed bridgeTokenVault);
     event ChannelTokenVaultIdentityRegistered(
-        address indexed l1Address, address indexed l2Address, bytes32 indexed channelTokenVaultKey, uint256 leafIndex
+        address indexed l1Address,
+        address indexed l2Address,
+        bytes32 indexed channelTokenVaultKey,
+        uint256 leafIndex,
+        bytes32 noteReceivePubKeyX,
+        uint8 noteReceivePubKeyYParity
     );
     event CurrentRootVectorObserved(bytes32 indexed rootVectorHash, bytes32[] rootVector);
     event StorageWriteObserved(address indexed storageAddr, uint256 storageKey, uint256 value);
@@ -174,6 +192,17 @@ contract ChannelManager {
                     _functionHasChannelTokenVaultWrite[functionKey] = true;
                 }
             }
+
+            BridgeStructs.EventLogMetadata[] memory eventLogs =
+                dAppManager_.getFunctionEventLogs(dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
+            for (uint256 j = 0; j < eventLogs.length; j++) {
+                _functionEventLogs[functionKey].push(
+                    CachedEventLog({
+                        startOffsetWords: eventLogs[j].startOffsetWords,
+                        topicCount: eventLogs[j].topicCount
+                    })
+                );
+            }
         }
     }
 
@@ -193,15 +222,29 @@ contract ChannelManager {
         emit BridgeTokenVaultBound(bridgeTokenVault_);
     }
 
-    function registerChannelTokenVaultIdentity(address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex)
+    function registerChannelTokenVaultIdentity(
+        address l2Address,
+        bytes32 channelTokenVaultKey,
+        uint256 leafIndex,
+        BridgeStructs.NoteReceivePubKey calldata noteReceivePubKey
+    )
         external
     {
         if (l2Address == address(0)) revert InvalidL2Address();
         if (_channelTokenVaultRegistrations[msg.sender].exists) {
             revert ChannelTokenVaultIdentityAlreadyRegistered(msg.sender);
         }
+        if (_channelTokenVaultL2AddressOwners[l2Address] != address(0)) {
+            revert ChannelTokenVaultL2AddressAlreadyRegistered(l2Address);
+        }
         if (leafIndex >= TOKEN_VAULT_MT_LEAF_COUNT) {
             revert ChannelTokenVaultLeafIndexOutOfRange(leafIndex);
+        }
+        if (noteReceivePubKey.x == bytes32(0)) {
+            revert InvalidNoteReceivePubKey();
+        }
+        if (noteReceivePubKey.yParity > 1) {
+            revert InvalidNoteReceivePubKeyYParity(noteReceivePubKey.yParity);
         }
 
         uint256 expectedLeafIndex = _deriveLeafIndexFromStorageKey(uint256(channelTokenVaultKey));
@@ -219,12 +262,24 @@ contract ChannelManager {
             exists: true,
             l2Address: l2Address,
             channelTokenVaultKey: channelTokenVaultKey,
-            leafIndex: leafIndex
+            leafIndex: leafIndex,
+            noteReceivePubKey: BridgeStructs.NoteReceivePubKey({
+                x: noteReceivePubKey.x,
+                yParity: noteReceivePubKey.yParity
+            })
         });
         _channelTokenVaultKeyOwners[channelTokenVaultKey] = msg.sender;
         _channelTokenVaultLeafOwners[leafIndex] = msg.sender;
+        _channelTokenVaultL2AddressOwners[l2Address] = msg.sender;
 
-        emit ChannelTokenVaultIdentityRegistered(msg.sender, l2Address, channelTokenVaultKey, leafIndex);
+        emit ChannelTokenVaultIdentityRegistered(
+            msg.sender,
+            l2Address,
+            channelTokenVaultKey,
+            leafIndex,
+            noteReceivePubKey.x,
+            noteReceivePubKey.yParity
+        );
     }
 
     function executeChannelTransaction(BridgeStructs.TokamakProofPayload calldata payload) external returns (bool) {
@@ -319,6 +374,7 @@ contract ChannelManager {
                 _applyChannelTokenVaultLeaf(leafIndex, bytes32(value));
             }
         }
+        _emitObservedEventLogs(payload.aPubUser, functionConfig, _functionEventLogs[functionKey]);
         currentRootVectorHash = keccak256(abi.encode(updatedRootVector));
         emit CurrentRootVectorObserved(currentRootVectorHash, updatedRootVector);
 
@@ -368,6 +424,36 @@ contract ChannelManager {
         return _channelTokenVaultRegistrations[l1Address];
     }
 
+    function getChannelTokenVaultRegistrationByL2Address(address l2Address)
+        external
+        view
+        returns (BridgeStructs.ChannelTokenVaultRegistration memory)
+    {
+        address l1Address = _channelTokenVaultL2AddressOwners[l2Address];
+        if (l1Address == address(0)) {
+            return BridgeStructs.ChannelTokenVaultRegistration({
+                exists: false,
+                l2Address: address(0),
+                channelTokenVaultKey: bytes32(0),
+                leafIndex: 0,
+                noteReceivePubKey: BridgeStructs.NoteReceivePubKey({x: bytes32(0), yParity: 0})
+            });
+        }
+        return _channelTokenVaultRegistrations[l1Address];
+    }
+
+    function getNoteReceivePubKeyByL2Address(address l2Address)
+        external
+        view
+        returns (BridgeStructs.NoteReceivePubKey memory)
+    {
+        address l1Address = _channelTokenVaultL2AddressOwners[l2Address];
+        if (l1Address == address(0)) {
+            return BridgeStructs.NoteReceivePubKey({x: bytes32(0), yParity: 0});
+        }
+        return _channelTokenVaultRegistrations[l1Address].noteReceivePubKey;
+    }
+
     function _decodeRootVectorFromAPubUser(uint256[] calldata aPubUser, uint256 rootVectorOffsetWords)
         private
         view
@@ -410,5 +496,109 @@ contract ChannelManager {
 
     function _deriveLeafIndexFromStorageKey(uint256 storageKey) private pure returns (uint256) {
         return storageKey % TOKEN_VAULT_MT_LEAF_COUNT;
+    }
+
+    function _emitObservedEventLogs(
+        uint256[] calldata aPubUser,
+        BridgeStructs.FunctionConfig memory functionConfig,
+        CachedEventLog[] storage eventLogs
+    ) private {
+        for (uint256 i = 0; i < eventLogs.length; i++) {
+            CachedEventLog storage eventLog = eventLogs[i];
+            if (eventLog.topicCount > 4) {
+                revert UnsupportedObservedEventTopicCount(eventLog.topicCount);
+            }
+
+            uint256 eventEndOffset = _resolveObservedEventBoundary(functionConfig, eventLogs, i);
+            uint256 dataStartOffset = uint256(eventLog.startOffsetWords) + uint256(eventLog.topicCount) * SPLIT_WORD_SIZE;
+            if (eventEndOffset < dataStartOffset) {
+                revert InvalidObservedEventBoundary(eventLog.startOffsetWords, eventEndOffset);
+            }
+            uint256 dataWordLength = eventEndOffset - dataStartOffset;
+            if (dataWordLength % SPLIT_WORD_SIZE != 0) {
+                revert InvalidObservedEventDataLength(eventLog.startOffsetWords, dataWordLength);
+            }
+
+            uint256[4] memory topics;
+            for (uint256 topicIndex = 0; topicIndex < eventLog.topicCount; topicIndex++) {
+                topics[topicIndex] = _decodeSplitWord(aPubUser, uint256(eventLog.startOffsetWords) + topicIndex * SPLIT_WORD_SIZE);
+            }
+
+            bytes memory logData = new bytes((dataWordLength / SPLIT_WORD_SIZE) * 32);
+            for (uint256 wordIndex = 0; wordIndex < dataWordLength / SPLIT_WORD_SIZE; wordIndex++) {
+                uint256 value = _decodeSplitWord(aPubUser, dataStartOffset + wordIndex * SPLIT_WORD_SIZE);
+                assembly ("memory-safe") {
+                    mstore(add(add(logData, 0x20), mul(wordIndex, 0x20)), value)
+                }
+            }
+
+            _emitRawLog(logData, eventLog.topicCount, topics);
+        }
+    }
+
+    function _resolveObservedEventBoundary(
+        BridgeStructs.FunctionConfig memory functionConfig,
+        CachedEventLog[] storage eventLogs,
+        uint256 eventLogIndex
+    ) private view returns (uint256 boundary) {
+        CachedEventLog storage eventLog = eventLogs[eventLogIndex];
+        boundary = type(uint256).max;
+
+        if (eventLogIndex + 1 < eventLogs.length) {
+            uint256 nextStartOffset = eventLogs[eventLogIndex + 1].startOffsetWords;
+            if (nextStartOffset > eventLog.startOffsetWords) {
+                boundary = nextStartOffset;
+            }
+        }
+
+        boundary = _minObservedBoundary(boundary, functionConfig.updatedRootVectorOffsetWords, eventLog.startOffsetWords);
+        boundary = _minObservedBoundary(boundary, functionConfig.entryContractOffsetWords, eventLog.startOffsetWords);
+        boundary = _minObservedBoundary(boundary, functionConfig.functionSigOffsetWords, eventLog.startOffsetWords);
+        boundary = _minObservedBoundary(boundary, functionConfig.currentRootVectorOffsetWords, eventLog.startOffsetWords);
+
+        if (boundary == type(uint256).max) {
+            revert InvalidObservedEventBoundary(eventLog.startOffsetWords, boundary);
+        }
+    }
+
+    function _minObservedBoundary(uint256 currentBoundary, uint256 candidateBoundary, uint16 startOffsetWords)
+        private
+        pure
+        returns (uint256)
+    {
+        if (candidateBoundary > startOffsetWords && candidateBoundary < currentBoundary) {
+            return candidateBoundary;
+        }
+        return currentBoundary;
+    }
+
+    function _emitRawLog(bytes memory logData, uint8 topicCount, uint256[4] memory topics) private {
+        uint256 dataLength = logData.length;
+        assembly ("memory-safe") {
+            let dataPtr := add(logData, 0x20)
+            switch topicCount
+            case 0 { log0(dataPtr, dataLength) }
+            case 1 { log1(dataPtr, dataLength, mload(add(topics, 0x20))) }
+            case 2 { log2(dataPtr, dataLength, mload(add(topics, 0x20)), mload(add(topics, 0x40))) }
+            case 3 {
+                log3(
+                    dataPtr,
+                    dataLength,
+                    mload(add(topics, 0x20)),
+                    mload(add(topics, 0x40)),
+                    mload(add(topics, 0x60))
+                )
+            }
+            case 4 {
+                log4(
+                    dataPtr,
+                    dataLength,
+                    mload(add(topics, 0x20)),
+                    mload(add(topics, 0x40)),
+                    mload(add(topics, 0x60)),
+                    mload(add(topics, 0x80))
+                )
+            }
+        }
     }
 }

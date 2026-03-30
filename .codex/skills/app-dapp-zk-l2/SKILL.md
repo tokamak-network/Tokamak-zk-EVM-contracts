@@ -14,6 +14,11 @@ Follow this skill whenever a new DApp is created under `apps/` or when an existi
    - Raw transaction contents are private to the caller.
    - Public outputs are limited to proofs and resulting state transitions.
    - Do not add calldata-hiding mechanisms as if the contracts were executing directly on public L1.
+   - Do not assume the runtime cryptographic primitives are the same as Ethereum L1.
+   - Under the TokamakL2JS execution spec, runtime `keccak256` behavior is replaced by Poseidon-based hashing, and transaction-signature semantics use EdDSA rather than Ethereum ECDSA.
+   - When mirroring contract execution off-chain in CLIs, example generators, replay tools, or tests, use the `tokamak-l2js` cryptographic helpers that match the L2 spec instead of L1 defaults.
+   - Use `poseidon(msg)` when the contract-side hash input is byte-oriented, and use `poseidonChainCompress(inVals)` when the modeled input is already a field-element sequence.
+   - Treat `ecrecover`-style assumptions as invalid in this environment. When the spec requires public-key recovery, use `getEddsaPublicKey(...)`.
 3. Treat bridge-managed custody as a hard architectural rule for every DApp under `apps/`:
    - L1 keeps the canonical asset custody.
    - L2 keeps accounting state only.
@@ -39,8 +44,14 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Review whether reusable abstractions are actually paying for themselves; if they only add indirection and bytecode, inline or split them.
    - Treat Synthesizer placements as a first-class optimization budget. Placements are the circuit-side resource units emitted while the Synthesizer models EVM execution. Every user-facing function should be implemented to minimize placement usage, not just Solidity source length.
    - When a function is placement-heavy, identify whether the cost comes from calldata copying, loop control, helper indirection, repeated hashing, repeated storage calls, or external contract boundaries.
+   - Do not treat memory usage by itself as a placement problem. Plain memory movement such as direct `calldataload` plus `mstore` of fixed-size words is often cheap. The placement-heavy part is usually the encoding or decoding scaffolding wrapped around the memory movement.
+   - Prioritize removing ABI encoding, ABI decoding, packing, unpacking, and generic shape-conversion work before trying to optimize raw memory copies that are already fixed-shape word moves.
    - Treat loop control itself as avoidable placement overhead in hot paths. If a function arity is known at compile time, encode each repeated operation explicitly instead of iterating.
    - If direct low-level coding materially reduces placement usage without violating correctness or the single-success-path rule, assembly blocks are allowed.
+   - For fixed-shape runtime hash inputs, do not default to `keccak256(abi.encode(...))` or equivalent scaffolding when the input words are already known statically. Prefer `memory-safe` assembly that writes each word directly with `mstore` and then calls `keccak256(ptr, len)`.
+   - When using assembly for hash-input staging, allocate scratch space from the current free-memory pointer (`mload(0x40)`) and advance the free-memory pointer afterward. Do not reuse ad hoc offsets such as `0x00` or `0x80` in ways that can collide with future manual memory management.
+   - Apply the same discipline to any L2-runtime hash mirror that is modeled off-chain. If the contract executes a fixed-shape runtime hash, the off-chain generator or test harness should mirror the same fixed-shape input layout rather than rebuild it through avoidable generic encoding layers.
+   - Do not add explicit zero-hash guards by default for note commitments, nullifiers, or similar cryptographic digests. Treat a zero hash output as practically impossible unless the task explicitly requires a defensive zero-value guard for some non-cryptographic reason.
 8. Every DApp under `apps/` must use the same L2 accounting vault shape:
    - Prefer naming such as `L1BridgeAssetVault` for L1 custody and `L2AccountingVault` for the L2 mirror state.
    - The L2 vault is not a real token custody contract.
@@ -83,6 +94,8 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Store them under `apps/<dapp>/script/synthesizer-compat-test`.
    - Provide one entry script per user-facing function, even if the scripts delegate to shared helpers.
    - Use `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/cli/index.ts` as the execution entrypoint.
+   - Ensure the generated transactions, hash expectations, and storage-key derivations mirror the TokamakL2 runtime spec rather than raw Ethereum L1 execution assumptions.
+   - In particular, when a contract uses runtime `keccak256(...)`, model the resulting value with the TokamakL2 Poseidon replacement semantics in the test harness and example generator.
    - Hold `block_info.json` and `contract_codes.json` fixed for a given function test.
    - Vary `previous_state_snapshot.json` and the transaction RLP across multiple valid private-input configurations for the same function.
    - Keep `previous_state_snapshot.json` faithful to actual pre-state only. Do not pre-register storage keys that exist only because the tested transaction will write them later.

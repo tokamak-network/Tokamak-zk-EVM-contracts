@@ -6,8 +6,6 @@ import {L2AccountingVault} from "./L2AccountingVault.sol";
 /// @title PrivateStateController
 /// @notice User-facing application logic for the non-private zk-note DApp.
 contract PrivateStateController {
-    error ZeroCommitment();
-    error ZeroNullifier();
     error ZeroAddress();
     error ZeroAmount();
     error CommitmentAlreadyExists(bytes32 commitment);
@@ -22,8 +20,16 @@ contract PrivateStateController {
         bytes32 salt;
     }
 
+    struct TransferOutput {
+        address owner;
+        uint256 value;
+        bytes32[3] encryptedNoteValue;
+    }
+
     bytes32 private constant NOTE_COMMITMENT_DOMAIN = keccak256("PRIVATE_STATE_NOTE_COMMITMENT");
     bytes32 private constant NULLIFIER_DOMAIN = keccak256("PRIVATE_STATE_NULLIFIER");
+
+    event NoteValueEncrypted(bytes32[3] encryptedNoteValue);
 
     mapping(bytes32 commitment => bool exists) public commitmentExists;
     mapping(bytes32 nullifier => bool used) public nullifierUsed;
@@ -135,12 +141,12 @@ contract PrivateStateController {
         _registerCommitment(commitments[5]);
     }
 
-    function transferNotes1To1(Note[1] calldata inputNotes, Note[1] calldata outputs)
+    function transferNotes1To1(TransferOutput[1] calldata outputs, Note[1] calldata inputNotes)
         external
         returns (bytes32[1] memory nullifiers, bytes32[1] memory outputCommitments)
     {
         uint256 output0Value;
-        (output0Value, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
+        (output0Value, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
 
         uint256 noteValue;
         (noteValue, nullifiers[0]) = _prepareSpendableNote(inputNotes[0]);
@@ -150,16 +156,17 @@ contract PrivateStateController {
 
         _useNullifier(nullifiers[0]);
         _registerCommitment(outputCommitments[0]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
     }
 
-    function transferNotes1To2(Note[1] calldata inputNotes, Note[2] calldata outputs)
+    function transferNotes1To2(TransferOutput[2] calldata outputs, Note[1] calldata inputNotes)
         external
         returns (bytes32[1] memory nullifiers, bytes32[2] memory outputCommitments)
     {
         uint256 output0Value;
         uint256 output1Value;
-        (output0Value, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
-        (output1Value, outputCommitments[1]) = _prepareOutputNote(outputs[1]);
+        (output0Value, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
+        (output1Value, outputCommitments[1]) = _prepareTransferOutput(outputs[1]);
         uint256 totalOutputValue = output0Value + output1Value;
 
         uint256 noteValue;
@@ -171,18 +178,20 @@ contract PrivateStateController {
         _useNullifier(nullifiers[0]);
         _registerCommitment(outputCommitments[0]);
         _registerCommitment(outputCommitments[1]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
     }
 
-    function transferNotes1To3(Note[1] calldata inputNotes, Note[3] calldata outputs)
+    function transferNotes1To3(TransferOutput[3] calldata outputs, Note[1] calldata inputNotes)
         external
         returns (bytes32[1] memory nullifiers, bytes32[3] memory outputCommitments)
     {
         uint256 output0Value;
         uint256 output1Value;
         uint256 output2Value;
-        (output0Value, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
-        (output1Value, outputCommitments[1]) = _prepareOutputNote(outputs[1]);
-        (output2Value, outputCommitments[2]) = _prepareOutputNote(outputs[2]);
+        (output0Value, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
+        (output1Value, outputCommitments[1]) = _prepareTransferOutput(outputs[1]);
+        (output2Value, outputCommitments[2]) = _prepareTransferOutput(outputs[2]);
         uint256 totalOutputValue = output0Value + output1Value + output2Value;
 
         uint256 noteValue;
@@ -195,14 +204,17 @@ contract PrivateStateController {
         _registerCommitment(outputCommitments[0]);
         _registerCommitment(outputCommitments[1]);
         _registerCommitment(outputCommitments[2]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[2].encryptedNoteValue);
     }
 
-    function transferNotes2To1(Note[2] calldata inputNotes, Note[1] calldata outputs)
+    function transferNotes2To1(TransferOutput[1] calldata outputs, Note[2] calldata inputNotes)
         external
         returns (bytes32[2] memory nullifiers, bytes32[1] memory outputCommitments)
     {
         uint256 totalOutputValue;
-        (totalOutputValue, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
+        (totalOutputValue, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
 
         uint256 totalInputValue;
         {
@@ -223,16 +235,17 @@ contract PrivateStateController {
         _useNullifier(nullifiers[0]);
         _useNullifier(nullifiers[1]);
         _registerCommitment(outputCommitments[0]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
     }
 
-    function transferNotes2To2(Note[2] calldata inputNotes, Note[2] calldata outputs)
+    function transferNotes2To2(TransferOutput[2] calldata outputs, Note[2] calldata inputNotes)
         external
         returns (bytes32[2] memory nullifiers, bytes32[2] memory outputCommitments)
     {
         uint256 output0Value;
         uint256 output1Value;
-        (output0Value, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
-        (output1Value, outputCommitments[1]) = _prepareOutputNote(outputs[1]);
+        (output0Value, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
+        (output1Value, outputCommitments[1]) = _prepareTransferOutput(outputs[1]);
         uint256 totalOutputValue = output0Value + output1Value;
 
         uint256 totalInputValue;
@@ -255,14 +268,16 @@ contract PrivateStateController {
         _useNullifier(nullifiers[1]);
         _registerCommitment(outputCommitments[0]);
         _registerCommitment(outputCommitments[1]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
     }
 
-    function transferNotes3To1(Note[3] calldata inputNotes, Note[1] calldata outputs)
+    function transferNotes3To1(TransferOutput[1] calldata outputs, Note[3] calldata inputNotes)
         external
         returns (bytes32[3] memory nullifiers, bytes32[1] memory outputCommitments)
     {
         uint256 totalOutputValue;
-        (totalOutputValue, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
+        (totalOutputValue, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
 
         uint256 totalInputValue;
         {
@@ -289,16 +304,17 @@ contract PrivateStateController {
         _useNullifier(nullifiers[1]);
         _useNullifier(nullifiers[2]);
         _registerCommitment(outputCommitments[0]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
     }
 
-    function transferNotes3To2(Note[3] calldata inputNotes, Note[2] calldata outputs)
+    function transferNotes3To2(TransferOutput[2] calldata outputs, Note[3] calldata inputNotes)
         external
         returns (bytes32[3] memory nullifiers, bytes32[2] memory outputCommitments)
     {
         uint256 output0Value;
         uint256 output1Value;
-        (output0Value, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
-        (output1Value, outputCommitments[1]) = _prepareOutputNote(outputs[1]);
+        (output0Value, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
+        (output1Value, outputCommitments[1]) = _prepareTransferOutput(outputs[1]);
         uint256 totalOutputValue = output0Value + output1Value;
 
         uint256 note0Value;
@@ -320,14 +336,16 @@ contract PrivateStateController {
         _useNullifier(nullifiers[2]);
         _registerCommitment(outputCommitments[0]);
         _registerCommitment(outputCommitments[1]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
     }
 
-    function transferNotes4To1(Note[4] calldata inputNotes, Note[1] calldata outputs)
+    function transferNotes4To1(TransferOutput[1] calldata outputs, Note[4] calldata inputNotes)
         external
         returns (bytes32[4] memory nullifiers, bytes32[1] memory outputCommitments)
     {
         uint256 totalOutputValue;
-        (totalOutputValue, outputCommitments[0]) = _prepareOutputNote(outputs[0]);
+        (totalOutputValue, outputCommitments[0]) = _prepareTransferOutput(outputs[0]);
 
         uint256 totalInputValue;
         {
@@ -360,6 +378,7 @@ contract PrivateStateController {
         _useNullifier(nullifiers[2]);
         _useNullifier(nullifiers[3]);
         _registerCommitment(outputCommitments[0]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
     }
 
 
@@ -503,12 +522,38 @@ contract PrivateStateController {
         }
     }
 
-    function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
-        return keccak256(abi.encode(NOTE_COMMITMENT_DOMAIN, owner, value, salt));
+    function _computeNoteCommitmentUnchecked(uint256 value, address owner, bytes32 salt)
+        internal
+        pure
+        returns (bytes32 digest)
+    {
+        bytes32 domain = NOTE_COMMITMENT_DOMAIN;
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, domain)
+            mstore(add(ptr, 0x20), and(owner, 0xffffffffffffffffffffffffffffffffffffffff))
+            mstore(add(ptr, 0x40), value)
+            mstore(add(ptr, 0x60), salt)
+            digest := keccak256(ptr, 0x80)
+            mstore(0x40, add(ptr, 0x80))
+        }
     }
 
-    function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt) internal pure returns (bytes32) {
-        return keccak256(abi.encode(NULLIFIER_DOMAIN, owner, value, salt));
+    function _computeNullifierUnchecked(uint256 value, address owner, bytes32 salt)
+        internal
+        pure
+        returns (bytes32 digest)
+    {
+        bytes32 domain = NULLIFIER_DOMAIN;
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, domain)
+            mstore(add(ptr, 0x20), and(owner, 0xffffffffffffffffffffffffffffffffffffffff))
+            mstore(add(ptr, 0x40), value)
+            mstore(add(ptr, 0x60), salt)
+            digest := keccak256(ptr, 0x80)
+            mstore(0x40, add(ptr, 0x80))
+        }
     }
 
     function _prepareOutputNote(Note calldata outputNote)
@@ -519,6 +564,18 @@ contract PrivateStateController {
         (address outputOwner, uint256 value, bytes32 outputSalt) = _loadValidatedNote(outputNote);
         outputValue = value;
         outputCommitment = _computeNoteCommitmentUnchecked(value, outputOwner, outputSalt);
+    }
+
+    function _prepareTransferOutput(TransferOutput calldata output)
+        internal
+        pure
+        returns (uint256 outputValue, bytes32 outputCommitment)
+    {
+        _validateNoteFields(output.value, output.owner);
+        outputValue = output.value;
+        outputCommitment = _computeNoteCommitmentUnchecked(
+            output.value, output.owner, _computeEncryptedNoteSalt(output.encryptedNoteValue)
+        );
     }
 
     function _prepareSpendableNote(Note calldata inputNote)
@@ -539,9 +596,6 @@ contract PrivateStateController {
     }
 
     function _registerCommitment(bytes32 commitment) internal {
-        if (commitment == bytes32(0)) {
-            revert ZeroCommitment();
-        }
         if (commitmentExists[commitment]) {
             revert CommitmentAlreadyExists(commitment);
         }
@@ -549,9 +603,6 @@ contract PrivateStateController {
     }
 
     function _useNullifier(bytes32 nullifier) internal {
-        if (nullifier == bytes32(0)) {
-            revert ZeroNullifier();
-        }
         if (nullifierUsed[nullifier]) {
             revert NullifierAlreadyUsed(nullifier);
         }
@@ -570,6 +621,22 @@ contract PrivateStateController {
             salt := calldataload(add(noteOffset, 0x40))
         }
         _validateNoteFields(value, owner);
+    }
+
+    function _computeEncryptedNoteSalt(bytes32[3] calldata encryptedNoteValue)
+        internal
+        pure
+        returns (bytes32 digest)
+    {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            let offset := encryptedNoteValue
+            mstore(ptr, calldataload(offset))
+            mstore(add(ptr, 0x20), calldataload(add(offset, 0x20)))
+            mstore(add(ptr, 0x40), calldataload(add(offset, 0x40)))
+            digest := keccak256(ptr, 0x60)
+            mstore(0x40, add(ptr, 0x60))
+        }
     }
 
 }

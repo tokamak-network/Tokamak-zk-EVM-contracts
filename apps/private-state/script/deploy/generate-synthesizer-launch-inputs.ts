@@ -1,0 +1,762 @@
+#!/usr/bin/env node
+/* eslint-disable no-console */
+
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { ethers } from 'ethers';
+import { createAddressFromString, hexToBytes } from '@ethereumjs/util';
+import {
+  createStateManagerOptsFromChannelConfig,
+  createTokamakL2Common,
+  createTokamakL2StateManagerFromL1RPC,
+  createTokamakL2Tx,
+  fromEdwardsToAddress,
+  type ChannelParticipantConfig,
+  type ChannelStateConfig,
+  type StateSnapshot,
+  type TokamakL2TxData,
+  type TxSnapshot,
+} from 'tokamak-l2js';
+import { NUMBER_OF_PREV_BLOCK_HASHES } from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/qapCompiler/importedConstants.ts';
+import { getBlockInfoFromRPC } from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/rpc/rpc.ts';
+import type { SynthesizerBlockInfo } from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/rpc/types.ts';
+import {
+  buildPrivateStateMintCalldata,
+  deriveParticipantKeys,
+  mintInterfaces,
+  type DerivedParticipantKeys,
+} from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/mintNotes/utils.ts';
+import {
+  buildPrivateStateRedeemCalldata,
+  redeemInterfaces,
+  type PrivateStateRedeemConfig,
+} from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/redeemNotes/utils.ts';
+import {
+  buildPrivateStateTransferCalldata,
+  createTransferInterface,
+  type PrivateStateNote,
+  type PrivateStateTransferConfig,
+  type PrivateStateTransferOutput,
+} from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/transferNotes/utils.ts';
+import {
+  computeReplayPrivateStateAddressMappingKey,
+  computeReplayPrivateStateEncryptedNoteSalt,
+  computeReplayPrivateStateMappingKey,
+  computeReplayPrivateStateNoteCommitment,
+  deriveReplayPrivateStateFieldValue,
+  getPrivateStateControllerCommitmentExistsSlot,
+  getPrivateStateVaultLiquidBalancesSlot,
+  loadPrivateStateStorageLayoutManifest,
+} from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/utils/private-state.ts';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
+const synthesizerRoot = path.resolve(
+  repoRoot,
+  'submodules',
+  'Tokamak-zk-EVM',
+  'packages',
+  'frontend',
+  'synthesizer',
+);
+const examplesRoot = path.resolve(synthesizerRoot, 'examples', 'privateState');
+const launchJsonPath = path.resolve(synthesizerRoot, '.vscode', 'launch.json');
+const defaultChannelId = 4;
+const defaultParticipantCount = 4;
+const defaultMintNoteValue = 1n * 10n ** 18n;
+const defaultRedeemNoteValue = 1n * 10n ** 18n;
+const defaultAmountUnit = 10n ** 18n;
+const defaultMnemonic = 'test test test test test test test test test test test junk';
+const defaultTxNonce = 0;
+
+type AppNetwork =
+  | 'sepolia'
+  | 'mainnet'
+  | 'base-sepolia'
+  | 'base-mainnet'
+  | 'arb-sepolia'
+  | 'arb-mainnet'
+  | 'op-mainnet'
+  | 'op-sepolia'
+  | 'anvil';
+
+type ChannelStateNetwork = 'mainnet' | 'sepolia' | 'anvil';
+
+type DeploymentManifest = {
+  chainId: number;
+  contracts: {
+    controller: `0x${string}`;
+    l2AccountingVault: `0x${string}`;
+  };
+};
+
+type LaunchManifestEntry = {
+  name: string;
+  files: {
+    previousState: string;
+    transaction: string;
+    blockInfo: string;
+    contractCode: string;
+  };
+};
+
+type StorageWrite = {
+  address: `0x${string}`;
+  key: `0x${string}`;
+  value: `0x${string}`;
+};
+
+type ExampleContext = {
+  appNetwork: AppNetwork;
+  channelStateNetwork: ChannelStateNetwork;
+  chainId: number;
+  rpcUrl: string;
+  blockNumber: number;
+  manifest: DeploymentManifest;
+  participants: ChannelParticipantConfig[];
+  keyMaterial: DerivedParticipantKeys;
+};
+
+const networkConfig = new Map<AppNetwork, { chainId: number; alchemyNetwork: string | null }>([
+  ['sepolia', { chainId: 11155111, alchemyNetwork: 'eth-sepolia' }],
+  ['mainnet', { chainId: 1, alchemyNetwork: 'eth-mainnet' }],
+  ['base-sepolia', { chainId: 84532, alchemyNetwork: 'base-sepolia' }],
+  ['base-mainnet', { chainId: 8453, alchemyNetwork: 'base-mainnet' }],
+  ['arb-sepolia', { chainId: 421614, alchemyNetwork: 'arb-sepolia' }],
+  ['arb-mainnet', { chainId: 42161, alchemyNetwork: 'arb-mainnet' }],
+  ['op-mainnet', { chainId: 10, alchemyNetwork: 'opt-mainnet' }],
+  ['op-sepolia', { chainId: 11155420, alchemyNetwork: 'opt-sepolia' }],
+  ['anvil', { chainId: 31337, alchemyNetwork: null }],
+]);
+
+const parseAppNetwork = (): AppNetwork => {
+  const raw = process.env.APPS_NETWORK?.trim();
+  if (!raw) {
+    throw new Error('APPS_NETWORK must be set before generating synthesizer launch inputs.');
+  }
+  if (!networkConfig.has(raw as AppNetwork)) {
+    throw new Error(`Unsupported APPS_NETWORK=${raw}`);
+  }
+  return raw as AppNetwork;
+};
+
+const toChannelStateNetwork = (network: AppNetwork): ChannelStateNetwork => {
+  if (network === 'mainnet') {
+    return 'mainnet';
+  }
+  if (network === 'sepolia') {
+    return 'sepolia';
+  }
+  return 'anvil';
+};
+
+const resolveRpcUrl = (network: AppNetwork): string => {
+  const override = process.env.APPS_RPC_URL_OVERRIDE?.trim();
+  if (override) {
+    return override;
+  }
+  if (network === 'anvil') {
+    return 'http://127.0.0.1:8545';
+  }
+  const apiKey = process.env.APPS_ALCHEMY_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error(`APPS_ALCHEMY_API_KEY must be set for APPS_NETWORK=${network}`);
+  }
+  const config = networkConfig.get(network);
+  if (!config?.alchemyNetwork) {
+    throw new Error(`Unsupported APPS_NETWORK=${network} without APPS_RPC_URL_OVERRIDE`);
+  }
+  return `https://${config.alchemyNetwork}.g.alchemy.com/v2/${apiKey}`;
+};
+
+const deploymentManifestPath = (chainId: number) =>
+  path.resolve(repoRoot, 'apps', 'private-state', 'deploy', `deployment.${chainId}.latest.json`);
+
+const storageLayoutManifestPath = (chainId: number) =>
+  path.resolve(repoRoot, 'apps', 'private-state', 'deploy', `storage-layout.${chainId}.latest.json`);
+
+const readJson = async <T>(filePath: string): Promise<T> =>
+  JSON.parse(await fs.readFile(filePath, 'utf8')) as T;
+
+const writeJson = async (filePath: string, value: unknown) => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+};
+
+const toRelativeSynthPath = (filePath: string) =>
+  path.relative(synthesizerRoot, filePath).split(path.sep).join('/');
+
+const makeLaunchEntryName = (
+  functionName: string,
+  appNetwork: AppNetwork,
+) => `Private-state ${functionName} on ${appNetwork}`;
+
+const assignChannelId = (
+  stateManager: Awaited<ReturnType<typeof createTokamakL2StateManagerFromL1RPC>>,
+  channelId: number,
+) => {
+  (stateManager as Awaited<ReturnType<typeof createTokamakL2StateManagerFromL1RPC>> & { _channelId?: number })._channelId = channelId;
+};
+
+const buildParticipants = (participantCount: number, mnemonic: string): ChannelParticipantConfig[] => {
+  const participants: ChannelParticipantConfig[] = [];
+  for (let index = 0; index < participantCount; index += 1) {
+    const wallet = ethers.HDNodeWallet.fromPhrase(
+      mnemonic,
+      undefined,
+      `m/44'/60'/0'/0/${index}`,
+    );
+    participants.push({
+      addressL1: wallet.address as `0x${string}`,
+      prvSeedL2: `private-state participant ${index}`,
+    });
+  }
+  return participants;
+};
+
+const deriveChannelParticipants = (participantCount: number, mnemonic: string) => {
+  const baseParticipants = buildParticipants(participantCount, mnemonic);
+  const keyMaterial = deriveParticipantKeys(baseParticipants);
+  const participants = baseParticipants.map((participant, index) => ({
+    ...participant,
+    addressL1: fromEdwardsToAddress(keyMaterial.publicKeys[index]).toString() as `0x${string}`,
+  }));
+  return { participants, keyMaterial };
+};
+
+const defaultTransferValue = (inputCount: number, outputCount: number): bigint => {
+  const gcd = (left: bigint, right: bigint): bigint => {
+    let a = left;
+    let b = right;
+    while (b !== 0n) {
+      const next = a % b;
+      a = b;
+      b = next;
+    }
+    return a;
+  };
+  const lcm = (left: bigint, right: bigint): bigint => (left / gcd(left, right)) * right;
+  return lcm(BigInt(inputCount), BigInt(outputCount)) * defaultAmountUnit;
+};
+
+const buildBaseStateConfig = (
+  context: ExampleContext,
+  storageAddresses: `0x${string}`[],
+  callCodeAddresses: `0x${string}`[],
+): ChannelStateConfig => ({
+  network: context.channelStateNetwork,
+  participants: context.participants,
+  storageConfigs: storageAddresses.map((address) => ({
+    address,
+    userStorageSlots: [],
+    preAllocatedKeys: [],
+  })),
+  callCodeAddresses,
+  blockNumber: context.blockNumber,
+});
+
+const createSyntheticSnapshot = async (
+  context: ExampleContext,
+  storageAddresses: `0x${string}`[],
+  callCodeAddresses: `0x${string}`[],
+  writes: StorageWrite[],
+): Promise<StateSnapshot> => {
+  const stateManagerOpts = createStateManagerOptsFromChannelConfig(
+    buildBaseStateConfig(context, storageAddresses, callCodeAddresses),
+  );
+  const stateManager = await createTokamakL2StateManagerFromL1RPC(context.rpcUrl, stateManagerOpts);
+  assignChannelId(stateManager, defaultChannelId);
+
+  for (const write of writes) {
+    await stateManager.putStorage(
+      createAddressFromString(write.address),
+      hexToBytes(write.key),
+      hexToBytes(write.value),
+    );
+  }
+
+  return stateManager.captureStateSnapshot();
+};
+
+const buildTransactionSnapshot = (
+  context: ExampleContext,
+  senderIndex: number,
+  entryContractAddress: `0x${string}`,
+  calldata: `0x${string}`,
+): TxSnapshot => {
+  const senderPrivateKey = context.keyMaterial.privateKeys[senderIndex];
+  const senderPublicKey = context.keyMaterial.publicKeys[senderIndex];
+  if (!senderPrivateKey || !senderPublicKey) {
+    throw new Error(`Could not resolve sender key material for participant ${senderIndex}`);
+  }
+
+  const txData: TokamakL2TxData = {
+    nonce: BigInt(defaultTxNonce),
+    to: createAddressFromString(entryContractAddress),
+    data: hexToBytes(calldata),
+    senderPubKey: senderPublicKey.toBytes(),
+  };
+  return createTokamakL2Tx(txData, { common: createTokamakL2Common() })
+    .sign(senderPrivateKey)
+    .captureTxSnapshot();
+};
+
+const fetchContractCodes = async (
+  rpcUrl: string,
+  blockNumber: number,
+  addresses: `0x${string}`[],
+) => {
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  return Promise.all(
+    addresses.map(async (address) => ({
+      address,
+      code: await provider.getCode(address, blockNumber),
+    })),
+  );
+};
+
+const writeLaunchInput = async (
+  outputDir: string,
+  previousState: StateSnapshot,
+  transaction: TxSnapshot,
+  blockInfo: SynthesizerBlockInfo,
+  contractCodes: Array<{ address: `0x${string}`; code: string }>,
+  name: string,
+): Promise<LaunchManifestEntry> => {
+  const previousStatePath = path.join(outputDir, 'previous_state_snapshot.json');
+  const transactionPath = path.join(outputDir, 'transaction.json');
+  const blockInfoPath = path.join(outputDir, 'block_info.json');
+  const contractCodePath = path.join(outputDir, 'contract_codes.json');
+
+  await writeJson(previousStatePath, previousState);
+  await writeJson(transactionPath, transaction);
+  await writeJson(blockInfoPath, blockInfo);
+  await writeJson(contractCodePath, contractCodes);
+
+  return {
+    name,
+    files: {
+      previousState: toRelativeSynthPath(previousStatePath),
+      transaction: toRelativeSynthPath(transactionPath),
+      blockInfo: toRelativeSynthPath(blockInfoPath),
+      contractCode: toRelativeSynthPath(contractCodePath),
+    },
+  };
+};
+
+const syncLaunchJson = async (manifestEntries: LaunchManifestEntry[]) => {
+  const launchJson = JSON.parse(await fs.readFile(launchJsonPath, 'utf8')) as {
+    configurations?: Array<{ name?: string; args?: string[] }>;
+  };
+  if (!Array.isArray(launchJson.configurations)) {
+    throw new Error(`Expected launch configurations in ${launchJsonPath}`);
+  }
+
+  const manifestByPreviousState = new Map(
+    manifestEntries.map((entry) => [entry.files.previousState, entry]),
+  );
+  for (const configuration of launchJson.configurations) {
+    if (typeof configuration.name !== 'string' || !Array.isArray(configuration.args)) {
+      continue;
+    }
+    const previousStateIndex = configuration.args.indexOf('--previous-state');
+    if (previousStateIndex === -1 || previousStateIndex + 1 >= configuration.args.length) {
+      continue;
+    }
+    const previousStateArg = configuration.args[previousStateIndex + 1];
+    const previousStatePath = previousStateArg.startsWith('${workspaceFolder}/')
+      ? previousStateArg.slice('${workspaceFolder}/'.length)
+      : null;
+    if (!previousStatePath) {
+      continue;
+    }
+    const manifest = manifestByPreviousState.get(previousStatePath);
+    if (!manifest) {
+      continue;
+    }
+    configuration.name = manifest.name;
+    for (let index = 0; index < configuration.args.length; index += 1) {
+      switch (configuration.args[index]) {
+        case '--previous-state':
+          configuration.args[index + 1] = `\${workspaceFolder}/${manifest.files.previousState}`;
+          break;
+        case '--transaction':
+          configuration.args[index + 1] = `\${workspaceFolder}/${manifest.files.transaction}`;
+          break;
+        case '--block-info':
+          configuration.args[index + 1] = `\${workspaceFolder}/${manifest.files.blockInfo}`;
+          break;
+        case '--contract-code':
+          configuration.args[index + 1] = `\${workspaceFolder}/${manifest.files.contractCode}`;
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  await fs.writeFile(launchJsonPath, `${JSON.stringify(launchJson, null, 2)}\n`, 'utf8');
+};
+
+const buildMintManifest = async (
+  context: ExampleContext,
+  blockInfo: SynthesizerBlockInfo,
+  contractCodes: Array<{ address: `0x${string}`; code: string }>,
+) => {
+  const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
+    storageLayoutManifestPath(context.chainId),
+  );
+  const liquidBalancesSlot = getPrivateStateVaultLiquidBalancesSlot(storageLayoutManifest);
+  const senderIndex = 0;
+  const noteOwnerIndex = senderIndex;
+  const senderAddress = context.participants[senderIndex]?.addressL1;
+  if (!senderAddress) {
+    throw new Error(`Could not resolve sender address for participant ${senderIndex}`);
+  }
+
+  const entries: LaunchManifestEntry[] = [];
+  for (const outputCount of [1, 2, 3, 4, 5, 6] as const) {
+    const noteValues = Array.from({ length: outputCount }, () =>
+      ethers.toBeHex(defaultMintNoteValue) as `0x${string}`,
+    ) as [`0x${string}`, ...`0x${string}`[]];
+    const noteSalts = Array.from({ length: outputCount }, (_, index) =>
+      deriveReplayPrivateStateFieldValue(
+        `private-state-mint-sender-${senderIndex}-owner-${noteOwnerIndex}-output-${index}`,
+      ),
+    ) as [`0x${string}`, ...`0x${string}`[]];
+
+    const calldata = buildPrivateStateMintCalldata(
+      {
+        network: 'anvil',
+        participants: context.participants,
+        storageConfigs: [],
+        callCodeAddresses: [],
+        blockNumber: context.blockNumber,
+        txNonce: defaultTxNonce,
+        calldata: '0x',
+        senderIndex,
+        noteOwnerIndex,
+        outputCount,
+        noteValues,
+        noteSalts,
+        function: {
+          selector: mintInterfaces[outputCount].getFunction(`mintNotes${outputCount}`)?.selector as `0x${string}`,
+          entryContractAddress: context.manifest.contracts.controller,
+        },
+      },
+      context.keyMaterial,
+    );
+
+    const totalValue = defaultMintNoteValue * BigInt(outputCount);
+    const balanceKey = computeReplayPrivateStateAddressMappingKey(senderAddress, liquidBalancesSlot);
+    const snapshot = await createSyntheticSnapshot(
+      context,
+      [context.manifest.contracts.controller, context.manifest.contracts.l2AccountingVault],
+      [context.manifest.contracts.controller, context.manifest.contracts.l2AccountingVault],
+      [{
+        address: context.manifest.contracts.l2AccountingVault,
+        key: balanceKey,
+        value: ethers.zeroPadValue(ethers.toBeHex(totalValue), 32) as `0x${string}`,
+      }],
+    );
+
+    const transaction = buildTransactionSnapshot(
+      context,
+      senderIndex,
+      context.manifest.contracts.controller,
+      calldata,
+    );
+    entries.push(
+      await writeLaunchInput(
+        path.resolve(examplesRoot, 'mintNotes', `mintNotes${outputCount}`),
+        snapshot,
+        transaction,
+        blockInfo,
+        contractCodes,
+        makeLaunchEntryName(`mintNotes${outputCount}`, context.appNetwork),
+      ),
+    );
+  }
+  return entries;
+};
+
+const buildTransferManifest = async (
+  context: ExampleContext,
+  blockInfo: SynthesizerBlockInfo,
+  contractCodes: Array<{ address: `0x${string}`; code: string }>,
+) => {
+  const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
+    storageLayoutManifestPath(context.chainId),
+  );
+  const commitmentExistsSlot = getPrivateStateControllerCommitmentExistsSlot(storageLayoutManifest);
+  const senderIndex = 0;
+  const senderAddress = context.participants[senderIndex]?.addressL1;
+  const recipientOneAddress = context.participants[1]?.addressL1;
+  const recipientTwoAddress = context.participants[2]?.addressL1;
+  if (!senderAddress || !recipientOneAddress || !recipientTwoAddress) {
+    throw new Error('Could not resolve transfer participants');
+  }
+
+  const entries: LaunchManifestEntry[] = [];
+  for (const [inputCount, outputCount] of [
+    [1, 1],
+    [1, 2],
+    [1, 3],
+    [2, 1],
+    [2, 2],
+    [3, 1],
+    [3, 2],
+    [4, 1],
+  ] as const) {
+    const noteValue = defaultTransferValue(inputCount, outputCount);
+    const inputValue = noteValue / BigInt(inputCount);
+    const outputValue = noteValue / BigInt(outputCount);
+    const inputValueHex = ethers.toBeHex(inputValue) as `0x${string}`;
+    const outputValueHex = ethers.toBeHex(outputValue) as `0x${string}`;
+
+    const inputNotes = Array.from({ length: inputCount }, (_, index) => ({
+      owner: senderAddress,
+      value: inputValueHex,
+      salt: deriveReplayPrivateStateFieldValue(
+        `private-state-transfer-input-sender-${senderIndex}-${inputCount}-${outputCount}--${index}`,
+      ),
+    })) as PrivateStateTransferConfig['inputNotes'];
+
+    const outputOwners = outputCount === 1
+      ? [recipientOneAddress]
+      : outputCount === 2
+        ? [recipientOneAddress, senderAddress]
+        : [recipientOneAddress, senderAddress, recipientTwoAddress];
+    const transferOutputs = outputOwners.map((owner, index) => ({
+      owner,
+      value: outputValueHex,
+      encryptedNoteValue: [
+        deriveReplayPrivateStateFieldValue(
+          `private-state-transfer-output-sender-${senderIndex}-${inputCount}-${outputCount}--${index}:word0`,
+        ),
+        deriveReplayPrivateStateFieldValue(
+          `private-state-transfer-output-sender-${senderIndex}-${inputCount}-${outputCount}--${index}:word1`,
+        ),
+        deriveReplayPrivateStateFieldValue(
+          `private-state-transfer-output-sender-${senderIndex}-${inputCount}-${outputCount}--${index}:word2`,
+        ),
+      ],
+    })) as PrivateStateTransferOutput[];
+
+    const outputNotes = transferOutputs.map((output) => ({
+      owner: output.owner,
+      value: output.value,
+      salt: computeReplayPrivateStateEncryptedNoteSalt(output.encryptedNoteValue),
+    })) as PrivateStateTransferConfig['outputNotes'];
+
+    const functionName = `transferNotes${inputCount}To${outputCount}`;
+    const calldata = buildPrivateStateTransferCalldata(
+      {
+        network: 'anvil',
+        participants: context.participants,
+        storageConfigs: [],
+        callCodeAddresses: [],
+        blockNumber: context.blockNumber,
+        txNonce: defaultTxNonce,
+        calldata: '0x',
+        senderIndex,
+        functionName,
+        inputCount,
+        outputCount,
+        inputNotes,
+        transferOutputs,
+        outputNotes,
+        function: {
+          selector: createTransferInterface(inputCount, outputCount).getFunction(functionName)?.selector as `0x${string}`,
+          entryContractAddress: context.manifest.contracts.controller,
+        },
+      },
+      context.keyMaterial,
+    );
+
+    const noteRegistryWrites = inputNotes.map((note) => {
+      const commitment = computeReplayPrivateStateNoteCommitment(note);
+      return {
+        address: context.manifest.contracts.controller,
+        key: computeReplayPrivateStateMappingKey(commitment, commitmentExistsSlot),
+        value: ethers.zeroPadValue('0x01', 32) as `0x${string}`,
+      } satisfies StorageWrite;
+    });
+
+    const snapshot = await createSyntheticSnapshot(
+      context,
+      [context.manifest.contracts.controller],
+      [context.manifest.contracts.controller],
+      noteRegistryWrites,
+    );
+    const transaction = buildTransactionSnapshot(
+      context,
+      senderIndex,
+      context.manifest.contracts.controller,
+      calldata,
+    );
+    entries.push(
+      await writeLaunchInput(
+        path.resolve(examplesRoot, 'transferNotes', `transferNotes${inputCount}To${outputCount}`),
+        snapshot,
+        transaction,
+        blockInfo,
+        contractCodes.filter((entry) => entry.address.toLowerCase() === context.manifest.contracts.controller.toLowerCase()),
+        makeLaunchEntryName(`transferNotes${inputCount}To${outputCount}`, context.appNetwork),
+      ),
+    );
+  }
+
+  return entries;
+};
+
+const buildRedeemManifest = async (
+  context: ExampleContext,
+  blockInfo: SynthesizerBlockInfo,
+  contractCodes: Array<{ address: `0x${string}`; code: string }>,
+) => {
+  const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
+    storageLayoutManifestPath(context.chainId),
+  );
+  const commitmentExistsSlot = getPrivateStateControllerCommitmentExistsSlot(storageLayoutManifest);
+  const senderIndex = 0;
+  const receiverIndex = 1;
+  const senderAddress = context.participants[senderIndex]?.addressL1;
+  if (!senderAddress) {
+    throw new Error(`Could not resolve redeem sender address for participant ${senderIndex}`);
+  }
+
+  const entries: LaunchManifestEntry[] = [];
+  for (const inputCount of [1, 2, 3, 4] as const) {
+    const inputNotes = Array.from({ length: inputCount }, (_, index) => ({
+      owner: senderAddress,
+      value: ethers.toBeHex(defaultRedeemNoteValue) as `0x${string}`,
+      salt: deriveReplayPrivateStateFieldValue(`private-state-redeem-input-sender-${senderIndex}-${index}`),
+    })) as PrivateStateRedeemConfig['inputNotes'];
+
+    const functionName = `redeemNotes${inputCount}` as
+      | 'redeemNotes1'
+      | 'redeemNotes2'
+      | 'redeemNotes3'
+      | 'redeemNotes4';
+    const calldata = buildPrivateStateRedeemCalldata(
+      {
+        network: 'anvil',
+        participants: context.participants,
+        storageConfigs: [],
+        callCodeAddresses: [],
+        blockNumber: context.blockNumber,
+        txNonce: defaultTxNonce,
+        calldata: '0x',
+        senderIndex,
+        receiverIndex,
+        inputCount,
+        inputNotes,
+        function: {
+          selector: redeemInterfaces[inputCount].getFunction(functionName)?.selector as `0x${string}`,
+          entryContractAddress: context.manifest.contracts.controller,
+        },
+      },
+      context.keyMaterial,
+    );
+
+    const noteRegistryWrites = inputNotes.map((note) => {
+      const commitment = computeReplayPrivateStateNoteCommitment(note);
+      return {
+        address: context.manifest.contracts.controller,
+        key: computeReplayPrivateStateMappingKey(commitment, commitmentExistsSlot),
+        value: ethers.zeroPadValue('0x01', 32) as `0x${string}`,
+      } satisfies StorageWrite;
+    });
+
+    const snapshot = await createSyntheticSnapshot(
+      context,
+      [context.manifest.contracts.controller, context.manifest.contracts.l2AccountingVault],
+      [context.manifest.contracts.controller, context.manifest.contracts.l2AccountingVault],
+      noteRegistryWrites,
+    );
+    const transaction = buildTransactionSnapshot(
+      context,
+      senderIndex,
+      context.manifest.contracts.controller,
+      calldata,
+    );
+    entries.push(
+      await writeLaunchInput(
+        path.resolve(examplesRoot, 'redeemNotes', `redeemNotes${inputCount}`),
+        snapshot,
+        transaction,
+        blockInfo,
+        contractCodes,
+        makeLaunchEntryName(`redeemNotes${inputCount}`, context.appNetwork),
+      ),
+    );
+  }
+
+  return entries;
+};
+
+const main = async () => {
+  const appNetwork = parseAppNetwork();
+  const config = networkConfig.get(appNetwork);
+  if (!config) {
+    throw new Error(`Unsupported APPS_NETWORK=${appNetwork}`);
+  }
+
+  const chainId = config.chainId;
+  const rpcUrl = resolveRpcUrl(appNetwork);
+  const manifest = await readJson<DeploymentManifest>(deploymentManifestPath(chainId));
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const blockNumber = await provider.getBlockNumber();
+  const blockInfo = await getBlockInfoFromRPC(rpcUrl, blockNumber, NUMBER_OF_PREV_BLOCK_HASHES);
+  const mnemonic = process.env.APPS_ANVIL_MNEMONIC?.trim() || defaultMnemonic;
+  const { participants, keyMaterial } = deriveChannelParticipants(defaultParticipantCount, mnemonic);
+
+  const context: ExampleContext = {
+    appNetwork,
+    channelStateNetwork: toChannelStateNetwork(appNetwork),
+    chainId,
+    rpcUrl,
+    blockNumber,
+    manifest,
+    participants,
+    keyMaterial,
+  };
+
+  const contractCodes = await fetchContractCodes(
+    rpcUrl,
+    blockNumber,
+    [manifest.contracts.controller, manifest.contracts.l2AccountingVault],
+  );
+
+  const mintManifest = await buildMintManifest(context, blockInfo, contractCodes);
+  const transferManifest = await buildTransferManifest(context, blockInfo, contractCodes);
+  const redeemManifest = await buildRedeemManifest(context, blockInfo, contractCodes);
+
+  await writeJson(path.resolve(examplesRoot, 'mintNotes', 'cli-launch-manifest.json'), mintManifest);
+  await writeJson(path.resolve(examplesRoot, 'transferNotes', 'cli-launch-manifest.json'), transferManifest);
+  await writeJson(path.resolve(examplesRoot, 'redeemNotes', 'cli-launch-manifest.json'), redeemManifest);
+  await syncLaunchJson([...mintManifest, ...transferManifest, ...redeemManifest]);
+
+  console.log(
+    JSON.stringify(
+      {
+        appNetwork,
+        chainId,
+        blockNumber,
+        mintExamples: mintManifest.length,
+        transferExamples: transferManifest.length,
+        redeemExamples: redeemManifest.length,
+      },
+      null,
+      2,
+    ),
+  );
+};
+
+void main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

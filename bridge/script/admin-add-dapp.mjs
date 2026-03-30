@@ -10,6 +10,7 @@ import {
   buildFunctionDefinition,
   copyDir,
   copyFile,
+  ensureTokamakDistBackendBinaries,
   ensureDir,
   isCapacityError,
   loadExampleManifest,
@@ -35,14 +36,21 @@ Options:
   --abi-manifest <path>             ABI manifest path; defaults to bridge/deployments/bridge-abi-manifest.<chain-id>.json
   --dapp-manager <address>          Override DAppManager address; defaults from deployment JSON
   --dapp-label <name>               Logical DApp label used to merge multiple example groups
-  --app-deployment-path <path>      App deployment manifest; defaults to private-state latest for the bridge chain
-  --storage-layout-path <path>      App storage-layout manifest; defaults to private-state latest for the bridge chain
+  --app-network <name>              App deployment network; defaults to BRIDGE_NETWORK or the bridge chain name
+  --app-env-file <path>             Environment file for app deployment; defaults to apps/.env
+  --app-rpc-url <url>               RPC URL override used only for app deployment
+  --skip-app-deploy                 Skip the app deployment step and use existing manifests
+  --app-deployment-path <path>      App deployment manifest; defaults to private-state latest for the app chain
+  --storage-layout-path <path>      App storage-layout manifest; defaults to private-state latest for the app chain
   --rpc-url <url>                   JSON-RPC URL; defaults from bridge env variables
   --private-key <hex>               Broadcaster key; defaults from BRIDGE_DEPLOYER_PRIVATE_KEY
   --manifest-out <path>             Output manifest path; defaults to bridge/deployments/dapp-registration.<chain-id>.json
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
   --skip-submodule-update           Skip updating submodules/Tokamak-zk-EVM to origin/dev
   --skip-install                    Skip tokamak-cli --install
+
+Example groups are resolved relative to:
+  submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/<group>/cli-launch-manifest.json
 `);
 }
 
@@ -54,6 +62,10 @@ function parseArgs(argv) {
     abiManifestPath: null,
     dAppManager: null,
     dappLabel: null,
+    appNetwork: null,
+    appEnvFile: null,
+    appRpcUrl: null,
+    skipAppDeploy: false,
     appDeploymentPath: null,
     storageLayoutPath: null,
     rpcUrl: null,
@@ -94,6 +106,18 @@ function parseArgs(argv) {
         break;
       case "--dapp-label":
         options.dappLabel = take(current);
+        break;
+      case "--app-network":
+        options.appNetwork = take(current);
+        break;
+      case "--app-env-file":
+        options.appEnvFile = path.resolve(process.cwd(), take(current));
+        break;
+      case "--app-rpc-url":
+        options.appRpcUrl = take(current);
+        break;
+      case "--skip-app-deploy":
+        options.skipAppDeploy = true;
         break;
       case "--app-deployment-path":
         options.appDeploymentPath = path.resolve(process.cwd(), take(current));
@@ -208,12 +232,52 @@ function resolvePrivateStateManifestPath(rootDir, chainId, kind) {
   return path.join(repoRoot, "apps", "private-state", "deploy", `${kind}.${chainId}.latest.json`);
 }
 
+const APP_NETWORK_CHAIN_IDS = new Map([
+  ["sepolia", 11155111],
+  ["mainnet", 1],
+  ["base-sepolia", 84532],
+  ["base-mainnet", 8453],
+  ["arb-sepolia", 421614],
+  ["arb-mainnet", 42161],
+  ["op-mainnet", 10],
+  ["op-sepolia", 11155420],
+  ["anvil", 31337],
+]);
+
+const CHAIN_ID_TO_APP_NETWORK = new Map(
+  Array.from(APP_NETWORK_CHAIN_IDS.entries()).map(([network, chainId]) => [chainId, network]),
+);
+
 function resolveBridgeDeploymentPath(chainId) {
   return path.join(repoRoot, "bridge", "deployments", `bridge.${chainId}.json`);
 }
 
 function resolveBridgeAbiManifestPath(chainId) {
   return path.join(repoRoot, "bridge", "deployments", `bridge-abi-manifest.${chainId}.json`);
+}
+
+function resolveDefaultAppNetwork(chainId) {
+  if (process.env.APPS_NETWORK) {
+    return process.env.APPS_NETWORK;
+  }
+  if (process.env.BRIDGE_NETWORK) {
+    return process.env.BRIDGE_NETWORK;
+  }
+  const network = CHAIN_ID_TO_APP_NETWORK.get(chainId);
+  if (!network) {
+    throw new Error(
+      `Unable to infer an app deployment network for chain ID ${chainId}. Pass --app-network explicitly.`,
+    );
+  }
+  return network;
+}
+
+function resolveAppChainId(appNetwork) {
+  const chainId = APP_NETWORK_CHAIN_IDS.get(appNetwork);
+  if (!chainId) {
+    throw new Error(`Unsupported --app-network=${appNetwork}`);
+  }
+  return chainId;
 }
 
 function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
@@ -258,10 +322,31 @@ function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
   };
 }
 
-function run(command, args, { cwd = repoRoot, streamOutput = true } = {}) {
+async function runPrivateStateDeployment({ appNetwork, appEnvFile, appRpcUrl }) {
+  const deployScriptPath = path.join(repoRoot, "apps", "private-state", "script", "deploy", "deploy-private-state.sh");
+  const env = {
+    ...process.env,
+    APPS_NETWORK: appNetwork,
+  };
+
+  if (appEnvFile) {
+    env.APPS_ENV_FILE = appEnvFile;
+  }
+  if (appRpcUrl) {
+    env.APPS_RPC_URL_OVERRIDE = appRpcUrl;
+  }
+
+  await run("bash", [deployScriptPath], {
+    cwd: repoRoot,
+    env,
+  });
+}
+
+function run(command, args, { cwd = repoRoot, streamOutput = true, env = process.env } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -345,7 +430,7 @@ function collectInstanceDescriptionErrors(instanceDescriptionPath) {
 }
 
 async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
-  const groupRoot = path.join(synthesizerRoot, "examples", groupName);
+  const groupRoot = path.join(synthesizerRoot, "examples", "privateState", groupName);
   const manifestPath = path.join(groupRoot, "cli-launch-manifest.json");
   if (!fs.existsSync(manifestPath)) {
     throw new Error(`Unknown DApp example group: ${groupName}`);
@@ -447,10 +532,19 @@ async function main() {
   if (!dAppManagerAddress) {
     throw new Error("Unable to resolve DAppManager address from arguments or deployment artifact.");
   }
+  const appNetwork = options.appNetwork ?? resolveDefaultAppNetwork(chainId);
+  const appChainId = resolveAppChainId(appNetwork);
+  if (!options.skipAppDeploy) {
+    await runPrivateStateDeployment({
+      appNetwork,
+      appEnvFile: options.appEnvFile,
+      appRpcUrl: options.appRpcUrl,
+    });
+  }
   const appDeploymentPath =
-    options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, chainId, "deployment");
+    options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "deployment");
   const storageLayoutPath =
-    options.storageLayoutPath ?? resolvePrivateStateManifestPath(repoRoot, chainId, "storage-layout");
+    options.storageLayoutPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "storage-layout");
   const manifestOut =
     options.manifestOut ?? path.join(repoRoot, "bridge", "deployments", `dapp-registration.${chainId}.json`);
   const dappLabel = options.dappLabel ?? "private-state";
@@ -461,6 +555,7 @@ async function main() {
   if (!options.skipSubmoduleUpdate) {
     await updateTokamakSubmodule();
   }
+  ensureTokamakDistBackendBinaries(tokamakSubmoduleRoot);
   if (!options.skipInstall) {
     await runTokamakInstall();
   }
@@ -503,6 +598,7 @@ async function main() {
         currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
         updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
         storageWrites: fn.storageWrites,
+        eventLogs: fn.eventLogs,
       },
     }))
   );
@@ -512,6 +608,8 @@ async function main() {
     generatedAt: new Date().toISOString(),
     deploymentPath,
     abiManifestPath,
+    appNetwork,
+    appChainId,
     appDeploymentPath,
     storageLayoutPath,
     groupNames: options.groups,

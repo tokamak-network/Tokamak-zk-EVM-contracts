@@ -493,9 +493,9 @@
     "name": "transferNotes1To1",
     "inputs": [
       {
-        "name": "inputNotes",
+        "name": "outputs",
         "type": "tuple[1]",
-        "internalType": "struct PrivateStateController.Note[1]",
+        "internalType": "struct PrivateStateController.TransferOutput[1]",
         "components": [
           {
             "name": "owner",
@@ -508,14 +508,14 @@
             "internalType": "uint256"
           },
           {
-            "name": "salt",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
       {
-        "name": "outputs",
+        "name": "inputNotes",
         "type": "tuple[1]",
         "internalType": "struct PrivateStateController.Note[1]",
         "components": [
@@ -556,9 +556,9 @@
     "name": "transferNotes1To2",
     "inputs": [
       {
-        "name": "inputNotes",
-        "type": "tuple[1]",
-        "internalType": "struct PrivateStateController.Note[1]",
+        "name": "outputs",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.TransferOutput[2]",
         "components": [
           {
             "name": "owner",
@@ -571,16 +571,16 @@
             "internalType": "uint256"
           },
           {
-            "name": "salt",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
       {
-        "name": "outputs",
-        "type": "tuple[2]",
-        "internalType": "struct PrivateStateController.Note[2]",
+        "name": "inputNotes",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.Note[1]",
         "components": [
           {
             "name": "owner",
@@ -619,9 +619,9 @@
     "name": "transferNotes1To3",
     "inputs": [
       {
-        "name": "inputNotes",
-        "type": "tuple[1]",
-        "internalType": "struct PrivateStateController.Note[1]",
+        "name": "outputs",
+        "type": "tuple[3]",
+        "internalType": "struct PrivateStateController.TransferOutput[3]",
         "components": [
           {
             "name": "owner",
@@ -634,16 +634,16 @@
             "internalType": "uint256"
           },
           {
-            "name": "salt",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
       {
-        "name": "outputs",
-        "type": "tuple[3]",
-        "internalType": "struct PrivateStateController.Note[3]",
+        "name": "inputNotes",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.Note[1]",
         "components": [
           {
             "name": "owner",
@@ -682,9 +682,9 @@
     "name": "transferNotes2To1",
     "inputs": [
       {
-        "name": "inputNotes",
-        "type": "tuple[2]",
-        "internalType": "struct PrivateStateController.Note[2]",
+        "name": "outputs",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.TransferOutput[1]",
         "components": [
           {
             "name": "owner",
@@ -697,16 +697,16 @@
             "internalType": "uint256"
           },
           {
-            "name": "salt",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
       {
-        "name": "outputs",
-        "type": "tuple[1]",
-        "internalType": "struct PrivateStateController.Note[1]",
+        "name": "inputNotes",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.Note[2]",
         "components": [
           {
             "name": "owner",
@@ -745,9 +745,9 @@
     "name": "transferNotes2To2",
     "inputs": [
       {
-        "name": "inputNotes",
+        "name": "outputs",
         "type": "tuple[2]",
-        "internalType": "struct PrivateStateController.Note[2]",
+        "internalType": "struct PrivateStateController.TransferOutput[2]",
         "components": [
           {
             "name": "owner",
@@ -760,14 +760,14 @@
             "internalType": "uint256"
           },
           {
-            "name": "salt",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
       {
-        "name": "outputs",
+        "name": "inputNotes",
         "type": "tuple[2]",
         "internalType": "struct PrivateStateController.Note[2]",
         "components": [
@@ -808,9 +808,9 @@
     "name": "transferNotes3To1",
     "inputs": [
       {
-        "name": "inputNotes",
-        "type": "tuple[3]",
-        "internalType": "struct PrivateStateController.Note[3]",
+        "name": "outputs",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.TransferOutput[1]",
         "components": [
           {
             "name": "owner",
@@ -823,16 +823,16 @@
             "internalType": "uint256"
           },
           {
-            "name": "salt",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
       {
-        "name": "outputs",
-        "type": "tuple[1]",
-        "internalType": "struct PrivateStateController.Note[1]",
+        "name": "inputNotes",
+        "type": "tuple[3]",
+        "internalType": "struct PrivateStateController.Note[3]",
         "components": [
           {
             "name": "owner",
@@ -871,9 +871,9 @@
     "name": "transferNotes3To2",
     "inputs": [
       {
-        "name": "inputNotes",
-        "type": "tuple[3]",
-        "internalType": "struct PrivateStateController.Note[3]",
+        "name": "outputs",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.TransferOutput[2]",
         "components": [
           {
             "name": "owner",
@@ -886,16 +886,16 @@
             "internalType": "uint256"
           },
           {
-            "name": "salt",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
       {
-        "name": "outputs",
-        "type": "tuple[2]",
-        "internalType": "struct PrivateStateController.Note[2]",
+        "name": "inputNotes",
+        "type": "tuple[3]",
+        "internalType": "struct PrivateStateController.Note[3]",
         "components": [
           {
             "name": "owner",
@@ -934,9 +934,9 @@
     "name": "transferNotes4To1",
     "inputs": [
       {
-        "name": "inputNotes",
-        "type": "tuple[4]",
-        "internalType": "struct PrivateStateController.Note[4]",
+        "name": "outputs",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.TransferOutput[1]",
         "components": [
           {
             "name": "owner",
@@ -949,16 +949,16 @@
             "internalType": "uint256"
           },
           {
-            "name": "salt",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
           }
         ]
       },
       {
-        "name": "outputs",
-        "type": "tuple[1]",
-        "internalType": "struct PrivateStateController.Note[1]",
+        "name": "inputNotes",
+        "type": "tuple[4]",
+        "internalType": "struct PrivateStateController.Note[4]",
         "components": [
           {
             "name": "owner",

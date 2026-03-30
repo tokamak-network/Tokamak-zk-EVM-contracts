@@ -1,0 +1,37 @@
+{
+  "channelId": 4,
+  "stateRoots": [
+    "0x13530022379aa23d1bd5933be7767c4fdf99f27632051865600628c26bd67e0a"
+  ],
+  "storageAddresses": [
+    "0xa16e02e87b7454126e5e10d957a927a7f5b5d2be"
+  ],
+  "storageEntries": [
+    [
+      {
+        "key": "0x6179c90eb0464edec1f5589f1f66106c7f06b57aa2367dac3a62771acf82c918",
+        "value": "0x01"
+      },
+      {
+        "key": "0x2bcabdc04889f7a0cc3783482a0583ec4326fba3e4c8c31ec3b491bfb68b23f1",
+        "value": "0x01"
+      },
+      {
+        "key": "0x5156f7daea9537654b70fedf428518040de05e51e3cb0b1b8da7b68d828a344f",
+        "value": "0x01"
+      },
+      {
+        "key": "0x2bb30a4e90c2f9d149323b3fd7de9796de29d4fc3c8248614faac45902099f69",
+        "value": "0x01"
+      },
+      {
+        "key": "0x3712e73e1cda4ee356034c222d5952ac4a08f604d8710ebf8112506059426d4e",
+        "value": "0x01"
+      },
+      {
+        "key": "0x1952893b6ea9d8dbc6ace75817dc2e7abfd5d746db2fa684962ad4aa4973b1ef",
+        "value": "0x01"
+      }
+    ]
+  ]
+}

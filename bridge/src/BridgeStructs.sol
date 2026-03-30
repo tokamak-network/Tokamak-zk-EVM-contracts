@@ -2,16 +2,27 @@
 pragma solidity ^0.8.24;
 
 library BridgeStructs {
+    struct NoteReceivePubKey {
+        bytes32 x;
+        uint8 yParity;
+    }
+
     struct ChannelTokenVaultRegistration {
         bool exists;
         address l2Address;
         bytes32 channelTokenVaultKey;
         uint256 leafIndex;
+        NoteReceivePubKey noteReceivePubKey;
     }
 
     struct StorageWriteMetadata {
         uint8 aPubOffsetWords;
         uint8 storageAddrIndex;
+    }
+
+    struct EventLogMetadata {
+        uint16 startOffsetWords;
+        uint8 topicCount;
     }
 
     struct StorageMetadata {
@@ -27,6 +38,7 @@ library BridgeStructs {
         uint8 currentRootVectorOffsetWords;
         uint8 updatedRootVectorOffsetWords;
         StorageWriteMetadata[] storageWrites;
+        EventLogMetadata[] eventLogs;
     }
 
     struct DAppFunctionMetadata {

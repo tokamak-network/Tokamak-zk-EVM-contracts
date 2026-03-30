@@ -142,6 +142,7 @@ To add a new DApp metadata bundle to an already deployed bridge, use:
 
 This script:
 
+- deploys the private-state app to the selected app network before registration by default
 - optionally updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`
 - runs `tokamak-cli --install` without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
@@ -150,13 +151,35 @@ This script:
 
 Current constraint:
 
-- existing DApp metadata is add-only
-- modifying an already registered DApp is intentionally rejected, because channel managers cache function metadata at channel-creation time
+- DApp deletion remains available on Sepolia-style test deployments while `DAppManager.dAppDeletionEnabled()` remains true
+- deleting a DApp with one or more active channels is intentionally rejected, because channel managers cache function metadata at channel-creation time
+- mainnet deployment and upgrade flows automatically call `disableDAppDeletionForever()`, after which DApp registration becomes add-only again
 
 Example usage:
 
 ```bash
 node bridge/script/admin-add-dapp.mjs \
-  --group privateStateMint \
+  --group mintNotes \
   --dapp-id 1
 ```
+
+If the app must be deployed to a different network before registration, select it explicitly:
+
+```bash
+node bridge/script/admin-add-dapp.mjs \
+  --group mintNotes \
+  --group transferNotes \
+  --group redeemNotes \
+  --dapp-id 1 \
+  --app-network sepolia
+```
+
+Relevant options:
+
+- `--app-network <name>` chooses where the private-state deployment step runs
+- `--app-env-file <path>` overrides the environment file consumed by `deploy-private-state.sh`
+- `--app-rpc-url <url>` overrides the app deployment RPC endpoint only
+- `--skip-app-deploy` skips the deployment step and uses the existing deployment and storage-layout manifests
+- `--app-deployment-path <path>` and `--storage-layout-path <path>` override the manifests used for registration
+
+When `--app-network` is omitted, the script defaults to `APPS_NETWORK`, then `BRIDGE_NETWORK`, and finally the bridge chain name when it is known.

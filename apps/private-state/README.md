@@ -47,6 +47,11 @@ Successful deployments write app-local artifacts into `apps/private-state/deploy
 - `PrivateStateController.callable-abi.json`
 - `L2AccountingVault.callable-abi.json`
 
+Successful deployments also refresh the checked-in Synthesizer private-state launch inputs under:
+
+- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/`
+- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/.vscode/launch.json`
+
 ## Local Commands
 
 The DApp Makefile exposes the shortest local workflows:
@@ -87,15 +92,15 @@ Important rules:
 - `register-channel` binds `channelName + password` to the user's L1 private key and derives the channel-specific L2 identity
 - `register-channel` is the only command that sets up encrypted L1/L2 wallet keys
 - wallet folder names are fixed to `<channelName>-<l2Address>`
-- recipient note delivery is staged through `incoming-notes.json` because the sender does not know the recipient password
+- recipient note delivery is now recovered from bridge-propagated Ethereum event logs through `get-my-notes`
 - `anvil` support exists only for command-driven local end-to-end testing
 
-## Planned Recipient Note Delivery
+## Recipient Note Delivery Plan
 
-The current CLI still stages recipient note plaintext through local inbox sidecars. The intended protocol-level
-replacement is documented in [NOTE_RECEIVE_KEY_PLAN.md](NOTE_RECEIVE_KEY_PLAN.md).
+The protocol-level recipient note delivery design is documented in
+[NOTE_RECEIVE_KEY_PLAN.md](NOTE_RECEIVE_KEY_PLAN.md).
 
-That plan introduces:
+The implemented direction introduces:
 
 - a channel-scoped note-receive auxiliary public key registered on-chain
 - deterministic recovery of the corresponding auxiliary private key from a fixed MetaMask-compatible typed-data signature
@@ -113,7 +118,8 @@ The commands below are ordered by the normal execution flow.
 
 - installs the local Tokamak zk-EVM toolchain through `submodules/Tokamak-zk-EVM/tokamak-cli --install`
 - accepts no options
-- fetches `origin/dev` inside the submodule, switches to `dev`, and fast-forwards before running the installer
+- bootstraps `submodules/Tokamak-zk-EVM` from the repository `.gitmodules` definition if the submodule worktree is missing
+- then fetches `origin/dev` inside the submodule, switches to `dev`, and fast-forwards before running the installer
 
 Example:
 
@@ -292,11 +298,13 @@ node apps/private-state/cli/private-state-bridge-cli.mjs mint-notes \
   --amounts '[1,2,3]'
 ```
 
-### 9. Inspect tracked notes
+### 9. Discover and inspect tracked notes
 
 `get-my-notes`
 
-- reads the wallet's tracked note sets
+- scans bridge-propagated `transferNotes` delivery events from Ethereum
+- decrypts any newly discovered incoming note payloads for the wallet owner
+- merges newly discovered notes into the encrypted wallet
 - checks each note's commitment and nullifier status against the current controller state accepted by the bridge
 - accepts only `--wallet` and `--password`
 
@@ -317,7 +325,9 @@ node apps/private-state/cli/private-state-bridge-cli.mjs get-my-notes \
 - requires JSON arrays for all vector inputs
 - requires `--amounts.length == --recipients.length`
 - consumes note commitments returned by `get-my-notes`
-- updates the sender wallet and stages recipient notes in deterministic recipient inbox files
+- updates the sender wallet only
+- does not write recipient wallet files directly
+- relies on recipients running `get-my-notes` to recover incoming notes from Ethereum event logs
 
 Example:
 
@@ -458,6 +468,20 @@ Each getter prints a single JSON object to stdout.
   "network": "anvil|sepolia|mainnet",
   "channelName": "<channel-name>",
   "controller": "<address>",
+  "recoveredFromLogs": [
+    {
+      "owner": "<l2-address>",
+      "value": "<uint256-string>",
+      "salt": "<bytes32>",
+      "commitment": "<bytes32>",
+      "nullifier": "<bytes32>"
+    }
+  ],
+  "scannedDeliveryLogs": 0,
+  "noteReceiveScanRange": {
+    "fromBlock": 0,
+    "toBlock": 0
+  },
   "unusedNotes": [
     {
       "owner": "<l2-address>",
@@ -500,7 +524,6 @@ Important files:
 
 - `wallet.json`: encrypted wallet state
 - `wallet.metadata.json`: plaintext `network` and `channelName`
-- `incoming-notes.json`: staged recipient note delivery
 
 ## Local anvil Workflow
 

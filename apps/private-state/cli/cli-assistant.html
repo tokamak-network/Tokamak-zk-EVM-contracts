@@ -385,7 +385,9 @@
       }
 
       function commandNeedsExistingChannel(command = currentCommand()) {
-        return command.fields.includes("channelName") && command.id !== "create-channel";
+        return command.fields.includes("channelName")
+          && command.id !== "create-channel"
+          && command.id !== "recover-workspace";
       }
 
       function currentWorkspaceOptions() {
@@ -589,7 +591,11 @@
           workspaceDirectoryState.byNetwork = byNetwork;
           workspaceDirectoryState.loaded = true;
           const currentOptions = currentWorkspaceOptions();
-          if (!currentOptions.channelOptions.includes(state.channelName) && currentCommand().id !== "create-channel") {
+          if (
+            !currentOptions.channelOptions.includes(state.channelName)
+            && currentCommand().id !== "create-channel"
+            && currentCommand().id !== "recover-workspace"
+          ) {
             state.channelName = currentOptions.channelOptions[0] ?? "";
           }
           if (!currentOptions.walletOptions.includes(state.wallet)) {
@@ -690,7 +696,11 @@
         if (fieldKey === "wallet") {
           return createWalletField();
         }
-        if (fieldKey === "channelName" && currentCommand().id !== "create-channel") {
+        if (
+          fieldKey === "channelName"
+          && currentCommand().id !== "create-channel"
+          && currentCommand().id !== "recover-workspace"
+        ) {
           return createExistingChannelField();
         }
         const label = document.createElement("label");

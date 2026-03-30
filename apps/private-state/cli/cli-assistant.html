@@ -312,6 +312,7 @@
       const warningEl = document.getElementById("warning");
       const previewEl = document.getElementById("command-preview");
       const statusEl = document.getElementById("status");
+      let workspaceStatusEl = null;
 
       document.getElementById("copy-command").addEventListener("click", async () => {
         await copyText(buildCommand(false));
@@ -354,8 +355,14 @@
         statusEl.textContent = message;
       }
 
+      function setWorkspaceStatus(message) {
+        if (workspaceStatusEl) {
+          workspaceStatusEl.textContent = message;
+        }
+      }
+
       function showWorkspaceSelectionError(message) {
-        setStatus(message);
+        setWorkspaceStatus(message);
         warningEl.textContent = message;
       }
 
@@ -573,7 +580,7 @@
           renderCommandFields();
           renderPreview();
           const loadedNetworkCount = Object.keys(byNetwork).length;
-          setStatus(
+          setWorkspaceStatus(
             currentOptions.channelOptions.length === 0
               ? `Selected workspace directory does not contain channel folders for ${state.network}.`
               : `Loaded ${loadedNetworkCount} network folder${loadedNetworkCount === 1 ? "" : "s"}, ${currentOptions.channelOptions.length} channel folder${currentOptions.channelOptions.length === 1 ? "" : "s"}, and ${currentOptions.walletOptions.length} wallet folder${currentOptions.walletOptions.length === 1 ? "" : "s"} for ${state.network}.`,
@@ -597,12 +604,12 @@
         });
         workspacePickerEl.appendChild(button);
 
-        const hint = document.createElement("p");
-        hint.className = "hint";
-        hint.textContent = workspaceDirectoryState.handle === null
+        workspaceStatusEl = document.createElement("p");
+        workspaceStatusEl.className = "hint";
+        workspaceStatusEl.textContent = workspaceDirectoryState.handle === null
           ? `Default CLI workspace root: ${defaultWorkspaceRootLabel}`
-          : `Workspace directory: ${workspaceDirectoryState.handle.name}`;
-        workspacePickerEl.appendChild(hint);
+          : "";
+        workspacePickerEl.appendChild(workspaceStatusEl);
       }
 
       function createWalletField() {

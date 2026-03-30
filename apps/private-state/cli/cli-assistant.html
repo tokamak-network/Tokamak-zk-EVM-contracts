@@ -355,6 +355,11 @@
         statusEl.textContent = message;
       }
 
+      function showWorkspaceSelectionError(message) {
+        setStatus(message);
+        warningEl.textContent = message;
+      }
+
       function shellEscape(value) {
         return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
       }
@@ -513,14 +518,14 @@
 
       async function chooseWorkspaceDirectory() {
         if (typeof window.showDirectoryPicker !== "function") {
-          setStatus("This browser does not support directory selection.");
+          showWorkspaceSelectionError("This browser does not support directory selection.");
           return;
         }
 
         try {
           const handle = await window.showDirectoryPicker();
           if (handle.name !== "workspace") {
-            setStatus('Selected directory must be named "workspace".');
+            showWorkspaceSelectionError('Selected directory must be named "workspace".');
             return;
           }
           const options = await loadWorkspaceDirectoryOptions(handle);
@@ -546,7 +551,7 @@
           if (error?.name === "AbortError") {
             return;
           }
-          setStatus("Failed to read the selected workspace directory.");
+          showWorkspaceSelectionError("Failed to read the selected workspace directory.");
         }
       }
 

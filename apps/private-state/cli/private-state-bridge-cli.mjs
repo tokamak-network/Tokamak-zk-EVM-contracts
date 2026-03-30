@@ -1663,31 +1663,29 @@ function normalizePlaintextNote(note) {
 }
 
 function computeNoteCommitment(note) {
+  const data = ethers.concat([
+    NOTE_COMMITMENT_DOMAIN,
+    ethers.zeroPadValue(getAddress(note.owner), 32),
+    ethers.toBeHex(BigInt(note.value), 32),
+    normalizeBytes32Hex(note.salt),
+  ]);
   return normalizeBytes32Hex(
     bytesToHex(
-      poseidon(
-        hexToBytes(
-          abiCoder.encode(
-            ["bytes32", "address", "uint256", "bytes32"],
-            [NOTE_COMMITMENT_DOMAIN, note.owner, BigInt(note.value), note.salt],
-          ),
-        ),
-      ),
+      poseidon(data),
     ),
   );
 }
 
 function computeNullifier(note) {
+  const data = ethers.concat([
+    NULLIFIER_DOMAIN,
+    ethers.zeroPadValue(getAddress(note.owner), 32),
+    ethers.toBeHex(BigInt(note.value), 32),
+    normalizeBytes32Hex(note.salt),
+  ]);
   return normalizeBytes32Hex(
     bytesToHex(
-      poseidon(
-        hexToBytes(
-          abiCoder.encode(
-            ["bytes32", "address", "uint256", "bytes32"],
-            [NULLIFIER_DOMAIN, note.owner, BigInt(note.value), note.salt],
-          ),
-        ),
-      ),
+      poseidon(data),
     ),
   );
 }
@@ -1793,7 +1791,7 @@ function derivePrivateStateControllerMappingStorageKey(keyHex, slot) {
 function computeEncryptedNoteSalt(encryptedValue) {
   const normalized = normalizeEncryptedNoteValueWords(encryptedValue);
   return normalizeBytes32Hex(
-    ethers.hexlify(poseidon(ethers.getBytes(abiCoder.encode(["bytes32[3]"], [normalized])))),
+    ethers.hexlify(poseidon(ethers.concat(normalized))),
   );
 }
 

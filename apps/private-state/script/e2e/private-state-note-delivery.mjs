@@ -233,10 +233,7 @@ export async function deriveNoteReceiveKeyMaterial({
 
 export function computeEncryptedNoteSalt(encryptedValue) {
   const normalized = normalizeEncryptedNoteValueWords(encryptedValue);
-  return ethers.zeroPadValue(
-    poseidonHexFromBytes(abiCoder.encode(["bytes32[3]"], [normalized])),
-    32,
-  ).toLowerCase();
+  return ethers.zeroPadValue(poseidonHexFromBytes(ethers.concat(normalized)), 32).toLowerCase();
 }
 
 export function encryptNoteValueForRecipient({

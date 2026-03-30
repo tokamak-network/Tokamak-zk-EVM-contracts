@@ -2095,9 +2095,14 @@ async function buildTransferNotesTemplatePayload({
   const method = selectTransferNotesMethod(inputNotes.length, recipients.length);
   const transferOutputs = [];
   const lifecycleOutputs = [];
-  for (let index = 0; index < recipients.length; index += 1) {
-    const recipient = getAddress(recipients[index]);
-    const noteReceivePubKey = await context.channelManager.getNoteReceivePubKeyByL2Address(recipient);
+  const recipientAddresses = recipients.map(getAddress);
+  const recipientPubKeys = await Promise.all(
+    recipientAddresses.map((recipient) => context.channelManager.getNoteReceivePubKeyByL2Address(recipient)),
+  );
+
+  for (let index = 0; index < recipientAddresses.length; index += 1) {
+    const recipient = recipientAddresses[index];
+    const noteReceivePubKey = recipientPubKeys[index];
     assertRegisteredNoteReceivePubKey(noteReceivePubKey, recipient);
     const encryptedNoteValue = encryptNoteValueForRecipient({
       value: outputAmounts[index],

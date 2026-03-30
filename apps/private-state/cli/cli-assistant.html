@@ -31,10 +31,16 @@
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       }
 
+      .fields > *,
+      .field-stack {
+        min-width: 0;
+      }
+
       label {
         display: grid;
         gap: 2px;
         font-size: 13px;
+        min-width: 0;
       }
 
       input,
@@ -47,7 +53,16 @@
       input,
       select,
       textarea {
+        box-sizing: border-box;
+        min-width: 0;
+        width: 100%;
         padding: 6px 8px;
+      }
+
+      .field-stack button {
+        box-sizing: border-box;
+        min-width: 0;
+        width: 100%;
       }
 
       textarea {

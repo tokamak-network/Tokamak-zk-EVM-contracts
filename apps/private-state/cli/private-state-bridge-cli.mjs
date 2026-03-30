@@ -93,7 +93,10 @@ const NOTE_RECEIVE_TYPED_DATA_TYPES = {
 };
 const NOTE_RECEIVE_TYPED_DATA_PROTOCOL = "PRIVATE_STATE_NOTE_RECEIVE_KEY_V2";
 const NOTE_RECEIVE_TYPED_DATA_DAPP = "private-state";
-const NOTE_RECEIVE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_NOTE_FIELD_ENCRYPTION_V1";
+const TRANSFER_NOTE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_NOTE_FIELD_ENCRYPTION_V1";
+const MINT_NOTE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_SELF_MINT_NOTE_FIELD_ENCRYPTION_V1";
+const ENCRYPTED_NOTE_SCHEME_TRANSFER = 0;
+const ENCRYPTED_NOTE_SCHEME_SELF_MINT = 1;
 const NOTE_COMMITMENT_DOMAIN = ethers.keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NOTE_COMMITMENT"));
 const NULLIFIER_DOMAIN = ethers.keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NULLIFIER"));
 const NOTE_RECEIVE_EVENT_ABI = [
@@ -688,6 +691,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     context,
     provider,
     noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
+    l2PrivateKey: walletContext.wallet.l2PrivateKey,
   });
 
   printJson({
@@ -1144,15 +1148,15 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
 }
 
 async function handleGrothVaultMove({ args, provider, direction }) {
-  const { wallet } = loadUnlockedWalletWithMetadata(args);
-  const contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+  const { wallet: walletContext } = loadUnlockedWalletWithMetadata(args);
+  const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
   const context = contextResult.context;
   expect(
-    BigInt(wallet.wallet.channelId) === BigInt(context.workspace.channelId),
+    BigInt(walletContext.wallet.channelId) === BigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
   );
 
-  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
+  const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
   const amountInput = requireArg(args.amount, "--amount");
   const amount = parseTokenAmount(amountInput, Number(context.workspace.canonicalAssetDecimals));
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
@@ -1206,7 +1210,11 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     : direction === "deposit"
       ? "deposit-channel"
       : "withdraw";
-  const operationDir = createWalletOperationDir(wallet.walletName, `${operationName}-${shortAddress(signer.address)}`);
+  const operationDir = createWalletOperationDir(
+    walletContext.walletName,
+    walletContext.wallet.network,
+    `${operationName}-${shortAddress(signer.address)}`,
+  );
 
   const transition = await buildGrothTransition({
     operationDir,
@@ -1229,7 +1237,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   writeJson(path.join(operationDir, `${operationName}-receipt.json`), sanitizeReceipt(receipt));
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
   writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(transition.nextSnapshot));
-  sealWalletOperationDir(operationDir, wallet.walletPassword);
+  sealWalletOperationDir(operationDir, walletContext.walletPassword);
 
   context.currentSnapshot = normalizeStateSnapshot(transition.nextSnapshot);
   persistCurrentState(context);
@@ -1237,7 +1245,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   printJson({
     action: operationName,
     workspace: context.workspaceName,
-    wallet: wallet.walletName,
+    wallet: walletContext.walletName,
     operationDir,
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
@@ -1303,7 +1311,12 @@ async function handleMintNotes({ args, provider }) {
     nonce: execution.nonce,
     amountInputs,
     amountBaseUnits: baseUnitAmounts.map((value) => value.toString()),
-    outputNotes: templatePayload.args[0].map((note) => buildTrackedNote(note, templatePayload.method, execution.receipt.hash)),
+    outputNotes: buildLifecycleTrackedOutputs({
+      outputNotes: templatePayload.lifecycleOutputs,
+      sourceFunction: templatePayload.method,
+      sourceTxHash: execution.receipt.hash,
+      bridgeCommitmentKeys: execution.noteLifecycle.outputCommitmentKeys,
+    }),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
@@ -1369,6 +1382,7 @@ async function handleGetMyNotes({ args, provider }) {
     context,
     provider,
     noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
+    l2PrivateKey: wallet.wallet.l2PrivateKey,
   });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
@@ -1750,6 +1764,7 @@ async function recoverDeliveredNotesFromEventLogs({
   context,
   provider,
   noteReceivePrivateKey,
+  l2PrivateKey,
 }) {
   const scanStartBlock = Math.max(
     Number(walletContext.wallet.noteReceiveLastScannedBlock ?? 0),
@@ -1788,15 +1803,31 @@ async function recoverDeliveredNotesFromEventLogs({
     if (!encryptedNoteValue) {
       continue;
     }
+    const { scheme } = unpackEncryptedNoteValue(encryptedNoteValue);
     let recoveredValue;
+    let sourceFunction;
     try {
-      recoveredValue = decryptEncryptedNoteValue({
-        encryptedValue: encryptedNoteValue,
-        noteReceivePrivateKey,
-        chainId: context.workspace.chainId,
-        channelId: context.workspace.channelId,
-        owner: walletContext.wallet.l2Address,
-      });
+      if (scheme === ENCRYPTED_NOTE_SCHEME_TRANSFER) {
+        recoveredValue = decryptEncryptedNoteValue({
+          encryptedValue: encryptedNoteValue,
+          noteReceivePrivateKey,
+          chainId: context.workspace.chainId,
+          channelId: context.workspace.channelId,
+          owner: walletContext.wallet.l2Address,
+        });
+        sourceFunction = "transferNotes";
+      } else if (scheme === ENCRYPTED_NOTE_SCHEME_SELF_MINT) {
+        recoveredValue = decryptMintEncryptedNoteValue({
+          encryptedValue: encryptedNoteValue,
+          l2PrivateKey,
+          chainId: context.workspace.chainId,
+          channelId: context.workspace.channelId,
+          owner: walletContext.wallet.l2Address,
+        });
+        sourceFunction = "mintNotes";
+      } else {
+        continue;
+      }
     } catch {
       continue;
     }
@@ -1808,7 +1839,7 @@ async function recoverDeliveredNotesFromEventLogs({
     });
     const commitment = normalizeBytes32Hex(computeNoteCommitment(plaintextNote));
     const nullifier = normalizeBytes32Hex(computeNullifier(plaintextNote));
-    const trackedNote = buildTrackedNote(plaintextNote, "transferNotes", log.transactionHash, {
+    const trackedNote = buildTrackedNote(plaintextNote, sourceFunction, log.transactionHash, {
       bridgeCommitmentKey: derivePrivateStateControllerMappingStorageKey(commitment, commitmentExistsSlot),
       bridgeNullifierKey: derivePrivateStateControllerMappingStorageKey(nullifier, nullifierUsedSlot),
     });
@@ -1981,22 +2012,32 @@ function normalizeEncryptedNoteValueWords(encryptedNoteValue) {
   return encryptedNoteValue.map((word) => normalizeBytes32Hex(word));
 }
 
+function pointFromL2PublicKey(l2PublicKey) {
+  return jubjub.ExtendedPoint.fromHex(ethers.getBytes(l2PublicKey));
+}
+
 function packEncryptedNoteValue({
   ephemeralPubKeyX,
   ephemeralPubKeyYParity,
   nonce,
   ciphertextValue,
   tag,
+  scheme = ENCRYPTED_NOTE_SCHEME_TRANSFER,
 }) {
   const parity = Number(ephemeralPubKeyYParity);
   expect(parity === 0 || parity === 1, "Encrypted note value y parity must be 0 or 1.");
+  const normalizedScheme = Number(scheme);
+  expect(
+    Number.isInteger(normalizedScheme) && normalizedScheme >= 0 && normalizedScheme <= 255,
+    "Encrypted note value scheme must fit in one byte.",
+  );
   return normalizeEncryptedNoteValueWords([
     normalizeBytes32Hex(ephemeralPubKeyX),
     ethers.hexlify(ethers.concat([
       Uint8Array.from([parity]),
       ethers.getBytes(ethers.zeroPadValue(nonce, 12)),
       ethers.getBytes(ethers.zeroPadValue(tag, 16)),
-      new Uint8Array(3),
+      Uint8Array.from([normalizedScheme, 0, 0]),
     ])),
     normalizeBytes32Hex(ciphertextValue),
   ]);
@@ -2011,6 +2052,7 @@ function unpackEncryptedNoteValue(encryptedNoteValue) {
     nonce: ethers.hexlify(packedMetaBytes.slice(1, 13)),
     ciphertextValue,
     tag: ethers.hexlify(packedMetaBytes.slice(13, 29)),
+    scheme: packedMetaBytes[29],
   };
 }
 
@@ -2047,7 +2089,7 @@ function normalizeTagHex(value) {
   return ethers.hexlify(ethers.zeroPadValue(value, 16)).toLowerCase();
 }
 
-function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce }) {
+function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce, encryptionInfo }) {
   const affine = sharedSecretPoint.toAffine();
   return BigInt(
     bytesToHex(
@@ -2056,7 +2098,7 @@ function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce }
           abiCoder.encode(
             ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12"],
             [
-              NOTE_RECEIVE_FIELD_ENCRYPTION_INFO,
+              encryptionInfo,
               BigInt(chainId),
               BigInt(channelId),
               getAddress(owner),
@@ -2071,7 +2113,7 @@ function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce }
   );
 }
 
-function deriveCipherTag({ sharedSecretPoint, chainId, channelId, owner, nonce, ciphertextValue }) {
+function deriveCipherTag({ sharedSecretPoint, chainId, channelId, owner, nonce, ciphertextValue, encryptionInfo }) {
   const affine = sharedSecretPoint.toAffine();
   return ethers.dataSlice(
     bytesToHex(
@@ -2080,7 +2122,7 @@ function deriveCipherTag({ sharedSecretPoint, chainId, channelId, owner, nonce, 
           abiCoder.encode(
             ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12", "bytes32"],
             [
-              `${NOTE_RECEIVE_FIELD_ENCRYPTION_INFO}:tag`,
+              `${encryptionInfo}:tag`,
               BigInt(chainId),
               BigInt(channelId),
               getAddress(owner),
@@ -2117,8 +2159,15 @@ async function deriveNoteReceiveKeyMaterial({ signer, chainId, channelId, channe
   };
 }
 
-function encryptNoteValueForRecipient({ value, recipientNoteReceivePubKey, chainId, channelId, owner }) {
-  const recipientPoint = pointFromNoteReceivePubKey(recipientNoteReceivePubKey);
+function encryptFieldNoteValue({
+  value,
+  recipientPoint,
+  chainId,
+  channelId,
+  owner,
+  encryptionInfo,
+  scheme,
+}) {
   const ephemeralPrivateScalar = deriveEphemeralJubjubScalar();
   const ephemeralPoint = jubjub.ExtendedPoint.BASE.multiply(ephemeralPrivateScalar);
   const sharedSecretPoint = recipientPoint.multiply(ephemeralPrivateScalar);
@@ -2130,6 +2179,7 @@ function encryptNoteValueForRecipient({ value, recipientNoteReceivePubKey, chain
     channelId,
     owner,
     nonce,
+    encryptionInfo,
   });
   const ciphertextValue = (plaintextValue + fieldMask) % BLS12_381_SCALAR_FIELD_MODULUS;
   const tag = deriveCipherTag({
@@ -2139,6 +2189,7 @@ function encryptNoteValueForRecipient({ value, recipientNoteReceivePubKey, chain
     owner,
     nonce,
     ciphertextValue,
+    encryptionInfo,
   });
   const parsedEphemeralPubKey = noteReceivePubKeyFromPoint(ephemeralPoint);
 
@@ -2148,15 +2199,52 @@ function encryptNoteValueForRecipient({ value, recipientNoteReceivePubKey, chain
     nonce,
     ciphertextValue: fieldElementHex(ciphertextValue),
     tag,
+    scheme,
   });
 }
 
-function decryptEncryptedNoteValue({ encryptedValue, noteReceivePrivateKey, chainId, channelId, owner }) {
+function encryptNoteValueForRecipient({ value, recipientNoteReceivePubKey, chainId, channelId, owner }) {
+  return encryptFieldNoteValue({
+    value,
+    recipientPoint: pointFromNoteReceivePubKey(recipientNoteReceivePubKey),
+    chainId,
+    channelId,
+    owner,
+    encryptionInfo: TRANSFER_NOTE_FIELD_ENCRYPTION_INFO,
+    scheme: ENCRYPTED_NOTE_SCHEME_TRANSFER,
+  });
+}
+
+function encryptMintNoteValueForOwner({ value, ownerL2PublicKey, chainId, channelId, owner }) {
+  return encryptFieldNoteValue({
+    value,
+    recipientPoint: pointFromL2PublicKey(ownerL2PublicKey),
+    chainId,
+    channelId,
+    owner,
+    encryptionInfo: MINT_NOTE_FIELD_ENCRYPTION_INFO,
+    scheme: ENCRYPTED_NOTE_SCHEME_SELF_MINT,
+  });
+}
+
+function decryptFieldEncryptedNoteValue({
+  encryptedValue,
+  privateKey,
+  chainId,
+  channelId,
+  owner,
+  encryptionInfo,
+  expectedScheme,
+}) {
   const normalized = unpackEncryptedNoteValue(encryptedValue);
+  expect(
+    normalized.scheme === expectedScheme,
+    `Encrypted note value scheme mismatch. Expected ${expectedScheme}, received ${normalized.scheme}.`,
+  );
   const sharedSecretPoint = pointFromNoteReceivePubKey({
       x: normalized.ephemeralPubKeyX,
       yParity: normalized.ephemeralPubKeyYParity,
-    }).multiply(parseJubjubPrivateScalar(noteReceivePrivateKey));
+    }).multiply(parseJubjubPrivateScalar(privateKey));
   const expectedTag = deriveCipherTag({
     sharedSecretPoint,
     chainId,
@@ -2164,6 +2252,7 @@ function decryptEncryptedNoteValue({ encryptedValue, noteReceivePrivateKey, chai
     owner,
     nonce: normalized.nonce,
     ciphertextValue: ethers.toBigInt(normalized.ciphertextValue),
+    encryptionInfo,
   });
   expect(normalizeTagHex(expectedTag) === normalizeTagHex(normalized.tag), "Encrypted note value integrity tag mismatch.");
   const fieldMask = deriveFieldMask({
@@ -2172,6 +2261,7 @@ function decryptEncryptedNoteValue({ encryptedValue, noteReceivePrivateKey, chai
     channelId,
     owner,
     nonce: normalized.nonce,
+    encryptionInfo,
   });
   const plaintext = (
     ethers.toBigInt(normalized.ciphertextValue)
@@ -2181,11 +2271,35 @@ function decryptEncryptedNoteValue({ encryptedValue, noteReceivePrivateKey, chai
   return decodeNoteValuePlaintext(plaintext);
 }
 
+function decryptEncryptedNoteValue({ encryptedValue, noteReceivePrivateKey, chainId, channelId, owner }) {
+  return decryptFieldEncryptedNoteValue({
+    encryptedValue,
+    privateKey: noteReceivePrivateKey,
+    chainId,
+    channelId,
+    owner,
+    encryptionInfo: TRANSFER_NOTE_FIELD_ENCRYPTION_INFO,
+    expectedScheme: ENCRYPTED_NOTE_SCHEME_TRANSFER,
+  });
+}
+
+function decryptMintEncryptedNoteValue({ encryptedValue, l2PrivateKey, chainId, channelId, owner }) {
+  return decryptFieldEncryptedNoteValue({
+    encryptedValue,
+    privateKey: l2PrivateKey,
+    chainId,
+    channelId,
+    owner,
+    encryptionInfo: MINT_NOTE_FIELD_ENCRYPTION_INFO,
+    expectedScheme: ENCRYPTED_NOTE_SCHEME_SELF_MINT,
+  });
+}
+
 function extractNoteLifecycle(functionName, templatePayload) {
   if (functionName.startsWith("mintNotes")) {
     return {
       inputs: [],
-      outputs: templatePayload.args[0] ?? [],
+      outputs: templatePayload.lifecycleOutputs ?? [],
     };
   }
   if (functionName.startsWith("transferNotes")) {
@@ -2271,14 +2385,15 @@ function applyNoteLifecycleToWallet(walletContext, lifecycle, sourceFunction, so
 
 function buildMintNotesTemplatePayload({ wallet, baseUnitAmounts }) {
   const method = selectMintNotesMethod(baseUnitAmounts.length);
-  const outputs = buildMintOutputNotes({
-    owner: wallet.wallet.l2Address,
+  const { mintOutputs, lifecycleOutputs } = buildMintEncryptedOutputs({
+    wallet,
     values: baseUnitAmounts,
   });
   return {
     abiFile: "../deploy/PrivateStateController.callable-abi.json",
     method,
-    args: [outputs],
+    args: [mintOutputs],
+    lifecycleOutputs,
   };
 }
 
@@ -2302,12 +2417,31 @@ function selectRedeemNotesMethod(noteCount) {
   return `redeemNotes${noteCount}`;
 }
 
-function buildMintOutputNotes({ owner, values }) {
-  return values.map((value) => ({
-    owner: getAddress(owner),
-    value: BigInt(value).toString(),
-    salt: generateNoteSalt(),
-  }));
+function buildMintEncryptedOutputs({ wallet, values }) {
+  const mintOutputs = [];
+  const lifecycleOutputs = [];
+  for (const value of values) {
+    const encryptedNoteValue = encryptMintNoteValueForOwner({
+      value,
+      ownerL2PublicKey: wallet.wallet.l2PublicKey,
+      chainId: wallet.wallet.chainId,
+      channelId: wallet.wallet.channelId,
+      owner: wallet.wallet.l2Address,
+    });
+    mintOutputs.push({
+      value: BigInt(value).toString(),
+      encryptedNoteValue,
+    });
+    lifecycleOutputs.push({
+      owner: wallet.wallet.l2Address,
+      value: BigInt(value).toString(),
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
+    });
+  }
+  return {
+    mintOutputs,
+    lifecycleOutputs,
+  };
 }
 
 function assertRegisteredNoteReceivePubKey(noteReceivePubKey, recipient) {
@@ -2602,7 +2736,11 @@ async function executeWalletTemplateSend({
     templatePayload.args ?? [],
   );
   const nonce = Number(wallet.wallet.l2Nonce ?? 0);
-  const operationDir = createWalletOperationDir(wallet.walletName, `${operationName}-${shortAddress(l2Identity.l2Address)}`);
+  const operationDir = createWalletOperationDir(
+    wallet.walletName,
+    wallet.wallet.network,
+    `${operationName}-${shortAddress(l2Identity.l2Address)}`,
+  );
   ensureDir(operationDir);
 
   const transactionSnapshot = buildTokamakTxSnapshot({
@@ -3783,10 +3921,10 @@ function assertGetMyChannelFundArgs(args) {
   assertWalletPasswordArgs(args, "get-my-channel-fund", [], "--wallet, --password, and --network");
 }
 
-function createWalletOperationDir(walletName, suffix) {
+function createWalletOperationDir(walletName, networkName, suffix) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const operationDir = path.join(
-    walletPath(walletName, wallet.network),
+    walletPath(walletName, networkName),
     "operations",
     `${timestamp}-${slugifyPathComponent(suffix)}`,
   );

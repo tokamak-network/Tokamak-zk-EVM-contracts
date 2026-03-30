@@ -306,7 +306,7 @@ uniform and avoids a branch that treats self-outputs differently from recipient 
 
 The ciphertext must be published on Ethereum so the recipient can discover the incoming note.
 
-The current preferred channel is an event log emitted by the transfer path.
+The current preferred channel is an event log emitted by both the transfer path and the self-mint path.
 
 The event should carry only enough information for the recipient wallet to scan and attempt decryption, while the
 on-chain state transition remains bound to the ciphertext hash through the salt rule above.
@@ -327,7 +327,7 @@ event NoteValueEncrypted(
 );
 ```
 
-Each transfer output emits one such event after its commitment is registered.
+Each encrypted output emits one such event after its commitment is registered.
 
 ## Implementation Status
 
@@ -341,9 +341,10 @@ Completed.
 Implemented changes:
 
 - `PrivateStateController` transfer entrypoints now use `TransferOutput`
-- each transfer output carries an opaque `bytes32[3] encryptedNoteValue`
-- transfer output salts are derived inside the contract from the encrypted payload
-- one `NoteValueEncrypted(bytes32[3])` event is emitted per transfer output
+- `PrivateStateController` mint entrypoints now use self-mint `MintOutput`
+- each encrypted output carries an opaque `bytes32[3] encryptedNoteValue`
+- transfer and self-mint output salts are derived inside the contract from the encrypted payload
+- one `NoteValueEncrypted(bytes32[3])` event is emitted per encrypted output
 
 ### 2. Private-State Synthesizer Example Regeneration
 
@@ -391,9 +392,10 @@ Implemented changes:
 
 - channel registration submits the derived `NoteReceivePubKey`
 - `transfer-notes` resolves recipient note-receive keys from bridge channel state and encrypts transfer outputs
+- `mint-notes` now builds self-mint ciphertext outputs that are decryptable with the wallet L2 private key
 - `transfer-notes` no longer treats recipient wallet sidecar writes as the canonical delivery path
-- `get-my-notes` scans Ethereum logs for `NoteValueEncrypted`, decrypts matching outputs, reconstructs notes, and
-  caches the last scanned block
+- `get-my-notes` scans Ethereum logs for `NoteValueEncrypted`, decrypts matching transfer and self-mint outputs,
+  reconstructs notes, and caches the last scanned block
 
 ### 6. E2E and CLI-E2E Stabilization
 
@@ -472,7 +474,8 @@ The app-local function metadata generation path now describes event-log outputs 
 Current DApp-side status:
 
 - transfer function metadata already declares emitted event-log records
-- `mintNotes*` and `redeemNotes*` remain note-delivery-log free
+- `mintNotes*` now emit `NoteValueEncrypted(bytes32[3])` for self-mint outputs
+- `redeemNotes*` remain note-delivery-log free
 - the app deploy flow now regenerates the Synthesizer example inputs directly after deployment
 
 ## Bridge Contract Update Plan
@@ -656,12 +659,13 @@ Current recipient note recovery behavior:
 
 1. rebuild the deterministic note-receive auxiliary private key from the fixed typed-data signature
 2. scan bridge-propagated DApp logs for `NoteValueEncrypted`
-3. attempt Jubjub-based ciphertext decryption for logs targeting the current channel
-4. reconstruct note plaintext using:
+3. inspect the encrypted payload scheme marker
+4. decrypt transfer outputs with the note-receive private key and self-mint outputs with the wallet L2 private key
+5. reconstruct note plaintext using:
    - owner = local wallet L2 address
    - value = decrypted note value
    - salt = ciphertext hash
-5. absorb recovered notes into the encrypted wallet state
+6. absorb recovered notes into the encrypted wallet state
 
 This replaces the old sender-written `incoming-notes.json` sidecar path entirely.
 
@@ -671,15 +675,18 @@ When the recipient later wants to recover received notes:
 
 1. Re-derive the note-receive auxiliary private key by signing the fixed typed-data registration message again.
 2. Scan Ethereum logs for bridge-propagated `NoteValueEncrypted` records for the current channel.
-3. Attempt Jubjub-based ciphertext decryption using the auxiliary private key.
-4. If decryption succeeds:
+3. Inspect the encrypted payload scheme marker.
+4. Attempt Jubjub-based ciphertext decryption using:
+   - the note-receive auxiliary private key for transfer outputs
+   - the wallet L2 private key for self-mint outputs
+5. If decryption succeeds:
    - read the note value from the decrypted payload
    - compute `salt = poseidon(serializedEncryptedNoteValue)`
    - reconstruct the note plaintext as:
      - `owner = recipient L2 address`
      - `value = decrypted value`
      - `salt = poseidon(serializedEncryptedNoteValue)`
-5. Recompute the note commitment locally and optionally confirm that the controller state recognizes that commitment as
+6. Recompute the note commitment locally and optionally confirm that the controller state recognizes that commitment as
    existing before persisting the recovered note into wallet state.
 
 ## Why This Plan Was Chosen

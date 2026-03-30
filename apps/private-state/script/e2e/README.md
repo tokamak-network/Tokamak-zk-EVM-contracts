@@ -17,7 +17,7 @@ current private-state CLI intentionally starts at user-facing bridge and note fl
 The harness uses three participants:
 
 1. `A`, `B`, and `C` each fund the shared `bridgeTokenVault` and deposit `3` tokens into the channel `channelTokenVault` accounting tree.
-2. `A`, `B`, and `C` each call `mintNotes1`.
+2. `A`, `B`, and `C` each call `mintNotes1` with self-mint ciphertext outputs.
 3. `A` calls `transferNotes1To2` and splits its `3`-token note into:
    - `1` token to `B`
    - `2` tokens to `C`

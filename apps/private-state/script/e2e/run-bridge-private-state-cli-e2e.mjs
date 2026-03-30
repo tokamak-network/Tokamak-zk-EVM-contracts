@@ -45,6 +45,7 @@ import {
 } from "../utils/private-state-cli-shared.mjs";
 import {
   computeEncryptedNoteSalt,
+  encryptMintNoteValueForOwner,
   deriveNoteReceiveKeyMaterial,
   encryptedNoteValueTuple,
   encryptNoteValueForRecipient,
@@ -532,10 +533,30 @@ async function materializeCurrentDAppDefinition(provider, participants) {
     }),
   };
 
+  const encryptedMints = {
+    aMint: buildEncryptedMintOutput({
+      owner: participants[0].registration.l2Identity.l2Address,
+      ownerL2PublicKey: participants[0].registration.l2Identity.l2PublicKey,
+      value: depositAmountBaseUnits,
+      label: `${channelName}:a-mint`,
+    }),
+    bMint: buildEncryptedMintOutput({
+      owner: participants[1].registration.l2Identity.l2Address,
+      ownerL2PublicKey: participants[1].registration.l2Identity.l2PublicKey,
+      value: depositAmountBaseUnits,
+      label: `${channelName}:b-mint`,
+    }),
+    cMint: buildEncryptedMintOutput({
+      owner: participants[2].registration.l2Identity.l2Address,
+      ownerL2PublicKey: participants[2].registration.l2Identity.l2PublicKey,
+      value: depositAmountBaseUnits,
+      label: `${channelName}:c-mint`,
+    }),
+  };
   const notes = {
-    aMint: note(participants[0].registration.l2Identity.l2Address, depositAmountBaseUnits, `${channelName}:a-mint`),
-    bMint: note(participants[1].registration.l2Identity.l2Address, depositAmountBaseUnits, `${channelName}:b-mint`),
-    cMint: note(participants[2].registration.l2Identity.l2Address, depositAmountBaseUnits, `${channelName}:c-mint`),
+    aMint: encryptedMints.aMint.note,
+    bMint: encryptedMints.bMint.note,
+    cMint: encryptedMints.cMint.note,
     aToB: encryptedTransfers.aToB.note,
     aToC: encryptedTransfers.aToC.note,
     bToC: encryptedTransfers.bToC.note,
@@ -547,7 +568,13 @@ async function materializeCurrentDAppDefinition(provider, participants) {
       sender: participants[0].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]]]),
+      calldata: controllerInterface.encodeFunctionData(
+        "mintNotes1",
+        [[[
+          encryptedMints.aMint.output.value,
+          encryptedNoteValueTuple(encryptedMints.aMint.output.encryptedNoteValue),
+        ]]],
+      ),
     },
     {
       name: "transfer-notes-1-to-2",
@@ -578,7 +605,13 @@ async function materializeCurrentDAppDefinition(provider, participants) {
       sender: participants[1].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.bMint.owner, notes.bMint.value, notes.bMint.salt]]]),
+      calldata: controllerInterface.encodeFunctionData(
+        "mintNotes1",
+        [[[
+          encryptedMints.bMint.output.value,
+          encryptedNoteValueTuple(encryptedMints.bMint.output.encryptedNoteValue),
+        ]]],
+      ),
     },
     {
       name: "transfer-notes-2-to-1",
@@ -607,7 +640,13 @@ async function materializeCurrentDAppDefinition(provider, participants) {
       sender: participants[2].registration.l2Identity,
       nonce: 0,
       controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.cMint.owner, notes.cMint.value, notes.cMint.salt]]]),
+      calldata: controllerInterface.encodeFunctionData(
+        "mintNotes1",
+        [[[
+          encryptedMints.cMint.output.value,
+          encryptedNoteValueTuple(encryptedMints.cMint.output.encryptedNoteValue),
+        ]]],
+      ),
     },
     {
       name: "redeem-notes-2",
@@ -771,6 +810,38 @@ function buildEncryptedTransferOutput({
   return {
     output: {
       owner: getAddress(owner),
+      value,
+      encryptedNoteValue,
+    },
+    note: {
+      owner: getAddress(owner),
+      value,
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
+    },
+  };
+}
+
+function buildEncryptedMintOutput({
+  owner,
+  ownerL2PublicKey,
+  value,
+  label,
+}) {
+  const deterministicNonce = ethers.dataSlice(
+    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
+    0,
+    12,
+  );
+  const encryptedNoteValue = encryptMintNoteValueForOwner({
+    value,
+    ownerL2PublicKey,
+    chainId: 31337,
+    channelId: deriveChannelIdFromName(channelName),
+    owner,
+    nonce: deterministicNonce,
+  });
+  return {
+    output: {
       value,
       encryptedNoteValue,
     },
@@ -1315,8 +1386,8 @@ async function main() {
     assertWalletNoteSnapshot(notesAfterTransferB, { unusedCount: 0, spentCount: 2, unusedTotal: 0n, spentTotal: 4n * amountUnit });
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });
 
-    redeemNotes(participants[2], [noteAToC.commitment, noteBToC.commitment]);
-    redeemNotes(participants[2], [cMintNote.commitment]);
+    const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment, noteBToC.commitment]);
+    const redeemCMint = redeemNotes(participants[2], [cMintNote.commitment]);
     const notesAfterRedeemC = getMyNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
 
@@ -1379,8 +1450,7 @@ async function main() {
         mintC,
         transferA,
         transferB,
-        redeemAToC,
-        redeemBToC,
+        redeemTransferredToC: redeemAToC,
         redeemCMint,
         withdrawChannelResult,
         withdrawBridgeResult,

@@ -107,10 +107,11 @@ The current implementation includes:
 
 - a channel-scoped note-receive auxiliary public key registered on-chain
 - deterministic recovery of the corresponding auxiliary private key from a fixed MetaMask-compatible typed-data signature
-- recipient note ciphertext publication on Ethereum
+- ciphertext publication on Ethereum for both transferred notes and self-minted notes
 - recipient note salt derived from the encrypted payload
 - bridge propagation of DApp event logs emitted from channel execution
 - wallet-side event-log scanning and decryption in `get-my-notes`
+- self-mint ciphertext recovery through the wallet L2 private key
 
 ## CLI Command Flow
 
@@ -218,6 +219,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 `mint-notes`
 
 - mints one to six notes owned by the wallet's L2 address
+- builds self-mint ciphertext outputs and lets the controller derive note salts from the ciphertext hash
 - accepts `--wallet`, `--password`, `--network`, and `--amounts`
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
 
@@ -234,8 +236,8 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 
 `get-my-notes`
 
-- scans bridge-propagated private-state transfer events from Ethereum
-- decrypts note payloads addressed to the caller
+- scans bridge-propagated private-state encrypted-note events from Ethereum
+- decrypts transferred note payloads with the note-receive private key and self-minted note payloads with the wallet L2 private key
 - merges newly discovered notes into the encrypted wallet
 - reports both unused and spent note sets plus bridge-consistency status
 - accepts `--wallet`, `--password`, and `--network`

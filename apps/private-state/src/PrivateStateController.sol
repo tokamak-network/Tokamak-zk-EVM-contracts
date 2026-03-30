@@ -26,6 +26,11 @@ contract PrivateStateController {
         bytes32[3] encryptedNoteValue;
     }
 
+    struct MintOutput {
+        uint256 value;
+        bytes32[3] encryptedNoteValue;
+    }
+
     bytes32 private constant NOTE_COMMITMENT_DOMAIN = keccak256("PRIVATE_STATE_NOTE_COMMITMENT");
     bytes32 private constant NULLIFIER_DOMAIN = keccak256("PRIVATE_STATE_NULLIFIER");
 
@@ -43,50 +48,56 @@ contract PrivateStateController {
         l2AccountingVault = l2AccountingVault_;
     }
 
-    function mintNotes1(Note[1] calldata outputs) external returns (bytes32[1] memory commitments) {
+    function mintNotes1(MintOutput[1] calldata outputs) external returns (bytes32[1] memory commitments) {
         uint256 output0Value;
-        (output0Value, commitments[0]) = _prepareOutputNote(outputs[0]);
+        (output0Value, commitments[0]) = _prepareMintOutput(outputs[0], msg.sender);
 
         l2AccountingVault.debitLiquidBalance(msg.sender, output0Value);
         _registerCommitment(commitments[0]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
     }
 
-    function mintNotes2(Note[2] calldata outputs) external returns (bytes32[2] memory commitments) {
+    function mintNotes2(MintOutput[2] calldata outputs) external returns (bytes32[2] memory commitments) {
         uint256 output0Value;
-        (output0Value, commitments[0]) = _prepareOutputNote(outputs[0]);
+        (output0Value, commitments[0]) = _prepareMintOutput(outputs[0], msg.sender);
         uint256 output1Value;
-        (output1Value, commitments[1]) = _prepareOutputNote(outputs[1]);
+        (output1Value, commitments[1]) = _prepareMintOutput(outputs[1], msg.sender);
 
         uint256 totalValue = output0Value + output1Value;
         l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
         _registerCommitment(commitments[0]);
         _registerCommitment(commitments[1]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
     }
 
-    function mintNotes3(Note[3] calldata outputs) external returns (bytes32[3] memory commitments) {
+    function mintNotes3(MintOutput[3] calldata outputs) external returns (bytes32[3] memory commitments) {
         uint256 output0Value;
-        (output0Value, commitments[0]) = _prepareOutputNote(outputs[0]);
+        (output0Value, commitments[0]) = _prepareMintOutput(outputs[0], msg.sender);
         uint256 output1Value;
-        (output1Value, commitments[1]) = _prepareOutputNote(outputs[1]);
+        (output1Value, commitments[1]) = _prepareMintOutput(outputs[1], msg.sender);
         uint256 output2Value;
-        (output2Value, commitments[2]) = _prepareOutputNote(outputs[2]);
+        (output2Value, commitments[2]) = _prepareMintOutput(outputs[2], msg.sender);
 
         uint256 totalValue = output0Value + output1Value + output2Value;
         l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
         _registerCommitment(commitments[0]);
         _registerCommitment(commitments[1]);
         _registerCommitment(commitments[2]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[2].encryptedNoteValue);
     }
 
-    function mintNotes4(Note[4] calldata outputs) external returns (bytes32[4] memory commitments) {
+    function mintNotes4(MintOutput[4] calldata outputs) external returns (bytes32[4] memory commitments) {
         uint256 output0Value;
-        (output0Value, commitments[0]) = _prepareOutputNote(outputs[0]);
+        (output0Value, commitments[0]) = _prepareMintOutput(outputs[0], msg.sender);
         uint256 output1Value;
-        (output1Value, commitments[1]) = _prepareOutputNote(outputs[1]);
+        (output1Value, commitments[1]) = _prepareMintOutput(outputs[1], msg.sender);
         uint256 output2Value;
-        (output2Value, commitments[2]) = _prepareOutputNote(outputs[2]);
+        (output2Value, commitments[2]) = _prepareMintOutput(outputs[2], msg.sender);
         uint256 output3Value;
-        (output3Value, commitments[3]) = _prepareOutputNote(outputs[3]);
+        (output3Value, commitments[3]) = _prepareMintOutput(outputs[3], msg.sender);
 
         uint256 totalValue = output0Value + output1Value + output2Value + output3Value;
         l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
@@ -94,19 +105,23 @@ contract PrivateStateController {
         _registerCommitment(commitments[1]);
         _registerCommitment(commitments[2]);
         _registerCommitment(commitments[3]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[2].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[3].encryptedNoteValue);
     }
 
-    function mintNotes5(Note[5] calldata outputs) external returns (bytes32[5] memory commitments) {
+    function mintNotes5(MintOutput[5] calldata outputs) external returns (bytes32[5] memory commitments) {
         uint256 output0Value;
-        (output0Value, commitments[0]) = _prepareOutputNote(outputs[0]);
+        (output0Value, commitments[0]) = _prepareMintOutput(outputs[0], msg.sender);
         uint256 output1Value;
-        (output1Value, commitments[1]) = _prepareOutputNote(outputs[1]);
+        (output1Value, commitments[1]) = _prepareMintOutput(outputs[1], msg.sender);
         uint256 output2Value;
-        (output2Value, commitments[2]) = _prepareOutputNote(outputs[2]);
+        (output2Value, commitments[2]) = _prepareMintOutput(outputs[2], msg.sender);
         uint256 output3Value;
-        (output3Value, commitments[3]) = _prepareOutputNote(outputs[3]);
+        (output3Value, commitments[3]) = _prepareMintOutput(outputs[3], msg.sender);
         uint256 output4Value;
-        (output4Value, commitments[4]) = _prepareOutputNote(outputs[4]);
+        (output4Value, commitments[4]) = _prepareMintOutput(outputs[4], msg.sender);
 
         uint256 totalValue = output0Value + output1Value + output2Value + output3Value + output4Value;
         l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
@@ -115,21 +130,26 @@ contract PrivateStateController {
         _registerCommitment(commitments[2]);
         _registerCommitment(commitments[3]);
         _registerCommitment(commitments[4]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[2].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[3].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[4].encryptedNoteValue);
     }
 
-    function mintNotes6(Note[6] calldata outputs) external returns (bytes32[6] memory commitments) {
+    function mintNotes6(MintOutput[6] calldata outputs) external returns (bytes32[6] memory commitments) {
         uint256 output0Value;
-        (output0Value, commitments[0]) = _prepareOutputNote(outputs[0]);
+        (output0Value, commitments[0]) = _prepareMintOutput(outputs[0], msg.sender);
         uint256 output1Value;
-        (output1Value, commitments[1]) = _prepareOutputNote(outputs[1]);
+        (output1Value, commitments[1]) = _prepareMintOutput(outputs[1], msg.sender);
         uint256 output2Value;
-        (output2Value, commitments[2]) = _prepareOutputNote(outputs[2]);
+        (output2Value, commitments[2]) = _prepareMintOutput(outputs[2], msg.sender);
         uint256 output3Value;
-        (output3Value, commitments[3]) = _prepareOutputNote(outputs[3]);
+        (output3Value, commitments[3]) = _prepareMintOutput(outputs[3], msg.sender);
         uint256 output4Value;
-        (output4Value, commitments[4]) = _prepareOutputNote(outputs[4]);
+        (output4Value, commitments[4]) = _prepareMintOutput(outputs[4], msg.sender);
         uint256 output5Value;
-        (output5Value, commitments[5]) = _prepareOutputNote(outputs[5]);
+        (output5Value, commitments[5]) = _prepareMintOutput(outputs[5], msg.sender);
 
         uint256 totalValue = output0Value + output1Value + output2Value + output3Value + output4Value + output5Value;
         l2AccountingVault.debitLiquidBalance(msg.sender, totalValue);
@@ -139,6 +159,12 @@ contract PrivateStateController {
         _registerCommitment(commitments[3]);
         _registerCommitment(commitments[4]);
         _registerCommitment(commitments[5]);
+        emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[2].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[3].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[4].encryptedNoteValue);
+        emit NoteValueEncrypted(outputs[5].encryptedNoteValue);
     }
 
     function transferNotes1To1(TransferOutput[1] calldata outputs, Note[1] calldata inputNotes)
@@ -564,6 +590,18 @@ contract PrivateStateController {
         (address outputOwner, uint256 value, bytes32 outputSalt) = _loadValidatedNote(outputNote);
         outputValue = value;
         outputCommitment = _computeNoteCommitmentUnchecked(value, outputOwner, outputSalt);
+    }
+
+    function _prepareMintOutput(MintOutput calldata output, address owner)
+        internal
+        pure
+        returns (uint256 outputValue, bytes32 outputCommitment)
+    {
+        _validateNoteFields(output.value, owner);
+        outputValue = output.value;
+        outputCommitment = _computeNoteCommitmentUnchecked(
+            output.value, owner, _computeEncryptedNoteSalt(output.encryptedNoteValue)
+        );
     }
 
     function _prepareTransferOutput(TransferOutput calldata output)

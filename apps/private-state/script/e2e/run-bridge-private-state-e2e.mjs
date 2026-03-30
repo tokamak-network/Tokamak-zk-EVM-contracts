@@ -44,6 +44,7 @@ import {
 import {
   computeEncryptedNoteSalt,
   deriveNoteReceiveKeyMaterial,
+  encryptMintNoteValueForOwner,
   encryptedNoteValueTuple,
   encryptNoteValueForRecipient,
 } from "./private-state-note-delivery.mjs";
@@ -370,6 +371,40 @@ function buildEncryptedTransferOutput({
   return {
     output: {
       owner: getAddress(owner),
+      value,
+      encryptedNoteValue,
+    },
+    note: {
+      owner: getAddress(owner),
+      value,
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
+    },
+  };
+}
+
+function buildEncryptedMintOutput({
+  owner,
+  ownerL2PublicKey,
+  value,
+  label,
+  chainId,
+  channelId,
+}) {
+  const deterministicNonce = ethers.dataSlice(
+    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
+    0,
+    12,
+  );
+  const encryptedNoteValue = encryptMintNoteValueForOwner({
+    value,
+    ownerL2PublicKey,
+    chainId,
+    channelId,
+    owner,
+    nonce: deterministicNonce,
+  });
+  return {
+    output: {
       value,
       encryptedNoteValue,
     },
@@ -935,11 +970,37 @@ async function main() {
       channelId,
     }),
   };
+  const encryptedMints = {
+    aMint: buildEncryptedMintOutput({
+      owner: participants[0].l2Address,
+      ownerL2PublicKey: participants[0].l2PublicKey,
+      value: depositAmount,
+      label: "private-state-e2e:a-mint",
+      chainId: 31337,
+      channelId,
+    }),
+    bMint: buildEncryptedMintOutput({
+      owner: participants[1].l2Address,
+      ownerL2PublicKey: participants[1].l2PublicKey,
+      value: depositAmount,
+      label: "private-state-e2e:b-mint",
+      chainId: 31337,
+      channelId,
+    }),
+    cMint: buildEncryptedMintOutput({
+      owner: participants[2].l2Address,
+      ownerL2PublicKey: participants[2].l2PublicKey,
+      value: depositAmount,
+      label: "private-state-e2e:c-mint",
+      chainId: 31337,
+      channelId,
+    }),
+  };
 
   const notes = {
-    aMint: note(participants[0].l2Address, depositAmount, "private-state-e2e:a-mint"),
-    bMint: note(participants[1].l2Address, depositAmount, "private-state-e2e:b-mint"),
-    cMint: note(participants[2].l2Address, depositAmount, "private-state-e2e:c-mint"),
+    aMint: encryptedMints.aMint.note,
+    bMint: encryptedMints.bMint.note,
+    cMint: encryptedMints.cMint.note,
     aToB: encryptedTransfers.aToB.note,
     aToC: encryptedTransfers.aToC.note,
     bToC: encryptedTransfers.bToC.note,
@@ -951,21 +1012,39 @@ async function main() {
       sender: participants[0],
       nonce: 0,
       controllerAddress,
-      calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]]]),
+      calldata: controllerInterface.encodeFunctionData(
+        "mintNotes1",
+        [[[
+          encryptedMints.aMint.output.value,
+          encryptedNoteValueTuple(encryptedMints.aMint.output.encryptedNoteValue),
+        ]]],
+      ),
     },
     {
       name: "mint-b",
       sender: participants[1],
       nonce: 0,
       controllerAddress,
-      calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.bMint.owner, notes.bMint.value, notes.bMint.salt]]]),
+      calldata: controllerInterface.encodeFunctionData(
+        "mintNotes1",
+        [[[
+          encryptedMints.bMint.output.value,
+          encryptedNoteValueTuple(encryptedMints.bMint.output.encryptedNoteValue),
+        ]]],
+      ),
     },
     {
       name: "mint-c",
       sender: participants[2],
       nonce: 0,
       controllerAddress,
-      calldata: controllerInterface.encodeFunctionData("mintNotes1", [[[notes.cMint.owner, notes.cMint.value, notes.cMint.salt]]]),
+      calldata: controllerInterface.encodeFunctionData(
+        "mintNotes1",
+        [[[
+          encryptedMints.cMint.output.value,
+          encryptedNoteValueTuple(encryptedMints.cMint.output.encryptedNoteValue),
+        ]]],
+      ),
     },
     {
       name: "transfer-a-1-to-2",

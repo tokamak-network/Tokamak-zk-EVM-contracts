@@ -21,7 +21,10 @@ const NOTE_RECEIVE_TYPED_DATA_TYPES = {
 };
 const NOTE_RECEIVE_TYPED_DATA_PROTOCOL = "PRIVATE_STATE_NOTE_RECEIVE_KEY_V2";
 const NOTE_RECEIVE_TYPED_DATA_DAPP = "private-state";
-const NOTE_RECEIVE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_NOTE_FIELD_ENCRYPTION_V1";
+const TRANSFER_NOTE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_NOTE_FIELD_ENCRYPTION_V1";
+const MINT_NOTE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_SELF_MINT_NOTE_FIELD_ENCRYPTION_V1";
+const ENCRYPTED_NOTE_SCHEME_TRANSFER = 0;
+const ENCRYPTED_NOTE_SCHEME_SELF_MINT = 1;
 const BLS12_381_SCALAR_FIELD_MODULUS =
   BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
 const JUBJUB_ORDER = jubjub.CURVE.n;
@@ -76,6 +79,10 @@ function normalizeEncryptedNoteValueWords(encryptedNoteValue) {
   return encryptedNoteValue.map((word) => normalizeBytes32Hex(word));
 }
 
+function pointFromL2PublicKey(l2PublicKey) {
+  return jubjub.ExtendedPoint.fromHex(ethers.getBytes(l2PublicKey));
+}
+
 function poseidonHexFromBytes(bytesLike) {
   return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
 }
@@ -94,10 +101,15 @@ function packEncryptedNoteValue({
   nonce,
   ciphertextValue,
   tag,
+  scheme = ENCRYPTED_NOTE_SCHEME_TRANSFER,
 }) {
   const parity = Number(ephemeralPubKeyYParity);
   if (parity !== 0 && parity !== 1) {
     throw new Error("Encrypted note value y parity must be 0 or 1.");
+  }
+  const normalizedScheme = Number(scheme);
+  if (!Number.isInteger(normalizedScheme) || normalizedScheme < 0 || normalizedScheme > 255) {
+    throw new Error("Encrypted note value scheme must fit in one byte.");
   }
   return normalizeEncryptedNoteValueWords([
     ephemeralPubKeyX,
@@ -105,7 +117,7 @@ function packEncryptedNoteValue({
       Uint8Array.from([parity]),
       ethers.getBytes(ethers.zeroPadValue(nonce, 12)),
       ethers.getBytes(ethers.zeroPadValue(tag, 16)),
-      new Uint8Array(3),
+      Uint8Array.from([normalizedScheme, 0, 0]),
     ])),
     ciphertextValue,
   ]);
@@ -120,6 +132,7 @@ function unpackEncryptedNoteValue(encryptedNoteValue) {
     nonce: ethers.hexlify(packedMetaBytes.slice(1, 13)),
     ciphertextValue,
     tag: ethers.hexlify(packedMetaBytes.slice(13, 29)),
+    scheme: packedMetaBytes[29],
   };
 }
 
@@ -158,13 +171,14 @@ function deriveFieldMask({
   channelId,
   owner,
   nonce,
+  encryptionInfo,
 }) {
   const affine = sharedSecretPoint.toAffine();
   return BigInt(poseidonHexFromBytes(
     abiCoder.encode(
       ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12"],
       [
-        NOTE_RECEIVE_FIELD_ENCRYPTION_INFO,
+        encryptionInfo,
         BigInt(chainId),
         BigInt(channelId),
         ethers.getAddress(owner),
@@ -183,6 +197,7 @@ function deriveCipherTag({
   owner,
   nonce,
   ciphertextValue,
+  encryptionInfo,
 }) {
   const affine = sharedSecretPoint.toAffine();
   return ethers.dataSlice(
@@ -190,7 +205,7 @@ function deriveCipherTag({
       abiCoder.encode(
         ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12", "bytes32"],
         [
-          `${NOTE_RECEIVE_FIELD_ENCRYPTION_INFO}:tag`,
+          `${encryptionInfo}:tag`,
           BigInt(chainId),
           BigInt(channelId),
           ethers.getAddress(owner),
@@ -248,6 +263,48 @@ export function encryptNoteValueForRecipient({
   nonce = null,
 }) {
   const recipientPoint = pointFromNoteReceivePubKey(recipientNoteReceivePubKey);
+  return encryptFieldNoteValue({
+    value,
+    recipientPoint,
+    chainId,
+    channelId,
+    owner,
+    nonce,
+    encryptionInfo: TRANSFER_NOTE_FIELD_ENCRYPTION_INFO,
+    scheme: ENCRYPTED_NOTE_SCHEME_TRANSFER,
+  });
+}
+
+export function encryptMintNoteValueForOwner({
+  value,
+  ownerL2PublicKey,
+  chainId,
+  channelId,
+  owner,
+  nonce = null,
+}) {
+  return encryptFieldNoteValue({
+    value,
+    recipientPoint: pointFromL2PublicKey(ownerL2PublicKey),
+    chainId,
+    channelId,
+    owner,
+    nonce,
+    encryptionInfo: MINT_NOTE_FIELD_ENCRYPTION_INFO,
+    scheme: ENCRYPTED_NOTE_SCHEME_SELF_MINT,
+  });
+}
+
+function encryptFieldNoteValue({
+  value,
+  recipientPoint,
+  chainId,
+  channelId,
+  owner,
+  nonce,
+  encryptionInfo,
+  scheme,
+}) {
   const ephemeralPrivateScalar = deriveEphemeralJubjubScalar();
   const ephemeralPoint = jubjub.ExtendedPoint.BASE.multiply(ephemeralPrivateScalar);
   const sharedSecretPoint = recipientPoint.multiply(ephemeralPrivateScalar);
@@ -259,6 +316,7 @@ export function encryptNoteValueForRecipient({
     channelId,
     owner,
     nonce: cipherNonce,
+    encryptionInfo,
   });
   const ciphertextValue = (plaintextValue + fieldMask) % BLS12_381_SCALAR_FIELD_MODULUS;
   const tag = deriveCipherTag({
@@ -268,6 +326,7 @@ export function encryptNoteValueForRecipient({
     owner,
     nonce: cipherNonce,
     ciphertextValue,
+    encryptionInfo,
   });
   const parsedEphemeralPubKey = noteReceivePubKeyFromPoint(ephemeralPoint);
 
@@ -277,6 +336,7 @@ export function encryptNoteValueForRecipient({
     nonce: cipherNonce,
     ciphertextValue: fieldElementHex(ciphertextValue),
     tag,
+    scheme,
   });
 }
 
@@ -287,11 +347,52 @@ export function decryptEncryptedNoteValue({
   channelId,
   owner,
 }) {
+  return decryptFieldEncryptedNoteValue({
+    encryptedValue,
+    privateKey: noteReceivePrivateKey,
+    chainId,
+    channelId,
+    owner,
+    encryptionInfo: TRANSFER_NOTE_FIELD_ENCRYPTION_INFO,
+    expectedScheme: ENCRYPTED_NOTE_SCHEME_TRANSFER,
+  });
+}
+
+export function decryptMintEncryptedNoteValue({
+  encryptedValue,
+  l2PrivateKey,
+  chainId,
+  channelId,
+  owner,
+}) {
+  return decryptFieldEncryptedNoteValue({
+    encryptedValue,
+    privateKey: l2PrivateKey,
+    chainId,
+    channelId,
+    owner,
+    encryptionInfo: MINT_NOTE_FIELD_ENCRYPTION_INFO,
+    expectedScheme: ENCRYPTED_NOTE_SCHEME_SELF_MINT,
+  });
+}
+
+function decryptFieldEncryptedNoteValue({
+  encryptedValue,
+  privateKey,
+  chainId,
+  channelId,
+  owner,
+  encryptionInfo,
+  expectedScheme,
+}) {
   const normalized = unpackEncryptedNoteValue(encryptedValue);
+  if (normalized.scheme !== expectedScheme) {
+    throw new Error(`Encrypted note value scheme mismatch. Expected ${expectedScheme}, received ${normalized.scheme}.`);
+  }
   const sharedSecretPoint = pointFromNoteReceivePubKey({
       x: normalized.ephemeralPubKeyX,
       yParity: normalized.ephemeralPubKeyYParity,
-    }).multiply(parseJubjubPrivateScalar(noteReceivePrivateKey));
+    }).multiply(parseJubjubPrivateScalar(privateKey));
   const expectedTag = deriveCipherTag({
     sharedSecretPoint,
     chainId,
@@ -299,6 +400,7 @@ export function decryptEncryptedNoteValue({
     owner,
     nonce: normalized.nonce,
     ciphertextValue: ethers.toBigInt(normalized.ciphertextValue),
+    encryptionInfo,
   });
   if (normalizeTagHex(expectedTag) !== normalizeTagHex(normalized.tag)) {
     throw new Error("Encrypted note value integrity tag mismatch.");
@@ -309,6 +411,7 @@ export function decryptEncryptedNoteValue({
     channelId,
     owner,
     nonce: normalized.nonce,
+    encryptionInfo,
   });
   const plaintext = (
     ethers.toBigInt(normalized.ciphertextValue)

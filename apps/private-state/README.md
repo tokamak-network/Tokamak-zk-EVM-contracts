@@ -189,6 +189,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 
 - rebuilds the encrypted wallet only up to the subset that can be recovered from the current channel workspace, channel registration, and bridge-propagated encrypted note logs
 - recreates the channel-bound wallet keys from `--channel-name`, `--password`, and `--private-key`
+- reclassifies every recovered current-version note into `unused` or `spent` by checking the on-chain commitment and nullifier state
 - resets `l2Nonce` to `0`
 - stops early if the target wallet folder already exists and decrypts to valid metadata and registration state for the requested channel
 - requires `--alchemy-api-key` on public networks
@@ -239,6 +240,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 - scans bridge-propagated private-state encrypted-note events from Ethereum
 - decrypts transferred note payloads with the note-receive private key and self-minted note payloads with the wallet L2 private key
 - merges newly discovered notes into the encrypted wallet
+- reconciles the wallet's current-version notes against on-chain commitment/nullifier state to classify them into `unused` and `spent`
 - reports both unused and spent note sets plus bridge-consistency status
 - accepts `--wallet`, `--password`, and `--network`
 

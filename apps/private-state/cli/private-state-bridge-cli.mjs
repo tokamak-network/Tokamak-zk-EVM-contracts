@@ -1520,6 +1520,62 @@ function mergeTrackedNotesIntoWallet(walletContext, trackedNotes) {
   return imported;
 }
 
+function reconcileWalletNotesWithBridgeState({
+  walletContext,
+  currentSnapshot,
+  controllerAddress,
+}) {
+  const reconciledUnused = {};
+  const reconciledSpent = {};
+  const trackedNotes = [
+    ...Object.values(walletContext.wallet.notes.unused ?? {}),
+    ...Object.values(walletContext.wallet.notes.spent ?? {}),
+  ];
+
+  for (const note of trackedNotes) {
+    const normalizedNote = normalizeTrackedNote(note);
+    const commitmentExists = readBooleanStorageValueFromSnapshot({
+      snapshot: currentSnapshot,
+      storageAddress: controllerAddress,
+      storageKey: normalizedNote.bridgeCommitmentKey,
+    });
+    if (!commitmentExists) {
+      continue;
+    }
+
+    const nullifierUsed = readBooleanStorageValueFromSnapshot({
+      snapshot: currentSnapshot,
+      storageAddress: controllerAddress,
+      storageKey: normalizedNote.bridgeNullifierKey,
+    });
+    const reconciledNote = {
+      ...normalizedNote,
+      status: nullifierUsed ? "spent" : "unused",
+    };
+    if (nullifierUsed) {
+      reconciledSpent[reconciledNote.nullifier] = reconciledNote;
+    } else {
+      reconciledUnused[reconciledNote.commitment] = reconciledNote;
+    }
+  }
+
+  walletContext.wallet.notes = {
+    unused: reconciledUnused,
+    spent: reconciledSpent,
+    unusedOrder: Object.values(reconciledUnused)
+      .sort(compareNotesByValueDesc)
+      .map((note) => note.commitment),
+    unusedBalance: Object.values(reconciledUnused)
+      .reduce((sum, note) => sum + BigInt(note.value), 0n)
+      .toString(),
+  };
+  walletContext.wallet = normalizeWallet(walletContext.wallet);
+  return {
+    unusedCount: Object.keys(walletContext.wallet.notes.unused).length,
+    spentCount: Object.keys(walletContext.wallet.notes.spent).length,
+  };
+}
+
 function ensureWallet({
   channelContext,
   signerAddress,
@@ -1855,10 +1911,16 @@ async function recoverDeliveredNotesFromEventLogs({
   }
 
   const importedNotes = mergeTrackedNotesIntoWallet(walletContext, importedCandidates);
+  const reconciledState = reconcileWalletNotesWithBridgeState({
+    walletContext,
+    currentSnapshot: context.currentSnapshot,
+    controllerAddress: context.workspace.controller,
+  });
   walletContext.wallet.noteReceiveLastScannedBlock = latestBlock + 1;
   persistWallet(walletContext);
   return {
     importedNotes,
+    reconciledState,
     scannedLogs: observedLogs.length,
     scanRange,
   };

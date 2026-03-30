@@ -395,7 +395,8 @@ Implemented changes:
 - `mint-notes` now builds self-mint ciphertext outputs that are decryptable with the wallet L2 private key
 - `transfer-notes` no longer treats recipient wallet sidecar writes as the canonical delivery path
 - `get-my-notes` scans Ethereum logs for `NoteValueEncrypted`, decrypts matching transfer and self-mint outputs,
-  reconstructs notes, and caches the last scanned block
+  reconstructs notes, reclassifies current-version notes through the on-chain commitment/nullifier state, and caches
+  the last scanned block
 
 ### 6. E2E and CLI-E2E Stabilization
 

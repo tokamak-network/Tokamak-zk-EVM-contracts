@@ -2722,7 +2722,7 @@ async function loadChannelContext({ args, networkName, provider, walletContext =
 
   const bridgeResources = loadBridgeResources({ chainId });
   const initialized = await initializeChannelWorkspace({
-    workspaceName: explicitWorkspaceName ?? channelName,
+    workspaceName: channelName,
     channelName,
     network: { chainId, name: resolvedNetworkName },
     provider,

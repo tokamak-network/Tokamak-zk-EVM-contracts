@@ -1014,6 +1014,16 @@ function joinChannel(participant) {
   return result;
 }
 
+function recoverWallet(participant) {
+  return runPrivateStateCli([
+    "recover-wallet",
+    "--channel-name", channelName,
+    "--network", "anvil",
+    "--private-key", participant.l1PrivateKey,
+    "--password", participant.password,
+  ]);
+}
+
 function getMyAddress(participant) {
   return runPrivateStateCli([
     "get-my-address",
@@ -1053,6 +1063,11 @@ function recoverWorkspace() {
     "--channel-name", channelName,
     "--network", "anvil",
   ]);
+}
+
+function deleteWalletDir(participant) {
+  expect(participant.walletName, `${participant.alias} walletName is not available.`);
+  fs.rmSync(walletDirForName(participant.walletName), { recursive: true, force: true });
 }
 
 function mintNotes(participant, amounts) {
@@ -1173,6 +1188,41 @@ async function main() {
       const participantResults = {};
       participantResults.depositBridge = depositBridge(participant);
       participantResults.joinChannel = joinChannel(participant);
+      if (participant.alias === "participant-a") {
+        deleteWalletDir(participant);
+        participantResults.recoverWallet = recoverWallet(participant);
+        expect(
+          participantResults.recoverWallet.status === "recovered",
+          "recover-wallet must rebuild a deleted wallet directory.",
+        );
+        expect(
+          participantResults.recoverWallet.wallet === participant.walletName,
+          "recover-wallet returned an unexpected wallet name.",
+        );
+        expect(
+          getAddress(participantResults.recoverWallet.l2Address) === getAddress(participant.registration.l2Identity.l2Address),
+          "recover-wallet returned an unexpected L2 address.",
+        );
+        expect(
+          normalizeBytes32Hex(participantResults.recoverWallet.l2StorageKey)
+            === normalizeBytes32Hex(participant.registration.storageKey),
+          "recover-wallet returned an unexpected storage key.",
+        );
+        expect(
+          BigInt(participantResults.recoverWallet.leafIndex) === BigInt(participant.registration.leafIndex),
+          "recover-wallet returned an unexpected leaf index.",
+        );
+        expect(
+          Number(participantResults.recoverWallet.l2Nonce) === 0,
+          "recover-wallet must reset l2Nonce to 0.",
+        );
+
+        participantResults.recoverWalletNoop = recoverWallet(participant);
+        expect(
+          participantResults.recoverWalletNoop.status === "already-recovered",
+          "recover-wallet must stop when the existing wallet is already valid.",
+        );
+      }
       participantResults.getMyAddress = getMyAddress(participant);
       participantResults.depositChannel = depositChannel(participant);
       participantResults.getMyChannelFund = getMyChannelFund(participant);

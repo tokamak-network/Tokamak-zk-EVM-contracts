@@ -519,6 +519,10 @@
 
         try {
           const handle = await window.showDirectoryPicker();
+          if (handle.name !== "workspace") {
+            setStatus('Selected directory must be named "workspace".');
+            return;
+          }
           const options = await loadWorkspaceDirectoryOptions(handle);
           workspaceDirectoryState.handle = handle;
           workspaceDirectoryState.channelOptions = options.channelOptions;

@@ -6,33 +6,35 @@
     <title>Private-State CLI Assistant</title>
     <style>
       body {
-        margin: 16px;
+        margin: 12px;
         font-family: sans-serif;
-        line-height: 1.4;
+        line-height: 1.3;
       }
 
       main {
-        max-width: 960px;
+        max-width: 1280px;
       }
 
       section {
-        margin-bottom: 20px;
+        margin-bottom: 12px;
       }
 
       form,
       .box {
         border: 1px solid #ccc;
-        padding: 12px;
+        padding: 10px;
       }
 
       .fields {
         display: grid;
-        gap: 12px;
+        gap: 8px;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       }
 
       label {
         display: grid;
-        gap: 4px;
+        gap: 2px;
+        font-size: 13px;
       }
 
       input,
@@ -45,11 +47,11 @@
       input,
       select,
       textarea {
-        padding: 8px;
+        padding: 6px 8px;
       }
 
       textarea {
-        min-height: 96px;
+        min-height: 60px;
         resize: vertical;
       }
 
@@ -57,19 +59,55 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-top: 12px;
+        margin-top: 8px;
       }
 
       pre {
         margin: 0;
         white-space: pre-wrap;
         word-break: break-word;
+        max-height: 240px;
+        overflow: auto;
       }
 
       .hint,
       .status {
         color: #444;
-        font-size: 14px;
+        font-size: 12px;
+      }
+
+      h1,
+      h2 {
+        margin: 0 0 8px;
+      }
+
+      p {
+        margin: 0 0 8px;
+      }
+
+      .top-grid {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 12px;
+        align-items: start;
+      }
+
+      .command-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 12px;
+        align-items: start;
+      }
+
+      .compact-select {
+        max-width: 320px;
+      }
+
+      @media (max-width: 900px) {
+        .top-grid,
+        .command-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -81,47 +119,57 @@
         <code>private-state-bridge-cli.mjs</code> command. A plain browser page cannot execute your terminal directly.
       </p>
 
-      <section>
-        <h2>Shared Inputs</h2>
-        <form class="box">
-          <div id="memory-fields" class="fields"></div>
-          <div class="actions">
-            <button id="reset-memory" type="button">Reset saved inputs</button>
-          </div>
-        </form>
-      </section>
+      <div class="top-grid">
+        <section>
+          <h2>Shared Inputs</h2>
+          <form class="box">
+            <div id="memory-fields" class="fields"></div>
+            <div class="actions">
+              <button id="reset-memory" type="button">Reset saved inputs</button>
+            </div>
+          </form>
+        </section>
 
-      <section>
-        <h2>Command</h2>
-        <div class="box">
-          <div class="fields">
-            <label>
-              Command
-              <select id="command-select"></select>
-            </label>
+        <section>
+          <h2>Command</h2>
+          <div class="box">
+            <div class="fields">
+              <label class="compact-select">
+                Command
+                <select id="command-select"></select>
+              </label>
+            </div>
+            <p id="command-description" class="hint"></p>
           </div>
-          <p id="command-description" class="hint"></p>
-        </div>
-      </section>
+        </section>
+      </div>
 
       <section>
         <h2>Command Inputs</h2>
-        <form class="box">
-          <div id="command-fields" class="fields"></div>
-        </form>
+        <div class="command-grid">
+          <form class="box">
+            <div id="command-fields" class="fields"></div>
+          </form>
+
+          <div class="box">
+            <p id="warning" class="hint"></p>
+            <pre id="command-preview"></pre>
+            <div class="actions">
+              <button id="copy-command" type="button">Copy command</button>
+              <button id="copy-multiline" type="button">Copy multiline shell</button>
+              <button id="download-script" type="button">Download shell script</button>
+            </div>
+            <p id="status" class="status" aria-live="polite"></p>
+          </div>
+        </div>
       </section>
 
       <section>
         <h2>Output</h2>
         <div class="box">
-          <p id="warning" class="hint"></p>
-          <pre id="command-preview"></pre>
-          <div class="actions">
-            <button id="copy-command" type="button">Copy command</button>
-            <button id="copy-multiline" type="button">Copy multiline shell</button>
-            <button id="download-script" type="button">Download shell script</button>
-          </div>
-          <p id="status" class="status" aria-live="polite"></p>
+          <p class="hint">
+            The preview above updates immediately. A plain browser page still cannot execute your terminal directly.
+          </p>
         </div>
       </section>
     </main>

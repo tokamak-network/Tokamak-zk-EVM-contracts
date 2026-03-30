@@ -41,7 +41,7 @@ import {
   workspaceWalletsDir as sharedWorkspaceWalletsDir,
   walletDirForName as sharedWalletDirForName,
   walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
-} from "../../cli/private-state-cli-shared.mjs";
+} from "../utils/private-state-cli-shared.mjs";
 import {
   computeEncryptedNoteSalt,
   deriveNoteReceiveKeyMaterial,

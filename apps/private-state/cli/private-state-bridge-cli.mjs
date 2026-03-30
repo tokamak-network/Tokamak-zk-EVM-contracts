@@ -52,7 +52,7 @@ import {
   walletDirForName,
   walletMetadataPathForDir,
   walletNameForChannelAndAddress,
-} from "./private-state-cli-shared.mjs";
+} from "../script/utils/private-state-cli-shared.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

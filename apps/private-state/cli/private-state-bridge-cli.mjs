@@ -1663,12 +1663,12 @@ function normalizePlaintextNote(note) {
 }
 
 function computeNoteCommitment(note) {
-  const data = ethers.concat([
+  const data = ethers.getBytes(ethers.concat([
     NOTE_COMMITMENT_DOMAIN,
     ethers.zeroPadValue(getAddress(note.owner), 32),
     ethers.toBeHex(BigInt(note.value), 32),
     normalizeBytes32Hex(note.salt),
-  ]);
+  ]));
   return normalizeBytes32Hex(
     bytesToHex(
       poseidon(data),
@@ -1677,12 +1677,12 @@ function computeNoteCommitment(note) {
 }
 
 function computeNullifier(note) {
-  const data = ethers.concat([
+  const data = ethers.getBytes(ethers.concat([
     NULLIFIER_DOMAIN,
     ethers.zeroPadValue(getAddress(note.owner), 32),
     ethers.toBeHex(BigInt(note.value), 32),
     normalizeBytes32Hex(note.salt),
-  ]);
+  ]));
   return normalizeBytes32Hex(
     bytesToHex(
       poseidon(data),
@@ -1791,7 +1791,7 @@ function derivePrivateStateControllerMappingStorageKey(keyHex, slot) {
 function computeEncryptedNoteSalt(encryptedValue) {
   const normalized = normalizeEncryptedNoteValueWords(encryptedValue);
   return normalizeBytes32Hex(
-    ethers.hexlify(poseidon(ethers.concat(normalized))),
+    ethers.hexlify(poseidon(ethers.getBytes(ethers.concat(normalized)))),
   );
 }
 

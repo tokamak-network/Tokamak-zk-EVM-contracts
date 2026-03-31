@@ -943,7 +943,7 @@
             clearWalletNoteState();
           }
           persistState();
-          if (fieldKey === "network" || fieldKey === "password") {
+          if (fieldKey === "network") {
             await refreshWalletNoteOptions();
           }
           renderPreview();
@@ -951,10 +951,17 @@
             renderWorkspacePicker();
             renderCommandFields();
           }
-          if (fieldKey === "password" && commandNeedsWalletNotes()) {
-            renderCommandFields();
-          }
         });
+
+        if (fieldKey === "password") {
+          input.addEventListener("blur", async () => {
+            await refreshWalletNoteOptions();
+            if (commandNeedsWalletNotes()) {
+              renderCommandFields();
+            }
+            renderPreview();
+          });
+        }
 
         label.appendChild(input);
         return label;

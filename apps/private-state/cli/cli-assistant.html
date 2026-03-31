@@ -260,6 +260,38 @@
         margin-bottom: 10px;
       }
 
+      .footer-stack {
+        display: grid;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .guide-list {
+        margin: 0;
+        padding-left: 20px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .guide-list li {
+        line-height: 1.4;
+      }
+
+      .guide-label {
+        font-weight: 600;
+      }
+
+      .guide-example {
+        margin-top: 6px;
+        padding: 8px 10px;
+        border: 1px solid #e0e1d9;
+        border-radius: 8px;
+        background: #fbfbf8;
+        font-size: 13px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+
       @media (max-width: 900px) {
         .page-grid {
           grid-template-columns: 1fr;
@@ -324,6 +356,68 @@
             </div>
           </section>
         </div>
+      </div>
+
+      <div class="footer-stack">
+        <section>
+          <h2>Security Notes</h2>
+          <div class="box">
+            <ul class="guide-list">
+              <li>
+                Your channel wallet is stored in your local workspace at
+                <code id="workspace-path-label"></code>.
+              </li>
+              <li>
+                Even if you lose the channel wallet file, only your Ethereum private key, together with the correct
+                channel context, can recover your channel wallet as long as you still know the wallet password.
+              </li>
+              <li>
+                If your channel wallet file and wallet password are both stolen, your channel funds can be stolen.
+              </li>
+              <li>
+                If you lose your wallet password, you lose the ability to derive your channel L2 private key. In that
+                case, you lose ownership of all notes because you can no longer use them, and that ownership cannot be
+                recovered.
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <section>
+          <h2>Command Guide</h2>
+          <div class="box">
+            <ol class="guide-list">
+              <li>
+                <span class="guide-label">Join a channel:</span> <code>join-channel</code>
+                <div class="guide-example">
+                  <code>join-channel --channel-name 'my-private-channel' --password '__WALLET_PASSWORD__' --network 'sepolia' --private-key '__L1_PRIVATE_KEY__' --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
+                </div>
+              </li>
+              <li>
+                <span class="guide-label">Create notes:</span> <code>deposit-bridge</code> -&gt; <code>deposit-channel</code> -&gt; <code>mint-notes</code>
+                <div class="guide-example">
+                  <code>deposit-bridge --amount '100' --network 'sepolia' --private-key '__L1_PRIVATE_KEY__' --alchemy-api-key '__ALCHEMY_API_KEY__'</code><br />
+                  <code>deposit-channel --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --amount '100'</code><br />
+                  <code>mint-notes --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --amounts '[&quot;50&quot;,&quot;50&quot;,&quot;0&quot;]'</code>
+                </div>
+              </li>
+              <li>
+                <span class="guide-label">Split, merge, or transfer note ownership:</span> <code>transfer-notes</code>
+                <div class="guide-example">
+                  <code>transfer-notes --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]' --recipients '[&quot;0xRecipientL2AddressA&quot;,&quot;0xRecipientL2AddressB&quot;]' --amounts '[&quot;25&quot;,&quot;25&quot;]'</code>
+                </div>
+              </li>
+              <li>
+                <span class="guide-label">Redeem notes back to L1:</span> <code>redeem-notes</code> -&gt; <code>withdraw-channel</code> -&gt; <code>withdraw-bridge</code>
+                <div class="guide-example">
+                  <code>redeem-notes --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]'</code><br />
+                  <code>withdraw-channel --wallet 'my-private-channel-0xYourL1Address' --password '__WALLET_PASSWORD__' --network 'sepolia' --amount '25'</code><br />
+                  <code>withdraw-bridge --amount '25' --network 'sepolia' --private-key '__L1_PRIVATE_KEY__' --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
+                </div>
+              </li>
+            </ol>
+          </div>
+        </section>
       </div>
     </main>
 
@@ -474,6 +568,7 @@
       const warningEl = document.getElementById("warning");
       const previewEl = document.getElementById("command-preview");
       const statusEl = document.getElementById("status");
+      const workspacePathLabelEl = document.getElementById("workspace-path-label");
       let workspaceStatusEl = null;
       const maskedSecretValues = {
         alchemyApiKey: "__ALCHEMY_API_KEY__",
@@ -541,6 +636,7 @@
         if (workspaceStatusEl) {
           workspaceStatusEl.textContent = message;
         }
+        renderWorkspacePathLabel();
       }
 
       function showWorkspaceSelectionError(message) {
@@ -553,6 +649,17 @@
 
       function shellEscape(value) {
         return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
+      }
+
+      function currentWorkspacePathLabel() {
+        if (workspaceDirectoryState.loaded && workspaceDirectoryState.handle) {
+          return `${defaultWorkspaceRootLabel} (selected directory: ${workspaceDirectoryState.handle.name})`;
+        }
+        return defaultWorkspaceRootLabel;
+      }
+
+      function renderWorkspacePathLabel() {
+        workspacePathLabelEl.textContent = currentWorkspacePathLabel();
       }
 
       function appendOption(parts, optionName, value) {
@@ -1141,6 +1248,7 @@
           state.wallet = filteredWalletOptions[0] ?? "";
         }
         clearWalletNoteState();
+        renderWorkspacePathLabel();
       }
 
       async function rescanSelectedWorkspaceDirectory() {
@@ -1678,6 +1786,7 @@
         syncWorkspaceSelectionsForCurrentNetwork();
         workspaceDirectoryState.statusMessage = buildWorkspaceStatusMessage();
         await refreshWalletNoteOptions();
+        renderWorkspacePathLabel();
         renderWorkspacePicker();
         renderMemoryFields();
         renderCommandFields();

@@ -1343,6 +1343,9 @@
             amountLabel: "Amount 2",
           },
         ].slice(0, pairLimit).forEach(({ recipientKey, amountKey, recipientLabel, amountLabel }) => {
+          const pairField = document.createElement("div");
+          pairField.className = "field-stack";
+
           const recipientField = document.createElement("div");
           recipientField.className = "field-stack";
 
@@ -1376,8 +1379,7 @@
           recipientRow.appendChild(useSelfButton);
           recipientFieldLabel.appendChild(recipientRow);
           recipientField.appendChild(recipientFieldLabel);
-
-          grid.appendChild(recipientField);
+          pairField.appendChild(recipientField);
 
           const amountField = document.createElement("div");
           amountField.className = "field-stack";
@@ -1394,7 +1396,9 @@
           amountFieldLabel.textContent = amountLabel;
           amountFieldLabel.appendChild(amountInput);
           amountField.appendChild(amountFieldLabel);
-          grid.appendChild(amountField);
+          pairField.appendChild(amountField);
+
+          grid.appendChild(pairField);
         });
 
         wrapper.appendChild(grid);

@@ -1,19 +1,19 @@
 {
   "abiManifestPath": "deployments/bridge-abi-manifest.11155111.json",
   "bridgeAdminManager": "0xa038D0a8A8167A256049a4a26877522A504e0236",
-  "bridgeAdminManagerImplementation": "0xBa6bCAfb1808a146B8bcEc8F81b032B437F1e2a9",
+  "bridgeAdminManagerImplementation": "0xb8B2b3f2eEEC580F857ccF029DA3F09F7B04a8F9",
   "bridgeCore": "0x8a8832dF0AAecd44d610Cb18DC593D6fB916BefA",
-  "bridgeCoreImplementation": "0xCC323f61530f307fd3c9278c811198C4D8ddde9F",
+  "bridgeCoreImplementation": "0x1E3da4B074fc72003d54dDc4Ca83015F7Cb5405E",
   "bridgeTokenVault": "0x65572ef1F233a428B0a5b79e26462a7D2a32D79d",
-  "bridgeTokenVaultImplementation": "0xAd57b3b0E598AEbE743cBceeF55F1f65D02b2997",
+  "bridgeTokenVaultImplementation": "0x6afDcd5c442a4D6790FE3380A07d4c67B3F7d7f9",
   "chainId": 11155111,
   "dAppManager": "0x0fFbD1e7111cF7B0A191De15962eE88Ab1481031",
-  "dAppManagerImplementation": "0x8950ea2f8C40F46623725B545419582A6001CCDc",
+  "dAppManagerImplementation": "0x06a0ddee5F64e5a1d5888c8eD259cb298f6f3cA5",
   "deployer": "0x7BA7171625dBbFb546749674BE1731ede8DA4E25",
-  "grothVerifier": "0xC47e103Eb6A321b72Ca562F0b08b1dc9eeebD38c",
+  "grothVerifier": "0xC86d8FF9f57CF64C1D9eaBE9aEfBD3f643e94adF",
   "merkleTreeLevels": 12,
   "mockAsset": "0x0000000000000000000000000000000000000000",
   "owner": "0x7BA7171625dBbFb546749674BE1731ede8DA4E25",
   "proxyKind": "uups",
-  "tokamakVerifier": "0x242aCb852d709aA9494F174Ade6d22Ab0523e6Bf"
+  "tokamakVerifier": "0xEE5337Fd186bCfAEE50D17D8a85F99c2b6Bce409"
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-31T08:56:27.385Z",
+  "generatedAt": "2026-03-31T09:44:36.822Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -677,6 +677,32 @@
         },
         {
           "type": "function",
+          "name": "setGrothVerifier",
+          "inputs": [
+            {
+              "name": "grothVerifier_",
+              "type": "address",
+              "internalType": "contract IGrothVerifier"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "setTokamakVerifier",
+          "inputs": [
+            {
+              "name": "tokamakVerifier_",
+              "type": "address",
+              "internalType": "contract ITokamakVerifier"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
           "name": "tokamakVerifier",
           "inputs": [],
           "outputs": [
@@ -810,6 +836,19 @@
         },
         {
           "type": "event",
+          "name": "GrothVerifierUpdated",
+          "inputs": [
+            {
+              "name": "grothVerifier",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "Initialized",
           "inputs": [
             {
@@ -833,6 +872,19 @@
             },
             {
               "name": "newOwner",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "TokamakVerifierUpdated",
+          "inputs": [
+            {
+              "name": "tokamakVerifier",
               "type": "address",
               "indexed": true,
               "internalType": "address"
@@ -2188,11 +2240,6 @@
               "name": "dAppManager_",
               "type": "address",
               "internalType": "contract DAppManager"
-            },
-            {
-              "name": "tokamakVerifier_",
-              "type": "address",
-              "internalType": "contract ITokamakVerifier"
             }
           ],
           "stateMutability": "nonpayable"
@@ -2643,19 +2690,6 @@
           ],
           "outputs": [],
           "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "tokamakVerifier",
-          "inputs": [],
-          "outputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "contract ITokamakVerifier"
-            }
-          ],
-          "stateMutability": "view"
         },
         {
           "type": "event",

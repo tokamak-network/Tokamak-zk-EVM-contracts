@@ -49,7 +49,7 @@ const grothVerificationKeyPath = path.join(
   repoRoot,
   "groth16",
   "trusted-setup",
-  "updateTree",
+  "crs",
   "verification_key.json"
 );
 const grothVerifierOutputPath = path.join(

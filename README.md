@@ -16,7 +16,7 @@ The active bridge implementation lives under [bridge/](./bridge/). It treats eac
 - [tokamak-zkp/](./tokamak-zkp/): the Tokamak verifier contract and verification-key artifacts used by bridge workflows
 - [submodules/Tokamak-zk-EVM](./submodules/Tokamak-zk-EVM): the shared zk-EVM execution and proving toolchain
 - [groth16/](./groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
-- [script/](./script/): shared repository scripts, including zk-artifact reflection helpers and older deployment utilities
+- [script/](./script/): shared repository scripts for zk-artifact reflection and verifier refresh
 - [test/](./test/): root-level Foundry tests and fixtures that remain useful for verifier and legacy coverage
 
 ## Where To Start

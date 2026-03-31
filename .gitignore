@@ -58,6 +58,7 @@ groth16/circuits/build/
 # Keep app CLI workspaces out of git while preserving sentinel files.
 apps/*/cli/workspace/*
 !apps/*/cli/workspace/.gitignore
+apps/*/deploy/synthesizer-layouts/*
 script/zk/rkyv-to-json/target/
 # Ignore per-DApp generated zk artifacts while keeping shared manifests.
 script/output/zk-artifacts/*/

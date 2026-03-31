@@ -1361,13 +1361,6 @@
           recipientActions.appendChild(useSelfButton);
           recipientField.appendChild(recipientActions);
 
-          const recipientHint = document.createElement("p");
-          recipientHint.className = "hint";
-          recipientHint.textContent = walletNoteState.walletL2Address
-            ? `My L2 address: ${walletNoteState.walletL2Address}`
-            : "Decrypt the selected wallet to enable the self-recipient shortcut.";
-          recipientField.appendChild(recipientHint);
-
           grid.appendChild(recipientField);
 
           const amountField = document.createElement("label");

@@ -316,6 +316,30 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     provider,
   );
   const expectedLabelHash = normalizeBytes32Hex(keccak256(ethers.toUtf8Bytes(dappLabel)));
+  const manifestPath = path.resolve(
+    repoRoot,
+    "bridge",
+    "deployments",
+    `dapp-registration.${bridgeResources.chainId}.json`,
+  );
+  const manifest = readJsonIfExists(manifestPath);
+  if (manifest !== null) {
+    const manifestLabel = typeof manifest.dappLabel === "string" ? manifest.dappLabel : null;
+    const manifestDappId = manifest.dappId;
+    const manifestManager = typeof manifest.dAppManager === "string" ? getAddress(manifest.dAppManager) : null;
+    if (
+      manifestLabel === dappLabel
+      && Number.isInteger(manifestDappId)
+      && manifestManager !== null
+      && manifestManager === getAddress(bridgeResources.bridgeDeployment.dAppManager)
+    ) {
+      const info = await dAppManager.getDAppInfo(manifestDappId);
+      if (info.exists && normalizeBytes32Hex(info.labelHash) === expectedLabelHash) {
+        return Number(manifestDappId);
+      }
+    }
+  }
+
   const events = await dAppManager.queryFilter(dAppManager.filters.DAppRegistered(), 0, "latest");
   const matchingIds = [];
 
@@ -3056,6 +3080,7 @@ function loadBridgeResources({ chainId }) {
   const bridgeAbiManifestPath = defaultBridgeAbiManifestPath(chainId);
   const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
   return {
+    chainId,
     bridgeDeploymentPath,
     bridgeDeployment,
     bridgeAbiManifestPath,

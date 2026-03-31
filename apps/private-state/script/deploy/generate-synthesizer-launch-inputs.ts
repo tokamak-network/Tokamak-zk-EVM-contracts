@@ -45,9 +45,11 @@ import {
   computeReplayPrivateStateMappingKey,
   computeReplayPrivateStateNoteCommitment,
   deriveReplayPrivateStateFieldValue,
+  getPrivateStateManagedStorageAddresses,
   getPrivateStateControllerCommitmentExistsSlot,
   getPrivateStateVaultLiquidBalancesSlot,
   loadPrivateStateStorageLayoutManifest,
+  type PrivateStateStorageLayoutManifest,
 } from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/utils/private-state.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -115,24 +117,9 @@ type ExampleContext = {
   rpcUrl: string;
   blockNumber: number;
   manifest: DeploymentManifest;
+  storageLayoutManifest: PrivateStateStorageLayoutManifest;
   participants: ChannelParticipantConfig[];
   keyMaterial: DerivedParticipantKeys;
-};
-
-const getManagedPrivateStateAddresses = (
-  manifest: DeploymentManifest,
-): `0x${string}`[] => {
-  const seen = new Set<string>();
-  const addresses: `0x${string}`[] = [];
-  for (const address of Object.values(manifest.contracts)) {
-    const normalized = ethers.getAddress(address);
-    if (seen.has(normalized)) {
-      continue;
-    }
-    seen.add(normalized);
-    addresses.push(normalized as `0x${string}`);
-  }
-  return addresses;
 };
 
 const networkConfig = new Map<AppNetwork, { chainId: number; alchemyNetwork: string | null }>([
@@ -421,11 +408,8 @@ const buildMintManifest = async (
   blockInfo: SynthesizerBlockInfo,
   contractCodes: Array<{ address: `0x${string}`; code: string }>,
 ) => {
-  const managedStorageAddresses = getManagedPrivateStateAddresses(context.manifest);
-  const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
-    storageLayoutManifestPath(context.chainId),
-  );
-  const liquidBalancesSlot = getPrivateStateVaultLiquidBalancesSlot(storageLayoutManifest);
+  const managedStorageAddresses = getPrivateStateManagedStorageAddresses(context.storageLayoutManifest);
+  const liquidBalancesSlot = getPrivateStateVaultLiquidBalancesSlot(context.storageLayoutManifest);
   const senderIndex = 0;
   const noteOwnerIndex = senderIndex;
   const senderAddress = context.participants[senderIndex]?.addressL1;
@@ -504,11 +488,8 @@ const buildTransferManifest = async (
   blockInfo: SynthesizerBlockInfo,
   contractCodes: Array<{ address: `0x${string}`; code: string }>,
 ) => {
-  const managedStorageAddresses = getManagedPrivateStateAddresses(context.manifest);
-  const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
-    storageLayoutManifestPath(context.chainId),
-  );
-  const commitmentExistsSlot = getPrivateStateControllerCommitmentExistsSlot(storageLayoutManifest);
+  const managedStorageAddresses = getPrivateStateManagedStorageAddresses(context.storageLayoutManifest);
+  const commitmentExistsSlot = getPrivateStateControllerCommitmentExistsSlot(context.storageLayoutManifest);
   const senderIndex = 0;
   const senderAddress = context.participants[senderIndex]?.addressL1;
   const recipientOneAddress = context.participants[1]?.addressL1;
@@ -635,11 +616,8 @@ const buildRedeemManifest = async (
   blockInfo: SynthesizerBlockInfo,
   contractCodes: Array<{ address: `0x${string}`; code: string }>,
 ) => {
-  const managedStorageAddresses = getManagedPrivateStateAddresses(context.manifest);
-  const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
-    storageLayoutManifestPath(context.chainId),
-  );
-  const commitmentExistsSlot = getPrivateStateControllerCommitmentExistsSlot(storageLayoutManifest);
+  const managedStorageAddresses = getPrivateStateManagedStorageAddresses(context.storageLayoutManifest);
+  const commitmentExistsSlot = getPrivateStateControllerCommitmentExistsSlot(context.storageLayoutManifest);
   const senderIndex = 0;
   const receiverIndex = 1;
   const senderAddress = context.participants[senderIndex]?.addressL1;
@@ -727,6 +705,9 @@ const main = async () => {
   const chainId = config.chainId;
   const rpcUrl = resolveRpcUrl(appNetwork);
   const manifest = await readJson<DeploymentManifest>(deploymentManifestPath(chainId));
+  const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
+    storageLayoutManifestPath(chainId),
+  );
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const blockNumber = await provider.getBlockNumber();
   const blockInfo = await getBlockInfoFromRPC(rpcUrl, blockNumber, NUMBER_OF_PREV_BLOCK_HASHES);
@@ -740,11 +721,12 @@ const main = async () => {
     rpcUrl,
     blockNumber,
     manifest,
+    storageLayoutManifest,
     participants,
     keyMaterial,
   };
 
-  const managedStorageAddresses = getManagedPrivateStateAddresses(manifest);
+  const managedStorageAddresses = getPrivateStateManagedStorageAddresses(storageLayoutManifest);
   const contractCodes = await fetchContractCodes(
     rpcUrl,
     blockNumber,

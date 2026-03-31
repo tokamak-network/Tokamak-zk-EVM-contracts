@@ -89,7 +89,7 @@ const amountUnit = 10n ** 18n;
 const depositAmountBaseUnits = 3n * amountUnit;
 const claimAmountBaseUnits = 9n * amountUnit;
 const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
-const tokamakAPubBlockLength = 68;
+const tokamakAPubBlockLength = 63;
 const tokamakPrevBlockHashCount = 4;
 const requiredTokamakSetupArtifacts = [
   "combined_sigma.rkyv",

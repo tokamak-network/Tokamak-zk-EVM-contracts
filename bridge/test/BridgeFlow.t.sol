@@ -824,14 +824,14 @@ contract BridgeFlowTest is Test {
             uint256(44)
         );
 
-        uint256[] memory shortened = new uint256[](67);
+        uint256[] memory shortened = new uint256[](62);
         for (uint256 i = 0; i < shortened.length; i++) {
             shortened[i] = proofPayload.aPubBlock[i];
         }
         proofPayload.aPubBlock = shortened;
 
         vm.expectRevert(
-            abi.encodeWithSelector(ChannelManager.APubBlockLengthMismatch.selector, uint256(68), uint256(67))
+            abi.encodeWithSelector(ChannelManager.APubBlockLengthMismatch.selector, uint256(63), uint256(62))
         );
         localChannelManager.executeChannelTransaction(proofPayload);
     }
@@ -1219,7 +1219,7 @@ contract BridgeFlowTest is Test {
         payload.functionPreprocessPart1 = new uint128[](0);
         payload.functionPreprocessPart2 = new uint256[](0);
         payload.aPubUser = new uint256[](50);
-        payload.aPubBlock = new uint256[](68);
+        payload.aPubBlock = new uint256[](63);
     }
 
     function _buildExecutableTokamakProofPayload(
@@ -1263,16 +1263,16 @@ contract BridgeFlowTest is Test {
 
     function _normalizeAPubBlock(uint256[] memory aPubBlock) internal pure returns (uint256[] memory normalized) {
         uint256 normalizedLength = aPubBlock.length;
-        if (normalizedLength > 68) {
-            for (uint256 i = 68; i < normalizedLength; i++) {
+        if (normalizedLength > 63) {
+            for (uint256 i = 63; i < normalizedLength; i++) {
                 if (aPubBlock[i] != 0) {
                     revert("a_pub_block too long");
                 }
             }
-            normalizedLength = 68;
+            normalizedLength = 63;
         }
 
-        normalized = new uint256[](68);
+        normalized = new uint256[](63);
         for (uint256 i = 0; i < normalizedLength; i++) {
             normalized[i] = aPubBlock[i];
         }
@@ -1292,7 +1292,7 @@ contract BridgeFlowTest is Test {
     }
 
     function _currentBlockAPubBlock() internal view returns (uint256[] memory words) {
-        words = new uint256[](68);
+        words = new uint256[](63);
         _writeSplitWord(words, 0, uint256(uint160(address(block.coinbase))));
         _writeSplitWord(words, 2, block.timestamp);
         _writeSplitWord(words, 4, block.number);

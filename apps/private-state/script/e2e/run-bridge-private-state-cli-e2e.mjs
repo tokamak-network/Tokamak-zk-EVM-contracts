@@ -1111,18 +1111,7 @@ function joinChannel(participant) {
   participant.walletName = result.wallet;
   participant.l2Address = result.l2Address;
   if (participant.registration !== null) {
-    expect(
-      getAddress(result.l2Address) === getAddress(participant.registration.l2Identity.l2Address),
-      `${participant.alias} join-channel resolved an unexpected L2 address.`,
-    );
-    expect(
-      normalizeBytes32Hex(result.l2StorageKey) === normalizeBytes32Hex(participant.registration.storageKey),
-      `${participant.alias} join-channel resolved an unexpected storage key.`,
-    );
-    expect(
-      BigInt(result.leafIndex) === BigInt(participant.registration.leafIndex),
-      `${participant.alias} join-channel resolved an unexpected leaf index.`,
-    );
+    assertResolvedWalletIdentity(result, participant, `${participant.alias} join-channel`);
   }
   expect(
     result.wallet === sharedWalletNameForChannelAndAddress(channelName, result.l1Address),
@@ -1210,6 +1199,21 @@ function withdrawBridge(participant, amount) {
   ]);
 }
 
+function assertResolvedWalletIdentity(result, participant, label) {
+  expect(
+    getAddress(result.l2Address) === getAddress(participant.registration.l2Identity.l2Address),
+    `${label} returned an unexpected L2 address.`,
+  );
+  expect(
+    normalizeBytes32Hex(result.l2StorageKey) === normalizeBytes32Hex(participant.registration.storageKey),
+    `${label} returned an unexpected storage key.`,
+  );
+  expect(
+    BigInt(result.leafIndex) === BigInt(participant.registration.leafIndex),
+    `${label} returned an unexpected leaf index.`,
+  );
+}
+
 function pickOutputNoteByOwner(outputNotes, ownerAddress, expectedValue) {
   const owner = getAddress(ownerAddress);
   const expected = BigInt(expectedValue).toString();
@@ -1267,7 +1271,6 @@ async function main() {
     dappRegistrationResult = await registerPrivateStateDApp(provider, bridgeDeployment, participants);
 
     createChannelResult = createChannel();
-    recoverWorkspaceResult = recoverWorkspace();
 
     for (const participant of participants) {
       const participantResults = {};
@@ -1284,19 +1287,7 @@ async function main() {
           participantResults.recoverWallet.wallet === participant.walletName,
           "recover-wallet returned an unexpected wallet name.",
         );
-        expect(
-          getAddress(participantResults.recoverWallet.l2Address) === getAddress(participant.registration.l2Identity.l2Address),
-          "recover-wallet returned an unexpected L2 address.",
-        );
-        expect(
-          normalizeBytes32Hex(participantResults.recoverWallet.l2StorageKey)
-            === normalizeBytes32Hex(participant.registration.storageKey),
-          "recover-wallet returned an unexpected storage key.",
-        );
-        expect(
-          BigInt(participantResults.recoverWallet.leafIndex) === BigInt(participant.registration.leafIndex),
-          "recover-wallet returned an unexpected leaf index.",
-        );
+        assertResolvedWalletIdentity(participantResults.recoverWallet, participant, "recover-wallet");
         expect(
           Number(participantResults.recoverWallet.l2Nonce) === 0,
           "recover-wallet must reset l2Nonce to 0.",
@@ -1350,9 +1341,14 @@ async function main() {
     const notesAfterMintA = getMyNotes(participants[0]);
     const notesAfterMintB = getMyNotes(participants[1]);
     const notesAfterMintC = getMyNotes(participants[2]);
-    assertWalletNoteSnapshot(notesAfterMintA, { unusedCount: 1, spentCount: 0, unusedTotal: depositAmountBaseUnits, spentTotal: 0n });
-    assertWalletNoteSnapshot(notesAfterMintB, { unusedCount: 1, spentCount: 0, unusedTotal: depositAmountBaseUnits, spentTotal: 0n });
-    assertWalletNoteSnapshot(notesAfterMintC, { unusedCount: 1, spentCount: 0, unusedTotal: depositAmountBaseUnits, spentTotal: 0n });
+    for (const noteSnapshot of [notesAfterMintA, notesAfterMintB, notesAfterMintC]) {
+      assertWalletNoteSnapshot(noteSnapshot, {
+        unusedCount: 1,
+        spentCount: 0,
+        unusedTotal: depositAmountBaseUnits,
+        spentTotal: 0n,
+      });
+    }
 
     const transferA = transferNotes(
       participants[0],
@@ -1430,8 +1426,13 @@ async function main() {
       claimAmountBaseUnits,
       "participant-c L1 ERC20 claim delta",
     );
-    assertBigIntEq(getMyBridgeFund(participants[0]).availableBalanceBaseUnits, 0n, "participant-a final bridge deposit");
-    assertBigIntEq(getMyBridgeFund(participants[1]).availableBalanceBaseUnits, 0n, "participant-b final bridge deposit");
+    for (const participant of participants.slice(0, 2)) {
+      assertBigIntEq(
+        getMyBridgeFund(participant).availableBalanceBaseUnits,
+        0n,
+        `${participant.alias} final bridge deposit`,
+      );
+    }
 
     const summary = {
       providerUrl,

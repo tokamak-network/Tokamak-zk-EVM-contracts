@@ -288,7 +288,7 @@ This distinction is intentional. For privacy-preserving DApps, `data availabilit
 
 The broader architectural consequence is that third-party indexers are a convenience layer, not always a protocol requirement. For DApps whose public outputs and user-held secrets are sufficient, users can remain operationally independent. For DApps whose public outputs are too sparse to reconstruct the next valid pre-state, users may still need external data services even though the bridge itself has published the accepted commitment history.
 
-## 7. Security Posture and Tradeoffs
+## 7. Security Posture, Advantages, and Tradeoffs
 
 The current implementation is built around the following security posture:
 
@@ -298,6 +298,18 @@ The current implementation is built around the following security posture:
 - DApp execution is limited to a registered metadata surface
 - token-vault authorization is bound to explicit channel registrations
 - accepted state changes remain externally observable through emitted commitments and writes
+
+The same design also gives the system several distinctive advantages.
+
+First, the bridge offers Ethereum-anchored validity finality without requiring a long fraud-proof dispute window for normal channel progress. That makes the settlement rule simple: the canonical state is the one whose valid proof advanced the accepted root on Ethereum.
+
+Second, the bridge is DApp-scoped rather than generically permissive. Each channel admits a fixed metadata-described execution surface, which creates a sharper safety boundary than an open-ended execution model and makes the bridge's trust and verification envelope easier to reason about.
+
+Third, the bridge separates custody from application execution. Assets remain conservatively anchored in the shared L1 vault, while richer application semantics can live in proof-backed channel execution. This gives the system a narrow and explicit custody boundary even when application logic is more expressive.
+
+Fourth, the bridge combines compact persistent state with auditable observability. It does not mirror all application state on Ethereum, but it still publishes accepted commitments, observed writes, and accepted event outputs so that users and external observers can reconstruct what the bridge accepted.
+
+Fifth, the bridge supports layered privacy rather than one uniform privacy promise. At the bridge layer it hides the full execution witness and original off-chain execution payload, and at the DApp layer it allows applications such as `private-state` to provide stronger user-local privacy on top of that settlement surface.
 
 The same implementation also makes several explicit tradeoffs.
 
@@ -309,9 +321,21 @@ Third, the bridge separates asset safety from application-data availability. Ass
 
 Fourth, the bridge assumes exact-transfer asset behavior in the shared L1 vault. This conservative rule protects custody accounting but excludes ERC-20 behaviors that mutate balances during transfer.
 
-Finally, the bridge uses an upgradeable shared control plane together with immutable per-channel deployments. This balances evolvability of the bridge framework against explicit channel-local commitment boundaries, but it also requires disciplined governance for upgrades.
+Fifth, the bridge uses an upgradeable shared control plane together with immutable per-channel deployments. This balances evolvability of the bridge framework against explicit channel-local commitment boundaries, but it also requires disciplined governance for upgrades.
 
-## 8. Conclusion
+Sixth, some present-day integration and user-experience burden remains above the common proving stack. The reusable Tokamak-zk-EVM pipeline means a new DApp does not need a bespoke proving architecture from scratch, but DApp developers still need to package bridge metadata, client sync, recovery flows, and privacy-aware UX around that shared substrate. This is better understood as a tooling and productization gap than as a fundamental limitation of the bridge architecture, but today it still affects onboarding cost.
+
+## 8. Future Work
+
+Several of the present tradeoffs are expected to compress with better tooling.
+
+One direction is DApp-integration tooling. The current bridge already benefits from a reusable proving pipeline, so future work can focus on standardizing the remaining bridge-facing work: generating admissible metadata, validating storage surfaces, scaffolding client sync and recovery components, and packaging common integration patterns so that new DApps require less bespoke adaptation.
+
+Another direction is user-facing tooling. Wallet recovery, local state continuity, and private-state handling should become safer defaults rather than manual operator knowledge. Better developer and user tooling can turn many of today's integration chores into routine productization steps.
+
+Finally, the current system's most visible architectural tradeoff is that it buys comparatively strong privacy and clean validity finality by paying the cost of expensive validity-proof verification on the critical path. A useful future-work direction is to explore whether that tradeoff can be mediated by optional third-party or server-assisted layers, such as delegated proving, relay services, aggregation services, or other assisted submission paths. The goal would not be to weaken Ethereum-anchored validity settlement, but to let applications choose how much cost, latency, privacy, and operational independence they want to carry directly versus outsource to specialized infrastructure.
+
+## 9. Conclusion
 
 The current Tokamak Private App Channels bridge is best understood as a proof-first bridge for dedicated application channels, not as a generic rollup shell. Its design philosophy is consistent across the implementation:
 

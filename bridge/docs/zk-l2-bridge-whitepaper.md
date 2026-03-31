@@ -50,6 +50,8 @@ The user side of the topology is also layered. A user has one global Ethereum-fa
 
 ## 3. Design Philosophy
 
+![High-level system overview](./overview.png)
+
 ### 3.1 Ethereum Remains the Trust Anchor
 
 The bridge is built around a simple boundary: off-chain systems may execute transactions and build proofs, but they do not finalize state by themselves. A state transition becomes economically meaningful only when Ethereum verifies the proof and the bridge accepts the resulting commitment update.

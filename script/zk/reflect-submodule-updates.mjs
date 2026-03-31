@@ -254,7 +254,7 @@ async function main() {
 
   const tokamakL2Js = await resolveTokamakL2JsMetadata();
   const submodule = await resolveSubmoduleRevision();
-  const grothMetadataPath = path.join(repoRoot, "groth16", "trusted-setup", "updateTree", "metadata.json");
+  const grothMetadataPath = path.join(repoRoot, "groth16", "trusted-setup", "crs", "metadata.json");
 
   const manifest = {
     generatedAt: new Date().toISOString(),

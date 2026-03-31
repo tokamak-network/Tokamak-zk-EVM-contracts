@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 DEPLOY_DIR="$PROJECT_ROOT/apps/private-state/deploy"
-SOURCE_TRUSTED_SETUP_DIR="$PROJECT_ROOT/groth16/trusted-setup/updateTree"
+SOURCE_TRUSTED_SETUP_DIR="$PROJECT_ROOT/groth16/trusted-setup/crs"
 
 if [[ $# -ne 1 ]]; then
     echo "Usage: $0 <chain-id>" >&2

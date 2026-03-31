@@ -28,7 +28,7 @@
     }
   },
   "groth16": {
-    "verificationKeyPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/trusted-setup/updateTree/verification_key.json",
+    "verificationKeyPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/trusted-setup/crs/verification_key.json",
     "verifierPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/verifier/src/Groth16Verifier.sol",
     "metadata": {
       "circuit": "updateTree",

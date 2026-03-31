@@ -13,7 +13,7 @@ Generate the verifier contract:
 
 ```bash
 python3 groth16/verifier/scripts/generate_update_tree_verifier.py \
-  groth16/trusted-setup/updateTree/verification_key.json \
+  groth16/trusted-setup/crs/verification_key.json \
   groth16/verifier/src/Groth16Verifier.sol
 ```
 

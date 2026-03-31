@@ -51,7 +51,7 @@ ignition/deployments/chain-31337
 
 # Groth16 directories to exclude
 groth16/trusted-setup/pow_of_tau/
-groth16/trusted-setup/updateTree/circuit_final.zkey
+groth16/trusted-setup/crs/
 groth16/circuits/build/
 *.ptau
 .DS_Store

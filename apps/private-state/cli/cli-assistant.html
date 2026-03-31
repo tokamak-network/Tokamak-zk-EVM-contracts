@@ -94,8 +94,12 @@
       }
 
       textarea {
-        min-height: 60px;
+        min-height: 96px;
         resize: vertical;
+      }
+
+      select[multiple] {
+        min-height: 96px;
       }
 
       .actions {
@@ -109,6 +113,10 @@
         display: grid;
         gap: 6px;
         align-content: start;
+      }
+
+      .field-span-full {
+        grid-column: 1 / -1;
       }
 
       pre {
@@ -355,6 +363,7 @@
       const walletNoteState = {
         cacheKey: "",
         options: [],
+        canonicalAssetDecimals: 18,
         statusMessage: "",
         hasLoaded: false,
       };
@@ -530,6 +539,7 @@
       function clearWalletNoteState(message = "") {
         walletNoteState.cacheKey = "";
         walletNoteState.options = [];
+        walletNoteState.canonicalAssetDecimals = 18;
         walletNoteState.statusMessage = message;
         walletNoteState.hasLoaded = false;
         if (commandNeedsWalletNotes()) {
@@ -572,7 +582,25 @@
       function syncSelectedNoteIdsToAvailableOptions() {
         const available = new Set(walletNoteState.options.map((option) => option.value));
         const selected = parseSelectedNoteIds().filter((noteId) => available.has(noteId));
-        state.noteIds = selected.length === 0 ? "" : JSON.stringify(selected);
+        const normalized = selected.slice(0, 2);
+        state.noteIds = normalized.length === 0 ? "" : JSON.stringify(normalized);
+      }
+
+      function selectedNoteTotalLabel() {
+        const selectedIds = parseSelectedNoteIds();
+        if (selectedIds.length === 0) {
+          return "Selected total: 0";
+        }
+        const optionMap = new Map(walletNoteState.options.map((option) => [option.value, option]));
+        const totalBaseUnits = selectedIds.reduce((sum, noteId) => {
+          const option = optionMap.get(noteId);
+          return sum + BigInt(option?.amountBaseUnits ?? 0n);
+        }, 0n);
+        const totalTokens = (window.ethers?.ethers ?? window.ethers).formatUnits(
+          totalBaseUnits,
+          walletNoteState.canonicalAssetDecimals,
+        );
+        return `Selected total: ${totalTokens} (${totalBaseUnits.toString()} base units)`;
       }
 
       function rerenderCommandField(fieldKey) {
@@ -704,6 +732,7 @@
           .filter((note) => note && typeof note.commitment === "string")
           .map((note) => ({
             value: note.commitment,
+            amountBaseUnits: String(note.value ?? "0"),
             label: typeof note.value === "string"
               ? `${note.commitment} (${note.value})`
               : note.commitment,
@@ -747,6 +776,7 @@
           const walletEnvelope = JSON.parse(await (await walletFileHandle.getFile()).text());
           const walletJson = await decryptWalletJson(walletEnvelope, state.password);
           walletNoteState.options = extractUnusedNoteOptions(walletJson);
+          walletNoteState.canonicalAssetDecimals = Number(walletJson?.canonicalAssetDecimals ?? 18);
           walletNoteState.statusMessage = walletNoteState.options.length === 0
             ? "This wallet has no unused note IDs."
             : `Loaded ${walletNoteState.options.length} unused note ID${walletNoteState.options.length === 1 ? "" : "s"}.`;
@@ -1068,7 +1098,7 @@
 
       function createNoteIdsField() {
         const wrapper = document.createElement("div");
-        wrapper.className = "field-stack";
+        wrapper.className = "field-stack field-span-full";
         const label = document.createElement("label");
         label.textContent = fieldCatalog.noteIds.label;
 
@@ -1087,9 +1117,15 @@
         }
 
         select.addEventListener("change", (event) => {
-          const selectedValues = [...event.target.selectedOptions].map((option) => option.value);
-          state.noteIds = selectedValues.length === 0 ? "" : JSON.stringify(selectedValues);
+          const limitedValues = [...event.target.selectedOptions]
+            .map((option) => option.value)
+            .slice(0, 2);
+          for (const option of event.target.options) {
+            option.selected = limitedValues.includes(option.value);
+          }
+          state.noteIds = limitedValues.length === 0 ? "" : JSON.stringify(limitedValues);
           persistState();
+          totalHint.textContent = selectedNoteTotalLabel();
           renderPreview();
         });
 
@@ -1098,8 +1134,14 @@
 
         const hint = document.createElement("p");
         hint.className = "hint";
-        hint.textContent = walletNoteState.statusMessage || "Choose a wallet and enter its password to load note IDs.";
+        hint.textContent = walletNoteState.statusMessage || "Choose a wallet and enter its password to load up to 2 note IDs.";
         wrapper.appendChild(hint);
+
+        const totalHint = document.createElement("p");
+        totalHint.className = "hint";
+        totalHint.textContent = selectedNoteTotalLabel();
+        wrapper.appendChild(totalHint);
+
         return wrapper;
       }
 
@@ -1291,6 +1333,9 @@
             continue;
           }
           const fieldElement = createField(fieldKey);
+          if (fieldKey === "noteIds") {
+            fieldElement.classList.add("field-span-full");
+          }
           fieldElement.dataset.fieldKey = fieldKey;
           commandFieldsEl.appendChild(fieldElement);
         }

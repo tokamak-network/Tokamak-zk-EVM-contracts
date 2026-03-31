@@ -209,6 +209,25 @@ contract BridgeFlowTest is Test {
         dAppManager.deleteDApp(1);
     }
 
+    function testOwnerCanDeleteDAppWithActiveChannelsOnSepolia() public {
+        vm.chainId(11155111);
+
+        dAppManager.deleteDApp(1);
+
+        vm.expectRevert(abi.encodeWithSelector(DAppManager.UnknownDApp.selector, 1));
+        dAppManager.getDAppInfo(1);
+    }
+
+    function testOwnerCanDeleteDAppOnSepoliaAfterDeletionIsDisabledForever() public {
+        vm.chainId(11155111);
+        dAppManager.disableDAppDeletionForever();
+
+        dAppManager.deleteDApp(1);
+
+        vm.expectRevert(abi.encodeWithSelector(DAppManager.UnknownDApp.selector, 1));
+        dAppManager.getDAppInfo(1);
+    }
+
     function testRejectsDeletingDAppAfterDeletionIsDisabledForever() public {
         dAppManager.disableDAppDeletionForever();
 

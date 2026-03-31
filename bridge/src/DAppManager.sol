@@ -7,6 +7,8 @@ import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgrade
 import {BridgeStructs} from "./BridgeStructs.sol";
 
 contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    uint256 internal constant SEPOLIA_CHAIN_ID = 11155111;
+
     error UnknownDApp(uint256 dappId);
     error DuplicateDApp(uint256 dappId);
     error InvalidBridgeCore();
@@ -127,10 +129,11 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     function deleteDApp(uint256 dappId) external onlyOwner {
         DAppInfo memory info = _requireDApp(dappId);
-        if (!dAppDeletionEnabled) revert DAppDeletionDisabled();
+        bool isSepolia = block.chainid == SEPOLIA_CHAIN_ID;
+        if (!isSepolia && !dAppDeletionEnabled) revert DAppDeletionDisabled();
 
         uint256 activeChannelCount = _activeChannelCounts[dappId];
-        if (activeChannelCount != 0) {
+        if (!isSepolia && activeChannelCount != 0) {
             revert ActiveChannelsExist(dappId, activeChannelCount);
         }
 

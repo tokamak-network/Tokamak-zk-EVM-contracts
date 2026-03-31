@@ -105,6 +105,16 @@
         margin-top: 6px;
       }
 
+      .inline-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .inline-actions button {
+        width: auto;
+      }
+
       .field-stack {
         display: grid;
         gap: 6px;
@@ -409,6 +419,7 @@
         cacheKey: "",
         options: [],
         canonicalAssetDecimals: 18,
+        walletL2Address: "",
         statusMessage: "",
         hasLoaded: false,
       };
@@ -585,6 +596,7 @@
         walletNoteState.cacheKey = "";
         walletNoteState.options = [];
         walletNoteState.canonicalAssetDecimals = 18;
+        walletNoteState.walletL2Address = "";
         walletNoteState.statusMessage = message;
         walletNoteState.hasLoaded = false;
         if (commandNeedsWalletNotes()) {
@@ -726,6 +738,9 @@
           await refreshWalletNoteOptions();
           if (commandNeedsWalletNotes()) {
             rerenderCommandField("noteIds");
+            if (currentCommand().id === "transfer-notes") {
+              rerenderCommandField("recipients");
+            }
           }
           renderPreview();
         }, 250);
@@ -881,6 +896,7 @@
           const walletJson = await decryptWalletJson(walletEnvelope, state.password);
           walletNoteState.options = extractUnusedNoteOptions(walletJson);
           walletNoteState.canonicalAssetDecimals = Number(walletJson?.canonicalAssetDecimals ?? 18);
+          walletNoteState.walletL2Address = typeof walletJson?.l2Address === "string" ? walletJson.l2Address : "";
           walletNoteState.statusMessage = walletNoteState.options.length === 0
             ? "This wallet has no unused note IDs."
             : `Loaded ${walletNoteState.options.length} unused note ID${walletNoteState.options.length === 1 ? "" : "s"}.`;
@@ -1310,8 +1326,11 @@
             amountLabel: "Amount 2",
           },
         ].slice(0, pairLimit).forEach(({ recipientKey, amountKey, recipientLabel, amountLabel }) => {
-          const recipientField = document.createElement("label");
-          recipientField.textContent = recipientLabel;
+          const recipientField = document.createElement("div");
+          recipientField.className = "field-stack";
+
+          const recipientFieldLabel = document.createElement("label");
+          recipientFieldLabel.textContent = recipientLabel;
           const recipientInput = document.createElement("input");
           recipientInput.type = "text";
           recipientInput.placeholder = "0xRecipientL2Address";
@@ -1321,7 +1340,34 @@
             persistState();
             renderPreview();
           });
-          recipientField.appendChild(recipientInput);
+          recipientFieldLabel.appendChild(recipientInput);
+          recipientField.appendChild(recipientFieldLabel);
+
+          const recipientActions = document.createElement("div");
+          recipientActions.className = "inline-actions";
+          const useSelfButton = document.createElement("button");
+          useSelfButton.type = "button";
+          useSelfButton.textContent = "Use my L2 address";
+          useSelfButton.disabled = !walletNoteState.walletL2Address;
+          useSelfButton.addEventListener("click", () => {
+            if (!walletNoteState.walletL2Address) {
+              return;
+            }
+            state[recipientKey] = walletNoteState.walletL2Address;
+            persistState();
+            rerenderCommandField("recipients");
+            renderPreview();
+          });
+          recipientActions.appendChild(useSelfButton);
+          recipientField.appendChild(recipientActions);
+
+          const recipientHint = document.createElement("p");
+          recipientHint.className = "hint";
+          recipientHint.textContent = walletNoteState.walletL2Address
+            ? `My L2 address: ${walletNoteState.walletL2Address}`
+            : "Decrypt the selected wallet to enable the self-recipient shortcut.";
+          recipientField.appendChild(recipientHint);
+
           grid.appendChild(recipientField);
 
           const amountField = document.createElement("label");

@@ -519,6 +519,9 @@ async function main() {
   }
   const appNetwork = options.appNetwork ?? resolveDefaultAppNetwork(chainId);
   const appChainId = resolveAppChainId(appNetwork);
+  await updateTokamakSubmodule();
+  ensureTokamakDistBackendBinaries(tokamakSubmoduleRoot);
+  await runTokamakInstall();
   await runPrivateStateDeployment({
     appNetwork,
     appEnvFile: options.appEnvFile,
@@ -534,10 +537,6 @@ async function main() {
   const artifactsRoot = path.join(options.artifactsOut, dappLabel);
   ensureDir(artifactsRoot);
   const appContext = loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath });
-
-  await updateTokamakSubmodule();
-  ensureTokamakDistBackendBinaries(tokamakSubmoduleRoot);
-  await runTokamakInstall();
 
   const allProcessed = [];
   const allSkipped = [];

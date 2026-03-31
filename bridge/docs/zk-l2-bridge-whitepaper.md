@@ -50,7 +50,7 @@ The user side of the topology is also layered. A user has one global Ethereum-fa
 
 ## 3. Design Philosophy
 
-![High-level system overview](overview.png)
+<img src="overview.png" alt="High-level system overview" />
 
 ### 3.1 Ethereum Remains the Trust Anchor
 

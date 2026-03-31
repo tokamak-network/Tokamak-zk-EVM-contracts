@@ -117,9 +117,6 @@ const DEFAULT_LOG_CHUNK_SIZE = 2000;
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  assertNoLegacyBridgeOverrideFlags(args);
-  assertNoLegacyWalletFlags(args);
-  assertNoLegacyL2IdentityFlags(args);
 
   if (args.help || !args.command) {
     printHelp();
@@ -222,46 +219,8 @@ async function main() {
       await handleJoinChannel({ args, network, provider, rpcUrl });
       return;
     }
-    case "get-my-address":
-      throw new Error("get-my-address requires explicit --network.");
-    case "get-my-channel-fund":
-      throw new Error("get-my-channel-fund requires explicit --network.");
-    case "mint-notes":
-      throw new Error("mint-notes requires explicit --network.");
-    case "redeem-notes":
-      throw new Error("redeem-notes requires explicit --network.");
-    case "get-my-notes":
-      throw new Error("get-my-notes requires explicit --network.");
-    case "transfer-notes":
-      throw new Error("transfer-notes requires explicit --network.");
-    case "withdraw-channel":
-      throw new Error("withdraw-channel requires explicit --network.");
     default:
       throw new Error(`Unsupported command: ${args.command}`);
-  }
-}
-
-function assertNoLegacyBridgeOverrideFlags(args) {
-  if (args.bridgeDeployment !== undefined) {
-    throw new Error("--bridge-deployment is no longer supported. Select the bridge through --network only.");
-  }
-  if (args.bridgeAbiManifest !== undefined) {
-    throw new Error("--bridge-abi-manifest is no longer supported. Select the bridge through --network only.");
-  }
-}
-
-function assertNoLegacyWalletFlags(args) {
-  if (args.userWorkspace !== undefined) {
-    throw new Error("--user-workspace is no longer supported. Use --wallet instead.");
-  }
-}
-
-function assertNoLegacyL2IdentityFlags(args) {
-  if (args.l2KeySignature !== undefined) {
-    throw new Error("--l2-key-signature is no longer supported. Use --password instead.");
-  }
-  if (args.l2Password !== undefined) {
-    throw new Error("--l2-password is no longer supported. Use --password instead.");
   }
 }
 
@@ -1333,7 +1292,10 @@ async function handleWithdrawBridge({ args, provider }) {
 async function handleMintNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
-  const amountInputs = parseMintTokenAmountVector(requireArg(args.amounts, "--amounts"));
+  const amountInputs = parseAmountVector(requireArg(args.amounts, "--amounts"), {
+    allowZeroEntries: true,
+    requireAnyPositive: true,
+  });
   const baseUnitAmounts = amountInputs
     .map((value, index) => ({
       index,
@@ -1395,7 +1357,7 @@ async function handleMintNotes({ args, provider }) {
 async function handleRedeemNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
-  const inputNotes = loadRedeemInputNotes(wallet, noteIds);
+  const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const templatePayload = buildRedeemNotesTemplatePayload({
     wallet,
     inputNotes,
@@ -1502,13 +1464,13 @@ async function handleTransferNotes({ args, provider }) {
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
   const noteIds = parseNoteIdVector(requireArg(args.noteIds, "--note-ids"));
   const recipients = parseRecipientVector(requireArg(args.recipients, "--recipients"));
-  const amountInputs = parseTokenAmountVector(requireArg(args.amounts, "--amounts"));
+  const amountInputs = parseAmountVector(requireArg(args.amounts, "--amounts"));
   expect(
     recipients.length === amountInputs.length,
     "--amounts length must match --recipients length.",
   );
 
-  const inputNotes = loadTransferInputNotes(wallet, noteIds);
+  const inputNotes = loadWalletUnusedInputNotes(wallet, noteIds);
   const outputAmounts = amountInputs.map((value, index) => {
     const parsed = parseTokenAmount(value, canonicalAssetDecimals);
     expect(parsed > 0n, `Invalid --amounts[${index}]. Each amount must be greater than zero.`);
@@ -2719,13 +2681,7 @@ function selectTransferNotesMethod(inputCount, outputCount) {
   throw new Error("transfer-notes supports only 1->1, 1->2, and 2->1 note transfers.");
 }
 
-function generateNoteSalt() {
-  const raw = BigInt(ethers.hexlify(randomBytes(32)));
-  const normalized = (raw % (BLS12_381_SCALAR_FIELD_MODULUS - 1n)) + 1n;
-  return bytes32FromHex(ethers.toBeHex(normalized));
-}
-
-function loadTransferInputNotes(walletContext, noteIds) {
+function loadWalletUnusedInputNotes(walletContext, noteIds) {
   return noteIds.map((noteId) => {
     const trackedNote = walletContext.wallet.notes.unused[noteId];
     expect(trackedNote, `Unknown unused note commitment: ${noteId}.`);
@@ -2733,38 +2689,7 @@ function loadTransferInputNotes(walletContext, noteIds) {
   });
 }
 
-function loadRedeemInputNotes(walletContext, noteIds) {
-  return noteIds.map((noteId) => {
-    const trackedNote = walletContext.wallet.notes.unused[noteId];
-    expect(trackedNote, `Unknown unused note commitment: ${noteId}.`);
-    return normalizePlaintextNote(trackedNote);
-  });
-}
-
-function parseTokenAmountVector(value) {
-  let parsed;
-  try {
-    parsed = JSON.parse(String(value));
-  } catch {
-    throw new Error("Invalid --amounts. Expected a JSON array such as [1,2,3].");
-  }
-  expect(Array.isArray(parsed), "Invalid --amounts. Expected a JSON array.");
-  expect(parsed.length > 0, "Invalid --amounts. The array must not be empty.");
-  return parsed.map((entry, index) => {
-    const normalized = typeof entry === "string" || typeof entry === "number" ? String(entry) : null;
-    expect(
-      normalized !== null && normalized.length > 0,
-      `Invalid --amounts[${index}]. Each amount must be a string or number.`,
-    );
-    expect(
-      !normalized.startsWith("-") && normalized !== "0" && normalized !== "0.0",
-      `Invalid --amounts[${index}]. Each amount must be greater than zero.`,
-    );
-    return normalized;
-  });
-}
-
-function parseMintTokenAmountVector(value) {
+function parseAmountVector(value, { allowZeroEntries = false, requireAnyPositive = false } = {}) {
   let parsed;
   try {
     parsed = JSON.parse(String(value));
@@ -2779,23 +2704,28 @@ function parseMintTokenAmountVector(value) {
       normalized !== null && normalized.length > 0,
       `Invalid --amounts[${index}]. Each amount must be a string or number.`,
     );
-    expect(
-      !normalized.startsWith("-"),
-      `Invalid --amounts[${index}]. Each amount must be zero or greater.`,
-    );
+    expect(!normalized.startsWith("-"), `Invalid --amounts[${index}]. Each amount must be zero or greater.`);
+    if (!allowZeroEntries) {
+      expect(
+        normalized !== "0" && normalized !== "0.0",
+        `Invalid --amounts[${index}]. Each amount must be greater than zero.`,
+      );
+    }
     return normalized;
   });
-  const hasNonZeroEntry = normalizedAmounts.some((normalized) => {
-    const trimmed = normalized.trim();
-    if (trimmed.length === 0) {
-      return false;
-    }
-    return Number.parseFloat(trimmed) !== 0;
-  });
-  expect(
-    hasNonZeroEntry,
-    "Invalid --amounts. The array must contain at least one amount greater than zero.",
-  );
+  if (requireAnyPositive) {
+    const hasNonZeroEntry = normalizedAmounts.some((normalized) => {
+      const trimmed = normalized.trim();
+      if (trimmed.length === 0) {
+        return false;
+      }
+      return Number.parseFloat(trimmed) !== 0;
+    });
+    expect(
+      hasNonZeroEntry,
+      "Invalid --amounts. The array must contain at least one amount greater than zero.",
+    );
+  }
   return normalizedAmounts;
 }
 
@@ -4292,7 +4222,10 @@ function assertUninstallZkEvmArgs(args) {
 function assertMintNotesArgs(args) {
   requireArg(args.amounts, "--amounts");
   assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --password, --network, and --amounts");
-  parseMintTokenAmountVector(args.amounts);
+  parseAmountVector(args.amounts, {
+    allowZeroEntries: true,
+    requireAnyPositive: true,
+  });
 }
 
 function assertRedeemNotesArgs(args) {
@@ -4313,7 +4246,7 @@ function assertTransferNotesArgs(args) {
   );
   const noteIds = parseNoteIdVector(args.noteIds);
   const recipients = parseRecipientVector(args.recipients);
-  const amounts = parseTokenAmountVector(args.amounts);
+  const amounts = parseAmountVector(args.amounts);
   expect(
     recipients.length === amounts.length,
     "--amounts length must match --recipients length.",

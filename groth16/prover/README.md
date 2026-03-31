@@ -27,6 +27,18 @@ To use a custom input file:
 node groth16/prover/updateTree/generateProof.mjs --input /path/to/input.json
 ```
 
+To use prebuilt proving artifacts and skip circuit compilation:
+
+```bash
+node groth16/prover/updateTree/generateProof.mjs \
+  --input /path/to/input.json \
+  --skip-compile \
+  --metadata /path/to/metadata.json \
+  --wasm /path/to/circuit_updateTree.wasm \
+  --zkey /path/to/circuit_final.zkey \
+  --verification-key /path/to/verification_key.json
+```
+
 ## Input Shape
 
 The circuit input JSON must contain:
@@ -41,3 +53,4 @@ The circuit input JSON must contain:
 - `proof`
 
 The bundled script regenerates `input_example.json` from `tokamak-l2js` and the trusted-setup metadata before producing `proof.json` and `public.json`.
+When `--skip-compile` is used, the script does not rebuild the circuit and instead uses the prebuilt artifact paths supplied on the command line.

@@ -36,6 +36,10 @@ function findFlag(name) {
   return path.resolve(process.cwd(), process.argv[index + 1]);
 }
 
+function hasFlag(name) {
+  return process.argv.includes(name);
+}
+
 function run(cmd, args, cwd) {
   execFileSync(cmd, args, {
     cwd,
@@ -119,7 +123,8 @@ function assertCircuitDepth(mtDepth) {
 }
 
 async function buildExampleInput(outputPath) {
-  const metadata = readJson(metadataPath);
+  const resolvedMetadataPath = findFlag("--metadata") ?? metadataPath;
+  const metadata = readJson(resolvedMetadataPath);
   const tokamak = await loadTokamakL2Js(metadata.tokamakL2JsVersion);
   if (tokamak.MT_DEPTH !== metadata.mtDepth) {
     throw new Error(
@@ -168,19 +173,37 @@ async function buildExampleInput(outputPath) {
 
 async function main() {
   const inputPath = findFlag("--input") ?? defaultInputPath;
-  const metadata = readJson(metadataPath);
+  const resolvedMetadataPath = findFlag("--metadata") ?? metadataPath;
+  const resolvedWasmPath = findFlag("--wasm") ?? wasmPath;
+  const resolvedZkeyPath = findFlag("--zkey") ?? zkeyPath;
+  const resolvedVerificationKeyPath = findFlag("--verification-key") ?? verificationKeyPath;
+  const skipCompile = hasFlag("--skip-compile");
+  const metadata = readJson(resolvedMetadataPath);
 
-  assertCircuitDepth(metadata.mtDepth);
   if (inputPath === defaultInputPath || !fs.existsSync(inputPath)) {
+    assertCircuitDepth(metadata.mtDepth);
     await buildExampleInput(defaultInputPath);
   }
 
-  run("npm", ["run", "compile"], circuitsDir);
+  if (!skipCompile) {
+    assertCircuitDepth(metadata.mtDepth);
+    run("npm", ["run", "compile"], circuitsDir);
+  }
+
+  for (const [label, filePath] of [
+    ["updateTree wasm", resolvedWasmPath],
+    ["updateTree proving key", resolvedZkeyPath],
+    ["updateTree verification key", resolvedVerificationKeyPath],
+  ]) {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Missing ${label}: ${filePath}`);
+    }
+  }
 
   const snarkjs = findSnarkjs();
-  run(snarkjs, ["wtns", "calculate", wasmPath, inputPath, witnessPath], circuitsDir);
-  run(snarkjs, ["groth16", "prove", zkeyPath, witnessPath, proofPath, publicPath], circuitsDir);
-  run(snarkjs, ["groth16", "verify", verificationKeyPath, publicPath, proofPath], circuitsDir);
+  run(snarkjs, ["wtns", "calculate", resolvedWasmPath, inputPath, witnessPath], circuitsDir);
+  run(snarkjs, ["groth16", "prove", resolvedZkeyPath, witnessPath, proofPath, publicPath], circuitsDir);
+  run(snarkjs, ["groth16", "verify", resolvedVerificationKeyPath, publicPath, proofPath], circuitsDir);
 
   const proof = readJson(proofPath);
   const publicSignals = readJson(publicPath);

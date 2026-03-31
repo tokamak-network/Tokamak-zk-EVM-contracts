@@ -3174,6 +3174,7 @@ async function assertWorkspaceAlignedWithChain(context) {
 }
 
 async function buildGrothTransition({ operationDir, workspace, stateManager, vaultAddress, keyHex, nextValue }) {
+  const grothArtifacts = loadGroth16UpdateTreeArtifacts(Number(workspace.chainId));
   const vaultAddressObj = createAddressFromString(vaultAddress);
   const keyBigInt = BigInt(keyHex);
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
@@ -3196,9 +3197,26 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   };
 
   writeJson(path.join(operationDir, "input.json"), input);
-  run("node", ["groth16/prover/updateTree/generateProof.mjs", "--input", path.join(operationDir, "input.json")], {
-    cwd: projectRoot,
-  });
+  run(
+    "node",
+    [
+      "groth16/prover/updateTree/generateProof.mjs",
+      "--input",
+      path.join(operationDir, "input.json"),
+      "--skip-compile",
+      "--metadata",
+      grothArtifacts.metadataPath,
+      "--wasm",
+      grothArtifacts.wasmPath,
+      "--zkey",
+      grothArtifacts.zkeyPath,
+      "--verification-key",
+      grothArtifacts.verificationKeyPath,
+    ],
+    {
+      cwd: projectRoot,
+    },
+  );
 
   const proofJson = readJson(path.join(projectRoot, "groth16", "prover", "updateTree", "proof.json"));
   const publicSignals = readJson(path.join(projectRoot, "groth16", "prover", "updateTree", "public.json"));
@@ -3733,6 +3751,54 @@ function networkNameFromChainId(chainId) {
   if (chainId === 11155111) return "sepolia";
   if (chainId === 31337) return "anvil";
   throw new Error(`Unsupported chain ID for private-state bridge CLI: ${chainId}`);
+}
+
+function groth16UpdateTreeManifestPath(chainId) {
+  return path.resolve(deployRoot, `groth16-updateTree.${chainId}.latest.json`);
+}
+
+function resolveDeployManifestArtifactPath(manifestPath, artifactPath) {
+  expect(
+    typeof artifactPath === "string" && artifactPath.length > 0,
+    `Invalid artifact path entry in ${manifestPath}.`,
+  );
+  return path.isAbsolute(artifactPath)
+    ? artifactPath
+    : path.resolve(path.dirname(manifestPath), artifactPath);
+}
+
+function loadGroth16UpdateTreeArtifacts(chainId) {
+  const manifestPath = groth16UpdateTreeManifestPath(chainId);
+  expect(
+    fs.existsSync(manifestPath),
+    `Missing Groth16 updateTree manifest for chain ${chainId}: ${manifestPath}.`,
+  );
+
+  const manifest = readJson(manifestPath);
+  const zkeyPath = resolveDeployManifestArtifactPath(manifestPath, manifest.artifacts?.zkeyPath);
+  const verificationKeyPath = resolveDeployManifestArtifactPath(
+    manifestPath,
+    manifest.artifacts?.verificationKeyPath,
+  );
+  const metadataPath = resolveDeployManifestArtifactPath(manifestPath, manifest.artifacts?.metadataPath);
+  const wasmPath = resolveDeployManifestArtifactPath(manifestPath, manifest.artifacts?.wasmPath);
+
+  for (const [label, artifactPath] of [
+    ["Groth16 updateTree proving key", zkeyPath],
+    ["Groth16 updateTree verification key", verificationKeyPath],
+    ["Groth16 updateTree metadata", metadataPath],
+    ["Groth16 updateTree wasm", wasmPath],
+  ]) {
+    expect(fs.existsSync(artifactPath), `Missing ${label} for chain ${chainId}: ${artifactPath}.`);
+  }
+
+  return {
+    manifestPath,
+    zkeyPath,
+    verificationKeyPath,
+    metadataPath,
+    wasmPath,
+  };
 }
 
 function findStorageSlot(storageLayoutManifest, contractName, label) {

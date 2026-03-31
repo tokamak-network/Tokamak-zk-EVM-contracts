@@ -140,3 +140,5 @@ write_callable_abi \
 echo "Updated chain deployment manifest: $CHAIN_LATEST_FILE"
 echo "Updated storage layout manifest: $STORAGE_LAYOUT_LATEST_FILE"
 echo "Wrote callable ABI files under: $DEPLOY_DIR"
+
+bash "$PROJECT_ROOT/apps/private-state/script/deploy/sync-groth16-update-tree-artifacts.sh" "$CHAIN_ID"

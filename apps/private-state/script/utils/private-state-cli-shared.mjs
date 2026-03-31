@@ -46,8 +46,8 @@ export async function deriveParticipantIdentityFromSigner({ channelName, passwor
   };
 }
 
-export function walletNameForChannelAndAddress(channelName, l2Address) {
-  return `${channelName}-${getAddress(l2Address)}`;
+export function walletNameForChannelAndAddress(channelName, l1Address) {
+  return `${channelName}-${getAddress(l1Address)}`;
 }
 
 export function parseWalletName(walletName) {
@@ -56,13 +56,13 @@ export function parseWalletName(walletName) {
     throw new Error(
       [
         `Unable to derive the channel name from wallet ${walletName}.`,
-        "Expected the deterministic <channelName>-<l2Address> format.",
+        "Expected the deterministic <channelName>-<l1Address> format.",
       ].join(" "),
     );
   }
   return {
     channelName: match[1],
-    l2Address: getAddress(match[2]),
+    l1Address: getAddress(match[2]),
   };
 }
 

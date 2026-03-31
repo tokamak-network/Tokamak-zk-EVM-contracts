@@ -668,7 +668,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     "The existing note-receive public key parity does not match the derived note-receive public key.",
   );
 
-  const walletName = walletNameForChannelAndAddress(channelName, l2Identity.l2Address);
+  const walletName = walletNameForChannelAndAddress(channelName, signer.address);
   const existingWallet = tryLoadRecoverableWallet({
     walletName,
     walletPassword: password,
@@ -1610,7 +1610,7 @@ function ensureWallet({
   noteReceiveKeyMaterial,
   rpcUrl,
 }) {
-  const walletName = walletNameForChannelAndAddress(channelContext.workspace.channelName, l2Identity.l2Address);
+  const walletName = walletNameForChannelAndAddress(channelContext.workspace.channelName, signerAddress);
   const walletDir = walletPath(walletName, channelContext.workspace.network);
   let wallet;
   if (walletConfigExists(walletDir)) {

@@ -1081,7 +1081,7 @@ function joinChannel(participant) {
     );
   }
   expect(
-    result.wallet === sharedWalletNameForChannelAndAddress(channelName, result.l2Address),
+    result.wallet === sharedWalletNameForChannelAndAddress(channelName, result.l1Address),
     `join-channel returned unexpected wallet name ${result.wallet}.`,
   );
   return result;

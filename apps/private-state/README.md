@@ -94,7 +94,7 @@ Important rules:
 - `--password` accepts any string
 - `join-channel` binds `channelName + password` to the user's L1 private key and derives the channel-specific L2 identity
 - `join-channel` is the only command that sets up encrypted L1/L2 wallet keys
-- wallet folder names are fixed to `<channelName>-<l2Address>`
+- wallet folder names are fixed to `<channelName>-<l1Address>`
 - recipient note delivery is recovered from bridge-propagated Ethereum event logs through `get-my-notes`
 - `anvil` support exists only for command-driven local end-to-end testing
 
@@ -182,7 +182,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 - registers the caller's L2 address, channel token-vault storage key, leaf index, and note-receive public key on-chain
 - creates the encrypted wallet
 - stores the resolved `rpcUrl` in the wallet metadata so later wallet-backed commands do not need CLI RPC inputs
-- returns the deterministic wallet name `<channelName>-<l2Address>`
+- returns the deterministic wallet name `<channelName>-<l1Address>`
 - requires `--alchemy-api-key` on public networks
 
 `recover-wallet`

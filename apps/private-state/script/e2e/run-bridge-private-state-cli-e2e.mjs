@@ -795,17 +795,40 @@ function walletDirForName(walletName) {
   return sharedWalletDirForName(walletsRoot, walletName);
 }
 
+function buildDeterministicNoteNonce(label) {
+  return ethers.dataSlice(
+    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
+    0,
+    12,
+  );
+}
+
+function buildEncryptedOutputArtifacts({
+  owner,
+  value,
+  encryptedNoteValue,
+  includeOwnerInOutput,
+}) {
+  const normalizedOwner = getAddress(owner);
+  return {
+    output: includeOwnerInOutput
+      ? { owner: normalizedOwner, value, encryptedNoteValue }
+      : { value, encryptedNoteValue },
+    note: {
+      owner: normalizedOwner,
+      value,
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
+    },
+  };
+}
+
 function buildEncryptedTransferOutput({
   owner,
   value,
   label,
   recipientNoteReceivePubKey,
 }) {
-  const deterministicNonce = ethers.dataSlice(
-    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
-    0,
-    12,
-  );
+  const deterministicNonce = buildDeterministicNoteNonce(label);
   const encryptedNoteValue = encryptNoteValueForRecipient({
     value,
     recipientNoteReceivePubKey,
@@ -814,18 +837,7 @@ function buildEncryptedTransferOutput({
     owner,
     nonce: deterministicNonce,
   });
-  return {
-    output: {
-      owner: getAddress(owner),
-      value,
-      encryptedNoteValue,
-    },
-    note: {
-      owner: getAddress(owner),
-      value,
-      salt: computeEncryptedNoteSalt(encryptedNoteValue),
-    },
-  };
+  return buildEncryptedOutputArtifacts({ owner, value, encryptedNoteValue, includeOwnerInOutput: true });
 }
 
 function buildEncryptedMintOutput({
@@ -834,11 +846,7 @@ function buildEncryptedMintOutput({
   value,
   label,
 }) {
-  const deterministicNonce = ethers.dataSlice(
-    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
-    0,
-    12,
-  );
+  const deterministicNonce = buildDeterministicNoteNonce(label);
   const encryptedNoteValue = encryptMintNoteValueForOwner({
     value,
     ownerNoteReceivePubKey,
@@ -847,17 +855,7 @@ function buildEncryptedMintOutput({
     owner,
     nonce: deterministicNonce,
   });
-  return {
-    output: {
-      value,
-      encryptedNoteValue,
-    },
-    note: {
-      owner: getAddress(owner),
-      value,
-      salt: computeEncryptedNoteSalt(encryptedNoteValue),
-    },
-  };
+  return buildEncryptedOutputArtifacts({ owner, value, encryptedNoteValue, includeOwnerInOutput: false });
 }
 
 function assertBigIntEq(actual, expected, label) {

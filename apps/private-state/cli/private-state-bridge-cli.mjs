@@ -305,6 +305,7 @@ async function handleChannelCreate({ args, network, provider }) {
     asset: channelInfo.asset,
     manager: channelInfo.manager,
     bridgeTokenVault: channelInfo.bridgeTokenVault,
+    gasUsed: receiptGasUsed(receipt),
     receipt: sanitizeReceipt(receipt),
     workspace: workspaceResult?.workspaceDir ?? null,
   });
@@ -563,6 +564,9 @@ async function handleRegisterAndFund({ args, network, provider }) {
     l1Address: signer.address,
     availableBalance: availableBalance.toString(),
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
+    approveGasUsed: receiptGasUsed(approveReceipt),
+    fundGasUsed: receiptGasUsed(fundReceipt),
+    totalGasUsed: (BigInt(approveReceipt.gasUsed) + BigInt(fundReceipt.gasUsed)).toString(),
     approveReceipt: sanitizeReceipt(approveReceipt),
     fundReceipt: sanitizeReceipt(fundReceipt),
   });
@@ -1141,6 +1145,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       l2StorageKey: storageKey,
       leafIndex: leafIndex.toString(),
       noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
+      gasUsed: receiptGasUsed(receipt),
       receipt: sanitizeReceipt(receipt),
     });
     return;
@@ -1296,6 +1301,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     amountBaseUnits: amount.toString(),
     currentRootVector: transition.update.currentRootVector,
     updatedRoot: transition.update.updatedRoot,
+    gasUsed: receiptGasUsed(receipt),
   });
 }
 
@@ -1320,6 +1326,7 @@ async function handleWithdrawBridge({ args, provider }) {
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
     canonicalAsset: bridgeVaultContext.canonicalAsset,
     canonicalAssetDecimals: Number(bridgeVaultContext.canonicalAssetDecimals),
+    gasUsed: receiptGasUsed(receipt),
     receipt: sanitizeReceipt(receipt),
   });
 }
@@ -1379,6 +1386,7 @@ async function handleMintNotes({ args, provider }) {
       sourceTxHash: execution.receipt.hash,
       bridgeCommitmentKeys: execution.noteLifecycle.outputCommitmentKeys,
     }),
+    gasUsed: receiptGasUsed(execution.receipt),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
@@ -1417,6 +1425,7 @@ async function handleRedeemNotes({ args, provider }) {
       inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n),
       Number(wallet.wallet.canonicalAssetDecimals),
     ),
+    gasUsed: receiptGasUsed(execution.receipt),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
@@ -1550,6 +1559,7 @@ async function handleTransferNotes({ args, provider }) {
     outputNotes,
     deliveredRecipients: [],
     noteDelivery: "ethereum-event-log",
+    gasUsed: receiptGasUsed(execution.receipt),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
@@ -3966,6 +3976,10 @@ function sanitizeReceipt(receipt) {
     status: receipt.status,
     logs: receipt.logs,
   });
+}
+
+function receiptGasUsed(receipt) {
+  return BigInt(receipt.gasUsed).toString();
 }
 
 async function waitForReceipt(txResponse) {

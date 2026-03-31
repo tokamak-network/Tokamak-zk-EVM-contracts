@@ -12,4 +12,4 @@
 ## Notes
 - Source rows are created only when gas decreases by at least 5% versus the immediately previous snapshot.
 - Commits with <5% incremental decrease are folded into the latest Source Series row.
-- Snapshot values are taken from `docs/tokamak-verifier-gas-sections.md` (Measured Gas checkpoints).
+- Snapshot values are taken from `bridge/docs/tokamak-verifier-gas-sections.md` (Measured Gas checkpoints).

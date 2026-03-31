@@ -1116,7 +1116,7 @@ contract TokamakVerifier is ITokamakVerifier {
             ///
 
             /// @dev Compute [LHS]_1 + [AUX]_1 in one 22-term MSM using the fully expanded form
-            ///      from `docs/verifier-spec.md` summary table.
+            ///      from `bridge/docs/verifier-spec.md` summary table.
             function prepareLhsAuxSingleMSM() {
                 let msmPtr := 0x9800
 

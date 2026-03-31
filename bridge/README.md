@@ -2,8 +2,8 @@
 
 This folder contains a standalone bridge-contract implementation derived only from:
 
-- `docs/zk-l2-bridge-design-notes.md`
-- `docs/spec.md`
+- `bridge/docs/zk-l2-bridge-design-notes.md`
+- `bridge/docs/spec.md`
 
 The existing bridge implementation under the repository `src` directory was intentionally not referenced or reused.
 

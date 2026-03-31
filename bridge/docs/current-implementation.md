@@ -1,8 +1,8 @@
-# Current Bridge Implementation vs `docs/spec.md`
+# Current Bridge Implementation vs `bridge/docs/spec.md`
 
 ## Scope
 
-- Spec baseline: `docs/spec.md`
+- Spec baseline: `bridge/docs/spec.md`
 - Implementation baseline:
   - `src/BridgeCore.sol`
   - `src/BridgeDepositManager.sol`
@@ -12,7 +12,7 @@
 
 This document lists:
 1. Spec-defined requirements that are currently not satisfied by the implementation.
-2. Features implemented in the bridge contracts but not defined in `docs/spec.md`.
+2. Features implemented in the bridge contracts but not defined in `bridge/docs/spec.md`.
 
 ## Spec-Defined Requirements Not Satisfied
 

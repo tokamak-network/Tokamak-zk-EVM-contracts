@@ -232,7 +232,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ## Documentation
 
-- **Technical Docs**: [docs/](./docs/) directory
+- **Technical Docs**: [bridge/docs/](./bridge/docs/) directory
 - **Test Documentation**: Detailed test coverage and examples
 
 ## License
@@ -243,7 +243,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: [GitHub Issues](https://github.com/tokamak-network/Tokamak-zkEVM-contracts/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/tokamak-network/Tokamak-zkEVM-contracts/discussions)
-- **Documentation**: [docs/](./docs/) directory
+- **Documentation**: [bridge/docs/](./bridge/docs/) directory
 
 ## Acknowledgments
 

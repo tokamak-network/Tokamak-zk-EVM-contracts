@@ -3368,11 +3368,25 @@ function run(command, args, { cwd = projectRoot, env = process.env, quiet = fals
   const result = spawnSync(command, args, {
     cwd,
     env,
+    encoding: "utf8",
     stdio: quiet ? ["ignore", "ignore", "ignore"] : "inherit",
   });
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(" ")} failed with exit code ${result.status ?? "unknown"}.`);
   }
+}
+
+function runCaptured(command, args, { cwd = projectRoot, env = process.env } = {}) {
+  const result = spawnSync(command, args, {
+    cwd,
+    env,
+    encoding: "utf8",
+  });
+  return {
+    status: result.status,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? "",
+  };
 }
 
 function runGitInTokamak(args) {
@@ -3404,12 +3418,98 @@ function runGitInProjectRoot(args) {
 }
 
 function runTokamakProofPipeline({ operationDir, bundlePath }) {
-  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", operationDir], { cwd: tokamakRoot, quiet: true });
-  run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot, quiet: true });
-  run(tokamakCliPath, ["--prove"], { cwd: tokamakRoot, quiet: true });
-  run(tokamakCliPath, ["--extract-proof", bundlePath], { cwd: tokamakRoot, quiet: true });
-  run(tokamakCliPath, ["--verify", bundlePath], { cwd: tokamakRoot, quiet: true });
+  runTokamakCliStage({
+    operationDir,
+    stageName: "synthesize",
+    args: ["--synthesize", "--tokamak-ch-tx", operationDir],
+  });
+  runTokamakCliStage({
+    operationDir,
+    stageName: "preprocess",
+    args: ["--preprocess"],
+  });
+  runTokamakCliStage({
+    operationDir,
+    stageName: "prove",
+    args: ["--prove"],
+  });
+  runTokamakCliStage({
+    operationDir,
+    stageName: "extract-proof",
+    args: ["--extract-proof", bundlePath],
+  });
+  runTokamakCliStage({
+    operationDir,
+    stageName: "verify",
+    args: ["--verify", bundlePath],
+  });
   copyTokamakOperationArtifacts(operationDir);
+}
+
+function runTokamakCliStage({ operationDir, stageName, args }) {
+  const result = runCaptured(tokamakCliPath, args, { cwd: tokamakRoot });
+  const logPath = writeTokamakCliStageLog(operationDir, stageName, result);
+  if (result.status !== 0) {
+    throw new Error(
+      [
+        `Tokamak ${stageName} failed with exit code ${result.status ?? "unknown"}.`,
+        `See ${logPath} for the full terminal output.`,
+      ].join(" "),
+    );
+  }
+
+  const consoleError = findTokamakConsoleError({ stageName, stdout: result.stdout, stderr: result.stderr });
+  if (consoleError) {
+    throw new Error(
+      [
+        `Tokamak ${stageName} reported internal errors in its terminal output.`,
+        `First reported message: ${consoleError}`,
+        `See ${logPath} for the full terminal output.`,
+      ].join(" "),
+    );
+  }
+}
+
+function writeTokamakCliStageLog(operationDir, stageName, { stdout, stderr }) {
+  const logsDir = path.join(operationDir, "tokamak-cli-logs");
+  ensureDir(logsDir);
+  const logPath = path.join(logsDir, `${stageName}.log`);
+  const sections = [
+    `# Stage: ${stageName}`,
+    "",
+    "## stdout",
+    stdout.trimEnd(),
+    "",
+    "## stderr",
+    stderr.trimEnd(),
+    "",
+  ];
+  fs.writeFileSync(logPath, sections.join("\n"), "utf8");
+  return logPath;
+}
+
+function findTokamakConsoleError({ stageName, stdout, stderr }) {
+  const lines = `${stdout}\n${stderr}`
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const stageSpecificPatterns =
+    stageName === "synthesize"
+      ? [
+          /Synthesizer: .*error:/i,
+          /Undefined synthesizer handler/i,
+          /Output memory data mismatch/i,
+          /input data mismatch/i,
+          /Unreachable stackPt index/i,
+        ]
+      : [
+          /\[error\]/i,
+          /^error:/i,
+        ];
+
+  const matchedLine = lines.find((line) => stageSpecificPatterns.some((pattern) => pattern.test(line)));
+  return matchedLine ?? null;
 }
 
 function copyTokamakOperationArtifacts(operationDir) {

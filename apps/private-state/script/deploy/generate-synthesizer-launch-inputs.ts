@@ -119,6 +119,22 @@ type ExampleContext = {
   keyMaterial: DerivedParticipantKeys;
 };
 
+const getManagedPrivateStateAddresses = (
+  manifest: DeploymentManifest,
+): `0x${string}`[] => {
+  const seen = new Set<string>();
+  const addresses: `0x${string}`[] = [];
+  for (const address of Object.values(manifest.contracts)) {
+    const normalized = ethers.getAddress(address);
+    if (seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    addresses.push(normalized as `0x${string}`);
+  }
+  return addresses;
+};
+
 const networkConfig = new Map<AppNetwork, { chainId: number; alchemyNetwork: string | null }>([
   ['sepolia', { chainId: 11155111, alchemyNetwork: 'eth-sepolia' }],
   ['mainnet', { chainId: 1, alchemyNetwork: 'eth-mainnet' }],
@@ -405,6 +421,7 @@ const buildMintManifest = async (
   blockInfo: SynthesizerBlockInfo,
   contractCodes: Array<{ address: `0x${string}`; code: string }>,
 ) => {
+  const managedStorageAddresses = getManagedPrivateStateAddresses(context.manifest);
   const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
     storageLayoutManifestPath(context.chainId),
   );
@@ -453,8 +470,8 @@ const buildMintManifest = async (
     const balanceKey = computeReplayPrivateStateAddressMappingKey(senderAddress, liquidBalancesSlot);
     const snapshot = await createSyntheticSnapshot(
       context,
-      [context.manifest.contracts.controller, context.manifest.contracts.l2AccountingVault],
-      [context.manifest.contracts.controller, context.manifest.contracts.l2AccountingVault],
+      managedStorageAddresses,
+      managedStorageAddresses,
       [{
         address: context.manifest.contracts.l2AccountingVault,
         key: balanceKey,
@@ -487,6 +504,7 @@ const buildTransferManifest = async (
   blockInfo: SynthesizerBlockInfo,
   contractCodes: Array<{ address: `0x${string}`; code: string }>,
 ) => {
+  const managedStorageAddresses = getManagedPrivateStateAddresses(context.manifest);
   const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
     storageLayoutManifestPath(context.chainId),
   );
@@ -587,8 +605,8 @@ const buildTransferManifest = async (
 
     const snapshot = await createSyntheticSnapshot(
       context,
-      [context.manifest.contracts.controller],
-      [context.manifest.contracts.controller],
+      managedStorageAddresses,
+      managedStorageAddresses,
       noteRegistryWrites,
     );
     const transaction = buildTransactionSnapshot(
@@ -603,7 +621,7 @@ const buildTransferManifest = async (
         snapshot,
         transaction,
         blockInfo,
-        contractCodes.filter((entry) => entry.address.toLowerCase() === context.manifest.contracts.controller.toLowerCase()),
+        contractCodes,
         makeLaunchEntryName(`transferNotes${inputCount}To${outputCount}`, context.appNetwork),
       ),
     );
@@ -617,6 +635,7 @@ const buildRedeemManifest = async (
   blockInfo: SynthesizerBlockInfo,
   contractCodes: Array<{ address: `0x${string}`; code: string }>,
 ) => {
+  const managedStorageAddresses = getManagedPrivateStateAddresses(context.manifest);
   const storageLayoutManifest = await loadPrivateStateStorageLayoutManifest(
     storageLayoutManifestPath(context.chainId),
   );
@@ -673,8 +692,8 @@ const buildRedeemManifest = async (
 
     const snapshot = await createSyntheticSnapshot(
       context,
-      [context.manifest.contracts.controller, context.manifest.contracts.l2AccountingVault],
-      [context.manifest.contracts.controller, context.manifest.contracts.l2AccountingVault],
+      managedStorageAddresses,
+      managedStorageAddresses,
       noteRegistryWrites,
     );
     const transaction = buildTransactionSnapshot(
@@ -725,10 +744,11 @@ const main = async () => {
     keyMaterial,
   };
 
+  const managedStorageAddresses = getManagedPrivateStateAddresses(manifest);
   const contractCodes = await fetchContractCodes(
     rpcUrl,
     blockNumber,
-    [manifest.contracts.controller, manifest.contracts.l2AccountingVault],
+    managedStorageAddresses,
   );
 
   const mintManifest = await buildMintManifest(context, blockInfo, contractCodes);

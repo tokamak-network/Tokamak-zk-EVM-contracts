@@ -184,6 +184,7 @@
 
     </main>
 
+    <script src="../../../node_modules/ethers/dist/ethers.min.js"></script>
     <script>
       const storageKey = "private-state-cli-assistant:v2";
       const windowNameKey = "private-state-cli-assistant-state:";
@@ -526,6 +527,9 @@
       }
 
       async function deriveAddressFromPrivateKey(privateKey) {
+        if (window.ethers?.Wallet) {
+          return new window.ethers.Wallet(String(privateKey)).address;
+        }
         if (!ethersModulePromise) {
           ethersModulePromise = import("../../../node_modules/ethers/lib.esm/index.js");
         }

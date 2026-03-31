@@ -130,6 +130,19 @@
         white-space: nowrap;
       }
 
+      .transfer-pair-grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+      }
+
+      .transfer-pair {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+      }
+
       .field-stack {
         display: grid;
         gap: 6px;
@@ -251,6 +264,10 @@
         }
 
         #memory-fields {
+          grid-template-columns: 1fr;
+        }
+
+        .transfer-pair-grid {
           grid-template-columns: 1fr;
         }
       }
@@ -1326,7 +1343,7 @@
         wrapper.appendChild(title);
 
         const grid = document.createElement("div");
-        grid.className = "fields";
+        grid.className = "transfer-pair-grid";
 
         const pairLimit = transferPairLimit();
         [
@@ -1344,7 +1361,7 @@
           },
         ].slice(0, pairLimit).forEach(({ recipientKey, amountKey, recipientLabel, amountLabel }) => {
           const pairField = document.createElement("div");
-          pairField.className = "field-stack";
+          pairField.className = "transfer-pair";
 
           const recipientField = document.createElement("div");
           recipientField.className = "field-stack";

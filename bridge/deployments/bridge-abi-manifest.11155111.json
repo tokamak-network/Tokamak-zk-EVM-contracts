@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-31T09:44:36.822Z",
+  "generatedAt": "2026-03-31T11:02:25.130Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -3282,11 +3282,6 @@
               "internalType": "contract IERC20"
             },
             {
-              "name": "grothVerifier_",
-              "type": "address",
-              "internalType": "contract IGrothVerifier"
-            },
-            {
               "name": "channelRegistry_",
               "type": "address",
               "internalType": "contract IChannelRegistry"
@@ -3613,11 +3608,6 @@
         {
           "type": "error",
           "name": "InvalidChannelRegistry",
-          "inputs": []
-        },
-        {
-          "type": "error",
-          "name": "InvalidGrothVerifier",
           "inputs": []
         },
         {

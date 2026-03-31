@@ -489,7 +489,7 @@
 
       function walletOptionsForCommand(command = currentCommand()) {
         const options = currentWorkspaceOptions();
-        if (!["mint-notes", "transfer-notes", "redeem-notes"].includes(command.id)) {
+        if (!commandNeedsWallet(command)) {
           return options.walletOptions;
         }
         const derivedAddress = privateKeyAddressState.derivedAddress.trim().toLowerCase();
@@ -979,7 +979,7 @@
         placeholder.value = "";
         placeholder.textContent = !workspaceDirectoryState.loaded
           ? "Select a workspace directory for this network first"
-          : ["mint-notes", "transfer-notes", "redeem-notes"].includes(currentCommand().id) && !privateKeyAddressState.derivedAddress
+          : commandNeedsWallet(currentCommand()) && !privateKeyAddressState.derivedAddress
             ? "Enter a valid L1 private key first"
             : walletOptions.length === 0
               ? "No wallet matches the current L1 private key"

@@ -98,10 +98,6 @@
         resize: vertical;
       }
 
-      select[multiple] {
-        min-height: 96px;
-      }
-
       .actions {
         display: flex;
         flex-wrap: wrap;
@@ -117,6 +113,37 @@
 
       .field-span-full {
         grid-column: 1 / -1;
+      }
+
+      .note-option-list {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        border: 1px solid #cfd1c7;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .note-option-item {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+      }
+
+      .note-option-item input[type="checkbox"] {
+        margin-top: 3px;
+      }
+
+      .note-option-copy {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        line-height: 1.35;
+      }
+
+      .note-option-list.is-disabled {
+        color: #666;
+        background: #f6f6f3;
       }
 
       pre {
@@ -1101,36 +1128,48 @@
         wrapper.className = "field-stack field-span-full";
         const label = document.createElement("label");
         label.textContent = fieldCatalog.noteIds.label;
-
-        const select = document.createElement("select");
-        select.multiple = true;
-        select.size = Math.min(Math.max(walletNoteState.options.length, 3), 8);
-        select.disabled = walletNoteState.options.length === 0;
+        wrapper.appendChild(label);
 
         const selectedIds = new Set(parseSelectedNoteIds());
-        for (const option of walletNoteState.options) {
-          const optionEl = document.createElement("option");
-          optionEl.value = option.value;
-          optionEl.textContent = option.label;
-          optionEl.selected = selectedIds.has(option.value);
-          select.appendChild(optionEl);
+        const optionList = document.createElement("div");
+        optionList.className = "note-option-list";
+
+        if (walletNoteState.options.length === 0) {
+          optionList.classList.add("is-disabled");
+          optionList.textContent = "No selectable note IDs are currently available.";
+        } else {
+          for (const option of walletNoteState.options) {
+            const optionLabel = document.createElement("label");
+            optionLabel.className = "note-option-item";
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = option.value;
+            checkbox.checked = selectedIds.has(option.value);
+
+            const copy = document.createElement("span");
+            copy.className = "note-option-copy";
+            copy.textContent = option.label;
+
+            checkbox.addEventListener("change", () => {
+              const currentSelection = parseSelectedNoteIds();
+              let nextSelection = currentSelection.filter((noteId) => noteId !== option.value);
+              if (checkbox.checked) {
+                nextSelection = [...nextSelection, option.value].slice(0, 2);
+              }
+              state.noteIds = nextSelection.length === 0 ? "" : JSON.stringify(nextSelection);
+              persistState();
+              rerenderCommandField("noteIds");
+              renderPreview();
+            });
+
+            optionLabel.appendChild(checkbox);
+            optionLabel.appendChild(copy);
+            optionList.appendChild(optionLabel);
+          }
         }
 
-        select.addEventListener("change", (event) => {
-          const limitedValues = [...event.target.selectedOptions]
-            .map((option) => option.value)
-            .slice(0, 2);
-          for (const option of event.target.options) {
-            option.selected = limitedValues.includes(option.value);
-          }
-          state.noteIds = limitedValues.length === 0 ? "" : JSON.stringify(limitedValues);
-          persistState();
-          totalHint.textContent = selectedNoteTotalLabel();
-          renderPreview();
-        });
-
-        label.appendChild(select);
-        wrapper.appendChild(label);
+        wrapper.appendChild(optionList);
 
         const hint = document.createElement("p");
         hint.className = "hint";

@@ -228,8 +228,6 @@
             <pre id="command-preview"></pre>
             <div class="actions">
               <button id="copy-command" type="button">Copy command</button>
-              <button id="copy-multiline" type="button">Copy multiline shell</button>
-              <button id="download-script" type="button">Download shell script</button>
             </div>
             <p id="status" class="status" aria-live="polite"></p>
           </div>
@@ -386,27 +384,8 @@
       };
 
       document.getElementById("copy-command").addEventListener("click", async () => {
-        await copyText(buildCommand({ multiline: false, maskSecrets: false }));
+        await copyText(buildCommand({ maskSecrets: false }));
         setStatus("Command copied.");
-      });
-
-      document.getElementById("copy-multiline").addEventListener("click", async () => {
-        await copyText(buildCommand({ multiline: true, maskSecrets: false }));
-        setStatus("Multiline command copied.");
-      });
-
-      document.getElementById("download-script").addEventListener("click", () => {
-        const content = `#!/usr/bin/env bash\nset -euo pipefail\n\n${buildCommand({ multiline: true, maskSecrets: false })}\n`;
-        const blob = new Blob([content], { type: "text/x-shellscript" });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = `${state.commandId || "private-state-cli"}.sh`;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
-        setStatus("Shell script downloaded.");
       });
 
       function loadState() {
@@ -767,7 +746,7 @@
         });
       }
 
-      function buildCommand({ multiline, maskSecrets }) {
+      function buildCommand({ maskSecrets }) {
         const command = currentCommand();
         const parts = [cliEntry, command.id];
 
@@ -822,16 +801,7 @@
           }
         }
 
-        if (!multiline) {
-          return parts.join(" ");
-        }
-
-        return parts.reduce((accumulator, part, index) => {
-          if (index < 2) {
-            return `${accumulator}${index === 0 ? "" : " "}${part}`;
-          }
-          return `${accumulator} \\\n  ${part}`;
-        }, "");
+        return parts.join(" ");
       }
 
       async function loadWorkspaceDirectoryOptions(handle) {
@@ -1264,7 +1234,7 @@
       function renderPreview() {
         const command = currentCommand();
         const missing = missingFields(command);
-        previewEl.textContent = buildCommand({ multiline: false, maskSecrets: true });
+        previewEl.textContent = buildCommand({ maskSecrets: true });
         const workspaceWarnings = [
           commandNeedsExistingChannel(command) && workspaceDirectoryState.handle === null
             ? " Select a workspace directory to populate the channel dropdown."

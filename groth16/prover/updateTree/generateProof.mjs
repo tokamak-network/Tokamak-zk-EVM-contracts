@@ -52,6 +52,12 @@ function ensureCleanDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
+function ensureFileExists(label, filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing ${label}: ${filePath}`);
+  }
+}
+
 function findSnarkjs() {
   const localSnarkjs = path.join(circuitsDir, "node_modules", ".bin", "snarkjs");
   if (fs.existsSync(localSnarkjs)) {
@@ -176,31 +182,38 @@ async function main() {
   const resolvedMetadataPath = findFlag("--metadata") ?? metadataPath;
   const resolvedWasmPath = findFlag("--wasm") ?? wasmPath;
   const resolvedZkeyPath = findFlag("--zkey") ?? zkeyPath;
-  const resolvedVerificationKeyPath = findFlag("--verification-key") ?? verificationKeyPath;
+  const requestedVerificationKeyPath = findFlag("--verification-key");
   const skipCompile = hasFlag("--skip-compile");
-  const metadata = readJson(resolvedMetadataPath);
 
   if (inputPath === defaultInputPath || !fs.existsSync(inputPath)) {
+    const metadata = readJson(resolvedMetadataPath);
     assertCircuitDepth(metadata.mtDepth);
     await buildExampleInput(defaultInputPath);
   }
 
   if (!skipCompile) {
-    assertCircuitDepth(metadata.mtDepth);
     run("npm", ["run", "compile"], circuitsDir);
   }
 
   for (const [label, filePath] of [
     ["updateTree wasm", resolvedWasmPath],
     ["updateTree proving key", resolvedZkeyPath],
-    ["updateTree verification key", resolvedVerificationKeyPath],
   ]) {
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Missing ${label}: ${filePath}`);
-    }
+    ensureFileExists(label, filePath);
   }
 
   const snarkjs = findSnarkjs();
+  let resolvedVerificationKeyPath = requestedVerificationKeyPath;
+  if (resolvedVerificationKeyPath) {
+    ensureFileExists("updateTree verification key", resolvedVerificationKeyPath);
+  } else if (resolvedZkeyPath === zkeyPath && fs.existsSync(verificationKeyPath)) {
+    resolvedVerificationKeyPath = verificationKeyPath;
+  } else {
+    fs.mkdirSync(tmpDir, { recursive: true });
+    resolvedVerificationKeyPath = path.join(tmpDir, "updateTree.verification_key.json");
+    run(snarkjs, ["zkey", "export", "verificationkey", resolvedZkeyPath, resolvedVerificationKeyPath], circuitsDir);
+  }
+
   run(snarkjs, ["wtns", "calculate", resolvedWasmPath, inputPath, witnessPath], circuitsDir);
   run(snarkjs, ["groth16", "prove", resolvedZkeyPath, witnessPath, proofPath, publicPath], circuitsDir);
   run(snarkjs, ["groth16", "verify", resolvedVerificationKeyPath, publicPath, proofPath], circuitsDir);

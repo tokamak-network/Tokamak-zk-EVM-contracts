@@ -47,9 +47,6 @@ Successful deployments write app-local artifacts into `apps/private-state/deploy
 - `storage-layout.<chain-id>.latest.json`
 - `groth16-updateTree.<chain-id>.latest.json`
 - `groth16/updateTree/<chain-id>/circuit_final.zkey`
-- `groth16/updateTree/<chain-id>/verification_key.json`
-- `groth16/updateTree/<chain-id>/metadata.json`
-- `groth16/updateTree/<chain-id>/circuit_updateTree.wasm`
 - `PrivateStateController.callable-abi.json`
 - `L2AccountingVault.callable-abi.json`
 
@@ -91,7 +88,8 @@ The CLI:
 - binds every channel to the canonical Tokamak Network Token for the selected network
 - stores channel state under `~/tokamak-private-channels/workspace/<network>/<channel>/channel/`
 - stores per-user wallets under `~/tokamak-private-channels/workspace/<network>/<channel>/wallets/<wallet>/`
-- loads prebuilt Groth16 proving artifacts from `apps/private-state/deploy/` for channel deposit and withdraw commands
+- loads the deployed Groth16 proving key from `apps/private-state/deploy/` for channel deposit and withdraw commands
+- may rebuild the local `updateTree` circuit before proof generation, but never reruns trusted setup
 - materializes or refreshes saved channel workspaces automatically for wallet-backed snapshot commands
 
 Important rules:

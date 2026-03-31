@@ -3203,15 +3203,8 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
       "groth16/prover/updateTree/generateProof.mjs",
       "--input",
       path.join(operationDir, "input.json"),
-      "--skip-compile",
-      "--metadata",
-      grothArtifacts.metadataPath,
-      "--wasm",
-      grothArtifacts.wasmPath,
       "--zkey",
       grothArtifacts.zkeyPath,
-      "--verification-key",
-      grothArtifacts.verificationKeyPath,
     ],
     {
       cwd: projectRoot,
@@ -3776,18 +3769,9 @@ function loadGroth16UpdateTreeArtifacts(chainId) {
 
   const manifest = readJson(manifestPath);
   const zkeyPath = resolveDeployManifestArtifactPath(manifestPath, manifest.artifacts?.zkeyPath);
-  const verificationKeyPath = resolveDeployManifestArtifactPath(
-    manifestPath,
-    manifest.artifacts?.verificationKeyPath,
-  );
-  const metadataPath = resolveDeployManifestArtifactPath(manifestPath, manifest.artifacts?.metadataPath);
-  const wasmPath = resolveDeployManifestArtifactPath(manifestPath, manifest.artifacts?.wasmPath);
 
   for (const [label, artifactPath] of [
     ["Groth16 updateTree proving key", zkeyPath],
-    ["Groth16 updateTree verification key", verificationKeyPath],
-    ["Groth16 updateTree metadata", metadataPath],
-    ["Groth16 updateTree wasm", wasmPath],
   ]) {
     expect(fs.existsSync(artifactPath), `Missing ${label} for chain ${chainId}: ${artifactPath}.`);
   }
@@ -3795,9 +3779,6 @@ function loadGroth16UpdateTreeArtifacts(chainId) {
   return {
     manifestPath,
     zkeyPath,
-    verificationKeyPath,
-    metadataPath,
-    wasmPath,
   };
 }
 

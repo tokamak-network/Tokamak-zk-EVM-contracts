@@ -317,7 +317,7 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
   );
   const expectedLabelHash = normalizeBytes32Hex(keccak256(ethers.toUtf8Bytes(dappLabel)));
   const manifestPath = path.resolve(
-    repoRoot,
+    projectRoot,
     "bridge",
     "deployments",
     `dapp-registration.${bridgeResources.chainId}.json`,

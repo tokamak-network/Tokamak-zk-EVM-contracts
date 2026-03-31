@@ -186,6 +186,7 @@
 
     <script>
       const storageKey = "private-state-cli-assistant:v2";
+      const windowNameKey = "private-state-cli-assistant-state:";
       const cliEntry = "node apps/private-state/cli/private-state-bridge-cli.mjs";
       const defaultWorkspaceRootLabel = navigator.userAgent.includes("Windows")
         ? "%USERPROFILE%\\\\tokamak-private-channels\\\\workspace"
@@ -342,16 +343,49 @@
       });
 
       function loadState() {
+        const parseSerializedState = (raw) => {
+          if (!raw) {
+            return null;
+          }
+          return { ...structuredClone(defaultState), ...JSON.parse(raw) };
+        };
+
         try {
           const raw = window.localStorage.getItem(storageKey);
-          return raw ? { ...structuredClone(defaultState), ...JSON.parse(raw) } : structuredClone(defaultState);
+          const parsed = parseSerializedState(raw);
+          if (parsed) {
+            return parsed;
+          }
         } catch {
-          return structuredClone(defaultState);
+          // Fallback to window.name below.
         }
+
+        try {
+          if (typeof window.name === "string" && window.name.startsWith(windowNameKey)) {
+            const parsed = parseSerializedState(window.name.slice(windowNameKey.length));
+            if (parsed) {
+              return parsed;
+            }
+          }
+        } catch {
+          // Fall through to defaults.
+        }
+
+        return structuredClone(defaultState);
       }
 
       function persistState() {
-        window.localStorage.setItem(storageKey, JSON.stringify(state));
+        const serialized = JSON.stringify(state);
+        try {
+          window.localStorage.setItem(storageKey, serialized);
+        } catch {
+          // window.name fallback below still preserves state across refreshes in the current tab.
+        }
+        try {
+          window.name = `${windowNameKey}${serialized}`;
+        } catch {
+          // Ignore window.name failures.
+        }
       }
 
       function setStatus(message) {

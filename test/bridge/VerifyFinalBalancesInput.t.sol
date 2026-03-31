@@ -59,20 +59,18 @@ contract MockBridgeCore {
     bool public frostEnabled;
     bool public signatureVerified;
     address[] public participants;
-    uint256 public totalDeposits;
     bytes32 public finalStateRoot;
     uint256 public treeSize;
     address public targetContract;
     address public channelLeader;
     bool public isCleanedUp;
-    mapping(address => uint256) public l2MptKeys;
+    mapping(address => mapping(uint8 => uint256)) public l2MptKeys;
 
     function setConfig(
         IBridgeCore.ChannelState _state,
         bool _frostEnabled,
         bool _signatureVerified,
         address[] calldata _participants,
-        uint256 _totalDeposits,
         bytes32 _finalStateRoot,
         uint256 _treeSize,
         address _targetContract
@@ -80,7 +78,6 @@ contract MockBridgeCore {
         state = _state;
         frostEnabled = _frostEnabled;
         signatureVerified = _signatureVerified;
-        totalDeposits = _totalDeposits;
         finalStateRoot = _finalStateRoot;
         treeSize = _treeSize;
         targetContract = _targetContract;
@@ -91,8 +88,8 @@ contract MockBridgeCore {
         }
     }
 
-    function setL2MptKey(address participant, uint256 key) external {
-        l2MptKeys[participant] = key;
+    function setL2MptKey(address participant, uint8 slotIndex, uint256 key) external {
+        l2MptKeys[participant][slotIndex] = key;
     }
 
     function getChannelState(bytes32) external view returns (IBridgeCore.ChannelState) {
@@ -109,10 +106,6 @@ contract MockBridgeCore {
 
     function getChannelParticipants(bytes32) external view returns (address[] memory) {
         return participants;
-    }
-
-    function getChannelTotalDeposits(bytes32) external view returns (uint256) {
-        return totalDeposits;
     }
 
     function getChannelFinalStateRoot(bytes32) external view returns (bytes32) {
@@ -139,11 +132,33 @@ contract MockBridgeCore {
         return (0, false);
     }
 
-    function getL2MptKey(bytes32, address participant) external view returns (uint256) {
-        return l2MptKeys[participant];
+    function getL2MptKey(bytes32, address participant, uint8 slotIndex) external view returns (uint256) {
+        return l2MptKeys[participant][slotIndex];
     }
 
-    function setChannelWithdrawAmounts(bytes32, address[] memory, uint256[] memory) external {}
+    function getTargetContractData(address) external pure returns (IBridgeCore.TargetContract memory) {
+        // Return target contract data with balance slot only
+        IBridgeCore.RegisteredFunction[] memory emptyFunctions = new IBridgeCore.RegisteredFunction[](0);
+        IBridgeCore.PreAllocatedLeaf[] memory emptyLeaves = new IBridgeCore.PreAllocatedLeaf[](0);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false // balance comes from deposits
+        });
+
+        return IBridgeCore.TargetContract({
+            preAllocatedLeaves: emptyLeaves,
+            registeredFunctions: emptyFunctions,
+            userStorageSlots: balanceSlot
+        });
+    }
+
+    function setChannelValidatedUserStorage(bytes32, address[] memory, uint256[][] memory) external {}
+
+    function getBalanceSlotIndex(address) external pure returns (uint8) {
+        return 0; // Balance is always slot 0 in mock
+    }
 
     function setChannelCloseTimestamp(bytes32, uint256) external {}
 
@@ -198,7 +213,6 @@ contract VerifyFinalBalancesInputTest is Test {
             false,
             false,
             participants,
-            90_000000000000000000,
             bytes32(uint256(0x1234)),
             16,
             address(0xBEEF)
@@ -211,13 +225,20 @@ contract VerifyFinalBalancesInputTest is Test {
     function testVerifyFinalBalancesGroth16WithProvidedInputs() public {
         bytes32 channelId = bytes32(uint256(42));
 
-        uint256[] memory finalBalances = new uint256[](6);
-        finalBalances[0] = 8_000000000000000000;
-        finalBalances[1] = 21_000000000000000000;
-        finalBalances[2] = 9_000000000000000000;
-        finalBalances[3] = 18_000000000000000000;
-        finalBalances[4] = 4_000000000000000000;
-        finalBalances[5] = 30_000000000000000000;
+        // Final slot values: balance only for each participant (slot 0)
+        uint256[][] memory finalSlotValues = new uint256[][](6);
+        finalSlotValues[0] = new uint256[](1);
+        finalSlotValues[0][0] = 8_000000000000000000;
+        finalSlotValues[1] = new uint256[](1);
+        finalSlotValues[1][0] = 21_000000000000000000;
+        finalSlotValues[2] = new uint256[](1);
+        finalSlotValues[2][0] = 9_000000000000000000;
+        finalSlotValues[3] = new uint256[](1);
+        finalSlotValues[3][0] = 18_000000000000000000;
+        finalSlotValues[4] = new uint256[](1);
+        finalSlotValues[4][0] = 4_000000000000000000;
+        finalSlotValues[5] = new uint256[](1);
+        finalSlotValues[5][0] = 30_000000000000000000;
 
         uint256[] memory permutation = new uint256[](6);
         permutation[0] = 3;
@@ -254,7 +275,7 @@ contract VerifyFinalBalancesInputTest is Test {
 
         (bool ok, bytes memory data) = address(proofManager).call(
             abi.encodeCall(
-                BridgeProofManager.verifyFinalBalancesGroth16, (channelId, finalBalances, permutation, proof)
+                BridgeProofManager.updateValidatedUserStorage, (channelId, finalSlotValues, permutation, proof)
             )
         );
         if (!ok) {
@@ -266,7 +287,7 @@ contract VerifyFinalBalancesInputTest is Test {
 
     function _decodeRevert(bytes memory data) private pure returns (string memory) {
         if (data.length < 68) {
-            return "verifyFinalBalancesGroth16 reverted";
+            return "updateValidatedUserStorage reverted";
         }
         bytes4 selector;
         assembly {
@@ -278,6 +299,6 @@ contract VerifyFinalBalancesInputTest is Test {
             }
             return abi.decode(data, (string));
         }
-        return "verifyFinalBalancesGroth16 reverted (non-string)";
+        return "updateValidatedUserStorage reverted (non-string)";
     }
 }

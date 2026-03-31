@@ -11,7 +11,7 @@ import "../../src/interface/ITokamakVerifier.sol";
 import "../../src/interface/IZecFrost.sol";
 import "../../src/interface/IGroth16Verifier16Leaves.sol";
 import {ZecFrost} from "../../src/library/ZecFrost.sol";
-import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
+import {TokamakVerifier} from "../../tokamak-zkp/TokamakVerifier.sol";
 import {Groth16Verifier16Leaves} from "../../src/verifier/Groth16Verifier16Leaves.sol";
 import "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
@@ -176,7 +176,13 @@ contract ProofSubmissionTest is Test {
         bytes32 functionInstanceHash = 0xd157cb883adb9cb0e27d9dc419e2a4be817d856281b994583b5bae64be94d35a;
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(token), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(token), emptySlots, balanceSlot, true);
         adminManager.registerFunction(
             address(token), transferSig, preprocessedPart1, preprocessedPart2, functionInstanceHash
         );
@@ -214,19 +220,25 @@ contract ProofSubmissionTest is Test {
         token.mint(user1, 1000e18);
         vm.startPrank(user1);
         token.approve(address(depositManager), 2e18);
-        depositManager.depositToken(channelId, 2e18, bytes32(uint256(10)));
+        bytes32[] memory mptKeys1 = new bytes32[](1);
+        mptKeys1[0] = bytes32(uint256(10));
+        depositManager.depositToken(channelId, 2e18, mptKeys1);
         vm.stopPrank();
 
         token.mint(user2, 1000e18);
         vm.startPrank(user2);
         token.approve(address(depositManager), 500e18);
-        depositManager.depositToken(channelId, 500e18, bytes32(uint256(20)));
+        bytes32[] memory mptKeys2 = new bytes32[](1);
+        mptKeys2[0] = bytes32(uint256(20));
+        depositManager.depositToken(channelId, 500e18, mptKeys2);
         vm.stopPrank();
 
         token.mint(leader, 1000e18);
         vm.startPrank(leader);
         token.approve(address(depositManager), 1e18);
-        depositManager.depositToken(channelId, 1e18, bytes32(uint256(30)));
+        bytes32[] memory mptKeys3 = new bytes32[](1);
+        mptKeys3[0] = bytes32(uint256(30));
+        depositManager.depositToken(channelId, 1e18, mptKeys3);
         vm.stopPrank();
     }
 

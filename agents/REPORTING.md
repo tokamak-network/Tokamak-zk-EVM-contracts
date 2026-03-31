@@ -3,12 +3,12 @@
 You are updating optimization reports for this repo. Follow these rules exactly.
 
 ## Output Files (paths are mandatory)
-- Main report: `docs/optimization/optimization_report.md`
-- Mini-reports directory: `docs/optimization/mini-reports/`
+- Main report: `bridge/docs/optimization/optimization_report.md`
+- Mini-reports directory: `bridge/docs/optimization/mini-reports/`
   - One file per Source Series row, named `YYYY-MM-DD_<commit>.md` (e.g., `2026-02-07_8839dbc5.md`).
 
 ## Inputs You Must Use
-- Gas usage snapshots: "Measured Gas" section of `docs/tokamak-verifier-gas-sections.md`
+- Gas usage snapshots: "Measured Gas" section of `bridge/docs/tokamak-verifier-gas-sections.md`
 - Commit history affecting the gas usage snapshot file.
 
 ## Source Series Table Rules
@@ -22,7 +22,7 @@ You are updating optimization reports for this repo. Follow these rules exactly.
   5. `mini-report`
 - `commits` must list **all commits since the previous Source Series row** (inclusive of the snapshot commit), in chronological order.
 - `change summary` must summarize what changed across the listed commits.
-- `mini-report` must be a hyperlink with **link text exactly `mini-report`**, pointing to the corresponding file under `docs/optimization/mini-reports/`.
+- `mini-report` must be a hyperlink with **link text exactly `mini-report`**, pointing to the corresponding file under `bridge/docs/optimization/mini-reports/`.
 
 ## Report Structure Requirements
 - Keep the report concise; use a short Notes section if needed.
@@ -43,7 +43,7 @@ Each mini-report must follow this structure:
 - If code evidence is not appropriate, use a short formula or pseudocode that proves the claim.
 
 ### Example Proposition Format
-1. **Proposition:** <what/ how>  
+1. **Proposition:** <what/ how>
 Proof (excerpt):
 ```text
 <short excerpt or formula>

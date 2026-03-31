@@ -69,7 +69,7 @@ contract MockZecFrost is IZecFrost {
     }
 }
 
-import {TokamakVerifier} from "../../src/verifier/TokamakVerifier.sol";
+import {TokamakVerifier} from "../../tokamak-zkp/TokamakVerifier.sol";
 import {Groth16Verifier16Leaves} from "../../src/verifier/Groth16Verifier16Leaves.sol";
 import {Groth16Verifier32Leaves} from "../../src/verifier/Groth16Verifier32Leaves.sol";
 import {Groth16Verifier64Leaves} from "../../src/verifier/Groth16Verifier64Leaves.sol";
@@ -346,9 +346,15 @@ contract BridgeCoreTest is Test {
         bytes32 functionInstanceHash = 0xd157cb883adb9cb0e27d9dc419e2a4be817d856281b994583b5bae64be94d35a;
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(token), emptySlots, true);
-        adminManager.setAllowedTargetContract(address(highPrecisionToken), emptySlots, true);
-        adminManager.setAllowedTargetContract(address(usdtLikeToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(token), emptySlots, balanceSlot, true);
+        adminManager.setAllowedTargetContract(address(highPrecisionToken), emptySlots, balanceSlot, true);
+        adminManager.setAllowedTargetContract(address(usdtLikeToken), emptySlots, balanceSlot, true);
 
         // Register transfer function for each token using 4-byte selector (standard format)
         bytes32 transferSig = bytes32(bytes4(keccak256("transfer(address,uint256)")));
@@ -937,6 +943,120 @@ contract BridgeCoreTest is Test {
         vm.stopPrank();
     }
 
+    function testParticipantCountOverflow() public {
+        vm.startPrank(leader);
+
+        // Create 16 participants (NOT including the leader)
+        address[] memory participants = new address[](16);
+        for (uint256 i = 0; i < 16; i++) {
+            participants[i] = address(uint160(1000 + i));
+            token.mint(participants[i], 10 ether);
+        }
+
+        // Open channel - leader will be auto-whitelisted as 17th participant
+        bytes32 channelId = keccak256(abi.encode(leader, "overflow-test"));
+        BridgeCore.ChannelParams memory params = BridgeCore.ChannelParams({
+            channelId: channelId,
+            targetContract: address(token),
+            whitelisted: participants,
+            enableFrostSignature: false
+        });
+        bridge.openChannel(params);
+
+        vm.stopPrank();
+
+        // Verify tree size - should be 32, not 16
+        uint256 treeSize = bridge.getChannelTreeSize(channelId);
+
+        // Now have leader + 16 whitelisted users deposit
+        // This creates 17 participants for a tree that might only support 16
+
+        // Leader deposits
+        vm.startPrank(leader);
+        token.approve(address(depositManager), 1 ether);
+        bytes32[] memory leaderMptKeys = new bytes32[](1);
+        leaderMptKeys[0] = bytes32(uint256(1));
+        depositManager.depositToken(channelId, 1 ether, leaderMptKeys);
+        vm.stopPrank();
+
+        // All 16 participants deposit
+        for (uint256 i = 0; i < 16; i++) {
+            vm.startPrank(participants[i]);
+            token.approve(address(depositManager), 1 ether);
+            bytes32[] memory mptKeys = new bytes32[](1);
+            mptKeys[0] = bytes32(uint256(2 + i));
+            depositManager.depositToken(channelId, 1 ether, mptKeys);
+            vm.stopPrank();
+        }
+
+        // Get participant count
+        address[] memory channelParticipants = bridge.getChannelParticipants(channelId);
+
+        // Should have 17 participants total
+
+        assertEq(channelParticipants.length, 17, "Should have 17 participants");
+
+        // Tree size must accommodate all participants
+        assertTrue(treeSize >= channelParticipants.length, "Tree size must be >= participant count");
+    }
+
+    function testMultipleChannelsWithSameLeader() public {
+        vm.startPrank(leader);
+
+        address[] memory participants = new address[](2);
+        participants[0] = user1;
+        participants[1] = user2;
+
+        // Create first channel
+        bytes32 channelId1 = keccak256(abi.encode(leader, "channel1"));
+        BridgeCore.ChannelParams memory params1 = BridgeCore.ChannelParams({
+            channelId: channelId1,
+            targetContract: address(token),
+            whitelisted: participants,
+            enableFrostSignature: false
+        });
+        bridge.openChannel(params1);
+
+        // Create second channel with same leader
+        bytes32 channelId2 = keccak256(abi.encode(leader, "channel2"));
+        BridgeCore.ChannelParams memory params2 = BridgeCore.ChannelParams({
+            channelId: channelId2,
+            targetContract: address(token),
+            whitelisted: participants,
+            enableFrostSignature: false
+        });
+        bridge.openChannel(params2);
+
+        vm.stopPrank();
+
+        // Verify leader is set for both channels
+        assertTrue(bridge.isMarkedChannelLeader(leader, channelId1), "Leader should be marked for channel 1");
+        assertTrue(bridge.isMarkedChannelLeader(leader, channelId2), "Leader should be marked for channel 2");
+
+        // Cleanup first channel
+        vm.prank(address(withdrawManager));
+        bridge.cleanupChannel(channelId1);
+
+        // Verify first channel is deleted but second still exists
+        assertEq(bridge.getChannelLeader(channelId1), address(0), "First channel should be deleted");
+        assertFalse(bridge.isMarkedChannelLeader(leader, channelId1), "Leader should not be marked for deleted channel 1");
+        assertTrue(
+            bridge.isMarkedChannelLeader(leader, channelId2),
+            "Leader should still be marked for channel 2"
+        );
+
+        // Cleanup second channel
+        vm.prank(address(withdrawManager));
+        bridge.cleanupChannel(channelId2);
+
+        // Now both channels should be deleted
+        assertEq(bridge.getChannelLeader(channelId2), address(0), "Second channel should be deleted");
+        assertFalse(
+            bridge.isMarkedChannelLeader(leader, channelId2),
+            "Leader should not be marked for deleted channel 2"
+        );
+    }
+
     // ========== Deposit Tests ==========
 
     function testDepositTokenBasic() public {
@@ -950,7 +1070,11 @@ contract BridgeCoreTest is Test {
 
         vm.expectEmit(true, true, true, true);
         emit Deposited(channelId, user1, address(token), depositAmount);
-        depositManager.depositToken(channelId, depositAmount, bytes32(uint256(uint160(l2User1))));
+        bytes32[] memory mptKeys = new bytes32[](1);
+        mptKeys[0] = bytes32(uint256(uint160(l2User1)));
+        depositManager.depositToken(channelId, depositAmount, mptKeys);
+        uint256 amountStored = bridge.getValidatedUserSlotValue(channelId, user1, 0);
+        assertEq(amountStored, depositAmount);
 
         vm.stopPrank();
     }
@@ -962,7 +1086,9 @@ contract BridgeCoreTest is Test {
         token.mint(address(999), 1 ether);
         token.approve(address(depositManager), 1 ether);
         vm.expectRevert("Not whitelisted");
-        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
+        bytes32[] memory mptKeys = new bytes32[](1);
+        mptKeys[0] = bytes32(uint256(uint160(l2User1)));
+        depositManager.depositToken(channelId, 1 ether, mptKeys);
         vm.stopPrank();
     }
 
@@ -977,7 +1103,9 @@ contract BridgeCoreTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Deposited(channelId, user1, address(token), depositAmount);
 
-        depositManager.depositToken(channelId, depositAmount, bytes32(uint256(uint160(l2User1))));
+        bytes32[] memory mptKeys = new bytes32[](1);
+        mptKeys[0] = bytes32(uint256(uint160(l2User1)));
+        depositManager.depositToken(channelId, depositAmount, mptKeys);
 
         assertEq(token.balanceOf(address(depositManager)), depositAmount);
 
@@ -989,15 +1117,27 @@ contract BridgeCoreTest is Test {
     function testInitializeChannelState() public {
         bytes32 channelId = _createChannel();
 
+        // Leader must deposit before initializing
+        vm.startPrank(leader);
+        token.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader = new bytes32[](1);
+        mptKeysLeader[0] = bytes32(uint256(uint160(l2Leader)));
+        depositManager.depositToken(channelId, 1 ether, mptKeysLeader);
+        vm.stopPrank();
+
         // Make deposits using DepositManager
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
+        bytes32[] memory mptKeys1 = new bytes32[](1);
+        mptKeys1[0] = bytes32(uint256(uint160(l2User1)));
+        depositManager.depositToken(channelId, 1 ether, mptKeys1);
         vm.stopPrank();
 
         vm.startPrank(user3);
         token.approve(address(depositManager), 3 ether);
-        depositManager.depositToken(channelId, 3 ether, bytes32(uint256(uint160(l2User3))));
+        bytes32[] memory mptKeys3 = new bytes32[](1);
+        mptKeys3[0] = bytes32(uint256(uint160(l2User3)));
+        depositManager.depositToken(channelId, 3 ether, mptKeys3);
         vm.stopPrank();
 
         // Initialize state
@@ -1038,15 +1178,27 @@ contract BridgeCoreTest is Test {
         // Create first channel
         bytes32 channelId1 = _createChannel();
 
+        // Leader must deposit before initializing
+        vm.startPrank(leader);
+        token.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader = new bytes32[](1);
+        mptKeysLeader[0] = bytes32(uint256(uint160(l2Leader)));
+        depositManager.depositToken(channelId1, 1 ether, mptKeysLeader);
+        vm.stopPrank();
+
         // Make specific deposits - Set 1: [1, 2, 0]
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId1, 1 ether, bytes32(uint256(uint160(l2User1))));
+        bytes32[] memory mptKeys1 = new bytes32[](1);
+        mptKeys1[0] = bytes32(uint256(uint160(l2User1)));
+        depositManager.depositToken(channelId1, 1 ether, mptKeys1);
         vm.stopPrank();
 
         vm.startPrank(user2);
         token.approve(address(depositManager), 2 ether);
-        depositManager.depositToken(channelId1, 2 ether, bytes32(uint256(uint160(l2User2))));
+        bytes32[] memory mptKeys2 = new bytes32[](1);
+        mptKeys2[0] = bytes32(uint256(uint160(l2User2)));
+        depositManager.depositToken(channelId1, 2 ether, mptKeys2);
         vm.stopPrank();
         // user3 makes no deposit
 
@@ -1076,14 +1228,27 @@ contract BridgeCoreTest is Test {
 
         // Create second channel with different leader to avoid "Channel limit reached"
         bytes32 channelId2 = _createChannelWithLeader(leader2);
+
+        // Leader2 must deposit before initializing
+        vm.startPrank(leader2);
+        token.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader2 = new bytes32[](1);
+        mptKeysLeader2[0] = bytes32(uint256(uint160(address(32)))); // l2Leader2
+        depositManager.depositToken(channelId2, 1 ether, mptKeysLeader2);
+        vm.stopPrank();
+
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId2, 1 ether, bytes32(uint256(uint160(l2User1))));
+        bytes32[] memory mptKeysC2_1 = new bytes32[](1);
+        mptKeysC2_1[0] = bytes32(uint256(uint160(l2User1)));
+        depositManager.depositToken(channelId2, 1 ether, mptKeysC2_1);
         vm.stopPrank();
 
         vm.startPrank(user2);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId2, 1 ether, bytes32(uint256(uint160(l2User2)))); // Same amount this time
+        bytes32[] memory mptKeysC2_2 = new bytes32[](1);
+        mptKeysC2_2[0] = bytes32(uint256(uint160(l2User2)));
+        depositManager.depositToken(channelId2, 1 ether, mptKeysC2_2); // Same amount this time
         vm.stopPrank();
         // user3 makes no deposit
 
@@ -1226,20 +1391,34 @@ contract BridgeCoreTest is Test {
         address expectedSigner = bridge.getChannelSignerAddr(channelId);
         mockZecFrost.setMockSigner(expectedSigner);
 
+        // Leader must deposit before initializing
+        vm.startPrank(leader);
+        token.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader = new bytes32[](1);
+        mptKeysLeader[0] = bytes32(uint256(uint160(l2Leader)));
+        depositManager.depositToken(channelId, 1 ether, mptKeysLeader);
+        vm.stopPrank();
+
         // Make deposits
         vm.startPrank(user1);
         token.approve(address(depositManager), 1 ether);
-        depositManager.depositToken(channelId, 1 ether, bytes32(uint256(uint160(l2User1))));
+        bytes32[] memory mptKeys1 = new bytes32[](1);
+        mptKeys1[0] = bytes32(uint256(uint160(l2User1)));
+        depositManager.depositToken(channelId, 1 ether, mptKeys1);
         vm.stopPrank();
 
         vm.startPrank(user2);
         token.approve(address(depositManager), 2 ether);
-        depositManager.depositToken(channelId, 2 ether, bytes32(uint256(uint160(l2User2))));
+        bytes32[] memory mptKeys2 = new bytes32[](1);
+        mptKeys2[0] = bytes32(uint256(uint160(l2User2)));
+        depositManager.depositToken(channelId, 2 ether, mptKeys2);
         vm.stopPrank();
 
         vm.startPrank(user3);
         token.approve(address(depositManager), 3 ether);
-        depositManager.depositToken(channelId, 3 ether, bytes32(uint256(uint160(l2User3))));
+        bytes32[] memory mptKeys3 = new bytes32[](1);
+        mptKeys3[0] = bytes32(uint256(uint160(l2User3)));
+        depositManager.depositToken(channelId, 3 ether, mptKeys3);
         vm.stopPrank();
 
         // Initialize state
@@ -1321,7 +1500,9 @@ contract BridgeCoreTest is Test {
         vm.deal(user1, amount);
         vm.startPrank(user1);
         token.approve(address(depositManager), amount);
-        depositManager.depositToken(channelId, amount, bytes32(uint256(uint160(l2User1))));
+        bytes32[] memory mptKeys = new bytes32[](1);
+        mptKeys[0] = bytes32(uint256(uint160(l2User1)));
+        depositManager.depositToken(channelId, amount, mptKeys);
         vm.stopPrank();
     }
 
@@ -1427,16 +1608,23 @@ contract BridgeCoreTest is Test {
             0xf2cf51268a560b92b57994c09af3c129e7f5646a48e668564edde80fd5076c6e
         );
 
+        // Leader must deposit before initializing
+        token.approve(address(depositManager), 1 ether);
+        bytes32[] memory mptKeysLeader = new bytes32[](1);
+        mptKeysLeader[0] = bytes32(uint256(200 + participantCount)); // Unique L2 key for leader
+        depositManager.depositToken(channelId, 1 ether, mptKeysLeader);
+        vm.stopPrank();
+
         // Deposit for each participant
         for (uint256 i = 0; i < participantCount; i++) {
-            vm.stopPrank();
-
             // Fund the participant
             vm.deal(participants[i], 10 ether);
 
             vm.startPrank(participants[i]);
             token.approve(address(depositManager), (i + 1) * 1 ether);
-            depositManager.depositToken(channelId, (i + 1) * 1 ether, bytes32(uint256(13 + i))); // Use different MPT keys
+            bytes32[] memory mptKeys = new bytes32[](1);
+            mptKeys[0] = bytes32(uint256(13 + i)); // Use different MPT keys
+            depositManager.depositToken(channelId, (i + 1) * 1 ether, mptKeys);
             vm.stopPrank();
         }
 

@@ -39,7 +39,13 @@ contract ChannelIdTest is Test {
         bridgeCore.updateManagerAddresses(address(0), address(0), address(0), address(adminManager));
 
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(TARGET_CONTRACT, emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(TARGET_CONTRACT, emptySlots, balanceSlot, true);
     }
 
     function testNewChannelIdSystem() public {

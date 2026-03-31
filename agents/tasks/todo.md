@@ -49,8 +49,8 @@
 
 ## 2026-02-15 Update Plan (Gas Doc + Reporting Refresh)
 - [x] Re-measure latest `HEAD` verifier gas from `testVerifier` trace.
-- [x] Update `docs/tokamak-verifier-gas-sections.md` Measured Gas snapshot to current values.
-- [x] Update `docs/optimization/optimization_report.md` Source Series with a new row only if >=5% decrease rule is met.
+- [x] Update `bridge/docs/tokamak-verifier-gas-sections.md` Measured Gas snapshot to current values.
+- [x] Update `bridge/docs/optimization/optimization_report.md` Source Series with a new row only if >=5% decrease rule is met.
 - [x] Add the corresponding mini-report file with proposition/proof format compliance.
 
 ### 2026-02-15 Review Note (Gas Doc + Reporting Refresh)
@@ -60,7 +60,7 @@
 - Result:
   - `verify` gas confirmed at `655,104` for snapshot commit `ae99e6b`.
   - Source Series row added for `655,104` (drop vs previous `785,531` is `16.61%`, so new row is valid).
-  - Mini-report created at `docs/optimization/mini-reports/2026-02-15_ae99e6b.md`.
+  - Mini-report created at `bridge/docs/optimization/mini-reports/2026-02-15_ae99e6b.md`.
 
 ## 2026-02-14 Update Plan (computeAPUB l_free Unification)
 - [x] Add `OMEGA_64` constant for the 64-sized free-input domain.
@@ -133,7 +133,7 @@
   - Existing fixture test fails with `loadProof: Proof is invalid` because test vectors still use old proof lengths (`38/42`) while verifier now requires new format (`40/44`) and shifted scalar offsets.
 
 ## 2026-02-14 Update Plan (Refresh Gas Doc for Latest Verifier)
-- [x] Align `docs/tokamak-verifier-gas-sections.md` function references and section descriptions with current `TokamakVerifier.sol`.
+- [x] Align `bridge/docs/tokamak-verifier-gas-sections.md` function references and section descriptions with current `TokamakVerifier.sol`.
 - [x] Update residual/hotspot/verification notes to include latest (`HEAD`) metrics.
 - [x] Refresh Rust comparison table and functional-difference summary to match current Step 4 implementation (`prepareLhsAuxSingleMSM`).
 - [x] Re-validate measured numbers against latest trace output and finalize review note.
@@ -151,7 +151,7 @@
 - [x] Wire the new flow into `verify()` and keep pairing inputs behaviorally equivalent.
 - [x] Run verifier tests and confirm functional correctness.
 - [x] Measure gas with `forge test -vvvv --offline` and compute savings vs current (`73daa15`) baseline.
-- [x] Record optimization details and measured gas deltas in `docs/tokamak-verifier-gas-sections.md`.
+- [x] Record optimization details and measured gas deltas in `bridge/docs/tokamak-verifier-gas-sections.md`.
 - [x] Add review note to this task file.
 
 ### 2026-02-14 Review Note (Single-MSM LHS+AUX Refactor)
@@ -180,7 +180,7 @@
 ## 2026-02-14 Update Plan (Measured Gas Table Expansion)
 - [x] Extract section-level precompile gas for optimization checkpoint `50030b0` (`computeAPUB` optimized).
 - [x] Reconfirm section-level precompile gas for current checkpoint `73daa15` (MSM consolidation).
-- [x] Update `docs/tokamak-verifier-gas-sections.md` so `Measured Gas` table includes per-section values across all optimization checkpoints.
+- [x] Update `bridge/docs/tokamak-verifier-gas-sections.md` so `Measured Gas` table includes per-section values across all optimization checkpoints.
 - [x] Verify table totals and section sums match trace-derived subtotals.
 - [x] Add a short review note in this file with validation commands and outcomes.
 
@@ -191,7 +191,7 @@
 - Verified checkpoints:
   - `50030b0`: `verify = 980,360`, precompile subtotal = `750,108`
   - `73daa15`: `verify = 930,866`, precompile subtotal = `707,649`
-- Section table in `docs/tokamak-verifier-gas-sections.md` updated with three aligned columns (baseline / `50030b0` / `73daa15`) and matching subtotals.
+- Section table in `bridge/docs/tokamak-verifier-gas-sections.md` updated with three aligned columns (baseline / `50030b0` / `73daa15`) and matching subtotals.
 
 ## Plan
 - [x] Read `src/verifier/TokamakVerifier.sol` and define functional sections of `verify` pipeline.
@@ -205,7 +205,7 @@
 ## Progress
 - [x] Baseline verify gas captured (`1,201,029` in call trace).
 - [x] Precompile sequence extracted and section-mapped.
-- [x] Report written to `docs/tokamak-verifier-gas-sections.md`.
+- [x] Report written to `bridge/docs/tokamak-verifier-gas-sections.md`.
 - [x] Rust comparison and functional-diff summary appended to report.
 
 ## Review

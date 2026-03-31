@@ -33,32 +33,15 @@ forge test --match-test testChannelCreationAndDeposits
 
 ### Deployment & Scripts
 ```bash
-# Deploy V2 contracts (main deployment)
-./script/deploy/deploy-v2.sh sepolia
+# Deploy or upgrade the current bridge stack
+bash bridge/scripts/deploy-bridge.sh --mode redeploy-proxy
+bash bridge/scripts/deploy-bridge.sh --mode upgrade
 
-# Deploy TokamakVerifier
-./script/deploy/deploy-tokamak-verifier.sh sepolia
+# Register a DApp on an already deployed bridge
+node bridge/scripts/admin-add-dapp.mjs --group mintNotes --dapp-id 1
 
-# Upgrade contracts
-./script/upgrade/upgrade-contracts.sh sepolia
-
-# Register functions
-./script/deploy/register-function.sh
-
-# Set channel public key
-./script/deploy/set-channel-public-key.sh
-
-# Test Groth16 integration
-./script/deploy/test-groth16-integration.sh
-```
-
-### Environment Setup
-Copy `script/deploy/env-v2.template` to `.env` and configure:
-```bash
-PRIVATE_KEY=your_private_key
-RPC_URL=your_rpc_url
-ETHERSCAN_API_KEY=your_api_key
-DEPLOYER_ADDRESS=0x...
+# Run the private-state CLI E2E flow
+node apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs
 ```
 
 ## Architecture Overview
@@ -99,7 +82,7 @@ The system automatically selects tree sizes based on channel requirements:
 ### Core Contracts
 - `src/BridgeCore.sol` - Main bridge logic
 - `src/interface/IBridgeCore.sol` - Core interface definitions
-- `src/verifier/TokamakVerifier.sol` - ZK proof verification
+- `tokamak-zkp/TokamakVerifier.sol` - ZK proof verification
 - `src/library/ZecFrost.sol` - FROST signatures
 - `src/library/RLP.sol` - RLP encoding utilities
 
@@ -111,9 +94,10 @@ The system automatically selects tree sizes based on channel requirements:
 - `test/js-scripts/` - JavaScript utilities for proof generation
 
 ### Deployment Scripts
-- `script/deploy/DeployV2.s.sol` - Main deployment script
-- `script/upgrade/UpgradeContracts.s.sol` - Contract upgrade script
-- Shell wrappers in `script/deploy/` and `script/upgrade/`
+- `bridge/scripts/DeployBridgeStack.s.sol` - Current bridge deployment script
+- `bridge/scripts/UpgradeBridgeStack.s.sol` - Current bridge upgrade script
+- `bridge/scripts/deploy-bridge.sh` - Current bridge deployment wrapper
+- `bridge/scripts/admin-add-dapp.mjs` - Current bridge-side DApp registration entrypoint
 
 ## Security Features
 

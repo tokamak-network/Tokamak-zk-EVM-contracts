@@ -55,7 +55,13 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, balanceSlot, true);
 
         // Setup TON transfer pre-allocated leaf
         adminManager.setupTonTransferPreAllocatedLeaf(address(testToken));
@@ -64,10 +70,6 @@ contract PreAllocatedLeavesTest is Test {
         (uint256 value, bool exists) = adminManager.getPreAllocatedLeaf(address(testToken), bytes32(uint256(0x07)));
         assertTrue(exists, "Pre-allocated leaf should exist");
         assertEq(value, 18, "Pre-allocated leaf value should be 18 (decimals)");
-
-        // Check that max participants is reduced by 1
-        uint256 maxParticipants = bridge.getMaxAllowedParticipants(address(testToken));
-        assertEq(maxParticipants, 127, "Max participants should be 127 (128 - 1 pre-allocated)");
 
         // Get all pre-allocated keys
         bytes32[] memory keys = bridge.getPreAllocatedKeys(address(testToken));
@@ -82,7 +84,13 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, balanceSlot, true);
 
         // Set a custom pre-allocated leaf
         bytes32 customKey = bytes32(uint256(0x42));
@@ -94,10 +102,6 @@ contract PreAllocatedLeavesTest is Test {
         assertTrue(exists, "Custom pre-allocated leaf should exist");
         assertEq(value, customValue, "Custom pre-allocated leaf value should match");
 
-        // Check that max participants is reduced
-        uint256 maxParticipants = bridge.getMaxAllowedParticipants(address(testToken));
-        assertEq(maxParticipants, 127, "Max participants should be 127 (128 - 1 pre-allocated)");
-
         vm.stopPrank();
     }
 
@@ -106,16 +110,18 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, balanceSlot, true);
 
         // Set multiple pre-allocated leaves
         adminManager.setPreAllocatedLeaf(address(testToken), bytes32(uint256(0x01)), 100);
         adminManager.setPreAllocatedLeaf(address(testToken), bytes32(uint256(0x02)), 200);
         adminManager.setPreAllocatedLeaf(address(testToken), bytes32(uint256(0x03)), 300);
-
-        // Check that max participants is reduced by 3
-        uint256 maxParticipants = bridge.getMaxAllowedParticipants(address(testToken));
-        assertEq(maxParticipants, 125, "Max participants should be 125 (128 - 3 pre-allocated)");
 
         // Get all pre-allocated keys
         bytes32[] memory keys = bridge.getPreAllocatedKeys(address(testToken));
@@ -129,7 +135,13 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, balanceSlot, true);
 
         // Set a pre-allocated leaf
         bytes32 testKey = bytes32(uint256(0x42));
@@ -146,10 +158,6 @@ contract PreAllocatedLeavesTest is Test {
         (value, exists) = adminManager.getPreAllocatedLeaf(address(testToken), testKey);
         assertFalse(exists, "Pre-allocated leaf should not exist after removal");
 
-        // Check that max participants is back to normal
-        uint256 maxParticipants = bridge.getMaxAllowedParticipants(address(testToken));
-        assertEq(maxParticipants, 128, "Max participants should be back to 128");
-
         vm.stopPrank();
     }
 
@@ -158,16 +166,25 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, balanceSlot, true);
 
         // Setup TON transfer pre-allocated leaf (1 leaf)
         adminManager.setupTonTransferPreAllocatedLeaf(address(testToken));
 
         vm.stopPrank();
 
-        // Create participants (max should be 127 now due to 1 pre-allocated leaf)
-        address[] memory participants = new address[](127);
-        for (uint256 i = 0; i < 127; i++) {
+        // Create participants
+        // With 1 balance slot: numberOfUserStorageSlot = 1
+        // With 1 pre-allocated leaf: preAllocatedCount = 1
+        // maxAllowedParticipants = ((128 - 1) / 1) - 1 = 127 - 1 = 126
+        address[] memory participants = new address[](126);
+        for (uint256 i = 0; i < 126; i++) {
             participants[i] = address(uint160(i + 1));
         }
 
@@ -181,7 +198,7 @@ contract PreAllocatedLeavesTest is Test {
             enableFrostSignature: true
         });
 
-        // This should succeed with 127 participants
+        // This should succeed with 126 participants (plus leader = 127 total)
         bytes32 returnedChannelId = bridge.openChannel(params);
         assertEq(returnedChannelId, channelId);
 
@@ -197,16 +214,23 @@ contract PreAllocatedLeavesTest is Test {
 
         // First allow the target contract
         IBridgeCore.PreAllocatedLeaf[] memory emptySlots = new IBridgeCore.PreAllocatedLeaf[](0);
-        adminManager.setAllowedTargetContract(address(testToken), emptySlots, true);
+        IBridgeCore.UserStorageSlot[] memory balanceSlot = new IBridgeCore.UserStorageSlot[](1);
+        balanceSlot[0] = IBridgeCore.UserStorageSlot({
+            slotOffset: 0,
+            getterFunctionSignature: bytes32(0),
+            isLoadedOnChain: false
+        });
+        adminManager.setAllowedTargetContract(address(testToken), emptySlots, balanceSlot, true);
 
         // Setup TON transfer pre-allocated leaf (1 leaf)
         adminManager.setupTonTransferPreAllocatedLeaf(address(testToken));
 
         vm.stopPrank();
 
-        // Try to create with 128 participants (should fail due to pre-allocated leaf)
-        address[] memory participants = new address[](128);
-        for (uint256 i = 0; i < 128; i++) {
+        // Try to create with 127 participants (max is 126, should fail)
+        // maxAllowedParticipants = ((128 - 1) / 1) - 1 = 127 - 1 = 126
+        address[] memory participants = new address[](127);
+        for (uint256 i = 0; i < 127; i++) {
             participants[i] = address(uint160(i + 1));
         }
 

@@ -1,0 +1,54 @@
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+libs = ["../lib"]
+allow_paths = ["../tokamak-zkp"]
+remappings = [
+    "@openzeppelin/=../lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin-upgradeable/=../lib/openzeppelin-contracts-upgradeable/contracts/",
+    "forge-std/=../lib/forge-std/src/",
+    "groth16-verifier/=../groth16/verifier/",
+    "tokamak-zkp/=../tokamak-zkp/",
+]
+
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [
+    { access = "read", path = "./test/fixtures" },
+    { access = "read", path = "../tokamak-zkp/test/fixtures" },
+    { access = "read", path = "./deployments" },
+    { access = "write", path = "./deployments" },
+]
+
+[profile.ci]
+src = "src"
+test = "test"
+out = "out"
+libs = ["../lib"]
+allow_paths = ["../tokamak-zkp"]
+remappings = [
+    "@openzeppelin/=../lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin-upgradeable/=../lib/openzeppelin-contracts-upgradeable/contracts/",
+    "forge-std/=../lib/forge-std/src/",
+    "groth16-verifier/=../groth16/verifier/",
+    "tokamak-zkp/=../tokamak-zkp/",
+]
+
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [
+    { access = "read", path = "./test/fixtures" },
+    { access = "read", path = "../tokamak-zkp/test/fixtures" },
+    { access = "read", path = "./deployments" },
+    { access = "write", path = "./deployments" },
+]
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = true

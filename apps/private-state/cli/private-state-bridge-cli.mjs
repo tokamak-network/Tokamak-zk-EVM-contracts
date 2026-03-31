@@ -1016,12 +1016,10 @@ async function handleGetMyAddress({ args, provider }) {
   });
 }
 
-async function handleGetMyChannelFund({ args, provider }) {
-  const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
-  const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
-  const contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
+async function loadWalletChannelFundState({ walletContext, provider }) {
+  const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
+  const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
   const context = contextResult.context;
-
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   expect(
     registration.exists,
@@ -1043,6 +1041,27 @@ async function handleGetMyChannelFund({ args, provider }) {
     context.workspace.l2AccountingVault,
     normalizeBytes32Hex(registration.channelTokenVaultKey),
   );
+  return {
+    signer,
+    l2Identity,
+    contextResult,
+    context,
+    registration,
+    expectedStorageKey,
+    channelFund: channelDeposit,
+  };
+}
+
+async function handleGetMyChannelFund({ args, provider }) {
+  const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
+  const {
+    signer,
+    l2Identity,
+    context,
+    registration,
+    expectedStorageKey,
+    channelFund,
+  } = await loadWalletChannelFundState({ walletContext: wallet, provider });
 
   printJson({
     action: "get-my-channel-fund",
@@ -1053,9 +1072,9 @@ async function handleGetMyChannelFund({ args, provider }) {
     walletL2Address: l2Identity.l2Address,
     walletL2StorageKey: expectedStorageKey,
     registeredLeafIndex: registration.leafIndex.toString(),
-    channelDepositBaseUnits: channelDeposit.toString(),
+    channelDepositBaseUnits: channelFund.toString(),
     channelDepositTokens: ethers.formatUnits(
-      channelDeposit,
+      channelFund,
       Number(context.workspace.canonicalAssetDecimals),
     ),
     canonicalAsset: context.workspace.canonicalAsset,
@@ -1318,6 +1337,18 @@ async function handleMintNotes({ args, provider }) {
   expect(
     baseUnitAmounts.length > 0,
     "Invalid --amounts. The array must contain at least one amount greater than zero.",
+  );
+  const totalMintAmount = baseUnitAmounts.reduce((sum, { amountBaseUnits }) => sum + amountBaseUnits, 0n);
+  const { channelFund } = await loadWalletChannelFundState({
+    walletContext: wallet,
+    provider,
+  });
+  expect(
+    totalMintAmount <= channelFund,
+    [
+      `Mint amount total ${totalMintAmount.toString()} exceeds the current channel fund`,
+      `${channelFund.toString()}. Run get-my-channel-fund to inspect the available balance.`,
+    ].join(" "),
   );
   const templatePayload = buildMintNotesTemplatePayload({
     wallet,

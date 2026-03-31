@@ -359,12 +359,16 @@
         password: "",
         wallet: "",
         amount: "",
-        amounts: "[3]",
+        amounts: "",
         mintAmount1: "3",
         mintAmount2: "",
         mintAmount3: "",
         noteIds: "[\"0x...\"]",
-        recipients: "[\"0xRecipientL2Address\"]",
+        recipients: "",
+        transferRecipient1: "",
+        transferAmount1: "",
+        transferRecipient2: "",
+        transferAmount2: "",
       };
 
       const sharedFieldKeys = [
@@ -623,6 +627,65 @@
         return `Selected total: ${totalTokens} (${totalBaseUnits.toString()} base units)`;
       }
 
+      function selectedTransferInputNoteCount() {
+        return parseSelectedNoteIds().length;
+      }
+
+      function transferPairLimit() {
+        return selectedTransferInputNoteCount() === 1 ? 2 : 1;
+      }
+
+      function transferPairRows() {
+        return [
+          {
+            recipient: String(state.transferRecipient1 ?? "").trim(),
+            amount: String(state.transferAmount1 ?? "").trim(),
+          },
+          {
+            recipient: String(state.transferRecipient2 ?? "").trim(),
+            amount: String(state.transferAmount2 ?? "").trim(),
+          },
+        ];
+      }
+
+      function currentTransferOutputs() {
+        const limit = transferPairLimit();
+        const rows = transferPairRows().slice(0, limit);
+        const recipients = [];
+        const amounts = [];
+        let hasPartialPair = false;
+
+        for (const row of rows) {
+          if (!row.recipient && !row.amount) {
+            continue;
+          }
+          if (!row.recipient || !row.amount) {
+            hasPartialPair = true;
+            continue;
+          }
+          recipients.push(row.recipient);
+          amounts.push(row.amount);
+        }
+
+        return {
+          limit,
+          recipients,
+          amounts,
+          hasPartialPair,
+        };
+      }
+
+      function transferPairHintLabel() {
+        const inputNoteCount = selectedTransferInputNoteCount();
+        if (inputNoteCount === 0) {
+          return "Select 1 input note to unlock up to 2 recipient/amount pairs. Select 2 input notes to use 1 pair.";
+        }
+        if (inputNoteCount === 1) {
+          return "With 1 selected input note, you may enter up to 2 recipient/amount pairs.";
+        }
+        return "With 2 selected input notes, exactly 1 recipient/amount pair can be used.";
+      }
+
       function rerenderCommandField(fieldKey) {
         const existing = commandFieldsEl.querySelector(`[data-field-key="${fieldKey}"]`);
         if (!existing) {
@@ -816,12 +879,21 @@
       }
 
       function missingFields(command) {
+        const transferOutputs = command.id === "transfer-notes"
+          ? currentTransferOutputs()
+          : null;
         return command.fields.filter((fieldKey) => {
           if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
             return false;
           }
           if (fieldKey === "amounts" && command.id === "mint-notes") {
             return currentMintAmounts().length === 0;
+          }
+          if ((fieldKey === "recipients" || fieldKey === "amounts") && command.id === "transfer-notes") {
+            if (fieldKey === "amounts") {
+              return false;
+            }
+            return transferOutputs.recipients.length === 0 || transferOutputs.hasPartialPair;
           }
           return !String(state[fieldKey] ?? "").trim();
         });
@@ -830,6 +902,9 @@
       function buildCommand({ maskSecrets }) {
         const command = currentCommand();
         const parts = [cliEntry, command.id];
+        const transferOutputs = command.id === "transfer-notes"
+          ? currentTransferOutputs()
+          : null;
 
         for (const fieldKey of command.fields) {
           if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
@@ -838,6 +913,14 @@
 
           const value = fieldKey === "amounts" && command.id === "mint-notes"
             ? JSON.stringify(currentMintAmounts())
+            : fieldKey === "amounts" && command.id === "transfer-notes"
+              ? (!transferOutputs.hasPartialPair && transferOutputs.amounts.length > 0
+                ? JSON.stringify(transferOutputs.amounts)
+                : "")
+              : fieldKey === "recipients" && command.id === "transfer-notes"
+                ? (!transferOutputs.hasPartialPair && transferOutputs.recipients.length > 0
+                  ? JSON.stringify(transferOutputs.recipients)
+                  : "")
             : state[fieldKey];
           if (!value) {
             continue;
@@ -1153,6 +1236,9 @@
               state.noteIds = nextSelection.length === 0 ? "" : JSON.stringify(nextSelection);
               persistState();
               rerenderCommandField("noteIds");
+              if (currentCommand().id === "transfer-notes") {
+                rerenderCommandField("recipients");
+              }
               renderPreview();
             });
 
@@ -1173,6 +1259,71 @@
         totalHint.className = "hint";
         totalHint.textContent = selectedNoteTotalLabel();
         wrapper.appendChild(totalHint);
+
+        return wrapper;
+      }
+
+      function createTransferPairsField() {
+        const wrapper = document.createElement("div");
+        wrapper.className = "field-stack field-span-full";
+
+        const title = document.createElement("label");
+        title.textContent = "Transfer Output Pairs";
+        wrapper.appendChild(title);
+
+        const grid = document.createElement("div");
+        grid.className = "fields";
+
+        const pairLimit = transferPairLimit();
+        [
+          {
+            recipientKey: "transferRecipient1",
+            amountKey: "transferAmount1",
+            recipientLabel: "Recipient 1",
+            amountLabel: "Amount 1",
+          },
+          {
+            recipientKey: "transferRecipient2",
+            amountKey: "transferAmount2",
+            recipientLabel: "Recipient 2",
+            amountLabel: "Amount 2",
+          },
+        ].slice(0, pairLimit).forEach(({ recipientKey, amountKey, recipientLabel, amountLabel }) => {
+          const recipientField = document.createElement("label");
+          recipientField.textContent = recipientLabel;
+          const recipientInput = document.createElement("input");
+          recipientInput.type = "text";
+          recipientInput.placeholder = "0xRecipientL2Address";
+          recipientInput.value = state[recipientKey] ?? "";
+          recipientInput.addEventListener("input", (event) => {
+            state[recipientKey] = event.target.value;
+            persistState();
+            renderPreview();
+          });
+          recipientField.appendChild(recipientInput);
+          grid.appendChild(recipientField);
+
+          const amountField = document.createElement("label");
+          amountField.textContent = amountLabel;
+          const amountInput = document.createElement("input");
+          amountInput.type = "text";
+          amountInput.placeholder = "3";
+          amountInput.value = state[amountKey] ?? "";
+          amountInput.addEventListener("input", (event) => {
+            state[amountKey] = event.target.value;
+            persistState();
+            renderPreview();
+          });
+          amountField.appendChild(amountInput);
+          grid.appendChild(amountField);
+        });
+
+        wrapper.appendChild(grid);
+
+        const hint = document.createElement("p");
+        hint.className = "hint";
+        hint.textContent = transferPairHintLabel();
+        wrapper.appendChild(hint);
 
         return wrapper;
       }
@@ -1226,6 +1377,9 @@
         }
         if (fieldKey === "amounts" && currentCommand().id === "mint-notes") {
           return createMintAmountsField();
+        }
+        if (fieldKey === "recipients" && currentCommand().id === "transfer-notes") {
+          return createTransferPairsField();
         }
         if (fieldKey === "noteIds" && commandNeedsWalletNotes()) {
           return createNoteIdsField();
@@ -1290,6 +1444,9 @@
             renderCommandFields();
           } else if (fieldKey === "password" && commandNeedsWalletNotes()) {
             rerenderCommandField("noteIds");
+            if (currentCommand().id === "transfer-notes") {
+              rerenderCommandField("recipients");
+            }
             scheduleWalletNoteRefresh();
           }
         });
@@ -1303,6 +1460,9 @@
             await refreshWalletNoteOptions();
             if (commandNeedsWalletNotes()) {
               rerenderCommandField("noteIds");
+              if (currentCommand().id === "transfer-notes") {
+                rerenderCommandField("recipients");
+              }
             }
             renderPreview();
           });
@@ -1362,6 +1522,9 @@
 
         for (const fieldKey of commandOnlyFields) {
           if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
+            continue;
+          }
+          if (fieldKey === "amounts" && command.id === "transfer-notes") {
             continue;
           }
           const fieldElement = createField(fieldKey);

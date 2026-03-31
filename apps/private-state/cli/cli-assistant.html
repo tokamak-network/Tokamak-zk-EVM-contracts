@@ -38,6 +38,18 @@
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       }
 
+      #memory-fields {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        align-items: start;
+      }
+
+      .shared-field-shell {
+        display: grid;
+        grid-template-rows: auto minmax(2.8em, auto);
+        gap: 6px;
+        align-content: start;
+      }
+
       .fields > *,
       .field-stack {
         min-width: 0;
@@ -119,6 +131,7 @@
         color: #444;
         font-size: 12px;
         overflow-wrap: anywhere;
+        line-height: 1.35;
       }
 
       h1,
@@ -164,6 +177,10 @@
       @media (max-width: 900px) {
         .top-grid,
         .command-grid {
+          grid-template-columns: 1fr;
+        }
+
+        #memory-fields {
           grid-template-columns: 1fr;
         }
       }
@@ -359,6 +376,7 @@
       const previewEl = document.getElementById("command-preview");
       const statusEl = document.getElementById("status");
       let workspaceStatusEl = null;
+      let privateKeyHintEl = null;
       const maskedSecretValues = {
         alchemyApiKey: "__ALCHEMY_API_KEY__",
         privateKey: "__L1_PRIVATE_KEY__",
@@ -1033,13 +1051,6 @@
         }
         const label = document.createElement("label");
         label.textContent = config.label;
-        const wrapper = fieldKey === "privateKey"
-          ? document.createElement("div")
-          : null;
-        if (wrapper) {
-          wrapper.className = "field-stack";
-        }
-        let privateKeyHintEl = null;
 
         let input;
         if (config.type === "select") {
@@ -1097,28 +1108,36 @@
         }
 
         label.appendChild(input);
-        if (fieldKey === "privateKey") {
-          privateKeyHintEl = document.createElement("p");
-          privateKeyHintEl.className = "hint";
-          privateKeyHintEl.textContent = privateKeyAddressState.statusMessage;
-          wrapper.appendChild(label);
-          wrapper.appendChild(privateKeyHintEl);
-          void refreshPrivateKeyAddressState(state.privateKey).then(() => {
-            privateKeyHintEl.textContent = privateKeyAddressState.statusMessage;
-          });
-          return wrapper;
-        }
         return label;
       }
 
       function renderMemoryFields() {
         memoryFieldsEl.innerHTML = "";
+        privateKeyHintEl = null;
         [
           "network",
           "alchemyApiKey",
           "privateKey",
         ].forEach((fieldKey) => {
-          memoryFieldsEl.appendChild(createField(fieldKey));
+          const shell = document.createElement("div");
+          shell.className = "shared-field-shell";
+          shell.appendChild(createField(fieldKey));
+
+          const hint = document.createElement("p");
+          hint.className = "hint";
+          if (fieldKey === "privateKey") {
+            hint.textContent = privateKeyAddressState.statusMessage;
+            privateKeyHintEl = hint;
+            void refreshPrivateKeyAddressState(state.privateKey).then(() => {
+              if (privateKeyHintEl === hint) {
+                privateKeyHintEl.textContent = privateKeyAddressState.statusMessage;
+              }
+            });
+          } else {
+            hint.textContent = "";
+          }
+          shell.appendChild(hint);
+          memoryFieldsEl.appendChild(shell);
         });
       }
 

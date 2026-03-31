@@ -179,13 +179,6 @@
         align-items: start;
       }
 
-      .command-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(360px, 1.25fr);
-        gap: 16px;
-        align-items: start;
-      }
-
       .compact-select {
         max-width: 360px;
       }
@@ -208,8 +201,7 @@
       }
 
       @media (max-width: 900px) {
-        .top-grid,
-        .command-grid {
+        .top-grid {
           grid-template-columns: 1fr;
         }
 
@@ -253,19 +245,20 @@
 
       <section>
         <h2>Command Inputs</h2>
-        <div class="command-grid">
-          <form class="box">
-            <div id="command-fields" class="fields"></div>
-          </form>
+        <form class="box">
+          <div id="command-fields" class="fields"></div>
+        </form>
+      </section>
 
-          <div class="box">
-            <p id="warning" class="hint"></p>
-            <pre id="command-preview"></pre>
-            <div class="actions">
-              <button id="copy-command" type="button">Copy command</button>
-            </div>
-            <p id="status" class="status" aria-live="polite"></p>
+      <section>
+        <h2>Command Output</h2>
+        <div class="box">
+          <p id="warning" class="hint"></p>
+          <pre id="command-preview"></pre>
+          <div class="actions">
+            <button id="copy-command" type="button">Copy command</button>
           </div>
+          <p id="status" class="status" aria-live="polite"></p>
         </div>
       </section>
 

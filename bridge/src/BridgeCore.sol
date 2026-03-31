@@ -53,13 +53,11 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
     mapping(uint256 => ChannelDeployment) private _channels;
 
-    event ChannelCreated(
-        uint256 indexed channelId,
-        uint256 indexed dappId,
-        address manager,
-        address bridgeTokenVault
-    );
+    event ChannelCreated(uint256 indexed channelId, uint256 indexed dappId, address manager, address bridgeTokenVault);
     event BridgeTokenVaultBound(address indexed bridgeTokenVault);
+    event GrothVerifierUpdated(address indexed grothVerifier);
+    event TokamakVerifierUpdated(address indexed tokamakVerifier);
+
     constructor() {
         _disableInitializers();
     }
@@ -88,6 +86,18 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         tokamakVerifier = tokamakVerifier_;
     }
 
+    function setGrothVerifier(IGrothVerifier grothVerifier_) external onlyOwner {
+        if (address(grothVerifier_) == address(0)) revert InvalidGrothVerifier();
+        grothVerifier = grothVerifier_;
+        emit GrothVerifierUpdated(address(grothVerifier_));
+    }
+
+    function setTokamakVerifier(ITokamakVerifier tokamakVerifier_) external onlyOwner {
+        if (address(tokamakVerifier_) == address(0)) revert InvalidTokamakVerifier();
+        tokamakVerifier = tokamakVerifier_;
+        emit TokamakVerifierUpdated(address(tokamakVerifier_));
+    }
+
     function bindBridgeTokenVault(address bridgeTokenVault_) external onlyOwner {
         if (bridgeTokenVault_ == address(0)) revert InvalidBridgeTokenVault();
         if (bridgeTokenVault != address(0)) revert BridgeTokenVaultAlreadySet();
@@ -105,11 +115,11 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         revert UnsupportedCanonicalAssetChain(block.chainid);
     }
 
-    function createChannel(
-        uint256 channelId,
-        uint256 dappId,
-        address leader
-    ) external onlyOwner returns (address manager, address boundBridgeTokenVault) {
+    function createChannel(uint256 channelId, uint256 dappId, address leader)
+        external
+        onlyOwner
+        returns (address manager, address boundBridgeTokenVault)
+    {
         IERC20 asset = IERC20(canonicalAsset());
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (bridgeTokenVault == address(0)) revert InvalidBridgeTokenVault();
@@ -139,8 +149,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             managedStorageAddresses,
             registeredFunctions,
             address(this),
-            dAppManager,
-            tokamakVerifier
+            dAppManager
         );
 
         channelManager.bindBridgeTokenVault(bridgeTokenVault);

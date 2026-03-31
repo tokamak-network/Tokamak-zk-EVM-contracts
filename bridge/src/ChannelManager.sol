@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {BridgeStructs} from "./BridgeStructs.sol";
 import {DAppManager} from "./DAppManager.sol";
-import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
+import {IChannelRegistry} from "./interfaces/IChannelRegistry.sol";
 
 contract ChannelManager {
     uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 68;
@@ -61,7 +61,6 @@ contract ChannelManager {
     uint256 public immutable channelTokenVaultTreeIndex;
     address public immutable channelTokenVaultStorageAddress;
     address public immutable bridgeCore;
-    ITokamakVerifier public immutable tokamakVerifier;
 
     address public bridgeTokenVault;
     bytes32 public currentRootVectorHash;
@@ -103,15 +102,13 @@ contract ChannelManager {
         address[] memory managedStorageAddresses_,
         BridgeStructs.FunctionReference[] memory allowedFunctions_,
         address bridgeCore_,
-        DAppManager dAppManager_,
-        ITokamakVerifier tokamakVerifier_
+        DAppManager dAppManager_
     ) {
         channelId = channelId_;
         dappId = dappId_;
         genesisBlockNumber = block.number;
         leader = leader_;
         bridgeCore = bridgeCore_;
-        tokamakVerifier = tokamakVerifier_;
 
         uint256[] memory aPubBlock = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
         uint256 selfBalance;
@@ -167,15 +164,14 @@ contract ChannelManager {
             _allowedFunctionKeys[functionKey] = true;
             _allowedFunctions.push(allowedFunctions_[i]);
             BridgeStructs.FunctionConfig memory functionConfig = dAppManager_.getFunctionMetadata(
-                dappId_,
-                allowedFunctions_[i].entryContract,
-                allowedFunctions_[i].functionSig
+                dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig
             );
             _functionConfigs[functionKey] = functionConfig;
             _functionKeyByPreprocessInputHash[functionConfig.preprocessInputHash] = functionKey;
 
-            BridgeStructs.StorageWriteMetadata[] memory storageWrites =
-                dAppManager_.getFunctionStorageWrites(dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
+            BridgeStructs.StorageWriteMetadata[] memory storageWrites = dAppManager_.getFunctionStorageWrites(
+                dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig
+            );
             for (uint256 j = 0; j < storageWrites.length; j++) {
                 uint8 storageAddrIndex = storageWrites[j].storageAddrIndex;
                 if (storageAddrIndex >= managedStorageAddresses_.length) {
@@ -185,7 +181,8 @@ contract ChannelManager {
                     CachedStorageWrite({
                         storageAddr: managedStorageAddresses_[storageAddrIndex],
                         aPubOffsetWords: storageWrites[j].aPubOffsetWords,
-                        isChannelTokenVault: managedStorageAddresses_[storageAddrIndex] == channelTokenVaultStorageAddress
+                        isChannelTokenVault: managedStorageAddresses_[storageAddrIndex]
+                            == channelTokenVaultStorageAddress
                     })
                 );
                 if (managedStorageAddresses_[storageAddrIndex] == channelTokenVaultStorageAddress) {
@@ -193,13 +190,13 @@ contract ChannelManager {
                 }
             }
 
-            BridgeStructs.EventLogMetadata[] memory eventLogs =
-                dAppManager_.getFunctionEventLogs(dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
+            BridgeStructs.EventLogMetadata[] memory eventLogs = dAppManager_.getFunctionEventLogs(
+                dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig
+            );
             for (uint256 j = 0; j < eventLogs.length; j++) {
                 _functionEventLogs[functionKey].push(
                     CachedEventLog({
-                        startOffsetWords: eventLogs[j].startOffsetWords,
-                        topicCount: eventLogs[j].topicCount
+                        startOffsetWords: eventLogs[j].startOffsetWords, topicCount: eventLogs[j].topicCount
                     })
                 );
             }
@@ -227,9 +224,7 @@ contract ChannelManager {
         bytes32 channelTokenVaultKey,
         uint256 leafIndex,
         BridgeStructs.NoteReceivePubKey calldata noteReceivePubKey
-    )
-        external
-    {
+    ) external {
         if (l2Address == address(0)) revert InvalidL2Address();
         if (_channelTokenVaultRegistrations[msg.sender].exists) {
             revert ChannelTokenVaultIdentityAlreadyRegistered(msg.sender);
@@ -264,8 +259,7 @@ contract ChannelManager {
             channelTokenVaultKey: channelTokenVaultKey,
             leafIndex: leafIndex,
             noteReceivePubKey: BridgeStructs.NoteReceivePubKey({
-                x: noteReceivePubKey.x,
-                yParity: noteReceivePubKey.yParity
+                x: noteReceivePubKey.x, yParity: noteReceivePubKey.yParity
             })
         });
         _channelTokenVaultKeyOwners[channelTokenVaultKey] = msg.sender;
@@ -273,12 +267,7 @@ contract ChannelManager {
         _channelTokenVaultL2AddressOwners[l2Address] = msg.sender;
 
         emit ChannelTokenVaultIdentityRegistered(
-            msg.sender,
-            l2Address,
-            channelTokenVaultKey,
-            leafIndex,
-            noteReceivePubKey.x,
-            noteReceivePubKey.yParity
+            msg.sender, l2Address, channelTokenVaultKey, leafIndex, noteReceivePubKey.x, noteReceivePubKey.yParity
         );
     }
 
@@ -351,14 +340,15 @@ contract ChannelManager {
             revert ChannelTokenVaultRootUpdateWithoutStorageWrite();
         }
 
-        bool ok = tokamakVerifier.verify(
-            payload.proofPart1,
-            payload.proofPart2,
-            payload.functionPreprocessPart1,
-            payload.functionPreprocessPart2,
-            payload.aPubUser,
-            payload.aPubBlock
-        );
+        bool ok = IChannelRegistry(bridgeCore).tokamakVerifier()
+            .verify(
+                payload.proofPart1,
+                payload.proofPart2,
+                payload.functionPreprocessPart1,
+                payload.functionPreprocessPart2,
+                payload.aPubUser,
+                payload.aPubBlock
+            );
         if (!ok) revert TokamakProofRejected();
 
         CachedStorageWrite[] storage storageWrites = _functionStorageWrites[functionKey];
@@ -510,7 +500,8 @@ contract ChannelManager {
             }
 
             uint256 eventEndOffset = _resolveObservedEventBoundary(functionConfig, eventLogs, i);
-            uint256 dataStartOffset = uint256(eventLog.startOffsetWords) + uint256(eventLog.topicCount) * SPLIT_WORD_SIZE;
+            uint256 dataStartOffset =
+                uint256(eventLog.startOffsetWords) + uint256(eventLog.topicCount) * SPLIT_WORD_SIZE;
             if (eventEndOffset < dataStartOffset) {
                 revert InvalidObservedEventBoundary(eventLog.startOffsetWords, eventEndOffset);
             }
@@ -521,7 +512,8 @@ contract ChannelManager {
 
             uint256[4] memory topics;
             for (uint256 topicIndex = 0; topicIndex < eventLog.topicCount; topicIndex++) {
-                topics[topicIndex] = _decodeSplitWord(aPubUser, uint256(eventLog.startOffsetWords) + topicIndex * SPLIT_WORD_SIZE);
+                topics[topicIndex] =
+                    _decodeSplitWord(aPubUser, uint256(eventLog.startOffsetWords) + topicIndex * SPLIT_WORD_SIZE);
             }
 
             bytes memory logData = new bytes((dataWordLength / SPLIT_WORD_SIZE) * 32);
@@ -551,10 +543,12 @@ contract ChannelManager {
             }
         }
 
-        boundary = _minObservedBoundary(boundary, functionConfig.updatedRootVectorOffsetWords, eventLog.startOffsetWords);
+        boundary =
+            _minObservedBoundary(boundary, functionConfig.updatedRootVectorOffsetWords, eventLog.startOffsetWords);
         boundary = _minObservedBoundary(boundary, functionConfig.entryContractOffsetWords, eventLog.startOffsetWords);
         boundary = _minObservedBoundary(boundary, functionConfig.functionSigOffsetWords, eventLog.startOffsetWords);
-        boundary = _minObservedBoundary(boundary, functionConfig.currentRootVectorOffsetWords, eventLog.startOffsetWords);
+        boundary =
+            _minObservedBoundary(boundary, functionConfig.currentRootVectorOffsetWords, eventLog.startOffsetWords);
 
         if (boundary == type(uint256).max) {
             revert InvalidObservedEventBoundary(eventLog.startOffsetWords, boundary);
@@ -581,13 +575,7 @@ contract ChannelManager {
             case 1 { log1(dataPtr, dataLength, mload(add(topics, 0x20))) }
             case 2 { log2(dataPtr, dataLength, mload(add(topics, 0x20)), mload(add(topics, 0x40))) }
             case 3 {
-                log3(
-                    dataPtr,
-                    dataLength,
-                    mload(add(topics, 0x20)),
-                    mload(add(topics, 0x40)),
-                    mload(add(topics, 0x60))
-                )
+                log3(dataPtr, dataLength, mload(add(topics, 0x20)), mload(add(topics, 0x40)), mload(add(topics, 0x60)))
             }
             case 4 {
                 log4(

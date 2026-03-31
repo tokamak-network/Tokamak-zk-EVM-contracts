@@ -7,6 +7,10 @@ import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
 import {DAppManager} from "../src/DAppManager.sol";
 import {L1TokenVault} from "../src/L1TokenVault.sol";
+import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
+import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
+import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
+import {TokamakVerifier} from "tokamak-zkp/TokamakVerifier.sol";
 
 contract UpgradeBridgeStackScript is Script {
     using stdJson for string;
@@ -47,6 +51,8 @@ contract UpgradeBridgeStackScript is Script {
 
         BridgeAdminManager bridgeAdminManagerImplementation = new BridgeAdminManager();
         DAppManager dAppManagerImplementation = new DAppManager();
+        Groth16Verifier grothVerifierImplementation = new Groth16Verifier();
+        TokamakVerifier tokamakVerifierImplementation = new TokamakVerifier();
         BridgeCore bridgeCoreImplementation = new BridgeCore();
         L1TokenVault bridgeTokenVaultImplementation = new L1TokenVault();
 
@@ -59,6 +65,8 @@ contract UpgradeBridgeStackScript is Script {
         dAppManagerProxyContract.upgradeTo(address(dAppManagerImplementation));
         bridgeCoreProxyContract.upgradeTo(address(bridgeCoreImplementation));
         bridgeTokenVaultProxyContract.upgradeTo(address(bridgeTokenVaultImplementation));
+        bridgeCoreProxyContract.setGrothVerifier(IGrothVerifier(address(grothVerifierImplementation)));
+        bridgeCoreProxyContract.setTokamakVerifier(ITokamakVerifier(address(tokamakVerifierImplementation)));
         dAppManagerProxyContract.bindBridgeCore(address(bridgeCoreProxyContract));
         if (disableDAppDeletionOnMainnet && !dAppManagerProxyContract.dAppDeletionLockedForever()) {
             dAppManagerProxyContract.disableDAppDeletionForever();
@@ -111,9 +119,7 @@ contract UpgradeBridgeStackScript is Script {
         }
         vm.serializeString(deploymentJson, "proxyKind", "uups");
         vm.serializeAddress(deploymentJson, "bridgeAdminManager", result.bridgeAdminManager);
-        vm.serializeAddress(
-            deploymentJson, "bridgeAdminManagerImplementation", result.bridgeAdminManagerImplementation
-        );
+        vm.serializeAddress(deploymentJson, "bridgeAdminManagerImplementation", result.bridgeAdminManagerImplementation);
         vm.serializeAddress(deploymentJson, "dAppManager", result.dAppManager);
         vm.serializeAddress(deploymentJson, "dAppManagerImplementation", result.dAppManagerImplementation);
         vm.serializeAddress(deploymentJson, "grothVerifier", result.grothVerifier);
@@ -121,9 +127,7 @@ contract UpgradeBridgeStackScript is Script {
         vm.serializeAddress(deploymentJson, "bridgeCore", result.bridgeCore);
         vm.serializeAddress(deploymentJson, "bridgeCoreImplementation", result.bridgeCoreImplementation);
         vm.serializeAddress(deploymentJson, "bridgeTokenVault", result.bridgeTokenVault);
-        vm.serializeAddress(
-            deploymentJson, "bridgeTokenVaultImplementation", result.bridgeTokenVaultImplementation
-        );
+        vm.serializeAddress(deploymentJson, "bridgeTokenVaultImplementation", result.bridgeTokenVaultImplementation);
         string memory finalJson = vm.serializeAddress(deploymentJson, "mockAsset", result.mockAsset);
         vm.writeJson(finalJson, outputPath);
     }

@@ -37,6 +37,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     }
 
     IERC20 public asset;
+    // Kept for storage layout compatibility; BridgeCore is the source of truth.
     IGrothVerifier public grothVerifier;
     IChannelRegistry public channelRegistry;
 
@@ -87,11 +88,11 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         emit AssetsFunded(msg.sender, amount);
     }
 
-    function deposit(uint256 channelId, BridgeStructs.GrothProof calldata proof, BridgeStructs.GrothUpdate calldata update)
-        external
-        nonReentrant
-        returns (bool)
-    {
+    function deposit(
+        uint256 channelId,
+        BridgeStructs.GrothProof calldata proof,
+        BridgeStructs.GrothUpdate calldata update
+    ) external nonReentrant returns (bool) {
         ChannelVaultUpdateContext memory context = _prepareChannelVaultUpdate(channelId, msg.sender, update);
         if (update.updatedUserValue <= update.currentUserValue) revert InvalidAmount();
 
@@ -177,15 +178,16 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         publicSignals[3] = update.currentUserValue;
         publicSignals[4] = update.updatedUserValue;
 
-        bool ok = grothVerifier.verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
+        bool ok = channelRegistry.grothVerifier().verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
         if (!ok) revert GrothProofRejected();
 
-        context.channelManager.applyVaultUpdate(
-            update.currentRootVector,
-            update.updatedRoot,
-            context.registration.leafIndex,
-            bytes32(update.updatedUserValue)
-        );
+        context.channelManager
+            .applyVaultUpdate(
+                update.currentRootVector,
+                update.updatedRoot,
+                context.registration.leafIndex,
+                bytes32(update.updatedUserValue)
+            );
 
         emit StorageWriteObserved(
             context.channelManager.channelTokenVaultStorageAddress(),

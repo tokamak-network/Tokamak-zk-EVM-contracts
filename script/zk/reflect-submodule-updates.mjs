@@ -191,6 +191,7 @@ async function regenerateTokamakVerifierKey() {
 
   await run("node", [path.join("script", "generate-tokamak-verifier-key.js")], { cwd: repoRoot });
   await run("node", [path.join("script", "generate-tokamak-verifier-params.js")], { cwd: repoRoot });
+  await run("node", [path.join("script", "generate-tokamak-shared-constants.js"), setupParamsPath], { cwd: repoRoot });
 
   assertExists(sigmaVerifyJsonPath, "Tokamak sigma_verify.json");
   assertExists(tokamakVerifierGeneratedPath, "Tokamak generated verification key");

@@ -71,7 +71,7 @@ const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
   "function decimals() view returns (uint8)",
 ];
-const TOKAMAK_APUB_BLOCK_LENGTH = 68;
+const TOKAMAK_APUB_BLOCK_LENGTH = 63;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
@@ -877,6 +877,7 @@ function clearWalletRecoveryArtifacts(walletDir) {
 async function handleInstallZkEvm({ args }) {
   const syncedDevCommit = syncTokamakSubmoduleToLatestDev();
   run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
+  run("node", [path.join("script", "generate-tokamak-shared-constants.js")], { cwd: projectRoot });
   printJson({
     action: "install-zk-evm",
     tokamakCli: tokamakCliPath,

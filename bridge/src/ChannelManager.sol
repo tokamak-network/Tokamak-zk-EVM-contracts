@@ -6,7 +6,7 @@ import {DAppManager} from "./DAppManager.sol";
 import {IChannelRegistry} from "./interfaces/IChannelRegistry.sol";
 
 contract ChannelManager {
-    uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 68;
+    uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 63;
     uint256 internal constant TOKAMAK_PREVIOUS_BLOCK_HASHES = 4;
     uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = uint256(1) << 12;
     uint256 internal constant SPLIT_WORD_SIZE = 2;

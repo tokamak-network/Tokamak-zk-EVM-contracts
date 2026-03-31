@@ -1071,30 +1071,41 @@ function readErc20Balance(assetAddress, ownerAddress) {
   return BigInt(normalized);
 }
 
+function runAnvilCliCommand(command, args = []) {
+  return runPrivateStateCli([command, "--network", "anvil", ...args]);
+}
+
+function walletCliArgs(participant) {
+  return [
+    "--wallet", participant.walletName,
+    "--password", participant.password,
+  ];
+}
+
+function signerCliArgs(participant) {
+  return [
+    "--private-key", participant.l1PrivateKey,
+  ];
+}
+
 function createChannel() {
-  return runPrivateStateCli([
-    "create-channel",
+  return runAnvilCliCommand("create-channel", [
     "--channel-name", channelName,
     "--private-key", anvilDeployerPrivateKey,
-    "--network", "anvil",
   ]);
 }
 
 function depositBridge(participant) {
-  return runPrivateStateCli([
-    "deposit-bridge",
-    "--network", "anvil",
-    "--private-key", participant.l1PrivateKey,
+  return runAnvilCliCommand("deposit-bridge", [
+    ...signerCliArgs(participant),
     "--amount", depositAmountTokens,
   ]);
 }
 
 function joinChannel(participant) {
-  const result = runPrivateStateCli([
-    "join-channel",
+  const result = runAnvilCliCommand("join-channel", [
     "--channel-name", channelName,
-    "--network", "anvil",
-    "--private-key", participant.l1PrivateKey,
+    ...signerCliArgs(participant),
     "--password", participant.password,
   ]);
   participant.walletName = result.wallet;
@@ -1121,56 +1132,35 @@ function joinChannel(participant) {
 }
 
 function recoverWallet(participant) {
-  return runPrivateStateCli([
-    "recover-wallet",
+  return runAnvilCliCommand("recover-wallet", [
     "--channel-name", channelName,
-    "--network", "anvil",
-    "--private-key", participant.l1PrivateKey,
+    ...signerCliArgs(participant),
     "--password", participant.password,
   ]);
 }
 
 function getMyAddress(participant) {
-  return runPrivateStateCli([
-    "get-my-address",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-    "--network", "anvil",
-  ]);
+  return runAnvilCliCommand("get-my-address", walletCliArgs(participant));
 }
 
 function getMyBridgeFund(participant) {
-  return runPrivateStateCli([
-    "get-my-bridge-fund",
-    "--network", "anvil",
-    "--private-key", participant.l1PrivateKey,
-  ]);
+  return runAnvilCliCommand("get-my-bridge-fund", signerCliArgs(participant));
 }
 
 function depositChannel(participant) {
-  return runPrivateStateCli([
-    "deposit-channel",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-    "--network", "anvil",
+  return runAnvilCliCommand("deposit-channel", [
+    ...walletCliArgs(participant),
     "--amount", depositAmountTokens,
   ]);
 }
 
 function getMyChannelFund(participant) {
-  return runPrivateStateCli([
-    "get-my-channel-fund",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-    "--network", "anvil",
-  ]);
+  return runAnvilCliCommand("get-my-channel-fund", walletCliArgs(participant));
 }
 
 function recoverWorkspace() {
-  return runPrivateStateCli([
-    "recover-workspace",
+  return runAnvilCliCommand("recover-workspace", [
     "--channel-name", channelName,
-    "--network", "anvil",
   ]);
 }
 
@@ -1180,30 +1170,19 @@ function deleteWalletDir(participant) {
 }
 
 function mintNotes(participant, amounts) {
-  return runPrivateStateCli([
-    "mint-notes",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-    "--network", "anvil",
+  return runAnvilCliCommand("mint-notes", [
+    ...walletCliArgs(participant),
     "--amounts", JSON.stringify(amounts),
   ]);
 }
 
 function getMyNotes(participant) {
-  return runPrivateStateCli([
-    "get-my-notes",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-    "--network", "anvil",
-  ]);
+  return runAnvilCliCommand("get-my-notes", walletCliArgs(participant));
 }
 
 function transferNotes(participant, noteIds, recipients, amounts) {
-  return runPrivateStateCli([
-    "transfer-notes",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-    "--network", "anvil",
+  return runAnvilCliCommand("transfer-notes", [
+    ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
     "--recipients", JSON.stringify(recipients),
     "--amounts", JSON.stringify(amounts),
@@ -1211,30 +1190,22 @@ function transferNotes(participant, noteIds, recipients, amounts) {
 }
 
 function redeemNotes(participant, noteIds) {
-  return runPrivateStateCli([
-    "redeem-notes",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-    "--network", "anvil",
+  return runAnvilCliCommand("redeem-notes", [
+    ...walletCliArgs(participant),
     "--note-ids", JSON.stringify(noteIds),
   ]);
 }
 
 function withdrawChannel(participant, amount) {
-  return runPrivateStateCli([
-    "withdraw-channel",
-    "--wallet", participant.walletName,
-    "--password", participant.password,
-    "--network", "anvil",
+  return runAnvilCliCommand("withdraw-channel", [
+    ...walletCliArgs(participant),
     "--amount", amount,
   ]);
 }
 
 function withdrawBridge(participant, amount) {
-  return runPrivateStateCli([
-    "withdraw-bridge",
-    "--network", "anvil",
-    "--private-key", participant.l1PrivateKey,
+  return runAnvilCliCommand("withdraw-bridge", [
+    ...signerCliArgs(participant),
     "--amount", amount,
   ]);
 }

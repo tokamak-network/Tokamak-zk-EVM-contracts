@@ -63,6 +63,8 @@ That distinction matters. The bridge does not ask Ethereum validators to underst
 
 This design also explains why the current bridge does not rely on a long fraud-proof dispute window for normal channel progress. The implemented model is immediate validity acceptance: if the proof verifies and the bridge-side checks pass, the new commitment is accepted immediately on L1.
 
+As a result, the bridge's notion of finality is not challenge-window finality. It is validity-proof finality anchored in Ethereum inclusion. For bridge purposes, a channel state becomes final when Ethereum accepts the proof-backed transition that consumes the current canonical commitment and replaces it with the next one. Competing transitions that still reference the previous commitment no longer finalize once that canonical head has advanced.
+
 ### 3.3 Metadata-Driven Admission Is a Safety Boundary
 
 The current bridge does not accept arbitrary proof payloads from arbitrary contracts. It admits DApps through explicit metadata:
@@ -254,6 +256,8 @@ If any of those checks fail, the previous accepted root-vector hash remains auth
 
 The current bridge is designed so that recovery of value that still resides in the designated `channelTokenVault` tree does not depend on replaying arbitrary application state. In that limited but important sense, safe exit is anchored in the vault path rather than in full application-state reconstruction.
 
+This also means the current withdrawal path does not introduce a separate dispute-time waiting period before assets become claimable. A withdrawal is accepted against the currently authoritative channel-token-vault root, and once Ethereum has included that valid root update, the bridge treats the resulting post-withdrawal state as final for withdrawal purposes. In other words, the implementation does not wait for a later challenge window to confirm which channel state won. The winning state is the one whose valid proof advanced the canonical root on Ethereum.
+
 That guarantee is narrower than a guarantee of universal economic exit for every DApp state. The bridge gives its strongest exit property to value that the DApp keeps in the bridge-recognized token-vault storage domain. If a DApp moves economically meaningful value into other app-managed storage domains, then exit of that value depends on the DApp's own state model and transition rules rather than on the bridge alone.
 
 The `private-state` DApp illustrates this boundary clearly. Its bridge-recognized token-vault storage is the liquid accounting balance in `L2AccountingVault`, while note commitments and nullifiers live in `PrivateStateController`. A user can exit liquid balance through the bridge's vault path, but value that has already been transformed into notes must first be redeemed back into liquid balance before withdrawal to L1 is possible. In other words, the bridge alone does not guarantee safe exit of all note-held value at every moment; it guarantees safe exit of value that has been brought back into the designated token-vault accounting domain.
@@ -299,7 +303,7 @@ The same implementation also makes several explicit tradeoffs.
 
 First, the bridge currently prefers operational clarity over unconstrained flexibility. It supports one designated channel-token-vault storage per DApp, a fixed supported Merkle-tree depth, and a bounded managed-storage surface. These constraints simplify soundness reasoning but reduce generality.
 
-Second, the bridge prefers immediate validity acceptance over challenge-window-based optimistic flow. That gives clean validity finality, but it also means proving cost and proving latency sit directly on the critical path.
+Second, the bridge prefers immediate validity acceptance over challenge-window-based optimistic flow. That gives clean validity finality and avoids an additional withdrawal-delay window, but it also means proving cost and proving latency sit directly on the critical path.
 
 Third, the bridge separates asset safety from application-data availability. Asset recovery has a narrow vault-oriented path on Ethereum, while continued application activity depends on whether the DApp exposes enough accepted data for users to reconstruct their own next actionable state without third-party help.
 

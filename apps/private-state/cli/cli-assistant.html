@@ -613,11 +613,7 @@
         const browserEthers = window.ethers?.ethers ?? window.ethers;
         if (browserEthers?.scryptSync) {
           return browserEthers.getBytes(
-            browserEthers.scryptSync(String(password), saltHex, 32, {
-              N: 16384,
-              r: 8,
-              p: 1,
-            }),
+            browserEthers.scryptSync(textEncoder.encode(String(password)), saltHex, 16384, 8, 1, 32),
           );
         }
         if (!scryptModulePromise) {

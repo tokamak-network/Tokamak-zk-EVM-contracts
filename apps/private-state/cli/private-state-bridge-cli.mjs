@@ -3458,7 +3458,7 @@ function runTokamakCliStage({ operationDir, stageName, args }) {
     );
   }
 
-  const consoleError = findTokamakConsoleError({ stageName, stdout: result.stdout, stderr: result.stderr });
+  const consoleError = findTokamakConsoleError({ stdout: result.stdout, stderr: result.stderr });
   if (consoleError) {
     throw new Error(
       [
@@ -3488,27 +3488,18 @@ function writeTokamakCliStageLog(operationDir, stageName, { stdout, stderr }) {
   return logPath;
 }
 
-function findTokamakConsoleError({ stageName, stdout, stderr }) {
+function findTokamakConsoleError({ stdout, stderr }) {
   const lines = `${stdout}\n${stderr}`
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const stageSpecificPatterns =
-    stageName === "synthesize"
-      ? [
-          /Synthesizer: .*error:/i,
-          /Undefined synthesizer handler/i,
-          /Output memory data mismatch/i,
-          /input data mismatch/i,
-          /Unreachable stackPt index/i,
-        ]
-      : [
-          /\[error\]/i,
-          /^error:/i,
-        ];
+  const errorPatterns = [
+    /\[error\]/i,
+    /^error:/i,
+  ];
 
-  const matchedLine = lines.find((line) => stageSpecificPatterns.some((pattern) => pattern.test(line)));
+  const matchedLine = lines.find((line) => errorPatterns.some((pattern) => pattern.test(line)));
   return matchedLine ?? null;
 }
 

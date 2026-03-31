@@ -366,6 +366,7 @@
       let scryptModulePromise = null;
       let ethersModulePromise = null;
       let privateKeyLookupGeneration = 0;
+      let walletNoteRefreshTimer = null;
 
       const workspacePickerEl = document.getElementById("workspace-picker");
       const memoryFieldsEl = document.getElementById("memory-fields");
@@ -572,6 +573,30 @@
         const available = new Set(walletNoteState.options.map((option) => option.value));
         const selected = parseSelectedNoteIds().filter((noteId) => available.has(noteId));
         state.noteIds = selected.length === 0 ? "" : JSON.stringify(selected);
+      }
+
+      function rerenderCommandField(fieldKey) {
+        const existing = commandFieldsEl.querySelector(`[data-field-key="${fieldKey}"]`);
+        if (!existing) {
+          return;
+        }
+        const replacement = createField(fieldKey);
+        replacement.dataset.fieldKey = fieldKey;
+        existing.replaceWith(replacement);
+      }
+
+      function scheduleWalletNoteRefresh() {
+        if (walletNoteRefreshTimer) {
+          window.clearTimeout(walletNoteRefreshTimer);
+        }
+        walletNoteRefreshTimer = window.setTimeout(async () => {
+          walletNoteRefreshTimer = null;
+          await refreshWalletNoteOptions();
+          if (commandNeedsWalletNotes()) {
+            rerenderCommandField("noteIds");
+          }
+          renderPreview();
+        }, 250);
       }
 
       function hexToBytes(value) {
@@ -1169,6 +1194,9 @@
           }
           if (fieldKey === "password") {
             clearWalletNoteState();
+            if (commandNeedsWalletNotes()) {
+              walletNoteState.statusMessage = "Loading wallet note IDs...";
+            }
           }
           persistState();
           if (fieldKey === "network") {
@@ -1180,14 +1208,21 @@
             renderCommandFields();
           } else if (fieldKey === "privateKey" && commandNeedsWallet()) {
             renderCommandFields();
+          } else if (fieldKey === "password" && commandNeedsWalletNotes()) {
+            rerenderCommandField("noteIds");
+            scheduleWalletNoteRefresh();
           }
         });
 
         if (fieldKey === "password") {
           input.addEventListener("blur", async () => {
+            if (walletNoteRefreshTimer) {
+              window.clearTimeout(walletNoteRefreshTimer);
+              walletNoteRefreshTimer = null;
+            }
             await refreshWalletNoteOptions();
             if (commandNeedsWalletNotes()) {
-              renderCommandFields();
+              rerenderCommandField("noteIds");
             }
             renderPreview();
           });
@@ -1249,7 +1284,9 @@
           if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
             continue;
           }
-          commandFieldsEl.appendChild(createField(fieldKey));
+          const fieldElement = createField(fieldKey);
+          fieldElement.dataset.fieldKey = fieldKey;
+          commandFieldsEl.appendChild(fieldElement);
         }
       }
 

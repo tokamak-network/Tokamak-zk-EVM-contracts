@@ -62,6 +62,13 @@ const bridgeDeployHelperPath = path.resolve(bridgeRoot, "script", "deploy-bridge
 const bridgeDeploymentPath = path.resolve(bridgeRoot, "deployments", "bridge.31337.json");
 const deploymentManifestPath = path.resolve(appRoot, "deploy", "deployment.31337.latest.json");
 const storageLayoutManifestPath = path.resolve(appRoot, "deploy", "storage-layout.31337.latest.json");
+const privateStateDeployScriptPath = path.resolve(
+  appRoot,
+  "script",
+  "deploy",
+  "DeployPrivateState.s.sol:DeployPrivateStateScript",
+);
+const privateStateArtifactWriterPath = path.resolve(appRoot, "script", "deploy", "write-deploy-artifacts.sh");
 const controllerAbiPath = path.resolve(appRoot, "deploy", "PrivateStateController.callable-abi.json");
 const outputRoot = path.resolve(appRoot, "script", "e2e", "output", "private-state-bridge-cli");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
@@ -880,7 +887,33 @@ function pruneCliRunOutput() {
 function bootstrapAnvil() {
   run("make", ["-C", appRoot, "anvil-stop"], { quiet: true });
   run("make", ["-C", appRoot, "anvil-start"], { quiet: true });
-  run("make", ["-C", appRoot, "anvil-bootstrap"], { quiet: true });
+  deployPrivateStateForCliE2E();
+}
+
+function deployPrivateStateForCliE2E() {
+  run(
+    "forge",
+    [
+      "script",
+      privateStateDeployScriptPath,
+      "--rpc-url", providerUrl,
+      "--broadcast",
+    ],
+    {
+      cwd: repoRoot,
+      quiet: true,
+      env: {
+        ...process.env,
+        APPS_DEPLOYER_PRIVATE_KEY: anvilDeployerPrivateKey,
+        APPS_NETWORK: "anvil",
+        APPS_RPC_URL_OVERRIDE: providerUrl,
+      },
+    },
+  );
+  run("bash", [privateStateArtifactWriterPath, "31337"], {
+    cwd: repoRoot,
+    quiet: true,
+  });
 }
 
 function deployBridgeStack() {

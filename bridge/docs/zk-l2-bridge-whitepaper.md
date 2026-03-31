@@ -208,6 +208,10 @@ The system therefore favors:
 
 over large on-chain state mirrors.
 
+In this white paper, `data availability` means more than the existence of an audit trail. It means whether a channel user can reconstruct enough channel state from Ethereum-published data, together with the user's own local secrets when the DApp is intentionally private, to keep creating valid transactions without depending on a third-party operator or indexing service.
+
+The current bridge contributes to that goal by publishing accepted root vectors, observed storage writes, and re-emitted DApp event logs. However, the bridge does not by itself guarantee that every DApp's full semantic storage state becomes publicly and completely reconstructible. It guarantees an accepted commitment trail and an observable mutation surface. Whether that is sufficient for user-independent transaction continuity remains DApp-specific.
+
 ## 6. Core Operational Flows
 
 ### 6.1 DApp Registration and Channel Creation
@@ -243,6 +247,30 @@ The current bridge is designed so that token-vault recovery does not depend on r
 
 This does not mean application-state availability is solved. It means the bridge deliberately gives asset recovery a narrower and more robust path than general DApp execution.
 
+### 6.5 Data Availability and User Continuity
+
+For the current bridge, the practical data-availability question is not only whether channel history can be audited. The more important question is whether a channel user can continue transacting without asking a third party to supply missing state.
+
+At the bridge layer, the answer is partial but meaningful. Any user can independently read Ethereum and recover:
+
+- the accepted root-vector history
+- the observed storage-write history that the bridge decoded from accepted proofs
+- the DApp event logs that the bridge re-emitted from the accepted public output
+
+This means the protocol does support self-hosted indexing. A user is not forced by the bridge contracts to trust a channel operator's server merely to obtain accepted history.
+
+However, that is not the same as a universal guarantee that every DApp state can be fully and publicly reconstructed. The bridge does not impose one global rule that every semantic part of every DApp state must be recoverable by every observer from Ethereum alone. It publishes an accepted mutation surface, but the meaning of that surface remains DApp-dependent.
+
+The `private-state` DApp is the clearest example. In that DApp, Ethereum-visible data is enough to let any observer track that commitment and nullifier-related storage changed and that encrypted note-delivery payloads were emitted. But the semantic note state is not fully public. The recipient still needs the relevant local secret material to decrypt delivered notes and reconstruct which notes are actually theirs. As a result:
+
+- a user who runs an independent indexer and holds the correct note-receive secrets can continue transacting without relying on a third-party data provider
+- an outside observer without those secrets cannot reconstruct the same semantic note state
+- the bridge therefore supports user-local reconstructibility for private state, not universal public reconstructibility of the entire note graph
+
+This distinction is intentional. For privacy-preserving DApps, `data availability` should be understood as the availability of enough data for the rightful user to recover their own actionable state, not necessarily enough data for every outside observer to derive the same semantic state view.
+
+The broader architectural consequence is that third-party indexers are a convenience layer, not always a protocol requirement. For DApps whose public outputs and user-held secrets are sufficient, users can remain operationally independent. For DApps whose public outputs are too sparse to reconstruct the next valid pre-state, users may still need external data services even though the bridge itself has published the accepted commitment history.
+
 ## 7. Security Posture and Tradeoffs
 
 The current implementation is built around the following security posture:
@@ -260,7 +288,7 @@ First, the bridge currently prefers operational clarity over unconstrained flexi
 
 Second, the bridge prefers immediate validity acceptance over challenge-window-based optimistic flow. That gives clean validity finality, but it also means proving cost and proving latency sit directly on the critical path.
 
-Third, the bridge separates asset safety from application-data availability. Asset recovery has a narrow vault-oriented path on Ethereum, while broader app-state availability still depends more heavily on off-chain data supply.
+Third, the bridge separates asset safety from application-data availability. Asset recovery has a narrow vault-oriented path on Ethereum, while continued application activity depends on whether the DApp exposes enough accepted data for users to reconstruct their own next actionable state without third-party help.
 
 Fourth, the bridge assumes exact-transfer asset behavior in the shared L1 vault. This conservative rule protects custody accounting but excludes ERC-20 behaviors that mutate balances during transfer.
 

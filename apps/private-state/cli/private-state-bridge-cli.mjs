@@ -1307,14 +1307,21 @@ async function handleWithdrawBridge({ args, provider }) {
 async function handleMintNotes({ args, provider }) {
   const { wallet } = loadUnlockedWalletWithMetadata(args);
   const canonicalAssetDecimals = Number(wallet.wallet.canonicalAssetDecimals);
-  const amountInputs = parseTokenAmountVector(requireArg(args.amounts, "--amounts"));
-  const baseUnitAmounts = amountInputs.map((value) => parseTokenAmount(value, canonicalAssetDecimals));
-  for (const [index, amount] of baseUnitAmounts.entries()) {
-    expect(amount > 0n, `Invalid --amounts[${index}]. Each amount must be greater than zero.`);
-  }
+  const amountInputs = parseMintTokenAmountVector(requireArg(args.amounts, "--amounts"));
+  const baseUnitAmounts = amountInputs
+    .map((value, index) => ({
+      index,
+      amountInput: value,
+      amountBaseUnits: parseTokenAmount(value, canonicalAssetDecimals),
+    }))
+    .filter(({ amountBaseUnits }) => amountBaseUnits > 0n);
+  expect(
+    baseUnitAmounts.length > 0,
+    "Invalid --amounts. The array must contain at least one amount greater than zero.",
+  );
   const templatePayload = buildMintNotesTemplatePayload({
     wallet,
-    baseUnitAmounts,
+    baseUnitAmounts: baseUnitAmounts.map(({ amountBaseUnits }) => amountBaseUnits),
   });
   const { execution, contextResult, recoveredWorkspace } = await executeWalletDirectTemplateCommand({
     wallet,
@@ -1332,8 +1339,8 @@ async function handleMintNotes({ args, provider }) {
     l2Address: execution.l2Identity.l2Address,
     underlyingMethod: templatePayload.method,
     nonce: execution.nonce,
-    amountInputs,
-    amountBaseUnits: baseUnitAmounts.map((value) => value.toString()),
+    amountInputs: baseUnitAmounts.map(({ amountInput }) => amountInput),
+    amountBaseUnits: baseUnitAmounts.map(({ amountBaseUnits }) => amountBaseUnits.toString()),
     outputNotes: buildLifecycleTrackedOutputs({
       outputNotes: templatePayload.lifecycleOutputs,
       sourceFunction: templatePayload.method,
@@ -2644,6 +2651,41 @@ function parseTokenAmountVector(value) {
     );
     return normalized;
   });
+}
+
+function parseMintTokenAmountVector(value) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(value));
+  } catch {
+    throw new Error("Invalid --amounts. Expected a JSON array such as [1,2,3].");
+  }
+  expect(Array.isArray(parsed), "Invalid --amounts. Expected a JSON array.");
+  expect(parsed.length > 0, "Invalid --amounts. The array must not be empty.");
+  const normalizedAmounts = parsed.map((entry, index) => {
+    const normalized = typeof entry === "string" || typeof entry === "number" ? String(entry) : null;
+    expect(
+      normalized !== null && normalized.length > 0,
+      `Invalid --amounts[${index}]. Each amount must be a string or number.`,
+    );
+    expect(
+      !normalized.startsWith("-"),
+      `Invalid --amounts[${index}]. Each amount must be zero or greater.`,
+    );
+    return normalized;
+  });
+  const hasNonZeroEntry = normalizedAmounts.some((normalized) => {
+    const trimmed = normalized.trim();
+    if (trimmed.length === 0) {
+      return false;
+    }
+    return Number.parseFloat(trimmed) !== 0;
+  });
+  expect(
+    hasNonZeroEntry,
+    "Invalid --amounts. The array must contain at least one amount greater than zero.",
+  );
+  return normalizedAmounts;
 }
 
 function parseNoteIdVector(value) {
@@ -4034,7 +4076,7 @@ function assertUninstallZkEvmArgs(args) {
 function assertMintNotesArgs(args) {
   requireArg(args.amounts, "--amounts");
   assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --password, --network, and --amounts");
-  parseTokenAmountVector(args.amounts);
+  parseMintTokenAmountVector(args.amounts);
 }
 
 function assertRedeemNotesArgs(args) {

@@ -43,7 +43,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     address public bridgeCore;
 
     mapping(uint256 => DAppInfo) private _dapps;
-    mapping(uint256 => uint256) private _activeChannelCounts;
     mapping(uint256 => mapping(bytes32 => bool)) private _supportedFunctions;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.FunctionConfig)) private _functionConfigs;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.StorageWriteMetadata[])) private _functionStorageWrites;
@@ -85,26 +84,11 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     function bindBridgeCore(address bridgeCore_) external onlyOwner {
         if (bridgeCore_ == address(0)) revert InvalidBridgeCore();
-        if (bridgeCore == bridgeCore_) {
-            return;
-        }
         if (bridgeCore != address(0)) {
             revert BridgeCoreAlreadyBound(bridgeCore, bridgeCore_);
         }
         bridgeCore = bridgeCore_;
         emit BridgeCoreBound(bridgeCore_);
-    }
-
-    function noteChannelCreated(uint256 dappId) external onlyBridgeCore {
-        _requireDApp(dappId);
-        unchecked {
-            _activeChannelCounts[dappId] += 1;
-        }
-    }
-
-    function getActiveChannelCount(uint256 dappId) external view returns (uint256) {
-        _requireDApp(dappId);
-        return _activeChannelCounts[dappId];
     }
 
     function deleteDApp(uint256 dappId) external onlyOwner {
@@ -134,7 +118,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             delete _userStorageSlots[dappId][storageAddr];
         }
         delete _managedStorageAddresses[dappId];
-        delete _activeChannelCounts[dappId];
         delete _dapps[dappId];
 
         emit DAppDeleted(dappId, info.labelHash);

@@ -151,9 +151,9 @@ This script:
 
 Current constraint:
 
-- DApp deletion remains available on Sepolia-style test deployments while `DAppManager.dAppDeletionEnabled()` remains true
-- deleting a DApp with one or more active channels is intentionally rejected, because channel managers cache function metadata at channel-creation time
-- mainnet deployment and upgrade flows automatically call `disableDAppDeletionForever()`, after which DApp registration becomes add-only again
+- `DAppManager.deleteDApp(...)` is available only on Sepolia
+- DApp deletion ignores active channel count, so channel managers can outlive their parent DApp registration
+- mainnet and every non-Sepolia network reject `deleteDApp(...)` outright
 
 Example usage:
 
@@ -179,7 +179,6 @@ Relevant options:
 - `--app-network <name>` chooses where the private-state deployment step runs
 - `--app-env-file <path>` overrides the environment file consumed by `deploy-private-state.sh`
 - `--app-rpc-url <url>` overrides the app deployment RPC endpoint only
-- `--skip-app-deploy` skips the deployment step and uses the existing deployment and storage-layout manifests
 - `--app-deployment-path <path>` and `--storage-layout-path <path>` override the manifests used for registration
 
 When `--app-network` is omitted, the script defaults to `APPS_NETWORK`, then `BRIDGE_NETWORK`, and finally the bridge chain name when it is known.

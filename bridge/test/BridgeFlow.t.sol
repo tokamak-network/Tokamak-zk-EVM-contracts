@@ -176,10 +176,8 @@ contract BridgeFlowTest is Test {
         assertFalse(dAppManager.isChannelTokenVaultStorageAddress(1, address(0x1234)));
     }
 
-    function testDAppManagerTracksBoundBridgeCoreAndActiveChannels() public view {
+    function testDAppManagerTracksBoundBridgeCore() public view {
         assertEq(dAppManager.bridgeCore(), address(bridgeCore));
-        assertEq(dAppManager.getActiveChannelCount(1), 1);
-        assertEq(dAppManager.getActiveChannelCount(2), 0);
     }
 
     function testOwnerCanDeleteUnboundDAppOnSepolia() public {

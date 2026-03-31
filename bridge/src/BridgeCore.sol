@@ -164,8 +164,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             bridgeTokenVault: bridgeTokenVault,
             aPubBlockHash: channelAPubBlockHash
         });
-        dAppManager.noteChannelCreated(dappId);
-
         emit ChannelCreated(channelId, dappId, address(channelManager), bridgeTokenVault);
         return (address(channelManager), bridgeTokenVault);
     }

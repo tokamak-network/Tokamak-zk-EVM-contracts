@@ -39,15 +39,12 @@ Options:
   --app-network <name>              App deployment network; defaults to BRIDGE_NETWORK or the bridge chain name
   --app-env-file <path>             Environment file for app deployment; defaults to apps/.env
   --app-rpc-url <url>               RPC URL override used only for app deployment
-  --skip-app-deploy                 Skip the app deployment step and use existing manifests
   --app-deployment-path <path>      App deployment manifest; defaults to private-state latest for the app chain
   --storage-layout-path <path>      App storage-layout manifest; defaults to private-state latest for the app chain
   --rpc-url <url>                   JSON-RPC URL; defaults from bridge env variables
   --private-key <hex>               Broadcaster key; defaults from BRIDGE_DEPLOYER_PRIVATE_KEY
   --manifest-out <path>             Output manifest path; defaults to bridge/deployments/dapp-registration.<chain-id>.json
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
-  --skip-submodule-update           Skip updating submodules/Tokamak-zk-EVM to origin/dev
-  --skip-install                    Skip tokamak-cli --install
 
 Example groups are resolved relative to:
   submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/<group>/cli-launch-manifest.json
@@ -65,15 +62,12 @@ function parseArgs(argv) {
     appNetwork: null,
     appEnvFile: null,
     appRpcUrl: null,
-    skipAppDeploy: false,
     appDeploymentPath: null,
     storageLayoutPath: null,
     rpcUrl: null,
     privateKey: process.env.BRIDGE_DEPLOYER_PRIVATE_KEY ?? null,
     manifestOut: null,
     artifactsOut: defaultArtifactsRoot,
-    skipSubmoduleUpdate: false,
-    skipInstall: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -116,9 +110,6 @@ function parseArgs(argv) {
       case "--app-rpc-url":
         options.appRpcUrl = take(current);
         break;
-      case "--skip-app-deploy":
-        options.skipAppDeploy = true;
-        break;
       case "--app-deployment-path":
         options.appDeploymentPath = path.resolve(process.cwd(), take(current));
         break;
@@ -136,12 +127,6 @@ function parseArgs(argv) {
         break;
       case "--artifacts-out":
         options.artifactsOut = path.resolve(process.cwd(), take(current));
-        break;
-      case "--skip-submodule-update":
-        options.skipSubmoduleUpdate = true;
-        break;
-      case "--skip-install":
-        options.skipInstall = true;
         break;
       case "--help":
       case "-h":
@@ -534,13 +519,11 @@ async function main() {
   }
   const appNetwork = options.appNetwork ?? resolveDefaultAppNetwork(chainId);
   const appChainId = resolveAppChainId(appNetwork);
-  if (!options.skipAppDeploy) {
-    await runPrivateStateDeployment({
-      appNetwork,
-      appEnvFile: options.appEnvFile,
-      appRpcUrl: options.appRpcUrl,
-    });
-  }
+  await runPrivateStateDeployment({
+    appNetwork,
+    appEnvFile: options.appEnvFile,
+    appRpcUrl: options.appRpcUrl,
+  });
   const appDeploymentPath =
     options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "deployment");
   const storageLayoutPath =
@@ -552,13 +535,9 @@ async function main() {
   ensureDir(artifactsRoot);
   const appContext = loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath });
 
-  if (!options.skipSubmoduleUpdate) {
-    await updateTokamakSubmodule();
-  }
+  await updateTokamakSubmodule();
   ensureTokamakDistBackendBinaries(tokamakSubmoduleRoot);
-  if (!options.skipInstall) {
-    await runTokamakInstall();
-  }
+  await runTokamakInstall();
 
   const allProcessed = [];
   const allSkipped = [];

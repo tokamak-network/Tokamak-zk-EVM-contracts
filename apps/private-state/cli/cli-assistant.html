@@ -184,9 +184,7 @@
 
     </main>
 
-    <script type="module">
-      import { scrypt } from "../../../node_modules/@noble/hashes/esm/scrypt.js";
-
+    <script>
       const storageKey = "private-state-cli-assistant:v2";
       const cliEntry = "node apps/private-state/cli/private-state-bridge-cli.mjs";
       const defaultWorkspaceRootLabel = navigator.userAgent.includes("Windows")
@@ -303,6 +301,7 @@
         statusMessage: "",
         hasLoaded: false,
       };
+      let scryptModulePromise = null;
 
       const workspacePickerEl = document.getElementById("workspace-picker");
       const memoryFieldsEl = document.getElementById("memory-fields");
@@ -471,6 +470,19 @@
         );
       }
 
+      async function deriveScryptKeyBytes(password, saltHex) {
+        if (!scryptModulePromise) {
+          scryptModulePromise = import("../../../node_modules/@noble/hashes/esm/scrypt.js");
+        }
+        const { scrypt } = await scryptModulePromise;
+        return scrypt(textEncoder.encode(String(password)), hexToBytes(saltHex), {
+          N: 16384,
+          r: 8,
+          p: 1,
+          dkLen: 32,
+        });
+      }
+
       async function decryptWalletJson(envelope, walletPassword) {
         if (
           envelope?.version !== walletEncryptionVersion
@@ -480,12 +492,7 @@
           throw new Error("Unsupported wallet encryption envelope.");
         }
 
-        const encryptionKeyBytes = scrypt(textEncoder.encode(String(walletPassword)), hexToBytes(envelope.salt), {
-          N: 16384,
-          r: 8,
-          p: 1,
-          dkLen: 32,
-        });
+        const encryptionKeyBytes = await deriveScryptKeyBytes(walletPassword, envelope.salt);
         const cryptoKey = await crypto.subtle.importKey("raw", encryptionKeyBytes, "AES-GCM", false, ["decrypt"]);
         const ciphertext = hexToBytes(envelope.ciphertext);
         const tag = hexToBytes(envelope.tag);
@@ -1045,8 +1052,16 @@
         renderPreview();
       }
 
-      renderCommandSelect();
-      await render();
+      async function init() {
+        renderCommandSelect();
+        await render();
+      }
+
+      init().catch((error) => {
+        console.error(error);
+        warningEl.textContent = "Assistant initialization failed. Reload the page and try again.";
+        setStatus("Assistant initialization failed.");
+      });
     </script>
   </body>
 </html>

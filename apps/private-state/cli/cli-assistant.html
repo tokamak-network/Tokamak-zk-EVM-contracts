@@ -288,7 +288,7 @@
           placeholder: "3",
         },
         amounts: {
-          label: "Amounts JSON",
+          label: "Amounts",
           type: "textarea",
           placeholder: "[1,2,3]",
         },
@@ -334,6 +334,9 @@
         wallet: "",
         amount: "",
         amounts: "[3]",
+        mintAmount1: "3",
+        mintAmount2: "",
+        mintAmount3: "",
         noteIds: "[\"0x...\"]",
         recipients: "[\"0xRecipientL2Address\"]",
       };
@@ -568,6 +571,24 @@
         }
       }
 
+      function currentMintAmounts() {
+        return [state.mintAmount1, state.mintAmount2, state.mintAmount3]
+          .map((value) => String(value ?? "").trim())
+          .filter((value) => value.length > 0);
+      }
+
+      function mintAmountsTotalLabel() {
+        const amounts = currentMintAmounts();
+        if (amounts.length === 0) {
+          return "Total amount: 0";
+        }
+        if (!amounts.every((value) => /^\d+$/.test(value))) {
+          return "Total amount unavailable. Enter whole-number amounts only.";
+        }
+        const total = amounts.reduce((sum, value) => sum + BigInt(value), 0n);
+        return `Total amount: ${total.toString()}`;
+      }
+
       function syncSelectedNoteIdsToAvailableOptions() {
         const available = new Set(walletNoteState.options.map((option) => option.value));
         const selected = parseSelectedNoteIds().filter((noteId) => available.has(noteId));
@@ -739,6 +760,9 @@
           if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
             return false;
           }
+          if (fieldKey === "amounts" && command.id === "mint-notes") {
+            return currentMintAmounts().length === 0;
+          }
           return !String(state[fieldKey] ?? "").trim();
         });
       }
@@ -752,7 +776,9 @@
             continue;
           }
 
-          const value = state[fieldKey];
+          const value = fieldKey === "amounts" && command.id === "mint-notes"
+            ? JSON.stringify(currentMintAmounts())
+            : state[fieldKey];
           if (!value) {
             continue;
           }
@@ -1055,10 +1081,55 @@
         return wrapper;
       }
 
+      function createMintAmountsField() {
+        const wrapper = document.createElement("div");
+        wrapper.className = "field-stack";
+
+        const title = document.createElement("label");
+        title.textContent = "Mint Amount Entries";
+        wrapper.appendChild(title);
+
+        const grid = document.createElement("div");
+        grid.className = "fields";
+
+        [
+          { key: "mintAmount1", label: "Amount 1" },
+          { key: "mintAmount2", label: "Amount 2" },
+          { key: "mintAmount3", label: "Amount 3" },
+        ].forEach(({ key, label }) => {
+          const amountLabel = document.createElement("label");
+          amountLabel.textContent = label;
+          const input = document.createElement("input");
+          input.type = "text";
+          input.placeholder = "3";
+          input.value = state[key] ?? "";
+          input.addEventListener("input", (event) => {
+            state[key] = event.target.value;
+            persistState();
+            totalHint.textContent = mintAmountsTotalLabel();
+            renderPreview();
+          });
+          amountLabel.appendChild(input);
+          grid.appendChild(amountLabel);
+        });
+
+        wrapper.appendChild(grid);
+
+        const totalHint = document.createElement("p");
+        totalHint.className = "hint";
+        totalHint.textContent = mintAmountsTotalLabel();
+        wrapper.appendChild(totalHint);
+
+        return wrapper;
+      }
+
       function createField(fieldKey) {
         const config = fieldCatalog[fieldKey];
         if (fieldKey === "wallet") {
           return createWalletField();
+        }
+        if (fieldKey === "amounts" && currentCommand().id === "mint-notes") {
+          return createMintAmountsField();
         }
         if (fieldKey === "noteIds" && commandNeedsWalletNotes()) {
           return createNoteIdsField();

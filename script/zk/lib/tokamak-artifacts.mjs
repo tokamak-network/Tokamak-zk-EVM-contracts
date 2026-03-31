@@ -242,7 +242,7 @@ function extractStorageWrites(instanceDescriptionJsonPath, storageAddresses) {
 
   const writes = [];
   const pattern =
-    /^Storage write (?:(?:storage key|tree index)|\(restricted to 255-bit word\)) for address: (0x[0-9a-fA-F]{40}) \(lower 16 bytes\)$/;
+    /^Storage key to write for address: (0x[0-9a-fA-F]{40}) \(lower 16 bytes\)$/;
 
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];

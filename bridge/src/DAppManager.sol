@@ -129,13 +129,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     function deleteDApp(uint256 dappId) external onlyOwner {
         DAppInfo memory info = _requireDApp(dappId);
-        bool isSepolia = block.chainid == SEPOLIA_CHAIN_ID;
-        if (!isSepolia && !dAppDeletionEnabled) revert DAppDeletionDisabled();
-
-        uint256 activeChannelCount = _activeChannelCounts[dappId];
-        if (!isSepolia && activeChannelCount != 0) {
-            revert ActiveChannelsExist(dappId, activeChannelCount);
-        }
+        if (block.chainid != SEPOLIA_CHAIN_ID) revert DAppDeletionDisabled();
 
         BridgeStructs.FunctionReference[] storage refs = _registeredFunctions[dappId];
         for (uint256 i = 0; i < refs.length; i++) {

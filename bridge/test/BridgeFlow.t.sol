@@ -182,14 +182,18 @@ contract BridgeFlowTest is Test {
         assertEq(dAppManager.getActiveChannelCount(2), 0);
     }
 
-    function testOwnerCanDeleteUnboundDAppWhileDeletionIsEnabled() public {
+    function testOwnerCanDeleteUnboundDAppOnSepolia() public {
+        vm.chainId(11155111);
+
         dAppManager.deleteDApp(2);
 
         vm.expectRevert(abi.encodeWithSelector(DAppManager.UnknownDApp.selector, 2));
         dAppManager.getDAppInfo(2);
     }
 
-    function testDeletedDAppIdCanBeRegisteredAgain() public {
+    function testDeletedDAppIdCanBeRegisteredAgainOnSepolia() public {
+        vm.chainId(11155111);
+
         dAppManager.deleteDApp(2);
 
         dAppManager.registerDApp(
@@ -204,8 +208,8 @@ contract BridgeFlowTest is Test {
         assertEq(info.labelHash, keccak256("alt-private-app-reloaded"));
     }
 
-    function testRejectsDeletingDAppWithActiveChannels() public {
-        vm.expectRevert(abi.encodeWithSelector(DAppManager.ActiveChannelsExist.selector, 1, 1));
+    function testRejectsDeletingDAppOutsideSepolia() public {
+        vm.expectRevert(DAppManager.DAppDeletionDisabled.selector);
         dAppManager.deleteDApp(1);
     }
 

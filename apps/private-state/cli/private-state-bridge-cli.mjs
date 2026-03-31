@@ -113,6 +113,7 @@ const INITIAL_ZERO_ROOT =
   "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const BLS12_381_SCALAR_FIELD_MODULUS =
   BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
+const DEFAULT_LOG_CHUNK_SIZE = 2000;
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -340,7 +341,12 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     }
   }
 
-  const events = await dAppManager.queryFilter(dAppManager.filters.DAppRegistered(), 0, "latest");
+  const events = await queryContractEventsChunked({
+    contract: dAppManager,
+    eventName: "DAppRegistered",
+    fromBlock: 0,
+    toBlock: "latest",
+  });
   const matchingIds = [];
 
   for (const event of events) {
@@ -1871,7 +1877,7 @@ async function recoverDeliveredNotesFromEventLogs({
   );
   const commitmentExistsSlot = BigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "commitmentExists"));
   const nullifierUsedSlot = BigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
-  const observedLogs = await provider.getLogs({
+  const observedLogs = await fetchLogsChunked(provider, {
     address: context.workspace.channelManager,
     fromBlock: scanStartBlock,
     toBlock: latestBlock,
@@ -3499,11 +3505,25 @@ async function reconstructChannelSnapshot({
     bridgeAbiManifest.contracts.bridgeTokenVault.abi,
     provider,
   );
-  const rootEvents = await channelManager.queryFilter(channelManager.filters.CurrentRootVectorObserved(), genesisBlockNumber);
-  const channelStorageWriteEvents =
-    await channelManager.queryFilter(channelManager.filters.StorageWriteObserved(), genesisBlockNumber);
-  const vaultStorageWriteEvents =
-    await bridgeTokenVault.queryFilter(bridgeTokenVault.filters.StorageWriteObserved(), genesisBlockNumber);
+  const latestBlock = await provider.getBlockNumber();
+  const rootEvents = await queryContractEventsChunked({
+    contract: channelManager,
+    eventName: "CurrentRootVectorObserved",
+    fromBlock: genesisBlockNumber,
+    toBlock: latestBlock,
+  });
+  const channelStorageWriteEvents = await queryContractEventsChunked({
+    contract: channelManager,
+    eventName: "StorageWriteObserved",
+    fromBlock: genesisBlockNumber,
+    toBlock: latestBlock,
+  });
+  const vaultStorageWriteEvents = await queryContractEventsChunked({
+    contract: bridgeTokenVault,
+    eventName: "StorageWriteObserved",
+    fromBlock: genesisBlockNumber,
+    toBlock: latestBlock,
+  });
 
   const groupedEvents = new Map();
   for (const event of [...rootEvents, ...channelStorageWriteEvents, ...vaultStorageWriteEvents]) {
@@ -3571,6 +3591,98 @@ function compareLogsByPosition(left, right) {
     return Number(left.transactionIndex - right.transactionIndex);
   }
   return Number(left.index - right.index);
+}
+
+async function fetchLogsChunked(provider, {
+  address,
+  topics,
+  fromBlock,
+  toBlock,
+  initialChunkSize = DEFAULT_LOG_CHUNK_SIZE,
+}) {
+  const normalizedFromBlock = Number(fromBlock);
+  const resolvedToBlock = toBlock === "latest" ? await provider.getBlockNumber() : Number(toBlock);
+  const aggregatedLogs = [];
+
+  if (normalizedFromBlock > resolvedToBlock) {
+    return aggregatedLogs;
+  }
+
+  let chunkSize = Math.max(1, Number(initialChunkSize));
+  let cursor = normalizedFromBlock;
+  while (cursor <= resolvedToBlock) {
+    const chunkToBlock = Math.min(resolvedToBlock, cursor + chunkSize - 1);
+    try {
+      const logs = await provider.getLogs({
+        address,
+        topics,
+        fromBlock: cursor,
+        toBlock: chunkToBlock,
+      });
+      aggregatedLogs.push(...logs);
+      cursor = chunkToBlock + 1;
+    } catch (error) {
+      const suggestedChunkSize = deriveRecommendedLogChunkSize(error, chunkSize);
+      if (suggestedChunkSize >= chunkSize) {
+        throw error;
+      }
+      chunkSize = suggestedChunkSize;
+    }
+  }
+
+  return aggregatedLogs;
+}
+
+function deriveRecommendedLogChunkSize(error, currentChunkSize) {
+  const serializedError = [
+    error?.message,
+    error?.shortMessage,
+    error?.info?.responseBody,
+  ].filter((value) => typeof value === "string" && value.length > 0).join("\n");
+
+  const boundedRangeMatch = /up to a (\d+) block range/i.exec(serializedError);
+  if (boundedRangeMatch) {
+    return Math.max(1, Number(boundedRangeMatch[1]));
+  }
+
+  const recommendedWindowMatch = /\[(0x[0-9a-f]+),\s*(0x[0-9a-f]+)\]/i.exec(serializedError);
+  if (recommendedWindowMatch) {
+    const lower = Number(BigInt(recommendedWindowMatch[1]));
+    const upper = Number(BigInt(recommendedWindowMatch[2]));
+    if (Number.isFinite(lower) && Number.isFinite(upper) && upper >= lower) {
+      return Math.max(1, upper - lower + 1);
+    }
+  }
+
+  return Math.max(1, Math.floor(currentChunkSize / 2));
+}
+
+async function queryContractEventsChunked({
+  contract,
+  eventName,
+  fromBlock,
+  toBlock,
+}) {
+  const eventFragment = contract.interface.getEvent(eventName);
+  const eventTopic = contract.interface.getEvent(eventName).topicHash;
+  const contractAddress = getAddress(await contract.getAddress());
+  const provider = contract.runner?.provider ?? contract.runner;
+  expect(provider, `Contract runner is missing a provider for event ${eventName}.`);
+  const logs = await fetchLogsChunked(provider, {
+    address: contractAddress,
+    topics: [eventTopic],
+    fromBlock,
+    toBlock,
+  });
+
+  return logs.map((log) => {
+    const parsed = contract.interface.parseLog(log);
+    return {
+      ...log,
+      args: parsed.args,
+      fragment: parsed.fragment,
+    };
+  }).filter((event) => event.fragment?.name === eventFragment.name);
 }
 
 function toGrothSolidityProof(proof) {

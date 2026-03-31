@@ -887,6 +887,42 @@
         );
       }
 
+      function applyWorkspaceDirectoryOptions(handle, byNetwork) {
+        workspaceDirectoryState.handle = handle;
+        workspaceDirectoryState.byNetwork = byNetwork;
+        workspaceDirectoryState.loaded = true;
+        const currentOptions = currentWorkspaceOptions();
+        if (
+          !currentOptions.channelOptions.includes(state.channelName)
+          && currentCommand().id !== "create-channel"
+          && currentCommand().id !== "recover-workspace"
+        ) {
+          state.channelName = currentOptions.channelOptions[0] ?? "";
+        }
+        const filteredWalletOptions = walletOptionsForCommand();
+        if (!filteredWalletOptions.includes(state.wallet)) {
+          state.wallet = filteredWalletOptions[0] ?? "";
+        }
+        clearWalletNoteState();
+      }
+
+      async function rescanSelectedWorkspaceDirectory() {
+        if (!workspaceDirectoryState.handle) {
+          return false;
+        }
+
+        try {
+          setWorkspaceStatus("Rescanning workspace directory...");
+          const byNetwork = await loadWorkspaceDirectoryOptions(workspaceDirectoryState.handle);
+          applyWorkspaceDirectoryOptions(workspaceDirectoryState.handle, byNetwork);
+          setWorkspaceStatus(buildWorkspaceStatusMessage());
+          return true;
+        } catch {
+          showWorkspaceSelectionError("Failed to read the selected workspace directory.");
+          return false;
+        }
+      }
+
       async function chooseWorkspaceDirectory() {
         if (typeof window.showDirectoryPicker !== "function") {
           showWorkspaceSelectionError("This browser does not support directory selection.");
@@ -900,22 +936,7 @@
             return;
           }
           const byNetwork = await loadWorkspaceDirectoryOptions(handle);
-          workspaceDirectoryState.handle = handle;
-          workspaceDirectoryState.byNetwork = byNetwork;
-          workspaceDirectoryState.loaded = true;
-          const currentOptions = currentWorkspaceOptions();
-          if (
-            !currentOptions.channelOptions.includes(state.channelName)
-            && currentCommand().id !== "create-channel"
-            && currentCommand().id !== "recover-workspace"
-          ) {
-            state.channelName = currentOptions.channelOptions[0] ?? "";
-          }
-          const filteredWalletOptions = walletOptionsForCommand();
-          if (!filteredWalletOptions.includes(state.wallet)) {
-            state.wallet = filteredWalletOptions[0] ?? "";
-          }
-          clearWalletNoteState();
+          applyWorkspaceDirectoryOptions(handle, byNetwork);
           persistState();
           renderWorkspacePicker();
           await refreshWalletNoteOptions();
@@ -1207,6 +1228,7 @@
         commandSelectEl.value = state.commandId;
         commandSelectEl.addEventListener("change", async (event) => {
           state.commandId = event.target.value;
+          await rescanSelectedWorkspaceDirectory();
           persistState();
           await render();
         });

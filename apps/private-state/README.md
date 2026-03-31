@@ -106,7 +106,9 @@ Important rules:
 ## Recipient Note Delivery
 
 The protocol-level recipient note delivery design is documented in
-[NOTE_RECEIVE_KEY_PLAN.md](NOTE_RECEIVE_KEY_PLAN.md).
+[docs/cli-security.md](docs/cli-security.md),
+[docs/cli-dapp-protocol.md](docs/cli-dapp-protocol.md), and
+[docs/bridge-dapp-protocol.md](docs/bridge-dapp-protocol.md).
 
 The current implementation includes:
 

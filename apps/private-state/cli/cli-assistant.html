@@ -115,6 +115,18 @@
         width: auto;
       }
 
+      .recipient-input-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .recipient-input-row button {
+        width: auto;
+        white-space: nowrap;
+      }
+
       .field-stack {
         display: grid;
         gap: 6px;
@@ -1331,6 +1343,8 @@
 
           const recipientFieldLabel = document.createElement("label");
           recipientFieldLabel.textContent = recipientLabel;
+          const recipientRow = document.createElement("div");
+          recipientRow.className = "recipient-input-row";
           const recipientInput = document.createElement("input");
           recipientInput.type = "text";
           recipientInput.placeholder = "0xRecipientL2Address";
@@ -1340,11 +1354,7 @@
             persistState();
             renderPreview();
           });
-          recipientFieldLabel.appendChild(recipientInput);
-          recipientField.appendChild(recipientFieldLabel);
-
-          const recipientActions = document.createElement("div");
-          recipientActions.className = "inline-actions";
+          recipientRow.appendChild(recipientInput);
           const useSelfButton = document.createElement("button");
           useSelfButton.type = "button";
           useSelfButton.textContent = "Use my L2 address";
@@ -1358,13 +1368,15 @@
             rerenderCommandField("recipients");
             renderPreview();
           });
-          recipientActions.appendChild(useSelfButton);
-          recipientField.appendChild(recipientActions);
+          recipientRow.appendChild(useSelfButton);
+          recipientFieldLabel.appendChild(recipientRow);
+          recipientField.appendChild(recipientFieldLabel);
 
           grid.appendChild(recipientField);
 
-          const amountField = document.createElement("label");
-          amountField.textContent = amountLabel;
+          const amountField = document.createElement("div");
+          amountField.className = "field-stack";
+          const amountFieldLabel = document.createElement("label");
           const amountInput = document.createElement("input");
           amountInput.type = "text";
           amountInput.placeholder = "3";
@@ -1374,7 +1386,9 @@
             persistState();
             renderPreview();
           });
-          amountField.appendChild(amountInput);
+          amountFieldLabel.textContent = amountLabel;
+          amountFieldLabel.appendChild(amountInput);
+          amountField.appendChild(amountFieldLabel);
           grid.appendChild(amountField);
         });
 

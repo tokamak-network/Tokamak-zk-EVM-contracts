@@ -16,9 +16,11 @@ MANIFEST_PATH="$DEPLOY_DIR/groth16-updateTree.${CHAIN_ID}.latest.json"
 TIMESTAMP_UTC="$(date -u +"%Y%m%dT%H%M%SZ")"
 
 SOURCE_ZKEY_PATH="$SOURCE_TRUSTED_SETUP_DIR/circuit_final.zkey"
+SOURCE_METADATA_PATH="$SOURCE_TRUSTED_SETUP_DIR/metadata.json"
 
 for required_path in \
-    "$SOURCE_ZKEY_PATH"
+    "$SOURCE_ZKEY_PATH" \
+    "$SOURCE_METADATA_PATH"
 do
     if [[ ! -f "$required_path" ]]; then
         echo "Missing required Groth16 artifact: $required_path" >&2
@@ -29,16 +31,19 @@ done
 mkdir -p "$ARTIFACT_DIR"
 
 cp "$SOURCE_ZKEY_PATH" "$ARTIFACT_DIR/circuit_final.zkey"
+cp "$SOURCE_METADATA_PATH" "$ARTIFACT_DIR/metadata.json"
 
 jq -n \
     --arg generatedAtUtc "$TIMESTAMP_UTC" \
     --arg chainId "$CHAIN_ID" \
     --arg zkeyPath "groth16/updateTree/$CHAIN_ID/circuit_final.zkey" \
+    --arg metadataPath "groth16/updateTree/$CHAIN_ID/metadata.json" \
     '{
         generatedAtUtc: $generatedAtUtc,
         chainId: ($chainId | tonumber),
         artifacts: {
-            zkeyPath: $zkeyPath
+            zkeyPath: $zkeyPath,
+            metadataPath: $metadataPath
         }
     }' > "$MANIFEST_PATH"
 

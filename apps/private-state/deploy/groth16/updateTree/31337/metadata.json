@@ -1,0 +1,13 @@
+{
+  "circuit": "updateTree",
+  "tokamakL2JsVersion": "0.0.33",
+  "mtDepth": 12,
+  "constraintCount": 15596,
+  "powersOfTauPower": 14,
+  "generatedAt": "2026-03-31T08:56:06.175Z",
+  "note": "This is a local deterministic development ceremony, not a production multi-party ceremony.",
+  "phase1Contributions": 1,
+  "phase2Contributions": 1,
+  "phase1BeaconApplied": true,
+  "phase2BeaconApplied": true
+}

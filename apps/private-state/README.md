@@ -47,6 +47,7 @@ Successful deployments write app-local artifacts into `apps/private-state/deploy
 - `storage-layout.<chain-id>.latest.json`
 - `groth16-updateTree.<chain-id>.latest.json`
 - `groth16/updateTree/<chain-id>/circuit_final.zkey`
+- `groth16/updateTree/<chain-id>/metadata.json`
 - `PrivateStateController.callable-abi.json`
 - `L2AccountingVault.callable-abi.json`
 

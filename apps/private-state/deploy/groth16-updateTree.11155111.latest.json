@@ -1,7 +1,8 @@
 {
-  "generatedAtUtc": "20260331T085627Z",
+  "generatedAtUtc": "20260331T090520Z",
   "chainId": 11155111,
   "artifacts": {
-    "zkeyPath": "groth16/updateTree/11155111/circuit_final.zkey"
+    "zkeyPath": "groth16/updateTree/11155111/circuit_final.zkey",
+    "metadataPath": "groth16/updateTree/11155111/metadata.json"
   }
 }

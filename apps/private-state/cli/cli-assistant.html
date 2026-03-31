@@ -409,7 +409,7 @@
         { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "password", "network"] },
         { id: "mint-notes", description: "Mint private-state notes from the wallet channel balance.", fields: ["wallet", "password", "network", "amounts"] },
         { id: "transfer-notes", description: "Spend tracked notes into encrypted recipient outputs.", fields: ["wallet", "password", "network", "noteIds", "recipients", "amounts"] },
-        { id: "redeem-notes", description: "Redeem one or two tracked notes back into liquid accounting balance.", fields: ["wallet", "password", "network", "noteIds"] },
+        { id: "redeem-notes", description: "Redeem up to three tracked notes back into liquid accounting balance.", fields: ["wallet", "password", "network", "noteIds"] },
         { id: "get-my-notes", description: "Refresh encrypted note-log recovery and show current wallet notes.", fields: ["wallet", "password", "network"] },
       ];
 
@@ -656,6 +656,10 @@
           .filter((value) => value.length > 0);
       }
 
+      function noteSelectionLimit() {
+        return currentCommand().id === "redeem-notes" ? 3 : 2;
+      }
+
       function mintAmountsTotalLabel() {
         const amounts = currentMintAmounts();
         if (amounts.length === 0) {
@@ -671,7 +675,7 @@
       function syncSelectedNoteIdsToAvailableOptions() {
         const available = new Set(walletNoteState.options.map((option) => option.value));
         const selected = parseSelectedNoteIds().filter((noteId) => available.has(noteId));
-        const normalized = selected.slice(0, 2);
+        const normalized = selected.slice(0, noteSelectionLimit());
         state.noteIds = normalized.length === 0 ? "" : JSON.stringify(normalized);
       }
 
@@ -1300,7 +1304,7 @@
               const currentSelection = parseSelectedNoteIds();
               let nextSelection = currentSelection.filter((noteId) => noteId !== option.value);
               if (checkbox.checked) {
-                nextSelection = [...nextSelection, option.value].slice(0, 2);
+                nextSelection = [...nextSelection, option.value].slice(0, noteSelectionLimit());
               }
               state.noteIds = nextSelection.length === 0 ? "" : JSON.stringify(nextSelection);
               persistState();
@@ -1321,7 +1325,7 @@
 
         const hint = document.createElement("p");
         hint.className = "hint";
-        hint.textContent = walletNoteState.statusMessage || "Choose a wallet and enter its password to load up to 2 note IDs.";
+        hint.textContent = walletNoteState.statusMessage || `Choose a wallet and enter its password to load up to ${noteSelectionLimit()} note IDs.`;
         wrapper.appendChild(hint);
 
         const totalHint = document.createElement("p");

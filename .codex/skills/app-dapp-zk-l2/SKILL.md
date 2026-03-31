@@ -78,6 +78,8 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
    - Write deployment manifests, one deployed-contract storage-layout manifest, and callable ABI JSON files into `apps/<dapp>/deploy`.
    - The storage-layout manifest must contain the deployed contract addresses plus the compiler-reported storage layout for each deployed contract.
+   - Repository-owned code under `apps/`, `bridge/`, `script/`, or other root modules may reference files inside `submodules/` when needed, but code that lives inside a submodule must not reference files from the parent repository.
+   - If submodule tooling needs deployment or storage-layout artifacts from this repository, mirror those artifacts into the submodule as part of the repository-owned deployment flow and have the submodule read only its mirrored local copies.
 11. Provide a DApp-local CLI under `apps/<dapp>/cli`:
    - Use a terminal CLI, not a browser application.
    - Include target-network selection limited to `mainnet`, `sepolia`, and `anvil`, plus optional private-key input for signed transactions.

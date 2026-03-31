@@ -117,7 +117,16 @@ The design philosophy is intentionally narrower:
 - the bridge provides transaction-submission privacy at the settlement boundary
 - the DApp must provide state-semantic privacy if the application requires it
 
-In other words, the bridge can help hide what was submitted to Ethereum, but it does not automatically hide what the application state means. Strong privacy still depends on a private-state DApp model.
+In other words, the bridge can help hide the original private execution payload, but it does not automatically hide the observable shape of channel activity. The bridge still publishes proof-backed state transitions, accepted root-vector updates, observed storage writes, and any DApp event logs that the registered function metadata instructs it to re-emit. An outside observer can therefore still learn that activity occurred, when it occurred, which channel function family was involved, and how the accepted commitment state moved.
+
+This is why privacy remains DApp-dependent. The bridge provides a lower-information settlement boundary than direct calldata publication, but it does not by itself guarantee semantic privacy of user behavior.
+
+The `private-state` DApp shows the intended extension of that model. There, an outside observer can still see the timing and rough shape of user activity such as mint-like, transfer-like, redeem-like, or vault-withdrawal-related transitions, and can observe that the note-related storage commitments changed. However, the observer cannot directly recover the plaintext note contents, the recipient-specific meaning of encrypted outputs, or the full semantic transaction story from those observations alone. In short:
+
+- the bridge hides the original execution payload
+- the DApp may further hide the user-level meaning of the resulting state transition
+
+For readers who want one concrete intuition: an outside observer may be able to tell that a user participated in a transfer-shaped action and that certain commitment domains changed, while still being unable to tell which recipient actually received which note value.
 
 ## 4. Architecture
 

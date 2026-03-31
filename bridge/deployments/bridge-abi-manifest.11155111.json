@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-31T11:02:25.130Z",
+  "generatedAt": "2026-03-31T15:05:26.363Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -1072,32 +1072,6 @@
         },
         {
           "type": "function",
-          "name": "dAppDeletionEnabled",
-          "inputs": [],
-          "outputs": [
-            {
-              "name": "",
-              "type": "bool",
-              "internalType": "bool"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "dAppDeletionLockedForever",
-          "inputs": [],
-          "outputs": [
-            {
-              "name": "",
-              "type": "bool",
-              "internalType": "bool"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
           "name": "deleteDApp",
           "inputs": [
             {
@@ -1108,39 +1082,6 @@
           ],
           "outputs": [],
           "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "disableDAppDeletionForever",
-          "inputs": [],
-          "outputs": [],
-          "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "enableDAppDeletion",
-          "inputs": [],
-          "outputs": [],
-          "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "getActiveChannelCount",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "stateMutability": "view"
         },
         {
           "type": "function",
@@ -1506,19 +1447,6 @@
         },
         {
           "type": "function",
-          "name": "noteChannelCreated",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "outputs": [],
-          "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
           "name": "owner",
           "inputs": [],
           "outputs": [
@@ -1788,18 +1716,6 @@
         },
         {
           "type": "event",
-          "name": "DAppDeletionDisabledForever",
-          "inputs": [],
-          "anonymous": false
-        },
-        {
-          "type": "event",
-          "name": "DAppDeletionEnabled",
-          "inputs": [],
-          "anonymous": false
-        },
-        {
-          "type": "event",
           "name": "DAppRegistered",
           "inputs": [
             {
@@ -1876,22 +1792,6 @@
         },
         {
           "type": "error",
-          "name": "ActiveChannelsExist",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "activeChannelCount",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ]
-        },
-        {
-          "type": "error",
           "name": "BridgeCoreAlreadyBound",
           "inputs": [
             {
@@ -1909,11 +1809,6 @@
         {
           "type": "error",
           "name": "DAppDeletionDisabled",
-          "inputs": []
-        },
-        {
-          "type": "error",
-          "name": "DAppDeletionLockedForever",
           "inputs": []
         },
         {

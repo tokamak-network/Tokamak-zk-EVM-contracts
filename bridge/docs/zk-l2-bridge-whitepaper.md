@@ -10,8 +10,9 @@ Last updated: 2026-04-01
 4. Architecture
 5. State and Proof Model
 6. Core Operational Flows
-7. Security Posture and Tradeoffs
-8. Conclusion
+7. Security Posture, Advantages, and Tradeoffs
+8. Future Work
+9. Conclusion
 
 ## 1. Thesis
 
@@ -37,9 +38,13 @@ The current implementation has six major parts:
 - `ChannelManager`: a per-channel contract that validates Tokamak proofs and tracks the current state commitment of that channel
 - off-chain execution and proving infrastructure: the environment in which users execute application logic, assemble witnesses, and produce proofs
 
+These parts are not arranged as one flat network. Ethereum is the top-level settlement and ordering environment. The bridge control plane lives on Ethereum and is shared across all channels. Each channel then forms its own execution domain under that shared bridge surface, with its own accepted state commitment and its own user registrations. In other words, the system is not one global off-chain state machine with many applications inside it. It is one Ethereum-anchored bridge fabric with many parallel channel-scoped state machines attached to it.
+
 Each channel belongs to exactly one registered DApp. The bridge does not treat a channel as an open-ended programmable sandbox. A channel inherits a bounded storage surface and a bounded function surface from the DApp metadata that was registered before the channel was created.
 
 This is an opinionated model. The bridge is intentionally DApp-aware at the metadata layer, but DApp-agnostic at the settlement layer. In other words, the bridge does not need to understand application semantics in full detail; it needs enough metadata to decide whether the submitted proof is speaking about an allowed function, an allowed storage surface, and the expected public-input layout.
+
+The user side of the topology is also layered. A user has one global Ethereum-facing existence, such as an L1 account and L1 asset custody relation, but that same user can participate in multiple channels through separate channel-local workspaces. Each such workspace is logically a distinct `user-in-channel` context. It carries the channel-specific registration, the channel-specific accepted commitment history, the channel-specific reconstructed application state, and any local secret material that the DApp requires for continued private activity. This means participation is not best understood as a single link between a user and the bridge. It is better understood as many links of the form `user in channel X` interacting with `channel X`, all under one shared Ethereum settlement surface.
 
 ## 3. Design Philosophy
 
@@ -163,6 +168,33 @@ The current bridge also introduces an explicit registration layer for token-vaul
 - a note-receive public key
 
 The bridge enforces uniqueness across these identifiers inside the channel and checks that the provided leaf index matches the one derived from the registered storage key. This is not merely bookkeeping. It is part of the system's authorization model for vault-backed balance updates and safe exit.
+
+### 4.4 User-Local Channel Workspaces
+
+The bridge architecture implies that user activity is separated by channel even when the same person participates in several channels at once. The user's L1 wallet relation is global, but the user's actionable channel state is local to each channel.
+
+This separation matters because each channel has its own accepted commitment head, its own token-vault registration set, and potentially its own privacy-specific recovery requirements. A user's local environment therefore has to maintain one channel workspace per channel of participation rather than one undifferentiated bridge-wide state cache.
+
+The resulting high-level picture is:
+
+- Ethereum provides shared settlement, custody, and final ordering
+- the bridge provides a shared control plane and verifier access surface
+- each channel provides an isolated accepted execution domain for one DApp
+- each user participates through channel-local views rather than through one bridge-global application state
+
+This is why many of the bridge's guarantees are expressed per channel and per user-in-channel. Data availability, transaction continuity, privacy exposure, safe exit scope, and state reconstruction all depend on what a particular user can recover inside a particular channel.
+
+### 4.5 Information Flow Across Layers
+
+The high-level information flow follows the same layered topology.
+
+Administrative information flows from the bridge owner into the shared control plane through DApp registration and channel creation. That flow fixes the admissible execution grammar before users begin interacting with a channel.
+
+Execution information flows from channel-local off-chain environments into Ethereum as proof-backed submissions. For general application execution, the submitted signal is a Tokamak proof payload together with the public inputs needed for the bridge to identify the channel function, the current accepted commitment, the updated commitment, and the bridge-visible outputs of that transition. For vault balance movement, the submitted signal is a Groth-backed token-vault update tied to the user's registered channel-token-vault identity.
+
+Acceptance information then flows back out of Ethereum to every interested local environment. The bridge publishes the accepted commitment trail, the observed storage mutations, and the accepted event outputs that it is configured to surface. Users, relays, and external indexers can all consume that published information to reconstruct the accepted history that matters to them.
+
+The key architectural rule is that no off-chain actor is authoritative by itself. Off-chain environments may compute, coordinate, relay, index, or assist, but accepted state exists only after Ethereum has accepted the corresponding proof-backed transition. That rule applies both to normal channel execution and to token-vault updates for deposits and withdrawals.
 
 ## 5. State and Proof Model
 

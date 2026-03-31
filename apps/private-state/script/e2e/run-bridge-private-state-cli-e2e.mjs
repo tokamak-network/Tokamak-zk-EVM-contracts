@@ -536,19 +536,19 @@ async function materializeCurrentDAppDefinition(provider, participants) {
   const encryptedMints = {
     aMint: buildEncryptedMintOutput({
       owner: participants[0].registration.l2Identity.l2Address,
-      ownerL2PublicKey: participants[0].registration.l2Identity.l2PublicKey,
+      ownerNoteReceivePubKey: participants[0].registration.noteReceive.noteReceivePubKey,
       value: depositAmountBaseUnits,
       label: `${channelName}:a-mint`,
     }),
     bMint: buildEncryptedMintOutput({
       owner: participants[1].registration.l2Identity.l2Address,
-      ownerL2PublicKey: participants[1].registration.l2Identity.l2PublicKey,
+      ownerNoteReceivePubKey: participants[1].registration.noteReceive.noteReceivePubKey,
       value: depositAmountBaseUnits,
       label: `${channelName}:b-mint`,
     }),
     cMint: buildEncryptedMintOutput({
       owner: participants[2].registration.l2Identity.l2Address,
-      ownerL2PublicKey: participants[2].registration.l2Identity.l2PublicKey,
+      ownerNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
       value: depositAmountBaseUnits,
       label: `${channelName}:c-mint`,
     }),
@@ -823,7 +823,7 @@ function buildEncryptedTransferOutput({
 
 function buildEncryptedMintOutput({
   owner,
-  ownerL2PublicKey,
+  ownerNoteReceivePubKey,
   value,
   label,
 }) {
@@ -834,7 +834,7 @@ function buildEncryptedMintOutput({
   );
   const encryptedNoteValue = encryptMintNoteValueForOwner({
     value,
-    ownerL2PublicKey,
+    ownerNoteReceivePubKey,
     chainId: 31337,
     channelId: deriveChannelIdFromName(channelName),
     owner,

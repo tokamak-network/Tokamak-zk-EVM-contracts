@@ -384,7 +384,7 @@ function buildEncryptedTransferOutput({
 
 function buildEncryptedMintOutput({
   owner,
-  ownerL2PublicKey,
+  ownerNoteReceivePubKey,
   value,
   label,
   chainId,
@@ -397,7 +397,7 @@ function buildEncryptedMintOutput({
   );
   const encryptedNoteValue = encryptMintNoteValueForOwner({
     value,
-    ownerL2PublicKey,
+    ownerNoteReceivePubKey,
     chainId,
     channelId,
     owner,
@@ -973,7 +973,7 @@ async function main() {
   const encryptedMints = {
     aMint: buildEncryptedMintOutput({
       owner: participants[0].l2Address,
-      ownerL2PublicKey: participants[0].l2PublicKey,
+      ownerNoteReceivePubKey: participants[0].noteReceive.noteReceivePubKey,
       value: depositAmount,
       label: "private-state-e2e:a-mint",
       chainId: 31337,
@@ -981,7 +981,7 @@ async function main() {
     }),
     bMint: buildEncryptedMintOutput({
       owner: participants[1].l2Address,
-      ownerL2PublicKey: participants[1].l2PublicKey,
+      ownerNoteReceivePubKey: participants[1].noteReceive.noteReceivePubKey,
       value: depositAmount,
       label: "private-state-e2e:b-mint",
       chainId: 31337,
@@ -989,7 +989,7 @@ async function main() {
     }),
     cMint: buildEncryptedMintOutput({
       owner: participants[2].l2Address,
-      ownerL2PublicKey: participants[2].l2PublicKey,
+      ownerNoteReceivePubKey: participants[2].noteReceive.noteReceivePubKey,
       value: depositAmount,
       label: "private-state-e2e:c-mint",
       chainId: 31337,

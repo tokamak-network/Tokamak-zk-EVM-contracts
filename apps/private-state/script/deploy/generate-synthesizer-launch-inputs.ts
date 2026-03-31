@@ -12,7 +12,6 @@ import {
   createTokamakL2StateManagerFromL1RPC,
   createTokamakL2Tx,
   fromEdwardsToAddress,
-  type ChannelParticipantConfig,
   type ChannelStateConfig,
   type StateSnapshot,
   type TokamakL2TxData,
@@ -22,10 +21,13 @@ import { NUMBER_OF_PREV_BLOCK_HASHES } from '../../../../submodules/Tokamak-zk-E
 import { getBlockInfoFromRPC } from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/rpc/rpc.ts';
 import type { SynthesizerBlockInfo } from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/rpc/types.ts';
 import {
+  DEFAULT_EXAMPLE_NOTE_RECEIVE_CHANNEL_NAME,
   buildPrivateStateMintCalldata,
+  deriveNoteReceiveKeyMaterial,
   deriveParticipantKeys,
   mintInterfaces,
   type DerivedParticipantKeys,
+  type MintExampleParticipant,
 } from '../../../../submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/mintNotes/utils.ts';
 import {
   buildPrivateStateRedeemCalldata,
@@ -118,7 +120,7 @@ type ExampleContext = {
   blockNumber: number;
   manifest: DeploymentManifest;
   storageLayoutManifest: PrivateStateStorageLayoutManifest;
-  participants: ChannelParticipantConfig[];
+  participants: MintExampleParticipant[];
   keyMaterial: DerivedParticipantKeys;
 };
 
@@ -203,24 +205,37 @@ const assignChannelId = (
   (stateManager as Awaited<ReturnType<typeof createTokamakL2StateManagerFromL1RPC>> & { _channelId?: number })._channelId = channelId;
 };
 
-const buildParticipants = (participantCount: number, mnemonic: string): ChannelParticipantConfig[] => {
-  const participants: ChannelParticipantConfig[] = [];
+const buildParticipants = async (
+  participantCount: number,
+  mnemonic: string,
+  chainId: number,
+): Promise<MintExampleParticipant[]> => {
+  const participants: MintExampleParticipant[] = [];
   for (let index = 0; index < participantCount; index += 1) {
     const wallet = ethers.HDNodeWallet.fromPhrase(
       mnemonic,
       undefined,
       `m/44'/60'/0'/0/${index}`,
     );
+    const noteReceive = await deriveNoteReceiveKeyMaterial({
+      signer: wallet,
+      chainId,
+      channelId: defaultChannelId,
+      channelName: DEFAULT_EXAMPLE_NOTE_RECEIVE_CHANNEL_NAME,
+      account: wallet.address as `0x${string}`,
+    });
     participants.push({
       addressL1: wallet.address as `0x${string}`,
       prvSeedL2: `private-state participant ${index}`,
+      noteReceivePubKeyX: noteReceive.noteReceivePubKey.x,
+      noteReceivePubKeyYParity: noteReceive.noteReceivePubKey.yParity,
     });
   }
   return participants;
 };
 
-const deriveChannelParticipants = (participantCount: number, mnemonic: string) => {
-  const baseParticipants = buildParticipants(participantCount, mnemonic);
+const deriveChannelParticipants = async (participantCount: number, mnemonic: string, chainId: number) => {
+  const baseParticipants = await buildParticipants(participantCount, mnemonic, chainId);
   const keyMaterial = deriveParticipantKeys(baseParticipants);
   const participants = baseParticipants.map((participant, index) => ({
     ...participant,
@@ -712,7 +727,7 @@ const main = async () => {
   const blockNumber = await provider.getBlockNumber();
   const blockInfo = await getBlockInfoFromRPC(rpcUrl, blockNumber, NUMBER_OF_PREV_BLOCK_HASHES);
   const mnemonic = process.env.APPS_ANVIL_MNEMONIC?.trim() || defaultMnemonic;
-  const { participants, keyMaterial } = deriveChannelParticipants(defaultParticipantCount, mnemonic);
+  const { participants, keyMaterial } = await deriveChannelParticipants(defaultParticipantCount, mnemonic, chainId);
 
   const context: ExampleContext = {
     appNetwork,

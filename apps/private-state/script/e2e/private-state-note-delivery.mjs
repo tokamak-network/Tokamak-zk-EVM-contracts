@@ -79,10 +79,6 @@ function normalizeEncryptedNoteValueWords(encryptedNoteValue) {
   return encryptedNoteValue.map((word) => normalizeBytes32Hex(word));
 }
 
-function pointFromL2PublicKey(l2PublicKey) {
-  return jubjub.ExtendedPoint.fromHex(ethers.getBytes(l2PublicKey));
-}
-
 function poseidonHexFromBytes(bytesLike) {
   return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
 }
@@ -277,7 +273,7 @@ export function encryptNoteValueForRecipient({
 
 export function encryptMintNoteValueForOwner({
   value,
-  ownerL2PublicKey,
+  ownerNoteReceivePubKey,
   chainId,
   channelId,
   owner,
@@ -285,7 +281,7 @@ export function encryptMintNoteValueForOwner({
 }) {
   return encryptFieldNoteValue({
     value,
-    recipientPoint: pointFromL2PublicKey(ownerL2PublicKey),
+    recipientPoint: pointFromNoteReceivePubKey(ownerNoteReceivePubKey),
     chainId,
     channelId,
     owner,
@@ -360,14 +356,14 @@ export function decryptEncryptedNoteValue({
 
 export function decryptMintEncryptedNoteValue({
   encryptedValue,
-  l2PrivateKey,
+  noteReceivePrivateKey,
   chainId,
   channelId,
   owner,
 }) {
   return decryptFieldEncryptedNoteValue({
     encryptedValue,
-    privateKey: l2PrivateKey,
+    privateKey: noteReceivePrivateKey,
     chainId,
     channelId,
     owner,

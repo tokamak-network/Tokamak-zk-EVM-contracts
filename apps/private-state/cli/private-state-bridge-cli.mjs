@@ -725,7 +725,6 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     context,
     provider,
     noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
-    l2PrivateKey: walletContext.wallet.l2PrivateKey,
   });
 
   printJson({
@@ -1453,7 +1452,6 @@ async function handleGetMyNotes({ args, provider }) {
     context,
     provider,
     noteReceivePrivateKey: noteReceiveKeyMaterial.privateKey,
-    l2PrivateKey: wallet.wallet.l2PrivateKey,
   });
 
   const unusedTrackedNotes = wallet.wallet.notes.unusedOrder
@@ -1892,7 +1890,6 @@ async function recoverDeliveredNotesFromEventLogs({
   context,
   provider,
   noteReceivePrivateKey,
-  l2PrivateKey,
 }) {
   const scanStartBlock = Math.max(
     Number(walletContext.wallet.noteReceiveLastScannedBlock ?? 0),
@@ -1947,7 +1944,7 @@ async function recoverDeliveredNotesFromEventLogs({
       } else if (scheme === ENCRYPTED_NOTE_SCHEME_SELF_MINT) {
         recoveredValue = decryptMintEncryptedNoteValue({
           encryptedValue: encryptedNoteValue,
-          l2PrivateKey,
+          noteReceivePrivateKey,
           chainId: context.workspace.chainId,
           channelId: context.workspace.channelId,
           owner: walletContext.wallet.l2Address,
@@ -2144,10 +2141,6 @@ function normalizeEncryptedNoteValueWords(encryptedNoteValue) {
     "Encrypted note value must be a bytes32[3] payload.",
   );
   return encryptedNoteValue.map((word) => normalizeBytes32Hex(word));
-}
-
-function pointFromL2PublicKey(l2PublicKey) {
-  return jubjub.ExtendedPoint.fromHex(ethers.getBytes(l2PublicKey));
 }
 
 function packEncryptedNoteValue({
@@ -2349,10 +2342,10 @@ function encryptNoteValueForRecipient({ value, recipientNoteReceivePubKey, chain
   });
 }
 
-function encryptMintNoteValueForOwner({ value, ownerL2PublicKey, chainId, channelId, owner }) {
+function encryptMintNoteValueForOwner({ value, ownerNoteReceivePubKey, chainId, channelId, owner }) {
   return encryptFieldNoteValue({
     value,
-    recipientPoint: pointFromL2PublicKey(ownerL2PublicKey),
+    recipientPoint: pointFromNoteReceivePubKey(ownerNoteReceivePubKey),
     chainId,
     channelId,
     owner,
@@ -2417,10 +2410,10 @@ function decryptEncryptedNoteValue({ encryptedValue, noteReceivePrivateKey, chai
   });
 }
 
-function decryptMintEncryptedNoteValue({ encryptedValue, l2PrivateKey, chainId, channelId, owner }) {
+function decryptMintEncryptedNoteValue({ encryptedValue, noteReceivePrivateKey, chainId, channelId, owner }) {
   return decryptFieldEncryptedNoteValue({
     encryptedValue,
-    privateKey: l2PrivateKey,
+    privateKey: noteReceivePrivateKey,
     chainId,
     channelId,
     owner,
@@ -2609,13 +2602,31 @@ function selectRedeemNotesMethod(noteCount) {
   return `redeemNotes${noteCount}`;
 }
 
+function walletNoteReceivePubKey(walletContext) {
+  const x = walletContext.wallet.noteReceivePubKeyX;
+  const yParity = walletContext.wallet.noteReceivePubKeyYParity;
+  expect(
+    typeof x === "string" && x.length > 0,
+    `Wallet ${walletContext.walletName} is missing a stored note-receive public key.`,
+  );
+  expect(
+    Number(yParity) === 0 || Number(yParity) === 1,
+    `Wallet ${walletContext.walletName} has an invalid stored note-receive public key parity.`,
+  );
+  return {
+    x: normalizeBytes32Hex(x),
+    yParity: Number(yParity),
+  };
+}
+
 function buildMintEncryptedOutputs({ wallet, values }) {
   const mintOutputs = [];
   const lifecycleOutputs = [];
+  const ownerNoteReceivePubKey = walletNoteReceivePubKey(wallet);
   for (const value of values) {
     const encryptedNoteValue = encryptMintNoteValueForOwner({
       value,
-      ownerL2PublicKey: wallet.wallet.l2PublicKey,
+      ownerNoteReceivePubKey,
       chainId: wallet.wallet.chainId,
       channelId: wallet.wallet.channelId,
       owner: wallet.wallet.l2Address,

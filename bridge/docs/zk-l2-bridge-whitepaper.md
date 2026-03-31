@@ -243,9 +243,13 @@ If any of those checks fail, the previous accepted root-vector hash remains auth
 
 ### 6.4 Withdrawal and Safe Exit
 
-The current bridge is designed so that token-vault recovery does not depend on replaying arbitrary application state. Safe exit is therefore anchored primarily in the vault path rather than in full application-state reconstruction.
+The current bridge is designed so that recovery of value that still resides in the designated `channelTokenVault` tree does not depend on replaying arbitrary application state. In that limited but important sense, safe exit is anchored in the vault path rather than in full application-state reconstruction.
 
-This does not mean application-state availability is solved. It means the bridge deliberately gives asset recovery a narrower and more robust path than general DApp execution.
+That guarantee is narrower than a guarantee of universal economic exit for every DApp state. The bridge gives its strongest exit property to value that the DApp keeps in the bridge-recognized token-vault storage domain. If a DApp moves economically meaningful value into other app-managed storage domains, then exit of that value depends on the DApp's own state model and transition rules rather than on the bridge alone.
+
+The `private-state` DApp illustrates this boundary clearly. Its bridge-recognized token-vault storage is the liquid accounting balance in `L2AccountingVault`, while note commitments and nullifiers live in `PrivateStateController`. A user can exit liquid balance through the bridge's vault path, but value that has already been transformed into notes must first be redeemed back into liquid balance before withdrawal to L1 is possible. In other words, the bridge alone does not guarantee safe exit of all note-held value at every moment; it guarantees safe exit of value that has been brought back into the designated token-vault accounting domain.
+
+This does not mean application-state availability is solved. It means the bridge deliberately offers a narrow and robust asset-recovery path for one storage domain, while broader recovery of user position can still depend on DApp-specific state reconstruction and DApp-specific recovery flows.
 
 ### 6.5 Data Availability and User Continuity
 

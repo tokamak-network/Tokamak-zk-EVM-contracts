@@ -38,7 +38,6 @@ contract DeployBridgeStackScript is Script {
         address owner = vm.envOr("BRIDGE_OWNER", deployer);
         uint8 merkleTreeLevels = uint8(vm.envUint("BRIDGE_MERKLE_TREE_LEVELS"));
         bool deployMockAsset = vm.envOr("BRIDGE_DEPLOY_MOCK_ASSET", false);
-        bool disableDAppDeletionOnMainnet = block.chainid == 1;
         string memory outputPath = _resolvePath(vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge.json")));
 
         vm.startBroadcast(deployerPrivateKey);
@@ -85,9 +84,6 @@ contract DeployBridgeStackScript is Script {
 
         DAppManager(address(dAppManagerProxy)).bindBridgeCore(address(bridgeCoreProxy));
         BridgeCore(address(bridgeCoreProxy)).bindBridgeTokenVault(address(bridgeTokenVaultProxy));
-        if (disableDAppDeletionOnMainnet) {
-            DAppManager(address(dAppManagerProxy)).disableDAppDeletionForever();
-        }
         if (owner != deployer) {
             DAppManager(address(dAppManagerProxy)).transferOwnership(owner);
             BridgeCore(address(bridgeCoreProxy)).transferOwnership(owner);

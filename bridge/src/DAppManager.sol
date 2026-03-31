@@ -33,8 +33,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     );
     error InvalidFunctionEventTopicCount(uint256 dappId, address entryContract, bytes4 functionSig, uint8 topicCount);
     error DAppDeletionDisabled();
-    error ActiveChannelsExist(uint256 dappId, uint256 activeChannelCount);
-    error DAppDeletionLockedForever();
 
     struct DAppInfo {
         bool exists;
@@ -43,8 +41,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     address public bridgeCore;
-    bool public dAppDeletionEnabled;
-    bool public dAppDeletionLockedForever;
 
     mapping(uint256 => DAppInfo) private _dapps;
     mapping(uint256 => uint256) private _activeChannelCounts;
@@ -69,8 +65,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     );
     event BridgeCoreBound(address indexed bridgeCore);
     event DAppDeleted(uint256 indexed dappId, bytes32 labelHash);
-    event DAppDeletionDisabledForever();
-    event DAppDeletionEnabled();
 
     constructor() {
         _disableInitializers();
@@ -82,8 +76,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (initialOwner != _msgSender()) {
             _transferOwnership(initialOwner);
         }
-        dAppDeletionEnabled = true;
-        dAppDeletionLockedForever = false;
     }
 
     modifier onlyBridgeCore() {
@@ -113,18 +105,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     function getActiveChannelCount(uint256 dappId) external view returns (uint256) {
         _requireDApp(dappId);
         return _activeChannelCounts[dappId];
-    }
-
-    function disableDAppDeletionForever() external onlyOwner {
-        dAppDeletionEnabled = false;
-        dAppDeletionLockedForever = true;
-        emit DAppDeletionDisabledForever();
-    }
-
-    function enableDAppDeletion() external onlyOwner {
-        if (dAppDeletionLockedForever) revert DAppDeletionLockedForever();
-        dAppDeletionEnabled = true;
-        emit DAppDeletionEnabled();
     }
 
     function deleteDApp(uint256 dappId) external onlyOwner {

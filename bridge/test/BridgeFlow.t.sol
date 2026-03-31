@@ -222,30 +222,6 @@ contract BridgeFlowTest is Test {
         dAppManager.getDAppInfo(1);
     }
 
-    function testOwnerCanDeleteDAppOnSepoliaAfterDeletionIsDisabledForever() public {
-        vm.chainId(11155111);
-        dAppManager.disableDAppDeletionForever();
-
-        dAppManager.deleteDApp(1);
-
-        vm.expectRevert(abi.encodeWithSelector(DAppManager.UnknownDApp.selector, 1));
-        dAppManager.getDAppInfo(1);
-    }
-
-    function testRejectsDeletingDAppAfterDeletionIsDisabledForever() public {
-        dAppManager.disableDAppDeletionForever();
-
-        vm.expectRevert(DAppManager.DAppDeletionDisabled.selector);
-        dAppManager.deleteDApp(2);
-    }
-
-    function testOwnerCanReEnableDeletionBeforePermanentLock() public {
-        dAppManager.disableDAppDeletionForever();
-
-        vm.expectRevert(DAppManager.DAppDeletionLockedForever.selector);
-        dAppManager.enableDAppDeletion();
-    }
-
     function testChannelStoresManagedStorageAddressVector() public view {
         address[] memory managedStorageAddresses = channelManager.getManagedStorageAddresses();
         assertEq(managedStorageAddresses.length, 2);

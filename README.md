@@ -1,258 +1,153 @@
-# Tokamak Private Channels Contracts
+# Tokamak Private App Channels
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Solidity](https://img.shields.io/badge/Solidity-0.8.29-blue.svg)](https://soliditylang.org/)
-[![Foundry](https://img.shields.io/badge/Foundry-✓-green.svg)](https://getfoundry.sh/)
+[![Foundry](https://img.shields.io/badge/Foundry-Enabled-green.svg)](https://getfoundry.sh/)
+[![Node.js](https://img.shields.io/badge/Node.js-Required-blue.svg)](https://nodejs.org/)
 
-Our Channel Bridge enables on-demand state channels that hold private L2s. State channels are in charge of aggregating proofs and managing state root.
+This repository hosts the current Tokamak Private App Channels worktree.
 
-This repository implements the core smart contracts for the Tokamak zkEVM Bridge solution, providing Layer 2 privacy with Ethereum-equivalent functionality through zero-knowledge proofs.
+The active bridge implementation lives under [bridge/](./bridge/). It treats each channel as a dedicated validity-proven execution domain for one registered DApp, while Ethereum remains the canonical layer for custody, proof verification, and settlement. The repository also contains app-level integrations under [apps/](./apps/) and the reusable Tokamak zk-EVM proving stack under [submodules/Tokamak-zk-EVM](./submodules/Tokamak-zk-EVM).
 
-### Modular Architecture Design
+## What Is In This Repository
 
-#### **RollupBridge Components**:
-- **Modular Design**: Separated concerns across specialized manager contracts
-- **Upgradeable Contracts**: UUPS proxy pattern for all core components
-- **Gas Optimization**: Streamlined operations with efficient state management
-- **Scalable Verification**: Dynamic tree size selection based on channel requirements
+- [bridge/](./bridge/): the current bridge workspace, including contracts, deployment scripts, tests, and bridge documentation
+- [apps/](./apps/): bridge-coupled DApps that follow the repository's zk-L2 assumptions
+- [apps/private-state/](./apps/private-state/): the current reference DApp for private note-based channel activity
+- [tokamak-zkp/](./tokamak-zkp/): the Tokamak verifier contract and verification-key artifacts used by bridge workflows
+- [submodules/Tokamak-zk-EVM](./submodules/Tokamak-zk-EVM): the shared zk-EVM execution and proving toolchain
+- [groth16/](./groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
+- [script/](./script/): shared repository scripts, including zk-artifact reflection helpers and older deployment utilities
+- [test/](./test/): root-level Foundry tests and fixtures that remain useful for verifier and legacy coverage
 
-#### **Dynamic Merkle Tree Sizing**
-The system automatically selects optimal Merkle tree sizes based on channel requirements:
+## Where To Start
 
-- **Adaptive Sizing**: Tree sizes of 16, 32, 64, or 128 leaves based on participant × token count
-- **Groth16 Verification**: Specialized verifiers for each tree size
-- **Efficient Proofs**: Optimized proof verification for different channel scales
+- Bridge overview: [bridge/README.md](./bridge/README.md)
+- Bridge white paper: [bridge/docs/zk-l2-bridge-whitepaper.md](./bridge/docs/zk-l2-bridge-whitepaper.md)
+- Bridge spec: [bridge/docs/spec.md](./bridge/docs/spec.md)
+- Verifier notes: [bridge/docs/verifier-spec.md](./bridge/docs/verifier-spec.md)
+- App workspace guide: [apps/README.md](./apps/README.md)
+- Private-state DApp guide: [apps/private-state/README.md](./apps/private-state/README.md)
 
-## Key Features
+## Repository Model
 
-- **Cryptographic Security**: Groth16 zero-knowledge proofs ensure computation integrity
-- **Gas Efficiency**: Dynamic tree sizing with optimized state management
-- **Multi-Party**: Supports 1-128 participants with configurable token sets
-- **Comprehensive Verification**: Multi-layer verification including ZK-SNARK validation
-- **Balance Conservation**: Mathematical guarantees preventing fund creation/destruction
-- **State Management**: Secure state transitions with proper authorization
-- **🔧pgradeable Architecture**: UUPS proxy pattern for seamless contract upgrades
-- **Granular Withdrawals**: Per-token withdrawal system allowing multiple withdrawals
-- **Secure Channel Management**: Channel leader controls with proper authorization
+At a high level, the repository is organized around three layers:
 
-## Core Components
+- Ethereum-facing bridge contracts: the shared settlement and custody surface under [bridge/](./bridge/)
+- DApp-specific channel integrations: application contracts, app-local deployment manifests, and user-facing tooling under [apps/](./apps/)
+- Shared proving substrate: the Tokamak zk-EVM toolchain and reflected verifier artifacts under [submodules/](./submodules/) and [tokamak-zkp/](./tokamak-zkp/)
 
-#### **Modular Bridge Architecture**
-- **`BridgeCore.sol`**: Core state management and channel operations
-- **`BridgeDepositManager.sol`**: Deposit handling and token management
-- **`BridgeProofManager.sol`**: ZK proof submission and verification
-- **`BridgeWithdrawManager.sol`**: Per-token withdrawal processing and finalization
-- **`BridgeAdminManager.sol`**: Administrative functions and contract management
-- **`IBridgeCore.sol`**: Core interface definitions and data structures
+The current bridge is not described here as a generic rollup shell. It is a bridge for dedicated app channels with:
 
-#### **Verification Layer**
-- **`TokamakVerifier.sol`**: Main ZK-SNARK proof verification contract
-- **`Groth16Verifier*.sol`**: Specialized Groth16 verifiers for different tree sizes (16, 32, 64, 128 leaves)
-- **`ZecFrost.sol`**: FROST signature verification library
+- one shared L1 token vault for canonical asset custody
+- one `ChannelManager` per channel
+- bridge-managed DApp metadata for admissible storage and function surfaces
+- Tokamak proof verification for general channel execution
+- Groth16 verification for channel-token-vault accounting updates
 
-#### **Utility Layer**
-- **`RLP.sol`**: Recursive Length Prefix encoding utilities
+## Prerequisites
 
-### Workflow Phases
+Install the tools used by the current workflows:
 
-1. **Channel Opening**: Authorization and participant registration with leader assignment
-2. **Public Key Setup**: Channel leader sets cryptographic public key for signatures
-3. **Deposit Period**: Secure fund collection with per-token balance tracking
-4. **State Initialization**: Groth16 proof submission establishing initial state root
-6. **Proof Submission**: ZK proof verification of computation results and final balances
-7. **Signature Verification**: FROST signature validation for result authenticity
-8. **Channel Closure**: State transition to Closed with verified final balances
-9. **Settlement**: Cryptographically verified per-token fund distribution
-10. **Cleanup**: Storage optimization and resource reclamation
+- Foundry
+- Node.js 18 or newer
+- Git submodule support
 
-## Security Model
-
-### Cryptographic Guarantees
-- **Balance Integrity**: Merkle tree proofs ensure tamper-evident balance tracking
-- **State Consistency**: Groth16 proofs link all state transitions cryptographically
-- **Consensus Security**: FROST multi-signature consensus mechanisms
-- **ZK Privacy**: Computation verification without revealing details
-
-### Economic Security
-- **Deposit Protection**: Funds locked until valid closure proof
-- **Conservation Laws**: Mathematical balance sum verification
-- **Root History**: Rollback capability for state recovery
-- **Channel Isolation**: Per-channel state prevents cross-contamination
-
-## Getting Started
-
-### Prerequisites
-
-#### 1. Foundry Toolkit
-Foundry is a blazing fast, portable and modular toolkit for Ethereum development.
+Typical setup:
 
 ```bash
-# Install Foundry
 curl -L https://foundry.paradigm.xyz | bash
-
-# Follow the instructions to add Foundry to your PATH, then run:
 foundryup
 
-# Verify installation
-forge --version
-cast --version
-anvil --version
+git clone --recurse-submodules https://github.com/tokamak-network/Tokamak-zk-EVM-contracts.git
+cd Tokamak-zk-EVM-contracts
+
+npm install
+git submodule update --init --recursive
 ```
 
-#### 2. Node.js and npm
-Required for additional tooling and dependencies.
+Bridge deployment helpers read [`.env.example`](./.env.example). App deployments use [apps/.env.template](./apps/.env.template) as the template for [apps/.env](./apps/.env).
+
+## Common Commands
+
+### Bridge unit tests
 
 ```bash
-# Using nvm (recommended)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-nvm install 18
-nvm use 18
-
-# Verify installation
-node --version  # Should show v18.x.x
-npm --version
+npm run test:bridge:unit
 ```
 
-### Installation
+This runs the Foundry suite under [bridge/test/](./bridge/test/), including [bridge/test/BridgeFlow.t.sol](./bridge/test/BridgeFlow.t.sol).
+
+### Private-state CLI end-to-end flow
 
 ```bash
-# Clone the repository
-git clone https://github.com/tokamak-network/Tokamak-Zk-EVM-contracts.git
-cd Tokamak-Zk-EVM-contracts
-
-# Install dependencies
-forge install
-
-# Build the project
-forge build
-
-# Run tests
-forge test
+npm run test:private-state:cli-e2e
 ```
 
-## Testing
+This exercises the bridge-coupled private-state CLI flow driven by [apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs](./apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs).
 
-The project includes comprehensive test coverage for all components:
+### Private-state local workflow
 
 ```bash
-# Run all tests
-forge test
-
-# Run specific test contracts
-forge test --match-contract RollupBridgeTest
-forge test --match-contract WithdrawalsTest
-forge test --match-contract ModularArchitectureTest
-
-# Run with gas reporting
-forge test --gas-report
-
-# Run with verbose output
-forge test -vvv
-
-# Run specific test functions
-forge test --match-test testChannelCreationAndDeposits
+cd apps/private-state
+make help
+make anvil-start
+make anvil-bootstrap
+make test
+make e2e-bridge
+make e2e-bridge-cli
 ```
 
-### Test Coverage
+### Bridge deployment
 
-- **RollupBridge.t.sol**: 24 tests covering modular bridge operations and state transitions
-- **Withdrawals.t.sol**: 10 tests covering per-token withdrawal functionality
-- **ModularArchitectureTest.t.sol**: 5 tests covering modular architecture interactions
-- **Groth16Verifier*.t.sol**: Tests covering Groth16 verification for different tree sizes (16, 32, 64, 128 leaves)
-- **Verifier.t.sol**: 5 tests covering ZK proof verification
-- **ZecFrost.t.sol**: 2 tests covering FROST signature verification
-- **Total**: 52 comprehensive tests ensuring security and functionality
+```bash
+cp .env.example .env
+$EDITOR .env
 
-## Project Structure
-
-```
-src/
-├── interface/                         # Contract interfaces
-│   ├── IBridgeCore.sol                # Core bridge interface
-│   ├── IGroth16Verifier*.sol          # Groth16 verifier interfaces
-│   ├── ITokamakVerifier.sol           # Tokamak verifier interface
-│   └── IZecFrost.sol                  # FROST signature interface
-├── library/                           # Utility libraries
-│   ├── RLP.sol                        # RLP encoding utilities
-│   └── ZecFrost.sol                   # FROST signature library
-├── BridgeCore.sol                     # Core state management
-├── BridgeDepositManager.sol           # Deposit handling
-├── BridgeProofManager.sol             # Proof management
-├── BridgeWithdrawManager.sol          # Per-token withdrawal management
-└── BridgeAdminManager.sol             # Administrative functions
-
-tokamak-zkp/
-├── TokamakVerifier.sol                # Main Tokamak verifier
-└── TokamakVerifierKey/                # Generated verification-key artifacts
-
-test/
-├── bridge/                            # Bridge-specific tests
-│   ├── Bridge.t.sol                   # Modular bridge tests 
-│   ├── Withdrawals.t.sol              # Withdrawal functionality tests 
-│   └── ModularArchitectureTest.t.sol  # Modular architecture tests 
-├── groth16/                           # Groth16 verifier tests
-│   ├── 16_leaves/                     # 16-leaf tree tests 
-│   ├── 32_leaves/                     # 32-leaf tree tests 
-│   ├── 64_leaves/                     # 64-leaf tree tests 
-│   └── 128_leaves/                    # 128-leaf tree tests 
-├── verifier/                          # Verifier tests
-│   └── Verifier.t.sol                 # ZK verifier tests 
-├── frost/                             # FROST signature tests
-│   └── ZecFrost.t.sol                 # FROST tests
-├── js-scripts/                        # JavaScript utilities
-│   ├── generateGroth16Proof.js        # Groth16 proof generation
-│   ├── generateProof.js               # General proof generation
-│   └── merkleTree.js                  # Merkle tree utilities
-└── scripts/                           # Test scripts
-    └── generate_proof.sh              # Proof generation script
+bash bridge/script/deploy-bridge.sh
 ```
 
+For an already deployed bridge stack, DApp metadata registration is handled by:
 
-## Contributing
+```bash
+node bridge/script/admin-add-dapp.mjs --group mintNotes --dapp-id 1
+```
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+See [bridge/README.md](./bridge/README.md) for deployment modes, environment variables, and bridge registration details.
 
-### Development Workflow
+## Current Directory Guide
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass: `forge test`
-6. Commit your changes: `git commit -m 'Add amazing feature'`
-7. Push to the branch: `git push origin feature/amazing-feature`
-8. Open a Pull Request
+### [bridge/](./bridge/)
 
-### Code Style
+The standalone bridge workspace contains:
 
-- Follow Solidity style guide
-- Use comprehensive NatSpec documentation
-- Include tests for all new functionality
-- Ensure gas optimization where possible
+- current bridge contracts under [bridge/src/](./bridge/src/)
+- bridge-specific tests under [bridge/test/](./bridge/test/)
+- deployment and admin scripts under [bridge/script/](./bridge/script/)
+- current bridge documents under [bridge/docs/](./bridge/docs/)
 
-## Documentation
+This is the main place to look for the current bridge implementation.
 
-- **Technical Docs**: [bridge/docs/](./bridge/docs/) directory
-- **Test Documentation**: Detailed test coverage and examples
+### [apps/private-state/](./apps/private-state/)
+
+The private-state DApp is the reference app integration for the bridge. It contains:
+
+- DApp contracts under [apps/private-state/src/](./apps/private-state/src/)
+- bridge-coupled CLI tooling under [apps/private-state/cli/](./apps/private-state/cli/)
+- app deployment artifacts under [apps/private-state/deploy/](./apps/private-state/deploy/)
+- protocol and security documents under [apps/private-state/docs/](./apps/private-state/docs/)
+
+### [submodules/Tokamak-zk-EVM](./submodules/Tokamak-zk-EVM)
+
+This submodule provides the reusable zk-EVM execution and proving pipeline that bridge-coupled DApps build on. The repository-level reflection helper in [script/zk/](./script/zk/) keeps bridge-facing verifier and deployment artifacts aligned with the submodule outputs.
+
+### [tokamak-zkp/](./tokamak-zkp/)
+
+This folder contains the checked-in Tokamak verifier contract and verification-key artifacts that the bridge workspace imports during proof verification.
+
+## Notes On Scope
+
+Some root-level scripts and tests remain from earlier bridge iterations. They are still useful for verifier coverage, artifact generation, and historical deployment context, but they are not the primary place to understand the current bridge architecture. For current bridge behavior, start with [bridge/](./bridge/).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/tokamak-network/Tokamak-zkEVM-contracts/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/tokamak-network/Tokamak-zkEVM-contracts/discussions)
-- **Documentation**: [bridge/docs/](./bridge/docs/) directory
-
-## Acknowledgments
-
-- **OpenZeppelin**: For secure contract libraries
-- **Foundry**: For the excellent development toolkit
-- **Community**: For feedback and contributions
-
----
-
-**Built by the Tokamak Network team**
-
-*For more information, visit [tokamak.network](https://tokamak.network)*
+Repository source files use MIT SPDX identifiers.

@@ -610,6 +610,16 @@
       }
 
       async function deriveScryptKeyBytes(password, saltHex) {
+        const browserEthers = window.ethers?.ethers ?? window.ethers;
+        if (browserEthers?.scryptSync) {
+          return browserEthers.getBytes(
+            browserEthers.scryptSync(String(password), saltHex, 32, {
+              N: 16384,
+              r: 8,
+              p: 1,
+            }),
+          );
+        }
         if (!scryptModulePromise) {
           scryptModulePromise = import("../../../node_modules/@noble/hashes/esm/scrypt.js");
         }

@@ -1086,13 +1086,6 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   });
   const storageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
-  const bridgeTokenVault = new Contract(
-    context.workspace.bridgeTokenVault,
-    context.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
-    signer,
-  );
-  const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
-  expect(availableBalance > 0n, `No shared bridge-vault balance exists for ${signer.address}. Run deposit-bridge first.`);
 
   const existingRegistration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   if (!existingRegistration.exists) {

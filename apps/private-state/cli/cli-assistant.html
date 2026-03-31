@@ -302,7 +302,14 @@
         statusMessage: "",
         hasLoaded: false,
       };
+      const privateKeyAddressState = {
+        inputValue: "",
+        derivedAddress: "",
+        statusMessage: "",
+      };
       let scryptModulePromise = null;
+      let ethersModulePromise = null;
+      let privateKeyLookupGeneration = 0;
 
       const workspacePickerEl = document.getElementById("workspace-picker");
       const memoryFieldsEl = document.getElementById("memory-fields");
@@ -515,6 +522,41 @@
           p: 1,
           dkLen: 32,
         });
+      }
+
+      async function deriveAddressFromPrivateKey(privateKey) {
+        if (!ethersModulePromise) {
+          ethersModulePromise = import("../../../node_modules/ethers/lib.esm/index.js");
+        }
+        const { Wallet } = await ethersModulePromise;
+        return new Wallet(String(privateKey)).address;
+      }
+
+      async function refreshPrivateKeyAddressState(privateKeyValue) {
+        const normalizedValue = String(privateKeyValue ?? "").trim();
+        privateKeyAddressState.inputValue = normalizedValue;
+
+        if (normalizedValue.length === 0) {
+          privateKeyAddressState.derivedAddress = "";
+          privateKeyAddressState.statusMessage = "";
+          return;
+        }
+
+        const currentGeneration = ++privateKeyLookupGeneration;
+        try {
+          const derivedAddress = await deriveAddressFromPrivateKey(normalizedValue);
+          if (currentGeneration !== privateKeyLookupGeneration) {
+            return;
+          }
+          privateKeyAddressState.derivedAddress = derivedAddress;
+          privateKeyAddressState.statusMessage = `Address: ${derivedAddress}`;
+        } catch {
+          if (currentGeneration !== privateKeyLookupGeneration) {
+            return;
+          }
+          privateKeyAddressState.derivedAddress = "";
+          privateKeyAddressState.statusMessage = "Invalid private key.";
+        }
       }
 
       async function decryptWalletJson(envelope, walletPassword) {
@@ -947,6 +989,13 @@
         }
         const label = document.createElement("label");
         label.textContent = config.label;
+        const wrapper = fieldKey === "privateKey"
+          ? document.createElement("div")
+          : null;
+        if (wrapper) {
+          wrapper.className = "field-stack";
+        }
+        let privateKeyHintEl = null;
 
         let input;
         if (config.type === "select") {
@@ -973,6 +1022,12 @@
             workspaceDirectoryState.statusMessage = buildWorkspaceStatusMessage();
             clearWalletNoteState();
           }
+          if (fieldKey === "privateKey") {
+            await refreshPrivateKeyAddressState(event.target.value);
+            if (privateKeyHintEl) {
+              privateKeyHintEl.textContent = privateKeyAddressState.statusMessage;
+            }
+          }
           if (fieldKey === "password") {
             clearWalletNoteState();
           }
@@ -998,6 +1053,17 @@
         }
 
         label.appendChild(input);
+        if (fieldKey === "privateKey") {
+          privateKeyHintEl = document.createElement("p");
+          privateKeyHintEl.className = "hint";
+          privateKeyHintEl.textContent = privateKeyAddressState.statusMessage;
+          wrapper.appendChild(label);
+          wrapper.appendChild(privateKeyHintEl);
+          void refreshPrivateKeyAddressState(state.privateKey).then(() => {
+            privateKeyHintEl.textContent = privateKeyAddressState.statusMessage;
+          });
+          return wrapper;
+        }
         return label;
       }
 

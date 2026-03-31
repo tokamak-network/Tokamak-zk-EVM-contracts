@@ -2974,6 +2974,7 @@ async function executeWalletTemplateSend({
   writeJson(path.join(operationDir, "contract_codes.json"), context.contractCodes);
 
   const bundlePath = path.join(operationDir, `${operationName}.zip`);
+  printLocalProofGenerationNotice(operationName);
   runTokamakProofPipeline({ operationDir, bundlePath });
 
   const rawNextSnapshot = readJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.json"));
@@ -3445,6 +3446,15 @@ function runTokamakProofPipeline({ operationDir, bundlePath }) {
     args: ["--verify", bundlePath],
   });
   copyTokamakOperationArtifacts(operationDir);
+}
+
+function printLocalProofGenerationNotice(operationName) {
+  console.error(
+    [
+      `Starting local zero-knowledge proof generation for ${operationName}.`,
+      "This runs on your machine and may take a few minutes.",
+    ].join(" "),
+  );
 }
 
 function runTokamakCliStage({ operationDir, stageName, args }) {

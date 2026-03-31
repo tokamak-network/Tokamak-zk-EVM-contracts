@@ -21,6 +21,12 @@ The user-facing state machine is:
 This repository does not implement note-ownership privacy inside the DApp contracts themselves. Privacy depends on the
 surrounding proving-based L2 execution model.
 
+## Documentation
+
+For the current protocol, contract, security, and bridge-coupling design, start from:
+
+- [docs/index.md](docs/index.md)
+
 ## Contract Layout
 
 - `src/L2AccountingVault.sol`: stores per-account L2 accounting balances only
@@ -54,6 +60,7 @@ Successful deployments write app-local artifacts into `apps/private-state/deploy
 Successful deployments also refresh the checked-in Synthesizer private-state launch inputs under:
 
 - `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/`
+- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/deployment/private-state/`
 - `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/.vscode/launch.json`
 
 ## Local Commands
@@ -66,10 +73,13 @@ make help
 make anvil-start
 make anvil-bootstrap
 make test
-make deploy-sepolia
-make deploy-mainnet
-make cli-bridge-help
+make e2e-bridge
 make e2e-bridge-cli
+make deploy-sepolia
+make deploy-sepolia-verify
+make deploy-mainnet
+make deploy-mainnet-verify
+make cli-bridge-help
 ```
 
 ## CLI Overview
@@ -89,7 +99,7 @@ The CLI:
 - binds every channel to the canonical Tokamak Network Token for the selected network
 - stores channel state under `~/tokamak-private-channels/workspace/<network>/<channel>/channel/`
 - stores per-user wallets under `~/tokamak-private-channels/workspace/<network>/<channel>/wallets/<wallet>/`
-- loads the deployed Groth16 proving key from `apps/private-state/deploy/` for channel deposit and withdraw commands
+- loads deployed proving artifacts from `apps/private-state/deploy/` for proof-backed channel and wallet commands
 - may rebuild the local `updateTree` circuit before proof generation, but never reruns trusted setup
 - materializes or refreshes saved channel workspaces automatically for wallet-backed snapshot commands
 
@@ -118,7 +128,7 @@ The current implementation includes:
 - recipient note salt derived from the encrypted payload
 - bridge propagation of DApp event logs emitted from channel execution
 - wallet-side event-log scanning and decryption in `get-my-notes`
-- self-mint ciphertext recovery through the wallet L2 private key
+- uniform event decryption for both transfer and self-mint delivery through the note-receive key path
 
 ## CLI Command Flow
 
@@ -245,7 +255,7 @@ node apps/private-state/cli/private-state-bridge-cli.mjs create-channel \
 `get-my-notes`
 
 - scans bridge-propagated private-state encrypted-note events from Ethereum
-- decrypts transferred note payloads with the note-receive private key and self-minted note payloads with the wallet L2 private key
+- decrypts both transferred note payloads and self-minted note payloads with the note-receive private key
 - merges newly discovered notes into the encrypted wallet
 - reconciles the wallet's current-version notes against on-chain commitment/nullifier state to classify them into `unused` and `spent`
 - reports both unused and spent note sets plus bridge-consistency status

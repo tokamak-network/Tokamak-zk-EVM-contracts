@@ -1,9 +1,9 @@
 {
   "type": "module",
   "scripts": {
-    "gen:tokamak-vk": "node script/generate-tokamak-verifier-key.js",
+    "gen:tokamak-vk": "node scripts/generate-tokamak-verifier-key.js",
     "test:bridge:unit": "forge test --root bridge -vv",
-    "test:private-state:cli-e2e": "node apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs"
+    "test:private-state:cli-e2e": "node apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs"
   },
   "dependencies": {
     "@ethereumjs/util": "^10.1.1",

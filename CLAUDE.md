@@ -34,14 +34,14 @@ forge test --match-test testChannelCreationAndDeposits
 ### Deployment & Scripts
 ```bash
 # Deploy or upgrade the current bridge stack
-bash bridge/script/deploy-bridge.sh --mode redeploy-proxy
-bash bridge/script/deploy-bridge.sh --mode upgrade
+bash bridge/scripts/deploy-bridge.sh --mode redeploy-proxy
+bash bridge/scripts/deploy-bridge.sh --mode upgrade
 
 # Register a DApp on an already deployed bridge
-node bridge/script/admin-add-dapp.mjs --group mintNotes --dapp-id 1
+node bridge/scripts/admin-add-dapp.mjs --group mintNotes --dapp-id 1
 
 # Run the private-state CLI E2E flow
-node apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs
+node apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs
 ```
 
 ## Architecture Overview
@@ -94,10 +94,10 @@ The system automatically selects tree sizes based on channel requirements:
 - `test/js-scripts/` - JavaScript utilities for proof generation
 
 ### Deployment Scripts
-- `bridge/script/DeployBridgeStack.s.sol` - Current bridge deployment script
-- `bridge/script/UpgradeBridgeStack.s.sol` - Current bridge upgrade script
-- `bridge/script/deploy-bridge.sh` - Current bridge deployment wrapper
-- `bridge/script/admin-add-dapp.mjs` - Current bridge-side DApp registration entrypoint
+- `bridge/scripts/DeployBridgeStack.s.sol` - Current bridge deployment script
+- `bridge/scripts/UpgradeBridgeStack.s.sol` - Current bridge upgrade script
+- `bridge/scripts/deploy-bridge.sh` - Current bridge deployment wrapper
+- `bridge/scripts/admin-add-dapp.mjs` - Current bridge-side DApp registration entrypoint
 
 ## Security Features
 

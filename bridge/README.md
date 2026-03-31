@@ -42,8 +42,8 @@ The current bridge implementation hardens a few assumptions that must remain tru
 
 The standalone bridge workspace now includes a Foundry deployment script:
 
-- `bridge/script/DeployBridgeStack.s.sol`
-- `bridge/script/UpgradeBridgeStack.s.sol`
+- `bridge/scripts/DeployBridgeStack.s.sol`
+- `bridge/scripts/UpgradeBridgeStack.s.sol`
 
 On the first proxy-based deployment it creates:
 
@@ -87,14 +87,14 @@ fill in the bridge variables, and use the helper script:
 cp .env.example .env
 $EDITOR .env
 
-bash bridge/script/deploy-bridge.sh
+bash bridge/scripts/deploy-bridge.sh
 ```
 
 Or select the deployment mode explicitly:
 
 ```bash
-bash bridge/script/deploy-bridge.sh --mode upgrade
-bash bridge/script/deploy-bridge.sh --mode redeploy-proxy
+bash bridge/scripts/deploy-bridge.sh --mode upgrade
+bash bridge/scripts/deploy-bridge.sh --mode redeploy-proxy
 ```
 
 The helper derives the correct Alchemy RPC URL from:
@@ -106,7 +106,7 @@ If you need a non-Alchemy endpoint, set `BRIDGE_RPC_URL_OVERRIDE`.
 
 The helper also resolves the latest published `tokamak-l2js` package and reads
 its exported `MT_DEPTH` before broadcasting deployment. Internally it now runs
-`script/zk/reflect-submodule-updates.mjs`, which also refreshes the Tokamak
+`scripts/zk/reflect-submodule-updates.mjs`, which also refreshes the Tokamak
 verifier parameters from `setupParams.json` and regenerates the Groth16
 `updateTree` artifacts before deployment. The reflected `MT_DEPTH` value is
 forwarded into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
@@ -138,7 +138,7 @@ The deployment JSON is post-processed to include `chainId` and `abiManifestPath`
 
 To add a new DApp metadata bundle to an already deployed bridge, use:
 
-- `bridge/script/admin-add-dapp.mjs`
+- `bridge/scripts/admin-add-dapp.mjs`
 
 This script:
 
@@ -158,7 +158,7 @@ Current constraint:
 Example usage:
 
 ```bash
-node bridge/script/admin-add-dapp.mjs \
+node bridge/scripts/admin-add-dapp.mjs \
   --group mintNotes \
   --dapp-id 1
 ```
@@ -166,7 +166,7 @@ node bridge/script/admin-add-dapp.mjs \
 If the app must be deployed to a different network before registration, select it explicitly:
 
 ```bash
-node bridge/script/admin-add-dapp.mjs \
+node bridge/scripts/admin-add-dapp.mjs \
   --group mintNotes \
   --group transferNotes \
   --group redeemNotes \

@@ -9,7 +9,7 @@ define DEPLOY_RULE
 	cp "$(APP_ENV_FILE)" "$$tmp_env"; \
 	awk 'BEGIN { replaced = 0 } /^APPS_NETWORK=/ { print "APPS_NETWORK=$(1)"; replaced = 1; next } { print } END { if (replaced == 0) print "APPS_NETWORK=$(1)" }' "$$tmp_env" > "$$tmp_env.next"; \
 	mv "$$tmp_env.next" "$$tmp_env"; \
-	APPS_ENV_FILE="$$tmp_env" bash script/deploy/deploy-private-state.sh $(2)
+	APPS_ENV_FILE="$$tmp_env" bash scripts/deploy/deploy-private-state.sh $(2)
 endef
 
 help:
@@ -28,22 +28,22 @@ help:
 		'  make cli-bridge-help         Show the bridge-coupled private-state CLI help'
 
 anvil-start:
-	@APPS_ENV_FILE="$(APP_ENV_FILE)" bash script/anvil/start-anvil.sh
+	@APPS_ENV_FILE="$(APP_ENV_FILE)" bash scripts/anvil/start-anvil.sh
 
 anvil-bootstrap:
-	@APPS_ENV_FILE="$(APP_ENV_FILE)" bash script/anvil/bootstrap-private-state-anvil.sh
+	@APPS_ENV_FILE="$(APP_ENV_FILE)" bash scripts/anvil/bootstrap-private-state-anvil.sh
 
 anvil-stop:
-	@bash script/anvil/stop-anvil.sh
+	@bash scripts/anvil/stop-anvil.sh
 
 test:
 	@cd ../.. && forge test --offline --match-contract PrivateStateControllerTest
 
 e2e-bridge:
-	@node script/e2e/run-bridge-private-state-e2e.mjs
+	@node scripts/e2e/run-bridge-private-state-e2e.mjs
 
 e2e-bridge-cli:
-	@node script/e2e/run-bridge-private-state-cli-e2e.mjs
+	@node scripts/e2e/run-bridge-private-state-cli-e2e.mjs
 
 deploy-sepolia:
 	$(call DEPLOY_RULE,sepolia,)

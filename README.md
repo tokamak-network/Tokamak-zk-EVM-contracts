@@ -16,7 +16,7 @@ The active bridge implementation lives under [bridge/](./bridge/). It treats eac
 - [tokamak-zkp/](./tokamak-zkp/): the Tokamak verifier contract and verification-key artifacts used by bridge workflows
 - [submodules/Tokamak-zk-EVM](./submodules/Tokamak-zk-EVM): the shared zk-EVM execution and proving toolchain
 - [groth16/](./groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
-- [script/](./script/): shared repository scripts for zk-artifact reflection and verifier refresh
+- [scripts/](./scripts/): shared repository scripts for zk-artifact reflection and verifier refresh
 - [test/](./test/): root-level Foundry tests and fixtures that remain useful for verifier and legacy coverage
 
 ## Where To Start
@@ -83,7 +83,7 @@ This runs the Foundry suite under [bridge/test/](./bridge/test/), including [bri
 npm run test:private-state:cli-e2e
 ```
 
-This exercises the bridge-coupled private-state CLI flow driven by [apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs](./apps/private-state/script/e2e/run-bridge-private-state-cli-e2e.mjs).
+This exercises the bridge-coupled private-state CLI flow driven by [apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](./apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs).
 
 ### Private-state local workflow
 
@@ -103,13 +103,13 @@ make e2e-bridge-cli
 cp .env.example .env
 $EDITOR .env
 
-bash bridge/script/deploy-bridge.sh
+bash bridge/scripts/deploy-bridge.sh
 ```
 
 For an already deployed bridge stack, DApp metadata registration is handled by:
 
 ```bash
-node bridge/script/admin-add-dapp.mjs --group mintNotes --dapp-id 1
+node bridge/scripts/admin-add-dapp.mjs --group mintNotes --dapp-id 1
 ```
 
 See [bridge/README.md](./bridge/README.md) for deployment modes, environment variables, and bridge registration details.
@@ -122,7 +122,7 @@ The standalone bridge workspace contains:
 
 - current bridge contracts under [bridge/src/](./bridge/src/)
 - bridge-specific tests under [bridge/test/](./bridge/test/)
-- deployment and admin scripts under [bridge/script/](./bridge/script/)
+- deployment and admin scripts under [bridge/scripts/](./bridge/scripts/)
 - current bridge documents under [bridge/docs/](./bridge/docs/)
 
 This is the main place to look for the current bridge implementation.
@@ -138,7 +138,7 @@ The private-state DApp is the reference app integration for the bridge. It conta
 
 ### [submodules/Tokamak-zk-EVM](./submodules/Tokamak-zk-EVM)
 
-This submodule provides the reusable zk-EVM execution and proving pipeline that bridge-coupled DApps build on. The repository-level reflection helper in [script/zk/](./script/zk/) keeps bridge-facing verifier and deployment artifacts aligned with the submodule outputs.
+This submodule provides the reusable zk-EVM execution and proving pipeline that bridge-coupled DApps build on. The repository-level reflection helper in [scripts/zk/](./scripts/zk/) keeps bridge-facing verifier and deployment artifacts aligned with the submodule outputs.
 
 ### [tokamak-zkp/](./tokamak-zkp/)
 

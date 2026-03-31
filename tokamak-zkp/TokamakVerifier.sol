@@ -265,7 +265,7 @@ contract TokamakVerifier is ITokamakVerifier {
     /// @dev flip of 0xe000000000000000000000000000000000000000000000000000000000000000;
     uint256 internal constant FR_MASK = 0x1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
-    // n, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    // n, refreshed from setupParams.json by scripts/generate-tokamak-verifier-params.js
     uint256 internal constant CONSTANT_N = 4096;
     // ω_64
     uint256 internal constant OMEGA_64 = 0x0e4840ac57f86f5e293b1d67bc8de5d9a12a70a615d0b8e4d2fc5e69ac5db47f;
@@ -273,20 +273,20 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant OMEGA_128 = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
     // ω_512
     uint256 internal constant OMEGA_512 = 0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
-    // m_i = l_D - l, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    // m_i = l_D - l, refreshed from setupParams.json by scripts/generate-tokamak-verifier-params.js
     uint256 internal constant CONSTANT_MI = 4096;
-    // l_user, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    // l_user, refreshed from setupParams.json by scripts/generate-tokamak-verifier-params.js
     uint256 internal constant EXPECTED_L_USER = 65;
-    // l_free, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    // l_free, refreshed from setupParams.json by scripts/generate-tokamak-verifier-params.js
     uint256 internal constant EXPECTED_L_FREE = 128;
-    // ω_{l_free}, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    // ω_{l_free}, refreshed from setupParams.json by scripts/generate-tokamak-verifier-params.js
     uint256 internal constant OMEGA_L_FREE = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
-    // s_max, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    // s_max, refreshed from setupParams.json by scripts/generate-tokamak-verifier-params.js
     uint256 internal constant EXPECTED_SMAX = 256;
 
-    // ω_{m_i}^{-1}, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    // ω_{m_i}^{-1}, refreshed from setupParams.json by scripts/generate-tokamak-verifier-params.js
     uint256 internal constant OMEGA_MI_1 = 0x58c3ba636d174692ad5a534045625d9514180e0e8b24f12309f239f760b82267;
-    // ω_{s_max}^{-1}, refreshed from setupParams.json by script/generate-tokamak-verifier-params.js
+    // ω_{s_max}^{-1}, refreshed from setupParams.json by scripts/generate-tokamak-verifier-params.js
     uint256 internal constant OMEGA_SMAX_MINUS_1 =
         0x6d64ed25272e58ee91b000235a5bfd4fc03cae032393991be9561c176a2f777a;
 

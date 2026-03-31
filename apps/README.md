@@ -25,7 +25,7 @@ deployer key that may have no local balance.
 
 ## Local anvil Convention
 
-Each DApp may provide local anvil helpers under `apps/<dapp>/script/anvil`.
+Each DApp may provide local anvil helpers under `apps/<dapp>/scripts/anvil`.
 
 Recommended responsibilities:
 

@@ -8,7 +8,7 @@ description: Use when editing code, scripts, CLIs, deployment tooling, or genera
 Use this skill whenever a task touches code under this repository and there is any chance that
 the work changes how files are referenced across the boundary between:
 
-- repository-owned code such as `apps/`, `bridge/`, `script/`, `.codex/`, or other root modules
+- repository-owned code such as `apps/`, `bridge/`, `scripts/`, `.codex/`, or other root modules
 - code that lives inside `submodules/`
 
 ## Boundary Rule

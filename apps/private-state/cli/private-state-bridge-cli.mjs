@@ -40,7 +40,7 @@ import {
   createAddressFromString,
   hexToBytes,
 } from "@ethereumjs/util";
-import { deriveRpcUrl, resolveCliNetwork } from "../../script/network-config.mjs";
+import { deriveRpcUrl, resolveCliNetwork } from "../../scripts/network-config.mjs";
 import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,
@@ -53,7 +53,7 @@ import {
   walletDirForName,
   walletMetadataPathForDir,
   walletNameForChannelAndAddress,
-} from "../script/utils/private-state-cli-shared.mjs";
+} from "../scripts/utils/private-state-cli-shared.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -839,7 +839,7 @@ function clearWalletRecoveryArtifacts(walletDir) {
 async function handleInstallZkEvm({ args }) {
   const syncedDevCommit = syncTokamakSubmoduleToLatestDev();
   run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
-  run("node", [path.join("script", "generate-tokamak-shared-constants.js")], { cwd: projectRoot });
+  run("node", [path.join("scripts", "generate-tokamak-shared-constants.js")], { cwd: projectRoot });
   printJson({
     action: "install-zk-evm",
     tokamakCli: tokamakCliPath,
@@ -3284,7 +3284,7 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   run(
     "node",
     [
-      "groth16/prover/updateTree/generateProof.mjs",
+      "scripts/groth16/prover/updateTree/generateProof.mjs",
       "--input",
       path.join(operationDir, "input.json"),
       "--zkey",

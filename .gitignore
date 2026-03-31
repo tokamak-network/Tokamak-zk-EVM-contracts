@@ -59,8 +59,8 @@ groth16/circuits/build/
 apps/*/cli/workspace/*
 !apps/*/cli/workspace/.gitignore
 apps/*/deploy/synthesizer-layouts/*
-script/zk/rkyv-to-json/target/
+scripts/zk/rkyv-to-json/target/
 # Ignore per-DApp generated zk artifacts while keeping shared manifests.
-script/output/zk-artifacts/*/
+scripts/output/zk-artifacts/*/
 **/output/
 **/output/**

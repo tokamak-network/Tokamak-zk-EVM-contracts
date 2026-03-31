@@ -66,8 +66,8 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Prefer constructor-bound immutable controller addresses.
    - When the controller and storage contracts depend on each other, use deterministic address prediction and CREATE2 in the app-local deployment flow instead of adding post-deployment controller registration.
 10. Keep DApp deployment assets isolated from bridge deployment assets:
-   - Store each DApp deployment script under `apps/<dapp>/script/deploy`.
-   - Store local anvil helpers under `apps/<dapp>/script/anvil` when the DApp needs a local development chain workflow.
+   - Store each DApp deployment script under `apps/<dapp>/scripts/deploy`.
+   - Store local anvil helpers under `apps/<dapp>/scripts/anvil` when the DApp needs a local development chain workflow.
    - Store app deployment parameters in `apps/.env`.
    - Share the deployment signer and target network across DApps through common app-level variables.
    - Prefer an app-level provider key plus network name, then derive the RPC URL and chain ID inside the DApp deployment script.
@@ -78,7 +78,7 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
    - Write deployment manifests, one deployed-contract storage-layout manifest, and callable ABI JSON files into `apps/<dapp>/deploy`.
    - The storage-layout manifest must contain the deployed contract addresses plus the compiler-reported storage layout for each deployed contract.
-   - Repository-owned code under `apps/`, `bridge/`, `script/`, or other root modules may reference files inside `submodules/` when needed, but code that lives inside a submodule must not reference files from the parent repository.
+   - Repository-owned code under `apps/`, `bridge/`, `scripts/`, or other root modules may reference files inside `submodules/` when needed, but code that lives inside a submodule must not reference files from the parent repository.
    - If submodule tooling needs deployment or storage-layout artifacts from this repository, mirror those artifacts into the submodule as part of the repository-owned deployment flow and have the submodule read only its mirrored local copies.
 11. Provide a DApp-local CLI under `apps/<dapp>/cli`:
    - Use a terminal CLI, not a browser application.
@@ -93,7 +93,7 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Prefer targets such as `make anvil-start`, `make anvil-bootstrap`, `make anvil-stop`, `make test`, `make deploy-sepolia`, `make deploy-mainnet`, and `make cli-list`.
    - If a command must target a different network than the one stored in `apps/.env`, create a temporary env override inside the wrapper instead of requiring the operator to edit `apps/.env`.
 13. Require Synthesizer compatibility tests for every user-facing DApp function:
-   - Store them under `apps/<dapp>/script/synthesizer-compat-test`.
+   - Store them under `apps/<dapp>/scripts/synthesizer-compat-test`.
    - Provide one entry script per user-facing function, even if the scripts delegate to shared helpers.
    - Use `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/cli/index.ts` as the execution entrypoint.
    - Ensure the generated transactions, hash expectations, and storage-key derivations mirror the TokamakL2 runtime spec rather than raw Ethereum L1 execution assumptions.
@@ -120,7 +120,7 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - State whether admin ownership was removed and whether any remaining controller wiring is immutable and deployment-bound.
    - State whether the DApp exposes a local CLI under `apps/<dapp>/cli` that reads `calldata.json` templates, deployment manifests, and callable ABI files.
    - State whether the DApp also exposes concise DApp-local command wrappers for anvil workflows, tests, and deployment.
-   - State whether the DApp also exposes per-function Synthesizer compatibility scripts under `apps/<dapp>/script/synthesizer-compat-test`.
+   - State whether the DApp also exposes per-function Synthesizer compatibility scripts under `apps/<dapp>/scripts/synthesizer-compat-test`.
 
 ## Resources
 

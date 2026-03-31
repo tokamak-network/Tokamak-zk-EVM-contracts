@@ -4,7 +4,7 @@ pragma solidity 0.8.29;
 import "forge-std/Test.sol";
 import {L2AccountingVault} from "../../apps/private-state/src/L2AccountingVault.sol";
 import {PrivateStateController} from "../../apps/private-state/src/PrivateStateController.sol";
-import {PrivateStateDeploymentFactory} from "../../apps/private-state/script/deploy/PrivateStateDeploymentFactory.sol";
+import {PrivateStateDeploymentFactory} from "../../apps/private-state/scripts/deploy/PrivateStateDeploymentFactory.sol";
 
 contract PrivateStateControllerTest is Test {
     uint256 private constant BLS12_381_SCALAR_FIELD_ORDER =

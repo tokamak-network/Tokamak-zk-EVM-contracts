@@ -304,7 +304,7 @@ Every DApp under `apps/` must provide function-level Synthesizer compatibility s
 
 Required structure:
 
-- Store them under `apps/<dapp>/script/synthesizer-compat-test`.
+- Store them under `apps/<dapp>/scripts/synthesizer-compat-test`.
 - Provide one entry script per user-facing function.
 - It is acceptable for those entry scripts to delegate to a shared helper, but the function-level entry scripts must still exist.
 
@@ -341,11 +341,11 @@ When reporting on a new app design, explicitly answer:
 8. If a function is placement-heavy, what are the exact placement counts by logic block and by external subcall domain?
 9. Did the checker flag anything, and if so, why is it acceptable or how should it be refactored?
 10. Should storage remain in one address or be split across multiple addresses?
-11. Are deployment scripts stored under `apps/<dapp>/script/deploy` instead of the bridge deployment script tree?
+11. Are deployment scripts stored under `apps/<dapp>/scripts/deploy` instead of the bridge deployment script tree?
 12. Are app deployment secrets and network settings isolated in `apps/.env`, with shared app-level signer and provider-key-plus-network variables plus DApp-specific namespaced values only where needed, with `APPS_NETWORK=anvil` defaulting to localhost and `APPS_RPC_URL_OVERRIDE` reserved for nonstandard RPC overrides?
 13. Does the DApp provide a local terminal CLI under `apps/<dapp>/cli`, limited to `mainnet`, `sepolia`, and `anvil`, and does that CLI read per-function `calldata.json` templates plus deployment manifests and callable ABI JSON files?
 14. Does the DApp also provide concise DApp-local command wrappers, preferably through `apps/<dapp>/Makefile`, for anvil workflows, tests, and public-network deployment?
 15. If duplicate callable function names exist across contracts, is the CLI folder naming collision handled explicitly and documented?
 16. Was contract-level admin ownership removed where it was not strictly necessary?
 17. If a controller exists, is it wired immutably at deployment time rather than through a mutable admin step?
-18. Does the DApp provide local anvil helpers under `apps/<dapp>/script/anvil` when local-chain testing is required, and does it write manifests and callable ABI JSON files into `apps/<dapp>/deploy`?
+18. Does the DApp provide local anvil helpers under `apps/<dapp>/scripts/anvil` when local-chain testing is required, and does it write manifests and callable ABI JSON files into `apps/<dapp>/deploy`?

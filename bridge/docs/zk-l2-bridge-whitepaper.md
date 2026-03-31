@@ -1,283 +1,281 @@
 # Tokamak Private App Channels White Paper
 
-Last updated: 2026-03-18
+Last updated: 2026-04-01
 
 ## Table of Contents
 
-1. Introduction
-2. Main Body
-   2.1 Terminology
-   2.2 System Overview
-   2.3 Comparison with an Ordinary L1-Native DApp
-   2.4 Architecture
-   2.5 State and Storage Model
-   2.6 Proof Systems
-   2.7 Core Operational Flows
-   2.8 Privacy Model
-   2.9 Data Availability and Safe Exit
-   2.10 Security Properties and Design Tradeoffs
-3. Conclusion
+1. Thesis
+2. System Model
+3. Design Philosophy
+4. Architecture
+5. State and Proof Model
+6. Core Operational Flows
+7. Security Posture and Tradeoffs
+8. Conclusion
 
-## 1. Introduction
+## 1. Thesis
 
-Privacy Layer 2 systems are Ethereum-adjacent systems that try to preserve the settlement and asset-safety properties of Ethereum while reducing how much user activity must be exposed during execution. Common examples in this broad area include private rollups, application-specific channels, and confidential transfer systems. The field matters because many real applications need more than raw throughput: they need lower execution cost, stronger control over information disclosure, and a way to keep using Ethereum as the place where assets ultimately remain secured. Such systems can be used for payments, trading, games, social applications, and many other kinds of application-specific environments.
+Tokamak Private App Channels are not designed as a general-purpose rollup that asks every application to live inside one global execution environment. The current bridge implementation instead treats a channel as a dedicated validity-proven execution domain for one registered DApp, while Ethereum remains the canonical place for custody, proof verification, and settlement.
 
-In this paper, a `channel` is the basic operating unit of Tokamak Private App Channels. A channel is a dedicated Layer 2 environment opened for one application rather than one shared global environment for every application. This paper focuses on an architecture in which many such channels can coexist while remaining separate from one another in operation and state.
+That choice is the core design thesis of the system:
 
-The first problem that Tokamak Private App Channels aim to solve is to make proof-based Layer 2 channels easy to operate. Here, `easy to operate` means that an application developer should be able to open a dedicated channel by building ordinary Ethereum smart contracts, without needing to become an expert in proof construction, proof security, or the detailed operational assumptions of a Layer 2 protocol. The goal is to lower the barrier from protocol engineering to application development.
+- application specificity is a feature, not a limitation
+- validity should be checked on Ethereum, not delegated to a trusted operator
+- custody should remain on Ethereum even when execution moves off-chain
+- privacy should be layered on top of proof-backed execution rather than assumed automatically
 
-The System addresses that problem by dividing responsibilities. Ethereum remains the place where assets are settled and accepted state changes are confirmed, while the channel provides the dedicated execution environment for one application. Under this division, the developer focuses on the application itself and the System provides the shared framework that lets the application run inside a proof-based channel.
+The result is a bridge architecture that tries to make proof-backed app channels operationally practical without collapsing everything into a single monolithic Layer 2. Each channel gets its own manager, its own state commitment, and its own proof-validated updates, while the bridge provides the shared control plane for DApp registration, channel creation, token custody, and verifier access.
 
-From the user's point of view, the System also addresses a privacy problem. In this introduction, `privacy baseline` means that the original user transaction does not need to be openly revealed during settlement, and the user does not need to hand proof generation to a third party. Instead, the user can generate the needed proof directly and submit it without disclosing the original transaction itself. This does not by itself solve every privacy problem, but it does define the System's basic privacy promise.
+## 2. System Model
 
-Another term that matters throughout this paper is `data availability`. In simple terms, this means whether users can actually obtain the state information they need in order to continue using a channel or to leave it safely. The current design makes a distinction between asset-related information, which remains more directly recoverable from Ethereum, and broader application information, which depends more heavily on the channel operator. This distinction is important for understanding both safe exit and the limits of the present design.
+The current implementation has six major parts:
 
-The main features of the current design are concise:
+- `BridgeCore`: the root coordination contract that creates channels, binds verifiers, and anchors the shared settlement surface
+- `DAppManager`: the metadata registry that defines which storage addresses and function surfaces a DApp is allowed to use
+- `BridgeAdminManager`: the administrative parameter surface, including the Merkle-tree depth that the bridge accepts
+- `L1TokenVault`: the shared Ethereum-side custody contract for the canonical asset
+- `ChannelManager`: a per-channel contract that validates Tokamak proofs and tracks the current state commitment of that channel
+- off-chain execution and proving infrastructure: the environment in which users execute application logic, assemble witnesses, and produce proofs
 
-- `Usability`: developers can open dedicated channels for many kinds of applications without building a custom proof framework from scratch.
-- `Security`: assets and authoritative state changes remain anchored to Ethereum rather than to the channel operator.
-- `Anonymity`: the System provides a basic privacy layer by hiding the original user transaction from outside observers, and it avoids outsourcing proof generation to third parties.
-- `Withdrawal latency`: users are not forced to wait through a long dispute period before exiting; delay is expected to come mainly from proof generation and normal Ethereum processing.
-- `Data availability`: asset-related state remains practically recoverable from Ethereum, while broader application data still depends more heavily on the channel operator.
+Each channel belongs to exactly one registered DApp. The bridge does not treat a channel as an open-ended programmable sandbox. A channel inherits a bounded storage surface and a bounded function surface from the DApp metadata that was registered before the channel was created.
 
-This white paper presents the current architecture in a concise form. It focuses on the present operating model rather than on historical design notes, and it intentionally allows the introduction to summarize core arguments that are developed in more detail in the main body.
+This is an opinionated model. The bridge is intentionally DApp-aware at the metadata layer, but DApp-agnostic at the settlement layer. In other words, the bridge does not need to understand application semantics in full detail; it needs enough metadata to decide whether the submitted proof is speaking about an allowed function, an allowed storage surface, and the expected public-input layout.
 
-## 2. Main Body
+## 3. Design Philosophy
 
-### 2.1 Terminology
+### 3.1 Ethereum Remains the Trust Anchor
 
-The following terms are used throughout this paper:
+The bridge is built around a simple boundary: off-chain systems may execute transactions and build proofs, but they do not finalize state by themselves. A state transition becomes economically meaningful only when Ethereum verifies the proof and the bridge accepts the resulting commitment update.
 
-- `System`: Tokamak Private App Channels as a whole
-- `channel`: one independent L2 state-machine instance managed by the L1 bridge
-- `L1 bridge`: the Ethereum-deployed contract system that manages channels, DApps, vaults, and proof verification
-- `channel manager`: the bridge component that manages one specific channel
-- `L2 server`: the off-chain execution environment that coordinates channel activity
-- `Merkle-root vector`: the authoritative commitment to a channel state, formed from the roots of that channel's Merkle trees
-- `L2 token vault`: the dedicated vault or accounting storage tree for user asset positions inside a channel
-- `L2 app storage`: all non-vault storage used by the channel's DApp logic
-- `Groth zkp`: the Groth16-based proof system used for token-vault updates
-- `Tokamak zkp`: the Tokamak zk-EVM proof system used for channel transaction execution
-- `DApp manager`: the bridge component that stores supported DApps and their function-specific proof metadata
+This is why the design keeps three responsibilities on L1:
 
-### 2.2 System Overview
+- custody of the canonical asset
+- acceptance or rejection of state transitions
+- publication of the authoritative commitment trail that describes accepted channel state
 
-The System has two top-level parts:
+The leader, relay server, or other channel-side operator is therefore an operational coordinator, not a trust anchor.
 
-- L1 bridge contracts deployed on Ethereum
-- an L2 server that coordinates private execution for multiple channels
+### 3.2 Proof Verification Replaces Re-Execution, Not Settlement
 
-Each channel is an independent L2 state-machine instance managed by the bridge. A channel is created for one specific DApp, has its own participant set, and has one designated leader who acts as an operational coordinator. The leader may publish channel creation, run the relay server, and close the channel, but does not have unilateral authority over user assets or state validity.
+The system does not try to replace Ethereum as the final settlement layer. It replaces validator-side transaction re-execution with validator-side proof verification.
 
-The authoritative state of a channel is represented as a Merkle-root vector. Each channel may contain multiple Merkle trees, and an L2 state update means an update of that vector. Even though channels are operationally independent from one another, every accepted state update remains under L1 control.
+That distinction matters. The bridge does not ask Ethereum validators to understand the private transaction itself. It asks them to verify that a proof attests to a valid state transition over an agreed public input surface. Privacy and scalability come from moving execution and witness generation off-chain, while correctness is still decided on-chain.
 
-### 2.3 Comparison with an Ordinary L1-Native DApp
+This design also explains why the current bridge does not rely on a long fraud-proof dispute window for normal channel progress. The implemented model is immediate validity acceptance: if the proof verifies and the bridge-side checks pass, the new commitment is accepted immediately on L1.
 
-An ordinary L1-native DApp works as follows:
+### 3.3 Metadata-Driven Admission Is a Safety Boundary
 
-1. The developer deploys smart contracts directly to Ethereum.
-2. Users submit transactions that call those contracts.
-3. Ethereum validators re-execute the transactions.
-4. If re-execution succeeds, Ethereum updates the DApp storage roots.
-5. Ethereum full nodes provide the data from which the DApp state can be reconstructed.
+The current bridge does not accept arbitrary proof payloads from arbitrary contracts. It admits DApps through explicit metadata:
 
-Under that model, DApp users propose state updates, Ethereum validators approve them, and successful transaction re-execution is the state-update condition.
+- managed storage addresses
+- one designated channel-token-vault storage address
+- supported entry-contract and function-signature pairs
+- one preprocess-input hash per supported function
+- the public-input offsets needed to decode the relevant state-transition fields
 
-A DApp operating through the System works differently:
+This is a deliberate design choice. The bridge is not secure merely because a proof system exists. It is secure because the proof is interpreted through bridge-managed metadata that limits what a submitted proof is allowed to mean.
 
-1. The developer registers the DApp's relevant storage and function information with the L1 bridge.
-2. A channel operator opens a channel dedicated to that DApp.
-3. A user creates and locally executes a transaction.
-4. The user generates a Tokamak zkp proving that the transaction executed correctly.
-5. The user submits the proof and the required public inputs to Ethereum without submitting the original transaction itself.
-6. Ethereum validators verify the proof rather than re-executing the original transaction.
-7. If verification succeeds, Ethereum updates the channel state and the relevant bridge state.
+The design philosophy here is that programmability should enter through registration, not through ambiguous runtime interpretation.
 
-Under the System model, DApp users still propose state updates and Ethereum validators still approve them, but the approval condition changes from transaction re-execution to proof verification. This is the central architectural shift of the System.
+### 3.4 Channel Isolation Matters More Than Global Composability
 
-### 2.4 Architecture
+Each channel has its own `ChannelManager`, its own state commitment, and its own token-vault registrations. The current bridge prefers isolation over deep shared-state composability between channels.
 
-The L1 bridge layer manages channels, asset custody, proof verification, and the Ethereum-visible commitment trail of channel state transitions. It also manages the supported DApps of the System and enforces which contracts and functions each channel may use.
+That isolation has two benefits:
 
-The L2 server is the off-chain environment in which private channel execution occurs. It maintains candidate channel state, coordinates user activity, and produces the witness data required for proof generation. It is not a trust anchor. Its role is operational coordination, not authoritative settlement.
+- failure or corruption in one channel does not directly rewrite another channel's accepted state
+- the bridge can reason about each channel with a tight, DApp-scoped metadata surface instead of one globally entangled state machine
 
-The DApp manager is the bridge component that stores the supported DApps and their function-specific Tokamak-zkp metadata. Only the System administrator may add a new DApp. Each channel manager inherits only a subset of contracts and functions from the DApp manager. A channel may therefore accept updates only for the DApp surface that it inherited at channel creation.
+The tradeoff is equally clear: cross-channel composability is not the primary optimization target. The primary target is predictable validity boundaries per application channel.
 
-This inheritance rule is a hard validation boundary. If a user submits a Tokamak zkp for a contract function outside the channel's inherited subset, verification must fail and the channel state must not change.
+### 3.5 Minimal On-Chain State, Maximum On-Chain Verifiability
 
-### 2.5 State and Storage Model
+The current implementation stores only the hash of the current root vector in the channel manager rather than the full root vector itself. This is another deliberate design choice.
 
-Each channel has exactly one dedicated L2 token-vault storage domain. It may also contain multiple additional storage domains for application logic. All non-vault storage is grouped under the term `L2 app storage`.
+The bridge wants on-chain state to be compact, but it does not want accepted transitions to become opaque. It resolves that tension by combining:
 
-The L2 token vault is linked to a per-channel L1 token vault. The L1 token vault stores:
+- a compact on-chain commitment (`currentRootVectorHash`)
+- proof-backed state-transition checks
+- emitted observations of accepted root vectors and storage writes
 
-- the user's channel-bound token position
-- the user's registered L2 token-vault key for that channel
+This means the bridge does not try to persist every detail forever in contract storage. Instead, it keeps the authoritative commitment on-chain and emits enough accepted observations for indexers and external observers to reconstruct the sequence of accepted states.
 
-This registration model has four current rules:
+### 3.6 Custody and Application Execution Are Separated
 
-1. A user must choose the target channel and supply the L2 token-vault key when first placing tokens into that channel's L1 token vault.
-2. The registered key is immutable once stored.
-3. The same user must use a different L2 token-vault key for each channel.
-4. Every registered L2 token-vault key must be globally unique across the entire System.
+The current architecture uses one shared L1 token vault for the canonical asset while application logic lives in channel-scoped proof updates. That separation is philosophical as much as technical.
 
-Because the System uses one or more Merkle trees per channel, the authoritative checkpoint of a channel is the vector of current Merkle roots rather than one monolithic state root. This model supports both vault accounting and application-specific storage while preserving a bridge-visible commitment structure on Ethereum.
+The bridge treats asset custody as a conservative, settlement-facing concern. It treats application execution as a validity-proven concern. Combining both inside one opaque off-chain operator trust model would weaken the system boundary the bridge is trying to preserve.
 
-### 2.6 Proof Systems
+This is why deposits and withdrawals are routed through a separate Groth16-backed vault path even when the channel also supports richer Tokamak-zkp application execution.
 
-The System uses two distinct proof systems.
+### 3.7 Privacy Is Layered, Not Absolute
 
-`Groth zkp` is used for token-vault control. Its instance contains:
+The current bridge hides the original transaction from Ethereum by accepting a proof and public inputs instead of the original execution trace. That is useful, but it is not the full privacy story.
 
-- the current root of the L2 token-vault tree
-- the updated root of the L2 token-vault tree
-- the current user key and value
-- the updated user key and value
+The design philosophy is intentionally narrower:
 
-The user leaf is the Poseidon hash of the user key and user value. A successful Groth verification means that the claimed balance existed, the claimed increment or decrement was applied correctly, and the resulting L2 token-vault tree update is valid.
+- the bridge provides transaction-submission privacy at the settlement boundary
+- the DApp must provide state-semantic privacy if the application requires it
 
-Groth verification also enforces key matching:
+In other words, the bridge can help hide what was submitted to Ethereum, but it does not automatically hide what the application state means. Strong privacy still depends on a private-state DApp model.
 
-- for withdrawal, the instance's current user key must match the user's registered L2 token-vault key
-- for deposit, the instance's updated user key must match the user's registered L2 token-vault key
+## 4. Architecture
 
-`Tokamak zkp` is used for channel transaction processing. Under the current bridge implementation, the verifier interface accepts:
+### 4.1 Shared Control Plane
 
-- a proof split into two calldata arrays
-- a preprocess input split into two calldata arrays
-- `aPubUser`
-- `aPubBlock`
+`BridgeCore`, `DAppManager`, `BridgeAdminManager`, and `L1TokenVault` form the shared bridge control plane. In the current implementation these root-entry contracts are upgradeable through UUPS proxies so that the bridge can evolve without forcing a full address reset for the main control surface.
 
-The bridge treats `aPubBlock` as channel-scoped metadata and treats the submitted preprocess input as the carrier of the function-scoped verification metadata. The bridge stores and checks:
+This is another explicit design choice: shared infrastructure may need controlled upgradeability, but accepted per-channel state transitions must still remain explicit and externally observable.
 
-- a channel-scoped `aPubBlockHash`
-- a function-scoped `preprocessInputHash`
-- a function-scoped `storageWrites` list, where each entry fixes:
-  - the index of the target storage address within that function's storage surface
-  - the `aPubUser` word offset at which the corresponding storage-write storage key appears
+### 4.2 Per-Channel Execution Surface
 
-The transaction-instance fields relevant to bridge state updates are encoded inside `aPubUser`. Under the current synthesizer layout, the bridge reads from `aPubUser`:
+A new channel is created by `BridgeCore` only after the bridge verifies that the DApp metadata exists, the configured Merkle-tree depth matches the supported value, and the managed storage surface is within the bridge's supported bounds.
 
-- the current channel Merkle-root vector
-- the updated channel Merkle-root vector
-- the entry contract
-- the target function signature
+At creation time the channel fixes:
 
-The bridge now treats the `aPubUser` layout as function-scoped metadata. For each DApp function it stores the relevant `aPubUser` offsets for the entry contract, function signature, current root vector, updated root vector, and storage-write storage-key words. Under the current synthesizer format, each storage write still contributes four words to the prefix of `aPubUser`: storage-key lower/upper and storage-write lower/upper.
+- the DApp it belongs to
+- the leader that coordinates the channel operationally
+- the managed storage-address vector
+- the designated channel-token-vault tree index
+- the inherited supported functions
+- the genesis `aPubBlockHash` binding for Tokamak proof context
 
-A successful Tokamak verification means that the specified contract function was executed correctly, the execution succeeded, the consumed leaves were correct, and the resulting Merkle-tree updates were valid.
+This means a channel is born with a pre-committed execution grammar. The bridge does not let that grammar drift at runtime.
 
-### 2.7 Core Operational Flows
+### 4.3 Token-Vault Identity Layer
 
-`Channel creation and entry`
+The current bridge also introduces an explicit registration layer for token-vault identity inside each channel. A user registers:
 
-1. Participants agree to form a channel for a specific DApp.
-2. A leader publishes the channel on Ethereum.
-3. The channel inherits its permitted DApp surface from the bridge-managed DApp metadata.
-4. Entry becomes economically valid only after Ethereum verifies the resulting state transition.
+- an L2 address
+- a channel-token-vault key
+- the derived leaf index
+- a note-receive public key
 
-`In-channel transaction execution`
+The bridge enforces uniqueness across these identifiers inside the channel and checks that the provided leaf index matches the one derived from the registered storage key. This is not merely bookkeeping. It is part of the system's authorization model for vault-backed balance updates and safe exit.
 
-1. A user executes a DApp transaction locally on the channel server.
-2. The system derives the resulting Merkle-tree update and produces witness data.
-3. The user generates a Tokamak zkp and submits it with `aPubUser`, `aPubBlock`, and the preprocess input required by the verifier.
-4. The channel manager checks that the submitted preprocess input matches the DApp-managed metadata, that `aPubBlock` matches the channel-managed metadata, and that the transaction-instance fields decoded from `aPubUser` are acceptable for the current channel state.
-5. If the proof verifies, Ethereum immediately updates the channel's Merkle-root vector.
-6. If the proof fails, the previous verified state remains authoritative.
+## 5. State and Proof Model
 
-`Deposit`
+### 5.1 Root-Vector State
 
-1. The user registers an L2 token-vault key if this is the first token-vault interaction for the channel.
-2. The user places assets into the channel's L1 token vault.
-3. The user submits a Groth proof for the L2 token-vault tree update.
-4. The bridge verifies the proof and checks that the instance's updated user key matches the registered vault key.
-5. If verification succeeds, the channel's vault-related state is updated.
+The authoritative state commitment of a channel is a vector of Merkle roots, one root per managed storage address. One entry is reserved for the `channelTokenVault` tree, while the other entries can represent application-managed storage trees.
 
-`Withdrawal`
+This vector model reflects the bridge's design priorities:
 
-1. The user invokes withdrawal from the channel's L1 token vault.
-2. The user submits a Groth proof for the L2 token-vault tree update.
-3. The bridge verifies the proof and checks that the instance's current user key matches the registered vault key.
-4. Withdrawal entitlement is derived from the last Ethereum-verified state.
-5. If verification succeeds, assets are released from L1 custody.
+- one channel can cover both vault state and application state
+- the bridge can stay agnostic to many application semantics
+- accepted transitions can still be checked against a bounded, bridge-visible commitment structure
 
-### 2.8 Privacy Model
+### 5.2 Tokamak Proofs for Application Execution
 
-The System provides baseline privacy because the original transaction is not normally revealed to Ethereum validators or outside observers. However, the System alone does not provide strong application-level privacy, because the channel operator still observes state data and may infer user activity from state changes.
+Tokamak proofs drive proof-backed application execution. The current bridge validates more than proof validity alone. It also checks that:
 
-To obtain stronger privacy, the DApp itself must follow a private-state model. Under that model, visible state does not directly expose the user-level meaning of transactions.
+- the submitted preprocess input hashes to the registered function metadata
+- the submitted `aPubBlock` hashes to the channel-fixed `aPubBlockHash`
+- the decoded entry contract and function signature match an allowed function
+- the decoded current root vector matches the channel's accepted commitment
 
-The current example is a zk-note-style DApp. In that model:
+The bridge therefore treats Tokamak proof submission as a three-layer check:
 
-- balances are represented by note commitments rather than explicit account balances
-- transfers consume input notes, mark them spent, and create new output-note commitments
-- visible state shows commitments and spent markers rather than the clear transfer record
+1. cryptographic proof validity
+2. channel-context validity
+3. DApp-metadata validity
 
-This yields a complementary privacy structure:
+This layered verification model is central to the current bridge design. A valid proof is not enough if it is not also a valid proof for this channel, this DApp, and this registered function surface.
 
-- the System hides the original transaction
-- the private-state DApp hides the user-level meaning of state data
+### 5.3 Groth Proofs for Vault Accounting
 
-For the purpose of this white paper, `complete privacy` is defined narrowly by two criteria:
+Deposits and withdrawals use a separate Groth16 verifier path for the channel-token-vault tree. The bridge checks the registered vault key, the current accepted root, and the direction of the user-value change before applying the update.
 
-1. `Transaction-content privacy`: observers without the original transaction cannot recover the user-level transaction content from what is published on Ethereum.
-2. `State-semantic privacy`: observers who inspect DApp state cannot directly reconstruct the user-level meaning of state changes from visible state alone.
+This split is intentional. The bridge treats token-vault accounting as a narrow and highly structured proving problem, distinct from the broader execution surface that Tokamak proofs cover.
 
-Under this working definition:
+The practical effect is architectural separation:
 
-- `System alone` satisfies transaction-content privacy but not state-semantic privacy
-- `System + private-state DApp` satisfies both
+- Tokamak proofs advance general channel execution
+- Groth proofs advance the token-vault subtree
+- the bridge keeps both paths consistent by updating the same channel root-vector commitment
 
-Under that narrow definition, `System + private-state DApp` achieves complete privacy, while `System alone` does not.
+### 5.4 Observable Acceptance Instead of Silent Mutation
 
-This definition is intentionally narrow. It does not claim to remove all metadata leakage, such as timing, note linkage, access patterns, or operator-side observation.
+When the bridge accepts a proof-backed transition, it emits the accepted root-vector observation. When a transition implies storage writes, it emits the observed storage writes as well. The vault path emits the same storage-write observation pattern for token-vault updates.
 
-### 2.9 Data Availability and Safe Exit
+This is an important statement about the bridge's philosophy. Accepted changes should not be invisible. Even when the bridge keeps contract storage compact, it still publishes an auditable trail of what was accepted.
 
-Data availability is asymmetric across storage classes.
+The system therefore favors:
 
-For `L2 token-vault storage`:
+- compact persistent commitments
+- explicit accepted observations
+- off-chain reconstruction by indexers and external observers
 
-- updates are governed by Groth zkp
-- Groth instances expose the relevant before-and-after vault data
-- the corresponding vault-state changes are therefore traceable from Ethereum
-- users can recover relevant token-vault state through Ethereum full nodes
+over large on-chain state mirrors.
 
-For `L2 app storage`:
+## 6. Core Operational Flows
 
-- users do not publish the application data to Ethereum in the same way
-- users rely on the channel operator to provide that data
-- the operator may fail to provide it, or may provide it incorrectly
+### 6.1 DApp Registration and Channel Creation
 
-If L2 app-storage data becomes unavailable or unreliable, users may no longer be able to continue normal L2 application activity. However, this does not imply loss of token-vault safety. Users can still rely on Ethereum-visible token-vault state to withdraw assets and escape the channel.
+The lifecycle begins with DApp registration. The bridge owner registers the storage surface and function metadata that define the DApp's admissible execution surface. Only after that can `BridgeCore` create a channel for the DApp.
 
-This yields an operational recommendation: when operator data availability is weak, frequent use of the token-vault path improves safe-exit robustness. That recommendation is not free of tradeoffs, because heavier reliance on vault-state anchoring may increase overhead and reduce how much application logic remains purely in L2 app storage.
+The design lesson is simple: the bridge wants the admissible state-transition language to be fixed before users start submitting proofs.
 
-### 2.10 Security Properties and Design Tradeoffs
+### 6.2 Funding and Vault Participation
 
-The current architecture aims to preserve the following properties:
+Users first fund the shared L1 vault and then register their channel-token-vault identity inside the channel. After that, deposits and withdrawals are expressed as proof-backed updates to the channel-token-vault tree.
 
-- canonical custody remains on Ethereum
-- no state update becomes economically authoritative without proof verification
-- each channel remains isolated from failures in other channels
-- the leader remains an operational coordinator rather than a trust anchor
-- DApp execution is constrained to the channel's inherited contract-and-function subset
-- token-vault authorization is bound to immutable registered vault keys
-- safe exit remains available even when app-storage availability fails
+This flow preserves two important separations:
 
-The current design also creates explicit tradeoffs:
+- the L1 vault remains the custody boundary
+- the channel-token-vault tree remains the accounting boundary
 
-- stronger safe-exit robustness favors more frequent use of token-vault storage
-- stronger privacy requires private-state DApp design, not only System-level privacy
-- global uniqueness of vault keys simplifies authorization but introduces registry and recovery complexity
-- immediate Tokamak verification simplifies validity finality but leaves proposal-pool economics as future work
+### 6.3 In-Channel Transaction Execution
 
-## 3. Conclusion
+For a normal application transaction, the off-chain environment executes the DApp logic, assembles the public inputs, and produces the Tokamak proof. The user then submits the proof payload to the channel manager.
 
-Tokamak Private App Channels define a validity-proof-based Ethereum Layer 2 architecture in which private, application-specific channels execute off-chain while Ethereum remains the canonical layer for custody, state validity, and final settlement. The bridge manages channels, DApps, proof metadata, token vaults, and the Ethereum-visible commitment trail of each channel. The L2 server coordinates execution, but authoritative state changes occur only after proof verification on L1.
+If the proof verifies and the bridge-side metadata checks pass:
 
-The most important architectural consequence is that the System replaces validator-side transaction re-execution with validator-side proof verification. This makes channel execution private by default, shortens withdrawal latency relative to fault-proof challenge-window models, and preserves a clean settlement boundary on Ethereum. At the same time, the System does not by itself solve all privacy and data-availability problems. Strong privacy requires a private-state DApp model, and strong application-state availability requires assumptions or mechanisms beyond the token-vault path.
+- the accepted root-vector commitment advances
+- the relevant storage writes are observed
+- the channel state becomes authoritative immediately on Ethereum
 
-The current design is therefore best understood as a layered model. Ethereum guarantees custody, proof-verified state acceptance, and recoverable token-vault state. The System provides private execution and proof-based state advancement. DApp design determines whether application-state semantics remain exposed or hidden.
+If any of those checks fail, the previous accepted root-vector hash remains authoritative.
 
-The main item of future work discussed in the design notes is the deferred proposal-pool model together with its rewards, penalties, and token economics. In the current version, Tokamak-zkp-based channel updates are verified immediately on L1, so that machinery is intentionally out of scope. If the System later reintroduces proposal-pool operation, its token-economics design may also serve as one mechanism for strengthening the practical availability and liveness of L2 app storage by creating explicit incentives to resolve forks, verify pending updates, and maintain reliable channel operation. Until those rules are specified precisely, however, that layer should remain outside the current white paper's operative model.
+### 6.4 Withdrawal and Safe Exit
+
+The current bridge is designed so that token-vault recovery does not depend on replaying arbitrary application state. Safe exit is therefore anchored primarily in the vault path rather than in full application-state reconstruction.
+
+This does not mean application-state availability is solved. It means the bridge deliberately gives asset recovery a narrower and more robust path than general DApp execution.
+
+## 7. Security Posture and Tradeoffs
+
+The current implementation is built around the following security posture:
+
+- Ethereum is the canonical custodian and validity gate
+- proof acceptance is immediate once the bridge-side checks pass
+- a leader can coordinate a channel but cannot unilaterally finalize invalid state
+- DApp execution is limited to a registered metadata surface
+- token-vault authorization is bound to explicit channel registrations
+- accepted state changes remain externally observable through emitted commitments and writes
+
+The same implementation also makes several explicit tradeoffs.
+
+First, the bridge currently prefers operational clarity over unconstrained flexibility. It supports one designated channel-token-vault storage per DApp, a fixed supported Merkle-tree depth, and a bounded managed-storage surface. These constraints simplify soundness reasoning but reduce generality.
+
+Second, the bridge prefers immediate validity acceptance over challenge-window-based optimistic flow. That gives clean validity finality, but it also means proving cost and proving latency sit directly on the critical path.
+
+Third, the bridge separates asset safety from application-data availability. Asset recovery has a narrow vault-oriented path on Ethereum, while broader app-state availability still depends more heavily on off-chain data supply.
+
+Fourth, the bridge assumes exact-transfer asset behavior in the shared L1 vault. This conservative rule protects custody accounting but excludes ERC-20 behaviors that mutate balances during transfer.
+
+Finally, the bridge uses an upgradeable shared control plane together with immutable per-channel deployments. This balances evolvability of the bridge framework against explicit channel-local commitment boundaries, but it also requires disciplined governance for upgrades.
+
+## 8. Conclusion
+
+The current Tokamak Private App Channels bridge is best understood as a proof-first bridge for dedicated application channels, not as a generic rollup shell. Its design philosophy is consistent across the implementation:
+
+- keep Ethereum as the trust anchor
+- replace re-execution with proof verification rather than replacing settlement
+- admit DApps through explicit metadata rather than ambiguous runtime interpretation
+- isolate channels instead of forcing one global application state machine
+- keep custody conservative and execution flexible
+- publish accepted commitments and writes even when persistent storage stays compact
+- treat privacy as a layered property that depends on both the bridge and the DApp
+
+Under this model, the bridge offers a clear contract between Ethereum, the proving system, and the application developer. Ethereum decides custody and accepted validity. The bridge decides whether a proof matches an allowed channel and DApp surface. The DApp decides what application semantics live behind that proof surface. That division of responsibility is the defining architectural idea of the current implementation.

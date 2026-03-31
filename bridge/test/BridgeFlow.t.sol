@@ -101,7 +101,7 @@ contract BridgeFlowTest is Test {
         dAppManager.bindBridgeCore(address(bridgeCore));
         channelId = _deriveChannelId(channelName);
         secondChannelId = _deriveChannelId(secondChannelName);
-        bridgeTokenVault = _deployTokenVaultProxy(address(this), bridgeCore, IGrothVerifier(address(grothVerifier)));
+        bridgeTokenVault = _deployTokenVaultProxy(address(this), bridgeCore);
         bridgeCore.bindBridgeTokenVault(address(bridgeTokenVault));
 
         MockERC20 assetImplementation = new MockERC20("Mock Asset", "MA");
@@ -703,6 +703,7 @@ contract BridgeFlowTest is Test {
         IGrothVerifier rotatedGrothVerifier = IGrothVerifier(address(0xBEEF));
 
         bridgeCore.setGrothVerifier(rotatedGrothVerifier);
+        assertEq(address(bridgeTokenVault.grothVerifier()), address(rotatedGrothVerifier));
         vm.mockCall(
             address(rotatedGrothVerifier), abi.encodeWithSelector(IGrothVerifier.verifyProof.selector), abi.encode(true)
         );
@@ -765,7 +766,6 @@ contract BridgeFlowTest is Test {
         dAppManager.upgradeTo(address(newDAppImplementation));
         bridgeCore.upgradeTo(address(newBridgeImplementation));
         bridgeTokenVault.upgradeTo(address(newTokenVaultImplementation));
-        dAppManager.bindBridgeCore(address(bridgeCore));
 
         assertEq(address(adminManager), adminProxyAddress);
         assertEq(address(dAppManager), dAppProxyAddress);
@@ -967,10 +967,7 @@ contract BridgeFlowTest is Test {
         return BridgeCore(address(proxy));
     }
 
-    function _deployTokenVaultProxy(address owner, BridgeCore localBridgeCore, IGrothVerifier localGrothVerifier)
-        internal
-        returns (L1TokenVault)
-    {
+    function _deployTokenVaultProxy(address owner, BridgeCore localBridgeCore) internal returns (L1TokenVault) {
         L1TokenVault implementation = new L1TokenVault();
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(implementation),
@@ -979,7 +976,6 @@ contract BridgeFlowTest is Test {
                 (
                     owner,
                     IERC20(localBridgeCore.canonicalAsset()),
-                    localGrothVerifier,
                     IChannelRegistry(address(localBridgeCore))
                 )
             )

@@ -24,7 +24,6 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     error L2ValueOutOfRange(uint256 value);
     error GrothProofRejected();
     error InvalidAsset();
-    error InvalidGrothVerifier();
     error InvalidChannelRegistry();
     error UnknownChannel(uint256 channelId);
     error UnsupportedAssetTransferBehavior(uint256 expectedDelta, uint256 actualDelta);
@@ -37,8 +36,8 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     }
 
     IERC20 public asset;
-    // Kept for storage layout compatibility; BridgeCore is the source of truth.
-    IGrothVerifier public grothVerifier;
+    // Reserved to preserve the historical storage layout after verifier ownership moved to BridgeCore.
+    IGrothVerifier private _legacyGrothVerifierSlot;
     IChannelRegistry public channelRegistry;
 
     mapping(address => uint256) private _availableBalances;
@@ -54,11 +53,9 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     function initialize(
         address initialOwner,
         IERC20 asset_,
-        IGrothVerifier grothVerifier_,
         IChannelRegistry channelRegistry_
     ) external initializer {
         if (address(asset_) == address(0)) revert InvalidAsset();
-        if (address(grothVerifier_) == address(0)) revert InvalidGrothVerifier();
         if (address(channelRegistry_) == address(0)) revert InvalidChannelRegistry();
 
         __Ownable_init();
@@ -70,8 +67,12 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         }
 
         asset = asset_;
-        grothVerifier = grothVerifier_;
+        _legacyGrothVerifierSlot = channelRegistry_.grothVerifier();
         channelRegistry = channelRegistry_;
+    }
+
+    function grothVerifier() external view returns (IGrothVerifier) {
+        return channelRegistry.grothVerifier();
     }
 
     function fund(uint256 amount) external nonReentrant {

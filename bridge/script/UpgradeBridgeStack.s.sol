@@ -67,7 +67,6 @@ contract UpgradeBridgeStackScript is Script {
         bridgeTokenVaultProxyContract.upgradeTo(address(bridgeTokenVaultImplementation));
         bridgeCoreProxyContract.setGrothVerifier(IGrothVerifier(address(grothVerifierImplementation)));
         bridgeCoreProxyContract.setTokamakVerifier(ITokamakVerifier(address(tokamakVerifierImplementation)));
-        dAppManagerProxyContract.bindBridgeCore(address(bridgeCoreProxyContract));
         if (disableDAppDeletionOnMainnet && !dAppManagerProxyContract.dAppDeletionLockedForever()) {
             dAppManagerProxyContract.disableDAppDeletionForever();
         }

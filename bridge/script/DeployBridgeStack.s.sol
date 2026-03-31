@@ -78,7 +78,6 @@ contract DeployBridgeStackScript is Script {
                 (
                     owner,
                     IERC20(BridgeCore(address(bridgeCoreProxy)).canonicalAsset()),
-                    IGrothVerifier(address(grothVerifier)),
                     IChannelRegistry(address(bridgeCoreProxy))
                 )
             )

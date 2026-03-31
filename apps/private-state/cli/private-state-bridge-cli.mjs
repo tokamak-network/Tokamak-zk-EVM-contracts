@@ -2445,8 +2445,9 @@ function extractNoteLifecycle(functionName, templatePayload) {
 
 function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, controllerAddress, lifecycle }) {
   const previousEntries = snapshotStorageEntriesForAddress(previousSnapshot, controllerAddress);
+  const nextEntries = snapshotStorageEntriesForAddress(nextSnapshot, controllerAddress);
   const previousKeys = new Set(previousEntries.map((entry) => normalizeBytes32Hex(entry.key)));
-  const newKeys = snapshotStorageEntriesForAddress(nextSnapshot, controllerAddress)
+  const newKeys = nextEntries
     .map((entry) => normalizeBytes32Hex(entry.key))
     .filter((key) => !previousKeys.has(key));
   const inputCount = lifecycle.inputs.length;
@@ -2454,16 +2455,64 @@ function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, control
   const expectedNewKeyCount = inputCount + outputCount;
   expect(
     newKeys.length >= expectedNewKeyCount,
-    [
-      "The controller snapshot delta did not expose enough new storage keys",
-      `for ${inputCount} input note(s) and ${outputCount} output note(s).`,
-    ].join(" "),
+    buildControllerStorageDeltaError({
+      previousSnapshot,
+      nextSnapshot,
+      controllerAddress,
+      previousEntries,
+      nextEntries,
+      inputCount,
+      outputCount,
+      newKeyCount: newKeys.length,
+    }),
   );
   return {
     ...lifecycle,
     inputNullifierKeys: newKeys.slice(0, inputCount),
     outputCommitmentKeys: newKeys.slice(inputCount, inputCount + outputCount),
   };
+}
+
+function buildControllerStorageDeltaError({
+  previousSnapshot,
+  nextSnapshot,
+  controllerAddress,
+  previousEntries,
+  nextEntries,
+  inputCount,
+  outputCount,
+  newKeyCount,
+}) {
+  const normalizedAddress = getAddress(controllerAddress);
+  const previousRoot = snapshotRootForAddress(previousSnapshot, normalizedAddress);
+  const nextRoot = snapshotRootForAddress(nextSnapshot, normalizedAddress);
+  const headline = [
+    "The generated channel snapshot does not include enough private-state note records",
+    `to track ${inputCount} spent note(s) and ${outputCount} new note(s).`,
+  ].join(" ");
+  const details = [
+    `Controller: ${normalizedAddress}.`,
+    `Tracked controller slots before: ${previousEntries.length}.`,
+    `Tracked controller slots after: ${nextEntries.length}.`,
+    `New controller slots discovered: ${newKeyCount}.`,
+  ];
+  if (previousEntries.length === 0 && nextEntries.length === 0) {
+    details.push(
+      "The local workspace snapshot already had no tracked controller storage slots, and the proof pipeline produced another snapshot with no tracked controller storage slots.",
+    );
+  }
+  if (normalizeBytes32Hex(previousRoot) === normalizeBytes32Hex(nextRoot)) {
+    details.push(
+      "The controller root also stayed unchanged in the generated snapshot, so the pipeline did not expose any controller state change that the CLI could map to note IDs.",
+    );
+  }
+  details.push(
+    "The CLI cannot save minted or transferred notes into the wallet unless the generated snapshot identifies the controller storage slots for those notes.",
+  );
+  details.push(
+    "Regenerate the local workspace state first. If the workspace snapshot still has zero tracked controller slots, this channel snapshot is incomplete for note-tracking operations.",
+  );
+  return `${headline} ${details.join(" ")}`;
 }
 
 function snapshotStorageEntriesForAddress(snapshot, storageAddress) {
@@ -2473,6 +2522,15 @@ function snapshotStorageEntriesForAddress(snapshot, storageAddress) {
   );
   expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
   return snapshot.storageEntries[addressIndex] ?? [];
+}
+
+function snapshotRootForAddress(snapshot, storageAddress) {
+  const normalizedAddress = getAddress(storageAddress);
+  const addressIndex = snapshot.storageAddresses.findIndex(
+    (entry) => getAddress(entry) === normalizedAddress,
+  );
+  expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
+  return snapshot.stateRoots[addressIndex];
 }
 
 function applyNoteLifecycleToWallet(walletContext, lifecycle, sourceFunction, sourceTxHash) {

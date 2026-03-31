@@ -505,6 +505,21 @@
         return currentWorkspaceOptions().walletEntriesByName?.[state.wallet] ?? null;
       }
 
+      function walletOptionsForCommand(command = currentCommand()) {
+        const options = currentWorkspaceOptions();
+        if (command.id !== "mint-notes") {
+          return options.walletOptions;
+        }
+        const derivedAddress = privateKeyAddressState.derivedAddress.trim().toLowerCase();
+        if (!derivedAddress) {
+          return [];
+        }
+        return options.walletOptions.filter((walletName) => {
+          const walletEntry = options.walletEntriesByName?.[walletName];
+          return walletEntry?.l1Address?.toLowerCase() === derivedAddress;
+        });
+      }
+
       function buildWorkspaceStatusMessage() {
         if (!workspaceDirectoryState.loaded) {
           return `Default CLI workspace root: ${defaultWorkspaceRootLabel}`;
@@ -523,8 +538,9 @@
         if (commandNeedsExistingChannel() && !options.channelOptions.includes(state.channelName)) {
           state.channelName = options.channelOptions[0] ?? "";
         }
-        if (commandNeedsWallet() && !options.walletOptions.includes(state.wallet)) {
-          state.wallet = options.walletOptions[0] ?? "";
+        const walletOptions = walletOptionsForCommand();
+        if (commandNeedsWallet() && !walletOptions.includes(state.wallet)) {
+          state.wallet = walletOptions[0] ?? "";
         }
       }
 
@@ -841,6 +857,7 @@
                 walletEntries.push({
                   name: addressMatch ? `${channelName}-${addressMatch[1]}` : walletFolderName,
                   handle: walletHandle,
+                  l1Address: addressMatch ? addressMatch[1] : "",
                 });
               }
             }
@@ -898,8 +915,9 @@
           ) {
             state.channelName = currentOptions.channelOptions[0] ?? "";
           }
-          if (!currentOptions.walletOptions.includes(state.wallet)) {
-            state.wallet = currentOptions.walletOptions[0] ?? "";
+          const filteredWalletOptions = walletOptionsForCommand();
+          if (!filteredWalletOptions.includes(state.wallet)) {
+            state.wallet = filteredWalletOptions[0] ?? "";
           }
           clearWalletNoteState();
           persistState();
@@ -939,21 +957,25 @@
         const label = document.createElement("label");
         label.textContent = fieldCatalog.wallet.label;
         const select = document.createElement("select");
-        const options = currentWorkspaceOptions();
+        const walletOptions = walletOptionsForCommand();
         const placeholder = document.createElement("option");
         placeholder.value = "";
-        placeholder.textContent = options.walletOptions.length === 0
+        placeholder.textContent = !workspaceDirectoryState.loaded
           ? "Select a workspace directory for this network first"
-          : "Choose wallet";
+          : currentCommand().id === "mint-notes" && !privateKeyAddressState.derivedAddress
+            ? "Enter a valid L1 private key first"
+            : walletOptions.length === 0
+              ? "No wallet matches the current L1 private key"
+              : "Choose wallet";
         select.appendChild(placeholder);
-        for (const option of options.walletOptions) {
+        for (const option of walletOptions) {
           const optionEl = document.createElement("option");
           optionEl.value = option;
           optionEl.textContent = option;
           select.appendChild(optionEl);
         }
-        select.value = options.walletOptions.includes(state.wallet) ? state.wallet : "";
-        select.disabled = options.walletOptions.length === 0;
+        select.value = walletOptions.includes(state.wallet) ? state.wallet : "";
+        select.disabled = walletOptions.length === 0;
         select.addEventListener("change", async (event) => {
           state.wallet = event.target.value;
           clearWalletNoteState();
@@ -1081,6 +1103,7 @@
             if (memoryStatusEl) {
               memoryStatusEl.textContent = privateKeyAddressState.statusMessage;
             }
+            syncWorkspaceSelectionsForCurrentNetwork();
           }
           if (fieldKey === "password") {
             clearWalletNoteState();
@@ -1092,6 +1115,8 @@
           renderPreview();
           if (fieldKey === "network") {
             renderWorkspacePicker();
+            renderCommandFields();
+          } else if (fieldKey === "privateKey" && commandNeedsWallet()) {
             renderCommandFields();
           }
         });
@@ -1122,6 +1147,11 @@
         memoryStatusEl.textContent = privateKeyAddressState.statusMessage;
         void refreshPrivateKeyAddressState(state.privateKey).then(() => {
           memoryStatusEl.textContent = privateKeyAddressState.statusMessage;
+          syncWorkspaceSelectionsForCurrentNetwork();
+          if (currentCommand().fields.includes("wallet")) {
+            renderCommandFields();
+            renderPreview();
+          }
         });
       }
 

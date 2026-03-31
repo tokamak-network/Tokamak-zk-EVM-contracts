@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-31T15:12:24.787Z",
+  "generatedAt": "2026-03-31T17:11:27.118Z",
   "deploymentPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge.11155111.json",
   "abiManifestPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge-abi-manifest.11155111.json",
   "appNetwork": "sepolia",
@@ -20,49 +20,49 @@
     {
       "groupName": "private-state",
       "exampleName": "mintNotes/mintNotes1",
-      "entryContract": "0xEDcF1D3B8a3D3f68B96E2C8fF0CBE6552BBbea94",
+      "entryContract": "0x2957dF08f496F9CfE182842244F1788899562E73",
       "functionSig": "0x626ad23f"
     },
     {
       "groupName": "private-state",
       "exampleName": "mintNotes/mintNotes2",
-      "entryContract": "0xEDcF1D3B8a3D3f68B96E2C8fF0CBE6552BBbea94",
+      "entryContract": "0x2957dF08f496F9CfE182842244F1788899562E73",
       "functionSig": "0x516a9d53"
     },
     {
       "groupName": "private-state",
       "exampleName": "mintNotes/mintNotes3",
-      "entryContract": "0xEDcF1D3B8a3D3f68B96E2C8fF0CBE6552BBbea94",
+      "entryContract": "0x2957dF08f496F9CfE182842244F1788899562E73",
       "functionSig": "0x7ba2116d"
     },
     {
       "groupName": "private-state",
       "exampleName": "transferNotes/transferNotes1To1",
-      "entryContract": "0xEDcF1D3B8a3D3f68B96E2C8fF0CBE6552BBbea94",
+      "entryContract": "0x2957dF08f496F9CfE182842244F1788899562E73",
       "functionSig": "0x224c3c60"
     },
     {
       "groupName": "private-state",
       "exampleName": "transferNotes/transferNotes1To2",
-      "entryContract": "0xEDcF1D3B8a3D3f68B96E2C8fF0CBE6552BBbea94",
+      "entryContract": "0x2957dF08f496F9CfE182842244F1788899562E73",
       "functionSig": "0x6b24ef62"
     },
     {
       "groupName": "private-state",
       "exampleName": "transferNotes/transferNotes2To1",
-      "entryContract": "0xEDcF1D3B8a3D3f68B96E2C8fF0CBE6552BBbea94",
+      "entryContract": "0x2957dF08f496F9CfE182842244F1788899562E73",
       "functionSig": "0x3f97509c"
     },
     {
       "groupName": "private-state",
       "exampleName": "redeemNotes/redeemNotes1",
-      "entryContract": "0xEDcF1D3B8a3D3f68B96E2C8fF0CBE6552BBbea94",
+      "entryContract": "0x2957dF08f496F9CfE182842244F1788899562E73",
       "functionSig": "0xc0856c7c"
     },
     {
       "groupName": "private-state",
       "exampleName": "redeemNotes/redeemNotes2",
-      "entryContract": "0xEDcF1D3B8a3D3f68B96E2C8fF0CBE6552BBbea94",
+      "entryContract": "0x2957dF08f496F9CfE182842244F1788899562E73",
       "functionSig": "0xd1c880d8"
     }
   ],
@@ -119,8 +119,8 @@
     }
   ],
   "registration": {
-    "txHash": "0x00b9b282f5b042318dbc43de7cd778189dc9fc22e18cd04f70169b059e7843c2",
-    "blockNumber": 10561332,
+    "txHash": "0x17c94aa98d50a280cef950beb490bc965c4d2125e8aa5a9e17f1a86820613ced",
+    "blockNumber": 10561915,
     "labelHash": "0x280fff58e494db3de12ebbdf607529639a8dce993a3771df1774946231ec4d35",
     "storageCount": 2,
     "functionCount": 8

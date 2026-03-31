@@ -25,6 +25,7 @@ TIMESTAMP_UTC="$(date -u +"%Y%m%dT%H%M%SZ")"
 CHAIN_LATEST_FILE="$DEPLOY_DIR/deployment.${CHAIN_ID}.latest.json"
 STORAGE_LAYOUT_LATEST_FILE="$DEPLOY_DIR/storage-layout.${CHAIN_ID}.latest.json"
 SUBMODULE_CHAIN_LATEST_FILE="$SUBMODULE_PRIVATE_STATE_DEPLOY_DIR/deployment.${CHAIN_ID}.latest.json"
+SUBMODULE_STORAGE_LAYOUT_LATEST_FILE="$SUBMODULE_PRIVATE_STATE_DEPLOY_DIR/storage-layout.${CHAIN_ID}.latest.json"
 
 ZERO_ADDRESS="0x0000000000000000000000000000000000000000"
 
@@ -95,6 +96,8 @@ jq -n \
         }
     }' > "$STORAGE_LAYOUT_LATEST_FILE"
 
+cp "$STORAGE_LAYOUT_LATEST_FILE" "$SUBMODULE_STORAGE_LAYOUT_LATEST_FILE"
+
 write_callable_abi() {
     local artifact_path="$1"
     local output_path="$2"
@@ -145,6 +148,7 @@ write_callable_abi \
 echo "Updated chain deployment manifest: $CHAIN_LATEST_FILE"
 echo "Mirrored chain deployment manifest: $SUBMODULE_CHAIN_LATEST_FILE"
 echo "Updated storage layout manifest: $STORAGE_LAYOUT_LATEST_FILE"
+echo "Mirrored storage layout manifest: $SUBMODULE_STORAGE_LAYOUT_LATEST_FILE"
 echo "Wrote callable ABI files under: $DEPLOY_DIR"
 
 bash "$PROJECT_ROOT/apps/private-state/script/deploy/sync-groth16-update-tree-artifacts.sh" "$CHAIN_ID"

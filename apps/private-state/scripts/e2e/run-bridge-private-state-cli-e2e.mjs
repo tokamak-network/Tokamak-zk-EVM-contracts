@@ -1484,6 +1484,9 @@ async function main() {
     console.log("E2E CLI private-state bridge flow succeeded.");
     console.log(`Summary: ${summaryPath}`);
   } finally {
+    if (typeof provider.destroy === "function") {
+      provider.destroy();
+    }
     if (!options.keepAnvil) {
       run("make", ["-C", appRoot, "anvil-stop"], { quiet: true });
     }

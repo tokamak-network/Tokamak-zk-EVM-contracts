@@ -31,9 +31,15 @@ export function resolveCircomBinaryPath(platform = os.platform(), arch = os.arch
     );
   }
 
-  const binaryPath = path.join(__dirname, binaryName);
-  if (!fs.existsSync(binaryPath)) {
-    throw new Error(`Missing Circom binary for '${platformKey}': ${binaryPath}`);
+  const candidatePaths = [
+    path.join(__dirname, binaryName),
+    path.resolve(__dirname, "../../../groth16/circuits", binaryName),
+  ];
+  const binaryPath = candidatePaths.find((candidatePath) => fs.existsSync(candidatePath));
+  if (!binaryPath) {
+    throw new Error(
+      `Missing Circom binary for '${platformKey}'. Checked: ${candidatePaths.join(", ")}`,
+    );
   }
 
   return binaryPath;

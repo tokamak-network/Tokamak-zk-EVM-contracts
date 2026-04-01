@@ -171,8 +171,8 @@ async function main() {
   };
   if (walletCommandHandlers[args.command]) {
     walletCommandHandlers[args.command].assert(args);
-    const { provider } = loadWalletCommandRuntime(args);
-    await walletCommandHandlers[args.command].run({ provider });
+    const { network, provider } = loadWalletCommandRuntime(args);
+    await walletCommandHandlers[args.command].run({ network, provider });
     return;
   }
 
@@ -197,8 +197,8 @@ async function main() {
     }
     case "withdraw-bridge": {
       assertWithdrawBridgeArgs(args);
-      const { provider } = loadExplicitCommandRuntime(args);
-      await handleWithdrawBridge({ args, provider });
+      const { network, provider } = loadExplicitCommandRuntime(args);
+      await handleWithdrawBridge({ args, network, provider });
       return;
     }
     case "get-my-bridge-fund": {
@@ -265,6 +265,7 @@ async function handleChannelCreate({ args, network, provider }) {
     manager: channelInfo.manager,
     bridgeTokenVault: channelInfo.bridgeTokenVault,
     gasUsed: receiptGasUsed(receipt),
+    txUrl: explorerTxUrl(network, receipt.hash),
     receipt: sanitizeReceipt(receipt),
     workspace: workspaceResult?.workspaceDir ?? null,
   });
@@ -526,6 +527,8 @@ async function handleRegisterAndFund({ args, network, provider }) {
     approveGasUsed: receiptGasUsed(approveReceipt),
     fundGasUsed: receiptGasUsed(fundReceipt),
     totalGasUsed: (BigInt(approveReceipt.gasUsed) + BigInt(fundReceipt.gasUsed)).toString(),
+    approveTxUrl: explorerTxUrl(network, approveReceipt.hash),
+    fundTxUrl: explorerTxUrl(network, fundReceipt.hash),
     approveReceipt: sanitizeReceipt(approveReceipt),
     fundReceipt: sanitizeReceipt(fundReceipt),
   });
@@ -1104,6 +1107,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       leafIndex: leafIndex.toString(),
       noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
       gasUsed: receiptGasUsed(receipt),
+      txUrl: explorerTxUrl(network, receipt.hash),
       receipt: sanitizeReceipt(receipt),
     });
     return;
@@ -1157,6 +1161,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const { wallet: walletContext } = loadUnlockedWalletWithMetadata(args);
   const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
   const context = contextResult.context;
+  const network = contextResult.network;
   expect(
     BigInt(walletContext.wallet.channelId) === BigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
@@ -1260,10 +1265,11 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     currentRootVector: transition.update.currentRootVector,
     updatedRoot: transition.update.updatedRoot,
     gasUsed: receiptGasUsed(receipt),
+    txUrl: explorerTxUrl(network, receipt.hash),
   });
 }
 
-async function handleWithdrawBridge({ args, provider }) {
+async function handleWithdrawBridge({ args, network, provider }) {
   const signer = requireL1Signer(args, provider);
   const chainId = Number((await provider.getNetwork()).chainId);
   const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId });
@@ -1285,6 +1291,7 @@ async function handleWithdrawBridge({ args, provider }) {
     canonicalAsset: bridgeVaultContext.canonicalAsset,
     canonicalAssetDecimals: Number(bridgeVaultContext.canonicalAssetDecimals),
     gasUsed: receiptGasUsed(receipt),
+    txUrl: explorerTxUrl(network, receipt.hash),
     receipt: sanitizeReceipt(receipt),
   });
 }
@@ -1348,6 +1355,7 @@ async function handleMintNotes({ args, provider }) {
       bridgeCommitmentKeys: execution.noteLifecycle.outputCommitmentKeys,
     }),
     gasUsed: receiptGasUsed(execution.receipt),
+    txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
@@ -1387,6 +1395,7 @@ async function handleRedeemNotes({ args, provider }) {
       Number(wallet.wallet.canonicalAssetDecimals),
     ),
     gasUsed: receiptGasUsed(execution.receipt),
+    txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
@@ -1520,6 +1529,7 @@ async function handleTransferNotes({ args, provider }) {
     deliveredRecipients: [],
     noteDelivery: "ethereum-event-log",
     gasUsed: receiptGasUsed(execution.receipt),
+    txUrl: explorerTxUrl(contextResult.network, execution.receipt.hash),
     usedWorkspaceCache: contextResult.usingWorkspaceCache,
     recoveredWorkspace,
     updatedRoots: execution.context.currentSnapshot.stateRoots,
@@ -2799,6 +2809,7 @@ async function loadPreferredWalletChannelContext({ walletContext, provider }) {
   }
   return {
     context,
+    network: resolveCliNetwork(context.workspace.network),
     usingWorkspaceCache: !recoveredWorkspace,
     recoveredWorkspace,
   };
@@ -3923,6 +3934,13 @@ function receiptGasUsed(receipt) {
   return BigInt(receipt.gasUsed).toString();
 }
 
+function explorerTxUrl(network, txHash) {
+  if (!network?.explorerTxBaseUrl || typeof txHash !== "string" || txHash.length === 0) {
+    return null;
+  }
+  return `${network.explorerTxBaseUrl}/${txHash}`;
+}
+
 async function waitForReceipt(txResponse) {
   return txResponse.wait();
 }
@@ -4595,8 +4613,10 @@ function loadExplicitCommandRuntime(args) {
 }
 
 function loadWalletCommandRuntime(args) {
-  const walletMetadata = loadWalletMetadata(requireWalletName(args), requireNetworkName(args));
+  const networkName = requireNetworkName(args);
+  const walletMetadata = loadWalletMetadata(requireWalletName(args), networkName);
   return {
+    network: resolveCliNetwork(networkName),
     provider: new JsonRpcProvider(walletMetadata.rpcUrl),
   };
 }

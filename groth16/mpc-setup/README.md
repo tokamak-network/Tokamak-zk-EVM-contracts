@@ -29,7 +29,7 @@ To verify that the committed `phase1_final_XX.ptau` is reproducibly derived from
 
 ## Outputs
 
-The script writes the final setup artifacts to `groth16/mpc-setup/updateTree/`:
+The script writes the final setup artifacts to `groth16/mpc-setup/crs/`:
 
 - `circuit_final.zkey`
 - `verification_key.json`
@@ -44,4 +44,4 @@ The final phase 1 points come from the published Dusk response artifact. The int
 
 ## Current Status
 
-The Dusk-backed setup flow in this directory completes successfully for the current `updateTree` circuit and produces committed setup artifacts under `groth16/mpc-setup/updateTree/`.
+The Dusk-backed setup flow in this directory completes successfully for the current `updateTree` circuit and produces committed setup artifacts under `groth16/mpc-setup/crs/`.

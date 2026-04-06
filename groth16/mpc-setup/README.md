@@ -21,6 +21,12 @@ The script performs these steps:
 /opt/homebrew/opt/node@20/bin/node groth16/mpc-setup/generate_update_tree_setup_from_dusk.mjs
 ```
 
+To verify that the committed `phase1_final_XX.ptau` is reproducibly derived from the published Dusk response artifact, run:
+
+```bash
+/opt/homebrew/opt/node@20/bin/node groth16/mpc-setup/verify_update_tree_phase1_provenance.mjs
+```
+
 ## Outputs
 
 The script writes the final setup artifacts to `groth16/mpc-setup/updateTree/`:

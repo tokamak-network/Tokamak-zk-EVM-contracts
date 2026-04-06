@@ -69,6 +69,7 @@ Optional environment variables:
 
 - `BRIDGE_RPC_URL_OVERRIDE`
 - `BRIDGE_DEPLOY_MODE` with `upgrade` or `redeploy-proxy`
+- `BRIDGE_GROTH_SOURCE` with `trusted` or `mpc`
 - `BRIDGE_OWNER`
 - `BRIDGE_DEPLOY_MOCK_ASSET`
 - `BRIDGE_MOCK_ASSET_NAME`
@@ -110,6 +111,15 @@ its exported `MT_DEPTH` before broadcasting deployment. Internally it now runs
 verifier parameters from `setupParams.json` and regenerates the Groth16
 `updateTree` artifacts before deployment. The reflected `MT_DEPTH` value is
 forwarded into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
+
+The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
+When unset, the bridge helper defaults to:
+
+- `mainnet` -> `mpc`
+- every other supported network -> `trusted`
+
+`trusted` regenerates artifacts under `groth16/trusted-setup/crs`, while `mpc`
+regenerates artifacts under `groth16/mpc-setup/crs`.
 
 The current bridge implementation is still intentionally hard-bound to depth
 `12` for soundness. If the latest `tokamak-l2js` publishes a different

@@ -45,13 +45,6 @@ const tokamakVerifierGeneratedPath = path.join(
   "TokamakVerifierKey.generated.sol"
 );
 const tokamakVerifierSourcePath = path.join(repoRoot, "tokamak-zkp", "TokamakVerifier.sol");
-const grothVerificationKeyPath = path.join(
-  repoRoot,
-  "groth16",
-  "trusted-setup",
-  "crs",
-  "verification_key.json"
-);
 const grothVerifierOutputPath = path.join(
   repoRoot,
   "groth16",
@@ -68,16 +61,43 @@ function usage() {
 
 Options:
   --manifest-out <path>              Output manifest path
+  --groth-source <trusted|mpc>       Groth16 artifact source to refresh
   --skip-submodule-update            Skip updating submodules/Tokamak-zk-EVM to origin/dev
   --skip-install                     Skip tokamak-cli --install
   --skip-tokamak-verifier            Skip Tokamak sigma conversion and verifier regeneration
-  --skip-groth                       Skip Groth16 trusted-setup/verifier regeneration
+  --skip-groth                       Skip Groth16 artifact/verifier regeneration
 `);
+}
+
+function normalizeGrothSource(value) {
+  if (value === "trusted" || value === "mpc") {
+    return value;
+  }
+  throw new Error(`Unsupported --groth-source=${value}. Expected trusted or mpc.`);
+}
+
+function resolveGrothPaths(source) {
+  if (source === "trusted") {
+    return {
+      source,
+      generatorScriptPath: path.join("scripts", "groth16", "trusted-setup", "generate_update_tree_setup.mjs"),
+      verificationKeyPath: path.join(repoRoot, "groth16", "trusted-setup", "crs", "verification_key.json"),
+      metadataPath: path.join(repoRoot, "groth16", "trusted-setup", "crs", "metadata.json"),
+    };
+  }
+
+  return {
+    source,
+    generatorScriptPath: path.join("groth16", "mpc-setup", "generate_update_tree_setup_from_dusk.mjs"),
+    verificationKeyPath: path.join(repoRoot, "groth16", "mpc-setup", "crs", "verification_key.json"),
+    metadataPath: path.join(repoRoot, "groth16", "mpc-setup", "crs", "metadata.json"),
+  };
 }
 
 function parseArgs(argv) {
   const options = {
     manifestOut: defaultManifestPath,
+    grothSource: "trusted",
     skipSubmoduleUpdate: false,
     skipInstall: false,
     skipTokamakVerifier: false,
@@ -99,6 +119,9 @@ function parseArgs(argv) {
     switch (current) {
       case "--manifest-out":
         options.manifestOut = path.resolve(process.cwd(), take(current));
+        break;
+      case "--groth-source":
+        options.grothSource = normalizeGrothSource(take(current));
         break;
       case "--skip-submodule-update":
         options.skipSubmoduleUpdate = true;
@@ -198,15 +221,15 @@ async function regenerateTokamakVerifierKey() {
   assertExists(tokamakVerifierSourcePath, "Tokamak verifier source");
 }
 
-async function regenerateGrothArtifacts() {
-  await run("node", [path.join("scripts", "groth16", "trusted-setup", "generate_update_tree_setup.mjs")], {
+async function regenerateGrothArtifacts(grothPaths) {
+  await run("node", [grothPaths.generatorScriptPath], {
     cwd: repoRoot,
   });
   await run(
     "python3",
     [
       path.join("scripts", "groth16", "verifier", "generate_update_tree_verifier.py"),
-      grothVerificationKeyPath,
+      grothPaths.verificationKeyPath,
       grothVerifierOutputPath,
     ],
     { cwd: repoRoot }
@@ -235,6 +258,7 @@ async function resolveSubmoduleRevision() {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  const grothPaths = resolveGrothPaths(options.grothSource);
   ensureDir(artifactRoot);
 
   if (!options.skipSubmoduleUpdate) {
@@ -250,13 +274,11 @@ async function main() {
   }
 
   if (!options.skipGroth) {
-    await regenerateGrothArtifacts();
+    await regenerateGrothArtifacts(grothPaths);
   }
 
   const tokamakL2Js = await resolveTokamakL2JsMetadata();
   const submodule = await resolveSubmoduleRevision();
-  const grothMetadataPath = path.join(repoRoot, "groth16", "trusted-setup", "crs", "metadata.json");
-
   const manifest = {
     generatedAt: new Date().toISOString(),
     tokamakSubmodule: {
@@ -274,9 +296,10 @@ async function main() {
       setupParams: readJson(setupParamsPath),
     },
     groth16: {
-      verificationKeyPath: grothVerificationKeyPath,
+      source: grothPaths.source,
+      verificationKeyPath: grothPaths.verificationKeyPath,
       verifierPath: grothVerifierOutputPath,
-      metadata: readJson(grothMetadataPath),
+      metadata: readJson(grothPaths.metadataPath),
     },
     bridge: {
       recommendedMerkleTreeLevels: tokamakL2Js.mtDepth,

@@ -99,6 +99,26 @@ case "${BRIDGE_NETWORK}" in
         ;;
 esac
 
+if [[ -n "${BRIDGE_GROTH_SOURCE:-}" ]]; then
+    EFFECTIVE_BRIDGE_GROTH_SOURCE="${BRIDGE_GROTH_SOURCE}"
+elif [[ "${BRIDGE_NETWORK}" == "mainnet" ]]; then
+    EFFECTIVE_BRIDGE_GROTH_SOURCE="mpc"
+else
+    EFFECTIVE_BRIDGE_GROTH_SOURCE="trusted"
+fi
+
+case "${EFFECTIVE_BRIDGE_GROTH_SOURCE}" in
+    trusted|mpc)
+        ;;
+    *)
+        echo "Unsupported BRIDGE_GROTH_SOURCE=${EFFECTIVE_BRIDGE_GROTH_SOURCE}" >&2
+        echo "Supported values: trusted, mpc" >&2
+        exit 1
+        ;;
+esac
+
+export BRIDGE_GROTH_SOURCE="${EFFECTIVE_BRIDGE_GROTH_SOURCE}"
+
 case "${DEPLOY_MODE}" in
     upgrade|redeploy-proxy)
         ;;
@@ -125,6 +145,7 @@ REFLECTION_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$PROJECT_ROOT/scrip
 REFLECTION_CMD=(
     node "$PROJECT_ROOT/scripts/zk/reflect-submodule-updates.mjs"
     --manifest-out "$REFLECTION_MANIFEST_PATH"
+    --groth-source "$BRIDGE_GROTH_SOURCE"
 )
 
 if [[ "${BRIDGE_SKIP_SUBMODULE_UPDATE:-0}" == "1" ]]; then
@@ -192,6 +213,7 @@ echo "RPC network label: ${NETWORK_LABEL}"
 echo "Environment file: ${ENV_FILE}"
 echo "Resolved tokamak-l2js version: ${BRIDGE_MERKLE_TREE_SOURCE_VERSION}"
 echo "Resolved tokamak-l2js MT_DEPTH: ${BRIDGE_MERKLE_TREE_LEVELS}"
+echo "Groth16 artifact source: ${BRIDGE_GROTH_SOURCE}"
 echo "Reflection manifest: ${REFLECTION_MANIFEST_PATH}"
 
 (
@@ -214,7 +236,8 @@ node "$PROJECT_ROOT/bridge/scripts/generate-bridge-abi-manifest.mjs" \
     --chain-id "$BRIDGE_CHAIN_ID" \
     --deployment-path "$BRIDGE_OUTPUT_PATH_ABS" >/dev/null
 
-bash "$PROJECT_ROOT/apps/private-state/scripts/deploy/sync-groth16-update-tree-artifacts.sh" "$BRIDGE_CHAIN_ID"
+GROTH_ARTIFACT_SOURCE="$BRIDGE_GROTH_SOURCE" \
+    bash "$PROJECT_ROOT/apps/private-state/scripts/deploy/sync-groth16-update-tree-artifacts.sh" "$BRIDGE_CHAIN_ID"
 
 echo "Deployment artifact: $BRIDGE_OUTPUT_PATH_ABS"
 echo "ABI manifest: $BRIDGE_ABI_MANIFEST_PATH_ABS"

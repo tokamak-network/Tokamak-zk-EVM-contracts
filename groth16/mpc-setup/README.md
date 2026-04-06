@@ -12,7 +12,7 @@ The script performs these steps:
 2. Compile the circuit and compute the minimum required Powers of Tau power.
 3. Download the published Dusk response artifact for contribution `0015`.
 4. Verify the downloaded response file hash against the published report value.
-5. Extract only the required phase 1 point sections into a local `snarkjs`-compatible ptau container.
+5. Convert only the required phase 1 point sections into a local `snarkjs`-compatible ptau container with the Rust helper in this directory.
 6. Prepare phase 2 values and generate the final `zkey` and verification key.
 
 ## Usage
@@ -38,4 +38,4 @@ The final phase 1 points come from the published Dusk response artifact. The int
 
 ## Current Status
 
-The Dusk-backed setup flow in this directory is experimental. The response download and hash verification are implemented, but the BLS12-381 point conversion path still needs additional work before the full setup reliably produces final artifacts in this repository.
+The Dusk-backed setup flow in this directory completes successfully for the current `updateTree` circuit and produces committed setup artifacts under `groth16/mpc-setup/updateTree/`.

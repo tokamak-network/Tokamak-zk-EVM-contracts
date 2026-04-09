@@ -36,9 +36,7 @@ Options:
   --abi-manifest <path>             ABI manifest path; defaults to bridge/deployments/bridge-abi-manifest.<chain-id>.json
   --dapp-manager <address>          Override DAppManager address; defaults from deployment JSON
   --dapp-label <name>               Logical DApp label used to merge multiple example groups
-  --app-network <name>              App deployment network; defaults to BRIDGE_NETWORK or the bridge chain name
-  --app-env-file <path>             Environment file for app deployment; defaults to apps/.env
-  --app-rpc-url <url>               RPC URL override used only for app deployment
+  --app-network <name>              App deployment network whose manifests should be used; defaults to APPS_NETWORK, BRIDGE_NETWORK, or the bridge chain name
   --app-deployment-path <path>      App deployment manifest; defaults to private-state latest for the app chain
   --storage-layout-path <path>      App storage-layout manifest; defaults to private-state latest for the app chain
   --rpc-url <url>                   JSON-RPC URL; defaults from bridge env variables
@@ -60,8 +58,6 @@ function parseArgs(argv) {
     dAppManager: null,
     dappLabel: null,
     appNetwork: null,
-    appEnvFile: null,
-    appRpcUrl: null,
     appDeploymentPath: null,
     storageLayoutPath: null,
     rpcUrl: null,
@@ -103,12 +99,6 @@ function parseArgs(argv) {
         break;
       case "--app-network":
         options.appNetwork = take(current);
-        break;
-      case "--app-env-file":
-        options.appEnvFile = path.resolve(process.cwd(), take(current));
-        break;
-      case "--app-rpc-url":
-        options.appRpcUrl = take(current);
         break;
       case "--app-deployment-path":
         options.appDeploymentPath = path.resolve(process.cwd(), take(current));
@@ -307,26 +297,6 @@ function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
   };
 }
 
-async function runPrivateStateDeployment({ appNetwork, appEnvFile, appRpcUrl }) {
-  const deployScriptPath = path.join(repoRoot, "apps", "private-state", "scripts", "deploy", "deploy-private-state.sh");
-  const env = {
-    ...process.env,
-    APPS_NETWORK: appNetwork,
-  };
-
-  if (appEnvFile) {
-    env.APPS_ENV_FILE = appEnvFile;
-  }
-  if (appRpcUrl) {
-    env.APPS_RPC_URL_OVERRIDE = appRpcUrl;
-  }
-
-  await run("bash", [deployScriptPath], {
-    cwd: repoRoot,
-    env,
-  });
-}
-
 function run(command, args, { cwd = repoRoot, streamOutput = true, env = process.env } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -522,11 +492,6 @@ async function main() {
   await updateTokamakSubmodule();
   ensureTokamakDistBackendBinaries(tokamakSubmoduleRoot);
   await runTokamakInstall();
-  await runPrivateStateDeployment({
-    appNetwork,
-    appEnvFile: options.appEnvFile,
-    appRpcUrl: options.appRpcUrl,
-  });
   const appDeploymentPath =
     options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "deployment");
   const storageLayoutPath =
@@ -613,6 +578,8 @@ async function main() {
   };
 
   writeJson(manifestOut, manifest);
+  console.log(`Using app deployment manifest: ${appDeploymentPath}`);
+  console.log(`Using app storage layout manifest: ${storageLayoutPath}`);
   console.log(`Registered DApp ${options.dappId} for groups ${options.groups.join(", ")} as ${dappLabel}.`);
   console.log(`Wrote manifest: ${manifestOut}`);
 }

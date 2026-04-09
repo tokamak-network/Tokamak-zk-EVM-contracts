@@ -148,11 +148,17 @@ The deployment JSON is post-processed to include `chainId` and `abiManifestPath`
 
 To add a new DApp metadata bundle to an already deployed bridge, use:
 
+- `bridge/scripts/deploy-and-add-dapp.mjs`
 - `bridge/scripts/admin-add-dapp.mjs`
 
-This script:
+`deploy-and-add-dapp.mjs`:
 
-- deploys the private-state app to the selected app network before registration by default
+- deploys the private-state app to the selected app network first
+- then invokes `admin-add-dapp.mjs` to register the already deployed app on the bridge
+
+`admin-add-dapp.mjs`:
+
+- assumes the private-state app is already deployed
 - optionally updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`
 - runs `tokamak-cli --install` without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
@@ -168,7 +174,7 @@ Current constraint:
 Example usage:
 
 ```bash
-node bridge/scripts/admin-add-dapp.mjs \
+node bridge/scripts/deploy-and-add-dapp.mjs \
   --group mintNotes \
   --dapp-id 1
 ```
@@ -176,7 +182,7 @@ node bridge/scripts/admin-add-dapp.mjs \
 If the app must be deployed to a different network before registration, select it explicitly:
 
 ```bash
-node bridge/scripts/admin-add-dapp.mjs \
+node bridge/scripts/deploy-and-add-dapp.mjs \
   --group mintNotes \
   --group transferNotes \
   --group redeemNotes \
@@ -186,9 +192,19 @@ node bridge/scripts/admin-add-dapp.mjs \
 
 Relevant options:
 
-- `--app-network <name>` chooses where the private-state deployment step runs
-- `--app-env-file <path>` overrides the environment file consumed by `deploy-private-state.sh`
-- `--app-rpc-url <url>` overrides the app deployment RPC endpoint only
-- `--app-deployment-path <path>` and `--storage-layout-path <path>` override the manifests used for registration
+- `deploy-and-add-dapp.mjs` accepts `--app-network <name>`, `--app-env-file <path>`, and `--app-rpc-url <url>` for the deployment step
+- `admin-add-dapp.mjs` accepts `--app-network <name>` to choose which already-deployed app manifests should be used
+- `admin-add-dapp.mjs` accepts `--app-deployment-path <path>` and `--storage-layout-path <path>` to override those manifests explicitly
 
-When `--app-network` is omitted, the script defaults to `APPS_NETWORK`, then `BRIDGE_NETWORK`, and finally the bridge chain name when it is known.
+When `--app-network` is omitted, both scripts default to `APPS_NETWORK`, then `BRIDGE_NETWORK`, and finally the bridge chain name when it is known.
+
+If the private-state app is already deployed and only registration is needed, use:
+
+```bash
+node bridge/scripts/admin-add-dapp.mjs \
+  --group mintNotes \
+  --group transferNotes \
+  --group redeemNotes \
+  --dapp-id 1 \
+  --app-network sepolia
+```

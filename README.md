@@ -106,7 +106,13 @@ $EDITOR .env
 bash bridge/scripts/deploy-bridge.sh
 ```
 
-For an already deployed bridge stack, DApp metadata registration is handled by:
+For an already deployed bridge stack, deploy-and-register the private-state DApp with:
+
+```bash
+node bridge/scripts/deploy-and-add-dapp.mjs --group mintNotes --dapp-id 1
+```
+
+If the app is already deployed and only registration is needed, use:
 
 ```bash
 node bridge/scripts/admin-add-dapp.mjs --group mintNotes --dapp-id 1

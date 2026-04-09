@@ -924,6 +924,10 @@ function deployPrivateStateForCliE2E() {
   run("bash", [privateStateArtifactWriterPath, "31337"], {
     cwd: repoRoot,
     quiet: true,
+    env: {
+      ...process.env,
+      PRIVATE_STATE_SKIP_GROTH_SYNC: "1",
+    },
   });
 }
 
@@ -941,7 +945,6 @@ function deployBridgeStack() {
     BRIDGE_SKIP_SUBMODULE_UPDATE: "1",
     BRIDGE_SKIP_TOKAMAK_INSTALL: "1",
     BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH: "1",
-    BRIDGE_SKIP_GROTH_REFRESH: "1",
     BRIDGE_DEPLOY_MOCK_ASSET: "true",
   };
 

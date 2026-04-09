@@ -151,4 +151,8 @@ echo "Updated storage layout manifest: $STORAGE_LAYOUT_LATEST_FILE"
 echo "Mirrored storage layout manifest: $SUBMODULE_STORAGE_LAYOUT_LATEST_FILE"
 echo "Wrote callable ABI files under: $DEPLOY_DIR"
 
-bash "$PROJECT_ROOT/apps/private-state/scripts/deploy/sync-groth16-update-tree-artifacts.sh" "$CHAIN_ID"
+if [[ "${PRIVATE_STATE_SKIP_GROTH_SYNC:-0}" == "1" ]]; then
+    echo "Skipping Groth16 artifact sync because PRIVATE_STATE_SKIP_GROTH_SYNC=1"
+else
+    bash "$PROJECT_ROOT/apps/private-state/scripts/deploy/sync-groth16-update-tree-artifacts.sh" "$CHAIN_ID"
+fi

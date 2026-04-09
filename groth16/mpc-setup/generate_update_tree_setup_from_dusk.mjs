@@ -24,7 +24,6 @@ const circuitBaseName = "circuit_updateTree";
 const compiledR1csPath = path.join(buildDir, `${circuitBaseName}.r1cs`);
 const rustManifestPath = path.join(trustedSetupRoot, "Cargo.toml");
 const localSnarkJsBinary = path.join(circuitsRoot, "node_modules", ".bin", "snarkjs");
-const nodeBinaryOverride = process.env.MPC_SETUP_NODE?.trim() || null;
 const resolvedCommands = new Map();
 const duskSource = Object.freeze({
     ceremony: "Dusk Trusted Setup for BLS12-381",
@@ -45,9 +44,6 @@ function resolveCommand(command) {
 
     const directCandidates = [];
     if (command === "node") {
-        if (nodeBinaryOverride) {
-            directCandidates.push(nodeBinaryOverride);
-        }
         if (process.execPath) {
             directCandidates.push(process.execPath);
         }

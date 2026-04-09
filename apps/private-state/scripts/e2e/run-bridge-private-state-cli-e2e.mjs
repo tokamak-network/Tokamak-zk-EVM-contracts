@@ -99,6 +99,10 @@ const requiredTokamakSetupArtifacts = [
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
 const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
+const tokamakStepArtifactDirectories = [
+  path.join("synthesizer", "output"),
+  path.join("preprocess", "output"),
+];
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const dAppManagerAbi = [
@@ -419,7 +423,16 @@ function ensureTokamakSetupArtifacts() {
 function copyTokamakArtifacts(stepDir) {
   const resourceRoot = path.join(stepDir, "resource");
   fs.rmSync(resourceRoot, { recursive: true, force: true });
-  fs.cpSync(path.join(tokamakRoot, "dist", "resource"), resourceRoot, { recursive: true });
+  for (const relativeDirectory of tokamakStepArtifactDirectories) {
+    const sourceDir = path.join(tokamakRoot, "dist", "resource", relativeDirectory);
+    if (!fs.existsSync(sourceDir)) {
+      continue;
+    }
+
+    const targetDir = path.join(resourceRoot, relativeDirectory);
+    fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+    fs.cpSync(sourceDir, targetDir, { recursive: true });
+  }
 }
 
 async function applyDepositSnapshot(stateManager, vaultAddress, keyHex, nextValue) {

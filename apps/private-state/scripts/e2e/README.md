@@ -60,3 +60,7 @@ After a successful run, the harness prunes temporary CLI e2e artifacts and leave
 - the CLI e2e `summary.json`
 - the channel workspace created for the test under `~/tokamak-private-channels/workspace/<network>/<channel>/channel/`
 - the participant wallets created for the test under `~/tokamak-private-channels/workspace/<network>/<channel>/wallets/`
+
+To keep disk usage bounded, both harnesses now archive only the step-local Tokamak outputs they
+actually consume downstream (`synthesizer`, `preprocess`, and where needed `prove`) instead of
+copying the full shared `resource/setup/output` directory into every step artifact bundle.

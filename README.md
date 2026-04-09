@@ -118,6 +118,10 @@ If the app is already deployed and only registration is needed, use:
 node bridge/scripts/admin-add-dapp.mjs --group mintNotes --dapp-id 1
 ```
 
+Bridge deployment owns the canonical mirrored Groth16 artifacts under
+`bridge/deployments/groth16/<chain-id>/`, and DApp registration mirrors the
+prover/CLI-consumed subset into `apps/private-state/deploy/groth16/<chain-id>/`.
+
 See [bridge/README.md](./bridge/README.md) for deployment modes, environment variables, and bridge registration details.
 
 ## Current Directory Guide

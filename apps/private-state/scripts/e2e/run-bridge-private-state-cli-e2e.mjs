@@ -69,6 +69,12 @@ const privateStateDeployScriptPath = path.resolve(
   "DeployPrivateState.s.sol:DeployPrivateStateScript",
 );
 const privateStateArtifactWriterPath = path.resolve(appRoot, "scripts", "deploy", "write-deploy-artifacts.sh");
+const privateStateGrothArtifactSyncPath = path.resolve(
+  appRoot,
+  "scripts",
+  "deploy",
+  "sync-groth16-update-tree-artifacts.sh",
+);
 const controllerAbiPath = path.resolve(appRoot, "deploy", "PrivateStateController.callable-abi.json");
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
@@ -924,10 +930,6 @@ function deployPrivateStateForCliE2E() {
   run("bash", [privateStateArtifactWriterPath, "31337"], {
     cwd: repoRoot,
     quiet: true,
-    env: {
-      ...process.env,
-      PRIVATE_STATE_SKIP_GROTH_SYNC: "1",
-    },
   });
 }
 
@@ -1071,6 +1073,10 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
     result,
     definition: derived.definition,
     records: derived.records,
+  });
+  run("bash", [privateStateGrothArtifactSyncPath, "31337"], {
+    cwd: repoRoot,
+    quiet: true,
   });
   return result;
 }

@@ -237,7 +237,7 @@ node "$PROJECT_ROOT/bridge/scripts/generate-bridge-abi-manifest.mjs" \
     --deployment-path "$BRIDGE_OUTPUT_PATH_ABS" >/dev/null
 
 GROTH_ARTIFACT_SOURCE="$BRIDGE_GROTH_SOURCE" \
-    bash "$PROJECT_ROOT/apps/private-state/scripts/deploy/sync-groth16-update-tree-artifacts.sh" "$BRIDGE_CHAIN_ID"
+    bash "$PROJECT_ROOT/bridge/scripts/sync-groth16-artifacts.sh" "$BRIDGE_CHAIN_ID"
 
 echo "Deployment artifact: $BRIDGE_OUTPUT_PATH_ABS"
 echo "ABI manifest: $BRIDGE_ABI_MANIFEST_PATH_ABS"

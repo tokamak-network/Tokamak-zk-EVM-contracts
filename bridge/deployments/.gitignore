@@ -1,2 +1,6 @@
 *.json
 !.gitignore
+!groth16*.latest.json
+!groth16/
+!groth16/**/
+!groth16/**/*.json

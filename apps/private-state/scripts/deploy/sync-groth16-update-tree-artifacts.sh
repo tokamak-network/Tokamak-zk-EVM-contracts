@@ -3,21 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 DEPLOY_DIR="$PROJECT_ROOT/apps/private-state/deploy"
-GROTH_ARTIFACT_SOURCE="${GROTH_ARTIFACT_SOURCE:-trusted}"
-
-case "$GROTH_ARTIFACT_SOURCE" in
-    trusted)
-        SOURCE_GROTH_DIR="$PROJECT_ROOT/groth16/trusted-setup/crs"
-        ;;
-    mpc)
-        SOURCE_GROTH_DIR="$PROJECT_ROOT/groth16/mpc-setup/crs"
-        ;;
-    *)
-        echo "Unsupported GROTH_ARTIFACT_SOURCE=$GROTH_ARTIFACT_SOURCE" >&2
-        echo "Supported values: trusted, mpc" >&2
-        exit 1
-        ;;
-esac
+BRIDGE_DEPLOY_DIR="$PROJECT_ROOT/bridge/deployments"
 
 if [[ $# -ne 1 ]]; then
     echo "Usage: $0 <chain-id>" >&2
@@ -25,12 +11,32 @@ if [[ $# -ne 1 ]]; then
 fi
 
 CHAIN_ID="$1"
-ARTIFACT_DIR="$DEPLOY_DIR/groth16/updateTree/$CHAIN_ID"
+BRIDGE_MANIFEST_PATH="$BRIDGE_DEPLOY_DIR/groth16.${CHAIN_ID}.latest.json"
+ARTIFACT_DIR="$DEPLOY_DIR/groth16/$CHAIN_ID"
 MANIFEST_PATH="$DEPLOY_DIR/groth16-updateTree.${CHAIN_ID}.latest.json"
 TIMESTAMP_UTC="$(date -u +"%Y%m%dT%H%M%SZ")"
 
-SOURCE_ZKEY_PATH="$SOURCE_GROTH_DIR/circuit_final.zkey"
-SOURCE_METADATA_PATH="$SOURCE_GROTH_DIR/metadata.json"
+if [[ ! -f "$BRIDGE_MANIFEST_PATH" ]]; then
+    echo "Missing bridge Groth16 manifest: $BRIDGE_MANIFEST_PATH" >&2
+    exit 1
+fi
+
+resolve_manifest_artifact_path() {
+    local manifest_path="$1"
+    local artifact_path="$2"
+
+    if [[ "$artifact_path" = /* ]]; then
+        printf '%s\n' "$artifact_path"
+    else
+        local manifest_dir
+        manifest_dir="$(cd "$(dirname "$manifest_path")" && pwd)"
+        printf '%s\n' "$manifest_dir/$artifact_path"
+    fi
+}
+
+BRIDGE_GROTH_SOURCE="$(jq -r '.grothArtifactSource // empty' "$BRIDGE_MANIFEST_PATH")"
+SOURCE_ZKEY_PATH="$(resolve_manifest_artifact_path "$BRIDGE_MANIFEST_PATH" "$(jq -r '.artifacts.zkeyPath // empty' "$BRIDGE_MANIFEST_PATH")")"
+SOURCE_METADATA_PATH="$(resolve_manifest_artifact_path "$BRIDGE_MANIFEST_PATH" "$(jq -r '.artifacts.metadataPath // empty' "$BRIDGE_MANIFEST_PATH")")"
 
 for required_path in \
     "$SOURCE_ZKEY_PATH" \
@@ -42,6 +48,7 @@ do
     fi
 done
 
+rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR"
 
 cp "$SOURCE_ZKEY_PATH" "$ARTIFACT_DIR/circuit_final.zkey"
@@ -50,13 +57,15 @@ cp "$SOURCE_METADATA_PATH" "$ARTIFACT_DIR/metadata.json"
 jq -n \
     --arg generatedAtUtc "$TIMESTAMP_UTC" \
     --arg chainId "$CHAIN_ID" \
-    --arg grothArtifactSource "$GROTH_ARTIFACT_SOURCE" \
-    --arg zkeyPath "groth16/updateTree/$CHAIN_ID/circuit_final.zkey" \
-    --arg metadataPath "groth16/updateTree/$CHAIN_ID/metadata.json" \
+    --arg grothArtifactSource "$BRIDGE_GROTH_SOURCE" \
+    --arg bridgeManifestPath "$(basename "$BRIDGE_MANIFEST_PATH")" \
+    --arg zkeyPath "groth16/$CHAIN_ID/circuit_final.zkey" \
+    --arg metadataPath "groth16/$CHAIN_ID/metadata.json" \
     '{
         generatedAtUtc: $generatedAtUtc,
         chainId: ($chainId | tonumber),
         grothArtifactSource: $grothArtifactSource,
+        bridgeManifestPath: $bridgeManifestPath,
         artifacts: {
             zkeyPath: $zkeyPath,
             metadataPath: $metadataPath
@@ -64,4 +73,4 @@ jq -n \
     }' > "$MANIFEST_PATH"
 
 echo "Updated Groth16 updateTree manifest: $MANIFEST_PATH"
-echo "Groth16 artifact source: $GROTH_ARTIFACT_SOURCE"
+echo "Groth16 artifact source: $BRIDGE_GROTH_SOURCE"

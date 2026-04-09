@@ -51,11 +51,14 @@ Successful deployments write app-local artifacts into `apps/private-state/deploy
 - `deployment.<chain-id>.latest.json`
 - `storage-layout.<chain-id>.<timestamp>.json`
 - `storage-layout.<chain-id>.latest.json`
-- `groth16-updateTree.<chain-id>.latest.json`
-- `groth16/updateTree/<chain-id>/circuit_final.zkey`
-- `groth16/updateTree/<chain-id>/metadata.json`
 - `PrivateStateController.callable-abi.json`
 - `L2AccountingVault.callable-abi.json`
+
+Bridge-side DApp registration then refreshes the app-local Groth16 consumption mirror under:
+
+- `groth16-updateTree.<chain-id>.latest.json`
+- `groth16/<chain-id>/circuit_final.zkey`
+- `groth16/<chain-id>/metadata.json`
 
 Successful deployments also refresh the checked-in Synthesizer private-state launch inputs under:
 

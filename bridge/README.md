@@ -159,6 +159,7 @@ To add a new DApp metadata bundle to an already deployed bridge, use:
 `admin-add-dapp.mjs`:
 
 - assumes the private-state app is already deployed
+- mirrors the prover/CLI-consumed Groth16 artifacts from `bridge/deployments/groth16/<chain-id>/` into `apps/private-state/deploy/groth16/<chain-id>/`
 - optionally updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`
 - runs `tokamak-cli --install` without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
@@ -208,3 +209,10 @@ node bridge/scripts/admin-add-dapp.mjs \
   --dapp-id 1 \
   --app-network sepolia
 ```
+After a successful bridge deployment, the bridge-owned Groth16 deployment mirror is refreshed under:
+
+- `bridge/deployments/groth16.<chain-id>.latest.json`
+- `bridge/deployments/groth16/<chain-id>/circuit_final.zkey`
+- `bridge/deployments/groth16/<chain-id>/metadata.json`
+- `bridge/deployments/groth16/<chain-id>/verification_key.json`
+- `bridge/deployments/groth16/<chain-id>/phase1_final_14.ptau` when the selected source provides it

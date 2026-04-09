@@ -26,6 +26,14 @@ const tokamakSubmoduleRoot = path.join(repoRoot, "submodules", "Tokamak-zk-EVM")
 const synthesizerRoot = path.join(tokamakSubmoduleRoot, "packages", "frontend", "synthesizer");
 const tokamakCliPath = path.join(tokamakSubmoduleRoot, "tokamak-cli");
 const defaultArtifactsRoot = path.join(repoRoot, "bridge", "deployments", "dapp-registration-artifacts");
+const syncAppGrothArtifactsScriptPath = path.join(
+  repoRoot,
+  "apps",
+  "private-state",
+  "scripts",
+  "deploy",
+  "sync-groth16-update-tree-artifacts.sh",
+);
 
 function usage() {
   console.log(`Usage:
@@ -547,6 +555,10 @@ async function main() {
   );
   const receipt = await tx.wait();
 
+  await run("bash", [syncAppGrothArtifactsScriptPath, String(appChainId)], {
+    cwd: repoRoot,
+  });
+
   const manifest = {
     generatedAt: new Date().toISOString(),
     deploymentPath,
@@ -555,6 +567,7 @@ async function main() {
     appChainId,
     appDeploymentPath,
     storageLayoutPath,
+    appGrothManifestPath: path.join(repoRoot, "apps", "private-state", "deploy", `groth16-updateTree.${appChainId}.latest.json`),
     groupNames: options.groups,
     dappLabel,
     dappId: options.dappId,

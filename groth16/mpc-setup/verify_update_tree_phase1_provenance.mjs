@@ -17,10 +17,6 @@ const tmpRoot = path.join(trustedSetupRoot, ".tmp");
 const defaultMetadataPath = path.join(trustedSetupRoot, "crs", "metadata.json");
 const rustManifestPath = path.join(trustedSetupRoot, "Cargo.toml");
 const localSnarkJsBinary = path.join(circuitsRoot, "node_modules", ".bin", "snarkjs");
-const preferredNodeCandidates = [
-    "/opt/homebrew/opt/node@20/bin/node",
-    "/opt/homebrew/Cellar/node@20/20.20.0/bin/node"
-];
 const resolvedCommands = new Map();
 
 function findFlag(name) {
@@ -46,7 +42,9 @@ function resolveCommand(command) {
 
     const directCandidates = [];
     if (command === "node") {
-        directCandidates.push(...preferredNodeCandidates);
+        if (process.execPath) {
+            directCandidates.push(process.execPath);
+        }
     }
     if (command === "snarkjs") {
         directCandidates.push(localSnarkJsBinary);
@@ -55,10 +53,7 @@ function resolveCommand(command) {
     const pathEntries = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
     const candidates = [
         ...directCandidates,
-        ...pathEntries.map((entry) => path.join(entry, command)),
-        path.join("/opt/homebrew/bin", command),
-        path.join("/usr/local/bin", command),
-        path.join("/usr/bin", command)
+        ...pathEntries.map((entry) => path.join(entry, command))
     ];
 
     for (const candidate of candidates) {

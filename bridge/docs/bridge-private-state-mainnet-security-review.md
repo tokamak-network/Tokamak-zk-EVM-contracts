@@ -58,8 +58,9 @@ However, the current implementation still has several deployment-blocking risks:
 
 1. A privileged owner can replace verifiers or upgrade core contracts and thereby steal or freeze all funds.
 2. Channel registration is permissionless and bounded by only `4096` reserved token-vault leaf indices, which allows channel-join denial of service through registration exhaustion.
-3. A single shared L1 vault creates bridge-wide blast radius across every channel.
-4. Channel execution depends on frozen per-channel metadata, while the currently generated registration set is incomplete, so users can be stranded in channels that cannot execute all intended note shapes.
+3. Channel execution depends on frozen per-channel metadata, while the currently generated registration set is incomplete, so users can be stranded in channels that cannot execute all intended note shapes.
+
+The shared L1 vault still increases incident blast radius, but this review treats that as an architectural observation rather than a standalone present-code finding.
 
 Mainnet deployment is reasonable only after those items are explicitly addressed or the launch is intentionally constrained to a trusted pilot with strict user caps and trusted operators.
 
@@ -240,47 +241,7 @@ Expected mitigation strength:
   - the fixed join fee is the main non-recoverable deterrent
   - honest users must also pay the same entry cost
 
-### Finding 3: One shared L1 vault gives every bug bridge-wide blast radius
-
-Severity: High
-
-Relevant code:
-
-- `bridge/src/BridgeCore.sol:52`
-- `bridge/src/BridgeCore.sol:101-105`
-- `bridge/src/BridgeCore.sol:118-168`
-- `bridge/src/L1TokenVault.sol:33-44`
-
-Why it matters:
-
-Every channel binds to the same `bridgeTokenVault`.
-
-That means:
-
-- all deposits from all channels are pooled
-- any proof-acceptance failure that lets a user overstate channel token-vault balance affects one global custody bucket
-- concrete dangerous bug classes include:
-  - accepting a Groth `deposit` or `withdraw` update whose `currentUserValue`, `updatedUserValue`, or `updatedRoot` does not actually correspond to the claimed leaf transition
-  - accepting a Tokamak proof whose published `channelTokenVault` storage write does not faithfully match the state transition that the bridge thinks it is finalizing
-  - accepting a proof under the wrong channel/root/key binding, so one channel's state transition can unlock claims against custody funded by all channels
-
-Fund-manipulation impact:
-
-- a single proof-acceptance failure of the kinds above is not isolated to one channel or one DApp instance
-- system insolvency is global, not local
-
-Service-disruption impact:
-
-- an incident response on the shared vault halts every channel together
-- a single channel bug can force bridge-wide emergency action
-
-Required before mainnet:
-
-- decide explicitly whether pooled custody is acceptable
-- if not, split vault risk at least by channel family or DApp
-- if pooled custody is kept, add conservative TVL caps and staged rollout limits
-
-### Finding 4: Channel metadata is frozen per channel, and current registration coverage is incomplete
+### Finding 3: Channel metadata is frozen per channel, and current registration coverage is incomplete
 
 Severity: High
 
@@ -328,7 +289,7 @@ Required before mainnet:
 - add a channel metadata versioning and migration strategy
 - treat a missing function example as a deployment blocker, not as an operator footnote
 
-### Finding 5: Exact-transfer token behavior is a hard external dependency
+### Finding 4: Exact-transfer token behavior is a hard external dependency
 
 Severity: Medium
 
@@ -396,6 +357,19 @@ The redeem family could not be parsed by the checker because of inline assembly 
 - fixed-arity note preparation
 - nullifier consumption
 - one credit into `L2AccountingVault`
+
+### 6.4 Shared vault custody increases incident blast radius
+
+This review did not identify a direct present bug that lets one channel steal another channel's funds solely because all channels share one `bridgeTokenVault`.
+
+The current implementation still binds Groth and Tokamak acceptance to channel-specific registrations, roots, and metadata, so pooled custody is not treated here as an independent exploit primitive.
+
+It remains worth disclosing as an architectural observation:
+
+- if some other proof-acceptance or accounting bug is discovered later, losses would hit one global custody pool rather than a naturally isolated per-channel vault
+- incident response on the shared vault would still affect every channel together
+
+That is weaker than a standalone finding, but it is still relevant for rollout sizing, TVL caps, and migration planning.
 
 ## 7. Mainnet Readiness Verdict
 

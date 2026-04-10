@@ -57,7 +57,7 @@ I did not find an unprivileged direct-drain path in the current bridge or DApp l
 However, the current implementation still has several deployment-blocking risks:
 
 1. A privileged owner can replace verifiers or upgrade core contracts and thereby steal or freeze all funds.
-2. Channel registration is permissionless, first-come-first-served, and bounded by only `4096` token-vault leaves, which allows identity squatting and channel-join denial of service.
+2. Channel registration is permissionless and bounded by only `4096` reserved token-vault leaf indices, which allows channel-join denial of service through registration exhaustion.
 3. A single shared L1 vault creates bridge-wide blast radius across every channel.
 4. Channel execution depends on frozen per-channel metadata, while the currently generated registration set is incomplete, so users can be stranded in channels that cannot execute all intended note shapes.
 
@@ -153,7 +153,7 @@ Required before mainnet:
 - publish an explicit policy for when verifier rotation or upgrades are allowed
 - strongly consider freezing upgrades and verifier addresses after a maturation period
 
-### Finding 2: Channel registration is squattable and sybil-exhaustible
+### Finding 2: Channel registration is sybil-exhaustible through leaf-index reservation
 
 Severity: High
 
@@ -162,7 +162,7 @@ Relevant code:
 - `bridge/src/ChannelManager.sol:222-272`
 - `apps/private-state/cli/private-state-bridge-cli.mjs:1052-1113`
 - `bridge/src/ChannelManager.sol:71`
-- `bridge/src/ChannelManager.sol:245-253`
+- `bridge/src/ChannelManager.sol:245-266`
 
 Why it matters:
 
@@ -181,42 +181,39 @@ The bridge only checks local consistency:
 - one registration per leaf index
 - `leafIndex == storageKey % 4096`
 
-It does **not** prove that the caller is entitled to claim that L2 address or note-receive key.
+The critical point for denial of service is that registration reserves the `leafIndex` immediately, before any bridge deposit happens. The function records the reservation in `_channelTokenVaultLeafOwners`, so `join-channel` alone can consume one of the `4096` admissible registration indices for that channel.
 
 Attack scenarios:
 
-1. Mempool front-run of `join-channel`
-   - the CLI derives deterministic values locally and submits them directly
-   - an observer can copy those values into a higher-priority transaction
-   - the victim then loses the intended channel identity
+1. Leaf-index reservation exhaustion
+   - the channel token-vault tree admits only `4096` registration indices
+   - an attacker can create many L1 accounts and call `join-channel` repeatedly
+   - each successful registration reserves one `leafIndex` even if the attacker never deposits into the channel
+   - once enough indices are reserved, new legitimate users cannot register for that channel at all
 
-2. L2-address squatting
-   - an attacker can register a victim's intended L2 address first
-   - future senders resolve note delivery by L2 address and will read the squatted registration
-   - that can break note delivery and channel usability for the victim
-
-3. Leaf-space exhaustion
-   - the channel token-vault tree has only `4096` leaves
-   - sybil registrations can fill all leaf indices
-   - once full, new users cannot join the channel at all
+2. Channel griefing without capital commitment
+   - the attacker does not need to fund the bridge vault first
+   - the attacker does not need to move value into L2
+   - the attacker only pays registration gas, so the cost to deny channel access is much lower than the cost imposed on honest users
 
 Fund-manipulation impact:
 
-- this is primarily a liveness and routing attack, not a clean theft primitive
+- this is primarily a liveness attack, not a clean theft primitive
 - however, it can strand funds in the shared bridge vault because users cannot complete the L1-to-channel transition
 
 Service-disruption impact:
 
 - joining a channel can be denied at scale
-- a target user can be selectively blocked from a channel
-- sender note delivery can be pointed at unusable registrations
+- an otherwise healthy channel can become closed to new participants
+- operators may need to create and migrate users to a fresh channel even though the old channel's proof logic remains sound
 
 Required before mainnet:
 
-- bind registration to a user-controlled authorization proof, not only first-come-first-served calldata
-- consider commit-reveal or proof-of-knowledge registration to reduce mempool theft
-- add channel admission control, stake, or rate-limited registration if channels are intended to be scarce
-- define an operator procedure for recovering from squatted or exhausted channels
+- make registration consume a scarce resource other than gas alone
+- require a refundable bond or minimum bridge funding threshold before a registration becomes active
+- add an expiry or eviction rule for registrations that never activate with a deposit within a bounded time window
+- add operator-controlled channel admission or allowlisted onboarding if channels are intended to remain capacity-limited
+- support channel migration so an exhausted channel can be retired without stranding users
 
 ### Finding 3: One shared L1 vault gives every bug bridge-wide blast radius
 
@@ -377,7 +374,7 @@ The redeem family could not be parsed by the checker because of inline assembly 
 ### Must fix before open mainnet
 
 - privileged owner can rotate verifiers and upgrade core contracts
-- channel registration can be front-run and sybil-exhausted
+- channel registration can be sybil-exhausted through leaf-index reservation
 - channel creation can freeze incomplete or incorrect function metadata
 
 ### Strongly recommended before meaningful TVL

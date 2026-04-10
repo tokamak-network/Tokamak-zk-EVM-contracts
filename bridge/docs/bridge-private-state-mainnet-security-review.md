@@ -209,9 +209,32 @@ Service-disruption impact:
 
 Required before mainnet:
 
-- remove leaf-index reservation from `join-channel` so registration does not consume scarce balance-tree capacity before the user actually activates the channel
-- alternatively, separate the registration namespace from the balance-leaf namespace so note-receive identity registration cannot exhaust balance slots
-- if channel capacity is intended to remain explicitly limited, make channel admission permissioned and operator-controlled instead of pretending the channel is open to arbitrary public registration
+- replace the current gas-only `join-channel` path with an atomic `join-and-deposit` flow that:
+  - charges a fixed non-refundable join fee
+  - creates the channel registration
+  - verifies a `deposit` proof with `currentUserValue == 0`
+  - requires `updatedUserValue` to equal a fixed bootstrap balance configured for that channel
+- add an atomic `withdraw-and-exit` flow that:
+  - verifies a `withdraw` proof with `updatedUserValue == 0`
+  - requires the registration to have recorded at least one prior channel transaction activity
+  - deletes the registration and frees the reserved `leafIndex` only after the zero-balance exit succeeds
+- extend the per-user registration state with a `hasExecutedChannelTx` flag and, under the current non-relayed assumption, set that flag on successful `executeChannelTransaction(...)` calls for `msg.sender`
+- update the CLI and user guidance so `join-channel` becomes a proof-backed paid entry action rather than a free reservation call
+
+Expected mitigation strength:
+
+- this materially improves the current finding because leaf exhaustion is no longer a gas-only sybil attack
+- exhausting all `4096` indices would require, per occupied slot:
+  - one non-refundable join fee
+  - one bootstrap deposit locked in channel balance until exit
+  - one successful proof-backed entry transaction
+- an attacker who wants to recycle capital instead of leaving slots permanently occupied would also need at least one additional channel transaction per account before `withdraw-and-exit` can release the locked balance
+- the attack therefore becomes an economic denial of service rather than a near-free registration griefing primitive
+- this is still not a complete fix:
+  - a sufficiently well-funded attacker can still fill all slots
+  - the bootstrap deposit is capital lock, not permanent loss
+  - the fixed join fee is the main non-recoverable deterrent
+  - honest users must also pay the same entry cost
 
 ### Finding 3: One shared L1 vault gives every bug bridge-wide blast radius
 

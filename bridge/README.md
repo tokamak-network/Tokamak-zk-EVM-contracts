@@ -209,6 +209,22 @@ node bridge/scripts/admin-add-dapp.mjs \
   --dapp-id 1 \
   --app-network sepolia
 ```
+
+## User safety note
+
+For bridge-coupled private-state channels, users should treat `join-channel` as the activation step for all later channel activity.
+
+Operators and user-facing documentation should instruct users not to:
+
+- deposit channel funds
+- send notes to the channel L2 identity
+- expect incoming note delivery
+- attempt wallet recovery from channel activity
+
+until the `join-channel` transaction has been confirmed on-chain and the registration receipt has been checked successfully.
+
+Until that confirmation exists, the user's channel registration is not final and later channel actions can be mis-targeted or fail against incomplete channel identity state.
+
 After a successful bridge deployment, the bridge-owned Groth16 deployment mirror is refreshed under:
 
 - `bridge/deployments/groth16.<chain-id>.latest.json`

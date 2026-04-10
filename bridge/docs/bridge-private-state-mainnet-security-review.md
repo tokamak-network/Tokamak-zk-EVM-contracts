@@ -258,12 +258,15 @@ Every channel binds to the same `bridgeTokenVault`.
 That means:
 
 - all deposits from all channels are pooled
-- any proof bug that creates false available balances affects one global custody bucket
-- any malicious upgrade or verifier compromise impacts every channel simultaneously
+- any proof-acceptance failure that lets a user overstate channel token-vault balance affects one global custody bucket
+- concrete dangerous bug classes include:
+  - accepting a Groth `deposit` or `withdraw` update whose `currentUserValue`, `updatedUserValue`, or `updatedRoot` does not actually correspond to the claimed leaf transition
+  - accepting a Tokamak proof whose published `channelTokenVault` storage write does not faithfully match the state transition that the bridge thinks it is finalizing
+  - accepting a proof under the wrong channel/root/key binding, so one channel's state transition can unlock claims against custody funded by all channels
 
 Fund-manipulation impact:
 
-- a single proof-acceptance failure is not isolated to one channel or one DApp instance
+- a single proof-acceptance failure of the kinds above is not isolated to one channel or one DApp instance
 - system insolvency is global, not local
 
 Service-disruption impact:

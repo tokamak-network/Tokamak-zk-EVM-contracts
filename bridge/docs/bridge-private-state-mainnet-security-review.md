@@ -209,11 +209,9 @@ Service-disruption impact:
 
 Required before mainnet:
 
-- make registration consume a scarce resource other than gas alone
-- require a refundable bond or minimum bridge funding threshold before a registration becomes active
-- add an expiry or eviction rule for registrations that never activate with a deposit within a bounded time window
-- add operator-controlled channel admission or allowlisted onboarding if channels are intended to remain capacity-limited
-- support channel migration so an exhausted channel can be retired without stranding users
+- remove leaf-index reservation from `join-channel` so registration does not consume scarce balance-tree capacity before the user actually activates the channel
+- alternatively, separate the registration namespace from the balance-leaf namespace so note-receive identity registration cannot exhaust balance slots
+- if channel capacity is intended to remain explicitly limited, make channel admission permissioned and operator-controlled instead of pretending the channel is open to arbitrary public registration
 
 ### Finding 3: One shared L1 vault gives every bug bridge-wide blast radius
 

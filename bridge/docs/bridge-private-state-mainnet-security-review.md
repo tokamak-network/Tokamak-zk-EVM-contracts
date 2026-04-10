@@ -149,9 +149,13 @@ Required before mainnet:
 
 - move bridge ownership to a well-audited multisig before user funds arrive
 - separate emergency pause authority from upgrade authority
-- add a timelock or a staged verifier-rotation process for non-emergency changes
+- stop using one globally mutable verifier pointer for all existing channels
+- snapshot the current Groth16 verifier and Tokamak verifier into each channel at channel-creation time, and make those channel-scoped verifier addresses immutable for the lifetime of that channel
+- if a verifier bug is discovered after channel creation, do not upgrade that channel's verifier in place; instead, pause or deprecate the affected channel, deploy a fresh channel that snapshots the newer verifier, and migrate users explicitly
+- treat `BridgeCore.setGrothVerifier(...)` and `BridgeCore.setTokamakVerifier(...)` as defaults for future channels only, not as retroactive rewrites of already-open channels
+- if any verifier-default update remains owner-controlled, add a timelock or staged activation process for new-channel deployments that rely on the new verifier
 - publish an explicit policy for when verifier rotation or upgrades are allowed
-- strongly consider freezing upgrades and verifier addresses after a maturation period
+- strongly consider freezing custody-critical upgrades after a maturation period, even if future-channel verifier defaults remain configurable
 
 ### Finding 2: Channel registration is sybil-exhaustible through leaf-index reservation
 

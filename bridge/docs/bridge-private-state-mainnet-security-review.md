@@ -213,7 +213,7 @@ Required before mainnet:
   - charges a fixed non-refundable join fee
   - creates the channel registration
   - verifies a `deposit` proof with `currentUserValue == 0`
-  - requires `updatedUserValue` to equal a fixed bootstrap balance configured for that channel
+  - requires `updatedUserValue` to be at least a configured minimum bootstrap balance for that channel
 - add an atomic `withdraw-and-exit` flow that:
   - verifies a `withdraw` proof with `updatedUserValue == 0`
   - requires the registration to have recorded at least one prior channel transaction activity
@@ -226,13 +226,13 @@ Expected mitigation strength:
 - this materially improves the current finding because leaf exhaustion is no longer a gas-only sybil attack
 - exhausting all `4096` indices would require, per occupied slot:
   - one non-refundable join fee
-  - one bootstrap deposit locked in channel balance until exit
+  - one bootstrap deposit of at least the configured minimum, locked in channel balance until exit
   - one successful proof-backed entry transaction
 - an attacker who wants to recycle capital instead of leaving slots permanently occupied would also need at least one additional channel transaction per account before `withdraw-and-exit` can release the locked balance
 - the attack therefore becomes an economic denial of service rather than a near-free registration griefing primitive
 - this is still not a complete fix:
   - a sufficiently well-funded attacker can still fill all slots
-  - the bootstrap deposit is capital lock, not permanent loss
+  - the minimum bootstrap deposit is capital lock, not permanent loss
   - the fixed join fee is the main non-recoverable deterrent
   - honest users must also pay the same entry cost
 

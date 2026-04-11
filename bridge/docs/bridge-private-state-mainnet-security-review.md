@@ -251,7 +251,7 @@ Relevant code:
 
 Why it matters:
 
-The bridge requires the canonical asset to behave like an exact-transfer ERC-20.
+The bridge hard-wires the canonical asset to Tokamak Network Token through `BridgeCore.canonicalAsset()`, and the vault logic requires that token to continue behaving like an exact-transfer ERC-20.
 
 If the token ever:
 
@@ -275,8 +275,8 @@ Service-disruption impact:
 
 Required before mainnet:
 
-- verify the canonical mainnet asset contract behavior and governance model explicitly
-- publish this dependency in the operator and user risk disclosures
+- explicitly accept Tokamak Network Token transfer behavior and governance as a bridge trust assumption
+- publish that assumption in operator and user risk disclosures instead of presenting the bridge as token-agnostic
 
 ## 6. Additional Observations
 

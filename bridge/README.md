@@ -38,6 +38,16 @@ The current bridge implementation hardens a few assumptions that must remain tru
 - DApp registration requires a nonzero `preprocessInputHash`, and each function also carries fixed `aPubUser` layout metadata derived from the synthesizer `instance_description.json`. All functions in a DApp share one managed storage-address vector, so the root-vector length and the `channelTokenVault` tree index are fixed at channel creation. The bridge stores and later caches the per-function entry-contract, selector, current-root, and updated-root offsets, plus storage-write descriptors that identify the target storage through the DApp-wide managed storage-address index and record the `aPubUser` word offset at which the corresponding storage key appears. Under the current synthesizer format, every storage write still contributes four `aPubUser` words: storage-key lower/upper and storage-write lower/upper.
 - The shared `bridgeTokenVault` assumes an exact-transfer ERC-20. Fee-on-transfer or other balance-mutating token behaviors are rejected because they can break custody accounting.
 
+Important operational context:
+
+- the qap-compiler and its subcircuit library expose a bounded proving capacity at any given release
+- a deployed channel is therefore expected to register only the function families that fit within that currently supported proving surface
+- omitted function families should not automatically be interpreted as accidental metadata incompleteness; they may be an intentional consequence of the current proving-capacity bound
+- channels are treated as one-shot deployments with a fixed execution grammar for their lifetime
+- if a later compiler or subcircuit-library release expands the admissible function surface, the intended workflow is to create new channels with the expanded function set rather than mutate existing channels in place
+
+Reviewers and operators should evaluate a channel against the function family it intentionally declares at creation time, not against every function family that might become supportable in a future proving release.
+
 ## Deployment
 
 The standalone bridge workspace now includes a Foundry deployment script:

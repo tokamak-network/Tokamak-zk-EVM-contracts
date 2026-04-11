@@ -162,6 +162,10 @@ At creation time the channel fixes:
 
 This means a channel is born with a pre-committed execution grammar. The bridge does not let that grammar drift at runtime.
 
+That fixed grammar should not be misunderstood as accidental incompleteness. The intended operating model is that the qap-compiler and its subcircuit library expose a bounded admissible function surface at any given release. A channel is expected to snapshot only the function families that fit within that proving-capacity bound when the channel is created.
+
+Under that model, channels are one-shot deployments rather than long-lived mutable products. If a later compiler or subcircuit-library release expands the supportable function family, the intended response is to create fresh channels with the expanded execution grammar rather than retroactively reinterpret or patch older channels.
+
 ### 4.3 Token-Vault Identity Layer
 
 The current bridge also introduces an explicit registration layer for token-vault identity inside each channel. A user registers:
@@ -266,6 +270,10 @@ The current bridge contributes to that goal by publishing accepted root vectors,
 The lifecycle begins with DApp registration. The bridge owner registers the storage surface and function metadata that define the DApp's admissible execution surface. Only after that can `BridgeCore` create a channel for the DApp.
 
 The design lesson is simple: the bridge wants the admissible state-transition language to be fixed before users start submitting proofs.
+
+In the current intended workflow, that admissible language is chosen with full awareness of the proving stack's present capacity. If some DApp functions are not registered for a given channel generation, that omission is not necessarily an operator mistake. It can instead reflect the deliberate decision to launch that channel generation only with the function families that fit the current qap-compiler and subcircuit-library limits.
+
+This also means future proving-capacity expansion is expected to produce new channel generations, not in-place mutation of old ones. A later channel may support a wider function family than an earlier one without implying that the earlier channel was malformed.
 
 ### 6.2 Funding and Vault Participation
 

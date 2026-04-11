@@ -682,6 +682,8 @@ contract BridgeFlowTest is Test {
 
     function testChannelUsesRealTokamakVerifier() public view {
         assertEq(address(bridgeCore.tokamakVerifier()), address(tokamakVerifier));
+        assertEq(address(channelManager.tokamakVerifier()), address(tokamakVerifier));
+        assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
     }
 
     function testOwnerCanUpdateVerifierAddresses() public {
@@ -695,15 +697,14 @@ contract BridgeFlowTest is Test {
         assertEq(address(bridgeCore.tokamakVerifier()), address(newTokamakVerifier));
     }
 
-    function testDepositUsesGrothVerifierFromBridgeCore() public {
+    function testExistingChannelKeepsGrothVerifierSnapshotAfterDefaultRotation() public {
         bytes32 key = bytes32(uint256(111));
         IGrothVerifier rotatedGrothVerifier = IGrothVerifier(address(0xBEEF));
 
         bridgeCore.setGrothVerifier(rotatedGrothVerifier);
-        assertEq(address(bridgeTokenVault.grothVerifier()), address(rotatedGrothVerifier));
-        vm.mockCall(
-            address(rotatedGrothVerifier), abi.encodeWithSelector(IGrothVerifier.verifyProof.selector), abi.encode(true)
-        );
+        assertEq(address(bridgeCore.grothVerifier()), address(rotatedGrothVerifier));
+        assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
+        _mockGrothVerifierAcceptsAllProofs();
 
         vm.prank(alice);
         bridgeTokenVault.fund(100 ether);
@@ -725,7 +726,38 @@ contract BridgeFlowTest is Test {
         assertTrue(accepted);
     }
 
-    function testChannelExecutionUsesTokamakVerifierFromBridgeCore() public {
+    function testNewChannelSnapshotsRotatedGrothVerifierDefault() public {
+        IGrothVerifier rotatedGrothVerifier = IGrothVerifier(address(0xBEEF));
+        bridgeCore.setGrothVerifier(rotatedGrothVerifier);
+
+        (address managerAddress,) = bridgeCore.createChannel(secondChannelId, 1, leader);
+        ChannelManager secondManager = ChannelManager(managerAddress);
+        assertEq(address(secondManager.grothVerifier()), address(rotatedGrothVerifier));
+        assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
+    }
+
+    function testExistingChannelKeepsTokamakVerifierSnapshotAfterDefaultRotation() public {
+        ChannelManager localChannelManager = _createExecutionChannel(3, "tokamak-existing-snapshot");
+        ITokamakVerifier rotatedTokamakVerifier = ITokamakVerifier(address(0xCAFE));
+
+        bridgeCore.setTokamakVerifier(rotatedTokamakVerifier);
+        assertEq(address(bridgeCore.tokamakVerifier()), address(rotatedTokamakVerifier));
+        assertEq(address(localChannelManager.tokamakVerifier()), address(tokamakVerifier));
+        vm.mockCall(
+            address(tokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+        );
+
+        bytes32[] memory currentRoots = _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT);
+        bytes32[] memory updatedRoots = _rootVector(bytes32(uint256(555)), bytes32(uint256(777)));
+        BridgeStructs.TokamakProofPayload memory proofPayload =
+            _buildExecutableTokamakProofPayload(appContract, APP_SIG, currentRoots, updatedRoots, 11, 22, 33, 44);
+
+        bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
+        assertTrue(accepted);
+        assertEq(localChannelManager.currentRootVectorHash(), _hashRootVector(updatedRoots));
+    }
+
+    function testNewChannelSnapshotsRotatedTokamakVerifierDefault() public {
         ITokamakVerifier rotatedTokamakVerifier = ITokamakVerifier(address(0xCAFE));
         bridgeCore.setTokamakVerifier(rotatedTokamakVerifier);
         vm.mockCall(
@@ -733,6 +765,8 @@ contract BridgeFlowTest is Test {
         );
 
         ChannelManager localChannelManager = _createExecutionChannel(3, "tokamak-rotated-verifier");
+        assertEq(address(localChannelManager.tokamakVerifier()), address(rotatedTokamakVerifier));
+        assertEq(address(channelManager.tokamakVerifier()), address(tokamakVerifier));
         bytes32[] memory currentRoots = _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT);
         bytes32[] memory updatedRoots = _rootVector(bytes32(uint256(555)), bytes32(uint256(777)));
         BridgeStructs.TokamakProofPayload memory proofPayload =
@@ -970,11 +1004,7 @@ contract BridgeFlowTest is Test {
             address(implementation),
             abi.encodeCall(
                 L1TokenVault.initialize,
-                (
-                    owner,
-                    IERC20(localBridgeCore.canonicalAsset()),
-                    IChannelRegistry(address(localBridgeCore))
-                )
+                (owner, IERC20(localBridgeCore.canonicalAsset()), IChannelRegistry(address(localBridgeCore)))
             )
         );
         return L1TokenVault(address(proxy));

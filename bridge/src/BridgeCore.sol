@@ -149,6 +149,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             managedStorageAddresses,
             registeredFunctions,
             address(this),
+            grothVerifier,
+            tokamakVerifier,
             dAppManager
         );
 

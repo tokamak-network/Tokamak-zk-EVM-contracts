@@ -3,7 +3,8 @@ pragma solidity ^0.8.24;
 
 import {BridgeStructs} from "./BridgeStructs.sol";
 import {DAppManager} from "./DAppManager.sol";
-import {IChannelRegistry} from "./interfaces/IChannelRegistry.sol";
+import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
+import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract ChannelManager {
     uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 63;
@@ -61,6 +62,8 @@ contract ChannelManager {
     uint256 public immutable channelTokenVaultTreeIndex;
     address public immutable channelTokenVaultStorageAddress;
     address public immutable bridgeCore;
+    IGrothVerifier public immutable grothVerifier;
+    ITokamakVerifier public immutable tokamakVerifier;
 
     address public bridgeTokenVault;
     bytes32 public currentRootVectorHash;
@@ -102,6 +105,8 @@ contract ChannelManager {
         address[] memory managedStorageAddresses_,
         BridgeStructs.FunctionReference[] memory allowedFunctions_,
         address bridgeCore_,
+        IGrothVerifier grothVerifier_,
+        ITokamakVerifier tokamakVerifier_,
         DAppManager dAppManager_
     ) {
         channelId = channelId_;
@@ -109,6 +114,8 @@ contract ChannelManager {
         genesisBlockNumber = block.number;
         leader = leader_;
         bridgeCore = bridgeCore_;
+        grothVerifier = grothVerifier_;
+        tokamakVerifier = tokamakVerifier_;
 
         uint256[] memory aPubBlock = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
         uint256 selfBalance;
@@ -340,15 +347,14 @@ contract ChannelManager {
             revert ChannelTokenVaultRootUpdateWithoutStorageWrite();
         }
 
-        bool ok = IChannelRegistry(bridgeCore).tokamakVerifier()
-            .verify(
-                payload.proofPart1,
-                payload.proofPart2,
-                payload.functionPreprocessPart1,
-                payload.functionPreprocessPart2,
-                payload.aPubUser,
-                payload.aPubBlock
-            );
+        bool ok = tokamakVerifier.verify(
+            payload.proofPart1,
+            payload.proofPart2,
+            payload.functionPreprocessPart1,
+            payload.functionPreprocessPart2,
+            payload.aPubUser,
+            payload.aPubBlock
+        );
         if (!ok) revert TokamakProofRejected();
 
         CachedStorageWrite[] storage storageWrites = _functionStorageWrites[functionKey];

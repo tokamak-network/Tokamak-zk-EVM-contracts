@@ -50,11 +50,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         _disableInitializers();
     }
 
-    function initialize(
-        address initialOwner,
-        IERC20 asset_,
-        IChannelRegistry channelRegistry_
-    ) external initializer {
+    function initialize(address initialOwner, IERC20 asset_, IChannelRegistry channelRegistry_) external initializer {
         if (address(asset_) == address(0)) revert InvalidAsset();
         if (address(channelRegistry_) == address(0)) revert InvalidChannelRegistry();
 
@@ -179,7 +175,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         publicSignals[3] = update.currentUserValue;
         publicSignals[4] = update.updatedUserValue;
 
-        bool ok = channelRegistry.grothVerifier().verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
+        bool ok = context.channelManager.grothVerifier().verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
         if (!ok) revert GrothProofRejected();
 
         context.channelManager

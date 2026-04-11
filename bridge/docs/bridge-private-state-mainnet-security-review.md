@@ -58,7 +58,6 @@ However, the current implementation still has several deployment-blocking risks:
 
 1. A privileged owner can replace verifiers or upgrade core contracts and thereby steal or freeze all funds.
 2. Channel registration is permissionless and bounded by only `4096` reserved token-vault leaf indices, which allows channel-join denial of service through registration exhaustion.
-3. Channel execution depends on frozen per-channel metadata, while the currently generated registration set is incomplete, so users can be stranded in channels that cannot execute all intended note shapes.
 
 The shared L1 vault still increases incident blast radius, but this review treats that as an architectural observation rather than a standalone present-code finding.
 
@@ -241,55 +240,7 @@ Expected mitigation strength:
   - the fixed join fee is the main non-recoverable deterrent
   - honest users must also pay the same entry cost
 
-### Finding 3: Channel metadata is frozen per channel, and current registration coverage is incomplete
-
-Severity: High
-
-Relevant code:
-
-- `bridge/src/BridgeCore.sol:131-155`
-- `bridge/src/ChannelManager.sol:154-204`
-- `bridge/deployments/dapp-registration.11155111.json:220-360`
-
-Why it matters:
-
-At channel creation, `BridgeCore` copies the current DApp metadata into the new `ChannelManager`.
-After that, the channel keeps its own cached function configuration, storage-write metadata, and event-log metadata.
-
-The current Sepolia registration artifact already shows incomplete coverage:
-
-- `mintNotes4`
-- `mintNotes5`
-- `mintNotes6`
-- `transferNotes1To3`
-- `transferNotes2To2`
-- `transferNotes3To1`
-- `transferNotes3To2`
-- `transferNotes4To1`
-- `redeemNotes3`
-- `redeemNotes4`
-
-were skipped because `qap-compiler capacity exceeded`.
-
-Fund-manipulation impact:
-
-- if incorrect metadata is registered for a channel, users can submit proofs that appear locally valid but are rejected on-chain
-- funds can become practically stranded if the only shape a wallet needs is unavailable in that channel
-
-Service-disruption impact:
-
-- a user may join a channel successfully and still be unable to execute intended note flows
-- operator mistakes during registration can permanently brick future channels
-- on mainnet there is no non-Sepolia delete path, so the normal recovery path is channel migration or contract upgrade, not simple cleanup
-
-Required before mainnet:
-
-- publish the exact supported function set per network before user onboarding
-- create channels only after confirming the full function family needed by production wallets is registered
-- add a channel metadata versioning and migration strategy
-- treat a missing function example as a deployment blocker, not as an operator footnote
-
-### Finding 4: Exact-transfer token behavior is a hard external dependency
+### Finding 3: Exact-transfer token behavior is a hard external dependency
 
 Severity: Medium
 
@@ -377,7 +328,6 @@ That is weaker than a standalone finding, but it is still relevant for rollout s
 
 - privileged owner can rotate verifiers and upgrade core contracts
 - channel registration can be sybil-exhausted through leaf-index reservation
-- channel creation can freeze incomplete or incorrect function metadata
 
 ### Strongly recommended before meaningful TVL
 

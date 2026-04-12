@@ -1222,6 +1222,10 @@ function withdrawBridge(participant, amount) {
   ]);
 }
 
+function exitChannel(participant) {
+  return runAnvilCliCommand("exit-channel", walletCliArgs(participant));
+}
+
 function assertResolvedWalletIdentity(result, participant, label) {
   expect(
     getAddress(result.l2Address) === getAddress(participant.registration.l2Identity.l2Address),
@@ -1436,6 +1440,22 @@ async function main() {
       "participant-c channel deposit after withdraw-channel",
     );
 
+    const exitChannelResult = exitChannel(participants[2]);
+    assertBigIntEq(
+      exitChannelResult.currentUserValue,
+      0n,
+      "participant-c currentUserValue at exit-channel",
+    );
+    assertBigIntEq(
+      exitChannelResult.refundAmountBaseUnits,
+      (joinFeeBaseUnits * 75n) / 100n,
+      "participant-c exit-channel refund amount",
+    );
+    expect(
+      Number(exitChannelResult.refundBps) === 7500,
+      `participant-c exit-channel refundBps mismatch: ${exitChannelResult.refundBps}.`,
+    );
+
     const withdrawBridgeResult = withdrawBridge(participants[2], claimAmountTokens);
     const bridgeDepositAfterClaim = getMyBridgeFund(participants[2]);
     const l1BalanceAfterClaim = readErc20Balance(canonicalAsset, participants[2].l1Address);
@@ -1446,8 +1466,8 @@ async function main() {
     );
     assertBigIntEq(
       l1BalanceAfterClaim - l1BalanceBeforeClaim,
-      claimAmountBaseUnits,
-      "participant-c L1 ERC20 claim delta",
+      claimAmountBaseUnits + ((joinFeeBaseUnits * 75n) / 100n),
+      "participant-c L1 ERC20 claim delta including exit refund",
     );
     for (const participant of participants.slice(0, 2)) {
       assertBigIntEq(
@@ -1456,6 +1476,7 @@ async function main() {
         `${participant.alias} final bridge deposit`,
       );
     }
+    commandResults.participants[participants[2].alias].exitChannel = exitChannelResult;
 
     const summary = {
       providerUrl,

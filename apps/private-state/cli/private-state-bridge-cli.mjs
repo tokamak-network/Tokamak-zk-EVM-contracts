@@ -1085,21 +1085,26 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
 
   const existingRegistration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
+  let resolvedLeafIndex = leafIndex;
+  let approveReceipt = null;
+  let receipt = null;
+  let joinFee = 0n;
+  let status = null;
+
   if (!existingRegistration.exists) {
-    const joinFee = BigInt(await context.channelManager.joinFee());
+    joinFee = BigInt(await context.channelManager.joinFee());
     const asset = new Contract(
       context.workspace.canonicalAsset,
       context.bridgeAbiManifest.contracts.erc20.abi,
       signer,
     );
-    let approveReceipt = null;
     let nextNonce = await provider.getTransactionCount(signer.address, "pending");
     if (joinFee !== 0n) {
       approveReceipt = await waitForReceipt(
         await asset.approve(context.workspace.bridgeTokenVault, joinFee, { nonce: nextNonce++ }),
       );
     }
-    const receipt = await waitForReceipt(
+    receipt = await waitForReceipt(
       await context.bridgeTokenVault.connect(signer).joinChannel(
         BigInt(context.workspace.channelId),
         l2Identity.l2Address,
@@ -1109,70 +1114,40 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
         { nonce: nextNonce++ },
       ),
     );
-
-    const walletContext = ensureWallet({
-      channelContext: context,
-      signerAddress: signer.address,
-      signerPrivateKey: signer.privateKey,
-      l2Identity,
-      walletPassword: password,
-      storageKey,
-      leafIndex,
-      noteReceiveKeyMaterial,
-      rpcUrl,
-    });
-
-    printJson({
-      action: "join-channel",
-      workspace: context.workspaceName,
-      wallet: walletContext.walletName,
-      channelName: context.workspace.channelName,
-      channelId: context.workspace.channelId,
-      l1Address: signer.address,
-      l2Address: l2Identity.l2Address,
-      l2StorageKey: storageKey,
-      leafIndex: leafIndex.toString(),
-      joinFeeBaseUnits: joinFee.toString(),
-      joinFeeTokens: ethers.formatUnits(joinFee, Number(context.workspace.canonicalAssetDecimals)),
-      noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
-      approveGasUsed: approveReceipt ? receiptGasUsed(approveReceipt) : null,
-      gasUsed: receiptGasUsed(receipt),
-      approveTxUrl: approveReceipt ? explorerTxUrl(network, approveReceipt.hash) : null,
-      txUrl: explorerTxUrl(network, receipt.hash),
-      approveReceipt: approveReceipt ? sanitizeReceipt(approveReceipt) : null,
-      receipt: sanitizeReceipt(receipt),
-    });
-    return;
+    status = "joined";
+  } else {
+    expect(
+      normalizeBytes32Hex(existingRegistration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
+      "The existing channel registration key does not match the derived channelTokenVault key.",
+    );
+    expect(
+      getAddress(existingRegistration.l2Address) === getAddress(l2Identity.l2Address),
+      "The existing channel registration L2 address does not match the derived L2 address.",
+    );
+    expect(
+      normalizeBytes32Hex(existingRegistration.noteReceivePubKey.x) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
+      "The existing note-receive public key X does not match the derived note-receive public key.",
+    );
+    expect(
+      Number(existingRegistration.noteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
+      "The existing note-receive public key parity does not match the derived note-receive public key.",
+    );
+    resolvedLeafIndex = existingRegistration.leafIndex;
+    joinFee = BigInt(existingRegistration.joinFeePaid);
+    status = "already-registered";
   }
 
-  expect(
-    normalizeBytes32Hex(existingRegistration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
-    "The existing channel registration key does not match the derived channelTokenVault key.",
-  );
-  expect(
-    getAddress(existingRegistration.l2Address) === getAddress(l2Identity.l2Address),
-    "The existing channel registration L2 address does not match the derived L2 address.",
-  );
-  expect(
-    normalizeBytes32Hex(existingRegistration.noteReceivePubKey.x) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
-    "The existing note-receive public key X does not match the derived note-receive public key.",
-  );
-  expect(
-    Number(existingRegistration.noteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
-    "The existing note-receive public key parity does not match the derived note-receive public key.",
-  );
-
-    const walletContext = ensureWallet({
-      channelContext: context,
-      signerAddress: signer.address,
-      signerPrivateKey: signer.privateKey,
-      l2Identity,
-      walletPassword: password,
-      storageKey,
-      leafIndex: existingRegistration.leafIndex,
-      noteReceiveKeyMaterial,
-      rpcUrl,
-    });
+  const walletContext = ensureWallet({
+    channelContext: context,
+    signerAddress: signer.address,
+    signerPrivateKey: signer.privateKey,
+    l2Identity,
+    walletPassword: password,
+    storageKey,
+    leafIndex: resolvedLeafIndex,
+    noteReceiveKeyMaterial,
+    rpcUrl,
+  });
 
   printJson({
     action: "join-channel",
@@ -1183,9 +1158,17 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
-    leafIndex: existingRegistration.leafIndex.toString(),
+    leafIndex: resolvedLeafIndex.toString(),
+    joinFeeBaseUnits: joinFee.toString(),
+    joinFeeTokens: ethers.formatUnits(joinFee, Number(context.workspace.canonicalAssetDecimals)),
     noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
-    status: "already-registered",
+    approveGasUsed: approveReceipt ? receiptGasUsed(approveReceipt) : null,
+    gasUsed: receipt ? receiptGasUsed(receipt) : null,
+    approveTxUrl: approveReceipt ? explorerTxUrl(network, approveReceipt.hash) : null,
+    txUrl: receipt ? explorerTxUrl(network, receipt.hash) : null,
+    approveReceipt: approveReceipt ? sanitizeReceipt(approveReceipt) : null,
+    receipt: receipt ? sanitizeReceipt(receipt) : null,
+    status,
   });
 }
 

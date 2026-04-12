@@ -1174,7 +1174,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
 
 async function handleExitChannel({ args, provider }) {
   const { wallet: walletContext, walletMetadata } = loadUnlockedWalletWithMetadata(args);
-  const { signer, context, registration, channelFund, contextResult } = await loadWalletChannelFundState({
+  const { signer, context, channelFund, contextResult } = await loadWalletChannelFundState({
     walletContext,
     provider,
   });
@@ -4041,7 +4041,11 @@ function loadGroth16UpdateTreeArtifacts(chainId) {
 function findStorageSlot(storageLayoutManifest, contractName, label) {
   const contract = storageLayoutManifest.contracts[contractName];
   if (!contract) {
-    throw new Error(`Missing ${contractName} storage layout in ${JSON.stringify(storageLayoutManifest)}`);
+    throw new Error(
+      `Missing ${contractName} storage layout. Available contracts: ${
+        Object.keys(storageLayoutManifest.contracts ?? {}).join(", ") || "<none>"
+      }.`,
+    );
   }
 
   const entry = contract.storageLayout.storage.find((item) => item.label === label);

@@ -13,7 +13,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     error DuplicateDApp(uint256 dappId);
     error InvalidBridgeCore();
     error BridgeCoreAlreadyBound(address currentBridgeCore, address candidateBridgeCore);
-    error OnlyBridgeCore();
     error EmptyStorageLayout(uint256 dappId);
     error EmptyFunctionList(uint256 dappId);
     error DuplicateStorageAddress(uint256 dappId, address storageAddr);
@@ -67,11 +66,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (initialOwner != _msgSender()) {
             _transferOwnership(initialOwner);
         }
-    }
-
-    modifier onlyBridgeCore() {
-        if (msg.sender != bridgeCore) revert OnlyBridgeCore();
-        _;
     }
 
     function bindBridgeCore(address bridgeCore_) external onlyOwner {

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-12T12:51:47.837Z",
+  "generatedAt": "2026-04-12T16:55:38.248Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -1455,47 +1455,6 @@
         },
         {
           "type": "function",
-          "name": "getFunctionStorageWrites",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "entryContract",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "functionSig",
-              "type": "bytes4",
-              "internalType": "bytes4"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "out",
-              "type": "tuple[]",
-              "internalType": "struct BridgeStructs.StorageWriteMetadata[]",
-              "components": [
-                {
-                  "name": "aPubOffsetWords",
-                  "type": "uint8",
-                  "internalType": "uint8"
-                },
-                {
-                  "name": "storageAddrIndex",
-                  "type": "uint8",
-                  "internalType": "uint8"
-                }
-              ]
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
           "name": "getManagedStorageAddresses",
           "inputs": [
             {
@@ -1769,23 +1728,6 @@
                       "name": "updatedRootVectorOffsetWords",
                       "type": "uint8",
                       "internalType": "uint8"
-                    },
-                    {
-                      "name": "storageWrites",
-                      "type": "tuple[]",
-                      "internalType": "struct BridgeStructs.StorageWriteMetadata[]",
-                      "components": [
-                        {
-                          "name": "aPubOffsetWords",
-                          "type": "uint8",
-                          "internalType": "uint8"
-                        },
-                        {
-                          "name": "storageAddrIndex",
-                          "type": "uint8",
-                          "internalType": "uint8"
-                        }
-                      ]
                     },
                     {
                       "name": "eventLogs",
@@ -2101,17 +2043,6 @@
         },
         {
           "type": "error",
-          "name": "EmptyFunctionStorageList",
-          "inputs": [
-            {
-              "name": "functionSig",
-              "type": "bytes4",
-              "internalType": "bytes4"
-            }
-          ]
-        },
-        {
-          "type": "error",
           "name": "EmptyStorageLayout",
           "inputs": [
             {
@@ -2147,32 +2078,6 @@
             },
             {
               "name": "topicCount",
-              "type": "uint8",
-              "internalType": "uint8"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "InvalidFunctionStorageWriteStorageIndex",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "entryContract",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "functionSig",
-              "type": "bytes4",
-              "internalType": "bytes4"
-            },
-            {
-              "name": "storageAddrIndex",
               "type": "uint8",
               "internalType": "uint8"
             }
@@ -2426,16 +2331,6 @@
             },
             {
               "name": "updatedChannelTokenVaultRoot",
-              "type": "bytes32",
-              "internalType": "bytes32"
-            },
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "latestLeafValue",
               "type": "bytes32",
               "internalType": "bytes32"
             }
@@ -2773,25 +2668,6 @@
               "name": "refundBps",
               "type": "uint16",
               "internalType": "uint16"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "getLatestChannelTokenVaultLeaf",
-          "inputs": [
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "",
-              "type": "bytes32",
-              "internalType": "bytes32"
             }
           ],
           "stateMutability": "view"
@@ -3191,31 +3067,6 @@
           "anonymous": false
         },
         {
-          "type": "event",
-          "name": "StorageWriteObserved",
-          "inputs": [
-            {
-              "name": "storageAddr",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            },
-            {
-              "name": "storageKey",
-              "type": "uint256",
-              "indexed": false,
-              "internalType": "uint256"
-            },
-            {
-              "name": "value",
-              "type": "uint256",
-              "indexed": false,
-              "internalType": "uint256"
-            }
-          ],
-          "anonymous": false
-        },
-        {
           "type": "error",
           "name": "APubBlockHashMismatch",
           "inputs": [
@@ -3368,11 +3219,6 @@
         },
         {
           "type": "error",
-          "name": "ChannelTokenVaultRootUpdateWithoutStorageWrite",
-          "inputs": []
-        },
-        {
-          "type": "error",
           "name": "EntryContractPublicInputOutOfRange",
           "inputs": [
             {
@@ -3458,17 +3304,6 @@
               "name": "dataWordLength",
               "type": "uint256",
               "internalType": "uint256"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "InvalidStorageWriteStorageIndex",
-          "inputs": [
-            {
-              "name": "storageAddrIndex",
-              "type": "uint8",
-              "internalType": "uint8"
             }
           ]
         },
@@ -4173,27 +4008,6 @@
             }
           ],
           "anonymous": false
-        },
-        {
-          "type": "error",
-          "name": "ChannelExitRequiresZeroBalance",
-          "inputs": [
-            {
-              "name": "channelId",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "user",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "currentValue",
-              "type": "uint256",
-              "internalType": "uint256"
-            }
-          ]
         },
         {
           "type": "error",

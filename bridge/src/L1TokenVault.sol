@@ -28,7 +28,6 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     error UnknownChannel(uint256 channelId);
     error UnsupportedAssetTransferBehavior(uint256 expectedDelta, uint256 actualDelta);
     error NotRegisteredInChannel(address user, uint256 channelId);
-    error ChannelExitRequiresZeroBalance(uint256 channelId, address user, uint256 currentValue);
     error InsufficientFeeTreasuryBalance(uint256 available, uint256 requested);
 
     struct ChannelVaultUpdateContext {
@@ -158,11 +157,6 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
             channelManager.getChannelTokenVaultRegistration(msg.sender);
         if (!registration.exists) revert NotRegisteredInChannel(msg.sender, channelId);
 
-        uint256 currentValue = uint256(channelManager.getLatestChannelTokenVaultLeaf(registration.leafIndex));
-        if (currentValue != 0) {
-            revert ChannelExitRequiresZeroBalance(channelId, msg.sender, currentValue);
-        }
-
         (uint256 refundAmount, uint16 refundBps) = channelManager.getExitFeeRefundQuote(msg.sender);
         channelManager.unregisterChannelTokenVaultIdentity(msg.sender);
 
@@ -259,9 +253,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         context.channelManager
             .applyVaultUpdate(
                 update.currentRootVector,
-                update.updatedRoot,
-                context.registration.leafIndex,
-                bytes32(update.updatedUserValue)
+                update.updatedRoot
             );
 
         emit StorageWriteObserved(

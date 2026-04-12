@@ -233,50 +233,6 @@ export function normalizeTokamakAPubBlock(values) {
   return normalizedValues.concat(new Array(TOKAMAK_APUB_BLOCK_LENGTH - normalizedValues.length).fill(0n));
 }
 
-function extractStorageWrites(instanceDescriptionJsonPath, storageAddresses) {
-  const description = readJson(instanceDescriptionJsonPath);
-  const entries = description.a_pub_user_description;
-  if (!Array.isArray(entries)) {
-    throw new Error(`instance_description.json is missing a_pub_user_description: ${instanceDescriptionJsonPath}`);
-  }
-
-  const writes = [];
-  const pattern =
-    /^Storage key to write for address: (0x[0-9a-fA-F]{40}) \(lower 16 bytes\)$/;
-
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index];
-    if (typeof entry !== "string") {
-      continue;
-    }
-    const match = entry.match(pattern);
-    if (!match) {
-      continue;
-    }
-    const storageAddr = getAddress(match[1]);
-    const storageAddrIndex = storageAddresses.findIndex(
-      (candidateStorageAddr) => getAddress(candidateStorageAddr) === storageAddr,
-    );
-    if (storageAddrIndex === -1) {
-      throw new Error(
-        `Storage write target ${storageAddr} is not part of the function storage surface in ${instanceDescriptionJsonPath}.`,
-      );
-    }
-    if (index > 0xff) {
-      throw new Error(`Storage write offset ${index} exceeds uint8 range in ${instanceDescriptionJsonPath}.`);
-    }
-    if (storageAddrIndex > 0xff) {
-      throw new Error(`Storage address index ${storageAddrIndex} exceeds uint8 range in ${instanceDescriptionJsonPath}.`);
-    }
-    writes.push({
-      aPubOffsetWords: index,
-      storageAddrIndex,
-    });
-  }
-
-  return writes;
-}
-
 function extractEventLogs(instanceDescriptionJsonPath) {
   const description = readJson(instanceDescriptionJsonPath);
   const entries = description.a_pub_user_description;
@@ -397,10 +353,6 @@ export function buildFunctionDefinition({
   const preprocess = readJson(preprocessJsonPath);
   const preprocessPart1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
   const preprocessPart2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
-  const storageWrites = extractStorageWrites(
-    instanceDescriptionJsonPath,
-    derivedStorageMetadata.map((entry) => entry.storageAddress),
-  );
   const eventLogs = extractEventLogs(instanceDescriptionJsonPath);
   const functionLayout = extractFunctionLayout(instanceDescriptionJsonPath);
   const entryContract = entryContractOverride ? getAddress(entryContractOverride) : derivedEntryContract;
@@ -425,7 +377,6 @@ export function buildFunctionDefinition({
     functionSigOffsetWords: functionLayout.functionSigOffsetWords,
     currentRootVectorOffsetWords: functionLayout.currentRootVectorOffsetWords,
     updatedRootVectorOffsetWords: functionLayout.updatedRootVectorOffsetWords,
-    storageWrites,
     eventLogs,
     aPubBlockHash: hashTokamakPublicInputs(
       normalizeTokamakAPubBlock(toBigIntArray(instance.a_pub_block, "a_pub_block")),
@@ -509,9 +460,6 @@ export function mergeFunctionDefinitions(records) {
     if (existing.updatedRootVectorOffsetWords !== record.updatedRootVectorOffsetWords) {
       mismatches.push("updated-root offset");
     }
-    if (JSON.stringify(existing.storageWrites) !== JSON.stringify(record.storageWrites)) {
-      mismatches.push("storage write metadata");
-    }
     if (JSON.stringify(existing.eventLogs) !== JSON.stringify(record.eventLogs)) {
       mismatches.push("event log metadata");
     }
@@ -582,7 +530,6 @@ export function buildDAppDefinitions(records) {
           functionSigOffsetWords: record.functionSigOffsetWords,
           currentRootVectorOffsetWords: record.currentRootVectorOffsetWords,
           updatedRootVectorOffsetWords: record.updatedRootVectorOffsetWords,
-          storageWrites: record.storageWrites,
           eventLogs: record.eventLogs,
           exampleNames: record.exampleNames,
         })),

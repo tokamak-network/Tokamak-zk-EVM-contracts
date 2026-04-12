@@ -17,11 +17,6 @@ library BridgeStructs {
         NoteReceivePubKey noteReceivePubKey;
     }
 
-    struct StorageWriteMetadata {
-        uint8 aPubOffsetWords;
-        uint8 storageAddrIndex;
-    }
-
     struct EventLogMetadata {
         uint16 startOffsetWords;
         uint8 topicCount;
@@ -39,7 +34,6 @@ library BridgeStructs {
         uint8 functionSigOffsetWords;
         uint8 currentRootVectorOffsetWords;
         uint8 updatedRootVectorOffsetWords;
-        StorageWriteMetadata[] storageWrites;
         EventLogMetadata[] eventLogs;
     }
 

@@ -548,7 +548,6 @@ async function main() {
         functionSigOffsetWords: fn.functionSigOffsetWords,
         currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
         updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
-        storageWrites: fn.storageWrites,
         eventLogs: fn.eventLogs,
       },
     }))

@@ -1174,26 +1174,11 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
 
 async function handleExitChannel({ args, provider }) {
   const { wallet: walletContext, walletMetadata } = loadUnlockedWalletWithMetadata(args);
-  const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
-  const context = contextResult.context;
+  const { signer, context, registration, channelFund, contextResult } = await loadWalletChannelFundState({
+    walletContext,
+    provider,
+  });
   const network = contextResult.network;
-  const { signer } = restoreWalletParticipant(walletContext, provider);
-  const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
-  expect(
-    registration.exists,
-    `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
-  );
-
-  const currentUserValue = BigInt(await context.channelManager.getLatestChannelTokenVaultLeaf(registration.leafIndex));
-  expect(
-    currentUserValue === 0n,
-    [
-      "exit-channel requires currentUserValue == 0.",
-      `Current value: ${currentUserValue.toString()}.`,
-      "Run withdraw-channel until the channel balance is zero first.",
-    ].join(" "),
-  );
-
   const [refundAmount, refundBps] = await context.channelManager.getExitFeeRefundQuote(signer.address);
   const receipt = await waitForReceipt(
     await context.bridgeTokenVault.connect(signer).exitChannel(BigInt(context.workspace.channelId)),
@@ -1206,7 +1191,7 @@ async function handleExitChannel({ args, provider }) {
     channelName: walletMetadata.channelName,
     channelId: context.workspace.channelId,
     l1Address: signer.address,
-    currentUserValue: currentUserValue.toString(),
+    currentUserValue: channelFund.toString(),
     refundAmountBaseUnits: refundAmount.toString(),
     refundAmountTokens: ethers.formatUnits(refundAmount, Number(context.workspace.canonicalAssetDecimals)),
     refundBps: Number(refundBps),
@@ -3772,12 +3757,6 @@ async function reconstructChannelSnapshot({
     fromBlock: genesisBlockNumber,
     toBlock: latestBlock,
   });
-  const channelStorageWriteEvents = await queryContractEventsChunked({
-    contract: channelManager,
-    eventName: "StorageWriteObserved",
-    fromBlock: genesisBlockNumber,
-    toBlock: latestBlock,
-  });
   const vaultStorageWriteEvents = await queryContractEventsChunked({
     contract: bridgeTokenVault,
     eventName: "StorageWriteObserved",
@@ -3786,7 +3765,7 @@ async function reconstructChannelSnapshot({
   });
 
   const groupedEvents = new Map();
-  for (const event of [...rootEvents, ...channelStorageWriteEvents, ...vaultStorageWriteEvents]) {
+  for (const event of [...rootEvents, ...vaultStorageWriteEvents]) {
     const key = event.transactionHash;
     const group = groupedEvents.get(key) ?? [];
     group.push(event);

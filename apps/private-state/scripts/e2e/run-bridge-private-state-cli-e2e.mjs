@@ -114,7 +114,7 @@ const tokamakStepArtifactDirectories = [
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
   "function getDAppInfo(uint256 dappId) external view returns (tuple(bool exists, bytes32 labelHash, uint256 channelTokenVaultTreeIndex))",
 ];
 
@@ -1053,7 +1053,6 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
           functionSigOffsetWords: fn.functionSigOffsetWords,
           currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
           updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
-          storageWrites: fn.storageWrites,
           eventLogs: fn.eventLogs,
         },
       })),

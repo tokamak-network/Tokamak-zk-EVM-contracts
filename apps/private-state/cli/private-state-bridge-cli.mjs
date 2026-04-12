@@ -1179,6 +1179,15 @@ async function handleExitChannel({ args, provider }) {
     provider,
   });
   const network = contextResult.network;
+  const bypassZeroBalanceGuard = args.force === true;
+  expect(
+    bypassZeroBalanceGuard || channelFund === 0n,
+    [
+      `The current channel fund for ${signer.address} is ${channelFund.toString()}.`,
+      "exit-channel requires a zero channel balance unless --force is provided.",
+      "Run withdraw-channel first, or rerun exit-channel with --force to bypass this CLI check.",
+    ].join(" "),
+  );
   const [refundAmount, refundBps] = await context.channelManager.getExitFeeRefundQuote(signer.address);
   const receipt = await waitForReceipt(
     await context.bridgeTokenVault.connect(signer).exitChannel(BigInt(context.workspace.channelId)),
@@ -1191,6 +1200,7 @@ async function handleExitChannel({ args, provider }) {
     channelName: walletMetadata.channelName,
     channelId: context.workspace.channelId,
     l1Address: signer.address,
+    forced: bypassZeroBalanceGuard,
     currentUserValue: channelFund.toString(),
     refundAmountBaseUnits: refundAmount.toString(),
     refundAmountTokens: ethers.formatUnits(refundAmount, Number(context.workspace.canonicalAssetDecimals)),
@@ -4411,7 +4421,7 @@ function assertGetMyChannelFundArgs(args) {
 }
 
 function assertExitChannelArgs(args) {
-  assertWalletPasswordArgs(args, "exit-channel", [], "--wallet, --password, and --network");
+  assertWalletPasswordArgs(args, "exit-channel", ["force"], "--wallet, --password, --network, and optional --force");
 }
 
 function createWalletOperationDir(walletName, networkName, suffix) {
@@ -4490,8 +4500,8 @@ Commands:
   get-my-channel-fund --wallet <NAME> --password <PASSWORD> --network <NAME>
       Read the current channel L2 accounting balance
 
-  exit-channel --wallet <NAME> --password <PASSWORD> --network <NAME>
-      Exit a channel after the channel L2 accounting balance reaches zero
+  exit-channel --wallet <NAME> --password <PASSWORD> --network <NAME> [--force]
+      Exit a channel. The CLI requires a zero channel balance unless --force is provided
 
   mint-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --amounts <A,B,...>
       Mint private-state notes from the wallet's channel balance

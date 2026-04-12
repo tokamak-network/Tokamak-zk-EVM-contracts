@@ -1189,7 +1189,9 @@ async function main() {
 
   for (const participant of participants) {
     console.log(`E2E: funding L1 wallet ${participant.l1.address}.`);
-    await (await asset.mint(participant.l1.address, depositAmount, { nonce: bridgeDeployerNonce++ })).wait();
+    await (
+      await asset.mint(participant.l1.address, depositAmount + joinFee, { nonce: bridgeDeployerNonce++ })
+    ).wait();
   }
 
   console.log("E2E: registering derived DApp on bridge.");

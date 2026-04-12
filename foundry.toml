@@ -6,6 +6,7 @@ remappings = [
     "@openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
     "@openzeppelin/=lib/openzeppelin-contracts/contracts/",
 ]
+extra_output = ["storageLayout"]
 
 viaIr = true
 optimizer = true
@@ -28,6 +29,7 @@ remappings = [
     "@openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
     "@openzeppelin/=lib/openzeppelin-contracts/contracts/",
 ]
+extra_output = ["storageLayout"]
 
 viaIr = true
 optimizer = true

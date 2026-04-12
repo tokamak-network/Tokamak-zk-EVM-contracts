@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-04-12T17:59:22.040Z",
+  "generatedAt": "2026-04-12T19:45:30.737Z",
   "tokamakSubmodule": {
     "path": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM",
     "branch": "dev",
-    "head": "f15046fb54d365aa26e9f4cb4c1bf0721f978e3c",
+    "head": "29b81ef059968ac482c45522a24d68b391f44f7b",
     "setupParamsPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json",
     "sigmaVerifyRkyvPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv"
   },
@@ -37,7 +37,7 @@
       "mtDepth": 12,
       "constraintCount": 15596,
       "powersOfTauPower": 14,
-      "generatedAt": "2026-04-12T17:59:19.868Z",
+      "generatedAt": "2026-04-12T19:45:28.833Z",
       "note": "This is a local deterministic development ceremony, not a production multi-party ceremony.",
       "phase1Contributions": 1,
       "phase2Contributions": 1,

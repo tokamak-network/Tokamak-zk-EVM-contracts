@@ -213,32 +213,80 @@ Service-disruption impact:
 
 Required before mainnet:
 
+Refined implementation plan under the current policy decisions:
+
 - replace the current gas-only `join-channel` path with an atomic `join-and-deposit` flow that:
-  - charges a fixed non-refundable join fee
-  - creates the channel registration
+  - removes the standalone registration call from the user-facing CLI
+  - charges a TON-denominated join fee
+  - stores that fee in a bridge-controlled treasury that no operator, leader, or channel creator can withdraw from directly
+  - creates the channel registration only inside the same transaction
   - verifies a `deposit` proof with `currentUserValue == 0`
-  - requires `updatedUserValue` to be at least a configured minimum bootstrap balance for that channel
+  - requires `updatedUserValue >= minimumBootstrapBalance`, where `minimumBootstrapBalance` is chosen at `createChannel(...)` time and is immutable for that channel
+  - sources the bootstrap deposit from the user's existing `deposit-bridge` available balance rather than a direct token pull inside `join-and-deposit`
+- make the join fee channel-configurable:
+  - the channel creator chooses the initial TON join fee at `createChannel(...)` time
+  - the channel creator may update that channel's join fee later
+  - the changed fee applies only to future joins; existing registrations must not be rewritten in place
 - add an atomic `withdraw-and-exit` flow that:
-  - verifies a `withdraw` proof with `updatedUserValue == 0`
-  - requires the registration to have recorded at least one prior channel transaction activity
-  - deletes the registration and frees the reserved `leafIndex` only after the zero-balance exit succeeds
-- extend the per-user registration state with a `hasExecutedChannelTx` flag and, under the current non-relayed assumption, set that flag on successful `executeChannelTransaction(...)` calls for `msg.sender`
-- update the CLI and user guidance so `join-channel` becomes a proof-backed paid entry action rather than a free reservation call
+  - accepts both ordinary exit and empty exit
+  - for ordinary exit, verifies a `withdraw` proof with `updatedUserValue == 0`
+  - for empty exit, allows the registration to be deleted without a positive L2 withdrawal amount, but still requires prior qualifying channel activity
+  - deletes the registration and frees the reserved `leafIndex`, key binding, L2 address binding, and note-receive key binding only after the full exit path succeeds
+  - allows the same L1 account to rejoin the same channel after a successful exit
+- extend the per-user registration state with:
+  - a `hasExecutedChannelTx` flag
+  - a recorded join-fee-paid amount so any later refund is tied to the fee actually paid at join time rather than the fee currently configured for the channel
+- under the current non-relayed assumption, set `hasExecutedChannelTx = true` only when `executeChannelTransaction(...)` successfully reaches the Tokamak verifier and returns success for `msg.sender`
+- make empty-exit refunds conditional:
+  - if the exiting user satisfies the empty-exit path and has prior qualifying channel activity, refund the recorded join fee back to that user from the treasury
+  - no other treasury outflow path should exist
+- update the CLI and user guidance so:
+  - `join-channel` is replaced by `join-and-deposit`
+  - the user supplies `--amount`
+  - the CLI rejects any join amount below the channel's `minimumBootstrapBalance`
+  - `deposit-channel` remains available only for already-registered users who want to add channel balance after joining
+- preserve transaction atomicity:
+  - if the join proof fails, the registration and fee/deposit side effects must roll back together
+  - if exit cleanup fails, the withdrawal and registration deletion must both revert
+
+Additional review of the refined plan:
+
+- The current proposal materially improves the existing gas-only leaf reservation attack, but it is weaker than the earlier fixed non-refundable-fee design because empty exit now refunds the join fee.
+- If an attacker can cheaply produce at least one successful `executeChannelTransaction(...)` and later reduce their channel balance to zero, the permanent cost of occupying a slot may collapse back toward gas plus temporary capital lock.
+- This means the main deterrent is no longer the join fee itself, but:
+  - the time-value cost of locking bootstrap capital
+  - the cost of generating and submitting at least one Tokamak-proof-backed transaction
+  - the cost of any additional channel activity needed to get back to zero balance
+- That still raises the attack cost meaningfully above today's free reservation path, but it no longer guarantees that slot occupation burns a permanent fee.
+- Mutable creator-controlled join fees introduce a new governance and fairness risk:
+  - the channel creator can make future joins economically impossible by raising the fee
+  - the channel creator can also lower the fee for a favored cohort and effectively turn a nominally permissionless channel into a creator-priced admission system
+- Because of that, the implementation must define whether fee changes are expected operational behavior or an abuse case that should be disclosed to users as a trust assumption.
+- Refund accounting must be tied to the fee actually paid at join time.
+  - If empty-exit refunds use the current fee rather than the recorded paid fee, later fee increases create an over-refund drain on the treasury and later fee decreases create under-refunds.
+- The statement that `minimumBootstrapBalance > 0` by itself guarantees at least one prior channel transaction for an empty-exit user is not true in the current bridge semantics.
+  - A positive bootstrap deposit only proves that the user joined with balance.
+  - It does not prove that the user has executed any Tokamak-proof-backed channel transaction, which is why the separate `hasExecutedChannelTx` flag is still required.
+- The current policy also leaves one operational design choice to be disclosed clearly:
+  - the treasury becomes a sink for non-refunded join fees, with outflows only for empty-exit refunds
+  - if that is the intended terminal behavior, the system should document that those fees are not protocol revenue and are not claimable by governance or operators
 
 Expected mitigation strength:
 
 - this materially improves the current finding because leaf exhaustion is no longer a gas-only sybil attack
 - exhausting all `4096` indices would require, per occupied slot:
-  - one non-refundable join fee
+  - one TON-denominated join fee paid into treasury
   - one bootstrap deposit of at least the configured minimum, locked in channel balance until exit
-  - one successful proof-backed entry transaction
-- an attacker who wants to recycle capital instead of leaving slots permanently occupied would also need at least one additional channel transaction per account before `withdraw-and-exit` can release the locked balance
+  - one successful proof-backed join transaction
+- an attacker who wants to recycle capital instead of leaving slots permanently occupied would also need:
+  - at least one successful `executeChannelTransaction(...)` per account
+  - enough additional channel activity to qualify for a zero-balance exit
 - the attack therefore becomes an economic denial of service rather than a near-free registration griefing primitive
 - this is still not a complete fix:
   - a sufficiently well-funded attacker can still fill all slots
   - the minimum bootstrap deposit is capital lock, not permanent loss
-  - the fixed join fee is the main non-recoverable deterrent
-  - honest users must also pay the same entry cost
+  - if the attacker can reclaim the join fee through the empty-exit path, the permanent deterrent may fall back toward gas plus proof-generation cost
+  - honest users must also pay the same entry cost and are exposed to future creator-driven fee increases
 
 ### Finding 3: Exact-transfer token behavior is a hard external dependency
 

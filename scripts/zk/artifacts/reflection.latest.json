@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-04-01T05:12:13.420Z",
+  "generatedAt": "2026-04-11T08:27:44.791Z",
   "tokamakSubmodule": {
     "path": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM",
     "branch": "dev",
-    "head": "8f6cb76273db0e9d5fafb442c3ea9598345050bb",
+    "head": "9c202a9eb585598d784a49a4b8a48fafc6df4644",
     "setupParamsPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json",
     "sigmaVerifyRkyvPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv"
   },
@@ -21,13 +21,14 @@
       "l_user": 65,
       "l": 728,
       "l_D": 4824,
-      "m_D": 26725,
+      "m_D": 26591,
       "n": 4096,
       "s_D": 14,
       "s_max": 256
     }
   },
   "groth16": {
+    "source": "trusted",
     "verificationKeyPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/trusted-setup/crs/verification_key.json",
     "verifierPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/verifier/src/Groth16Verifier.sol",
     "metadata": {
@@ -36,7 +37,7 @@
       "mtDepth": 12,
       "constraintCount": 15596,
       "powersOfTauPower": 14,
-      "generatedAt": "2026-03-31T15:04:53.704Z",
+      "generatedAt": "2026-04-11T08:27:42.718Z",
       "note": "This is a local deterministic development ceremony, not a production multi-party ceremony.",
       "phase1Contributions": 1,
       "phase2Contributions": 1,

@@ -485,6 +485,11 @@
           type: "textarea",
           placeholder: "[\"0xRecipientL2Address\"]",
         },
+        force: {
+          label: "Force Exit",
+          type: "checkbox",
+          hint: "Bypass the CLI zero-balance guard for exit-channel.",
+        },
       };
 
       const commands = [
@@ -501,6 +506,7 @@
         { id: "deposit-channel", description: "Move bridged funds into the channel L2 accounting balance.", fields: ["wallet", "password", "network", "amount"] },
         { id: "withdraw-channel", description: "Move channel L2 balance back into the shared bridge vault.", fields: ["wallet", "password", "network", "amount"] },
         { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "password", "network"] },
+        { id: "exit-channel", description: "Exit a channel. The assistant keeps the CLI zero-balance guard unless Force Exit is enabled.", fields: ["wallet", "password", "network", "force"] },
         { id: "mint-notes", description: "Mint private-state notes from the wallet channel balance.", fields: ["wallet", "password", "network", "amounts"] },
         { id: "transfer-notes", description: "Spend tracked notes into encrypted recipient outputs.", fields: ["wallet", "password", "network", "noteIds", "recipients", "amounts"] },
         { id: "redeem-notes", description: "Redeem up to three tracked notes back into liquid accounting balance.", fields: ["wallet", "password", "network", "noteIds"] },
@@ -526,6 +532,7 @@
         transferAmount1: "",
         transferRecipient2: "",
         transferAmount2: "",
+        force: false,
       };
 
       const sharedFieldKeys = [
@@ -1140,6 +1147,9 @@
             case "recipients":
               appendOption(parts, "--recipients", renderedValue);
               break;
+            case "force":
+              parts.push("--force");
+              break;
             default:
               break;
           }
@@ -1613,6 +1623,9 @@
             optionEl.textContent = option;
             input.appendChild(optionEl);
           }
+        } else if (config.type === "checkbox") {
+          input = document.createElement("input");
+          input.type = "checkbox";
         } else if (config.type === "textarea") {
           input = document.createElement("textarea");
         } else {
@@ -1620,10 +1633,14 @@
           input.type = config.type;
         }
 
-        input.value = state[fieldKey] ?? "";
-        input.placeholder = config.placeholder;
+        if (config.type === "checkbox") {
+          input.checked = state[fieldKey] === true;
+        } else {
+          input.value = state[fieldKey] ?? "";
+          input.placeholder = config.placeholder;
+        }
         input.addEventListener("input", async (event) => {
-          state[fieldKey] = event.target.value;
+          state[fieldKey] = config.type === "checkbox" ? event.target.checked : event.target.value;
           if (fieldKey === "network") {
             syncWorkspaceSelectionsForCurrentNetwork();
             workspaceDirectoryState.statusMessage = buildWorkspaceStatusMessage();
@@ -1679,6 +1696,12 @@
         }
 
         label.appendChild(input);
+        if (config.type === "checkbox" && config.hint) {
+          const hint = document.createElement("p");
+          hint.className = "hint";
+          hint.textContent = config.hint;
+          label.appendChild(hint);
+        }
         return label;
       }
 

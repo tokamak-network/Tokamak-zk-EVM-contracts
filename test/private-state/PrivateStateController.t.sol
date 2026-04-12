@@ -23,10 +23,9 @@ contract PrivateStateControllerTest is Test {
     bytes32 private constant NOTE_VALUE_ENCRYPTED_TOPIC = keccak256("NoteValueEncrypted(bytes32[3])");
     bytes32 private constant STORAGE_KEY_OBSERVED_TOPIC = keccak256("StorageKeyObserved(bytes32)");
     bytes32 private constant LIQUID_BALANCE_STORAGE_WRITE_OBSERVED_TOPIC =
-        keccak256("LiquidBalanceStorageWriteObserved(bytes32,bytes32)");
+        keccak256("LiquidBalanceStorageWriteObserved(address,bytes32)");
     uint256 private constant COMMITMENT_EXISTS_SLOT = 0;
     uint256 private constant NULLIFIER_USED_SLOT = 1;
-    uint256 private constant LIQUID_BALANCES_SLOT = 0;
 
     function setUp() public {
         deploymentFactory = new PrivateStateDeploymentFactory();
@@ -584,8 +583,8 @@ contract PrivateStateControllerTest is Test {
             }
 
             matchCount += 1;
-            (bytes32 storageKey, bytes32 writtenValue) = abi.decode(logs[i].data, (bytes32, bytes32));
-            assertEq(storageKey, keccak256(abi.encode(account, LIQUID_BALANCES_SLOT)));
+            (address writtenAddress, bytes32 writtenValue) = abi.decode(logs[i].data, (address, bytes32));
+            assertEq(writtenAddress, account);
             assertEq(writtenValue, bytes32(value));
         }
 

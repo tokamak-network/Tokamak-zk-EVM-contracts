@@ -111,7 +111,7 @@ const controllerStorageKeyObservedEventInterface = new Interface(CONTROLLER_STOR
 const CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC =
   controllerStorageKeyObservedEventInterface.getEvent("StorageKeyObserved").topicHash;
 const VAULT_STORAGE_WRITE_OBSERVED_EVENT_ABI = [
-  "event LiquidBalanceStorageWriteObserved(bytes32 storageKey, bytes32 value)",
+  "event LiquidBalanceStorageWriteObserved(address l2Address, bytes32 value)",
 ];
 const vaultStorageWriteObservedEventInterface = new Interface(VAULT_STORAGE_WRITE_OBSERVED_EVENT_ABI);
 const VAULT_STORAGE_WRITE_OBSERVED_TOPIC =
@@ -468,6 +468,7 @@ async function initializeChannelWorkspace({
       channelId,
       controllerAddress,
       l2AccountingVaultAddress,
+      liquidBalancesSlot,
     });
 
   const workspace = {
@@ -3763,6 +3764,7 @@ async function reconstructChannelSnapshot({
   channelId,
   controllerAddress,
   l2AccountingVaultAddress,
+  liquidBalancesSlot,
 }) {
   const genesisSnapshot = {
     channelId: channelId.toString(),
@@ -3853,10 +3855,14 @@ async function reconstructChannelSnapshot({
       }
 
       if (topic0 === normalizeBytes32Hex(VAULT_STORAGE_WRITE_OBSERVED_TOPIC)) {
-        const { storageKey, value } = vaultStorageWriteObservedEventInterface.decodeEventLog(
+        const { l2Address, value } = vaultStorageWriteObservedEventInterface.decodeEventLog(
           "LiquidBalanceStorageWriteObserved",
           event.data,
           event.topics,
+        );
+        const storageKey = deriveLiquidBalanceStorageKey(
+          getAddress(l2Address),
+          BigInt(liquidBalancesSlot),
         );
         await stateManager.putStorage(
           createAddressFromString(l2AccountingVaultAddress),

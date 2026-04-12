@@ -264,9 +264,12 @@ Additional review of the refined plan:
 - Because of that, the implementation must define whether fee changes are expected operational behavior or an abuse case that should be disclosed to users as a trust assumption.
 - Refund accounting must be tied to the fee actually paid at join time.
   - If empty-exit refunds use the current fee rather than the recorded paid fee, later fee increases create an over-refund drain on the treasury and later fee decreases create under-refunds.
-- The statement that `minimumBootstrapBalance > 0` by itself guarantees at least one prior channel transaction for an empty-exit user is not true in the current bridge semantics.
-  - A positive bootstrap deposit only proves that the user joined with balance.
-  - It does not prove that the user has executed any Tokamak-proof-backed channel transaction, which is why the separate `hasExecutedChannelTx` flag is still required.
+- Under the intended semantics, `minimumBootstrapBalance > 0` does imply prior Tokamak-proof-backed activity for an empty-exit user, provided the implementation preserves one critical invariant:
+  - a registered user must not be able to reach `currentUserValue == 0` through a non-exit Groth path
+  - if `withdraw-and-exit` is the only Groth path that may set `updatedUserValue == 0`, then any user who later qualifies for empty exit must already have reached zero through at least one successful `executeChannelTransaction(...)`
+- Even under that invariant, the separate `hasExecutedChannelTx` flag is still useful:
+  - it directly enforces the policy for channels whose `minimumBootstrapBalance == 0`
+  - it avoids relying on indirect reasoning about how a zero-balance registration was reached
 - The current policy also leaves one operational design choice to be disclosed clearly:
   - the treasury becomes a sink for non-refunded join fees, with outflows only for empty-exit refunds
   - if that is the intended terminal behavior, the system should document that those fees are not protocol revenue and are not claimable by governance or operators

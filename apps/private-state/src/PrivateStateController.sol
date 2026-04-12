@@ -35,6 +35,7 @@ contract PrivateStateController {
     bytes32 private constant NULLIFIER_DOMAIN = keccak256("PRIVATE_STATE_NULLIFIER");
 
     event NoteValueEncrypted(bytes32[3] encryptedNoteValue);
+    event StorageKeyObserved(bytes32 storageKey);
 
     mapping(bytes32 commitment => bool exists) public commitmentExists;
     mapping(bytes32 nullifier => bool used) public nullifierUsed;
@@ -638,6 +639,7 @@ contract PrivateStateController {
             revert CommitmentAlreadyExists(commitment);
         }
         commitmentExists[commitment] = true;
+        emit StorageKeyObserved(commitment);
     }
 
     function _useNullifier(bytes32 nullifier) internal {
@@ -645,6 +647,7 @@ contract PrivateStateController {
             revert NullifierAlreadyUsed(nullifier);
         }
         nullifierUsed[nullifier] = true;
+        emit StorageKeyObserved(nullifier);
     }
 
     function _loadValidatedNote(Note calldata note)

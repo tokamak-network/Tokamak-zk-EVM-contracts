@@ -61,7 +61,6 @@ library BridgeStructs {
         uint8 functionSigOffsetWords;
         uint8 currentRootVectorOffsetWords;
         uint8 updatedRootVectorOffsetWords;
-        bool exists;
     }
 
     struct GrothUpdate {

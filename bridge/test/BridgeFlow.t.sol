@@ -99,7 +99,6 @@ contract BridgeFlowTest is Test {
             IGrothVerifier(address(grothVerifier)),
             ITokamakVerifier(address(tokamakVerifier))
         );
-        dAppManager.bindBridgeCore(address(bridgeCore));
         channelId = _deriveChannelId(channelName);
         secondChannelId = _deriveChannelId(secondChannelName);
         bridgeTokenVault = _deployTokenVaultProxy(address(this), bridgeCore);
@@ -153,7 +152,6 @@ contract BridgeFlowTest is Test {
         assertEq(managedStorageAddresses[1], address(0x1234));
 
         BridgeStructs.FunctionConfig memory functionConfig = dAppManager.getFunctionMetadata(1, appContract, APP_SIG);
-        assertTrue(functionConfig.exists);
         assertEq(functionConfig.preprocessInputHash, defaultPreprocessInputHash);
         assertEq(functionConfig.entryContractOffsetWords, 22);
         assertEq(functionConfig.functionSigOffsetWords, 24);
@@ -172,10 +170,6 @@ contract BridgeFlowTest is Test {
         assertEq(userSlots[0], 0);
         assertTrue(dAppManager.isChannelTokenVaultStorageAddress(1, address(0xF00D)));
         assertFalse(dAppManager.isChannelTokenVaultStorageAddress(1, address(0x1234)));
-    }
-
-    function testDAppManagerTracksBoundBridgeCore() public view {
-        assertEq(dAppManager.bridgeCore(), address(bridgeCore));
     }
 
     function testOwnerCanDeleteUnboundDAppOnSepolia() public {
@@ -892,7 +886,6 @@ contract BridgeFlowTest is Test {
         assertTrue(_implementationOf(dAppProxyAddress) != previousDAppImplementation);
         assertTrue(_implementationOf(bridgeProxyAddress) != previousBridgeImplementation);
         assertTrue(_implementationOf(bridgeTokenVaultProxyAddress) != previousTokenVaultImplementation);
-        assertEq(dAppManager.bridgeCore(), address(bridgeCore));
     }
 
     function testTokamakVerificationRejectsProofForUnexpectedCurrentState() public {

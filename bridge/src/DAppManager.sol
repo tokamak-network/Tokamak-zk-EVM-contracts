@@ -11,8 +11,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     error UnknownDApp(uint256 dappId);
     error DuplicateDApp(uint256 dappId);
-    error InvalidBridgeCore();
-    error BridgeCoreAlreadyBound(address currentBridgeCore, address candidateBridgeCore);
     error EmptyStorageLayout(uint256 dappId);
     error EmptyFunctionList(uint256 dappId);
     error DuplicateStorageAddress(uint256 dappId, address storageAddr);
@@ -32,7 +30,8 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint256 channelTokenVaultTreeIndex;
     }
 
-    address public bridgeCore;
+    // Reserved to preserve the historical storage slot after bridgeCore binding was removed.
+    address private _deprecatedBridgeCore;
 
     mapping(uint256 => DAppInfo) private _dapps;
     mapping(uint256 => mapping(bytes32 => bool)) private _supportedFunctions;
@@ -53,7 +52,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint256 storageCount,
         uint256 functionCount
     );
-    event BridgeCoreBound(address indexed bridgeCore);
     event DAppDeleted(uint256 indexed dappId, bytes32 labelHash);
 
     constructor() {
@@ -66,15 +64,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (initialOwner != _msgSender()) {
             _transferOwnership(initialOwner);
         }
-    }
-
-    function bindBridgeCore(address bridgeCore_) external onlyOwner {
-        if (bridgeCore_ == address(0)) revert InvalidBridgeCore();
-        if (bridgeCore != address(0)) {
-            revert BridgeCoreAlreadyBound(bridgeCore, bridgeCore_);
-        }
-        bridgeCore = bridgeCore_;
-        emit BridgeCoreBound(bridgeCore_);
     }
 
     function deleteDApp(uint256 dappId) external onlyOwner {
@@ -205,8 +194,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                 entryContractOffsetWords: fnMetadata.instanceLayout.entryContractOffsetWords,
                 functionSigOffsetWords: fnMetadata.instanceLayout.functionSigOffsetWords,
                 currentRootVectorOffsetWords: fnMetadata.instanceLayout.currentRootVectorOffsetWords,
-                updatedRootVectorOffsetWords: fnMetadata.instanceLayout.updatedRootVectorOffsetWords,
-                exists: true
+                updatedRootVectorOffsetWords: fnMetadata.instanceLayout.updatedRootVectorOffsetWords
             });
         }
 

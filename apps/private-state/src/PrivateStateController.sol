@@ -639,7 +639,7 @@ contract PrivateStateController {
             revert CommitmentAlreadyExists(commitment);
         }
         commitmentExists[commitment] = true;
-        emit StorageKeyObserved(commitment);
+        emit StorageKeyObserved(_mappingStorageKey(commitment, _commitmentExistsSlot()));
     }
 
     function _useNullifier(bytes32 nullifier) internal {
@@ -647,7 +647,7 @@ contract PrivateStateController {
             revert NullifierAlreadyUsed(nullifier);
         }
         nullifierUsed[nullifier] = true;
-        emit StorageKeyObserved(nullifier);
+        emit StorageKeyObserved(_mappingStorageKey(nullifier, _nullifierUsedSlot()));
     }
 
     function _loadValidatedNote(Note calldata note)
@@ -677,6 +677,28 @@ contract PrivateStateController {
             mstore(add(ptr, 0x40), calldataload(add(offset, 0x40)))
             digest := keccak256(ptr, 0x60)
             mstore(0x40, add(ptr, 0x60))
+        }
+    }
+
+    function _commitmentExistsSlot() private view returns (uint256 slot) {
+        assembly ("memory-safe") {
+            slot := commitmentExists.slot
+        }
+    }
+
+    function _nullifierUsedSlot() private view returns (uint256 slot) {
+        assembly ("memory-safe") {
+            slot := nullifierUsed.slot
+        }
+    }
+
+    function _mappingStorageKey(bytes32 key, uint256 slot) private pure returns (bytes32 digest) {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, key)
+            mstore(add(ptr, 0x20), slot)
+            digest := keccak256(ptr, 0x40)
+            mstore(0x40, add(ptr, 0x40))
         }
     }
 

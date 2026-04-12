@@ -1180,6 +1180,13 @@ function deleteWalletDir(participant) {
   fs.rmSync(walletDirForName(participant.walletName), { recursive: true, force: true });
 }
 
+function deleteWorkspaceDir() {
+  fs.rmSync(sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName), {
+    recursive: true,
+    force: true,
+  });
+}
+
 function mintNotes(participant, amounts) {
   return runAnvilCliCommand("mint-notes", [
     ...walletCliArgs(participant),
@@ -1417,6 +1424,13 @@ async function main() {
     const notesAfterRedeemC = getMyNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
 
+    deleteWorkspaceDir();
+    const recoverWorkspaceAfterNotesResult = recoverWorkspace();
+    expect(
+      recoverWorkspaceAfterNotesResult.channelName === channelName,
+      "recover-workspace must rebuild the deleted workspace after note activity.",
+    );
+
     const channelDepositBeforeWithdraw = getMyChannelFund(participants[2]);
     assertBigIntEq(
       channelDepositBeforeWithdraw.channelDepositBaseUnits,
@@ -1485,6 +1499,7 @@ async function main() {
       dappRegistration: dappRegistrationResult,
       createChannel: createChannelResult,
       recoverWorkspace: recoverWorkspaceResult,
+      recoverWorkspaceAfterNotes: recoverWorkspaceAfterNotesResult,
       participants: participants.map((participant) => ({
         alias: participant.alias,
         password: participant.password,

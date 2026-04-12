@@ -14,6 +14,8 @@ contract L2AccountingVault {
     error InsufficientLiquidBalance(address account, uint256 available, uint256 required);
     error LiquidBalanceOverflow(address account, uint256 available, uint256 incoming);
 
+    event LiquidBalanceStorageWriteObserved(bytes32 storageKey, bytes32 value);
+
     mapping(address account => uint256 amount) public liquidBalances;
 
     address public immutable controller;
@@ -49,7 +51,9 @@ contract L2AccountingVault {
             revert LiquidBalanceOverflow(account, available, amount);
         }
 
-        liquidBalances[account] = available + amount;
+        uint256 nextValue = available + amount;
+        liquidBalances[account] = nextValue;
+        emit LiquidBalanceStorageWriteObserved(_liquidBalanceStorageKey(account), bytes32(nextValue));
     }
 
     function debitLiquidBalance(address account, uint256 amount) external onlyController {
@@ -65,6 +69,16 @@ contract L2AccountingVault {
             revert InsufficientLiquidBalance(account, available, amount);
         }
 
-        liquidBalances[account] = available - amount;
+        uint256 nextValue = available - amount;
+        liquidBalances[account] = nextValue;
+        emit LiquidBalanceStorageWriteObserved(_liquidBalanceStorageKey(account), bytes32(nextValue));
+    }
+
+    function _liquidBalanceStorageKey(address account) private view returns (bytes32) {
+        uint256 slot;
+        assembly ("memory-safe") {
+            slot := liquidBalances.slot
+        }
+        return keccak256(abi.encode(account, slot));
     }
 }

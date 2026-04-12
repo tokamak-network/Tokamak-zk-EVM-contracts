@@ -104,6 +104,18 @@ const NOTE_RECEIVE_EVENT_ABI = [
 ];
 const noteValueEncryptedEventInterface = new Interface(NOTE_RECEIVE_EVENT_ABI);
 const NOTE_VALUE_ENCRYPTED_TOPIC = noteValueEncryptedEventInterface.getEvent("NoteValueEncrypted").topicHash;
+const CONTROLLER_STORAGE_KEY_OBSERVED_EVENT_ABI = [
+  "event StorageKeyObserved(bytes32 storageKey)",
+];
+const controllerStorageKeyObservedEventInterface = new Interface(CONTROLLER_STORAGE_KEY_OBSERVED_EVENT_ABI);
+const CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC =
+  controllerStorageKeyObservedEventInterface.getEvent("StorageKeyObserved").topicHash;
+const VAULT_STORAGE_WRITE_OBSERVED_EVENT_ABI = [
+  "event LiquidBalanceStorageWriteObserved(bytes32 storageKey, bytes32 value)",
+];
+const vaultStorageWriteObservedEventInterface = new Interface(VAULT_STORAGE_WRITE_OBSERVED_EVENT_ABI);
+const VAULT_STORAGE_WRITE_OBSERVED_TOPIC =
+  vaultStorageWriteObservedEventInterface.getEvent("LiquidBalanceStorageWriteObserved").topicHash;
 const ZERO_TOPIC = normalizeBytes32Hex(ethers.ZeroHash);
 const JUBJUB_ORDER = jubjub.CURVE.n;
 const JUBJUB_FP = jubjub.CURVE.Fp;
@@ -454,6 +466,8 @@ async function initializeChannelWorkspace({
       contractCodes,
       genesisBlockNumber,
       channelId,
+      controllerAddress,
+      l2AccountingVaultAddress,
     });
 
   const workspace = {
@@ -3747,6 +3761,8 @@ async function reconstructChannelSnapshot({
   contractCodes,
   genesisBlockNumber,
   channelId,
+  controllerAddress,
+  l2AccountingVaultAddress,
 }) {
   const genesisSnapshot = {
     channelId: channelId.toString(),
@@ -3773,9 +3789,18 @@ async function reconstructChannelSnapshot({
     fromBlock: genesisBlockNumber,
     toBlock: latestBlock,
   });
+  const observedStorageLogs = await fetchLogsChunked(provider, {
+    address: channelInfo.manager,
+    topics: [[
+      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
+      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
+    ]],
+    fromBlock: genesisBlockNumber,
+    toBlock: latestBlock,
+  });
 
   const groupedEvents = new Map();
-  for (const event of [...rootEvents, ...vaultStorageWriteEvents]) {
+  for (const event of [...rootEvents, ...vaultStorageWriteEvents, ...observedStorageLogs]) {
     const key = event.transactionHash;
     const group = groupedEvents.get(key) ?? [];
     group.push(event);
@@ -3800,17 +3825,45 @@ async function reconstructChannelSnapshot({
     const emittedRootVectorHash = normalizeBytes32Hex(rootEvent.args.rootVectorHash);
 
     for (const event of orderedGroup) {
-      if (event.fragment?.name !== "StorageWriteObserved") {
+      if (event.fragment?.name === "StorageWriteObserved") {
+        const storageAddr = getAddress(event.args.storageAddr);
+        const storageKey = bytes32FromBigInt(BigInt(event.args.storageKey));
+        const storageValue = bigintToHex32(BigInt(event.args.value));
+        await stateManager.putStorage(
+          createAddressFromString(storageAddr),
+          hexToBytes(storageKey),
+          hexToBytes(storageValue),
+        );
         continue;
       }
-      const storageAddr = getAddress(event.args.storageAddr);
-      const storageKey = bytes32FromBigInt(BigInt(event.args.storageKey));
-      const storageValue = bigintToHex32(BigInt(event.args.value));
-      await stateManager.putStorage(
-        createAddressFromString(storageAddr),
-        hexToBytes(storageKey),
-        hexToBytes(storageValue),
-      );
+
+      const topic0 = event.topics[0] ? normalizeBytes32Hex(event.topics[0]) : null;
+      if (topic0 === normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC)) {
+        const { storageKey } = controllerStorageKeyObservedEventInterface.decodeEventLog(
+          "StorageKeyObserved",
+          event.data,
+          event.topics,
+        );
+        await stateManager.putStorage(
+          createAddressFromString(controllerAddress),
+          hexToBytes(normalizeBytes32Hex(storageKey)),
+          hexToBytes(bigintToHex32(1n)),
+        );
+        continue;
+      }
+
+      if (topic0 === normalizeBytes32Hex(VAULT_STORAGE_WRITE_OBSERVED_TOPIC)) {
+        const { storageKey, value } = vaultStorageWriteObservedEventInterface.decodeEventLog(
+          "LiquidBalanceStorageWriteObserved",
+          event.data,
+          event.topics,
+        );
+        await stateManager.putStorage(
+          createAddressFromString(l2AccountingVaultAddress),
+          hexToBytes(normalizeBytes32Hex(storageKey)),
+          hexToBytes(normalizeBytes32Hex(value)),
+        );
+      }
     }
 
     currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());

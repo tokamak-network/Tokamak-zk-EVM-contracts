@@ -227,10 +227,16 @@ Refined implementation plan under the current policy decisions:
 - remove the earlier `minimumBootstrapBalance` requirement and do not force a channel deposit at join time
 - remove the earlier requirement that every withdraw must be an exit, so post-join channel balance management may continue independently of registration lifetime
 - add an exit path that:
+  - requires `currentUserValue == 0`
   - deletes the registration and frees the reserved `leafIndex`, key binding, L2 address binding, and note-receive key binding only after the full exit path succeeds
   - allows the same L1 account to rejoin the same channel after a successful exit
   - refunds only a time-decayed fraction of the recorded join fee back to the exiting user from treasury
-  - computes the refundable fraction from the elapsed time since join, with the refund rate decaying exponentially over time
+  - computes the refundable fraction from an owner-updatable lookup table
+  - starts with the following schedule:
+    - exit within 6 hours: `75%`
+    - exit within 24 hours: `50%`
+    - exit within 3 days: `25%`
+    - exit after 3 days: `0%`
   - preserves the invariant that no treasury outflow path exists except this decayed exit refund
 - extend the per-user registration state with:
   - the recorded join-fee-paid amount
@@ -238,6 +244,7 @@ Refined implementation plan under the current policy decisions:
 - update the CLI and user guidance so:
   - `join-channel` becomes a paid registration action rather than a free reservation call
   - `deposit-channel` and `withdraw-channel` remain regular balance-management actions for already-registered users
+  - the CLI refuses `exit` unless the current channel balance is already zero
   - the exit flow clearly discloses the current refund fraction before the user confirms
 - preserve transaction atomicity:
   - if the paid join path fails, the registration and fee side effects must roll back together
@@ -252,7 +259,7 @@ Additional review of the refined plan:
   - An attacker can still join, wait briefly, and exit with a high refund if the decay curve is too slow.
   - An attacker who occupies slots for a long period can no longer recover the full fee simply by performing one last-minute action before exit.
 - The main deterrent is now the non-refunded fraction of the join fee as a function of occupancy time:
-  - short-lived joins remain relatively cheap if the decay half-life is long
+  - short-lived joins remain relatively cheap if the early refund buckets are generous
   - long-lived slot occupation becomes increasingly expensive as the refund fraction decays
 - Because the bootstrap-deposit requirement is removed, the design no longer benefits from capital-lock deterrence.
   - The join fee schedule therefore becomes the dominant anti-DoS control.
@@ -262,11 +269,10 @@ Additional review of the refined plan:
 - Because of that, the implementation must define whether fee changes are expected operational behavior or an abuse case that should be disclosed to users as a trust assumption.
 - Refund accounting must be tied to the fee actually paid at join time.
   - If exit refunds use the current fee rather than the recorded paid fee, later fee increases create an over-refund drain on the treasury and later fee decreases create under-refunds.
-- The decay function must be implementable without precision or griefing bugs.
-  - A continuous exponential formula is conceptually fine, but onchain implementation will likely need a discrete epoch schedule, lookup table, or integer half-life model.
-- One critical invariant remains unresolved and must be fixed before implementation:
-  - if exit is allowed while the user still has positive channel balance, the protocol can orphan funds behind a deleted registration
-  - the implementation therefore still needs an explicit rule for whether exit requires `currentUserValue == 0`, or whether exit must atomically include a final withdraw
+- The refund schedule itself becomes a privileged governance lever because the bridge owner can change the lookup table after channels are live.
+  - A tighter table can make exits much more expensive than users expected at join time.
+  - A looser table can weaken DoS deterrence retroactively.
+  - This refund-schedule mutability must therefore be disclosed as a trust assumption unless it is time-locked or future-only.
 - The current policy also leaves one operational design choice to be disclosed clearly:
   - the treasury becomes a sink for non-refunded join fees, with outflows only for decayed exit refunds
   - if that is the intended terminal behavior, the system should document that those fees are not protocol revenue and are not claimable by governance or operators
@@ -281,8 +287,9 @@ Expected mitigation strength:
 - the attack therefore becomes an economic denial of service rather than a near-free registration griefing primitive
 - this is still not a complete fix:
   - a sufficiently well-funded attacker can still fill all slots
-  - if the decay curve is too generous over the attacker's intended time horizon, short-lived occupancy can still be cheap
+  - if the early refund buckets are too generous over the attacker's intended time horizon, short-lived occupancy can still be cheap
   - honest users must also pay the same entry cost and are exposed to future creator-driven fee increases
+  - honest users are also exposed to bridge-owner changes to the refund table unless those changes are constrained to future joins only
 
 ### Finding 3: Exact-transfer token behavior is a hard external dependency
 

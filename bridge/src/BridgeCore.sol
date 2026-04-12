@@ -16,6 +16,7 @@ import {IChannelRegistry} from "./interfaces/IChannelRegistry.sol";
 contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChannelRegistry {
     uint8 internal constant SUPPORTED_MT_LEVELS = 12;
     uint256 internal constant MAX_MANAGED_STORAGES = 11;
+    uint16 internal constant BPS_DENOMINATOR = 10_000;
     address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET = 0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
     address internal constant TOKAMAK_NETWORK_TOKEN_SEPOLIA = 0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
     bytes32 internal constant ZERO_FILLED_TREE_ROOT =
@@ -34,6 +35,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     error InvalidBridgeTokenVault();
     error BridgeTokenVaultAlreadySet();
     error UnsupportedCanonicalAssetChain(uint256 chainId);
+    error InvalidJoinFeeRefundSchedule();
 
     struct ChannelDeployment {
         bool exists;
@@ -50,6 +52,13 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     IGrothVerifier public grothVerifier;
     ITokamakVerifier public tokamakVerifier;
     address public bridgeTokenVault;
+    uint64 public defaultJoinFeeRefundCutoff1;
+    uint64 public defaultJoinFeeRefundCutoff2;
+    uint64 public defaultJoinFeeRefundCutoff3;
+    uint16 public defaultJoinFeeRefundBps1;
+    uint16 public defaultJoinFeeRefundBps2;
+    uint16 public defaultJoinFeeRefundBps3;
+    uint16 public defaultJoinFeeRefundBps4;
 
     mapping(uint256 => ChannelDeployment) private _channels;
 
@@ -57,6 +66,15 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     event BridgeTokenVaultBound(address indexed bridgeTokenVault);
     event GrothVerifierUpdated(address indexed grothVerifier);
     event TokamakVerifierUpdated(address indexed tokamakVerifier);
+    event JoinFeeRefundScheduleUpdated(
+        uint64 cutoff1,
+        uint16 bps1,
+        uint64 cutoff2,
+        uint16 bps2,
+        uint64 cutoff3,
+        uint16 bps3,
+        uint16 bps4
+    );
 
     constructor() {
         _disableInitializers();
@@ -84,6 +102,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         dAppManager = dAppManager_;
         grothVerifier = grothVerifier_;
         tokamakVerifier = tokamakVerifier_;
+        _setJoinFeeRefundSchedule(6 hours, 7_500, 24 hours, 5_000, 3 days, 2_500, 0);
     }
 
     function setGrothVerifier(IGrothVerifier grothVerifier_) external onlyOwner {
@@ -105,6 +124,18 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         emit BridgeTokenVaultBound(bridgeTokenVault_);
     }
 
+    function setJoinFeeRefundSchedule(
+        uint64 cutoff1,
+        uint16 bps1,
+        uint64 cutoff2,
+        uint16 bps2,
+        uint64 cutoff3,
+        uint16 bps3,
+        uint16 bps4
+    ) external onlyOwner {
+        _setJoinFeeRefundSchedule(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
+    }
+
     function canonicalAsset() public view returns (address) {
         if (block.chainid == 1) {
             return TOKAMAK_NETWORK_TOKEN_MAINNET;
@@ -115,7 +146,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         revert UnsupportedCanonicalAssetChain(block.chainid);
     }
 
-    function createChannel(uint256 channelId, uint256 dappId, address leader)
+    function createChannel(uint256 channelId, uint256 dappId, address leader, uint256 initialJoinFee)
         external
         onlyOwner
         returns (address manager, address boundBridgeTokenVault)
@@ -151,6 +182,14 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             address(this),
             grothVerifier,
             tokamakVerifier,
+            initialJoinFee,
+            defaultJoinFeeRefundCutoff1,
+            defaultJoinFeeRefundBps1,
+            defaultJoinFeeRefundCutoff2,
+            defaultJoinFeeRefundBps2,
+            defaultJoinFeeRefundCutoff3,
+            defaultJoinFeeRefundBps3,
+            defaultJoinFeeRefundBps4,
             dAppManager
         );
 
@@ -208,4 +247,32 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    function _setJoinFeeRefundSchedule(
+        uint64 cutoff1,
+        uint16 bps1,
+        uint64 cutoff2,
+        uint16 bps2,
+        uint64 cutoff3,
+        uint16 bps3,
+        uint16 bps4
+    ) private {
+        if (
+            cutoff1 == 0 || cutoff1 >= cutoff2 || cutoff2 >= cutoff3 || bps1 > BPS_DENOMINATOR
+                || bps2 > BPS_DENOMINATOR || bps3 > BPS_DENOMINATOR || bps4 > BPS_DENOMINATOR || bps1 < bps2
+                || bps2 < bps3 || bps3 < bps4
+        ) {
+            revert InvalidJoinFeeRefundSchedule();
+        }
+
+        defaultJoinFeeRefundCutoff1 = cutoff1;
+        defaultJoinFeeRefundCutoff2 = cutoff2;
+        defaultJoinFeeRefundCutoff3 = cutoff3;
+        defaultJoinFeeRefundBps1 = bps1;
+        defaultJoinFeeRefundBps2 = bps2;
+        defaultJoinFeeRefundBps3 = bps3;
+        defaultJoinFeeRefundBps4 = bps4;
+
+        emit JoinFeeRefundScheduleUpdated(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
+    }
 }

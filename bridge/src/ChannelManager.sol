@@ -12,6 +12,7 @@ contract ChannelManager {
     uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = uint256(1) << 12;
     uint256 internal constant SPLIT_WORD_SIZE = 2;
     uint256 internal constant STORAGE_WRITE_VALUE_OFFSET = 2;
+    uint16 internal constant BPS_DENOMINATOR = 10_000;
 
     struct CachedStorageWrite {
         address storageAddr;
@@ -26,6 +27,7 @@ contract ChannelManager {
 
     error OnlyBridgeCore();
     error OnlyBridgeTokenVault();
+    error OnlyLeader();
     error BridgeTokenVaultAlreadySet();
     error StorageAddressVectorLengthMismatch();
     error UnexpectedCurrentRootVector();
@@ -48,8 +50,11 @@ contract ChannelManager {
     error ChannelTokenVaultL2AddressAlreadyRegistered(address l2Address);
     error ChannelTokenVaultLeafIndexOutOfRange(uint256 leafIndex);
     error ChannelTokenVaultLeafIndexMismatch(uint256 expectedLeafIndex, uint256 actualLeafIndex);
+    error InvalidL1Address();
     error InvalidNoteReceivePubKey();
     error InvalidNoteReceivePubKeyYParity(uint8 yParity);
+    error ChannelTokenVaultIdentityNotRegistered(address user);
+    error InvalidJoinFeeRefundSchedule();
     error UnsupportedObservedEventTopicCount(uint8 topicCount);
     error InvalidObservedEventBoundary(uint16 startOffsetWords, uint256 endOffsetWords);
     error InvalidObservedEventDataLength(uint16 startOffsetWords, uint256 dataWordLength);
@@ -64,9 +69,17 @@ contract ChannelManager {
     address public immutable bridgeCore;
     IGrothVerifier public immutable grothVerifier;
     ITokamakVerifier public immutable tokamakVerifier;
+    uint64 public immutable joinFeeRefundCutoff1;
+    uint64 public immutable joinFeeRefundCutoff2;
+    uint64 public immutable joinFeeRefundCutoff3;
+    uint16 public immutable joinFeeRefundBps1;
+    uint16 public immutable joinFeeRefundBps2;
+    uint16 public immutable joinFeeRefundBps3;
+    uint16 public immutable joinFeeRefundBps4;
 
     address public bridgeTokenVault;
     bytes32 public currentRootVectorHash;
+    uint256 public joinFee;
 
     address[] private _managedStorageAddresses;
 
@@ -85,14 +98,18 @@ contract ChannelManager {
     mapping(address => address) private _channelTokenVaultL2AddressOwners;
 
     event BridgeTokenVaultBound(address indexed bridgeTokenVault);
+    event JoinFeeUpdated(uint256 previousJoinFee, uint256 newJoinFee);
     event ChannelTokenVaultIdentityRegistered(
         address indexed l1Address,
         address indexed l2Address,
         bytes32 indexed channelTokenVaultKey,
         uint256 leafIndex,
+        uint256 joinFeePaid,
+        uint64 joinedAt,
         bytes32 noteReceivePubKeyX,
         uint8 noteReceivePubKeyYParity
     );
+    event ChannelTokenVaultIdentityExited(address indexed l1Address, uint256 indexed leafIndex);
     event CurrentRootVectorObserved(bytes32 indexed rootVectorHash, bytes32[] rootVector);
     event StorageWriteObserved(address indexed storageAddr, uint256 storageKey, uint256 value);
 
@@ -107,6 +124,14 @@ contract ChannelManager {
         address bridgeCore_,
         IGrothVerifier grothVerifier_,
         ITokamakVerifier tokamakVerifier_,
+        uint256 initialJoinFee_,
+        uint64 joinFeeRefundCutoff1_,
+        uint16 joinFeeRefundBps1_,
+        uint64 joinFeeRefundCutoff2_,
+        uint16 joinFeeRefundBps2_,
+        uint64 joinFeeRefundCutoff3_,
+        uint16 joinFeeRefundBps3_,
+        uint16 joinFeeRefundBps4_,
         DAppManager dAppManager_
     ) {
         channelId = channelId_;
@@ -116,6 +141,23 @@ contract ChannelManager {
         bridgeCore = bridgeCore_;
         grothVerifier = grothVerifier_;
         tokamakVerifier = tokamakVerifier_;
+        if (
+            joinFeeRefundCutoff1_ == 0 || joinFeeRefundCutoff1_ >= joinFeeRefundCutoff2_
+                || joinFeeRefundCutoff2_ >= joinFeeRefundCutoff3_ || joinFeeRefundBps1_ > BPS_DENOMINATOR
+                || joinFeeRefundBps2_ > BPS_DENOMINATOR || joinFeeRefundBps3_ > BPS_DENOMINATOR
+                || joinFeeRefundBps4_ > BPS_DENOMINATOR || joinFeeRefundBps1_ < joinFeeRefundBps2_
+                || joinFeeRefundBps2_ < joinFeeRefundBps3_ || joinFeeRefundBps3_ < joinFeeRefundBps4_
+        ) {
+            revert InvalidJoinFeeRefundSchedule();
+        }
+        joinFee = initialJoinFee_;
+        joinFeeRefundCutoff1 = joinFeeRefundCutoff1_;
+        joinFeeRefundCutoff2 = joinFeeRefundCutoff2_;
+        joinFeeRefundCutoff3 = joinFeeRefundCutoff3_;
+        joinFeeRefundBps1 = joinFeeRefundBps1_;
+        joinFeeRefundBps2 = joinFeeRefundBps2_;
+        joinFeeRefundBps3 = joinFeeRefundBps3_;
+        joinFeeRefundBps4 = joinFeeRefundBps4_;
 
         uint256[] memory aPubBlock = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
         uint256 selfBalance;
@@ -220,21 +262,35 @@ contract ChannelManager {
         _;
     }
 
+    modifier onlyLeader() {
+        if (msg.sender != leader) revert OnlyLeader();
+        _;
+    }
+
     function bindBridgeTokenVault(address bridgeTokenVault_) external onlyBridgeCore {
         if (bridgeTokenVault != address(0)) revert BridgeTokenVaultAlreadySet();
         bridgeTokenVault = bridgeTokenVault_;
         emit BridgeTokenVaultBound(bridgeTokenVault_);
     }
 
+    function setJoinFee(uint256 joinFee_) external onlyLeader {
+        uint256 previousJoinFee = joinFee;
+        joinFee = joinFee_;
+        emit JoinFeeUpdated(previousJoinFee, joinFee_);
+    }
+
     function registerChannelTokenVaultIdentity(
+        address l1Address,
         address l2Address,
         bytes32 channelTokenVaultKey,
         uint256 leafIndex,
-        BridgeStructs.NoteReceivePubKey calldata noteReceivePubKey
-    ) external {
+        BridgeStructs.NoteReceivePubKey calldata noteReceivePubKey,
+        uint256 joinFeePaid
+    ) external onlyBridgeTokenVault {
+        if (l1Address == address(0)) revert InvalidL1Address();
         if (l2Address == address(0)) revert InvalidL2Address();
-        if (_channelTokenVaultRegistrations[msg.sender].exists) {
-            revert ChannelTokenVaultIdentityAlreadyRegistered(msg.sender);
+        if (_channelTokenVaultRegistrations[l1Address].exists) {
+            revert ChannelTokenVaultIdentityAlreadyRegistered(l1Address);
         }
         if (_channelTokenVaultL2AddressOwners[l2Address] != address(0)) {
             revert ChannelTokenVaultL2AddressAlreadyRegistered(l2Address);
@@ -260,22 +316,64 @@ contract ChannelManager {
             revert ChannelTokenVaultLeafIndexAlreadyRegistered(leafIndex);
         }
 
-        _channelTokenVaultRegistrations[msg.sender] = BridgeStructs.ChannelTokenVaultRegistration({
+        _channelTokenVaultRegistrations[l1Address] = BridgeStructs.ChannelTokenVaultRegistration({
             exists: true,
             l2Address: l2Address,
             channelTokenVaultKey: channelTokenVaultKey,
             leafIndex: leafIndex,
+            joinFeePaid: joinFeePaid,
+            joinedAt: uint64(block.timestamp),
             noteReceivePubKey: BridgeStructs.NoteReceivePubKey({
                 x: noteReceivePubKey.x, yParity: noteReceivePubKey.yParity
             })
         });
-        _channelTokenVaultKeyOwners[channelTokenVaultKey] = msg.sender;
-        _channelTokenVaultLeafOwners[leafIndex] = msg.sender;
-        _channelTokenVaultL2AddressOwners[l2Address] = msg.sender;
+        _channelTokenVaultKeyOwners[channelTokenVaultKey] = l1Address;
+        _channelTokenVaultLeafOwners[leafIndex] = l1Address;
+        _channelTokenVaultL2AddressOwners[l2Address] = l1Address;
 
         emit ChannelTokenVaultIdentityRegistered(
-            msg.sender, l2Address, channelTokenVaultKey, leafIndex, noteReceivePubKey.x, noteReceivePubKey.yParity
+            l1Address,
+            l2Address,
+            channelTokenVaultKey,
+            leafIndex,
+            joinFeePaid,
+            uint64(block.timestamp),
+            noteReceivePubKey.x,
+            noteReceivePubKey.yParity
         );
+    }
+
+    function unregisterChannelTokenVaultIdentity(address l1Address) external onlyBridgeTokenVault returns (bool) {
+        BridgeStructs.ChannelTokenVaultRegistration memory registration = _channelTokenVaultRegistrations[l1Address];
+        if (!registration.exists) revert ChannelTokenVaultIdentityNotRegistered(l1Address);
+
+        delete _channelTokenVaultRegistrations[l1Address];
+        delete _channelTokenVaultKeyOwners[registration.channelTokenVaultKey];
+        delete _channelTokenVaultLeafOwners[registration.leafIndex];
+        delete _channelTokenVaultL2AddressOwners[registration.l2Address];
+
+        emit ChannelTokenVaultIdentityExited(l1Address, registration.leafIndex);
+        return true;
+    }
+
+    function getExitFeeRefundQuote(address l1Address) external view returns (uint256 refundAmount, uint16 refundBps) {
+        BridgeStructs.ChannelTokenVaultRegistration memory registration = _channelTokenVaultRegistrations[l1Address];
+        if (!registration.exists) {
+            return (0, 0);
+        }
+
+        uint256 elapsed = block.timestamp - uint256(registration.joinedAt);
+        if (elapsed <= joinFeeRefundCutoff1) {
+            refundBps = joinFeeRefundBps1;
+        } else if (elapsed <= joinFeeRefundCutoff2) {
+            refundBps = joinFeeRefundBps2;
+        } else if (elapsed <= joinFeeRefundCutoff3) {
+            refundBps = joinFeeRefundBps3;
+        } else {
+            refundBps = joinFeeRefundBps4;
+        }
+
+        refundAmount = (registration.joinFeePaid * refundBps) / BPS_DENOMINATOR;
     }
 
     function executeChannelTransaction(BridgeStructs.TokamakProofPayload calldata payload) external returns (bool) {
@@ -432,6 +530,8 @@ contract ChannelManager {
                 l2Address: address(0),
                 channelTokenVaultKey: bytes32(0),
                 leafIndex: 0,
+                joinFeePaid: 0,
+                joinedAt: 0,
                 noteReceivePubKey: BridgeStructs.NoteReceivePubKey({x: bytes32(0), yParity: 0})
             });
         }

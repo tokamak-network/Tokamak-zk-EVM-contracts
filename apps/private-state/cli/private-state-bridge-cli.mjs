@@ -168,6 +168,10 @@ async function main() {
       assert: assertGetMyChannelFundArgs,
       run: ({ provider }) => handleGetMyChannelFund({ args, provider }),
     },
+    "exit-channel": {
+      assert: assertExitChannelArgs,
+      run: ({ provider }) => handleExitChannel({ args, provider }),
+    },
   };
   if (walletCommandHandlers[args.command]) {
     walletCommandHandlers[args.command].assert(args);
@@ -236,6 +240,10 @@ async function handleChannelCreate({ args, network, provider }) {
     bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
     signer,
   );
+  const canonicalAsset = getAddress(await bridgeCore.canonicalAsset());
+  const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
+  const joinFeeInput = requireArg(args.joinFee, "--join-fee");
+  const joinFee = parseTokenAmount(joinFeeInput, canonicalAssetDecimals);
   const channelId = deriveChannelIdFromName(channelName);
   const dappId = await resolveDAppIdByLabel({
     provider,
@@ -243,7 +251,7 @@ async function handleChannelCreate({ args, network, provider }) {
     dappLabel: PRIVATE_STATE_DAPP_LABEL,
   });
 
-  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader));
+  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader, joinFee));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
   const workspaceResult = await initializeChannelWorkspace({
@@ -261,6 +269,10 @@ async function handleChannelCreate({ args, network, provider }) {
     channelId: channelId.toString(),
     dappId,
     leader,
+    joinFeeBaseUnits: joinFee.toString(),
+    joinFeeTokens: ethers.formatUnits(joinFee, canonicalAssetDecimals),
+    canonicalAsset,
+    canonicalAssetDecimals,
     asset: channelInfo.asset,
     manager: channelInfo.manager,
     bridgeTokenVault: channelInfo.bridgeTokenVault,
@@ -1074,12 +1086,27 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
 
   const existingRegistration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   if (!existingRegistration.exists) {
+    const joinFee = BigInt(await context.channelManager.joinFee());
+    const asset = new Contract(
+      context.workspace.canonicalAsset,
+      context.bridgeAbiManifest.contracts.erc20.abi,
+      signer,
+    );
+    let approveReceipt = null;
+    let nextNonce = await provider.getTransactionCount(signer.address, "pending");
+    if (joinFee !== 0n) {
+      approveReceipt = await waitForReceipt(
+        await asset.approve(context.workspace.bridgeTokenVault, joinFee, { nonce: nextNonce++ }),
+      );
+    }
     const receipt = await waitForReceipt(
-      await context.channelManager.connect(signer).registerChannelTokenVaultIdentity(
+      await context.bridgeTokenVault.connect(signer).joinChannel(
+        BigInt(context.workspace.channelId),
         l2Identity.l2Address,
         storageKey,
         leafIndex,
         noteReceiveKeyMaterial.noteReceivePubKey,
+        { nonce: nextNonce++ },
       ),
     );
 
@@ -1105,9 +1132,14 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       l2Address: l2Identity.l2Address,
       l2StorageKey: storageKey,
       leafIndex: leafIndex.toString(),
+      joinFeeBaseUnits: joinFee.toString(),
+      joinFeeTokens: ethers.formatUnits(joinFee, Number(context.workspace.canonicalAssetDecimals)),
       noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
+      approveGasUsed: approveReceipt ? receiptGasUsed(approveReceipt) : null,
       gasUsed: receiptGasUsed(receipt),
+      approveTxUrl: approveReceipt ? explorerTxUrl(network, approveReceipt.hash) : null,
       txUrl: explorerTxUrl(network, receipt.hash),
+      approveReceipt: approveReceipt ? sanitizeReceipt(approveReceipt) : null,
       receipt: sanitizeReceipt(receipt),
     });
     return;
@@ -1154,6 +1186,52 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     leafIndex: existingRegistration.leafIndex.toString(),
     noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
     status: "already-registered",
+  });
+}
+
+async function handleExitChannel({ args, provider }) {
+  const { wallet: walletContext, walletMetadata } = loadUnlockedWalletWithMetadata(args);
+  const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
+  const context = contextResult.context;
+  const network = contextResult.network;
+  const { signer } = restoreWalletParticipant(walletContext, provider);
+  const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
+  expect(
+    registration.exists,
+    `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
+  );
+
+  const currentUserValue = BigInt(await context.channelManager.getLatestChannelTokenVaultLeaf(registration.leafIndex));
+  expect(
+    currentUserValue === 0n,
+    [
+      "exit-channel requires currentUserValue == 0.",
+      `Current value: ${currentUserValue.toString()}.`,
+      "Run withdraw-channel until the channel balance is zero first.",
+    ].join(" "),
+  );
+
+  const [refundAmount, refundBps] = await context.channelManager.getExitFeeRefundQuote(signer.address);
+  const receipt = await waitForReceipt(
+    await context.bridgeTokenVault.connect(signer).exitChannel(BigInt(context.workspace.channelId)),
+  );
+
+  printJson({
+    action: "exit-channel",
+    wallet: walletContext.walletName,
+    network: walletMetadata.network,
+    channelName: walletMetadata.channelName,
+    channelId: context.workspace.channelId,
+    l1Address: signer.address,
+    currentUserValue: currentUserValue.toString(),
+    refundAmountBaseUnits: refundAmount.toString(),
+    refundAmountTokens: ethers.formatUnits(refundAmount, Number(context.workspace.canonicalAssetDecimals)),
+    refundBps: Number(refundBps),
+    canonicalAsset: context.workspace.canonicalAsset,
+    canonicalAssetDecimals: Number(context.workspace.canonicalAssetDecimals),
+    gasUsed: receiptGasUsed(receipt),
+    txUrl: explorerTxUrl(network, receipt.hash),
+    receipt: sanitizeReceipt(receipt),
   });
 }
 
@@ -4278,14 +4356,15 @@ function assertGetMyNotesArgs(args) {
 
 function assertCreateChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
+  requireArg(args.joinFee, "--join-fee");
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, "create-channel");
   requireArg(args.privateKey, "--private-key");
   assertAllowedCommandKeys(
     args,
     "create-channel",
-    new Set(["command", "positional", "channelName", "network", "alchemyApiKey", "privateKey"]),
-    "--channel-name, --network, --private-key, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "channelName", "joinFee", "network", "alchemyApiKey", "privateKey"]),
+    "--channel-name, --join-fee, --network, --private-key, and --alchemy-api-key on public networks",
   );
 }
 
@@ -4369,6 +4448,10 @@ function assertGetMyChannelFundArgs(args) {
   assertWalletPasswordArgs(args, "get-my-channel-fund", [], "--wallet, --password, and --network");
 }
 
+function assertExitChannelArgs(args) {
+  assertWalletPasswordArgs(args, "exit-channel", [], "--wallet, --password, and --network");
+}
+
 function createWalletOperationDir(walletName, networkName, suffix) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const operationDir = path.join(
@@ -4412,7 +4495,7 @@ Commands:
   uninstall-zk-evm
       Remove the checked-out Tokamak zk-EVM worktree contents
 
-  create-channel --channel-name <NAME> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  create-channel --channel-name <NAME> --join-fee <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
 
   recover-workspace --channel-name <NAME> --network <NAME> --alchemy-api-key <KEY>
@@ -4431,7 +4514,7 @@ Commands:
       Rebuild a recoverable local wallet from on-chain channel state
 
   join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
-      Bind a wallet to a channel-specific L2 identity
+      Pay the channel join fee and bind a wallet to a channel-specific L2 identity
 
   get-my-address --wallet <NAME> --password <PASSWORD> --network <NAME>
       Check whether a wallet matches the on-chain channel registration
@@ -4444,6 +4527,9 @@ Commands:
 
   get-my-channel-fund --wallet <NAME> --password <PASSWORD> --network <NAME>
       Read the current channel L2 accounting balance
+
+  exit-channel --wallet <NAME> --password <PASSWORD> --network <NAME>
+      Exit a channel after the channel L2 accounting balance reaches zero
 
   mint-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --amounts <A,B,...>
       Mint private-state notes from the wallet's channel balance

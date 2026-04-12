@@ -80,12 +80,13 @@ const tokamakAPubBlockLength = 63;
 const tokamakPrevBlockHashCount = 4;
 const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const amountUnit = 10n ** 18n;
+const joinFee = 1n * amountUnit;
 const depositAmount = 3n * amountUnit;
 const abiCoder = AbiCoder.defaultAbiCoder();
 const deployerAddress = new Wallet(anvilDeployerPrivateKey).address;
 const bridgeCoreAbi = [
   "function canonicalAsset() external view returns (address)",
-  "function createChannel(uint256 channelId, uint256 dappId, address leader) external returns (address manager, address bridgeTokenVault)",
+  "function createChannel(uint256 channelId, uint256 dappId, address leader, uint256 initialJoinFee) external returns (address manager, address bridgeTokenVault)",
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address bridgeTokenVault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
@@ -94,12 +95,12 @@ const dAppManagerAbi = [
 const channelManagerAbi = [
   "function currentRootVectorHash() external view returns (bytes32)",
   "function genesisBlockNumber() external view returns (uint256)",
-  "function registerChannelTokenVaultIdentity(address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, (bytes32 x,uint8 yParity) noteReceivePubKey) external",
-  "function getChannelTokenVaultRegistration(address user) external view returns (tuple(bool exists, address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, (bytes32 x,uint8 yParity) noteReceivePubKey))",
+  "function getChannelTokenVaultRegistration(address user) external view returns (tuple(bool exists, address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, uint256 joinFeePaid, uint64 joinedAt, (bytes32 x,uint8 yParity) noteReceivePubKey))",
   "function executeChannelTransaction((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
 const bridgeTokenVaultAbi = [
   "function fund(uint256 amount) external",
+  "function joinChannel(uint256 channelId, address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, (bytes32 x,uint8 yParity) noteReceivePubKey) external returns (bool)",
   "function deposit(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function withdraw(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function claimToWallet(uint256 amount) external",
@@ -1205,7 +1206,7 @@ async function main() {
 
   console.log("E2E: creating channel.");
   await (
-    await bridgeCore.createChannel(channelId, dappId, leader, { nonce: bridgeDeployerNonce++ })
+    await bridgeCore.createChannel(channelId, dappId, leader, joinFee, { nonce: bridgeDeployerNonce++ })
   ).wait();
   const channelDeployment = await bridgeCore.getChannel(channelId);
 
@@ -1242,7 +1243,7 @@ async function main() {
     await (
       await participantAsset.approve(
         channelDeployment.bridgeTokenVault,
-        depositAmount,
+        depositAmount + joinFee,
         { nonce: consumeAccountNonce(participantNonces, participant.l1.address) },
       )
     ).wait();
@@ -1252,7 +1253,8 @@ async function main() {
       })
     ).wait();
     await (
-      await channelManager.connect(participant.l1).registerChannelTokenVaultIdentity(
+      await bridgeTokenVault.connect(participant.l1).joinChannel(
+        channelId,
         participant.l2Address,
         participantKeys.get(participant.index),
         deriveLeafIndex(participantKeys.get(participant.index)),

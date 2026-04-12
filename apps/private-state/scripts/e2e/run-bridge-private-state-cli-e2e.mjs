@@ -89,9 +89,11 @@ const anvilDeployerPrivateKey =
 const channelName = "private-state-cli-e2e";
 const dappId = "1";
 const dappLabel = "private-state";
+const joinFeeTokens = "1";
 const depositAmountTokens = "3";
 const claimAmountTokens = "9";
 const amountUnit = 10n ** 18n;
+const joinFeeBaseUnits = 1n * amountUnit;
 const depositAmountBaseUnits = 3n * amountUnit;
 const claimAmountBaseUnits = 9n * amountUnit;
 const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
@@ -995,7 +997,7 @@ function prepareCanonicalAsset(bridgeDeployment, participants) {
         canonicalAsset,
         "mint(address,uint256)",
         participant.l1Address,
-        depositAmountBaseUnits.toString(),
+        (depositAmountBaseUnits + joinFeeBaseUnits).toString(),
         "--private-key",
         anvilDeployerPrivateKey,
         "--rpc-url",
@@ -1111,6 +1113,7 @@ function signerCliArgs(participant) {
 function createChannel() {
   return runAnvilCliCommand("create-channel", [
     "--channel-name", channelName,
+    "--join-fee", joinFeeTokens,
     "--private-key", anvilDeployerPrivateKey,
   ]);
 }

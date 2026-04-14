@@ -9,12 +9,12 @@ import {BridgeStructs} from "./BridgeStructs.sol";
 import {BridgeAdminManager} from "./BridgeAdminManager.sol";
 import {DAppManager} from "./DAppManager.sol";
 import {ChannelManager} from "./ChannelManager.sol";
+import {TokamakEnvironment} from "./generated/TokamakEnvironment.sol";
 import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 import {IChannelRegistry} from "./interfaces/IChannelRegistry.sol";
 
 contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChannelRegistry {
-    uint8 internal constant SUPPORTED_MT_LEVELS = 12;
     uint256 internal constant MAX_MANAGED_STORAGES = 11;
     uint16 internal constant BPS_DENOMINATOR = 10_000;
     address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET = 0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
@@ -156,8 +156,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         if (bridgeTokenVault == address(0)) revert InvalidBridgeTokenVault();
         if (leader == address(0)) revert InvalidLeader();
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
-        if (adminManager.nMerkleTreeLevels() != SUPPORTED_MT_LEVELS) {
-            revert UnsupportedMerkleTreeLevels(adminManager.nMerkleTreeLevels(), SUPPORTED_MT_LEVELS);
+        if (adminManager.nMerkleTreeLevels() != TokamakEnvironment.MT_DEPTH) {
+            revert UnsupportedMerkleTreeLevels(adminManager.nMerkleTreeLevels(), TokamakEnvironment.MT_DEPTH);
         }
         address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(dappId);
         if (managedStorageAddresses.length > MAX_MANAGED_STORAGES) {

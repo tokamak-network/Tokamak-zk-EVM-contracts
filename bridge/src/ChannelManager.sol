@@ -3,13 +3,14 @@ pragma solidity ^0.8.24;
 
 import {BridgeStructs} from "./BridgeStructs.sol";
 import {DAppManager} from "./DAppManager.sol";
+import {TokamakEnvironment} from "./generated/TokamakEnvironment.sol";
 import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
 
 contract ChannelManager {
     uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 63;
     uint256 internal constant TOKAMAK_PREVIOUS_BLOCK_HASHES = 4;
-    uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = uint256(1) << 12;
+    uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = TokamakEnvironment.MAX_MT_LEAVES;
     uint256 internal constant SPLIT_WORD_SIZE = 2;
     uint16 internal constant BPS_DENOMINATOR = 10_000;
 

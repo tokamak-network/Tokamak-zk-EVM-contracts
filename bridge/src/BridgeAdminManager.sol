@@ -4,10 +4,9 @@ pragma solidity ^0.8.24;
 import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {TokamakEnvironment} from "./generated/TokamakEnvironment.sol";
 
 contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    uint8 internal constant SUPPORTED_MT_LEVELS = 12;
-
     uint8 public nMerkleTreeLevels;
 
     error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
@@ -38,8 +37,8 @@ contract BridgeAdminManager is Initializable, OwnableUpgradeable, UUPSUpgradeabl
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function _setMerkleTreeLevels(uint8 levels_) private {
-        if (levels_ != SUPPORTED_MT_LEVELS) {
-            revert UnsupportedMerkleTreeLevels(levels_, SUPPORTED_MT_LEVELS);
+        if (levels_ != TokamakEnvironment.MT_DEPTH) {
+            revert UnsupportedMerkleTreeLevels(levels_, TokamakEnvironment.MT_DEPTH);
         }
         nMerkleTreeLevels = levels_;
         emit MerkleTreeLevelsUpdated(levels_);

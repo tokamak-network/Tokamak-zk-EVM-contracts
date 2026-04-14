@@ -12,6 +12,7 @@ import {DAppManager} from "../src/DAppManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
 import {ChannelManager} from "../src/ChannelManager.sol";
 import {L1TokenVault} from "../src/L1TokenVault.sol";
+import {TokamakEnvironment} from "../src/generated/TokamakEnvironment.sol";
 import {IChannelRegistry} from "../src/interfaces/IChannelRegistry.sol";
 import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
@@ -28,7 +29,7 @@ contract BridgeFlowTest is Test {
     bytes4 internal constant APP_SIG_2 = bytes4(keccak256("rebalance(uint256)"));
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
         0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
-    uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = uint256(1) << 12;
+    uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = TokamakEnvironment.MAX_MT_LEAVES;
     bytes32 internal constant ERC1967_IMPLEMENTATION_SLOT =
         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     bytes32 internal constant INITIAL_ZERO_ROOT =
@@ -70,7 +71,7 @@ contract BridgeFlowTest is Test {
         defaultPreprocessInputHash =
             _computePointEncodingHash(tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2);
 
-        adminManager = _deployAdminManagerProxy(address(this), 12);
+        adminManager = _deployAdminManagerProxy(address(this), TokamakEnvironment.MT_DEPTH);
 
         tokamakVerifier = new TokamakVerifier();
 
@@ -130,12 +131,14 @@ contract BridgeFlowTest is Test {
     }
 
     function testAdminManagerReturnsMaxMerkleTreeLeaves() public view {
-        assertEq(adminManager.getMaxMerkleTreeLeaves(), uint256(1) << 12);
+        assertEq(adminManager.getMaxMerkleTreeLeaves(), TokamakEnvironment.MAX_MT_LEAVES);
     }
 
     function testRejectsUnsupportedMerkleTreeLevels() public {
         vm.expectRevert(
-            abi.encodeWithSelector(BridgeAdminManager.UnsupportedMerkleTreeLevels.selector, uint8(13), uint8(12))
+            abi.encodeWithSelector(
+                BridgeAdminManager.UnsupportedMerkleTreeLevels.selector, uint8(13), TokamakEnvironment.MT_DEPTH
+            )
         );
         adminManager.setMerkleTreeLevels(13);
     }

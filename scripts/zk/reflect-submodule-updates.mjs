@@ -214,11 +214,15 @@ async function regenerateTokamakVerifierKey() {
 
   await run("node", [path.join("scripts", "generate-tokamak-verifier-key.js")], { cwd: repoRoot });
   await run("node", [path.join("scripts", "generate-tokamak-verifier-params.js")], { cwd: repoRoot });
-  await run("node", [path.join("scripts", "generate-tokamak-shared-constants.js"), setupParamsPath], { cwd: repoRoot });
 
   assertExists(sigmaVerifyJsonPath, "Tokamak sigma_verify.json");
   assertExists(tokamakVerifierGeneratedPath, "Tokamak generated verification key");
   assertExists(tokamakVerifierSourcePath, "Tokamak verifier source");
+}
+
+async function refreshSharedTokamakConstants() {
+  await run("node", [path.join("scripts", "generate-tokamak-shared-constants.js"), setupParamsPath], { cwd: repoRoot });
+  await run("node", [path.join("scripts", "groth16", "render-update-tree-circuit.mjs")], { cwd: repoRoot });
 }
 
 async function regenerateGrothArtifacts(grothPaths) {
@@ -272,6 +276,8 @@ async function main() {
   if (!options.skipTokamakVerifier) {
     await regenerateTokamakVerifierKey();
   }
+
+  await refreshSharedTokamakConstants();
 
   if (!options.skipGroth) {
     await regenerateGrothArtifacts(grothPaths);

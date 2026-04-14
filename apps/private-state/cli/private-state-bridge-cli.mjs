@@ -54,6 +54,14 @@ import {
   walletMetadataPathForDir,
   walletNameForChannelAndAddress,
 } from "../scripts/utils/private-state-cli-shared.mjs";
+import {
+  captureNormalizedStateSnapshot,
+  createEmptyStateSnapshot,
+  createStateSnapshotFromStorageEntries,
+  normalizeStateSnapshot,
+  readStorageValueFromSnapshot,
+  snapshotStorageKeysForAddress,
+} from "../scripts/utils/state-snapshot.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,8 +129,6 @@ const JUBJUB_ORDER = jubjub.CURVE.n;
 const JUBJUB_FP = jubjub.CURVE.Fp;
 const JUBJUB_A = jubjub.CURVE.a;
 const JUBJUB_D = jubjub.CURVE.d;
-const INITIAL_ZERO_ROOT =
-  "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const BLS12_381_SCALAR_FIELD_MODULUS =
   BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
 const DEFAULT_LOG_CHUNK_SIZE = 2000;
@@ -1501,18 +1507,18 @@ async function handleGetMyNotes({ args, provider }) {
     .filter(Boolean);
   const spentTrackedNotes = Object.values(wallet.wallet.notes.spent ?? {}).sort(compareNotesByValueDesc);
 
-  const unusedNotes = unusedTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
+  const unusedNotes = await Promise.all(unusedTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
     note,
     currentSnapshot: context.currentSnapshot,
     controllerAddress: wallet.wallet.controller,
     canonicalAssetDecimals,
-  }));
-  const spentNotes = spentTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
+  })));
+  const spentNotes = await Promise.all(spentTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
     note,
     currentSnapshot: context.currentSnapshot,
     controllerAddress: wallet.wallet.controller,
     canonicalAssetDecimals,
-  }));
+  })));
 
   const unusedTotal = unusedTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
   const spentTotal = spentTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
@@ -1633,7 +1639,7 @@ function mergeTrackedNotesIntoWallet(walletContext, trackedNotes) {
   return imported;
 }
 
-function reconcileWalletNotesWithBridgeState({
+async function reconcileWalletNotesWithBridgeState({
   walletContext,
   currentSnapshot,
   controllerAddress,
@@ -1647,7 +1653,7 @@ function reconcileWalletNotesWithBridgeState({
 
   for (const note of trackedNotes) {
     const normalizedNote = normalizeTrackedNote(note);
-    const commitmentExists = readBooleanStorageValueFromSnapshot({
+    const commitmentExists = await readBooleanStorageValueFromSnapshot({
       snapshot: currentSnapshot,
       storageAddress: controllerAddress,
       storageKey: normalizedNote.bridgeCommitmentKey,
@@ -1656,7 +1662,7 @@ function reconcileWalletNotesWithBridgeState({
       continue;
     }
 
-    const nullifierUsed = readBooleanStorageValueFromSnapshot({
+    const nullifierUsed = await readBooleanStorageValueFromSnapshot({
       snapshot: currentSnapshot,
       storageAddress: controllerAddress,
       storageKey: normalizedNote.bridgeNullifierKey,
@@ -1839,18 +1845,18 @@ function normalizeTrackedNote(note) {
   };
 }
 
-function buildWalletNoteBridgeStatus({
+async function buildWalletNoteBridgeStatus({
   note,
   currentSnapshot,
   controllerAddress,
   canonicalAssetDecimals,
 }) {
-  const commitmentExists = readBooleanStorageValueFromSnapshot({
+  const commitmentExists = await readBooleanStorageValueFromSnapshot({
     snapshot: currentSnapshot,
     storageAddress: controllerAddress,
     storageKey: note.bridgeCommitmentKey,
   });
-  const nullifierUsed = readBooleanStorageValueFromSnapshot({
+  const nullifierUsed = await readBooleanStorageValueFromSnapshot({
     snapshot: currentSnapshot,
     storageAddress: controllerAddress,
     storageKey: note.bridgeNullifierKey,
@@ -1871,23 +1877,11 @@ function buildWalletNoteBridgeStatus({
   };
 }
 
-function readBooleanStorageValueFromSnapshot({ snapshot, storageAddress, storageKey }) {
+async function readBooleanStorageValueFromSnapshot({ snapshot, storageAddress, storageKey }) {
   if (!storageKey) {
     return false;
   }
-  const normalizedAddress = getAddress(storageAddress);
-  const addressIndex = snapshot.storageAddresses.findIndex(
-    (entry) => getAddress(entry) === normalizedAddress,
-  );
-  expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
-
-  const entry = snapshot.storageEntries[addressIndex]?.find(
-    (item) => normalizeBytes32Hex(item.key) === normalizeBytes32Hex(storageKey),
-  );
-  if (!entry) {
-    return false;
-  }
-  return BigInt(entry.value) !== 0n;
+  return BigInt(await readStorageValueFromSnapshot({ snapshot, storageAddress, storageKey })) !== 0n;
 }
 
 function compareNotesByValueDesc(left, right) {
@@ -2011,7 +2005,7 @@ async function recoverDeliveredNotesFromEventLogs({
       bridgeCommitmentKey: derivePrivateStateControllerMappingStorageKey(commitment, commitmentExistsSlot),
       bridgeNullifierKey: derivePrivateStateControllerMappingStorageKey(nullifier, nullifierUsedSlot),
     });
-    const commitmentExists = readBooleanStorageValueFromSnapshot({
+    const commitmentExists = await readBooleanStorageValueFromSnapshot({
       snapshot: context.currentSnapshot,
       storageAddress: context.workspace.controller,
       storageKey: trackedNote.bridgeCommitmentKey,
@@ -2023,7 +2017,7 @@ async function recoverDeliveredNotesFromEventLogs({
   }
 
   const importedNotes = mergeTrackedNotesIntoWallet(walletContext, importedCandidates);
-  const reconciledState = reconcileWalletNotesWithBridgeState({
+  const reconciledState = await reconcileWalletNotesWithBridgeState({
     walletContext,
     currentSnapshot: context.currentSnapshot,
     controllerAddress: context.workspace.controller,
@@ -2491,11 +2485,11 @@ function extractNoteLifecycle(functionName, templatePayload) {
 }
 
 function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, controllerAddress, lifecycle }) {
-  const previousEntries = snapshotStorageEntriesForAddress(previousSnapshot, controllerAddress);
-  const nextEntries = snapshotStorageEntriesForAddress(nextSnapshot, controllerAddress);
-  const previousKeys = new Set(previousEntries.map((entry) => normalizeBytes32Hex(entry.key)));
-  const newKeys = nextEntries
-    .map((entry) => normalizeBytes32Hex(entry.key))
+  const previousKeysForAddress = snapshotStorageKeysForAddress(previousSnapshot, controllerAddress);
+  const nextKeysForAddress = snapshotStorageKeysForAddress(nextSnapshot, controllerAddress);
+  const previousKeys = new Set(previousKeysForAddress.map((key) => normalizeBytes32Hex(key)));
+  const newKeys = nextKeysForAddress
+    .map((key) => normalizeBytes32Hex(key))
     .filter((key) => !previousKeys.has(key));
   const inputCount = lifecycle.inputs.length;
   const outputCount = lifecycle.outputs.length;
@@ -2506,8 +2500,8 @@ function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, control
       previousSnapshot,
       nextSnapshot,
       controllerAddress,
-      previousEntries,
-      nextEntries,
+      previousKeysForAddress,
+      nextKeysForAddress,
       inputCount,
       outputCount,
       newKeyCount: newKeys.length,
@@ -2524,8 +2518,8 @@ function buildControllerStorageDeltaError({
   previousSnapshot,
   nextSnapshot,
   controllerAddress,
-  previousEntries,
-  nextEntries,
+  previousKeysForAddress,
+  nextKeysForAddress,
   inputCount,
   outputCount,
   newKeyCount,
@@ -2539,11 +2533,11 @@ function buildControllerStorageDeltaError({
   ].join(" ");
   const details = [
     `Controller: ${normalizedAddress}.`,
-    `Tracked controller slots before: ${previousEntries.length}.`,
-    `Tracked controller slots after: ${nextEntries.length}.`,
+    `Tracked controller slots before: ${previousKeysForAddress.length}.`,
+    `Tracked controller slots after: ${nextKeysForAddress.length}.`,
     `New controller slots discovered: ${newKeyCount}.`,
   ];
-  if (previousEntries.length === 0 && nextEntries.length === 0) {
+  if (previousKeysForAddress.length === 0 && nextKeysForAddress.length === 0) {
     details.push(
       "The local workspace snapshot already had no tracked controller storage slots, and the proof pipeline produced another snapshot with no tracked controller storage slots.",
     );
@@ -2560,15 +2554,6 @@ function buildControllerStorageDeltaError({
     "Regenerate the local workspace state first. If the workspace snapshot still has zero tracked controller slots, this channel snapshot is incomplete for note-tracking operations.",
   );
   return `${headline} ${details.join(" ")}`;
-}
-
-function snapshotStorageEntriesForAddress(snapshot, storageAddress) {
-  const normalizedAddress = getAddress(storageAddress);
-  const addressIndex = snapshot.storageAddresses.findIndex(
-    (entry) => getAddress(entry) === normalizedAddress,
-  );
-  expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
-  return snapshot.storageEntries[addressIndex] ?? [];
 }
 
 function snapshotRootForAddress(snapshot, storageAddress) {
@@ -3346,11 +3331,11 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
-  const currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  const currentSnapshot = await captureNormalizedStateSnapshot(stateManager);
 
   await stateManager.putStorage(vaultAddressObj, hexToBytes(keyHex), hexToBytes(bigintToHex32(nextValue)));
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
-  const nextSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  const nextSnapshot = await captureNormalizedStateSnapshot(stateManager);
 
   const input = {
     root_before: currentRoot.toString(),
@@ -3596,7 +3581,14 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
 }
 
 async function buildStateManager(snapshot, contractCodes) {
-  return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
+  const compatibleSnapshot = Array.isArray(snapshot.storageKeys)
+    ? snapshot
+    : await createStateSnapshotFromStorageEntries({
+      channelId: snapshot.channelId,
+      storageAddresses: snapshot.storageAddresses,
+      storageEntries: snapshot.storageEntries ?? snapshot.storageAddresses.map(() => []),
+    });
+  return createTokamakL2StateManagerFromStateSnapshot(compatibleSnapshot, {
     contractCodes: contractCodes.map((entry) => ({
       address: createAddressFromString(entry.address),
       code: addHexPrefix(entry.code),
@@ -3635,20 +3627,6 @@ async function fetchContractCodes(provider, addresses) {
 async function fetchTokenDecimals(provider, assetAddress) {
   const asset = new Contract(assetAddress, erc20MetadataAbi, provider);
   return Number(await asset.decimals());
-}
-
-function normalizeStateSnapshot(snapshot) {
-  return {
-    ...snapshot,
-    stateRoots: normalizedRootVector(snapshot.stateRoots),
-    storageAddresses: normalizedAddressVector(snapshot.storageAddresses),
-    storageEntries: snapshot.storageEntries.map((entries) => entries
-      .filter((entry) => !isZeroLikeStorageValue(entry.value))
-      .map((entry) => ({
-        key: entry.key.toLowerCase(),
-        value: entry.value.toLowerCase(),
-      }))),
-  };
 }
 
 function normalizedRootVector(roots) {
@@ -3766,12 +3744,10 @@ async function reconstructChannelSnapshot({
   l2AccountingVaultAddress,
   liquidBalancesSlot,
 }) {
-  const genesisSnapshot = {
+  const genesisSnapshot = await createEmptyStateSnapshot({
     channelId: channelId.toString(),
-    stateRoots: managedStorageAddresses.map(() => normalizeBytes32Hex(INITIAL_ZERO_ROOT)),
     storageAddresses: managedStorageAddresses,
-    storageEntries: managedStorageAddresses.map(() => []),
-  };
+  });
 
   const bridgeTokenVault = new Contract(
     channelInfo.bridgeTokenVault,
@@ -3810,7 +3786,7 @@ async function reconstructChannelSnapshot({
   }
 
   const groupedValues = [...groupedEvents.values()].sort((left, right) => compareLogsByPosition(left[0], right[0]));
-  let currentSnapshot = normalizeStateSnapshot(genesisSnapshot);
+  let currentSnapshot = genesisSnapshot;
   let stateManager = await buildStateManager(currentSnapshot, contractCodes);
 
   for (const group of groupedValues) {
@@ -3872,7 +3848,7 @@ async function reconstructChannelSnapshot({
       }
     }
 
-    currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+    currentSnapshot = await captureNormalizedStateSnapshot(stateManager);
     expect(
       normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === emittedRootVectorHash,
       `CurrentRootVectorObserved hash mismatch at tx ${rootEvent.transactionHash}.`,
@@ -4765,14 +4741,6 @@ function expect(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
-}
-
-function isZeroLikeStorageValue(value) {
-  if (typeof value !== "string") {
-    return false;
-  }
-  const normalized = value.trim().toLowerCase();
-  return normalized === "0x" || normalized === "0x0" || normalized === "0x00";
 }
 
 main().catch((error) => {

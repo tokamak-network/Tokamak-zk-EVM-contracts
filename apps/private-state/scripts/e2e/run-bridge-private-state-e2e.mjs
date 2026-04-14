@@ -42,6 +42,12 @@ import {
   writeJson,
 } from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
 import {
+  captureNormalizedStateSnapshot,
+  createEmptyStateSnapshot,
+  createStateSnapshotFromStorageEntries,
+  normalizeStateSnapshot,
+} from "../utils/state-snapshot.mjs";
+import {
   computeEncryptedNoteSalt,
   deriveNoteReceiveKeyMaterial,
   encryptMintNoteValueForOwner,
@@ -78,7 +84,6 @@ const channelId = deriveChannelIdFromName(channelName);
 const dappId = 1;
 const tokamakAPubBlockLength = 63;
 const tokamakPrevBlockHashCount = 4;
-const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const amountUnit = 10n ** 18n;
 const joinFee = 1n * amountUnit;
 const depositAmount = 3n * amountUnit;
@@ -305,17 +310,15 @@ async function fetchContractCodes(provider, addresses) {
   return codes;
 }
 
-function buildGenesisSnapshot(controllerAddress, vaultAddress) {
-  return {
-    channelId,
-    stateRoots: [rootZero, rootZero],
-    storageAddresses: [getAddress(controllerAddress), getAddress(vaultAddress)],
-    storageEntries: [[], []],
-  };
-}
-
 async function buildStateManager(snapshot, contractCodes) {
-  return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
+  const compatibleSnapshot = Array.isArray(snapshot.storageKeys)
+    ? snapshot
+    : await createStateSnapshotFromStorageEntries({
+      channelId: snapshot.channelId,
+      storageAddresses: snapshot.storageAddresses,
+      storageEntries: snapshot.storageEntries ?? snapshot.storageAddresses.map(() => []),
+    });
+  return createTokamakL2StateManagerFromStateSnapshot(compatibleSnapshot, {
     contractCodes: contractCodes.map((entry) => ({
       address: createAddressFromString(entry.address),
       code: addHexPrefix(entry.code),
@@ -421,27 +424,6 @@ function serializeBigInts(value) {
   return JSON.parse(JSON.stringify(value, (_key, current) => (
     typeof current === "bigint" ? current.toString() : current
   )));
-}
-
-function isZeroLikeStorageValue(value) {
-  if (typeof value !== "string") {
-    return false;
-  }
-  const normalized = value.trim().toLowerCase();
-  return normalized === "0x" || normalized === "0x0" || normalized === "0x00";
-}
-
-function normalizeStateSnapshot(snapshot) {
-  return {
-    ...snapshot,
-    stateRoots: snapshot.stateRoots.map((value) => normalizeBytes32Hex(value)),
-    storageEntries: snapshot.storageEntries.map((entries) => entries
-      .filter((entry) => !isZeroLikeStorageValue(entry.value))
-      .map((entry) => ({
-        key: entry.key.toLowerCase(),
-        value: entry.value.toLowerCase(),
-      }))),
-  };
 }
 
 async function writeStepInputs(stepDir, snapshot, transactionSnapshot, blockInfo, contractCodes) {
@@ -734,11 +716,11 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
-  const currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  const currentSnapshot = await captureNormalizedStateSnapshot(stateManager);
 
   await stateManager.putStorage(vaultAddressObj, hexToBytes(keyHex), hexToBytes(bigintToHex32(nextValue)));
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
-  const nextSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  const nextSnapshot = await captureNormalizedStateSnapshot(stateManager);
 
   const input = {
     root_before: currentRoot.toString(),
@@ -923,7 +905,10 @@ async function main() {
   const contractCodes = await fetchContractCodes(provider, [controllerAddress, vaultAddress]);
   const bootstrapBlockInfo = await getFixedBlockInfo(provider);
 
-  const initialSnapshot = buildGenesisSnapshot(controllerAddress, vaultAddress);
+  const initialSnapshot = await createEmptyStateSnapshot({
+    channelId,
+    storageAddresses: [getAddress(controllerAddress), getAddress(vaultAddress)],
+  });
   const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
 
   for (const participant of participants) {

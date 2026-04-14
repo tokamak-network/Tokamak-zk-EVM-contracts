@@ -44,6 +44,12 @@ import {
   walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
 } from "../utils/private-state-cli-shared.mjs";
 import {
+  captureNormalizedStateSnapshot,
+  createEmptyStateSnapshot,
+  createStateSnapshotFromStorageEntries,
+  normalizeStateSnapshot,
+} from "../utils/state-snapshot.mjs";
+import {
   computeEncryptedNoteSalt,
   encryptMintNoteValueForOwner,
   deriveNoteReceiveKeyMaterial,
@@ -96,7 +102,6 @@ const amountUnit = 10n ** 18n;
 const joinFeeBaseUnits = 1n * amountUnit;
 const depositAmountBaseUnits = 3n * amountUnit;
 const claimAmountBaseUnits = 9n * amountUnit;
-const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const tokamakAPubBlockLength = 63;
 const tokamakPrevBlockHashCount = 4;
 const requiredTokamakSetupArtifacts = [
@@ -323,38 +328,15 @@ async function fetchContractCodes(provider, addresses) {
   return codes;
 }
 
-function buildGenesisSnapshot(controllerAddress, vaultAddress) {
-  return {
-    channelId: deriveChannelIdFromName(channelName).toString(),
-    stateRoots: [rootZero, rootZero],
-    storageAddresses: [getAddress(controllerAddress), getAddress(vaultAddress)],
-    storageEntries: [[], []],
-  };
-}
-
-function isZeroLikeStorageValue(value) {
-  if (typeof value !== "string") {
-    return false;
-  }
-  const normalized = value.trim().toLowerCase();
-  return normalized === "0x" || normalized === "0x0" || normalized === "0x00";
-}
-
-function normalizeStateSnapshot(snapshot) {
-  return {
-    ...snapshot,
-    stateRoots: snapshot.stateRoots.map((value) => normalizeBytes32Hex(value)),
-    storageEntries: snapshot.storageEntries.map((entries) => entries
-      .filter((entry) => !isZeroLikeStorageValue(entry.value))
-      .map((entry) => ({
-        key: entry.key.toLowerCase(),
-        value: entry.value.toLowerCase(),
-      }))),
-  };
-}
-
 async function buildStateManager(snapshot, contractCodes) {
-  return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
+  const compatibleSnapshot = Array.isArray(snapshot.storageKeys)
+    ? snapshot
+    : await createStateSnapshotFromStorageEntries({
+      channelId: snapshot.channelId,
+      storageAddresses: snapshot.storageAddresses,
+      storageEntries: snapshot.storageEntries ?? snapshot.storageAddresses.map(() => []),
+    });
+  return createTokamakL2StateManagerFromStateSnapshot(compatibleSnapshot, {
     contractCodes: contractCodes.map((entry) => ({
       address: createAddressFromString(entry.address),
       code: addHexPrefix(entry.code),
@@ -449,7 +431,7 @@ async function applyDepositSnapshot(stateManager, vaultAddress, keyHex, nextValu
     hexToBytes(keyHex),
     hexToBytes(bytes32FromHex(ethers.toBeHex(nextValue))),
   );
-  return normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  return captureNormalizedStateSnapshot(stateManager);
 }
 
 async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contractCodes) {
@@ -519,7 +501,10 @@ async function materializeCurrentDAppDefinition(provider, participants) {
 
   const contractCodes = await fetchContractCodes(provider, [controller, vault]);
   const bootstrapBlockInfo = await getFixedBlockInfo(provider);
-  const initialSnapshot = buildGenesisSnapshot(controller, vault);
+  const initialSnapshot = await createEmptyStateSnapshot({
+    channelId: deriveChannelIdFromName(channelName).toString(),
+    storageAddresses: [getAddress(controller), getAddress(vault)],
+  });
   const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
 
   const participantKeys = new Map();

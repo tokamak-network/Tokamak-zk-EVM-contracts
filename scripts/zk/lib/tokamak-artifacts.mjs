@@ -309,18 +309,23 @@ function inferChannelTokenVaultStorageAddress(storageAddresses, entryContract) {
 
 export function deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, entryContract) {
   const snapshot = readJson(snapshotJsonPath);
-  if (!Array.isArray(snapshot.storageAddresses) || !Array.isArray(snapshot.storageEntries)) {
+  const storageKeys = Array.isArray(snapshot.storageKeys)
+    ? snapshot.storageKeys
+    : Array.isArray(snapshot.storageEntries)
+      ? snapshot.storageEntries.map((entries) => entries.map((entry) => entry.key))
+      : null;
+  if (!Array.isArray(snapshot.storageAddresses) || !Array.isArray(storageKeys)) {
     throw new Error(`Snapshot is missing storage vectors: ${snapshotJsonPath}`);
   }
-  if (snapshot.storageAddresses.length !== snapshot.storageEntries.length) {
-    throw new Error(`storageAddresses/storageEntries length mismatch in ${snapshotJsonPath}`);
+  if (snapshot.storageAddresses.length !== storageKeys.length) {
+    throw new Error(`storageAddresses/storageKeys length mismatch in ${snapshotJsonPath}`);
   }
 
   const channelTokenVaultStorageAddress = inferChannelTokenVaultStorageAddress(snapshot.storageAddresses, entryContract);
 
   return snapshot.storageAddresses.map((storageAddress, index) => ({
     storageAddress: getAddress(storageAddress),
-    preAllocKeys: snapshot.storageEntries[index].map((entry) => entry.key),
+    preAllocKeys: storageKeys[index],
     userSlots: [],
     isChannelTokenVaultStorage: getAddress(storageAddress) === channelTokenVaultStorageAddress,
   }));

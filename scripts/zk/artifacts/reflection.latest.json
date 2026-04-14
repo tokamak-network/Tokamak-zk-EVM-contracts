@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-14T09:14:03.472Z",
+  "generatedAt": "2026-04-14T17:10:00.000Z",
   "tokamakSubmodule": {
     "path": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM",
     "branch": "dev",
@@ -8,8 +8,8 @@
     "sigmaVerifyRkyvPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv"
   },
   "tokamakL2js": {
-    "version": "0.1.1",
-    "mtDepth": 36
+    "version": "0.1.2",
+    "mtDepth": 30
   },
   "tokamakVerifier": {
     "sigmaVerifyJsonPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/tokamak-zkp/TokamakVerifierKey/sigma_verify.json",
@@ -46,6 +46,6 @@
     }
   },
   "bridge": {
-    "recommendedMerkleTreeLevels": 36
+    "recommendedMerkleTreeLevels": 30
   }
 }

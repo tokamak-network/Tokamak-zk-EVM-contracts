@@ -31,6 +31,7 @@ import {
   bytesToBigInt,
   bytesToHex,
   createAddressFromString,
+  hexToBigInt,
   hexToBytes,
   setLengthLeft,
   utf8ToBytes,
@@ -190,8 +191,20 @@ function expect(condition, message) {
   }
 }
 
+function bigintFromHexInput(hexValue) {
+  const raw = String(hexValue ?? "");
+  const withoutPrefix = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
+  return hexToBigInt(addHexPrefix(withoutPrefix));
+}
+
+function bytesFromHexInput(hexValue) {
+  const raw = String(hexValue ?? "");
+  const withoutPrefix = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
+  return hexToBytes(addHexPrefix(withoutPrefix));
+}
+
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(BigInt(hexValue)), 32);
+  return ethers.zeroPadValue(ethers.toBeHex(bigintFromHexInput(hexValue)), 32);
 }
 
 function normalizeBytes32Hex(hexValue) {
@@ -203,7 +216,7 @@ function deriveChannelIdFromName(name) {
 }
 
 function deriveLeafIndex(storageKey) {
-  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
+  return bigintFromHexInput(storageKey) % BigInt(MAX_MT_LEAVES);
 }
 
 function buildL1Wallet(index, provider) {
@@ -240,7 +253,7 @@ async function rpcCall(provider, method, params) {
 
 async function getFixedBlockInfo(provider) {
   const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
-  const latestNumber = Number(BigInt(latestNumberHex));
+  const latestNumber = Number(bigintFromHexInput(latestNumberHex));
   return getBlockInfoAt(provider, latestNumber);
 }
 
@@ -316,7 +329,7 @@ async function buildStateManager(snapshot, contractCodes) {
 
 function mappingKeyHex(address, slot) {
   const encoded = abiCoder.encode(["address", "uint256"], [address, slot]);
-  return bytesToHex(poseidon(hexToBytes(encoded)));
+  return bytesToHex(poseidon(bytesFromHexInput(encoded)));
 }
 
 function poseidonHexFromBytes(bytesLike) {
@@ -431,7 +444,7 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
     {
       nonce: BigInt(nonce),
       to: createAddressFromString(to),
-      data: hexToBytes(data),
+      data: bytesFromHexInput(data),
       senderPubKey: senderPubKey,
     },
     { common: createTokamakL2Common() },
@@ -693,7 +706,7 @@ async function materializeTokamakResults(tokamakScenarios, initialSnapshot, bloc
 }
 
 async function currentStorageBigInt(stateManager, address, keyHex) {
-  const valueBytes = await stateManager.getStorage(createAddressFromString(address), hexToBytes(keyHex));
+  const valueBytes = await stateManager.getStorage(createAddressFromString(address), bytesFromHexInput(keyHex));
   if (valueBytes.length === 0) {
     return 0n;
   }
@@ -708,7 +721,11 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
   const currentSnapshot = await stateManager.captureStateSnapshot();
 
-  await stateManager.putStorage(vaultAddressObj, hexToBytes(keyHex), hexToBytes(bigintToHex32(nextValue)));
+  await stateManager.putStorage(
+    vaultAddressObj,
+    bytesFromHexInput(keyHex),
+    bytesFromHexInput(bigintToHex32(nextValue)),
+  );
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const nextSnapshot = await stateManager.captureStateSnapshot();
 
@@ -759,8 +776,8 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
 function splitFieldElement(value) {
   const hexValue = BigInt(value).toString(16).padStart(96, "0");
   return [
-    BigInt(`0x${"0".repeat(32)}${hexValue.slice(0, 32)}`),
-    BigInt(`0x${hexValue.slice(32)}`),
+    hexToBigInt(addHexPrefix(`${"0".repeat(32)}${hexValue.slice(0, 32)}`)),
+    hexToBigInt(addHexPrefix(hexValue.slice(32))),
   ];
 }
 

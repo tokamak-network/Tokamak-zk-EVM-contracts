@@ -290,8 +290,8 @@ const createSyntheticSnapshot = async (
   for (const write of writes) {
     await stateManager.putStorage(
       createAddressFromString(write.address),
-      hexToBytes(write.key),
-      hexToBytes(write.value),
+      hexToBytes(addHexPrefix(write.key)),
+      hexToBytes(addHexPrefix(write.value)),
     );
   }
 
@@ -313,7 +313,7 @@ const buildTransactionSnapshot = (
   const txData: TokamakL2TxData = {
     nonce: BigInt(defaultTxNonce),
     to: createAddressFromString(entryContractAddress),
-    data: hexToBytes(calldata),
+    data: hexToBytes(addHexPrefix(calldata)),
     senderPubKey: senderPublicKey.toBytes(),
   };
   return createTokamakL2Tx(txData, { common: createTokamakL2Common() })

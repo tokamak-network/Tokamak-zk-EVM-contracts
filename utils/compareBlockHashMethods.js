@@ -2,6 +2,7 @@
 
 import fs from 'fs';
 import pkg from 'js-sha3';
+import { addHexPrefix, hexToBigInt } from '@ethereumjs/util';
 const { keccak256 } = pkg;
 
 /**
@@ -31,7 +32,7 @@ function computeBlockInfosHashStyle(blockInputs) {
         const originalValue = upper + lower; // upper 16 bytes + lower 16 bytes
         
         // Now split it back for bytes16(uint128(value >> 128)), bytes16(uint128(value))
-        const value = BigInt('0x' + originalValue);
+        const value = hexToBigInt(addHexPrefix(originalValue));
         const upperPart = (value >> 128n).toString(16).padStart(32, '0'); // bytes16(uint128(value >> 128))
         const lowerPart = (value & ((1n << 128n) - 1n)).toString(16).padStart(32, '0'); // bytes16(uint128(value))
         

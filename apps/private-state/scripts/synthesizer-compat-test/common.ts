@@ -476,7 +476,7 @@ const buildTransactionRlp = (
   const txData: TokamakL2TxData = {
     nonce: transactionNonceOverride ?? BigInt(config.txNonce),
     to: createAddressFromString(config.function.entryContractAddress),
-    data: hexToBytes(config.calldata),
+    data: hexToBytes(addHexPrefix(config.calldata)),
     senderPubKey: fromAccountPublicKey.toBytes(),
   };
   const transaction = createTokamakL2Tx(txData, { common: createTokamakL2Common() }).sign(fromAccountPrivateKey);

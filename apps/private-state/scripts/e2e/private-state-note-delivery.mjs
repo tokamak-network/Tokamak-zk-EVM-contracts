@@ -2,6 +2,7 @@ import {
   randomBytes,
 } from "node:crypto";
 import { AbiCoder, ethers } from "ethers";
+import { addHexPrefix, hexToBigInt } from "@ethereumjs/util";
 import { deriveL2KeysFromSignature, poseidon } from "tokamak-l2js";
 import { jubjub } from "@noble/curves/jubjub";
 
@@ -26,7 +27,7 @@ const MINT_NOTE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_SELF_MINT_NOTE_FIELD_ENCR
 const ENCRYPTED_NOTE_SCHEME_TRANSFER = 0;
 const ENCRYPTED_NOTE_SCHEME_SELF_MINT = 1;
 const BLS12_381_SCALAR_FIELD_MODULUS =
-  BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
+  hexToBigInt(addHexPrefix("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"));
 const JUBJUB_ORDER = jubjub.CURVE.n;
 const JUBJUB_FP = jubjub.CURVE.Fp;
 const JUBJUB_A = jubjub.CURVE.a;

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import pkg from 'js-sha3';
+import { addHexPrefix, hexToBigInt } from '@ethereumjs/util';
 const { keccak256 } = pkg;
 
 /**
@@ -22,16 +23,16 @@ function computeBlockHashFromEventData() {
         selfbalance: 0,
         // Block hashes would be computed as blockhash(block.number - 1) through blockhash(block.number - 4)
         // For this example, let's assume they are from the a_pub_block data (blocks n-1 to n-4)
-        blockHash1: BigInt('0x5124141fe4d8f8248ff8fb31c6a0b8a73a91c006398956bd1190e17d2ad63c11'),
-        blockHash2: BigInt('0x472ed29235baa4d8b63f2c7eb229c5b4d08f571e5dcb0f26c5cf5eeac0765018'),
-        blockHash3: BigInt('0x6b429d3883eb84a2ab0a430c65e53a19103958f3cdc5ddb02423c32c9f268d5e'),
-        blockHash4: BigInt('0x827c474d2507f1152f1bb1cde00f54888f93977b2c571e2ea67377a9d0265bea')
+        blockHash1: hexToBigInt(addHexPrefix('5124141fe4d8f8248ff8fb31c6a0b8a73a91c006398956bd1190e17d2ad63c11')),
+        blockHash2: hexToBigInt(addHexPrefix('472ed29235baa4d8b63f2c7eb229c5b4d08f571e5dcb0f26c5cf5eeac0765018')),
+        blockHash3: hexToBigInt(addHexPrefix('6b429d3883eb84a2ab0a430c65e53a19103958f3cdc5ddb02423c32c9f268d5e')),
+        blockHash4: hexToBigInt(addHexPrefix('827c474d2507f1152f1bb1cde00f54888f93977b2c571e2ea67377a9d0265bea'))
     };
     
     let concatenatedData = '';
     
     // 1. COINBASE (32 bytes total - upper 16 + lower 16)
-    const coinbaseValue = BigInt(blockData.coinbase);
+    const coinbaseValue = hexToBigInt(addHexPrefix(blockData.coinbase));
     const coinbaseUpper = (coinbaseValue >> 128n).toString(16).padStart(32, '0');
     const coinbaseLower = (coinbaseValue & ((1n << 128n) - 1n)).toString(16).padStart(32, '0');
     concatenatedData += coinbaseUpper + coinbaseLower;

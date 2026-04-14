@@ -192,7 +192,7 @@ export function buildInitialStateTree(channelId, participants) {
     // Compute prevRoot based on current nonce (matching contract logic)
     let prevRoot;
     if (nonce === 0) {
-      prevRoot = ethers.zeroPadValue(ethers.toBeHex(BigInt(channelId)), 32);
+      prevRoot = ethers.zeroPadValue(ethers.toBeHex(ethers.toBigInt(channelId)), 32);
     } else {
       prevRoot = tree.getLastRootInSequence();
     }
@@ -268,11 +268,12 @@ export function merkleTree(leaves) {
 export function computeLeaf(prevRoot, l2Address, balance) {
   // RLC computation matching contract's _computeLeafPure
   // Use abi.encodePacked (like the contract) instead of abi.encode
-  const l2AddressBytes32 = ethers.zeroPadValue(ethers.toBeHex(BigInt(l2Address)), 32);
+  const l2AddressBigInt = ethers.toBigInt(l2Address);
+  const l2AddressBytes32 = ethers.zeroPadValue(ethers.toBeHex(l2AddressBigInt), 32);
   const packedData = ethers.concat([prevRoot, l2AddressBytes32]);
   const gamma = ethers.keccak256(packedData);
   
   // RLC formula: l2Address + gamma * balance
-  const leafValue = (BigInt(l2Address) + BigInt(gamma) * BigInt(balance)) % (2n ** 256n);
+  const leafValue = (l2AddressBigInt + ethers.toBigInt(gamma) * BigInt(balance)) % (2n ** 256n);
   return ethers.zeroPadValue(ethers.toBeHex(leafValue), 32);
 }

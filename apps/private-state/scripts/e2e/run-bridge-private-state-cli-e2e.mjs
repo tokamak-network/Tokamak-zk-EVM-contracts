@@ -29,6 +29,7 @@ import {
   addHexPrefix,
   bytesToHex,
   createAddressFromString,
+  hexToBigInt,
   hexToBytes,
 } from "@ethereumjs/util";
 import {
@@ -261,8 +262,20 @@ function extractTrailingJsonObject(stdout) {
   return null;
 }
 
+function bigintFromHexInput(hexValue) {
+  const raw = String(hexValue ?? "");
+  const withoutPrefix = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
+  return hexToBigInt(addHexPrefix(withoutPrefix));
+}
+
+function bytesFromHexInput(hexValue) {
+  const raw = String(hexValue ?? "");
+  const withoutPrefix = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
+  return hexToBytes(addHexPrefix(withoutPrefix));
+}
+
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(BigInt(hexValue)), 32);
+  return ethers.zeroPadValue(ethers.toBeHex(bigintFromHexInput(hexValue)), 32);
 }
 
 function normalizeBytes32Hex(hexValue) {
@@ -282,7 +295,7 @@ function loadLiquidBalancesSlot() {
 
 async function getFixedBlockInfo(provider) {
   const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
-  const latestNumber = Number(BigInt(latestNumberHex));
+  const latestNumber = Number(bigintFromHexInput(latestNumberHex));
   return getBlockInfoAt(provider, latestNumber);
 }
 
@@ -334,7 +347,7 @@ async function buildStateManager(snapshot, contractCodes) {
 
 function mappingKeyHex(address, slot) {
   const encoded = abiCoder.encode(["address", "uint256"], [address, BigInt(slot)]);
-  return bytesToHex(poseidon(hexToBytes(encoded)));
+  return bytesToHex(poseidon(bytesFromHexInput(encoded)));
 }
 
 function deriveLiquidBalanceStorageKey(l2Address, slot) {
@@ -342,7 +355,7 @@ function deriveLiquidBalanceStorageKey(l2Address, slot) {
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
+  return bigintFromHexInput(storageKey) % BigInt(MAX_MT_LEAVES);
 }
 
 function poseidonHexFromBytes(bytesLike) {
@@ -360,7 +373,7 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
     {
       nonce: BigInt(nonce),
       to: createAddressFromString(to),
-      data: hexToBytes(data),
+      data: bytesFromHexInput(data),
       senderPubKey,
     },
     { common: createTokamakL2Common() },
@@ -416,8 +429,8 @@ function copyTokamakArtifacts(stepDir) {
 async function applyDepositSnapshot(stateManager, vaultAddress, keyHex, nextValue) {
   await stateManager.putStorage(
     createAddressFromString(vaultAddress),
-    hexToBytes(keyHex),
-    hexToBytes(bytes32FromHex(ethers.toBeHex(nextValue))),
+    bytesFromHexInput(keyHex),
+    bytesFromHexInput(bytes32FromHex(ethers.toBeHex(nextValue))),
   );
   return stateManager.captureStateSnapshot();
 }

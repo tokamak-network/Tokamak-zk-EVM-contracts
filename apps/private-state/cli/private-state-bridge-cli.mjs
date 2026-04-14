@@ -125,7 +125,7 @@ const JUBJUB_FP = jubjub.CURVE.Fp;
 const JUBJUB_A = jubjub.CURVE.a;
 const JUBJUB_D = jubjub.CURVE.d;
 const BLS12_381_SCALAR_FIELD_MODULUS =
-  BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
+  hexToBigInt(addHexPrefix("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"));
 const DEFAULT_LOG_CHUNK_SIZE = 2000;
 
 async function main() {
@@ -2217,7 +2217,7 @@ function unpackEncryptedNoteValue(encryptedNoteValue) {
 
 function derivePrivateStateControllerMappingStorageKey(keyHex, slot) {
   const encoded = abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(keyHex), BigInt(slot)]);
-  return normalizeBytes32Hex(bytesToHex(poseidon(hexToBytes(encoded))));
+  return normalizeBytes32Hex(bytesToHex(poseidon(bytesFromHexInput(encoded))));
 }
 
 function computeEncryptedNoteSalt(encryptedValue) {
@@ -3347,7 +3347,11 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
   const currentSnapshot = await stateManager.captureStateSnapshot();
 
-  await stateManager.putStorage(vaultAddressObj, hexToBytes(keyHex), hexToBytes(bigintToHex32(nextValue)));
+  await stateManager.putStorage(
+    vaultAddressObj,
+    bytesFromHexInput(keyHex),
+    bytesFromHexInput(bigintToHex32(nextValue)),
+  );
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const nextSnapshot = await stateManager.captureStateSnapshot();
 
@@ -3585,7 +3589,7 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
     {
       nonce: BigInt(nonce),
       to: createAddressFromString(to),
-      data: hexToBytes(data),
+      data: bytesFromHexInput(data),
       senderPubKey,
     },
     { common: createTokamakL2Common() },
@@ -3604,7 +3608,7 @@ async function buildStateManager(snapshot, contractCodes) {
 }
 
 async function currentStorageBigInt(stateManager, address, keyHex) {
-  const valueBytes = await stateManager.getStorage(createAddressFromString(address), hexToBytes(keyHex));
+  const valueBytes = await stateManager.getStorage(createAddressFromString(address), bytesFromHexInput(keyHex));
   if (valueBytes.length === 0) {
     return 0n;
   }
@@ -3616,7 +3620,7 @@ function deriveLiquidBalanceStorageKey(l2Address, slot) {
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
+  return bigintFromHexInput(storageKey) % BigInt(MAX_MT_LEAVES);
 }
 
 async function fetchContractCodes(provider, addresses) {
@@ -3652,6 +3656,12 @@ function bigintFromHexInput(hexValue) {
   const raw = String(hexValue ?? "");
   const withoutPrefix = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
   return hexToBigInt(addHexPrefix(withoutPrefix));
+}
+
+function bytesFromHexInput(hexValue) {
+  const raw = String(hexValue ?? "");
+  const withoutPrefix = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
+  return hexToBytes(addHexPrefix(withoutPrefix));
 }
 
 function normalizeBytes32Hex(hexValue) {
@@ -3826,8 +3836,8 @@ async function reconstructChannelSnapshot({
         const storageValue = bigintToHex32(BigInt(event.args.value));
         await stateManager.putStorage(
           createAddressFromString(storageAddr),
-          hexToBytes(storageKey),
-          hexToBytes(storageValue),
+          bytesFromHexInput(storageKey),
+          bytesFromHexInput(storageValue),
         );
         continue;
       }
@@ -3841,8 +3851,8 @@ async function reconstructChannelSnapshot({
         );
         await stateManager.putStorage(
           createAddressFromString(controllerAddress),
-          hexToBytes(normalizeBytes32Hex(storageKey)),
-          hexToBytes(bigintToHex32(1n)),
+          bytesFromHexInput(normalizeBytes32Hex(storageKey)),
+          bytesFromHexInput(bigintToHex32(1n)),
         );
         continue;
       }
@@ -3859,8 +3869,8 @@ async function reconstructChannelSnapshot({
         );
         await stateManager.putStorage(
           createAddressFromString(l2AccountingVaultAddress),
-          hexToBytes(normalizeBytes32Hex(storageKey)),
-          hexToBytes(normalizeBytes32Hex(value)),
+          bytesFromHexInput(normalizeBytes32Hex(storageKey)),
+          bytesFromHexInput(normalizeBytes32Hex(value)),
         );
       }
     }
@@ -4008,8 +4018,8 @@ function toGrothSolidityProof(proof) {
 function splitFieldElement(value) {
   const hexValue = BigInt(value).toString(16).padStart(96, "0");
   return [
-    BigInt(`0x${"0".repeat(32)}${hexValue.slice(0, 32)}`),
-    BigInt(`0x${hexValue.slice(32)}`),
+    hexToBigInt(addHexPrefix(`${"0".repeat(32)}${hexValue.slice(0, 32)}`)),
+    hexToBigInt(addHexPrefix(hexValue.slice(32))),
   ];
 }
 

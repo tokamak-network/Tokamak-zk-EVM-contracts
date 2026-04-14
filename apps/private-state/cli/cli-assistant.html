@@ -895,8 +895,14 @@
         }, 250);
       }
 
+      function addHexPrefix(value) {
+        const normalized = String(value ?? "");
+        return normalized.startsWith("0x") || normalized.startsWith("0X") ? normalized : `0x${normalized}`;
+      }
+
       function hexToBytes(value) {
-        const normalized = String(value).startsWith("0x") ? String(value).slice(2) : String(value);
+        const normalizedWithPrefix = addHexPrefix(value);
+        const normalized = normalizedWithPrefix.slice(2);
         if (normalized.length === 0) {
           return new Uint8Array();
         }

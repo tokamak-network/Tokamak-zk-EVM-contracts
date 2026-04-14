@@ -18,6 +18,7 @@ import {
 } from "ethers";
 import {
   MAX_MT_LEAVES,
+  TokamakL2StateManager,
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
@@ -43,12 +44,6 @@ import {
   walletDirForName as sharedWalletDirForName,
   walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
 } from "../utils/private-state-cli-shared.mjs";
-import {
-  captureNormalizedStateSnapshot,
-  createEmptyStateSnapshot,
-  createStateSnapshotFromStorageEntries,
-  normalizeStateSnapshot,
-} from "../utils/state-snapshot.mjs";
 import {
   computeEncryptedNoteSalt,
   encryptMintNoteValueForOwner,
@@ -329,13 +324,25 @@ async function fetchContractCodes(provider, addresses) {
 }
 
 async function buildStateManager(snapshot, contractCodes) {
-  const compatibleSnapshot = Array.isArray(snapshot.storageKeys)
-    ? snapshot
-    : await createStateSnapshotFromStorageEntries({
-      channelId: snapshot.channelId,
-      storageAddresses: snapshot.storageAddresses,
-      storageEntries: snapshot.storageEntries ?? snapshot.storageAddresses.map(() => []),
-    });
+  let compatibleSnapshot = snapshot;
+  if (!Array.isArray(snapshot.storageKeys)) {
+    const storageEntries = snapshot.storageEntries ?? snapshot.storageAddresses.map(() => []);
+    const stateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+    const addressObjects = snapshot.storageAddresses.map((address) => createAddressFromString(address));
+    await stateManager._initializeForAddresses(addressObjects);
+    stateManager._channelId = snapshot.channelId;
+    for (const [addressIndex, address] of addressObjects.entries()) {
+      stateManager._commitResolvedStorageEntries(address, []);
+      for (const entry of storageEntries[addressIndex]) {
+        await stateManager.putStorage(
+          address,
+          hexToBytes(addHexPrefix(entry.key)),
+          hexToBytes(addHexPrefix(entry.value)),
+        );
+      }
+    }
+    compatibleSnapshot = await stateManager.captureStateSnapshot();
+  }
   return createTokamakL2StateManagerFromStateSnapshot(compatibleSnapshot, {
     contractCodes: contractCodes.map((entry) => ({
       address: createAddressFromString(entry.address),
@@ -431,7 +438,7 @@ async function applyDepositSnapshot(stateManager, vaultAddress, keyHex, nextValu
     hexToBytes(keyHex),
     hexToBytes(bytes32FromHex(ethers.toBeHex(nextValue))),
   );
-  return captureNormalizedStateSnapshot(stateManager);
+  return stateManager.captureStateSnapshot();
 }
 
 async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contractCodes) {
@@ -463,9 +470,11 @@ async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contrac
   writeJson(path.join(stepDir, "block_info.json"), blockInfo);
   writeJson(path.join(stepDir, "contract_codes.json"), contractCodes);
 
-  const nextSnapshot = normalizeStateSnapshot(
-    readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json")),
-  );
+  const nextSnapshot = readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json"));
+  if (Array.isArray(nextSnapshot.storageAddresses)) {
+    nextSnapshot.storageAddresses = nextSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
   writeJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
   const metadataRecord = buildFunctionDefinition({
@@ -501,10 +510,14 @@ async function materializeCurrentDAppDefinition(provider, participants) {
 
   const contractCodes = await fetchContractCodes(provider, [controller, vault]);
   const bootstrapBlockInfo = await getFixedBlockInfo(provider);
-  const initialSnapshot = await createEmptyStateSnapshot({
-    channelId: deriveChannelIdFromName(channelName).toString(),
-    storageAddresses: [getAddress(controller), getAddress(vault)],
-  });
+  const initialStateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+  const initialAddresses = [getAddress(controller), getAddress(vault)].map((address) => createAddressFromString(address));
+  await initialStateManager._initializeForAddresses(initialAddresses);
+  initialStateManager._channelId = deriveChannelIdFromName(channelName).toString();
+  for (const address of initialAddresses) {
+    initialStateManager._commitResolvedStorageEntries(address, []);
+  }
+  const initialSnapshot = await initialStateManager.captureStateSnapshot();
   const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
 
   const participantKeys = new Map();

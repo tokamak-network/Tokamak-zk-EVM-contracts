@@ -24,6 +24,7 @@ import {
 } from "ethers";
 import {
   MAX_MT_LEAVES,
+  TokamakL2StateManager,
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
@@ -31,6 +32,7 @@ import {
   fromEdwardsToAddress,
   getUserStorageKey,
   poseidon,
+  readStorageValueFromStateSnapshot,
 } from "tokamak-l2js";
 import { jubjub } from "@noble/curves/jubjub";
 import {
@@ -54,14 +56,6 @@ import {
   walletMetadataPathForDir,
   walletNameForChannelAndAddress,
 } from "../scripts/utils/private-state-cli-shared.mjs";
-import {
-  captureNormalizedStateSnapshot,
-  createEmptyStateSnapshot,
-  createStateSnapshotFromStorageEntries,
-  normalizeStateSnapshot,
-  readStorageValueFromSnapshot,
-  snapshotStorageKeysForAddress,
-} from "../scripts/utils/state-snapshot.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -509,7 +503,7 @@ async function initializeChannelWorkspace({
     writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"), currentSnapshot);
     writeJsonIfChanged(
       path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.normalized.json"),
-      normalizeStateSnapshot(currentSnapshot),
+      currentSnapshot,
     );
     writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"), blockInfo);
     writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"), contractCodes);
@@ -1324,10 +1318,10 @@ async function handleGrothVaultMove({ args, provider, direction }) {
 
   writeJson(path.join(operationDir, `${operationName}-receipt.json`), sanitizeReceipt(receipt));
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
-  writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(transition.nextSnapshot));
+  writeJson(path.join(operationDir, "state_snapshot.normalized.json"), transition.nextSnapshot);
   sealWalletOperationDir(operationDir, walletContext.walletPassword);
 
-  context.currentSnapshot = normalizeStateSnapshot(transition.nextSnapshot);
+  context.currentSnapshot = transition.nextSnapshot;
   persistCurrentState(context);
 
   printJson({
@@ -1881,7 +1875,21 @@ async function readBooleanStorageValueFromSnapshot({ snapshot, storageAddress, s
   if (!storageKey) {
     return false;
   }
-  return BigInt(await readStorageValueFromSnapshot({ snapshot, storageAddress, storageKey })) !== 0n;
+  if (Array.isArray(snapshot.storageKeys)) {
+    return BigInt(await readStorageValueFromStateSnapshot(snapshot, storageAddress, storageKey)) !== 0n;
+  }
+  const normalizedAddress = getAddress(storageAddress);
+  const storageAddressIndex = snapshot.storageAddresses.findIndex(
+    (entry) => getAddress(entry) === normalizedAddress,
+  );
+  if (storageAddressIndex === -1) {
+    throw new Error(`Storage snapshot does not include ${normalizedAddress}.`);
+  }
+  const normalizedStorageKey = normalizeBytes32Hex(storageKey);
+  const entry = (snapshot.storageEntries?.[storageAddressIndex] ?? []).find(
+    (item) => normalizeBytes32Hex(item.key) === normalizedStorageKey,
+  );
+  return BigInt(entry?.value ?? "0x") !== 0n;
 }
 
 function compareNotesByValueDesc(left, right) {
@@ -2485,8 +2493,21 @@ function extractNoteLifecycle(functionName, templatePayload) {
 }
 
 function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, controllerAddress, lifecycle }) {
-  const previousKeysForAddress = snapshotStorageKeysForAddress(previousSnapshot, controllerAddress);
-  const nextKeysForAddress = snapshotStorageKeysForAddress(nextSnapshot, controllerAddress);
+  const normalizedControllerAddress = getAddress(controllerAddress);
+  const previousStorageAddressIndex = previousSnapshot.storageAddresses.findIndex(
+    (entry) => getAddress(entry) === normalizedControllerAddress,
+  );
+  const nextStorageAddressIndex = nextSnapshot.storageAddresses.findIndex(
+    (entry) => getAddress(entry) === normalizedControllerAddress,
+  );
+  expect(previousStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
+  expect(nextStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
+  const previousKeysForAddress = Array.isArray(previousSnapshot.storageKeys)
+    ? previousSnapshot.storageKeys[previousStorageAddressIndex] ?? []
+    : (previousSnapshot.storageEntries?.[previousStorageAddressIndex] ?? []).map((entry) => entry.key);
+  const nextKeysForAddress = Array.isArray(nextSnapshot.storageKeys)
+    ? nextSnapshot.storageKeys[nextStorageAddressIndex] ?? []
+    : (nextSnapshot.storageEntries?.[nextStorageAddressIndex] ?? []).map((entry) => entry.key);
   const previousKeys = new Set(previousKeysForAddress.map((key) => normalizeBytes32Hex(key)));
   const newKeys = nextKeysForAddress
     .map((key) => normalizeBytes32Hex(key))
@@ -2996,7 +3017,11 @@ async function executeWalletTemplateSend({
   runTokamakProofPipeline({ operationDir, bundlePath });
 
   const rawNextSnapshot = readJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.json"));
-  const nextSnapshot = normalizeStateSnapshot(rawNextSnapshot);
+  if (Array.isArray(rawNextSnapshot.storageAddresses)) {
+    rawNextSnapshot.storageAddresses = rawNextSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
+  const nextSnapshot = rawNextSnapshot;
   writeJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
   const payload = loadTokamakPayloadFromStep(operationDir);
@@ -3052,7 +3077,11 @@ async function loadWorkspaceContext(workspaceName, networkName, provider) {
   const bridgeAbiManifestPath = defaultBridgeAbiManifestPath(workspace.chainId);
   const bridgeDeployment = readJson(bridgeDeploymentPath);
   const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
-  const currentSnapshot = normalizeStateSnapshot(readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json")));
+  const currentSnapshot = readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"));
+  if (Array.isArray(currentSnapshot.storageAddresses)) {
+    currentSnapshot.storageAddresses = currentSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
   const blockInfo = readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"));
   const contractCodes = readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"));
   const channelManager = new Contract(workspace.channelManager, bridgeAbiManifest.contracts.channelManager.abi, provider);
@@ -3331,11 +3360,11 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
-  const currentSnapshot = await captureNormalizedStateSnapshot(stateManager);
+  const currentSnapshot = await stateManager.captureStateSnapshot();
 
   await stateManager.putStorage(vaultAddressObj, hexToBytes(keyHex), hexToBytes(bigintToHex32(nextValue)));
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
-  const nextSnapshot = await captureNormalizedStateSnapshot(stateManager);
+  const nextSnapshot = await stateManager.captureStateSnapshot();
 
   const input = {
     root_before: currentRoot.toString(),
@@ -3581,13 +3610,25 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
 }
 
 async function buildStateManager(snapshot, contractCodes) {
-  const compatibleSnapshot = Array.isArray(snapshot.storageKeys)
-    ? snapshot
-    : await createStateSnapshotFromStorageEntries({
-      channelId: snapshot.channelId,
-      storageAddresses: snapshot.storageAddresses,
-      storageEntries: snapshot.storageEntries ?? snapshot.storageAddresses.map(() => []),
-    });
+  let compatibleSnapshot = snapshot;
+  if (!Array.isArray(snapshot.storageKeys)) {
+    const storageEntries = snapshot.storageEntries ?? snapshot.storageAddresses.map(() => []);
+    const stateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+    const addressObjects = snapshot.storageAddresses.map((address) => createAddressFromString(address));
+    await stateManager._initializeForAddresses(addressObjects);
+    stateManager._channelId = snapshot.channelId;
+    for (const [addressIndex, address] of addressObjects.entries()) {
+      stateManager._commitResolvedStorageEntries(address, []);
+      for (const entry of storageEntries[addressIndex]) {
+        await stateManager.putStorage(
+          address,
+          hexToBytes(addHexPrefix(entry.key)),
+          hexToBytes(addHexPrefix(entry.value)),
+        );
+      }
+    }
+    compatibleSnapshot = await stateManager.captureStateSnapshot();
+  }
   return createTokamakL2StateManagerFromStateSnapshot(compatibleSnapshot, {
     contractCodes: contractCodes.map((entry) => ({
       address: createAddressFromString(entry.address),
@@ -3744,10 +3785,14 @@ async function reconstructChannelSnapshot({
   l2AccountingVaultAddress,
   liquidBalancesSlot,
 }) {
-  const genesisSnapshot = await createEmptyStateSnapshot({
-    channelId: channelId.toString(),
-    storageAddresses: managedStorageAddresses,
-  });
+  const genesisStateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+  const managedAddressObjects = managedStorageAddresses.map((address) => createAddressFromString(address));
+  await genesisStateManager._initializeForAddresses(managedAddressObjects);
+  genesisStateManager._channelId = channelId.toString();
+  for (const address of managedAddressObjects) {
+    genesisStateManager._commitResolvedStorageEntries(address, []);
+  }
+  const genesisSnapshot = await genesisStateManager.captureStateSnapshot();
 
   const bridgeTokenVault = new Contract(
     channelInfo.bridgeTokenVault,
@@ -3848,7 +3893,7 @@ async function reconstructChannelSnapshot({
       }
     }
 
-    currentSnapshot = await captureNormalizedStateSnapshot(stateManager);
+    currentSnapshot = await stateManager.captureStateSnapshot();
     expect(
       normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === emittedRootVectorHash,
       `CurrentRootVectorObserved hash mismatch at tx ${rootEvent.transactionHash}.`,
@@ -4493,7 +4538,7 @@ function persistCurrentState(context) {
   writeJson(path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.json"), context.currentSnapshot);
   writeJson(
     path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.normalized.json"),
-    normalizeStateSnapshot(context.currentSnapshot),
+    context.currentSnapshot,
   );
 }
 
@@ -4608,9 +4653,13 @@ function writeJsonIfChanged(filePath, value) {
 function loadExistingWorkspaceArtifacts(workspaceDir) {
   const currentDir = channelWorkspaceCurrentPath(workspaceDir);
   const stateSnapshot = readJsonIfExists(path.join(currentDir, "state_snapshot.json"));
+  if (Array.isArray(stateSnapshot?.storageAddresses)) {
+    stateSnapshot.storageAddresses = stateSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
   return {
     workspace: readJsonIfExists(channelWorkspaceConfigPath(workspaceDir)),
-    stateSnapshot: stateSnapshot ? normalizeStateSnapshot(stateSnapshot) : null,
+    stateSnapshot,
     blockInfo: readJsonIfExists(path.join(currentDir, "block_info.json")),
     contractCodes: readJsonIfExists(path.join(currentDir, "contract_codes.json")),
   };

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-12T16:55:38.248Z",
+  "generatedAt": "2026-04-14T14:07:37.437Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -1235,32 +1235,6 @@
         },
         {
           "type": "function",
-          "name": "bindBridgeCore",
-          "inputs": [
-            {
-              "name": "bridgeCore_",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "outputs": [],
-          "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "bridgeCore",
-          "inputs": [],
-          "outputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
           "name": "computeFunctionKey",
           "inputs": [
             {
@@ -1442,11 +1416,6 @@
                   "name": "updatedRootVectorOffsetWords",
                   "type": "uint8",
                   "internalType": "uint8"
-                },
-                {
-                  "name": "exists",
-                  "type": "bool",
-                  "internalType": "bool"
                 }
               ]
             }
@@ -1839,19 +1808,6 @@
         },
         {
           "type": "event",
-          "name": "BridgeCoreBound",
-          "inputs": [
-            {
-              "name": "bridgeCore",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            }
-          ],
-          "anonymous": false
-        },
-        {
-          "type": "event",
           "name": "DAppDeleted",
           "inputs": [
             {
@@ -1947,22 +1903,6 @@
         },
         {
           "type": "error",
-          "name": "BridgeCoreAlreadyBound",
-          "inputs": [
-            {
-              "name": "currentBridgeCore",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "candidateBridgeCore",
-              "type": "address",
-              "internalType": "address"
-            }
-          ]
-        },
-        {
-          "type": "error",
           "name": "DAppDeletionDisabled",
           "inputs": []
         },
@@ -2054,11 +1994,6 @@
         },
         {
           "type": "error",
-          "name": "InvalidBridgeCore",
-          "inputs": []
-        },
-        {
-          "type": "error",
           "name": "InvalidFunctionEventTopicCount",
           "inputs": [
             {
@@ -2135,11 +2070,6 @@
               "internalType": "address"
             }
           ]
-        },
-        {
-          "type": "error",
-          "name": "OnlyBridgeCore",
-          "inputs": []
         },
         {
           "type": "error",

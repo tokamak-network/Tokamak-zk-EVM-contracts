@@ -672,9 +672,7 @@ contract PrivateStateController {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             let offset := encryptedNoteValue
-            mstore(ptr, calldataload(offset))
-            mstore(add(ptr, 0x20), calldataload(add(offset, 0x20)))
-            mstore(add(ptr, 0x40), calldataload(add(offset, 0x40)))
+            calldatacopy(ptr, offset, 0x60)
             digest := keccak256(ptr, 0x60)
             mstore(0x40, add(ptr, 0x60))
         }

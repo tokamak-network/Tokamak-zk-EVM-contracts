@@ -115,7 +115,9 @@ const tokamakStepArtifactDirectories = [
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const dAppManagerAbi = [
+  "function deleteDApp(uint256 dappId) external",
   "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
+  "function getDAppInfo(uint256 dappId) external view returns (tuple(bool exists, bytes32 labelHash, uint256 channelTokenVaultTreeIndex))",
 ];
 
 function usage() {
@@ -1018,6 +1020,25 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
   const derived = await materializeCurrentDAppDefinition(provider, participants);
   const deployer = new Wallet(anvilDeployerPrivateKey, provider);
   const dAppManager = new Contract(bridgeDeployment.dAppManager, dAppManagerAbi, deployer);
+  let deletedExistingRegistration = false;
+  let deleteTxHash = null;
+  let deleteBlockNumber = null;
+
+  try {
+    const existingInfo = await dAppManager.getDAppInfo(ethers.toBigInt(dappId));
+    if (existingInfo.exists) {
+      const deleteTx = await dAppManager.deleteDApp(ethers.toBigInt(dappId));
+      const deleteReceipt = await deleteTx.wait();
+      deletedExistingRegistration = true;
+      deleteTxHash = deleteTx.hash;
+      deleteBlockNumber = deleteReceipt?.blockNumber ?? null;
+    }
+  } catch (error) {
+    if (error?.code !== "CALL_EXCEPTION") {
+      throw error;
+    }
+  }
+
   const tx = await dAppManager.registerDApp(
     ethers.toBigInt(dappId),
     derived.definition.labelHash,
@@ -1043,6 +1064,9 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
   const receipt = await tx.wait();
   const result = {
     reusedExistingRegistration: false,
+    deletedExistingRegistration,
+    deleteTxHash,
+    deleteBlockNumber,
     txHash: tx.hash,
     blockNumber: receipt?.blockNumber ?? null,
     storageCount: derived.definition.storageMetadata.length,

@@ -538,6 +538,12 @@ async function materializeCurrentDAppDefinition(provider, participants) {
       label: `${channelName}:b-to-c`,
       recipientNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
     }),
+    bExtraToA: buildEncryptedTransferOutput({
+      owner: participants[0].registration.l2Identity.l2Address,
+      value: 1n * amountUnit,
+      label: `${channelName}:b-extra-to-a`,
+      recipientNoteReceivePubKey: participants[0].registration.noteReceive.noteReceivePubKey,
+    }),
   };
 
   const encryptedMints = {
@@ -553,6 +559,12 @@ async function materializeCurrentDAppDefinition(provider, participants) {
       value: depositAmountBaseUnits,
       label: `${channelName}:b-mint`,
     }),
+    bMintExtra: buildEncryptedMintOutput({
+      owner: participants[1].registration.l2Identity.l2Address,
+      ownerNoteReceivePubKey: participants[1].registration.noteReceive.noteReceivePubKey,
+      value: 1n * amountUnit,
+      label: `${channelName}:b-mint-extra`,
+    }),
     cMint: buildEncryptedMintOutput({
       owner: participants[2].registration.l2Identity.l2Address,
       ownerNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
@@ -563,6 +575,7 @@ async function materializeCurrentDAppDefinition(provider, participants) {
   const notes = {
     aMint: encryptedMints.aMint.note,
     bMint: encryptedMints.bMint.note,
+    bMintExtra: encryptedMints.bMintExtra.note,
     cMint: encryptedMints.cMint.note,
     aToB: encryptedTransfers.aToB.note,
     aToC: encryptedTransfers.aToC.note,
@@ -613,17 +626,42 @@ async function materializeCurrentDAppDefinition(provider, participants) {
       nonce: 0,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData(
-        "mintNotes1",
-        [[[
-          encryptedMints.bMint.output.value,
-          encryptedNoteValueTuple(encryptedMints.bMint.output.encryptedNoteValue),
-        ]]],
+        "mintNotes2",
+        [[
+          [
+            encryptedMints.bMint.output.value,
+            encryptedNoteValueTuple(encryptedMints.bMint.output.encryptedNoteValue),
+          ],
+          [
+            encryptedMints.bMintExtra.output.value,
+            encryptedNoteValueTuple(encryptedMints.bMintExtra.output.encryptedNoteValue),
+          ],
+        ]],
+      ),
+    },
+    {
+      name: "transfer-notes-1-to-1",
+      sender: participants[1].registration.l2Identity,
+      nonce: 1,
+      controllerAddress: controller,
+      calldata: controllerInterface.encodeFunctionData(
+        "transferNotes1To1",
+        [
+          [
+            [
+              encryptedTransfers.bExtraToA.output.owner,
+              encryptedTransfers.bExtraToA.output.value,
+              encryptedNoteValueTuple(encryptedTransfers.bExtraToA.output.encryptedNoteValue),
+            ],
+          ],
+          [[notes.bMintExtra.owner, notes.bMintExtra.value, notes.bMintExtra.salt]],
+        ],
       ),
     },
     {
       name: "transfer-notes-2-to-1",
       sender: participants[1].registration.l2Identity,
-      nonce: 0,
+      nonce: 2,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData(
         "transferNotes2To1",
@@ -643,43 +681,14 @@ async function materializeCurrentDAppDefinition(provider, participants) {
       ),
     },
     {
-      name: "mint-notes-3",
-      sender: participants[2].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "mintNotes1",
-        [[[
-          encryptedMints.cMint.output.value,
-          encryptedNoteValueTuple(encryptedMints.cMint.output.encryptedNoteValue),
-        ]]],
-      ),
-    },
-    {
-      name: "redeem-notes-2",
-      sender: participants[2].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "redeemNotes2",
-        [
-          [
-            [notes.aToC.owner, notes.aToC.value, notes.aToC.salt],
-            [notes.bToC.owner, notes.bToC.value, notes.bToC.salt],
-          ],
-          participants[2].registration.l2Identity.l2Address,
-        ],
-      ),
-    },
-    {
       name: "redeem-notes-1",
       sender: participants[2].registration.l2Identity,
-      nonce: 1,
+      nonce: 0,
       controllerAddress: controller,
       calldata: controllerInterface.encodeFunctionData(
         "redeemNotes1",
         [
-          [[notes.cMint.owner, notes.cMint.value, notes.cMint.salt]],
+          [[notes.aToC.owner, notes.aToC.value, notes.aToC.salt]],
           participants[2].registration.l2Identity.l2Address,
         ],
       ),
@@ -1398,7 +1407,8 @@ async function main() {
     assertWalletNoteSnapshot(notesAfterTransferB, { unusedCount: 0, spentCount: 2, unusedTotal: 0n, spentTotal: 4n * amountUnit });
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });
 
-    const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment, noteBToC.commitment]);
+    const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment]);
+    const redeemBToC = redeemNotes(participants[2], [noteBToC.commitment]);
     const redeemCMint = redeemNotes(participants[2], [cMintNote.commitment]);
     const notesAfterRedeemC = getMyNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });

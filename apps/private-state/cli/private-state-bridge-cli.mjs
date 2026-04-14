@@ -2623,13 +2623,15 @@ function buildRedeemNotesTemplatePayload({ wallet, inputNotes }) {
 
 function selectMintNotesMethod(noteCount) {
   expect(noteCount >= 1, "mint-notes requires at least one output amount.");
-  expect(noteCount <= 6, "mint-notes supports at most six output amounts.");
+  expect(
+    noteCount <= 2,
+    "mint-notes supports only one or two output amounts with the currently registered DApp.",
+  );
   return `mintNotes${noteCount}`;
 }
 
 function selectRedeemNotesMethod(noteCount) {
-  expect(noteCount >= 1, "redeem-notes requires at least one input note.");
-  expect(noteCount <= 2, "redeem-notes supports at most two input notes.");
+  expect(noteCount === 1, "redeem-notes supports exactly one input note with the currently registered DApp.");
   return `redeemNotes${noteCount}`;
 }
 
@@ -4551,13 +4553,13 @@ Commands:
       Exit a channel. The CLI requires a zero channel balance unless --force is provided
 
   mint-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --amounts <A,B,...>
-      Mint private-state notes from the wallet's channel balance
+      Mint one or two private-state notes from the wallet's channel balance
 
   transfer-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-ids <ID,ID,...> --recipients <ADDR,ADDR,...> --amounts <A,B,...>
-      Spend input notes into supported private transfer outputs
+      Spend input notes into the registered 1->1, 1->2, or 2->1 private transfer shapes
 
   redeem-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-ids <ID,ID,...>
-      Redeem one or two tracked notes back into the wallet's channel balance
+      Redeem one tracked note back into the wallet's channel balance
 
   get-my-notes --wallet <NAME> --password <PASSWORD> --network <NAME>
       Show the wallet's tracked note state and refresh received notes

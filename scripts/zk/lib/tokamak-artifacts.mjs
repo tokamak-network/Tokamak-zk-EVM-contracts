@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { AbiCoder, getAddress, keccak256 } from "ethers";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
-const TOKAMAK_APUB_BLOCK_LENGTH = 63;
+const TOKAMAK_APUB_BLOCK_LENGTH = 43;
 
 const CAPACITY_ERROR_PATTERNS = [
   /insufficient .* length/i,

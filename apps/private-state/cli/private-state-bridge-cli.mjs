@@ -73,7 +73,7 @@ const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
   "function decimals() view returns (uint8)",
 ];
-const TOKAMAK_APUB_BLOCK_LENGTH = 63;
+const TOKAMAK_APUB_BLOCK_LENGTH = 43;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";

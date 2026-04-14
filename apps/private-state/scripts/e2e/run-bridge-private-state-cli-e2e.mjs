@@ -116,7 +116,6 @@ const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "wo
 const abiCoder = AbiCoder.defaultAbiCoder();
 const dAppManagerAbi = [
   "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
-  "function getDAppInfo(uint256 dappId) external view returns (tuple(bool exists, bytes32 labelHash, uint256 channelTokenVaultTreeIndex))",
 ];
 
 function usage() {
@@ -1019,59 +1018,37 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
   const derived = await materializeCurrentDAppDefinition(provider, participants);
   const deployer = new Wallet(anvilDeployerPrivateKey, provider);
   const dAppManager = new Contract(bridgeDeployment.dAppManager, dAppManagerAbi, deployer);
-  let result;
-
-  try {
-    const existingInfo = await dAppManager.getDAppInfo(ethers.toBigInt(dappId));
-    expect(
-      normalizeBytes32Hex(existingInfo.labelHash) === normalizeBytes32Hex(derived.definition.labelHash),
-      `Existing DApp ${dappId} label hash does not match ${dappLabel}.`,
-    );
-    result = {
-      reusedExistingRegistration: true,
-      txHash: null,
-      blockNumber: null,
-      storageCount: derived.definition.storageMetadata.length,
-      functionCount: derived.definition.functions.length,
-      artifactsRoot: dappMetadataRoot,
-    };
-  } catch (error) {
-    if (error?.code !== "CALL_EXCEPTION") {
-      throw error;
-    }
-
-    const tx = await dAppManager.registerDApp(
-      ethers.toBigInt(dappId),
-      derived.definition.labelHash,
-      derived.definition.storageMetadata.map((storage) => ({
-        storageAddr: storage.storageAddress,
-        preAllocatedKeys: storage.preAllocKeys,
-        userStorageSlots: storage.userSlots,
-        isChannelTokenVaultStorage: storage.isChannelTokenVaultStorage,
-      })),
-      derived.definition.functions.map((fn) => ({
-        entryContract: fn.entryContract,
-        functionSig: fn.functionSig,
-        preprocessInputHash: fn.preprocessInputHash,
-        instanceLayout: {
-          entryContractOffsetWords: fn.entryContractOffsetWords,
-          functionSigOffsetWords: fn.functionSigOffsetWords,
-          currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
-          updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
-          eventLogs: fn.eventLogs,
-        },
-      })),
-    );
-    const receipt = await tx.wait();
-    result = {
-      reusedExistingRegistration: false,
-      txHash: tx.hash,
-      blockNumber: receipt?.blockNumber ?? null,
-      storageCount: derived.definition.storageMetadata.length,
-      functionCount: derived.definition.functions.length,
-      artifactsRoot: dappMetadataRoot,
-    };
-  }
+  const tx = await dAppManager.registerDApp(
+    ethers.toBigInt(dappId),
+    derived.definition.labelHash,
+    derived.definition.storageMetadata.map((storage) => ({
+      storageAddr: storage.storageAddress,
+      preAllocatedKeys: storage.preAllocKeys,
+      userStorageSlots: storage.userSlots,
+      isChannelTokenVaultStorage: storage.isChannelTokenVaultStorage,
+    })),
+    derived.definition.functions.map((fn) => ({
+      entryContract: fn.entryContract,
+      functionSig: fn.functionSig,
+      preprocessInputHash: fn.preprocessInputHash,
+      instanceLayout: {
+        entryContractOffsetWords: fn.entryContractOffsetWords,
+        functionSigOffsetWords: fn.functionSigOffsetWords,
+        currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
+        updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
+        eventLogs: fn.eventLogs,
+      },
+    })),
+  );
+  const receipt = await tx.wait();
+  const result = {
+    reusedExistingRegistration: false,
+    txHash: tx.hash,
+    blockNumber: receipt?.blockNumber ?? null,
+    storageCount: derived.definition.storageMetadata.length,
+    functionCount: derived.definition.functions.length,
+    artifactsRoot: dappMetadataRoot,
+  };
 
   writeJson(path.join(outputRoot, "dapp-registration.json"), {
     dappId,

@@ -558,7 +558,7 @@ contract PrivateStateController {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             mstore(ptr, domain)
-            mstore(add(ptr, 0x20), and(owner, 0xffffffffffffffffffffffffffffffffffffffff))
+            mstore(add(ptr, 0x20), owner)
             mstore(add(ptr, 0x40), value)
             mstore(add(ptr, 0x60), salt)
             digest := keccak256(ptr, 0x80)
@@ -575,7 +575,7 @@ contract PrivateStateController {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             mstore(ptr, domain)
-            mstore(add(ptr, 0x20), and(owner, 0xffffffffffffffffffffffffffffffffffffffff))
+            mstore(add(ptr, 0x20), owner)
             mstore(add(ptr, 0x40), value)
             mstore(add(ptr, 0x60), salt)
             digest := keccak256(ptr, 0x80)
@@ -657,7 +657,7 @@ contract PrivateStateController {
     {
         assembly {
             let noteOffset := note
-            owner := and(calldataload(noteOffset), 0xffffffffffffffffffffffffffffffffffffffff)
+            owner := calldataload(noteOffset)
             value := calldataload(add(noteOffset, 0x20))
             salt := calldataload(add(noteOffset, 0x40))
         }

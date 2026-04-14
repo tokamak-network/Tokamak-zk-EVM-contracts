@@ -40,6 +40,7 @@ import {
   bytesToBigInt,
   bytesToHex,
   createAddressFromString,
+  hexToBigInt,
   hexToBytes,
 } from "@ethereumjs/util";
 import { deriveRpcUrl, resolveCliNetwork } from "../../scripts/network-config.mjs";
@@ -3647,12 +3648,18 @@ function normalizedAddressVector(addresses) {
   return addresses.map((value) => getAddress(value));
 }
 
+function bigintFromHexInput(hexValue) {
+  const raw = String(hexValue ?? "");
+  const withoutPrefix = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
+  return hexToBigInt(addHexPrefix(withoutPrefix));
+}
+
 function normalizeBytes32Hex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(BigInt(hexValue)), 32).toLowerCase();
+  return ethers.zeroPadValue(ethers.toBeHex(bigintFromHexInput(hexValue)), 32).toLowerCase();
 }
 
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(BigInt(hexValue)), 32);
+  return ethers.zeroPadValue(ethers.toBeHex(bigintFromHexInput(hexValue)), 32);
 }
 
 function bytes32FromBigInt(value) {

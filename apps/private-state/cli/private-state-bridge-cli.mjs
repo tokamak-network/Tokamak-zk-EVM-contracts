@@ -2217,7 +2217,7 @@ function unpackEncryptedNoteValue(encryptedNoteValue) {
 
 function derivePrivateStateControllerMappingStorageKey(keyHex, slot) {
   const encoded = abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(keyHex), BigInt(slot)]);
-  return normalizeBytes32Hex(bytesToHex(poseidon(bytesFromHexInput(encoded))));
+  return normalizeBytes32Hex(bytesToHex(poseidon(hexToBytes(addHexPrefix(String(encoded ?? "").replace(/^0x/i, ""))))));
 }
 
 function computeEncryptedNoteSalt(encryptedValue) {
@@ -3349,8 +3349,8 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
 
   await stateManager.putStorage(
     vaultAddressObj,
-    bytesFromHexInput(keyHex),
-    bytesFromHexInput(bigintToHex32(nextValue)),
+    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
+    hexToBytes(addHexPrefix(String(bigintToHex32(nextValue) ?? "").replace(/^0x/i, ""))),
   );
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const nextSnapshot = await stateManager.captureStateSnapshot();
@@ -3589,7 +3589,7 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
     {
       nonce: BigInt(nonce),
       to: createAddressFromString(to),
-      data: bytesFromHexInput(data),
+      data: hexToBytes(addHexPrefix(String(data ?? "").replace(/^0x/i, ""))),
       senderPubKey,
     },
     { common: createTokamakL2Common() },
@@ -3608,7 +3608,10 @@ async function buildStateManager(snapshot, contractCodes) {
 }
 
 async function currentStorageBigInt(stateManager, address, keyHex) {
-  const valueBytes = await stateManager.getStorage(createAddressFromString(address), bytesFromHexInput(keyHex));
+  const valueBytes = await stateManager.getStorage(
+    createAddressFromString(address),
+    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
+  );
   if (valueBytes.length === 0) {
     return 0n;
   }
@@ -3620,7 +3623,7 @@ function deriveLiquidBalanceStorageKey(l2Address, slot) {
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return bigintFromHexInput(storageKey) % BigInt(MAX_MT_LEAVES);
+  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % BigInt(MAX_MT_LEAVES);
 }
 
 async function fetchContractCodes(provider, addresses) {
@@ -3652,24 +3655,18 @@ function normalizedAddressVector(addresses) {
   return addresses.map((value) => getAddress(value));
 }
 
-function bigintFromHexInput(hexValue) {
-  const raw = String(hexValue ?? "");
-  const withoutPrefix = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
-  return hexToBigInt(addHexPrefix(withoutPrefix));
-}
-
-function bytesFromHexInput(hexValue) {
-  const raw = String(hexValue ?? "");
-  const withoutPrefix = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
-  return hexToBytes(addHexPrefix(withoutPrefix));
-}
-
 function normalizeBytes32Hex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(bigintFromHexInput(hexValue)), 32).toLowerCase();
+  return ethers.zeroPadValue(
+    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
+    32,
+  ).toLowerCase();
 }
 
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(bigintFromHexInput(hexValue)), 32);
+  return ethers.zeroPadValue(
+    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
+    32,
+  );
 }
 
 function bytes32FromBigInt(value) {
@@ -3836,8 +3833,8 @@ async function reconstructChannelSnapshot({
         const storageValue = bigintToHex32(BigInt(event.args.value));
         await stateManager.putStorage(
           createAddressFromString(storageAddr),
-          bytesFromHexInput(storageKey),
-          bytesFromHexInput(storageValue),
+          hexToBytes(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))),
+          hexToBytes(addHexPrefix(String(storageValue ?? "").replace(/^0x/i, ""))),
         );
         continue;
       }
@@ -3851,8 +3848,8 @@ async function reconstructChannelSnapshot({
         );
         await stateManager.putStorage(
           createAddressFromString(controllerAddress),
-          bytesFromHexInput(normalizeBytes32Hex(storageKey)),
-          bytesFromHexInput(bigintToHex32(1n)),
+          hexToBytes(addHexPrefix(String(normalizeBytes32Hex(storageKey) ?? "").replace(/^0x/i, ""))),
+          hexToBytes(addHexPrefix(String(bigintToHex32(1n) ?? "").replace(/^0x/i, ""))),
         );
         continue;
       }
@@ -3869,8 +3866,8 @@ async function reconstructChannelSnapshot({
         );
         await stateManager.putStorage(
           createAddressFromString(l2AccountingVaultAddress),
-          bytesFromHexInput(normalizeBytes32Hex(storageKey)),
-          bytesFromHexInput(normalizeBytes32Hex(value)),
+          hexToBytes(addHexPrefix(String(normalizeBytes32Hex(storageKey) ?? "").replace(/^0x/i, ""))),
+          hexToBytes(addHexPrefix(String(normalizeBytes32Hex(value) ?? "").replace(/^0x/i, ""))),
         );
       }
     }

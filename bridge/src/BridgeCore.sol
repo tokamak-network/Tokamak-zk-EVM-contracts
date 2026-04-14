@@ -19,8 +19,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     uint16 internal constant BPS_DENOMINATOR = 10_000;
     address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET = 0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
     address internal constant TOKAMAK_NETWORK_TOKEN_SEPOLIA = 0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
-    bytes32 internal constant ZERO_FILLED_TREE_ROOT =
-        bytes32(uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958));
 
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);
@@ -168,7 +166,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
         bytes32[] memory initialRootVector = new bytes32[](managedStorageAddresses.length);
         for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
-            initialRootVector[i] = ZERO_FILLED_TREE_ROOT;
+            initialRootVector[i] = TokamakEnvironment.ZERO_FILLED_TREE_ROOT;
         }
 
         ChannelManager channelManager = new ChannelManager(

@@ -97,7 +97,7 @@ const amountUnit = 10n ** 18n;
 const joinFeeBaseUnits = 1n * amountUnit;
 const depositAmountBaseUnits = 3n * amountUnit;
 const claimAmountBaseUnits = 9n * amountUnit;
-const tokamakAPubBlockLength = 63;
+const tokamakAPubBlockLength = 43;
 const tokamakPrevBlockHashCount = 4;
 const requiredTokamakSetupArtifacts = [
   "combined_sigma.rkyv",

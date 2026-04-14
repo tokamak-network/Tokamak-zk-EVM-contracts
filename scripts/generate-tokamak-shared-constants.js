@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { createAddressFromString } from "@ethereumjs/util";
 
 const DEFAULT_SETUP_PARAMS_PATH = "submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json";
 const DEFAULT_FRONTEND_CFG_PATH = "submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/frontendCfg.json";
@@ -46,9 +47,37 @@ const TARGET_FILES = [
       },
     ],
   },
+  {
+    path: "apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs",
+    replacements: [
+      {
+        pattern: /const tokamakAPubBlockLength = \d+;/,
+        render: ({ aPubBlockLength }) => `const tokamakAPubBlockLength = ${aPubBlockLength};`,
+      },
+      {
+        pattern: /const tokamakPrevBlockHashCount = \d+;/,
+        render: ({ previousBlockHashCount }) =>
+          `const tokamakPrevBlockHashCount = ${previousBlockHashCount};`,
+      },
+    ],
+  },
+  {
+    path: "apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs",
+    replacements: [
+      {
+        pattern: /const tokamakAPubBlockLength = \d+;/,
+        render: ({ aPubBlockLength }) => `const tokamakAPubBlockLength = ${aPubBlockLength};`,
+      },
+      {
+        pattern: /const tokamakPrevBlockHashCount = \d+;/,
+        render: ({ previousBlockHashCount }) =>
+          `const tokamakPrevBlockHashCount = ${previousBlockHashCount};`,
+      },
+    ],
+  },
 ];
 
-function renderTokamakEnvironmentSource({ mtDepth }) {
+function renderTokamakEnvironmentSource({ mtDepth, zeroFilledTreeRoot }) {
   return `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
@@ -56,8 +85,23 @@ pragma solidity ^0.8.24;
 library TokamakEnvironment {
     uint8 internal constant MT_DEPTH = ${mtDepth};
     uint256 internal constant MAX_MT_LEAVES = uint256(1) << uint256(MT_DEPTH);
+    bytes32 internal constant ZERO_FILLED_TREE_ROOT = ${zeroFilledTreeRoot};
 }
 `;
+}
+
+async function computeZeroFilledTreeRoot(tokamak) {
+  const stateManager = new tokamak.TokamakL2StateManager({ common: tokamak.createTokamakL2Common() });
+  const dummyAddress = createAddressFromString("0x0000000000000000000000000000000000000001");
+  await stateManager._initializeForAddresses([dummyAddress]);
+  stateManager._channelId = "1";
+  stateManager._commitResolvedStorageEntries(dummyAddress, []);
+  const snapshot = await stateManager.captureStateSnapshot();
+  const [root] = snapshot.stateRoots;
+  if (typeof root !== "string" || !root.startsWith("0x")) {
+    throw new Error(`Failed to compute ZERO_FILLED_TREE_ROOT from tokamak-l2js. Received: ${String(root)}`);
+  }
+  return root.toLowerCase();
 }
 
 function resolveTokamakPackageJsonPath() {
@@ -112,6 +156,7 @@ async function main() {
       `tokamak-l2js MAX_MT_LEAVES mismatch. Expected 2^${mtDepth}=${expectedMaxMtLeaves}, received ${maxMtLeaves}.`,
     );
   }
+  const zeroFilledTreeRoot = await computeZeroFilledTreeRoot(tokamak);
 
   for (const target of TARGET_FILES) {
     const targetPath = path.resolve(target.path);
@@ -130,13 +175,14 @@ async function main() {
 
   const generatedEnvironmentPath = path.resolve(GENERATED_TOKAMAK_ENVIRONMENT_PATH);
   fs.mkdirSync(path.dirname(generatedEnvironmentPath), { recursive: true });
-  fs.writeFileSync(generatedEnvironmentPath, renderTokamakEnvironmentSource({ mtDepth }));
+  fs.writeFileSync(generatedEnvironmentPath, renderTokamakEnvironmentSource({ mtDepth, zeroFilledTreeRoot }));
 
   console.log(
     [
       `Updated shared Tokamak constants from ${path.relative(process.cwd(), setupParamsPath)}`,
       `and ${path.relative(process.cwd(), frontendCfgPath)}.`,
       `Using tokamak-l2js@${tokamakPackageJson.version} MT_DEPTH=${mtDepth},`,
+      `ZERO_FILLED_TREE_ROOT=${zeroFilledTreeRoot},`,
       `a_pub_block length=${aPubBlockLength} (l_free=${lFree}, l_user=${lUser}),`,
       `nPrevBlockHashes=${previousBlockHashCount}.`,
     ].join(" "),

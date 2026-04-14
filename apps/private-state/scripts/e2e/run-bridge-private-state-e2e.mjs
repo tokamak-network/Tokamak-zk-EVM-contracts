@@ -306,26 +306,7 @@ async function fetchContractCodes(provider, addresses) {
 }
 
 async function buildStateManager(snapshot, contractCodes) {
-  let compatibleSnapshot = snapshot;
-  if (!Array.isArray(snapshot.storageKeys)) {
-    const storageEntries = snapshot.storageEntries ?? snapshot.storageAddresses.map(() => []);
-    const stateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
-    const addressObjects = snapshot.storageAddresses.map((address) => createAddressFromString(address));
-    await stateManager._initializeForAddresses(addressObjects);
-    stateManager._channelId = snapshot.channelId;
-    for (const [addressIndex, address] of addressObjects.entries()) {
-      stateManager._commitResolvedStorageEntries(address, []);
-      for (const entry of storageEntries[addressIndex]) {
-        await stateManager.putStorage(
-          address,
-          hexToBytes(addHexPrefix(entry.key)),
-          hexToBytes(addHexPrefix(entry.value)),
-        );
-      }
-    }
-    compatibleSnapshot = await stateManager.captureStateSnapshot();
-  }
-  return createTokamakL2StateManagerFromStateSnapshot(compatibleSnapshot, {
+  return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
     contractCodes: contractCodes.map((entry) => ({
       address: createAddressFromString(entry.address),
       code: addHexPrefix(entry.code),

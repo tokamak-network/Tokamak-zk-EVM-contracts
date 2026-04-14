@@ -1875,21 +1875,7 @@ async function readBooleanStorageValueFromSnapshot({ snapshot, storageAddress, s
   if (!storageKey) {
     return false;
   }
-  if (Array.isArray(snapshot.storageKeys)) {
-    return BigInt(await readStorageValueFromStateSnapshot(snapshot, storageAddress, storageKey)) !== 0n;
-  }
-  const normalizedAddress = getAddress(storageAddress);
-  const storageAddressIndex = snapshot.storageAddresses.findIndex(
-    (entry) => getAddress(entry) === normalizedAddress,
-  );
-  if (storageAddressIndex === -1) {
-    throw new Error(`Storage snapshot does not include ${normalizedAddress}.`);
-  }
-  const normalizedStorageKey = normalizeBytes32Hex(storageKey);
-  const entry = (snapshot.storageEntries?.[storageAddressIndex] ?? []).find(
-    (item) => normalizeBytes32Hex(item.key) === normalizedStorageKey,
-  );
-  return BigInt(entry?.value ?? "0x") !== 0n;
+  return BigInt(await readStorageValueFromStateSnapshot(snapshot, storageAddress, storageKey)) !== 0n;
 }
 
 function compareNotesByValueDesc(left, right) {
@@ -2502,12 +2488,8 @@ function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, control
   );
   expect(previousStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
   expect(nextStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
-  const previousKeysForAddress = Array.isArray(previousSnapshot.storageKeys)
-    ? previousSnapshot.storageKeys[previousStorageAddressIndex] ?? []
-    : (previousSnapshot.storageEntries?.[previousStorageAddressIndex] ?? []).map((entry) => entry.key);
-  const nextKeysForAddress = Array.isArray(nextSnapshot.storageKeys)
-    ? nextSnapshot.storageKeys[nextStorageAddressIndex] ?? []
-    : (nextSnapshot.storageEntries?.[nextStorageAddressIndex] ?? []).map((entry) => entry.key);
+  const previousKeysForAddress = previousSnapshot.storageKeys[previousStorageAddressIndex] ?? [];
+  const nextKeysForAddress = nextSnapshot.storageKeys[nextStorageAddressIndex] ?? [];
   const previousKeys = new Set(previousKeysForAddress.map((key) => normalizeBytes32Hex(key)));
   const newKeys = nextKeysForAddress
     .map((key) => normalizeBytes32Hex(key))
@@ -3610,26 +3592,7 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
 }
 
 async function buildStateManager(snapshot, contractCodes) {
-  let compatibleSnapshot = snapshot;
-  if (!Array.isArray(snapshot.storageKeys)) {
-    const storageEntries = snapshot.storageEntries ?? snapshot.storageAddresses.map(() => []);
-    const stateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
-    const addressObjects = snapshot.storageAddresses.map((address) => createAddressFromString(address));
-    await stateManager._initializeForAddresses(addressObjects);
-    stateManager._channelId = snapshot.channelId;
-    for (const [addressIndex, address] of addressObjects.entries()) {
-      stateManager._commitResolvedStorageEntries(address, []);
-      for (const entry of storageEntries[addressIndex]) {
-        await stateManager.putStorage(
-          address,
-          hexToBytes(addHexPrefix(entry.key)),
-          hexToBytes(addHexPrefix(entry.value)),
-        );
-      }
-    }
-    compatibleSnapshot = await stateManager.captureStateSnapshot();
-  }
-  return createTokamakL2StateManagerFromStateSnapshot(compatibleSnapshot, {
+  return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
     contractCodes: contractCodes.map((entry) => ({
       address: createAddressFromString(entry.address),
       code: addHexPrefix(entry.code),

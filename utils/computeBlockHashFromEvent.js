@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import pkg from 'js-sha3';
+import { ethers } from 'ethers';
 import { addHexPrefix, hexToBigInt } from '@ethereumjs/util';
 const { keccak256 } = pkg;
 
@@ -15,7 +16,7 @@ function computeBlockHashFromEventData() {
     const blockData = {
         blockNumber: 10042082,
         timestamp: 1768395648,
-        prevrandao: BigInt('61187585605546888283688024508636489663394840223037630789961933750249413663611'),
+        prevrandao: ethers.toBigInt('61187585605546888283688024508636489663394840223037630789961933750249413663611'),
         gaslimit: 60000000,
         basefee: 1070733430,
         coinbase: '0x4dF6EB2EC570B58cC64f540247A8AdFA11F1Cf63',
@@ -39,14 +40,14 @@ function computeBlockHashFromEventData() {
     console.log(`COINBASE: ${blockData.coinbase} -> ${coinbaseUpper}${coinbaseLower}`);
     
     // 2. TIMESTAMP (32 bytes total - upper 16 + lower 16)
-    const timestamp = BigInt(blockData.timestamp);
+    const timestamp = ethers.toBigInt(blockData.timestamp);
     const timestampUpper = (timestamp >> 128n).toString(16).padStart(32, '0');
     const timestampLower = (timestamp & ((1n << 128n) - 1n)).toString(16).padStart(32, '0');
     concatenatedData += timestampUpper + timestampLower;
     console.log(`TIMESTAMP: ${blockData.timestamp} -> ${timestampUpper}${timestampLower}`);
     
     // 3. NUMBER (32 bytes total - upper 16 + lower 16)
-    const number = BigInt(blockData.blockNumber);
+    const number = ethers.toBigInt(blockData.blockNumber);
     const numberUpper = (number >> 128n).toString(16).padStart(32, '0');
     const numberLower = (number & ((1n << 128n) - 1n)).toString(16).padStart(32, '0');
     concatenatedData += numberUpper + numberLower;
@@ -59,28 +60,28 @@ function computeBlockHashFromEventData() {
     console.log(`PREVRANDAO: ${blockData.prevrandao.toString()} -> ${prevrandaoUpper}${prevrandaoLower}`);
     
     // 5. GASLIMIT (32 bytes total - upper 16 + lower 16)
-    const gaslimit = BigInt(blockData.gaslimit);
+    const gaslimit = ethers.toBigInt(blockData.gaslimit);
     const gaslimitUpper = (gaslimit >> 128n).toString(16).padStart(32, '0');
     const gaslimitLower = (gaslimit & ((1n << 128n) - 1n)).toString(16).padStart(32, '0');
     concatenatedData += gaslimitUpper + gaslimitLower;
     console.log(`GASLIMIT: ${blockData.gaslimit} -> ${gaslimitUpper}${gaslimitLower}`);
     
     // 6. CHAINID (32 bytes total - upper 16 + lower 16)
-    const chainId = BigInt(blockData.chainId);
+    const chainId = ethers.toBigInt(blockData.chainId);
     const chainIdUpper = (chainId >> 128n).toString(16).padStart(32, '0');
     const chainIdLower = (chainId & ((1n << 128n) - 1n)).toString(16).padStart(32, '0');
     concatenatedData += chainIdUpper + chainIdLower;
     console.log(`CHAINID: ${blockData.chainId} -> ${chainIdUpper}${chainIdLower}`);
     
     // 7. SELFBALANCE (32 bytes total - upper 16 + lower 16)
-    const selfbalance = BigInt(blockData.selfbalance);
+    const selfbalance = ethers.toBigInt(blockData.selfbalance);
     const selfbalanceUpper = (selfbalance >> 128n).toString(16).padStart(32, '0');
     const selfbalanceLower = (selfbalance & ((1n << 128n) - 1n)).toString(16).padStart(32, '0');
     concatenatedData += selfbalanceUpper + selfbalanceLower;
     console.log(`SELFBALANCE: ${blockData.selfbalance} -> ${selfbalanceUpper}${selfbalanceLower}`);
     
     // 8. BASEFEE (32 bytes total - upper 16 + lower 16)
-    const basefee = BigInt(blockData.basefee);
+    const basefee = ethers.toBigInt(blockData.basefee);
     const basefeeUpper = (basefee >> 128n).toString(16).padStart(32, '0');
     const basefeeLower = (basefee & ((1n << 128n) - 1n)).toString(16).padStart(32, '0');
     concatenatedData += basefeeUpper + basefeeLower;

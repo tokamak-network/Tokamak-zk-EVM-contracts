@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { createAddressFromString } from "@ethereumjs/util";
+import { ethers } from "ethers";
 
 const DEFAULT_SETUP_PARAMS_PATH = "submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json";
 const DEFAULT_FRONTEND_CFG_PATH = "submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/frontendCfg.json";
@@ -149,8 +150,8 @@ async function main() {
     throw new Error(`tokamak-l2js MT_DEPTH must be a positive integer. Received: ${String(tokamak.MT_DEPTH)}`);
   }
 
-  const maxMtLeaves = BigInt(tokamak.MAX_MT_LEAVES);
-  const expectedMaxMtLeaves = 1n << BigInt(mtDepth);
+  const maxMtLeaves = ethers.toBigInt(tokamak.MAX_MT_LEAVES);
+  const expectedMaxMtLeaves = 1n << ethers.toBigInt(mtDepth);
   if (maxMtLeaves !== expectedMaxMtLeaves) {
     throw new Error(
       `tokamak-l2js MAX_MT_LEAVES mismatch. Expected 2^${mtDepth}=${expectedMaxMtLeaves}, received ${maxMtLeaves}.`,

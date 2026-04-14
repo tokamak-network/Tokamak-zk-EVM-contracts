@@ -781,7 +781,8 @@
         if (!amounts.every((value) => /^\d+$/.test(value))) {
           return "Total amount unavailable. Enter whole-number amounts only.";
         }
-        const total = amounts.reduce((sum, value) => sum + BigInt(value), 0n);
+        const ethersLib = (window.ethers?.ethers ?? window.ethers);
+        const total = amounts.reduce((sum, value) => sum + ethersLib.toBigInt(value), 0n);
         return `Total amount: ${total.toString()}`;
       }
 
@@ -798,11 +799,12 @@
           return "Selected total: 0";
         }
         const optionMap = new Map(walletNoteState.options.map((option) => [option.value, option]));
+        const ethersLib = (window.ethers?.ethers ?? window.ethers);
         const totalBaseUnits = selectedIds.reduce((sum, noteId) => {
           const option = optionMap.get(noteId);
-          return sum + BigInt(option?.amountBaseUnits ?? 0n);
+          return sum + ethersLib.toBigInt(option?.amountBaseUnits ?? 0n);
         }, 0n);
-        const totalTokens = (window.ethers?.ethers ?? window.ethers).formatUnits(
+        const totalTokens = ethersLib.formatUnits(
           totalBaseUnits,
           walletNoteState.canonicalAssetDecimals,
         );

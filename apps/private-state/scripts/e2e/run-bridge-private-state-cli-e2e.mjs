@@ -288,7 +288,7 @@ async function rpcCall(provider, method, params) {
 
 function loadLiquidBalancesSlot() {
   const storageLayout = readJson(storageLayoutManifestPath);
-  return BigInt(
+  return ethers.toBigInt(
     storageLayout.contracts.L2AccountingVault.storageLayout.storage.find((entry) => entry.label === "liquidBalances").slot,
   );
 }
@@ -346,16 +346,16 @@ async function buildStateManager(snapshot, contractCodes) {
 }
 
 function mappingKeyHex(address, slot) {
-  const encoded = abiCoder.encode(["address", "uint256"], [address, BigInt(slot)]);
+  const encoded = abiCoder.encode(["address", "uint256"], [address, ethers.toBigInt(slot)]);
   return bytesToHex(poseidon(hexToBytes(addHexPrefix(String(encoded ?? "").replace(/^0x/i, "")))));
 }
 
 function deriveLiquidBalanceStorageKey(l2Address, slot) {
-  return normalizeBytes32Hex(bytesToHex(getUserStorageKey([l2Address, BigInt(slot)], "TokamakL2")));
+  return normalizeBytes32Hex(bytesToHex(getUserStorageKey([l2Address, ethers.toBigInt(slot)], "TokamakL2")));
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % BigInt(MAX_MT_LEAVES);
+  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
 }
 
 function poseidonHexFromBytes(bytesLike) {
@@ -371,7 +371,7 @@ function serializeBigInts(value) {
 function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
   const tx = createTokamakL2Tx(
     {
-      nonce: BigInt(nonce),
+      nonce: ethers.toBigInt(nonce),
       to: createAddressFromString(to),
       data: hexToBytes(addHexPrefix(String(data ?? "").replace(/^0x/i, ""))),
       senderPubKey,
@@ -882,7 +882,7 @@ function buildEncryptedMintOutput({
 
 function assertBigIntEq(actual, expected, label) {
   expect(
-    BigInt(actual) === BigInt(expected),
+    ethers.toBigInt(actual) === ethers.toBigInt(expected),
     `${label} mismatch. Expected ${expected.toString()}, got ${actual.toString()}.`,
   );
 }
@@ -1022,7 +1022,7 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
   let result;
 
   try {
-    const existingInfo = await dAppManager.getDAppInfo(BigInt(dappId));
+    const existingInfo = await dAppManager.getDAppInfo(ethers.toBigInt(dappId));
     expect(
       normalizeBytes32Hex(existingInfo.labelHash) === normalizeBytes32Hex(derived.definition.labelHash),
       `Existing DApp ${dappId} label hash does not match ${dappLabel}.`,
@@ -1041,7 +1041,7 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
     }
 
     const tx = await dAppManager.registerDApp(
-      BigInt(dappId),
+      ethers.toBigInt(dappId),
       derived.definition.labelHash,
       derived.definition.storageMetadata.map((storage) => ({
         storageAddr: storage.storageAddress,
@@ -1094,7 +1094,7 @@ function readErc20Balance(assetAddress, ownerAddress) {
     { captureStdout: true },
   ).trim();
   const normalized = output.split(/\s+/)[0];
-  return BigInt(normalized);
+  return ethers.toBigInt(normalized);
 }
 
 function runAnvilCliCommand(command, args = []) {
@@ -1247,16 +1247,16 @@ function assertResolvedWalletIdentity(result, participant, label) {
     `${label} returned an unexpected storage key.`,
   );
   expect(
-    BigInt(result.leafIndex) === BigInt(participant.registration.leafIndex),
+    ethers.toBigInt(result.leafIndex) === ethers.toBigInt(participant.registration.leafIndex),
     `${label} returned an unexpected leaf index.`,
   );
 }
 
 function pickOutputNoteByOwner(outputNotes, ownerAddress, expectedValue) {
   const owner = getAddress(ownerAddress);
-  const expected = BigInt(expectedValue).toString();
+  const expected = ethers.toBigInt(expectedValue).toString();
   const matches = outputNotes.filter((note) => (
-    getAddress(note.owner) === owner && BigInt(note.value) === BigInt(expected)
+    getAddress(note.owner) === owner && ethers.toBigInt(note.value) === ethers.toBigInt(expected)
   ));
   expect(
     matches.length === 1,

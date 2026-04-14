@@ -432,7 +432,7 @@ async function initializeChannelWorkspace({
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
   const controllerAddress = getAddress(deploymentManifest.contracts.controller);
   const l2AccountingVaultAddress = getAddress(deploymentManifest.contracts.l2AccountingVault);
-  const liquidBalancesSlot = BigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
+  const liquidBalancesSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
 
   expect(
     managedStorageAddresses.includes(controllerAddress),
@@ -554,7 +554,7 @@ async function handleRegisterAndFund({ args, network, provider }) {
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
     approveGasUsed: receiptGasUsed(approveReceipt),
     fundGasUsed: receiptGasUsed(fundReceipt),
-    totalGasUsed: (BigInt(approveReceipt.gasUsed) + BigInt(fundReceipt.gasUsed)).toString(),
+    totalGasUsed: (ethers.toBigInt(approveReceipt.gasUsed) + ethers.toBigInt(fundReceipt.gasUsed)).toString(),
     approveTxUrl: explorerTxUrl(network, approveReceipt.hash),
     fundTxUrl: explorerTxUrl(network, fundReceipt.hash),
     approveReceipt: sanitizeReceipt(approveReceipt),
@@ -650,7 +650,7 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     "The existing channel registration key does not match the derived channelTokenVault key.",
   );
   expect(
-    BigInt(registration.leafIndex) === BigInt(leafIndex),
+    ethers.toBigInt(registration.leafIndex) === ethers.toBigInt(leafIndex),
     "The existing channel registration leaf index does not match the derived leaf index.",
   );
   expect(
@@ -818,11 +818,11 @@ function assertExistingRecoverableWallet({
     `Wallet ${walletContext.walletName} storage key does not match the derived registration key.`,
   );
   expect(
-    BigInt(wallet.leafIndex) === BigInt(leafIndex),
+    ethers.toBigInt(wallet.leafIndex) === ethers.toBigInt(leafIndex),
     `Wallet ${walletContext.walletName} leaf index does not match the derived registration leaf index.`,
   );
   expect(
-    BigInt(wallet.channelId) === BigInt(channelContext.workspace.channelId),
+    ethers.toBigInt(wallet.channelId) === ethers.toBigInt(channelContext.workspace.channelId),
     `Wallet ${walletContext.walletName} channel ID does not match the requested channel.`,
   );
   expect(
@@ -1108,7 +1108,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   let status = null;
 
   if (!existingRegistration.exists) {
-    joinFee = BigInt(await context.channelManager.joinFee());
+    joinFee = ethers.toBigInt(await context.channelManager.joinFee());
     const asset = new Contract(
       context.workspace.canonicalAsset,
       context.bridgeAbiManifest.contracts.erc20.abi,
@@ -1122,7 +1122,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     }
     receipt = await waitForReceipt(
       await context.bridgeTokenVault.connect(signer).joinChannel(
-        BigInt(context.workspace.channelId),
+        ethers.toBigInt(context.workspace.channelId),
         l2Identity.l2Address,
         storageKey,
         leafIndex,
@@ -1149,7 +1149,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       "The existing note-receive public key parity does not match the derived note-receive public key.",
     );
     resolvedLeafIndex = existingRegistration.leafIndex;
-    joinFee = BigInt(existingRegistration.joinFeePaid);
+    joinFee = ethers.toBigInt(existingRegistration.joinFeePaid);
     status = "already-registered";
   }
 
@@ -1206,7 +1206,7 @@ async function handleExitChannel({ args, provider }) {
   );
   const [refundAmount, refundBps] = await context.channelManager.getExitFeeRefundQuote(signer.address);
   const receipt = await waitForReceipt(
-    await context.bridgeTokenVault.connect(signer).exitChannel(BigInt(context.workspace.channelId)),
+    await context.bridgeTokenVault.connect(signer).exitChannel(ethers.toBigInt(context.workspace.channelId)),
   );
 
   printJson({
@@ -1235,7 +1235,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const context = contextResult.context;
   const network = contextResult.network;
   expect(
-    BigInt(walletContext.wallet.channelId) === BigInt(context.workspace.channelId),
+    ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
   );
 
@@ -1309,7 +1309,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   });
 
   const receipt = await waitForReceipt(
-    await bridgeTokenVault[direction](BigInt(context.workspace.channelId), transition.proof, transition.update),
+    await bridgeTokenVault[direction](ethers.toBigInt(context.workspace.channelId), transition.proof, transition.update),
   );
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
@@ -1461,9 +1461,9 @@ async function handleRedeemNotes({ args, provider }) {
     nonce: execution.nonce,
     noteIds,
     redeemedNotes: inputNotes.map((note) => buildTrackedNote(note, templatePayload.method, execution.receipt.hash)),
-    redeemedAmountBaseUnits: inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n).toString(),
+    redeemedAmountBaseUnits: inputNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n).toString(),
     redeemedAmountTokens: ethers.formatUnits(
-      inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n),
+      inputNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n),
       Number(wallet.wallet.canonicalAssetDecimals),
     ),
     gasUsed: receiptGasUsed(execution.receipt),
@@ -1515,8 +1515,8 @@ async function handleGetMyNotes({ args, provider }) {
     canonicalAssetDecimals,
   })));
 
-  const unusedTotal = unusedTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
-  const spentTotal = spentTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
+  const unusedTotal = unusedTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
+  const spentTotal = spentTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
 
   printJson({
     action: "get-my-notes",
@@ -1557,7 +1557,7 @@ async function handleTransferNotes({ args, provider }) {
     expect(parsed > 0n, `Invalid --amounts[${index}]. Each amount must be greater than zero.`);
     return parsed;
   });
-  const totalInput = inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
+  const totalInput = inputNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
   const totalOutput = outputAmounts.reduce((sum, value) => sum + value, 0n);
   expect(
     totalInput === totalOutput,
@@ -1680,7 +1680,7 @@ async function reconcileWalletNotesWithBridgeState({
       .sort(compareNotesByValueDesc)
       .map((note) => note.commitment),
     unusedBalance: Object.values(reconciledUnused)
-      .reduce((sum, note) => sum + BigInt(note.value), 0n)
+      .reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n)
       .toString(),
   };
   walletContext.wallet = normalizeWallet(walletContext.wallet);
@@ -1707,7 +1707,7 @@ function ensureWallet({
   if (walletConfigExists(walletDir)) {
     wallet = normalizeWallet(readEncryptedWalletJson(walletConfigPath(walletDir), walletPassword));
     expect(
-      BigInt(wallet.channelId) === BigInt(channelContext.workspace.channelId),
+      ethers.toBigInt(wallet.channelId) === ethers.toBigInt(channelContext.workspace.channelId),
       `Wallet ${walletName} belongs to channel ${wallet.channelId}, not ${channelContext.workspace.channelId}.`,
     );
     expect(
@@ -1820,7 +1820,7 @@ function normalizeWallet(wallet) {
       unused: Object.fromEntries(unusedNotes.map((note) => [note.commitment, note])),
       spent: Object.fromEntries(spentNotes.map((note) => [note.nullifier, note])),
       unusedOrder: unusedNotes.map((note) => note.commitment),
-      unusedBalance: unusedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n).toString(),
+      unusedBalance: unusedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n).toString(),
     },
   };
 }
@@ -1828,7 +1828,7 @@ function normalizeWallet(wallet) {
 function normalizeTrackedNote(note) {
   return {
     owner: getAddress(note.owner),
-    value: BigInt(note.value).toString(),
+    value: ethers.toBigInt(note.value).toString(),
     salt: normalizeBytes32Hex(note.salt),
     commitment: normalizeBytes32Hex(note.commitment),
     nullifier: normalizeBytes32Hex(note.nullifier),
@@ -1860,7 +1860,7 @@ async function buildWalletNoteBridgeStatus({
   return {
     owner: note.owner,
     valueBaseUnits: note.value,
-    valueTokens: ethers.formatUnits(BigInt(note.value), canonicalAssetDecimals),
+    valueTokens: ethers.formatUnits(ethers.toBigInt(note.value), canonicalAssetDecimals),
     commitment: note.commitment,
     nullifier: note.nullifier,
     walletStatus: note.status,
@@ -1876,12 +1876,18 @@ async function readBooleanStorageValueFromSnapshot({ snapshot, storageAddress, s
   if (!storageKey) {
     return false;
   }
-  return BigInt(await readStorageValueFromStateSnapshot(snapshot, storageAddress, storageKey)) !== 0n;
+  return (
+    hexToBigInt(
+      addHexPrefix(
+        String(await readStorageValueFromStateSnapshot(snapshot, storageAddress, storageKey) ?? "").replace(/^0x/i, ""),
+      ),
+    ) !== 0n
+  );
 }
 
 function compareNotesByValueDesc(left, right) {
-  const leftValue = BigInt(left.value);
-  const rightValue = BigInt(right.value);
+  const leftValue = ethers.toBigInt(left.value);
+  const rightValue = ethers.toBigInt(right.value);
   if (leftValue === rightValue) {
     return left.commitment.localeCompare(right.commitment);
   }
@@ -1946,8 +1952,8 @@ async function recoverDeliveredNotesFromEventLogs({
   const storageLayoutManifest = readJson(
     walletContext.wallet.storageLayoutPath ?? context.workspace.storageLayoutPath,
   );
-  const commitmentExistsSlot = BigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "commitmentExists"));
-  const nullifierUsedSlot = BigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
+  const commitmentExistsSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "commitmentExists"));
+  const nullifierUsedSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
   const observedLogs = await fetchLogsChunked(provider, {
     address: context.workspace.channelManager,
     fromBlock: scanStartBlock,
@@ -2082,7 +2088,7 @@ function buildImportedTrackedNote(note) {
 function normalizePlaintextNote(note) {
   return {
     owner: getAddress(note.owner),
-    value: BigInt(note.value).toString(),
+    value: ethers.toBigInt(note.value).toString(),
     salt: normalizeBytes32Hex(note.salt),
   };
 }
@@ -2091,7 +2097,7 @@ function computeNoteCommitment(note) {
   const data = ethers.getBytes(ethers.concat([
     NOTE_COMMITMENT_DOMAIN,
     ethers.zeroPadValue(getAddress(note.owner), 32),
-    ethers.toBeHex(BigInt(note.value), 32),
+    ethers.toBeHex(ethers.toBigInt(note.value), 32),
     normalizeBytes32Hex(note.salt),
   ]));
   return normalizeBytes32Hex(
@@ -2105,7 +2111,7 @@ function computeNullifier(note) {
   const data = ethers.getBytes(ethers.concat([
     NULLIFIER_DOMAIN,
     ethers.zeroPadValue(getAddress(note.owner), 32),
-    ethers.toBeHex(BigInt(note.value), 32),
+    ethers.toBeHex(ethers.toBigInt(note.value), 32),
     normalizeBytes32Hex(note.salt),
   ]));
   return normalizeBytes32Hex(
@@ -2125,7 +2131,7 @@ function buildNoteReceiveTypedData({ chainId, channelId, channelName, account })
     value: {
       protocol: NOTE_RECEIVE_TYPED_DATA_PROTOCOL,
       dapp: NOTE_RECEIVE_TYPED_DATA_DAPP,
-      channelId: BigInt(channelId).toString(),
+      channelId: ethers.toBigInt(channelId).toString(),
       channelName,
       account: getAddress(account),
     },
@@ -2216,7 +2222,7 @@ function unpackEncryptedNoteValue(encryptedNoteValue) {
 }
 
 function derivePrivateStateControllerMappingStorageKey(keyHex, slot) {
-  const encoded = abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(keyHex), BigInt(slot)]);
+  const encoded = abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(keyHex), ethers.toBigInt(slot)]);
   return normalizeBytes32Hex(bytesToHex(poseidon(hexToBytes(addHexPrefix(String(encoded ?? "").replace(/^0x/i, ""))))));
 }
 
@@ -2228,7 +2234,7 @@ function computeEncryptedNoteSalt(encryptedValue) {
 }
 
 function encodeNoteValuePlaintext(value) {
-  const scalar = BigInt(value);
+  const scalar = ethers.toBigInt(value);
   expect(
     scalar >= 0n && scalar < BLS12_381_SCALAR_FIELD_MODULUS,
     "Encrypted note plaintext value must fit within the BLS12-381 scalar field.",
@@ -2237,7 +2243,7 @@ function encodeNoteValuePlaintext(value) {
 }
 
 function decodeNoteValuePlaintext(valueBytes) {
-  return BigInt(valueBytes).toString();
+  return ethers.toBigInt(valueBytes).toString();
 }
 
 function fieldElementHex(value) {
@@ -2250,7 +2256,7 @@ function normalizeTagHex(value) {
 
 function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce, encryptionInfo }) {
   const affine = sharedSecretPoint.toAffine();
-  return BigInt(
+  return ethers.toBigInt(
     bytesToHex(
       poseidon(
         ethers.getBytes(
@@ -2258,8 +2264,8 @@ function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce, 
             ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12"],
             [
               encryptionInfo,
-              BigInt(chainId),
-              BigInt(channelId),
+              ethers.toBigInt(chainId),
+              ethers.toBigInt(channelId),
               getAddress(owner),
               affine.x,
               affine.y,
@@ -2282,8 +2288,8 @@ function deriveCipherTag({ sharedSecretPoint, chainId, channelId, owner, nonce, 
             ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12", "bytes32"],
             [
               `${encryptionInfo}:tag`,
-              BigInt(chainId),
-              BigInt(channelId),
+              ethers.toBigInt(chainId),
+              ethers.toBigInt(channelId),
               getAddress(owner),
               affine.x,
               affine.y,
@@ -2666,12 +2672,12 @@ function buildMintEncryptedOutputs({ wallet, values }) {
       owner: wallet.wallet.l2Address,
     });
     mintOutputs.push({
-      value: BigInt(value).toString(),
+      value: ethers.toBigInt(value).toString(),
       encryptedNoteValue,
     });
     lifecycleOutputs.push({
       owner: wallet.wallet.l2Address,
-      value: BigInt(value).toString(),
+      value: ethers.toBigInt(value).toString(),
       salt: computeEncryptedNoteSalt(encryptedNoteValue),
     });
   }
@@ -2722,12 +2728,12 @@ async function buildTransferNotesTemplatePayload({
     const salt = computeEncryptedNoteSalt(encryptedNoteValue);
     transferOutputs.push({
       owner: recipient,
-      value: BigInt(outputAmounts[index]).toString(),
+      value: ethers.toBigInt(outputAmounts[index]).toString(),
       encryptedNoteValue,
     });
     lifecycleOutputs.push({
       owner: recipient,
-      value: BigInt(outputAmounts[index]).toString(),
+      value: ethers.toBigInt(outputAmounts[index]).toString(),
       salt,
     });
   }
@@ -2900,7 +2906,7 @@ function isRecoverableWalletWorkspaceFailure(error) {
 
 function assertWalletMatchesChannelContext(walletContext, l2Identity, context) {
   expect(
-    BigInt(walletContext.wallet.channelId) === BigInt(context.workspace.channelId),
+    ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
   );
   expect(
@@ -3314,7 +3320,7 @@ async function loadBridgeVaultContext({ provider, chainId }) {
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
   const storageLayoutManifestPath = path.resolve(deployRoot, `storage-layout.${chainId}.latest.json`);
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
-  const liquidBalancesSlot = BigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
+  const liquidBalancesSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
 
   return {
     ...bridgeResources,
@@ -3341,7 +3347,7 @@ async function assertWorkspaceAlignedWithChain(context) {
 async function buildGrothTransition({ operationDir, workspace, stateManager, vaultAddress, keyHex, nextValue }) {
   const grothArtifacts = loadGroth16UpdateTreeArtifacts(Number(workspace.chainId));
   const vaultAddressObj = createAddressFromString(vaultAddress);
-  const keyBigInt = BigInt(keyHex);
+  const keyBigInt = ethers.toBigInt(keyHex);
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
@@ -3358,11 +3364,11 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   const input = {
     root_before: currentRoot.toString(),
     root_after: updatedRoot.toString(),
-    leaf_index: BigInt(proof.leafIndex).toString(),
+    leaf_index: ethers.toBigInt(proof.leafIndex).toString(),
     storage_key: keyBigInt.toString(),
     storage_value_before: currentValue.toString(),
     storage_value_after: nextValue.toString(),
-    proof: proof.siblings.map((siblings) => BigInt(siblings[0] ?? 0n).toString()),
+    proof: proof.siblings.map((siblings) => ethers.toBigInt(siblings[0] ?? 0n).toString()),
   };
 
   writeJson(path.join(operationDir, "input.json"), input);
@@ -3575,19 +3581,19 @@ function loadTokamakPayloadFromStep(operationDir) {
   const instanceJson = readJson(path.join(operationDir, "resource", "synthesizer", "output", "instance.json"));
 
   return {
-    proofPart1: proofJson.proof_entries_part1.map((value) => BigInt(value)),
-    proofPart2: proofJson.proof_entries_part2.map((value) => BigInt(value)),
-    functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => BigInt(value)),
-    functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => BigInt(value)),
-    aPubUser: instanceJson.a_pub_user.map((value) => BigInt(value)),
-    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => BigInt(value))),
+    proofPart1: proofJson.proof_entries_part1.map((value) => ethers.toBigInt(value)),
+    proofPart2: proofJson.proof_entries_part2.map((value) => ethers.toBigInt(value)),
+    functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => ethers.toBigInt(value)),
+    functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => ethers.toBigInt(value)),
+    aPubUser: instanceJson.a_pub_user.map((value) => ethers.toBigInt(value)),
+    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => ethers.toBigInt(value))),
   };
 }
 
 function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
   const tx = createTokamakL2Tx(
     {
-      nonce: BigInt(nonce),
+      nonce: ethers.toBigInt(nonce),
       to: createAddressFromString(to),
       data: hexToBytes(addHexPrefix(String(data ?? "").replace(/^0x/i, ""))),
       senderPubKey,
@@ -3619,11 +3625,11 @@ async function currentStorageBigInt(stateManager, address, keyHex) {
 }
 
 function deriveLiquidBalanceStorageKey(l2Address, slot) {
-  return bytesToHex(getUserStorageKey([l2Address, BigInt(slot)], "TokamakL2"));
+  return bytesToHex(getUserStorageKey([l2Address, ethers.toBigInt(slot)], "TokamakL2"));
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % BigInt(MAX_MT_LEAVES);
+  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
 }
 
 async function fetchContractCodes(provider, addresses) {
@@ -3683,16 +3689,16 @@ function hashTokamakPublicInputs(values) {
 
 function encodeTokamakBlockInfo(blockInfo) {
   const values = new Array(TOKAMAK_APUB_BLOCK_LENGTH).fill(0n);
-  appendSplitWord(values, 0, BigInt(blockInfo.coinBase));
-  appendSplitWord(values, 2, BigInt(blockInfo.timeStamp));
-  appendSplitWord(values, 4, BigInt(blockInfo.blockNumber));
-  appendSplitWord(values, 6, BigInt(blockInfo.prevRanDao));
-  appendSplitWord(values, 8, BigInt(blockInfo.gasLimit));
-  appendSplitWord(values, 10, BigInt(blockInfo.chainId));
-  appendSplitWord(values, 12, BigInt(blockInfo.selfBalance));
-  appendSplitWord(values, 14, BigInt(blockInfo.baseFee));
+  appendSplitWord(values, 0, ethers.toBigInt(blockInfo.coinBase));
+  appendSplitWord(values, 2, ethers.toBigInt(blockInfo.timeStamp));
+  appendSplitWord(values, 4, ethers.toBigInt(blockInfo.blockNumber));
+  appendSplitWord(values, 6, ethers.toBigInt(blockInfo.prevRanDao));
+  appendSplitWord(values, 8, ethers.toBigInt(blockInfo.gasLimit));
+  appendSplitWord(values, 10, ethers.toBigInt(blockInfo.chainId));
+  appendSplitWord(values, 12, ethers.toBigInt(blockInfo.selfBalance));
+  appendSplitWord(values, 14, ethers.toBigInt(blockInfo.baseFee));
   for (let index = 0; index < TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT; index += 1) {
-    appendSplitWord(values, 16 + index * 2, BigInt(blockInfo.prevBlockHashes[index] ?? 0n));
+    appendSplitWord(values, 16 + index * 2, ethers.toBigInt(blockInfo.prevBlockHashes[index] ?? 0n));
   }
   return values;
 }
@@ -3712,7 +3718,7 @@ function normalizeTokamakAPubBlock(values) {
 }
 
 function appendSplitWord(target, startIndex, value) {
-  const normalized = BigInt(value);
+  const normalized = ethers.toBigInt(value);
   target[startIndex] = normalized & ((1n << 128n) - 1n);
   target[startIndex + 1] = normalized >> 128n;
 }
@@ -3829,8 +3835,8 @@ async function reconstructChannelSnapshot({
     for (const event of orderedGroup) {
       if (event.fragment?.name === "StorageWriteObserved") {
         const storageAddr = getAddress(event.args.storageAddr);
-        const storageKey = bytes32FromBigInt(BigInt(event.args.storageKey));
-        const storageValue = bigintToHex32(BigInt(event.args.value));
+        const storageKey = bytes32FromBigInt(ethers.toBigInt(event.args.storageKey));
+        const storageValue = bigintToHex32(ethers.toBigInt(event.args.value));
         await stateManager.putStorage(
           createAddressFromString(storageAddr),
           hexToBytes(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))),
@@ -3862,7 +3868,7 @@ async function reconstructChannelSnapshot({
         );
         const storageKey = deriveLiquidBalanceStorageKey(
           getAddress(l2Address),
-          BigInt(liquidBalancesSlot),
+          ethers.toBigInt(liquidBalancesSlot),
         );
         await stateManager.putStorage(
           createAddressFromString(l2AccountingVaultAddress),
@@ -3955,8 +3961,8 @@ function deriveRecommendedLogChunkSize(error, currentChunkSize) {
 
   const recommendedWindowMatch = /\[(0x[0-9a-f]+),\s*(0x[0-9a-f]+)\]/i.exec(serializedError);
   if (recommendedWindowMatch) {
-    const lower = Number(BigInt(recommendedWindowMatch[1]));
-    const upper = Number(BigInt(recommendedWindowMatch[2]));
+    const lower = Number(ethers.toBigInt(recommendedWindowMatch[1]));
+    const upper = Number(ethers.toBigInt(recommendedWindowMatch[2]));
     if (Number.isFinite(lower) && Number.isFinite(upper) && upper >= lower) {
       return Math.max(1, upper - lower + 1);
     }
@@ -4013,7 +4019,7 @@ function toGrothSolidityProof(proof) {
 }
 
 function splitFieldElement(value) {
-  const hexValue = BigInt(value).toString(16).padStart(96, "0");
+  const hexValue = ethers.toBigInt(value).toString(16).padStart(96, "0");
   return [
     hexToBigInt(addHexPrefix(`${"0".repeat(32)}${hexValue.slice(0, 32)}`)),
     hexToBigInt(addHexPrefix(hexValue.slice(32))),
@@ -4040,7 +4046,7 @@ function sanitizeReceipt(receipt) {
 }
 
 function receiptGasUsed(receipt) {
-  return BigInt(receipt.gasUsed).toString();
+  return ethers.toBigInt(receipt.gasUsed).toString();
 }
 
 function explorerTxUrl(network, txHash) {

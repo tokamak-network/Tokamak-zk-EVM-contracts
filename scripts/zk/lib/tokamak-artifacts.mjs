@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { AbiCoder, getAddress, keccak256 } from "ethers";
+import { AbiCoder, ethers, getAddress, keccak256 } from "ethers";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const TOKAMAK_APUB_BLOCK_LENGTH = 43;
@@ -130,7 +130,7 @@ function toBigIntArray(values, label) {
   }
   return values.map((value, index) => {
     try {
-      return BigInt(value);
+      return ethers.toBigInt(value);
     } catch (error) {
       throw new Error(`${label}[${index}] is not a valid integer: ${String(value)}`);
     }

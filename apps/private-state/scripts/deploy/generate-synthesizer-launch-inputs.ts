@@ -256,7 +256,7 @@ const defaultTransferValue = (inputCount: number, outputCount: number): bigint =
     return a;
   };
   const lcm = (left: bigint, right: bigint): bigint => (left / gcd(left, right)) * right;
-  return lcm(BigInt(inputCount), BigInt(outputCount)) * defaultAmountUnit;
+  return lcm(ethers.toBigInt(inputCount), ethers.toBigInt(outputCount)) * defaultAmountUnit;
 };
 
 const buildBaseStateConfig = (
@@ -311,7 +311,7 @@ const buildTransactionSnapshot = (
   }
 
   const txData: TokamakL2TxData = {
-    nonce: BigInt(defaultTxNonce),
+    nonce: ethers.toBigInt(defaultTxNonce),
     to: createAddressFromString(entryContractAddress),
     data: hexToBytes(addHexPrefix(calldata)),
     senderPubKey: senderPublicKey.toBytes(),
@@ -465,7 +465,7 @@ const buildMintManifest = async (
       context.keyMaterial,
     );
 
-    const totalValue = defaultMintNoteValue * BigInt(outputCount);
+    const totalValue = defaultMintNoteValue * ethers.toBigInt(outputCount);
     const balanceKey = computeReplayPrivateStateAddressMappingKey(senderAddress, liquidBalancesSlot);
     const snapshot = await createSyntheticSnapshot(
       context,
@@ -525,8 +525,8 @@ const buildTransferManifest = async (
     [4, 1],
   ] as const) {
     const noteValue = defaultTransferValue(inputCount, outputCount);
-    const inputValue = noteValue / BigInt(inputCount);
-    const outputValue = noteValue / BigInt(outputCount);
+    const inputValue = noteValue / ethers.toBigInt(inputCount);
+    const outputValue = noteValue / ethers.toBigInt(outputCount);
     const inputValueHex = ethers.toBeHex(inputValue) as `0x${string}`;
     const outputValueHex = ethers.toBeHex(outputValue) as `0x${string}`;
 

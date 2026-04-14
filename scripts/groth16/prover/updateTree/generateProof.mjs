@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { ethers } from "ethers";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,7 +82,7 @@ async function loadTokamakL2Js(expectedVersion) {
 }
 
 function splitFieldElement(value) {
-  const normalized = BigInt(value);
+  const normalized = ethers.toBigInt(value);
   const hex = normalized.toString(16).padStart(96, "0");
   return {
     part1: `0x${"0".repeat(32)}${hex.slice(0, 32)}`,
@@ -144,7 +145,7 @@ async function buildExampleInput(outputPath) {
   const storageKey = 111n;
   const storageValueBefore = 0n;
   const storageValueAfter = 10n;
-  const maxLeaves = BigInt(tokamak.POSEIDON_INPUTS ** tokamak.MT_DEPTH);
+  const maxLeaves = ethers.toBigInt(tokamak.POSEIDON_INPUTS ** tokamak.MT_DEPTH);
   const leafIndex = storageKey % maxLeaves;
   const hashPair = (left, right) => tokamak.poseidonChainCompress([left, right]);
   const zeroSubtreeRoots = [0n];
@@ -155,7 +156,7 @@ async function buildExampleInput(outputPath) {
   const computeRoot = (leaf, index, siblings) => {
     let current = leaf;
     for (let level = 0; level < siblings.length; level += 1) {
-      const bit = (index >> BigInt(level)) & 1n;
+      const bit = (index >> ethers.toBigInt(level)) & 1n;
       current = bit === 0n ? hashPair(current, siblings[level]) : hashPair(siblings[level], current);
     }
     return current;

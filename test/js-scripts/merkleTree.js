@@ -274,6 +274,6 @@ export function computeLeaf(prevRoot, l2Address, balance) {
   const gamma = ethers.keccak256(packedData);
   
   // RLC formula: l2Address + gamma * balance
-  const leafValue = (l2AddressBigInt + ethers.toBigInt(gamma) * BigInt(balance)) % (2n ** 256n);
+  const leafValue = (l2AddressBigInt + ethers.toBigInt(gamma) * ethers.toBigInt(balance)) % (2n ** 256n);
   return ethers.zeroPadValue(ethers.toBeHex(leafValue), 32);
 }

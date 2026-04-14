@@ -203,11 +203,11 @@ function normalizeBytes32Hex(hexValue) {
 }
 
 function deriveChannelIdFromName(name) {
-  return BigInt(keccak256(ethers.toUtf8Bytes(name)));
+  return ethers.toBigInt(keccak256(ethers.toUtf8Bytes(name)));
 }
 
 function deriveLeafIndex(storageKey) {
-  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % BigInt(MAX_MT_LEAVES);
+  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
 }
 
 function buildL1Wallet(index, provider) {
@@ -277,22 +277,22 @@ async function getBlockInfoAt(provider, blockNumber) {
 
 function encodeTokamakBlockInfo(blockInfo) {
   const values = new Array(tokamakAPubBlockLength).fill(0n);
-  writeSplitWord(values, 0, BigInt(blockInfo.coinBase));
-  writeSplitWord(values, 2, BigInt(blockInfo.timeStamp));
-  writeSplitWord(values, 4, BigInt(blockInfo.blockNumber));
-  writeSplitWord(values, 6, BigInt(blockInfo.prevRanDao));
-  writeSplitWord(values, 8, BigInt(blockInfo.gasLimit));
-  writeSplitWord(values, 10, BigInt(blockInfo.chainId));
-  writeSplitWord(values, 12, BigInt(blockInfo.selfBalance));
-  writeSplitWord(values, 14, BigInt(blockInfo.baseFee));
+  writeSplitWord(values, 0, ethers.toBigInt(blockInfo.coinBase));
+  writeSplitWord(values, 2, ethers.toBigInt(blockInfo.timeStamp));
+  writeSplitWord(values, 4, ethers.toBigInt(blockInfo.blockNumber));
+  writeSplitWord(values, 6, ethers.toBigInt(blockInfo.prevRanDao));
+  writeSplitWord(values, 8, ethers.toBigInt(blockInfo.gasLimit));
+  writeSplitWord(values, 10, ethers.toBigInt(blockInfo.chainId));
+  writeSplitWord(values, 12, ethers.toBigInt(blockInfo.selfBalance));
+  writeSplitWord(values, 14, ethers.toBigInt(blockInfo.baseFee));
   for (let index = 0; index < tokamakPrevBlockHashCount; index += 1) {
-    writeSplitWord(values, 16 + index * 2, BigInt(blockInfo.prevBlockHashes[index] ?? 0n));
+    writeSplitWord(values, 16 + index * 2, ethers.toBigInt(blockInfo.prevBlockHashes[index] ?? 0n));
   }
   return values;
 }
 
 function writeSplitWord(words, offset, value) {
-  const normalized = BigInt(value);
+  const normalized = ethers.toBigInt(value);
   words[offset] = normalized & ((1n << 128n) - 1n);
   words[offset + 1] = normalized >> 128n;
 }
@@ -433,7 +433,7 @@ function toTokamakSnapshot(tx) {
 function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
   const tx = createTokamakL2Tx(
     {
-      nonce: BigInt(nonce),
+      nonce: ethers.toBigInt(nonce),
       to: createAddressFromString(to),
       data: hexToBytes(addHexPrefix(String(data ?? "").replace(/^0x/i, ""))),
       senderPubKey: senderPubKey,
@@ -505,12 +505,12 @@ function loadTokamakPayloadFromStep(stepDir) {
   const instanceJson = readJson(path.join(stepDir, "resource", "synthesizer", "output", "instance.json"));
 
   return {
-    proofPart1: proofJson.proof_entries_part1.map((value) => BigInt(value)),
-    proofPart2: proofJson.proof_entries_part2.map((value) => BigInt(value)),
-    functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => BigInt(value)),
-    functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => BigInt(value)),
-    aPubUser: instanceJson.a_pub_user.map((value) => BigInt(value)),
-    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => BigInt(value))),
+    proofPart1: proofJson.proof_entries_part1.map((value) => ethers.toBigInt(value)),
+    proofPart2: proofJson.proof_entries_part2.map((value) => ethers.toBigInt(value)),
+    functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => ethers.toBigInt(value)),
+    functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => ethers.toBigInt(value)),
+    aPubUser: instanceJson.a_pub_user.map((value) => ethers.toBigInt(value)),
+    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => ethers.toBigInt(value))),
   };
 }
 
@@ -709,7 +709,7 @@ async function currentStorageBigInt(stateManager, address, keyHex) {
 
 async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex, nextValue) {
   const vaultAddressObj = createAddressFromString(vaultAddress);
-  const keyBigInt = BigInt(keyHex);
+  const keyBigInt = ethers.toBigInt(keyHex);
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
@@ -726,11 +726,11 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
   const input = {
     root_before: currentRoot.toString(),
     root_after: updatedRoot.toString(),
-    leaf_index: BigInt(proof.leafIndex).toString(),
+    leaf_index: ethers.toBigInt(proof.leafIndex).toString(),
     storage_key: keyBigInt.toString(),
     storage_value_before: currentValue.toString(),
     storage_value_after: nextValue.toString(),
-    proof: proof.siblings.map((siblings) => BigInt(siblings[0] ?? 0n).toString()),
+    proof: proof.siblings.map((siblings) => ethers.toBigInt(siblings[0] ?? 0n).toString()),
   };
 
   const stepDir = path.join(grothInputDir, stepName);
@@ -768,7 +768,7 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
 }
 
 function splitFieldElement(value) {
-  const hexValue = BigInt(value).toString(16).padStart(96, "0");
+  const hexValue = ethers.toBigInt(value).toString(16).padStart(96, "0");
   return [
     hexToBigInt(addHexPrefix(`${"0".repeat(32)}${hexValue.slice(0, 32)}`)),
     hexToBigInt(addHexPrefix(hexValue.slice(32))),
@@ -899,7 +899,7 @@ async function main() {
   const controllerAbi = readJson(controllerAbiPath);
   const controllerInterface = new Interface(controllerAbi);
 
-  const liquidBalancesSlot = BigInt(
+  const liquidBalancesSlot = ethers.toBigInt(
     storageLayout.contracts.L2AccountingVault.storageLayout.storage.find((entry) => entry.label === "liquidBalances").slot,
   );
 

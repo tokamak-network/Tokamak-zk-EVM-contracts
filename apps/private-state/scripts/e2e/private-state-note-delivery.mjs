@@ -143,7 +143,7 @@ function buildNoteReceiveTypedData({ chainId, channelId, channelName, account })
     value: {
       protocol: NOTE_RECEIVE_TYPED_DATA_PROTOCOL,
       dapp: NOTE_RECEIVE_TYPED_DATA_DAPP,
-      channelId: BigInt(channelId).toString(),
+      channelId: ethers.toBigInt(channelId).toString(),
       channelName,
       account: ethers.getAddress(account),
     },
@@ -151,7 +151,7 @@ function buildNoteReceiveTypedData({ chainId, channelId, channelName, account })
 }
 
 function encodeNoteValuePlaintext(value) {
-  const scalar = BigInt(value);
+  const scalar = ethers.toBigInt(value);
   if (scalar < 0n || scalar >= BLS12_381_SCALAR_FIELD_MODULUS) {
     throw new Error("Encrypted note plaintext value must fit within the BLS12-381 scalar field.");
   }
@@ -159,7 +159,7 @@ function encodeNoteValuePlaintext(value) {
 }
 
 function decodeNoteValuePlaintext(valueField) {
-  return BigInt(valueField).toString();
+  return ethers.toBigInt(valueField).toString();
 }
 
 function deriveFieldMask({
@@ -171,13 +171,13 @@ function deriveFieldMask({
   encryptionInfo,
 }) {
   const affine = sharedSecretPoint.toAffine();
-  return BigInt(poseidonHexFromBytes(
+  return ethers.toBigInt(poseidonHexFromBytes(
     abiCoder.encode(
       ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12"],
       [
         encryptionInfo,
-        BigInt(chainId),
-        BigInt(channelId),
+        ethers.toBigInt(chainId),
+        ethers.toBigInt(channelId),
         ethers.getAddress(owner),
         affine.x,
         affine.y,
@@ -203,8 +203,8 @@ function deriveCipherTag({
         ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12", "bytes32"],
         [
           `${encryptionInfo}:tag`,
-          BigInt(chainId),
-          BigInt(channelId),
+          ethers.toBigInt(chainId),
+          ethers.toBigInt(channelId),
           ethers.getAddress(owner),
           affine.x,
           affine.y,

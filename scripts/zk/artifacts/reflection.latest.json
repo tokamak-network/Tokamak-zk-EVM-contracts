@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-04-14T15:55:57.912Z",
+  "generatedAt": "2026-04-14T16:50:44.885Z",
   "tokamakSubmodule": {
     "path": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM",
     "branch": "dev",
-    "head": "d4b711e3e0571d5a7d142ea3062358af3ff92001",
+    "head": "2b0f5f90c9db7fba92ed2551072e084e2cdc3797",
     "setupParamsPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json",
     "sigmaVerifyRkyvPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv"
   },

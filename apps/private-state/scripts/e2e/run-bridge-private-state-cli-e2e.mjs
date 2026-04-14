@@ -125,6 +125,7 @@ function usage() {
 
 Options:
   --skip-install                      Skip tokamak-cli --install before metadata generation
+  --skip-groth-setup                  Skip bridge Groth16 refresh during local redeploy
   --keep-anvil                         Leave anvil running after success
   --help                               Show this help
 
@@ -138,6 +139,7 @@ Notes:
 function parseArgs(argv) {
   const options = {
     runInstall: true,
+    runGrothSetup: true,
     keepAnvil: false,
   };
 
@@ -146,6 +148,9 @@ function parseArgs(argv) {
     switch (current) {
       case "--skip-install":
         options.runInstall = false;
+        break;
+      case "--skip-groth-setup":
+        options.runGrothSetup = false;
         break;
       case "--keep-anvil":
         options.keepAnvil = true;
@@ -167,6 +172,10 @@ function expect(condition, message) {
     throw new Error(message);
   }
 }
+
+let currentCliE2EOptions = {
+  runGrothSetup: true,
+};
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -944,6 +953,10 @@ function deployBridgeStack() {
     BRIDGE_DEPLOY_MOCK_ASSET: "true",
   };
 
+  if (!currentCliE2EOptions.runGrothSetup) {
+    env.BRIDGE_SKIP_GROTH_REFRESH = "1";
+  }
+
   run(
     "bash",
     [
@@ -1265,6 +1278,7 @@ function assertWalletNoteSnapshot(noteSnapshot, { unusedCount, spentCount, unuse
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  currentCliE2EOptions = options;
   ensureTokamakDistBackendBinaries(tokamakRoot);
   if (options.runInstall) {
     run(tokamakCliPath, ["--install"], { cwd: tokamakRoot, quiet: true });

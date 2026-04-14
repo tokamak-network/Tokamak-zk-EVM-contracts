@@ -201,7 +201,9 @@ contract BridgeFlowTest is Test {
         assertEq(info.labelHash, keccak256("alt-private-app-reloaded"));
     }
 
-    function testRejectsDeletingDAppOutsideSepolia() public {
+    function testRejectsDeletingDAppOutsideAllowedDeletionChains() public {
+        vm.chainId(1);
+
         vm.expectRevert(DAppManager.DAppDeletionDisabled.selector);
         dAppManager.deleteDApp(1);
     }

@@ -8,6 +8,7 @@ import {BridgeStructs} from "./BridgeStructs.sol";
 
 contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 internal constant SEPOLIA_CHAIN_ID = 11155111;
+    uint256 internal constant LOCAL_CHAIN_ID = 31337;
 
     error UnknownDApp(uint256 dappId);
     error DuplicateDApp(uint256 dappId);
@@ -68,7 +69,9 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     function deleteDApp(uint256 dappId) external onlyOwner {
         DAppInfo memory info = _requireDApp(dappId);
-        if (block.chainid != SEPOLIA_CHAIN_ID) revert DAppDeletionDisabled();
+        if (block.chainid != SEPOLIA_CHAIN_ID && block.chainid != LOCAL_CHAIN_ID) {
+            revert DAppDeletionDisabled();
+        }
 
         BridgeStructs.FunctionReference[] storage refs = _registeredFunctions[dappId];
         for (uint256 i = 0; i < refs.length; i++) {

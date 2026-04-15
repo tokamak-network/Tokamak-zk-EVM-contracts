@@ -237,7 +237,9 @@ contract BridgeFlowTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(ChannelManager.ChannelTokenVaultLeafIndexAlreadyRegistered.selector, 1));
         vm.prank(bob);
-        bridgeTokenVault.joinChannel(channelId, bob, bytes32(uint256(4097)), 1, _defaultNoteReceivePubKey());
+        bridgeTokenVault.joinChannel(
+            channelId, bob, bytes32(uint256(1 + TOKEN_VAULT_MT_LEAF_COUNT)), 1, _defaultNoteReceivePubKey()
+        );
     }
 
     function testAllowsKeyReuseAcrossDifferentChannels() public {
@@ -441,7 +443,7 @@ contract BridgeFlowTest is Test {
 
         uint256[5] memory pubSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
-            currentRootVector: _rootVector(bytes32(pubSignals[0]), INITIAL_ZERO_ROOT),
+            currentRootVector: _initialChannelRootVector(),
             updatedRoot: bytes32(pubSignals[1]),
             currentUserKey: key,
             currentUserValue: pubSignals[3],
@@ -497,7 +499,7 @@ contract BridgeFlowTest is Test {
 
         uint256[5] memory pubSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
-            currentRootVector: _rootVector(bytes32(pubSignals[0]), INITIAL_ZERO_ROOT),
+            currentRootVector: _initialChannelRootVector(),
             updatedRoot: bytes32(pubSignals[1]),
             currentUserKey: key,
             currentUserValue: pubSignals[3],
@@ -522,7 +524,7 @@ contract BridgeFlowTest is Test {
 
         uint256[5] memory depositSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory depositUpdate = BridgeStructs.GrothUpdate({
-            currentRootVector: _rootVector(bytes32(depositSignals[0]), INITIAL_ZERO_ROOT),
+            currentRootVector: _initialChannelRootVector(),
             updatedRoot: bytes32(depositSignals[1]),
             currentUserKey: key,
             currentUserValue: depositSignals[3],
@@ -534,7 +536,7 @@ contract BridgeFlowTest is Test {
 
         uint256[5] memory withdrawSignals = _withdrawPublicSignals();
         BridgeStructs.GrothUpdate memory withdrawUpdate = BridgeStructs.GrothUpdate({
-            currentRootVector: _rootVector(bytes32(withdrawSignals[0]), INITIAL_ZERO_ROOT),
+            currentRootVector: _channelRootVectorWithVaultRoot(bytes32(depositSignals[1])),
             updatedRoot: bytes32(withdrawSignals[1]),
             currentUserKey: key,
             currentUserValue: withdrawSignals[3],
@@ -679,7 +681,7 @@ contract BridgeFlowTest is Test {
 
         uint256[5] memory pubSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
-            currentRootVector: _rootVector(bytes32(pubSignals[0]), INITIAL_ZERO_ROOT),
+            currentRootVector: _initialChannelRootVector(),
             updatedRoot: bytes32(pubSignals[1]),
             currentUserKey: key,
             currentUserValue: pubSignals[3],
@@ -708,7 +710,7 @@ contract BridgeFlowTest is Test {
 
         uint256[5] memory depositSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory depositUpdate = BridgeStructs.GrothUpdate({
-            currentRootVector: _rootVector(bytes32(depositSignals[0]), INITIAL_ZERO_ROOT),
+            currentRootVector: _initialChannelRootVector(),
             updatedRoot: bytes32(depositSignals[1]),
             currentUserKey: key,
             currentUserValue: depositSignals[3],
@@ -720,7 +722,7 @@ contract BridgeFlowTest is Test {
 
         uint256[5] memory withdrawSignals = _withdrawPublicSignals();
         BridgeStructs.GrothUpdate memory withdrawUpdate = BridgeStructs.GrothUpdate({
-            currentRootVector: _rootVector(bytes32(withdrawSignals[0]), INITIAL_ZERO_ROOT),
+            currentRootVector: _channelRootVectorWithVaultRoot(bytes32(depositSignals[1])),
             updatedRoot: bytes32(withdrawSignals[1]),
             currentUserKey: key,
             currentUserValue: withdrawSignals[3],
@@ -793,7 +795,7 @@ contract BridgeFlowTest is Test {
 
         uint256[5] memory pubSignals = _depositPublicSignals();
         BridgeStructs.GrothUpdate memory update = BridgeStructs.GrothUpdate({
-            currentRootVector: _rootVector(bytes32(pubSignals[0]), INITIAL_ZERO_ROOT),
+            currentRootVector: _initialChannelRootVector(),
             updatedRoot: bytes32(pubSignals[1]),
             currentUserKey: key,
             currentUserValue: pubSignals[3],
@@ -1036,6 +1038,14 @@ contract BridgeFlowTest is Test {
         roots = new bytes32[](2);
         roots[0] = left;
         roots[1] = right;
+    }
+
+    function _initialChannelRootVector() internal pure returns (bytes32[] memory roots) {
+        return _channelRootVectorWithVaultRoot(INITIAL_ZERO_ROOT);
+    }
+
+    function _channelRootVectorWithVaultRoot(bytes32 vaultRoot) internal pure returns (bytes32[] memory roots) {
+        return _rootVector(vaultRoot, INITIAL_ZERO_ROOT);
     }
 
     function _deployAdminManagerProxy(address owner, uint8 levels) internal returns (BridgeAdminManager) {

@@ -58,6 +58,7 @@ However, the current implementation still has several deployment-blocking risks:
 
 1. A privileged owner can replace verifiers or upgrade core contracts and thereby steal or freeze all funds.
 2. Channel registration is permissionless and bounded by only `4096` reserved token-vault leaf indices, which allows channel-join denial of service through registration exhaustion.
+3. The managed storage model projects 256-bit storage keys into a finite Merkle leaf domain, which can create leaf-index collisions that deny valid state transitions and, in `private-state`, can strand otherwise valid notes before they are spent.
 
 The shared L1 vault still increases incident blast radius, but this review treats that as an architectural observation rather than a standalone present-code finding.
 
@@ -291,7 +292,158 @@ Expected mitigation strength:
   - honest users must also pay the same entry cost and are exposed to future creator-driven fee increases
   - honest users are also exposed to bridge-owner changes to the refund table unless those changes are constrained to future joins only
 
-### Finding 3: Exact-transfer token behavior is a hard external dependency
+### Finding 3: Managed storage leaf-index collisions can deny valid transitions and strand notes
+
+Severity: High
+
+Relevant code:
+
+- `submodules/Tokamak-zk-EVM/submodules/TokamakL2JS/src/stateManager/TokamakL2StateManager.ts`
+- `apps/private-state/src/PrivateStateController.sol`
+- `apps/private-state/cli/private-state-bridge-cli.mjs`
+- `bridge/src/ChannelManager.sol`
+
+Why it matters:
+
+The current state model uses a finite storage Merkle tree per managed storage address. A concrete storage key is not represented by its full `256`-bit path. Instead, it is projected into a finite leaf domain of size:
+
+$$
+N = 2^d
+$$
+
+where `d` is the configured Merkle tree depth (`MT_DEPTH`).
+
+In the current implementation, the effective leaf index is derived from the storage key inside that finite domain. Therefore, for any `d < 256`, distinct storage keys can map to the same leaf index. This is not a normal EVM property. It is introduced by the bridge and state-manager storage abstraction.
+
+For `private-state`, this is especially dangerous because:
+
+- note commitments are tracked through hashed mapping keys
+- nullifiers are also tracked through hashed mapping keys
+- both key families are effectively pseudorandom over `256` bits
+
+As a result, the system can reject a valid state transition even when the DApp logic itself is correct, simply because two unrelated storage keys collide in the finite leaf domain.
+
+`private-state`-specific consequence:
+
+For an unused note, the future nullifier is fixed by the note contents. If that future nullifier's storage key collides with another key later, the note can become permanently unspendable. The user cannot "retry" a different nullifier for the same note, because the nullifier is already determined by the note `(value, owner, salt)`.
+
+This is stronger than ordinary liveness degradation:
+
+- a note may be valid when minted
+- the note may remain unused
+- a later unrelated storage write can collide with that note's future nullifier leaf
+- at that point, spending the note may become impossible under the current dense-leaf state model
+
+Fund-manipulation impact:
+
+- this review did not identify a direct theft primitive from this issue alone
+- the main impact is denial of service and potential permanent loss of note usability
+
+Service-disruption impact:
+
+- valid proofs can be blocked by leaf-index collisions
+- users can hold notes that later become unspendable without any fault in the note owner workflow
+- the effect is especially severe for long-lived notes because their future nullifier remains exposed to future collisions over time
+
+Collision probability for a future nullifier:
+
+Assume:
+
+- the note is already minted
+- the CLI already avoided any collision for the note's commitment at creation time
+- the remaining concern is the note's single future nullifier leaf
+- future storage keys arrive as a Poisson process with rate `\lambda`
+- each future key is effectively uniform over the finite leaf domain of size `N = 2^d`
+
+For one future key, the probability that it lands on the note's future nullifier leaf is:
+
+$$
+\Pr[\text{collision from one future key}] = \frac{1}{N} = 2^{-d}
+$$
+
+Let `M(t)` be the number of future keys that arrive by time `t`. Under a Poisson arrival model:
+
+$$
+M(t) \sim \operatorname{Poisson}(\lambda t)
+$$
+
+By Poisson thinning, the number of future keys that hit the specific nullifier leaf is:
+
+$$
+M_{\text{hit}}(t) \sim \operatorname{Poisson}\left(\frac{\lambda t}{N}\right)
+$$
+
+Therefore, the probability that at least one future key collides with that note's nullifier leaf by time `t` is:
+
+$$
+\Pr[\text{future nullifier collision by time } t]
+= 1 - \Pr[M_{\text{hit}}(t)=0]
+= 1 - \exp\left(-\frac{\lambda t}{N}\right)
+$$
+
+Substituting `N = 2^d` gives:
+
+$$
+\Pr[\text{future nullifier collision by time } t]
+= 1 - \exp\left(-\lambda t \cdot 2^{-d}\right)
+$$
+
+The expected collision time is:
+
+$$
+\mathbb{E}[T] = \frac{2^d}{\lambda}
+$$
+
+For the graph below, the arrival model uses a mean interarrival time of `1.5` minutes, so:
+
+$$
+\lambda = \frac{2}{3}\ \text{per minute}
+$$
+
+and the plotted probability is:
+
+$$
+\Pr[\text{future nullifier collision by time } t]
+= 1 - \exp\left(-\frac{2}{3}\cdot 1440 \cdot t \cdot 2^{-d}\right)
+$$
+
+with `t` measured in days.
+
+![Future nullifier collision probability by Merkle depth](assets/future_nullifier_collision_probability_days_d12_36_step6_logy.svg)
+
+Why this is deployment-blocking:
+
+- the failure mode can strand user notes without any malicious action by the note owner
+- the risk grows over time for long-lived notes
+- the risk comes from the bridge/state model, not from application-level misuse alone
+
+Possible solutions:
+
+1. Replace dense finite leaf projection with a sparse key-as-path storage tree.
+   - This is the only clean way to remove collisions in principle.
+   - Distinct `256`-bit storage keys must not be folded into a smaller leaf domain.
+
+2. Introduce an authenticated `storageKey -> leafIndex` allocation layer.
+   - This can eliminate random collisions, but it adds new state, proof complexity, capacity management, and replay requirements.
+   - It turns a collision problem into an allocation-capacity problem.
+
+3. Split storage domains across distinct contract addresses.
+   - This can remove cross-domain collisions, for example between commitment storage and nullifier storage.
+   - It does not remove commitment-commitment or nullifier-nullifier collisions within each domain.
+   - It also leaks more structure about which writes correspond to note creation versus note spending.
+
+4. Add CLI-side prechecks for output-note commitment and future-nullifier collisions.
+   - This is only a partial mitigation.
+   - It can reject obviously unsafe new outputs at creation time.
+   - It cannot guarantee safety against future unrelated keys, and it cannot rescue an already-created note whose future nullifier later collides.
+
+Required before mainnet:
+
+- do not present the current dense storage projection as safe for long-lived privacy notes
+- either move to a collision-free storage representation or explicitly constrain the system to a trusted pilot where note lifetime and channel activity are tightly limited
+- disclose that under the current model a valid unused note can become unusable later because of future nullifier collisions
+
+### Finding 4: Exact-transfer token behavior is a hard external dependency
 
 Severity: Medium
 
@@ -379,6 +531,7 @@ That is weaker than a standalone finding, but it is still relevant for rollout s
 
 - privileged owner can rotate verifiers and upgrade core contracts
 - channel registration can be sybil-exhausted through leaf-index reservation
+- managed storage leaf-index collisions can strand notes or block valid transitions
 
 ### Strongly recommended before meaningful TVL
 

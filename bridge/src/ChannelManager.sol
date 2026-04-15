@@ -79,7 +79,6 @@ contract ChannelManager {
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
     mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
     mapping(bytes32 => CachedEventLog[]) private _functionEventLogs;
-    BridgeStructs.FunctionReference[] private _allowedFunctions;
     mapping(address => BridgeStructs.ChannelTokenVaultRegistration) private _channelTokenVaultRegistrations;
     mapping(bytes32 => address) private _channelTokenVaultKeyOwners;
     mapping(uint256 => address) private _channelTokenVaultLeafOwners;
@@ -198,7 +197,6 @@ contract ChannelManager {
             bytes32 functionKey =
                 _computeFunctionKey(allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
             _allowedFunctionKeys[functionKey] = true;
-            _allowedFunctions.push(allowedFunctions_[i]);
             BridgeStructs.FunctionConfig memory functionConfig = dAppManager_.getFunctionMetadata(
                 dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig
             );

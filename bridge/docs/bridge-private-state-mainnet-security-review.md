@@ -106,6 +106,104 @@ The L1 vault explicitly rejects fee-on-transfer style token deltas in both ingre
 
 That protects accounting soundness for the assumed canonical token model.
 
+### 4.5 Privacy for `private-state` under a strong external observer
+
+This subsection discusses privacy only for the current `private-state` implementation and only under the following observation model.
+
+Actors:
+
+- strong external observer
+  - sees all L1 bridge transactions
+  - sees all bridge and DApp events
+  - sees the registered function set and can classify note-transition arities
+  - is allowed to perform long-horizon graph analysis over all observed note activity
+- user
+  - chooses how to use `mintNotes*`, `transferNotes*`, and `redeemNotes*`
+  - wants to avoid giving the observer any linkage that the observer can establish with `100%` certainty
+
+For this subsection, "linkage" means only a linkage that the observer can assert with `100%` certainty. Purely probabilistic narrowing, heuristic scoring, or candidate-set reduction does not count as a successful linkage under this definition.
+
+Two privacy properties are relevant:
+
+- ownership unlinkability
+  - the observer cannot assign a note, or a spent/redeemed note lineage, to one unique owner identity with `100%` certainty
+- amount privacy
+  - the observer cannot assign one unique individual note amount, or one unique internal decomposition of a redeemed total into note amounts, with `100%` certainty
+
+Important boundary:
+
+- this subsection is about owner identity and note amount
+- it is not claiming that all note-lineage structure is hidden
+- a long-horizon observer may still reconstruct partial note graphs or reduce the candidate set without reaching `100%` certainty
+
+Why the current implementation still leaves room for limited privacy strategies:
+
+- `PrivateStateController` binds spend authority to the DApp-level `msg.sender`
+- but the L1 caller of `ChannelManager.executeChannelTransaction(...)` is not itself the note owner identity
+- therefore the strongest direct owner anchor, "the L1 relayer is the spender," does not hold in the current architecture
+- note value disclosures are also indirect: the observer can see redeem totals once value returns to liquid balance, but individual note values are not emitted in plaintext
+
+What the strong observer still learns:
+
+- the function family and arity of each transition
+- when notes are created, spent, or redeemed
+- ciphertext-bearing `NoteValueEncrypted` emissions
+- enough event structure to perform long-horizon graph analysis
+
+That means the current implementation does not provide strong cryptographic privacy in the usual anonymous-payment sense. However, under the narrower `100%`-certainty definition above, the user can still choose note flows that avoid deterministic linkage.
+
+Existence result:
+
+- yes, under the current implementation there exist user strategies that prevent the observer from obtaining both ownership linkage and amount linkage with `100%` certainty
+- this statement is limited to the current observation model and to the `100%`-certainty notion of linkage
+- it is not a claim that the observer cannot infer likely owners or likely note values with high confidence
+
+Minimal strategy shape:
+
+- avoid singleton note life cycles such as:
+  - `mintNotes1` followed later by `redeemNotes1`
+  - `transferNotes1To1` followed by `redeemNotes1`
+- create at least two notes that will later be redeemed only through a multi-input redeem shape
+- do not let the observed execution history collapse back to one uniquely explainable note lineage before redeem
+
+The simplest concrete strategy in the current implementation is:
+
+1. create at least two notes, for example with `mintNotes2`
+2. avoid `redeemNotes1`
+3. redeem only through a multi-input redeem path such as `redeemNotes2`
+
+Why this works under the current definition:
+
+- the observer sees the final redeemed total
+- but the observer does not obtain a unique individual note amount assignment for the two redeemed notes
+- and because the L1 caller is not the note owner identity, the observer also lacks a direct deterministic owner anchor for those notes
+
+Stronger user-side strategy:
+
+- mint multiple notes
+- use `transferNotes1To2` and `transferNotes2To1` to split and merge value before redeem
+- redeem only after the note graph admits more than one consistent ownership explanation and more than one consistent internal amount decomposition
+
+This combinatorial strategy is the right mental model for the current implementation:
+
+- the user does not try to make observation impossible
+- the user tries to keep at least two fully consistent explanations alive at every critical step
+- if at least two such explanations remain, the observer does not get a `100%`-certainty linkage
+
+Examples that are bad for privacy under this definition:
+
+- `mintNotes1` then `redeemNotes1`
+  - the redeemed total uniquely identifies the note amount
+- `mintNotes1` then `transferNotes1To1` then `redeemNotes1`
+  - the life cycle remains singleton-shaped and easier to explain uniquely
+- any flow that eventually leaves only one consistent explanation for who owned the redeemed note set or how the redeemed total decomposes into note amounts
+
+Practical conclusion:
+
+- under the current implementation, privacy is strategy-dependent rather than protocol-guaranteed
+- if the user chooses singleton note flows, ownership unlinkability and amount privacy can collapse quickly
+- if the user deliberately maintains ambiguity through multi-note mint, split/merge transfer, and multi-note redeem flows, then a strong external observer can still analyze the graph but may fail to obtain `100%`-certainty linkage for owner identity and individual note amounts
+
 ## 5. Findings
 
 ### Finding 1: Privileged owner can forge, freeze, or rewrite custody

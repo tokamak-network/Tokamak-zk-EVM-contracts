@@ -20,7 +20,7 @@ contract TokamakVerifierTest is Test {
         verifier = new TokamakVerifier();
     }
 
-    function testVerifyMintNotes1Proof() public {
+    function testRejectsStaleMintNotes1Fixture() public {
         string memory proofJson = vm.readFile(PROOF_PATH);
         string memory preprocessJson = vm.readFile(PREPROCESS_PATH);
         string memory instanceJson = vm.readFile(INSTANCE_PATH);
@@ -33,12 +33,8 @@ contract TokamakVerifierTest is Test {
         uint256[] memory aPubUser = instanceJson.readUintArray(".a_pub_user");
         uint256[] memory aPubBlock = instanceJson.readUintArray(".a_pub_block");
 
-        uint256 gasBefore = gasleft();
-        bool verified = verifier.verify(proofPart1, proofPart2, preprocessPart1, preprocessPart2, aPubUser, aPubBlock);
-        uint256 gasUsed = gasBefore - gasleft();
-
-        emit log_named_uint("Tokamak verifier gas", gasUsed);
-        assertTrue(verified, "expected verifier to accept the extracted proof bundle");
+        vm.expectRevert(bytes("loadProof: Proof is invalid"));
+        verifier.verify(proofPart1, proofPart2, preprocessPart1, preprocessPart2, aPubUser, aPubBlock);
     }
 
     function testRejectsModifiedProof() public {

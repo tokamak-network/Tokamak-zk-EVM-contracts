@@ -16,6 +16,9 @@ evm_version = "prague"
 
 # Enable FFI for JavaScript script integration
 ffi = true
+fs_permissions = [
+    { access = "read", path = "./tokamak-zkp/test/fixtures" },
+]
 
 # Increase gas limit for tests
 gas_limit = 100_000_000
@@ -39,6 +42,9 @@ evm_version = "prague"
 
 # Enable FFI for JavaScript script integration
 ffi = true
+fs_permissions = [
+    { access = "read", path = "./tokamak-zkp/test/fixtures" },
+]
 
 # Increase gas limit for CI builds
 gas_limit = 100_000_000

@@ -614,19 +614,17 @@ contract ChannelManager {
             let dataPtr := add(logData, 0x20)
             switch topicCount
             case 0 { log0(dataPtr, dataLength) }
-            case 1 { log1(dataPtr, dataLength, mload(add(topics, 0x20))) }
-            case 2 { log2(dataPtr, dataLength, mload(add(topics, 0x20)), mload(add(topics, 0x40))) }
-            case 3 {
-                log3(dataPtr, dataLength, mload(add(topics, 0x20)), mload(add(topics, 0x40)), mload(add(topics, 0x60)))
-            }
+            case 1 { log1(dataPtr, dataLength, mload(topics)) }
+            case 2 { log2(dataPtr, dataLength, mload(topics), mload(add(topics, 0x20))) }
+            case 3 { log3(dataPtr, dataLength, mload(topics), mload(add(topics, 0x20)), mload(add(topics, 0x40))) }
             case 4 {
                 log4(
                     dataPtr,
                     dataLength,
+                    mload(topics),
                     mload(add(topics, 0x20)),
                     mload(add(topics, 0x40)),
-                    mload(add(topics, 0x60)),
-                    mload(add(topics, 0x80))
+                    mload(add(topics, 0x60))
                 )
             }
         }

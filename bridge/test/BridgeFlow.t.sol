@@ -32,8 +32,7 @@ contract BridgeFlowTest is Test {
     uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = TokamakEnvironment.MAX_MT_LEAVES;
     bytes32 internal constant ERC1967_IMPLEMENTATION_SLOT =
         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-    bytes32 internal constant INITIAL_ZERO_ROOT =
-        bytes32(uint256(5829984778942235508054786484586420582947187778500268001993713384889194068958));
+    bytes32 internal constant INITIAL_ZERO_ROOT = TokamakEnvironment.ZERO_FILLED_TREE_ROOT;
     uint256 internal constant DEFAULT_JOIN_FEE = 1 ether;
     string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
     string internal constant REAL_TOKAMAK_PROOF_PATH =
@@ -43,6 +42,7 @@ contract BridgeFlowTest is Test {
     string internal constant REAL_TOKAMAK_INSTANCE_PATH =
         "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/synthesizer/fixture/instance.json";
     address internal constant REAL_TOKAMAK_APP_STORAGE = 0x8b64A4D3DF1771d7dFC93b374f545563B680b420;
+    uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 43;
 
     BridgeAdminManager internal adminManager;
     DAppManager internal dAppManager;
@@ -915,14 +915,18 @@ contract BridgeFlowTest is Test {
             _rootVector(bytes32(uint256(111)), bytes32(uint256(222)))
         );
 
-        uint256[] memory shortened = new uint256[](62);
+        uint256[] memory shortened = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH - 1);
         for (uint256 i = 0; i < shortened.length; i++) {
             shortened[i] = proofPayload.aPubBlock[i];
         }
         proofPayload.aPubBlock = shortened;
 
         vm.expectRevert(
-            abi.encodeWithSelector(ChannelManager.APubBlockLengthMismatch.selector, uint256(63), uint256(62))
+            abi.encodeWithSelector(
+                ChannelManager.APubBlockLengthMismatch.selector,
+                uint256(TOKAMAK_APUB_BLOCK_LENGTH),
+                uint256(TOKAMAK_APUB_BLOCK_LENGTH - 1)
+            )
         );
         localChannelManager.executeChannelTransaction(proofPayload);
     }
@@ -958,6 +962,49 @@ contract BridgeFlowTest is Test {
         }
 
         assertEq(rootVectorObservedCount, 1);
+    }
+
+    function testTokamakVerificationEmitsObservedEventTopicZeroCorrectly() public {
+        bytes32 observedTopic = keccak256("Observed(bytes32)");
+        uint256 observedData = 0x123456789abcdef;
+        uint16 eventStartOffsetWords = 18;
+        uint8 eventTopicCount = 1;
+
+        dAppManager.registerDApp(
+            3,
+            keccak256("tokamak-observed-event"),
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            _executionDAppFunctionsWithObservedEvent(eventStartOffsetWords, eventTopicCount)
+        );
+        (address manager,) = bridgeCore.createChannel(_deriveChannelId("tokamak-observed-event"), 3, leader, DEFAULT_JOIN_FEE);
+        ChannelManager localChannelManager = ChannelManager(manager);
+
+        bytes32[] memory currentRoots = _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT);
+        bytes32[] memory updatedRoots = _rootVector(bytes32(uint256(555)), bytes32(uint256(777)));
+        BridgeStructs.TokamakProofPayload memory proofPayload =
+            _buildExecutableTokamakProofPayload(appContract, APP_SIG, currentRoots, updatedRoots);
+        _writeSplitWord(proofPayload.aPubUser, eventStartOffsetWords, uint256(observedTopic));
+        _writeSplitWord(proofPayload.aPubUser, eventStartOffsetWords + 2, observedData);
+
+        vm.mockCall(
+            address(tokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+        );
+        vm.recordLogs();
+        bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
+        assertTrue(accepted);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool observedEventFound;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(localChannelManager) && logs[i].topics.length == 1) {
+                if (logs[i].topics[0] == observedTopic) {
+                    observedEventFound = true;
+                    assertEq(abi.decode(logs[i].data, (uint256)), observedData);
+                }
+            }
+        }
+
+        assertTrue(observedEventFound);
     }
 
     function _loadTokamakProofPayload() internal view returns (BridgeStructs.TokamakProofPayload memory payload) {
@@ -1176,6 +1223,20 @@ contract BridgeFlowTest is Test {
         });
     }
 
+    function _executionDAppFunctionsWithObservedEvent(uint16 startOffsetWords, uint8 topicCount)
+        internal
+        view
+        returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
+    {
+        functions = new BridgeStructs.DAppFunctionMetadata[](1);
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: appContract,
+            functionSig: APP_SIG,
+            preprocessInputHash: _executionPreprocessInputHash(),
+            instanceLayout: _instanceLayoutWithEvent(22, 24, 26, 30, startOffsetWords, topicCount)
+        });
+    }
+
     function _realTokamakFunctionMetadata(bytes32 preprocessInputHash)
         internal
         pure
@@ -1250,13 +1311,32 @@ contract BridgeFlowTest is Test {
         });
     }
 
+    function _instanceLayoutWithEvent(
+        uint8 entryContractOffsetWords,
+        uint8 functionSigOffsetWords,
+        uint8 currentRootVectorOffsetWords,
+        uint8 updatedRootVectorOffsetWords,
+        uint16 startOffsetWords,
+        uint8 topicCount
+    ) internal pure returns (BridgeStructs.InstanceLayout memory layout) {
+        BridgeStructs.EventLogMetadata[] memory eventLogs = new BridgeStructs.EventLogMetadata[](1);
+        eventLogs[0] = BridgeStructs.EventLogMetadata({startOffsetWords: startOffsetWords, topicCount: topicCount});
+        layout = BridgeStructs.InstanceLayout({
+            entryContractOffsetWords: entryContractOffsetWords,
+            functionSigOffsetWords: functionSigOffsetWords,
+            currentRootVectorOffsetWords: currentRootVectorOffsetWords,
+            updatedRootVectorOffsetWords: updatedRootVectorOffsetWords,
+            eventLogs: eventLogs
+        });
+    }
+
     function _blankTokamakProofPayload() internal pure returns (BridgeStructs.TokamakProofPayload memory payload) {
         payload.proofPart1 = new uint128[](0);
         payload.proofPart2 = new uint256[](0);
         payload.functionPreprocessPart1 = new uint128[](0);
         payload.functionPreprocessPart2 = new uint256[](0);
         payload.aPubUser = new uint256[](50);
-        payload.aPubBlock = new uint256[](63);
+        payload.aPubBlock = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
     }
 
     function _buildExecutableTokamakProofPayload(
@@ -1292,16 +1372,16 @@ contract BridgeFlowTest is Test {
 
     function _normalizeAPubBlock(uint256[] memory aPubBlock) internal pure returns (uint256[] memory normalized) {
         uint256 normalizedLength = aPubBlock.length;
-        if (normalizedLength > 63) {
-            for (uint256 i = 63; i < normalizedLength; i++) {
+        if (normalizedLength > TOKAMAK_APUB_BLOCK_LENGTH) {
+            for (uint256 i = TOKAMAK_APUB_BLOCK_LENGTH; i < normalizedLength; i++) {
                 if (aPubBlock[i] != 0) {
                     revert("a_pub_block too long");
                 }
             }
-            normalizedLength = 63;
+            normalizedLength = TOKAMAK_APUB_BLOCK_LENGTH;
         }
 
-        normalized = new uint256[](63);
+        normalized = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
         for (uint256 i = 0; i < normalizedLength; i++) {
             normalized[i] = aPubBlock[i];
         }
@@ -1321,7 +1401,7 @@ contract BridgeFlowTest is Test {
     }
 
     function _currentBlockAPubBlock() internal view returns (uint256[] memory words) {
-        words = new uint256[](63);
+        words = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
         _writeSplitWord(words, 0, uint256(uint160(address(block.coinbase))));
         _writeSplitWord(words, 2, block.timestamp);
         _writeSplitWord(words, 4, block.number);

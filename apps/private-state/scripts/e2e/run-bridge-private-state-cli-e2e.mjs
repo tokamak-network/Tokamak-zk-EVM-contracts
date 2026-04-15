@@ -10,7 +10,6 @@ import {
   AbiCoder,
   Contract,
   HDNodeWallet,
-  Interface,
   JsonRpcProvider,
   Wallet,
   ethers,
@@ -18,10 +17,6 @@ import {
 } from "ethers";
 import {
   MAX_MT_LEAVES,
-  TokamakL2StateManager,
-  createTokamakL2Common,
-  createTokamakL2StateManagerFromStateSnapshot,
-  createTokamakL2Tx,
   getUserStorageKey,
   poseidon,
 } from "tokamak-l2js";
@@ -46,11 +41,7 @@ import {
   walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
 } from "../utils/private-state-cli-shared.mjs";
 import {
-  computeEncryptedNoteSalt,
-  encryptMintNoteValueForOwner,
   deriveNoteReceiveKeyMaterial,
-  encryptedNoteValueTuple,
-  encryptNoteValueForRecipient,
 } from "./private-state-note-delivery.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -77,7 +68,6 @@ const privateStateGrothArtifactSyncPath = path.resolve(
   "deploy",
   "sync-groth16-update-tree-artifacts.sh",
 );
-const controllerAbiPath = path.resolve(appRoot, "deploy", "PrivateStateController.callable-abi.json");
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
 const summaryPath = path.resolve(outputRoot, "summary.json");
@@ -106,6 +96,15 @@ const requiredTokamakSetupArtifacts = [
   "sigma_verify.rkyv",
 ];
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
+const tokamakSynthesizerRoot = path.resolve(tokamakRoot, "packages", "frontend", "synthesizer");
+const tokamakSynthesizerTsconfigPath = path.resolve(tokamakSynthesizerRoot, "tsconfig.dev.json");
+const synthesizerExamplesRoot = path.resolve(tokamakSynthesizerRoot, "examples", "privateState");
+const generateSynthesizerLaunchInputsPath = path.resolve(
+  appRoot,
+  "scripts",
+  "deploy",
+  "generate-synthesizer-launch-inputs.ts",
+);
 const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
 const tokamakStepArtifactDirectories = [
@@ -118,6 +117,14 @@ const dAppManagerAbi = [
   "function deleteDApp(uint256 dappId) external",
   "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
   "function getDAppInfo(uint256 dappId) external view returns (tuple(bool exists, bytes32 labelHash, uint256 channelTokenVaultTreeIndex))",
+];
+const localRegistrationExamples = [
+  { group: "mintNotes", name: "mintNotes1" },
+  { group: "mintNotes", name: "mintNotes2" },
+  { group: "transferNotes", name: "transferNotes1To1" },
+  { group: "transferNotes", name: "transferNotes1To2" },
+  { group: "transferNotes", name: "transferNotes2To1" },
+  { group: "redeemNotes", name: "redeemNotes1" },
 ];
 
 function usage() {
@@ -294,12 +301,6 @@ function loadLiquidBalancesSlot() {
   );
 }
 
-async function getFixedBlockInfo(provider) {
-  const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
-  const latestNumber = Number(hexToBigInt(addHexPrefix(String(latestNumberHex ?? "").replace(/^0x/i, ""))));
-  return getBlockInfoAt(provider, latestNumber);
-}
-
 async function getBlockInfoAt(provider, blockNumber) {
   const blockTag = ethers.toQuantity(blockNumber);
   const block = await rpcCall(provider, "eth_getBlockByNumber", [blockTag, false]);
@@ -326,26 +327,6 @@ async function getBlockInfoAt(provider, blockNumber) {
   };
 }
 
-async function fetchContractCodes(provider, addresses) {
-  const codes = [];
-  for (const address of addresses) {
-    codes.push({
-      address: getAddress(address),
-      code: await provider.getCode(address),
-    });
-  }
-  return codes;
-}
-
-async function buildStateManager(snapshot, contractCodes) {
-  return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
-    contractCodes: contractCodes.map((entry) => ({
-      address: createAddressFromString(entry.address),
-      code: addHexPrefix(entry.code),
-    })),
-  });
-}
-
 function mappingKeyHex(address, slot) {
   const encoded = abiCoder.encode(["address", "uint256"], [address, ethers.toBigInt(slot)]);
   return bytesToHex(poseidon(hexToBytes(addHexPrefix(String(encoded ?? "").replace(/^0x/i, "")))));
@@ -357,37 +338,6 @@ function deriveLiquidBalanceStorageKey(l2Address, slot) {
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
   return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
-}
-
-function poseidonHexFromBytes(bytesLike) {
-  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
-}
-
-function serializeBigInts(value) {
-  return JSON.parse(JSON.stringify(value, (_key, current) => (
-    typeof current === "bigint" ? current.toString() : current
-  )));
-}
-
-function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
-  const tx = createTokamakL2Tx(
-    {
-      nonce: ethers.toBigInt(nonce),
-      to: createAddressFromString(to),
-      data: hexToBytes(addHexPrefix(String(data ?? "").replace(/^0x/i, ""))),
-      senderPubKey,
-    },
-    { common: createTokamakL2Common() },
-  ).sign(signerPrivateKey);
-  return serializeBigInts(tx.captureTxSnapshot());
-}
-
-function note(owner, value, saltLabel) {
-  return {
-    owner: getAddress(owner),
-    value,
-    salt: bytes32FromHex(poseidonHexFromBytes(ethers.toUtf8Bytes(saltLabel))),
-  };
 }
 
 function ensureTokamakSetupArtifacts() {
@@ -427,31 +377,18 @@ function copyTokamakArtifacts(stepDir) {
   }
 }
 
-async function applyDepositSnapshot(stateManager, vaultAddress, keyHex, nextValue) {
-  await stateManager.putStorage(
-    createAddressFromString(vaultAddress),
-    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
-    hexToBytes(addHexPrefix(String(bytes32FromHex(ethers.toBeHex(nextValue)) ?? "").replace(/^0x/i, ""))),
-  );
-  return stateManager.captureStateSnapshot();
-}
-
-async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contractCodes) {
-  const stepDir = path.join(dappMetadataRoot, step.name);
+async function runTokamakMetadataStep(exampleName, bundleSourceDir) {
+  const stepDir = path.join(dappMetadataRoot, exampleName);
   cleanDir(stepDir);
-
-  const transactionSnapshot = buildTokamakTxSnapshot({
-    signerPrivateKey: step.sender.l2PrivateKey,
-    senderPubKey: step.sender.l2PublicKey,
-    to: step.controllerAddress,
-    data: step.calldata,
-    nonce: step.nonce,
-  });
-
-  writeJson(path.join(stepDir, "previous_state_snapshot.json"), previousSnapshot);
-  writeJson(path.join(stepDir, "transaction.json"), transactionSnapshot);
-  writeJson(path.join(stepDir, "block_info.json"), blockInfo);
-  writeJson(path.join(stepDir, "contract_codes.json"), contractCodes);
+  const canonicalInputs = [
+    "previous_state_snapshot.json",
+    "transaction.json",
+    "block_info.json",
+    "contract_codes.json",
+  ];
+  for (const fileName of canonicalInputs) {
+    fs.copyFileSync(path.join(bundleSourceDir, fileName), path.join(stepDir, fileName));
+  }
 
   run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], { cwd: tokamakRoot, quiet: true });
   ensureTokamakSetupArtifacts();
@@ -460,10 +397,9 @@ async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contrac
 
   // Some Tokamak CLI paths mutate or prune step-local inputs while materializing outputs.
   // Rewrite the canonical inputs after artifact copy so downstream metadata derivation is stable.
-  writeJson(path.join(stepDir, "previous_state_snapshot.json"), previousSnapshot);
-  writeJson(path.join(stepDir, "transaction.json"), transactionSnapshot);
-  writeJson(path.join(stepDir, "block_info.json"), blockInfo);
-  writeJson(path.join(stepDir, "contract_codes.json"), contractCodes);
+  for (const fileName of canonicalInputs) {
+    fs.copyFileSync(path.join(bundleSourceDir, fileName), path.join(stepDir, fileName));
+  }
 
   const nextSnapshot = readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json"));
   if (Array.isArray(nextSnapshot.storageAddresses)) {
@@ -474,7 +410,7 @@ async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contrac
 
   const metadataRecord = buildFunctionDefinition({
     groupName: dappLabel,
-    exampleName: step.name,
+    exampleName,
     transactionJsonPath: path.join(stepDir, "transaction.json"),
     snapshotJsonPath: path.join(stepDir, "previous_state_snapshot.json"),
     preprocessJsonPath: path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
@@ -489,231 +425,50 @@ async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contrac
 }
 
 async function materializeCurrentDAppDefinition(provider, participants) {
-  const appDeployment = readJson(deploymentManifestPath);
-  const controllerAbi = readJson(controllerAbiPath);
-  const controller = getAddress(appDeployment.contracts.controller);
-  const vault = getAddress(appDeployment.contracts.l2AccountingVault);
-  const controllerInterface = new Interface(controllerAbi);
-  const liquidBalancesSlot = loadLiquidBalancesSlot();
+  const manifestFiles = new Map([
+    ["mintNotes", path.join(synthesizerExamplesRoot, "mintNotes", "cli-launch-manifest.json")],
+    ["transferNotes", path.join(synthesizerExamplesRoot, "transferNotes", "cli-launch-manifest.json")],
+    ["redeemNotes", path.join(synthesizerExamplesRoot, "redeemNotes", "cli-launch-manifest.json")],
+  ]);
+  run(
+    "npx",
+    [
+      "--prefix",
+      tokamakRoot,
+      "tsx",
+      "--tsconfig",
+      tokamakSynthesizerTsconfigPath,
+      generateSynthesizerLaunchInputsPath,
+    ],
+    {
+      cwd: repoRoot,
+      quiet: true,
+      env: {
+        ...process.env,
+        APPS_NETWORK: "anvil",
+        APPS_RPC_URL_OVERRIDE: providerUrl,
+        APPS_ANVIL_MNEMONIC: anvilMnemonic,
+      },
+    },
+  );
 
-  for (const participant of participants) {
-    expect(
-      participant.registration !== null,
-      `Participant ${participant.alias} is missing a resolved registration candidate.`,
-    );
+  const manifestEntriesByExample = new Map();
+  for (const [group, manifestPath] of manifestFiles.entries()) {
+    const manifestEntries = readJson(manifestPath);
+    expect(Array.isArray(manifestEntries), `Expected array manifest at ${manifestPath}.`);
+    for (const entry of manifestEntries) {
+      const exampleName = path.basename(path.dirname(entry.files.previousState));
+      manifestEntriesByExample.set(`${group}:${exampleName}`, entry);
+    }
   }
-
-  const contractCodes = await fetchContractCodes(provider, [controller, vault]);
-  const bootstrapBlockInfo = await getFixedBlockInfo(provider);
-  const initialStateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
-  const initialAddresses = [getAddress(controller), getAddress(vault)].map((address) => createAddressFromString(address));
-  await initialStateManager._initializeForAddresses(initialAddresses);
-  initialStateManager._channelId = deriveChannelIdFromName(channelName).toString();
-  for (const address of initialAddresses) {
-    initialStateManager._commitResolvedStorageEntries(address, []);
-  }
-  const initialSnapshot = await initialStateManager.captureStateSnapshot();
-  const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
-
-  const participantKeys = new Map();
-  for (const participant of participants) {
-    participantKeys.set(
-      participant.alias,
-      mappingKeyHex(participant.registration.l2Identity.l2Address, liquidBalancesSlot),
-    );
-  }
-
-  let currentSnapshot = initialSnapshot;
-  for (const participant of participants) {
-    currentSnapshot = await applyDepositSnapshot(
-      depositStateManager,
-      vault,
-      participantKeys.get(participant.alias),
-      depositAmountBaseUnits,
-    );
-  }
-
-  const encryptedTransfers = {
-    aToB: buildEncryptedTransferOutput({
-      owner: participants[1].registration.l2Identity.l2Address,
-      value: 1n * amountUnit,
-      label: `${channelName}:a-to-b`,
-      recipientNoteReceivePubKey: participants[1].registration.noteReceive.noteReceivePubKey,
-    }),
-    aToC: buildEncryptedTransferOutput({
-      owner: participants[2].registration.l2Identity.l2Address,
-      value: 2n * amountUnit,
-      label: `${channelName}:a-to-c`,
-      recipientNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
-    }),
-    bToC: buildEncryptedTransferOutput({
-      owner: participants[2].registration.l2Identity.l2Address,
-      value: 4n * amountUnit,
-      label: `${channelName}:b-to-c`,
-      recipientNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
-    }),
-    bExtraToA: buildEncryptedTransferOutput({
-      owner: participants[0].registration.l2Identity.l2Address,
-      value: 1n * amountUnit,
-      label: `${channelName}:b-extra-to-a`,
-      recipientNoteReceivePubKey: participants[0].registration.noteReceive.noteReceivePubKey,
-    }),
-  };
-
-  const encryptedMints = {
-    aMint: buildEncryptedMintOutput({
-      owner: participants[0].registration.l2Identity.l2Address,
-      ownerNoteReceivePubKey: participants[0].registration.noteReceive.noteReceivePubKey,
-      value: depositAmountBaseUnits,
-      label: `${channelName}:a-mint`,
-    }),
-    bMint: buildEncryptedMintOutput({
-      owner: participants[1].registration.l2Identity.l2Address,
-      ownerNoteReceivePubKey: participants[1].registration.noteReceive.noteReceivePubKey,
-      value: depositAmountBaseUnits,
-      label: `${channelName}:b-mint`,
-    }),
-    bMintExtra: buildEncryptedMintOutput({
-      owner: participants[1].registration.l2Identity.l2Address,
-      ownerNoteReceivePubKey: participants[1].registration.noteReceive.noteReceivePubKey,
-      value: 1n * amountUnit,
-      label: `${channelName}:b-mint-extra`,
-    }),
-    cMint: buildEncryptedMintOutput({
-      owner: participants[2].registration.l2Identity.l2Address,
-      ownerNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
-      value: depositAmountBaseUnits,
-      label: `${channelName}:c-mint`,
-    }),
-  };
-  const notes = {
-    aMint: encryptedMints.aMint.note,
-    bMint: encryptedMints.bMint.note,
-    bMintExtra: encryptedMints.bMintExtra.note,
-    cMint: encryptedMints.cMint.note,
-    aToB: encryptedTransfers.aToB.note,
-    aToC: encryptedTransfers.aToC.note,
-    bToC: encryptedTransfers.bToC.note,
-  };
-
-  const scenarios = [
-    {
-      name: "mint-notes-1",
-      sender: participants[0].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "mintNotes1",
-        [[[
-          encryptedMints.aMint.output.value,
-          encryptedNoteValueTuple(encryptedMints.aMint.output.encryptedNoteValue),
-        ]]],
-      ),
-    },
-    {
-      name: "transfer-notes-1-to-2",
-      sender: participants[0].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "transferNotes1To2",
-        [
-          [
-            [
-              encryptedTransfers.aToB.output.owner,
-              encryptedTransfers.aToB.output.value,
-              encryptedNoteValueTuple(encryptedTransfers.aToB.output.encryptedNoteValue),
-            ],
-            [
-              encryptedTransfers.aToC.output.owner,
-              encryptedTransfers.aToC.output.value,
-              encryptedNoteValueTuple(encryptedTransfers.aToC.output.encryptedNoteValue),
-            ],
-          ],
-          [[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]],
-        ],
-      ),
-    },
-    {
-      name: "mint-notes-2",
-      sender: participants[1].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "mintNotes2",
-        [[
-          [
-            encryptedMints.bMint.output.value,
-            encryptedNoteValueTuple(encryptedMints.bMint.output.encryptedNoteValue),
-          ],
-          [
-            encryptedMints.bMintExtra.output.value,
-            encryptedNoteValueTuple(encryptedMints.bMintExtra.output.encryptedNoteValue),
-          ],
-        ]],
-      ),
-    },
-    {
-      name: "transfer-notes-1-to-1",
-      sender: participants[1].registration.l2Identity,
-      nonce: 1,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "transferNotes1To1",
-        [
-          [
-            [
-              encryptedTransfers.bExtraToA.output.owner,
-              encryptedTransfers.bExtraToA.output.value,
-              encryptedNoteValueTuple(encryptedTransfers.bExtraToA.output.encryptedNoteValue),
-            ],
-          ],
-          [[notes.bMintExtra.owner, notes.bMintExtra.value, notes.bMintExtra.salt]],
-        ],
-      ),
-    },
-    {
-      name: "transfer-notes-2-to-1",
-      sender: participants[1].registration.l2Identity,
-      nonce: 2,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "transferNotes2To1",
-        [
-          [
-            [
-              encryptedTransfers.bToC.output.owner,
-              encryptedTransfers.bToC.output.value,
-              encryptedNoteValueTuple(encryptedTransfers.bToC.output.encryptedNoteValue),
-            ],
-          ],
-          [
-            [notes.bMint.owner, notes.bMint.value, notes.bMint.salt],
-            [notes.aToB.owner, notes.aToB.value, notes.aToB.salt],
-          ],
-        ],
-      ),
-    },
-    {
-      name: "redeem-notes-1",
-      sender: participants[2].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "redeemNotes1",
-        [
-          [[notes.aToC.owner, notes.aToC.value, notes.aToC.salt]],
-          participants[2].registration.l2Identity.l2Address,
-        ],
-      ),
-    },
-  ];
 
   const records = [];
-  for (const scenario of scenarios) {
-    const result = await runTokamakMetadataStep(scenario, currentSnapshot, bootstrapBlockInfo, contractCodes);
+  for (const example of localRegistrationExamples) {
+    const manifestEntry = manifestEntriesByExample.get(`${example.group}:${example.name}`);
+    expect(manifestEntry, `Missing canonical launch entry for ${example.group}/${example.name}.`);
+    const bundleSourceDir = path.join(tokamakSynthesizerRoot, path.dirname(manifestEntry.files.previousState));
+    const result = await runTokamakMetadataStep(example.name, bundleSourceDir);
     records.push(result.metadataRecord);
-    currentSnapshot = result.nextSnapshot;
   }
 
   const dapps = buildDAppDefinitions(records);
@@ -816,69 +571,6 @@ function walletDirForName(walletName) {
   const workspaceDir = sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
   const walletsRoot = sharedWorkspaceWalletsDir(workspaceDir);
   return sharedWalletDirForName(walletsRoot, walletName);
-}
-
-function buildDeterministicNoteNonce(label) {
-  return ethers.dataSlice(
-    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
-    0,
-    12,
-  );
-}
-
-function buildEncryptedOutputArtifacts({
-  owner,
-  value,
-  encryptedNoteValue,
-  includeOwnerInOutput,
-}) {
-  const normalizedOwner = getAddress(owner);
-  return {
-    output: includeOwnerInOutput
-      ? { owner: normalizedOwner, value, encryptedNoteValue }
-      : { value, encryptedNoteValue },
-    note: {
-      owner: normalizedOwner,
-      value,
-      salt: computeEncryptedNoteSalt(encryptedNoteValue),
-    },
-  };
-}
-
-function buildEncryptedTransferOutput({
-  owner,
-  value,
-  label,
-  recipientNoteReceivePubKey,
-}) {
-  const deterministicNonce = buildDeterministicNoteNonce(label);
-  const encryptedNoteValue = encryptNoteValueForRecipient({
-    value,
-    recipientNoteReceivePubKey,
-    chainId: 31337,
-    channelId: deriveChannelIdFromName(channelName),
-    owner,
-    nonce: deterministicNonce,
-  });
-  return buildEncryptedOutputArtifacts({ owner, value, encryptedNoteValue, includeOwnerInOutput: true });
-}
-
-function buildEncryptedMintOutput({
-  owner,
-  ownerNoteReceivePubKey,
-  value,
-  label,
-}) {
-  const deterministicNonce = buildDeterministicNoteNonce(label);
-  const encryptedNoteValue = encryptMintNoteValueForOwner({
-    value,
-    ownerNoteReceivePubKey,
-    chainId: 31337,
-    channelId: deriveChannelIdFromName(channelName),
-    owner,
-    nonce: deterministicNonce,
-  });
-  return buildEncryptedOutputArtifacts({ owner, value, encryptedNoteValue, includeOwnerInOutput: false });
 }
 
 function assertBigIntEq(actual, expected, label) {

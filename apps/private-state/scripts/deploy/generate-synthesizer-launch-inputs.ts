@@ -5,7 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ethers } from 'ethers';
-import { createAddressFromString, hexToBytes } from '@ethereumjs/util';
+import { addHexPrefix, createAddressFromString, hexToBytes } from '@ethereumjs/util';
 import {
   createStateManagerOptsFromChannelConfig,
   createTokamakL2Common,

@@ -322,7 +322,8 @@ export function deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, entryCo
     storageAddress: getAddress(storageAddress),
     preAllocKeys: snapshot.storageKeys[index],
     userSlots: [],
-    isChannelTokenVaultStorage: getAddress(storageAddress) === channelTokenVaultStorageAddress,
+    isChannelTokenVaultStorage:
+      ethers.toBigInt(getAddress(storageAddress)) === ethers.toBigInt(channelTokenVaultStorageAddress),
   }));
 }
 
@@ -442,10 +443,15 @@ export function mergeFunctionDefinitions(records) {
     }
 
     const mismatches = [];
-    if (JSON.stringify(existing.storageAddresses) !== JSON.stringify(record.storageAddresses)) {
+    if (
+      existing.storageAddresses.length !== record.storageAddresses.length
+      || existing.storageAddresses.some(
+        (address, index) => ethers.toBigInt(getAddress(address)) !== ethers.toBigInt(getAddress(record.storageAddresses[index])),
+      )
+    ) {
       mismatches.push("managed storage vector");
     }
-    if (existing.preprocessInputHash !== record.preprocessInputHash) {
+    if (ethers.toBigInt(existing.preprocessInputHash) !== ethers.toBigInt(record.preprocessInputHash)) {
       mismatches.push("preprocess input hash");
     }
     if (existing.entryContractOffsetWords !== record.entryContractOffsetWords) {
@@ -507,7 +513,12 @@ export function buildDAppDefinitions(records) {
     .map((group) => {
       const commonStorageAddresses = group.records[0].storageAddresses;
       for (const record of group.records) {
-        if (JSON.stringify(record.storageAddresses) !== JSON.stringify(commonStorageAddresses)) {
+        if (
+          record.storageAddresses.length !== commonStorageAddresses.length
+          || record.storageAddresses.some(
+            (address, index) => ethers.toBigInt(getAddress(address)) !== ethers.toBigInt(getAddress(commonStorageAddresses[index])),
+          )
+        ) {
           throw new Error(
             [
               `DApp group ${group.groupName} has inconsistent managed storage vectors across functions.`,

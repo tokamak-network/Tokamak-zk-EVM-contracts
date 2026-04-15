@@ -399,7 +399,7 @@ function decryptFieldEncryptedNoteValue({
     ciphertextValue: ethers.toBigInt(normalized.ciphertextValue),
     encryptionInfo,
   });
-  if (normalizeTagHex(expectedTag) !== normalizeTagHex(normalized.tag)) {
+  if (ethers.toBigInt(normalizeTagHex(expectedTag)) !== ethers.toBigInt(normalizeTagHex(normalized.tag))) {
     throw new Error("Encrypted note value integrity tag mismatch.");
   }
   const fieldMask = deriveFieldMask({

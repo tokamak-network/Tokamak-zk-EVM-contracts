@@ -932,11 +932,13 @@ function exitChannel(participant) {
 
 function assertResolvedWalletIdentity(result, participant, label) {
   expect(
-    getAddress(result.l2Address) === getAddress(participant.registration.l2Identity.l2Address),
+    ethers.toBigInt(getAddress(result.l2Address))
+      === ethers.toBigInt(getAddress(participant.registration.l2Identity.l2Address)),
     `${label} returned an unexpected L2 address.`,
   );
   expect(
-    normalizeBytes32Hex(result.l2StorageKey) === normalizeBytes32Hex(participant.registration.storageKey),
+    ethers.toBigInt(normalizeBytes32Hex(result.l2StorageKey))
+      === ethers.toBigInt(normalizeBytes32Hex(participant.registration.storageKey)),
     `${label} returned an unexpected storage key.`,
   );
   expect(
@@ -949,7 +951,8 @@ function pickOutputNoteByOwner(outputNotes, ownerAddress, expectedValue) {
   const owner = getAddress(ownerAddress);
   const expected = ethers.toBigInt(expectedValue).toString();
   const matches = outputNotes.filter((note) => (
-    getAddress(note.owner) === owner && ethers.toBigInt(note.value) === ethers.toBigInt(expected)
+    ethers.toBigInt(getAddress(note.owner)) === ethers.toBigInt(owner)
+      && ethers.toBigInt(note.value) === ethers.toBigInt(expected)
   ));
   expect(
     matches.length === 1,

@@ -932,8 +932,10 @@ async function main() {
     const key = mappingKeyHex(participant.l2Address, liquidBalancesSlot);
     participantKeys.set(participant.index, key);
   }
-  expect(new Set([...participantKeys.values()].map((value) => value.toLowerCase())).size === participants.length,
-    "Participant vault keys must be unique.");
+  expect(
+    new Set([...participantKeys.values()].map((value) => ethers.toBigInt(value).toString())).size === participants.length,
+    "Participant vault keys must be unique.",
+  );
 
   const depositTransitions = [];
   for (const participant of participants) {
@@ -1156,7 +1158,9 @@ async function main() {
   const dApps = buildDAppDefinitions(metadataRun.tokamakResults.map((result) => result.metadataRecord));
   expect(dApps.length === 1, `Expected one derived DApp, found ${dApps.length}.`);
   const derivedDApp = dApps[0];
-  const uniqueAPubBlockHashes = new Set(metadataRun.tokamakResults.map((result) => result.metadataRecord.aPubBlockHash.toLowerCase()));
+  const uniqueAPubBlockHashes = new Set(
+    metadataRun.tokamakResults.map((result) => ethers.toBigInt(result.metadataRecord.aPubBlockHash).toString()),
+  );
   expect(uniqueAPubBlockHashes.size === 1, "All Tokamak steps must share one aPubBlockHash for the channel.");
 
   console.log("E2E: deploying bridge stack.");
@@ -1206,7 +1210,8 @@ async function main() {
   const channelBlockInfo = await getBlockInfoAt(provider, Number(await channelManager.genesisBlockNumber()));
   const channelAPubBlockHash = hashTokamakPublicInputs(encodeTokamakBlockInfo(channelBlockInfo));
   expect(
-    normalizeBytes32Hex(channelAPubBlockHash) === normalizeBytes32Hex(channelDeployment.aPubBlockHash),
+    ethers.toBigInt(normalizeBytes32Hex(channelAPubBlockHash))
+      === ethers.toBigInt(normalizeBytes32Hex(channelDeployment.aPubBlockHash)),
     "Derived channel block_info hash must match the stored channel aPubBlockHash.",
   );
   const bridgeTokenVault = new Contract(channelDeployment.bridgeTokenVault, bridgeTokenVaultAbi, deployer);

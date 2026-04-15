@@ -65,7 +65,7 @@ function generateWithdrawalProof() {
     
     for (let i = 0; i < participantsData.length; i++) {
       const participant = participantsData[i];
-      if (participant.l2Address.toLowerCase() === userL2Address.toLowerCase()) {
+      if (ethers.toBigInt(participant.l2Address) === ethers.toBigInt(userL2Address)) {
         userLeafIndex = i;
         userParticipantRoot = participant.participantRoot;
         userBalance = participant.balance;
@@ -95,7 +95,11 @@ function generateWithdrawalProof() {
     if (!isQuiet) {
       console.log(`Computed tree root: ${computedTreeRoot}`);
       console.log(`Expected finalStateRoot: ${finalStateRoot}`);
-      console.log(`Tree root matches finalStateRoot: ${computedTreeRoot === finalStateRoot ? 'YES' : 'NO'}`);
+      console.log(
+        `Tree root matches finalStateRoot: ${
+          ethers.toBigInt(computedTreeRoot) === ethers.toBigInt(finalStateRoot) ? 'YES' : 'NO'
+        }`,
+      );
     }
     
     // Compute user's leaf exactly like the contract does during withdrawal  

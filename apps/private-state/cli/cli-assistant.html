@@ -709,7 +709,9 @@
         }
         return options.walletOptions.filter((walletName) => {
           const walletEntry = options.walletEntriesByName?.[walletName];
-          return walletEntry?.l1Address?.toLowerCase() === derivedAddress;
+          return walletEntry?.l1Address
+            && derivedAddress
+            && ethers.toBigInt(walletEntry.l1Address) === ethers.toBigInt(derivedAddress);
         });
       }
 

@@ -318,10 +318,10 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
       manifestLabel === dappLabel
       && Number.isInteger(manifestDappId)
       && manifestManager !== null
-      && manifestManager === getAddress(bridgeResources.bridgeDeployment.dAppManager)
+      && ethers.toBigInt(manifestManager) === ethers.toBigInt(getAddress(bridgeResources.bridgeDeployment.dAppManager))
     ) {
       const info = await dAppManager.getDAppInfo(manifestDappId);
-      if (info.exists && normalizeBytes32Hex(info.labelHash) === expectedLabelHash) {
+      if (info.exists && ethers.toBigInt(normalizeBytes32Hex(info.labelHash)) === ethers.toBigInt(expectedLabelHash)) {
         return Number(manifestDappId);
       }
     }
@@ -337,7 +337,7 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
 
   for (const event of events) {
     const eventLabelHash = normalizeBytes32Hex(event.args?.labelHash);
-    if (eventLabelHash === expectedLabelHash) {
+    if (ethers.toBigInt(eventLabelHash) === ethers.toBigInt(expectedLabelHash)) {
       matchingIds.push(Number(event.args.dappId));
     }
   }
@@ -435,11 +435,13 @@ async function initializeChannelWorkspace({
   const liquidBalancesSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
 
   expect(
-    managedStorageAddresses.includes(controllerAddress),
+    managedStorageAddresses.some((address) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(controllerAddress)),
     `Managed storage vector does not include controller ${controllerAddress}.`,
   );
   expect(
-    managedStorageAddresses.includes(l2AccountingVaultAddress),
+    managedStorageAddresses.some(
+      (address) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(l2AccountingVaultAddress),
+    ),
     `Managed storage vector does not include L2 accounting vault ${l2AccountingVaultAddress}.`,
   );
 
@@ -447,7 +449,7 @@ async function initializeChannelWorkspace({
   const blockInfo = await fetchChannelBlockInfo(provider, genesisBlockNumber);
   const derivedAPubBlockHash = normalizeBytes32Hex(hashTokamakPublicInputs(encodeTokamakBlockInfo(blockInfo)));
   expect(
-    derivedAPubBlockHash === normalizeBytes32Hex(channelInfo.aPubBlockHash),
+    ethers.toBigInt(derivedAPubBlockHash) === ethers.toBigInt(normalizeBytes32Hex(channelInfo.aPubBlockHash)),
     `Derived channel block-info hash ${derivedAPubBlockHash} does not match onchain ${channelInfo.aPubBlockHash}.`,
   );
   const localSnapshotReusable = canReuseLocalWorkspaceSnapshot({
@@ -642,11 +644,12 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
   );
   expect(
-    getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
+    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     "The existing channel registration L2 address does not match the derived L2 address.",
   );
   expect(
-    normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
+    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
     "The existing channel registration key does not match the derived channelTokenVault key.",
   );
   expect(
@@ -654,7 +657,8 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     "The existing channel registration leaf index does not match the derived leaf index.",
   );
   expect(
-    normalizeBytes32Hex(registration.noteReceivePubKey.x) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
+    ethers.toBigInt(normalizeBytes32Hex(registration.noteReceivePubKey.x))
+      === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
     "The existing note-receive public key X does not match the derived note-receive public key.",
   );
   expect(
@@ -806,15 +810,16 @@ function assertExistingRecoverableWallet({
     `Wallet ${walletContext.walletName} does not decrypt to the requested L1 private key.`,
   );
   expect(
-    getAddress(wallet.l1Address) === getAddress(signerAddress),
+    ethers.toBigInt(getAddress(wallet.l1Address)) === ethers.toBigInt(getAddress(signerAddress)),
     `Wallet ${walletContext.walletName} L1 address does not match the requested signer.`,
   );
   expect(
-    getAddress(wallet.l2Address) === getAddress(l2Identity.l2Address),
+    ethers.toBigInt(getAddress(wallet.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     `Wallet ${walletContext.walletName} L2 address does not match the derived channel identity.`,
   );
   expect(
-    normalizeBytes32Hex(wallet.l2StorageKey) === normalizeBytes32Hex(storageKey),
+    ethers.toBigInt(normalizeBytes32Hex(wallet.l2StorageKey))
+      === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
     `Wallet ${walletContext.walletName} storage key does not match the derived registration key.`,
   );
   expect(
@@ -838,23 +843,25 @@ function assertExistingRecoverableWallet({
     `Wallet ${walletContext.walletName} rpcUrl does not match the requested runtime RPC URL.`,
   );
   expect(
-    getAddress(wallet.channelManager) === getAddress(channelContext.workspace.channelManager),
+    ethers.toBigInt(getAddress(wallet.channelManager)) === ethers.toBigInt(getAddress(channelContext.workspace.channelManager)),
     `Wallet ${walletContext.walletName} channel manager does not match the recovered workspace.`,
   );
   expect(
-    getAddress(wallet.bridgeTokenVault) === getAddress(channelContext.workspace.bridgeTokenVault),
+    ethers.toBigInt(getAddress(wallet.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelContext.workspace.bridgeTokenVault)),
     `Wallet ${walletContext.walletName} bridge token vault does not match the recovered workspace.`,
   );
   expect(
-    getAddress(wallet.controller) === getAddress(channelContext.workspace.controller),
+    ethers.toBigInt(getAddress(wallet.controller)) === ethers.toBigInt(getAddress(channelContext.workspace.controller)),
     `Wallet ${walletContext.walletName} controller does not match the recovered workspace.`,
   );
   expect(
-    getAddress(wallet.l2AccountingVault) === getAddress(channelContext.workspace.l2AccountingVault),
+    ethers.toBigInt(getAddress(wallet.l2AccountingVault))
+      === ethers.toBigInt(getAddress(channelContext.workspace.l2AccountingVault)),
     `Wallet ${walletContext.walletName} L2 accounting vault does not match the recovered workspace.`,
   );
   expect(
-    normalizeBytes32Hex(wallet.noteReceivePubKeyX) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
+    ethers.toBigInt(normalizeBytes32Hex(wallet.noteReceivePubKeyX))
+      === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
     `Wallet ${walletContext.walletName} note-receive public key X does not match the derived key.`,
   );
   expect(
@@ -991,8 +998,9 @@ async function handleGetMyAddress({ args, provider }) {
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const matchesWallet = registration.exists
-    && getAddress(registration.l2Address) === getAddress(l2Identity.l2Address)
-    && normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(expectedStorageKey);
+    && ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address))
+    && ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey));
 
   printJson({
     action: "get-my-address",
@@ -1021,11 +1029,12 @@ async function loadWalletChannelFundState({ walletContext, provider }) {
   );
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   expect(
-    getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
+    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     "The local wallet L2 address does not match the registered channel L2 address.",
   );
   expect(
-    normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(expectedStorageKey),
+    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey)),
     "The local wallet L2 storage key does not match the registered channelTokenVault key.",
   );
 
@@ -1133,15 +1142,17 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     status = "joined";
   } else {
     expect(
-      normalizeBytes32Hex(existingRegistration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
+      ethers.toBigInt(normalizeBytes32Hex(existingRegistration.channelTokenVaultKey))
+        === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
       "The existing channel registration key does not match the derived channelTokenVault key.",
     );
     expect(
-      getAddress(existingRegistration.l2Address) === getAddress(l2Identity.l2Address),
+      ethers.toBigInt(getAddress(existingRegistration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
       "The existing channel registration L2 address does not match the derived L2 address.",
     );
     expect(
-      normalizeBytes32Hex(existingRegistration.noteReceivePubKey.x) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
+      ethers.toBigInt(normalizeBytes32Hex(existingRegistration.noteReceivePubKey.x))
+        === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
       "The existing note-receive public key X does not match the derived note-receive public key.",
     );
     expect(
@@ -1264,11 +1275,12 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
   );
   expect(
-    normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
+    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
     "The derived L2 storage key does not match the registered channelTokenVault key.",
   );
   expect(
-    getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
+    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     "The derived L2 address does not match the registered channel L2 address.",
   );
 
@@ -2072,13 +2084,13 @@ function buildImportedTrackedNote(note) {
   });
   if (note.commitment !== undefined) {
     expect(
-      normalizeBytes32Hex(note.commitment) === trackedNote.commitment,
+      ethers.toBigInt(normalizeBytes32Hex(note.commitment)) === ethers.toBigInt(trackedNote.commitment),
       `Imported note commitment mismatch for ${trackedNote.commitment}.`,
     );
   }
   if (note.nullifier !== undefined) {
     expect(
-      normalizeBytes32Hex(note.nullifier) === trackedNote.nullifier,
+      ethers.toBigInt(normalizeBytes32Hex(note.nullifier)) === ethers.toBigInt(trackedNote.nullifier),
       `Imported note nullifier mismatch for ${trackedNote.commitment}.`,
     );
   }
@@ -2488,19 +2500,19 @@ function extractNoteLifecycle(functionName, templatePayload) {
 function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, controllerAddress, lifecycle }) {
   const normalizedControllerAddress = getAddress(controllerAddress);
   const previousStorageAddressIndex = previousSnapshot.storageAddresses.findIndex(
-    (entry) => getAddress(entry) === normalizedControllerAddress,
+    (entry) => ethers.toBigInt(getAddress(entry)) === ethers.toBigInt(normalizedControllerAddress),
   );
   const nextStorageAddressIndex = nextSnapshot.storageAddresses.findIndex(
-    (entry) => getAddress(entry) === normalizedControllerAddress,
+    (entry) => ethers.toBigInt(getAddress(entry)) === ethers.toBigInt(normalizedControllerAddress),
   );
   expect(previousStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
   expect(nextStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
   const previousKeysForAddress = previousSnapshot.storageKeys[previousStorageAddressIndex] ?? [];
   const nextKeysForAddress = nextSnapshot.storageKeys[nextStorageAddressIndex] ?? [];
-  const previousKeys = new Set(previousKeysForAddress.map((key) => normalizeBytes32Hex(key)));
+  const previousKeys = new Set(previousKeysForAddress.map((key) => ethers.toBigInt(normalizeBytes32Hex(key)).toString()));
   const newKeys = nextKeysForAddress
     .map((key) => normalizeBytes32Hex(key))
-    .filter((key) => !previousKeys.has(key));
+    .filter((key) => !previousKeys.has(ethers.toBigInt(key).toString()));
   const inputCount = lifecycle.inputs.length;
   const outputCount = lifecycle.outputs.length;
   const expectedNewKeyCount = inputCount + outputCount;
@@ -2552,7 +2564,7 @@ function buildControllerStorageDeltaError({
       "The local workspace snapshot already had no tracked controller storage slots, and the proof pipeline produced another snapshot with no tracked controller storage slots.",
     );
   }
-  if (normalizeBytes32Hex(previousRoot) === normalizeBytes32Hex(nextRoot)) {
+  if (ethers.toBigInt(normalizeBytes32Hex(previousRoot)) === ethers.toBigInt(normalizeBytes32Hex(nextRoot))) {
     details.push(
       "The controller root also stayed unchanged in the generated snapshot, so the pipeline did not expose any controller state change that the CLI could map to note IDs.",
     );
@@ -2569,7 +2581,7 @@ function buildControllerStorageDeltaError({
 function snapshotRootForAddress(snapshot, storageAddress) {
   const normalizedAddress = getAddress(storageAddress);
   const addressIndex = snapshot.storageAddresses.findIndex(
-    (entry) => getAddress(entry) === normalizedAddress,
+    (entry) => ethers.toBigInt(getAddress(entry)) === ethers.toBigInt(normalizedAddress),
   );
   expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
   return snapshot.stateRoots[addressIndex];
@@ -2690,7 +2702,8 @@ function buildMintEncryptedOutputs({ wallet, values }) {
 function assertRegisteredNoteReceivePubKey(noteReceivePubKey, recipient) {
   expect(noteReceivePubKey, `Missing note-receive public key for ${recipient}.`);
   expect(
-    noteReceivePubKey.x && normalizeBytes32Hex(noteReceivePubKey.x) !== normalizeBytes32Hex("0x0"),
+    noteReceivePubKey.x
+      && ethers.toBigInt(normalizeBytes32Hex(noteReceivePubKey.x)) !== ethers.toBigInt(normalizeBytes32Hex("0x0")),
     `Recipient ${recipient} is missing a registered note-receive public key.`,
   );
   expect(
@@ -3024,7 +3037,8 @@ async function executeWalletTemplateSend({
   });
   const aPubBlockHash = hashTokamakPublicInputs(payload.aPubBlock);
   expect(
-    normalizeBytes32Hex(aPubBlockHash) === normalizeBytes32Hex(context.workspace.aPubBlockHash),
+    ethers.toBigInt(normalizeBytes32Hex(aPubBlockHash))
+      === ethers.toBigInt(normalizeBytes32Hex(context.workspace.aPubBlockHash)),
     "Generated Tokamak proof does not match the channel aPubBlockHash. Check the workspace block_info.json context.",
   );
 
@@ -3033,7 +3047,7 @@ async function executeWalletTemplateSend({
 
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
-    onchainRootVectorHash === normalizeBytes32Hex(hashRootVector(nextSnapshot.stateRoots)),
+    ethers.toBigInt(onchainRootVectorHash) === ethers.toBigInt(normalizeBytes32Hex(hashRootVector(nextSnapshot.stateRoots))),
     `On-chain roots do not match the Tokamak post-state roots for ${functionName}.`,
   );
 
@@ -3822,7 +3836,7 @@ async function reconstructChannelSnapshot({
   for (const group of groupedValues) {
     const orderedGroup = [...group].sort(compareLogsByPosition);
     const rootEvent = orderedGroup.find(
-      (event) => event.address.toLowerCase() === channelInfo.manager.toLowerCase()
+      (event) => ethers.toBigInt(getAddress(event.address)) === ethers.toBigInt(getAddress(channelInfo.manager))
         && event.fragment?.name === "CurrentRootVectorObserved",
     );
     if (!rootEvent) {
@@ -3846,7 +3860,7 @@ async function reconstructChannelSnapshot({
       }
 
       const topic0 = event.topics[0] ? normalizeBytes32Hex(event.topics[0]) : null;
-      if (topic0 === normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC)) {
+      if (topic0 !== null && ethers.toBigInt(topic0) === ethers.toBigInt(normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC))) {
         const { storageKey } = controllerStorageKeyObservedEventInterface.decodeEventLog(
           "StorageKeyObserved",
           event.data,
@@ -3860,7 +3874,7 @@ async function reconstructChannelSnapshot({
         continue;
       }
 
-      if (topic0 === normalizeBytes32Hex(VAULT_STORAGE_WRITE_OBSERVED_TOPIC)) {
+      if (topic0 !== null && ethers.toBigInt(topic0) === ethers.toBigInt(normalizeBytes32Hex(VAULT_STORAGE_WRITE_OBSERVED_TOPIC))) {
         const { l2Address, value } = vaultStorageWriteObservedEventInterface.decodeEventLog(
           "LiquidBalanceStorageWriteObserved",
           event.data,
@@ -3880,17 +3894,21 @@ async function reconstructChannelSnapshot({
 
     currentSnapshot = await stateManager.captureStateSnapshot();
     expect(
-      normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === emittedRootVectorHash,
+      ethers.toBigInt(normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots))) === ethers.toBigInt(emittedRootVectorHash),
       `CurrentRootVectorObserved hash mismatch at tx ${rootEvent.transactionHash}.`,
     );
     expect(
-      JSON.stringify(currentSnapshot.stateRoots) === JSON.stringify(emittedRootVector),
+      currentSnapshot.stateRoots.length === emittedRootVector.length
+        && currentSnapshot.stateRoots.every(
+          (root, index) => ethers.toBigInt(normalizeBytes32Hex(root)) === ethers.toBigInt(emittedRootVector[index]),
+        ),
       `CurrentRootVectorObserved root vector mismatch at tx ${rootEvent.transactionHash}.`,
     );
   }
 
   expect(
-    normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === normalizeBytes32Hex(currentRootVectorHash),
+    ethers.toBigInt(normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)))
+      === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash)),
     "Reconstructed channel snapshot does not match the current on-chain root vector hash.",
   );
 
@@ -4655,9 +4673,12 @@ function canReuseLocalWorkspaceSnapshot({ existingArtifacts, currentRootVectorHa
   if (!localSnapshot) {
     return false;
   }
-  return normalizeBytes32Hex(hashRootVector(localSnapshot.stateRoots)) === normalizeBytes32Hex(currentRootVectorHash)
-    && hashJsonValue(normalizedAddressVector(localSnapshot.storageAddresses))
-      === hashJsonValue(normalizedAddressVector(managedStorageAddresses));
+  return ethers.toBigInt(normalizeBytes32Hex(hashRootVector(localSnapshot.stateRoots)))
+    === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash))
+    && localSnapshot.storageAddresses.length === managedStorageAddresses.length
+    && localSnapshot.storageAddresses.every(
+      (address, index) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(getAddress(managedStorageAddresses[index])),
+    );
 }
 
 function writeEncryptedWalletJson(filePath, value, walletPassword) {

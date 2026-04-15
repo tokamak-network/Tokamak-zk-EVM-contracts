@@ -841,11 +841,14 @@ function joinChannel(participant) {
 }
 
 function recoverWallet(participant) {
-  return runAnvilCliCommand("recover-wallet", [
+  const result = runAnvilCliCommand("recover-wallet", [
     "--channel-name", channelName,
     ...signerCliArgs(participant),
     "--password", participant.password,
   ]);
+  participant.walletName = result.wallet;
+  participant.l2Address = result.l2Address;
+  return result;
 }
 
 function getMyAddress(participant) {
@@ -1132,6 +1135,11 @@ async function main() {
     expect(
       recoverWorkspaceAfterNotesResult.channelName === channelName,
       "recover-workspace must rebuild the deleted workspace after note activity.",
+    );
+    const recoverWalletAfterWorkspaceReset = recoverWallet(participants[2]);
+    expect(
+      recoverWalletAfterWorkspaceReset.wallet === participants[2].walletName,
+      "recover-wallet must restore participant-c after workspace recovery.",
     );
 
     const channelDepositBeforeWithdraw = getMyChannelFund(participants[2]);

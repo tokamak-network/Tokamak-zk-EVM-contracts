@@ -71,6 +71,7 @@ const privateStateGrothArtifactSyncPath = path.resolve(
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
 const summaryPath = path.resolve(outputRoot, "summary.json");
+const failureDiagnosticsPath = path.resolve(outputRoot, "failure-diagnostics.json");
 const dappMetadataRoot = path.resolve(outputRoot, "dapp-metadata");
 const providerUrl = process.env.ANVIL_RPC_URL?.trim() || "http://127.0.0.1:8545";
 const workspaceNetworkName = "anvil";
@@ -206,6 +207,13 @@ function writeJson(filePath, value) {
       typeof current === "bigint" ? current.toString() : current
     ), 2)}\n`,
   );
+}
+
+function readJsonIfExists(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  return readJson(filePath);
 }
 
 function run(command, args, {
@@ -595,6 +603,81 @@ function pruneCliRunOutput() {
     }
     fs.rmSync(path.join(outputRoot, entry.name), { recursive: true, force: true });
   }
+}
+
+function collectOperationDiagnostics(operationsRoot) {
+  if (!fs.existsSync(operationsRoot)) {
+    return [];
+  }
+
+  return fs.readdirSync(operationsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const operationDir = path.join(operationsRoot, entry.name);
+      const stats = fs.statSync(operationDir);
+      const tokamakLogsDir = path.join(operationDir, "tokamak-cli-logs");
+      const tokamakLogs = fs.existsSync(tokamakLogsDir)
+        ? fs.readdirSync(tokamakLogsDir, { withFileTypes: true })
+          .filter((logEntry) => logEntry.isFile())
+          .map((logEntry) => path.join(tokamakLogsDir, logEntry.name))
+          .sort()
+        : [];
+      return {
+        operationDir,
+        modifiedAt: stats.mtime.toISOString(),
+        transactionPath: fs.existsSync(path.join(operationDir, "transaction.json"))
+          ? path.join(operationDir, "transaction.json")
+          : null,
+        previousStateSnapshotPath: fs.existsSync(path.join(operationDir, "previous_state_snapshot.json"))
+          ? path.join(operationDir, "previous_state_snapshot.json")
+          : null,
+        tokamakLogs,
+      };
+    })
+    .sort((left, right) => right.modifiedAt.localeCompare(left.modifiedAt));
+}
+
+function extractReferencedPaths(text) {
+  const matches = String(text ?? "").match(/\/[^\s:]+(?:\.[A-Za-z0-9_-]+)?/g) ?? [];
+  return [...new Set(matches)].filter((candidate) => fs.existsSync(candidate));
+}
+
+function writeFailureDiagnostics(error) {
+  const workspaceDir = sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
+  const channelOperationsRoot = path.join(workspaceDir, "channel", "operations");
+  const walletsRoot = path.join(workspaceDir, "wallets");
+  const walletDiagnostics = fs.existsSync(walletsRoot)
+    ? fs.readdirSync(walletsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => ({
+        walletDir: path.join(walletsRoot, entry.name),
+        operations: collectOperationDiagnostics(path.join(walletsRoot, entry.name, "operations")),
+      }))
+    : [];
+
+  const stack = error instanceof Error ? error.stack ?? error.message : String(error);
+  const referencedPaths = extractReferencedPaths(stack);
+  const referencedFiles = referencedPaths.map((filePath) => ({
+    path: filePath,
+    exists: true,
+    preview: fs.statSync(filePath).isFile()
+      ? fs.readFileSync(filePath, "utf8").slice(0, 4000)
+      : null,
+  }));
+
+  writeJson(failureDiagnosticsPath, {
+    channelName,
+    workspaceDir,
+    outputRoot,
+    errorMessage: error instanceof Error ? error.message : String(error),
+    stack,
+    summaryPresent: fs.existsSync(summaryPath),
+    summary: readJsonIfExists(summaryPath),
+    channelOperations: collectOperationDiagnostics(channelOperationsRoot),
+    wallets: walletDiagnostics,
+    referencedFiles,
+  });
+  console.error(`E2E CLI failure diagnostics written to ${failureDiagnosticsPath}`);
 }
 
 function bootstrapAnvil() {
@@ -1265,6 +1348,7 @@ async function main() {
 }
 
 main().catch((error) => {
+  writeFailureDiagnostics(error);
   console.error(error instanceof Error ? error.stack ?? error.message : String(error));
   process.exit(1);
 });

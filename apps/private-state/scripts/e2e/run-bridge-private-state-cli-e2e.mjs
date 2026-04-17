@@ -69,6 +69,7 @@ const privateStateGrothArtifactSyncPath = path.resolve(
   "sync-groth16-update-tree-artifacts.sh",
 );
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
+const systemMonitorRoot = path.resolve(outputRoot, "system-monitor");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
 const summaryPath = path.resolve(outputRoot, "summary.json");
 const failureDiagnosticsPath = path.resolve(outputRoot, "failure-diagnostics.json");
@@ -216,13 +217,58 @@ function readJsonIfExists(filePath) {
   return readJson(filePath);
 }
 
+const currentCommandPath = path.join(systemMonitorRoot, "current-command.json");
+const lastCommandPath = path.join(systemMonitorRoot, "last-command.json");
+const commandHistoryPath = path.join(systemMonitorRoot, "command-history.ndjson");
+
+function appendCommandHistory(entry) {
+  ensureDir(systemMonitorRoot);
+  fs.appendFileSync(
+    commandHistoryPath,
+    `${JSON.stringify(entry, (_key, current) => (
+      typeof current === "bigint" ? current.toString() : current
+    ))}\n`,
+  );
+}
+
+function updateCurrentCommand(entry) {
+  writeJson(currentCommandPath, entry);
+}
+
+function clearCurrentCommand() {
+  fs.rmSync(currentCommandPath, { force: true });
+}
+
 function run(command, args, {
   cwd = repoRoot,
   env = process.env,
   captureStdout = false,
   quiet = false,
+  label = null,
 } = {}) {
   const printable = [command, ...args].join(" ");
+  const commandLabel = label ?? printable;
+  const startedAtMs = Date.now();
+  const startedAt = new Date(startedAtMs).toISOString();
+  updateCurrentCommand({
+    label: commandLabel,
+    command,
+    args,
+    cwd,
+    captureStdout,
+    quiet,
+    startedAt,
+  });
+  appendCommandHistory({
+    event: "start",
+    label: commandLabel,
+    command,
+    args,
+    cwd,
+    captureStdout,
+    quiet,
+    startedAt,
+  });
   console.log(`E2E CLI: ${printable}`);
   const result = spawnSync(command, args, {
     cwd,
@@ -232,6 +278,29 @@ function run(command, args, {
       ? ["ignore", "pipe", quiet ? "pipe" : "inherit"]
       : (quiet ? ["ignore", "ignore", "pipe"] : "inherit"),
   });
+  const finishedAtMs = Date.now();
+  const finishedAt = new Date(finishedAtMs).toISOString();
+  const completedEntry = {
+    label: commandLabel,
+    command,
+    args,
+    cwd,
+    captureStdout,
+    quiet,
+    startedAt,
+    finishedAt,
+    durationMs: finishedAtMs - startedAtMs,
+    exitCode: result.status,
+    signal: result.signal ?? null,
+    stdoutLength: (result.stdout ?? "").length,
+    stderrLength: (result.stderr ?? "").length,
+  };
+  writeJson(lastCommandPath, completedEntry);
+  appendCommandHistory({
+    event: result.status === 0 ? "success" : "failure",
+    ...completedEntry,
+  });
+  clearCurrentCommand();
 
   if (result.status !== 0) {
     throw new Error(
@@ -398,9 +467,17 @@ async function runTokamakMetadataStep(exampleName, bundleSourceDir) {
     fs.copyFileSync(path.join(bundleSourceDir, fileName), path.join(stepDir, fileName));
   }
 
-  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], { cwd: tokamakRoot, quiet: true });
+  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], {
+    cwd: tokamakRoot,
+    quiet: true,
+    label: `metadata:${exampleName}:synthesize`,
+  });
   ensureTokamakSetupArtifacts();
-  run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot, quiet: true });
+  run(tokamakCliPath, ["--preprocess"], {
+    cwd: tokamakRoot,
+    quiet: true,
+    label: `metadata:${exampleName}:preprocess`,
+  });
   copyTokamakArtifacts(stepDir);
 
   // Some Tokamak CLI paths mutate or prune step-local inputs while materializing outputs.
@@ -451,6 +528,7 @@ async function materializeCurrentDAppDefinition(provider, participants) {
     {
       cwd: repoRoot,
       quiet: true,
+      label: "metadata:generate-launch-inputs",
       env: {
         ...process.env,
         APPS_NETWORK: "anvil",
@@ -490,6 +568,7 @@ async function materializeCurrentDAppDefinition(provider, participants) {
 function runPrivateStateCli(args, options = {}) {
   return runJsonCommand("node", [cliPath, ...args], {
     ...options,
+    label: options.label ?? `private-state-cli:${args[0] ?? "unknown"}`,
     quiet: options.quiet ?? true,
   });
 }
@@ -681,8 +760,8 @@ function writeFailureDiagnostics(error) {
 }
 
 function bootstrapAnvil() {
-  run("make", ["-C", appRoot, "anvil-stop"], { quiet: true });
-  run("make", ["-C", appRoot, "anvil-start"], { quiet: true });
+  run("make", ["-C", appRoot, "anvil-stop"], { quiet: true, label: "anvil:stop" });
+  run("make", ["-C", appRoot, "anvil-start"], { quiet: true, label: "anvil:start" });
   deployPrivateStateForCliE2E();
 }
 
@@ -698,6 +777,7 @@ function deployPrivateStateForCliE2E() {
     {
       cwd: repoRoot,
       quiet: true,
+      label: "private-state:forge-deploy",
       env: {
         ...process.env,
         APPS_DEPLOYER_PRIVATE_KEY: anvilDeployerPrivateKey,
@@ -709,6 +789,7 @@ function deployPrivateStateForCliE2E() {
   run("bash", [privateStateArtifactWriterPath, "31337"], {
     cwd: repoRoot,
     quiet: true,
+    label: "private-state:write-deploy-artifacts",
   });
 }
 
@@ -740,7 +821,7 @@ function deployBridgeStack() {
       "--mode",
       "redeploy-proxy",
     ],
-    { env, quiet: true },
+    { env, quiet: true, label: "bridge:redeploy-proxy" },
   );
 
   return readJson(bridgeDeploymentPath);
@@ -756,7 +837,7 @@ function getCanonicalAssetAddress(bridgeCoreAddress) {
   return run(
     "cast",
     ["call", bridgeCoreAddress, "canonicalAsset()(address)", "--rpc-url", providerUrl],
-    { captureStdout: true },
+    { captureStdout: true, label: "bridge:read-canonical-asset" },
   ).trim();
 }
 
@@ -765,10 +846,13 @@ function prepareCanonicalAsset(bridgeDeployment, participants) {
   const mockAssetCode = run(
     "cast",
     ["code", bridgeDeployment.mockAsset, "--rpc-url", providerUrl],
-    { captureStdout: true },
+    { captureStdout: true, label: "bridge:read-mock-asset-code" },
   ).trim();
 
-  run("cast", ["rpc", "anvil_setCode", canonicalAsset, mockAssetCode, "--rpc-url", providerUrl], { quiet: true });
+  run("cast", ["rpc", "anvil_setCode", canonicalAsset, mockAssetCode, "--rpc-url", providerUrl], {
+    quiet: true,
+    label: "bridge:install-canonical-asset-code",
+  });
 
   for (const participant of participants) {
     run(
@@ -784,7 +868,7 @@ function prepareCanonicalAsset(bridgeDeployment, participants) {
         "--rpc-url",
         providerUrl,
       ],
-      { quiet: true },
+      { quiet: true, label: `bridge:mint-canonical-asset:${participant.alias}` },
     );
   }
 
@@ -859,6 +943,7 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
   run("bash", [privateStateGrothArtifactSyncPath, "31337"], {
     cwd: repoRoot,
     quiet: true,
+    label: "private-state:sync-groth-artifacts",
   });
   return result;
 }
@@ -867,7 +952,7 @@ function readErc20Balance(assetAddress, ownerAddress) {
   const output = run(
     "cast",
     ["call", assetAddress, "balanceOf(address)(uint256)", ownerAddress, "--rpc-url", providerUrl],
-    { captureStdout: true },
+    { captureStdout: true, label: `erc20:balanceOf:${ownerAddress}` },
   ).trim();
   const normalized = output.split(/\s+/)[0];
   return ethers.toBigInt(normalized);
@@ -1063,7 +1148,11 @@ async function main() {
   currentCliE2EOptions = options;
   ensureTokamakDistBackendBinaries(tokamakRoot);
   if (options.runInstall) {
-    run(tokamakCliPath, ["--install"], { cwd: tokamakRoot, quiet: true });
+    run(tokamakCliPath, ["--install"], {
+      cwd: tokamakRoot,
+      quiet: true,
+      label: "tokamak:install",
+    });
   }
   const provider = new JsonRpcProvider(providerUrl);
   const participants = [
@@ -1342,7 +1431,7 @@ async function main() {
       provider.destroy();
     }
     if (!options.keepAnvil) {
-      run("make", ["-C", appRoot, "anvil-stop"], { quiet: true });
+      run("make", ["-C", appRoot, "anvil-stop"], { quiet: true, label: "anvil:stop:cleanup" });
     }
   }
 }

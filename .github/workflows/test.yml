@@ -189,7 +189,11 @@ jobs:
           rm -f submodules/Tokamak-zk-EVM/dist/bin/synthesizer
 
       - name: Run private-state bridge CLI end-to-end test
-        run: npm run test:private-state:cli-e2e
+        run: |
+          bash scripts/ci/run-with-memory-monitor.sh \
+            --log-dir apps/private-state/scripts/e2e/output/private-state-bridge-cli/system-monitor \
+            -- \
+            npm run test:private-state:cli-e2e
 
       - name: Upload private-state CLI failure diagnostics
         if: failure()

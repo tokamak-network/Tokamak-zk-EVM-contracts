@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-04-21T21:29:52.277Z",
+  "generatedAt": "2026-04-21T22:31:51.855Z",
   "tokamakRuntime": {
     "cliPackageRoot": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/node_modules/@tokamak-zk-evm/cli",
-    "cliVersion": "2.0.0",
-    "cacheRoot": "/Users/jehyuk/.tokamak-zk-evm/cli",
-    "runtimeRoot": "/Users/jehyuk/.tokamak-zk-evm/cli/macos/runtime",
+    "cliVersion": "2.0.3",
+    "cacheRoot": "/Users/jehyuk/.tokamak-zk-evm",
+    "runtimeRoot": "/Users/jehyuk/.tokamak-zk-evm/macos/runtime",
     "setupParamsPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/node_modules/@tokamak-zk-evm/subcircuit-library/subcircuits/library/setupParams.json",
-    "installedSigmaVerifyJsonPath": "/Users/jehyuk/.tokamak-zk-evm/cli/macos/runtime/resource/setup/output/sigma_verify.json"
+    "installedSigmaVerifyJsonPath": "/Users/jehyuk/.tokamak-zk-evm/macos/runtime/resource/setup/output/sigma_verify.json"
   },
   "tokamakL2js": {
     "version": "0.1.3",

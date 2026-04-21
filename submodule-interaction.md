@@ -94,45 +94,8 @@ Role:
 
 Primary consumers:
 
-- [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:8)
 - [apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs:31)
 - [apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs:40)
-
-### `apps/private-state/scripts/synthesizer-compat-test/common.ts`
-
-Relevant references:
-
-- direct imports from submodule-internal `node_modules` and the Synthesizer CLI:
-  [apps/private-state/scripts/synthesizer-compat-test/common.ts](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/synthesizer-compat-test/common.ts:15)
-
-Role:
-
-- drives compatibility tests by importing `tokamak-l2js`, `@ethereumjs/util`, and curve helpers from
-  the submodule-owned frontend workspace
-- executes the Synthesizer CLI from the submodule workspace
-- writes only into repository-owned generated test directories, not into the submodule
-
-Operational note:
-
-- the many per-function wrappers in `apps/private-state/scripts/synthesizer-compat-test/*.ts` are
-  thin shims around `common.ts`; the actual submodule coupling lives in `common.ts`
-
-### `bridge/scripts/admin-add-dapp.mjs`
-
-Relevant references:
-
-- submodule roots and manifest location:
-  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:24)
-- example-group manifest resolution inside the submodule:
-  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:394)
-
-Role:
-
-- reads in-submodule example manifests from
-  `packages/frontend/synthesizer/examples/privateState/<group>/cli-launch-manifest.json`
-- runs the installed `@tokamak-zk-evm/cli` runtime against those manifest-selected input files
-- reads the installed Synthesizer and preprocess outputs produced by those CLI runs
-- copies those outputs into repository-owned archive paths before building registration metadata
 
 ## Direct Writers and Mirrors Into the Submodule
 
@@ -205,24 +168,6 @@ Operational effect:
 
 - this is the most invasive repository-owned entrypoint touching the top-level Tokamak submodule
 
-### `bridge/scripts/admin-add-dapp.mjs`
-
-Relevant references:
-
-- install helper:
-  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:346)
-- main call path:
-  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:495)
-
-Mutations:
-
-- reruns the installed `@tokamak-zk-evm/cli --install`
-
-Operational effect:
-
-- DApp registration is not read-only; it refreshes the installed runtime payload before reading the
-  selected manifests and generated outputs
-
 ### `apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs`
 
 Relevant references:
@@ -285,19 +230,7 @@ Relevant reference:
 
 Effect:
 
-- bridge deployment can update the Tokamak checkout and rerun `tokamak-cli --install`
-
-### `bridge/scripts/deploy-and-add-dapp.mjs`
-
-Relevant references:
-
-- documented manual orchestrator:
-  [bridge/scripts/deploy-and-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/deploy-and-add-dapp.mjs:1)
-
-Effect:
-
-- this wrapper is a manual operator entrypoint that eventually reaches `bridge/scripts/admin-add-dapp.mjs`
-- it matters for operational tracing, even though nothing in the repository calls it automatically
+- bridge deployment can rerun the installed `@tokamak-zk-evm/cli` runtime refresh
 
 ## Boundary Notes
 

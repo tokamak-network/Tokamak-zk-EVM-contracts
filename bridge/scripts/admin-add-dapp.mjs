@@ -12,7 +12,6 @@ import {
   copyFile,
   ensureDir,
   isCapacityError,
-  loadExampleManifest,
   readJson,
   slugify,
   writeJson,
@@ -26,8 +25,14 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
-const tokamakSubmoduleRoot = path.join(repoRoot, "submodules", "Tokamak-zk-EVM");
-const synthesizerRoot = path.join(tokamakSubmoduleRoot, "packages", "frontend", "synthesizer");
+const privateStateExampleRoot = path.join(
+  repoRoot,
+  "apps",
+  "private-state",
+  "examples",
+  "synthesizer",
+  "privateState",
+);
 const defaultArtifactsRoot = path.join(repoRoot, "bridge", "deployments", "dapp-registration-artifacts");
 const syncAppGrothArtifactsScriptPath = path.join(
   repoRoot,
@@ -56,7 +61,7 @@ Options:
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
 
 Example groups are resolved relative to:
-  submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/<group>/cli-launch-manifest.json
+  apps/private-state/examples/synthesizer/privateState/<group>/<example-name>/
 `);
 }
 
@@ -357,13 +362,13 @@ function buildTokamakCliArgs(files) {
     "--synthesize",
     "--tokamak-ch-tx",
     "--previous-state",
-    path.join(synthesizerRoot, files.previousState),
+    files.previousState,
     "--transaction",
-    path.join(synthesizerRoot, files.transaction),
+    files.transaction,
     "--block-info",
-    path.join(synthesizerRoot, files.blockInfo),
+    files.blockInfo,
     "--contract-code",
-    path.join(synthesizerRoot, files.contractCode),
+    files.contractCode,
   ];
 }
 
@@ -386,20 +391,45 @@ function collectInstanceDescriptionErrors(instanceDescriptionPath) {
     .filter((line) => /error:/iu.test(line));
 }
 
-async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
-  const groupRoot = path.join(synthesizerRoot, "examples", "privateState", groupName);
-  const manifestPath = path.join(groupRoot, "cli-launch-manifest.json");
-  if (!fs.existsSync(manifestPath)) {
+function loadExampleGroupEntries(groupName) {
+  const groupRoot = path.join(privateStateExampleRoot, groupName);
+  if (!fs.existsSync(groupRoot)) {
     throw new Error(`Unknown DApp example group: ${groupName}`);
   }
 
+  return fs.readdirSync(groupRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const exampleRoot = path.join(groupRoot, entry.name);
+      const files = {
+        previousState: path.join(exampleRoot, "previous_state_snapshot.json"),
+        transaction: path.join(exampleRoot, "transaction.json"),
+        blockInfo: path.join(exampleRoot, "block_info.json"),
+        contractCode: path.join(exampleRoot, "contract_codes.json"),
+      };
+
+      for (const [label, filePath] of Object.entries(files)) {
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`Missing ${label} input for ${groupName}/${entry.name}: ${filePath}`);
+        }
+      }
+
+      return {
+        name: entry.name,
+        files,
+      };
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
   ensureDir(archiveRoot);
-  const entries = loadExampleManifest(manifestPath);
+  const entries = loadExampleGroupEntries(groupName);
   const processed = [];
   const skipped = [];
 
   for (const entry of entries) {
-    const exampleName = entry.files.previousState.split("/").slice(-2, -1)[0];
+    const exampleName = entry.name;
     const exampleOutputRoot = path.join(archiveRoot, slugify(exampleName));
 
     try {
@@ -443,8 +473,8 @@ async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
       buildFunctionDefinition({
         groupName: dappLabel,
         exampleName: `${groupName}/${exampleName}`,
-        transactionJsonPath: path.join(synthesizerRoot, entry.files.transaction),
-        snapshotJsonPath: path.join(synthesizerRoot, entry.files.previousState),
+        transactionJsonPath: entry.files.transaction,
+        snapshotJsonPath: entry.files.previousState,
         preprocessJsonPath: path.join(exampleOutputRoot, "preprocess.json"),
         instanceJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance.json"),
         instanceDescriptionJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance_description.json"),

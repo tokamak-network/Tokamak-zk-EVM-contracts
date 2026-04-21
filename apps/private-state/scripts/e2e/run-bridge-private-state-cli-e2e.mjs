@@ -795,7 +795,6 @@ function deployBridgeStack() {
     ...process.env,
     BRIDGE_ENV_FILE: bridgeEnvPath,
     BRIDGE_OUTPUT_PATH: bridgeDeploymentPath,
-    BRIDGE_SKIP_SUBMODULE_UPDATE: "1",
     BRIDGE_SKIP_TOKAMAK_INSTALL: "1",
     BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH: "1",
     BRIDGE_DEPLOY_MOCK_ASSET: "true",

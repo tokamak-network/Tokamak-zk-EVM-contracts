@@ -57,7 +57,6 @@ function usage() {
 Options:
   --manifest-out <path>              Output manifest path
   --groth-source <trusted|mpc>       Groth16 artifact source to refresh
-  --skip-submodule-update            Deprecated no-op retained for CLI compatibility
   --skip-install                     Skip tokamak-cli --install
   --skip-tokamak-verifier            Skip Tokamak sigma copy and verifier regeneration
   --skip-groth                       Skip Groth16 artifact/verifier regeneration
@@ -93,7 +92,6 @@ function parseArgs(argv) {
   const options = {
     manifestOut: defaultManifestPath,
     grothSource: "trusted",
-    skipSubmoduleUpdate: false,
     skipInstall: false,
     skipTokamakVerifier: false,
     skipGroth: false,
@@ -117,9 +115,6 @@ function parseArgs(argv) {
         break;
       case "--groth-source":
         options.grothSource = normalizeGrothSource(take(current));
-        break;
-      case "--skip-submodule-update":
-        options.skipSubmoduleUpdate = true;
         break;
       case "--skip-install":
         options.skipInstall = true;
@@ -178,10 +173,6 @@ function run(command, args, { cwd = repoRoot, streamOutput = true } = {}) {
       }
     });
   });
-}
-
-async function noopLegacySubmoduleUpdate() {
-  return undefined;
 }
 
 async function runTokamakInstall() {
@@ -245,10 +236,6 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const grothPaths = resolveGrothPaths(options.grothSource);
   ensureDir(artifactRoot);
-
-  if (!options.skipSubmoduleUpdate) {
-    await noopLegacySubmoduleUpdate();
-  }
 
   if (!options.skipInstall) {
     await runTokamakInstall();

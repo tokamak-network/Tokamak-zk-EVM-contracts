@@ -148,10 +148,6 @@ REFLECTION_CMD=(
     --groth-source "$BRIDGE_GROTH_SOURCE"
 )
 
-if [[ "${BRIDGE_SKIP_SUBMODULE_UPDATE:-0}" == "1" ]]; then
-    REFLECTION_CMD+=("--skip-submodule-update")
-fi
-
 if [[ "${BRIDGE_SKIP_TOKAMAK_INSTALL:-0}" == "1" ]]; then
     REFLECTION_CMD+=("--skip-install")
 fi

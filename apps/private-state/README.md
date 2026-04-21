@@ -66,6 +66,10 @@ Successful deployments also refresh the checked-in Synthesizer private-state lau
 - `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/deployment/private-state/`
 - `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/.vscode/launch.json`
 
+Bridge-side DApp registration now consumes repo-owned example inputs under:
+
+- `apps/private-state/examples/synthesizer/privateState/`
+
 ## Local Commands
 
 The DApp Makefile exposes the shortest local workflows:

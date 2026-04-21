@@ -38,7 +38,7 @@ export function resolveTokamakCliCacheRoot() {
   const configured = process.env.TOKAMAK_ZKEVM_CLI_CACHE_DIR?.trim();
   return configured
     ? path.resolve(configured)
-    : path.join(os.homedir(), ".tokamak-zk-evm", "cli");
+    : path.join(os.homedir(), ".tokamak-zk-evm");
 }
 
 export function resolveTokamakCliRuntimeRoot() {

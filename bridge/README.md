@@ -87,7 +87,6 @@ Optional environment variables:
 - `BRIDGE_MOCK_ASSET_SYMBOL`
 - `BRIDGE_OUTPUT_PATH`
 - `BRIDGE_REFLECTION_MANIFEST_PATH`
-- `BRIDGE_SKIP_SUBMODULE_UPDATE=1`
 - `BRIDGE_SKIP_TOKAMAK_INSTALL=1`
 - `BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH=1`
 - `BRIDGE_SKIP_GROTH_REFRESH=1`
@@ -171,7 +170,7 @@ To add a new DApp metadata bundle to an already deployed bridge, use:
 
 - assumes the private-state app is already deployed
 - mirrors the prover/CLI-consumed Groth16 artifacts from `bridge/deployments/groth16/<chain-id>/` into `apps/private-state/deploy/groth16/<chain-id>/`
-- reads the selected example-group manifest from the Tokamak Synthesizer workspace
+- reads the selected example-group inputs from `apps/private-state/examples/synthesizer/privateState/`
 - runs the installed `@tokamak-zk-evm/cli` runtime without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
 - derives function metadata from `instance.json` and `instance_description.json`

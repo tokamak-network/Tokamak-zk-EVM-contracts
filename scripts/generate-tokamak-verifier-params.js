@@ -2,8 +2,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { resolveSubcircuitSetupParamsPath } from "./zk/lib/tokamak-runtime-paths.mjs";
 
-const DEFAULT_INPUT = "submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json";
+const DEFAULT_INPUT = resolveSubcircuitSetupParamsPath();
 const DEFAULT_OUTPUT = "tokamak-zkp/TokamakVerifier.sol";
 
 const OMEGA_SMAX_INVERSES = new Map([

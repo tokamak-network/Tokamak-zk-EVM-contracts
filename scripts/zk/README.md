@@ -1,7 +1,8 @@
 # ZK Reflection Helpers
 
-This directory contains internal helpers that keep the repository aligned with the latest
-`Tokamak-zk-EVM` submodule outputs and the latest published `tokamak-l2js` package.
+This directory contains internal helpers that keep the repository aligned with the installed
+Tokamak zk-EVM CLI runtime, the published Tokamak subcircuit library package, and the latest
+published `tokamak-l2js` package.
 
 ## Internal reflection entrypoint
 
@@ -13,23 +14,18 @@ before bridge deployment, and it can also be reused by other admin automation.
 
 The reflection step performs the following tasks:
 
-1. Updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`.
-2. Runs `./tokamak-cli --install` with no positional argument.
-3. Regenerates Tokamak verifier key artifacts from `sigma_verify.rkyv`.
-4. Refreshes the hardcoded verifier parameters inside `tokamak-zkp/TokamakVerifier.sol` from `setupParams.json`.
-5. Regenerates Groth16 `updateTree` trusted setup and Solidity verifier artifacts.
-6. Resolves the latest published `tokamak-l2js` package and records its `MT_DEPTH`.
-7. Writes a reflection manifest that deployment tooling can consume when it needs updated bridge-facing constants.
+1. Runs the installed `@tokamak-zk-evm/cli` runtime refresh with `tokamak-cli --install`.
+2. Copies the installed `sigma_verify.json` into `tokamak-zkp/TokamakVerifierKey/`.
+3. Refreshes the hardcoded verifier parameters inside `tokamak-zkp/TokamakVerifier.sol` from the
+   published `@tokamak-zk-evm/subcircuit-library` `setupParams.json`.
+4. Regenerates Groth16 `updateTree` trusted setup and Solidity verifier artifacts.
+5. Resolves the latest published `tokamak-l2js` package and records its `MT_DEPTH`.
+6. Writes a reflection manifest that deployment tooling can consume when it needs updated
+   bridge-facing constants.
 
 The current reflection manifest is written to:
 
 - `scripts/zk/artifacts/reflection.latest.json`
-
-## Helper tool
-
-- [rkyv-to-json](./rkyv-to-json/Cargo.toml)
-
-This small Rust utility converts `sigma_verify.rkyv` into the JSON shape expected by [generate-tokamak-verifier-key.js](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/scripts/generate-tokamak-verifier-key.js).
 
 ## DApp registration
 

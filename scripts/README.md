@@ -11,7 +11,7 @@ This directory now contains only repository-level helpers that are still part of
   Refreshes repository-owned shared constants from the latest reflected Tokamak setup.
 
 - `scripts/generate-tokamak-verifier-key.js`
-  Regenerates the Tokamak verifier key artifact from the reflected `sigma_verify.rkyv` data.
+  Regenerates the Tokamak verifier key artifact from the reflected `sigma_verify.json` data.
 
 - `scripts/generate-tokamak-verifier-params.js`
   Refreshes the hardcoded verifier parameters inside `tokamak-zkp/TokamakVerifier.sol`.

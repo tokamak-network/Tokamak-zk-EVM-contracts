@@ -1,11 +1,12 @@
 {
-  "generatedAt": "2026-04-16T21:12:52.070Z",
-  "tokamakSubmodule": {
-    "path": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM",
-    "branch": "dev",
-    "head": "6f318c18b42ee8b85a5eeaebba813e13aa64fbf1",
-    "setupParamsPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json",
-    "sigmaVerifyRkyvPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv"
+  "generatedAt": "2026-04-21T21:29:52.277Z",
+  "tokamakRuntime": {
+    "cliPackageRoot": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/node_modules/@tokamak-zk-evm/cli",
+    "cliVersion": "2.0.0",
+    "cacheRoot": "/Users/jehyuk/.tokamak-zk-evm/cli",
+    "runtimeRoot": "/Users/jehyuk/.tokamak-zk-evm/cli/macos/runtime",
+    "setupParamsPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/node_modules/@tokamak-zk-evm/subcircuit-library/subcircuits/library/setupParams.json",
+    "installedSigmaVerifyJsonPath": "/Users/jehyuk/.tokamak-zk-evm/cli/macos/runtime/resource/setup/output/sigma_verify.json"
   },
   "tokamakL2js": {
     "version": "0.1.3",

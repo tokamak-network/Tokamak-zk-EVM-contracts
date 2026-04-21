@@ -33,13 +33,30 @@ The repository currently interacts with `Tokamak-zk-EVM` in four ways:
 
 1. Read-only consumption of submodule code, manifests, and generated outputs.
 2. Mirroring parent-repository deployment or launch artifacts into stable in-submodule paths.
-3. Delegating submodule refresh to `tokamak-cli --install`.
+3. Delegating install or runtime refresh through submodule-owned `tokamak-cli` executions.
 4. Updating or clearing the submodule worktree itself with `git` or filesystem deletion.
 
 The repository no longer directly refreshes `submodules/Tokamak-zk-EVM/dist/**` by copying setup or
 backend artifacts from parent-repository scripts. That refresh is now delegated to
 `tokamak-cli --install`, and `--skip-install` paths only validate that the expected installed files
 already exist.
+
+The repository-level ZK reflection helpers no longer interact with the top-level submodule at all.
+They now consume the installed `@tokamak-zk-evm/cli` runtime cache and the published
+`@tokamak-zk-evm/subcircuit-library` package instead.
+
+## No Longer In Scope
+
+The following repository-owned files used to read Tokamak artifacts from the submodule, but no
+longer cross the parent-repository/submodule boundary:
+
+- [scripts/generate-tokamak-shared-constants.js](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/scripts/generate-tokamak-shared-constants.js:1)
+  now reads `setupParams.json` and `frontendCfg.json` from `@tokamak-zk-evm/subcircuit-library`.
+- [scripts/generate-tokamak-verifier-params.js](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/scripts/generate-tokamak-verifier-params.js:1)
+  now reads `setupParams.json` from `@tokamak-zk-evm/subcircuit-library`.
+- [scripts/zk/reflect-submodule-updates.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/scripts/zk/reflect-submodule-updates.mjs:1)
+  now refreshes the installed `@tokamak-zk-evm/cli` runtime, consumes `sigma_verify.json` directly,
+  and no longer reads or mutates the top-level Tokamak submodule.
 
 ## Read-Only Consumers
 
@@ -113,7 +130,8 @@ Role:
 
 - reads in-submodule example manifests from
   `packages/frontend/synthesizer/examples/privateState/<group>/cli-launch-manifest.json`
-- reads the installed Synthesizer and preprocess outputs produced by Tokamak CLI runs
+- runs the installed `@tokamak-zk-evm/cli` runtime against those manifest-selected input files
+- reads the installed Synthesizer and preprocess outputs produced by those CLI runs
 - copies those outputs into repository-owned archive paths before building registration metadata
 
 ## Direct Writers and Mirrors Into the Submodule
@@ -161,30 +179,10 @@ Why it exists:
 - it mirrors parent-repository deployment outputs into a stable location that submodule-owned
   private-state helpers can consume without climbing out of the submodule
 
-## Delegated Install and Worktree Mutators
+## Tooling and Worktree Mutators
 
 These files may not write individual files themselves, but they cause the submodule to change by
-running `git` or `tokamak-cli`.
-
-### `scripts/zk/reflect-submodule-updates.mjs`
-
-Relevant references:
-
-- submodule root and CLI path:
-  [scripts/zk/reflect-submodule-updates.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/scripts/zk/reflect-submodule-updates.mjs:17)
-- install/update flags:
-  [scripts/zk/reflect-submodule-updates.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/scripts/zk/reflect-submodule-updates.mjs:65)
-
-Mutations:
-
-- `git fetch origin dev`
-- `git checkout -B dev origin/dev`
-- `git pull --ff-only origin dev`
-- `tokamak-cli --install`
-
-Primary caller:
-
-- [bridge/scripts/deploy-bridge.sh](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/deploy-bridge.sh:145)
+running `git`, clearing the worktree, or invoking submodule-owned tooling.
 
 ### `apps/private-state/cli/private-state-bridge-cli.mjs`
 
@@ -211,22 +209,19 @@ Operational effect:
 
 Relevant references:
 
-- submodule update helper:
-  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:346)
 - install helper:
-  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:352)
+  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:346)
 - main call path:
-  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:499)
+  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:495)
 
 Mutations:
 
-- fast-forwards the submodule to `origin/dev`
-- reruns `tokamak-cli --install`
+- reruns the installed `@tokamak-zk-evm/cli --install`
 
 Operational effect:
 
-- DApp registration is not read-only; it can rewrite the checked-out Tokamak commit and refresh the
-  installed runtime payload before reading manifests and outputs
+- DApp registration is not read-only; it refreshes the installed runtime payload before reading the
+  selected manifests and generated outputs
 
 ### `apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs`
 

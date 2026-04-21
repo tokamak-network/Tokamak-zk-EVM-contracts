@@ -17,13 +17,17 @@ import {
   slugify,
   writeJson,
 } from "../../scripts/zk/lib/tokamak-artifacts.mjs";
+import {
+  buildTokamakCliInvocation,
+  resolveTokamakCliPreprocessOutputDir,
+  resolveTokamakCliSynthOutputDir,
+} from "../../scripts/zk/lib/tokamak-runtime-paths.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
 const tokamakSubmoduleRoot = path.join(repoRoot, "submodules", "Tokamak-zk-EVM");
 const synthesizerRoot = path.join(tokamakSubmoduleRoot, "packages", "frontend", "synthesizer");
-const tokamakCliPath = path.join(tokamakSubmoduleRoot, "tokamak-cli");
 const defaultArtifactsRoot = path.join(repoRoot, "bridge", "deployments", "dapp-registration-artifacts");
 const syncAppGrothArtifactsScriptPath = path.join(
   repoRoot,
@@ -343,14 +347,9 @@ function run(command, args, { cwd = repoRoot, streamOutput = true, env = process
   });
 }
 
-async function updateTokamakSubmodule() {
-  await run("git", ["fetch", "origin", "dev"], { cwd: tokamakSubmoduleRoot });
-  await run("git", ["checkout", "-B", "dev", "origin/dev"], { cwd: tokamakSubmoduleRoot });
-  await run("git", ["pull", "--ff-only", "origin", "dev"], { cwd: tokamakSubmoduleRoot });
-}
-
 async function runTokamakInstall() {
-  await run(tokamakCliPath, ["--install"], { cwd: tokamakSubmoduleRoot });
+  const invocation = buildTokamakCliInvocation(["--install"]);
+  await run(invocation.command, invocation.args, { cwd: repoRoot });
 }
 
 function buildTokamakCliArgs(files) {
@@ -368,16 +367,12 @@ function buildTokamakCliArgs(files) {
   ];
 }
 
-function distDir() {
-  return path.join(tokamakSubmoduleRoot, "dist");
-}
-
 function synthOutputDir() {
-  return path.join(distDir(), "resource", "synthesizer", "output");
+  return resolveTokamakCliSynthOutputDir();
 }
 
 function preprocessOutputPath() {
-  return path.join(distDir(), "resource", "preprocess", "output", "preprocess.json");
+  return path.join(resolveTokamakCliPreprocessOutputDir(), "preprocess.json");
 }
 
 function collectInstanceDescriptionErrors(instanceDescriptionPath) {
@@ -408,7 +403,8 @@ async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
     const exampleOutputRoot = path.join(archiveRoot, slugify(exampleName));
 
     try {
-      await run(tokamakCliPath, buildTokamakCliArgs(entry.files), { cwd: tokamakSubmoduleRoot });
+      const invocation = buildTokamakCliInvocation(buildTokamakCliArgs(entry.files));
+      await run(invocation.command, invocation.args, { cwd: repoRoot });
     } catch (error) {
       const output = error.output ?? String(error);
       if (isCapacityError(output)) {
@@ -439,7 +435,8 @@ async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
 
     copyDir(synthOutputDir(), path.join(exampleOutputRoot, "synthesizer-output"));
 
-    await run(tokamakCliPath, ["--preprocess"], { cwd: tokamakSubmoduleRoot });
+    const preprocessInvocation = buildTokamakCliInvocation(["--preprocess"]);
+    await run(preprocessInvocation.command, preprocessInvocation.args, { cwd: repoRoot });
     copyFile(preprocessOutputPath(), path.join(exampleOutputRoot, "preprocess.json"));
 
     processed.push(
@@ -496,7 +493,6 @@ async function main() {
   }
   const appNetwork = options.appNetwork ?? resolveDefaultAppNetwork(chainId);
   const appChainId = resolveAppChainId(appNetwork);
-  await updateTokamakSubmodule();
   await runTokamakInstall();
   const appDeploymentPath =
     options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "deployment");

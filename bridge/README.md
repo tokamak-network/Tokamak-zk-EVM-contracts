@@ -171,8 +171,8 @@ To add a new DApp metadata bundle to an already deployed bridge, use:
 
 - assumes the private-state app is already deployed
 - mirrors the prover/CLI-consumed Groth16 artifacts from `bridge/deployments/groth16/<chain-id>/` into `apps/private-state/deploy/groth16/<chain-id>/`
-- optionally updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`
-- runs `tokamak-cli --install` without passing RPC or Alchemy arguments
+- reads the selected example-group manifest from the Tokamak Synthesizer workspace
+- runs the installed `@tokamak-zk-evm/cli` runtime without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
 - derives function metadata from `instance.json` and `instance_description.json`
 - calls `DAppManager.registerDApp(...)` on the deployed bridge

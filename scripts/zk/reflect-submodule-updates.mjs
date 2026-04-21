@@ -10,28 +10,23 @@ import {
   readJson,
   writeJson,
 } from "./lib/tokamak-artifacts.mjs";
+import {
+  buildTokamakCliInvocation,
+  resolveSubcircuitSetupParamsPath,
+  resolveTokamakCliCacheRoot,
+  resolveTokamakCliPackageRoot,
+  resolveTokamakCliSetupArtifactPath,
+  resolveTokamakCliRuntimeRoot,
+} from "./lib/tokamak-runtime-paths.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
-const tokamakSubmoduleRoot = path.join(repoRoot, "submodules", "Tokamak-zk-EVM");
-const tokamakCliPath = path.join(tokamakSubmoduleRoot, "tokamak-cli");
-const sigmaVerifyRkyvPath = path.join(
-  tokamakSubmoduleRoot,
-  "dist",
-  "resource",
-  "setup",
-  "output",
-  "sigma_verify.rkyv"
-);
-const setupParamsPath = path.join(
-  tokamakSubmoduleRoot,
-  "dist",
-  "resource",
-  "qap-compiler",
-  "library",
-  "setupParams.json"
-);
+const tokamakCliPackageRoot = resolveTokamakCliPackageRoot();
+const tokamakCliCacheRoot = resolveTokamakCliCacheRoot();
+const tokamakRuntimeRoot = resolveTokamakCliRuntimeRoot();
+const setupParamsPath = resolveSubcircuitSetupParamsPath();
+const installedSigmaVerifyJsonPath = resolveTokamakCliSetupArtifactPath("sigma_verify.json");
 const sigmaVerifyJsonPath = path.join(
   repoRoot,
   "tokamak-zkp",
@@ -62,9 +57,9 @@ function usage() {
 Options:
   --manifest-out <path>              Output manifest path
   --groth-source <trusted|mpc>       Groth16 artifact source to refresh
-  --skip-submodule-update            Skip updating submodules/Tokamak-zk-EVM to origin/dev
+  --skip-submodule-update            Deprecated no-op retained for CLI compatibility
   --skip-install                     Skip tokamak-cli --install
-  --skip-tokamak-verifier            Skip Tokamak sigma conversion and verifier regeneration
+  --skip-tokamak-verifier            Skip Tokamak sigma copy and verifier regeneration
   --skip-groth                       Skip Groth16 artifact/verifier regeneration
 `);
 }
@@ -185,32 +180,20 @@ function run(command, args, { cwd = repoRoot, streamOutput = true } = {}) {
   });
 }
 
-async function updateTokamakSubmodule() {
-  await run("git", ["fetch", "origin", "dev"], { cwd: tokamakSubmoduleRoot });
-  await run("git", ["checkout", "-B", "dev", "origin/dev"], { cwd: tokamakSubmoduleRoot });
-  await run("git", ["pull", "--ff-only", "origin", "dev"], { cwd: tokamakSubmoduleRoot });
+async function noopLegacySubmoduleUpdate() {
+  return undefined;
 }
 
 async function runTokamakInstall() {
-  await run(tokamakCliPath, ["--install"], { cwd: tokamakSubmoduleRoot });
+  const invocation = buildTokamakCliInvocation(["--install"]);
+  await run(invocation.command, invocation.args, { cwd: repoRoot });
 }
 
 async function regenerateTokamakVerifierKey() {
-  assertExists(sigmaVerifyRkyvPath, "Tokamak sigma_verify.rkyv");
+  assertExists(installedSigmaVerifyJsonPath, "Tokamak sigma_verify.json");
   assertExists(setupParamsPath, "Tokamak setupParams.json");
-
-  await run(
-    "cargo",
-    [
-      "run",
-      "--manifest-path",
-      path.join("scripts", "zk", "rkyv-to-json", "Cargo.toml"),
-      "--",
-      sigmaVerifyRkyvPath,
-      sigmaVerifyJsonPath,
-    ],
-    { cwd: repoRoot }
-  );
+  ensureDir(path.dirname(sigmaVerifyJsonPath));
+  fs.copyFileSync(installedSigmaVerifyJsonPath, sigmaVerifyJsonPath);
 
   await run("node", [path.join("scripts", "generate-tokamak-verifier-key.js")], { cwd: repoRoot });
   await run("node", [path.join("scripts", "generate-tokamak-verifier-params.js")], { cwd: repoRoot });
@@ -248,16 +231,14 @@ async function resolveTokamakL2JsMetadata() {
   return JSON.parse(raw);
 }
 
-async function resolveSubmoduleRevision() {
-  const branch = (await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-    cwd: tokamakSubmoduleRoot,
-    streamOutput: false,
-  })).trim();
-  const head = (await run("git", ["rev-parse", "HEAD"], {
-    cwd: tokamakSubmoduleRoot,
-    streamOutput: false,
-  })).trim();
-  return { branch, head };
+async function resolveTokamakRuntimeMetadata() {
+  const packageJson = readJson(path.join(tokamakCliPackageRoot, "package.json"));
+  return {
+    packageRoot: tokamakCliPackageRoot,
+    version: packageJson.version,
+    cacheRoot: tokamakCliCacheRoot,
+    runtimeRoot: tokamakRuntimeRoot,
+  };
 }
 
 async function main() {
@@ -266,7 +247,7 @@ async function main() {
   ensureDir(artifactRoot);
 
   if (!options.skipSubmoduleUpdate) {
-    await updateTokamakSubmodule();
+    await noopLegacySubmoduleUpdate();
   }
 
   if (!options.skipInstall) {
@@ -284,15 +265,16 @@ async function main() {
   }
 
   const tokamakL2Js = await resolveTokamakL2JsMetadata();
-  const submodule = await resolveSubmoduleRevision();
+  const runtime = await resolveTokamakRuntimeMetadata();
   const manifest = {
     generatedAt: new Date().toISOString(),
-    tokamakSubmodule: {
-      path: tokamakSubmoduleRoot,
-      branch: submodule.branch,
-      head: submodule.head,
+    tokamakRuntime: {
+      cliPackageRoot: runtime.packageRoot,
+      cliVersion: runtime.version,
+      cacheRoot: runtime.cacheRoot,
+      runtimeRoot: runtime.runtimeRoot,
       setupParamsPath,
-      sigmaVerifyRkyvPath,
+      installedSigmaVerifyJsonPath,
     },
     tokamakL2js: tokamakL2Js,
     tokamakVerifier: {

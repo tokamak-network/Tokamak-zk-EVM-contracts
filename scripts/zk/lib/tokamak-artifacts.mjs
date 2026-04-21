@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { AbiCoder, ethers, getAddress, keccak256 } from "ethers";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
@@ -41,62 +40,6 @@ export function copyDir(sourceDir, targetDir) {
 export function copyFile(sourcePath, targetPath) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.copyFileSync(sourcePath, targetPath);
-}
-
-export function ensureTokamakDistBackendBinaries(tokamakRoot) {
-  const normalizedRoot = path.resolve(tokamakRoot);
-  const releaseDir = path.join(normalizedRoot, "packages", "backend", "target", "release");
-  const distBinDir = path.join(normalizedRoot, "dist", "bin");
-  const backendLibSourceDir = path.join(normalizedRoot, "packages", "backend", "external-lib", process.platform === "darwin" ? "mac" : "linux");
-  const backendLibTargetDir = path.join(normalizedRoot, "dist", "backend-lib", "icicle");
-  const binaries = ["trusted-setup", "preprocess", "prove", "verify"];
-
-  fs.mkdirSync(distBinDir, { recursive: true });
-  if (fs.existsSync(backendLibSourceDir)) {
-    fs.rmSync(backendLibTargetDir, { recursive: true, force: true });
-    fs.mkdirSync(path.dirname(backendLibTargetDir), { recursive: true });
-    fs.cpSync(backendLibSourceDir, backendLibTargetDir, { recursive: true });
-  }
-
-  const copied = [];
-  for (const binary of binaries) {
-    const sourcePath = path.join(releaseDir, binary);
-    const targetPath = path.join(distBinDir, binary);
-    if (!fs.existsSync(sourcePath)) {
-      throw new Error(`Missing Tokamak backend binary: ${sourcePath}`);
-    }
-    if (!fs.existsSync(targetPath)) {
-      fs.copyFileSync(sourcePath, targetPath);
-      fs.chmodSync(targetPath, 0o755);
-      copied.push(binary);
-      continue;
-    }
-
-    const sourceStat = fs.statSync(sourcePath);
-    const targetStat = fs.statSync(targetPath);
-    if (sourceStat.size !== targetStat.size || sourceStat.mtimeMs > targetStat.mtimeMs) {
-      fs.copyFileSync(sourcePath, targetPath);
-      fs.chmodSync(targetPath, 0o755);
-      copied.push(binary);
-    }
-  }
-
-  if (process.platform === "darwin" && fs.existsSync(path.join(backendLibTargetDir, "lib"))) {
-    const rpath = "@executable_path/../backend-lib/icicle/lib";
-    for (const binary of binaries) {
-      const targetPath = path.join(distBinDir, binary);
-      const probe = spawnSync("otool", ["-l", targetPath], { encoding: "utf8" });
-      if (probe.status === 0 && probe.stdout.includes(rpath)) {
-        continue;
-      }
-      const installResult = spawnSync("install_name_tool", ["-add_rpath", rpath, targetPath], { encoding: "utf8" });
-      if (installResult.status !== 0 && !String(installResult.stderr ?? "").includes("would duplicate path")) {
-        throw new Error(`Failed to add rpath to ${targetPath}: ${installResult.stderr ?? installResult.stdout}`);
-      }
-    }
-  }
-
-  return copied;
 }
 
 export function slugify(value) {

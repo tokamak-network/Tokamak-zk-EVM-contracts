@@ -39,7 +39,6 @@ import {
 import {
   buildDAppDefinitions,
   buildFunctionDefinition,
-  ensureTokamakDistBackendBinaries,
   hashTokamakPublicInputs,
   writeJson,
 } from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
@@ -58,7 +57,6 @@ const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
 const tokamakRoot = path.resolve(repoRoot, "submodules", "Tokamak-zk-EVM");
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
-const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-genesis");
 const deploymentManifestPath = path.resolve(appRoot, "deploy", "deployment.31337.latest.json");
@@ -479,24 +477,18 @@ function copyTokamakArtifacts(stepDir) {
   }
 }
 
-function ensureTokamakSetupArtifacts() {
+function assertTokamakSetupArtifactsInstalled() {
   const missingInDist = requiredTokamakSetupArtifacts
     .filter((fileName) => !fs.existsSync(path.join(tokamakSetupDistDir, fileName)));
   if (missingInDist.length === 0) {
     return;
   }
-
-  const missingInSource = requiredTokamakSetupArtifacts
-    .filter((fileName) => !fs.existsSync(path.join(tokamakSetupSourceDir, fileName)));
-  expect(
-    missingInSource.length === 0,
-    `Missing Tokamak setup artifacts in trusted setup output: ${missingInSource.join(", ")}`,
+  throw new Error(
+    [
+      `Missing Tokamak setup artifacts in ${tokamakSetupDistDir}: ${missingInDist.join(", ")}.`,
+      "Run ./tokamak-cli --install in submodules/Tokamak-zk-EVM or rerun this script without --skip-install.",
+    ].join(" "),
   );
-
-  ensureDir(tokamakSetupDistDir);
-  for (const fileName of requiredTokamakSetupArtifacts) {
-    fs.copyFileSync(path.join(tokamakSetupSourceDir, fileName), path.join(tokamakSetupDistDir, fileName));
-  }
 }
 
 function loadTokamakPayloadFromStep(stepDir) {
@@ -627,9 +619,9 @@ async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
   await writeStepInputs(stepDir, currentSnapshot, transactionSnapshot, blockInfo, contractCodes);
 
   run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], { cwd: tokamakRoot });
-  ensureTokamakSetupArtifacts();
+  assertTokamakSetupArtifactsInstalled();
   run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot });
-  ensureTokamakSetupArtifacts();
+  assertTokamakSetupArtifactsInstalled();
   run(tokamakCliPath, ["--prove"], { cwd: tokamakRoot });
 
   const bundlePath = path.join(stepDir, `${step.name}.zip`);
@@ -880,8 +872,6 @@ async function main() {
   console.log("E2E: bootstrapping local anvil and app deployment.");
 
   await bootstrapAnvil();
-
-  ensureTokamakDistBackendBinaries(tokamakRoot);
 
   if (options.runInstall) {
     run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });

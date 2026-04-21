@@ -30,7 +30,6 @@ import {
 import {
   buildDAppDefinitions,
   buildFunctionDefinition,
-  ensureTokamakDistBackendBinaries,
 } from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
 import {
   deriveChannelIdFromName,
@@ -107,7 +106,6 @@ const generateSynthesizerLaunchInputsPath = path.resolve(
   "deploy",
   "generate-synthesizer-launch-inputs.ts",
 );
-const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
 const tokamakStepArtifactDirectories = [
   path.join("synthesizer", "output"),
@@ -417,26 +415,19 @@ function deriveChannelTokenVaultLeafIndex(storageKey) {
   return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
 }
 
-function ensureTokamakSetupArtifacts() {
+function assertTokamakSetupArtifactsInstalled() {
   const missingInDist = requiredTokamakSetupArtifacts.filter(
     (fileName) => !fs.existsSync(path.join(tokamakSetupDistDir, fileName)),
   );
   if (missingInDist.length === 0) {
     return;
   }
-
-  const missingInSource = requiredTokamakSetupArtifacts.filter(
-    (fileName) => !fs.existsSync(path.join(tokamakSetupSourceDir, fileName)),
+  throw new Error(
+    [
+      `Missing Tokamak setup artifacts in ${tokamakSetupDistDir}: ${missingInDist.join(", ")}.`,
+      "Run ./tokamak-cli --install in submodules/Tokamak-zk-EVM or rerun this script without --skip-install.",
+    ].join(" "),
   );
-  expect(
-    missingInSource.length === 0,
-    `Missing Tokamak setup artifacts in trusted setup output: ${missingInSource.join(", ")}`,
-  );
-
-  ensureDir(tokamakSetupDistDir);
-  for (const fileName of requiredTokamakSetupArtifacts) {
-    fs.copyFileSync(path.join(tokamakSetupSourceDir, fileName), path.join(tokamakSetupDistDir, fileName));
-  }
 }
 
 function copyTokamakArtifacts(stepDir) {
@@ -472,7 +463,7 @@ async function runTokamakMetadataStep(exampleName, bundleSourceDir) {
     quiet: true,
     label: `metadata:${exampleName}:synthesize`,
   });
-  ensureTokamakSetupArtifacts();
+  assertTokamakSetupArtifactsInstalled();
   run(tokamakCliPath, ["--preprocess"], {
     cwd: tokamakRoot,
     quiet: true,
@@ -1146,7 +1137,6 @@ function assertWalletNoteSnapshot(noteSnapshot, { unusedCount, spentCount, unuse
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   currentCliE2EOptions = options;
-  ensureTokamakDistBackendBinaries(tokamakRoot);
   if (options.runInstall) {
     run(tokamakCliPath, ["--install"], {
       cwd: tokamakRoot,

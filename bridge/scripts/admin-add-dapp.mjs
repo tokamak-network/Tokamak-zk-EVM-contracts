@@ -10,7 +10,6 @@ import {
   buildFunctionDefinition,
   copyDir,
   copyFile,
-  ensureTokamakDistBackendBinaries,
   ensureDir,
   isCapacityError,
   loadExampleManifest,
@@ -498,7 +497,6 @@ async function main() {
   const appNetwork = options.appNetwork ?? resolveDefaultAppNetwork(chainId);
   const appChainId = resolveAppChainId(appNetwork);
   await updateTokamakSubmodule();
-  ensureTokamakDistBackendBinaries(tokamakSubmoduleRoot);
   await runTokamakInstall();
   const appDeploymentPath =
     options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "deployment");

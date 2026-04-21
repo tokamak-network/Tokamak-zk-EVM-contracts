@@ -14,11 +14,11 @@ The focus is intentionally narrow:
 
 ## Summary
 
-The repository currently mutates the `Tokamak-zk-EVM` submodule in three distinct ways:
+The repository currently mutates the `Tokamak-zk-EVM` submodule in two distinct ways:
 
 1. It mirrors repository-owned deployment metadata into stable paths under the submodule.
-2. It refreshes submodule-local build artifacts under `dist/` by copying binaries, libraries, or setup files.
-3. It mutates the submodule worktree itself by running `git` operations or `tokamak-cli --install`.
+2. It mutates the submodule worktree itself or refreshes submodule-installed outputs by running
+   `git` operations or `tokamak-cli --install`.
 
 ## Direct File Writers Inside `submodules/Tokamak-zk-EVM`
 
@@ -90,95 +90,41 @@ Primary caller:
 - Direct deployment flow:
   [apps/private-state/scripts/deploy/deploy-private-state.sh](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/deploy/deploy-private-state.sh:108)
 
-### `scripts/zk/lib/tokamak-artifacts.mjs`
-
-Relevant references:
-
-- Dist write targets:
-  [scripts/zk/lib/tokamak-artifacts.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/scripts/zk/lib/tokamak-artifacts.mjs:46)
-- Library directory refresh:
-  [scripts/zk/lib/tokamak-artifacts.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/scripts/zk/lib/tokamak-artifacts.mjs:56)
-- Binary copy logic:
-  [scripts/zk/lib/tokamak-artifacts.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/scripts/zk/lib/tokamak-artifacts.mjs:68)
-
-This helper copies backend build outputs from submodule source-tree locations into the submodule's
-runtime `dist/` tree.
-
-Paths it mutates:
-
-- `submodules/Tokamak-zk-EVM/dist/backend-lib/icicle/**`
-- `submodules/Tokamak-zk-EVM/dist/bin/trusted-setup`
-- `submodules/Tokamak-zk-EVM/dist/bin/preprocess`
-- `submodules/Tokamak-zk-EVM/dist/bin/prove`
-- `submodules/Tokamak-zk-EVM/dist/bin/verify`
-
-Operational effect:
-
-- It mirrors backend release binaries into the exact locations expected by downstream repository
-  tooling.
-- On macOS it also patches the copied binaries with an additional rpath after the copy step, which
-  is another mutation inside the submodule `dist/` tree.
-
-Known callers:
-
-- Bridge DApp registration flow:
-  [bridge/scripts/admin-add-dapp.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/admin-add-dapp.mjs:501)
-- Private-state CLI E2E flow:
-  [apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs:1149)
-- Private-state bridge E2E flow:
-  [apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs:884)
-
 ### `apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs`
 
 Relevant references:
 
-- Setup source and destination directories:
-  [apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs:110)
-- Copy loop:
-  [apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs:436)
+- Installed setup validation:
+  [apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs:418)
+- Optional Tokamak install:
+  [apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs:1149)
 
-This E2E runner copies trusted-setup outputs from a source directory inside the submodule into the
-submodule runtime resource directory.
-
-Paths it mutates:
-
-- `submodules/Tokamak-zk-EVM/dist/resource/setup/output/combined_sigma.rkyv`
-- `submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_preprocess.rkyv`
-- `submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv`
+This E2E runner no longer copies setup artifacts into `dist/` directly. It now treats installed
+Tokamak setup files as a prerequisite and relies on `tokamak-cli --install` for any refresh.
 
 Operational effect:
 
-- It refreshes the installed setup artifacts that later Tokamak CLI stages expect under `dist/`.
-- The write is local to the submodule even though the copy is orchestrated from the parent
-  repository.
-- In the same flow it also refreshes submodule-installed outputs more broadly by running
-  `tokamak-cli --install`:
-  [apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs:1151)
+- When install is enabled, it refreshes submodule-installed outputs by running `tokamak-cli
+  --install`.
+- When install is skipped, it only validates that the expected setup artifacts already exist under
+  `dist/resource/setup/output`.
 
 ### `apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs`
 
-Relevant references:
+- Installed setup validation:
+  [apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs:480)
+- Optional Tokamak install:
+  [apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs:884)
 
-- Setup source and destination directories:
-  [apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs:61)
-- Copy loop:
-  [apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs:496)
-
-This runner performs the same setup-artifact refresh as the CLI E2E script, but in the older
-bridge-oriented E2E flow.
-
-Paths it mutates:
-
-- `submodules/Tokamak-zk-EVM/dist/resource/setup/output/combined_sigma.rkyv`
-- `submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_preprocess.rkyv`
-- `submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv`
+This runner now follows the same model as the CLI E2E script: it does not copy setup artifacts
+into `dist/` directly and instead relies on `tokamak-cli --install` for refresh.
 
 Operational effect:
 
-- It refreshes the installed trusted-setup payload under `dist/resource/setup/output`.
-- In the same flow it also reruns `tokamak-cli --install`, which can regenerate additional
-  submodule-local installed outputs under `dist/`:
-  [apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs:887)
+- When install is enabled, it refreshes submodule-installed outputs by rerunning `tokamak-cli
+  --install`.
+- When install is skipped, it only validates that the expected setup artifacts already exist under
+  `dist/resource/setup/output`.
 
 ## Worktree Mutators
 
@@ -275,8 +221,6 @@ Mutations it performs:
 - `git checkout -B dev origin/dev` inside `submodules/Tokamak-zk-EVM`
 - `git pull --ff-only origin dev` inside `submodules/Tokamak-zk-EVM`
 - `tokamak-cli --install` inside `submodules/Tokamak-zk-EVM`
-- `ensureTokamakDistBackendBinaries(tokamakSubmoduleRoot)`, which refreshes `dist/bin` and
-  `dist/backend-lib/icicle`
 
 Operational effect:
 
@@ -334,7 +278,6 @@ with this order:
 1. Check whether the change is a mirrored app artifact under
    `packages/frontend/synthesizer/scripts/deployment/private-state` or
    `packages/frontend/synthesizer/examples/privateState`.
-2. Check whether the change is an installed runtime artifact under `dist/bin`, `dist/backend-lib`,
-   or `dist/resource/setup/output`.
-3. Check whether the submodule checkout itself was moved or repopulated by `git` operations or
+2. Check whether the change is an installed runtime artifact under `dist/` that was refreshed by
    `tokamak-cli --install`.
+3. Check whether the submodule checkout itself was moved or repopulated by `git` operations.

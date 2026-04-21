@@ -69,6 +69,7 @@ Optional environment variables:
 
 - `BRIDGE_RPC_URL_OVERRIDE`
 - `BRIDGE_DEPLOY_MODE` with `upgrade` or `redeploy-proxy`
+- `BRIDGE_GROTH_SOURCE` with `trusted` or `mpc`
 - `BRIDGE_OWNER`
 - `BRIDGE_DEPLOY_MOCK_ASSET`
 - `BRIDGE_MOCK_ASSET_NAME`
@@ -111,6 +112,15 @@ verifier parameters from `setupParams.json` and regenerates the Groth16
 `updateTree` artifacts before deployment. The reflected `MT_DEPTH` value is
 forwarded into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
 
+The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
+When unset, the bridge helper defaults to:
+
+- `mainnet` -> `mpc`
+- every other supported network -> `trusted`
+
+`trusted` regenerates artifacts under `groth16/trusted-setup/crs`, while `mpc`
+regenerates artifacts under `groth16/mpc-setup/crs`.
+
 The current bridge implementation is still intentionally hard-bound to depth
 `12` for soundness. If the latest `tokamak-l2js` publishes a different
 `MT_DEPTH`, deployment will fail rather than silently deploying a mismatched
@@ -138,11 +148,18 @@ The deployment JSON is post-processed to include `chainId` and `abiManifestPath`
 
 To add a new DApp metadata bundle to an already deployed bridge, use:
 
+- `bridge/scripts/deploy-and-add-dapp.mjs`
 - `bridge/scripts/admin-add-dapp.mjs`
 
-This script:
+`deploy-and-add-dapp.mjs`:
 
-- deploys the private-state app to the selected app network before registration by default
+- deploys the private-state app to the selected app network first
+- then invokes `admin-add-dapp.mjs` to register the already deployed app on the bridge
+
+`admin-add-dapp.mjs`:
+
+- assumes the private-state app is already deployed
+- mirrors the prover/CLI-consumed Groth16 artifacts from `bridge/deployments/groth16/<chain-id>/` into `apps/private-state/deploy/groth16/<chain-id>/`
 - optionally updates `submodules/Tokamak-zk-EVM` to the latest `origin/dev`
 - runs `tokamak-cli --install` without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
@@ -158,12 +175,31 @@ Current constraint:
 Example usage:
 
 ```bash
-node bridge/scripts/admin-add-dapp.mjs \
+node bridge/scripts/deploy-and-add-dapp.mjs \
   --group mintNotes \
   --dapp-id 1
 ```
 
 If the app must be deployed to a different network before registration, select it explicitly:
+
+```bash
+node bridge/scripts/deploy-and-add-dapp.mjs \
+  --group mintNotes \
+  --group transferNotes \
+  --group redeemNotes \
+  --dapp-id 1 \
+  --app-network sepolia
+```
+
+Relevant options:
+
+- `deploy-and-add-dapp.mjs` accepts `--app-network <name>`, `--app-env-file <path>`, and `--app-rpc-url <url>` for the deployment step
+- `admin-add-dapp.mjs` accepts `--app-network <name>` to choose which already-deployed app manifests should be used
+- `admin-add-dapp.mjs` accepts `--app-deployment-path <path>` and `--storage-layout-path <path>` to override those manifests explicitly
+
+When `--app-network` is omitted, both scripts default to `APPS_NETWORK`, then `BRIDGE_NETWORK`, and finally the bridge chain name when it is known.
+
+If the private-state app is already deployed and only registration is needed, use:
 
 ```bash
 node bridge/scripts/admin-add-dapp.mjs \
@@ -174,11 +210,25 @@ node bridge/scripts/admin-add-dapp.mjs \
   --app-network sepolia
 ```
 
-Relevant options:
+## User safety note
 
-- `--app-network <name>` chooses where the private-state deployment step runs
-- `--app-env-file <path>` overrides the environment file consumed by `deploy-private-state.sh`
-- `--app-rpc-url <url>` overrides the app deployment RPC endpoint only
-- `--app-deployment-path <path>` and `--storage-layout-path <path>` override the manifests used for registration
+For bridge-coupled private-state channels, users should treat `join-channel` as the activation step for all later channel activity.
 
-When `--app-network` is omitted, the script defaults to `APPS_NETWORK`, then `BRIDGE_NETWORK`, and finally the bridge chain name when it is known.
+Operators and user-facing documentation should instruct users not to:
+
+- deposit channel funds
+- send notes to the channel L2 identity
+- expect incoming note delivery
+- attempt wallet recovery from channel activity
+
+until the `join-channel` transaction has been confirmed on-chain and the registration receipt has been checked successfully.
+
+Until that confirmation exists, the user's channel registration is not final and later channel actions can be mis-targeted or fail against incomplete channel identity state.
+
+After a successful bridge deployment, the bridge-owned Groth16 deployment mirror is refreshed under:
+
+- `bridge/deployments/groth16.<chain-id>.latest.json`
+- `bridge/deployments/groth16/<chain-id>/circuit_final.zkey`
+- `bridge/deployments/groth16/<chain-id>/metadata.json`
+- `bridge/deployments/groth16/<chain-id>/verification_key.json`
+- `bridge/deployments/groth16/<chain-id>/phase1_final_14.ptau` when the selected source provides it

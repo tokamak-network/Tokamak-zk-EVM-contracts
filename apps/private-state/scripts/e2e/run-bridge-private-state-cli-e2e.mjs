@@ -69,6 +69,12 @@ const privateStateDeployScriptPath = path.resolve(
   "DeployPrivateState.s.sol:DeployPrivateStateScript",
 );
 const privateStateArtifactWriterPath = path.resolve(appRoot, "scripts", "deploy", "write-deploy-artifacts.sh");
+const privateStateGrothArtifactSyncPath = path.resolve(
+  appRoot,
+  "scripts",
+  "deploy",
+  "sync-groth16-update-tree-artifacts.sh",
+);
 const controllerAbiPath = path.resolve(appRoot, "deploy", "PrivateStateController.callable-abi.json");
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
@@ -99,6 +105,10 @@ const requiredTokamakSetupArtifacts = [
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
 const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
+const tokamakStepArtifactDirectories = [
+  path.join("synthesizer", "output"),
+  path.join("preprocess", "output"),
+];
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const dAppManagerAbi = [
@@ -419,7 +429,16 @@ function ensureTokamakSetupArtifacts() {
 function copyTokamakArtifacts(stepDir) {
   const resourceRoot = path.join(stepDir, "resource");
   fs.rmSync(resourceRoot, { recursive: true, force: true });
-  fs.cpSync(path.join(tokamakRoot, "dist", "resource"), resourceRoot, { recursive: true });
+  for (const relativeDirectory of tokamakStepArtifactDirectories) {
+    const sourceDir = path.join(tokamakRoot, "dist", "resource", relativeDirectory);
+    if (!fs.existsSync(sourceDir)) {
+      continue;
+    }
+
+    const targetDir = path.join(resourceRoot, relativeDirectory);
+    fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+    fs.cpSync(sourceDir, targetDir, { recursive: true });
+  }
 }
 
 async function applyDepositSnapshot(stateManager, vaultAddress, keyHex, nextValue) {
@@ -928,7 +947,6 @@ function deployBridgeStack() {
     BRIDGE_SKIP_SUBMODULE_UPDATE: "1",
     BRIDGE_SKIP_TOKAMAK_INSTALL: "1",
     BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH: "1",
-    BRIDGE_SKIP_GROTH_REFRESH: "1",
     BRIDGE_DEPLOY_MOCK_ASSET: "true",
   };
 
@@ -1055,6 +1073,10 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
     result,
     definition: derived.definition,
     records: derived.records,
+  });
+  run("bash", [privateStateGrothArtifactSyncPath, "31337"], {
+    cwd: repoRoot,
+    quiet: true,
   });
   return result;
 }
@@ -1484,6 +1506,9 @@ async function main() {
     console.log("E2E CLI private-state bridge flow succeeded.");
     console.log(`Summary: ${summaryPath}`);
   } finally {
+    if (typeof provider.destroy === "function") {
+      provider.destroy();
+    }
     if (!options.keepAnvil) {
       run("make", ["-C", appRoot, "anvil-stop"], { quiet: true });
     }

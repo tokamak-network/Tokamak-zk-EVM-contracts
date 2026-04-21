@@ -2,42 +2,50 @@ export const APP_NETWORKS = {
   sepolia: {
     chainId: 11155111,
     displayName: "Sepolia",
-    alchemyNetwork: "eth-sepolia"
+    alchemyNetwork: "eth-sepolia",
+    explorerTxBaseUrl: "https://sepolia.etherscan.io/tx"
   },
   mainnet: {
     chainId: 1,
     displayName: "Ethereum Mainnet",
-    alchemyNetwork: "eth-mainnet"
+    alchemyNetwork: "eth-mainnet",
+    explorerTxBaseUrl: "https://etherscan.io/tx"
   },
   "base-sepolia": {
     chainId: 84532,
     displayName: "Base Sepolia",
-    alchemyNetwork: "base-sepolia"
+    alchemyNetwork: "base-sepolia",
+    explorerTxBaseUrl: "https://sepolia.basescan.org/tx"
   },
   "base-mainnet": {
     chainId: 8453,
     displayName: "Base Mainnet",
-    alchemyNetwork: "base-mainnet"
+    alchemyNetwork: "base-mainnet",
+    explorerTxBaseUrl: "https://basescan.org/tx"
   },
   "arb-sepolia": {
     chainId: 421614,
     displayName: "Arbitrum Sepolia",
-    alchemyNetwork: "arb-sepolia"
+    alchemyNetwork: "arb-sepolia",
+    explorerTxBaseUrl: "https://sepolia.arbiscan.io/tx"
   },
   "arb-mainnet": {
     chainId: 42161,
     displayName: "Arbitrum One",
-    alchemyNetwork: "arb-mainnet"
+    alchemyNetwork: "arb-mainnet",
+    explorerTxBaseUrl: "https://arbiscan.io/tx"
   },
   "op-sepolia": {
     chainId: 11155420,
     displayName: "OP Sepolia",
-    alchemyNetwork: "opt-sepolia"
+    alchemyNetwork: "opt-sepolia",
+    explorerTxBaseUrl: "https://sepolia-optimism.etherscan.io/tx"
   },
   "op-mainnet": {
     chainId: 10,
     displayName: "OP Mainnet",
-    alchemyNetwork: "opt-mainnet"
+    alchemyNetwork: "opt-mainnet",
+    explorerTxBaseUrl: "https://optimistic.etherscan.io/tx"
   },
   anvil: {
     chainId: 31337,

@@ -473,6 +473,12 @@ function outputFile(relativePath) {
   return path.join(tokamakRoot, "dist", relativePath);
 }
 
+const tokamakStepArtifactDirectories = [
+  path.join("synthesizer", "output"),
+  path.join("preprocess", "output"),
+  path.join("prove", "output"),
+];
+
 function consumeAccountNonce(accountNonces, address) {
   const normalizedAddress = getAddress(address);
   const nextNonce = accountNonces.get(normalizedAddress);
@@ -486,7 +492,16 @@ function consumeAccountNonce(accountNonces, address) {
 function copyTokamakArtifacts(stepDir) {
   const resourceRoot = path.join(stepDir, "resource");
   cleanDir(resourceRoot);
-  fs.cpSync(path.join(tokamakRoot, "dist", "resource"), resourceRoot, { recursive: true });
+  for (const relativeDirectory of tokamakStepArtifactDirectories) {
+    const sourceDir = path.join(tokamakRoot, "dist", "resource", relativeDirectory);
+    if (!fs.existsSync(sourceDir)) {
+      continue;
+    }
+
+    const targetDir = path.join(resourceRoot, relativeDirectory);
+    fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+    fs.cpSync(sourceDir, targetDir, { recursive: true });
+  }
 }
 
 function ensureTokamakSetupArtifacts() {

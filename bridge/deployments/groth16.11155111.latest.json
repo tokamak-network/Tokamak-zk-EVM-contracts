@@ -1,0 +1,12 @@
+{
+  "generatedAtUtc": "20260409T161151Z",
+  "chainId": 11155111,
+  "grothArtifactSource": "trusted",
+  "artifactDir": "groth16/11155111",
+  "artifacts": {
+    "zkeyPath": "groth16/11155111/circuit_final.zkey",
+    "metadataPath": "groth16/11155111/metadata.json",
+    "verificationKeyPath": "groth16/11155111/verification_key.json",
+    "phase1PtauPath": null
+  }
+}

@@ -2,6 +2,7 @@
 
 import fs from 'fs';
 import pkg from 'js-sha3';
+import { addHexPrefix, hexToBigInt } from '@ethereumjs/util';
 const { keccak256 } = pkg;
 
 /**
@@ -31,7 +32,7 @@ function computeBlockInfosHashStyle(blockInputs) {
         const originalValue = upper + lower; // upper 16 bytes + lower 16 bytes
         
         // Now split it back for bytes16(uint128(value >> 128)), bytes16(uint128(value))
-        const value = BigInt('0x' + originalValue);
+        const value = hexToBigInt(addHexPrefix(originalValue));
         const upperPart = (value >> 128n).toString(16).padStart(32, '0'); // bytes16(uint128(value >> 128))
         const lowerPart = (value & ((1n << 128n) - 1n)).toString(16).padStart(32, '0'); // bytes16(uint128(value))
         
@@ -115,11 +116,19 @@ function main() {
         console.log('\n=== COMPARISON ===');
         console.log(`Method 1 (_computeBlockInfosHash style): ${hash1}`);
         console.log(`Method 2 (_extractBlockInfoHashFromProof style): ${hash2}`);
-        console.log(`Hashes match: ${hash1 === hash2}`);
+        console.log(`Hashes match: ${ethers.toBigInt(hash1) === ethers.toBigInt(hash2)}`);
         
         console.log('\nExpected hash: 0xf296a7e2ea8f4a80e31abe6135d96a70563a691d77fd9a19d8fb4bacafbb7baa');
-        console.log(`Method 1 matches expected: ${hash1 === '0xf296a7e2ea8f4a80e31abe6135d96a70563a691d77fd9a19d8fb4bacafbb7baa'}`);
-        console.log(`Method 2 matches expected: ${hash2 === '0xf296a7e2ea8f4a80e31abe6135d96a70563a691d77fd9a19d8fb4bacafbb7baa'}`);
+        console.log(
+          `Method 1 matches expected: ${
+            ethers.toBigInt(hash1) === ethers.toBigInt('0xf296a7e2ea8f4a80e31abe6135d96a70563a691d77fd9a19d8fb4bacafbb7baa')
+          }`,
+        );
+        console.log(
+          `Method 2 matches expected: ${
+            ethers.toBigInt(hash2) === ethers.toBigInt('0xf296a7e2ea8f4a80e31abe6135d96a70563a691d77fd9a19d8fb4bacafbb7baa')
+          }`,
+        );
         
     } catch (error) {
         console.error('Error:', error.message);

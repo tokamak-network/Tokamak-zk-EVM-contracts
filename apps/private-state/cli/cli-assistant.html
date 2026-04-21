@@ -485,6 +485,11 @@
           type: "textarea",
           placeholder: "[\"0xRecipientL2Address\"]",
         },
+        force: {
+          label: "Force Exit",
+          type: "checkbox",
+          hint: "Bypass the CLI zero-balance guard for exit-channel.",
+        },
       };
 
       const commands = [
@@ -501,9 +506,10 @@
         { id: "deposit-channel", description: "Move bridged funds into the channel L2 accounting balance.", fields: ["wallet", "password", "network", "amount"] },
         { id: "withdraw-channel", description: "Move channel L2 balance back into the shared bridge vault.", fields: ["wallet", "password", "network", "amount"] },
         { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "password", "network"] },
-        { id: "mint-notes", description: "Mint private-state notes from the wallet channel balance.", fields: ["wallet", "password", "network", "amounts"] },
-        { id: "transfer-notes", description: "Spend tracked notes into encrypted recipient outputs.", fields: ["wallet", "password", "network", "noteIds", "recipients", "amounts"] },
-        { id: "redeem-notes", description: "Redeem up to three tracked notes back into liquid accounting balance.", fields: ["wallet", "password", "network", "noteIds"] },
+        { id: "exit-channel", description: "Exit a channel. The assistant keeps the CLI zero-balance guard unless Force Exit is enabled.", fields: ["wallet", "password", "network", "force"] },
+        { id: "mint-notes", description: "Mint one or two private-state notes from the wallet channel balance.", fields: ["wallet", "password", "network", "amounts"] },
+        { id: "transfer-notes", description: "Spend tracked notes into the registered 1->1, 1->2, or 2->1 encrypted transfer shapes.", fields: ["wallet", "password", "network", "noteIds", "recipients", "amounts"] },
+        { id: "redeem-notes", description: "Redeem exactly one tracked note back into liquid accounting balance.", fields: ["wallet", "password", "network", "noteIds"] },
         { id: "get-my-notes", description: "Refresh encrypted note-log recovery and show current wallet notes.", fields: ["wallet", "password", "network"] },
       ];
 
@@ -519,13 +525,13 @@
         amounts: "",
         mintAmount1: "3",
         mintAmount2: "",
-        mintAmount3: "",
         noteIds: "[\"0x...\"]",
         recipients: "",
         transferRecipient1: "",
         transferAmount1: "",
         transferRecipient2: "",
         transferAmount2: "",
+        force: false,
       };
 
       const sharedFieldKeys = [
@@ -703,7 +709,9 @@
         }
         return options.walletOptions.filter((walletName) => {
           const walletEntry = options.walletEntriesByName?.[walletName];
-          return walletEntry?.l1Address?.toLowerCase() === derivedAddress;
+          return walletEntry?.l1Address
+            && derivedAddress
+            && ethers.toBigInt(walletEntry.l1Address) === ethers.toBigInt(derivedAddress);
         });
       }
 
@@ -758,13 +766,13 @@
       }
 
       function currentMintAmounts() {
-        return [state.mintAmount1, state.mintAmount2, state.mintAmount3]
+        return [state.mintAmount1, state.mintAmount2]
           .map((value) => String(value ?? "").trim())
           .filter((value) => value.length > 0);
       }
 
       function noteSelectionLimit() {
-        return currentCommand().id === "redeem-notes" ? 3 : 2;
+        return currentCommand().id === "redeem-notes" ? 1 : 2;
       }
 
       function mintAmountsTotalLabel() {
@@ -775,7 +783,8 @@
         if (!amounts.every((value) => /^\d+$/.test(value))) {
           return "Total amount unavailable. Enter whole-number amounts only.";
         }
-        const total = amounts.reduce((sum, value) => sum + BigInt(value), 0n);
+        const ethersLib = (window.ethers?.ethers ?? window.ethers);
+        const total = amounts.reduce((sum, value) => sum + ethersLib.toBigInt(value), 0n);
         return `Total amount: ${total.toString()}`;
       }
 
@@ -792,11 +801,12 @@
           return "Selected total: 0";
         }
         const optionMap = new Map(walletNoteState.options.map((option) => [option.value, option]));
+        const ethersLib = (window.ethers?.ethers ?? window.ethers);
         const totalBaseUnits = selectedIds.reduce((sum, noteId) => {
           const option = optionMap.get(noteId);
-          return sum + BigInt(option?.amountBaseUnits ?? 0n);
+          return sum + ethersLib.toBigInt(option?.amountBaseUnits ?? 0n);
         }, 0n);
-        const totalTokens = (window.ethers?.ethers ?? window.ethers).formatUnits(
+        const totalTokens = ethersLib.formatUnits(
           totalBaseUnits,
           walletNoteState.canonicalAssetDecimals,
         );
@@ -889,8 +899,14 @@
         }, 250);
       }
 
+      function addHexPrefix(value) {
+        const normalized = String(value ?? "");
+        return normalized.startsWith("0x") || normalized.startsWith("0X") ? normalized : `0x${normalized}`;
+      }
+
       function hexToBytes(value) {
-        const normalized = String(value).startsWith("0x") ? String(value).slice(2) : String(value);
+        const normalizedWithPrefix = addHexPrefix(value);
+        const normalized = normalizedWithPrefix.slice(2);
         if (normalized.length === 0) {
           return new Uint8Array();
         }
@@ -1139,6 +1155,9 @@
               break;
             case "recipients":
               appendOption(parts, "--recipients", renderedValue);
+              break;
+            case "force":
+              parts.push("--force");
               break;
             default:
               break;
@@ -1552,7 +1571,6 @@
         [
           { key: "mintAmount1", label: "Amount 1" },
           { key: "mintAmount2", label: "Amount 2" },
-          { key: "mintAmount3", label: "Amount 3" },
         ].forEach(({ key, label }) => {
           const amountLabel = document.createElement("label");
           amountLabel.textContent = label;
@@ -1613,6 +1631,9 @@
             optionEl.textContent = option;
             input.appendChild(optionEl);
           }
+        } else if (config.type === "checkbox") {
+          input = document.createElement("input");
+          input.type = "checkbox";
         } else if (config.type === "textarea") {
           input = document.createElement("textarea");
         } else {
@@ -1620,10 +1641,14 @@
           input.type = config.type;
         }
 
-        input.value = state[fieldKey] ?? "";
-        input.placeholder = config.placeholder;
+        if (config.type === "checkbox") {
+          input.checked = state[fieldKey] === true;
+        } else {
+          input.value = state[fieldKey] ?? "";
+          input.placeholder = config.placeholder;
+        }
         input.addEventListener("input", async (event) => {
-          state[fieldKey] = event.target.value;
+          state[fieldKey] = config.type === "checkbox" ? event.target.checked : event.target.value;
           if (fieldKey === "network") {
             syncWorkspaceSelectionsForCurrentNetwork();
             workspaceDirectoryState.statusMessage = buildWorkspaceStatusMessage();
@@ -1679,6 +1704,12 @@
         }
 
         label.appendChild(input);
+        if (config.type === "checkbox" && config.hint) {
+          const hint = document.createElement("p");
+          hint.className = "hint";
+          hint.textContent = config.hint;
+          label.appendChild(hint);
+        }
         return label;
       }
 

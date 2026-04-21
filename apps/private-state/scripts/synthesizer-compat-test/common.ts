@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
+import { ethers } from 'ethers';
 import {
   addHexPrefix,
   bytesToHex,
@@ -382,7 +383,7 @@ const buildStateSnapshot = async (
 const loadJson = async <T>(filePath: string): Promise<T> =>
   JSON.parse(await fs.readFile(filePath, 'utf8')) as T;
 
-const toRpcHex = (value: number): `0x${string}` => `0x${BigInt(value).toString(16)}`;
+const toRpcHex = (value: number): `0x${string}` => ethers.toQuantity(ethers.toBigInt(value));
 
 const rpcCall = async <T>(rpcUrl: string, method: string, params: unknown[]): Promise<T> => {
   const response = await fetch(rpcUrl, {
@@ -474,9 +475,9 @@ const buildTransactionRlp = (
   }
 
   const txData: TokamakL2TxData = {
-    nonce: transactionNonceOverride ?? BigInt(config.txNonce),
+    nonce: transactionNonceOverride ?? ethers.toBigInt(config.txNonce),
     to: createAddressFromString(config.function.entryContractAddress),
-    data: hexToBytes(config.calldata),
+    data: hexToBytes(addHexPrefix(config.calldata)),
     senderPubKey: fromAccountPublicKey.toBytes(),
   };
   const transaction = createTokamakL2Tx(txData, { common: createTokamakL2Common() }).sign(fromAccountPrivateKey);
@@ -518,9 +519,9 @@ const buildMutatedBlockInfo = (
   sampleIndex: number,
 ): SynthesizerBlockInfo => {
   const prng = createPrng(`${seedLabel}:block-info:${fromAccountIndex}:${sampleIndex}`);
-  const nextBlockNumber = BigInt(baseBlockInfo.blockNumber) + BigInt(sampleIndex + 1);
-  const nextTimestamp = BigInt(baseBlockInfo.timeStamp) + BigInt((sampleIndex + 1) * 17);
-  const nextBaseFee = BigInt(baseBlockInfo.baseFee) + BigInt(sampleIndex + 1);
+  const nextBlockNumber = ethers.toBigInt(baseBlockInfo.blockNumber) + ethers.toBigInt(sampleIndex + 1);
+  const nextTimestamp = ethers.toBigInt(baseBlockInfo.timeStamp) + ethers.toBigInt((sampleIndex + 1) * 17);
+  const nextBaseFee = ethers.toBigInt(baseBlockInfo.baseFee) + ethers.toBigInt(sampleIndex + 1);
   return {
     ...baseBlockInfo,
     blockNumber: `0x${nextBlockNumber.toString(16)}`,

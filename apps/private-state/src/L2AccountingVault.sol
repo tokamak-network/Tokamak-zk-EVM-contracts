@@ -14,6 +14,8 @@ contract L2AccountingVault {
     error InsufficientLiquidBalance(address account, uint256 available, uint256 required);
     error LiquidBalanceOverflow(address account, uint256 available, uint256 incoming);
 
+    event LiquidBalanceStorageWriteObserved(address l2Address, bytes32 value);
+
     mapping(address account => uint256 amount) public liquidBalances;
 
     address public immutable controller;
@@ -49,7 +51,9 @@ contract L2AccountingVault {
             revert LiquidBalanceOverflow(account, available, amount);
         }
 
-        liquidBalances[account] = available + amount;
+        uint256 nextValue = available + amount;
+        liquidBalances[account] = nextValue;
+        emit LiquidBalanceStorageWriteObserved(account, bytes32(nextValue));
     }
 
     function debitLiquidBalance(address account, uint256 amount) external onlyController {
@@ -65,6 +69,8 @@ contract L2AccountingVault {
             revert InsufficientLiquidBalance(account, available, amount);
         }
 
-        liquidBalances[account] = available - amount;
+        uint256 nextValue = available - amount;
+        liquidBalances[account] = nextValue;
+        emit LiquidBalanceStorageWriteObserved(account, bytes32(nextValue));
     }
 }

@@ -1,275 +1,66 @@
 {
-  "generatedAt": "2026-03-31T18:06:50.348Z",
+  "generatedAt": "2026-04-14T14:19:37.103Z",
   "deploymentPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge.11155111.json",
+  "abiManifestPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge-abi-manifest.11155111.json",
+  "appNetwork": "sepolia",
+  "appChainId": 11155111,
   "appDeploymentPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/deploy/deployment.11155111.latest.json",
   "storageLayoutPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/deploy/storage-layout.11155111.latest.json",
-  "dappId": 1,
-  "dappLabel": "private-state",
-  "dAppManager": "0x0fFbD1e7111cF7B0A191De15962eE88Ab1481031",
-  "txHash": "0x5638cc00eb9c36b407029fc3e01a6420af8668c43841c84ff25b774e43edf121",
-  "blockNumber": 10562184,
-  "groups": [
+  "appGrothManifestPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/deploy/groth16-updateTree.11155111.latest.json",
+  "groupNames": [
     "mintNotes",
     "transferNotes",
     "redeemNotes"
   ],
-  "functions": [
+  "dappLabel": "private-state",
+  "dappId": 1,
+  "dAppManager": "0x89dB43E8973d8ee91dC6746F14acc381d5F4600F",
+  "rpcUrl": "https://eth-sepolia.g.alchemy.com/v2/TpjY8YLL9pFoo3KWFlNJh",
+  "artifactsRoot": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/dapp-registration-artifacts/private-state",
+  "processedExamples": [
     {
-      "entryContract": "0x868CdF41A6b5547095A74b1d3B15bE525A46ec7f",
-      "functionSig": "0x626ad23f",
-      "preprocessInputHash": "0x8947a90fe021a2f6c45e45512ca155404e06883ebc2f50045032eadf1cb4504e",
-      "entryContractOffsetWords": 47,
-      "functionSigOffsetWords": 49,
-      "currentRootVectorOffsetWords": 51,
-      "updatedRootVectorOffsetWords": 16,
-      "storageWrites": [
-        {
-          "aPubOffsetWords": 0,
-          "storageAddrIndex": 1
-        },
-        {
-          "aPubOffsetWords": 4,
-          "storageAddrIndex": 0
-        }
-      ],
-      "eventLogs": [
-        {
-          "startOffsetWords": 8,
-          "topicCount": 1
-        }
-      ],
-      "exampleNames": [
-        "private-state/mintNotes/mintNotes1"
-      ]
+      "groupName": "private-state",
+      "exampleName": "mintNotes/mintNotes1",
+      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "functionSig": "0x626ad23f"
     },
     {
-      "entryContract": "0x868CdF41A6b5547095A74b1d3B15bE525A46ec7f",
-      "functionSig": "0x516a9d53",
-      "preprocessInputHash": "0x0369193bfccc37a5e65c9f38f4fdbf30ad129673514f5faa77736ee384347a88",
-      "entryContractOffsetWords": 47,
-      "functionSigOffsetWords": 49,
-      "currentRootVectorOffsetWords": 51,
-      "updatedRootVectorOffsetWords": 28,
-      "storageWrites": [
-        {
-          "aPubOffsetWords": 0,
-          "storageAddrIndex": 1
-        },
-        {
-          "aPubOffsetWords": 4,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 8,
-          "storageAddrIndex": 0
-        }
-      ],
-      "eventLogs": [
-        {
-          "startOffsetWords": 12,
-          "topicCount": 1
-        },
-        {
-          "startOffsetWords": 20,
-          "topicCount": 1
-        }
-      ],
-      "exampleNames": [
-        "private-state/mintNotes/mintNotes2"
-      ]
+      "groupName": "private-state",
+      "exampleName": "mintNotes/mintNotes2",
+      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "functionSig": "0x516a9d53"
     },
     {
-      "entryContract": "0x868CdF41A6b5547095A74b1d3B15bE525A46ec7f",
-      "functionSig": "0x7ba2116d",
-      "preprocessInputHash": "0xfef450e73f923ffbd0b58968fd798526ec646a7d7a8feb619969af3391042bd5",
-      "entryContractOffsetWords": 47,
-      "functionSigOffsetWords": 49,
-      "currentRootVectorOffsetWords": 51,
-      "updatedRootVectorOffsetWords": 40,
-      "storageWrites": [
-        {
-          "aPubOffsetWords": 0,
-          "storageAddrIndex": 1
-        },
-        {
-          "aPubOffsetWords": 4,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 8,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 12,
-          "storageAddrIndex": 0
-        }
-      ],
-      "eventLogs": [
-        {
-          "startOffsetWords": 16,
-          "topicCount": 1
-        },
-        {
-          "startOffsetWords": 24,
-          "topicCount": 1
-        },
-        {
-          "startOffsetWords": 32,
-          "topicCount": 1
-        }
-      ],
-      "exampleNames": [
-        "private-state/mintNotes/mintNotes3"
-      ]
+      "groupName": "private-state",
+      "exampleName": "transferNotes/transferNotes1To1",
+      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "functionSig": "0x224c3c60"
     },
     {
-      "entryContract": "0x868CdF41A6b5547095A74b1d3B15bE525A46ec7f",
-      "functionSig": "0x224c3c60",
-      "preprocessInputHash": "0x5008b1d6ed70b4a2897459970f3efbccacd16c4f50b205a9e77af38d6c0597e5",
-      "entryContractOffsetWords": 47,
-      "functionSigOffsetWords": 49,
-      "currentRootVectorOffsetWords": 51,
-      "updatedRootVectorOffsetWords": 16,
-      "storageWrites": [
-        {
-          "aPubOffsetWords": 0,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 4,
-          "storageAddrIndex": 0
-        }
-      ],
-      "eventLogs": [
-        {
-          "startOffsetWords": 8,
-          "topicCount": 1
-        }
-      ],
-      "exampleNames": [
-        "private-state/transferNotes/transferNotes1To1"
-      ]
+      "groupName": "private-state",
+      "exampleName": "transferNotes/transferNotes1To2",
+      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "functionSig": "0x6b24ef62"
     },
     {
-      "entryContract": "0x868CdF41A6b5547095A74b1d3B15bE525A46ec7f",
-      "functionSig": "0x6b24ef62",
-      "preprocessInputHash": "0x1ff7af9984424a1d371adad758db9fb8f29e1b14df03ab86ae58d5b1dd3a400b",
-      "entryContractOffsetWords": 47,
-      "functionSigOffsetWords": 49,
-      "currentRootVectorOffsetWords": 51,
-      "updatedRootVectorOffsetWords": 28,
-      "storageWrites": [
-        {
-          "aPubOffsetWords": 0,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 4,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 8,
-          "storageAddrIndex": 0
-        }
-      ],
-      "eventLogs": [
-        {
-          "startOffsetWords": 12,
-          "topicCount": 1
-        },
-        {
-          "startOffsetWords": 20,
-          "topicCount": 1
-        }
-      ],
-      "exampleNames": [
-        "private-state/transferNotes/transferNotes1To2"
-      ]
+      "groupName": "private-state",
+      "exampleName": "transferNotes/transferNotes2To1",
+      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "functionSig": "0x3f97509c"
     },
     {
-      "entryContract": "0x868CdF41A6b5547095A74b1d3B15bE525A46ec7f",
-      "functionSig": "0x3f97509c",
-      "preprocessInputHash": "0x068358327ee30a8f371c67b58f7396b9113fc0c2cb713111d6128bb8d2cfad6c",
-      "entryContractOffsetWords": 47,
-      "functionSigOffsetWords": 49,
-      "currentRootVectorOffsetWords": 51,
-      "updatedRootVectorOffsetWords": 20,
-      "storageWrites": [
-        {
-          "aPubOffsetWords": 0,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 4,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 8,
-          "storageAddrIndex": 0
-        }
-      ],
-      "eventLogs": [
-        {
-          "startOffsetWords": 12,
-          "topicCount": 1
-        }
-      ],
-      "exampleNames": [
-        "private-state/transferNotes/transferNotes2To1"
-      ]
-    },
-    {
-      "entryContract": "0x868CdF41A6b5547095A74b1d3B15bE525A46ec7f",
-      "functionSig": "0xc0856c7c",
-      "preprocessInputHash": "0x0302b623ad2e52636f30dd756da21ca3eed1c28ac5ae89bc57b4490d7b3711ae",
-      "entryContractOffsetWords": 47,
-      "functionSigOffsetWords": 49,
-      "currentRootVectorOffsetWords": 51,
-      "updatedRootVectorOffsetWords": 8,
-      "storageWrites": [
-        {
-          "aPubOffsetWords": 0,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 4,
-          "storageAddrIndex": 1
-        }
-      ],
-      "eventLogs": [],
-      "exampleNames": [
-        "private-state/redeemNotes/redeemNotes1"
-      ]
-    },
-    {
-      "entryContract": "0x868CdF41A6b5547095A74b1d3B15bE525A46ec7f",
-      "functionSig": "0xd1c880d8",
-      "preprocessInputHash": "0xb18d50140e92a37b784c3088acfa4de2aa7c7216eb9bb9744c7b202d190fa0d5",
-      "entryContractOffsetWords": 47,
-      "functionSigOffsetWords": 49,
-      "currentRootVectorOffsetWords": 51,
-      "updatedRootVectorOffsetWords": 12,
-      "storageWrites": [
-        {
-          "aPubOffsetWords": 0,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 4,
-          "storageAddrIndex": 0
-        },
-        {
-          "aPubOffsetWords": 8,
-          "storageAddrIndex": 1
-        }
-      ],
-      "eventLogs": [],
-      "exampleNames": [
-        "private-state/redeemNotes/redeemNotes2"
-      ]
+      "groupName": "private-state",
+      "exampleName": "redeemNotes/redeemNotes1",
+      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "functionSig": "0xc0856c7c"
     }
   ],
   "skippedExamples": [
+    {
+      "groupName": "mintNotes",
+      "exampleName": "mintNotes3",
+      "reason": "qap-compiler capacity exceeded"
+    },
     {
       "groupName": "mintNotes",
       "exampleName": "mintNotes4",
@@ -312,6 +103,11 @@
     },
     {
       "groupName": "redeemNotes",
+      "exampleName": "redeemNotes2",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "redeemNotes",
       "exampleName": "redeemNotes3",
       "reason": "qap-compiler capacity exceeded"
     },
@@ -320,5 +116,12 @@
       "exampleName": "redeemNotes4",
       "reason": "qap-compiler capacity exceeded"
     }
-  ]
+  ],
+  "registration": {
+    "txHash": "0x9eb165e6770b84b5b19eb55481f2406b39bfca922e21fb96f9f875cdde9a9d2b",
+    "blockNumber": 10658533,
+    "labelHash": "0x280fff58e494db3de12ebbdf607529639a8dce993a3771df1774946231ec4d35",
+    "storageCount": 2,
+    "functionCount": 6
+  }
 }

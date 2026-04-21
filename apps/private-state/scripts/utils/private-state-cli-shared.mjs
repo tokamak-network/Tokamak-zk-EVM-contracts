@@ -20,7 +20,7 @@ export function slugifyPathComponent(value) {
 }
 
 export function deriveChannelIdFromName(channelName) {
-  return BigInt(keccak256(ethers.toUtf8Bytes(channelName)));
+  return ethers.toBigInt(keccak256(ethers.toUtf8Bytes(channelName)));
 }
 
 export function buildL2PasswordSigningMessage({ channelName, password }) {

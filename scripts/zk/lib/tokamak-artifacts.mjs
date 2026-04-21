@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { AbiCoder, getAddress, keccak256 } from "ethers";
+import { AbiCoder, ethers, getAddress, keccak256 } from "ethers";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
-const TOKAMAK_APUB_BLOCK_LENGTH = 63;
+const TOKAMAK_APUB_BLOCK_LENGTH = 43;
 
 const CAPACITY_ERROR_PATTERNS = [
   /insufficient .* length/i,
@@ -130,7 +130,7 @@ function toBigIntArray(values, label) {
   }
   return values.map((value, index) => {
     try {
-      return BigInt(value);
+      return ethers.toBigInt(value);
     } catch (error) {
       throw new Error(`${label}[${index}] is not a valid integer: ${String(value)}`);
     }
@@ -233,50 +233,6 @@ export function normalizeTokamakAPubBlock(values) {
   return normalizedValues.concat(new Array(TOKAMAK_APUB_BLOCK_LENGTH - normalizedValues.length).fill(0n));
 }
 
-function extractStorageWrites(instanceDescriptionJsonPath, storageAddresses) {
-  const description = readJson(instanceDescriptionJsonPath);
-  const entries = description.a_pub_user_description;
-  if (!Array.isArray(entries)) {
-    throw new Error(`instance_description.json is missing a_pub_user_description: ${instanceDescriptionJsonPath}`);
-  }
-
-  const writes = [];
-  const pattern =
-    /^Storage key to write for address: (0x[0-9a-fA-F]{40}) \(lower 16 bytes\)$/;
-
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index];
-    if (typeof entry !== "string") {
-      continue;
-    }
-    const match = entry.match(pattern);
-    if (!match) {
-      continue;
-    }
-    const storageAddr = getAddress(match[1]);
-    const storageAddrIndex = storageAddresses.findIndex(
-      (candidateStorageAddr) => getAddress(candidateStorageAddr) === storageAddr,
-    );
-    if (storageAddrIndex === -1) {
-      throw new Error(
-        `Storage write target ${storageAddr} is not part of the function storage surface in ${instanceDescriptionJsonPath}.`,
-      );
-    }
-    if (index > 0xff) {
-      throw new Error(`Storage write offset ${index} exceeds uint8 range in ${instanceDescriptionJsonPath}.`);
-    }
-    if (storageAddrIndex > 0xff) {
-      throw new Error(`Storage address index ${storageAddrIndex} exceeds uint8 range in ${instanceDescriptionJsonPath}.`);
-    }
-    writes.push({
-      aPubOffsetWords: index,
-      storageAddrIndex,
-    });
-  }
-
-  return writes;
-}
-
 function extractEventLogs(instanceDescriptionJsonPath) {
   const description = readJson(instanceDescriptionJsonPath);
   const entries = description.a_pub_user_description;
@@ -353,20 +309,21 @@ function inferChannelTokenVaultStorageAddress(storageAddresses, entryContract) {
 
 export function deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, entryContract) {
   const snapshot = readJson(snapshotJsonPath);
-  if (!Array.isArray(snapshot.storageAddresses) || !Array.isArray(snapshot.storageEntries)) {
+  if (!Array.isArray(snapshot.storageAddresses) || !Array.isArray(snapshot.storageKeys)) {
     throw new Error(`Snapshot is missing storage vectors: ${snapshotJsonPath}`);
   }
-  if (snapshot.storageAddresses.length !== snapshot.storageEntries.length) {
-    throw new Error(`storageAddresses/storageEntries length mismatch in ${snapshotJsonPath}`);
+  if (snapshot.storageAddresses.length !== snapshot.storageKeys.length) {
+    throw new Error(`storageAddresses/storageKeys length mismatch in ${snapshotJsonPath}`);
   }
 
   const channelTokenVaultStorageAddress = inferChannelTokenVaultStorageAddress(snapshot.storageAddresses, entryContract);
 
   return snapshot.storageAddresses.map((storageAddress, index) => ({
     storageAddress: getAddress(storageAddress),
-    preAllocKeys: snapshot.storageEntries[index].map((entry) => entry.key),
+    preAllocKeys: snapshot.storageKeys[index],
     userSlots: [],
-    isChannelTokenVaultStorage: getAddress(storageAddress) === channelTokenVaultStorageAddress,
+    isChannelTokenVaultStorage:
+      ethers.toBigInt(getAddress(storageAddress)) === ethers.toBigInt(channelTokenVaultStorageAddress),
   }));
 }
 
@@ -397,10 +354,6 @@ export function buildFunctionDefinition({
   const preprocess = readJson(preprocessJsonPath);
   const preprocessPart1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
   const preprocessPart2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
-  const storageWrites = extractStorageWrites(
-    instanceDescriptionJsonPath,
-    derivedStorageMetadata.map((entry) => entry.storageAddress),
-  );
   const eventLogs = extractEventLogs(instanceDescriptionJsonPath);
   const functionLayout = extractFunctionLayout(instanceDescriptionJsonPath);
   const entryContract = entryContractOverride ? getAddress(entryContractOverride) : derivedEntryContract;
@@ -425,7 +378,6 @@ export function buildFunctionDefinition({
     functionSigOffsetWords: functionLayout.functionSigOffsetWords,
     currentRootVectorOffsetWords: functionLayout.currentRootVectorOffsetWords,
     updatedRootVectorOffsetWords: functionLayout.updatedRootVectorOffsetWords,
-    storageWrites,
     eventLogs,
     aPubBlockHash: hashTokamakPublicInputs(
       normalizeTokamakAPubBlock(toBigIntArray(instance.a_pub_block, "a_pub_block")),
@@ -491,10 +443,15 @@ export function mergeFunctionDefinitions(records) {
     }
 
     const mismatches = [];
-    if (JSON.stringify(existing.storageAddresses) !== JSON.stringify(record.storageAddresses)) {
+    if (
+      existing.storageAddresses.length !== record.storageAddresses.length
+      || existing.storageAddresses.some(
+        (address, index) => ethers.toBigInt(getAddress(address)) !== ethers.toBigInt(getAddress(record.storageAddresses[index])),
+      )
+    ) {
       mismatches.push("managed storage vector");
     }
-    if (existing.preprocessInputHash !== record.preprocessInputHash) {
+    if (ethers.toBigInt(existing.preprocessInputHash) !== ethers.toBigInt(record.preprocessInputHash)) {
       mismatches.push("preprocess input hash");
     }
     if (existing.entryContractOffsetWords !== record.entryContractOffsetWords) {
@@ -508,9 +465,6 @@ export function mergeFunctionDefinitions(records) {
     }
     if (existing.updatedRootVectorOffsetWords !== record.updatedRootVectorOffsetWords) {
       mismatches.push("updated-root offset");
-    }
-    if (JSON.stringify(existing.storageWrites) !== JSON.stringify(record.storageWrites)) {
-      mismatches.push("storage write metadata");
     }
     if (JSON.stringify(existing.eventLogs) !== JSON.stringify(record.eventLogs)) {
       mismatches.push("event log metadata");
@@ -559,7 +513,12 @@ export function buildDAppDefinitions(records) {
     .map((group) => {
       const commonStorageAddresses = group.records[0].storageAddresses;
       for (const record of group.records) {
-        if (JSON.stringify(record.storageAddresses) !== JSON.stringify(commonStorageAddresses)) {
+        if (
+          record.storageAddresses.length !== commonStorageAddresses.length
+          || record.storageAddresses.some(
+            (address, index) => ethers.toBigInt(getAddress(address)) !== ethers.toBigInt(getAddress(commonStorageAddresses[index])),
+          )
+        ) {
           throw new Error(
             [
               `DApp group ${group.groupName} has inconsistent managed storage vectors across functions.`,
@@ -582,7 +541,6 @@ export function buildDAppDefinitions(records) {
           functionSigOffsetWords: record.functionSigOffsetWords,
           currentRootVectorOffsetWords: record.currentRootVectorOffsetWords,
           updatedRootVectorOffsetWords: record.updatedRootVectorOffsetWords,
-          storageWrites: record.storageWrites,
           eventLogs: record.eventLogs,
           exampleNames: record.exampleNames,
         })),

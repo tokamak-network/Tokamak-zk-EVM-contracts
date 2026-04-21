@@ -12,12 +12,9 @@ library BridgeStructs {
         address l2Address;
         bytes32 channelTokenVaultKey;
         uint256 leafIndex;
+        uint256 joinFeePaid;
+        uint64 joinedAt;
         NoteReceivePubKey noteReceivePubKey;
-    }
-
-    struct StorageWriteMetadata {
-        uint8 aPubOffsetWords;
-        uint8 storageAddrIndex;
     }
 
     struct EventLogMetadata {
@@ -37,7 +34,6 @@ library BridgeStructs {
         uint8 functionSigOffsetWords;
         uint8 currentRootVectorOffsetWords;
         uint8 updatedRootVectorOffsetWords;
-        StorageWriteMetadata[] storageWrites;
         EventLogMetadata[] eventLogs;
     }
 
@@ -65,7 +61,6 @@ library BridgeStructs {
         uint8 functionSigOffsetWords;
         uint8 currentRootVectorOffsetWords;
         uint8 updatedRootVectorOffsetWords;
-        bool exists;
     }
 
     struct GrothUpdate {

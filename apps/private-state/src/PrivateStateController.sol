@@ -35,6 +35,7 @@ contract PrivateStateController {
     bytes32 private constant NULLIFIER_DOMAIN = keccak256("PRIVATE_STATE_NULLIFIER");
 
     event NoteValueEncrypted(bytes32[3] encryptedNoteValue);
+    event StorageKeyObserved(bytes32 storageKey);
 
     mapping(bytes32 commitment => bool exists) public commitmentExists;
     mapping(bytes32 nullifier => bool used) public nullifierUsed;
@@ -557,7 +558,7 @@ contract PrivateStateController {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             mstore(ptr, domain)
-            mstore(add(ptr, 0x20), and(owner, 0xffffffffffffffffffffffffffffffffffffffff))
+            mstore(add(ptr, 0x20), owner)
             mstore(add(ptr, 0x40), value)
             mstore(add(ptr, 0x60), salt)
             digest := keccak256(ptr, 0x80)
@@ -574,7 +575,7 @@ contract PrivateStateController {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             mstore(ptr, domain)
-            mstore(add(ptr, 0x20), and(owner, 0xffffffffffffffffffffffffffffffffffffffff))
+            mstore(add(ptr, 0x20), owner)
             mstore(add(ptr, 0x40), value)
             mstore(add(ptr, 0x60), salt)
             digest := keccak256(ptr, 0x80)
@@ -638,6 +639,7 @@ contract PrivateStateController {
             revert CommitmentAlreadyExists(commitment);
         }
         commitmentExists[commitment] = true;
+        emit StorageKeyObserved(_mappingStorageKey(commitment, _commitmentExistsSlot()));
     }
 
     function _useNullifier(bytes32 nullifier) internal {
@@ -645,6 +647,7 @@ contract PrivateStateController {
             revert NullifierAlreadyUsed(nullifier);
         }
         nullifierUsed[nullifier] = true;
+        emit StorageKeyObserved(_mappingStorageKey(nullifier, _nullifierUsedSlot()));
     }
 
     function _loadValidatedNote(Note calldata note)
@@ -654,7 +657,7 @@ contract PrivateStateController {
     {
         assembly {
             let noteOffset := note
-            owner := and(calldataload(noteOffset), 0xffffffffffffffffffffffffffffffffffffffff)
+            owner := calldataload(noteOffset)
             value := calldataload(add(noteOffset, 0x20))
             salt := calldataload(add(noteOffset, 0x40))
         }
@@ -669,11 +672,31 @@ contract PrivateStateController {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             let offset := encryptedNoteValue
-            mstore(ptr, calldataload(offset))
-            mstore(add(ptr, 0x20), calldataload(add(offset, 0x20)))
-            mstore(add(ptr, 0x40), calldataload(add(offset, 0x40)))
+            calldatacopy(ptr, offset, 0x60)
             digest := keccak256(ptr, 0x60)
             mstore(0x40, add(ptr, 0x60))
+        }
+    }
+
+    function _commitmentExistsSlot() private view returns (uint256 slot) {
+        assembly ("memory-safe") {
+            slot := commitmentExists.slot
+        }
+    }
+
+    function _nullifierUsedSlot() private view returns (uint256 slot) {
+        assembly ("memory-safe") {
+            slot := nullifierUsed.slot
+        }
+    }
+
+    function _mappingStorageKey(bytes32 key, uint256 slot) private pure returns (bytes32 digest) {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, key)
+            mstore(add(ptr, 0x20), slot)
+            digest := keccak256(ptr, 0x40)
+            mstore(0x40, add(ptr, 0x40))
         }
     }
 

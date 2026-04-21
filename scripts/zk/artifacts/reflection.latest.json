@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-04-01T05:12:13.420Z",
+  "generatedAt": "2026-04-16T21:12:52.070Z",
   "tokamakSubmodule": {
     "path": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM",
     "branch": "dev",
-    "head": "8f6cb76273db0e9d5fafb442c3ea9598345050bb",
+    "head": "6f318c18b42ee8b85a5eeaebba813e13aa64fbf1",
     "setupParamsPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json",
     "sigmaVerifyRkyvPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/submodules/Tokamak-zk-EVM/dist/resource/setup/output/sigma_verify.rkyv"
   },
   "tokamakL2js": {
-    "version": "0.0.33",
-    "mtDepth": 12
+    "version": "0.1.3",
+    "mtDepth": 30
   },
   "tokamakVerifier": {
     "sigmaVerifyJsonPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/tokamak-zkp/TokamakVerifierKey/sigma_verify.json",
@@ -17,26 +17,27 @@
     "verifierSourcePath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/tokamak-zkp/TokamakVerifier.sol",
     "setupParams": {
       "l_free": 128,
-      "l_user_out": 45,
-      "l_user": 65,
+      "l_user_out": 65,
+      "l_user": 85,
       "l": 728,
       "l_D": 4824,
-      "m_D": 26725,
+      "m_D": 26591,
       "n": 4096,
       "s_D": 14,
       "s_max": 256
     }
   },
   "groth16": {
+    "source": "trusted",
     "verificationKeyPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/trusted-setup/crs/verification_key.json",
     "verifierPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/groth16/verifier/src/Groth16Verifier.sol",
     "metadata": {
       "circuit": "updateTree",
-      "tokamakL2JsVersion": "0.0.33",
-      "mtDepth": 12,
-      "constraintCount": 15596,
-      "powersOfTauPower": 14,
-      "generatedAt": "2026-03-31T15:04:53.704Z",
+      "tokamakL2JsVersion": "0.1.3",
+      "mtDepth": 30,
+      "constraintCount": 38222,
+      "powersOfTauPower": 16,
+      "generatedAt": "2026-04-16T21:12:47.488Z",
       "note": "This is a local deterministic development ceremony, not a production multi-party ceremony.",
       "phase1Contributions": 1,
       "phase2Contributions": 1,
@@ -45,6 +46,6 @@
     }
   },
   "bridge": {
-    "recommendedMerkleTreeLevels": 12
+    "recommendedMerkleTreeLevels": 30
   }
 }

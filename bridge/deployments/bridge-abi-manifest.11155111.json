@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-31T15:05:26.363Z",
+  "generatedAt": "2026-04-14T14:07:37.437Z",
   "chainId": 11155111,
   "contracts": {
     "bridgeAdminManager": {
@@ -330,6 +330,11 @@
               "name": "leader",
               "type": "address",
               "internalType": "address"
+            },
+            {
+              "name": "initialJoinFee",
+              "type": "uint256",
+              "internalType": "uint256"
             }
           ],
           "outputs": [
@@ -355,6 +360,97 @@
               "name": "",
               "type": "address",
               "internalType": "contract DAppManager"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "defaultJoinFeeRefundBps1",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint16",
+              "internalType": "uint16"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "defaultJoinFeeRefundBps2",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint16",
+              "internalType": "uint16"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "defaultJoinFeeRefundBps3",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint16",
+              "internalType": "uint16"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "defaultJoinFeeRefundBps4",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint16",
+              "internalType": "uint16"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "defaultJoinFeeRefundCutoff1",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint64",
+              "internalType": "uint64"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "defaultJoinFeeRefundCutoff2",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint64",
+              "internalType": "uint64"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "defaultJoinFeeRefundCutoff3",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint64",
+              "internalType": "uint64"
             }
           ],
           "stateMutability": "view"
@@ -476,6 +572,16 @@
                   "internalType": "uint256"
                 },
                 {
+                  "name": "joinFeePaid",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "joinedAt",
+                  "type": "uint64",
+                  "internalType": "uint64"
+                },
+                {
                   "name": "noteReceivePubKey",
                   "type": "tuple",
                   "internalType": "struct BridgeStructs.NoteReceivePubKey",
@@ -537,6 +643,16 @@
                   "name": "leafIndex",
                   "type": "uint256",
                   "internalType": "uint256"
+                },
+                {
+                  "name": "joinFeePaid",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "joinedAt",
+                  "type": "uint64",
+                  "internalType": "uint64"
                 },
                 {
                   "name": "noteReceivePubKey",
@@ -683,6 +799,49 @@
               "name": "grothVerifier_",
               "type": "address",
               "internalType": "contract IGrothVerifier"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "setJoinFeeRefundSchedule",
+          "inputs": [
+            {
+              "name": "cutoff1",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "bps1",
+              "type": "uint16",
+              "internalType": "uint16"
+            },
+            {
+              "name": "cutoff2",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "bps2",
+              "type": "uint16",
+              "internalType": "uint16"
+            },
+            {
+              "name": "cutoff3",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "bps3",
+              "type": "uint16",
+              "internalType": "uint16"
+            },
+            {
+              "name": "bps4",
+              "type": "uint16",
+              "internalType": "uint16"
             }
           ],
           "outputs": [],
@@ -862,6 +1021,55 @@
         },
         {
           "type": "event",
+          "name": "JoinFeeRefundScheduleUpdated",
+          "inputs": [
+            {
+              "name": "cutoff1",
+              "type": "uint64",
+              "indexed": false,
+              "internalType": "uint64"
+            },
+            {
+              "name": "bps1",
+              "type": "uint16",
+              "indexed": false,
+              "internalType": "uint16"
+            },
+            {
+              "name": "cutoff2",
+              "type": "uint64",
+              "indexed": false,
+              "internalType": "uint64"
+            },
+            {
+              "name": "bps2",
+              "type": "uint16",
+              "indexed": false,
+              "internalType": "uint16"
+            },
+            {
+              "name": "cutoff3",
+              "type": "uint64",
+              "indexed": false,
+              "internalType": "uint64"
+            },
+            {
+              "name": "bps3",
+              "type": "uint16",
+              "indexed": false,
+              "internalType": "uint16"
+            },
+            {
+              "name": "bps4",
+              "type": "uint16",
+              "indexed": false,
+              "internalType": "uint16"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "OwnershipTransferred",
           "inputs": [
             {
@@ -943,6 +1151,11 @@
         },
         {
           "type": "error",
+          "name": "InvalidJoinFeeRefundSchedule",
+          "inputs": []
+        },
+        {
+          "type": "error",
           "name": "InvalidLeader",
           "inputs": []
         },
@@ -1019,32 +1232,6 @@
           "type": "constructor",
           "inputs": [],
           "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "bindBridgeCore",
-          "inputs": [
-            {
-              "name": "bridgeCore_",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "outputs": [],
-          "stateMutability": "nonpayable"
-        },
-        {
-          "type": "function",
-          "name": "bridgeCore",
-          "inputs": [],
-          "outputs": [
-            {
-              "name": "",
-              "type": "address",
-              "internalType": "address"
-            }
-          ],
-          "stateMutability": "view"
         },
         {
           "type": "function",
@@ -1227,52 +1414,6 @@
                 },
                 {
                   "name": "updatedRootVectorOffsetWords",
-                  "type": "uint8",
-                  "internalType": "uint8"
-                },
-                {
-                  "name": "exists",
-                  "type": "bool",
-                  "internalType": "bool"
-                }
-              ]
-            }
-          ],
-          "stateMutability": "view"
-        },
-        {
-          "type": "function",
-          "name": "getFunctionStorageWrites",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "entryContract",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "functionSig",
-              "type": "bytes4",
-              "internalType": "bytes4"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "out",
-              "type": "tuple[]",
-              "internalType": "struct BridgeStructs.StorageWriteMetadata[]",
-              "components": [
-                {
-                  "name": "aPubOffsetWords",
-                  "type": "uint8",
-                  "internalType": "uint8"
-                },
-                {
-                  "name": "storageAddrIndex",
                   "type": "uint8",
                   "internalType": "uint8"
                 }
@@ -1558,23 +1699,6 @@
                       "internalType": "uint8"
                     },
                     {
-                      "name": "storageWrites",
-                      "type": "tuple[]",
-                      "internalType": "struct BridgeStructs.StorageWriteMetadata[]",
-                      "components": [
-                        {
-                          "name": "aPubOffsetWords",
-                          "type": "uint8",
-                          "internalType": "uint8"
-                        },
-                        {
-                          "name": "storageAddrIndex",
-                          "type": "uint8",
-                          "internalType": "uint8"
-                        }
-                      ]
-                    },
-                    {
                       "name": "eventLogs",
                       "type": "tuple[]",
                       "internalType": "struct BridgeStructs.EventLogMetadata[]",
@@ -1684,19 +1808,6 @@
         },
         {
           "type": "event",
-          "name": "BridgeCoreBound",
-          "inputs": [
-            {
-              "name": "bridgeCore",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            }
-          ],
-          "anonymous": false
-        },
-        {
-          "type": "event",
           "name": "DAppDeleted",
           "inputs": [
             {
@@ -1792,22 +1903,6 @@
         },
         {
           "type": "error",
-          "name": "BridgeCoreAlreadyBound",
-          "inputs": [
-            {
-              "name": "currentBridgeCore",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "candidateBridgeCore",
-              "type": "address",
-              "internalType": "address"
-            }
-          ]
-        },
-        {
-          "type": "error",
           "name": "DAppDeletionDisabled",
           "inputs": []
         },
@@ -1888,17 +1983,6 @@
         },
         {
           "type": "error",
-          "name": "EmptyFunctionStorageList",
-          "inputs": [
-            {
-              "name": "functionSig",
-              "type": "bytes4",
-              "internalType": "bytes4"
-            }
-          ]
-        },
-        {
-          "type": "error",
           "name": "EmptyStorageLayout",
           "inputs": [
             {
@@ -1907,11 +1991,6 @@
               "internalType": "uint256"
             }
           ]
-        },
-        {
-          "type": "error",
-          "name": "InvalidBridgeCore",
-          "inputs": []
         },
         {
           "type": "error",
@@ -1934,32 +2013,6 @@
             },
             {
               "name": "topicCount",
-              "type": "uint8",
-              "internalType": "uint8"
-            }
-          ]
-        },
-        {
-          "type": "error",
-          "name": "InvalidFunctionStorageWriteStorageIndex",
-          "inputs": [
-            {
-              "name": "dappId",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "entryContract",
-              "type": "address",
-              "internalType": "address"
-            },
-            {
-              "name": "functionSig",
-              "type": "bytes4",
-              "internalType": "bytes4"
-            },
-            {
-              "name": "storageAddrIndex",
               "type": "uint8",
               "internalType": "uint8"
             }
@@ -2017,11 +2070,6 @@
               "internalType": "address"
             }
           ]
-        },
-        {
-          "type": "error",
-          "name": "OnlyBridgeCore",
-          "inputs": []
         },
         {
           "type": "error",
@@ -2132,6 +2180,56 @@
               "internalType": "address"
             },
             {
+              "name": "grothVerifier_",
+              "type": "address",
+              "internalType": "contract IGrothVerifier"
+            },
+            {
+              "name": "tokamakVerifier_",
+              "type": "address",
+              "internalType": "contract ITokamakVerifier"
+            },
+            {
+              "name": "initialJoinFee_",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "joinFeeRefundCutoff1_",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "joinFeeRefundBps1_",
+              "type": "uint16",
+              "internalType": "uint16"
+            },
+            {
+              "name": "joinFeeRefundCutoff2_",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "joinFeeRefundBps2_",
+              "type": "uint16",
+              "internalType": "uint16"
+            },
+            {
+              "name": "joinFeeRefundCutoff3_",
+              "type": "uint64",
+              "internalType": "uint64"
+            },
+            {
+              "name": "joinFeeRefundBps3_",
+              "type": "uint16",
+              "internalType": "uint16"
+            },
+            {
+              "name": "joinFeeRefundBps4_",
+              "type": "uint16",
+              "internalType": "uint16"
+            },
+            {
               "name": "dAppManager_",
               "type": "address",
               "internalType": "contract DAppManager"
@@ -2163,16 +2261,6 @@
             },
             {
               "name": "updatedChannelTokenVaultRoot",
-              "type": "bytes32",
-              "internalType": "bytes32"
-            },
-            {
-              "name": "leafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "latestLeafValue",
               "type": "bytes32",
               "internalType": "bytes32"
             }
@@ -2391,6 +2479,16 @@
                   "internalType": "uint256"
                 },
                 {
+                  "name": "joinFeePaid",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "joinedAt",
+                  "type": "uint64",
+                  "internalType": "uint64"
+                },
+                {
                   "name": "noteReceivePubKey",
                   "type": "tuple",
                   "internalType": "struct BridgeStructs.NoteReceivePubKey",
@@ -2449,6 +2547,16 @@
                   "internalType": "uint256"
                 },
                 {
+                  "name": "joinFeePaid",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "joinedAt",
+                  "type": "uint64",
+                  "internalType": "uint64"
+                },
+                {
                   "name": "noteReceivePubKey",
                   "type": "tuple",
                   "internalType": "struct BridgeStructs.NoteReceivePubKey",
@@ -2472,19 +2580,24 @@
         },
         {
           "type": "function",
-          "name": "getLatestChannelTokenVaultLeaf",
+          "name": "getExitFeeRefundQuote",
           "inputs": [
             {
-              "name": "leafIndex",
-              "type": "uint256",
-              "internalType": "uint256"
+              "name": "l1Address",
+              "type": "address",
+              "internalType": "address"
             }
           ],
           "outputs": [
             {
-              "name": "",
-              "type": "bytes32",
-              "internalType": "bytes32"
+              "name": "refundAmount",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "refundBps",
+              "type": "uint16",
+              "internalType": "uint16"
             }
           ],
           "stateMutability": "view"
@@ -2535,6 +2648,123 @@
         },
         {
           "type": "function",
+          "name": "grothVerifier",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "contract IGrothVerifier"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "joinFee",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "joinFeeRefundBps1",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint16",
+              "internalType": "uint16"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "joinFeeRefundBps2",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint16",
+              "internalType": "uint16"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "joinFeeRefundBps3",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint16",
+              "internalType": "uint16"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "joinFeeRefundBps4",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint16",
+              "internalType": "uint16"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "joinFeeRefundCutoff1",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint64",
+              "internalType": "uint64"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "joinFeeRefundCutoff2",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint64",
+              "internalType": "uint64"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "joinFeeRefundCutoff3",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint64",
+              "internalType": "uint64"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "leader",
           "inputs": [],
           "outputs": [
@@ -2550,6 +2780,11 @@
           "type": "function",
           "name": "registerChannelTokenVaultIdentity",
           "inputs": [
+            {
+              "name": "l1Address",
+              "type": "address",
+              "internalType": "address"
+            },
             {
               "name": "l2Address",
               "type": "address",
@@ -2581,9 +2816,59 @@
                   "internalType": "uint8"
                 }
               ]
+            },
+            {
+              "name": "joinFeePaid",
+              "type": "uint256",
+              "internalType": "uint256"
             }
           ],
           "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "setJoinFee",
+          "inputs": [
+            {
+              "name": "joinFee_",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "tokamakVerifier",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "address",
+              "internalType": "contract ITokamakVerifier"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "unregisterChannelTokenVaultIdentity",
+          "inputs": [
+            {
+              "name": "l1Address",
+              "type": "address",
+              "internalType": "address"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
           "stateMutability": "nonpayable"
         },
         {
@@ -2595,6 +2880,25 @@
               "type": "address",
               "indexed": true,
               "internalType": "address"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "ChannelTokenVaultIdentityExited",
+          "inputs": [
+            {
+              "name": "l1Address",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            },
+            {
+              "name": "leafIndex",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "uint256"
             }
           ],
           "anonymous": false
@@ -2626,6 +2930,18 @@
               "type": "uint256",
               "indexed": false,
               "internalType": "uint256"
+            },
+            {
+              "name": "joinFeePaid",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "uint256"
+            },
+            {
+              "name": "joinedAt",
+              "type": "uint64",
+              "indexed": false,
+              "internalType": "uint64"
             },
             {
               "name": "noteReceivePubKeyX",
@@ -2663,22 +2979,16 @@
         },
         {
           "type": "event",
-          "name": "StorageWriteObserved",
+          "name": "JoinFeeUpdated",
           "inputs": [
             {
-              "name": "storageAddr",
-              "type": "address",
-              "indexed": true,
-              "internalType": "address"
-            },
-            {
-              "name": "storageKey",
+              "name": "previousJoinFee",
               "type": "uint256",
               "indexed": false,
               "internalType": "uint256"
             },
             {
-              "name": "value",
+              "name": "newJoinFee",
               "type": "uint256",
               "indexed": false,
               "internalType": "uint256"
@@ -2768,6 +3078,17 @@
         },
         {
           "type": "error",
+          "name": "ChannelTokenVaultIdentityNotRegistered",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "internalType": "address"
+            }
+          ]
+        },
+        {
+          "type": "error",
           "name": "ChannelTokenVaultKeyAlreadyRegistered",
           "inputs": [
             {
@@ -2828,11 +3149,6 @@
         },
         {
           "type": "error",
-          "name": "ChannelTokenVaultRootUpdateWithoutStorageWrite",
-          "inputs": []
-        },
-        {
-          "type": "error",
           "name": "EntryContractPublicInputOutOfRange",
           "inputs": [
             {
@@ -2856,6 +3172,16 @@
         {
           "type": "error",
           "name": "InvalidChannelTokenVaultTreeIndex",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "InvalidJoinFeeRefundSchedule",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "InvalidL1Address",
           "inputs": []
         },
         {
@@ -2913,23 +3239,17 @@
         },
         {
           "type": "error",
-          "name": "InvalidStorageWriteStorageIndex",
-          "inputs": [
-            {
-              "name": "storageAddrIndex",
-              "type": "uint8",
-              "internalType": "uint8"
-            }
-          ]
-        },
-        {
-          "type": "error",
           "name": "OnlyBridgeCore",
           "inputs": []
         },
         {
           "type": "error",
           "name": "OnlyBridgeTokenVault",
+          "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "OnlyLeader",
           "inputs": []
         },
         {
@@ -3138,6 +3458,38 @@
         },
         {
           "type": "function",
+          "name": "exitChannel",
+          "inputs": [
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "feeTreasuryBalance",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
           "name": "fund",
           "inputs": [
             {
@@ -3183,6 +3535,57 @@
             }
           ],
           "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "joinChannel",
+          "inputs": [
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "l2Address",
+              "type": "address",
+              "internalType": "address"
+            },
+            {
+              "name": "channelTokenVaultKey",
+              "type": "bytes32",
+              "internalType": "bytes32"
+            },
+            {
+              "name": "leafIndex",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "noteReceivePubKey",
+              "type": "tuple",
+              "internalType": "struct BridgeStructs.NoteReceivePubKey",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "bytes32",
+                  "internalType": "bytes32"
+                },
+                {
+                  "name": "yParity",
+                  "type": "uint8",
+                  "internalType": "uint8"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
           "stateMutability": "nonpayable"
         },
         {
@@ -3412,6 +3815,62 @@
         },
         {
           "type": "event",
+          "name": "ChannelExitRefunded",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            },
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "uint256"
+            },
+            {
+              "name": "amount",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "uint256"
+            },
+            {
+              "name": "refundBps",
+              "type": "uint16",
+              "indexed": false,
+              "internalType": "uint16"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
+          "name": "ChannelJoinFeePaid",
+          "inputs": [
+            {
+              "name": "user",
+              "type": "address",
+              "indexed": true,
+              "internalType": "address"
+            },
+            {
+              "name": "channelId",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "uint256"
+            },
+            {
+              "name": "amount",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "uint256"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "event",
           "name": "Initialized",
           "inputs": [
             {
@@ -3489,6 +3948,22 @@
           "type": "error",
           "name": "InsufficientAvailableBalance",
           "inputs": []
+        },
+        {
+          "type": "error",
+          "name": "InsufficientFeeTreasuryBalance",
+          "inputs": [
+            {
+              "name": "available",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "requested",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ]
         },
         {
           "type": "error",

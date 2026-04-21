@@ -8,15 +8,12 @@ import {BridgeStructs} from "./BridgeStructs.sol";
 
 contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 internal constant SEPOLIA_CHAIN_ID = 11155111;
+    uint256 internal constant LOCAL_CHAIN_ID = 31337;
 
     error UnknownDApp(uint256 dappId);
     error DuplicateDApp(uint256 dappId);
-    error InvalidBridgeCore();
-    error BridgeCoreAlreadyBound(address currentBridgeCore, address candidateBridgeCore);
-    error OnlyBridgeCore();
     error EmptyStorageLayout(uint256 dappId);
     error EmptyFunctionList(uint256 dappId);
-    error EmptyFunctionStorageList(bytes4 functionSig);
     error DuplicateStorageAddress(uint256 dappId, address storageAddr);
     error UnknownStorageAddress(uint256 dappId, address storageAddr);
     error DuplicateFunction(uint256 dappId, address entryContract, bytes4 functionSig);
@@ -25,12 +22,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     error MultipleChannelTokenVaultStorageAddresses(uint256 dappId, address firstStorageAddr, address secondStorageAddr);
     error MissingPreprocessInputHash(uint256 dappId, address entryContract, bytes4 functionSig);
     error DuplicatePreprocessInputHash(uint256 dappId, bytes32 preprocessInputHash);
-    error InvalidFunctionStorageWriteStorageIndex(
-        uint256 dappId,
-        address entryContract,
-        bytes4 functionSig,
-        uint8 storageAddrIndex
-    );
     error InvalidFunctionEventTopicCount(uint256 dappId, address entryContract, bytes4 functionSig, uint8 topicCount);
     error DAppDeletionDisabled();
 
@@ -40,12 +31,12 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint256 channelTokenVaultTreeIndex;
     }
 
-    address public bridgeCore;
+    // Reserved to preserve the historical storage slot after bridgeCore binding was removed.
+    address private _deprecatedBridgeCore;
 
     mapping(uint256 => DAppInfo) private _dapps;
     mapping(uint256 => mapping(bytes32 => bool)) private _supportedFunctions;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.FunctionConfig)) private _functionConfigs;
-    mapping(uint256 => mapping(bytes32 => BridgeStructs.StorageWriteMetadata[])) private _functionStorageWrites;
     mapping(uint256 => mapping(bytes32 => BridgeStructs.EventLogMetadata[])) private _functionEventLogs;
     mapping(uint256 => mapping(bytes32 => bool)) private _knownPreprocessInputHash;
     mapping(uint256 => BridgeStructs.FunctionReference[]) private _registeredFunctions;
@@ -62,7 +53,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint256 storageCount,
         uint256 functionCount
     );
-    event BridgeCoreBound(address indexed bridgeCore);
     event DAppDeleted(uint256 indexed dappId, bytes32 labelHash);
 
     constructor() {
@@ -77,23 +67,11 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         }
     }
 
-    modifier onlyBridgeCore() {
-        if (msg.sender != bridgeCore) revert OnlyBridgeCore();
-        _;
-    }
-
-    function bindBridgeCore(address bridgeCore_) external onlyOwner {
-        if (bridgeCore_ == address(0)) revert InvalidBridgeCore();
-        if (bridgeCore != address(0)) {
-            revert BridgeCoreAlreadyBound(bridgeCore, bridgeCore_);
-        }
-        bridgeCore = bridgeCore_;
-        emit BridgeCoreBound(bridgeCore_);
-    }
-
     function deleteDApp(uint256 dappId) external onlyOwner {
         DAppInfo memory info = _requireDApp(dappId);
-        if (block.chainid != SEPOLIA_CHAIN_ID) revert DAppDeletionDisabled();
+        if (block.chainid != SEPOLIA_CHAIN_ID && block.chainid != LOCAL_CHAIN_ID) {
+            revert DAppDeletionDisabled();
+        }
 
         BridgeStructs.FunctionReference[] storage refs = _registeredFunctions[dappId];
         for (uint256 i = 0; i < refs.length; i++) {
@@ -104,7 +82,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             }
             delete _supportedFunctions[dappId][functionKey];
             delete _functionConfigs[dappId][functionKey];
-            delete _functionStorageWrites[dappId][functionKey];
             delete _functionEventLogs[dappId][functionKey];
         }
         delete _registeredFunctions[dappId];
@@ -197,33 +174,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                 })
             );
 
-            for (uint256 j = 0; j < fnMetadata.instanceLayout.storageWrites.length; j++) {
-                BridgeStructs.StorageWriteMetadata calldata storageWrite = fnMetadata.instanceLayout.storageWrites[j];
-                if (storageWrite.storageAddrIndex >= _managedStorageAddresses[dappId].length) {
-                    revert InvalidFunctionStorageWriteStorageIndex(
-                        dappId,
-                        fnMetadata.entryContract,
-                        fnMetadata.functionSig,
-                        storageWrite.storageAddrIndex
-                    );
-                }
-                address storageAddr = _managedStorageAddresses[dappId][storageWrite.storageAddrIndex];
-                if (
-                    _isChannelTokenVaultStorage[dappId][storageAddr]
-                        && storageAddr != channelTokenVaultStorageAddress
-                ) {
-                    revert MultipleChannelTokenVaultStorageAddresses(
-                        dappId, channelTokenVaultStorageAddress, storageAddr
-                    );
-                }
-                _functionStorageWrites[dappId][functionKey].push(
-                    BridgeStructs.StorageWriteMetadata({
-                        aPubOffsetWords: storageWrite.aPubOffsetWords,
-                        storageAddrIndex: storageWrite.storageAddrIndex
-                    })
-                );
-            }
-
             for (uint256 j = 0; j < fnMetadata.instanceLayout.eventLogs.length; j++) {
                 BridgeStructs.EventLogMetadata calldata eventLog = fnMetadata.instanceLayout.eventLogs[j];
                 if (eventLog.topicCount > 4) {
@@ -247,8 +197,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                 entryContractOffsetWords: fnMetadata.instanceLayout.entryContractOffsetWords,
                 functionSigOffsetWords: fnMetadata.instanceLayout.functionSigOffsetWords,
                 currentRootVectorOffsetWords: fnMetadata.instanceLayout.currentRootVectorOffsetWords,
-                updatedRootVectorOffsetWords: fnMetadata.instanceLayout.updatedRootVectorOffsetWords,
-                exists: true
+                updatedRootVectorOffsetWords: fnMetadata.instanceLayout.updatedRootVectorOffsetWords
             });
         }
 
@@ -282,22 +231,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
         }
         return _functionConfigs[dappId][functionKey];
-    }
-
-    function getFunctionStorageWrites(uint256 dappId, address entryContract, bytes4 functionSig)
-        external
-        view
-        returns (BridgeStructs.StorageWriteMetadata[] memory out)
-    {
-        bytes32 functionKey = computeFunctionKey(entryContract, functionSig);
-        if (!_supportedFunctions[dappId][functionKey]) {
-            revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
-        }
-        BridgeStructs.StorageWriteMetadata[] storage storageWrites = _functionStorageWrites[dappId][functionKey];
-        out = new BridgeStructs.StorageWriteMetadata[](storageWrites.length);
-        for (uint256 i = 0; i < storageWrites.length; i++) {
-            out[i] = storageWrites[i];
-        }
     }
 
     function getFunctionEventLogs(uint256 dappId, address entryContract, bytes4 functionSig)

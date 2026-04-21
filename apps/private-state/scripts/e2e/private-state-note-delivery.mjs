@@ -2,6 +2,7 @@ import {
   randomBytes,
 } from "node:crypto";
 import { AbiCoder, ethers } from "ethers";
+import { addHexPrefix, hexToBigInt } from "@ethereumjs/util";
 import { deriveL2KeysFromSignature, poseidon } from "tokamak-l2js";
 import { jubjub } from "@noble/curves/jubjub";
 
@@ -26,7 +27,7 @@ const MINT_NOTE_FIELD_ENCRYPTION_INFO = "PRIVATE_STATE_SELF_MINT_NOTE_FIELD_ENCR
 const ENCRYPTED_NOTE_SCHEME_TRANSFER = 0;
 const ENCRYPTED_NOTE_SCHEME_SELF_MINT = 1;
 const BLS12_381_SCALAR_FIELD_MODULUS =
-  BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
+  hexToBigInt(addHexPrefix("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"));
 const JUBJUB_ORDER = jubjub.CURVE.n;
 const JUBJUB_FP = jubjub.CURVE.Fp;
 const JUBJUB_A = jubjub.CURVE.a;
@@ -142,7 +143,7 @@ function buildNoteReceiveTypedData({ chainId, channelId, channelName, account })
     value: {
       protocol: NOTE_RECEIVE_TYPED_DATA_PROTOCOL,
       dapp: NOTE_RECEIVE_TYPED_DATA_DAPP,
-      channelId: BigInt(channelId).toString(),
+      channelId: ethers.toBigInt(channelId).toString(),
       channelName,
       account: ethers.getAddress(account),
     },
@@ -150,7 +151,7 @@ function buildNoteReceiveTypedData({ chainId, channelId, channelName, account })
 }
 
 function encodeNoteValuePlaintext(value) {
-  const scalar = BigInt(value);
+  const scalar = ethers.toBigInt(value);
   if (scalar < 0n || scalar >= BLS12_381_SCALAR_FIELD_MODULUS) {
     throw new Error("Encrypted note plaintext value must fit within the BLS12-381 scalar field.");
   }
@@ -158,7 +159,7 @@ function encodeNoteValuePlaintext(value) {
 }
 
 function decodeNoteValuePlaintext(valueField) {
-  return BigInt(valueField).toString();
+  return ethers.toBigInt(valueField).toString();
 }
 
 function deriveFieldMask({
@@ -170,13 +171,13 @@ function deriveFieldMask({
   encryptionInfo,
 }) {
   const affine = sharedSecretPoint.toAffine();
-  return BigInt(poseidonHexFromBytes(
+  return ethers.toBigInt(poseidonHexFromBytes(
     abiCoder.encode(
       ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12"],
       [
         encryptionInfo,
-        BigInt(chainId),
-        BigInt(channelId),
+        ethers.toBigInt(chainId),
+        ethers.toBigInt(channelId),
         ethers.getAddress(owner),
         affine.x,
         affine.y,
@@ -202,8 +203,8 @@ function deriveCipherTag({
         ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12", "bytes32"],
         [
           `${encryptionInfo}:tag`,
-          BigInt(chainId),
-          BigInt(channelId),
+          ethers.toBigInt(chainId),
+          ethers.toBigInt(channelId),
           ethers.getAddress(owner),
           affine.x,
           affine.y,
@@ -398,7 +399,7 @@ function decryptFieldEncryptedNoteValue({
     ciphertextValue: ethers.toBigInt(normalized.ciphertextValue),
     encryptionInfo,
   });
-  if (normalizeTagHex(expectedTag) !== normalizeTagHex(normalized.tag)) {
+  if (ethers.toBigInt(normalizeTagHex(expectedTag)) !== ethers.toBigInt(normalizeTagHex(normalized.tag))) {
     throw new Error("Encrypted note value integrity tag mismatch.");
   }
   const fieldMask = deriveFieldMask({

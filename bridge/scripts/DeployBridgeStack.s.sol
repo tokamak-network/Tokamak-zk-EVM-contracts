@@ -82,7 +82,6 @@ contract DeployBridgeStackScript is Script {
             )
         );
 
-        DAppManager(address(dAppManagerProxy)).bindBridgeCore(address(bridgeCoreProxy));
         BridgeCore(address(bridgeCoreProxy)).bindBridgeTokenVault(address(bridgeTokenVaultProxy));
         if (owner != deployer) {
             DAppManager(address(dAppManagerProxy)).transferOwnership(owner);

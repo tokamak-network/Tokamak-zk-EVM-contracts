@@ -24,6 +24,7 @@ import {
 } from "ethers";
 import {
   MAX_MT_LEAVES,
+  TokamakL2StateManager,
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
@@ -31,6 +32,7 @@ import {
   fromEdwardsToAddress,
   getUserStorageKey,
   poseidon,
+  readStorageValueFromStateSnapshot,
 } from "tokamak-l2js";
 import { jubjub } from "@noble/curves/jubjub";
 import {
@@ -38,6 +40,7 @@ import {
   bytesToBigInt,
   bytesToHex,
   createAddressFromString,
+  hexToBigInt,
   hexToBytes,
 } from "@ethereumjs/util";
 import { deriveRpcUrl, resolveCliNetwork } from "../../scripts/network-config.mjs";
@@ -71,7 +74,7 @@ const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
   "function decimals() view returns (uint8)",
 ];
-const TOKAMAK_APUB_BLOCK_LENGTH = 63;
+const TOKAMAK_APUB_BLOCK_LENGTH = 43;
 const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
@@ -104,15 +107,25 @@ const NOTE_RECEIVE_EVENT_ABI = [
 ];
 const noteValueEncryptedEventInterface = new Interface(NOTE_RECEIVE_EVENT_ABI);
 const NOTE_VALUE_ENCRYPTED_TOPIC = noteValueEncryptedEventInterface.getEvent("NoteValueEncrypted").topicHash;
+const CONTROLLER_STORAGE_KEY_OBSERVED_EVENT_ABI = [
+  "event StorageKeyObserved(bytes32 storageKey)",
+];
+const controllerStorageKeyObservedEventInterface = new Interface(CONTROLLER_STORAGE_KEY_OBSERVED_EVENT_ABI);
+const CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC =
+  controllerStorageKeyObservedEventInterface.getEvent("StorageKeyObserved").topicHash;
+const VAULT_STORAGE_WRITE_OBSERVED_EVENT_ABI = [
+  "event LiquidBalanceStorageWriteObserved(address l2Address, bytes32 value)",
+];
+const vaultStorageWriteObservedEventInterface = new Interface(VAULT_STORAGE_WRITE_OBSERVED_EVENT_ABI);
+const VAULT_STORAGE_WRITE_OBSERVED_TOPIC =
+  vaultStorageWriteObservedEventInterface.getEvent("LiquidBalanceStorageWriteObserved").topicHash;
 const ZERO_TOPIC = normalizeBytes32Hex(ethers.ZeroHash);
 const JUBJUB_ORDER = jubjub.CURVE.n;
 const JUBJUB_FP = jubjub.CURVE.Fp;
 const JUBJUB_A = jubjub.CURVE.a;
 const JUBJUB_D = jubjub.CURVE.d;
-const INITIAL_ZERO_ROOT =
-  "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const BLS12_381_SCALAR_FIELD_MODULUS =
-  BigInt("0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
+  hexToBigInt(addHexPrefix("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"));
 const DEFAULT_LOG_CHUNK_SIZE = 2000;
 
 async function main() {
@@ -167,6 +180,10 @@ async function main() {
     "get-my-channel-fund": {
       assert: assertGetMyChannelFundArgs,
       run: ({ provider }) => handleGetMyChannelFund({ args, provider }),
+    },
+    "exit-channel": {
+      assert: assertExitChannelArgs,
+      run: ({ provider }) => handleExitChannel({ args, provider }),
     },
   };
   if (walletCommandHandlers[args.command]) {
@@ -236,6 +253,10 @@ async function handleChannelCreate({ args, network, provider }) {
     bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
     signer,
   );
+  const canonicalAsset = getAddress(await bridgeCore.canonicalAsset());
+  const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
+  const joinFeeInput = requireArg(args.joinFee, "--join-fee");
+  const joinFee = parseTokenAmount(joinFeeInput, canonicalAssetDecimals);
   const channelId = deriveChannelIdFromName(channelName);
   const dappId = await resolveDAppIdByLabel({
     provider,
@@ -243,7 +264,7 @@ async function handleChannelCreate({ args, network, provider }) {
     dappLabel: PRIVATE_STATE_DAPP_LABEL,
   });
 
-  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader));
+  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader, joinFee));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
   const workspaceResult = await initializeChannelWorkspace({
@@ -261,6 +282,10 @@ async function handleChannelCreate({ args, network, provider }) {
     channelId: channelId.toString(),
     dappId,
     leader,
+    joinFeeBaseUnits: joinFee.toString(),
+    joinFeeTokens: ethers.formatUnits(joinFee, canonicalAssetDecimals),
+    canonicalAsset,
+    canonicalAssetDecimals,
     asset: channelInfo.asset,
     manager: channelInfo.manager,
     bridgeTokenVault: channelInfo.bridgeTokenVault,
@@ -293,10 +318,10 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
       manifestLabel === dappLabel
       && Number.isInteger(manifestDappId)
       && manifestManager !== null
-      && manifestManager === getAddress(bridgeResources.bridgeDeployment.dAppManager)
+      && ethers.toBigInt(manifestManager) === ethers.toBigInt(getAddress(bridgeResources.bridgeDeployment.dAppManager))
     ) {
       const info = await dAppManager.getDAppInfo(manifestDappId);
-      if (info.exists && normalizeBytes32Hex(info.labelHash) === expectedLabelHash) {
+      if (info.exists && ethers.toBigInt(normalizeBytes32Hex(info.labelHash)) === ethers.toBigInt(expectedLabelHash)) {
         return Number(manifestDappId);
       }
     }
@@ -312,7 +337,7 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
 
   for (const event of events) {
     const eventLabelHash = normalizeBytes32Hex(event.args?.labelHash);
-    if (eventLabelHash === expectedLabelHash) {
+    if (ethers.toBigInt(eventLabelHash) === ethers.toBigInt(expectedLabelHash)) {
       matchingIds.push(Number(event.args.dappId));
     }
   }
@@ -407,14 +432,16 @@ async function initializeChannelWorkspace({
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
   const controllerAddress = getAddress(deploymentManifest.contracts.controller);
   const l2AccountingVaultAddress = getAddress(deploymentManifest.contracts.l2AccountingVault);
-  const liquidBalancesSlot = BigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
+  const liquidBalancesSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
 
   expect(
-    managedStorageAddresses.includes(controllerAddress),
+    managedStorageAddresses.some((address) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(controllerAddress)),
     `Managed storage vector does not include controller ${controllerAddress}.`,
   );
   expect(
-    managedStorageAddresses.includes(l2AccountingVaultAddress),
+    managedStorageAddresses.some(
+      (address) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(l2AccountingVaultAddress),
+    ),
     `Managed storage vector does not include L2 accounting vault ${l2AccountingVaultAddress}.`,
   );
 
@@ -422,7 +449,7 @@ async function initializeChannelWorkspace({
   const blockInfo = await fetchChannelBlockInfo(provider, genesisBlockNumber);
   const derivedAPubBlockHash = normalizeBytes32Hex(hashTokamakPublicInputs(encodeTokamakBlockInfo(blockInfo)));
   expect(
-    derivedAPubBlockHash === normalizeBytes32Hex(channelInfo.aPubBlockHash),
+    ethers.toBigInt(derivedAPubBlockHash) === ethers.toBigInt(normalizeBytes32Hex(channelInfo.aPubBlockHash)),
     `Derived channel block-info hash ${derivedAPubBlockHash} does not match onchain ${channelInfo.aPubBlockHash}.`,
   );
   const localSnapshotReusable = canReuseLocalWorkspaceSnapshot({
@@ -442,6 +469,9 @@ async function initializeChannelWorkspace({
       contractCodes,
       genesisBlockNumber,
       channelId,
+      controllerAddress,
+      l2AccountingVaultAddress,
+      liquidBalancesSlot,
     });
 
   const workspace = {
@@ -476,7 +506,7 @@ async function initializeChannelWorkspace({
     writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"), currentSnapshot);
     writeJsonIfChanged(
       path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.normalized.json"),
-      normalizeStateSnapshot(currentSnapshot),
+      currentSnapshot,
     );
     writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"), blockInfo);
     writeJsonIfChanged(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"), contractCodes);
@@ -526,7 +556,7 @@ async function handleRegisterAndFund({ args, network, provider }) {
     bridgeTokenVault: bridgeVaultContext.bridgeTokenVaultAddress,
     approveGasUsed: receiptGasUsed(approveReceipt),
     fundGasUsed: receiptGasUsed(fundReceipt),
-    totalGasUsed: (BigInt(approveReceipt.gasUsed) + BigInt(fundReceipt.gasUsed)).toString(),
+    totalGasUsed: (ethers.toBigInt(approveReceipt.gasUsed) + ethers.toBigInt(fundReceipt.gasUsed)).toString(),
     approveTxUrl: explorerTxUrl(network, approveReceipt.hash),
     fundTxUrl: explorerTxUrl(network, fundReceipt.hash),
     approveReceipt: sanitizeReceipt(approveReceipt),
@@ -614,19 +644,21 @@ async function handleRecoverWallet({ args, network, provider, rpcUrl }) {
     `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
   );
   expect(
-    getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
+    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     "The existing channel registration L2 address does not match the derived L2 address.",
   );
   expect(
-    normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
+    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
     "The existing channel registration key does not match the derived channelTokenVault key.",
   );
   expect(
-    BigInt(registration.leafIndex) === BigInt(leafIndex),
+    ethers.toBigInt(registration.leafIndex) === ethers.toBigInt(leafIndex),
     "The existing channel registration leaf index does not match the derived leaf index.",
   );
   expect(
-    normalizeBytes32Hex(registration.noteReceivePubKey.x) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
+    ethers.toBigInt(normalizeBytes32Hex(registration.noteReceivePubKey.x))
+      === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
     "The existing note-receive public key X does not match the derived note-receive public key.",
   );
   expect(
@@ -778,23 +810,24 @@ function assertExistingRecoverableWallet({
     `Wallet ${walletContext.walletName} does not decrypt to the requested L1 private key.`,
   );
   expect(
-    getAddress(wallet.l1Address) === getAddress(signerAddress),
+    ethers.toBigInt(getAddress(wallet.l1Address)) === ethers.toBigInt(getAddress(signerAddress)),
     `Wallet ${walletContext.walletName} L1 address does not match the requested signer.`,
   );
   expect(
-    getAddress(wallet.l2Address) === getAddress(l2Identity.l2Address),
+    ethers.toBigInt(getAddress(wallet.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     `Wallet ${walletContext.walletName} L2 address does not match the derived channel identity.`,
   );
   expect(
-    normalizeBytes32Hex(wallet.l2StorageKey) === normalizeBytes32Hex(storageKey),
+    ethers.toBigInt(normalizeBytes32Hex(wallet.l2StorageKey))
+      === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
     `Wallet ${walletContext.walletName} storage key does not match the derived registration key.`,
   );
   expect(
-    BigInt(wallet.leafIndex) === BigInt(leafIndex),
+    ethers.toBigInt(wallet.leafIndex) === ethers.toBigInt(leafIndex),
     `Wallet ${walletContext.walletName} leaf index does not match the derived registration leaf index.`,
   );
   expect(
-    BigInt(wallet.channelId) === BigInt(channelContext.workspace.channelId),
+    ethers.toBigInt(wallet.channelId) === ethers.toBigInt(channelContext.workspace.channelId),
     `Wallet ${walletContext.walletName} channel ID does not match the requested channel.`,
   );
   expect(
@@ -810,23 +843,25 @@ function assertExistingRecoverableWallet({
     `Wallet ${walletContext.walletName} rpcUrl does not match the requested runtime RPC URL.`,
   );
   expect(
-    getAddress(wallet.channelManager) === getAddress(channelContext.workspace.channelManager),
+    ethers.toBigInt(getAddress(wallet.channelManager)) === ethers.toBigInt(getAddress(channelContext.workspace.channelManager)),
     `Wallet ${walletContext.walletName} channel manager does not match the recovered workspace.`,
   );
   expect(
-    getAddress(wallet.bridgeTokenVault) === getAddress(channelContext.workspace.bridgeTokenVault),
+    ethers.toBigInt(getAddress(wallet.bridgeTokenVault)) === ethers.toBigInt(getAddress(channelContext.workspace.bridgeTokenVault)),
     `Wallet ${walletContext.walletName} bridge token vault does not match the recovered workspace.`,
   );
   expect(
-    getAddress(wallet.controller) === getAddress(channelContext.workspace.controller),
+    ethers.toBigInt(getAddress(wallet.controller)) === ethers.toBigInt(getAddress(channelContext.workspace.controller)),
     `Wallet ${walletContext.walletName} controller does not match the recovered workspace.`,
   );
   expect(
-    getAddress(wallet.l2AccountingVault) === getAddress(channelContext.workspace.l2AccountingVault),
+    ethers.toBigInt(getAddress(wallet.l2AccountingVault))
+      === ethers.toBigInt(getAddress(channelContext.workspace.l2AccountingVault)),
     `Wallet ${walletContext.walletName} L2 accounting vault does not match the recovered workspace.`,
   );
   expect(
-    normalizeBytes32Hex(wallet.noteReceivePubKeyX) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
+    ethers.toBigInt(normalizeBytes32Hex(wallet.noteReceivePubKeyX))
+      === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
     `Wallet ${walletContext.walletName} note-receive public key X does not match the derived key.`,
   );
   expect(
@@ -963,8 +998,9 @@ async function handleGetMyAddress({ args, provider }) {
   const registration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   const matchesWallet = registration.exists
-    && getAddress(registration.l2Address) === getAddress(l2Identity.l2Address)
-    && normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(expectedStorageKey);
+    && ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address))
+    && ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey));
 
   printJson({
     action: "get-my-address",
@@ -993,11 +1029,12 @@ async function loadWalletChannelFundState({ walletContext, provider }) {
   );
   const expectedStorageKey = deriveLiquidBalanceStorageKey(l2Identity.l2Address, context.workspace.liquidBalancesSlot);
   expect(
-    getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
+    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     "The local wallet L2 address does not match the registered channel L2 address.",
   );
   expect(
-    normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(expectedStorageKey),
+    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey)),
     "The local wallet L2 storage key does not match the registered channelTokenVault key.",
   );
 
@@ -1073,74 +1110,71 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
 
   const existingRegistration = await context.channelManager.getChannelTokenVaultRegistration(signer.address);
+  let resolvedLeafIndex = leafIndex;
+  let approveReceipt = null;
+  let receipt = null;
+  let joinFee = 0n;
+  let status = null;
+
   if (!existingRegistration.exists) {
-    const receipt = await waitForReceipt(
-      await context.channelManager.connect(signer).registerChannelTokenVaultIdentity(
+    joinFee = ethers.toBigInt(await context.channelManager.joinFee());
+    const asset = new Contract(
+      context.workspace.canonicalAsset,
+      context.bridgeAbiManifest.contracts.erc20.abi,
+      signer,
+    );
+    let nextNonce = await provider.getTransactionCount(signer.address, "pending");
+    if (joinFee !== 0n) {
+      approveReceipt = await waitForReceipt(
+        await asset.approve(context.workspace.bridgeTokenVault, joinFee, { nonce: nextNonce++ }),
+      );
+    }
+    receipt = await waitForReceipt(
+      await context.bridgeTokenVault.connect(signer).joinChannel(
+        ethers.toBigInt(context.workspace.channelId),
         l2Identity.l2Address,
         storageKey,
         leafIndex,
         noteReceiveKeyMaterial.noteReceivePubKey,
+        { nonce: nextNonce++ },
       ),
     );
-
-    const walletContext = ensureWallet({
-      channelContext: context,
-      signerAddress: signer.address,
-      signerPrivateKey: signer.privateKey,
-      l2Identity,
-      walletPassword: password,
-      storageKey,
-      leafIndex,
-      noteReceiveKeyMaterial,
-      rpcUrl,
-    });
-
-    printJson({
-      action: "join-channel",
-      workspace: context.workspaceName,
-      wallet: walletContext.walletName,
-      channelName: context.workspace.channelName,
-      channelId: context.workspace.channelId,
-      l1Address: signer.address,
-      l2Address: l2Identity.l2Address,
-      l2StorageKey: storageKey,
-      leafIndex: leafIndex.toString(),
-      noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
-      gasUsed: receiptGasUsed(receipt),
-      txUrl: explorerTxUrl(network, receipt.hash),
-      receipt: sanitizeReceipt(receipt),
-    });
-    return;
+    status = "joined";
+  } else {
+    expect(
+      ethers.toBigInt(normalizeBytes32Hex(existingRegistration.channelTokenVaultKey))
+        === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
+      "The existing channel registration key does not match the derived channelTokenVault key.",
+    );
+    expect(
+      ethers.toBigInt(getAddress(existingRegistration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
+      "The existing channel registration L2 address does not match the derived L2 address.",
+    );
+    expect(
+      ethers.toBigInt(normalizeBytes32Hex(existingRegistration.noteReceivePubKey.x))
+        === ethers.toBigInt(normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x)),
+      "The existing note-receive public key X does not match the derived note-receive public key.",
+    );
+    expect(
+      Number(existingRegistration.noteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
+      "The existing note-receive public key parity does not match the derived note-receive public key.",
+    );
+    resolvedLeafIndex = existingRegistration.leafIndex;
+    joinFee = ethers.toBigInt(existingRegistration.joinFeePaid);
+    status = "already-registered";
   }
 
-  expect(
-    normalizeBytes32Hex(existingRegistration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
-    "The existing channel registration key does not match the derived channelTokenVault key.",
-  );
-  expect(
-    getAddress(existingRegistration.l2Address) === getAddress(l2Identity.l2Address),
-    "The existing channel registration L2 address does not match the derived L2 address.",
-  );
-  expect(
-    normalizeBytes32Hex(existingRegistration.noteReceivePubKey.x) === normalizeBytes32Hex(noteReceiveKeyMaterial.noteReceivePubKey.x),
-    "The existing note-receive public key X does not match the derived note-receive public key.",
-  );
-  expect(
-    Number(existingRegistration.noteReceivePubKey.yParity) === Number(noteReceiveKeyMaterial.noteReceivePubKey.yParity),
-    "The existing note-receive public key parity does not match the derived note-receive public key.",
-  );
-
-    const walletContext = ensureWallet({
-      channelContext: context,
-      signerAddress: signer.address,
-      signerPrivateKey: signer.privateKey,
-      l2Identity,
-      walletPassword: password,
-      storageKey,
-      leafIndex: existingRegistration.leafIndex,
-      noteReceiveKeyMaterial,
-      rpcUrl,
-    });
+  const walletContext = ensureWallet({
+    channelContext: context,
+    signerAddress: signer.address,
+    signerPrivateKey: signer.privateKey,
+    l2Identity,
+    walletPassword: password,
+    storageKey,
+    leafIndex: resolvedLeafIndex,
+    noteReceiveKeyMaterial,
+    rpcUrl,
+  });
 
   printJson({
     action: "join-channel",
@@ -1151,9 +1185,58 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     l1Address: signer.address,
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
-    leafIndex: existingRegistration.leafIndex.toString(),
+    leafIndex: resolvedLeafIndex.toString(),
+    joinFeeBaseUnits: joinFee.toString(),
+    joinFeeTokens: ethers.formatUnits(joinFee, Number(context.workspace.canonicalAssetDecimals)),
     noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
-    status: "already-registered",
+    approveGasUsed: approveReceipt ? receiptGasUsed(approveReceipt) : null,
+    gasUsed: receipt ? receiptGasUsed(receipt) : null,
+    approveTxUrl: approveReceipt ? explorerTxUrl(network, approveReceipt.hash) : null,
+    txUrl: receipt ? explorerTxUrl(network, receipt.hash) : null,
+    approveReceipt: approveReceipt ? sanitizeReceipt(approveReceipt) : null,
+    receipt: receipt ? sanitizeReceipt(receipt) : null,
+    status,
+  });
+}
+
+async function handleExitChannel({ args, provider }) {
+  const { wallet: walletContext, walletMetadata } = loadUnlockedWalletWithMetadata(args);
+  const { signer, context, channelFund, contextResult } = await loadWalletChannelFundState({
+    walletContext,
+    provider,
+  });
+  const network = contextResult.network;
+  const bypassZeroBalanceGuard = args.force === true;
+  expect(
+    bypassZeroBalanceGuard || channelFund === 0n,
+    [
+      `The current channel fund for ${signer.address} is ${channelFund.toString()}.`,
+      "exit-channel requires a zero channel balance unless --force is provided.",
+      "Run withdraw-channel first, or rerun exit-channel with --force to bypass this CLI check.",
+    ].join(" "),
+  );
+  const [refundAmount, refundBps] = await context.channelManager.getExitFeeRefundQuote(signer.address);
+  const receipt = await waitForReceipt(
+    await context.bridgeTokenVault.connect(signer).exitChannel(ethers.toBigInt(context.workspace.channelId)),
+  );
+
+  printJson({
+    action: "exit-channel",
+    wallet: walletContext.walletName,
+    network: walletMetadata.network,
+    channelName: walletMetadata.channelName,
+    channelId: context.workspace.channelId,
+    l1Address: signer.address,
+    forced: bypassZeroBalanceGuard,
+    currentUserValue: channelFund.toString(),
+    refundAmountBaseUnits: refundAmount.toString(),
+    refundAmountTokens: ethers.formatUnits(refundAmount, Number(context.workspace.canonicalAssetDecimals)),
+    refundBps: Number(refundBps),
+    canonicalAsset: context.workspace.canonicalAsset,
+    canonicalAssetDecimals: Number(context.workspace.canonicalAssetDecimals),
+    gasUsed: receiptGasUsed(receipt),
+    txUrl: explorerTxUrl(network, receipt.hash),
+    receipt: sanitizeReceipt(receipt),
   });
 }
 
@@ -1163,7 +1246,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const context = contextResult.context;
   const network = contextResult.network;
   expect(
-    BigInt(walletContext.wallet.channelId) === BigInt(context.workspace.channelId),
+    ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
   );
 
@@ -1192,11 +1275,12 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     `No channelTokenVault registration exists for ${signer.address}. Run join-channel first.`,
   );
   expect(
-    normalizeBytes32Hex(registration.channelTokenVaultKey) === normalizeBytes32Hex(storageKey),
+    ethers.toBigInt(normalizeBytes32Hex(registration.channelTokenVaultKey))
+      === ethers.toBigInt(normalizeBytes32Hex(storageKey)),
     "The derived L2 storage key does not match the registered channelTokenVault key.",
   );
   expect(
-    getAddress(registration.l2Address) === getAddress(l2Identity.l2Address),
+    ethers.toBigInt(getAddress(registration.l2Address)) === ethers.toBigInt(getAddress(l2Identity.l2Address)),
     "The derived L2 address does not match the registered channel L2 address.",
   );
 
@@ -1237,7 +1321,7 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   });
 
   const receipt = await waitForReceipt(
-    await bridgeTokenVault[direction](BigInt(context.workspace.channelId), transition.proof, transition.update),
+    await bridgeTokenVault[direction](ethers.toBigInt(context.workspace.channelId), transition.proof, transition.update),
   );
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
@@ -1247,10 +1331,10 @@ async function handleGrothVaultMove({ args, provider, direction }) {
 
   writeJson(path.join(operationDir, `${operationName}-receipt.json`), sanitizeReceipt(receipt));
   writeJson(path.join(operationDir, "state_snapshot.json"), transition.nextSnapshot);
-  writeJson(path.join(operationDir, "state_snapshot.normalized.json"), normalizeStateSnapshot(transition.nextSnapshot));
+  writeJson(path.join(operationDir, "state_snapshot.normalized.json"), transition.nextSnapshot);
   sealWalletOperationDir(operationDir, walletContext.walletPassword);
 
-  context.currentSnapshot = normalizeStateSnapshot(transition.nextSnapshot);
+  context.currentSnapshot = transition.nextSnapshot;
   persistCurrentState(context);
 
   printJson({
@@ -1389,9 +1473,9 @@ async function handleRedeemNotes({ args, provider }) {
     nonce: execution.nonce,
     noteIds,
     redeemedNotes: inputNotes.map((note) => buildTrackedNote(note, templatePayload.method, execution.receipt.hash)),
-    redeemedAmountBaseUnits: inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n).toString(),
+    redeemedAmountBaseUnits: inputNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n).toString(),
     redeemedAmountTokens: ethers.formatUnits(
-      inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n),
+      inputNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n),
       Number(wallet.wallet.canonicalAssetDecimals),
     ),
     gasUsed: receiptGasUsed(execution.receipt),
@@ -1430,21 +1514,21 @@ async function handleGetMyNotes({ args, provider }) {
     .filter(Boolean);
   const spentTrackedNotes = Object.values(wallet.wallet.notes.spent ?? {}).sort(compareNotesByValueDesc);
 
-  const unusedNotes = unusedTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
+  const unusedNotes = await Promise.all(unusedTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
     note,
     currentSnapshot: context.currentSnapshot,
     controllerAddress: wallet.wallet.controller,
     canonicalAssetDecimals,
-  }));
-  const spentNotes = spentTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
+  })));
+  const spentNotes = await Promise.all(spentTrackedNotes.map((note) => buildWalletNoteBridgeStatus({
     note,
     currentSnapshot: context.currentSnapshot,
     controllerAddress: wallet.wallet.controller,
     canonicalAssetDecimals,
-  }));
+  })));
 
-  const unusedTotal = unusedTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
-  const spentTotal = spentTrackedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
+  const unusedTotal = unusedTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
+  const spentTotal = spentTrackedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
 
   printJson({
     action: "get-my-notes",
@@ -1485,7 +1569,7 @@ async function handleTransferNotes({ args, provider }) {
     expect(parsed > 0n, `Invalid --amounts[${index}]. Each amount must be greater than zero.`);
     return parsed;
   });
-  const totalInput = inputNotes.reduce((sum, note) => sum + BigInt(note.value), 0n);
+  const totalInput = inputNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
   const totalOutput = outputAmounts.reduce((sum, value) => sum + value, 0n);
   expect(
     totalInput === totalOutput,
@@ -1562,7 +1646,7 @@ function mergeTrackedNotesIntoWallet(walletContext, trackedNotes) {
   return imported;
 }
 
-function reconcileWalletNotesWithBridgeState({
+async function reconcileWalletNotesWithBridgeState({
   walletContext,
   currentSnapshot,
   controllerAddress,
@@ -1576,7 +1660,7 @@ function reconcileWalletNotesWithBridgeState({
 
   for (const note of trackedNotes) {
     const normalizedNote = normalizeTrackedNote(note);
-    const commitmentExists = readBooleanStorageValueFromSnapshot({
+    const commitmentExists = await readBooleanStorageValueFromSnapshot({
       snapshot: currentSnapshot,
       storageAddress: controllerAddress,
       storageKey: normalizedNote.bridgeCommitmentKey,
@@ -1585,7 +1669,7 @@ function reconcileWalletNotesWithBridgeState({
       continue;
     }
 
-    const nullifierUsed = readBooleanStorageValueFromSnapshot({
+    const nullifierUsed = await readBooleanStorageValueFromSnapshot({
       snapshot: currentSnapshot,
       storageAddress: controllerAddress,
       storageKey: normalizedNote.bridgeNullifierKey,
@@ -1608,7 +1692,7 @@ function reconcileWalletNotesWithBridgeState({
       .sort(compareNotesByValueDesc)
       .map((note) => note.commitment),
     unusedBalance: Object.values(reconciledUnused)
-      .reduce((sum, note) => sum + BigInt(note.value), 0n)
+      .reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n)
       .toString(),
   };
   walletContext.wallet = normalizeWallet(walletContext.wallet);
@@ -1635,7 +1719,7 @@ function ensureWallet({
   if (walletConfigExists(walletDir)) {
     wallet = normalizeWallet(readEncryptedWalletJson(walletConfigPath(walletDir), walletPassword));
     expect(
-      BigInt(wallet.channelId) === BigInt(channelContext.workspace.channelId),
+      ethers.toBigInt(wallet.channelId) === ethers.toBigInt(channelContext.workspace.channelId),
       `Wallet ${walletName} belongs to channel ${wallet.channelId}, not ${channelContext.workspace.channelId}.`,
     );
     expect(
@@ -1748,7 +1832,7 @@ function normalizeWallet(wallet) {
       unused: Object.fromEntries(unusedNotes.map((note) => [note.commitment, note])),
       spent: Object.fromEntries(spentNotes.map((note) => [note.nullifier, note])),
       unusedOrder: unusedNotes.map((note) => note.commitment),
-      unusedBalance: unusedNotes.reduce((sum, note) => sum + BigInt(note.value), 0n).toString(),
+      unusedBalance: unusedNotes.reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n).toString(),
     },
   };
 }
@@ -1756,7 +1840,7 @@ function normalizeWallet(wallet) {
 function normalizeTrackedNote(note) {
   return {
     owner: getAddress(note.owner),
-    value: BigInt(note.value).toString(),
+    value: ethers.toBigInt(note.value).toString(),
     salt: normalizeBytes32Hex(note.salt),
     commitment: normalizeBytes32Hex(note.commitment),
     nullifier: normalizeBytes32Hex(note.nullifier),
@@ -1768,18 +1852,18 @@ function normalizeTrackedNote(note) {
   };
 }
 
-function buildWalletNoteBridgeStatus({
+async function buildWalletNoteBridgeStatus({
   note,
   currentSnapshot,
   controllerAddress,
   canonicalAssetDecimals,
 }) {
-  const commitmentExists = readBooleanStorageValueFromSnapshot({
+  const commitmentExists = await readBooleanStorageValueFromSnapshot({
     snapshot: currentSnapshot,
     storageAddress: controllerAddress,
     storageKey: note.bridgeCommitmentKey,
   });
-  const nullifierUsed = readBooleanStorageValueFromSnapshot({
+  const nullifierUsed = await readBooleanStorageValueFromSnapshot({
     snapshot: currentSnapshot,
     storageAddress: controllerAddress,
     storageKey: note.bridgeNullifierKey,
@@ -1788,7 +1872,7 @@ function buildWalletNoteBridgeStatus({
   return {
     owner: note.owner,
     valueBaseUnits: note.value,
-    valueTokens: ethers.formatUnits(BigInt(note.value), canonicalAssetDecimals),
+    valueTokens: ethers.formatUnits(ethers.toBigInt(note.value), canonicalAssetDecimals),
     commitment: note.commitment,
     nullifier: note.nullifier,
     walletStatus: note.status,
@@ -1800,28 +1884,22 @@ function buildWalletNoteBridgeStatus({
   };
 }
 
-function readBooleanStorageValueFromSnapshot({ snapshot, storageAddress, storageKey }) {
+async function readBooleanStorageValueFromSnapshot({ snapshot, storageAddress, storageKey }) {
   if (!storageKey) {
     return false;
   }
-  const normalizedAddress = getAddress(storageAddress);
-  const addressIndex = snapshot.storageAddresses.findIndex(
-    (entry) => getAddress(entry) === normalizedAddress,
+  return (
+    hexToBigInt(
+      addHexPrefix(
+        String(await readStorageValueFromStateSnapshot(snapshot, storageAddress, storageKey) ?? "").replace(/^0x/i, ""),
+      ),
+    ) !== 0n
   );
-  expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
-
-  const entry = snapshot.storageEntries[addressIndex]?.find(
-    (item) => normalizeBytes32Hex(item.key) === normalizeBytes32Hex(storageKey),
-  );
-  if (!entry) {
-    return false;
-  }
-  return BigInt(entry.value) !== 0n;
 }
 
 function compareNotesByValueDesc(left, right) {
-  const leftValue = BigInt(left.value);
-  const rightValue = BigInt(right.value);
+  const leftValue = ethers.toBigInt(left.value);
+  const rightValue = ethers.toBigInt(right.value);
   if (leftValue === rightValue) {
     return left.commitment.localeCompare(right.commitment);
   }
@@ -1886,8 +1964,8 @@ async function recoverDeliveredNotesFromEventLogs({
   const storageLayoutManifest = readJson(
     walletContext.wallet.storageLayoutPath ?? context.workspace.storageLayoutPath,
   );
-  const commitmentExistsSlot = BigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "commitmentExists"));
-  const nullifierUsedSlot = BigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
+  const commitmentExistsSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "commitmentExists"));
+  const nullifierUsedSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
   const observedLogs = await fetchLogsChunked(provider, {
     address: context.workspace.channelManager,
     fromBlock: scanStartBlock,
@@ -1940,7 +2018,7 @@ async function recoverDeliveredNotesFromEventLogs({
       bridgeCommitmentKey: derivePrivateStateControllerMappingStorageKey(commitment, commitmentExistsSlot),
       bridgeNullifierKey: derivePrivateStateControllerMappingStorageKey(nullifier, nullifierUsedSlot),
     });
-    const commitmentExists = readBooleanStorageValueFromSnapshot({
+    const commitmentExists = await readBooleanStorageValueFromSnapshot({
       snapshot: context.currentSnapshot,
       storageAddress: context.workspace.controller,
       storageKey: trackedNote.bridgeCommitmentKey,
@@ -1952,7 +2030,7 @@ async function recoverDeliveredNotesFromEventLogs({
   }
 
   const importedNotes = mergeTrackedNotesIntoWallet(walletContext, importedCandidates);
-  const reconciledState = reconcileWalletNotesWithBridgeState({
+  const reconciledState = await reconcileWalletNotesWithBridgeState({
     walletContext,
     currentSnapshot: context.currentSnapshot,
     controllerAddress: context.workspace.controller,
@@ -2006,13 +2084,13 @@ function buildImportedTrackedNote(note) {
   });
   if (note.commitment !== undefined) {
     expect(
-      normalizeBytes32Hex(note.commitment) === trackedNote.commitment,
+      ethers.toBigInt(normalizeBytes32Hex(note.commitment)) === ethers.toBigInt(trackedNote.commitment),
       `Imported note commitment mismatch for ${trackedNote.commitment}.`,
     );
   }
   if (note.nullifier !== undefined) {
     expect(
-      normalizeBytes32Hex(note.nullifier) === trackedNote.nullifier,
+      ethers.toBigInt(normalizeBytes32Hex(note.nullifier)) === ethers.toBigInt(trackedNote.nullifier),
       `Imported note nullifier mismatch for ${trackedNote.commitment}.`,
     );
   }
@@ -2022,7 +2100,7 @@ function buildImportedTrackedNote(note) {
 function normalizePlaintextNote(note) {
   return {
     owner: getAddress(note.owner),
-    value: BigInt(note.value).toString(),
+    value: ethers.toBigInt(note.value).toString(),
     salt: normalizeBytes32Hex(note.salt),
   };
 }
@@ -2031,7 +2109,7 @@ function computeNoteCommitment(note) {
   const data = ethers.getBytes(ethers.concat([
     NOTE_COMMITMENT_DOMAIN,
     ethers.zeroPadValue(getAddress(note.owner), 32),
-    ethers.toBeHex(BigInt(note.value), 32),
+    ethers.toBeHex(ethers.toBigInt(note.value), 32),
     normalizeBytes32Hex(note.salt),
   ]));
   return normalizeBytes32Hex(
@@ -2045,7 +2123,7 @@ function computeNullifier(note) {
   const data = ethers.getBytes(ethers.concat([
     NULLIFIER_DOMAIN,
     ethers.zeroPadValue(getAddress(note.owner), 32),
-    ethers.toBeHex(BigInt(note.value), 32),
+    ethers.toBeHex(ethers.toBigInt(note.value), 32),
     normalizeBytes32Hex(note.salt),
   ]));
   return normalizeBytes32Hex(
@@ -2065,7 +2143,7 @@ function buildNoteReceiveTypedData({ chainId, channelId, channelName, account })
     value: {
       protocol: NOTE_RECEIVE_TYPED_DATA_PROTOCOL,
       dapp: NOTE_RECEIVE_TYPED_DATA_DAPP,
-      channelId: BigInt(channelId).toString(),
+      channelId: ethers.toBigInt(channelId).toString(),
       channelName,
       account: getAddress(account),
     },
@@ -2156,8 +2234,8 @@ function unpackEncryptedNoteValue(encryptedNoteValue) {
 }
 
 function derivePrivateStateControllerMappingStorageKey(keyHex, slot) {
-  const encoded = abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(keyHex), BigInt(slot)]);
-  return normalizeBytes32Hex(bytesToHex(poseidon(hexToBytes(encoded))));
+  const encoded = abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(keyHex), ethers.toBigInt(slot)]);
+  return normalizeBytes32Hex(bytesToHex(poseidon(hexToBytes(addHexPrefix(String(encoded ?? "").replace(/^0x/i, ""))))));
 }
 
 function computeEncryptedNoteSalt(encryptedValue) {
@@ -2168,7 +2246,7 @@ function computeEncryptedNoteSalt(encryptedValue) {
 }
 
 function encodeNoteValuePlaintext(value) {
-  const scalar = BigInt(value);
+  const scalar = ethers.toBigInt(value);
   expect(
     scalar >= 0n && scalar < BLS12_381_SCALAR_FIELD_MODULUS,
     "Encrypted note plaintext value must fit within the BLS12-381 scalar field.",
@@ -2177,7 +2255,7 @@ function encodeNoteValuePlaintext(value) {
 }
 
 function decodeNoteValuePlaintext(valueBytes) {
-  return BigInt(valueBytes).toString();
+  return ethers.toBigInt(valueBytes).toString();
 }
 
 function fieldElementHex(value) {
@@ -2190,7 +2268,7 @@ function normalizeTagHex(value) {
 
 function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce, encryptionInfo }) {
   const affine = sharedSecretPoint.toAffine();
-  return BigInt(
+  return ethers.toBigInt(
     bytesToHex(
       poseidon(
         ethers.getBytes(
@@ -2198,8 +2276,8 @@ function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce, 
             ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12"],
             [
               encryptionInfo,
-              BigInt(chainId),
-              BigInt(channelId),
+              ethers.toBigInt(chainId),
+              ethers.toBigInt(channelId),
               getAddress(owner),
               affine.x,
               affine.y,
@@ -2222,8 +2300,8 @@ function deriveCipherTag({ sharedSecretPoint, chainId, channelId, owner, nonce, 
             ["string", "uint256", "uint256", "address", "uint256", "uint256", "bytes12", "bytes32"],
             [
               `${encryptionInfo}:tag`,
-              BigInt(chainId),
-              BigInt(channelId),
+              ethers.toBigInt(chainId),
+              ethers.toBigInt(channelId),
               getAddress(owner),
               affine.x,
               affine.y,
@@ -2420,12 +2498,21 @@ function extractNoteLifecycle(functionName, templatePayload) {
 }
 
 function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, controllerAddress, lifecycle }) {
-  const previousEntries = snapshotStorageEntriesForAddress(previousSnapshot, controllerAddress);
-  const nextEntries = snapshotStorageEntriesForAddress(nextSnapshot, controllerAddress);
-  const previousKeys = new Set(previousEntries.map((entry) => normalizeBytes32Hex(entry.key)));
-  const newKeys = nextEntries
-    .map((entry) => normalizeBytes32Hex(entry.key))
-    .filter((key) => !previousKeys.has(key));
+  const normalizedControllerAddress = getAddress(controllerAddress);
+  const previousStorageAddressIndex = previousSnapshot.storageAddresses.findIndex(
+    (entry) => ethers.toBigInt(getAddress(entry)) === ethers.toBigInt(normalizedControllerAddress),
+  );
+  const nextStorageAddressIndex = nextSnapshot.storageAddresses.findIndex(
+    (entry) => ethers.toBigInt(getAddress(entry)) === ethers.toBigInt(normalizedControllerAddress),
+  );
+  expect(previousStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
+  expect(nextStorageAddressIndex !== -1, `Storage snapshot does not include ${normalizedControllerAddress}.`);
+  const previousKeysForAddress = previousSnapshot.storageKeys[previousStorageAddressIndex] ?? [];
+  const nextKeysForAddress = nextSnapshot.storageKeys[nextStorageAddressIndex] ?? [];
+  const previousKeys = new Set(previousKeysForAddress.map((key) => ethers.toBigInt(normalizeBytes32Hex(key)).toString()));
+  const newKeys = nextKeysForAddress
+    .map((key) => normalizeBytes32Hex(key))
+    .filter((key) => !previousKeys.has(ethers.toBigInt(key).toString()));
   const inputCount = lifecycle.inputs.length;
   const outputCount = lifecycle.outputs.length;
   const expectedNewKeyCount = inputCount + outputCount;
@@ -2435,8 +2522,8 @@ function extractControllerStorageDelta({ previousSnapshot, nextSnapshot, control
       previousSnapshot,
       nextSnapshot,
       controllerAddress,
-      previousEntries,
-      nextEntries,
+      previousKeysForAddress,
+      nextKeysForAddress,
       inputCount,
       outputCount,
       newKeyCount: newKeys.length,
@@ -2453,8 +2540,8 @@ function buildControllerStorageDeltaError({
   previousSnapshot,
   nextSnapshot,
   controllerAddress,
-  previousEntries,
-  nextEntries,
+  previousKeysForAddress,
+  nextKeysForAddress,
   inputCount,
   outputCount,
   newKeyCount,
@@ -2468,16 +2555,16 @@ function buildControllerStorageDeltaError({
   ].join(" ");
   const details = [
     `Controller: ${normalizedAddress}.`,
-    `Tracked controller slots before: ${previousEntries.length}.`,
-    `Tracked controller slots after: ${nextEntries.length}.`,
+    `Tracked controller slots before: ${previousKeysForAddress.length}.`,
+    `Tracked controller slots after: ${nextKeysForAddress.length}.`,
     `New controller slots discovered: ${newKeyCount}.`,
   ];
-  if (previousEntries.length === 0 && nextEntries.length === 0) {
+  if (previousKeysForAddress.length === 0 && nextKeysForAddress.length === 0) {
     details.push(
       "The local workspace snapshot already had no tracked controller storage slots, and the proof pipeline produced another snapshot with no tracked controller storage slots.",
     );
   }
-  if (normalizeBytes32Hex(previousRoot) === normalizeBytes32Hex(nextRoot)) {
+  if (ethers.toBigInt(normalizeBytes32Hex(previousRoot)) === ethers.toBigInt(normalizeBytes32Hex(nextRoot))) {
     details.push(
       "The controller root also stayed unchanged in the generated snapshot, so the pipeline did not expose any controller state change that the CLI could map to note IDs.",
     );
@@ -2491,19 +2578,10 @@ function buildControllerStorageDeltaError({
   return `${headline} ${details.join(" ")}`;
 }
 
-function snapshotStorageEntriesForAddress(snapshot, storageAddress) {
-  const normalizedAddress = getAddress(storageAddress);
-  const addressIndex = snapshot.storageAddresses.findIndex(
-    (entry) => getAddress(entry) === normalizedAddress,
-  );
-  expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
-  return snapshot.storageEntries[addressIndex] ?? [];
-}
-
 function snapshotRootForAddress(snapshot, storageAddress) {
   const normalizedAddress = getAddress(storageAddress);
   const addressIndex = snapshot.storageAddresses.findIndex(
-    (entry) => getAddress(entry) === normalizedAddress,
+    (entry) => ethers.toBigInt(getAddress(entry)) === ethers.toBigInt(normalizedAddress),
   );
   expect(addressIndex >= 0, `Storage snapshot does not include ${normalizedAddress}.`);
   return snapshot.stateRoots[addressIndex];
@@ -2564,13 +2642,15 @@ function buildRedeemNotesTemplatePayload({ wallet, inputNotes }) {
 
 function selectMintNotesMethod(noteCount) {
   expect(noteCount >= 1, "mint-notes requires at least one output amount.");
-  expect(noteCount <= 6, "mint-notes supports at most six output amounts.");
+  expect(
+    noteCount <= 2,
+    "mint-notes supports only one or two output amounts with the currently registered DApp.",
+  );
   return `mintNotes${noteCount}`;
 }
 
 function selectRedeemNotesMethod(noteCount) {
-  expect(noteCount >= 1, "redeem-notes requires at least one input note.");
-  expect(noteCount <= 2, "redeem-notes supports at most two input notes.");
+  expect(noteCount === 1, "redeem-notes supports exactly one input note with the currently registered DApp.");
   return `redeemNotes${noteCount}`;
 }
 
@@ -2604,12 +2684,12 @@ function buildMintEncryptedOutputs({ wallet, values }) {
       owner: wallet.wallet.l2Address,
     });
     mintOutputs.push({
-      value: BigInt(value).toString(),
+      value: ethers.toBigInt(value).toString(),
       encryptedNoteValue,
     });
     lifecycleOutputs.push({
       owner: wallet.wallet.l2Address,
-      value: BigInt(value).toString(),
+      value: ethers.toBigInt(value).toString(),
       salt: computeEncryptedNoteSalt(encryptedNoteValue),
     });
   }
@@ -2622,7 +2702,8 @@ function buildMintEncryptedOutputs({ wallet, values }) {
 function assertRegisteredNoteReceivePubKey(noteReceivePubKey, recipient) {
   expect(noteReceivePubKey, `Missing note-receive public key for ${recipient}.`);
   expect(
-    noteReceivePubKey.x && normalizeBytes32Hex(noteReceivePubKey.x) !== normalizeBytes32Hex("0x0"),
+    noteReceivePubKey.x
+      && ethers.toBigInt(normalizeBytes32Hex(noteReceivePubKey.x)) !== ethers.toBigInt(normalizeBytes32Hex("0x0")),
     `Recipient ${recipient} is missing a registered note-receive public key.`,
   );
   expect(
@@ -2660,12 +2741,12 @@ async function buildTransferNotesTemplatePayload({
     const salt = computeEncryptedNoteSalt(encryptedNoteValue);
     transferOutputs.push({
       owner: recipient,
-      value: BigInt(outputAmounts[index]).toString(),
+      value: ethers.toBigInt(outputAmounts[index]).toString(),
       encryptedNoteValue,
     });
     lifecycleOutputs.push({
       owner: recipient,
-      value: BigInt(outputAmounts[index]).toString(),
+      value: ethers.toBigInt(outputAmounts[index]).toString(),
       salt,
     });
   }
@@ -2838,7 +2919,7 @@ function isRecoverableWalletWorkspaceFailure(error) {
 
 function assertWalletMatchesChannelContext(walletContext, l2Identity, context) {
   expect(
-    BigInt(walletContext.wallet.channelId) === BigInt(context.workspace.channelId),
+    ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
   );
   expect(
@@ -2940,7 +3021,11 @@ async function executeWalletTemplateSend({
   runTokamakProofPipeline({ operationDir, bundlePath });
 
   const rawNextSnapshot = readJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.json"));
-  const nextSnapshot = normalizeStateSnapshot(rawNextSnapshot);
+  if (Array.isArray(rawNextSnapshot.storageAddresses)) {
+    rawNextSnapshot.storageAddresses = rawNextSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
+  const nextSnapshot = rawNextSnapshot;
   writeJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
   const payload = loadTokamakPayloadFromStep(operationDir);
@@ -2952,7 +3037,8 @@ async function executeWalletTemplateSend({
   });
   const aPubBlockHash = hashTokamakPublicInputs(payload.aPubBlock);
   expect(
-    normalizeBytes32Hex(aPubBlockHash) === normalizeBytes32Hex(context.workspace.aPubBlockHash),
+    ethers.toBigInt(normalizeBytes32Hex(aPubBlockHash))
+      === ethers.toBigInt(normalizeBytes32Hex(context.workspace.aPubBlockHash)),
     "Generated Tokamak proof does not match the channel aPubBlockHash. Check the workspace block_info.json context.",
   );
 
@@ -2961,7 +3047,7 @@ async function executeWalletTemplateSend({
 
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
-    onchainRootVectorHash === normalizeBytes32Hex(hashRootVector(nextSnapshot.stateRoots)),
+    ethers.toBigInt(onchainRootVectorHash) === ethers.toBigInt(normalizeBytes32Hex(hashRootVector(nextSnapshot.stateRoots))),
     `On-chain roots do not match the Tokamak post-state roots for ${functionName}.`,
   );
 
@@ -2996,7 +3082,11 @@ async function loadWorkspaceContext(workspaceName, networkName, provider) {
   const bridgeAbiManifestPath = defaultBridgeAbiManifestPath(workspace.chainId);
   const bridgeDeployment = readJson(bridgeDeploymentPath);
   const bridgeAbiManifest = loadBridgeAbiManifest(bridgeAbiManifestPath);
-  const currentSnapshot = normalizeStateSnapshot(readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json")));
+  const currentSnapshot = readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "state_snapshot.json"));
+  if (Array.isArray(currentSnapshot.storageAddresses)) {
+    currentSnapshot.storageAddresses = currentSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
   const blockInfo = readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "block_info.json"));
   const contractCodes = readJson(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"));
   const channelManager = new Contract(workspace.channelManager, bridgeAbiManifest.contracts.channelManager.abi, provider);
@@ -3244,7 +3334,7 @@ async function loadBridgeVaultContext({ provider, chainId }) {
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
   const storageLayoutManifestPath = path.resolve(deployRoot, `storage-layout.${chainId}.latest.json`);
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
-  const liquidBalancesSlot = BigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
+  const liquidBalancesSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
 
   return {
     ...bridgeResources,
@@ -3271,24 +3361,28 @@ async function assertWorkspaceAlignedWithChain(context) {
 async function buildGrothTransition({ operationDir, workspace, stateManager, vaultAddress, keyHex, nextValue }) {
   const grothArtifacts = loadGroth16UpdateTreeArtifacts(Number(workspace.chainId));
   const vaultAddressObj = createAddressFromString(vaultAddress);
-  const keyBigInt = BigInt(keyHex);
+  const keyBigInt = ethers.toBigInt(keyHex);
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
-  const currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  const currentSnapshot = await stateManager.captureStateSnapshot();
 
-  await stateManager.putStorage(vaultAddressObj, hexToBytes(keyHex), hexToBytes(bigintToHex32(nextValue)));
+  await stateManager.putStorage(
+    vaultAddressObj,
+    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
+    hexToBytes(addHexPrefix(String(bigintToHex32(nextValue) ?? "").replace(/^0x/i, ""))),
+  );
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
-  const nextSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  const nextSnapshot = await stateManager.captureStateSnapshot();
 
   const input = {
     root_before: currentRoot.toString(),
     root_after: updatedRoot.toString(),
-    leaf_index: BigInt(proof.leafIndex).toString(),
+    leaf_index: ethers.toBigInt(proof.leafIndex).toString(),
     storage_key: keyBigInt.toString(),
     storage_value_before: currentValue.toString(),
     storage_value_after: nextValue.toString(),
-    proof: proof.siblings.map((siblings) => BigInt(siblings[0] ?? 0n).toString()),
+    proof: proof.siblings.map((siblings) => ethers.toBigInt(siblings[0] ?? 0n).toString()),
   };
 
   writeJson(path.join(operationDir, "input.json"), input);
@@ -3501,21 +3595,21 @@ function loadTokamakPayloadFromStep(operationDir) {
   const instanceJson = readJson(path.join(operationDir, "resource", "synthesizer", "output", "instance.json"));
 
   return {
-    proofPart1: proofJson.proof_entries_part1.map((value) => BigInt(value)),
-    proofPart2: proofJson.proof_entries_part2.map((value) => BigInt(value)),
-    functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => BigInt(value)),
-    functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => BigInt(value)),
-    aPubUser: instanceJson.a_pub_user.map((value) => BigInt(value)),
-    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => BigInt(value))),
+    proofPart1: proofJson.proof_entries_part1.map((value) => ethers.toBigInt(value)),
+    proofPart2: proofJson.proof_entries_part2.map((value) => ethers.toBigInt(value)),
+    functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => ethers.toBigInt(value)),
+    functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => ethers.toBigInt(value)),
+    aPubUser: instanceJson.a_pub_user.map((value) => ethers.toBigInt(value)),
+    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => ethers.toBigInt(value))),
   };
 }
 
 function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
   const tx = createTokamakL2Tx(
     {
-      nonce: BigInt(nonce),
+      nonce: ethers.toBigInt(nonce),
       to: createAddressFromString(to),
-      data: hexToBytes(data),
+      data: hexToBytes(addHexPrefix(String(data ?? "").replace(/^0x/i, ""))),
       senderPubKey,
     },
     { common: createTokamakL2Common() },
@@ -3534,7 +3628,10 @@ async function buildStateManager(snapshot, contractCodes) {
 }
 
 async function currentStorageBigInt(stateManager, address, keyHex) {
-  const valueBytes = await stateManager.getStorage(createAddressFromString(address), hexToBytes(keyHex));
+  const valueBytes = await stateManager.getStorage(
+    createAddressFromString(address),
+    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
+  );
   if (valueBytes.length === 0) {
     return 0n;
   }
@@ -3542,11 +3639,11 @@ async function currentStorageBigInt(stateManager, address, keyHex) {
 }
 
 function deriveLiquidBalanceStorageKey(l2Address, slot) {
-  return bytesToHex(getUserStorageKey([l2Address, BigInt(slot)], "TokamakL2"));
+  return bytesToHex(getUserStorageKey([l2Address, ethers.toBigInt(slot)], "TokamakL2"));
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
+  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
 }
 
 async function fetchContractCodes(provider, addresses) {
@@ -3566,20 +3663,6 @@ async function fetchTokenDecimals(provider, assetAddress) {
   return Number(await asset.decimals());
 }
 
-function normalizeStateSnapshot(snapshot) {
-  return {
-    ...snapshot,
-    stateRoots: normalizedRootVector(snapshot.stateRoots),
-    storageAddresses: normalizedAddressVector(snapshot.storageAddresses),
-    storageEntries: snapshot.storageEntries.map((entries) => entries
-      .filter((entry) => !isZeroLikeStorageValue(entry.value))
-      .map((entry) => ({
-        key: entry.key.toLowerCase(),
-        value: entry.value.toLowerCase(),
-      }))),
-  };
-}
-
 function normalizedRootVector(roots) {
   return roots.map((value) => normalizeBytes32Hex(value));
 }
@@ -3593,11 +3676,17 @@ function normalizedAddressVector(addresses) {
 }
 
 function normalizeBytes32Hex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(BigInt(hexValue)), 32).toLowerCase();
+  return ethers.zeroPadValue(
+    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
+    32,
+  ).toLowerCase();
 }
 
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(BigInt(hexValue)), 32);
+  return ethers.zeroPadValue(
+    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
+    32,
+  );
 }
 
 function bytes32FromBigInt(value) {
@@ -3614,16 +3703,16 @@ function hashTokamakPublicInputs(values) {
 
 function encodeTokamakBlockInfo(blockInfo) {
   const values = new Array(TOKAMAK_APUB_BLOCK_LENGTH).fill(0n);
-  appendSplitWord(values, 0, BigInt(blockInfo.coinBase));
-  appendSplitWord(values, 2, BigInt(blockInfo.timeStamp));
-  appendSplitWord(values, 4, BigInt(blockInfo.blockNumber));
-  appendSplitWord(values, 6, BigInt(blockInfo.prevRanDao));
-  appendSplitWord(values, 8, BigInt(blockInfo.gasLimit));
-  appendSplitWord(values, 10, BigInt(blockInfo.chainId));
-  appendSplitWord(values, 12, BigInt(blockInfo.selfBalance));
-  appendSplitWord(values, 14, BigInt(blockInfo.baseFee));
+  appendSplitWord(values, 0, ethers.toBigInt(blockInfo.coinBase));
+  appendSplitWord(values, 2, ethers.toBigInt(blockInfo.timeStamp));
+  appendSplitWord(values, 4, ethers.toBigInt(blockInfo.blockNumber));
+  appendSplitWord(values, 6, ethers.toBigInt(blockInfo.prevRanDao));
+  appendSplitWord(values, 8, ethers.toBigInt(blockInfo.gasLimit));
+  appendSplitWord(values, 10, ethers.toBigInt(blockInfo.chainId));
+  appendSplitWord(values, 12, ethers.toBigInt(blockInfo.selfBalance));
+  appendSplitWord(values, 14, ethers.toBigInt(blockInfo.baseFee));
   for (let index = 0; index < TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT; index += 1) {
-    appendSplitWord(values, 16 + index * 2, BigInt(blockInfo.prevBlockHashes[index] ?? 0n));
+    appendSplitWord(values, 16 + index * 2, ethers.toBigInt(blockInfo.prevBlockHashes[index] ?? 0n));
   }
   return values;
 }
@@ -3643,7 +3732,7 @@ function normalizeTokamakAPubBlock(values) {
 }
 
 function appendSplitWord(target, startIndex, value) {
-  const normalized = BigInt(value);
+  const normalized = ethers.toBigInt(value);
   target[startIndex] = normalized & ((1n << 128n) - 1n);
   target[startIndex + 1] = normalized >> 128n;
 }
@@ -3691,13 +3780,18 @@ async function reconstructChannelSnapshot({
   contractCodes,
   genesisBlockNumber,
   channelId,
+  controllerAddress,
+  l2AccountingVaultAddress,
+  liquidBalancesSlot,
 }) {
-  const genesisSnapshot = {
-    channelId: channelId.toString(),
-    stateRoots: managedStorageAddresses.map(() => normalizeBytes32Hex(INITIAL_ZERO_ROOT)),
-    storageAddresses: managedStorageAddresses,
-    storageEntries: managedStorageAddresses.map(() => []),
-  };
+  const genesisStateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+  const managedAddressObjects = managedStorageAddresses.map((address) => createAddressFromString(address));
+  await genesisStateManager._initializeForAddresses(managedAddressObjects);
+  genesisStateManager._channelId = channelId.toString();
+  for (const address of managedAddressObjects) {
+    genesisStateManager._commitResolvedStorageEntries(address, []);
+  }
+  const genesisSnapshot = await genesisStateManager.captureStateSnapshot();
 
   const bridgeTokenVault = new Contract(
     channelInfo.bridgeTokenVault,
@@ -3711,21 +3805,24 @@ async function reconstructChannelSnapshot({
     fromBlock: genesisBlockNumber,
     toBlock: latestBlock,
   });
-  const channelStorageWriteEvents = await queryContractEventsChunked({
-    contract: channelManager,
-    eventName: "StorageWriteObserved",
-    fromBlock: genesisBlockNumber,
-    toBlock: latestBlock,
-  });
   const vaultStorageWriteEvents = await queryContractEventsChunked({
     contract: bridgeTokenVault,
     eventName: "StorageWriteObserved",
     fromBlock: genesisBlockNumber,
     toBlock: latestBlock,
   });
+  const observedStorageLogs = await fetchLogsChunked(provider, {
+    address: channelInfo.manager,
+    topics: [[
+      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
+      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
+    ]],
+    fromBlock: genesisBlockNumber,
+    toBlock: latestBlock,
+  });
 
   const groupedEvents = new Map();
-  for (const event of [...rootEvents, ...channelStorageWriteEvents, ...vaultStorageWriteEvents]) {
+  for (const event of [...rootEvents, ...vaultStorageWriteEvents, ...observedStorageLogs]) {
     const key = event.transactionHash;
     const group = groupedEvents.get(key) ?? [];
     group.push(event);
@@ -3733,13 +3830,13 @@ async function reconstructChannelSnapshot({
   }
 
   const groupedValues = [...groupedEvents.values()].sort((left, right) => compareLogsByPosition(left[0], right[0]));
-  let currentSnapshot = normalizeStateSnapshot(genesisSnapshot);
+  let currentSnapshot = genesisSnapshot;
   let stateManager = await buildStateManager(currentSnapshot, contractCodes);
 
   for (const group of groupedValues) {
     const orderedGroup = [...group].sort(compareLogsByPosition);
     const rootEvent = orderedGroup.find(
-      (event) => event.address.toLowerCase() === channelInfo.manager.toLowerCase()
+      (event) => ethers.toBigInt(getAddress(event.address)) === ethers.toBigInt(getAddress(channelInfo.manager))
         && event.fragment?.name === "CurrentRootVectorObserved",
     );
     if (!rootEvent) {
@@ -3750,32 +3847,68 @@ async function reconstructChannelSnapshot({
     const emittedRootVectorHash = normalizeBytes32Hex(rootEvent.args.rootVectorHash);
 
     for (const event of orderedGroup) {
-      if (event.fragment?.name !== "StorageWriteObserved") {
+      if (event.fragment?.name === "StorageWriteObserved") {
+        const storageAddr = getAddress(event.args.storageAddr);
+        const storageKey = bytes32FromBigInt(ethers.toBigInt(event.args.storageKey));
+        const storageValue = bigintToHex32(ethers.toBigInt(event.args.value));
+        await stateManager.putStorage(
+          createAddressFromString(storageAddr),
+          hexToBytes(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))),
+          hexToBytes(addHexPrefix(String(storageValue ?? "").replace(/^0x/i, ""))),
+        );
         continue;
       }
-      const storageAddr = getAddress(event.args.storageAddr);
-      const storageKey = bytes32FromBigInt(BigInt(event.args.storageKey));
-      const storageValue = bigintToHex32(BigInt(event.args.value));
-      await stateManager.putStorage(
-        createAddressFromString(storageAddr),
-        hexToBytes(storageKey),
-        hexToBytes(storageValue),
-      );
+
+      const topic0 = event.topics[0] ? normalizeBytes32Hex(event.topics[0]) : null;
+      if (topic0 !== null && ethers.toBigInt(topic0) === ethers.toBigInt(normalizeBytes32Hex(CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC))) {
+        const { storageKey } = controllerStorageKeyObservedEventInterface.decodeEventLog(
+          "StorageKeyObserved",
+          event.data,
+          event.topics,
+        );
+        await stateManager.putStorage(
+          createAddressFromString(controllerAddress),
+          hexToBytes(addHexPrefix(String(normalizeBytes32Hex(storageKey) ?? "").replace(/^0x/i, ""))),
+          hexToBytes(addHexPrefix(String(bigintToHex32(1n) ?? "").replace(/^0x/i, ""))),
+        );
+        continue;
+      }
+
+      if (topic0 !== null && ethers.toBigInt(topic0) === ethers.toBigInt(normalizeBytes32Hex(VAULT_STORAGE_WRITE_OBSERVED_TOPIC))) {
+        const { l2Address, value } = vaultStorageWriteObservedEventInterface.decodeEventLog(
+          "LiquidBalanceStorageWriteObserved",
+          event.data,
+          event.topics,
+        );
+        const storageKey = deriveLiquidBalanceStorageKey(
+          getAddress(l2Address),
+          ethers.toBigInt(liquidBalancesSlot),
+        );
+        await stateManager.putStorage(
+          createAddressFromString(l2AccountingVaultAddress),
+          hexToBytes(addHexPrefix(String(normalizeBytes32Hex(storageKey) ?? "").replace(/^0x/i, ""))),
+          hexToBytes(addHexPrefix(String(normalizeBytes32Hex(value) ?? "").replace(/^0x/i, ""))),
+        );
+      }
     }
 
-    currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+    currentSnapshot = await stateManager.captureStateSnapshot();
     expect(
-      normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === emittedRootVectorHash,
+      ethers.toBigInt(normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots))) === ethers.toBigInt(emittedRootVectorHash),
       `CurrentRootVectorObserved hash mismatch at tx ${rootEvent.transactionHash}.`,
     );
     expect(
-      JSON.stringify(currentSnapshot.stateRoots) === JSON.stringify(emittedRootVector),
+      currentSnapshot.stateRoots.length === emittedRootVector.length
+        && currentSnapshot.stateRoots.every(
+          (root, index) => ethers.toBigInt(normalizeBytes32Hex(root)) === ethers.toBigInt(emittedRootVector[index]),
+        ),
       `CurrentRootVectorObserved root vector mismatch at tx ${rootEvent.transactionHash}.`,
     );
   }
 
   expect(
-    normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)) === normalizeBytes32Hex(currentRootVectorHash),
+    ethers.toBigInt(normalizeBytes32Hex(hashRootVector(currentSnapshot.stateRoots)))
+      === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash)),
     "Reconstructed channel snapshot does not match the current on-chain root vector hash.",
   );
 
@@ -3846,8 +3979,8 @@ function deriveRecommendedLogChunkSize(error, currentChunkSize) {
 
   const recommendedWindowMatch = /\[(0x[0-9a-f]+),\s*(0x[0-9a-f]+)\]/i.exec(serializedError);
   if (recommendedWindowMatch) {
-    const lower = Number(BigInt(recommendedWindowMatch[1]));
-    const upper = Number(BigInt(recommendedWindowMatch[2]));
+    const lower = Number(ethers.toBigInt(recommendedWindowMatch[1]));
+    const upper = Number(ethers.toBigInt(recommendedWindowMatch[2]));
     if (Number.isFinite(lower) && Number.isFinite(upper) && upper >= lower) {
       return Math.max(1, upper - lower + 1);
     }
@@ -3904,10 +4037,10 @@ function toGrothSolidityProof(proof) {
 }
 
 function splitFieldElement(value) {
-  const hexValue = BigInt(value).toString(16).padStart(96, "0");
+  const hexValue = ethers.toBigInt(value).toString(16).padStart(96, "0");
   return [
-    BigInt(`0x${"0".repeat(32)}${hexValue.slice(0, 32)}`),
-    BigInt(`0x${hexValue.slice(32)}`),
+    hexToBigInt(addHexPrefix(`${"0".repeat(32)}${hexValue.slice(0, 32)}`)),
+    hexToBigInt(addHexPrefix(hexValue.slice(32))),
   ];
 }
 
@@ -3931,7 +4064,7 @@ function sanitizeReceipt(receipt) {
 }
 
 function receiptGasUsed(receipt) {
-  return BigInt(receipt.gasUsed).toString();
+  return ethers.toBigInt(receipt.gasUsed).toString();
 }
 
 function explorerTxUrl(network, txHash) {
@@ -3991,7 +4124,11 @@ function loadGroth16UpdateTreeArtifacts(chainId) {
 function findStorageSlot(storageLayoutManifest, contractName, label) {
   const contract = storageLayoutManifest.contracts[contractName];
   if (!contract) {
-    throw new Error(`Missing ${contractName} storage layout in ${JSON.stringify(storageLayoutManifest)}`);
+    throw new Error(
+      `Missing ${contractName} storage layout. Available contracts: ${
+        Object.keys(storageLayoutManifest.contracts ?? {}).join(", ") || "<none>"
+      }.`,
+    );
   }
 
   const entry = contract.storageLayout.storage.find((item) => item.label === label);
@@ -4278,14 +4415,15 @@ function assertGetMyNotesArgs(args) {
 
 function assertCreateChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
+  requireArg(args.joinFee, "--join-fee");
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, "create-channel");
   requireArg(args.privateKey, "--private-key");
   assertAllowedCommandKeys(
     args,
     "create-channel",
-    new Set(["command", "positional", "channelName", "network", "alchemyApiKey", "privateKey"]),
-    "--channel-name, --network, --private-key, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "channelName", "joinFee", "network", "alchemyApiKey", "privateKey"]),
+    "--channel-name, --join-fee, --network, --private-key, and --alchemy-api-key on public networks",
   );
 }
 
@@ -4369,6 +4507,10 @@ function assertGetMyChannelFundArgs(args) {
   assertWalletPasswordArgs(args, "get-my-channel-fund", [], "--wallet, --password, and --network");
 }
 
+function assertExitChannelArgs(args) {
+  assertWalletPasswordArgs(args, "exit-channel", ["force"], "--wallet, --password, --network, and optional --force");
+}
+
 function createWalletOperationDir(walletName, networkName, suffix) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const operationDir = path.join(
@@ -4399,7 +4541,7 @@ function persistCurrentState(context) {
   writeJson(path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.json"), context.currentSnapshot);
   writeJson(
     path.join(channelWorkspaceCurrentPath(context.workspaceDir), "state_snapshot.normalized.json"),
-    normalizeStateSnapshot(context.currentSnapshot),
+    context.currentSnapshot,
   );
 }
 
@@ -4412,7 +4554,7 @@ Commands:
   uninstall-zk-evm
       Remove the checked-out Tokamak zk-EVM worktree contents
 
-  create-channel --channel-name <NAME> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  create-channel --channel-name <NAME> --join-fee <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
 
   recover-workspace --channel-name <NAME> --network <NAME> --alchemy-api-key <KEY>
@@ -4431,7 +4573,7 @@ Commands:
       Rebuild a recoverable local wallet from on-chain channel state
 
   join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
-      Bind a wallet to a channel-specific L2 identity
+      Pay the channel join fee and bind a wallet to a channel-specific L2 identity
 
   get-my-address --wallet <NAME> --password <PASSWORD> --network <NAME>
       Check whether a wallet matches the on-chain channel registration
@@ -4445,14 +4587,17 @@ Commands:
   get-my-channel-fund --wallet <NAME> --password <PASSWORD> --network <NAME>
       Read the current channel L2 accounting balance
 
+  exit-channel --wallet <NAME> --password <PASSWORD> --network <NAME> [--force]
+      Exit a channel. The CLI requires a zero channel balance unless --force is provided
+
   mint-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --amounts <A,B,...>
-      Mint private-state notes from the wallet's channel balance
+      Mint one or two private-state notes from the wallet's channel balance
 
   transfer-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-ids <ID,ID,...> --recipients <ADDR,ADDR,...> --amounts <A,B,...>
-      Spend input notes into supported private transfer outputs
+      Spend input notes into the registered 1->1, 1->2, or 2->1 private transfer shapes
 
   redeem-notes --wallet <NAME> --password <PASSWORD> --network <NAME> --note-ids <ID,ID,...>
-      Redeem one or two tracked notes back into the wallet's channel balance
+      Redeem one tracked note back into the wallet's channel balance
 
   get-my-notes --wallet <NAME> --password <PASSWORD> --network <NAME>
       Show the wallet's tracked note state and refresh received notes
@@ -4511,9 +4656,13 @@ function writeJsonIfChanged(filePath, value) {
 function loadExistingWorkspaceArtifacts(workspaceDir) {
   const currentDir = channelWorkspaceCurrentPath(workspaceDir);
   const stateSnapshot = readJsonIfExists(path.join(currentDir, "state_snapshot.json"));
+  if (Array.isArray(stateSnapshot?.storageAddresses)) {
+    stateSnapshot.storageAddresses = stateSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
   return {
     workspace: readJsonIfExists(channelWorkspaceConfigPath(workspaceDir)),
-    stateSnapshot: stateSnapshot ? normalizeStateSnapshot(stateSnapshot) : null,
+    stateSnapshot,
     blockInfo: readJsonIfExists(path.join(currentDir, "block_info.json")),
     contractCodes: readJsonIfExists(path.join(currentDir, "contract_codes.json")),
   };
@@ -4524,9 +4673,12 @@ function canReuseLocalWorkspaceSnapshot({ existingArtifacts, currentRootVectorHa
   if (!localSnapshot) {
     return false;
   }
-  return normalizeBytes32Hex(hashRootVector(localSnapshot.stateRoots)) === normalizeBytes32Hex(currentRootVectorHash)
-    && hashJsonValue(normalizedAddressVector(localSnapshot.storageAddresses))
-      === hashJsonValue(normalizedAddressVector(managedStorageAddresses));
+  return ethers.toBigInt(normalizeBytes32Hex(hashRootVector(localSnapshot.stateRoots)))
+    === ethers.toBigInt(normalizeBytes32Hex(currentRootVectorHash))
+    && localSnapshot.storageAddresses.length === managedStorageAddresses.length
+    && localSnapshot.storageAddresses.every(
+      (address, index) => ethers.toBigInt(getAddress(address)) === ethers.toBigInt(getAddress(managedStorageAddresses[index])),
+    );
 }
 
 function writeEncryptedWalletJson(filePath, value, walletPassword) {
@@ -4644,14 +4796,6 @@ function expect(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
-}
-
-function isZeroLikeStorageValue(value) {
-  if (typeof value !== "string") {
-    return false;
-  }
-  const normalized = value.trim().toLowerCase();
-  return normalized === "0x" || normalized === "0x0" || normalized === "0x00";
 }
 
 main().catch((error) => {

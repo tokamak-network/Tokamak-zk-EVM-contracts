@@ -10,7 +10,6 @@ import {
   AbiCoder,
   Contract,
   HDNodeWallet,
-  Interface,
   JsonRpcProvider,
   Wallet,
   ethers,
@@ -18,9 +17,6 @@ import {
 } from "ethers";
 import {
   MAX_MT_LEAVES,
-  createTokamakL2Common,
-  createTokamakL2StateManagerFromStateSnapshot,
-  createTokamakL2Tx,
   getUserStorageKey,
   poseidon,
 } from "tokamak-l2js";
@@ -28,6 +24,7 @@ import {
   addHexPrefix,
   bytesToHex,
   createAddressFromString,
+  hexToBigInt,
   hexToBytes,
 } from "@ethereumjs/util";
 import {
@@ -44,11 +41,7 @@ import {
   walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
 } from "../utils/private-state-cli-shared.mjs";
 import {
-  computeEncryptedNoteSalt,
-  encryptMintNoteValueForOwner,
   deriveNoteReceiveKeyMaterial,
-  encryptedNoteValueTuple,
-  encryptNoteValueForRecipient,
 } from "./private-state-note-delivery.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -75,10 +68,11 @@ const privateStateGrothArtifactSyncPath = path.resolve(
   "deploy",
   "sync-groth16-update-tree-artifacts.sh",
 );
-const controllerAbiPath = path.resolve(appRoot, "deploy", "PrivateStateController.callable-abi.json");
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
+const systemMonitorRoot = path.resolve(outputRoot, "system-monitor");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
 const summaryPath = path.resolve(outputRoot, "summary.json");
+const failureDiagnosticsPath = path.resolve(outputRoot, "failure-diagnostics.json");
 const dappMetadataRoot = path.resolve(outputRoot, "dapp-metadata");
 const providerUrl = process.env.ANVIL_RPC_URL?.trim() || "http://127.0.0.1:8545";
 const workspaceNetworkName = "anvil";
@@ -89,13 +83,14 @@ const anvilDeployerPrivateKey =
 const channelName = "private-state-cli-e2e";
 const dappId = "1";
 const dappLabel = "private-state";
+const joinFeeTokens = "1";
 const depositAmountTokens = "3";
 const claimAmountTokens = "9";
 const amountUnit = 10n ** 18n;
+const joinFeeBaseUnits = 1n * amountUnit;
 const depositAmountBaseUnits = 3n * amountUnit;
 const claimAmountBaseUnits = 9n * amountUnit;
-const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
-const tokamakAPubBlockLength = 63;
+const tokamakAPubBlockLength = 43;
 const tokamakPrevBlockHashCount = 4;
 const requiredTokamakSetupArtifacts = [
   "combined_sigma.rkyv",
@@ -103,6 +98,15 @@ const requiredTokamakSetupArtifacts = [
   "sigma_verify.rkyv",
 ];
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
+const tokamakSynthesizerRoot = path.resolve(tokamakRoot, "packages", "frontend", "synthesizer");
+const tokamakSynthesizerTsconfigPath = path.resolve(tokamakSynthesizerRoot, "tsconfig.dev.json");
+const synthesizerExamplesRoot = path.resolve(tokamakSynthesizerRoot, "examples", "privateState");
+const generateSynthesizerLaunchInputsPath = path.resolve(
+  appRoot,
+  "scripts",
+  "deploy",
+  "generate-synthesizer-launch-inputs.ts",
+);
 const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
 const tokamakStepArtifactDirectories = [
@@ -112,8 +116,17 @@ const tokamakStepArtifactDirectories = [
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
+  "function deleteDApp(uint256 dappId) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
   "function getDAppInfo(uint256 dappId) external view returns (tuple(bool exists, bytes32 labelHash, uint256 channelTokenVaultTreeIndex))",
+];
+const localRegistrationExamples = [
+  { group: "mintNotes", name: "mintNotes1" },
+  { group: "mintNotes", name: "mintNotes2" },
+  { group: "transferNotes", name: "transferNotes1To1" },
+  { group: "transferNotes", name: "transferNotes1To2" },
+  { group: "transferNotes", name: "transferNotes2To1" },
+  { group: "redeemNotes", name: "redeemNotes1" },
 ];
 
 function usage() {
@@ -122,6 +135,7 @@ function usage() {
 
 Options:
   --skip-install                      Skip tokamak-cli --install before metadata generation
+  --skip-groth-setup                  Skip bridge Groth16 refresh during local redeploy
   --keep-anvil                         Leave anvil running after success
   --help                               Show this help
 
@@ -135,6 +149,7 @@ Notes:
 function parseArgs(argv) {
   const options = {
     runInstall: true,
+    runGrothSetup: true,
     keepAnvil: false,
   };
 
@@ -143,6 +158,9 @@ function parseArgs(argv) {
     switch (current) {
       case "--skip-install":
         options.runInstall = false;
+        break;
+      case "--skip-groth-setup":
+        options.runGrothSetup = false;
         break;
       case "--keep-anvil":
         options.keepAnvil = true;
@@ -164,6 +182,10 @@ function expect(condition, message) {
     throw new Error(message);
   }
 }
+
+let currentCliE2EOptions = {
+  runGrothSetup: true,
+};
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -188,13 +210,65 @@ function writeJson(filePath, value) {
   );
 }
 
+function readJsonIfExists(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  return readJson(filePath);
+}
+
+const currentCommandPath = path.join(systemMonitorRoot, "current-command.json");
+const lastCommandPath = path.join(systemMonitorRoot, "last-command.json");
+const commandHistoryPath = path.join(systemMonitorRoot, "command-history.ndjson");
+
+function appendCommandHistory(entry) {
+  ensureDir(systemMonitorRoot);
+  fs.appendFileSync(
+    commandHistoryPath,
+    `${JSON.stringify(entry, (_key, current) => (
+      typeof current === "bigint" ? current.toString() : current
+    ))}\n`,
+  );
+}
+
+function updateCurrentCommand(entry) {
+  writeJson(currentCommandPath, entry);
+}
+
+function clearCurrentCommand() {
+  fs.rmSync(currentCommandPath, { force: true });
+}
+
 function run(command, args, {
   cwd = repoRoot,
   env = process.env,
   captureStdout = false,
   quiet = false,
+  label = null,
 } = {}) {
   const printable = [command, ...args].join(" ");
+  const commandLabel = label ?? printable;
+  const startedAtMs = Date.now();
+  const startedAt = new Date(startedAtMs).toISOString();
+  updateCurrentCommand({
+    label: commandLabel,
+    command,
+    args,
+    cwd,
+    captureStdout,
+    quiet,
+    startedAt,
+  });
+  appendCommandHistory({
+    event: "start",
+    label: commandLabel,
+    command,
+    args,
+    cwd,
+    captureStdout,
+    quiet,
+    startedAt,
+  });
   console.log(`E2E CLI: ${printable}`);
   const result = spawnSync(command, args, {
     cwd,
@@ -204,6 +278,29 @@ function run(command, args, {
       ? ["ignore", "pipe", quiet ? "pipe" : "inherit"]
       : (quiet ? ["ignore", "ignore", "pipe"] : "inherit"),
   });
+  const finishedAtMs = Date.now();
+  const finishedAt = new Date(finishedAtMs).toISOString();
+  const completedEntry = {
+    label: commandLabel,
+    command,
+    args,
+    cwd,
+    captureStdout,
+    quiet,
+    startedAt,
+    finishedAt,
+    durationMs: finishedAtMs - startedAtMs,
+    exitCode: result.status,
+    signal: result.signal ?? null,
+    stdoutLength: (result.stdout ?? "").length,
+    stderrLength: (result.stderr ?? "").length,
+  };
+  writeJson(lastCommandPath, completedEntry);
+  appendCommandHistory({
+    event: result.status === 0 ? "success" : "failure",
+    ...completedEntry,
+  });
+  clearCurrentCommand();
 
   if (result.status !== 0) {
     throw new Error(
@@ -260,7 +357,10 @@ function extractTrailingJsonObject(stdout) {
 }
 
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(BigInt(hexValue)), 32);
+  return ethers.zeroPadValue(
+    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
+    32,
+  );
 }
 
 function normalizeBytes32Hex(hexValue) {
@@ -273,15 +373,9 @@ async function rpcCall(provider, method, params) {
 
 function loadLiquidBalancesSlot() {
   const storageLayout = readJson(storageLayoutManifestPath);
-  return BigInt(
+  return ethers.toBigInt(
     storageLayout.contracts.L2AccountingVault.storageLayout.storage.find((entry) => entry.label === "liquidBalances").slot,
   );
-}
-
-async function getFixedBlockInfo(provider) {
-  const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
-  const latestNumber = Number(BigInt(latestNumberHex));
-  return getBlockInfoAt(provider, latestNumber);
 }
 
 async function getBlockInfoAt(provider, blockNumber) {
@@ -310,98 +404,17 @@ async function getBlockInfoAt(provider, blockNumber) {
   };
 }
 
-async function fetchContractCodes(provider, addresses) {
-  const codes = [];
-  for (const address of addresses) {
-    codes.push({
-      address: getAddress(address),
-      code: await provider.getCode(address),
-    });
-  }
-  return codes;
-}
-
-function buildGenesisSnapshot(controllerAddress, vaultAddress) {
-  return {
-    channelId: deriveChannelIdFromName(channelName).toString(),
-    stateRoots: [rootZero, rootZero],
-    storageAddresses: [getAddress(controllerAddress), getAddress(vaultAddress)],
-    storageEntries: [[], []],
-  };
-}
-
-function isZeroLikeStorageValue(value) {
-  if (typeof value !== "string") {
-    return false;
-  }
-  const normalized = value.trim().toLowerCase();
-  return normalized === "0x" || normalized === "0x0" || normalized === "0x00";
-}
-
-function normalizeStateSnapshot(snapshot) {
-  return {
-    ...snapshot,
-    stateRoots: snapshot.stateRoots.map((value) => normalizeBytes32Hex(value)),
-    storageEntries: snapshot.storageEntries.map((entries) => entries
-      .filter((entry) => !isZeroLikeStorageValue(entry.value))
-      .map((entry) => ({
-        key: entry.key.toLowerCase(),
-        value: entry.value.toLowerCase(),
-      }))),
-  };
-}
-
-async function buildStateManager(snapshot, contractCodes) {
-  return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
-    contractCodes: contractCodes.map((entry) => ({
-      address: createAddressFromString(entry.address),
-      code: addHexPrefix(entry.code),
-    })),
-  });
-}
-
 function mappingKeyHex(address, slot) {
-  const encoded = abiCoder.encode(["address", "uint256"], [address, BigInt(slot)]);
-  return bytesToHex(poseidon(hexToBytes(encoded)));
+  const encoded = abiCoder.encode(["address", "uint256"], [address, ethers.toBigInt(slot)]);
+  return bytesToHex(poseidon(hexToBytes(addHexPrefix(String(encoded ?? "").replace(/^0x/i, "")))));
 }
 
 function deriveLiquidBalanceStorageKey(l2Address, slot) {
-  return normalizeBytes32Hex(bytesToHex(getUserStorageKey([l2Address, BigInt(slot)], "TokamakL2")));
+  return normalizeBytes32Hex(bytesToHex(getUserStorageKey([l2Address, ethers.toBigInt(slot)], "TokamakL2")));
 }
 
 function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
-}
-
-function poseidonHexFromBytes(bytesLike) {
-  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
-}
-
-function serializeBigInts(value) {
-  return JSON.parse(JSON.stringify(value, (_key, current) => (
-    typeof current === "bigint" ? current.toString() : current
-  )));
-}
-
-function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
-  const tx = createTokamakL2Tx(
-    {
-      nonce: BigInt(nonce),
-      to: createAddressFromString(to),
-      data: hexToBytes(data),
-      senderPubKey,
-    },
-    { common: createTokamakL2Common() },
-  ).sign(signerPrivateKey);
-  return serializeBigInts(tx.captureTxSnapshot());
-}
-
-function note(owner, value, saltLabel) {
-  return {
-    owner: getAddress(owner),
-    value,
-    salt: bytes32FromHex(poseidonHexFromBytes(ethers.toUtf8Bytes(saltLabel))),
-  };
+  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
 }
 
 function ensureTokamakSetupArtifacts() {
@@ -441,52 +454,48 @@ function copyTokamakArtifacts(stepDir) {
   }
 }
 
-async function applyDepositSnapshot(stateManager, vaultAddress, keyHex, nextValue) {
-  await stateManager.putStorage(
-    createAddressFromString(vaultAddress),
-    hexToBytes(keyHex),
-    hexToBytes(bytes32FromHex(ethers.toBeHex(nextValue))),
-  );
-  return normalizeStateSnapshot(await stateManager.captureStateSnapshot());
-}
-
-async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contractCodes) {
-  const stepDir = path.join(dappMetadataRoot, step.name);
+async function runTokamakMetadataStep(exampleName, bundleSourceDir) {
+  const stepDir = path.join(dappMetadataRoot, exampleName);
   cleanDir(stepDir);
+  const canonicalInputs = [
+    "previous_state_snapshot.json",
+    "transaction.json",
+    "block_info.json",
+    "contract_codes.json",
+  ];
+  for (const fileName of canonicalInputs) {
+    fs.copyFileSync(path.join(bundleSourceDir, fileName), path.join(stepDir, fileName));
+  }
 
-  const transactionSnapshot = buildTokamakTxSnapshot({
-    signerPrivateKey: step.sender.l2PrivateKey,
-    senderPubKey: step.sender.l2PublicKey,
-    to: step.controllerAddress,
-    data: step.calldata,
-    nonce: step.nonce,
+  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], {
+    cwd: tokamakRoot,
+    quiet: true,
+    label: `metadata:${exampleName}:synthesize`,
   });
-
-  writeJson(path.join(stepDir, "previous_state_snapshot.json"), previousSnapshot);
-  writeJson(path.join(stepDir, "transaction.json"), transactionSnapshot);
-  writeJson(path.join(stepDir, "block_info.json"), blockInfo);
-  writeJson(path.join(stepDir, "contract_codes.json"), contractCodes);
-
-  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], { cwd: tokamakRoot, quiet: true });
   ensureTokamakSetupArtifacts();
-  run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot, quiet: true });
+  run(tokamakCliPath, ["--preprocess"], {
+    cwd: tokamakRoot,
+    quiet: true,
+    label: `metadata:${exampleName}:preprocess`,
+  });
   copyTokamakArtifacts(stepDir);
 
   // Some Tokamak CLI paths mutate or prune step-local inputs while materializing outputs.
   // Rewrite the canonical inputs after artifact copy so downstream metadata derivation is stable.
-  writeJson(path.join(stepDir, "previous_state_snapshot.json"), previousSnapshot);
-  writeJson(path.join(stepDir, "transaction.json"), transactionSnapshot);
-  writeJson(path.join(stepDir, "block_info.json"), blockInfo);
-  writeJson(path.join(stepDir, "contract_codes.json"), contractCodes);
+  for (const fileName of canonicalInputs) {
+    fs.copyFileSync(path.join(bundleSourceDir, fileName), path.join(stepDir, fileName));
+  }
 
-  const nextSnapshot = normalizeStateSnapshot(
-    readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json")),
-  );
+  const nextSnapshot = readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json"));
+  if (Array.isArray(nextSnapshot.storageAddresses)) {
+    nextSnapshot.storageAddresses = nextSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
   writeJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
   const metadataRecord = buildFunctionDefinition({
     groupName: dappLabel,
-    exampleName: step.name,
+    exampleName,
     transactionJsonPath: path.join(stepDir, "transaction.json"),
     snapshotJsonPath: path.join(stepDir, "previous_state_snapshot.json"),
     preprocessJsonPath: path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
@@ -501,215 +510,51 @@ async function runTokamakMetadataStep(step, previousSnapshot, blockInfo, contrac
 }
 
 async function materializeCurrentDAppDefinition(provider, participants) {
-  const appDeployment = readJson(deploymentManifestPath);
-  const controllerAbi = readJson(controllerAbiPath);
-  const controller = getAddress(appDeployment.contracts.controller);
-  const vault = getAddress(appDeployment.contracts.l2AccountingVault);
-  const controllerInterface = new Interface(controllerAbi);
-  const liquidBalancesSlot = loadLiquidBalancesSlot();
+  const manifestFiles = new Map([
+    ["mintNotes", path.join(synthesizerExamplesRoot, "mintNotes", "cli-launch-manifest.json")],
+    ["transferNotes", path.join(synthesizerExamplesRoot, "transferNotes", "cli-launch-manifest.json")],
+    ["redeemNotes", path.join(synthesizerExamplesRoot, "redeemNotes", "cli-launch-manifest.json")],
+  ]);
+  run(
+    "npx",
+    [
+      "--prefix",
+      tokamakRoot,
+      "tsx",
+      "--tsconfig",
+      tokamakSynthesizerTsconfigPath,
+      generateSynthesizerLaunchInputsPath,
+    ],
+    {
+      cwd: repoRoot,
+      quiet: true,
+      label: "metadata:generate-launch-inputs",
+      env: {
+        ...process.env,
+        APPS_NETWORK: "anvil",
+        APPS_RPC_URL_OVERRIDE: providerUrl,
+        APPS_ANVIL_MNEMONIC: anvilMnemonic,
+      },
+    },
+  );
 
-  for (const participant of participants) {
-    expect(
-      participant.registration !== null,
-      `Participant ${participant.alias} is missing a resolved registration candidate.`,
-    );
+  const manifestEntriesByExample = new Map();
+  for (const [group, manifestPath] of manifestFiles.entries()) {
+    const manifestEntries = readJson(manifestPath);
+    expect(Array.isArray(manifestEntries), `Expected array manifest at ${manifestPath}.`);
+    for (const entry of manifestEntries) {
+      const exampleName = path.basename(path.dirname(entry.files.previousState));
+      manifestEntriesByExample.set(`${group}:${exampleName}`, entry);
+    }
   }
-
-  const contractCodes = await fetchContractCodes(provider, [controller, vault]);
-  const bootstrapBlockInfo = await getFixedBlockInfo(provider);
-  const initialSnapshot = buildGenesisSnapshot(controller, vault);
-  const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
-
-  const participantKeys = new Map();
-  for (const participant of participants) {
-    participantKeys.set(
-      participant.alias,
-      mappingKeyHex(participant.registration.l2Identity.l2Address, liquidBalancesSlot),
-    );
-  }
-
-  let currentSnapshot = initialSnapshot;
-  for (const participant of participants) {
-    currentSnapshot = await applyDepositSnapshot(
-      depositStateManager,
-      vault,
-      participantKeys.get(participant.alias),
-      depositAmountBaseUnits,
-    );
-  }
-
-  const encryptedTransfers = {
-    aToB: buildEncryptedTransferOutput({
-      owner: participants[1].registration.l2Identity.l2Address,
-      value: 1n * amountUnit,
-      label: `${channelName}:a-to-b`,
-      recipientNoteReceivePubKey: participants[1].registration.noteReceive.noteReceivePubKey,
-    }),
-    aToC: buildEncryptedTransferOutput({
-      owner: participants[2].registration.l2Identity.l2Address,
-      value: 2n * amountUnit,
-      label: `${channelName}:a-to-c`,
-      recipientNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
-    }),
-    bToC: buildEncryptedTransferOutput({
-      owner: participants[2].registration.l2Identity.l2Address,
-      value: 4n * amountUnit,
-      label: `${channelName}:b-to-c`,
-      recipientNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
-    }),
-  };
-
-  const encryptedMints = {
-    aMint: buildEncryptedMintOutput({
-      owner: participants[0].registration.l2Identity.l2Address,
-      ownerNoteReceivePubKey: participants[0].registration.noteReceive.noteReceivePubKey,
-      value: depositAmountBaseUnits,
-      label: `${channelName}:a-mint`,
-    }),
-    bMint: buildEncryptedMintOutput({
-      owner: participants[1].registration.l2Identity.l2Address,
-      ownerNoteReceivePubKey: participants[1].registration.noteReceive.noteReceivePubKey,
-      value: depositAmountBaseUnits,
-      label: `${channelName}:b-mint`,
-    }),
-    cMint: buildEncryptedMintOutput({
-      owner: participants[2].registration.l2Identity.l2Address,
-      ownerNoteReceivePubKey: participants[2].registration.noteReceive.noteReceivePubKey,
-      value: depositAmountBaseUnits,
-      label: `${channelName}:c-mint`,
-    }),
-  };
-  const notes = {
-    aMint: encryptedMints.aMint.note,
-    bMint: encryptedMints.bMint.note,
-    cMint: encryptedMints.cMint.note,
-    aToB: encryptedTransfers.aToB.note,
-    aToC: encryptedTransfers.aToC.note,
-    bToC: encryptedTransfers.bToC.note,
-  };
-
-  const scenarios = [
-    {
-      name: "mint-notes-1",
-      sender: participants[0].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "mintNotes1",
-        [[[
-          encryptedMints.aMint.output.value,
-          encryptedNoteValueTuple(encryptedMints.aMint.output.encryptedNoteValue),
-        ]]],
-      ),
-    },
-    {
-      name: "transfer-notes-1-to-2",
-      sender: participants[0].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "transferNotes1To2",
-        [
-          [
-            [
-              encryptedTransfers.aToB.output.owner,
-              encryptedTransfers.aToB.output.value,
-              encryptedNoteValueTuple(encryptedTransfers.aToB.output.encryptedNoteValue),
-            ],
-            [
-              encryptedTransfers.aToC.output.owner,
-              encryptedTransfers.aToC.output.value,
-              encryptedNoteValueTuple(encryptedTransfers.aToC.output.encryptedNoteValue),
-            ],
-          ],
-          [[notes.aMint.owner, notes.aMint.value, notes.aMint.salt]],
-        ],
-      ),
-    },
-    {
-      name: "mint-notes-2",
-      sender: participants[1].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "mintNotes1",
-        [[[
-          encryptedMints.bMint.output.value,
-          encryptedNoteValueTuple(encryptedMints.bMint.output.encryptedNoteValue),
-        ]]],
-      ),
-    },
-    {
-      name: "transfer-notes-2-to-1",
-      sender: participants[1].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "transferNotes2To1",
-        [
-          [
-            [
-              encryptedTransfers.bToC.output.owner,
-              encryptedTransfers.bToC.output.value,
-              encryptedNoteValueTuple(encryptedTransfers.bToC.output.encryptedNoteValue),
-            ],
-          ],
-          [
-            [notes.bMint.owner, notes.bMint.value, notes.bMint.salt],
-            [notes.aToB.owner, notes.aToB.value, notes.aToB.salt],
-          ],
-        ],
-      ),
-    },
-    {
-      name: "mint-notes-3",
-      sender: participants[2].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "mintNotes1",
-        [[[
-          encryptedMints.cMint.output.value,
-          encryptedNoteValueTuple(encryptedMints.cMint.output.encryptedNoteValue),
-        ]]],
-      ),
-    },
-    {
-      name: "redeem-notes-2",
-      sender: participants[2].registration.l2Identity,
-      nonce: 0,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "redeemNotes2",
-        [
-          [
-            [notes.aToC.owner, notes.aToC.value, notes.aToC.salt],
-            [notes.bToC.owner, notes.bToC.value, notes.bToC.salt],
-          ],
-          participants[2].registration.l2Identity.l2Address,
-        ],
-      ),
-    },
-    {
-      name: "redeem-notes-1",
-      sender: participants[2].registration.l2Identity,
-      nonce: 1,
-      controllerAddress: controller,
-      calldata: controllerInterface.encodeFunctionData(
-        "redeemNotes1",
-        [
-          [[notes.cMint.owner, notes.cMint.value, notes.cMint.salt]],
-          participants[2].registration.l2Identity.l2Address,
-        ],
-      ),
-    },
-  ];
 
   const records = [];
-  for (const scenario of scenarios) {
-    const result = await runTokamakMetadataStep(scenario, currentSnapshot, bootstrapBlockInfo, contractCodes);
+  for (const example of localRegistrationExamples) {
+    const manifestEntry = manifestEntriesByExample.get(`${example.group}:${example.name}`);
+    expect(manifestEntry, `Missing canonical launch entry for ${example.group}/${example.name}.`);
+    const bundleSourceDir = path.join(tokamakSynthesizerRoot, path.dirname(manifestEntry.files.previousState));
+    const result = await runTokamakMetadataStep(example.name, bundleSourceDir);
     records.push(result.metadataRecord);
-    currentSnapshot = result.nextSnapshot;
   }
 
   const dapps = buildDAppDefinitions(records);
@@ -723,6 +568,7 @@ async function materializeCurrentDAppDefinition(provider, participants) {
 function runPrivateStateCli(args, options = {}) {
   return runJsonCommand("node", [cliPath, ...args], {
     ...options,
+    label: options.label ?? `private-state-cli:${args[0] ?? "unknown"}`,
     quiet: options.quiet ?? true,
   });
 }
@@ -814,72 +660,9 @@ function walletDirForName(walletName) {
   return sharedWalletDirForName(walletsRoot, walletName);
 }
 
-function buildDeterministicNoteNonce(label) {
-  return ethers.dataSlice(
-    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
-    0,
-    12,
-  );
-}
-
-function buildEncryptedOutputArtifacts({
-  owner,
-  value,
-  encryptedNoteValue,
-  includeOwnerInOutput,
-}) {
-  const normalizedOwner = getAddress(owner);
-  return {
-    output: includeOwnerInOutput
-      ? { owner: normalizedOwner, value, encryptedNoteValue }
-      : { value, encryptedNoteValue },
-    note: {
-      owner: normalizedOwner,
-      value,
-      salt: computeEncryptedNoteSalt(encryptedNoteValue),
-    },
-  };
-}
-
-function buildEncryptedTransferOutput({
-  owner,
-  value,
-  label,
-  recipientNoteReceivePubKey,
-}) {
-  const deterministicNonce = buildDeterministicNoteNonce(label);
-  const encryptedNoteValue = encryptNoteValueForRecipient({
-    value,
-    recipientNoteReceivePubKey,
-    chainId: 31337,
-    channelId: deriveChannelIdFromName(channelName),
-    owner,
-    nonce: deterministicNonce,
-  });
-  return buildEncryptedOutputArtifacts({ owner, value, encryptedNoteValue, includeOwnerInOutput: true });
-}
-
-function buildEncryptedMintOutput({
-  owner,
-  ownerNoteReceivePubKey,
-  value,
-  label,
-}) {
-  const deterministicNonce = buildDeterministicNoteNonce(label);
-  const encryptedNoteValue = encryptMintNoteValueForOwner({
-    value,
-    ownerNoteReceivePubKey,
-    chainId: 31337,
-    channelId: deriveChannelIdFromName(channelName),
-    owner,
-    nonce: deterministicNonce,
-  });
-  return buildEncryptedOutputArtifacts({ owner, value, encryptedNoteValue, includeOwnerInOutput: false });
-}
-
 function assertBigIntEq(actual, expected, label) {
   expect(
-    BigInt(actual) === BigInt(expected),
+    ethers.toBigInt(actual) === ethers.toBigInt(expected),
     `${label} mismatch. Expected ${expected.toString()}, got ${actual.toString()}.`,
   );
 }
@@ -901,9 +684,84 @@ function pruneCliRunOutput() {
   }
 }
 
+function collectOperationDiagnostics(operationsRoot) {
+  if (!fs.existsSync(operationsRoot)) {
+    return [];
+  }
+
+  return fs.readdirSync(operationsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const operationDir = path.join(operationsRoot, entry.name);
+      const stats = fs.statSync(operationDir);
+      const tokamakLogsDir = path.join(operationDir, "tokamak-cli-logs");
+      const tokamakLogs = fs.existsSync(tokamakLogsDir)
+        ? fs.readdirSync(tokamakLogsDir, { withFileTypes: true })
+          .filter((logEntry) => logEntry.isFile())
+          .map((logEntry) => path.join(tokamakLogsDir, logEntry.name))
+          .sort()
+        : [];
+      return {
+        operationDir,
+        modifiedAt: stats.mtime.toISOString(),
+        transactionPath: fs.existsSync(path.join(operationDir, "transaction.json"))
+          ? path.join(operationDir, "transaction.json")
+          : null,
+        previousStateSnapshotPath: fs.existsSync(path.join(operationDir, "previous_state_snapshot.json"))
+          ? path.join(operationDir, "previous_state_snapshot.json")
+          : null,
+        tokamakLogs,
+      };
+    })
+    .sort((left, right) => right.modifiedAt.localeCompare(left.modifiedAt));
+}
+
+function extractReferencedPaths(text) {
+  const matches = String(text ?? "").match(/\/[^\s:]+(?:\.[A-Za-z0-9_-]+)?/g) ?? [];
+  return [...new Set(matches)].filter((candidate) => fs.existsSync(candidate));
+}
+
+function writeFailureDiagnostics(error) {
+  const workspaceDir = sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
+  const channelOperationsRoot = path.join(workspaceDir, "channel", "operations");
+  const walletsRoot = path.join(workspaceDir, "wallets");
+  const walletDiagnostics = fs.existsSync(walletsRoot)
+    ? fs.readdirSync(walletsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => ({
+        walletDir: path.join(walletsRoot, entry.name),
+        operations: collectOperationDiagnostics(path.join(walletsRoot, entry.name, "operations")),
+      }))
+    : [];
+
+  const stack = error instanceof Error ? error.stack ?? error.message : String(error);
+  const referencedPaths = extractReferencedPaths(stack);
+  const referencedFiles = referencedPaths.map((filePath) => ({
+    path: filePath,
+    exists: true,
+    preview: fs.statSync(filePath).isFile()
+      ? fs.readFileSync(filePath, "utf8").slice(0, 4000)
+      : null,
+  }));
+
+  writeJson(failureDiagnosticsPath, {
+    channelName,
+    workspaceDir,
+    outputRoot,
+    errorMessage: error instanceof Error ? error.message : String(error),
+    stack,
+    summaryPresent: fs.existsSync(summaryPath),
+    summary: readJsonIfExists(summaryPath),
+    channelOperations: collectOperationDiagnostics(channelOperationsRoot),
+    wallets: walletDiagnostics,
+    referencedFiles,
+  });
+  console.error(`E2E CLI failure diagnostics written to ${failureDiagnosticsPath}`);
+}
+
 function bootstrapAnvil() {
-  run("make", ["-C", appRoot, "anvil-stop"], { quiet: true });
-  run("make", ["-C", appRoot, "anvil-start"], { quiet: true });
+  run("make", ["-C", appRoot, "anvil-stop"], { quiet: true, label: "anvil:stop" });
+  run("make", ["-C", appRoot, "anvil-start"], { quiet: true, label: "anvil:start" });
   deployPrivateStateForCliE2E();
 }
 
@@ -919,6 +777,7 @@ function deployPrivateStateForCliE2E() {
     {
       cwd: repoRoot,
       quiet: true,
+      label: "private-state:forge-deploy",
       env: {
         ...process.env,
         APPS_DEPLOYER_PRIVATE_KEY: anvilDeployerPrivateKey,
@@ -930,6 +789,7 @@ function deployPrivateStateForCliE2E() {
   run("bash", [privateStateArtifactWriterPath, "31337"], {
     cwd: repoRoot,
     quiet: true,
+    label: "private-state:write-deploy-artifacts",
   });
 }
 
@@ -950,6 +810,10 @@ function deployBridgeStack() {
     BRIDGE_DEPLOY_MOCK_ASSET: "true",
   };
 
+  if (!currentCliE2EOptions.runGrothSetup) {
+    env.BRIDGE_SKIP_GROTH_REFRESH = "1";
+  }
+
   run(
     "bash",
     [
@@ -957,7 +821,7 @@ function deployBridgeStack() {
       "--mode",
       "redeploy-proxy",
     ],
-    { env, quiet: true },
+    { env, quiet: true, label: "bridge:redeploy-proxy" },
   );
 
   return readJson(bridgeDeploymentPath);
@@ -973,7 +837,7 @@ function getCanonicalAssetAddress(bridgeCoreAddress) {
   return run(
     "cast",
     ["call", bridgeCoreAddress, "canonicalAsset()(address)", "--rpc-url", providerUrl],
-    { captureStdout: true },
+    { captureStdout: true, label: "bridge:read-canonical-asset" },
   ).trim();
 }
 
@@ -982,10 +846,13 @@ function prepareCanonicalAsset(bridgeDeployment, participants) {
   const mockAssetCode = run(
     "cast",
     ["code", bridgeDeployment.mockAsset, "--rpc-url", providerUrl],
-    { captureStdout: true },
+    { captureStdout: true, label: "bridge:read-mock-asset-code" },
   ).trim();
 
-  run("cast", ["rpc", "anvil_setCode", canonicalAsset, mockAssetCode, "--rpc-url", providerUrl], { quiet: true });
+  run("cast", ["rpc", "anvil_setCode", canonicalAsset, mockAssetCode, "--rpc-url", providerUrl], {
+    quiet: true,
+    label: "bridge:install-canonical-asset-code",
+  });
 
   for (const participant of participants) {
     run(
@@ -995,13 +862,13 @@ function prepareCanonicalAsset(bridgeDeployment, participants) {
         canonicalAsset,
         "mint(address,uint256)",
         participant.l1Address,
-        depositAmountBaseUnits.toString(),
+        (depositAmountBaseUnits + joinFeeBaseUnits).toString(),
         "--private-key",
         anvilDeployerPrivateKey,
         "--rpc-url",
         providerUrl,
       ],
-      { quiet: true },
+      { quiet: true, label: `bridge:mint-canonical-asset:${participant.alias}` },
     );
   }
 
@@ -1012,60 +879,59 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
   const derived = await materializeCurrentDAppDefinition(provider, participants);
   const deployer = new Wallet(anvilDeployerPrivateKey, provider);
   const dAppManager = new Contract(bridgeDeployment.dAppManager, dAppManagerAbi, deployer);
-  let result;
+  let deletedExistingRegistration = false;
+  let deleteTxHash = null;
+  let deleteBlockNumber = null;
 
   try {
-    const existingInfo = await dAppManager.getDAppInfo(BigInt(dappId));
-    expect(
-      normalizeBytes32Hex(existingInfo.labelHash) === normalizeBytes32Hex(derived.definition.labelHash),
-      `Existing DApp ${dappId} label hash does not match ${dappLabel}.`,
-    );
-    result = {
-      reusedExistingRegistration: true,
-      txHash: null,
-      blockNumber: null,
-      storageCount: derived.definition.storageMetadata.length,
-      functionCount: derived.definition.functions.length,
-      artifactsRoot: dappMetadataRoot,
-    };
+    const existingInfo = await dAppManager.getDAppInfo(ethers.toBigInt(dappId));
+    if (existingInfo.exists) {
+      const deleteTx = await dAppManager.deleteDApp(ethers.toBigInt(dappId));
+      const deleteReceipt = await deleteTx.wait();
+      deletedExistingRegistration = true;
+      deleteTxHash = deleteTx.hash;
+      deleteBlockNumber = deleteReceipt?.blockNumber ?? null;
+    }
   } catch (error) {
     if (error?.code !== "CALL_EXCEPTION") {
       throw error;
     }
-
-    const tx = await dAppManager.registerDApp(
-      BigInt(dappId),
-      derived.definition.labelHash,
-      derived.definition.storageMetadata.map((storage) => ({
-        storageAddr: storage.storageAddress,
-        preAllocatedKeys: storage.preAllocKeys,
-        userStorageSlots: storage.userSlots,
-        isChannelTokenVaultStorage: storage.isChannelTokenVaultStorage,
-      })),
-      derived.definition.functions.map((fn) => ({
-        entryContract: fn.entryContract,
-        functionSig: fn.functionSig,
-        preprocessInputHash: fn.preprocessInputHash,
-        instanceLayout: {
-          entryContractOffsetWords: fn.entryContractOffsetWords,
-          functionSigOffsetWords: fn.functionSigOffsetWords,
-          currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
-          updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
-          storageWrites: fn.storageWrites,
-          eventLogs: fn.eventLogs,
-        },
-      })),
-    );
-    const receipt = await tx.wait();
-    result = {
-      reusedExistingRegistration: false,
-      txHash: tx.hash,
-      blockNumber: receipt?.blockNumber ?? null,
-      storageCount: derived.definition.storageMetadata.length,
-      functionCount: derived.definition.functions.length,
-      artifactsRoot: dappMetadataRoot,
-    };
   }
+
+  const tx = await dAppManager.registerDApp(
+    ethers.toBigInt(dappId),
+    derived.definition.labelHash,
+    derived.definition.storageMetadata.map((storage) => ({
+      storageAddr: storage.storageAddress,
+      preAllocatedKeys: storage.preAllocKeys,
+      userStorageSlots: storage.userSlots,
+      isChannelTokenVaultStorage: storage.isChannelTokenVaultStorage,
+    })),
+    derived.definition.functions.map((fn) => ({
+      entryContract: fn.entryContract,
+      functionSig: fn.functionSig,
+      preprocessInputHash: fn.preprocessInputHash,
+      instanceLayout: {
+        entryContractOffsetWords: fn.entryContractOffsetWords,
+        functionSigOffsetWords: fn.functionSigOffsetWords,
+        currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
+        updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
+        eventLogs: fn.eventLogs,
+      },
+    })),
+  );
+  const receipt = await tx.wait();
+  const result = {
+    reusedExistingRegistration: false,
+    deletedExistingRegistration,
+    deleteTxHash,
+    deleteBlockNumber,
+    txHash: tx.hash,
+    blockNumber: receipt?.blockNumber ?? null,
+    storageCount: derived.definition.storageMetadata.length,
+    functionCount: derived.definition.functions.length,
+    artifactsRoot: dappMetadataRoot,
+  };
 
   writeJson(path.join(outputRoot, "dapp-registration.json"), {
     dappId,
@@ -1077,6 +943,7 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
   run("bash", [privateStateGrothArtifactSyncPath, "31337"], {
     cwd: repoRoot,
     quiet: true,
+    label: "private-state:sync-groth-artifacts",
   });
   return result;
 }
@@ -1085,10 +952,10 @@ function readErc20Balance(assetAddress, ownerAddress) {
   const output = run(
     "cast",
     ["call", assetAddress, "balanceOf(address)(uint256)", ownerAddress, "--rpc-url", providerUrl],
-    { captureStdout: true },
+    { captureStdout: true, label: `erc20:balanceOf:${ownerAddress}` },
   ).trim();
   const normalized = output.split(/\s+/)[0];
-  return BigInt(normalized);
+  return ethers.toBigInt(normalized);
 }
 
 function runAnvilCliCommand(command, args = []) {
@@ -1111,6 +978,7 @@ function signerCliArgs(participant) {
 function createChannel() {
   return runAnvilCliCommand("create-channel", [
     "--channel-name", channelName,
+    "--join-fee", joinFeeTokens,
     "--private-key", anvilDeployerPrivateKey,
   ]);
 }
@@ -1141,11 +1009,14 @@ function joinChannel(participant) {
 }
 
 function recoverWallet(participant) {
-  return runAnvilCliCommand("recover-wallet", [
+  const result = runAnvilCliCommand("recover-wallet", [
     "--channel-name", channelName,
     ...signerCliArgs(participant),
     "--password", participant.password,
   ]);
+  participant.walletName = result.wallet;
+  participant.l2Address = result.l2Address;
+  return result;
 }
 
 function getMyAddress(participant) {
@@ -1176,6 +1047,13 @@ function recoverWorkspace() {
 function deleteWalletDir(participant) {
   expect(participant.walletName, `${participant.alias} walletName is not available.`);
   fs.rmSync(walletDirForName(participant.walletName), { recursive: true, force: true });
+}
+
+function deleteWorkspaceDir() {
+  fs.rmSync(sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName), {
+    recursive: true,
+    force: true,
+  });
 }
 
 function mintNotes(participant, amounts) {
@@ -1219,26 +1097,33 @@ function withdrawBridge(participant, amount) {
   ]);
 }
 
+function exitChannel(participant) {
+  return runAnvilCliCommand("exit-channel", walletCliArgs(participant));
+}
+
 function assertResolvedWalletIdentity(result, participant, label) {
   expect(
-    getAddress(result.l2Address) === getAddress(participant.registration.l2Identity.l2Address),
+    ethers.toBigInt(getAddress(result.l2Address))
+      === ethers.toBigInt(getAddress(participant.registration.l2Identity.l2Address)),
     `${label} returned an unexpected L2 address.`,
   );
   expect(
-    normalizeBytes32Hex(result.l2StorageKey) === normalizeBytes32Hex(participant.registration.storageKey),
+    ethers.toBigInt(normalizeBytes32Hex(result.l2StorageKey))
+      === ethers.toBigInt(normalizeBytes32Hex(participant.registration.storageKey)),
     `${label} returned an unexpected storage key.`,
   );
   expect(
-    BigInt(result.leafIndex) === BigInt(participant.registration.leafIndex),
+    ethers.toBigInt(result.leafIndex) === ethers.toBigInt(participant.registration.leafIndex),
     `${label} returned an unexpected leaf index.`,
   );
 }
 
 function pickOutputNoteByOwner(outputNotes, ownerAddress, expectedValue) {
   const owner = getAddress(ownerAddress);
-  const expected = BigInt(expectedValue).toString();
+  const expected = ethers.toBigInt(expectedValue).toString();
   const matches = outputNotes.filter((note) => (
-    getAddress(note.owner) === owner && BigInt(note.value) === BigInt(expected)
+    ethers.toBigInt(getAddress(note.owner)) === ethers.toBigInt(owner)
+      && ethers.toBigInt(note.value) === ethers.toBigInt(expected)
   ));
   expect(
     matches.length === 1,
@@ -1260,9 +1145,14 @@ function assertWalletNoteSnapshot(noteSnapshot, { unusedCount, spentCount, unuse
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  currentCliE2EOptions = options;
   ensureTokamakDistBackendBinaries(tokamakRoot);
   if (options.runInstall) {
-    run(tokamakCliPath, ["--install"], { cwd: tokamakRoot, quiet: true });
+    run(tokamakCliPath, ["--install"], {
+      cwd: tokamakRoot,
+      quiet: true,
+      label: "tokamak:install",
+    });
   }
   const provider = new JsonRpcProvider(providerUrl);
   const participants = [
@@ -1406,10 +1296,23 @@ async function main() {
     assertWalletNoteSnapshot(notesAfterTransferB, { unusedCount: 0, spentCount: 2, unusedTotal: 0n, spentTotal: 4n * amountUnit });
     assertWalletNoteSnapshot(notesAfterTransferC, { unusedCount: 3, spentCount: 0, unusedTotal: claimAmountBaseUnits, spentTotal: 0n });
 
-    const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment, noteBToC.commitment]);
+    const redeemAToC = redeemNotes(participants[2], [noteAToC.commitment]);
+    const redeemBToC = redeemNotes(participants[2], [noteBToC.commitment]);
     const redeemCMint = redeemNotes(participants[2], [cMintNote.commitment]);
     const notesAfterRedeemC = getMyNotes(participants[2]);
     assertWalletNoteSnapshot(notesAfterRedeemC, { unusedCount: 0, spentCount: 3, unusedTotal: 0n, spentTotal: claimAmountBaseUnits });
+
+    deleteWorkspaceDir();
+    const recoverWorkspaceAfterNotesResult = recoverWorkspace();
+    expect(
+      recoverWorkspaceAfterNotesResult.channelName === channelName,
+      "recover-workspace must rebuild the deleted workspace after note activity.",
+    );
+    const recoverWalletAfterWorkspaceReset = recoverWallet(participants[2]);
+    expect(
+      recoverWalletAfterWorkspaceReset.wallet === participants[2].walletName,
+      "recover-wallet must restore participant-c after workspace recovery.",
+    );
 
     const channelDepositBeforeWithdraw = getMyChannelFund(participants[2]);
     assertBigIntEq(
@@ -1433,6 +1336,22 @@ async function main() {
       "participant-c channel deposit after withdraw-channel",
     );
 
+    const exitChannelResult = exitChannel(participants[2]);
+    assertBigIntEq(
+      exitChannelResult.currentUserValue,
+      0n,
+      "participant-c currentUserValue at exit-channel",
+    );
+    assertBigIntEq(
+      exitChannelResult.refundAmountBaseUnits,
+      (joinFeeBaseUnits * 75n) / 100n,
+      "participant-c exit-channel refund amount",
+    );
+    expect(
+      Number(exitChannelResult.refundBps) === 7500,
+      `participant-c exit-channel refundBps mismatch: ${exitChannelResult.refundBps}.`,
+    );
+
     const withdrawBridgeResult = withdrawBridge(participants[2], claimAmountTokens);
     const bridgeDepositAfterClaim = getMyBridgeFund(participants[2]);
     const l1BalanceAfterClaim = readErc20Balance(canonicalAsset, participants[2].l1Address);
@@ -1443,8 +1362,8 @@ async function main() {
     );
     assertBigIntEq(
       l1BalanceAfterClaim - l1BalanceBeforeClaim,
-      claimAmountBaseUnits,
-      "participant-c L1 ERC20 claim delta",
+      claimAmountBaseUnits + ((joinFeeBaseUnits * 75n) / 100n),
+      "participant-c L1 ERC20 claim delta including exit refund",
     );
     for (const participant of participants.slice(0, 2)) {
       assertBigIntEq(
@@ -1453,6 +1372,7 @@ async function main() {
         `${participant.alias} final bridge deposit`,
       );
     }
+    commandResults.participants[participants[2].alias].exitChannel = exitChannelResult;
 
     const summary = {
       providerUrl,
@@ -1462,6 +1382,7 @@ async function main() {
       dappRegistration: dappRegistrationResult,
       createChannel: createChannelResult,
       recoverWorkspace: recoverWorkspaceResult,
+      recoverWorkspaceAfterNotes: recoverWorkspaceAfterNotesResult,
       participants: participants.map((participant) => ({
         alias: participant.alias,
         password: participant.password,
@@ -1510,12 +1431,13 @@ async function main() {
       provider.destroy();
     }
     if (!options.keepAnvil) {
-      run("make", ["-C", appRoot, "anvil-stop"], { quiet: true });
+      run("make", ["-C", appRoot, "anvil-stop"], { quiet: true, label: "anvil:stop:cleanup" });
     }
   }
 }
 
 main().catch((error) => {
+  writeFailureDiagnostics(error);
   console.error(error instanceof Error ? error.stack ?? error.message : String(error));
   process.exit(1);
 });

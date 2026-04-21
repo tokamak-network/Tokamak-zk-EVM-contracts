@@ -76,6 +76,7 @@ jobs:
             wget \
             make \
             build-essential \
+            python3 \
             zip \
             unzip \
             pkg-config \
@@ -101,6 +102,11 @@ jobs:
 
       - name: Install Groth16 circuit dependencies
         run: npm ci --prefix groth16/circuits
+
+      - name: Verify Groth16 circuit tooling
+        run: |
+          test -x groth16/circuits/node_modules/.bin/snarkjs
+          groth16/circuits/node_modules/.bin/snarkjs g16v --help >/dev/null
 
       - name: Make Tokamak scripts executable
         run: |
@@ -130,6 +136,7 @@ jobs:
             git-lfs \
             node \
             npm \
+            python3 \
             bun \
             rustc \
             cargo \
@@ -182,4 +189,22 @@ jobs:
           rm -f submodules/Tokamak-zk-EVM/dist/bin/synthesizer
 
       - name: Run private-state bridge CLI end-to-end test
-        run: npm run test:private-state:cli-e2e
+        run: |
+          bash scripts/ci/run-with-memory-monitor.sh \
+            --log-dir apps/private-state/scripts/e2e/output/private-state-bridge-cli/system-monitor \
+            -- \
+            npm run test:private-state:cli-e2e
+
+      - name: Upload private-state CLI failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-state-cli-e2e-failure-diagnostics
+          if-no-files-found: warn
+          path: |
+            apps/private-state/scripts/e2e/output/private-state-bridge-cli/failure-diagnostics.json
+            apps/private-state/scripts/e2e/output/private-state-bridge-cli/summary.json
+            apps/private-state/scripts/e2e/output/private-state-bridge-cli/**
+            ${{ env.HOME }}/tokamak-private-channels/workspace/anvil/private-state-cli-e2e/channel/current/**
+            ${{ env.HOME }}/tokamak-private-channels/workspace/anvil/private-state-cli-e2e/channel/operations/**
+            ${{ env.HOME }}/tokamak-private-channels/workspace/anvil/private-state-cli-e2e/wallets/**/operations/**

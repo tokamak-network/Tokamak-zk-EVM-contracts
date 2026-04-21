@@ -18,6 +18,7 @@ import {
 import {
   MAX_MT_LEAVES,
   MT_DEPTH,
+  TokamakL2StateManager,
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
@@ -30,6 +31,7 @@ import {
   bytesToBigInt,
   bytesToHex,
   createAddressFromString,
+  hexToBigInt,
   hexToBytes,
   setLengthLeft,
   utf8ToBytes,
@@ -76,30 +78,30 @@ const anvilDeployerPrivateKey =
 const channelName = "private-state-bridge-genesis";
 const channelId = deriveChannelIdFromName(channelName);
 const dappId = 1;
-const tokamakAPubBlockLength = 63;
+const tokamakAPubBlockLength = 43;
 const tokamakPrevBlockHashCount = 4;
-const rootZero = "0x0ce3a78a0131c84050bbe2205642f9e176ffe98488dbddb19336b987420f3bde";
 const amountUnit = 10n ** 18n;
+const joinFee = 1n * amountUnit;
 const depositAmount = 3n * amountUnit;
 const abiCoder = AbiCoder.defaultAbiCoder();
 const deployerAddress = new Wallet(anvilDeployerPrivateKey).address;
 const bridgeCoreAbi = [
   "function canonicalAsset() external view returns (address)",
-  "function createChannel(uint256 channelId, uint256 dappId, address leader) external returns (address manager, address bridgeTokenVault)",
+  "function createChannel(uint256 channelId, uint256 dappId, address leader, uint256 initialJoinFee) external returns (address manager, address bridgeTokenVault)",
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address bridgeTokenVault,bytes32 aPubBlockHash))",
 ];
 const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint8 aPubOffsetWords, uint8 storageAddrIndex)[] storageWrites, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
+  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
 ];
 const channelManagerAbi = [
   "function currentRootVectorHash() external view returns (bytes32)",
   "function genesisBlockNumber() external view returns (uint256)",
-  "function registerChannelTokenVaultIdentity(address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, (bytes32 x,uint8 yParity) noteReceivePubKey) external",
-  "function getChannelTokenVaultRegistration(address user) external view returns (tuple(bool exists, address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, (bytes32 x,uint8 yParity) noteReceivePubKey))",
+  "function getChannelTokenVaultRegistration(address user) external view returns (tuple(bool exists, address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, uint256 joinFeePaid, uint64 joinedAt, (bytes32 x,uint8 yParity) noteReceivePubKey))",
   "function executeChannelTransaction((uint128[] proofPart1,uint256[] proofPart2,uint128[] functionPreprocessPart1,uint256[] functionPreprocessPart2,uint256[] aPubUser,uint256[] aPubBlock) payload) external returns (bool)",
 ];
 const bridgeTokenVaultAbi = [
   "function fund(uint256 amount) external",
+  "function joinChannel(uint256 channelId, address l2Address, bytes32 channelTokenVaultKey, uint256 leafIndex, (bytes32 x,uint8 yParity) noteReceivePubKey) external returns (bool)",
   "function deposit(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function withdraw(uint256 channelId, (uint256[4] pA,uint256[8] pB,uint256[4] pC) proof, (bytes32[] currentRootVector,bytes32 updatedRoot,bytes32 currentUserKey,uint256 currentUserValue,bytes32 updatedUserKey,uint256 updatedUserValue) update) external returns (bool)",
   "function claimToWallet(uint256 amount) external",
@@ -190,7 +192,10 @@ function expect(condition, message) {
 }
 
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(ethers.toBeHex(BigInt(hexValue)), 32);
+  return ethers.zeroPadValue(
+    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
+    32,
+  );
 }
 
 function normalizeBytes32Hex(hexValue) {
@@ -198,11 +203,11 @@ function normalizeBytes32Hex(hexValue) {
 }
 
 function deriveChannelIdFromName(name) {
-  return BigInt(keccak256(ethers.toUtf8Bytes(name)));
+  return ethers.toBigInt(keccak256(ethers.toUtf8Bytes(name)));
 }
 
 function deriveLeafIndex(storageKey) {
-  return BigInt(storageKey) % BigInt(MAX_MT_LEAVES);
+  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
 }
 
 function buildL1Wallet(index, provider) {
@@ -239,7 +244,7 @@ async function rpcCall(provider, method, params) {
 
 async function getFixedBlockInfo(provider) {
   const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
-  const latestNumber = Number(BigInt(latestNumberHex));
+  const latestNumber = Number(hexToBigInt(addHexPrefix(String(latestNumberHex ?? "").replace(/^0x/i, ""))));
   return getBlockInfoAt(provider, latestNumber);
 }
 
@@ -272,22 +277,22 @@ async function getBlockInfoAt(provider, blockNumber) {
 
 function encodeTokamakBlockInfo(blockInfo) {
   const values = new Array(tokamakAPubBlockLength).fill(0n);
-  writeSplitWord(values, 0, BigInt(blockInfo.coinBase));
-  writeSplitWord(values, 2, BigInt(blockInfo.timeStamp));
-  writeSplitWord(values, 4, BigInt(blockInfo.blockNumber));
-  writeSplitWord(values, 6, BigInt(blockInfo.prevRanDao));
-  writeSplitWord(values, 8, BigInt(blockInfo.gasLimit));
-  writeSplitWord(values, 10, BigInt(blockInfo.chainId));
-  writeSplitWord(values, 12, BigInt(blockInfo.selfBalance));
-  writeSplitWord(values, 14, BigInt(blockInfo.baseFee));
+  writeSplitWord(values, 0, ethers.toBigInt(blockInfo.coinBase));
+  writeSplitWord(values, 2, ethers.toBigInt(blockInfo.timeStamp));
+  writeSplitWord(values, 4, ethers.toBigInt(blockInfo.blockNumber));
+  writeSplitWord(values, 6, ethers.toBigInt(blockInfo.prevRanDao));
+  writeSplitWord(values, 8, ethers.toBigInt(blockInfo.gasLimit));
+  writeSplitWord(values, 10, ethers.toBigInt(blockInfo.chainId));
+  writeSplitWord(values, 12, ethers.toBigInt(blockInfo.selfBalance));
+  writeSplitWord(values, 14, ethers.toBigInt(blockInfo.baseFee));
   for (let index = 0; index < tokamakPrevBlockHashCount; index += 1) {
-    writeSplitWord(values, 16 + index * 2, BigInt(blockInfo.prevBlockHashes[index] ?? 0n));
+    writeSplitWord(values, 16 + index * 2, ethers.toBigInt(blockInfo.prevBlockHashes[index] ?? 0n));
   }
   return values;
 }
 
 function writeSplitWord(words, offset, value) {
-  const normalized = BigInt(value);
+  const normalized = ethers.toBigInt(value);
   words[offset] = normalized & ((1n << 128n) - 1n);
   words[offset + 1] = normalized >> 128n;
 }
@@ -304,15 +309,6 @@ async function fetchContractCodes(provider, addresses) {
   return codes;
 }
 
-function buildGenesisSnapshot(controllerAddress, vaultAddress) {
-  return {
-    channelId,
-    stateRoots: [rootZero, rootZero],
-    storageAddresses: [getAddress(controllerAddress), getAddress(vaultAddress)],
-    storageEntries: [[], []],
-  };
-}
-
 async function buildStateManager(snapshot, contractCodes) {
   return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
     contractCodes: contractCodes.map((entry) => ({
@@ -324,7 +320,7 @@ async function buildStateManager(snapshot, contractCodes) {
 
 function mappingKeyHex(address, slot) {
   const encoded = abiCoder.encode(["address", "uint256"], [address, slot]);
-  return bytesToHex(poseidon(hexToBytes(encoded)));
+  return bytesToHex(poseidon(hexToBytes(addHexPrefix(String(encoded ?? "").replace(/^0x/i, "")))));
 }
 
 function poseidonHexFromBytes(bytesLike) {
@@ -422,27 +418,6 @@ function serializeBigInts(value) {
   )));
 }
 
-function isZeroLikeStorageValue(value) {
-  if (typeof value !== "string") {
-    return false;
-  }
-  const normalized = value.trim().toLowerCase();
-  return normalized === "0x" || normalized === "0x0" || normalized === "0x00";
-}
-
-function normalizeStateSnapshot(snapshot) {
-  return {
-    ...snapshot,
-    stateRoots: snapshot.stateRoots.map((value) => normalizeBytes32Hex(value)),
-    storageEntries: snapshot.storageEntries.map((entries) => entries
-      .filter((entry) => !isZeroLikeStorageValue(entry.value))
-      .map((entry) => ({
-        key: entry.key.toLowerCase(),
-        value: entry.value.toLowerCase(),
-      }))),
-  };
-}
-
 async function writeStepInputs(stepDir, snapshot, transactionSnapshot, blockInfo, contractCodes) {
   ensureDir(stepDir);
   writeJson(path.join(stepDir, "previous_state_snapshot.json"), snapshot);
@@ -458,9 +433,9 @@ function toTokamakSnapshot(tx) {
 function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
   const tx = createTokamakL2Tx(
     {
-      nonce: BigInt(nonce),
+      nonce: ethers.toBigInt(nonce),
       to: createAddressFromString(to),
-      data: hexToBytes(data),
+      data: hexToBytes(addHexPrefix(String(data ?? "").replace(/^0x/i, ""))),
       senderPubKey: senderPubKey,
     },
     { common: createTokamakL2Common() },
@@ -530,12 +505,12 @@ function loadTokamakPayloadFromStep(stepDir) {
   const instanceJson = readJson(path.join(stepDir, "resource", "synthesizer", "output", "instance.json"));
 
   return {
-    proofPart1: proofJson.proof_entries_part1.map((value) => BigInt(value)),
-    proofPart2: proofJson.proof_entries_part2.map((value) => BigInt(value)),
-    functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => BigInt(value)),
-    functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => BigInt(value)),
-    aPubUser: instanceJson.a_pub_user.map((value) => BigInt(value)),
-    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => BigInt(value))),
+    proofPart1: proofJson.proof_entries_part1.map((value) => ethers.toBigInt(value)),
+    proofPart2: proofJson.proof_entries_part2.map((value) => ethers.toBigInt(value)),
+    functionPreprocessPart1: preprocessJson.preprocess_entries_part1.map((value) => ethers.toBigInt(value)),
+    functionPreprocessPart2: preprocessJson.preprocess_entries_part2.map((value) => ethers.toBigInt(value)),
+    aPubUser: instanceJson.a_pub_user.map((value) => ethers.toBigInt(value)),
+    aPubBlock: normalizeTokamakAPubBlock(instanceJson.a_pub_block.map((value) => ethers.toBigInt(value))),
   };
 }
 
@@ -662,9 +637,11 @@ async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
   copyTokamakArtifacts(stepDir);
   run(tokamakCliPath, ["--verify", bundlePath], { cwd: tokamakRoot });
 
-  const nextSnapshot = normalizeStateSnapshot(
-    readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json")),
-  );
+  const nextSnapshot = readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json"));
+  if (Array.isArray(nextSnapshot.storageAddresses)) {
+    nextSnapshot.storageAddresses = nextSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
   writeJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
   const metadataRecord = buildFunctionDefinition({
     groupName: "private-state-e2e",
@@ -720,7 +697,10 @@ async function materializeTokamakResults(tokamakScenarios, initialSnapshot, bloc
 }
 
 async function currentStorageBigInt(stateManager, address, keyHex) {
-  const valueBytes = await stateManager.getStorage(createAddressFromString(address), hexToBytes(keyHex));
+  const valueBytes = await stateManager.getStorage(
+    createAddressFromString(address),
+    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
+  );
   if (valueBytes.length === 0) {
     return 0n;
   }
@@ -729,24 +709,28 @@ async function currentStorageBigInt(stateManager, address, keyHex) {
 
 async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex, nextValue) {
   const vaultAddressObj = createAddressFromString(vaultAddress);
-  const keyBigInt = BigInt(keyHex);
+  const keyBigInt = ethers.toBigInt(keyHex);
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
-  const currentSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  const currentSnapshot = await stateManager.captureStateSnapshot();
 
-  await stateManager.putStorage(vaultAddressObj, hexToBytes(keyHex), hexToBytes(bigintToHex32(nextValue)));
+  await stateManager.putStorage(
+    vaultAddressObj,
+    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
+    hexToBytes(addHexPrefix(String(bigintToHex32(nextValue) ?? "").replace(/^0x/i, ""))),
+  );
   const updatedRoot = stateManager.merkleTrees.getRoot(vaultAddressObj);
-  const nextSnapshot = normalizeStateSnapshot(await stateManager.captureStateSnapshot());
+  const nextSnapshot = await stateManager.captureStateSnapshot();
 
   const input = {
     root_before: currentRoot.toString(),
     root_after: updatedRoot.toString(),
-    leaf_index: BigInt(proof.leafIndex).toString(),
+    leaf_index: ethers.toBigInt(proof.leafIndex).toString(),
     storage_key: keyBigInt.toString(),
     storage_value_before: currentValue.toString(),
     storage_value_after: nextValue.toString(),
-    proof: proof.siblings.map((siblings) => BigInt(siblings[0] ?? 0n).toString()),
+    proof: proof.siblings.map((siblings) => ethers.toBigInt(siblings[0] ?? 0n).toString()),
   };
 
   const stepDir = path.join(grothInputDir, stepName);
@@ -784,10 +768,10 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
 }
 
 function splitFieldElement(value) {
-  const hexValue = BigInt(value).toString(16).padStart(96, "0");
+  const hexValue = ethers.toBigInt(value).toString(16).padStart(96, "0");
   return [
-    BigInt(`0x${"0".repeat(32)}${hexValue.slice(0, 32)}`),
-    BigInt(`0x${hexValue.slice(32)}`),
+    hexToBigInt(addHexPrefix(`${"0".repeat(32)}${hexValue.slice(0, 32)}`)),
+    hexToBigInt(addHexPrefix(hexValue.slice(32))),
   ];
 }
 
@@ -878,7 +862,6 @@ function toFunctionMetadata(entries) {
       functionSigOffsetWords: entry.functionSigOffsetWords,
       currentRootVectorOffsetWords: entry.currentRootVectorOffsetWords,
       updatedRootVectorOffsetWords: entry.updatedRootVectorOffsetWords,
-      storageWrites: entry.storageWrites,
       eventLogs: entry.eventLogs,
     },
   }));
@@ -916,14 +899,22 @@ async function main() {
   const controllerAbi = readJson(controllerAbiPath);
   const controllerInterface = new Interface(controllerAbi);
 
-  const liquidBalancesSlot = BigInt(
+  const liquidBalancesSlot = ethers.toBigInt(
     storageLayout.contracts.L2AccountingVault.storageLayout.storage.find((entry) => entry.label === "liquidBalances").slot,
   );
 
   const contractCodes = await fetchContractCodes(provider, [controllerAddress, vaultAddress]);
   const bootstrapBlockInfo = await getFixedBlockInfo(provider);
 
-  const initialSnapshot = buildGenesisSnapshot(controllerAddress, vaultAddress);
+  const initialStateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+  const initialAddresses = [getAddress(controllerAddress), getAddress(vaultAddress)]
+    .map((address) => createAddressFromString(address));
+  await initialStateManager._initializeForAddresses(initialAddresses);
+  initialStateManager._channelId = channelId;
+  for (const address of initialAddresses) {
+    initialStateManager._commitResolvedStorageEntries(address, []);
+  }
+  const initialSnapshot = await initialStateManager.captureStateSnapshot();
   const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
 
   for (const participant of participants) {
@@ -941,8 +932,10 @@ async function main() {
     const key = mappingKeyHex(participant.l2Address, liquidBalancesSlot);
     participantKeys.set(participant.index, key);
   }
-  expect(new Set([...participantKeys.values()].map((value) => value.toLowerCase())).size === participants.length,
-    "Participant vault keys must be unique.");
+  expect(
+    new Set([...participantKeys.values()].map((value) => ethers.toBigInt(value).toString())).size === participants.length,
+    "Participant vault keys must be unique.",
+  );
 
   const depositTransitions = [];
   for (const participant of participants) {
@@ -1165,7 +1158,9 @@ async function main() {
   const dApps = buildDAppDefinitions(metadataRun.tokamakResults.map((result) => result.metadataRecord));
   expect(dApps.length === 1, `Expected one derived DApp, found ${dApps.length}.`);
   const derivedDApp = dApps[0];
-  const uniqueAPubBlockHashes = new Set(metadataRun.tokamakResults.map((result) => result.metadataRecord.aPubBlockHash.toLowerCase()));
+  const uniqueAPubBlockHashes = new Set(
+    metadataRun.tokamakResults.map((result) => ethers.toBigInt(result.metadataRecord.aPubBlockHash).toString()),
+  );
   expect(uniqueAPubBlockHashes.size === 1, "All Tokamak steps must share one aPubBlockHash for the channel.");
 
   console.log("E2E: deploying bridge stack.");
@@ -1189,7 +1184,9 @@ async function main() {
 
   for (const participant of participants) {
     console.log(`E2E: funding L1 wallet ${participant.l1.address}.`);
-    await (await asset.mint(participant.l1.address, depositAmount, { nonce: bridgeDeployerNonce++ })).wait();
+    await (
+      await asset.mint(participant.l1.address, depositAmount + joinFee, { nonce: bridgeDeployerNonce++ })
+    ).wait();
   }
 
   console.log("E2E: registering derived DApp on bridge.");
@@ -1205,7 +1202,7 @@ async function main() {
 
   console.log("E2E: creating channel.");
   await (
-    await bridgeCore.createChannel(channelId, dappId, leader, { nonce: bridgeDeployerNonce++ })
+    await bridgeCore.createChannel(channelId, dappId, leader, joinFee, { nonce: bridgeDeployerNonce++ })
   ).wait();
   const channelDeployment = await bridgeCore.getChannel(channelId);
 
@@ -1213,7 +1210,8 @@ async function main() {
   const channelBlockInfo = await getBlockInfoAt(provider, Number(await channelManager.genesisBlockNumber()));
   const channelAPubBlockHash = hashTokamakPublicInputs(encodeTokamakBlockInfo(channelBlockInfo));
   expect(
-    normalizeBytes32Hex(channelAPubBlockHash) === normalizeBytes32Hex(channelDeployment.aPubBlockHash),
+    ethers.toBigInt(normalizeBytes32Hex(channelAPubBlockHash))
+      === ethers.toBigInt(normalizeBytes32Hex(channelDeployment.aPubBlockHash)),
     "Derived channel block_info hash must match the stored channel aPubBlockHash.",
   );
   const bridgeTokenVault = new Contract(channelDeployment.bridgeTokenVault, bridgeTokenVaultAbi, deployer);
@@ -1242,7 +1240,7 @@ async function main() {
     await (
       await participantAsset.approve(
         channelDeployment.bridgeTokenVault,
-        depositAmount,
+        depositAmount + joinFee,
         { nonce: consumeAccountNonce(participantNonces, participant.l1.address) },
       )
     ).wait();
@@ -1252,7 +1250,8 @@ async function main() {
       })
     ).wait();
     await (
-      await channelManager.connect(participant.l1).registerChannelTokenVaultIdentity(
+      await bridgeTokenVault.connect(participant.l1).joinChannel(
+        channelId,
         participant.l2Address,
         participantKeys.get(participant.index),
         deriveLeafIndex(participantKeys.get(participant.index)),

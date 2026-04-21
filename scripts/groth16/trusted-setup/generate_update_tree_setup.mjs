@@ -20,6 +20,7 @@ const renderedCircuitPath = path.join(circuitsRoot, "src", "circuit_updateTree.c
 const buildDir = path.join(circuitsRoot, "build", "updateTree");
 const circuitBaseName = "circuit_updateTree";
 const compiledR1csPath = path.join(buildDir, `${circuitBaseName}.r1cs`);
+const localSnarkjsPath = path.join(circuitsRoot, "node_modules", ".bin", "snarkjs");
 const resolvedCommands = new Map();
 
 function resolveCommand(command) {
@@ -27,8 +28,10 @@ function resolveCommand(command) {
         return resolvedCommands.get(command);
     }
 
+    const localCandidates = command === "snarkjs" ? [localSnarkjsPath] : [];
     const pathEntries = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
     const candidates = [
+        ...localCandidates,
         ...pathEntries.map((entry) => path.join(entry, command)),
         path.join("/opt/homebrew/bin", command),
         path.join("/usr/local/bin", command),

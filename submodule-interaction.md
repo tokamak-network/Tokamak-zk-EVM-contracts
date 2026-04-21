@@ -56,25 +56,20 @@ The following repository-owned surfaces no longer cross the parent-repository/su
 These files still have to be removed, rewritten, or migrated before the top-level Tokamak
 submodule can be deleted.
 
-### `apps/private-state/scripts/deploy/generate-synthesizer-launch-inputs.ts`
+### `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/node-cli/scripts/generate-synthesizer-launch-inputs.ts`
 
-Relevant references:
-
-- direct imports from the submodule Synthesizer sources and examples:
-  [apps/private-state/scripts/deploy/generate-synthesizer-launch-inputs.ts](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/deploy/generate-synthesizer-launch-inputs.ts:20)
-- direct in-submodule output paths:
-  [apps/private-state/scripts/deploy/generate-synthesizer-launch-inputs.ts](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/deploy/generate-synthesizer-launch-inputs.ts:418)
+Status: moved into the submodule, now standalone
 
 Current role:
 
-- imports Synthesizer constants, RPC helpers, private-state example utilities, and private-state
-  storage helpers from `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/**`
-- writes launch inputs back into stable in-submodule paths
+- lives under the Synthesizer `node-cli` workspace
+- reads local deployment and storage-layout manifests from
+  `packages/frontend/synthesizer/node-cli/scripts/deployment/private-state/`
+- writes launch inputs into `packages/frontend/synthesizer/node-cli/examples/privateState/`
 
 Removal impact:
 
-- this file must either move upstream into the Tokamak repository or be deleted from this
-  repository once upstream ownership is established
+- this script is no longer a parent-repository blocker
 
 ### `apps/private-state/scripts/deploy/write-deploy-artifacts.sh`
 
@@ -97,17 +92,18 @@ Removal impact:
 Relevant references:
 
 - launch-input generation through the submodule workspace:
-  [apps/private-state/scripts/deploy/deploy-private-state.sh](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/deploy/deploy-private-state.sh:108)
+  [apps/private-state/scripts/deploy/deploy-private-state.sh](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/apps/private-state/scripts/deploy/deploy-private-state.sh:1)
 
 Current role:
 
-- runs `write-deploy-artifacts.sh`
-- invokes `generate-synthesizer-launch-inputs.ts` via the submodule workspace `tsx` environment and
-  submodule-owned `tsconfig`
+- deploys the private-state contracts only
+- no longer invokes `write-deploy-artifacts.sh`
+- no longer invokes `generate-synthesizer-launch-inputs.ts`
 
 Removal impact:
 
-- this wrapper cannot remain as-is once `submodules/Tokamak-zk-EVM` disappears
+- this wrapper no longer mirrors artifacts into the submodule, but it still belongs to the
+  remaining parent-repository deploy surface
 
 ### `apps/private-state/cli/private-state-bridge-cli.mjs`
 
@@ -193,13 +189,11 @@ These references should be cleaned up after the runtime and deploy blockers are 
 
 The remaining safe removal order is:
 
-1. remove or migrate `generate-synthesizer-launch-inputs.ts`
-2. remove or migrate `write-deploy-artifacts.sh`
-3. update `deploy-private-state.sh` so it no longer depends on the submodule workspace
-4. rewrite `private-state-bridge-cli.mjs` install and uninstall flows around the published CLI
-5. rewrite both private-state E2E runners to stop referencing `submodules/Tokamak-zk-EVM`
-6. remove `.gitmodules`, `submodules/Tokamak-zk-EVM`, and `.git/modules/submodules/Tokamak-zk-EVM`
-7. delete stale documentation and help text that still mentions the top-level submodule
+1. remove or migrate `write-deploy-artifacts.sh`
+2. rewrite `private-state-bridge-cli.mjs` install and uninstall flows around the published CLI
+3. rewrite both private-state E2E runners to stop referencing `submodules/Tokamak-zk-EVM`
+4. remove `.gitmodules`, `submodules/Tokamak-zk-EVM`, and `.git/modules/submodules/Tokamak-zk-EVM`
+5. delete stale documentation and help text that still mentions the top-level submodule
 
 ## Boundary Note
 

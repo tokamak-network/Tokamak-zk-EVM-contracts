@@ -97,13 +97,12 @@ const requiredTokamakSetupArtifacts = [
   "sigma_verify.rkyv",
 ];
 const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
-const tokamakSynthesizerRoot = path.resolve(tokamakRoot, "packages", "frontend", "synthesizer");
+const tokamakSynthesizerRoot = path.resolve(tokamakRoot, "packages", "frontend", "synthesizer", "node-cli");
 const tokamakSynthesizerTsconfigPath = path.resolve(tokamakSynthesizerRoot, "tsconfig.dev.json");
 const synthesizerExamplesRoot = path.resolve(tokamakSynthesizerRoot, "examples", "privateState");
 const generateSynthesizerLaunchInputsPath = path.resolve(
-  appRoot,
+  tokamakSynthesizerRoot,
   "scripts",
-  "deploy",
   "generate-synthesizer-launch-inputs.ts",
 );
 const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");

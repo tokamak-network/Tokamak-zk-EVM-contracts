@@ -45,7 +45,8 @@ Required variables:
 
 For `APPS_NETWORK=anvil`, scripts default to `http://127.0.0.1:8545`.
 
-Successful deployments write app-local artifacts into `apps/private-state/deploy`:
+Deployment artifacts can be materialized into `apps/private-state/deploy` by running
+`apps/private-state/scripts/deploy/write-deploy-artifacts.sh`:
 
 - `deployment.<chain-id>.<timestamp>.json`
 - `deployment.<chain-id>.latest.json`
@@ -60,11 +61,10 @@ Bridge-side DApp registration then refreshes the app-local Groth16 consumption m
 - `groth16/<chain-id>/circuit_final.zkey`
 - `groth16/<chain-id>/metadata.json`
 
-Successful deployments also refresh the checked-in Synthesizer private-state launch inputs under:
+Synthesizer private-state launch inputs are now generated independently inside the Tokamak
+Synthesizer `node-cli` workspace:
 
-- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/`
-- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/deployment/private-state/`
-- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/.vscode/launch.json`
+- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/node-cli/scripts/generate-synthesizer-launch-inputs.ts`
 
 Bridge-side DApp registration now consumes repo-owned example inputs under:
 

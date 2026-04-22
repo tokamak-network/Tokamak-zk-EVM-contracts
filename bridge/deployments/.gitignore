@@ -8,4 +8,3 @@
 !tokamak-zkp/
 !tokamak-zkp/**/
 !tokamak-zkp/**/*.json
-!tokamak-zkp/**/*.rkyv

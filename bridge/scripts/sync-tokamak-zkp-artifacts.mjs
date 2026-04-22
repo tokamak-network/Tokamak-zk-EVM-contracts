@@ -76,20 +76,17 @@ function main() {
   assertFileExists(sigmaVerifyPath, "sigma_verify.json");
 
   fs.rmSync(artifactDir, { recursive: true, force: true });
-  ensureDir(artifactDir);
-
-  copyFile(combinedSigmaPath, path.join(artifactDir, "combined_sigma.rkyv"));
-  copyFile(sigmaPreprocessPath, path.join(artifactDir, "sigma_preprocess.rkyv"));
-  copyFile(sigmaVerifyPath, path.join(artifactDir, "sigma_verify.json"));
 
   let relativeBuildMetadataPath = null;
   if (fs.existsSync(buildMetadataPath)) {
+    ensureDir(artifactDir);
     copyFile(buildMetadataPath, path.join(artifactDir, "build-metadata-mpc-setup.json"));
     relativeBuildMetadataPath = `tokamak-zkp/${chainId}/build-metadata-mpc-setup.json`;
   }
 
   let relativeCrsProvenancePath = null;
   if (fs.existsSync(crsProvenancePath)) {
+    ensureDir(artifactDir);
     copyFile(crsProvenancePath, path.join(artifactDir, "crs_provenance.json"));
     relativeCrsProvenancePath = `tokamak-zkp/${chainId}/crs_provenance.json`;
   }
@@ -104,9 +101,6 @@ function main() {
     artifactDir: `tokamak-zkp/${chainId}`,
     artifacts: {
       version: artifactVersion,
-      combinedSigmaPath: `tokamak-zkp/${chainId}/combined_sigma.rkyv`,
-      sigmaPreprocessPath: `tokamak-zkp/${chainId}/sigma_preprocess.rkyv`,
-      sigmaVerifyPath: `tokamak-zkp/${chainId}/sigma_verify.json`,
       buildMetadataPath: relativeBuildMetadataPath,
       crsProvenancePath: relativeCrsProvenancePath,
     },

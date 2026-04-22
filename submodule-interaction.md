@@ -27,12 +27,11 @@ Those flows now use:
 - `tokamak-l2js`
 - repo-owned example inputs under `apps/private-state/examples/synthesizer/privateState/`
 
-The repository still depends on `submodules/Tokamak-zk-EVM` in four ways:
+The repository still depends on `submodules/Tokamak-zk-EVM` in three ways:
 
-1. direct source imports from the Synthesizer workspace
-2. direct writes into stable in-submodule Synthesizer paths
-3. submodule bootstrap, install, update, or uninstall logic
-4. documentation and git metadata that still declare the top-level submodule
+1. direct writes into stable in-submodule Synthesizer paths
+2. submodule bootstrap, install, update, or uninstall logic
+3. documentation and git metadata that still declare the top-level submodule
 
 ## Already Removed
 
@@ -51,14 +50,14 @@ The following repository-owned surfaces no longer cross the parent-repository/su
 - `apps/private-state/scripts/synthesizer-compat-test/`
   was removed from this repository and is no longer part of the local submodule boundary.
 
-## Active Blockers
+## Migrated To Submodule
 
-These files still have to be removed, rewritten, or migrated before the top-level Tokamak
-submodule can be deleted.
+These scripts no longer belong to the parent-repository dependency surface, even if some parent
+entrypoints still invoke them through the checked-out submodule.
 
 ### `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/node-cli/scripts/generate-synthesizer-launch-inputs.ts`
 
-Status: moved into the submodule, now standalone
+Status: moved into the submodule, standalone
 
 Current role:
 
@@ -67,9 +66,16 @@ Current role:
   `packages/frontend/synthesizer/node-cli/scripts/deployment/private-state/`
 - writes launch inputs into `packages/frontend/synthesizer/node-cli/examples/privateState/`
 
-Removal impact:
+Parent-repository impact:
 
-- this script is no longer a parent-repository blocker
+- this script is no longer a parent-owned blocker
+- the remaining blocker is any parent entrypoint that still assumes a checked-out submodule in
+  order to invoke it
+
+## Active Blockers
+
+These files still have to be removed, rewritten, or migrated before the top-level Tokamak
+submodule can be deleted.
 
 ### `apps/private-state/scripts/deploy/write-deploy-artifacts.sh`
 
@@ -139,11 +145,14 @@ Relevant references:
 Current role:
 
 - still assumes a checked-out `submodules/Tokamak-zk-EVM` root
+- still invokes the submodule-owned `generate-synthesizer-launch-inputs.ts` through the checked-out
+  `node-cli` workspace
 - still triggers deploy-side scripts that mirror artifacts into the submodule
 
 Removal impact:
 
-- must be rewritten to use installed CLI runtime paths and repo-owned example inputs only
+- must be rewritten to use installed CLI runtime paths and repo-owned example inputs only, without
+  invoking submodule-owned scripts from the parent repository
 
 ### `apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs`
 

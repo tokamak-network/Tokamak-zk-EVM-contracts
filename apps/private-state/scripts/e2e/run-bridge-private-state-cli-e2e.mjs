@@ -32,6 +32,11 @@ import {
   buildFunctionDefinition,
 } from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
 import {
+  buildTokamakCliInvocation,
+  resolveTokamakCliResourceDir,
+  resolveTokamakCliSetupOutputDir,
+} from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+import {
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
   workspaceDirForName as sharedWorkspaceDirForName,
@@ -48,7 +53,6 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
-const tokamakRoot = path.resolve(repoRoot, "submodules", "Tokamak-zk-EVM");
 const cliPath = path.resolve(appRoot, "cli", "private-state-bridge-cli.mjs");
 const bridgeDeployHelperPath = path.resolve(bridgeRoot, "scripts", "deploy-bridge.sh");
 const bridgeDeploymentPath = path.resolve(bridgeRoot, "deployments", "bridge.31337.json");
@@ -96,8 +100,9 @@ const requiredTokamakSetupArtifacts = [
   "sigma_preprocess.rkyv",
   "sigma_verify.rkyv",
 ];
-const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
-const tokamakSynthesizerRoot = path.resolve(tokamakRoot, "packages", "frontend", "synthesizer", "node-cli");
+const tokamakSubmoduleRoot = path.resolve(repoRoot, "submodules", "Tokamak-zk-EVM");
+const tokamakCliInvocation = buildTokamakCliInvocation();
+const tokamakSynthesizerRoot = path.resolve(tokamakSubmoduleRoot, "packages", "frontend", "synthesizer", "node-cli");
 const tokamakSynthesizerTsconfigPath = path.resolve(tokamakSynthesizerRoot, "tsconfig.dev.json");
 const synthesizerExamplesRoot = path.resolve(tokamakSynthesizerRoot, "examples", "privateState");
 const generateSynthesizerLaunchInputsPath = path.resolve(
@@ -105,7 +110,7 @@ const generateSynthesizerLaunchInputsPath = path.resolve(
   "scripts",
   "generate-synthesizer-launch-inputs.ts",
 );
-const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
+const tokamakSetupDistDir = resolveTokamakCliSetupOutputDir();
 const tokamakStepArtifactDirectories = [
   path.join("synthesizer", "output"),
   path.join("preprocess", "output"),
@@ -424,7 +429,7 @@ function assertTokamakSetupArtifactsInstalled() {
   throw new Error(
     [
       `Missing Tokamak setup artifacts in ${tokamakSetupDistDir}: ${missingInDist.join(", ")}.`,
-      "Run ./tokamak-cli --install in submodules/Tokamak-zk-EVM or rerun this script without --skip-install.",
+      "Run tokamak-cli --install or rerun this script without --skip-install.",
     ].join(" "),
   );
 }
@@ -433,7 +438,7 @@ function copyTokamakArtifacts(stepDir) {
   const resourceRoot = path.join(stepDir, "resource");
   fs.rmSync(resourceRoot, { recursive: true, force: true });
   for (const relativeDirectory of tokamakStepArtifactDirectories) {
-    const sourceDir = path.join(tokamakRoot, "dist", "resource", relativeDirectory);
+    const sourceDir = resolveTokamakCliResourceDir(relativeDirectory);
     if (!fs.existsSync(sourceDir)) {
       continue;
     }
@@ -457,14 +462,14 @@ async function runTokamakMetadataStep(exampleName, bundleSourceDir) {
     fs.copyFileSync(path.join(bundleSourceDir, fileName), path.join(stepDir, fileName));
   }
 
-  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], {
-    cwd: tokamakRoot,
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--synthesize", "--tokamak-ch-tx", stepDir], {
+    cwd: repoRoot,
     quiet: true,
     label: `metadata:${exampleName}:synthesize`,
   });
   assertTokamakSetupArtifactsInstalled();
-  run(tokamakCliPath, ["--preprocess"], {
-    cwd: tokamakRoot,
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--preprocess"], {
+    cwd: repoRoot,
     quiet: true,
     label: `metadata:${exampleName}:preprocess`,
   });
@@ -509,7 +514,7 @@ async function materializeCurrentDAppDefinition(provider, participants) {
     "npx",
     [
       "--prefix",
-      tokamakRoot,
+      tokamakSubmoduleRoot,
       "tsx",
       "--tsconfig",
       tokamakSynthesizerTsconfigPath,
@@ -1136,8 +1141,8 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   currentCliE2EOptions = options;
   if (options.runInstall) {
-    run(tokamakCliPath, ["--install"], {
-      cwd: tokamakRoot,
+    run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--install"], {
+      cwd: repoRoot,
       quiet: true,
       label: "tokamak:install",
     });

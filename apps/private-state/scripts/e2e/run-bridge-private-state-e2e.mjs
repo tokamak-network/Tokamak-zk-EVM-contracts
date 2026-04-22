@@ -43,6 +43,11 @@ import {
   writeJson,
 } from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
 import {
+  buildTokamakCliInvocation,
+  resolveTokamakCliResourceDir,
+  resolveTokamakCliSetupOutputDir,
+} from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+import {
   computeEncryptedNoteSalt,
   deriveNoteReceiveKeyMaterial,
   encryptMintNoteValueForOwner,
@@ -55,9 +60,8 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
-const tokamakRoot = path.resolve(repoRoot, "submodules", "Tokamak-zk-EVM");
-const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
-const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
+const tokamakCliInvocation = buildTokamakCliInvocation();
+const tokamakSetupDistDir = resolveTokamakCliSetupOutputDir();
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-genesis");
 const deploymentManifestPath = path.resolve(appRoot, "deploy", "deployment.31337.latest.json");
 const storageLayoutManifestPath = path.resolve(appRoot, "deploy", "storage-layout.31337.latest.json");
@@ -442,10 +446,6 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
   return toTokamakSnapshot(tx);
 }
 
-function outputFile(relativePath) {
-  return path.join(tokamakRoot, "dist", relativePath);
-}
-
 const tokamakStepArtifactDirectories = [
   path.join("synthesizer", "output"),
   path.join("preprocess", "output"),
@@ -466,7 +466,7 @@ function copyTokamakArtifacts(stepDir) {
   const resourceRoot = path.join(stepDir, "resource");
   cleanDir(resourceRoot);
   for (const relativeDirectory of tokamakStepArtifactDirectories) {
-    const sourceDir = path.join(tokamakRoot, "dist", "resource", relativeDirectory);
+    const sourceDir = resolveTokamakCliResourceDir(relativeDirectory);
     if (!fs.existsSync(sourceDir)) {
       continue;
     }
@@ -486,7 +486,7 @@ function assertTokamakSetupArtifactsInstalled() {
   throw new Error(
     [
       `Missing Tokamak setup artifacts in ${tokamakSetupDistDir}: ${missingInDist.join(", ")}.`,
-      "Run ./tokamak-cli --install in submodules/Tokamak-zk-EVM or rerun this script without --skip-install.",
+      "Run tokamak-cli --install or rerun this script without --skip-install.",
     ].join(" "),
   );
 }
@@ -618,16 +618,16 @@ async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
 
   await writeStepInputs(stepDir, currentSnapshot, transactionSnapshot, blockInfo, contractCodes);
 
-  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], { cwd: tokamakRoot });
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--synthesize", "--tokamak-ch-tx", stepDir], { cwd: repoRoot });
   assertTokamakSetupArtifactsInstalled();
-  run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot });
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--preprocess"], { cwd: repoRoot });
   assertTokamakSetupArtifactsInstalled();
-  run(tokamakCliPath, ["--prove"], { cwd: tokamakRoot });
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--prove"], { cwd: repoRoot });
 
   const bundlePath = path.join(stepDir, `${step.name}.zip`);
-  run(tokamakCliPath, ["--extract-proof", bundlePath], { cwd: tokamakRoot });
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--extract-proof", bundlePath], { cwd: repoRoot });
   copyTokamakArtifacts(stepDir);
-  run(tokamakCliPath, ["--verify", bundlePath], { cwd: tokamakRoot });
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--verify", bundlePath], { cwd: repoRoot });
 
   const nextSnapshot = readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json"));
   if (Array.isArray(nextSnapshot.storageAddresses)) {
@@ -874,7 +874,7 @@ async function main() {
   await bootstrapAnvil();
 
   if (options.runInstall) {
-    run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
+    run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--install"], { cwd: repoRoot });
   }
 
   const provider = new JsonRpcProvider(providerUrl);

@@ -3,7 +3,6 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 DEPLOY_DIR="$PROJECT_ROOT/apps/private-state/deploy"
-SUBMODULE_PRIVATE_STATE_DEPLOY_DIR="$PROJECT_ROOT/submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/deployment/private-state"
 
 if [[ $# -ne 1 ]]; then
     echo "Usage: $0 <chain-id>" >&2
@@ -19,13 +18,10 @@ if [[ ! -f "$RUN_FILE" ]]; then
 fi
 
 mkdir -p "$DEPLOY_DIR"
-mkdir -p "$SUBMODULE_PRIVATE_STATE_DEPLOY_DIR"
 
 TIMESTAMP_UTC="$(date -u +"%Y%m%dT%H%M%SZ")"
 CHAIN_LATEST_FILE="$DEPLOY_DIR/deployment.${CHAIN_ID}.latest.json"
 STORAGE_LAYOUT_LATEST_FILE="$DEPLOY_DIR/storage-layout.${CHAIN_ID}.latest.json"
-SUBMODULE_CHAIN_LATEST_FILE="$SUBMODULE_PRIVATE_STATE_DEPLOY_DIR/deployment.${CHAIN_ID}.latest.json"
-SUBMODULE_STORAGE_LAYOUT_LATEST_FILE="$SUBMODULE_PRIVATE_STATE_DEPLOY_DIR/storage-layout.${CHAIN_ID}.latest.json"
 
 ZERO_ADDRESS="0x0000000000000000000000000000000000000000"
 
@@ -61,8 +57,6 @@ jq -n \
         }
     }' > "$CHAIN_LATEST_FILE"
 
-cp "$CHAIN_LATEST_FILE" "$SUBMODULE_CHAIN_LATEST_FILE"
-
 CONTROLLER_STORAGE_LAYOUT="$(
     forge inspect --json PrivateStateController storage-layout
 )"
@@ -95,8 +89,6 @@ jq -n \
             }
         }
     }' > "$STORAGE_LAYOUT_LATEST_FILE"
-
-cp "$STORAGE_LAYOUT_LATEST_FILE" "$SUBMODULE_STORAGE_LAYOUT_LATEST_FILE"
 
 write_callable_abi() {
     local artifact_path="$1"
@@ -146,7 +138,5 @@ write_callable_abi \
     ]'
 
 echo "Updated chain deployment manifest: $CHAIN_LATEST_FILE"
-echo "Mirrored chain deployment manifest: $SUBMODULE_CHAIN_LATEST_FILE"
 echo "Updated storage layout manifest: $STORAGE_LAYOUT_LATEST_FILE"
-echo "Mirrored storage layout manifest: $SUBMODULE_STORAGE_LAYOUT_LATEST_FILE"
 echo "Wrote callable ABI files under: $DEPLOY_DIR"

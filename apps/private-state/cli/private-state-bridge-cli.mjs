@@ -45,6 +45,11 @@ import {
 } from "@ethereumjs/util";
 import { deriveRpcUrl, resolveCliNetwork } from "../../scripts/network-config.mjs";
 import {
+  buildTokamakCliInvocation,
+  resolveTokamakCliCacheRoot,
+  resolveTokamakCliResourceDir,
+} from "../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
@@ -65,10 +70,10 @@ const appRoot = path.resolve(projectRoot, "apps/private-state");
 const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
-const gitmodulesPath = path.resolve(projectRoot, ".gitmodules");
-const tokamakSubmodulePath = "submodules/Tokamak-zk-EVM";
-const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
-const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
+const tokamakCliInvocation = buildTokamakCliInvocation();
+const tokamakCliCommand = tokamakCliInvocation.command;
+const tokamakCliBaseArgs = tokamakCliInvocation.args;
+const tokamakCliCacheRoot = resolveTokamakCliCacheRoot();
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
@@ -875,114 +880,24 @@ function clearWalletRecoveryArtifacts(walletDir) {
 }
 
 async function handleInstallZkEvm({ args }) {
-  const syncedDevCommit = syncTokamakSubmoduleToLatestDev();
-  run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
+  run(tokamakCliCommand, [...tokamakCliBaseArgs, "--install"], { cwd: projectRoot });
   run("node", [path.join("scripts", "generate-tokamak-shared-constants.js")], { cwd: projectRoot });
   printJson({
     action: "install-zk-evm",
-    tokamakCli: tokamakCliPath,
-    syncedBranch: "dev",
-    syncedCommit: syncedDevCommit,
+    tokamakCli: tokamakCliBaseArgs[0],
+    cacheRoot: tokamakCliCacheRoot,
   });
 }
 
 async function handleUninstallZkEvm() {
-  expect(fs.existsSync(tokamakRoot), `Tokamak zk-EVM submodule path does not exist: ${tokamakRoot}.`);
-  const submoduleGitPath = path.join(tokamakRoot, ".git");
-  expect(
-    fs.existsSync(submoduleGitPath),
-    `Tokamak zk-EVM submodule metadata is missing at ${submoduleGitPath}. Refusing to remove the directory.`,
-  );
-
-  const removedEntries = [];
-  for (const entry of fs.readdirSync(tokamakRoot, { withFileTypes: true })) {
-    if (entry.name === ".git") {
-      continue;
-    }
-    const entryPath = path.join(tokamakRoot, entry.name);
-    fs.rmSync(entryPath, { recursive: true, force: true });
-    removedEntries.push(entry.name);
-  }
+  const existed = fs.existsSync(tokamakCliCacheRoot);
+  fs.rmSync(tokamakCliCacheRoot, { recursive: true, force: true });
 
   printJson({
     action: "uninstall-zk-evm",
-    tokamakRoot,
-    preservedEntries: [".git"],
-    removedEntriesCount: removedEntries.length,
-    removedEntries,
+    cacheRoot: tokamakCliCacheRoot,
+    existed,
   });
-}
-
-function syncTokamakSubmoduleToLatestDev() {
-  ensureTokamakSubmoduleWorktree();
-  expect(fs.existsSync(tokamakRoot), `Tokamak zk-EVM submodule path does not exist: ${tokamakRoot}.`);
-  expect(
-    fs.existsSync(path.join(tokamakRoot, ".git")),
-    `Tokamak zk-EVM submodule metadata is missing at ${path.join(tokamakRoot, ".git")}.`,
-  );
-
-  const porcelainStatus = runGitInTokamak(["status", "--porcelain"]).trim();
-  const canRestoreClearedWorktree = porcelainStatus.length > 0 && isTokamakWorktreeDeletionOnly(porcelainStatus);
-  expect(
-    porcelainStatus.length === 0 || canRestoreClearedWorktree,
-    [
-      "Tokamak zk-EVM submodule has uncommitted changes.",
-      "Clean submodules/Tokamak-zk-EVM before install-zk-evm so the CLI can fast-forward dev safely.",
-    ].join(" "),
-  );
-
-  runGitInTokamak(["fetch", "origin", "dev"]);
-
-  try {
-    runGitInTokamak(["switch", "dev"]);
-  } catch {
-    runGitInTokamak(["switch", "--track", "origin/dev"]);
-  }
-
-  if (canRestoreClearedWorktree) {
-    runGitInTokamak(["restore", "--source", "origin/dev", "--staged", "--worktree", "."]);
-  }
-
-  runGitInTokamak(["pull", "--ff-only", "origin", "dev"]);
-  return runGitInTokamak(["rev-parse", "HEAD"]).trim();
-}
-
-function ensureTokamakSubmoduleWorktree() {
-  expect(
-    fs.existsSync(gitmodulesPath),
-    `Repository gitmodules file does not exist: ${gitmodulesPath}.`,
-  );
-
-  const configuredPaths = runGitInProjectRoot([
-    "config",
-    "-f",
-    gitmodulesPath,
-    "--get-regexp",
-    "^submodule\\..*\\.path$",
-  ])
-    .trim()
-    .split("\n")
-    .map((line) => line.trim().split(/\s+/, 2)[1])
-    .filter(Boolean);
-
-  expect(
-    configuredPaths.includes(tokamakSubmodulePath),
-    `.gitmodules does not declare the Tokamak zk-EVM submodule path ${tokamakSubmodulePath}.`,
-  );
-
-  runGitInProjectRoot(["submodule", "sync", "--", tokamakSubmodulePath]);
-  runGitInProjectRoot(["submodule", "update", "--init", "--recursive", tokamakSubmodulePath]);
-}
-
-function isTokamakWorktreeDeletionOnly(porcelainStatus) {
-  return porcelainStatus
-    .split("\n")
-    .filter((line) => line.length > 0)
-    .every((line) => {
-      const x = line[0];
-      const y = line[1];
-      return (x === " " || x === "D") && (y === " " || y === "D") && (x === "D" || y === "D");
-    });
 }
 
 async function handleGetMyAddress({ args, provider }) {
@@ -3447,34 +3362,6 @@ function runCaptured(command, args, { cwd = projectRoot, env = process.env } = {
   };
 }
 
-function runGitInTokamak(args) {
-  const result = spawnSync("git", args, {
-    cwd: tokamakRoot,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim();
-    const stdout = result.stdout?.trim();
-    const detail = stderr || stdout || `exit code ${result.status ?? "unknown"}`;
-    throw new Error(`git ${args.join(" ")} failed in ${tokamakRoot}: ${detail}`);
-  }
-  return result.stdout ?? "";
-}
-
-function runGitInProjectRoot(args) {
-  const result = spawnSync("git", args, {
-    cwd: projectRoot,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim();
-    const stdout = result.stdout?.trim();
-    const detail = stderr || stdout || `exit code ${result.status ?? "unknown"}`;
-    throw new Error(`git ${args.join(" ")} failed in ${projectRoot}: ${detail}`);
-  }
-  return result.stdout ?? "";
-}
-
 function runTokamakProofPipeline({ operationDir, bundlePath }) {
   runTokamakCliStage({
     operationDir,
@@ -3514,7 +3401,7 @@ function printLocalProofGenerationNotice(operationName) {
 }
 
 function runTokamakCliStage({ operationDir, stageName, args }) {
-  const result = runCaptured(tokamakCliPath, args, { cwd: tokamakRoot });
+  const result = runCaptured(tokamakCliCommand, [...tokamakCliBaseArgs, ...args], { cwd: projectRoot });
   const logPath = writeTokamakCliStageLog(operationDir, stageName, result);
   if (result.status !== 0) {
     throw new Error(
@@ -3582,7 +3469,7 @@ function copyTokamakOperationArtifacts(operationDir) {
   ];
 
   for (const segments of requiredFiles) {
-    const sourcePath = path.join(tokamakRoot, "dist", "resource", ...segments);
+    const sourcePath = resolveTokamakCliResourceDir(...segments);
     const targetPath = path.join(resourceRoot, ...segments);
     ensureDir(path.dirname(targetPath));
     fs.copyFileSync(sourcePath, targetPath);
@@ -4549,10 +4436,10 @@ function printHelp() {
   console.log(`
 Commands:
   install-zk-evm
-      Install the local Tokamak zk-EVM toolchain
+      Install the Tokamak zk-EVM CLI runtime cache
 
   uninstall-zk-evm
-      Remove the checked-out Tokamak zk-EVM worktree contents
+      Remove the Tokamak zk-EVM CLI runtime cache
 
   create-channel --channel-name <NAME> --join-fee <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace

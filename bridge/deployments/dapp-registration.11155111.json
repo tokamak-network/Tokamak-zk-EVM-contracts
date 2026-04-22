@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-14T14:19:37.103Z",
+  "generatedAt": "2026-04-22T03:12:49.902Z",
   "deploymentPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge.11155111.json",
   "abiManifestPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/bridge-abi-manifest.11155111.json",
   "appNetwork": "sepolia",
@@ -13,7 +13,7 @@
     "redeemNotes"
   ],
   "dappLabel": "private-state",
-  "dappId": 1,
+  "dappId": 2,
   "dAppManager": "0x89dB43E8973d8ee91dC6746F14acc381d5F4600F",
   "rpcUrl": "https://eth-sepolia.g.alchemy.com/v2/TpjY8YLL9pFoo3KWFlNJh",
   "artifactsRoot": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/deployments/dapp-registration-artifacts/private-state",
@@ -21,37 +21,37 @@
     {
       "groupName": "private-state",
       "exampleName": "mintNotes/mintNotes1",
-      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "entryContract": "0x6783AE3C885B5a8f7824E529651f1895E412d891",
       "functionSig": "0x626ad23f"
     },
     {
       "groupName": "private-state",
       "exampleName": "mintNotes/mintNotes2",
-      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "entryContract": "0x6783AE3C885B5a8f7824E529651f1895E412d891",
       "functionSig": "0x516a9d53"
     },
     {
       "groupName": "private-state",
       "exampleName": "transferNotes/transferNotes1To1",
-      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "entryContract": "0x6783AE3C885B5a8f7824E529651f1895E412d891",
       "functionSig": "0x224c3c60"
     },
     {
       "groupName": "private-state",
       "exampleName": "transferNotes/transferNotes1To2",
-      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "entryContract": "0x6783AE3C885B5a8f7824E529651f1895E412d891",
       "functionSig": "0x6b24ef62"
     },
     {
       "groupName": "private-state",
       "exampleName": "transferNotes/transferNotes2To1",
-      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "entryContract": "0x6783AE3C885B5a8f7824E529651f1895E412d891",
       "functionSig": "0x3f97509c"
     },
     {
       "groupName": "private-state",
       "exampleName": "redeemNotes/redeemNotes1",
-      "entryContract": "0xb0B9b0A706d3d985142216a0980F37D5a143AB7D",
+      "entryContract": "0x6783AE3C885B5a8f7824E529651f1895E412d891",
       "functionSig": "0xc0856c7c"
     }
   ],
@@ -118,10 +118,30 @@
     }
   ],
   "registration": {
-    "txHash": "0x9eb165e6770b84b5b19eb55481f2406b39bfca922e21fb96f9f875cdde9a9d2b",
-    "blockNumber": 10658533,
+    "txHash": "0x14b23dd2382ed5a22d7643238e5df949828bc2aebf0cf1efb68550cd3c1afe9e",
+    "blockNumber": 10707529,
     "labelHash": "0x280fff58e494db3de12ebbdf607529639a8dce993a3771df1774946231ec4d35",
     "storageCount": 2,
     "functionCount": 6
+  },
+  "publication": {
+    "kind": "dapp",
+    "dappName": "private-state",
+    "bridgeChainId": 11155111,
+    "appChainId": 11155111,
+    "timestamp": "20260422T031118Z",
+    "folderUrl": "https://drive.google.com/drive/folders/1Vxt8huftrP9W8ugZjZDglHVTmRdmYusl",
+    "driveRootUrl": "https://drive.google.com/drive/folders/12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ",
+    "uploadedAt": "2026-04-22T03:13:58.257Z",
+    "files": [
+      "registration/dapp-registration.11155111.json",
+      "deployment/deployment.11155111.latest.json",
+      "deployment/storage-layout.11155111.latest.json",
+      "deployment/PrivateStateController.callable-abi.json",
+      "deployment/L2AccountingVault.callable-abi.json",
+      "deployment/groth16-updateTree.11155111.latest.json",
+      "deployment/groth16/11155111/circuit_final.zkey",
+      "deployment/groth16/11155111/metadata.json"
+    ]
   }
 }

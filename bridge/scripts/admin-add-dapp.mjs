@@ -376,7 +376,6 @@ async function runTokamakInstall() {
 function buildTokamakCliArgs(files) {
   return [
     "--synthesize",
-    "--tokamak-ch-tx",
     "--previous-state",
     files.previousState,
     "--transaction",

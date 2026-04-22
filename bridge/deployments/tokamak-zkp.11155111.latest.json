@@ -1,0 +1,11 @@
+{
+  "generatedAtUtc": "20260422T030101Z",
+  "chainId": 11155111,
+  "tokamakZkpArtifactSource": "cli-runtime-cache",
+  "artifactDir": "tokamak-zkp/11155111",
+  "artifacts": {
+    "version": "1.0.1",
+    "buildMetadataPath": "tokamak-zkp/11155111/build-metadata-mpc-setup.json",
+    "crsProvenancePath": "tokamak-zkp/11155111/crs_provenance.json"
+  }
+}

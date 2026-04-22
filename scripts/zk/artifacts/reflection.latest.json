@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-21T22:31:51.855Z",
+  "generatedAt": "2026-04-22T03:00:27.616Z",
   "tokamakRuntime": {
     "cliPackageRoot": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/node_modules/@tokamak-zk-evm/cli",
     "cliVersion": "2.0.3",
@@ -38,7 +38,7 @@
       "mtDepth": 30,
       "constraintCount": 38222,
       "powersOfTauPower": 16,
-      "generatedAt": "2026-04-16T21:12:47.488Z",
+      "generatedAt": "2026-04-22T02:49:25.800Z",
       "note": "This is a local deterministic development ceremony, not a production multi-party ceremony.",
       "phase1Contributions": 1,
       "phase2Contributions": 1,

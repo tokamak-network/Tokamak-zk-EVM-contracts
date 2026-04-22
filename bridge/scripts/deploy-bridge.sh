@@ -166,14 +166,20 @@ MT_DEPTH_METADATA="$(cat "$REFLECTION_MANIFEST_PATH")"
 BRIDGE_MERKLE_TREE_LEVELS="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.mtDepth));});')"
 BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.version));});')"
 export BRIDGE_MERKLE_TREE_LEVELS
-BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge.${BRIDGE_CHAIN_ID}.json}"
-BRIDGE_INPUT_PATH="${BRIDGE_INPUT_PATH:-$BRIDGE_OUTPUT_PATH}"
-BRIDGE_OUTPUT_PATH="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
-BRIDGE_INPUT_PATH="$(resolve_bridge_path "$BRIDGE_INPUT_PATH")"
-export BRIDGE_OUTPUT_PATH
-export BRIDGE_INPUT_PATH
+CANONICAL_BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge.${BRIDGE_CHAIN_ID}.json}"
+CANONICAL_BRIDGE_INPUT_PATH="${BRIDGE_INPUT_PATH:-$CANONICAL_BRIDGE_OUTPUT_PATH}"
+CANONICAL_BRIDGE_OUTPUT_PATH="$(resolve_bridge_path "$CANONICAL_BRIDGE_OUTPUT_PATH")"
+CANONICAL_BRIDGE_INPUT_PATH="$(resolve_bridge_path "$CANONICAL_BRIDGE_INPUT_PATH")"
+BRIDGE_PENDING_DIR="$PROJECT_ROOT/bridge/deployments/.pending/${BRIDGE_CHAIN_ID}"
+BRIDGE_PENDING_OUTPUT_PATH="$BRIDGE_PENDING_DIR/$(basename "$CANONICAL_BRIDGE_OUTPUT_PATH")"
+UPLOAD_TIMESTAMP=""
+if [[ "${BRIDGE_NETWORK}" != "anvil" ]]; then
+    UPLOAD_TIMESTAMP="$(date -u +"%Y%m%dT%H%M%SZ")"
+fi
+export BRIDGE_OUTPUT_PATH="$BRIDGE_PENDING_OUTPUT_PATH"
+export BRIDGE_INPUT_PATH="$CANONICAL_BRIDGE_INPUT_PATH"
 
-BRIDGE_OUTPUT_PATH_ABS_FOR_MODE="$BRIDGE_OUTPUT_PATH"
+BRIDGE_OUTPUT_PATH_ABS_FOR_MODE="$CANONICAL_BRIDGE_INPUT_PATH"
 FORGE_SCRIPT="scripts/UpgradeBridgeStack.s.sol:UpgradeBridgeStackScript"
 
 if [[ "${DEPLOY_MODE}" == "redeploy-proxy" ]]; then
@@ -212,6 +218,15 @@ echo "Resolved tokamak-l2js MT_DEPTH: ${BRIDGE_MERKLE_TREE_LEVELS}"
 echo "Groth16 artifact source: ${BRIDGE_GROTH_SOURCE}"
 echo "Reflection manifest: ${REFLECTION_MANIFEST_PATH}"
 
+if [[ -n "$UPLOAD_TIMESTAMP" ]]; then
+    node "$PROJECT_ROOT/bridge/scripts/upload-bridge-artifacts.mjs" \
+        "$BRIDGE_CHAIN_ID" \
+        --timestamp "$UPLOAD_TIMESTAMP" \
+        --preflight
+fi
+
+mkdir -p "$BRIDGE_PENDING_DIR"
+
 (
     cd "$PROJECT_ROOT/bridge"
     "${FORGE_CMD[@]}"
@@ -223,19 +238,47 @@ else
     cleanup_broadcast_traces "UpgradeBridgeStack.s.sol" "$BRIDGE_CHAIN_ID"
 fi
 
-BRIDGE_OUTPUT_PATH_ABS="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
+BRIDGE_PENDING_OUTPUT_PATH_ABS="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
 BRIDGE_ABI_MANIFEST_PATH="./deployments/bridge-abi-manifest.${BRIDGE_CHAIN_ID}.json"
 BRIDGE_ABI_MANIFEST_PATH_ABS="$(resolve_bridge_path "$BRIDGE_ABI_MANIFEST_PATH")"
+BRIDGE_PENDING_ABI_MANIFEST_PATH="$BRIDGE_PENDING_DIR/$(basename "$BRIDGE_ABI_MANIFEST_PATH_ABS")"
 
 node "$PROJECT_ROOT/bridge/scripts/generate-bridge-abi-manifest.mjs" \
-    --output "$BRIDGE_ABI_MANIFEST_PATH_ABS" \
+    --output "$BRIDGE_PENDING_ABI_MANIFEST_PATH" \
     --chain-id "$BRIDGE_CHAIN_ID" \
-    --deployment-path "$BRIDGE_OUTPUT_PATH_ABS" >/dev/null
+    --deployment-path "$BRIDGE_PENDING_OUTPUT_PATH_ABS" >/dev/null
+
+node - <<'NODE' "$BRIDGE_PENDING_OUTPUT_PATH_ABS" "$BRIDGE_ABI_MANIFEST_PATH_ABS" "$PROJECT_ROOT/bridge"
+const fs = require("fs");
+const path = require("path");
+
+const deploymentPath = process.argv[2];
+const canonicalAbiManifestPath = process.argv[3];
+const bridgeRoot = process.argv[4];
+
+const deployment = JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
+deployment.abiManifestPath = path.relative(bridgeRoot, canonicalAbiManifestPath);
+fs.writeFileSync(deploymentPath, `${JSON.stringify(deployment, null, 2)}\n`);
+NODE
 
 GROTH_ARTIFACT_SOURCE="$BRIDGE_GROTH_SOURCE" \
     bash "$PROJECT_ROOT/bridge/scripts/sync-groth16-artifacts.sh" "$BRIDGE_CHAIN_ID"
 
 node "$PROJECT_ROOT/bridge/scripts/sync-tokamak-zkp-artifacts.mjs" "$BRIDGE_CHAIN_ID"
 
-echo "Deployment artifact: $BRIDGE_OUTPUT_PATH_ABS"
+if [[ -n "$UPLOAD_TIMESTAMP" ]]; then
+    node "$PROJECT_ROOT/bridge/scripts/upload-bridge-artifacts.mjs" \
+        "$BRIDGE_CHAIN_ID" \
+        --timestamp "$UPLOAD_TIMESTAMP" \
+        --deployment-path "$BRIDGE_PENDING_OUTPUT_PATH_ABS" \
+        --abi-manifest-path "$BRIDGE_PENDING_ABI_MANIFEST_PATH"
+fi
+
+mkdir -p "$(dirname "$CANONICAL_BRIDGE_OUTPUT_PATH")"
+mv "$BRIDGE_PENDING_OUTPUT_PATH_ABS" "$CANONICAL_BRIDGE_OUTPUT_PATH"
+mkdir -p "$(dirname "$BRIDGE_ABI_MANIFEST_PATH_ABS")"
+mv "$BRIDGE_PENDING_ABI_MANIFEST_PATH" "$BRIDGE_ABI_MANIFEST_PATH_ABS"
+rm -rf "$BRIDGE_PENDING_DIR"
+
+echo "Deployment artifact: $CANONICAL_BRIDGE_OUTPUT_PATH"
 echo "ABI manifest: $BRIDGE_ABI_MANIFEST_PATH_ABS"

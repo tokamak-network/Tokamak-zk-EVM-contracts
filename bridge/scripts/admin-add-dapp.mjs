@@ -21,6 +21,7 @@ import {
   resolveTokamakCliPreprocessOutputDir,
   resolveTokamakCliSynthOutputDir,
 } from "../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+import { createTimestampLabel } from "../../scripts/drive/lib/google-drive-upload.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +42,12 @@ const syncAppGrothArtifactsScriptPath = path.join(
   "scripts",
   "deploy",
   "sync-groth16-update-tree-artifacts.sh",
+);
+const uploadDappArtifactsScriptPath = path.join(
+  repoRoot,
+  "bridge",
+  "scripts",
+  "upload-dapp-artifacts.mjs",
 );
 
 function usage() {
@@ -269,6 +276,15 @@ function resolveAppChainId(appNetwork) {
     throw new Error(`Unsupported --app-network=${appNetwork}`);
   }
   return chainId;
+}
+
+function shouldSkipArtifactUpload(bridgeChainId, appChainId) {
+  return (
+    process.env.BRIDGE_NETWORK === "anvil" ||
+    process.env.APPS_NETWORK === "anvil" ||
+    bridgeChainId === 31337 ||
+    appChainId === 31337
+  );
 }
 
 function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
@@ -530,10 +546,39 @@ async function main() {
     options.storageLayoutPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "storage-layout");
   const manifestOut =
     options.manifestOut ?? path.join(repoRoot, "bridge", "deployments", `dapp-registration.${chainId}.json`);
+  const manifestPendingOut = path.join(path.dirname(manifestOut), ".pending", path.basename(manifestOut));
   const dappLabel = options.dappLabel ?? "private-state";
   const artifactsRoot = path.join(options.artifactsOut, dappLabel);
   ensureDir(artifactsRoot);
   const appContext = loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath });
+  const uploadTimestamp = createTimestampLabel();
+
+  if (!shouldSkipArtifactUpload(chainId, appChainId)) {
+    await run(
+      "node",
+      [
+        uploadDappArtifactsScriptPath,
+        "--dapp-name",
+        dappLabel,
+        "--bridge-chain-id",
+        String(chainId),
+        "--app-chain-id",
+        String(appChainId),
+        "--registration-manifest",
+        manifestPendingOut,
+        "--app-deployment-path",
+        appDeploymentPath,
+        "--storage-layout-path",
+        storageLayoutPath,
+        "--timestamp",
+        uploadTimestamp,
+        "--preflight",
+      ],
+      {
+        cwd: repoRoot,
+      },
+    );
+  }
 
   const allProcessed = [];
   const allSkipped = [];
@@ -612,8 +657,47 @@ async function main() {
       functionCount: dapp.functions.length,
     },
   };
+  writeJson(manifestPendingOut, manifest);
 
-  writeJson(manifestOut, manifest);
+  let publication = null;
+  if (!shouldSkipArtifactUpload(chainId, appChainId)) {
+    const uploadReceiptPath = path.join(path.dirname(manifestPendingOut), `${path.basename(manifestPendingOut)}.upload.json`);
+    await run(
+      "node",
+      [
+        uploadDappArtifactsScriptPath,
+        "--dapp-name",
+        dappLabel,
+        "--bridge-chain-id",
+        String(chainId),
+        "--app-chain-id",
+        String(appChainId),
+        "--registration-manifest",
+        manifestPendingOut,
+        "--app-deployment-path",
+        appDeploymentPath,
+        "--storage-layout-path",
+        storageLayoutPath,
+        "--timestamp",
+        uploadTimestamp,
+        "--receipt-out",
+        uploadReceiptPath,
+      ],
+      {
+        cwd: repoRoot,
+      },
+    );
+    publication = readJson(uploadReceiptPath);
+    fs.rmSync(uploadReceiptPath, { force: true });
+  }
+
+  if (publication) {
+    manifest.publication = publication;
+    writeJson(manifestPendingOut, manifest);
+  }
+
+  ensureDir(path.dirname(manifestOut));
+  fs.renameSync(manifestPendingOut, manifestOut);
   console.log(`Using app deployment manifest: ${appDeploymentPath}`);
   console.log(`Using app storage layout manifest: ${storageLayoutPath}`);
   console.log(`Registered DApp ${options.dappId} for groups ${options.groups.join(", ")} as ${dappLabel}.`);

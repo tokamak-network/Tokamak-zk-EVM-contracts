@@ -48,6 +48,10 @@ import {
   resolveTokamakCliSetupOutputDir,
 } from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
 import {
+  bridgeArtifactPaths,
+  requireLatestDappArtifactDir,
+} from "../../../../scripts/artifacts/lib/deployment-layout.mjs";
+import {
   computeEncryptedNoteSalt,
   deriveNoteReceiveKeyMaterial,
   encryptMintNoteValueForOwner,
@@ -60,14 +64,13 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
+const bridgeArtifactTimestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+const bridgeArtifactSnapshot = bridgeArtifactPaths(repoRoot, 31337, bridgeArtifactTimestamp);
 const tokamakCliInvocation = buildTokamakCliInvocation();
 const tokamakSetupDistDir = resolveTokamakCliSetupOutputDir();
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-genesis");
-const deploymentManifestPath = path.resolve(appRoot, "deploy", "deployment.31337.latest.json");
-const storageLayoutManifestPath = path.resolve(appRoot, "deploy", "storage-layout.31337.latest.json");
-const controllerAbiPath = path.resolve(appRoot, "deploy", "PrivateStateController.callable-abi.json");
-const bridgeDeploymentArtifactPath = path.resolve(bridgeRoot, "deployments", "bridge.31337.json");
-const bridgeAbiManifestPath = path.resolve(bridgeRoot, "deployments", "bridge-abi-manifest.31337.json");
+const bridgeDeploymentArtifactPath = bridgeArtifactSnapshot.deploymentPath;
+const bridgeAbiManifestPath = bridgeArtifactSnapshot.abiManifestPath;
 const bridgeDeploymentSummaryPath = path.resolve(outputRoot, "bridge-deployment.json");
 const grothInputDir = path.resolve(outputRoot, "groth-inputs");
 const tokamakStepsDir = path.resolve(outputRoot, "tokamak-steps");
@@ -176,6 +179,10 @@ function run(command, args, { cwd = repoRoot, env = process.env } = {}) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function latestPrivateStateArtifactDir() {
+  return requireLatestDappArtifactDir(repoRoot, 31337, "private-state");
 }
 
 function ensureDir(dirPath) {
@@ -882,11 +889,12 @@ async function main() {
   const participants = buildParticipants(provider);
   const leader = deployer.address;
 
-  const appDeployment = readJson(deploymentManifestPath);
-  const storageLayout = readJson(storageLayoutManifestPath);
+  const privateStateArtifactDir = latestPrivateStateArtifactDir();
+  const appDeployment = readJson(path.join(privateStateArtifactDir, "deployment.31337.latest.json"));
+  const storageLayout = readJson(path.join(privateStateArtifactDir, "storage-layout.31337.latest.json"));
   const controllerAddress = getAddress(appDeployment.contracts.controller);
   const vaultAddress = getAddress(appDeployment.contracts.l2AccountingVault);
-  const controllerAbi = readJson(controllerAbiPath);
+  const controllerAbi = readJson(path.join(privateStateArtifactDir, "PrivateStateController.callable-abi.json"));
   const controllerInterface = new Interface(controllerAbi);
 
   const liquidBalancesSlot = ethers.toBigInt(

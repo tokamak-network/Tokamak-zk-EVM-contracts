@@ -15,6 +15,14 @@ const deployPrivateStateScriptPath = path.join(
   "deploy",
   "deploy-private-state.sh",
 );
+const writePrivateStateArtifactsPath = path.join(
+  repoRoot,
+  "apps",
+  "private-state",
+  "scripts",
+  "deploy",
+  "write-deploy-artifacts.sh",
+);
 const addDappScriptPath = path.join(repoRoot, "bridge", "scripts", "admin-add-dapp.mjs");
 
 const APP_NETWORK_CHAIN_IDS = new Map([
@@ -135,6 +143,10 @@ function run(command, args, { cwd = repoRoot, env = process.env } = {}) {
 async function main() {
   const { deployOptions, forwardedArgs } = parseArgs(process.argv.slice(2));
   const appNetwork = deployOptions.appNetwork ?? resolveDefaultAppNetwork();
+  const appChainId = APP_NETWORK_CHAIN_IDS.get(appNetwork);
+  if (!appChainId) {
+    throw new Error(`Unsupported app deployment network: ${appNetwork}`);
+  }
   const deployEnv = {
     ...process.env,
     APPS_NETWORK: appNetwork,
@@ -148,6 +160,11 @@ async function main() {
   }
 
   await run("bash", [deployPrivateStateScriptPath], {
+    cwd: repoRoot,
+    env: deployEnv,
+  });
+
+  await run("bash", [writePrivateStateArtifactsPath, String(appChainId)], {
     cwd: repoRoot,
     env: deployEnv,
   });

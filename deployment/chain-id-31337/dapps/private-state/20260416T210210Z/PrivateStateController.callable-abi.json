@@ -1,0 +1,965 @@
+[
+  {
+    "type": "function",
+    "name": "commitmentExists",
+    "inputs": [
+      {
+        "name": "commitment",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "exists",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "computeNoteCommitment",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "computeNullifier",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "salt",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "l2AccountingVault",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract L2AccountingVault"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "mintNotes1",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.MintOutput[1]",
+        "components": [
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "commitments",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mintNotes2",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.MintOutput[2]",
+        "components": [
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "commitments",
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mintNotes3",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[3]",
+        "internalType": "struct PrivateStateController.MintOutput[3]",
+        "components": [
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "commitments",
+        "type": "bytes32[3]",
+        "internalType": "bytes32[3]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mintNotes4",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[4]",
+        "internalType": "struct PrivateStateController.MintOutput[4]",
+        "components": [
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "commitments",
+        "type": "bytes32[4]",
+        "internalType": "bytes32[4]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mintNotes5",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[5]",
+        "internalType": "struct PrivateStateController.MintOutput[5]",
+        "components": [
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "commitments",
+        "type": "bytes32[5]",
+        "internalType": "bytes32[5]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "mintNotes6",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[6]",
+        "internalType": "struct PrivateStateController.MintOutput[6]",
+        "components": [
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "commitments",
+        "type": "bytes32[6]",
+        "internalType": "bytes32[6]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "nullifierUsed",
+    "inputs": [
+      {
+        "name": "nullifier",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "used",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "redeemNotes1",
+    "inputs": [
+      {
+        "name": "inputNotes",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.Note[1]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "receiver",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "redeemNotes2",
+    "inputs": [
+      {
+        "name": "inputNotes",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.Note[2]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "receiver",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "redeemNotes3",
+    "inputs": [
+      {
+        "name": "inputNotes",
+        "type": "tuple[3]",
+        "internalType": "struct PrivateStateController.Note[3]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "receiver",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[3]",
+        "internalType": "bytes32[3]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "redeemNotes4",
+    "inputs": [
+      {
+        "name": "inputNotes",
+        "type": "tuple[4]",
+        "internalType": "struct PrivateStateController.Note[4]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "receiver",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[4]",
+        "internalType": "bytes32[4]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferNotes1To1",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.TransferOutput[1]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      },
+      {
+        "name": "inputNotes",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.Note[1]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      },
+      {
+        "name": "outputCommitments",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferNotes1To2",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.TransferOutput[2]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      },
+      {
+        "name": "inputNotes",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.Note[1]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      },
+      {
+        "name": "outputCommitments",
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferNotes1To3",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[3]",
+        "internalType": "struct PrivateStateController.TransferOutput[3]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      },
+      {
+        "name": "inputNotes",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.Note[1]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      },
+      {
+        "name": "outputCommitments",
+        "type": "bytes32[3]",
+        "internalType": "bytes32[3]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferNotes2To1",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.TransferOutput[1]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      },
+      {
+        "name": "inputNotes",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.Note[2]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
+      },
+      {
+        "name": "outputCommitments",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferNotes2To2",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.TransferOutput[2]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      },
+      {
+        "name": "inputNotes",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.Note[2]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
+      },
+      {
+        "name": "outputCommitments",
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferNotes3To1",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.TransferOutput[1]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      },
+      {
+        "name": "inputNotes",
+        "type": "tuple[3]",
+        "internalType": "struct PrivateStateController.Note[3]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[3]",
+        "internalType": "bytes32[3]"
+      },
+      {
+        "name": "outputCommitments",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferNotes3To2",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[2]",
+        "internalType": "struct PrivateStateController.TransferOutput[2]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      },
+      {
+        "name": "inputNotes",
+        "type": "tuple[3]",
+        "internalType": "struct PrivateStateController.Note[3]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[3]",
+        "internalType": "bytes32[3]"
+      },
+      {
+        "name": "outputCommitments",
+        "type": "bytes32[2]",
+        "internalType": "bytes32[2]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "transferNotes4To1",
+    "inputs": [
+      {
+        "name": "outputs",
+        "type": "tuple[1]",
+        "internalType": "struct PrivateStateController.TransferOutput[1]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "encryptedNoteValue",
+            "type": "bytes32[3]",
+            "internalType": "bytes32[3]"
+          }
+        ]
+      },
+      {
+        "name": "inputNotes",
+        "type": "tuple[4]",
+        "internalType": "struct PrivateStateController.Note[4]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "salt",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "nullifiers",
+        "type": "bytes32[4]",
+        "internalType": "bytes32[4]"
+      },
+      {
+        "name": "outputCommitments",
+        "type": "bytes32[1]",
+        "internalType": "bytes32[1]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  }
+]

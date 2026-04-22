@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-DEPLOY_DIR="$PROJECT_ROOT/apps/private-state/deploy"
+DAPP_NAME="${PRIVATE_STATE_DAPP_NAME:-private-state}"
 
 if [[ $# -ne 1 ]]; then
     echo "Usage: $0 <chain-id>" >&2
@@ -17,9 +17,11 @@ if [[ ! -f "$RUN_FILE" ]]; then
     exit 1
 fi
 
+TIMESTAMP_UTC="${PRIVATE_STATE_ARTIFACT_TIMESTAMP:-$(date -u +"%Y%m%dT%H%M%SZ")}"
+DEPLOY_DIR="$PROJECT_ROOT/deployment/chain-id-${CHAIN_ID}/dapps/${DAPP_NAME}/${TIMESTAMP_UTC}"
+
 mkdir -p "$DEPLOY_DIR"
 
-TIMESTAMP_UTC="$(date -u +"%Y%m%dT%H%M%SZ")"
 CHAIN_LATEST_FILE="$DEPLOY_DIR/deployment.${CHAIN_ID}.latest.json"
 STORAGE_LAYOUT_LATEST_FILE="$DEPLOY_DIR/storage-layout.${CHAIN_ID}.latest.json"
 

@@ -12,6 +12,10 @@ import {
   uploadFilesByRelativePath,
   writeUploadReceipt,
 } from "../../scripts/drive/lib/google-drive-upload.mjs";
+import {
+  bridgeArtifactPaths,
+  latestBridgeTimestampLabel,
+} from "../../scripts/artifacts/lib/deployment-layout.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -84,36 +88,35 @@ function shouldSkipUpload(chainId) {
   return process.env.BRIDGE_NETWORK === "anvil" || String(chainId) === "31337";
 }
 
-function requiredFile(relativePath) {
-  const localPath = path.join(repoRoot, relativePath);
-  if (!fs.existsSync(localPath)) {
-    throw new Error(`Missing bridge deployment artifact: ${localPath}`);
-  }
-  return { localPath, relativePath };
-}
-
-function optionalFile(relativePath) {
-  const localPath = path.join(repoRoot, relativePath);
-  return fs.existsSync(localPath) ? { localPath, relativePath } : null;
-}
-
 function collectBridgeArtifactFiles({ chainId, deploymentPath, abiManifestPath }) {
+  const latestTimestampLabel = latestBridgeTimestampLabel(repoRoot, chainId);
+  if (!latestTimestampLabel) {
+    throw new Error(`No bridge artifact snapshot exists for chain ${chainId}.`);
+  }
+  const snapshot = bridgeArtifactPaths(repoRoot, chainId, latestTimestampLabel);
+
   return [
     deploymentPath
-      ? { localPath: deploymentPath, relativePath: `bridge/deployments/${path.basename(deploymentPath)}` }
-      : requiredFile(`bridge/deployments/bridge.${chainId}.json`),
+      ? { localPath: deploymentPath, relativePath: path.basename(deploymentPath) }
+      : { localPath: snapshot.deploymentPath, relativePath: path.basename(snapshot.deploymentPath) },
     abiManifestPath
-      ? { localPath: abiManifestPath, relativePath: `bridge/deployments/${path.basename(abiManifestPath)}` }
-      : requiredFile(`bridge/deployments/bridge-abi-manifest.${chainId}.json`),
-    requiredFile(`bridge/deployments/groth16.${chainId}.latest.json`),
-    requiredFile(`bridge/deployments/groth16/${chainId}/circuit_final.zkey`),
-    requiredFile(`bridge/deployments/groth16/${chainId}/verification_key.json`),
-    requiredFile(`bridge/deployments/groth16/${chainId}/metadata.json`),
-    optionalFile(`bridge/deployments/groth16/${chainId}/zkey_provenance.json`),
-    requiredFile(`bridge/deployments/tokamak-zkp.${chainId}.latest.json`),
-    optionalFile(`bridge/deployments/tokamak-zkp/${chainId}/build-metadata-mpc-setup.json`),
-    optionalFile(`bridge/deployments/tokamak-zkp/${chainId}/crs_provenance.json`),
-    requiredFile("scripts/zk/artifacts/reflection.latest.json"),
+      ? { localPath: abiManifestPath, relativePath: path.basename(abiManifestPath) }
+      : { localPath: snapshot.abiManifestPath, relativePath: path.basename(snapshot.abiManifestPath) },
+    { localPath: snapshot.grothManifestPath, relativePath: path.basename(snapshot.grothManifestPath) },
+    { localPath: snapshot.grothZkeyPath, relativePath: "groth16/circuit_final.zkey" },
+    { localPath: snapshot.grothVerificationKeyPath, relativePath: "groth16/verification_key.json" },
+    { localPath: snapshot.grothMetadataPath, relativePath: "groth16/metadata.json" },
+    fs.existsSync(snapshot.grothZkeyProvenancePath)
+      ? { localPath: snapshot.grothZkeyProvenancePath, relativePath: "groth16/zkey_provenance.json" }
+      : null,
+    { localPath: snapshot.tokamakZkpManifestPath, relativePath: path.basename(snapshot.tokamakZkpManifestPath) },
+    fs.existsSync(snapshot.tokamakBuildMetadataPath)
+      ? { localPath: snapshot.tokamakBuildMetadataPath, relativePath: "tokamak-zkp/build-metadata-mpc-setup.json" }
+      : null,
+    fs.existsSync(snapshot.tokamakCrsProvenancePath)
+      ? { localPath: snapshot.tokamakCrsProvenancePath, relativePath: "tokamak-zkp/crs_provenance.json" }
+      : null,
+    { localPath: snapshot.reflectionManifestPath, relativePath: path.basename(snapshot.reflectionManifestPath) },
   ].filter(Boolean);
 }
 
@@ -135,11 +138,11 @@ async function main() {
   const config = resolveDriveUploadConfig();
   const drive = await createDriveClient(config);
   const timestamp = options.timestamp ?? createTimestampLabel();
-  const targetSegments = [String(chainId), "bridge"];
+  const targetSegments = [`chain-id-${chainId}`, "bridge"];
 
   if (options.preflight) {
     await preflightExclusiveFolderPath(drive, config.folderId, targetSegments, timestamp);
-    console.log(`Drive preflight succeeded for bridge/${chainId}/${timestamp}.`);
+    console.log(`Drive preflight succeeded for chain-id-${chainId}/bridge/${timestamp}.`);
     return;
   }
 

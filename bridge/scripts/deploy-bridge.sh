@@ -31,6 +31,17 @@ cleanup_broadcast_traces() {
     fi
 }
 
+latest_timestamp_dir() {
+    local root_dir="$1"
+    if [[ ! -d "$root_dir" ]]; then
+        return 0
+    fi
+
+    find "$root_dir" -mindepth 1 -maxdepth 1 -type d -name '20????????T??????Z' -print \
+        | LC_ALL=C sort \
+        | tail -n 1
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --mode)
@@ -140,7 +151,15 @@ else
     NETWORK_LABEL="$BRIDGE_ALCHEMY_NETWORK"
 fi
 
-REFLECTION_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$PROJECT_ROOT/scripts/zk/artifacts/reflection.latest.json}"
+UPLOAD_TIMESTAMP="$(date -u +"%Y%m%dT%H%M%SZ")"
+BRIDGE_CANONICAL_DIR="$PROJECT_ROOT/deployment/chain-id-${BRIDGE_CHAIN_ID}/bridge/${UPLOAD_TIMESTAMP}"
+LATEST_BRIDGE_DIR="$(latest_timestamp_dir "$PROJECT_ROOT/deployment/chain-id-${BRIDGE_CHAIN_ID}/bridge")"
+DEFAULT_BRIDGE_INPUT_PATH="./deployments/bridge.${BRIDGE_CHAIN_ID}.json"
+if [[ -n "$LATEST_BRIDGE_DIR" ]]; then
+    DEFAULT_BRIDGE_INPUT_PATH="$LATEST_BRIDGE_DIR/bridge.${BRIDGE_CHAIN_ID}.json"
+fi
+
+REFLECTION_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$BRIDGE_CANONICAL_DIR/zk-reflection.latest.json}"
 
 REFLECTION_CMD=(
     node "$PROJECT_ROOT/scripts/zk/reflect-submodule-updates.mjs"
@@ -166,18 +185,15 @@ MT_DEPTH_METADATA="$(cat "$REFLECTION_MANIFEST_PATH")"
 BRIDGE_MERKLE_TREE_LEVELS="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.mtDepth));});')"
 BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.version));});')"
 export BRIDGE_MERKLE_TREE_LEVELS
-CANONICAL_BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-./deployments/bridge.${BRIDGE_CHAIN_ID}.json}"
-CANONICAL_BRIDGE_INPUT_PATH="${BRIDGE_INPUT_PATH:-$CANONICAL_BRIDGE_OUTPUT_PATH}"
+CANONICAL_BRIDGE_OUTPUT_PATH="${BRIDGE_OUTPUT_PATH:-$BRIDGE_CANONICAL_DIR/bridge.${BRIDGE_CHAIN_ID}.json}"
+CANONICAL_BRIDGE_INPUT_PATH="${BRIDGE_INPUT_PATH:-$DEFAULT_BRIDGE_INPUT_PATH}"
 CANONICAL_BRIDGE_OUTPUT_PATH="$(resolve_bridge_path "$CANONICAL_BRIDGE_OUTPUT_PATH")"
 CANONICAL_BRIDGE_INPUT_PATH="$(resolve_bridge_path "$CANONICAL_BRIDGE_INPUT_PATH")"
-BRIDGE_PENDING_DIR="$PROJECT_ROOT/bridge/deployments/.pending/${BRIDGE_CHAIN_ID}"
+BRIDGE_PENDING_DIR="$PROJECT_ROOT/deployment/.pending/chain-id-${BRIDGE_CHAIN_ID}/bridge/${UPLOAD_TIMESTAMP}"
 BRIDGE_PENDING_OUTPUT_PATH="$BRIDGE_PENDING_DIR/$(basename "$CANONICAL_BRIDGE_OUTPUT_PATH")"
-UPLOAD_TIMESTAMP=""
-if [[ "${BRIDGE_NETWORK}" != "anvil" ]]; then
-    UPLOAD_TIMESTAMP="$(date -u +"%Y%m%dT%H%M%SZ")"
-fi
 export BRIDGE_OUTPUT_PATH="$BRIDGE_PENDING_OUTPUT_PATH"
 export BRIDGE_INPUT_PATH="$CANONICAL_BRIDGE_INPUT_PATH"
+export BRIDGE_ARTIFACT_TIMESTAMP="$UPLOAD_TIMESTAMP"
 
 BRIDGE_OUTPUT_PATH_ABS_FOR_MODE="$CANONICAL_BRIDGE_INPUT_PATH"
 FORGE_SCRIPT="scripts/UpgradeBridgeStack.s.sol:UpgradeBridgeStackScript"
@@ -218,7 +234,7 @@ echo "Resolved tokamak-l2js MT_DEPTH: ${BRIDGE_MERKLE_TREE_LEVELS}"
 echo "Groth16 artifact source: ${BRIDGE_GROTH_SOURCE}"
 echo "Reflection manifest: ${REFLECTION_MANIFEST_PATH}"
 
-if [[ -n "$UPLOAD_TIMESTAMP" ]]; then
+if [[ "${BRIDGE_NETWORK}" != "anvil" ]]; then
     node "$PROJECT_ROOT/bridge/scripts/upload-bridge-artifacts.mjs" \
         "$BRIDGE_CHAIN_ID" \
         --timestamp "$UPLOAD_TIMESTAMP" \
@@ -239,7 +255,7 @@ else
 fi
 
 BRIDGE_PENDING_OUTPUT_PATH_ABS="$(resolve_bridge_path "$BRIDGE_OUTPUT_PATH")"
-BRIDGE_ABI_MANIFEST_PATH="./deployments/bridge-abi-manifest.${BRIDGE_CHAIN_ID}.json"
+BRIDGE_ABI_MANIFEST_PATH="$BRIDGE_CANONICAL_DIR/bridge-abi-manifest.${BRIDGE_CHAIN_ID}.json"
 BRIDGE_ABI_MANIFEST_PATH_ABS="$(resolve_bridge_path "$BRIDGE_ABI_MANIFEST_PATH")"
 BRIDGE_PENDING_ABI_MANIFEST_PATH="$BRIDGE_PENDING_DIR/$(basename "$BRIDGE_ABI_MANIFEST_PATH_ABS")"
 
@@ -248,16 +264,15 @@ node "$PROJECT_ROOT/bridge/scripts/generate-bridge-abi-manifest.mjs" \
     --chain-id "$BRIDGE_CHAIN_ID" \
     --deployment-path "$BRIDGE_PENDING_OUTPUT_PATH_ABS" >/dev/null
 
-node - <<'NODE' "$BRIDGE_PENDING_OUTPUT_PATH_ABS" "$BRIDGE_ABI_MANIFEST_PATH_ABS" "$PROJECT_ROOT/bridge"
+node - <<'NODE' "$BRIDGE_PENDING_OUTPUT_PATH_ABS" "$BRIDGE_ABI_MANIFEST_PATH_ABS"
 const fs = require("fs");
 const path = require("path");
 
 const deploymentPath = process.argv[2];
 const canonicalAbiManifestPath = process.argv[3];
-const bridgeRoot = process.argv[4];
 
 const deployment = JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
-deployment.abiManifestPath = path.relative(bridgeRoot, canonicalAbiManifestPath);
+deployment.abiManifestPath = path.basename(canonicalAbiManifestPath);
 fs.writeFileSync(deploymentPath, `${JSON.stringify(deployment, null, 2)}\n`);
 NODE
 
@@ -266,7 +281,7 @@ GROTH_ARTIFACT_SOURCE="$BRIDGE_GROTH_SOURCE" \
 
 node "$PROJECT_ROOT/bridge/scripts/sync-tokamak-zkp-artifacts.mjs" "$BRIDGE_CHAIN_ID"
 
-if [[ -n "$UPLOAD_TIMESTAMP" ]]; then
+if [[ "${BRIDGE_NETWORK}" != "anvil" ]]; then
     node "$PROJECT_ROOT/bridge/scripts/upload-bridge-artifacts.mjs" \
         "$BRIDGE_CHAIN_ID" \
         --timestamp "$UPLOAD_TIMESTAMP" \

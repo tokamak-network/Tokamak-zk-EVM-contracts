@@ -37,6 +37,10 @@ import {
   resolveTokamakCliSetupOutputDir,
 } from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
 import {
+  latestBridgeArtifactDir,
+  requireLatestDappArtifactDir,
+} from "../../../../scripts/artifacts/lib/deployment-layout.mjs";
+import {
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
   workspaceDirForName as sharedWorkspaceDirForName,
@@ -55,9 +59,6 @@ const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
 const cliPath = path.resolve(appRoot, "cli", "private-state-bridge-cli.mjs");
 const bridgeDeployHelperPath = path.resolve(bridgeRoot, "scripts", "deploy-bridge.sh");
-const bridgeDeploymentPath = path.resolve(bridgeRoot, "deployments", "bridge.31337.json");
-const deploymentManifestPath = path.resolve(appRoot, "deploy", "deployment.31337.latest.json");
-const storageLayoutManifestPath = path.resolve(appRoot, "deploy", "storage-layout.31337.latest.json");
 const privateStateDeployScriptPath = path.resolve(
   appRoot,
   "scripts",
@@ -65,12 +66,6 @@ const privateStateDeployScriptPath = path.resolve(
   "DeployPrivateState.s.sol:DeployPrivateStateScript",
 );
 const privateStateArtifactWriterPath = path.resolve(appRoot, "scripts", "deploy", "write-deploy-artifacts.sh");
-const privateStateGrothArtifactSyncPath = path.resolve(
-  appRoot,
-  "scripts",
-  "deploy",
-  "sync-groth16-update-tree-artifacts.sh",
-);
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const systemMonitorRoot = path.resolve(outputRoot, "system-monitor");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
@@ -200,6 +195,18 @@ function cleanDir(dirPath) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function latestBridgeDeploymentPath() {
+  const latestDir = latestBridgeArtifactDir(repoRoot, 31337);
+  if (!latestDir) {
+    throw new Error("Missing latest bridge deployment snapshot for chain 31337.");
+  }
+  return path.join(latestDir, "bridge.31337.json");
+}
+
+function latestPrivateStateArtifactDir() {
+  return requireLatestDappArtifactDir(repoRoot, 31337, "private-state");
 }
 
 function writeJson(filePath, value) {
@@ -374,7 +381,7 @@ async function rpcCall(provider, method, params) {
 }
 
 function loadLiquidBalancesSlot() {
-  const storageLayout = readJson(storageLayoutManifestPath);
+  const storageLayout = readJson(path.join(latestPrivateStateArtifactDir(), "storage-layout.31337.latest.json"));
   return ethers.toBigInt(
     storageLayout.contracts.L2AccountingVault.storageLayout.storage.find((entry) => entry.label === "liquidBalances").slot,
   );
@@ -798,7 +805,6 @@ function deployBridgeStack() {
   const env = {
     ...process.env,
     BRIDGE_ENV_FILE: bridgeEnvPath,
-    BRIDGE_OUTPUT_PATH: bridgeDeploymentPath,
     BRIDGE_SKIP_TOKAMAK_INSTALL: "1",
     BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH: "1",
     BRIDGE_DEPLOY_MOCK_ASSET: "true",
@@ -818,7 +824,7 @@ function deployBridgeStack() {
     { env, quiet: true, label: "bridge:redeploy-proxy" },
   );
 
-  return readJson(bridgeDeploymentPath);
+  return readJson(latestBridgeDeploymentPath());
 }
 
 function writeJsonLikeEnv(filePath, entries) {
@@ -933,11 +939,6 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
     result,
     definition: derived.definition,
     records: derived.records,
-  });
-  run("bash", [privateStateGrothArtifactSyncPath, "31337"], {
-    cwd: repoRoot,
-    quiet: true,
-    label: "private-state:sync-groth-artifacts",
   });
   return result;
 }

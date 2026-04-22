@@ -17,6 +17,12 @@ import {
   writeJson,
 } from "../../scripts/zk/lib/tokamak-artifacts.mjs";
 import {
+  dappArtifactPaths,
+  latestBridgeTimestampLabel,
+  requireLatestBridgeArtifactDir,
+  requireLatestDappArtifactDir,
+} from "../../scripts/artifacts/lib/deployment-layout.mjs";
+import {
   buildTokamakCliInvocation,
   resolveTokamakCliPreprocessOutputDir,
   resolveTokamakCliSynthOutputDir,
@@ -35,14 +41,6 @@ const privateStateExampleRoot = path.join(
   "privateState",
 );
 const defaultArtifactsRoot = path.join(repoRoot, "bridge", "deployments", "dapp-registration-artifacts");
-const syncAppGrothArtifactsScriptPath = path.join(
-  repoRoot,
-  "apps",
-  "private-state",
-  "scripts",
-  "deploy",
-  "sync-groth16-update-tree-artifacts.sh",
-);
 const uploadDappArtifactsScriptPath = path.join(
   repoRoot,
   "bridge",
@@ -55,8 +53,8 @@ function usage() {
   node bridge/scripts/admin-add-dapp.mjs --group <example-group> [--group <example-group> ...] --dapp-id <uint> [options]
 
 Options:
-  --deployment-path <path>          Bridge deployment JSON path; defaults to bridge/deployments/bridge.<chain-id>.json
-  --abi-manifest <path>             ABI manifest path; defaults to bridge/deployments/bridge-abi-manifest.<chain-id>.json
+  --deployment-path <path>          Bridge deployment JSON path; defaults to the latest bridge snapshot for the resolved chain
+  --abi-manifest <path>             ABI manifest path; defaults to the latest bridge snapshot for the resolved chain
   --dapp-manager <address>          Override DAppManager address; defaults from deployment JSON
   --dapp-label <name>               Logical DApp label used to merge multiple example groups
   --app-network <name>              App deployment network whose manifests should be used; defaults to APPS_NETWORK, BRIDGE_NETWORK, or the bridge chain name
@@ -64,7 +62,7 @@ Options:
   --storage-layout-path <path>      App storage-layout manifest; defaults to private-state latest for the app chain
   --rpc-url <url>                   JSON-RPC URL; defaults from bridge env variables
   --private-key <hex>               Broadcaster key; defaults from BRIDGE_DEPLOYER_PRIVATE_KEY
-  --manifest-out <path>             Output manifest path; defaults to bridge/deployments/dapp-registration.<chain-id>.json
+  --manifest-out <path>             Output manifest path; defaults to deployment/chain-id-<chain>/dapps/<dapp-name>/<timestamp>/dapp-registration.<chain-id>.json
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
 
 Example groups are resolved relative to:
@@ -227,7 +225,8 @@ function loadDAppManagerAbi(abiManifestPath) {
 }
 
 function resolvePrivateStateManifestPath(rootDir, chainId, kind) {
-  return path.join(repoRoot, "apps", "private-state", "deploy", `${kind}.${chainId}.latest.json`);
+  const latestDir = requireLatestDappArtifactDir(rootDir, chainId, "private-state");
+  return path.join(latestDir, `${kind}.${chainId}.latest.json`);
 }
 
 const APP_NETWORK_CHAIN_IDS = new Map([
@@ -247,11 +246,13 @@ const CHAIN_ID_TO_APP_NETWORK = new Map(
 );
 
 function resolveBridgeDeploymentPath(chainId) {
-  return path.join(repoRoot, "bridge", "deployments", `bridge.${chainId}.json`);
+  const latestDir = requireLatestBridgeArtifactDir(repoRoot, chainId);
+  return path.join(latestDir, `bridge.${chainId}.json`);
 }
 
 function resolveBridgeAbiManifestPath(chainId) {
-  return path.join(repoRoot, "bridge", "deployments", `bridge-abi-manifest.${chainId}.json`);
+  const latestDir = requireLatestBridgeArtifactDir(repoRoot, chainId);
+  return path.join(latestDir, `bridge-abi-manifest.${chainId}.json`);
 }
 
 function resolveDefaultAppNetwork(chainId) {
@@ -543,14 +544,26 @@ async function main() {
     options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "deployment");
   const storageLayoutPath =
     options.storageLayoutPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "storage-layout");
-  const manifestOut =
-    options.manifestOut ?? path.join(repoRoot, "bridge", "deployments", `dapp-registration.${chainId}.json`);
-  const manifestPendingOut = path.join(path.dirname(manifestOut), ".pending", path.basename(manifestOut));
   const dappLabel = options.dappLabel ?? "private-state";
+  const uploadTimestamp = createTimestampLabel();
+  const dappSnapshot = dappArtifactPaths(repoRoot, chainId, dappLabel, uploadTimestamp);
+  const manifestOut = options.manifestOut ?? dappSnapshot.registrationManifestPath;
+  const manifestPendingOut = path.join(
+    repoRoot,
+    "deployment",
+    ".pending",
+    `chain-id-${chainId}`,
+    "dapps",
+    dappLabel,
+    uploadTimestamp,
+    path.basename(manifestOut),
+  );
   const artifactsRoot = path.join(options.artifactsOut, dappLabel);
   ensureDir(artifactsRoot);
   const appContext = loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath });
-  const uploadTimestamp = createTimestampLabel();
+  const sourceDeploymentDir = path.dirname(appDeploymentPath);
+  const sourceControllerAbiPath = path.join(sourceDeploymentDir, "PrivateStateController.callable-abi.json");
+  const sourceVaultAbiPath = path.join(sourceDeploymentDir, "L2AccountingVault.callable-abi.json");
 
   if (!shouldSkipArtifactUpload(chainId, appChainId)) {
     await run(
@@ -621,10 +634,11 @@ async function main() {
     }))
   );
   const receipt = await tx.wait();
-
-  await run("bash", [syncAppGrothArtifactsScriptPath, String(appChainId)], {
-    cwd: repoRoot,
-  });
+  ensureDir(dappSnapshot.rootDir);
+  copyFile(appDeploymentPath, dappSnapshot.deploymentPath);
+  copyFile(storageLayoutPath, dappSnapshot.storageLayoutPath);
+  copyFile(sourceControllerAbiPath, dappSnapshot.privateStateControllerAbiPath);
+  copyFile(sourceVaultAbiPath, dappSnapshot.l2AccountingVaultAbiPath);
 
   const manifest = {
     generatedAt: new Date().toISOString(),
@@ -632,9 +646,8 @@ async function main() {
     abiManifestPath,
     appNetwork,
     appChainId,
-    appDeploymentPath,
-    storageLayoutPath,
-    appGrothManifestPath: path.join(repoRoot, "apps", "private-state", "deploy", `groth16-updateTree.${appChainId}.latest.json`),
+    appDeploymentPath: dappSnapshot.deploymentPath,
+    storageLayoutPath: dappSnapshot.storageLayoutPath,
     groupNames: options.groups,
     dappLabel,
     dappId: options.dappId,
@@ -674,9 +687,9 @@ async function main() {
         "--registration-manifest",
         manifestPendingOut,
         "--app-deployment-path",
-        appDeploymentPath,
+        dappSnapshot.deploymentPath,
         "--storage-layout-path",
-        storageLayoutPath,
+        dappSnapshot.storageLayoutPath,
         "--timestamp",
         uploadTimestamp,
         "--receipt-out",

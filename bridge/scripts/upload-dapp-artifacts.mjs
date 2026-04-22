@@ -15,7 +15,6 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, "..", "..");
 
 function usage() {
   console.error(
@@ -112,34 +111,18 @@ function requiredFile(filePath, relativePath) {
   return { localPath: filePath, relativePath };
 }
 
-function optionalFile(filePath, relativePath) {
-  return fs.existsSync(filePath) ? { localPath: filePath, relativePath } : null;
-}
-
 function collectDappArtifactFiles(options) {
   return [
-    requiredFile(options.registrationManifestPath, path.join("registration", path.basename(options.registrationManifestPath))),
-    requiredFile(options.appDeploymentPath, path.join("deployment", path.basename(options.appDeploymentPath))),
-    requiredFile(options.storageLayoutPath, path.join("deployment", path.basename(options.storageLayoutPath))),
+    requiredFile(options.registrationManifestPath, path.basename(options.registrationManifestPath)),
+    requiredFile(options.appDeploymentPath, path.basename(options.appDeploymentPath)),
+    requiredFile(options.storageLayoutPath, path.basename(options.storageLayoutPath)),
     requiredFile(
-      path.join(repoRoot, "apps", "private-state", "deploy", "PrivateStateController.callable-abi.json"),
-      path.join("deployment", "PrivateStateController.callable-abi.json"),
+      path.join(path.dirname(options.appDeploymentPath), "PrivateStateController.callable-abi.json"),
+      "PrivateStateController.callable-abi.json",
     ),
     requiredFile(
-      path.join(repoRoot, "apps", "private-state", "deploy", "L2AccountingVault.callable-abi.json"),
-      path.join("deployment", "L2AccountingVault.callable-abi.json"),
-    ),
-    optionalFile(
-      path.join(repoRoot, "apps", "private-state", "deploy", `groth16-updateTree.${options.appChainId}.latest.json`),
-      path.join("deployment", `groth16-updateTree.${options.appChainId}.latest.json`),
-    ),
-    optionalFile(
-      path.join(repoRoot, "apps", "private-state", "deploy", "groth16", String(options.appChainId), "circuit_final.zkey"),
-      path.join("deployment", "groth16", String(options.appChainId), "circuit_final.zkey"),
-    ),
-    optionalFile(
-      path.join(repoRoot, "apps", "private-state", "deploy", "groth16", String(options.appChainId), "metadata.json"),
-      path.join("deployment", "groth16", String(options.appChainId), "metadata.json"),
+      path.join(path.dirname(options.appDeploymentPath), "L2AccountingVault.callable-abi.json"),
+      "L2AccountingVault.callable-abi.json",
     ),
   ].filter(Boolean);
 }
@@ -161,11 +144,11 @@ async function main() {
   const config = resolveDriveUploadConfig();
   const drive = await createDriveClient(config);
   const timestamp = options.timestamp ?? createTimestampLabel();
-  const targetSegments = [String(options.bridgeChainId), "dapps", options.dappName];
+  const targetSegments = [`chain-id-${options.bridgeChainId}`, "dapps", options.dappName];
 
   if (options.preflight) {
     await preflightExclusiveFolderPath(drive, config.folderId, targetSegments, timestamp);
-    console.log(`Drive preflight succeeded for dapps/${options.dappName}/${timestamp}.`);
+    console.log(`Drive preflight succeeded for chain-id-${options.bridgeChainId}/dapps/${options.dappName}/${timestamp}.`);
     return;
   }
 

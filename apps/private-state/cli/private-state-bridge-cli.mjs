@@ -50,6 +50,12 @@ import {
   resolveTokamakCliResourceDir,
 } from "../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
 import {
+  dappArtifactRoot,
+  latestBridgeArtifactDir,
+  latestDappArtifactDir,
+  requireLatestBridgeArtifactDir,
+} from "../../../scripts/artifacts/lib/deployment-layout.mjs";
+import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
@@ -308,13 +314,17 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     provider,
   );
   const expectedLabelHash = normalizeBytes32Hex(keccak256(ethers.toUtf8Bytes(dappLabel)));
-  const manifestPath = path.resolve(
-    projectRoot,
-    "bridge",
-    "deployments",
-    `dapp-registration.${bridgeResources.chainId}.json`,
-  );
-  const manifest = readJsonIfExists(manifestPath);
+  const registrationRoot = dappArtifactRoot(projectRoot, bridgeResources.chainId, dappLabel);
+  const registrationCandidates = fs.existsSync(registrationRoot)
+    ? fs.readdirSync(registrationRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+      .reverse()
+      .map((timestampLabel) => path.join(registrationRoot, timestampLabel, `dapp-registration.${bridgeResources.chainId}.json`))
+    : [];
+  const manifestPath = registrationCandidates.find((candidatePath) => fs.existsSync(candidatePath)) ?? null;
+  const manifest = manifestPath ? readJsonIfExists(manifestPath) : null;
   if (manifest !== null) {
     const manifestLabel = typeof manifest.dappLabel === "string" ? manifest.dappLabel : null;
     const manifestDappId = manifest.dappId;
@@ -431,8 +441,9 @@ async function initializeChannelWorkspace({
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
-  const deploymentManifestPath = path.resolve(deployRoot, `deployment.${network.chainId}.latest.json`);
-  const storageLayoutManifestPath = path.resolve(deployRoot, `storage-layout.${network.chainId}.latest.json`);
+  const latestAppArtifactDir = requireLatestDappArtifactDir(projectRoot, network.chainId, PRIVATE_STATE_DAPP_LABEL);
+  const deploymentManifestPath = path.join(latestAppArtifactDir, `deployment.${network.chainId}.latest.json`);
+  const storageLayoutManifestPath = path.join(latestAppArtifactDir, `storage-layout.${network.chainId}.latest.json`);
   const deploymentManifest = readJson(deploymentManifestPath);
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
   const controllerAddress = getAddress(deploymentManifest.contracts.controller);
@@ -3247,7 +3258,8 @@ async function loadBridgeVaultContext({ provider, chainId }) {
   );
   const canonicalAsset = getAddress(await bridgeCore.canonicalAsset());
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
-  const storageLayoutManifestPath = path.resolve(deployRoot, `storage-layout.${chainId}.latest.json`);
+  const latestAppArtifactDir = requireLatestDappArtifactDir(projectRoot, chainId, PRIVATE_STATE_DAPP_LABEL);
+  const storageLayoutManifestPath = path.join(latestAppArtifactDir, `storage-layout.${chainId}.latest.json`);
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
   const liquidBalancesSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
 
@@ -3973,7 +3985,8 @@ function networkNameFromChainId(chainId) {
 }
 
 function groth16UpdateTreeManifestPath(chainId) {
-  return path.resolve(deployRoot, `groth16-updateTree.${chainId}.latest.json`);
+  const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
+  return path.join(latestBridgeDir, `groth16.${chainId}.latest.json`);
 }
 
 function resolveDeployManifestArtifactPath(manifestPath, artifactPath) {
@@ -4026,11 +4039,13 @@ function findStorageSlot(storageLayoutManifest, contractName, label) {
 }
 
 function defaultBridgeDeploymentPath(chainId) {
-  return path.resolve(bridgeRoot, "deployments", `bridge.${chainId}.json`);
+  const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
+  return path.join(latestBridgeDir, `bridge.${chainId}.json`);
 }
 
 function defaultBridgeAbiManifestPath(chainId) {
-  return path.resolve(bridgeRoot, "deployments", `bridge-abi-manifest.${chainId}.json`);
+  const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
+  return path.join(latestBridgeDir, `bridge-abi-manifest.${chainId}.json`);
 }
 
 function loadBridgeAbiManifest(manifestPath) {

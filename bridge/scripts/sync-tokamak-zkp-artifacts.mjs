@@ -8,6 +8,7 @@ import {
   readJson,
   writeJson,
 } from "../../scripts/zk/lib/tokamak-artifacts.mjs";
+import { bridgeArtifactPaths } from "../../scripts/artifacts/lib/deployment-layout.mjs";
 import {
   resolveTokamakCliPackageRoot,
   resolveTokamakCliSetupOutputDir,
@@ -16,7 +17,6 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
-const deployDir = path.join(repoRoot, "bridge", "deployments");
 const tokamakCliPackageRoot = resolveTokamakCliPackageRoot();
 const tokamakSetupOutputDir = resolveTokamakCliSetupOutputDir();
 
@@ -63,8 +63,13 @@ function main() {
     process.exit(1);
   }
 
-  const artifactDir = path.join(deployDir, "tokamak-zkp", chainId);
-  const manifestPath = path.join(deployDir, `tokamak-zkp.${chainId}.latest.json`);
+  const timestampLabel = process.env.BRIDGE_ARTIFACT_TIMESTAMP?.trim();
+  if (!timestampLabel) {
+    throw new Error("BRIDGE_ARTIFACT_TIMESTAMP must be set before syncing Tokamak-ZKP artifacts.");
+  }
+  const snapshot = bridgeArtifactPaths(repoRoot, chainId, timestampLabel);
+  const artifactDir = snapshot.tokamakZkpDir;
+  const manifestPath = snapshot.tokamakZkpManifestPath;
   const combinedSigmaPath = path.join(tokamakSetupOutputDir, "combined_sigma.rkyv");
   const sigmaPreprocessPath = path.join(tokamakSetupOutputDir, "sigma_preprocess.rkyv");
   const sigmaVerifyPath = path.join(tokamakSetupOutputDir, "sigma_verify.json");
@@ -80,15 +85,15 @@ function main() {
   let relativeBuildMetadataPath = null;
   if (fs.existsSync(buildMetadataPath)) {
     ensureDir(artifactDir);
-    copyFile(buildMetadataPath, path.join(artifactDir, "build-metadata-mpc-setup.json"));
-    relativeBuildMetadataPath = `tokamak-zkp/${chainId}/build-metadata-mpc-setup.json`;
+    copyFile(buildMetadataPath, snapshot.tokamakBuildMetadataPath);
+    relativeBuildMetadataPath = "tokamak-zkp/build-metadata-mpc-setup.json";
   }
 
   let relativeCrsProvenancePath = null;
   if (fs.existsSync(crsProvenancePath)) {
     ensureDir(artifactDir);
-    copyFile(crsProvenancePath, path.join(artifactDir, "crs_provenance.json"));
-    relativeCrsProvenancePath = `tokamak-zkp/${chainId}/crs_provenance.json`;
+    copyFile(crsProvenancePath, snapshot.tokamakCrsProvenancePath);
+    relativeCrsProvenancePath = "tokamak-zkp/crs_provenance.json";
   }
 
   const cliVersion = readCliVersion();
@@ -98,7 +103,7 @@ function main() {
     generatedAtUtc: new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z"),
     chainId: Number(chainId),
     tokamakZkpArtifactSource: "cli-runtime-cache",
-    artifactDir: `tokamak-zkp/${chainId}`,
+    artifactDir: "tokamak-zkp",
     artifacts: {
       version: artifactVersion,
       buildMetadataPath: relativeBuildMetadataPath,

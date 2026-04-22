@@ -40,13 +40,22 @@ do
     fi
 done
 
+SOURCE_ZKEY_PROVENANCE_PATH="$SOURCE_GROTH_DIR/zkey_provenance.json"
+if [[ "$GROTH_ARTIFACT_SOURCE" == "mpc" && ! -f "$SOURCE_ZKEY_PROVENANCE_PATH" ]]; then
+    echo "Missing required Groth16 provenance artifact: $SOURCE_ZKEY_PROVENANCE_PATH" >&2
+    exit 1
+fi
+
 rm -rf "$ARTIFACT_DIR"
 mkdir -p "$ARTIFACT_DIR"
-cp "$SOURCE_GROTH_DIR"/* "$ARTIFACT_DIR/"
+cp "$SOURCE_GROTH_DIR/circuit_final.zkey" "$ARTIFACT_DIR/circuit_final.zkey"
+cp "$SOURCE_GROTH_DIR/metadata.json" "$ARTIFACT_DIR/metadata.json"
+cp "$SOURCE_GROTH_DIR/verification_key.json" "$ARTIFACT_DIR/verification_key.json"
 
-PHASE1_PATH="null"
-if [[ -f "$ARTIFACT_DIR/phase1_final_14.ptau" ]]; then
-    PHASE1_PATH="\"groth16/$CHAIN_ID/phase1_final_14.ptau\""
+ZKEY_PROVENANCE_PATH="null"
+if [[ -f "$SOURCE_ZKEY_PROVENANCE_PATH" ]]; then
+    cp "$SOURCE_ZKEY_PROVENANCE_PATH" "$ARTIFACT_DIR/zkey_provenance.json"
+    ZKEY_PROVENANCE_PATH="\"groth16/$CHAIN_ID/zkey_provenance.json\""
 fi
 
 jq -n \
@@ -57,7 +66,7 @@ jq -n \
     --arg zkeyPath "groth16/$CHAIN_ID/circuit_final.zkey" \
     --arg metadataPath "groth16/$CHAIN_ID/metadata.json" \
     --arg verificationKeyPath "groth16/$CHAIN_ID/verification_key.json" \
-    --argjson phase1Path "$PHASE1_PATH" \
+    --argjson zkeyProvenancePath "$ZKEY_PROVENANCE_PATH" \
     '{
         generatedAtUtc: $generatedAtUtc,
         chainId: ($chainId | tonumber),
@@ -67,7 +76,7 @@ jq -n \
             zkeyPath: $zkeyPath,
             metadataPath: $metadataPath,
             verificationKeyPath: $verificationKeyPath,
-            phase1PtauPath: $phase1Path
+            zkeyProvenancePath: $zkeyProvenancePath
         }
     }' > "$MANIFEST_PATH"
 

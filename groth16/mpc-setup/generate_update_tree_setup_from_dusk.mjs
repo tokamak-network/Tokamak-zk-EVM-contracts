@@ -29,8 +29,10 @@ const duskSource = Object.freeze({
     ceremony: "Dusk Trusted Setup for BLS12-381",
     ceremonyUrl: "https://github.com/dusk-network/trusted-setup",
     contributionId: "0015",
+    readmeUrl: "https://raw.githubusercontent.com/dusk-network/trusted-setup/main/contributions/0015/README.md",
     responseUrl: "https://drive.google.com/file/d/1nv9WpxXWMiP8-YwImd2FVn523u7_sb48/view?usp=sharing",
     responseFileId: "1nv9WpxXWMiP8-YwImd2FVn523u7_sb48",
+    responseSha256: "52c9d47e5cddd585b9b0c2e5ade6f809046d516289302871766bdc463e7be214",
     responseBlake2b:
         "eaaed2b710a90c0a54fb98e47a60f14ac341ee48d6d39322164f36690dc414465e07b104e0208ad0d9d58111fcc53fd032dd3676940fa3c9232f3428d0b00ca6",
     reportUrl: "https://raw.githubusercontent.com/dusk-network/trusted-setup/main/contributions/0015/report.txt",
@@ -169,6 +171,19 @@ function cleanupStaleTemporaryState() {
     }
 }
 
+function resolveGroth16BackendVersion() {
+    try {
+        const revision = runCapture("git", ["rev-parse", "--short=12", "HEAD"]).trim();
+        if (revision.length > 0) {
+            return `tokamak-zk-evm-contracts@${revision}`;
+        }
+    } catch {
+        // Fall back when git metadata is unavailable in the execution environment.
+    }
+
+    return "tokamak-zk-evm-contracts@unknown";
+}
+
 function downloadFile(url, destinationPath) {
     const tmpDestinationPath = `${destinationPath}.download`;
     fs.rmSync(tmpDestinationPath, { force: true });
@@ -265,16 +280,21 @@ function extractGoogleDriveConfirmedDownloadUrl(sourceUrl, html) {
 async function ensureDuskResponse(workDir) {
     const responsePath = path.join(workDir, `dusk_response_${duskSource.contributionId}`);
     const url = `https://drive.google.com/uc?export=download&id=${duskSource.responseFileId}`;
+    let autoDownloaded = false;
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
         if (!fs.existsSync(responsePath)) {
             console.log(`Downloading Dusk response ${duskSource.contributionId}...`);
             await downloadFile(url, responsePath);
+            autoDownloaded = true;
         }
 
         const hash = await hashFile(responsePath, "blake2b512");
         if (hash === duskSource.responseBlake2b) {
-            return responsePath;
+            return {
+                responsePath,
+                autoDownloaded
+            };
         }
 
         fs.rmSync(responsePath, { force: true });
@@ -295,6 +315,31 @@ function hashFile(filePath, algorithm) {
         stream.on("end", () => resolve(hasher.digest("hex")));
         stream.on("error", reject);
     });
+}
+
+function buildPhase1SourceProvenance({ responsePath, responseSha256, autoDownloaded, power }) {
+    const responseStat = fs.statSync(responsePath);
+    const maxExponentUsed = 2 ** power;
+
+    return {
+        DuskGroth16: {
+            source_path: responsePath,
+            source_size_bytes: responseStat.size,
+            raw_encoding: "compressed-response",
+            pinned_contribution: duskSource.contributionId,
+            pinned_readme_url: duskSource.readmeUrl,
+            pinned_drive_file_id: duskSource.responseFileId,
+            expected_source_sha256: duskSource.responseSha256,
+            actual_source_sha256: responseSha256,
+            auto_downloaded: autoDownloaded,
+            downloaded_contribution: autoDownloaded ? duskSource.contributionId : null,
+            downloaded_readme_url: autoDownloaded ? duskSource.readmeUrl : null,
+            downloaded_drive_file_id: autoDownloaded ? duskSource.responseFileId : null,
+            max_g1_exp_used: maxExponentUsed,
+            max_g2_exp_used: maxExponentUsed,
+            transcript_consistency_verified: false
+        }
+    };
 }
 
 async function installLatestTokamakL2Js(version, installDir) {
@@ -414,12 +459,14 @@ async function generateSetupArtifacts(constraintCount, manifest) {
     const zkey1 = path.join(workDir, `${circuitBaseName}_0001.zkey`);
     const zkeyFinal = path.join(outputDir, "circuit_final.zkey");
     const verificationKey = path.join(outputDir, "verification_key.json");
+    const zkeyProvenancePath = path.join(outputDir, "zkey_provenance.json");
 
     fs.rmSync(workDir, { recursive: true, force: true });
     fs.mkdirSync(workDir, { recursive: true });
     fs.mkdirSync(outputDir, { recursive: true });
 
-    fs.copyFileSync(await ensureDuskResponse(tmpRoot), responsePath);
+    const duskResponse = await ensureDuskResponse(tmpRoot);
+    fs.copyFileSync(duskResponse.responsePath, responsePath);
     runRustPtauConverter(responsePath, rawPhase1Ptau, power);
     run("snarkjs", ["powersoftau", "prepare", "phase2", rawPhase1Ptau, phase1FinalPtau]);
 
@@ -446,6 +493,7 @@ async function generateSetupArtifacts(constraintCount, manifest) {
     run("snarkjs", ["zkey", "export", "verificationkey", zkeyFinal, verificationKey]);
 
     const responseHash = await hashFile(responsePath, "blake2b512");
+    const responseSha256 = await hashFile(responsePath, "sha256");
     const metadata = {
         circuit: "updateTree",
         tokamakL2JsVersion: manifest.version,
@@ -466,7 +514,30 @@ async function generateSetupArtifacts(constraintCount, manifest) {
         phase2BeaconApplied: true
     };
 
-    fs.writeFileSync(path.join(outputDir, "metadata.json"), JSON.stringify(metadata, null, 2) + "\n");
+    const metadataPath = path.join(outputDir, "metadata.json");
+    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + "\n");
+    fs.writeFileSync(
+        zkeyProvenancePath,
+        JSON.stringify(
+            {
+                generated_at_utc: new Date().toISOString(),
+                backend_version: resolveGroth16BackendVersion(),
+                phase1_source_provenance: buildPhase1SourceProvenance({
+                    responsePath,
+                    responseSha256,
+                    autoDownloaded: duskResponse.autoDownloaded,
+                    power
+                }),
+                zkey_sha256: await hashFile(zkeyFinal, "sha256"),
+                metadata_sha256: await hashFile(metadataPath, "sha256"),
+                verification_key_sha256: await hashFile(verificationKey, "sha256"),
+                published_folder_url: null,
+                published_archive_name: null
+            },
+            null,
+            2
+        ) + "\n"
+    );
     fs.rmSync(workDir, { recursive: true, force: true });
 }
 

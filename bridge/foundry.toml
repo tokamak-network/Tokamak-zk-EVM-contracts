@@ -20,7 +20,9 @@ fs_permissions = [
     { access = "read", path = "./test/fixtures" },
     { access = "read", path = "../tokamak-zkp/test/fixtures" },
     { access = "read", path = "./deployments" },
+    { access = "read", path = "../deployment" },
     { access = "write", path = "./deployments" },
+    { access = "write", path = "../deployment" },
 ]
 
 [profile.ci]
@@ -45,7 +47,9 @@ fs_permissions = [
     { access = "read", path = "./test/fixtures" },
     { access = "read", path = "../tokamak-zkp/test/fixtures" },
     { access = "read", path = "./deployments" },
+    { access = "read", path = "../deployment" },
     { access = "write", path = "./deployments" },
+    { access = "write", path = "../deployment" },
 ]
 
 [fmt]

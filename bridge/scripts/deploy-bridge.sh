@@ -31,13 +31,19 @@ cleanup_broadcast_traces() {
     fi
 }
 
-latest_timestamp_dir() {
+latest_complete_bridge_dir() {
     local root_dir="$1"
+    local chain_id="$2"
     if [[ ! -d "$root_dir" ]]; then
         return 0
     fi
 
-    find "$root_dir" -mindepth 1 -maxdepth 1 -type d -name '20????????T??????Z' -print \
+    find "$root_dir" -mindepth 1 -maxdepth 1 -type d -name '20??????T??????Z' -print \
+        | while read -r candidate_dir; do
+            if [[ -f "$candidate_dir/bridge.${chain_id}.json" ]]; then
+                printf '%s\n' "$candidate_dir"
+            fi
+        done \
         | LC_ALL=C sort \
         | tail -n 1
 }
@@ -153,7 +159,7 @@ fi
 
 UPLOAD_TIMESTAMP="$(date -u +"%Y%m%dT%H%M%SZ")"
 BRIDGE_CANONICAL_DIR="$PROJECT_ROOT/deployment/chain-id-${BRIDGE_CHAIN_ID}/bridge/${UPLOAD_TIMESTAMP}"
-LATEST_BRIDGE_DIR="$(latest_timestamp_dir "$PROJECT_ROOT/deployment/chain-id-${BRIDGE_CHAIN_ID}/bridge")"
+LATEST_BRIDGE_DIR="$(latest_complete_bridge_dir "$PROJECT_ROOT/deployment/chain-id-${BRIDGE_CHAIN_ID}/bridge" "$BRIDGE_CHAIN_ID")"
 DEFAULT_BRIDGE_INPUT_PATH="./deployments/bridge.${BRIDGE_CHAIN_ID}.json"
 if [[ -n "$LATEST_BRIDGE_DIR" ]]; then
     DEFAULT_BRIDGE_INPUT_PATH="$LATEST_BRIDGE_DIR/bridge.${BRIDGE_CHAIN_ID}.json"

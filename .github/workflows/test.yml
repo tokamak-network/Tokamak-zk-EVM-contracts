@@ -24,7 +24,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: false
+
+      - name: Checkout Foundry submodules
+        run: |
+          set -euo pipefail
+          submodules=(
+            lib/forge-std
+            lib/openzeppelin-contracts
+            lib/openzeppelin-contracts-upgradeable
+          )
+          for attempt in 1 2 3 4 5; do
+            git submodule sync -- "${submodules[@]}"
+            if git -c protocol.version=2 submodule update --init --force --depth=1 --jobs=1 -- "${submodules[@]}"; then
+              exit 0
+            fi
+            status=$?
+            if [ "${attempt}" -eq 5 ]; then
+              exit "${status}"
+            fi
+            git submodule deinit -f -- "${submodules[@]}" || true
+            rm -rf "${submodules[@]}"
+            sleep $((attempt * 15))
+          done
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -53,7 +75,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: false
+
+      - name: Checkout Foundry submodules
+        run: |
+          set -euo pipefail
+          submodules=(
+            lib/forge-std
+            lib/openzeppelin-contracts
+            lib/openzeppelin-contracts-upgradeable
+          )
+          for attempt in 1 2 3 4 5; do
+            git submodule sync -- "${submodules[@]}"
+            if git -c protocol.version=2 submodule update --init --force --depth=1 --jobs=1 -- "${submodules[@]}"; then
+              exit 0
+            fi
+            status=$?
+            if [ "${attempt}" -eq 5 ]; then
+              exit "${status}"
+            fi
+            git submodule deinit -f -- "${submodules[@]}" || true
+            rm -rf "${submodules[@]}"
+            sleep $((attempt * 15))
+          done
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -81,7 +125,8 @@ jobs:
             jq \
             git-lfs \
             cmake \
-            dos2unix
+            dos2unix \
+            time
           git lfs install --skip-repo
 
       - name: Install Circom

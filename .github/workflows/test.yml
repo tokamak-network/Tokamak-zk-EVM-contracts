@@ -97,9 +97,6 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Install Tokamak root npm dependencies
-        run: npm ci --prefix submodules/Tokamak-zk-EVM
-
       - name: Install Groth16 circuit dependencies
         run: npm ci --prefix groth16/circuits
 
@@ -107,18 +104,6 @@ jobs:
         run: |
           test -x groth16/circuits/node_modules/.bin/snarkjs
           groth16/circuits/node_modules/.bin/snarkjs g16v --help >/dev/null
-
-      - name: Make Tokamak scripts executable
-        run: |
-          chmod +x submodules/Tokamak-zk-EVM/tokamak-cli
-          chmod +x submodules/Tokamak-zk-EVM/scripts/tokamak-cli-core
-
-      - name: Install Tokamak frontend dependencies
-        run: |
-          cd submodules/Tokamak-zk-EVM/packages/frontend/qap-compiler
-          npm install --legacy-peer-deps
-          cd ../synthesizer
-          npm install --legacy-peer-deps
 
       - name: Install tsx
         run: npm install -g tsx
@@ -177,16 +162,8 @@ jobs:
           cast --version
           anvil --version
 
-      - name: Install Tokamak zk-EVM Artifacts
-        run: |
-          rm -rf submodules/Tokamak-zk-EVM/dist
-          (
-            cd submodules/Tokamak-zk-EVM
-            find . -name "*.sh" -exec chmod +x {} \;
-            find . -name "*.sh" -exec dos2unix {} \; 2>/dev/null || true
-            ./tokamak-cli --install --bun
-          )
-          rm -f submodules/Tokamak-zk-EVM/dist/bin/synthesizer
+      - name: Install Tokamak zk-EVM runtime cache
+        run: node node_modules/@tokamak-zk-evm/cli/dist/cli.js --install
 
       - name: Run private-state bridge CLI end-to-end test
         run: |

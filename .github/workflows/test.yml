@@ -162,8 +162,24 @@ jobs:
           cast --version
           anvil --version
 
+      - name: Restore Tokamak CRS cache
+        id: tokamak-crs-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.tokamak-zk-evm/linux/downloads/crs
+          key: tokamak-zkevm-crs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            tokamak-zkevm-crs-${{ runner.os }}-
+
       - name: Install Tokamak zk-EVM runtime cache
         run: node node_modules/@tokamak-zk-evm/cli/dist/cli.js --install
+
+      - name: Save Tokamak CRS cache
+        if: steps.tokamak-crs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.tokamak-zk-evm/linux/downloads/crs
+          key: ${{ steps.tokamak-crs-cache.outputs.cache-primary-key }}
 
       - name: Run private-state bridge CLI end-to-end test
         run: |

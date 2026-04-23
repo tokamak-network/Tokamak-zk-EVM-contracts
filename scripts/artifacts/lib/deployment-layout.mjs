@@ -110,6 +110,7 @@ export function dappArtifactPaths(repoRoot, chainId, dappName, timestampLabel) {
     storageLayoutPath: path.join(rootDir, `storage-layout.${chainId}.latest.json`),
     privateStateControllerAbiPath: path.join(rootDir, "PrivateStateController.callable-abi.json"),
     l2AccountingVaultAbiPath: path.join(rootDir, "L2AccountingVault.callable-abi.json"),
+    sourceDir: path.join(rootDir, "source"),
     registrationManifestPath: path.join(rootDir, `dapp-registration.${chainId}.json`),
   };
 }

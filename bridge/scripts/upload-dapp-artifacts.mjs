@@ -111,19 +111,50 @@ function requiredFile(filePath, relativePath) {
   return { localPath: filePath, relativePath };
 }
 
+function collectFilesRecursively(rootDir, relativePrefix) {
+  if (!fs.existsSync(rootDir) || !fs.statSync(rootDir).isDirectory()) {
+    throw new Error(`Missing DApp source artifact directory: ${rootDir}`);
+  }
+
+  const files = [];
+
+  const walk = (currentDir, currentPrefix) => {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const entryPath = path.join(currentDir, entry.name);
+      const entryRelativePath = currentPrefix ? path.posix.join(currentPrefix, entry.name) : entry.name;
+
+      if (entry.isDirectory()) {
+        walk(entryPath, entryRelativePath);
+        continue;
+      }
+
+      if (entry.isFile()) {
+        files.push({ localPath: entryPath, relativePath: entryRelativePath });
+      }
+    }
+  };
+
+  walk(rootDir, relativePrefix);
+  return files;
+}
+
 function collectDappArtifactFiles(options) {
+  const deploymentDir = path.dirname(options.appDeploymentPath);
+  const sourceDir = path.join(deploymentDir, "source");
+
   return [
     requiredFile(options.registrationManifestPath, path.basename(options.registrationManifestPath)),
     requiredFile(options.appDeploymentPath, path.basename(options.appDeploymentPath)),
     requiredFile(options.storageLayoutPath, path.basename(options.storageLayoutPath)),
     requiredFile(
-      path.join(path.dirname(options.appDeploymentPath), "PrivateStateController.callable-abi.json"),
+      path.join(deploymentDir, "PrivateStateController.callable-abi.json"),
       "PrivateStateController.callable-abi.json",
     ),
     requiredFile(
-      path.join(path.dirname(options.appDeploymentPath), "L2AccountingVault.callable-abi.json"),
+      path.join(deploymentDir, "L2AccountingVault.callable-abi.json"),
       "L2AccountingVault.callable-abi.json",
     ),
+    ...collectFilesRecursively(sourceDir, "source"),
   ].filter(Boolean);
 }
 

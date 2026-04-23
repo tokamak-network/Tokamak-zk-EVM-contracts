@@ -229,6 +229,24 @@ function resolvePrivateStateManifestPath(rootDir, chainId, kind) {
   return path.join(latestDir, `${kind}.${chainId}.latest.json`);
 }
 
+function resolveDappSourceRoot(rootDir, dappLabel) {
+  const appRoot = path.join(rootDir, "apps", dappLabel);
+  const sourceCandidates = [
+    path.join(appRoot, "contracts"),
+    path.join(appRoot, "src"),
+  ];
+
+  for (const candidate of sourceCandidates) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `Unable to locate contract source directory for ${dappLabel}. Checked: ${sourceCandidates.join(", ")}`,
+  );
+}
+
 const APP_NETWORK_CHAIN_IDS = new Map([
   ["sepolia", 11155111],
   ["mainnet", 1],
@@ -545,6 +563,7 @@ async function main() {
   const storageLayoutPath =
     options.storageLayoutPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "storage-layout");
   const dappLabel = options.dappLabel ?? "private-state";
+  const sourceRoot = resolveDappSourceRoot(repoRoot, dappLabel);
   const uploadTimestamp = createTimestampLabel();
   const dappSnapshot = dappArtifactPaths(repoRoot, chainId, dappLabel, uploadTimestamp);
   const manifestOut = options.manifestOut ?? dappSnapshot.registrationManifestPath;
@@ -639,6 +658,7 @@ async function main() {
   copyFile(storageLayoutPath, dappSnapshot.storageLayoutPath);
   copyFile(sourceControllerAbiPath, dappSnapshot.privateStateControllerAbiPath);
   copyFile(sourceVaultAbiPath, dappSnapshot.l2AccountingVaultAbiPath);
+  copyDir(sourceRoot, dappSnapshot.sourceDir);
 
   const manifest = {
     generatedAt: new Date().toISOString(),
@@ -648,6 +668,7 @@ async function main() {
     appChainId,
     appDeploymentPath: dappSnapshot.deploymentPath,
     storageLayoutPath: dappSnapshot.storageLayoutPath,
+    sourceDir: dappSnapshot.sourceDir,
     groupNames: options.groups,
     dappLabel,
     dappId: options.dappId,

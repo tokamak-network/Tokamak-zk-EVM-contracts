@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Contract, JsonRpcProvider, Wallet } from "ethers";
+import { Contract, JsonRpcProvider, Wallet, getAddress } from "ethers";
 import {
   buildDAppDefinitions,
   buildFunctionDefinition,
@@ -22,6 +22,7 @@ import {
   requireLatestBridgeArtifactDir,
   requireLatestDappArtifactDir,
 } from "../../scripts/artifacts/lib/deployment-layout.mjs";
+import { deriveRpcUrl } from "../../apps/scripts/network-config.mjs";
 import {
   buildTokamakCliInvocation,
   resolveTokamakCliPreprocessOutputDir,
@@ -292,6 +293,14 @@ function resolveAppChainId(appNetwork) {
   return chainId;
 }
 
+function resolveAppRpcUrl(appNetwork) {
+  return deriveRpcUrl({
+    networkName: appNetwork,
+    alchemyApiKey: process.env.APPS_ALCHEMY_API_KEY?.trim(),
+    rpcUrlOverride: process.env.APPS_RPC_URL_OVERRIDE?.trim(),
+  });
+}
+
 function shouldSkipArtifactUpload(bridgeChainId, appChainId) {
   return (
     process.env.BRIDGE_NETWORK === "anvil" ||
@@ -341,6 +350,27 @@ function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
       },
     ],
   };
+}
+
+async function writeDeploymentSnapshotWithBytecode({ provider, sourcePath, targetPath }) {
+  const deployment = readJson(sourcePath);
+  const deployedBytecode = {};
+
+  for (const [contractName, address] of Object.entries(deployment.contracts ?? {})) {
+    if (typeof address !== "string" || address.length === 0) {
+      continue;
+    }
+
+    const normalizedAddress = getAddress(address);
+    const code = await provider.getCode(normalizedAddress);
+    if (code === "0x") {
+      throw new Error(`No deployed bytecode found for ${contractName} at ${normalizedAddress}.`);
+    }
+    deployedBytecode[contractName] = code;
+  }
+
+  deployment.deployedBytecode = deployedBytecode;
+  writeJson(targetPath, deployment);
 }
 
 function run(command, args, { cwd = repoRoot, streamOutput = true, env = process.env } = {}) {
@@ -552,6 +582,15 @@ async function main() {
   }
   const appNetwork = options.appNetwork ?? resolveDefaultAppNetwork(chainId);
   const appChainId = resolveAppChainId(appNetwork);
+  let appProvider = provider;
+  if (appChainId !== chainId) {
+    const appRpcUrl = resolveAppRpcUrl(appNetwork);
+    appProvider = appRpcUrl === rpcUrl ? provider : new JsonRpcProvider(appRpcUrl);
+    const resolvedAppChainId = Number((await appProvider.getNetwork()).chainId);
+    if (resolvedAppChainId !== appChainId) {
+      throw new Error(`App RPC chain ID mismatch: expected ${appChainId}, received ${resolvedAppChainId}.`);
+    }
+  }
   await runTokamakInstall();
   const appDeploymentPath =
     options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "deployment");
@@ -649,7 +688,11 @@ async function main() {
   );
   const receipt = await tx.wait();
   ensureDir(dappSnapshot.rootDir);
-  copyFile(appDeploymentPath, dappSnapshot.deploymentPath);
+  await writeDeploymentSnapshotWithBytecode({
+    provider: appProvider,
+    sourcePath: appDeploymentPath,
+    targetPath: dappSnapshot.deploymentPath,
+  });
   copyFile(storageLayoutPath, dappSnapshot.storageLayoutPath);
   copyFile(sourceControllerAbiPath, dappSnapshot.privateStateControllerAbiPath);
   copyFile(sourceVaultAbiPath, dappSnapshot.l2AccountingVaultAbiPath);

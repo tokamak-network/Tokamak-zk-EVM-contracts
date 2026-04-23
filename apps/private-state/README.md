@@ -61,12 +61,7 @@ Bridge-side DApp registration then refreshes the app-local Groth16 consumption m
 - `groth16/<chain-id>/circuit_final.zkey`
 - `groth16/<chain-id>/metadata.json`
 
-Synthesizer private-state launch inputs are now generated independently inside the Tokamak
-Synthesizer `node-cli` workspace:
-
-- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/node-cli/scripts/generate-synthesizer-launch-inputs.ts`
-
-Bridge-side DApp registration now consumes repo-owned example inputs under:
+Bridge-side DApp registration consumes repo-owned Synthesizer example inputs under:
 
 - `apps/private-state/examples/synthesizer/privateState/`
 
@@ -145,15 +140,14 @@ The commands below are ordered by the normal execution flow.
 
 `install-zk-evm`
 
-- installs the local Tokamak zk-EVM toolchain through `submodules/Tokamak-zk-EVM/tokamak-cli --install`
+- installs the local Tokamak zk-EVM toolchain through the published `@tokamak-zk-evm/cli` package
 - accepts no options
-- bootstraps `submodules/Tokamak-zk-EVM` from the repository `.gitmodules` definition if the submodule worktree is missing
-- then fetches `origin/dev` inside the submodule, switches to `dev`, and fast-forwards before running the installer
+- refreshes the local `~/.tokamak-zk-evm` runtime cache
+- refreshes shared bridge constants derived from `tokamak-l2js`
 
 `uninstall-zk-evm`
 
-- removes the checked-out contents of `submodules/Tokamak-zk-EVM/`
-- preserves the submodule pointer itself
+- removes the local `~/.tokamak-zk-evm` runtime cache
 - accepts no options
 
 ### 2. Create the channel

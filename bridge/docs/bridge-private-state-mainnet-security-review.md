@@ -396,7 +396,7 @@ Severity: High
 
 Relevant code:
 
-- `submodules/Tokamak-zk-EVM/submodules/TokamakL2JS/src/stateManager/TokamakL2StateManager.ts`
+- `tokamak-l2js` `TokamakL2StateManager`
 - `apps/private-state/src/PrivateStateController.sol`
 - `apps/private-state/cli/private-state-bridge-cli.mjs`
 - `bridge/src/ChannelManager.sol`

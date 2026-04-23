@@ -2188,7 +2188,7 @@ function fieldElementHex(value) {
 }
 
 function normalizeTagHex(value) {
-  return ethers.hexlify(ethers.zeroPadValue(value, 16)).toLowerCase();
+  return normalizeBytes16Hex(value);
 }
 
 function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce, encryptionInfo }) {
@@ -3339,7 +3339,7 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
     publicSignals,
     proof: toGrothSolidityProof(proofJson),
     update: {
-      currentRootVector: currentSnapshot.stateRoots,
+      currentRootVector: normalizedRootVector(currentSnapshot.stateRoots),
       updatedRoot: bytes32FromBigInt(updatedRoot),
       currentUserKey: bytes32FromHex(keyHex),
       currentUserValue: currentValue,
@@ -3575,26 +3575,53 @@ function normalizedAddressVector(addresses) {
   return addresses.map((value) => getAddress(value));
 }
 
+function normalizeBytesHex(value, byteLength) {
+  expect(Number.isInteger(byteLength) && byteLength > 0, "normalizeBytesHex requires a positive byte length.");
+  const targetHexLength = byteLength * 2;
+  let hex;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    expect(/^0x[0-9a-fA-F]*$/.test(trimmed), `Expected a hex string, received ${value}.`);
+    hex = trimmed.replace(/^0x/i, "");
+    if (hex.length % 2 !== 0) {
+      hex = `0${hex}`;
+    }
+  } else {
+    hex = ethers.hexlify(value).replace(/^0x/i, "");
+  }
+  expect(
+    hex.length <= targetHexLength,
+    `Expected at most ${byteLength} bytes, received ${Math.ceil(hex.length / 2)} bytes.`,
+  );
+  return `0x${hex.padStart(targetHexLength, "0").toLowerCase()}`;
+}
+
+function normalizeBytes12Hex(value) {
+  return normalizeBytesHex(value, 12);
+}
+
+function normalizeBytes16Hex(value) {
+  return normalizeBytesHex(value, 16);
+}
+
+function normalizeBytes20Hex(value) {
+  return normalizeBytesHex(value, 20);
+}
+
 function normalizeBytes32Hex(hexValue) {
-  return ethers.zeroPadValue(
-    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
-    32,
-  ).toLowerCase();
+  return normalizeBytesHex(hexValue, 32);
 }
 
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(
-    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
-    32,
-  );
+  return normalizeBytes32Hex(hexValue);
 }
 
 function bytes32FromBigInt(value) {
-  return ethers.zeroPadValue(ethers.toBeHex(value), 32);
+  return normalizeBytes32Hex(ethers.toBeHex(value));
 }
 
 function bigintToHex32(value) {
-  return ethers.zeroPadValue(ethers.toBeHex(value), 32);
+  return normalizeBytes32Hex(ethers.toBeHex(value));
 }
 
 function hashTokamakPublicInputs(values) {
@@ -3950,8 +3977,114 @@ function serializeBigInts(value) {
   )));
 }
 
+const OUTPUT_BYTES32_SCALAR_KEYS = new Set([
+  "aPubBlockHash",
+  "blockHash",
+  "bridgeCommitmentKey",
+  "bridgeNullifierKey",
+  "channelTokenVaultKey",
+  "commitment",
+  "currentRootVectorHash",
+  "currentUserKey",
+  "emittedRootVectorHash",
+  "ephemeralPubKeyX",
+  "hash",
+  "labelHash",
+  "l2StorageKey",
+  "noteReceivePubKeyX",
+  "nullifier",
+  "prevRanDao",
+  "previousRoot",
+  "registeredL2StorageKey",
+  "rootVectorHash",
+  "salt",
+  "sourceTxHash",
+  "topic0",
+  "transactionHash",
+  "txHash",
+  "updatedRoot",
+  "updatedUserKey",
+  "walletL2StorageKey",
+]);
+
+const OUTPUT_BYTES32_ARRAY_KEYS = new Set([
+  "currentRootVector",
+  "encryptedNoteValue",
+  "prevBlockHashes",
+  "stateRoots",
+  "storageKeys",
+  "storageTrieRoots",
+  "topics",
+  "updatedRoots",
+]);
+
+function normalizeCliOutput(value) {
+  return normalizeCliOutputValue(value, []);
+}
+
+function normalizeCliOutputValue(value, pathParts) {
+  if (shouldNormalizeOutputBytes32(pathParts, value)) {
+    return normalizeBytes32Hex(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry, index) => normalizeCliOutputValue(entry, [...pathParts, index]));
+  }
+  if (value && typeof value === "object" && !isByteArrayLike(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, normalizeCliOutputValue(entry, [...pathParts, key])]),
+    );
+  }
+  return value;
+}
+
+function shouldNormalizeOutputBytes32(pathParts, value) {
+  if (!isNormalizableBytesValue(value)) {
+    return false;
+  }
+  const lastKey = lastStringPathPart(pathParts);
+  if (lastKey && OUTPUT_BYTES32_SCALAR_KEYS.has(lastKey)) {
+    return true;
+  }
+  if (lastKey === "x" && parentStringPathPart(pathParts) === "noteReceivePubKey") {
+    return true;
+  }
+  return pathParts.some((part) => typeof part === "string" && OUTPUT_BYTES32_ARRAY_KEYS.has(part));
+}
+
+function lastStringPathPart(pathParts) {
+  for (let index = pathParts.length - 1; index >= 0; index -= 1) {
+    if (typeof pathParts[index] === "string") {
+      return pathParts[index];
+    }
+  }
+  return null;
+}
+
+function parentStringPathPart(pathParts) {
+  let seenLastString = false;
+  for (let index = pathParts.length - 1; index >= 0; index -= 1) {
+    if (typeof pathParts[index] !== "string") {
+      continue;
+    }
+    if (!seenLastString) {
+      seenLastString = true;
+      continue;
+    }
+    return pathParts[index];
+  }
+  return null;
+}
+
+function isNormalizableBytesValue(value) {
+  return typeof value === "string" || isByteArrayLike(value);
+}
+
+function isByteArrayLike(value) {
+  return value instanceof Uint8Array || Buffer.isBuffer(value);
+}
+
 function sanitizeReceipt(receipt) {
-  return serializeBigInts({
+  return normalizeCliOutput(serializeBigInts({
     hash: receipt.hash,
     blockHash: receipt.blockHash,
     blockNumber: receipt.blockNumber,
@@ -3960,7 +4093,7 @@ function sanitizeReceipt(receipt) {
     to: receipt.to,
     status: receipt.status,
     logs: receipt.logs,
-  });
+  }));
 }
 
 function receiptGasUsed(receipt) {
@@ -4525,8 +4658,9 @@ function readJsonIfExists(filePath) {
 }
 
 function writeJson(filePath, value) {
+  const normalizedValue = normalizeCliOutput(value);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+  fs.writeFileSync(filePath, `${JSON.stringify(normalizedValue, null, 2)}\n`);
 }
 
 function canonicalizeJsonValue(value) {
@@ -4547,17 +4681,18 @@ function canonicalizeJsonValue(value) {
 function hashJsonValue(value) {
   return keccak256(
     ethers.toUtf8Bytes(
-      JSON.stringify(canonicalizeJsonValue(serializeBigInts(value))),
+      JSON.stringify(canonicalizeJsonValue(serializeBigInts(normalizeCliOutput(value)))),
     ),
   );
 }
 
 function writeJsonIfChanged(filePath, value) {
-  const nextHash = hashJsonValue(value);
+  const normalizedValue = normalizeCliOutput(value);
+  const nextHash = hashJsonValue(normalizedValue);
   if (fs.existsSync(filePath) && hashJsonValue(readJson(filePath)) === nextHash) {
     return false;
   }
-  writeJson(filePath, value);
+  writeJson(filePath, normalizedValue);
   return true;
 }
 
@@ -4590,7 +4725,8 @@ function canReuseLocalWorkspaceSnapshot({ existingArtifacts, currentRootVectorHa
 }
 
 function writeEncryptedWalletJson(filePath, value, walletPassword) {
-  writeEncryptedWalletFile(filePath, Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8"), walletPassword);
+  const normalizedValue = normalizeCliOutput(value);
+  writeEncryptedWalletFile(filePath, Buffer.from(`${JSON.stringify(normalizedValue, null, 2)}\n`, "utf8"), walletPassword);
 }
 
 function readEncryptedWalletJson(filePath, walletPassword) {
@@ -4613,9 +4749,9 @@ function writeEncryptedWalletFile(filePath, plaintextBytes, walletPassword) {
     version: WALLET_ENCRYPTION_VERSION,
     algorithm: WALLET_ENCRYPTION_ALGORITHM,
     kdf: "scrypt",
-    salt: ethers.hexlify(salt),
-    iv: ethers.hexlify(iv),
-    tag: ethers.hexlify(tag),
+    salt: normalizeBytes16Hex(salt),
+    iv: normalizeBytes12Hex(iv),
+    tag: normalizeBytes16Hex(tag),
     ciphertext: ethers.hexlify(ciphertext),
   };
   fs.writeFileSync(filePath, `${JSON.stringify(envelope, null, 2)}\n`);
@@ -4686,7 +4822,7 @@ function normalizePrivateKey(value) {
 }
 
 function printJson(value) {
-  const output = `${JSON.stringify(value, null, 2)}\n`;
+  const output = `${JSON.stringify(normalizeCliOutput(value), null, 2)}\n`;
   const outputPath = process.env.PRIVATE_STATE_CLI_JSON_OUTPUT?.trim();
   if (outputPath) {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });

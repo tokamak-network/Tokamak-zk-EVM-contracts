@@ -52,7 +52,7 @@ import {
 import {
   dappArtifactRoot,
   latestBridgeArtifactDir,
-  latestDappArtifactDir,
+  requireLatestDappArtifactDir,
   requireLatestBridgeArtifactDir,
 } from "../../../scripts/artifacts/lib/deployment-layout.mjs";
 import {
@@ -73,7 +73,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../../..");
 const appRoot = path.resolve(projectRoot, "apps/private-state");
-const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const tokamakCliInvocation = buildTokamakCliInvocation();
@@ -2916,7 +2915,9 @@ async function executeWalletTemplateSend({
   await assertWorkspaceAlignedWithChain(context, signer.provider);
   assertWalletMatchesChannelContext(wallet, l2Identity, context);
 
-  const controllerAbi = readJson(path.resolve(deployRoot, templatePayload.abiFile.replace("../deploy/", "")));
+  const controllerAbi = readJson(
+    requireLatestDappDeployArtifactPath(context.workspace.chainId, path.basename(templatePayload.abiFile)),
+  );
   const calldata = new Interface(controllerAbi).encodeFunctionData(
     templatePayload.method,
     templatePayload.args ?? [],
@@ -3378,7 +3379,7 @@ function runTokamakProofPipeline({ operationDir, bundlePath }) {
   runTokamakCliStage({
     operationDir,
     stageName: "synthesize",
-    args: ["--synthesize", "--tokamak-ch-tx", operationDir],
+    args: ["--synthesize", operationDir],
   });
   runTokamakCliStage({
     operationDir,
@@ -4041,6 +4042,11 @@ function findStorageSlot(storageLayoutManifest, contractName, label) {
 function defaultBridgeDeploymentPath(chainId) {
   const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
   return path.join(latestBridgeDir, `bridge.${chainId}.json`);
+}
+
+function requireLatestDappDeployArtifactPath(chainId, fileName) {
+  const latestAppArtifactDir = requireLatestDappArtifactDir(projectRoot, chainId, PRIVATE_STATE_DAPP_LABEL);
+  return path.join(latestAppArtifactDir, fileName);
 }
 
 function defaultBridgeAbiManifestPath(chainId) {

@@ -494,7 +494,7 @@
 
       const commands = [
         { id: "install-zk-evm", description: "Install the local Tokamak zk-EVM toolchain.", fields: [] },
-        { id: "uninstall-zk-evm", description: "Remove the checked-out Tokamak zk-EVM worktree contents.", fields: [] },
+        { id: "uninstall-zk-evm", description: "Remove the Tokamak zk-EVM CLI runtime cache.", fields: [] },
         { id: "create-channel", description: "Create the bridge channel and initialize its workspace.", fields: ["channelName", "network", "privateKey", "alchemyApiKey"] },
         { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "alchemyApiKey"] },
         { id: "deposit-bridge", description: "Deposit canonical tokens into the shared bridge vault.", fields: ["amount", "network", "privateKey", "alchemyApiKey"] },

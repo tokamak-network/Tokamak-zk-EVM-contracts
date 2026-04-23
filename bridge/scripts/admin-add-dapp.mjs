@@ -231,19 +231,14 @@ function resolvePrivateStateManifestPath(rootDir, chainId, kind) {
 
 function resolveDappSourceRoot(rootDir, dappLabel) {
   const appRoot = path.join(rootDir, "apps", dappLabel);
-  const sourceCandidates = [
-    path.join(appRoot, "contracts"),
-    path.join(appRoot, "src"),
-  ];
+  const sourceRoot = path.join(appRoot, "src");
 
-  for (const candidate of sourceCandidates) {
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
-      return candidate;
-    }
+  if (fs.existsSync(sourceRoot) && fs.statSync(sourceRoot).isDirectory()) {
+    return sourceRoot;
   }
 
   throw new Error(
-    `Unable to locate contract source directory for ${dappLabel}. Checked: ${sourceCandidates.join(", ")}`,
+    `Unable to locate source directory for ${dappLabel}: ${sourceRoot}`,
   );
 }
 

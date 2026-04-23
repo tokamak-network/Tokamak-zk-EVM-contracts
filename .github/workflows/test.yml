@@ -61,9 +61,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -122,7 +119,6 @@ jobs:
             node \
             npm \
             python3 \
-            bun \
             rustc \
             cargo \
             cmake \
@@ -144,7 +140,6 @@ jobs:
         run: |
           node --version
           npm --version
-          bun --version
           rustc --version
           cargo --version
           git --version

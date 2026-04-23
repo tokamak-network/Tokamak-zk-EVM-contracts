@@ -204,7 +204,8 @@ export async function uploadFilesByRelativePath(drive, leafFolderId, files) {
 
   for (const { localPath, relativePath } of files) {
     const normalizedRelativePath = relativePath.split(path.sep).join("/");
-    const directory = path.posix.dirname(normalizedRelativePath);
+    const rawDirectory = path.posix.dirname(normalizedRelativePath);
+    const directory = rawDirectory === "." ? "" : rawDirectory;
     const fileName = path.posix.basename(normalizedRelativePath);
 
     let targetFolderId = createdFolders.get(directory);

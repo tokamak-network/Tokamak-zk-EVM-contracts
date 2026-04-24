@@ -490,10 +490,15 @@
           type: "checkbox",
           hint: "Bypass the CLI zero-balance guard for exit-channel.",
         },
+        docker: {
+          label: "Docker Install Mode",
+          type: "checkbox",
+          hint: "Forward --docker to install-zk-evm when the Tokamak CLI supports Docker-backed installs.",
+        },
       };
 
       const commands = [
-        { id: "install-zk-evm", description: "Install the local Tokamak zk-EVM toolchain.", fields: [] },
+        { id: "install-zk-evm", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Docker-backed installs.", fields: ["docker"] },
         { id: "uninstall-zk-evm", description: "Remove the checked-out Tokamak zk-EVM worktree contents.", fields: [] },
         { id: "create-channel", description: "Create the bridge channel and initialize its workspace.", fields: ["channelName", "network", "privateKey", "alchemyApiKey"] },
         { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "alchemyApiKey"] },
@@ -532,6 +537,7 @@
         transferRecipient2: "",
         transferAmount2: "",
         force: false,
+        docker: false,
       };
 
       const sharedFieldKeys = [
@@ -1158,6 +1164,9 @@
               break;
             case "force":
               parts.push("--force");
+              break;
+            case "docker":
+              parts.push("--docker");
               break;
             default:
               break;

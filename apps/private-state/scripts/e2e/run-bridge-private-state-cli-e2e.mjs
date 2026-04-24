@@ -44,10 +44,6 @@ import {
   resolveTokamakCliSetupOutputDir,
 } from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
 import {
-  latestBridgeArtifactDir,
-  requireLatestDappArtifactDir,
-} from "../../../../scripts/artifacts/lib/deployment-layout.mjs";
-import {
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
   workspaceDirForName as sharedWorkspaceDirForName,
@@ -91,6 +87,7 @@ const anvilDeployerPrivateKey =
 const channelName = "private-state-cli-e2e";
 const dappId = "1";
 const dappLabel = "private-state";
+const dappIdNumber = Number(dappId);
 const joinFeeTokens = "1";
 const depositAmountTokens = "3";
 const claimAmountTokens = "9";
@@ -128,13 +125,14 @@ const localRegistrationExamples = [
   "transferNotes2To1",
   "redeemNotes1",
 ];
+const timestampLabelPattern = /^\d{8}T\d{6}Z$/;
 
 function usage() {
   console.log(`Usage:
   node apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs [options]
 
 Options:
-  --skip-install                      Skip tokamak-cli --install before metadata generation
+  --skip-install                      Skip Tokamak/private-state CLI install steps
   --skip-groth-setup                  Skip bridge Groth16 refresh during local redeploy
   --keep-anvil                         Leave anvil running after success
   --help                               Show this help
@@ -201,15 +199,34 @@ function readJson(filePath) {
 }
 
 function latestBridgeDeploymentPath() {
-  const latestDir = latestBridgeArtifactDir(repoRoot, 31337);
-  if (!latestDir) {
-    throw new Error("Missing latest bridge deployment snapshot for chain 31337.");
-  }
+  const latestDir = requireLatestTimestampDir(
+    path.join(repoRoot, "deployment", "chain-id-31337", "bridge"),
+    "bridge deployment snapshot for chain 31337",
+  );
   return path.join(latestDir, "bridge.31337.json");
 }
 
 function latestPrivateStateArtifactDir() {
-  return requireLatestDappArtifactDir(repoRoot, 31337, "private-state");
+  return requireLatestTimestampDir(
+    path.join(repoRoot, "deployment", "chain-id-31337", "dapps", "private-state"),
+    "private-state DApp deployment snapshot for chain 31337",
+  );
+}
+
+function requireLatestTimestampDir(rootDir, description) {
+  if (!fs.existsSync(rootDir)) {
+    throw new Error(`Missing ${description} root: ${rootDir}`);
+  }
+
+  const labels = fs.readdirSync(rootDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && timestampLabelPattern.test(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+  const latestLabel = labels.at(-1);
+  if (!latestLabel) {
+    throw new Error(`No timestamped ${description} exists under ${rootDir}.`);
+  }
+  return path.join(rootDir, latestLabel);
 }
 
 function writeJson(filePath, value) {
@@ -1067,6 +1084,12 @@ function runPrivateStateCli(args, options = {}) {
   });
 }
 
+function installPrivateStateCliRuntimeForE2E() {
+  return runPrivateStateCli(["--install"], {
+    label: "private-state-cli:install",
+  });
+}
+
 function deriveParticipant(index, alias) {
   const wallet = HDNodeWallet.fromPhrase(anvilMnemonic, undefined, `m/44'/60'/0'/0/${index}`);
   return {
@@ -1370,6 +1393,8 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
   const derived = await materializeCurrentDAppDefinition(provider, participants);
   const deployer = new Wallet(anvilDeployerPrivateKey, provider);
   const dAppManager = new Contract(bridgeDeployment.dAppManager, dAppManagerAbi, deployer);
+  const privateStateArtifactDir = latestPrivateStateArtifactDir();
+  const registrationManifestPath = path.join(privateStateArtifactDir, "dapp-registration.31337.json");
   let deletedExistingRegistration = false;
   let deleteTxHash = null;
   let deleteBlockNumber = null;
@@ -1422,15 +1447,24 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
     storageCount: derived.definition.storageMetadata.length,
     functionCount: derived.definition.functions.length,
     artifactsRoot: dappMetadataRoot,
+    registrationManifestPath,
   };
-
-  writeJson(path.join(outputRoot, "dapp-registration.json"), {
-    dappId,
+  const manifest = {
+    generatedAt: new Date().toISOString(),
+    deploymentPath: latestBridgeDeploymentPath(),
+    appDeploymentPath: path.join(privateStateArtifactDir, "deployment.31337.latest.json"),
+    storageLayoutPath: path.join(privateStateArtifactDir, "storage-layout.31337.latest.json"),
+    dappId: dappIdNumber,
     dappLabel,
+    dAppManager: bridgeDeployment.dAppManager,
+    rpcUrl: providerUrl,
     result,
     definition: derived.definition,
     records: derived.records,
-  });
+  };
+
+  writeJson(path.join(outputRoot, "dapp-registration.json"), manifest);
+  writeJson(registrationManifestPath, manifest);
   return result;
 }
 
@@ -1664,6 +1698,9 @@ async function main() {
     bridgeDeployment = deployBridgeStack();
     canonicalAsset = prepareCanonicalAsset(bridgeDeployment, participants);
     dappRegistrationResult = await registerPrivateStateDApp(provider, bridgeDeployment, participants);
+    if (options.runInstall) {
+      installPrivateStateCliRuntimeForE2E();
+    }
 
     createChannelResult = createChannel();
 

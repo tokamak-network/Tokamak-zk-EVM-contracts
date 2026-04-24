@@ -55,7 +55,8 @@ import {
   requireLatestBridgeArtifactDir,
 } from "../../../scripts/artifacts/lib/deployment-layout.mjs";
 import {
-  ensureDriveDeploymentArtifacts,
+  installDriveDeploymentArtifacts,
+  resolveArtifactCacheBaseRoot,
 } from "../../../scripts/artifacts/lib/google-drive-artifact-cache.mjs";
 import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
@@ -163,12 +164,10 @@ async function prepareDeploymentArtifacts(chainId) {
     return projectRoot;
   }
 
-  const result = await ensureDriveDeploymentArtifacts({
-    chainId: normalizedChainId,
-    dappName: PRIVATE_STATE_DAPP_LABEL,
-  });
-  deploymentBaseRootByChainId.set(normalizedChainId, result.cacheBaseRoot);
-  return result.cacheBaseRoot;
+  const cacheBaseRoot = resolveArtifactCacheBaseRoot();
+  requireInstalledDeploymentArtifacts(cacheBaseRoot, normalizedChainId);
+  deploymentBaseRootByChainId.set(normalizedChainId, cacheBaseRoot);
+  return cacheBaseRoot;
 }
 
 function deploymentBaseRootForChainId(chainId) {
@@ -181,6 +180,21 @@ function deploymentBaseRootForChainId(chainId) {
     return projectRoot;
   }
   throw new Error(`Deployment artifacts for chain ${normalizedChainId} were not prepared.`);
+}
+
+function requireInstalledDeploymentArtifacts(cacheBaseRoot, chainId) {
+  try {
+    requireLatestBridgeArtifactDir(cacheBaseRoot, chainId);
+    requireLatestDappArtifactDir(cacheBaseRoot, chainId, PRIVATE_STATE_DAPP_LABEL);
+  } catch (error) {
+    throw new Error(
+      [
+        `Missing installed deployment artifacts for chain ${chainId} under ${cacheBaseRoot}.`,
+        "Run install-zk-evm before running private-state CLI commands for public networks.",
+        `Original error: ${error.message}`,
+      ].join(" "),
+    );
+  }
 }
 
 async function main() {
@@ -953,11 +967,22 @@ async function handleInstallZkEvm({ args }) {
   }
   run(tokamakCliCommand, installArgs, { cwd: projectRoot });
   run("node", [path.join("scripts", "generate-tokamak-shared-constants.js")], { cwd: projectRoot });
+  const deploymentArtifacts = await installDriveDeploymentArtifacts({
+    dappName: PRIVATE_STATE_DAPP_LABEL,
+  });
   printJson({
     action: "install-zk-evm",
     tokamakCli: tokamakCliBaseArgs[0],
     cacheRoot: tokamakCliCacheRoot,
     docker: Boolean(args.docker),
+    deploymentArtifactCacheRoot: deploymentArtifacts.cacheBaseRoot,
+    installedDeploymentArtifacts: deploymentArtifacts.installed.map((entry) => ({
+      chainId: entry.chainId,
+      bridgeTimestamp: entry.bridgeTimestamp,
+      dappTimestamp: entry.dappTimestamp,
+      bridgeDir: entry.bridgeDir,
+      dappDir: entry.dappDir,
+    })),
   });
 }
 
@@ -4665,7 +4690,7 @@ function printHelp() {
   console.log(`
 Commands:
   install-zk-evm [--docker]
-      Install the Tokamak zk-EVM CLI runtime cache
+      Install the Tokamak zk-EVM CLI runtime cache and private-state deployment artifacts
       Use --docker on Linux to forward tokamak-cli --install --docker
 
   uninstall-zk-evm

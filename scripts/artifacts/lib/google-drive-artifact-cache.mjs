@@ -21,20 +21,83 @@ export function defaultArtifactCacheBaseRoot() {
   return path.join(os.homedir(), ".tokamak-private-state");
 }
 
+export function resolveArtifactCacheBaseRoot(cacheBaseRoot = process.env.PRIVATE_STATE_ARTIFACT_CACHE_ROOT
+  ?? process.env.TOKAMAK_ARTIFACT_CACHE_ROOT
+  ?? defaultArtifactCacheBaseRoot()) {
+  return path.resolve(cacheBaseRoot);
+}
+
+export async function installDriveDeploymentArtifacts({
+  dappName,
+  indexFileId = process.env.PRIVATE_STATE_DRIVE_ARTIFACT_INDEX_FILE_ID
+    ?? process.env.TOKAMAK_ARTIFACT_INDEX_FILE_ID
+    ?? DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID,
+  cacheBaseRoot,
+} = {}) {
+  const normalizedDappName = requireNonEmptyString(dappName, "dappName");
+  const normalizedCacheBaseRoot = resolveArtifactCacheBaseRoot(cacheBaseRoot);
+  const index = await fetchPublicArtifactIndex(indexFileId);
+  const installed = [];
+
+  for (const chainId of Object.keys(index.chains).sort(compareChainIds)) {
+    const chain = index.chains[chainId];
+    if (!chain?.bridge?.timestamp || !chain?.bridge?.files || !chain.dapps?.[normalizedDappName]) {
+      continue;
+    }
+    installed.push(await materializeIndexedDeployment({
+      index,
+      chainId,
+      dappName: normalizedDappName,
+      cacheBaseRoot: normalizedCacheBaseRoot,
+    }));
+  }
+
+  if (installed.length === 0) {
+    throw new Error(`Drive artifact index does not contain installable artifacts for ${normalizedDappName}.`);
+  }
+
+  writeCachedArtifactIndex(normalizedCacheBaseRoot, index);
+  return {
+    cacheBaseRoot: normalizedCacheBaseRoot,
+    index,
+    installed,
+  };
+}
+
 export async function ensureDriveDeploymentArtifacts({
   chainId,
   dappName,
   indexFileId = process.env.PRIVATE_STATE_DRIVE_ARTIFACT_INDEX_FILE_ID
     ?? process.env.TOKAMAK_ARTIFACT_INDEX_FILE_ID
     ?? DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID,
-  cacheBaseRoot = process.env.PRIVATE_STATE_ARTIFACT_CACHE_ROOT
-    ?? process.env.TOKAMAK_ARTIFACT_CACHE_ROOT
-    ?? defaultArtifactCacheBaseRoot(),
+  cacheBaseRoot,
 } = {}) {
   const normalizedChainId = String(requireChainId(chainId));
   const normalizedDappName = requireNonEmptyString(dappName, "dappName");
-  const normalizedCacheBaseRoot = path.resolve(cacheBaseRoot);
+  const normalizedCacheBaseRoot = resolveArtifactCacheBaseRoot(cacheBaseRoot);
   const index = await fetchPublicArtifactIndex(indexFileId);
+  const result = await materializeIndexedDeployment({
+    index,
+    chainId: normalizedChainId,
+    dappName: normalizedDappName,
+    cacheBaseRoot: normalizedCacheBaseRoot,
+  });
+  writeCachedArtifactIndex(normalizedCacheBaseRoot, index);
+  return {
+    cacheBaseRoot: normalizedCacheBaseRoot,
+    index,
+    ...result,
+  };
+}
+
+async function materializeIndexedDeployment({
+  index,
+  chainId,
+  dappName,
+  cacheBaseRoot,
+}) {
+  const normalizedChainId = String(requireChainId(chainId));
+  const normalizedDappName = requireNonEmptyString(dappName, "dappName");
   const chain = index.chains[normalizedChainId];
   if (!chain) {
     throw new Error(`Drive artifact index does not contain chain ${normalizedChainId}.`);
@@ -50,12 +113,12 @@ export async function ensureDriveDeploymentArtifacts({
     );
   }
 
-  const bridgeDir = bridgeArtifactDir(normalizedCacheBaseRoot, normalizedChainId, chain.bridge.timestamp);
-  const dappDir = dappArtifactDir(normalizedCacheBaseRoot, normalizedChainId, normalizedDappName, dapp.timestamp);
+  const bridgeDir = bridgeArtifactDir(cacheBaseRoot, normalizedChainId, chain.bridge.timestamp);
+  const dappDir = dappArtifactDir(cacheBaseRoot, normalizedChainId, normalizedDappName, dapp.timestamp);
 
-  pruneTimestampSiblings(bridgeArtifactRoot(normalizedCacheBaseRoot, normalizedChainId), chain.bridge.timestamp);
+  pruneTimestampSiblings(bridgeArtifactRoot(cacheBaseRoot, normalizedChainId), chain.bridge.timestamp);
   pruneTimestampSiblings(
-    dappArtifactRoot(normalizedCacheBaseRoot, normalizedChainId, normalizedDappName),
+    dappArtifactRoot(cacheBaseRoot, normalizedChainId, normalizedDappName),
     dapp.timestamp,
   );
 
@@ -68,21 +131,26 @@ export async function ensureDriveDeploymentArtifacts({
     files: dapp.files,
   });
 
-  fs.mkdirSync(deploymentRoot(normalizedCacheBaseRoot), { recursive: true });
-  fs.writeFileSync(
-    path.join(deploymentRoot(normalizedCacheBaseRoot), "artifact-index.json"),
-    `${JSON.stringify(index, null, 2)}\n`,
-    "utf8",
-  );
-
   return {
-    cacheBaseRoot: normalizedCacheBaseRoot,
-    index,
+    chainId: Number(normalizedChainId),
     bridgeDir,
     dappDir,
     bridgeTimestamp: chain.bridge.timestamp,
     dappTimestamp: dapp.timestamp,
   };
+}
+
+function writeCachedArtifactIndex(cacheBaseRoot, index) {
+  fs.mkdirSync(deploymentRoot(cacheBaseRoot), { recursive: true });
+  fs.writeFileSync(
+    path.join(deploymentRoot(cacheBaseRoot), "artifact-index.json"),
+    `${JSON.stringify(index, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+function compareChainIds(left, right) {
+  return Number(left) - Number(right);
 }
 
 async function fetchPublicArtifactIndex(indexFileId) {

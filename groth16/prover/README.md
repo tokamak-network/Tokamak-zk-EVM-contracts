@@ -34,7 +34,9 @@ node scripts/groth16/prover/updateTree/generateProof.mjs \
   --input /path/to/input.json \
   --skip-compile \
   --wasm /path/to/circuit_updateTree.wasm \
-  --zkey /path/to/circuit_final.zkey
+  --zkey /path/to/circuit_final.zkey \
+  --proof-output /path/to/proof.json \
+  --public-output /path/to/public.json
 ```
 
 ## Input Shape

@@ -54,6 +54,7 @@ import {
   privateStateCliArtifactPaths,
   resolveArtifactCacheBaseRoot,
 } from "@tokamak-private-dapps/common-library/artifact-cache";
+import { main as generateUpdateTreeProof } from "@tokamak-private-dapps/common-library/groth16/prover/updateTree/generateProof";
 import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,
@@ -3358,25 +3359,23 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
     proof: proof.siblings.map((siblings) => ethers.toBigInt(siblings[0] ?? 0n).toString()),
   };
 
-  writeJson(path.join(operationDir, "input.json"), input);
-  run(
-    "node",
-    [
-      "scripts/groth16/prover/updateTree/generateProof.mjs",
-      "--input",
-      path.join(operationDir, "input.json"),
-      "--zkey",
-      grothArtifacts.zkeyPath,
-    ],
-    {
-      cwd: projectRoot,
-    },
-  );
+  const inputPath = path.join(operationDir, "input.json");
+  const proofOutputPath = path.join(operationDir, "proof.json");
+  const publicOutputPath = path.join(operationDir, "public.json");
+  writeJson(inputPath, input);
+  await generateUpdateTreeProof([
+    "--input",
+    inputPath,
+    "--zkey",
+    grothArtifacts.zkeyPath,
+    "--proof-output",
+    proofOutputPath,
+    "--public-output",
+    publicOutputPath,
+  ]);
 
-  const proofJson = readJson(path.join(projectRoot, "groth16", "prover", "updateTree", "proof.json"));
-  const publicSignals = readJson(path.join(projectRoot, "groth16", "prover", "updateTree", "public.json"));
-  writeJson(path.join(operationDir, "proof.json"), proofJson);
-  writeJson(path.join(operationDir, "public.json"), publicSignals);
+  const proofJson = readJson(proofOutputPath);
+  const publicSignals = readJson(publicOutputPath);
 
   return {
     input,

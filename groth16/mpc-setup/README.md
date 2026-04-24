@@ -47,6 +47,12 @@ Publish the Dusk-backed `updateTree` setup archive to Google Drive with:
 node groth16/mpc-setup/publish_update_tree_setup.mjs
 ```
 
+Run the upload preflight before generating a new setup:
+
+```bash
+node groth16/mpc-setup/publish_update_tree_setup.mjs --preflight
+```
+
 The publisher reads these environment variables:
 
 - `GROTH16_MPC_DRIVE_FOLDER_ID`: Google Drive folder id for Groth16 MPC archives.

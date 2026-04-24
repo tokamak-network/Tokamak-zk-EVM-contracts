@@ -28,8 +28,10 @@ const FINAL_OUTPUT_FILES = [
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const groth16Root = path.resolve(__dirname, "..");
 const outputDir = path.join(__dirname, "crs");
 const tempDir = path.join(__dirname, ".tmp");
+const packageJsonPath = path.join(groth16Root, "package.json");
 const provenancePath = path.join(outputDir, "zkey_provenance.json");
 
 function readRequiredEnv(name) {
@@ -149,6 +151,15 @@ function writeJson(filePath, payload) {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
+function readPackageVersion() {
+  const packageJson = readJson(packageJsonPath);
+  const version = packageJson.version;
+  if (typeof version !== "string" || version.length === 0) {
+    throw new Error(`${packageJsonPath} is missing a package version.`);
+  }
+  return version;
+}
+
 function assertOutputFiles() {
   for (const fileName of FINAL_OUTPUT_FILES) {
     const filePath = path.join(outputDir, fileName);
@@ -172,6 +183,10 @@ function buildArchiveName(provenance) {
     throw new Error("zkey_provenance.json is missing backend_version.");
   }
   return `${ARCHIVE_PREFIX}-v${version}-${buildArchiveTimestamp(provenance)}.zip`;
+}
+
+function buildArchiveVersionPrefix(version = readPackageVersion()) {
+  return `${ARCHIVE_PREFIX}-v${version}-`;
 }
 
 async function hashFile(filePath) {
@@ -270,8 +285,7 @@ export async function publishUpdateTreeSetup() {
   await validateProvenanceHashes(provenance);
 
   const archiveName = buildArchiveName(provenance);
-  const archiveVersionPrefix = archiveName.replace(/-\d{8}T\d{6}Z\.zip$/, "-");
-  await validateDriveFolder(drive, config, archiveVersionPrefix);
+  await validateDriveFolder(drive, config, buildArchiveVersionPrefix(provenance.backend_version));
 
   provenance.published_folder_url = config.folderUrl;
   provenance.published_archive_name = archiveName;
@@ -291,8 +305,20 @@ export async function publishUpdateTreeSetup() {
   }
 }
 
+export async function preflightUpdateTreeSetupPublish() {
+  const config = readDriveUploadConfig();
+  const drive = await createDriveClient(config);
+  const version = readPackageVersion();
+  await validateDriveFolder(drive, config, buildArchiveVersionPrefix(version));
+  console.log(`Groth16 MPC Drive preflight passed for ${ARCHIVE_PREFIX} v${version}: ${config.folderUrl}`);
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  publishUpdateTreeSetup().catch((error) => {
+  const command = process.argv.includes("--preflight")
+    ? preflightUpdateTreeSetupPublish
+    : publishUpdateTreeSetup;
+
+  command().catch((error) => {
     console.error(error);
     process.exit(1);
   });

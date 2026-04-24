@@ -336,7 +336,7 @@ function buildPhase1SourceProvenance({ responsePath, responseSha256, autoDownloa
 
     return {
         DuskGroth16: {
-            source_path: responsePath,
+            source_path: path.basename(responsePath),
             source_size_bytes: responseStat.size,
             raw_encoding: "compressed-response",
             pinned_contribution: duskSource.contributionId,

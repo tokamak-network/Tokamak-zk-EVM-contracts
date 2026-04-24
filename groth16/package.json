@@ -31,6 +31,7 @@
     "compile": "npm --prefix circuits run compile",
     "proof:update-tree": "node prover/updateTree/generateProof.mjs",
     "mpc:generate-update-tree": "node mpc-setup/generate_update_tree_setup_from_dusk.mjs",
+    "mpc:preflight-update-tree-publish": "node mpc-setup/publish_update_tree_setup.mjs --preflight",
     "mpc:publish-update-tree": "node mpc-setup/publish_update_tree_setup.mjs"
   },
   "dependencies": {

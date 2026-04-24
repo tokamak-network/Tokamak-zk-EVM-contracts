@@ -13,7 +13,7 @@ via_ir = true
 evm_version = "prague"
 fs_permissions = [
     { access = "read", path = "./test/fixtures" },
-    { access = "read", path = "../submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json" },
+    { access = "read", path = "../node_modules/@tokamak-zk-evm/subcircuit-library/subcircuits/library/setupParams.json" },
 ]
 
 [fmt]

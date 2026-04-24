@@ -4,35 +4,49 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Contract, JsonRpcProvider, Wallet } from "ethers";
+import { Contract, JsonRpcProvider, Wallet, getAddress } from "ethers";
 import {
   buildDAppDefinitions,
   buildFunctionDefinition,
   copyDir,
   copyFile,
-  ensureTokamakDistBackendBinaries,
   ensureDir,
   isCapacityError,
-  loadExampleManifest,
   readJson,
   slugify,
   writeJson,
 } from "../../scripts/zk/lib/tokamak-artifacts.mjs";
+import {
+  dappArtifactPaths,
+  latestBridgeTimestampLabel,
+  requireLatestBridgeArtifactDir,
+  requireLatestDappArtifactDir,
+} from "../../scripts/artifacts/lib/deployment-layout.mjs";
+import { deriveRpcUrl } from "../../apps/scripts/network-config.mjs";
+import {
+  buildTokamakCliInvocation,
+  resolveTokamakCliPreprocessOutputDir,
+  resolveTokamakCliSynthOutputDir,
+} from "../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+import { createTimestampLabel } from "../../scripts/drive/lib/google-drive-upload.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
-const tokamakSubmoduleRoot = path.join(repoRoot, "submodules", "Tokamak-zk-EVM");
-const synthesizerRoot = path.join(tokamakSubmoduleRoot, "packages", "frontend", "synthesizer");
-const tokamakCliPath = path.join(tokamakSubmoduleRoot, "tokamak-cli");
-const defaultArtifactsRoot = path.join(repoRoot, "bridge", "deployments", "dapp-registration-artifacts");
-const syncAppGrothArtifactsScriptPath = path.join(
+const privateStateExampleRoot = path.join(
   repoRoot,
   "apps",
   "private-state",
+  "examples",
+  "synthesizer",
+  "privateState",
+);
+const defaultArtifactsRoot = path.join(repoRoot, "bridge", "deployments", "dapp-registration-artifacts");
+const uploadDappArtifactsScriptPath = path.join(
+  repoRoot,
+  "bridge",
   "scripts",
-  "deploy",
-  "sync-groth16-update-tree-artifacts.sh",
+  "upload-dapp-artifacts.mjs",
 );
 
 function usage() {
@@ -40,8 +54,8 @@ function usage() {
   node bridge/scripts/admin-add-dapp.mjs --group <example-group> [--group <example-group> ...] --dapp-id <uint> [options]
 
 Options:
-  --deployment-path <path>          Bridge deployment JSON path; defaults to bridge/deployments/bridge.<chain-id>.json
-  --abi-manifest <path>             ABI manifest path; defaults to bridge/deployments/bridge-abi-manifest.<chain-id>.json
+  --deployment-path <path>          Bridge deployment JSON path; defaults to the latest bridge snapshot for the resolved chain
+  --abi-manifest <path>             ABI manifest path; defaults to the latest bridge snapshot for the resolved chain
   --dapp-manager <address>          Override DAppManager address; defaults from deployment JSON
   --dapp-label <name>               Logical DApp label used to merge multiple example groups
   --app-network <name>              App deployment network whose manifests should be used; defaults to APPS_NETWORK, BRIDGE_NETWORK, or the bridge chain name
@@ -49,11 +63,11 @@ Options:
   --storage-layout-path <path>      App storage-layout manifest; defaults to private-state latest for the app chain
   --rpc-url <url>                   JSON-RPC URL; defaults from bridge env variables
   --private-key <hex>               Broadcaster key; defaults from BRIDGE_DEPLOYER_PRIVATE_KEY
-  --manifest-out <path>             Output manifest path; defaults to bridge/deployments/dapp-registration.<chain-id>.json
+  --manifest-out <path>             Output manifest path; defaults to deployment/chain-id-<chain>/dapps/<dapp-name>/<timestamp>/dapp-registration.<chain-id>.json
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
 
 Example groups are resolved relative to:
-  submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/<group>/cli-launch-manifest.json
+  apps/private-state/examples/synthesizer/privateState/<group>/<example-name>/
 `);
 }
 
@@ -212,7 +226,21 @@ function loadDAppManagerAbi(abiManifestPath) {
 }
 
 function resolvePrivateStateManifestPath(rootDir, chainId, kind) {
-  return path.join(repoRoot, "apps", "private-state", "deploy", `${kind}.${chainId}.latest.json`);
+  const latestDir = requireLatestDappArtifactDir(rootDir, chainId, "private-state");
+  return path.join(latestDir, `${kind}.${chainId}.latest.json`);
+}
+
+function resolveDappSourceRoot(rootDir, dappLabel) {
+  const appRoot = path.join(rootDir, "apps", dappLabel);
+  const sourceRoot = path.join(appRoot, "src");
+
+  if (fs.existsSync(sourceRoot) && fs.statSync(sourceRoot).isDirectory()) {
+    return sourceRoot;
+  }
+
+  throw new Error(
+    `Unable to locate source directory for ${dappLabel}: ${sourceRoot}`,
+  );
 }
 
 const APP_NETWORK_CHAIN_IDS = new Map([
@@ -232,11 +260,13 @@ const CHAIN_ID_TO_APP_NETWORK = new Map(
 );
 
 function resolveBridgeDeploymentPath(chainId) {
-  return path.join(repoRoot, "bridge", "deployments", `bridge.${chainId}.json`);
+  const latestDir = requireLatestBridgeArtifactDir(repoRoot, chainId);
+  return path.join(latestDir, `bridge.${chainId}.json`);
 }
 
 function resolveBridgeAbiManifestPath(chainId) {
-  return path.join(repoRoot, "bridge", "deployments", `bridge-abi-manifest.${chainId}.json`);
+  const latestDir = requireLatestBridgeArtifactDir(repoRoot, chainId);
+  return path.join(latestDir, `bridge-abi-manifest.${chainId}.json`);
 }
 
 function resolveDefaultAppNetwork(chainId) {
@@ -261,6 +291,23 @@ function resolveAppChainId(appNetwork) {
     throw new Error(`Unsupported --app-network=${appNetwork}`);
   }
   return chainId;
+}
+
+function resolveAppRpcUrl(appNetwork) {
+  return deriveRpcUrl({
+    networkName: appNetwork,
+    alchemyApiKey: process.env.APPS_ALCHEMY_API_KEY?.trim(),
+    rpcUrlOverride: process.env.APPS_RPC_URL_OVERRIDE?.trim(),
+  });
+}
+
+function shouldSkipArtifactUpload(bridgeChainId, appChainId) {
+  return (
+    process.env.BRIDGE_NETWORK === "anvil" ||
+    process.env.APPS_NETWORK === "anvil" ||
+    bridgeChainId === 31337 ||
+    appChainId === 31337
+  );
 }
 
 function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
@@ -305,6 +352,27 @@ function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
   };
 }
 
+async function writeDeploymentSnapshotWithBytecode({ provider, sourcePath, targetPath }) {
+  const deployment = readJson(sourcePath);
+  const deployedBytecode = {};
+
+  for (const [contractName, address] of Object.entries(deployment.contracts ?? {})) {
+    if (typeof address !== "string" || address.length === 0) {
+      continue;
+    }
+
+    const normalizedAddress = getAddress(address);
+    const code = await provider.getCode(normalizedAddress);
+    if (code === "0x") {
+      throw new Error(`No deployed bytecode found for ${contractName} at ${normalizedAddress}.`);
+    }
+    deployedBytecode[contractName] = code;
+  }
+
+  deployment.deployedBytecode = deployedBytecode;
+  writeJson(targetPath, deployment);
+}
+
 function run(command, args, { cwd = repoRoot, streamOutput = true, env = process.env } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -344,41 +412,31 @@ function run(command, args, { cwd = repoRoot, streamOutput = true, env = process
   });
 }
 
-async function updateTokamakSubmodule() {
-  await run("git", ["fetch", "origin", "dev"], { cwd: tokamakSubmoduleRoot });
-  await run("git", ["checkout", "-B", "dev", "origin/dev"], { cwd: tokamakSubmoduleRoot });
-  await run("git", ["pull", "--ff-only", "origin", "dev"], { cwd: tokamakSubmoduleRoot });
-}
-
 async function runTokamakInstall() {
-  await run(tokamakCliPath, ["--install"], { cwd: tokamakSubmoduleRoot });
+  const invocation = buildTokamakCliInvocation(["--install"]);
+  await run(invocation.command, invocation.args, { cwd: repoRoot });
 }
 
 function buildTokamakCliArgs(files) {
   return [
     "--synthesize",
-    "--tokamak-ch-tx",
     "--previous-state",
-    path.join(synthesizerRoot, files.previousState),
+    files.previousState,
     "--transaction",
-    path.join(synthesizerRoot, files.transaction),
+    files.transaction,
     "--block-info",
-    path.join(synthesizerRoot, files.blockInfo),
+    files.blockInfo,
     "--contract-code",
-    path.join(synthesizerRoot, files.contractCode),
+    files.contractCode,
   ];
 }
 
-function distDir() {
-  return path.join(tokamakSubmoduleRoot, "dist");
-}
-
 function synthOutputDir() {
-  return path.join(distDir(), "resource", "synthesizer", "output");
+  return resolveTokamakCliSynthOutputDir();
 }
 
 function preprocessOutputPath() {
-  return path.join(distDir(), "resource", "preprocess", "output", "preprocess.json");
+  return path.join(resolveTokamakCliPreprocessOutputDir(), "preprocess.json");
 }
 
 function collectInstanceDescriptionErrors(instanceDescriptionPath) {
@@ -392,24 +450,50 @@ function collectInstanceDescriptionErrors(instanceDescriptionPath) {
     .filter((line) => /error:/iu.test(line));
 }
 
-async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
-  const groupRoot = path.join(synthesizerRoot, "examples", "privateState", groupName);
-  const manifestPath = path.join(groupRoot, "cli-launch-manifest.json");
-  if (!fs.existsSync(manifestPath)) {
+function loadExampleGroupEntries(groupName) {
+  const groupRoot = path.join(privateStateExampleRoot, groupName);
+  if (!fs.existsSync(groupRoot)) {
     throw new Error(`Unknown DApp example group: ${groupName}`);
   }
 
+  return fs.readdirSync(groupRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const exampleRoot = path.join(groupRoot, entry.name);
+      const files = {
+        previousState: path.join(exampleRoot, "previous_state_snapshot.json"),
+        transaction: path.join(exampleRoot, "transaction.json"),
+        blockInfo: path.join(exampleRoot, "block_info.json"),
+        contractCode: path.join(exampleRoot, "contract_codes.json"),
+      };
+
+      for (const [label, filePath] of Object.entries(files)) {
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`Missing ${label} input for ${groupName}/${entry.name}: ${filePath}`);
+        }
+      }
+
+      return {
+        name: entry.name,
+        files,
+      };
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
   ensureDir(archiveRoot);
-  const entries = loadExampleManifest(manifestPath);
+  const entries = loadExampleGroupEntries(groupName);
   const processed = [];
   const skipped = [];
 
   for (const entry of entries) {
-    const exampleName = entry.files.previousState.split("/").slice(-2, -1)[0];
+    const exampleName = entry.name;
     const exampleOutputRoot = path.join(archiveRoot, slugify(exampleName));
 
     try {
-      await run(tokamakCliPath, buildTokamakCliArgs(entry.files), { cwd: tokamakSubmoduleRoot });
+      const invocation = buildTokamakCliInvocation(buildTokamakCliArgs(entry.files));
+      await run(invocation.command, invocation.args, { cwd: repoRoot });
     } catch (error) {
       const output = error.output ?? String(error);
       if (isCapacityError(output)) {
@@ -440,15 +524,16 @@ async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel) {
 
     copyDir(synthOutputDir(), path.join(exampleOutputRoot, "synthesizer-output"));
 
-    await run(tokamakCliPath, ["--preprocess"], { cwd: tokamakSubmoduleRoot });
+    const preprocessInvocation = buildTokamakCliInvocation(["--preprocess"]);
+    await run(preprocessInvocation.command, preprocessInvocation.args, { cwd: repoRoot });
     copyFile(preprocessOutputPath(), path.join(exampleOutputRoot, "preprocess.json"));
 
     processed.push(
       buildFunctionDefinition({
         groupName: dappLabel,
         exampleName: `${groupName}/${exampleName}`,
-        transactionJsonPath: path.join(synthesizerRoot, entry.files.transaction),
-        snapshotJsonPath: path.join(synthesizerRoot, entry.files.previousState),
+        transactionJsonPath: entry.files.transaction,
+        snapshotJsonPath: entry.files.previousState,
         preprocessJsonPath: path.join(exampleOutputRoot, "preprocess.json"),
         instanceJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance.json"),
         instanceDescriptionJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance_description.json"),
@@ -497,19 +582,68 @@ async function main() {
   }
   const appNetwork = options.appNetwork ?? resolveDefaultAppNetwork(chainId);
   const appChainId = resolveAppChainId(appNetwork);
-  await updateTokamakSubmodule();
-  ensureTokamakDistBackendBinaries(tokamakSubmoduleRoot);
+  let appProvider = provider;
+  if (appChainId !== chainId) {
+    const appRpcUrl = resolveAppRpcUrl(appNetwork);
+    appProvider = appRpcUrl === rpcUrl ? provider : new JsonRpcProvider(appRpcUrl);
+    const resolvedAppChainId = Number((await appProvider.getNetwork()).chainId);
+    if (resolvedAppChainId !== appChainId) {
+      throw new Error(`App RPC chain ID mismatch: expected ${appChainId}, received ${resolvedAppChainId}.`);
+    }
+  }
   await runTokamakInstall();
   const appDeploymentPath =
     options.appDeploymentPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "deployment");
   const storageLayoutPath =
     options.storageLayoutPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "storage-layout");
-  const manifestOut =
-    options.manifestOut ?? path.join(repoRoot, "bridge", "deployments", `dapp-registration.${chainId}.json`);
   const dappLabel = options.dappLabel ?? "private-state";
+  const sourceRoot = resolveDappSourceRoot(repoRoot, dappLabel);
+  const uploadTimestamp = createTimestampLabel();
+  const dappSnapshot = dappArtifactPaths(repoRoot, chainId, dappLabel, uploadTimestamp);
+  const manifestOut = options.manifestOut ?? dappSnapshot.registrationManifestPath;
+  const manifestPendingOut = path.join(
+    repoRoot,
+    "deployment",
+    ".pending",
+    `chain-id-${chainId}`,
+    "dapps",
+    dappLabel,
+    uploadTimestamp,
+    path.basename(manifestOut),
+  );
   const artifactsRoot = path.join(options.artifactsOut, dappLabel);
   ensureDir(artifactsRoot);
   const appContext = loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath });
+  const sourceDeploymentDir = path.dirname(appDeploymentPath);
+  const sourceControllerAbiPath = path.join(sourceDeploymentDir, "PrivateStateController.callable-abi.json");
+  const sourceVaultAbiPath = path.join(sourceDeploymentDir, "L2AccountingVault.callable-abi.json");
+
+  if (!shouldSkipArtifactUpload(chainId, appChainId)) {
+    await run(
+      "node",
+      [
+        uploadDappArtifactsScriptPath,
+        "--dapp-name",
+        dappLabel,
+        "--bridge-chain-id",
+        String(chainId),
+        "--app-chain-id",
+        String(appChainId),
+        "--registration-manifest",
+        manifestPendingOut,
+        "--app-deployment-path",
+        appDeploymentPath,
+        "--storage-layout-path",
+        storageLayoutPath,
+        "--timestamp",
+        uploadTimestamp,
+        "--preflight",
+      ],
+      {
+        cwd: repoRoot,
+      },
+    );
+  }
 
   const allProcessed = [];
   const allSkipped = [];
@@ -553,10 +687,16 @@ async function main() {
     }))
   );
   const receipt = await tx.wait();
-
-  await run("bash", [syncAppGrothArtifactsScriptPath, String(appChainId)], {
-    cwd: repoRoot,
+  ensureDir(dappSnapshot.rootDir);
+  await writeDeploymentSnapshotWithBytecode({
+    provider: appProvider,
+    sourcePath: appDeploymentPath,
+    targetPath: dappSnapshot.deploymentPath,
   });
+  copyFile(storageLayoutPath, dappSnapshot.storageLayoutPath);
+  copyFile(sourceControllerAbiPath, dappSnapshot.privateStateControllerAbiPath);
+  copyFile(sourceVaultAbiPath, dappSnapshot.l2AccountingVaultAbiPath);
+  copyDir(sourceRoot, dappSnapshot.sourceDir);
 
   const manifest = {
     generatedAt: new Date().toISOString(),
@@ -564,9 +704,9 @@ async function main() {
     abiManifestPath,
     appNetwork,
     appChainId,
-    appDeploymentPath,
-    storageLayoutPath,
-    appGrothManifestPath: path.join(repoRoot, "apps", "private-state", "deploy", `groth16-updateTree.${appChainId}.latest.json`),
+    appDeploymentPath: dappSnapshot.deploymentPath,
+    storageLayoutPath: dappSnapshot.storageLayoutPath,
+    sourceDir: dappSnapshot.sourceDir,
     groupNames: options.groups,
     dappLabel,
     dappId: options.dappId,
@@ -588,8 +728,47 @@ async function main() {
       functionCount: dapp.functions.length,
     },
   };
+  writeJson(manifestPendingOut, manifest);
 
-  writeJson(manifestOut, manifest);
+  let publication = null;
+  if (!shouldSkipArtifactUpload(chainId, appChainId)) {
+    const uploadReceiptPath = path.join(path.dirname(manifestPendingOut), `${path.basename(manifestPendingOut)}.upload.json`);
+    await run(
+      "node",
+      [
+        uploadDappArtifactsScriptPath,
+        "--dapp-name",
+        dappLabel,
+        "--bridge-chain-id",
+        String(chainId),
+        "--app-chain-id",
+        String(appChainId),
+        "--registration-manifest",
+        manifestPendingOut,
+        "--app-deployment-path",
+        dappSnapshot.deploymentPath,
+        "--storage-layout-path",
+        dappSnapshot.storageLayoutPath,
+        "--timestamp",
+        uploadTimestamp,
+        "--receipt-out",
+        uploadReceiptPath,
+      ],
+      {
+        cwd: repoRoot,
+      },
+    );
+    publication = readJson(uploadReceiptPath);
+    fs.rmSync(uploadReceiptPath, { force: true });
+  }
+
+  if (publication) {
+    manifest.publication = publication;
+    writeJson(manifestPendingOut, manifest);
+  }
+
+  ensureDir(path.dirname(manifestOut));
+  fs.renameSync(manifestPendingOut, manifestOut);
   console.log(`Using app deployment manifest: ${appDeploymentPath}`);
   console.log(`Using app storage layout manifest: ${storageLayoutPath}`);
   console.log(`Registered DApp ${options.dappId} for groups ${options.groups.join(", ")} as ${dappLabel}.`);

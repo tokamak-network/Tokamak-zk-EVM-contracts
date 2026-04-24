@@ -5,9 +5,13 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { createAddressFromString } from "@ethereumjs/util";
 import { ethers } from "ethers";
+import {
+  resolveSubcircuitFrontendCfgPath,
+  resolveSubcircuitSetupParamsPath,
+} from "./zk/lib/tokamak-runtime-paths.mjs";
 
-const DEFAULT_SETUP_PARAMS_PATH = "submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/setupParams.json";
-const DEFAULT_FRONTEND_CFG_PATH = "submodules/Tokamak-zk-EVM/dist/resource/qap-compiler/library/frontendCfg.json";
+const DEFAULT_SETUP_PARAMS_PATH = resolveSubcircuitSetupParamsPath();
+const DEFAULT_FRONTEND_CFG_PATH = resolveSubcircuitFrontendCfgPath();
 const GENERATED_TOKAMAK_ENVIRONMENT_PATH = "bridge/src/generated/TokamakEnvironment.sol";
 const require = createRequire(import.meta.url);
 const TARGET_FILES = [

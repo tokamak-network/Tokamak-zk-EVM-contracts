@@ -45,7 +45,8 @@ Required variables:
 
 For `APPS_NETWORK=anvil`, scripts default to `http://127.0.0.1:8545`.
 
-Successful deployments write app-local artifacts into `apps/private-state/deploy`:
+Deployment artifacts can be materialized into `apps/private-state/deploy` by running
+`apps/private-state/scripts/deploy/write-deploy-artifacts.sh`:
 
 - `deployment.<chain-id>.<timestamp>.json`
 - `deployment.<chain-id>.latest.json`
@@ -60,11 +61,9 @@ Bridge-side DApp registration then refreshes the app-local Groth16 consumption m
 - `groth16/<chain-id>/circuit_final.zkey`
 - `groth16/<chain-id>/metadata.json`
 
-Successful deployments also refresh the checked-in Synthesizer private-state launch inputs under:
+Bridge-side DApp registration consumes repo-owned Synthesizer example inputs under:
 
-- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/examples/privateState/`
-- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/scripts/deployment/private-state/`
-- `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/.vscode/launch.json`
+- `apps/private-state/examples/synthesizer/privateState/`
 
 ## Local Commands
 
@@ -141,15 +140,15 @@ The commands below are ordered by the normal execution flow.
 
 `install-zk-evm`
 
-- installs the local Tokamak zk-EVM toolchain through `submodules/Tokamak-zk-EVM/tokamak-cli --install`
-- accepts no options
-- bootstraps `submodules/Tokamak-zk-EVM` from the repository `.gitmodules` definition if the submodule worktree is missing
-- then fetches `origin/dev` inside the submodule, switches to `dev`, and fast-forwards before running the installer
+- installs the local Tokamak zk-EVM toolchain through the published `@tokamak-zk-evm/cli` package
+- accepts optional `--docker` to forward `tokamak-cli --install --docker`
+- supports `--docker` only on Linux hosts because that mode is implemented by the upstream Tokamak CLI
+- refreshes the local `~/.tokamak-zk-evm` runtime cache
+- refreshes shared bridge constants derived from `tokamak-l2js`
 
 `uninstall-zk-evm`
 
-- removes the checked-out contents of `submodules/Tokamak-zk-EVM/`
-- preserves the submodule pointer itself
+- removes the local `~/.tokamak-zk-evm` runtime cache
 - accepts no options
 
 ### 2. Create the channel

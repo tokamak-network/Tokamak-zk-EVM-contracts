@@ -39,10 +39,18 @@ import {
 import {
   buildDAppDefinitions,
   buildFunctionDefinition,
-  ensureTokamakDistBackendBinaries,
   hashTokamakPublicInputs,
   writeJson,
 } from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
+import {
+  buildTokamakCliInvocation,
+  resolveTokamakCliResourceDir,
+  resolveTokamakCliSetupOutputDir,
+} from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+import {
+  bridgeArtifactPaths,
+  requireLatestDappArtifactDir,
+} from "../../../../scripts/artifacts/lib/deployment-layout.mjs";
 import {
   computeEncryptedNoteSalt,
   deriveNoteReceiveKeyMaterial,
@@ -56,16 +64,13 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
-const tokamakRoot = path.resolve(repoRoot, "submodules", "Tokamak-zk-EVM");
-const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
-const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
-const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
+const bridgeArtifactTimestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+const bridgeArtifactSnapshot = bridgeArtifactPaths(repoRoot, 31337, bridgeArtifactTimestamp);
+const tokamakCliInvocation = buildTokamakCliInvocation();
+const tokamakSetupDistDir = resolveTokamakCliSetupOutputDir();
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-genesis");
-const deploymentManifestPath = path.resolve(appRoot, "deploy", "deployment.31337.latest.json");
-const storageLayoutManifestPath = path.resolve(appRoot, "deploy", "storage-layout.31337.latest.json");
-const controllerAbiPath = path.resolve(appRoot, "deploy", "PrivateStateController.callable-abi.json");
-const bridgeDeploymentArtifactPath = path.resolve(bridgeRoot, "deployments", "bridge.31337.json");
-const bridgeAbiManifestPath = path.resolve(bridgeRoot, "deployments", "bridge-abi-manifest.31337.json");
+const bridgeDeploymentArtifactPath = bridgeArtifactSnapshot.deploymentPath;
+const bridgeAbiManifestPath = bridgeArtifactSnapshot.abiManifestPath;
 const bridgeDeploymentSummaryPath = path.resolve(outputRoot, "bridge-deployment.json");
 const grothInputDir = path.resolve(outputRoot, "groth-inputs");
 const tokamakStepsDir = path.resolve(outputRoot, "tokamak-steps");
@@ -174,6 +179,10 @@ function run(command, args, { cwd = repoRoot, env = process.env } = {}) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function latestPrivateStateArtifactDir() {
+  return requireLatestDappArtifactDir(repoRoot, 31337, "private-state");
 }
 
 function ensureDir(dirPath) {
@@ -444,10 +453,6 @@ function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonc
   return toTokamakSnapshot(tx);
 }
 
-function outputFile(relativePath) {
-  return path.join(tokamakRoot, "dist", relativePath);
-}
-
 const tokamakStepArtifactDirectories = [
   path.join("synthesizer", "output"),
   path.join("preprocess", "output"),
@@ -468,7 +473,7 @@ function copyTokamakArtifacts(stepDir) {
   const resourceRoot = path.join(stepDir, "resource");
   cleanDir(resourceRoot);
   for (const relativeDirectory of tokamakStepArtifactDirectories) {
-    const sourceDir = path.join(tokamakRoot, "dist", "resource", relativeDirectory);
+    const sourceDir = resolveTokamakCliResourceDir(relativeDirectory);
     if (!fs.existsSync(sourceDir)) {
       continue;
     }
@@ -479,24 +484,18 @@ function copyTokamakArtifacts(stepDir) {
   }
 }
 
-function ensureTokamakSetupArtifacts() {
+function assertTokamakSetupArtifactsInstalled() {
   const missingInDist = requiredTokamakSetupArtifacts
     .filter((fileName) => !fs.existsSync(path.join(tokamakSetupDistDir, fileName)));
   if (missingInDist.length === 0) {
     return;
   }
-
-  const missingInSource = requiredTokamakSetupArtifacts
-    .filter((fileName) => !fs.existsSync(path.join(tokamakSetupSourceDir, fileName)));
-  expect(
-    missingInSource.length === 0,
-    `Missing Tokamak setup artifacts in trusted setup output: ${missingInSource.join(", ")}`,
+  throw new Error(
+    [
+      `Missing Tokamak setup artifacts in ${tokamakSetupDistDir}: ${missingInDist.join(", ")}.`,
+      "Run tokamak-cli --install or rerun this script without --skip-install.",
+    ].join(" "),
   );
-
-  ensureDir(tokamakSetupDistDir);
-  for (const fileName of requiredTokamakSetupArtifacts) {
-    fs.copyFileSync(path.join(tokamakSetupSourceDir, fileName), path.join(tokamakSetupDistDir, fileName));
-  }
 }
 
 function loadTokamakPayloadFromStep(stepDir) {
@@ -626,16 +625,16 @@ async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
 
   await writeStepInputs(stepDir, currentSnapshot, transactionSnapshot, blockInfo, contractCodes);
 
-  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], { cwd: tokamakRoot });
-  ensureTokamakSetupArtifacts();
-  run(tokamakCliPath, ["--preprocess"], { cwd: tokamakRoot });
-  ensureTokamakSetupArtifacts();
-  run(tokamakCliPath, ["--prove"], { cwd: tokamakRoot });
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--synthesize", "--tokamak-ch-tx", stepDir], { cwd: repoRoot });
+  assertTokamakSetupArtifactsInstalled();
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--preprocess"], { cwd: repoRoot });
+  assertTokamakSetupArtifactsInstalled();
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--prove"], { cwd: repoRoot });
 
   const bundlePath = path.join(stepDir, `${step.name}.zip`);
-  run(tokamakCliPath, ["--extract-proof", bundlePath], { cwd: tokamakRoot });
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--extract-proof", bundlePath], { cwd: repoRoot });
   copyTokamakArtifacts(stepDir);
-  run(tokamakCliPath, ["--verify", bundlePath], { cwd: tokamakRoot });
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--verify", bundlePath], { cwd: repoRoot });
 
   const nextSnapshot = readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.json"));
   if (Array.isArray(nextSnapshot.storageAddresses)) {
@@ -881,10 +880,8 @@ async function main() {
 
   await bootstrapAnvil();
 
-  ensureTokamakDistBackendBinaries(tokamakRoot);
-
   if (options.runInstall) {
-    run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
+    run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--install"], { cwd: repoRoot });
   }
 
   const provider = new JsonRpcProvider(providerUrl);
@@ -892,11 +889,12 @@ async function main() {
   const participants = buildParticipants(provider);
   const leader = deployer.address;
 
-  const appDeployment = readJson(deploymentManifestPath);
-  const storageLayout = readJson(storageLayoutManifestPath);
+  const privateStateArtifactDir = latestPrivateStateArtifactDir();
+  const appDeployment = readJson(path.join(privateStateArtifactDir, "deployment.31337.latest.json"));
+  const storageLayout = readJson(path.join(privateStateArtifactDir, "storage-layout.31337.latest.json"));
   const controllerAddress = getAddress(appDeployment.contracts.controller);
   const vaultAddress = getAddress(appDeployment.contracts.l2AccountingVault);
-  const controllerAbi = readJson(controllerAbiPath);
+  const controllerAbi = readJson(path.join(privateStateArtifactDir, "PrivateStateController.callable-abi.json"));
   const controllerInterface = new Interface(controllerAbi);
 
   const liquidBalancesSlot = ethers.toBigInt(

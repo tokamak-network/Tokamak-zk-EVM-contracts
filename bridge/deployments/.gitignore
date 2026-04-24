@@ -4,3 +4,7 @@
 !groth16/
 !groth16/**/
 !groth16/**/*.json
+!tokamak-zkp*.latest.json
+!tokamak-zkp/
+!tokamak-zkp/**/
+!tokamak-zkp/**/*.json

@@ -8,11 +8,3 @@
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 
-[submodule "submodules/Tokamak-zk-EVM"]
-	path = submodules/Tokamak-zk-EVM
-	url = https://github.com/tokamak-network/Tokamak-zk-EVM
-	branch = dev
-[submodule "submodules/TokamakL2JS"]
-	path = submodules/TokamakL2JS
-	url = https://github.com/tokamak-network/TokamakL2JS
-	branch = main

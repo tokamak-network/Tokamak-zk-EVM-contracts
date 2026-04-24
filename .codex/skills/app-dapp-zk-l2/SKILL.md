@@ -78,8 +78,8 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
    - Do not reuse the bridge deployment script directory or the bridge deployment `.env` for app deployment.
    - Write deployment manifests, one deployed-contract storage-layout manifest, and callable ABI JSON files into `apps/<dapp>/deploy`.
    - The storage-layout manifest must contain the deployed contract addresses plus the compiler-reported storage layout for each deployed contract.
-   - Repository-owned code under `apps/`, `bridge/`, `scripts/`, or other root modules may reference files inside `submodules/` when needed, but code that lives inside a submodule must not reference files from the parent repository.
-   - If submodule tooling needs deployment or storage-layout artifacts from this repository, mirror those artifacts into the submodule as part of the repository-owned deployment flow and have the submodule read only its mirrored local copies.
+   - Repository-owned code under `apps/`, `bridge/`, `scripts/`, or other root modules must use the published Tokamak zk-EVM npm packages instead of a top-level Tokamak zk-EVM source checkout.
+   - If external Tokamak tooling needs deployment or storage-layout artifacts from this repository, publish or copy those artifacts through an explicit repository-owned export flow instead of making that tooling read parent-repository paths implicitly.
 11. Provide a DApp-local CLI under `apps/<dapp>/cli`:
    - Use a terminal CLI, not a browser application.
    - Include target-network selection limited to `mainnet`, `sepolia`, and `anvil`, plus optional private-key input for signed transactions.
@@ -95,7 +95,7 @@ python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py \
 13. Require Synthesizer compatibility tests for every user-facing DApp function:
    - Store them under `apps/<dapp>/scripts/synthesizer-compat-test`.
    - Provide one entry script per user-facing function, even if the scripts delegate to shared helpers.
-   - Use `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/cli/index.ts` as the execution entrypoint.
+   - Use the published `@tokamak-zk-evm/synthesizer-node` or `@tokamak-zk-evm/cli` entrypoint for Synthesizer execution.
    - Ensure the generated transactions, hash expectations, and storage-key derivations mirror the TokamakL2 runtime spec rather than raw Ethereum L1 execution assumptions.
    - In particular, when a contract uses runtime `keccak256(...)`, model the resulting value with the TokamakL2 Poseidon replacement semantics in the test harness and example generator.
    - Hold `block_info.json` and `contract_codes.json` fixed for a given function test.

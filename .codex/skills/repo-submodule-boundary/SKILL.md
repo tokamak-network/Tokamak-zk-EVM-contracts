@@ -1,6 +1,6 @@
 ---
 name: repo-submodule-boundary
-description: Use when editing code, scripts, CLIs, deployment tooling, or generators anywhere in this repository and the change may introduce, remove, or reshape dependencies across the parent-repository and `submodules/` boundary. It enforces that repository-owned code may depend on submodule code, but submodule code must never depend on parent-repository files.
+description: Use when editing code, scripts, CLIs, deployment tooling, or generators anywhere in this repository and the change may introduce, remove, or reshape dependencies across a parent-repository and Git-submodule boundary. It enforces that repository-owned code may depend on submodule code, but submodule code must never depend on parent-repository files.
 ---
 
 # Repo Submodule Boundary
@@ -9,12 +9,12 @@ Use this skill whenever a task touches code under this repository and there is a
 the work changes how files are referenced across the boundary between:
 
 - repository-owned code such as `apps/`, `bridge/`, `scripts/`, `.codex/`, or other root modules
-- code that lives inside `submodules/`
+- code that lives inside a Git submodule checkout
 
 ## Boundary Rule
 
-- Repository-owned code may reference files inside `submodules/` when needed.
-- Code inside `submodules/` must not reference files from the parent repository.
+- Repository-owned code may reference files inside a Git submodule checkout when needed.
+- Code inside a Git submodule checkout must not reference files from the parent repository.
 
 This is a one-way dependency rule. Treat any reverse dependency from a submodule back into the
 parent repository as a design bug.
@@ -36,7 +36,7 @@ parent repository as a design bug.
    - `repoRoot`
    - parent-repo relative climbs such as repeated `..`
    - references to `apps/`, `bridge/`, or root deployment folders from submodule code
-   - helper defaults that still point outside `submodules/`
+   - helper defaults that still point outside the submodule checkout
 
 ## Preferred Fix Pattern
 
@@ -53,5 +53,5 @@ Before finishing, verify:
 
 - no edited submodule file references parent-repo files
 - any required mirrored artifacts are produced by repository-owned code
-- the submodule path is stable and local to `submodules/`
+- the submodule path is stable and local to the submodule checkout
 - the dependency direction remains parent repo -> submodule only

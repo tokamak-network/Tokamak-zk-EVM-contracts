@@ -10,18 +10,25 @@ import {
   AbiCoder,
   Contract,
   HDNodeWallet,
+  Interface,
   JsonRpcProvider,
+  keccak256,
   Wallet,
   ethers,
   getAddress,
 } from "ethers";
 import {
   MAX_MT_LEAVES,
+  TokamakL2StateManager,
+  createTokamakL2Common,
+  createTokamakL2StateManagerFromStateSnapshot,
+  createTokamakL2Tx,
   getUserStorageKey,
   poseidon,
 } from "tokamak-l2js";
 import {
   addHexPrefix,
+  bytesToBigInt,
   bytesToHex,
   createAddressFromString,
   hexToBigInt,
@@ -30,8 +37,16 @@ import {
 import {
   buildDAppDefinitions,
   buildFunctionDefinition,
-  ensureTokamakDistBackendBinaries,
 } from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
+import {
+  buildTokamakCliInvocation,
+  resolveTokamakCliResourceDir,
+  resolveTokamakCliSetupOutputDir,
+} from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+import {
+  latestBridgeArtifactDir,
+  requireLatestDappArtifactDir,
+} from "../../../../scripts/artifacts/lib/deployment-layout.mjs";
 import {
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
@@ -42,6 +57,9 @@ import {
 } from "../utils/private-state-cli-shared.mjs";
 import {
   deriveNoteReceiveKeyMaterial,
+  encryptMintNoteValueForOwner,
+  computeEncryptedNoteSalt,
+  encryptNoteValueForRecipient,
 } from "./private-state-note-delivery.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -49,12 +67,8 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
-const tokamakRoot = path.resolve(repoRoot, "submodules", "Tokamak-zk-EVM");
 const cliPath = path.resolve(appRoot, "cli", "private-state-bridge-cli.mjs");
 const bridgeDeployHelperPath = path.resolve(bridgeRoot, "scripts", "deploy-bridge.sh");
-const bridgeDeploymentPath = path.resolve(bridgeRoot, "deployments", "bridge.31337.json");
-const deploymentManifestPath = path.resolve(appRoot, "deploy", "deployment.31337.latest.json");
-const storageLayoutManifestPath = path.resolve(appRoot, "deploy", "storage-layout.31337.latest.json");
 const privateStateDeployScriptPath = path.resolve(
   appRoot,
   "scripts",
@@ -62,12 +76,6 @@ const privateStateDeployScriptPath = path.resolve(
   "DeployPrivateState.s.sol:DeployPrivateStateScript",
 );
 const privateStateArtifactWriterPath = path.resolve(appRoot, "scripts", "deploy", "write-deploy-artifacts.sh");
-const privateStateGrothArtifactSyncPath = path.resolve(
-  appRoot,
-  "scripts",
-  "deploy",
-  "sync-groth16-update-tree-artifacts.sh",
-);
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const systemMonitorRoot = path.resolve(outputRoot, "system-monitor");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
@@ -95,38 +103,30 @@ const tokamakPrevBlockHashCount = 4;
 const requiredTokamakSetupArtifacts = [
   "combined_sigma.rkyv",
   "sigma_preprocess.rkyv",
-  "sigma_verify.rkyv",
+  "sigma_verify.json",
 ];
-const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
-const tokamakSynthesizerRoot = path.resolve(tokamakRoot, "packages", "frontend", "synthesizer");
-const tokamakSynthesizerTsconfigPath = path.resolve(tokamakSynthesizerRoot, "tsconfig.dev.json");
-const synthesizerExamplesRoot = path.resolve(tokamakSynthesizerRoot, "examples", "privateState");
-const generateSynthesizerLaunchInputsPath = path.resolve(
-  appRoot,
-  "scripts",
-  "deploy",
-  "generate-synthesizer-launch-inputs.ts",
-);
-const tokamakSetupSourceDir = path.resolve(tokamakRoot, "packages", "backend", "setup", "trusted-setup", "output");
-const tokamakSetupDistDir = path.resolve(tokamakRoot, "dist", "resource", "setup", "output");
+const tokamakCliInvocation = buildTokamakCliInvocation();
+const tokamakSetupDistDir = resolveTokamakCliSetupOutputDir();
 const tokamakStepArtifactDirectories = [
   path.join("synthesizer", "output"),
   path.join("preprocess", "output"),
 ];
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const abiCoder = AbiCoder.defaultAbiCoder();
+const noteCommitmentDomain = keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NOTE_COMMITMENT"));
+const registrationLaunchInputsRoot = path.resolve(outputRoot, "generated-launch-inputs");
 const dAppManagerAbi = [
   "function deleteDApp(uint256 dappId) external",
   "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
   "function getDAppInfo(uint256 dappId) external view returns (tuple(bool exists, bytes32 labelHash, uint256 channelTokenVaultTreeIndex))",
 ];
 const localRegistrationExamples = [
-  { group: "mintNotes", name: "mintNotes1" },
-  { group: "mintNotes", name: "mintNotes2" },
-  { group: "transferNotes", name: "transferNotes1To1" },
-  { group: "transferNotes", name: "transferNotes1To2" },
-  { group: "transferNotes", name: "transferNotes2To1" },
-  { group: "redeemNotes", name: "redeemNotes1" },
+  "mintNotes1",
+  "mintNotes2",
+  "transferNotes1To1",
+  "transferNotes1To2",
+  "transferNotes2To1",
+  "redeemNotes1",
 ];
 
 function usage() {
@@ -198,6 +198,18 @@ function cleanDir(dirPath) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function latestBridgeDeploymentPath() {
+  const latestDir = latestBridgeArtifactDir(repoRoot, 31337);
+  if (!latestDir) {
+    throw new Error("Missing latest bridge deployment snapshot for chain 31337.");
+  }
+  return path.join(latestDir, "bridge.31337.json");
+}
+
+function latestPrivateStateArtifactDir() {
+  return requireLatestDappArtifactDir(repoRoot, 31337, "private-state");
 }
 
 function writeJson(filePath, value) {
@@ -372,7 +384,7 @@ async function rpcCall(provider, method, params) {
 }
 
 function loadLiquidBalancesSlot() {
-  const storageLayout = readJson(storageLayoutManifestPath);
+  const storageLayout = readJson(path.join(latestPrivateStateArtifactDir(), "storage-layout.31337.latest.json"));
   return ethers.toBigInt(
     storageLayout.contracts.L2AccountingVault.storageLayout.storage.find((entry) => entry.label === "liquidBalances").slot,
   );
@@ -413,37 +425,276 @@ function deriveLiquidBalanceStorageKey(l2Address, slot) {
   return normalizeBytes32Hex(bytesToHex(getUserStorageKey([l2Address, ethers.toBigInt(slot)], "TokamakL2")));
 }
 
+function loadCommitmentExistsSlot() {
+  const storageLayout = readJson(path.join(latestPrivateStateArtifactDir(), "storage-layout.31337.latest.json"));
+  return ethers.toBigInt(
+    storageLayout.contracts.PrivateStateController.storageLayout.storage.find(
+      (entry) => entry.label === "commitmentExists",
+    ).slot,
+  );
+}
+
+function poseidonHexFromBytes(bytesLike) {
+  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
+}
+
+function deriveReplayFieldValue(label) {
+  return normalizeBytes32Hex(poseidonHexFromBytes(ethers.toUtf8Bytes(label)));
+}
+
+function computeReplayNoteCommitment(note) {
+  return normalizeBytes32Hex(
+    poseidonHexFromBytes(
+      abiCoder.encode(
+        ["bytes32", "address", "uint256", "bytes32"],
+        [noteCommitmentDomain, getAddress(note.owner), ethers.toBigInt(note.value), normalizeBytes32Hex(note.salt)],
+      ),
+    ),
+  );
+}
+
+function computeReplayMappingKey(key, slot) {
+  return normalizeBytes32Hex(
+    poseidonHexFromBytes(
+      abiCoder.encode(["bytes32", "uint256"], [normalizeBytes32Hex(key), ethers.toBigInt(slot)]),
+    ),
+  );
+}
+
+function buildMintInterface(outputCount) {
+  return new Interface([
+    `function mintNotes${outputCount}((uint256 value,bytes32[3] encryptedNoteValue)[${outputCount}] outputs)`,
+  ]);
+}
+
+function buildTransferInterface(inputCount, outputCount) {
+  return new Interface([
+    `function transferNotes${inputCount}To${outputCount}((address owner,uint256 value,bytes32[3] encryptedNoteValue)[${outputCount}] outputs,(address owner,uint256 value,bytes32 salt)[${inputCount}] inputNotes)`,
+  ]);
+}
+
+function buildRedeemInterface(inputCount) {
+  return new Interface([
+    `function redeemNotes${inputCount}((address owner,uint256 value,bytes32 salt)[${inputCount}] inputNotes,address receiver)`,
+  ]);
+}
+
+function serializeBigInts(value) {
+  return JSON.parse(JSON.stringify(value, (_key, current) => (
+    typeof current === "bigint" ? current.toString() : current
+  )));
+}
+
+async function getFixedBlockInfo(provider) {
+  const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
+  const latestNumber = Number(hexToBigInt(addHexPrefix(String(latestNumberHex ?? "").replace(/^0x/i, ""))));
+  return getBlockInfoAt(provider, latestNumber);
+}
+
+async function fetchContractCodes(provider, addresses) {
+  const codes = [];
+  for (const address of addresses) {
+    codes.push({
+      address: getAddress(address),
+      code: await provider.getCode(address),
+    });
+  }
+  return codes;
+}
+
+async function createSyntheticSnapshot(storageAddresses, writes) {
+  const stateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+  const initialAddresses = [...new Set(storageAddresses.map((address) => getAddress(address)))]
+    .map((address) => createAddressFromString(address));
+  await stateManager._initializeForAddresses(initialAddresses);
+  stateManager._channelId = deriveChannelIdFromName(channelName);
+  for (const address of initialAddresses) {
+    stateManager._commitResolvedStorageEntries(address, []);
+  }
+  for (const write of writes) {
+    await stateManager.putStorage(
+      createAddressFromString(write.address),
+      hexToBytes(addHexPrefix(String(write.key ?? "").replace(/^0x/i, ""))),
+      hexToBytes(addHexPrefix(String(write.value ?? "").replace(/^0x/i, ""))),
+    );
+  }
+  const snapshot = await stateManager.captureStateSnapshot();
+  if (Array.isArray(snapshot.storageAddresses)) {
+    snapshot.storageAddresses = snapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
+  return snapshot;
+}
+
+function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
+  return serializeBigInts(
+    createTokamakL2Tx(
+      {
+        nonce: ethers.toBigInt(nonce),
+        to: createAddressFromString(to),
+        data: hexToBytes(addHexPrefix(String(data ?? "").replace(/^0x/i, ""))),
+        senderPubKey,
+      },
+      { common: createTokamakL2Common() },
+    )
+      .sign(signerPrivateKey)
+      .captureTxSnapshot(),
+  );
+}
+
+async function buildStateManager(snapshot, contractCodes) {
+  return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
+    contractCodes: contractCodes.map((entry) => ({
+      address: createAddressFromString(entry.address),
+      code: addHexPrefix(entry.code),
+    })),
+  });
+}
+
+function bigintToHex32(value) {
+  return ethers.zeroPadValue(ethers.toBeHex(value), 32);
+}
+
+async function currentStorageBigInt(stateManager, address, keyHex) {
+  const valueBytes = await stateManager.getStorage(
+    createAddressFromString(address),
+    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
+  );
+  if (valueBytes.length === 0) {
+    return 0n;
+  }
+  return bytesToBigInt(valueBytes);
+}
+
+async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex, nextValue) {
+  const vaultAddressObj = createAddressFromString(vaultAddress);
+  const keyBigInt = ethers.toBigInt(keyHex);
+  const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
+  const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
+
+  await stateManager.putStorage(
+    vaultAddressObj,
+    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
+    hexToBytes(addHexPrefix(String(bigintToHex32(nextValue) ?? "").replace(/^0x/i, ""))),
+  );
+
+  return {
+    stepName,
+    proof,
+    currentValue,
+    nextSnapshot: await stateManager.captureStateSnapshot(),
+  };
+}
+
+function buildEncryptedTransferOutput({
+  owner,
+  value,
+  label,
+  recipientNoteReceivePubKey,
+  chainId,
+  channelId,
+}) {
+  const deterministicNonce = ethers.dataSlice(
+    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
+    0,
+    12,
+  );
+  const encryptedNoteValue = encryptNoteValueForRecipient({
+    value,
+    recipientNoteReceivePubKey,
+    chainId,
+    channelId,
+    owner,
+    nonce: deterministicNonce,
+  });
+  return {
+    output: {
+      owner: getAddress(owner),
+      value,
+      encryptedNoteValue,
+    },
+    note: {
+      owner: getAddress(owner),
+      value,
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
+    },
+  };
+}
+
+function buildEncryptedMintOutput({
+  owner,
+  ownerNoteReceivePubKey,
+  value,
+  label,
+  chainId,
+  channelId,
+}) {
+  const deterministicNonce = ethers.dataSlice(
+    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
+    0,
+    12,
+  );
+  const encryptedNoteValue = encryptMintNoteValueForOwner({
+    value,
+    ownerNoteReceivePubKey,
+    chainId,
+    channelId,
+    owner,
+    nonce: deterministicNonce,
+  });
+  return {
+    output: {
+      value,
+      encryptedNoteValue,
+    },
+    note: {
+      owner: getAddress(owner),
+      value,
+      salt: computeEncryptedNoteSalt(encryptedNoteValue),
+    },
+  };
+}
+
+function writeRegistrationLaunchBundle(exampleName, snapshot, transaction, blockInfo, contractCodes) {
+  const bundleDir = path.join(registrationLaunchInputsRoot, exampleName);
+  cleanDir(bundleDir);
+  writeJson(path.join(bundleDir, "previous_state_snapshot.json"), snapshot);
+  writeJson(path.join(bundleDir, "transaction.json"), transaction);
+  writeJson(path.join(bundleDir, "block_info.json"), blockInfo);
+  writeJson(path.join(bundleDir, "contract_codes.json"), contractCodes);
+  return bundleDir;
+}
+
+function registrationParticipantAt(participants, index) {
+  const participant = participants[index];
+  expect(participant?.registration, `Missing resolved registration context for participant index ${index}.`);
+  return participant;
+}
+
 function deriveChannelTokenVaultLeafIndex(storageKey) {
   return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
 }
 
-function ensureTokamakSetupArtifacts() {
+function assertTokamakSetupArtifactsInstalled() {
   const missingInDist = requiredTokamakSetupArtifacts.filter(
     (fileName) => !fs.existsSync(path.join(tokamakSetupDistDir, fileName)),
   );
   if (missingInDist.length === 0) {
     return;
   }
-
-  const missingInSource = requiredTokamakSetupArtifacts.filter(
-    (fileName) => !fs.existsSync(path.join(tokamakSetupSourceDir, fileName)),
+  throw new Error(
+    [
+      `Missing Tokamak setup artifacts in ${tokamakSetupDistDir}: ${missingInDist.join(", ")}.`,
+      "Run tokamak-cli --install or rerun this script without --skip-install.",
+    ].join(" "),
   );
-  expect(
-    missingInSource.length === 0,
-    `Missing Tokamak setup artifacts in trusted setup output: ${missingInSource.join(", ")}`,
-  );
-
-  ensureDir(tokamakSetupDistDir);
-  for (const fileName of requiredTokamakSetupArtifacts) {
-    fs.copyFileSync(path.join(tokamakSetupSourceDir, fileName), path.join(tokamakSetupDistDir, fileName));
-  }
 }
 
 function copyTokamakArtifacts(stepDir) {
   const resourceRoot = path.join(stepDir, "resource");
   fs.rmSync(resourceRoot, { recursive: true, force: true });
   for (const relativeDirectory of tokamakStepArtifactDirectories) {
-    const sourceDir = path.join(tokamakRoot, "dist", "resource", relativeDirectory);
+    const sourceDir = resolveTokamakCliResourceDir(relativeDirectory);
     if (!fs.existsSync(sourceDir)) {
       continue;
     }
@@ -467,14 +718,14 @@ async function runTokamakMetadataStep(exampleName, bundleSourceDir) {
     fs.copyFileSync(path.join(bundleSourceDir, fileName), path.join(stepDir, fileName));
   }
 
-  run(tokamakCliPath, ["--synthesize", "--tokamak-ch-tx", stepDir], {
-    cwd: tokamakRoot,
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--synthesize", stepDir], {
+    cwd: repoRoot,
     quiet: true,
     label: `metadata:${exampleName}:synthesize`,
   });
-  ensureTokamakSetupArtifacts();
-  run(tokamakCliPath, ["--preprocess"], {
-    cwd: tokamakRoot,
+  assertTokamakSetupArtifactsInstalled();
+  run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--preprocess"], {
+    cwd: repoRoot,
     quiet: true,
     label: `metadata:${exampleName}:preprocess`,
   });
@@ -509,54 +760,297 @@ async function runTokamakMetadataStep(exampleName, bundleSourceDir) {
   };
 }
 
-async function materializeCurrentDAppDefinition(provider, participants) {
-  const manifestFiles = new Map([
-    ["mintNotes", path.join(synthesizerExamplesRoot, "mintNotes", "cli-launch-manifest.json")],
-    ["transferNotes", path.join(synthesizerExamplesRoot, "transferNotes", "cli-launch-manifest.json")],
-    ["redeemNotes", path.join(synthesizerExamplesRoot, "redeemNotes", "cli-launch-manifest.json")],
-  ]);
-  run(
-    "npx",
-    [
-      "--prefix",
-      tokamakRoot,
-      "tsx",
-      "--tsconfig",
-      tokamakSynthesizerTsconfigPath,
-      generateSynthesizerLaunchInputsPath,
-    ],
-    {
-      cwd: repoRoot,
-      quiet: true,
-      label: "metadata:generate-launch-inputs",
-      env: {
-        ...process.env,
-        APPS_NETWORK: "anvil",
-        APPS_RPC_URL_OVERRIDE: providerUrl,
-        APPS_ANVIL_MNEMONIC: anvilMnemonic,
-      },
-    },
-  );
+async function materializeRegistrationLaunchBundles(provider, participants) {
+  const privateStateArtifactDir = latestPrivateStateArtifactDir();
+  const appDeployment = readJson(path.join(privateStateArtifactDir, "deployment.31337.latest.json"));
+  const controllerAddress = getAddress(appDeployment.contracts.controller);
+  const vaultAddress = getAddress(appDeployment.contracts.l2AccountingVault);
+  const liquidBalancesSlot = loadLiquidBalancesSlot();
+  const blockInfo = await getFixedBlockInfo(provider);
+  const contractCodes = await fetchContractCodes(provider, [controllerAddress, vaultAddress]);
+  const chainId = 31337;
+  const channelId = deriveChannelIdFromName(channelName);
 
-  const manifestEntriesByExample = new Map();
-  for (const [group, manifestPath] of manifestFiles.entries()) {
-    const manifestEntries = readJson(manifestPath);
-    expect(Array.isArray(manifestEntries), `Expected array manifest at ${manifestPath}.`);
-    for (const entry of manifestEntries) {
-      const exampleName = path.basename(path.dirname(entry.files.previousState));
-      manifestEntriesByExample.set(`${group}:${exampleName}`, entry);
-    }
+  const participantA = registrationParticipantAt(participants, 0);
+  const participantB = registrationParticipantAt(participants, 1);
+  const participantC = registrationParticipantAt(participants, 2);
+  const participantVaultKeys = new Map();
+  for (const participant of participants) {
+    participantVaultKeys.set(
+      participant.alias,
+      deriveLiquidBalanceStorageKey(participant.registration.l2Identity.l2Address, liquidBalancesSlot),
+    );
+  }
+
+  const initialStateManager = new TokamakL2StateManager({ common: createTokamakL2Common() });
+  const initialAddresses = [controllerAddress, vaultAddress]
+    .map((address) => createAddressFromString(address));
+  await initialStateManager._initializeForAddresses(initialAddresses);
+  initialStateManager._channelId = channelId;
+  for (const address of initialAddresses) {
+    initialStateManager._commitResolvedStorageEntries(address, []);
+  }
+  const initialSnapshot = await initialStateManager.captureStateSnapshot();
+  const depositStateManager = await buildStateManager(initialSnapshot, contractCodes);
+
+  for (const participant of participants) {
+    participant.noteReceive = participant.registration.noteReceive;
+  }
+
+  let postDepositSnapshot = initialSnapshot;
+  for (const participant of participants) {
+    const transition = await buildGrothTransition(
+      `registration-deposit-${participant.alias}`,
+      depositStateManager,
+      vaultAddress,
+      participantVaultKeys.get(participant.alias),
+      depositAmountBaseUnits,
+    );
+    postDepositSnapshot = transition.nextSnapshot;
+  }
+  if (Array.isArray(postDepositSnapshot.storageAddresses)) {
+    postDepositSnapshot.storageAddresses = postDepositSnapshot.storageAddresses
+      .map((address) => createAddressFromString(address).toString());
+  }
+
+  const encryptedMints = {
+    aMint: buildEncryptedMintOutput({
+      owner: participantA.registration.l2Identity.l2Address,
+      ownerNoteReceivePubKey: participantA.noteReceive.noteReceivePubKey,
+      value: depositAmountBaseUnits,
+      label: "cli-e2e:a-mint",
+      chainId,
+      channelId,
+    }),
+    bMint: buildEncryptedMintOutput({
+      owner: participantB.registration.l2Identity.l2Address,
+      ownerNoteReceivePubKey: participantB.noteReceive.noteReceivePubKey,
+      value: depositAmountBaseUnits,
+      label: "cli-e2e:b-mint",
+      chainId,
+      channelId,
+    }),
+    cMint: buildEncryptedMintOutput({
+      owner: participantC.registration.l2Identity.l2Address,
+      ownerNoteReceivePubKey: participantC.noteReceive.noteReceivePubKey,
+      value: depositAmountBaseUnits,
+      label: "cli-e2e:c-mint",
+      chainId,
+      channelId,
+    }),
+    aMintSplit1: buildEncryptedMintOutput({
+      owner: participantA.registration.l2Identity.l2Address,
+      ownerNoteReceivePubKey: participantA.noteReceive.noteReceivePubKey,
+      value: 1n * amountUnit,
+      label: "cli-e2e:a-mint-split-1",
+      chainId,
+      channelId,
+    }),
+    aMintSplit2: buildEncryptedMintOutput({
+      owner: participantA.registration.l2Identity.l2Address,
+      ownerNoteReceivePubKey: participantA.noteReceive.noteReceivePubKey,
+      value: 2n * amountUnit,
+      label: "cli-e2e:a-mint-split-2",
+      chainId,
+      channelId,
+    }),
+  };
+
+  const encryptedTransfers = {
+    aToBOne: buildEncryptedTransferOutput({
+      owner: participantB.registration.l2Identity.l2Address,
+      value: 1n * amountUnit,
+      label: "cli-e2e:a-to-b-1",
+      recipientNoteReceivePubKey: participantB.noteReceive.noteReceivePubKey,
+      chainId,
+      channelId,
+    }),
+    aToBThree: buildEncryptedTransferOutput({
+      owner: participantB.registration.l2Identity.l2Address,
+      value: 3n * amountUnit,
+      label: "cli-e2e:a-to-b-3",
+      recipientNoteReceivePubKey: participantB.noteReceive.noteReceivePubKey,
+      chainId,
+      channelId,
+    }),
+    aToC: buildEncryptedTransferOutput({
+      owner: participantC.registration.l2Identity.l2Address,
+      value: 2n * amountUnit,
+      label: "cli-e2e:a-to-c",
+      recipientNoteReceivePubKey: participantC.noteReceive.noteReceivePubKey,
+      chainId,
+      channelId,
+    }),
+    bToC: buildEncryptedTransferOutput({
+      owner: participantC.registration.l2Identity.l2Address,
+      value: 4n * amountUnit,
+      label: "cli-e2e:b-to-c",
+      recipientNoteReceivePubKey: participantC.noteReceive.noteReceivePubKey,
+      chainId,
+      channelId,
+    }),
+  };
+
+  const notes = {
+    aMint: encryptedMints.aMint.note,
+    bMint: encryptedMints.bMint.note,
+    cMint: encryptedMints.cMint.note,
+    aToBOne: encryptedTransfers.aToBOne.note,
+    aToC: encryptedTransfers.aToC.note,
+    bToC: encryptedTransfers.bToC.note,
+  };
+
+  async function materializeExample({
+    exampleName,
+    previousSnapshot,
+    sender,
+    calldata,
+    nonce = 0,
+  }) {
+    const transaction = buildTokamakTxSnapshot({
+      signerPrivateKey: sender.registration.l2Identity.l2PrivateKey,
+      senderPubKey: sender.registration.l2Identity.l2PublicKey,
+      to: controllerAddress,
+      data: calldata,
+      nonce,
+    });
+    const bundleDir = writeRegistrationLaunchBundle(
+      exampleName,
+      previousSnapshot,
+      transaction,
+      blockInfo,
+      contractCodes,
+    );
+    return runTokamakMetadataStep(exampleName, bundleDir);
   }
 
   const records = [];
-  for (const example of localRegistrationExamples) {
-    const manifestEntry = manifestEntriesByExample.get(`${example.group}:${example.name}`);
-    expect(manifestEntry, `Missing canonical launch entry for ${example.group}/${example.name}.`);
-    const bundleSourceDir = path.join(tokamakSynthesizerRoot, path.dirname(manifestEntry.files.previousState));
-    const result = await runTokamakMetadataStep(example.name, bundleSourceDir);
-    records.push(result.metadataRecord);
-  }
 
+  const mintNotes1 = await materializeExample({
+    exampleName: "mintNotes1",
+    previousSnapshot: postDepositSnapshot,
+    sender: participantA,
+    calldata: buildMintInterface(1).encodeFunctionData("mintNotes1", [[[
+      encryptedMints.aMint.output.value,
+      encryptedMints.aMint.output.encryptedNoteValue,
+    ]]]),
+  });
+  records.push(mintNotes1.metadataRecord);
+
+  const mintNotes2 = await materializeExample({
+    exampleName: "mintNotes2",
+    previousSnapshot: postDepositSnapshot,
+    sender: participantA,
+    calldata: buildMintInterface(2).encodeFunctionData("mintNotes2", [[
+      [encryptedMints.aMintSplit1.output.value, encryptedMints.aMintSplit1.output.encryptedNoteValue],
+      [encryptedMints.aMintSplit2.output.value, encryptedMints.aMintSplit2.output.encryptedNoteValue],
+    ]]),
+  });
+  records.push(mintNotes2.metadataRecord);
+
+  const transferNotes1To1 = await materializeExample({
+    exampleName: "transferNotes1To1",
+    previousSnapshot: mintNotes1.nextSnapshot,
+    sender: participantA,
+    calldata: buildTransferInterface(1, 1).encodeFunctionData("transferNotes1To1", [[
+      [
+        encryptedTransfers.aToBThree.output.owner,
+        encryptedTransfers.aToBThree.output.value,
+        encryptedTransfers.aToBThree.output.encryptedNoteValue,
+      ],
+    ], [[
+      notes.aMint.owner,
+      notes.aMint.value,
+      notes.aMint.salt,
+    ]]]),
+  });
+  records.push(transferNotes1To1.metadataRecord);
+
+  const internalMintB = await materializeExample({
+    exampleName: "_internal-mint-b",
+    previousSnapshot: mintNotes1.nextSnapshot,
+    sender: participantB,
+    calldata: buildMintInterface(1).encodeFunctionData("mintNotes1", [[[
+      encryptedMints.bMint.output.value,
+      encryptedMints.bMint.output.encryptedNoteValue,
+    ]]]),
+  });
+
+  const internalMintC = await materializeExample({
+    exampleName: "_internal-mint-c",
+    previousSnapshot: internalMintB.nextSnapshot,
+    sender: participantC,
+    calldata: buildMintInterface(1).encodeFunctionData("mintNotes1", [[[
+      encryptedMints.cMint.output.value,
+      encryptedMints.cMint.output.encryptedNoteValue,
+    ]]]),
+  });
+
+  const transferNotes1To2 = await materializeExample({
+    exampleName: "transferNotes1To2",
+    previousSnapshot: internalMintC.nextSnapshot,
+    sender: participantA,
+    calldata: buildTransferInterface(1, 2).encodeFunctionData("transferNotes1To2", [[
+      [
+        encryptedTransfers.aToBOne.output.owner,
+        encryptedTransfers.aToBOne.output.value,
+        encryptedTransfers.aToBOne.output.encryptedNoteValue,
+      ],
+      [
+        encryptedTransfers.aToC.output.owner,
+        encryptedTransfers.aToC.output.value,
+        encryptedTransfers.aToC.output.encryptedNoteValue,
+      ],
+    ], [[
+      notes.aMint.owner,
+      notes.aMint.value,
+      notes.aMint.salt,
+    ]]]),
+  });
+  records.push(transferNotes1To2.metadataRecord);
+
+  const transferNotes2To1 = await materializeExample({
+    exampleName: "transferNotes2To1",
+    previousSnapshot: transferNotes1To2.nextSnapshot,
+    sender: participantB,
+    calldata: buildTransferInterface(2, 1).encodeFunctionData("transferNotes2To1", [[
+      [
+        encryptedTransfers.bToC.output.owner,
+        encryptedTransfers.bToC.output.value,
+        encryptedTransfers.bToC.output.encryptedNoteValue,
+      ],
+    ], [
+      [
+        notes.bMint.owner,
+        notes.bMint.value,
+        notes.bMint.salt,
+      ],
+      [
+        notes.aToBOne.owner,
+        notes.aToBOne.value,
+        notes.aToBOne.salt,
+      ],
+    ]]),
+  });
+  records.push(transferNotes2To1.metadataRecord);
+
+  const redeemNotes1 = await materializeExample({
+    exampleName: "redeemNotes1",
+    previousSnapshot: transferNotes2To1.nextSnapshot,
+    sender: participantC,
+    calldata: buildRedeemInterface(1).encodeFunctionData("redeemNotes1", [[[
+      notes.aToC.owner,
+      notes.aToC.value,
+      notes.aToC.salt,
+    ]], participantC.registration.l2Identity.l2Address]),
+  });
+  records.push(redeemNotes1.metadataRecord);
+
+  return records;
+}
+
+async function materializeCurrentDAppDefinition(provider, participants) {
+  const records = await materializeRegistrationLaunchBundles(provider, participants);
   const dapps = buildDAppDefinitions(records);
   expect(dapps.length === 1, `Expected one derived DApp definition, found ${dapps.length}.`);
   return {
@@ -803,10 +1297,7 @@ function deployBridgeStack() {
   const env = {
     ...process.env,
     BRIDGE_ENV_FILE: bridgeEnvPath,
-    BRIDGE_OUTPUT_PATH: bridgeDeploymentPath,
-    BRIDGE_SKIP_SUBMODULE_UPDATE: "1",
     BRIDGE_SKIP_TOKAMAK_INSTALL: "1",
-    BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH: "1",
     BRIDGE_DEPLOY_MOCK_ASSET: "true",
   };
 
@@ -824,7 +1315,7 @@ function deployBridgeStack() {
     { env, quiet: true, label: "bridge:redeploy-proxy" },
   );
 
-  return readJson(bridgeDeploymentPath);
+  return readJson(latestBridgeDeploymentPath());
 }
 
 function writeJsonLikeEnv(filePath, entries) {
@@ -939,11 +1430,6 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
     result,
     definition: derived.definition,
     records: derived.records,
-  });
-  run("bash", [privateStateGrothArtifactSyncPath, "31337"], {
-    cwd: repoRoot,
-    quiet: true,
-    label: "private-state:sync-groth-artifacts",
   });
   return result;
 }
@@ -1146,10 +1632,9 @@ function assertWalletNoteSnapshot(noteSnapshot, { unusedCount, spentCount, unuse
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   currentCliE2EOptions = options;
-  ensureTokamakDistBackendBinaries(tokamakRoot);
   if (options.runInstall) {
-    run(tokamakCliPath, ["--install"], {
-      cwd: tokamakRoot,
+    run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--install"], {
+      cwd: repoRoot,
       quiet: true,
       label: "tokamak:install",
     });

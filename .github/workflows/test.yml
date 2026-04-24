@@ -24,7 +24,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Checkout Foundry submodules
+        run: |
+          set -euo pipefail
+          submodules=(
+            lib/forge-std
+            lib/openzeppelin-contracts
+            lib/openzeppelin-contracts-upgradeable
+          )
+          for attempt in 1 2 3 4 5; do
+            git submodule sync -- "${submodules[@]}"
+            if git -c protocol.version=2 submodule update --init --force --depth=1 --jobs=1 -- "${submodules[@]}"; then
+              exit 0
+            fi
+            status=$?
+            if [ "${attempt}" -eq 5 ]; then
+              exit "${status}"
+            fi
+            git submodule deinit -f -- "${submodules[@]}" || true
+            rm -rf "${submodules[@]}"
+            sleep $((attempt * 15))
+          done
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -53,16 +75,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Checkout Foundry submodules
+        run: |
+          set -euo pipefail
+          submodules=(
+            lib/forge-std
+            lib/openzeppelin-contracts
+            lib/openzeppelin-contracts-upgradeable
+          )
+          for attempt in 1 2 3 4 5; do
+            git submodule sync -- "${submodules[@]}"
+            if git -c protocol.version=2 submodule update --init --force --depth=1 --jobs=1 -- "${submodules[@]}"; then
+              exit 0
+            fi
+            status=$?
+            if [ "${attempt}" -eq 5 ]; then
+              exit "${status}"
+            fi
+            git submodule deinit -f -- "${submodules[@]}" || true
+            rm -rf "${submodules[@]}"
+            sleep $((attempt * 15))
+          done
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -84,7 +125,8 @@ jobs:
             jq \
             git-lfs \
             cmake \
-            dos2unix
+            dos2unix \
+            time
           git lfs install --skip-repo
 
       - name: Install Circom
@@ -97,9 +139,6 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Install Tokamak root npm dependencies
-        run: npm ci --prefix submodules/Tokamak-zk-EVM
-
       - name: Install Groth16 circuit dependencies
         run: npm ci --prefix groth16/circuits
 
@@ -107,18 +146,6 @@ jobs:
         run: |
           test -x groth16/circuits/node_modules/.bin/snarkjs
           groth16/circuits/node_modules/.bin/snarkjs g16v --help >/dev/null
-
-      - name: Make Tokamak scripts executable
-        run: |
-          chmod +x submodules/Tokamak-zk-EVM/tokamak-cli
-          chmod +x submodules/Tokamak-zk-EVM/scripts/tokamak-cli-core
-
-      - name: Install Tokamak frontend dependencies
-        run: |
-          cd submodules/Tokamak-zk-EVM/packages/frontend/qap-compiler
-          npm install --legacy-peer-deps
-          cd ../synthesizer
-          npm install --legacy-peer-deps
 
       - name: Install tsx
         run: npm install -g tsx
@@ -137,7 +164,6 @@ jobs:
             node \
             npm \
             python3 \
-            bun \
             rustc \
             cargo \
             cmake \
@@ -159,7 +185,6 @@ jobs:
         run: |
           node --version
           npm --version
-          bun --version
           rustc --version
           cargo --version
           git --version
@@ -177,16 +202,24 @@ jobs:
           cast --version
           anvil --version
 
-      - name: Install Tokamak zk-EVM Artifacts
-        run: |
-          rm -rf submodules/Tokamak-zk-EVM/dist
-          (
-            cd submodules/Tokamak-zk-EVM
-            find . -name "*.sh" -exec chmod +x {} \;
-            find . -name "*.sh" -exec dos2unix {} \; 2>/dev/null || true
-            ./tokamak-cli --install --bun
-          )
-          rm -f submodules/Tokamak-zk-EVM/dist/bin/synthesizer
+      - name: Restore Tokamak CRS cache
+        id: tokamak-crs-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.tokamak-zk-evm/linux/downloads/crs
+          key: tokamak-zkevm-crs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            tokamak-zkevm-crs-${{ runner.os }}-
+
+      - name: Install Tokamak zk-EVM runtime cache
+        run: node node_modules/@tokamak-zk-evm/cli/dist/cli.js --install
+
+      - name: Save Tokamak CRS cache
+        if: steps.tokamak-crs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.tokamak-zk-evm/linux/downloads/crs
+          key: ${{ steps.tokamak-crs-cache.outputs.cache-primary-key }}
 
       - name: Run private-state bridge CLI end-to-end test
         run: |

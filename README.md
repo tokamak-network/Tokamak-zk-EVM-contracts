@@ -6,7 +6,7 @@
 
 This repository hosts the current Tokamak Private App Channels worktree.
 
-The active bridge implementation lives under [bridge/](./bridge/). It treats each channel as a dedicated validity-proven execution domain for one registered DApp, while Ethereum remains the canonical layer for custody, proof verification, and settlement. The repository also contains app-level integrations under [apps/](./apps/) and the reusable Tokamak zk-EVM proving stack under [submodules/Tokamak-zk-EVM](./submodules/Tokamak-zk-EVM).
+The active bridge implementation lives under [bridge/](./bridge/). It treats each channel as a dedicated validity-proven execution domain for one registered DApp, while Ethereum remains the canonical layer for custody, proof verification, and settlement. The repository also contains app-level integrations under [apps/](./apps/) and consumes the reusable Tokamak zk-EVM proving stack through published npm packages.
 
 ## What Is In This Repository
 
@@ -14,7 +14,6 @@ The active bridge implementation lives under [bridge/](./bridge/). It treats eac
 - [apps/](./apps/): bridge-coupled DApps that follow the repository's zk-L2 assumptions
 - [apps/private-state/](./apps/private-state/): the current reference DApp for private note-based channel activity
 - [tokamak-zkp/](./tokamak-zkp/): the Tokamak verifier contract and verification-key artifacts used by bridge workflows
-- [submodules/Tokamak-zk-EVM](./submodules/Tokamak-zk-EVM): the shared zk-EVM execution and proving toolchain
 - [groth16/](./groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
 - [scripts/](./scripts/): shared repository scripts for zk-artifact reflection and verifier refresh
 - [test/](./test/): root-level Foundry tests and fixtures that remain useful for verifier and legacy coverage
@@ -34,7 +33,7 @@ At a high level, the repository is organized around three layers:
 
 - Ethereum-facing bridge contracts: the shared settlement and custody surface under [bridge/](./bridge/)
 - DApp-specific channel integrations: application contracts, app-local deployment manifests, and user-facing tooling under [apps/](./apps/)
-- Shared proving substrate: the Tokamak zk-EVM toolchain and reflected verifier artifacts under [submodules/](./submodules/) and [tokamak-zkp/](./tokamak-zkp/)
+- Shared proving substrate: published Tokamak zk-EVM npm packages and reflected verifier artifacts under [tokamak-zkp/](./tokamak-zkp/)
 
 The current bridge is not described here as a generic rollup shell. It is a bridge for dedicated app channels with:
 
@@ -146,13 +145,13 @@ The private-state DApp is the reference app integration for the bridge. It conta
 - app deployment artifacts under [apps/private-state/deploy/](./apps/private-state/deploy/)
 - protocol and security documents under [apps/private-state/docs/](./apps/private-state/docs/)
 
-### [submodules/Tokamak-zk-EVM](./submodules/Tokamak-zk-EVM)
-
-This submodule provides the reusable zk-EVM execution and proving pipeline that bridge-coupled DApps build on. The repository-level reflection helper in [scripts/zk/](./scripts/zk/) keeps bridge-facing verifier and deployment artifacts aligned with the submodule outputs.
-
 ### [tokamak-zkp/](./tokamak-zkp/)
 
 This folder contains the checked-in Tokamak verifier contract and verification-key artifacts that the bridge workspace imports during proof verification.
+
+### [scripts/zk/](./scripts/zk/)
+
+These scripts consume `@tokamak-zk-evm/cli`, `@tokamak-zk-evm/subcircuit-library`, `@tokamak-zk-evm/synthesizer-node`, and `tokamak-l2js` from npm. They refresh the local Tokamak verifier artifacts and bridge-facing zk metadata without a top-level Tokamak zk-EVM source checkout.
 
 ## Notes On Scope
 

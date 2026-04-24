@@ -227,7 +227,7 @@ Review questions:
 Use this process when a function appears placement-heavy or when reviewing a new DApp entrypoint.
 
 1. Generate or rerun the relevant Synthesizer example so that fresh analysis artifacts are written.
-2. Inspect the Synthesizer analysis outputs under `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/outputs/analysis/`.
+2. Inspect the Synthesizer analysis outputs produced by the published `@tokamak-zk-evm/synthesizer-node` or `@tokamak-zk-evm/cli` runtime.
    - `step_log.json`
    - `message_code_addresses.json`
 3. If the example reaches full circuit generation, also inspect:
@@ -310,7 +310,7 @@ Required structure:
 
 Required test method:
 
-- Use `submodules/Tokamak-zk-EVM/packages/frontend/synthesizer/src/interface/cli/index.ts` as the execution entrypoint.
+- Use the published `@tokamak-zk-evm/synthesizer-node` or `@tokamak-zk-evm/cli` entrypoint for Synthesizer execution.
 - Keep `block_info.json` and `contract_codes.json` fixed while testing a given function.
 - Vary `previous_state_snapshot.json` and transaction RLP across multiple valid private-input configurations for the same function.
 - Run the Synthesizer CLI once per variant.

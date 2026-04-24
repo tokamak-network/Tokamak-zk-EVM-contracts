@@ -64,3 +64,4 @@ scripts/zk/rkyv-to-json/target/
 scripts/output/zk-artifacts/*/
 **/output/
 **/output/**
+client_secret_*.json

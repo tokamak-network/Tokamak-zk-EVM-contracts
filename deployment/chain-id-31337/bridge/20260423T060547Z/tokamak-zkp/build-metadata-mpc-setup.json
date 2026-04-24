@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "subcircuitLibrary": {
+      "buildVersion": "1.0.3",
+      "declaredRange": "latest",
+      "packageName": "@tokamak-zk-evm/subcircuit-library",
+      "runtimeMode": "bundled"
+    }
+  },
+  "packageName": "mpc-setup",
+  "packageVersion": "1.0.1"
+}

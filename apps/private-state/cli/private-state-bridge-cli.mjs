@@ -45,6 +45,17 @@ import {
 } from "@ethereumjs/util";
 import { deriveRpcUrl, resolveCliNetwork } from "../../scripts/network-config.mjs";
 import {
+  buildTokamakCliInvocation,
+  resolveTokamakCliCacheRoot,
+  resolveTokamakCliResourceDir,
+} from "../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+import {
+  dappArtifactRoot,
+  latestBridgeArtifactDir,
+  requireLatestDappArtifactDir,
+  requireLatestBridgeArtifactDir,
+} from "../../../scripts/artifacts/lib/deployment-layout.mjs";
+import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
@@ -62,13 +73,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../../..");
 const appRoot = path.resolve(projectRoot, "apps/private-state");
-const deployRoot = path.resolve(appRoot, "deploy");
 const bridgeRoot = path.resolve(projectRoot, "bridge");
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
-const gitmodulesPath = path.resolve(projectRoot, ".gitmodules");
-const tokamakSubmodulePath = "submodules/Tokamak-zk-EVM";
-const tokamakRoot = path.resolve(projectRoot, "submodules", "Tokamak-zk-EVM");
-const tokamakCliPath = path.resolve(tokamakRoot, "tokamak-cli");
+const tokamakCliInvocation = buildTokamakCliInvocation();
+const tokamakCliCommand = tokamakCliInvocation.command;
+const tokamakCliBaseArgs = tokamakCliInvocation.args;
+const tokamakCliCacheRoot = resolveTokamakCliCacheRoot();
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
@@ -303,13 +313,17 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     provider,
   );
   const expectedLabelHash = normalizeBytes32Hex(keccak256(ethers.toUtf8Bytes(dappLabel)));
-  const manifestPath = path.resolve(
-    projectRoot,
-    "bridge",
-    "deployments",
-    `dapp-registration.${bridgeResources.chainId}.json`,
-  );
-  const manifest = readJsonIfExists(manifestPath);
+  const registrationRoot = dappArtifactRoot(projectRoot, bridgeResources.chainId, dappLabel);
+  const registrationCandidates = fs.existsSync(registrationRoot)
+    ? fs.readdirSync(registrationRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+      .reverse()
+      .map((timestampLabel) => path.join(registrationRoot, timestampLabel, `dapp-registration.${bridgeResources.chainId}.json`))
+    : [];
+  const manifestPath = registrationCandidates.find((candidatePath) => fs.existsSync(candidatePath)) ?? null;
+  const manifest = manifestPath ? readJsonIfExists(manifestPath) : null;
   if (manifest !== null) {
     const manifestLabel = typeof manifest.dappLabel === "string" ? manifest.dappLabel : null;
     const manifestDappId = manifest.dappId;
@@ -426,8 +440,9 @@ async function initializeChannelWorkspace({
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
-  const deploymentManifestPath = path.resolve(deployRoot, `deployment.${network.chainId}.latest.json`);
-  const storageLayoutManifestPath = path.resolve(deployRoot, `storage-layout.${network.chainId}.latest.json`);
+  const latestAppArtifactDir = requireLatestDappArtifactDir(projectRoot, network.chainId, PRIVATE_STATE_DAPP_LABEL);
+  const deploymentManifestPath = path.join(latestAppArtifactDir, `deployment.${network.chainId}.latest.json`);
+  const storageLayoutManifestPath = path.join(latestAppArtifactDir, `storage-layout.${network.chainId}.latest.json`);
   const deploymentManifest = readJson(deploymentManifestPath);
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
   const controllerAddress = getAddress(deploymentManifest.contracts.controller);
@@ -875,114 +890,29 @@ function clearWalletRecoveryArtifacts(walletDir) {
 }
 
 async function handleInstallZkEvm({ args }) {
-  const syncedDevCommit = syncTokamakSubmoduleToLatestDev();
-  run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
+  const installArgs = [...tokamakCliBaseArgs, "--install"];
+  if (args.docker) {
+    installArgs.push("--docker");
+  }
+  run(tokamakCliCommand, installArgs, { cwd: projectRoot });
   run("node", [path.join("scripts", "generate-tokamak-shared-constants.js")], { cwd: projectRoot });
   printJson({
     action: "install-zk-evm",
-    tokamakCli: tokamakCliPath,
-    syncedBranch: "dev",
-    syncedCommit: syncedDevCommit,
+    tokamakCli: tokamakCliBaseArgs[0],
+    cacheRoot: tokamakCliCacheRoot,
+    docker: Boolean(args.docker),
   });
 }
 
 async function handleUninstallZkEvm() {
-  expect(fs.existsSync(tokamakRoot), `Tokamak zk-EVM submodule path does not exist: ${tokamakRoot}.`);
-  const submoduleGitPath = path.join(tokamakRoot, ".git");
-  expect(
-    fs.existsSync(submoduleGitPath),
-    `Tokamak zk-EVM submodule metadata is missing at ${submoduleGitPath}. Refusing to remove the directory.`,
-  );
-
-  const removedEntries = [];
-  for (const entry of fs.readdirSync(tokamakRoot, { withFileTypes: true })) {
-    if (entry.name === ".git") {
-      continue;
-    }
-    const entryPath = path.join(tokamakRoot, entry.name);
-    fs.rmSync(entryPath, { recursive: true, force: true });
-    removedEntries.push(entry.name);
-  }
+  const existed = fs.existsSync(tokamakCliCacheRoot);
+  fs.rmSync(tokamakCliCacheRoot, { recursive: true, force: true });
 
   printJson({
     action: "uninstall-zk-evm",
-    tokamakRoot,
-    preservedEntries: [".git"],
-    removedEntriesCount: removedEntries.length,
-    removedEntries,
+    cacheRoot: tokamakCliCacheRoot,
+    existed,
   });
-}
-
-function syncTokamakSubmoduleToLatestDev() {
-  ensureTokamakSubmoduleWorktree();
-  expect(fs.existsSync(tokamakRoot), `Tokamak zk-EVM submodule path does not exist: ${tokamakRoot}.`);
-  expect(
-    fs.existsSync(path.join(tokamakRoot, ".git")),
-    `Tokamak zk-EVM submodule metadata is missing at ${path.join(tokamakRoot, ".git")}.`,
-  );
-
-  const porcelainStatus = runGitInTokamak(["status", "--porcelain"]).trim();
-  const canRestoreClearedWorktree = porcelainStatus.length > 0 && isTokamakWorktreeDeletionOnly(porcelainStatus);
-  expect(
-    porcelainStatus.length === 0 || canRestoreClearedWorktree,
-    [
-      "Tokamak zk-EVM submodule has uncommitted changes.",
-      "Clean submodules/Tokamak-zk-EVM before install-zk-evm so the CLI can fast-forward dev safely.",
-    ].join(" "),
-  );
-
-  runGitInTokamak(["fetch", "origin", "dev"]);
-
-  try {
-    runGitInTokamak(["switch", "dev"]);
-  } catch {
-    runGitInTokamak(["switch", "--track", "origin/dev"]);
-  }
-
-  if (canRestoreClearedWorktree) {
-    runGitInTokamak(["restore", "--source", "origin/dev", "--staged", "--worktree", "."]);
-  }
-
-  runGitInTokamak(["pull", "--ff-only", "origin", "dev"]);
-  return runGitInTokamak(["rev-parse", "HEAD"]).trim();
-}
-
-function ensureTokamakSubmoduleWorktree() {
-  expect(
-    fs.existsSync(gitmodulesPath),
-    `Repository gitmodules file does not exist: ${gitmodulesPath}.`,
-  );
-
-  const configuredPaths = runGitInProjectRoot([
-    "config",
-    "-f",
-    gitmodulesPath,
-    "--get-regexp",
-    "^submodule\\..*\\.path$",
-  ])
-    .trim()
-    .split("\n")
-    .map((line) => line.trim().split(/\s+/, 2)[1])
-    .filter(Boolean);
-
-  expect(
-    configuredPaths.includes(tokamakSubmodulePath),
-    `.gitmodules does not declare the Tokamak zk-EVM submodule path ${tokamakSubmodulePath}.`,
-  );
-
-  runGitInProjectRoot(["submodule", "sync", "--", tokamakSubmodulePath]);
-  runGitInProjectRoot(["submodule", "update", "--init", "--recursive", tokamakSubmodulePath]);
-}
-
-function isTokamakWorktreeDeletionOnly(porcelainStatus) {
-  return porcelainStatus
-    .split("\n")
-    .filter((line) => line.length > 0)
-    .every((line) => {
-      const x = line[0];
-      const y = line[1];
-      return (x === " " || x === "D") && (y === " " || y === "D") && (x === "D" || y === "D");
-    });
 }
 
 async function handleGetMyAddress({ args, provider }) {
@@ -2263,7 +2193,7 @@ function fieldElementHex(value) {
 }
 
 function normalizeTagHex(value) {
-  return ethers.hexlify(ethers.zeroPadValue(value, 16)).toLowerCase();
+  return normalizeBytes16Hex(value);
 }
 
 function deriveFieldMask({ sharedSecretPoint, chainId, channelId, owner, nonce, encryptionInfo }) {
@@ -2990,7 +2920,9 @@ async function executeWalletTemplateSend({
   await assertWorkspaceAlignedWithChain(context, signer.provider);
   assertWalletMatchesChannelContext(wallet, l2Identity, context);
 
-  const controllerAbi = readJson(path.resolve(deployRoot, templatePayload.abiFile.replace("../deploy/", "")));
+  const controllerAbi = readJson(
+    requireLatestDappDeployArtifactPath(context.workspace.chainId, path.basename(templatePayload.abiFile)),
+  );
   const calldata = new Interface(controllerAbi).encodeFunctionData(
     templatePayload.method,
     templatePayload.args ?? [],
@@ -3332,7 +3264,8 @@ async function loadBridgeVaultContext({ provider, chainId }) {
   );
   const canonicalAsset = getAddress(await bridgeCore.canonicalAsset());
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
-  const storageLayoutManifestPath = path.resolve(deployRoot, `storage-layout.${chainId}.latest.json`);
+  const latestAppArtifactDir = requireLatestDappArtifactDir(projectRoot, chainId, PRIVATE_STATE_DAPP_LABEL);
+  const storageLayoutManifestPath = path.join(latestAppArtifactDir, `storage-layout.${chainId}.latest.json`);
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
   const liquidBalancesSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
 
@@ -3411,7 +3344,7 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
     publicSignals,
     proof: toGrothSolidityProof(proofJson),
     update: {
-      currentRootVector: currentSnapshot.stateRoots,
+      currentRootVector: normalizedRootVector(currentSnapshot.stateRoots),
       updatedRoot: bytes32FromBigInt(updatedRoot),
       currentUserKey: bytes32FromHex(keyHex),
       currentUserValue: currentValue,
@@ -3447,39 +3380,11 @@ function runCaptured(command, args, { cwd = projectRoot, env = process.env } = {
   };
 }
 
-function runGitInTokamak(args) {
-  const result = spawnSync("git", args, {
-    cwd: tokamakRoot,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim();
-    const stdout = result.stdout?.trim();
-    const detail = stderr || stdout || `exit code ${result.status ?? "unknown"}`;
-    throw new Error(`git ${args.join(" ")} failed in ${tokamakRoot}: ${detail}`);
-  }
-  return result.stdout ?? "";
-}
-
-function runGitInProjectRoot(args) {
-  const result = spawnSync("git", args, {
-    cwd: projectRoot,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim();
-    const stdout = result.stdout?.trim();
-    const detail = stderr || stdout || `exit code ${result.status ?? "unknown"}`;
-    throw new Error(`git ${args.join(" ")} failed in ${projectRoot}: ${detail}`);
-  }
-  return result.stdout ?? "";
-}
-
 function runTokamakProofPipeline({ operationDir, bundlePath }) {
   runTokamakCliStage({
     operationDir,
     stageName: "synthesize",
-    args: ["--synthesize", "--tokamak-ch-tx", operationDir],
+    args: ["--synthesize", operationDir],
   });
   runTokamakCliStage({
     operationDir,
@@ -3514,7 +3419,7 @@ function printLocalProofGenerationNotice(operationName) {
 }
 
 function runTokamakCliStage({ operationDir, stageName, args }) {
-  const result = runCaptured(tokamakCliPath, args, { cwd: tokamakRoot });
+  const result = runCaptured(tokamakCliCommand, [...tokamakCliBaseArgs, ...args], { cwd: projectRoot });
   const logPath = writeTokamakCliStageLog(operationDir, stageName, result);
   if (result.status !== 0) {
     throw new Error(
@@ -3582,7 +3487,7 @@ function copyTokamakOperationArtifacts(operationDir) {
   ];
 
   for (const segments of requiredFiles) {
-    const sourcePath = path.join(tokamakRoot, "dist", "resource", ...segments);
+    const sourcePath = resolveTokamakCliResourceDir(...segments);
     const targetPath = path.join(resourceRoot, ...segments);
     ensureDir(path.dirname(targetPath));
     fs.copyFileSync(sourcePath, targetPath);
@@ -3675,26 +3580,53 @@ function normalizedAddressVector(addresses) {
   return addresses.map((value) => getAddress(value));
 }
 
+function normalizeBytesHex(value, byteLength) {
+  expect(Number.isInteger(byteLength) && byteLength > 0, "normalizeBytesHex requires a positive byte length.");
+  const targetHexLength = byteLength * 2;
+  let hex;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    expect(/^0x[0-9a-fA-F]*$/.test(trimmed), `Expected a hex string, received ${value}.`);
+    hex = trimmed.replace(/^0x/i, "");
+    if (hex.length % 2 !== 0) {
+      hex = `0${hex}`;
+    }
+  } else {
+    hex = ethers.hexlify(value).replace(/^0x/i, "");
+  }
+  expect(
+    hex.length <= targetHexLength,
+    `Expected at most ${byteLength} bytes, received ${Math.ceil(hex.length / 2)} bytes.`,
+  );
+  return `0x${hex.padStart(targetHexLength, "0").toLowerCase()}`;
+}
+
+function normalizeBytes12Hex(value) {
+  return normalizeBytesHex(value, 12);
+}
+
+function normalizeBytes16Hex(value) {
+  return normalizeBytesHex(value, 16);
+}
+
+function normalizeBytes20Hex(value) {
+  return normalizeBytesHex(value, 20);
+}
+
 function normalizeBytes32Hex(hexValue) {
-  return ethers.zeroPadValue(
-    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
-    32,
-  ).toLowerCase();
+  return normalizeBytesHex(hexValue, 32);
 }
 
 function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(
-    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
-    32,
-  );
+  return normalizeBytes32Hex(hexValue);
 }
 
 function bytes32FromBigInt(value) {
-  return ethers.zeroPadValue(ethers.toBeHex(value), 32);
+  return normalizeBytes32Hex(ethers.toBeHex(value));
 }
 
 function bigintToHex32(value) {
-  return ethers.zeroPadValue(ethers.toBeHex(value), 32);
+  return normalizeBytes32Hex(ethers.toBeHex(value));
 }
 
 function hashTokamakPublicInputs(values) {
@@ -4050,8 +3982,114 @@ function serializeBigInts(value) {
   )));
 }
 
+const OUTPUT_BYTES32_SCALAR_KEYS = new Set([
+  "aPubBlockHash",
+  "blockHash",
+  "bridgeCommitmentKey",
+  "bridgeNullifierKey",
+  "channelTokenVaultKey",
+  "commitment",
+  "currentRootVectorHash",
+  "currentUserKey",
+  "emittedRootVectorHash",
+  "ephemeralPubKeyX",
+  "hash",
+  "labelHash",
+  "l2StorageKey",
+  "noteReceivePubKeyX",
+  "nullifier",
+  "prevRanDao",
+  "previousRoot",
+  "registeredL2StorageKey",
+  "rootVectorHash",
+  "salt",
+  "sourceTxHash",
+  "topic0",
+  "transactionHash",
+  "txHash",
+  "updatedRoot",
+  "updatedUserKey",
+  "walletL2StorageKey",
+]);
+
+const OUTPUT_BYTES32_ARRAY_KEYS = new Set([
+  "currentRootVector",
+  "encryptedNoteValue",
+  "prevBlockHashes",
+  "stateRoots",
+  "storageKeys",
+  "storageTrieRoots",
+  "topics",
+  "updatedRoots",
+]);
+
+function normalizeCliOutput(value) {
+  return normalizeCliOutputValue(value, []);
+}
+
+function normalizeCliOutputValue(value, pathParts) {
+  if (shouldNormalizeOutputBytes32(pathParts, value)) {
+    return normalizeBytes32Hex(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry, index) => normalizeCliOutputValue(entry, [...pathParts, index]));
+  }
+  if (value && typeof value === "object" && !isByteArrayLike(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, normalizeCliOutputValue(entry, [...pathParts, key])]),
+    );
+  }
+  return value;
+}
+
+function shouldNormalizeOutputBytes32(pathParts, value) {
+  if (!isNormalizableBytesValue(value)) {
+    return false;
+  }
+  const lastKey = lastStringPathPart(pathParts);
+  if (lastKey && OUTPUT_BYTES32_SCALAR_KEYS.has(lastKey)) {
+    return true;
+  }
+  if (lastKey === "x" && parentStringPathPart(pathParts) === "noteReceivePubKey") {
+    return true;
+  }
+  return pathParts.some((part) => typeof part === "string" && OUTPUT_BYTES32_ARRAY_KEYS.has(part));
+}
+
+function lastStringPathPart(pathParts) {
+  for (let index = pathParts.length - 1; index >= 0; index -= 1) {
+    if (typeof pathParts[index] === "string") {
+      return pathParts[index];
+    }
+  }
+  return null;
+}
+
+function parentStringPathPart(pathParts) {
+  let seenLastString = false;
+  for (let index = pathParts.length - 1; index >= 0; index -= 1) {
+    if (typeof pathParts[index] !== "string") {
+      continue;
+    }
+    if (!seenLastString) {
+      seenLastString = true;
+      continue;
+    }
+    return pathParts[index];
+  }
+  return null;
+}
+
+function isNormalizableBytesValue(value) {
+  return typeof value === "string" || isByteArrayLike(value);
+}
+
+function isByteArrayLike(value) {
+  return value instanceof Uint8Array || Buffer.isBuffer(value);
+}
+
 function sanitizeReceipt(receipt) {
-  return serializeBigInts({
+  return normalizeCliOutput(serializeBigInts({
     hash: receipt.hash,
     blockHash: receipt.blockHash,
     blockNumber: receipt.blockNumber,
@@ -4060,7 +4098,7 @@ function sanitizeReceipt(receipt) {
     to: receipt.to,
     status: receipt.status,
     logs: receipt.logs,
-  });
+  }));
 }
 
 function receiptGasUsed(receipt) {
@@ -4086,7 +4124,8 @@ function networkNameFromChainId(chainId) {
 }
 
 function groth16UpdateTreeManifestPath(chainId) {
-  return path.resolve(deployRoot, `groth16-updateTree.${chainId}.latest.json`);
+  const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
+  return path.join(latestBridgeDir, `groth16.${chainId}.latest.json`);
 }
 
 function resolveDeployManifestArtifactPath(manifestPath, artifactPath) {
@@ -4139,11 +4178,18 @@ function findStorageSlot(storageLayoutManifest, contractName, label) {
 }
 
 function defaultBridgeDeploymentPath(chainId) {
-  return path.resolve(bridgeRoot, "deployments", `bridge.${chainId}.json`);
+  const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
+  return path.join(latestBridgeDir, `bridge.${chainId}.json`);
+}
+
+function requireLatestDappDeployArtifactPath(chainId, fileName) {
+  const latestAppArtifactDir = requireLatestDappArtifactDir(projectRoot, chainId, PRIVATE_STATE_DAPP_LABEL);
+  return path.join(latestAppArtifactDir, fileName);
 }
 
 function defaultBridgeAbiManifestPath(chainId) {
-  return path.resolve(bridgeRoot, "deployments", `bridge-abi-manifest.${chainId}.json`);
+  const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
+  return path.join(latestBridgeDir, `bridge-abi-manifest.${chainId}.json`);
 }
 
 function loadBridgeAbiManifest(manifestPath) {
@@ -4367,7 +4413,12 @@ function assertWalletChannelMoveArgs(args, commandName) {
 }
 
 function assertInstallZkEvmArgs(args) {
-  assertAllowedCommandKeys(args, "install-zk-evm", new Set(["command", "positional"]), "no options");
+  assertAllowedCommandKeys(
+    args,
+    "install-zk-evm",
+    new Set(["command", "positional", "docker"]),
+    "optional --docker",
+  );
 }
 
 function assertUninstallZkEvmArgs(args) {
@@ -4548,11 +4599,12 @@ function persistCurrentState(context) {
 function printHelp() {
   console.log(`
 Commands:
-  install-zk-evm
-      Install the local Tokamak zk-EVM toolchain
+  install-zk-evm [--docker]
+      Install the Tokamak zk-EVM CLI runtime cache
+      Use --docker on Linux to forward tokamak-cli --install --docker
 
   uninstall-zk-evm
-      Remove the checked-out Tokamak zk-EVM worktree contents
+      Remove the Tokamak zk-EVM CLI runtime cache
 
   create-channel --channel-name <NAME> --join-fee <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
@@ -4617,8 +4669,9 @@ function readJsonIfExists(filePath) {
 }
 
 function writeJson(filePath, value) {
+  const normalizedValue = normalizeCliOutput(value);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+  fs.writeFileSync(filePath, `${JSON.stringify(normalizedValue, null, 2)}\n`);
 }
 
 function canonicalizeJsonValue(value) {
@@ -4639,17 +4692,18 @@ function canonicalizeJsonValue(value) {
 function hashJsonValue(value) {
   return keccak256(
     ethers.toUtf8Bytes(
-      JSON.stringify(canonicalizeJsonValue(serializeBigInts(value))),
+      JSON.stringify(canonicalizeJsonValue(serializeBigInts(normalizeCliOutput(value)))),
     ),
   );
 }
 
 function writeJsonIfChanged(filePath, value) {
-  const nextHash = hashJsonValue(value);
+  const normalizedValue = normalizeCliOutput(value);
+  const nextHash = hashJsonValue(normalizedValue);
   if (fs.existsSync(filePath) && hashJsonValue(readJson(filePath)) === nextHash) {
     return false;
   }
-  writeJson(filePath, value);
+  writeJson(filePath, normalizedValue);
   return true;
 }
 
@@ -4682,7 +4736,8 @@ function canReuseLocalWorkspaceSnapshot({ existingArtifacts, currentRootVectorHa
 }
 
 function writeEncryptedWalletJson(filePath, value, walletPassword) {
-  writeEncryptedWalletFile(filePath, Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8"), walletPassword);
+  const normalizedValue = normalizeCliOutput(value);
+  writeEncryptedWalletFile(filePath, Buffer.from(`${JSON.stringify(normalizedValue, null, 2)}\n`, "utf8"), walletPassword);
 }
 
 function readEncryptedWalletJson(filePath, walletPassword) {
@@ -4705,9 +4760,9 @@ function writeEncryptedWalletFile(filePath, plaintextBytes, walletPassword) {
     version: WALLET_ENCRYPTION_VERSION,
     algorithm: WALLET_ENCRYPTION_ALGORITHM,
     kdf: "scrypt",
-    salt: ethers.hexlify(salt),
-    iv: ethers.hexlify(iv),
-    tag: ethers.hexlify(tag),
+    salt: normalizeBytes16Hex(salt),
+    iv: normalizeBytes12Hex(iv),
+    tag: normalizeBytes16Hex(tag),
     ciphertext: ethers.hexlify(ciphertext),
   };
   fs.writeFileSync(filePath, `${JSON.stringify(envelope, null, 2)}\n`);
@@ -4778,7 +4833,7 @@ function normalizePrivateKey(value) {
 }
 
 function printJson(value) {
-  const output = `${JSON.stringify(value, null, 2)}\n`;
+  const output = `${JSON.stringify(normalizeCliOutput(value), null, 2)}\n`;
   const outputPath = process.env.PRIVATE_STATE_CLI_JSON_OUTPUT?.trim();
   if (outputPath) {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });

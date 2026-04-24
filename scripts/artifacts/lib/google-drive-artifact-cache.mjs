@@ -4,13 +4,6 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import {
-  bridgeArtifactDir,
-  bridgeArtifactRoot,
-  deploymentRoot,
-  dappArtifactDir,
-  dappArtifactRoot,
-} from "./deployment-layout.mjs";
 
 export const DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID = "11nM-VT0ZJlBdZUdFPGawqxvHNpXm1sXR";
 
@@ -52,15 +45,20 @@ export function privateStateCliArtifactPaths(cacheBaseRoot = resolveArtifactCach
   };
 }
 
-export async function installDriveDeploymentArtifacts({
+export async function installPrivateStateCliArtifacts({
   dappName,
   indexFileId = process.env.PRIVATE_STATE_DRIVE_ARTIFACT_INDEX_FILE_ID
     ?? process.env.TOKAMAK_ARTIFACT_INDEX_FILE_ID
     ?? DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID,
   cacheBaseRoot,
+  localDeploymentBaseRoot,
+  localChainIds = [31337],
 } = {}) {
   const normalizedDappName = requireNonEmptyString(dappName, "dappName");
   const normalizedCacheBaseRoot = resolveArtifactCacheBaseRoot(cacheBaseRoot);
+  const normalizedLocalDeploymentBaseRoot = localDeploymentBaseRoot
+    ? path.resolve(localDeploymentBaseRoot)
+    : null;
   const index = await fetchPublicArtifactIndex(indexFileId);
   const installed = [];
 
@@ -74,44 +72,29 @@ export async function installDriveDeploymentArtifacts({
       chainId,
       dappName: normalizedDappName,
       cacheBaseRoot: normalizedCacheBaseRoot,
+      source: "drive",
     }));
   }
 
+  if (normalizedLocalDeploymentBaseRoot) {
+    for (const chainId of localChainIds) {
+      installed.push(materializeLocalPrivateStateCliDeployment({
+        chainId,
+        dappName: normalizedDappName,
+        cacheBaseRoot: normalizedCacheBaseRoot,
+        localDeploymentBaseRoot: normalizedLocalDeploymentBaseRoot,
+      }));
+    }
+  }
+
   if (installed.length === 0) {
-    throw new Error(`Drive artifact index does not contain installable artifacts for ${normalizedDappName}.`);
+    throw new Error(`No installable artifacts found for ${normalizedDappName}.`);
   }
 
   return {
     cacheBaseRoot: normalizedCacheBaseRoot,
     artifactRoot: privateStateCliArtifactRoot(normalizedCacheBaseRoot),
-    index,
     installed,
-  };
-}
-
-export async function ensureDriveDeploymentArtifacts({
-  chainId,
-  dappName,
-  indexFileId = process.env.PRIVATE_STATE_DRIVE_ARTIFACT_INDEX_FILE_ID
-    ?? process.env.TOKAMAK_ARTIFACT_INDEX_FILE_ID
-    ?? DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID,
-  cacheBaseRoot,
-} = {}) {
-  const normalizedChainId = String(requireChainId(chainId));
-  const normalizedDappName = requireNonEmptyString(dappName, "dappName");
-  const normalizedCacheBaseRoot = resolveArtifactCacheBaseRoot(cacheBaseRoot);
-  const index = await fetchPublicArtifactIndex(indexFileId);
-  const result = await materializeIndexedDeployment({
-    index,
-    chainId: normalizedChainId,
-    dappName: normalizedDappName,
-    cacheBaseRoot: normalizedCacheBaseRoot,
-  });
-  writeCachedArtifactIndex(normalizedCacheBaseRoot, index);
-  return {
-    cacheBaseRoot: normalizedCacheBaseRoot,
-    index,
-    ...result,
   };
 }
 
@@ -120,6 +103,7 @@ async function materializePrivateStateCliDeployment({
   chainId,
   dappName,
   cacheBaseRoot,
+  source,
 }) {
   const normalizedChainId = String(requireChainId(chainId));
   const normalizedDappName = requireNonEmptyString(dappName, "dappName");
@@ -159,75 +143,80 @@ async function materializePrivateStateCliDeployment({
       [`deployment.${normalizedChainId}.latest.json`, path.basename(paths.dappDeploymentPath)],
       [`storage-layout.${normalizedChainId}.latest.json`, path.basename(paths.dappStorageLayoutPath)],
       ["PrivateStateController.callable-abi.json", path.basename(paths.privateStateControllerAbiPath)],
-      [`dapp-registration.${normalizedChainId}.json`, path.basename(paths.dappRegistrationPath)],
+      [`dapp-registration.${normalizedChainId}.json`, path.basename(paths.dappRegistrationPath), { optional: true }],
     ],
   });
   rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);
 
   return {
     chainId: Number(normalizedChainId),
+    source,
     artifactDir: paths.rootDir,
-    bridgeDir: paths.rootDir,
-    dappDir: paths.rootDir,
     bridgeTimestamp: chain.bridge.timestamp,
     dappTimestamp: dapp.timestamp,
   };
 }
 
-async function materializeIndexedDeployment({
-  index,
+function materializeLocalPrivateStateCliDeployment({
   chainId,
   dappName,
   cacheBaseRoot,
+  localDeploymentBaseRoot,
 }) {
   const normalizedChainId = String(requireChainId(chainId));
   const normalizedDappName = requireNonEmptyString(dappName, "dappName");
-  const chain = index.chains[normalizedChainId];
-  if (!chain) {
-    throw new Error(`Drive artifact index does not contain chain ${normalizedChainId}.`);
-  }
-  if (!chain.bridge?.timestamp || !chain.bridge?.files) {
-    throw new Error(`Drive artifact index is missing bridge artifacts for chain ${normalizedChainId}.`);
-  }
-
-  const dapp = chain.dapps?.[normalizedDappName];
-  if (!dapp?.timestamp || !dapp?.files) {
-    throw new Error(
-      `Drive artifact index is missing ${normalizedDappName} artifacts for chain ${normalizedChainId}.`,
-    );
-  }
-
-  const bridgeDir = bridgeArtifactDir(cacheBaseRoot, normalizedChainId, chain.bridge.timestamp);
-  const dappDir = dappArtifactDir(cacheBaseRoot, normalizedChainId, normalizedDappName, dapp.timestamp);
-
-  pruneTimestampSiblings(bridgeArtifactRoot(cacheBaseRoot, normalizedChainId), chain.bridge.timestamp);
-  pruneTimestampSiblings(
-    dappArtifactRoot(cacheBaseRoot, normalizedChainId, normalizedDappName),
-    dapp.timestamp,
+  const bridgeRoot = path.join(
+    localDeploymentBaseRoot,
+    "deployment",
+    `chain-id-${normalizedChainId}`,
+    "bridge",
   );
+  const dappRoot = path.join(
+    localDeploymentBaseRoot,
+    "deployment",
+    `chain-id-${normalizedChainId}`,
+    "dapps",
+    normalizedDappName,
+  );
+  const bridgeTimestamp = requireLatestTimestampLabel(bridgeRoot, `bridge artifacts for chain ${normalizedChainId}`);
+  const dappTimestamp = requireLatestTimestampLabel(dappRoot, `${normalizedDappName} artifacts for chain ${normalizedChainId}`);
+  const bridgeDir = path.join(bridgeRoot, bridgeTimestamp);
+  const dappDir = path.join(dappRoot, dappTimestamp);
+  const paths = privateStateCliArtifactPaths(cacheBaseRoot, normalizedChainId);
+  fs.rmSync(paths.rootDir, { recursive: true, force: true });
+  fs.mkdirSync(paths.rootDir, { recursive: true });
 
-  await materializeDriveFiles({
-    artifactDir: bridgeDir,
-    files: chain.bridge.files,
+  materializeSelectedLocalFiles({
+    targetDir: paths.rootDir,
+    selectedFiles: [
+      [path.join(bridgeDir, `bridge.${normalizedChainId}.json`), path.basename(paths.bridgeDeploymentPath)],
+      [path.join(bridgeDir, `bridge-abi-manifest.${normalizedChainId}.json`), path.basename(paths.bridgeAbiManifestPath)],
+      [path.join(bridgeDir, `groth16.${normalizedChainId}.latest.json`), path.basename(paths.grothManifestPath)],
+      [path.join(bridgeDir, "groth16", "circuit_final.zkey"), path.basename(paths.grothZkeyPath)],
+      [path.join(dappDir, `deployment.${normalizedChainId}.latest.json`), path.basename(paths.dappDeploymentPath)],
+      [path.join(dappDir, `storage-layout.${normalizedChainId}.latest.json`), path.basename(paths.dappStorageLayoutPath)],
+      [path.join(dappDir, "PrivateStateController.callable-abi.json"), path.basename(paths.privateStateControllerAbiPath)],
+      [path.join(dappDir, `dapp-registration.${normalizedChainId}.json`), path.basename(paths.dappRegistrationPath), { optional: true }],
+    ],
   });
-  await materializeDriveFiles({
-    artifactDir: dappDir,
-    files: dapp.files,
-  });
+  rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);
 
   return {
     chainId: Number(normalizedChainId),
-    bridgeDir,
-    dappDir,
-    bridgeTimestamp: chain.bridge.timestamp,
-    dappTimestamp: dapp.timestamp,
+    source: "local",
+    artifactDir: paths.rootDir,
+    bridgeTimestamp,
+    dappTimestamp,
   };
 }
 
 async function materializeSelectedDriveFiles({ targetDir, files, selectedFiles }) {
-  for (const [relativePath, targetName] of selectedFiles) {
+  for (const [relativePath, targetName, options = {}] of selectedFiles) {
     const metadata = files[relativePath];
     if (!metadata) {
+      if (options.optional) {
+        continue;
+      }
       throw new Error(`Drive artifact index is missing required file ${relativePath}.`);
     }
     validateDriveFileMetadata(relativePath, metadata);
@@ -259,6 +248,20 @@ async function materializeSelectedDriveFiles({ targetDir, files, selectedFiles }
   }
 }
 
+function materializeSelectedLocalFiles({ targetDir, selectedFiles }) {
+  for (const [sourcePath, targetName, options = {}] of selectedFiles) {
+    if (!fs.existsSync(sourcePath)) {
+      if (options.optional) {
+        continue;
+      }
+      throw new Error(`Missing local deployment artifact: ${sourcePath}`);
+    }
+    const targetPath = path.join(targetDir, targetName);
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    fs.copyFileSync(sourcePath, targetPath);
+  }
+}
+
 function rewriteFlatGroth16Manifest(manifestPath, zkeyPath) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   manifest.artifactDir = ".";
@@ -272,17 +275,27 @@ function rewriteFlatGroth16Manifest(manifestPath, zkeyPath) {
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }
 
-function writeCachedArtifactIndex(cacheBaseRoot, index) {
-  fs.mkdirSync(deploymentRoot(cacheBaseRoot), { recursive: true });
-  fs.writeFileSync(
-    path.join(deploymentRoot(cacheBaseRoot), "artifact-index.json"),
-    `${JSON.stringify(index, null, 2)}\n`,
-    "utf8",
-  );
-}
-
 function compareChainIds(left, right) {
   return Number(left) - Number(right);
+}
+
+function latestTimestampLabel(rootDir) {
+  if (!fs.existsSync(rootDir)) {
+    return null;
+  }
+  return fs.readdirSync(rootDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && TIMESTAMP_LABEL_PATTERN.test(entry.name))
+    .map((entry) => entry.name)
+    .sort()
+    .at(-1) ?? null;
+}
+
+function requireLatestTimestampLabel(rootDir, label) {
+  const timestamp = latestTimestampLabel(rootDir);
+  if (!timestamp) {
+    throw new Error(`No local ${label} snapshot exists under ${rootDir}.`);
+  }
+  return timestamp;
 }
 
 async function fetchPublicArtifactIndex(indexFileId) {
@@ -304,37 +317,6 @@ function validateArtifactIndex(index) {
   }
   if (!index.chains || typeof index.chains !== "object" || Array.isArray(index.chains)) {
     throw new Error("Drive artifact index is missing a valid chains object.");
-  }
-}
-
-async function materializeDriveFiles({ artifactDir, files }) {
-  for (const [relativePath, metadata] of Object.entries(files)) {
-    validateDriveFileMetadata(relativePath, metadata);
-    const targetPath = resolveArtifactTargetPath(artifactDir, relativePath);
-    if (await cachedFileMatches(targetPath, metadata)) {
-      continue;
-    }
-
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-    const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}`;
-    try {
-      await downloadPublicDriveFileToPath(metadata.fileId, tempPath);
-      const downloaded = fs.statSync(tempPath);
-      if (downloaded.size !== Number(metadata.size)) {
-        throw new Error(
-          `Downloaded ${relativePath} size mismatch: expected ${metadata.size}, received ${downloaded.size}.`,
-        );
-      }
-      const downloadedSha256 = await sha256File(tempPath);
-      if (downloadedSha256 !== metadata.sha256) {
-        throw new Error(
-          `Downloaded ${relativePath} sha256 mismatch: expected ${metadata.sha256}, received ${downloadedSha256}.`,
-        );
-      }
-      fs.renameSync(tempPath, targetPath);
-    } finally {
-      fs.rmSync(tempPath, { force: true });
-    }
   }
 }
 
@@ -365,26 +347,6 @@ async function cachedFileMatches(filePath, metadata) {
     return false;
   }
   return (await sha256File(filePath)) === metadata.sha256;
-}
-
-function resolveArtifactTargetPath(artifactDir, relativePath) {
-  const targetPath = path.resolve(artifactDir, relativePath);
-  const rootPath = path.resolve(artifactDir);
-  if (!(targetPath === rootPath || targetPath.startsWith(`${rootPath}${path.sep}`))) {
-    throw new Error(`Drive artifact index path escapes the artifact root: ${relativePath}`);
-  }
-  return targetPath;
-}
-
-function pruneTimestampSiblings(rootDir, keepTimestamp) {
-  if (!fs.existsSync(rootDir)) {
-    return;
-  }
-  for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
-    if (entry.isDirectory() && TIMESTAMP_LABEL_PATTERN.test(entry.name) && entry.name !== keepTimestamp) {
-      fs.rmSync(path.join(rootDir, entry.name), { recursive: true, force: true });
-    }
-  }
 }
 
 async function downloadPublicDriveFileToBuffer(fileId) {

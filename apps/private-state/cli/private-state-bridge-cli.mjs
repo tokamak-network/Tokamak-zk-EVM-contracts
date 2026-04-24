@@ -50,12 +50,7 @@ import {
   resolveTokamakCliResourceDir,
 } from "../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
 import {
-  dappArtifactRoot,
-  requireLatestDappArtifactDir,
-  requireLatestBridgeArtifactDir,
-} from "../../../scripts/artifacts/lib/deployment-layout.mjs";
-import {
-  installDriveDeploymentArtifacts,
+  installPrivateStateCliArtifacts,
   privateStateCliArtifactPaths,
   resolveArtifactCacheBaseRoot,
 } from "../../../scripts/artifacts/lib/google-drive-artifact-cache.mjs";
@@ -83,7 +78,6 @@ const tokamakCliInvocation = buildTokamakCliInvocation();
 const tokamakCliCommand = tokamakCliInvocation.command;
 const tokamakCliBaseArgs = tokamakCliInvocation.args;
 const tokamakCliCacheRoot = resolveTokamakCliCacheRoot();
-const deploymentBaseRootByChainId = new Map();
 const flatDeploymentArtifactPathsByChainId = new Map();
 
 const abiCoder = AbiCoder.defaultAbiCoder();
@@ -146,48 +140,31 @@ const DEFAULT_LOG_CHUNK_SIZE = 2000;
 
 async function prepareDeploymentArtifacts(chainId) {
   const normalizedChainId = Number(chainId);
-  if (deploymentBaseRootByChainId.has(normalizedChainId)) {
-    return deploymentBaseRootByChainId.get(normalizedChainId);
+  const existingPaths = flatDeploymentArtifactPathsByChainId.get(normalizedChainId);
+  if (existingPaths) {
+    return existingPaths.rootDir;
   }
 
   const configuredRoot = process.env.PRIVATE_STATE_DEPLOYMENT_ROOT?.trim();
-  if (configuredRoot) {
-    const resolvedRoot = path.resolve(configuredRoot);
-    deploymentBaseRootByChainId.set(normalizedChainId, resolvedRoot);
-    return resolvedRoot;
-  }
-
-  const source = process.env.PRIVATE_STATE_DEPLOYMENT_SOURCE?.trim().toLowerCase();
-  if (source && source !== "local" && source !== "drive") {
-    throw new Error("PRIVATE_STATE_DEPLOYMENT_SOURCE must be either local or drive.");
-  }
-  if (source === "local" || (!source && normalizedChainId === 31337)) {
-    deploymentBaseRootByChainId.set(normalizedChainId, projectRoot);
-    return projectRoot;
-  }
-
-  const cacheBaseRoot = resolveArtifactCacheBaseRoot();
+  const cacheBaseRoot = configuredRoot
+    ? path.resolve(configuredRoot)
+    : resolveArtifactCacheBaseRoot();
   const artifactPaths = privateStateCliArtifactPaths(cacheBaseRoot, normalizedChainId);
   requireInstalledDeploymentArtifacts(artifactPaths, normalizedChainId);
   flatDeploymentArtifactPathsByChainId.set(normalizedChainId, artifactPaths);
-  deploymentBaseRootByChainId.set(normalizedChainId, cacheBaseRoot);
-  return cacheBaseRoot;
-}
-
-function deploymentBaseRootForChainId(chainId) {
-  const normalizedChainId = Number(chainId);
-  const root = deploymentBaseRootByChainId.get(normalizedChainId);
-  if (root) {
-    return root;
-  }
-  if (normalizedChainId === 31337) {
-    return projectRoot;
-  }
-  throw new Error(`Deployment artifacts for chain ${normalizedChainId} were not prepared.`);
+  return artifactPaths.rootDir;
 }
 
 function flatDeploymentArtifactPathsForChainId(chainId) {
   return flatDeploymentArtifactPathsByChainId.get(Number(chainId)) ?? null;
+}
+
+function requireFlatDeploymentArtifactPathsForChainId(chainId) {
+  const paths = flatDeploymentArtifactPathsForChainId(chainId);
+  if (!paths) {
+    throw new Error(`Deployment artifacts for chain ${Number(chainId)} were not prepared.`);
+  }
+  return paths;
 }
 
 function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
@@ -199,7 +176,6 @@ function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
     artifactPaths.dappDeploymentPath,
     artifactPaths.dappStorageLayoutPath,
     artifactPaths.privateStateControllerAbiPath,
-    artifactPaths.dappRegistrationPath,
   ];
   try {
     for (const filePath of requiredFiles) {
@@ -211,7 +187,7 @@ function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
     throw new Error(
       [
         `Missing installed deployment artifacts for chain ${chainId} under ${artifactPaths.rootDir}.`,
-        "Run --install before running private-state CLI commands for public networks.",
+        "Run --install before running private-state CLI commands for this network.",
         `Original error: ${error.message}`,
       ].join(" "),
     );
@@ -401,7 +377,7 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     provider,
   );
   const expectedLabelHash = normalizeBytes32Hex(keccak256(ethers.toUtf8Bytes(dappLabel)));
-  const registrationCandidates = dappRegistrationManifestCandidates(bridgeResources.chainId, dappLabel);
+  const registrationCandidates = dappRegistrationManifestCandidates(bridgeResources.chainId);
   const manifestPath = registrationCandidates.find((candidatePath) => fs.existsSync(candidatePath)) ?? null;
   const manifest = manifestPath ? readJsonIfExists(manifestPath) : null;
   if (manifest !== null) {
@@ -975,8 +951,9 @@ async function handleInstallZkEvm({ args }) {
   }
   run(tokamakCliCommand, installArgs, { cwd: projectRoot });
   run("node", [path.join("scripts", "generate-tokamak-shared-constants.js")], { cwd: projectRoot });
-  const deploymentArtifacts = await installDriveDeploymentArtifacts({
+  const deploymentArtifacts = await installPrivateStateCliArtifacts({
     dappName: PRIVATE_STATE_DAPP_LABEL,
+    localDeploymentBaseRoot: projectRoot,
   });
   printJson({
     action: "install",
@@ -987,6 +964,7 @@ async function handleInstallZkEvm({ args }) {
     deploymentArtifactRoot: deploymentArtifacts.artifactRoot,
     installedDeploymentArtifacts: deploymentArtifacts.installed.map((entry) => ({
       chainId: entry.chainId,
+      source: entry.source,
       bridgeTimestamp: entry.bridgeTimestamp,
       dappTimestamp: entry.dappTimestamp,
       artifactDir: entry.artifactDir,
@@ -4212,30 +4190,13 @@ function networkNameFromChainId(chainId) {
   throw new Error(`Unsupported chain ID for private-state bridge CLI: ${chainId}`);
 }
 
-function dappRegistrationManifestCandidates(chainId, dappLabel) {
-  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
-  if (flatPaths) {
-    return [flatPaths.dappRegistrationPath];
-  }
-
-  const registrationRoot = dappArtifactRoot(deploymentBaseRootForChainId(chainId), chainId, dappLabel);
-  return fs.existsSync(registrationRoot)
-    ? fs.readdirSync(registrationRoot, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort()
-      .reverse()
-      .map((timestampLabel) => path.join(registrationRoot, timestampLabel, `dapp-registration.${chainId}.json`))
-    : [];
+function dappRegistrationManifestCandidates(chainId) {
+  const flatPaths = requireFlatDeploymentArtifactPathsForChainId(chainId);
+  return fs.existsSync(flatPaths.dappRegistrationPath) ? [flatPaths.dappRegistrationPath] : [];
 }
 
 function groth16UpdateTreeManifestPath(chainId) {
-  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
-  if (flatPaths) {
-    return flatPaths.grothManifestPath;
-  }
-  const latestBridgeDir = requireLatestBridgeArtifactDir(deploymentBaseRootForChainId(chainId), chainId);
-  return path.join(latestBridgeDir, `groth16.${chainId}.latest.json`);
+  return requireFlatDeploymentArtifactPathsForChainId(chainId).grothManifestPath;
 }
 
 function resolveDeployManifestArtifactPath(manifestPath, artifactPath) {
@@ -4288,65 +4249,26 @@ function findStorageSlot(storageLayoutManifest, contractName, label) {
 }
 
 function defaultBridgeDeploymentPath(chainId) {
-  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
-  if (flatPaths) {
-    return flatPaths.bridgeDeploymentPath;
-  }
-  const latestBridgeDir = requireLatestBridgeArtifactDir(deploymentBaseRootForChainId(chainId), chainId);
-  return path.join(latestBridgeDir, `bridge.${chainId}.json`);
+  return requireFlatDeploymentArtifactPathsForChainId(chainId).bridgeDeploymentPath;
 }
 
 function requireLatestDappDeployArtifactPath(chainId, fileName) {
-  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
-  if (flatPaths) {
-    const filePath = path.join(flatPaths.rootDir, fileName);
-    expect(fs.existsSync(filePath), `Missing DApp deployment artifact for chain ${chainId}: ${filePath}.`);
-    return filePath;
-  }
-
-  const latestAppArtifactDir = requireLatestDappArtifactDir(
-    deploymentBaseRootForChainId(chainId),
-    chainId,
-    PRIVATE_STATE_DAPP_LABEL,
-  );
-  return path.join(latestAppArtifactDir, fileName);
+  const flatPaths = requireFlatDeploymentArtifactPathsForChainId(chainId);
+  const filePath = path.join(flatPaths.rootDir, fileName);
+  expect(fs.existsSync(filePath), `Missing DApp deployment artifact for chain ${chainId}: ${filePath}.`);
+  return filePath;
 }
 
 function dappDeploymentManifestPath(chainId) {
-  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
-  if (flatPaths) {
-    return flatPaths.dappDeploymentPath;
-  }
-
-  const latestAppArtifactDir = requireLatestDappArtifactDir(
-    deploymentBaseRootForChainId(chainId),
-    chainId,
-    PRIVATE_STATE_DAPP_LABEL,
-  );
-  return path.join(latestAppArtifactDir, `deployment.${chainId}.latest.json`);
+  return requireFlatDeploymentArtifactPathsForChainId(chainId).dappDeploymentPath;
 }
 
 function dappStorageLayoutManifestPath(chainId) {
-  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
-  if (flatPaths) {
-    return flatPaths.dappStorageLayoutPath;
-  }
-
-  const latestAppArtifactDir = requireLatestDappArtifactDir(
-    deploymentBaseRootForChainId(chainId),
-    chainId,
-    PRIVATE_STATE_DAPP_LABEL,
-  );
-  return path.join(latestAppArtifactDir, `storage-layout.${chainId}.latest.json`);
+  return requireFlatDeploymentArtifactPathsForChainId(chainId).dappStorageLayoutPath;
 }
 
 function defaultBridgeAbiManifestPath(chainId) {
-  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
-  if (flatPaths) {
-    return flatPaths.bridgeAbiManifestPath;
-  }
-  const latestBridgeDir = requireLatestBridgeArtifactDir(deploymentBaseRootForChainId(chainId), chainId);
-  return path.join(latestBridgeDir, `bridge-abi-manifest.${chainId}.json`);
+  return requireFlatDeploymentArtifactPathsForChainId(chainId).bridgeAbiManifestPath;
 }
 
 function loadBridgeAbiManifest(manifestPath) {

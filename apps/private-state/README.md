@@ -144,7 +144,7 @@ The commands below are ordered by the normal execution flow.
 - accepts optional `--docker` to forward `tokamak-cli --install --docker`
 - supports `--docker` only on Linux hosts because that mode is implemented by the upstream Tokamak CLI
 - refreshes the local `~/.tokamak-zk-evm` runtime cache
-- installs the minimal public-network private-state deployment artifacts into
+- installs the minimal private-state deployment artifacts into
   `~/.tokamak-private-state/private-state-cli-artifacts/chain-id-<chainId>/`
 - refreshes shared bridge constants derived from `tokamak-l2js`
 

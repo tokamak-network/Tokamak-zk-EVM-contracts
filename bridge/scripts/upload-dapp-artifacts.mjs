@@ -9,6 +9,7 @@ import {
   createTimestampLabel,
   preflightExclusiveFolderPath,
   resolveDriveUploadConfig,
+  updateDappArtifactIndex,
   uploadFilesByRelativePath,
   writeUploadReceipt,
 } from "../../scripts/drive/lib/google-drive-upload.mjs";
@@ -186,7 +187,18 @@ async function main() {
   const files = collectDappArtifactFiles(options);
   const { leafId, leafUrl } = await createExclusiveFolderPath(drive, config.folderId, targetSegments, timestamp);
 
-  await uploadFilesByRelativePath(drive, leafId, files);
+  const uploadedFiles = await uploadFilesByRelativePath(drive, leafId, files);
+  await updateDappArtifactIndex({
+    drive,
+    config,
+    dappName: options.dappName,
+    bridgeChainId: options.bridgeChainId,
+    appChainId: options.appChainId,
+    timestamp,
+    folderId: leafId,
+    folderUrl: leafUrl,
+    uploadedFiles,
+  });
 
   if (options.receiptOut) {
     writeUploadReceipt(options.receiptOut, {
@@ -199,6 +211,7 @@ async function main() {
       driveRootUrl: config.folderUrl,
       uploadedAt: new Date().toISOString(),
       files: files.map(({ relativePath }) => relativePath),
+      artifactIndex: "artifact-index.json",
     });
   }
 

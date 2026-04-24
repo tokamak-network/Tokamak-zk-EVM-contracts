@@ -9,6 +9,7 @@ import {
   createTimestampLabel,
   preflightExclusiveFolderPath,
   resolveDriveUploadConfig,
+  updateBridgeArtifactIndex,
   uploadFilesByRelativePath,
   writeUploadReceipt,
 } from "../../scripts/drive/lib/google-drive-upload.mjs";
@@ -149,7 +150,16 @@ async function main() {
   const files = collectBridgeArtifactFiles(options);
   const { leafId, leafUrl } = await createExclusiveFolderPath(drive, config.folderId, targetSegments, timestamp);
 
-  await uploadFilesByRelativePath(drive, leafId, files);
+  const uploadedFiles = await uploadFilesByRelativePath(drive, leafId, files);
+  await updateBridgeArtifactIndex({
+    drive,
+    config,
+    chainId: Number(chainId),
+    timestamp,
+    folderId: leafId,
+    folderUrl: leafUrl,
+    uploadedFiles,
+  });
 
   if (options.receiptOut) {
     writeUploadReceipt(options.receiptOut, {
@@ -160,6 +170,7 @@ async function main() {
       driveRootUrl: config.folderUrl,
       uploadedAt: new Date().toISOString(),
       files: files.map(({ relativePath }) => relativePath),
+      artifactIndex: "artifact-index.json",
     });
   }
 

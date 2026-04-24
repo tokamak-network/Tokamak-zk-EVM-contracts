@@ -1,11 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { authenticate } from "@google-cloud/local-auth";
 import { google } from "googleapis";
 
 const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"];
 const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
+const ARTIFACT_INDEX_FILE_NAME = "artifact-index.json";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -103,6 +106,27 @@ async function findChildFolderId(drive, parentId, name) {
   return response.data.files?.[0]?.id ?? null;
 }
 
+async function findChildFileMetadata(drive, parentId, name) {
+  const response = await drive.files.list({
+    q: [
+      `mimeType != '${DRIVE_FOLDER_MIME_TYPE}'`,
+      `trashed = false`,
+      `'${parentId}' in parents`,
+      `name = '${escapeDriveQueryValue(name)}'`,
+    ].join(" and "),
+    fields: "files(id, name, size, md5Checksum, modifiedTime, webViewLink)",
+    pageSize: 10,
+    includeItemsFromAllDrives: true,
+    supportsAllDrives: true,
+  });
+
+  const files = response.data.files ?? [];
+  if (files.length > 1) {
+    throw new Error(`Drive folder ${parentId} contains multiple files named ${name}.`);
+  }
+  return files[0] ?? null;
+}
+
 async function createFolder(drive, parentId, name) {
   const response = await drive.files.create({
     requestBody: {
@@ -182,6 +206,16 @@ function guessMimeType(filePath) {
   return "application/octet-stream";
 }
 
+async function sha256File(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = fs.createReadStream(filePath);
+    stream.on("error", reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
+}
+
 export async function uploadFile(drive, parentId, localPath, remoteName = path.basename(localPath)) {
   const response = await drive.files.create({
     requestBody: {
@@ -196,11 +230,19 @@ export async function uploadFile(drive, parentId, localPath, remoteName = path.b
     supportsAllDrives: true,
   });
 
-  return response.data.id ?? null;
+  const fileId = response.data.id ?? null;
+  if (!fileId) {
+    throw new Error(`Failed to upload Drive file: ${localPath}`);
+  }
+  return {
+    fileId,
+    webViewLink: response.data.webViewLink ?? null,
+  };
 }
 
 export async function uploadFilesByRelativePath(drive, leafFolderId, files) {
   const createdFolders = new Map([["", leafFolderId]]);
+  const uploadedFiles = [];
 
   for (const { localPath, relativePath } of files) {
     const normalizedRelativePath = relativePath.split(path.sep).join("/");
@@ -227,8 +269,162 @@ export async function uploadFilesByRelativePath(drive, leafFolderId, files) {
       createdFolders.set(directory, targetFolderId);
     }
 
-    await uploadFile(drive, targetFolderId, localPath, fileName);
+    const stat = fs.statSync(localPath);
+    const sha256 = await sha256File(localPath);
+    const upload = await uploadFile(drive, targetFolderId, localPath, fileName);
+    uploadedFiles.push({
+      relativePath: normalizedRelativePath,
+      fileId: upload.fileId,
+      webViewLink: upload.webViewLink,
+      sha256,
+      size: stat.size,
+    });
   }
+
+  return uploadedFiles;
+}
+
+async function readJsonDriveFile(drive, fileId) {
+  const response = await drive.files.get(
+    {
+      fileId,
+      alt: "media",
+      supportsAllDrives: true,
+    },
+    {
+      responseType: "text",
+    },
+  );
+  const text = typeof response.data === "string" ? response.data : JSON.stringify(response.data);
+  return JSON.parse(text);
+}
+
+async function writeJsonDriveFile(drive, parentId, fileName, payload) {
+  const content = `${JSON.stringify(payload, null, 2)}\n`;
+  const existing = await findChildFileMetadata(drive, parentId, fileName);
+  const media = {
+    mimeType: "application/json",
+    body: Readable.from([content]),
+  };
+
+  if (existing) {
+    const response = await drive.files.update({
+      fileId: existing.id,
+      media,
+      fields: "id, webViewLink, modifiedTime",
+      supportsAllDrives: true,
+    });
+    return response.data;
+  }
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: fileName,
+      parents: [parentId],
+    },
+    media,
+    fields: "id, webViewLink, modifiedTime",
+    supportsAllDrives: true,
+  });
+  return response.data;
+}
+
+function createEmptyArtifactIndex(config) {
+  return {
+    schemaVersion: 1,
+    updatedAt: null,
+    driveRootFolderId: config.folderId,
+    driveRootUrl: config.folderUrl,
+    chains: {},
+  };
+}
+
+async function loadArtifactIndex(drive, config) {
+  const indexFile = await findChildFileMetadata(drive, config.folderId, ARTIFACT_INDEX_FILE_NAME);
+  if (!indexFile) {
+    return createEmptyArtifactIndex(config);
+  }
+
+  const index = await readJsonDriveFile(drive, indexFile.id);
+  if (index.schemaVersion !== 1) {
+    throw new Error(`Unsupported Drive artifact index schemaVersion: ${index.schemaVersion}`);
+  }
+  if (!index.chains || typeof index.chains !== "object" || Array.isArray(index.chains)) {
+    throw new Error("Drive artifact index is missing a valid chains object.");
+  }
+  return index;
+}
+
+function uploadedFileIndex(uploadedFiles) {
+  return Object.fromEntries(
+    uploadedFiles.map((file) => [
+      file.relativePath,
+      {
+        fileId: file.fileId,
+        sha256: file.sha256,
+        size: file.size,
+      },
+    ]),
+  );
+}
+
+function chainEntry(index, chainId) {
+  const key = String(chainId);
+  index.chains[key] ??= {};
+  return index.chains[key];
+}
+
+async function saveArtifactIndex(drive, config, index) {
+  index.updatedAt = new Date().toISOString();
+  index.driveRootFolderId = config.folderId;
+  index.driveRootUrl = config.folderUrl;
+  return writeJsonDriveFile(drive, config.folderId, ARTIFACT_INDEX_FILE_NAME, index);
+}
+
+export async function updateBridgeArtifactIndex({
+  drive,
+  config,
+  chainId,
+  timestamp,
+  folderId,
+  folderUrl,
+  uploadedFiles,
+}) {
+  const index = await loadArtifactIndex(drive, config);
+  const chain = chainEntry(index, chainId);
+  chain.bridge = {
+    timestamp,
+    folderId,
+    folderUrl,
+    files: uploadedFileIndex(uploadedFiles),
+  };
+  await saveArtifactIndex(drive, config, index);
+  return index;
+}
+
+export async function updateDappArtifactIndex({
+  drive,
+  config,
+  dappName,
+  bridgeChainId,
+  appChainId,
+  timestamp,
+  folderId,
+  folderUrl,
+  uploadedFiles,
+}) {
+  const index = await loadArtifactIndex(drive, config);
+  const chain = chainEntry(index, bridgeChainId);
+  chain.dapps ??= {};
+  chain.dapps[dappName] = {
+    timestamp,
+    folderId,
+    folderUrl,
+    appChainId,
+    files: uploadedFileIndex(uploadedFiles),
+  };
+  await saveArtifactIndex(drive, config, index);
+  return index;
 }
 
 export function createTimestampLabel(date = new Date()) {

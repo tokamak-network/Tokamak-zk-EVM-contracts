@@ -3,7 +3,7 @@
   "backend_version": "0.1.0",
   "phase1_source_provenance": {
     "DuskGroth16": {
-      "source_path": "dusk_response_0015",
+      "source_url": "https://drive.usercontent.google.com/download?id=1nv9WpxXWMiP8-YwImd2FVn523u7_sb48&export=download&confirm=t",
       "source_size_bytes": 603981040,
       "raw_encoding": "compressed-response",
       "pinned_contribution": "0015",

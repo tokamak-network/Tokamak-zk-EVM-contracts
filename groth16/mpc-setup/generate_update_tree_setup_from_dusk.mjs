@@ -336,7 +336,7 @@ function buildPhase1SourceProvenance({ responsePath, responseSha256, autoDownloa
 
     return {
         DuskGroth16: {
-            source_path: path.basename(responsePath),
+            source_url: `https://drive.usercontent.google.com/download?id=${duskSource.responseFileId}&export=download&confirm=t`,
             source_size_bytes: responseStat.size,
             raw_encoding: "compressed-response",
             pinned_contribution: duskSource.contributionId,

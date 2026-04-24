@@ -43,17 +43,17 @@ import {
   hexToBigInt,
   hexToBytes,
 } from "@ethereumjs/util";
-import { deriveRpcUrl, resolveCliNetwork } from "../../scripts/network-config.mjs";
+import { deriveRpcUrl, resolveCliNetwork } from "@tokamak-private-dapps/common-library/network-config";
 import {
   buildTokamakCliInvocation,
   resolveTokamakCliCacheRoot,
   resolveTokamakCliResourceDir,
-} from "../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+} from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
 import {
   installPrivateStateCliArtifacts,
   privateStateCliArtifactPaths,
   resolveArtifactCacheBaseRoot,
-} from "../../../scripts/artifacts/lib/google-drive-artifact-cache.mjs";
+} from "@tokamak-private-dapps/common-library/artifact-cache";
 import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,

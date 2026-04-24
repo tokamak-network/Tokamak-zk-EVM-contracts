@@ -1,0 +1,21 @@
+{
+  "name": "@tokamak-private-dapps/common-library",
+  "version": "0.1.0",
+  "description": "Shared runtime helpers for Tokamak private DApp CLIs.",
+  "type": "module",
+  "exports": {
+    "./network-config": "./src/network-config.mjs",
+    "./tokamak-runtime-paths": "./src/tokamak-runtime-paths.mjs",
+    "./artifact-cache": "./src/artifact-cache.mjs"
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@tokamak-zk-evm/cli": "^2.0.7",
+    "@tokamak-zk-evm/subcircuit-library": "^1.0.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

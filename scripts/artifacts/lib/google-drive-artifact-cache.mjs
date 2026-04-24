@@ -9,10 +9,9 @@ export const DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID = "11nM-VT0ZJlBdZUdFPGawqxvHN
 
 const DRIVE_DOWNLOAD_BASE_URL = "https://drive.google.com/uc?export=download";
 const TIMESTAMP_LABEL_PATTERN = /^\d{8}T\d{6}Z$/;
-const PRIVATE_STATE_CLI_ARTIFACT_ROOT_DIR = "private-state-cli-artifacts";
 
 export function defaultArtifactCacheBaseRoot() {
-  return path.join(os.homedir(), ".tokamak-private-state");
+  return path.join(os.homedir(), "tokamak-private-channels");
 }
 
 export function resolveArtifactCacheBaseRoot(cacheBaseRoot = process.env.PRIVATE_STATE_ARTIFACT_CACHE_ROOT
@@ -22,7 +21,7 @@ export function resolveArtifactCacheBaseRoot(cacheBaseRoot = process.env.PRIVATE
 }
 
 export function privateStateCliArtifactRoot(cacheBaseRoot = resolveArtifactCacheBaseRoot()) {
-  return path.join(resolveArtifactCacheBaseRoot(cacheBaseRoot), PRIVATE_STATE_CLI_ARTIFACT_ROOT_DIR);
+  return path.join(resolveArtifactCacheBaseRoot(cacheBaseRoot), "dapps", "private-state");
 }
 
 export function privateStateCliArtifactChainDir(cacheBaseRoot = resolveArtifactCacheBaseRoot(), chainId) {

@@ -145,7 +145,7 @@ The commands below are ordered by the normal execution flow.
 - supports `--docker` only on Linux hosts because that mode is implemented by the upstream Tokamak CLI
 - refreshes the local `~/.tokamak-zk-evm` runtime cache
 - installs the minimal private-state deployment artifacts into
-  `~/.tokamak-private-state/private-state-cli-artifacts/chain-id-<chainId>/`
+  `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
 - refreshes shared bridge constants derived from `tokamak-l2js`
 
 `uninstall-zk-evm`

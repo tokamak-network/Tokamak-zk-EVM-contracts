@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Groth16: Generate Dusk-backed MPC setup and upload",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "node groth16/mpc-setup/generate_update_tree_setup_from_dusk.mjs && node groth16/mpc-setup/publish_update_tree_setup.mjs",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env"
+    }
+  ]
+}

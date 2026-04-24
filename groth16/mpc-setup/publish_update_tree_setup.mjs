@@ -222,7 +222,6 @@ export async function publishUpdateTreeSetup() {
   await validateProvenanceHashes(provenance);
 
   const archiveName = buildArchiveName(provenance);
-  preflightDriveUpload(config, buildArchiveVersionPrefix(provenance.backend_version));
 
   provenance.published_folder_url = config.folderUrl;
   provenance.published_archive_name = archiveName;

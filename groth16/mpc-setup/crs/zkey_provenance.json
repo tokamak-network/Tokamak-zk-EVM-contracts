@@ -25,7 +25,7 @@
   "zkey_sha256": "fc0fdf56278a3981a93697d7b44196c4d00e7e3d5c9672cffb77de9fff341c9f",
   "metadata_sha256": "71d419a598dace4973a92d35e5d3c417302ea0b9b50aec9e2f28d9fd0385acd5",
   "verification_key_sha256": "2b8c29f26d672fccc891883b96fda3b8aa6552c59ec64132b42433ab9ce1bc7c",
-  "published_folder_url": null,
-  "published_archive_name": null,
-  "zkey_download_url": null
+  "published_folder_url": "https://drive.google.com/drive/folders/1jAIBqV-KG6PxFPDFpgtg9PDIceDDqk6N",
+  "published_archive_name": "tokamak-private-dapps-groth16-v0.1.0-20260424T073912Z.zip",
+  "zkey_download_url": "https://drive.google.com/uc?id=1hcI2DIKitpsWgkCp3KQ_0mSySSMFiDZx&export=download"
 }

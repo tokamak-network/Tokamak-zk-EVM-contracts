@@ -103,6 +103,19 @@ async function saveCredentials(client, clientJsonPath, tokenPath) {
   fs.writeFileSync(tokenPath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
+async function assertAuthenticatedClient(authClient) {
+  const headers = await authClient.getRequestHeaders("https://www.googleapis.com/drive/v3/files");
+  const authorization = typeof headers.get === "function"
+    ? headers.get("authorization")
+    : headers.Authorization ?? headers.authorization;
+
+  if (!authorization) {
+    throw new Error(
+      "Google OAuth did not produce an Authorization header. Re-run the command and complete the browser OAuth flow.",
+    );
+  }
+}
+
 async function createDriveClient(config) {
   let authClient = await loadSavedCredentialsIfExist(config.oauthTokenPath);
   if (!authClient) {
@@ -113,18 +126,24 @@ async function createDriveClient(config) {
     await saveCredentials(authClient, config.oauthClientJsonPath, config.oauthTokenPath);
   }
 
-  return google.drive({ version: "v3", auth: authClient });
+  await assertAuthenticatedClient(authClient);
+
+  return {
+    drive: google.drive({ version: "v3", auth: authClient }),
+    authClient,
+  };
 }
 
 function escapeDriveQueryValue(value) {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
-async function validateDriveFolder(drive, config, archivePrefix) {
+async function validateDriveFolder(drive, authClient, config, archivePrefix) {
   const folderResponse = await drive.files.get({
     fileId: config.folderId,
     fields: "id,mimeType,capabilities(canAddChildren)",
     supportsAllDrives: true,
+    auth: authClient,
   });
   const folder = folderResponse.data;
   if (folder.mimeType !== DRIVE_FOLDER_MIME_TYPE) {
@@ -145,6 +164,7 @@ async function validateDriveFolder(drive, config, archivePrefix) {
     pageSize: 100,
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
+    auth: authClient,
   });
   const existingNames = (listing.data.files ?? [])
     .map((file) => file.name)
@@ -248,7 +268,7 @@ async function createArchive(archivePath) {
   await pipeline(zipFile.outputStream, fs.createWriteStream(archivePath));
 }
 
-async function uploadArchive(drive, config, archivePath, archiveName) {
+async function uploadArchive(drive, authClient, config, archivePath, archiveName) {
   const response = await drive.files.create({
     requestBody: {
       name: archiveName,
@@ -261,6 +281,7 @@ async function uploadArchive(drive, config, archivePath, archiveName) {
     },
     fields: "id,name,webViewLink",
     supportsAllDrives: true,
+    auth: authClient,
   });
 
   const fileId = response.data.id;
@@ -276,6 +297,7 @@ async function uploadArchive(drive, config, archivePath, archiveName) {
       allowFileDiscovery: false,
     },
     supportsAllDrives: true,
+    auth: authClient,
   });
   await drive.files.update({
     fileId,
@@ -284,6 +306,7 @@ async function uploadArchive(drive, config, archivePath, archiveName) {
     },
     fields: "id",
     supportsAllDrives: true,
+    auth: authClient,
   });
 
   return `https://drive.google.com/uc?id=${fileId}&export=download`;
@@ -292,14 +315,14 @@ async function uploadArchive(drive, config, archivePath, archiveName) {
 export async function publishUpdateTreeSetup() {
   assertOutputFiles();
   const config = readDriveUploadConfig();
-  const drive = await createDriveClient(config);
+  const { drive, authClient } = await createDriveClient(config);
   const provenance = readJson(provenancePath);
   const originalProvenance = structuredClone(provenance);
 
   await validateProvenanceHashes(provenance);
 
   const archiveName = buildArchiveName(provenance);
-  await validateDriveFolder(drive, config, buildArchiveVersionPrefix(provenance.backend_version));
+  await validateDriveFolder(drive, authClient, config, buildArchiveVersionPrefix(provenance.backend_version));
 
   provenance.published_folder_url = config.folderUrl;
   provenance.published_archive_name = archiveName;
@@ -309,7 +332,7 @@ export async function publishUpdateTreeSetup() {
   const archivePath = path.join(tempDir, archiveName);
   try {
     await createArchive(archivePath);
-    const downloadUrl = await uploadArchive(drive, config, archivePath, archiveName);
+    const downloadUrl = await uploadArchive(drive, authClient, config, archivePath, archiveName);
     provenance.zkey_download_url = downloadUrl;
     writeJson(provenancePath, provenance);
     console.log(`Uploaded Groth16 zkey archive ${archiveName} to ${config.folderUrl}`);
@@ -321,9 +344,9 @@ export async function publishUpdateTreeSetup() {
 
 export async function preflightUpdateTreeSetupPublish() {
   const config = readDriveUploadConfig();
-  const drive = await createDriveClient(config);
+  const { drive, authClient } = await createDriveClient(config);
   const version = readPackageVersion();
-  await validateDriveFolder(drive, config, buildArchiveVersionPrefix(version));
+  await validateDriveFolder(drive, authClient, config, buildArchiveVersionPrefix(version));
   console.log(`Groth16 MPC Drive preflight passed for ${ARCHIVE_PREFIX} v${version}: ${config.folderUrl}`);
 }
 

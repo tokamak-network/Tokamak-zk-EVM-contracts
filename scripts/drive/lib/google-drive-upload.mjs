@@ -81,6 +81,19 @@ async function saveCredentials(client, clientJsonPath, tokenPath) {
   fs.writeFileSync(tokenPath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
+async function assertAuthenticatedClient(authClient) {
+  const headers = await authClient.getRequestHeaders("https://www.googleapis.com/drive/v3/files");
+  const authorization = typeof headers.get === "function"
+    ? headers.get("authorization")
+    : headers.Authorization ?? headers.authorization;
+
+  if (!authorization) {
+    throw new Error(
+      "Google OAuth did not produce an Authorization header. Re-run the command and complete the browser OAuth flow.",
+    );
+  }
+}
+
 export async function createDriveClient(config = resolveDriveUploadConfig()) {
   let authClient = await loadSavedCredentialsIfExist(config.oauthTokenPath);
   if (!authClient) {
@@ -90,6 +103,8 @@ export async function createDriveClient(config = resolveDriveUploadConfig()) {
     });
     await saveCredentials(authClient, config.oauthClientJsonPath, config.oauthTokenPath);
   }
+
+  await assertAuthenticatedClient(authClient);
 
   return google.drive({ version: "v3", auth: authClient });
 }

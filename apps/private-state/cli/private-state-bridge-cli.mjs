@@ -51,10 +51,12 @@ import {
 } from "../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
 import {
   dappArtifactRoot,
-  latestBridgeArtifactDir,
   requireLatestDappArtifactDir,
   requireLatestBridgeArtifactDir,
 } from "../../../scripts/artifacts/lib/deployment-layout.mjs";
+import {
+  ensureDriveDeploymentArtifacts,
+} from "../../../scripts/artifacts/lib/google-drive-artifact-cache.mjs";
 import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,
@@ -79,6 +81,7 @@ const tokamakCliInvocation = buildTokamakCliInvocation();
 const tokamakCliCommand = tokamakCliInvocation.command;
 const tokamakCliBaseArgs = tokamakCliInvocation.args;
 const tokamakCliCacheRoot = resolveTokamakCliCacheRoot();
+const deploymentBaseRootByChainId = new Map();
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
@@ -137,6 +140,48 @@ const JUBJUB_D = jubjub.CURVE.d;
 const BLS12_381_SCALAR_FIELD_MODULUS =
   hexToBigInt(addHexPrefix("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"));
 const DEFAULT_LOG_CHUNK_SIZE = 2000;
+
+async function prepareDeploymentArtifacts(chainId) {
+  const normalizedChainId = Number(chainId);
+  if (deploymentBaseRootByChainId.has(normalizedChainId)) {
+    return deploymentBaseRootByChainId.get(normalizedChainId);
+  }
+
+  const configuredRoot = process.env.PRIVATE_STATE_DEPLOYMENT_ROOT?.trim();
+  if (configuredRoot) {
+    const resolvedRoot = path.resolve(configuredRoot);
+    deploymentBaseRootByChainId.set(normalizedChainId, resolvedRoot);
+    return resolvedRoot;
+  }
+
+  const source = process.env.PRIVATE_STATE_DEPLOYMENT_SOURCE?.trim().toLowerCase();
+  if (source && source !== "local" && source !== "drive") {
+    throw new Error("PRIVATE_STATE_DEPLOYMENT_SOURCE must be either local or drive.");
+  }
+  if (source === "local" || (!source && normalizedChainId === 31337)) {
+    deploymentBaseRootByChainId.set(normalizedChainId, projectRoot);
+    return projectRoot;
+  }
+
+  const result = await ensureDriveDeploymentArtifacts({
+    chainId: normalizedChainId,
+    dappName: PRIVATE_STATE_DAPP_LABEL,
+  });
+  deploymentBaseRootByChainId.set(normalizedChainId, result.cacheBaseRoot);
+  return result.cacheBaseRoot;
+}
+
+function deploymentBaseRootForChainId(chainId) {
+  const normalizedChainId = Number(chainId);
+  const root = deploymentBaseRootByChainId.get(normalizedChainId);
+  if (root) {
+    return root;
+  }
+  if (normalizedChainId === 31337) {
+    return projectRoot;
+  }
+  throw new Error(`Deployment artifacts for chain ${normalizedChainId} were not prepared.`);
+}
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -199,6 +244,7 @@ async function main() {
   if (walletCommandHandlers[args.command]) {
     walletCommandHandlers[args.command].assert(args);
     const { network, provider } = loadWalletCommandRuntime(args);
+    await prepareDeploymentArtifacts(network.chainId);
     await walletCommandHandlers[args.command].run({ network, provider });
     return;
   }
@@ -207,42 +253,49 @@ async function main() {
     case "create-channel": {
       assertCreateChannelArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
       await handleChannelCreate({ args, network, provider });
       return;
     }
     case "recover-workspace": {
       assertRecoverWorkspaceArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
       await handleWorkspaceInit({ args, network, provider });
       return;
     }
     case "deposit-bridge": {
       assertDepositBridgeArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
       await handleRegisterAndFund({ args, network, provider });
       return;
     }
     case "withdraw-bridge": {
       assertWithdrawBridgeArgs(args);
       const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
       await handleWithdrawBridge({ args, network, provider });
       return;
     }
     case "get-my-bridge-fund": {
       assertGetMyBridgeFundArgs(args);
-      const { provider } = loadExplicitCommandRuntime(args);
+      const { network, provider } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
       await handleGetMyBridgeFund({ args, provider });
       return;
     }
     case "recover-wallet": {
       assertRecoverWalletArgs(args);
       const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
       await handleRecoverWallet({ args, network, provider, rpcUrl });
       return;
     }
     case "join-channel": {
       assertJoinChannelArgs(args);
       const { network, provider, rpcUrl } = loadExplicitCommandRuntime(args);
+      await prepareDeploymentArtifacts(network.chainId);
       await handleJoinChannel({ args, network, provider, rpcUrl });
       return;
     }
@@ -313,7 +366,7 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     provider,
   );
   const expectedLabelHash = normalizeBytes32Hex(keccak256(ethers.toUtf8Bytes(dappLabel)));
-  const registrationRoot = dappArtifactRoot(projectRoot, bridgeResources.chainId, dappLabel);
+  const registrationRoot = dappArtifactRoot(deploymentBaseRootForChainId(bridgeResources.chainId), bridgeResources.chainId, dappLabel);
   const registrationCandidates = fs.existsSync(registrationRoot)
     ? fs.readdirSync(registrationRoot, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
@@ -440,7 +493,11 @@ async function initializeChannelWorkspace({
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
-  const latestAppArtifactDir = requireLatestDappArtifactDir(projectRoot, network.chainId, PRIVATE_STATE_DAPP_LABEL);
+  const latestAppArtifactDir = requireLatestDappArtifactDir(
+    deploymentBaseRootForChainId(network.chainId),
+    network.chainId,
+    PRIVATE_STATE_DAPP_LABEL,
+  );
   const deploymentManifestPath = path.join(latestAppArtifactDir, `deployment.${network.chainId}.latest.json`);
   const storageLayoutManifestPath = path.join(latestAppArtifactDir, `storage-layout.${network.chainId}.latest.json`);
   const deploymentManifest = readJson(deploymentManifestPath);
@@ -3264,7 +3321,11 @@ async function loadBridgeVaultContext({ provider, chainId }) {
   );
   const canonicalAsset = getAddress(await bridgeCore.canonicalAsset());
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
-  const latestAppArtifactDir = requireLatestDappArtifactDir(projectRoot, chainId, PRIVATE_STATE_DAPP_LABEL);
+  const latestAppArtifactDir = requireLatestDappArtifactDir(
+    deploymentBaseRootForChainId(chainId),
+    chainId,
+    PRIVATE_STATE_DAPP_LABEL,
+  );
   const storageLayoutManifestPath = path.join(latestAppArtifactDir, `storage-layout.${chainId}.latest.json`);
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
   const liquidBalancesSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
@@ -4124,7 +4185,7 @@ function networkNameFromChainId(chainId) {
 }
 
 function groth16UpdateTreeManifestPath(chainId) {
-  const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
+  const latestBridgeDir = requireLatestBridgeArtifactDir(deploymentBaseRootForChainId(chainId), chainId);
   return path.join(latestBridgeDir, `groth16.${chainId}.latest.json`);
 }
 
@@ -4178,17 +4239,21 @@ function findStorageSlot(storageLayoutManifest, contractName, label) {
 }
 
 function defaultBridgeDeploymentPath(chainId) {
-  const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
+  const latestBridgeDir = requireLatestBridgeArtifactDir(deploymentBaseRootForChainId(chainId), chainId);
   return path.join(latestBridgeDir, `bridge.${chainId}.json`);
 }
 
 function requireLatestDappDeployArtifactPath(chainId, fileName) {
-  const latestAppArtifactDir = requireLatestDappArtifactDir(projectRoot, chainId, PRIVATE_STATE_DAPP_LABEL);
+  const latestAppArtifactDir = requireLatestDappArtifactDir(
+    deploymentBaseRootForChainId(chainId),
+    chainId,
+    PRIVATE_STATE_DAPP_LABEL,
+  );
   return path.join(latestAppArtifactDir, fileName);
 }
 
 function defaultBridgeAbiManifestPath(chainId) {
-  const latestBridgeDir = requireLatestBridgeArtifactDir(projectRoot, chainId);
+  const latestBridgeDir = requireLatestBridgeArtifactDir(deploymentBaseRootForChainId(chainId), chainId);
   return path.join(latestBridgeDir, `bridge-abi-manifest.${chainId}.json`);
 }
 

@@ -2,17 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
-import { fileURLToPath } from "node:url";
 import { authenticate } from "@google-cloud/local-auth";
 import { google } from "googleapis";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"];
 const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const ARTIFACT_INDEX_FILE_NAME = "artifact-index.json";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, "..", "..", "..");
 
 function readRequiredEnv(name) {
   const value = process.env[name]?.trim();
@@ -24,11 +22,8 @@ function readRequiredEnv(name) {
 
 export function resolveDriveUploadConfig() {
   const folderId = readRequiredEnv("TOKAMAK_MPC_DRIVE_FOLDER_ID");
-  const oauthClientJsonPath = path.resolve(readRequiredEnv("TOKAMAK_MPC_DRIVE_OAUTH_CLIENT_JSON_PATH"));
-  const configuredTokenPath = process.env.TOKAMAK_MPC_DRIVE_OAUTH_TOKEN_PATH?.trim();
-  const oauthTokenPath = configuredTokenPath
-    ? path.resolve(configuredTokenPath)
-    : path.join(repoRoot, "cache", "google-drive-oauth-token.json");
+  const oauthClientJsonPath = path.resolve(readRequiredEnv("GOOGLE_DRIVE_OAUTH_CLIENT_JSON_PATH"));
+  const oauthTokenPath = path.resolve(readRequiredEnv("GOOGLE_DRIVE_OAUTH_TOKEN_PATH"));
 
   if (!fs.existsSync(oauthClientJsonPath)) {
     throw new Error(`Missing OAuth client JSON file: ${oauthClientJsonPath}`);

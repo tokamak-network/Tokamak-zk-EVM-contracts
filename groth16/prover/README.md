@@ -4,7 +4,7 @@ This directory only supports the `updateTree` circuit.
 
 ## Layout
 
-- `../../scripts/groth16/prover/updateTree/generateProof.mjs`: Generates a witness, proof, and public signals for the `updateTree` circuit.
+- `updateTree/generateProof.mjs`: Generates a witness, proof, and public signals for the `updateTree` circuit.
 - `updateTree/input_example.json`: Deterministic example input rendered from `tokamak-l2js`.
 - `updateTree/proof.json`: Example proof output.
 - `updateTree/public.json`: Example public-signal output.
@@ -18,19 +18,19 @@ This choice is deliberate. The circuit hashes field elements directly with pairw
 ## Usage
 
 ```bash
-node scripts/groth16/prover/updateTree/generateProof.mjs
+node groth16/prover/updateTree/generateProof.mjs
 ```
 
 To use a custom input file:
 
 ```bash
-node scripts/groth16/prover/updateTree/generateProof.mjs --input /path/to/input.json
+node groth16/prover/updateTree/generateProof.mjs --input /path/to/input.json
 ```
 
 To use a prebuilt proving key and skip circuit compilation:
 
 ```bash
-node scripts/groth16/prover/updateTree/generateProof.mjs \
+node groth16/prover/updateTree/generateProof.mjs \
   --input /path/to/input.json \
   --skip-compile \
   --wasm /path/to/circuit_updateTree.wasm \
@@ -46,9 +46,8 @@ The circuit input JSON must contain:
 - `root_before`
 - `root_after`
 - `leaf_index`
-- `storage_key_before`
+- `storage_key`
 - `storage_value_before`
-- `storage_key_after`
 - `storage_value_after`
 - `proof`
 

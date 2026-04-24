@@ -9,8 +9,7 @@ import { fileURLToPath, URL, URLSearchParams } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, "../..");
-const groth16Root = path.join(repoRoot, "groth16");
+const groth16Root = path.resolve(__dirname, "..");
 const circuitsRoot = path.join(groth16Root, "circuits");
 const trustedSetupRoot = path.join(groth16Root, "mpc-setup");
 const tmpRoot = path.join(trustedSetupRoot, ".tmp");
@@ -48,6 +47,7 @@ function resolveCommand(command) {
     }
     if (command === "snarkjs") {
         directCandidates.push(localSnarkJsBinary);
+        directCandidates.push(path.join(groth16Root, "node_modules", ".bin", "snarkjs"));
     }
 
     const pathEntries = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
@@ -70,7 +70,7 @@ function resolveCommand(command) {
 function run(command, args, options = {}) {
     if (command === "snarkjs") {
         execFileSync(resolveCommand("node"), [resolveCommand("snarkjs"), ...args], {
-            cwd: repoRoot,
+            cwd: groth16Root,
             stdio: "inherit",
             ...options
         });
@@ -78,7 +78,7 @@ function run(command, args, options = {}) {
     }
 
     execFileSync(resolveCommand(command), args, {
-        cwd: repoRoot,
+        cwd: groth16Root,
         stdio: "inherit",
         ...options
     });
@@ -87,7 +87,7 @@ function run(command, args, options = {}) {
 function runCapture(command, args, options = {}) {
     if (command === "snarkjs") {
         return execFileSync(resolveCommand("node"), [resolveCommand("snarkjs"), ...args], {
-            cwd: repoRoot,
+            cwd: groth16Root,
             encoding: "utf8",
             stdio: ["ignore", "pipe", "pipe"],
             ...options
@@ -95,7 +95,7 @@ function runCapture(command, args, options = {}) {
     }
 
     return execFileSync(resolveCommand(command), args, {
-        cwd: repoRoot,
+        cwd: groth16Root,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
         ...options

@@ -1,6 +1,6 @@
-# Tokamak Groth16 zkSNARK Production Implementation
+# Tokamak Groth16 zkSNARK Package
 
-This directory contains a production-ready Groth16 zero-knowledge SNARK implementation for Tokamak's storage proof verification system, supporting up to 50 participants.
+This directory is the `@tokamak-private-dapps/groth16` npm package. It contains the Groth16 circuit, Dusk-backed MPC setup tooling, and proof generation helpers used by Tokamak private DApps.
 
 ## Architecture
 
@@ -95,4 +95,3 @@ The generated proof follows the Groth16 format for BLS12-381:
 
 The verification key and proofs are compatible with Ethereum smart contracts using the generated Solidity verifier:
 - `trusted-setup/merkle_tree_verifier.sol`
-

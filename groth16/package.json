@@ -1,0 +1,48 @@
+{
+  "name": "@tokamak-private-dapps/groth16",
+  "version": "0.1.0",
+  "description": "Groth16 circuits, setup, and proof helpers for Tokamak private DApps.",
+  "type": "module",
+  "bin": {
+    "tokamak-groth16-update-tree-proof": "./prover/updateTree/generateProof.mjs",
+    "tokamak-groth16-publish-mpc-setup": "./mpc-setup/publish_update_tree_setup.mjs"
+  },
+  "exports": {
+    "./prover/updateTree/generateProof": "./prover/updateTree/generateProof.mjs"
+  },
+  "files": [
+    "README.md",
+    "circuits/src",
+    "circuits/circom-platform.mjs",
+    "circuits/run-circom-2.0.mjs",
+    "circuits/circom-2.0-darwin-arm64",
+    "circuits/circom-2.0-linux-amd64",
+    "circuits/package.json",
+    "circuits/package-lock.json",
+    "mpc-setup/*.mjs",
+    "mpc-setup/Cargo.toml",
+    "mpc-setup/Cargo.lock",
+    "mpc-setup/src",
+    "prover/README.md",
+    "prover/updateTree/generateProof.mjs",
+    "prover/updateTree/input_example.json"
+  ],
+  "scripts": {
+    "compile": "npm --prefix circuits run compile",
+    "proof:update-tree": "node prover/updateTree/generateProof.mjs",
+    "mpc:generate-update-tree": "node mpc-setup/generate_update_tree_setup_from_dusk.mjs",
+    "mpc:publish-update-tree": "node mpc-setup/publish_update_tree_setup.mjs"
+  },
+  "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.14.1",
+    "googleapis": "^171.4.0",
+    "snarkjs": "^0.7.5",
+    "yazl": "^3.3.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

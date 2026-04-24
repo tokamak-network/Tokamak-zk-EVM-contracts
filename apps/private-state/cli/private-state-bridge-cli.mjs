@@ -54,7 +54,7 @@ import {
   privateStateCliArtifactPaths,
   resolveArtifactCacheBaseRoot,
 } from "@tokamak-private-dapps/common-library/artifact-cache";
-import { main as generateUpdateTreeProof } from "@tokamak-private-dapps/common-library/groth16/prover/updateTree/generateProof";
+import { main as generateUpdateTreeProof } from "@tokamak-private-dapps/groth16/prover/updateTree/generateProof";
 import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,

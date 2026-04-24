@@ -18,13 +18,13 @@ The script performs these steps:
 ## Usage
 
 ```bash
-/opt/homebrew/opt/node@20/bin/node groth16/mpc-setup/generate_update_tree_setup_from_dusk.mjs
+node groth16/mpc-setup/generate_update_tree_setup_from_dusk.mjs
 ```
 
 To verify that the committed `phase1_final_XX.ptau` is reproducibly derived from the published Dusk response artifact, run:
 
 ```bash
-/opt/homebrew/opt/node@20/bin/node groth16/mpc-setup/verify_update_tree_phase1_provenance.mjs
+node groth16/mpc-setup/verify_update_tree_phase1_provenance.mjs
 ```
 
 ## Outputs
@@ -35,8 +35,27 @@ The script writes the final setup artifacts to `groth16/mpc-setup/crs/`:
 - `verification_key.json`
 - `phase1_final_XX.ptau`
 - `metadata.json`
+- `zkey_provenance.json`
 
 Temporary downloads and full-size intermediate ptau files are stored under `groth16/mpc-setup/.tmp/` and are ignored by git.
+
+## Publishing
+
+Publish the Dusk-backed `updateTree` setup archive to Google Drive with:
+
+```bash
+node groth16/mpc-setup/publish_update_tree_setup.mjs
+```
+
+The publisher reads these environment variables:
+
+- `GROTH16_MPC_DRIVE_FOLDER_ID`: Google Drive folder id for Groth16 MPC archives.
+- `GOOGLE_DRIVE_OAUTH_CLIENT_JSON_PATH`: OAuth client JSON path shared by repository Drive upload scripts.
+- `GOOGLE_DRIVE_OAUTH_TOKEN_PATH`: OAuth token cache path shared by repository Drive upload scripts.
+
+The uploaded archive name follows `tokamak-private-dapps-groth16-v{packageVersion}-{YYYYMMDDTHHMMSSZ}.zip`.
+The archive contains `circuit_final.zkey`, `verification_key.json`, `metadata.json`, and `zkey_provenance.json`.
+The generated `phase1_final_XX.ptau` is not included; its source and SHA-256 hash are recorded in `zkey_provenance.json`.
 
 ## Provenance Note
 

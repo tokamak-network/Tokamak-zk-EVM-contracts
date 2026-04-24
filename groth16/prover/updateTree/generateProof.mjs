@@ -8,8 +8,7 @@ import { ethers } from "ethers";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, "../../../../../..");
-const grothRoot = path.join(repoRoot, "groth16");
+const grothRoot = path.resolve(__dirname, "../..", "..");
 const circuitsDir = path.join(grothRoot, "circuits");
 const trustedSetupDir = path.join(grothRoot, "trusted-setup", "crs");
 const proverDataDir = path.join(grothRoot, "prover", "updateTree");
@@ -64,9 +63,27 @@ function ensureFileExists(label, filePath) {
   }
 }
 
+function ensureCircuitDependencies() {
+  const poseidonCircuit = path.join(
+    circuitsDir,
+    "node_modules",
+    "poseidon-bls12381-circom",
+    "circuits",
+    "poseidon255.circom",
+  );
+  if (fs.existsSync(poseidonCircuit)) {
+    return;
+  }
+  run("npm", ["install", "--ignore-scripts"], circuitsDir);
+}
+
 function findSnarkjs() {
-  const localSnarkjs = path.join(circuitsDir, "node_modules", ".bin", "snarkjs");
-  if (fs.existsSync(localSnarkjs)) {
+  const candidates = [
+    path.join(circuitsDir, "node_modules", ".bin", "snarkjs"),
+    path.join(grothRoot, "node_modules", ".bin", "snarkjs"),
+  ];
+  const localSnarkjs = candidates.find((candidate) => fs.existsSync(candidate));
+  if (localSnarkjs) {
     return localSnarkjs;
   }
   return "snarkjs";
@@ -202,6 +219,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   if (!skipCompile) {
+    ensureCircuitDependencies();
     run("npm", ["run", "compile"], circuitsDir);
   }
 

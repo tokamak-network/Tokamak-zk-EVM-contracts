@@ -6,8 +6,7 @@
   "exports": {
     "./network-config": "./src/network-config.mjs",
     "./tokamak-runtime-paths": "./src/tokamak-runtime-paths.mjs",
-    "./artifact-cache": "./src/artifact-cache.mjs",
-    "./groth16/prover/updateTree/generateProof": "./src/groth16/prover/updateTree/generateProof.mjs"
+    "./artifact-cache": "./src/artifact-cache.mjs"
   },
   "files": [
     "src"

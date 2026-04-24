@@ -190,7 +190,7 @@ function requireInstalledDeploymentArtifacts(cacheBaseRoot, chainId) {
     throw new Error(
       [
         `Missing installed deployment artifacts for chain ${chainId} under ${cacheBaseRoot}.`,
-        "Run install-zk-evm before running private-state CLI commands for public networks.",
+        "Run --install before running private-state CLI commands for public networks.",
         `Original error: ${error.message}`,
       ].join(" "),
     );
@@ -205,7 +205,7 @@ async function main() {
     return;
   }
 
-  if (args.command === "install-zk-evm") {
+  if (args.command === "--install") {
     assertInstallZkEvmArgs(args);
     await handleInstallZkEvm({ args });
     return;
@@ -971,7 +971,7 @@ async function handleInstallZkEvm({ args }) {
     dappName: PRIVATE_STATE_DAPP_LABEL,
   });
   printJson({
-    action: "install-zk-evm",
+    action: "install",
     tokamakCli: tokamakCliBaseArgs[0],
     cacheRoot: tokamakCliCacheRoot,
     docker: Boolean(args.docker),
@@ -4311,6 +4311,10 @@ function parseArgs(argv) {
   }
 
   parsed.command = parsed.positional[0];
+  if (!parsed.command && parsed.install === true) {
+    parsed.command = "--install";
+    parsed.positional = ["--install"];
+  }
   return parsed;
 }
 
@@ -4505,8 +4509,8 @@ function assertWalletChannelMoveArgs(args, commandName) {
 function assertInstallZkEvmArgs(args) {
   assertAllowedCommandKeys(
     args,
-    "install-zk-evm",
-    new Set(["command", "positional", "docker"]),
+    "--install",
+    new Set(["command", "positional", "install", "docker"]),
     "optional --docker",
   );
 }
@@ -4689,7 +4693,7 @@ function persistCurrentState(context) {
 function printHelp() {
   console.log(`
 Commands:
-  install-zk-evm [--docker]
+  --install [--docker]
       Install the Tokamak zk-EVM CLI runtime cache and private-state deployment artifacts
       Use --docker on Linux to forward tokamak-cli --install --docker
 

@@ -138,12 +138,13 @@ The commands below are ordered by the normal execution flow.
 
 ### 1. Install or remove the local zk-EVM toolchain
 
-`install-zk-evm`
+`--install`
 
 - installs the local Tokamak zk-EVM toolchain through the published `@tokamak-zk-evm/cli` package
 - accepts optional `--docker` to forward `tokamak-cli --install --docker`
 - supports `--docker` only on Linux hosts because that mode is implemented by the upstream Tokamak CLI
 - refreshes the local `~/.tokamak-zk-evm` runtime cache
+- installs the latest public-network private-state deployment artifacts into the local artifact cache
 - refreshes shared bridge constants derived from `tokamak-l2js`
 
 `uninstall-zk-evm`

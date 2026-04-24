@@ -876,18 +876,13 @@ function clearWalletRecoveryArtifacts(walletDir) {
 
 async function handleInstallZkEvm({ args }) {
   const syncedDevCommit = syncTokamakSubmoduleToLatestDev();
-  const installArgs = ["--install"];
-  if (args.docker) {
-    installArgs.push("--docker");
-  }
-  run(tokamakCliPath, installArgs, { cwd: tokamakRoot });
+  run(tokamakCliPath, ["--install"], { cwd: tokamakRoot });
   run("node", [path.join("scripts", "generate-tokamak-shared-constants.js")], { cwd: projectRoot });
   printJson({
     action: "install-zk-evm",
     tokamakCli: tokamakCliPath,
     syncedBranch: "dev",
     syncedCommit: syncedDevCommit,
-    docker: Boolean(args.docker),
   });
 }
 
@@ -4372,12 +4367,7 @@ function assertWalletChannelMoveArgs(args, commandName) {
 }
 
 function assertInstallZkEvmArgs(args) {
-  assertAllowedCommandKeys(
-    args,
-    "install-zk-evm",
-    new Set(["command", "positional", "docker"]),
-    "optional --docker",
-  );
+  assertAllowedCommandKeys(args, "install-zk-evm", new Set(["command", "positional"]), "no options");
 }
 
 function assertUninstallZkEvmArgs(args) {
@@ -4558,9 +4548,8 @@ function persistCurrentState(context) {
 function printHelp() {
   console.log(`
 Commands:
-  install-zk-evm [--docker]
+  install-zk-evm
       Install the local Tokamak zk-EVM toolchain
-      Use --docker to forward tokamak-cli --install --docker
 
   uninstall-zk-evm
       Remove the checked-out Tokamak zk-EVM worktree contents

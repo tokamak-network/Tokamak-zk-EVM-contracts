@@ -56,6 +56,7 @@ import {
 } from "../../../scripts/artifacts/lib/deployment-layout.mjs";
 import {
   installDriveDeploymentArtifacts,
+  privateStateCliArtifactPaths,
   resolveArtifactCacheBaseRoot,
 } from "../../../scripts/artifacts/lib/google-drive-artifact-cache.mjs";
 import {
@@ -83,6 +84,7 @@ const tokamakCliCommand = tokamakCliInvocation.command;
 const tokamakCliBaseArgs = tokamakCliInvocation.args;
 const tokamakCliCacheRoot = resolveTokamakCliCacheRoot();
 const deploymentBaseRootByChainId = new Map();
+const flatDeploymentArtifactPathsByChainId = new Map();
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
@@ -165,7 +167,9 @@ async function prepareDeploymentArtifacts(chainId) {
   }
 
   const cacheBaseRoot = resolveArtifactCacheBaseRoot();
-  requireInstalledDeploymentArtifacts(cacheBaseRoot, normalizedChainId);
+  const artifactPaths = privateStateCliArtifactPaths(cacheBaseRoot, normalizedChainId);
+  requireInstalledDeploymentArtifacts(artifactPaths, normalizedChainId);
+  flatDeploymentArtifactPathsByChainId.set(normalizedChainId, artifactPaths);
   deploymentBaseRootByChainId.set(normalizedChainId, cacheBaseRoot);
   return cacheBaseRoot;
 }
@@ -182,14 +186,31 @@ function deploymentBaseRootForChainId(chainId) {
   throw new Error(`Deployment artifacts for chain ${normalizedChainId} were not prepared.`);
 }
 
-function requireInstalledDeploymentArtifacts(cacheBaseRoot, chainId) {
+function flatDeploymentArtifactPathsForChainId(chainId) {
+  return flatDeploymentArtifactPathsByChainId.get(Number(chainId)) ?? null;
+}
+
+function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
+  const requiredFiles = [
+    artifactPaths.bridgeDeploymentPath,
+    artifactPaths.bridgeAbiManifestPath,
+    artifactPaths.grothManifestPath,
+    artifactPaths.grothZkeyPath,
+    artifactPaths.dappDeploymentPath,
+    artifactPaths.dappStorageLayoutPath,
+    artifactPaths.privateStateControllerAbiPath,
+    artifactPaths.dappRegistrationPath,
+  ];
   try {
-    requireLatestBridgeArtifactDir(cacheBaseRoot, chainId);
-    requireLatestDappArtifactDir(cacheBaseRoot, chainId, PRIVATE_STATE_DAPP_LABEL);
+    for (const filePath of requiredFiles) {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Missing ${filePath}.`);
+      }
+    }
   } catch (error) {
     throw new Error(
       [
-        `Missing installed deployment artifacts for chain ${chainId} under ${cacheBaseRoot}.`,
+        `Missing installed deployment artifacts for chain ${chainId} under ${artifactPaths.rootDir}.`,
         "Run --install before running private-state CLI commands for public networks.",
         `Original error: ${error.message}`,
       ].join(" "),
@@ -380,15 +401,7 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     provider,
   );
   const expectedLabelHash = normalizeBytes32Hex(keccak256(ethers.toUtf8Bytes(dappLabel)));
-  const registrationRoot = dappArtifactRoot(deploymentBaseRootForChainId(bridgeResources.chainId), bridgeResources.chainId, dappLabel);
-  const registrationCandidates = fs.existsSync(registrationRoot)
-    ? fs.readdirSync(registrationRoot, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort()
-      .reverse()
-      .map((timestampLabel) => path.join(registrationRoot, timestampLabel, `dapp-registration.${bridgeResources.chainId}.json`))
-    : [];
+  const registrationCandidates = dappRegistrationManifestCandidates(bridgeResources.chainId, dappLabel);
   const manifestPath = registrationCandidates.find((candidatePath) => fs.existsSync(candidatePath)) ?? null;
   const manifest = manifestPath ? readJsonIfExists(manifestPath) : null;
   if (manifest !== null) {
@@ -507,13 +520,8 @@ async function initializeChannelWorkspace({
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
-  const latestAppArtifactDir = requireLatestDappArtifactDir(
-    deploymentBaseRootForChainId(network.chainId),
-    network.chainId,
-    PRIVATE_STATE_DAPP_LABEL,
-  );
-  const deploymentManifestPath = path.join(latestAppArtifactDir, `deployment.${network.chainId}.latest.json`);
-  const storageLayoutManifestPath = path.join(latestAppArtifactDir, `storage-layout.${network.chainId}.latest.json`);
+  const deploymentManifestPath = dappDeploymentManifestPath(network.chainId);
+  const storageLayoutManifestPath = dappStorageLayoutManifestPath(network.chainId);
   const deploymentManifest = readJson(deploymentManifestPath);
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
   const controllerAddress = getAddress(deploymentManifest.contracts.controller);
@@ -976,12 +984,12 @@ async function handleInstallZkEvm({ args }) {
     cacheRoot: tokamakCliCacheRoot,
     docker: Boolean(args.docker),
     deploymentArtifactCacheRoot: deploymentArtifacts.cacheBaseRoot,
+    deploymentArtifactRoot: deploymentArtifacts.artifactRoot,
     installedDeploymentArtifacts: deploymentArtifacts.installed.map((entry) => ({
       chainId: entry.chainId,
       bridgeTimestamp: entry.bridgeTimestamp,
       dappTimestamp: entry.dappTimestamp,
-      bridgeDir: entry.bridgeDir,
-      dappDir: entry.dappDir,
+      artifactDir: entry.artifactDir,
     })),
   });
 }
@@ -3346,12 +3354,7 @@ async function loadBridgeVaultContext({ provider, chainId }) {
   );
   const canonicalAsset = getAddress(await bridgeCore.canonicalAsset());
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
-  const latestAppArtifactDir = requireLatestDappArtifactDir(
-    deploymentBaseRootForChainId(chainId),
-    chainId,
-    PRIVATE_STATE_DAPP_LABEL,
-  );
-  const storageLayoutManifestPath = path.join(latestAppArtifactDir, `storage-layout.${chainId}.latest.json`);
+  const storageLayoutManifestPath = dappStorageLayoutManifestPath(chainId);
   const storageLayoutManifest = readJson(storageLayoutManifestPath);
   const liquidBalancesSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "L2AccountingVault", "liquidBalances"));
 
@@ -4209,7 +4212,28 @@ function networkNameFromChainId(chainId) {
   throw new Error(`Unsupported chain ID for private-state bridge CLI: ${chainId}`);
 }
 
+function dappRegistrationManifestCandidates(chainId, dappLabel) {
+  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
+  if (flatPaths) {
+    return [flatPaths.dappRegistrationPath];
+  }
+
+  const registrationRoot = dappArtifactRoot(deploymentBaseRootForChainId(chainId), chainId, dappLabel);
+  return fs.existsSync(registrationRoot)
+    ? fs.readdirSync(registrationRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+      .reverse()
+      .map((timestampLabel) => path.join(registrationRoot, timestampLabel, `dapp-registration.${chainId}.json`))
+    : [];
+}
+
 function groth16UpdateTreeManifestPath(chainId) {
+  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
+  if (flatPaths) {
+    return flatPaths.grothManifestPath;
+  }
   const latestBridgeDir = requireLatestBridgeArtifactDir(deploymentBaseRootForChainId(chainId), chainId);
   return path.join(latestBridgeDir, `groth16.${chainId}.latest.json`);
 }
@@ -4264,11 +4288,22 @@ function findStorageSlot(storageLayoutManifest, contractName, label) {
 }
 
 function defaultBridgeDeploymentPath(chainId) {
+  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
+  if (flatPaths) {
+    return flatPaths.bridgeDeploymentPath;
+  }
   const latestBridgeDir = requireLatestBridgeArtifactDir(deploymentBaseRootForChainId(chainId), chainId);
   return path.join(latestBridgeDir, `bridge.${chainId}.json`);
 }
 
 function requireLatestDappDeployArtifactPath(chainId, fileName) {
+  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
+  if (flatPaths) {
+    const filePath = path.join(flatPaths.rootDir, fileName);
+    expect(fs.existsSync(filePath), `Missing DApp deployment artifact for chain ${chainId}: ${filePath}.`);
+    return filePath;
+  }
+
   const latestAppArtifactDir = requireLatestDappArtifactDir(
     deploymentBaseRootForChainId(chainId),
     chainId,
@@ -4277,7 +4312,39 @@ function requireLatestDappDeployArtifactPath(chainId, fileName) {
   return path.join(latestAppArtifactDir, fileName);
 }
 
+function dappDeploymentManifestPath(chainId) {
+  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
+  if (flatPaths) {
+    return flatPaths.dappDeploymentPath;
+  }
+
+  const latestAppArtifactDir = requireLatestDappArtifactDir(
+    deploymentBaseRootForChainId(chainId),
+    chainId,
+    PRIVATE_STATE_DAPP_LABEL,
+  );
+  return path.join(latestAppArtifactDir, `deployment.${chainId}.latest.json`);
+}
+
+function dappStorageLayoutManifestPath(chainId) {
+  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
+  if (flatPaths) {
+    return flatPaths.dappStorageLayoutPath;
+  }
+
+  const latestAppArtifactDir = requireLatestDappArtifactDir(
+    deploymentBaseRootForChainId(chainId),
+    chainId,
+    PRIVATE_STATE_DAPP_LABEL,
+  );
+  return path.join(latestAppArtifactDir, `storage-layout.${chainId}.latest.json`);
+}
+
 function defaultBridgeAbiManifestPath(chainId) {
+  const flatPaths = flatDeploymentArtifactPathsForChainId(chainId);
+  if (flatPaths) {
+    return flatPaths.bridgeAbiManifestPath;
+  }
   const latestBridgeDir = requireLatestBridgeArtifactDir(deploymentBaseRootForChainId(chainId), chainId);
   return path.join(latestBridgeDir, `bridge-abi-manifest.${chainId}.json`);
 }

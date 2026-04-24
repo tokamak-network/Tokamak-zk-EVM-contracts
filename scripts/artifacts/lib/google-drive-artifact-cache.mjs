@@ -16,6 +16,7 @@ export const DEFAULT_PUBLIC_ARTIFACT_INDEX_FILE_ID = "11nM-VT0ZJlBdZUdFPGawqxvHN
 
 const DRIVE_DOWNLOAD_BASE_URL = "https://drive.google.com/uc?export=download";
 const TIMESTAMP_LABEL_PATTERN = /^\d{8}T\d{6}Z$/;
+const PRIVATE_STATE_CLI_ARTIFACT_ROOT_DIR = "private-state-cli-artifacts";
 
 export function defaultArtifactCacheBaseRoot() {
   return path.join(os.homedir(), ".tokamak-private-state");
@@ -25,6 +26,30 @@ export function resolveArtifactCacheBaseRoot(cacheBaseRoot = process.env.PRIVATE
   ?? process.env.TOKAMAK_ARTIFACT_CACHE_ROOT
   ?? defaultArtifactCacheBaseRoot()) {
   return path.resolve(cacheBaseRoot);
+}
+
+export function privateStateCliArtifactRoot(cacheBaseRoot = resolveArtifactCacheBaseRoot()) {
+  return path.join(resolveArtifactCacheBaseRoot(cacheBaseRoot), PRIVATE_STATE_CLI_ARTIFACT_ROOT_DIR);
+}
+
+export function privateStateCliArtifactChainDir(cacheBaseRoot = resolveArtifactCacheBaseRoot(), chainId) {
+  return path.join(privateStateCliArtifactRoot(cacheBaseRoot), `chain-id-${requireChainId(chainId)}`);
+}
+
+export function privateStateCliArtifactPaths(cacheBaseRoot = resolveArtifactCacheBaseRoot(), chainId) {
+  const normalizedChainId = requireChainId(chainId);
+  const rootDir = privateStateCliArtifactChainDir(cacheBaseRoot, normalizedChainId);
+  return {
+    rootDir,
+    bridgeDeploymentPath: path.join(rootDir, `bridge.${normalizedChainId}.json`),
+    bridgeAbiManifestPath: path.join(rootDir, `bridge-abi-manifest.${normalizedChainId}.json`),
+    grothManifestPath: path.join(rootDir, `groth16.${normalizedChainId}.latest.json`),
+    grothZkeyPath: path.join(rootDir, "circuit_final.zkey"),
+    dappDeploymentPath: path.join(rootDir, `deployment.${normalizedChainId}.latest.json`),
+    dappStorageLayoutPath: path.join(rootDir, `storage-layout.${normalizedChainId}.latest.json`),
+    privateStateControllerAbiPath: path.join(rootDir, "PrivateStateController.callable-abi.json"),
+    dappRegistrationPath: path.join(rootDir, `dapp-registration.${normalizedChainId}.json`),
+  };
 }
 
 export async function installDriveDeploymentArtifacts({
@@ -44,7 +69,7 @@ export async function installDriveDeploymentArtifacts({
     if (!chain?.bridge?.timestamp || !chain?.bridge?.files || !chain.dapps?.[normalizedDappName]) {
       continue;
     }
-    installed.push(await materializeIndexedDeployment({
+    installed.push(await materializePrivateStateCliDeployment({
       index,
       chainId,
       dappName: normalizedDappName,
@@ -56,9 +81,9 @@ export async function installDriveDeploymentArtifacts({
     throw new Error(`Drive artifact index does not contain installable artifacts for ${normalizedDappName}.`);
   }
 
-  writeCachedArtifactIndex(normalizedCacheBaseRoot, index);
   return {
     cacheBaseRoot: normalizedCacheBaseRoot,
+    artifactRoot: privateStateCliArtifactRoot(normalizedCacheBaseRoot),
     index,
     installed,
   };
@@ -87,6 +112,65 @@ export async function ensureDriveDeploymentArtifacts({
     cacheBaseRoot: normalizedCacheBaseRoot,
     index,
     ...result,
+  };
+}
+
+async function materializePrivateStateCliDeployment({
+  index,
+  chainId,
+  dappName,
+  cacheBaseRoot,
+}) {
+  const normalizedChainId = String(requireChainId(chainId));
+  const normalizedDappName = requireNonEmptyString(dappName, "dappName");
+  const chain = index.chains[normalizedChainId];
+  if (!chain) {
+    throw new Error(`Drive artifact index does not contain chain ${normalizedChainId}.`);
+  }
+  if (!chain.bridge?.timestamp || !chain.bridge?.files) {
+    throw new Error(`Drive artifact index is missing bridge artifacts for chain ${normalizedChainId}.`);
+  }
+
+  const dapp = chain.dapps?.[normalizedDappName];
+  if (!dapp?.timestamp || !dapp?.files) {
+    throw new Error(
+      `Drive artifact index is missing ${normalizedDappName} artifacts for chain ${normalizedChainId}.`,
+    );
+  }
+
+  const paths = privateStateCliArtifactPaths(cacheBaseRoot, normalizedChainId);
+  fs.rmSync(paths.rootDir, { recursive: true, force: true });
+  fs.mkdirSync(paths.rootDir, { recursive: true });
+
+  await materializeSelectedDriveFiles({
+    targetDir: paths.rootDir,
+    files: chain.bridge.files,
+    selectedFiles: [
+      [`bridge.${normalizedChainId}.json`, path.basename(paths.bridgeDeploymentPath)],
+      [`bridge-abi-manifest.${normalizedChainId}.json`, path.basename(paths.bridgeAbiManifestPath)],
+      [`groth16.${normalizedChainId}.latest.json`, path.basename(paths.grothManifestPath)],
+      ["groth16/circuit_final.zkey", path.basename(paths.grothZkeyPath)],
+    ],
+  });
+  await materializeSelectedDriveFiles({
+    targetDir: paths.rootDir,
+    files: dapp.files,
+    selectedFiles: [
+      [`deployment.${normalizedChainId}.latest.json`, path.basename(paths.dappDeploymentPath)],
+      [`storage-layout.${normalizedChainId}.latest.json`, path.basename(paths.dappStorageLayoutPath)],
+      ["PrivateStateController.callable-abi.json", path.basename(paths.privateStateControllerAbiPath)],
+      [`dapp-registration.${normalizedChainId}.json`, path.basename(paths.dappRegistrationPath)],
+    ],
+  });
+  rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);
+
+  return {
+    chainId: Number(normalizedChainId),
+    artifactDir: paths.rootDir,
+    bridgeDir: paths.rootDir,
+    dappDir: paths.rootDir,
+    bridgeTimestamp: chain.bridge.timestamp,
+    dappTimestamp: dapp.timestamp,
   };
 }
 
@@ -138,6 +222,54 @@ async function materializeIndexedDeployment({
     bridgeTimestamp: chain.bridge.timestamp,
     dappTimestamp: dapp.timestamp,
   };
+}
+
+async function materializeSelectedDriveFiles({ targetDir, files, selectedFiles }) {
+  for (const [relativePath, targetName] of selectedFiles) {
+    const metadata = files[relativePath];
+    if (!metadata) {
+      throw new Error(`Drive artifact index is missing required file ${relativePath}.`);
+    }
+    validateDriveFileMetadata(relativePath, metadata);
+    const targetPath = path.join(targetDir, targetName);
+    if (await cachedFileMatches(targetPath, metadata)) {
+      continue;
+    }
+
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}`;
+    try {
+      await downloadPublicDriveFileToPath(metadata.fileId, tempPath);
+      const downloaded = fs.statSync(tempPath);
+      if (downloaded.size !== Number(metadata.size)) {
+        throw new Error(
+          `Downloaded ${relativePath} size mismatch: expected ${metadata.size}, received ${downloaded.size}.`,
+        );
+      }
+      const downloadedSha256 = await sha256File(tempPath);
+      if (downloadedSha256 !== metadata.sha256) {
+        throw new Error(
+          `Downloaded ${relativePath} sha256 mismatch: expected ${metadata.sha256}, received ${downloadedSha256}.`,
+        );
+      }
+      fs.renameSync(tempPath, targetPath);
+    } finally {
+      fs.rmSync(tempPath, { force: true });
+    }
+  }
+}
+
+function rewriteFlatGroth16Manifest(manifestPath, zkeyPath) {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  manifest.artifactDir = ".";
+  manifest.artifacts = {
+    ...manifest.artifacts,
+    zkeyPath: path.basename(zkeyPath),
+    metadataPath: null,
+    verificationKeyPath: null,
+    zkeyProvenancePath: null,
+  };
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }
 
 function writeCachedArtifactIndex(cacheBaseRoot, index) {

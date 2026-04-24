@@ -71,8 +71,6 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../../..");
-const appRoot = path.resolve(projectRoot, "apps/private-state");
-const bridgeRoot = path.resolve(projectRoot, "bridge");
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const tokamakCliInvocation = buildTokamakCliInvocation();
 const tokamakCliCommand = tokamakCliInvocation.command;
@@ -145,10 +143,7 @@ async function prepareDeploymentArtifacts(chainId) {
     return existingPaths.rootDir;
   }
 
-  const configuredRoot = process.env.PRIVATE_STATE_DEPLOYMENT_ROOT?.trim();
-  const cacheBaseRoot = configuredRoot
-    ? path.resolve(configuredRoot)
-    : resolveArtifactCacheBaseRoot();
+  const cacheBaseRoot = resolveArtifactCacheBaseRoot();
   const artifactPaths = privateStateCliArtifactPaths(cacheBaseRoot, normalizedChainId);
   requireInstalledDeploymentArtifacts(artifactPaths, normalizedChainId);
   flatDeploymentArtifactPathsByChainId.set(normalizedChainId, artifactPaths);
@@ -176,6 +171,7 @@ function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
     artifactPaths.dappDeploymentPath,
     artifactPaths.dappStorageLayoutPath,
     artifactPaths.privateStateControllerAbiPath,
+    artifactPaths.dappRegistrationPath,
   ];
   try {
     for (const filePath of requiredFiles) {
@@ -377,53 +373,27 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     provider,
   );
   const expectedLabelHash = normalizeBytes32Hex(keccak256(ethers.toUtf8Bytes(dappLabel)));
-  const registrationCandidates = dappRegistrationManifestCandidates(bridgeResources.chainId);
-  const manifestPath = registrationCandidates.find((candidatePath) => fs.existsSync(candidatePath)) ?? null;
-  const manifest = manifestPath ? readJsonIfExists(manifestPath) : null;
-  if (manifest !== null) {
-    const manifestLabel = typeof manifest.dappLabel === "string" ? manifest.dappLabel : null;
-    const manifestDappId = manifest.dappId;
-    const manifestManager = typeof manifest.dAppManager === "string" ? getAddress(manifest.dAppManager) : null;
-    if (
-      manifestLabel === dappLabel
-      && Number.isInteger(manifestDappId)
-      && manifestManager !== null
-      && ethers.toBigInt(manifestManager) === ethers.toBigInt(getAddress(bridgeResources.bridgeDeployment.dAppManager))
-    ) {
-      const info = await dAppManager.getDAppInfo(manifestDappId);
-      if (info.exists && ethers.toBigInt(normalizeBytes32Hex(info.labelHash)) === ethers.toBigInt(expectedLabelHash)) {
-        return Number(manifestDappId);
-      }
-    }
-  }
+  const manifestPath = requireFlatDeploymentArtifactPathsForChainId(bridgeResources.chainId).dappRegistrationPath;
+  const manifest = readJson(manifestPath);
+  const manifestLabel = typeof manifest.dappLabel === "string" ? manifest.dappLabel : null;
+  const manifestDappId = manifest.dappId;
+  const manifestManager = typeof manifest.dAppManager === "string" ? getAddress(manifest.dAppManager) : null;
 
-  const events = await queryContractEventsChunked({
-    contract: dAppManager,
-    eventName: "DAppRegistered",
-    fromBlock: 0,
-    toBlock: "latest",
-  });
-  const matchingIds = [];
+  expect(manifestLabel === dappLabel, `DApp registration manifest label mismatch in ${manifestPath}.`);
+  expect(Number.isInteger(manifestDappId), `DApp registration manifest is missing an integer dappId: ${manifestPath}.`);
+  expect(
+    manifestManager !== null
+      && ethers.toBigInt(manifestManager) === ethers.toBigInt(getAddress(bridgeResources.bridgeDeployment.dAppManager)),
+    `DApp registration manifest manager mismatch in ${manifestPath}.`,
+  );
 
-  for (const event of events) {
-    const eventLabelHash = normalizeBytes32Hex(event.args?.labelHash);
-    if (ethers.toBigInt(eventLabelHash) === ethers.toBigInt(expectedLabelHash)) {
-      matchingIds.push(Number(event.args.dappId));
-    }
-  }
-
-  if (matchingIds.length === 0) {
-    throw new Error(`No registered DApp matches the hardcoded label ${dappLabel}.`);
-  }
-
-  const uniqueIds = [...new Set(matchingIds)];
-  if (uniqueIds.length > 1) {
-    throw new Error(
-      `DApp label ${dappLabel} is ambiguous on-chain; matching dappIds: ${uniqueIds.join(", ")}.`,
-    );
-  }
-
-  return uniqueIds[0];
+  const info = await dAppManager.getDAppInfo(manifestDappId);
+  expect(info.exists, `DApp id ${manifestDappId} from ${manifestPath} is not registered on-chain.`);
+  expect(
+    ethers.toBigInt(normalizeBytes32Hex(info.labelHash)) === ethers.toBigInt(expectedLabelHash),
+    `DApp id ${manifestDappId} from ${manifestPath} does not match label ${dappLabel} on-chain.`,
+  );
+  return Number(manifestDappId);
 }
 
 async function handleWorkspaceInit({ args, network, provider }) {
@@ -2623,7 +2593,7 @@ function buildMintNotesTemplatePayload({ wallet, baseUnitAmounts }) {
     values: baseUnitAmounts,
   });
   return {
-    abiFile: "../deploy/PrivateStateController.callable-abi.json",
+    abiFile: "PrivateStateController.callable-abi.json",
     method,
     args: [mintOutputs],
     lifecycleOutputs,
@@ -2632,7 +2602,7 @@ function buildMintNotesTemplatePayload({ wallet, baseUnitAmounts }) {
 
 function buildRedeemNotesTemplatePayload({ wallet, inputNotes }) {
   return {
-    abiFile: "../deploy/PrivateStateController.callable-abi.json",
+    abiFile: "PrivateStateController.callable-abi.json",
     method: selectRedeemNotesMethod(inputNotes.length),
     args: [inputNotes, wallet.wallet.l2Address],
   };
@@ -2749,7 +2719,7 @@ async function buildTransferNotesTemplatePayload({
     });
   }
   return {
-    abiFile: "../deploy/PrivateStateController.callable-abi.json",
+    abiFile: "PrivateStateController.callable-abi.json",
     method,
     args: [transferOutputs, inputNotes],
     lifecycleInputs: inputNotes,
@@ -2868,9 +2838,9 @@ function walletChannelWorkspaceIsReady(walletContext) {
     && fs.existsSync(path.join(channelWorkspaceCurrentPath(workspaceDir), "contract_codes.json"));
 }
 
-async function loadPreferredWalletChannelContext({ walletContext, provider }) {
+async function loadPreferredWalletChannelContext({ walletContext, provider, forceRecover = false }) {
   let recoveredWorkspace = false;
-  if (!walletChannelWorkspaceIsReady(walletContext)) {
+  if (forceRecover || !walletChannelWorkspaceIsReady(walletContext)) {
     await recoverWalletChannelWorkspace({ walletContext, provider });
     recoveredWorkspace = true;
   }
@@ -2957,9 +2927,12 @@ async function executeWalletDirectTemplateCommand({
     }
   }
 
-  await recoverWalletChannelWorkspace({ walletContext: wallet, provider });
-  contextResult = await loadPreferredWalletChannelContext({ walletContext: wallet, provider });
-  recoveredWorkspace = true;
+  contextResult = await loadPreferredWalletChannelContext({
+    walletContext: wallet,
+    provider,
+    forceRecover: true,
+  });
+  recoveredWorkspace = contextResult.recoveredWorkspace;
   const execution = await executeWalletTemplateSend({
     wallet,
     signer,
@@ -4188,11 +4161,6 @@ function networkNameFromChainId(chainId) {
   if (chainId === 11155111) return "sepolia";
   if (chainId === 31337) return "anvil";
   throw new Error(`Unsupported chain ID for private-state bridge CLI: ${chainId}`);
-}
-
-function dappRegistrationManifestCandidates(chainId) {
-  const flatPaths = requireFlatDeploymentArtifactPathsForChainId(chainId);
-  return fs.existsSync(flatPaths.dappRegistrationPath) ? [flatPaths.dappRegistrationPath] : [];
 }
 
 function groth16UpdateTreeManifestPath(chainId) {

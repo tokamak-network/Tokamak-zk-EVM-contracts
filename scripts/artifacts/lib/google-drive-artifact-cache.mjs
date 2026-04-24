@@ -15,7 +15,6 @@ export function defaultArtifactCacheBaseRoot() {
 }
 
 export function resolveArtifactCacheBaseRoot(cacheBaseRoot = process.env.PRIVATE_STATE_ARTIFACT_CACHE_ROOT
-  ?? process.env.TOKAMAK_ARTIFACT_CACHE_ROOT
   ?? defaultArtifactCacheBaseRoot()) {
   return path.resolve(cacheBaseRoot);
 }
@@ -142,7 +141,7 @@ async function materializePrivateStateCliDeployment({
       [`deployment.${normalizedChainId}.latest.json`, path.basename(paths.dappDeploymentPath)],
       [`storage-layout.${normalizedChainId}.latest.json`, path.basename(paths.dappStorageLayoutPath)],
       ["PrivateStateController.callable-abi.json", path.basename(paths.privateStateControllerAbiPath)],
-      [`dapp-registration.${normalizedChainId}.json`, path.basename(paths.dappRegistrationPath), { optional: true }],
+      [`dapp-registration.${normalizedChainId}.json`, path.basename(paths.dappRegistrationPath)],
     ],
   });
   rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);
@@ -195,7 +194,7 @@ function materializeLocalPrivateStateCliDeployment({
       [path.join(dappDir, `deployment.${normalizedChainId}.latest.json`), path.basename(paths.dappDeploymentPath)],
       [path.join(dappDir, `storage-layout.${normalizedChainId}.latest.json`), path.basename(paths.dappStorageLayoutPath)],
       [path.join(dappDir, "PrivateStateController.callable-abi.json"), path.basename(paths.privateStateControllerAbiPath)],
-      [path.join(dappDir, `dapp-registration.${normalizedChainId}.json`), path.basename(paths.dappRegistrationPath), { optional: true }],
+      [path.join(dappDir, `dapp-registration.${normalizedChainId}.json`), path.basename(paths.dappRegistrationPath)],
     ],
   });
   rewriteFlatGroth16Manifest(paths.grothManifestPath, paths.grothZkeyPath);

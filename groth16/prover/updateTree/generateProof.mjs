@@ -3,12 +3,14 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { ethers } from "ethers";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const grothRoot = path.resolve(__dirname, "../..", "..");
+const require = createRequire(import.meta.url);
+const grothRoot = path.resolve(__dirname, "../..");
 const circuitsDir = path.join(grothRoot, "circuits");
 const trustedSetupDir = path.join(grothRoot, "trusted-setup", "crs");
 const proverDataDir = path.join(grothRoot, "prover", "updateTree");
@@ -90,16 +92,25 @@ function findSnarkjs() {
 }
 
 async function loadTokamakL2Js(expectedVersion) {
-  fs.mkdirSync(proverDataDir, { recursive: true });
-  fs.mkdirSync(tmpDir, { recursive: true });
-  const installRoot = path.join(tmpDir, `tokamak-l2js-${expectedVersion}`);
-  if (!fs.existsSync(path.join(installRoot, "node_modules", "tokamak-l2js", "dist", "index.js"))) {
-    ensureCleanDir(installRoot);
-    run("npm", ["init", "-y"], installRoot);
-    run("npm", ["install", `tokamak-l2js@${expectedVersion}`], installRoot);
+  const entrypoint = require.resolve("tokamak-l2js");
+  const packageJsonPath = findPackageJson(path.dirname(entrypoint));
+  const packageJson = readJson(packageJsonPath);
+  if (packageJson.version !== expectedVersion) {
+    throw new Error(`tokamak-l2js version mismatch: metadata=${expectedVersion}, installed=${packageJson.version}.`);
   }
-  const entrypoint = path.join(installRoot, "node_modules", "tokamak-l2js", "dist", "index.js");
-  return import(pathToFileURL(entrypoint).href);
+  return import("tokamak-l2js");
+}
+
+function findPackageJson(startDir) {
+  let current = startDir;
+  while (current !== path.dirname(current)) {
+    const candidate = path.join(current, "package.json");
+    if (fs.existsSync(candidate) && readJson(candidate).name === "tokamak-l2js") {
+      return candidate;
+    }
+    current = path.dirname(current);
+  }
+  throw new Error(`Cannot locate package.json above ${startDir}.`);
 }
 
 function splitFieldElement(value) {

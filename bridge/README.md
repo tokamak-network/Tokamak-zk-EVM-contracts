@@ -123,13 +123,10 @@ verifier parameters from `setupParams.json` and regenerates the Groth16
 forwarded into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
 
 The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
-When unset, the bridge helper defaults to:
-
-- `mainnet` -> `mpc`
-- every other supported network -> `trusted`
+When unset, the bridge helper defaults to `mpc` for every supported network.
 
 `trusted` regenerates artifacts under `groth16/trusted-setup/crs`, while `mpc`
-regenerates artifacts under `groth16/mpc-setup/crs`.
+downloads the latest public Groth16 MPC archive into `groth16/mpc-setup/crs`.
 
 The current bridge implementation is still intentionally hard-bound to depth
 `12` for soundness. If the latest `tokamak-l2js` publishes a different
@@ -242,3 +239,5 @@ After a successful bridge deployment, the bridge-owned Groth16 deployment mirror
 - `bridge/deployments/groth16/<chain-id>/metadata.json`
 - `bridge/deployments/groth16/<chain-id>/verification_key.json`
 - `bridge/deployments/groth16/<chain-id>/phase1_final_14.ptau` when the selected source provides it
+
+When `BRIDGE_GROTH_SOURCE=mpc`, bridge refresh downloads the latest public Groth16 MPC archive from the Groth16 CRS Drive folder before regenerating the verifier.

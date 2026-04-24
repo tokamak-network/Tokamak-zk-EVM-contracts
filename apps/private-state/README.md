@@ -146,6 +146,7 @@ The commands below are ordered by the normal execution flow.
 - refreshes the local `~/.tokamak-zk-evm` runtime cache
 - installs the minimal private-state deployment artifacts into
   `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
+- installs the latest public Groth16 MPC `circuit_final.zkey` from the Groth16 CRS Drive folder
 - refreshes shared bridge constants derived from `tokamak-l2js`
 
 `uninstall-zk-evm`

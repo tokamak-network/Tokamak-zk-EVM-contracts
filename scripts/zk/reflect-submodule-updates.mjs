@@ -18,6 +18,7 @@ import {
   resolveTokamakCliSetupArtifactPath,
   resolveTokamakCliRuntimeRoot,
 } from "./lib/tokamak-runtime-paths.mjs";
+import { downloadLatestPublicGroth16MpcArtifacts } from "@tokamak-private-dapps/common-library/artifact-cache";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,7 +83,8 @@ function resolveGrothPaths(source) {
 
   return {
     source,
-    generatorScriptPath: path.join("groth16", "mpc-setup", "generate_update_tree_setup_from_dusk.mjs"),
+    generatorScriptPath: null,
+    artifactDir: path.join(repoRoot, "groth16", "mpc-setup", "crs"),
     verificationKeyPath: path.join(repoRoot, "groth16", "mpc-setup", "crs", "verification_key.json"),
     metadataPath: path.join(repoRoot, "groth16", "mpc-setup", "crs", "metadata.json"),
   };
@@ -200,9 +202,23 @@ async function refreshSharedTokamakConstants() {
 }
 
 async function regenerateGrothArtifacts(grothPaths) {
-  await run("node", [grothPaths.generatorScriptPath], {
-    cwd: repoRoot,
-  });
+  if (grothPaths.source === "mpc") {
+    const result = await downloadLatestPublicGroth16MpcArtifacts({
+      outputDir: grothPaths.artifactDir,
+      selectedFiles: [
+        "circuit_final.zkey",
+        "verification_key.json",
+        "metadata.json",
+        "zkey_provenance.json",
+      ],
+    });
+    console.log(`Downloaded Groth16 MPC archive: ${result.archiveName}`);
+  } else {
+    await run("node", [grothPaths.generatorScriptPath], {
+      cwd: repoRoot,
+    });
+  }
+
   await run(
     "python3",
     [

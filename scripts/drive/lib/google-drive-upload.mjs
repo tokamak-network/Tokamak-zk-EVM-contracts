@@ -20,16 +20,24 @@ function readRequiredEnv(name) {
   return value;
 }
 
+function readOptionalEnv(name) {
+  const value = process.env[name]?.trim();
+  return value ? value : null;
+}
+
 export function resolveDriveUploadConfig() {
   const folderId = readRequiredEnv("TOKAMAK_MPC_DRIVE_FOLDER_ID");
   const oauthClientJsonPath = path.resolve(readRequiredEnv("GOOGLE_DRIVE_OAUTH_CLIENT_JSON_PATH"));
-  const oauthTokenPath = path.resolve(readRequiredEnv("GOOGLE_DRIVE_OAUTH_TOKEN_PATH"));
+  const configuredTokenPath = readOptionalEnv("GOOGLE_DRIVE_OAUTH_TOKEN_PATH");
+  const oauthTokenPath = configuredTokenPath ? path.resolve(configuredTokenPath) : null;
 
   if (!fs.existsSync(oauthClientJsonPath)) {
     throw new Error(`Missing OAuth client JSON file: ${oauthClientJsonPath}`);
   }
 
-  fs.mkdirSync(path.dirname(oauthTokenPath), { recursive: true });
+  if (oauthTokenPath) {
+    fs.mkdirSync(path.dirname(oauthTokenPath), { recursive: true });
+  }
 
   return {
     folderId,
@@ -40,6 +48,9 @@ export function resolveDriveUploadConfig() {
 }
 
 async function loadSavedCredentialsIfExist(tokenPath) {
+  if (!tokenPath) {
+    return null;
+  }
   if (!fs.existsSync(tokenPath)) {
     return null;
   }
@@ -49,6 +60,9 @@ async function loadSavedCredentialsIfExist(tokenPath) {
 }
 
 async function saveCredentials(client, clientJsonPath, tokenPath) {
+  if (!tokenPath) {
+    return;
+  }
   const keys = JSON.parse(fs.readFileSync(clientJsonPath, "utf8"));
   const key = keys.installed ?? keys.web;
   if (!key) {

@@ -57,7 +57,7 @@ The publisher reads these environment variables:
 
 - `GROTH16_MPC_DRIVE_FOLDER_ID`: Google Drive folder id for Groth16 MPC archives.
 - `GOOGLE_DRIVE_OAUTH_CLIENT_JSON_PATH`: OAuth client JSON path shared by repository Drive upload scripts.
-- `GOOGLE_DRIVE_OAUTH_TOKEN_PATH`: OAuth token cache path shared by repository Drive upload scripts.
+- `GOOGLE_DRIVE_OAUTH_TOKEN_PATH`: Optional OAuth token cache path shared by repository Drive upload scripts. If omitted, the OAuth browser flow runs without persisting a token file.
 
 The uploaded archive name follows `tokamak-private-dapps-groth16-v{packageVersion}-{YYYYMMDDTHHMMSSZ}.zip`.
 The archive contains `circuit_final.zkey`, `verification_key.json`, `metadata.json`, and `zkey_provenance.json`.

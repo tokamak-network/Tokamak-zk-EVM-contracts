@@ -18,7 +18,7 @@ import {
   resolveTokamakCliSetupArtifactPath,
   resolveTokamakCliRuntimeRoot,
 } from "./lib/tokamak-runtime-paths.mjs";
-import { downloadLatestPublicGroth16MpcArtifacts } from "@tokamak-private-dapps/common-library/artifact-cache";
+import { downloadLatestPublicGroth16MpcArtifacts } from "@tokamak-private-dapps/groth16/public-drive-crs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

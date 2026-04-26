@@ -219,8 +219,10 @@ export async function main(argv = process.argv.slice(2)) {
   const resolvedWasmPath = findFlag(args, "--wasm") ?? wasmPath;
   const resolvedZkeyPath = findFlag(args, "--zkey") ?? zkeyPath;
   const requestedVerificationKeyPath = findFlag(args, "--verification-key");
+  const resolvedWitnessPath = findFlag(args, "--witness-output") ?? witnessPath;
   const proofPath = findFlag(args, "--proof-output") ?? defaultProofPath;
   const publicPath = findFlag(args, "--public-output") ?? defaultPublicPath;
+  const resolvedFixturePath = findFlag(args, "--solidity-fixture-output") ?? fixturePath;
   const skipCompile = hasFlag(args, "--skip-compile");
 
   if (inputPath === defaultInputPath || !fs.existsSync(inputPath)) {
@@ -253,10 +255,11 @@ export async function main(argv = process.argv.slice(2)) {
     run(snarkjs, ["zkey", "export", "verificationkey", resolvedZkeyPath, resolvedVerificationKeyPath], circuitsDir);
   }
 
+  fs.mkdirSync(path.dirname(resolvedWitnessPath), { recursive: true });
   fs.mkdirSync(path.dirname(proofPath), { recursive: true });
   fs.mkdirSync(path.dirname(publicPath), { recursive: true });
-  run(snarkjs, ["wtns", "calculate", resolvedWasmPath, inputPath, witnessPath], circuitsDir);
-  run(snarkjs, ["groth16", "prove", resolvedZkeyPath, witnessPath, proofPath, publicPath], circuitsDir);
+  run(snarkjs, ["wtns", "calculate", resolvedWasmPath, inputPath, resolvedWitnessPath], circuitsDir);
+  run(snarkjs, ["groth16", "prove", resolvedZkeyPath, resolvedWitnessPath, proofPath, publicPath], circuitsDir);
   run(snarkjs, ["groth16", "verify", resolvedVerificationKeyPath, publicPath, proofPath], circuitsDir);
 
   const proof = readJson(proofPath);
@@ -265,7 +268,17 @@ export async function main(argv = process.argv.slice(2)) {
     throw new Error(`Expected 5 public signals for updateTree, got ${publicSignals.length}.`);
   }
   const fixture = buildSolidityFixture(proof, publicSignals);
-  fs.writeFileSync(fixturePath, JSON.stringify(fixture, null, 2) + "\n");
+  fs.mkdirSync(path.dirname(resolvedFixturePath), { recursive: true });
+  fs.writeFileSync(resolvedFixturePath, JSON.stringify(fixture, null, 2) + "\n");
+
+  return {
+    inputPath,
+    witnessPath: resolvedWitnessPath,
+    proofPath,
+    publicPath,
+    verificationKeyPath: resolvedVerificationKeyPath,
+    solidityFixturePath: resolvedFixturePath,
+  };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {

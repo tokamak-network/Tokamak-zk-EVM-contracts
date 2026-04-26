@@ -2,7 +2,7 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { downloadLatestPublicGroth16MpcArtifacts } from "@tokamak-private-dapps/common-library/artifact-cache";
+import { downloadLatestPublicGroth16MpcArtifacts } from "@tokamak-private-dapps/groth16/public-drive-crs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

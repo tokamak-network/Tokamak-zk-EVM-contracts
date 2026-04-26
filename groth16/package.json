@@ -4,14 +4,20 @@
   "description": "Groth16 circuits, setup, and proof helpers for Tokamak private DApps.",
   "type": "module",
   "bin": {
+    "tokamak-groth16": "./cli/tokamak-groth16-cli.mjs",
+    "tokamak-groth16-cli": "./cli/tokamak-groth16-cli.mjs",
     "tokamak-groth16-update-tree-proof": "./prover/updateTree/generateProof.mjs",
     "tokamak-groth16-publish-mpc-setup": "./mpc-setup/publish_update_tree_setup.mjs"
   },
   "exports": {
+    "./public-drive-crs": "./lib/public-drive-crs.mjs",
+    "./runtime": "./lib/proof-runtime.mjs",
     "./prover/updateTree/generateProof": "./prover/updateTree/generateProof.mjs"
   },
   "files": [
     "README.md",
+    "cli",
+    "lib",
     "circuits/src",
     "circuits/circom-platform.mjs",
     "circuits/run-circom-2.0.mjs",
@@ -23,6 +29,9 @@
     "mpc-setup/Cargo.toml",
     "mpc-setup/Cargo.lock",
     "mpc-setup/src",
+    "trusted-setup/crs/circuit_final.zkey",
+    "trusted-setup/crs/metadata.json",
+    "trusted-setup/crs/verification_key.json",
     "prover/README.md",
     "prover/updateTree/generateProof.mjs",
     "prover/updateTree/input_example.json"
@@ -39,6 +48,7 @@
     "ethers": "^6.14.1",
     "snarkjs": "^0.7.5",
     "tokamak-l2js": "^0.1.3",
+    "yauzl": "^3.2.0",
     "yazl": "^3.3.1"
   },
   "engines": {

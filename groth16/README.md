@@ -6,6 +6,32 @@ This directory is the `@tokamak-private-dapps/groth16` npm package. It contains 
 
 The circuit implements a quaternary Merkle tree using Poseidon4 hashing over the BLS12-381 curve to prove storage state consistency across channel participants.
 
+## CLI
+
+The package exposes a standalone Groth16 runtime CLI:
+
+```bash
+tokamak-groth16 --install
+tokamak-groth16 --prove groth16/prover/updateTree/input_example.json
+tokamak-groth16 --verify
+tokamak-groth16 --extract-proof ./update-tree-proof.zip
+tokamak-groth16 --doctor
+```
+
+The default workspace is:
+
+```text
+~/tokamak-private-channels/groth16/
+```
+
+`--install` downloads the latest public Groth16 MPC CRS archive from the hard-coded Groth16 CRS Drive folder, installs `circuit_final.zkey`, `verification_key.json`, `metadata.json`, and `zkey_provenance.json`, renders the `updateTree` circuit from package-local templates, and compiles the circuit WASM into the workspace.
+
+`--prove <INPUT_JSON>` runs the complete proving flow: witness generation, proof generation, and proof verification. It writes the latest outputs under:
+
+```text
+~/tokamak-private-channels/groth16/runs/latest/
+```
+
 ## Generating Proofs with snarkjs
 
 ### Prerequisites

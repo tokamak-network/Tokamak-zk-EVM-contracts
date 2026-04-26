@@ -81,7 +81,7 @@ const repoRoot = process.argv[2];
 const runtimePaths = await import("@tokamak-private-dapps/common-library/tokamak-runtime-paths");
 const installedSigmaVerifyJsonPath = runtimePaths.resolveTokamakCliSetupArtifactPath("sigma_verify.json");
 const setupParamsPath = runtimePaths.resolveSubcircuitSetupParamsPath();
-const sigmaVerifyJsonPath = path.join(repoRoot, "tokamak-zkp", "TokamakVerifierKey", "sigma_verify.json");
+const sigmaVerifyJsonPath = path.join(repoRoot, "bridge", "src", "generated", "sigma_verify.json");
 const tokamakVerifierGeneratedPath = path.join(repoRoot, "bridge", "src", "generated", "TokamakVerifierKey.generated.sol");
 const tokamakVerifierSourcePath = path.join(repoRoot, "bridge", "src", "verifiers", "TokamakVerifier.sol");
 const BLS12_381_FQ_MODULUS = BigInt(
@@ -198,7 +198,7 @@ function buildGeneratedSolidity(points) {
 pragma solidity 0.8.29;
 
 /// @dev AUTO-GENERATED FILE. DO NOT EDIT MANUALLY.
-/// Source: tokamak-zkp/TokamakVerifierKey/sigma_verify.json
+/// Source: bridge/src/generated/sigma_verify.json
 library TokamakVerifierKeyGenerated {
     uint256 internal constant LAGRANGE_KL_X_PART1 = ${points.lagrange.x.part1};
     uint256 internal constant LAGRANGE_KL_X_PART2 = ${points.lagrange.x.part2};
@@ -843,7 +843,7 @@ const manifest = {
   },
   tokamakL2js,
   tokamakVerifier: {
-    sigmaVerifyJsonPath: path.join(repoRoot, "tokamak-zkp", "TokamakVerifierKey", "sigma_verify.json"),
+    sigmaVerifyJsonPath: path.join(repoRoot, "bridge", "src", "generated", "sigma_verify.json"),
     generatedVerifierKeyPath: path.join(repoRoot, "bridge", "src", "generated", "TokamakVerifierKey.generated.sol"),
     verifierSourcePath: path.join(repoRoot, "bridge", "src", "verifiers", "TokamakVerifier.sol"),
     setupParams: readJson(setupParamsPath),

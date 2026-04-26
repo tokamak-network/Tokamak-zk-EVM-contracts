@@ -17,7 +17,7 @@ Bridge deployment performs its ZK refresh directly inside
 orchestrator. The deployment helper performs the following tasks before broadcasting:
 
 1. Runs the installed `@tokamak-zk-evm/cli` runtime refresh with `tokamak-cli --install`.
-2. Copies the installed `sigma_verify.json` into `tokamak-zkp/TokamakVerifierKey/`.
+2. Copies the installed `sigma_verify.json` into `bridge/src/generated/`.
 3. Refreshes the hardcoded verifier parameters inside `bridge/src/verifiers/TokamakVerifier.sol` from the
    published `@tokamak-zk-evm/subcircuit-library` `setupParams.json`.
 4. Regenerates or downloads the selected Groth16 `updateTree` CRS artifacts and regenerates the

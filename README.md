@@ -13,7 +13,7 @@ The active bridge implementation lives under [bridge/](./bridge/). It treats eac
 - [bridge/](./bridge/): the current bridge workspace, including contracts, deployment scripts, tests, and bridge documentation
 - [apps/](./apps/): bridge-coupled DApps that follow the repository's zk-L2 assumptions
 - [apps/private-state/](./apps/private-state/): the current reference DApp for private note-based channel activity
-- [tokamak-zkp/](./tokamak-zkp/): Tokamak verifier-key data and proof fixtures used by bridge workflows
+- [bridge/src/generated/](./bridge/src/generated/): generated verifier sources and verifier-key data used by bridge workflows
 - [groth16/](./groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
 - [scripts/](./scripts/): shared repository scripts for artifact handling and current workflow support
 - [test/](./test/): root-level Foundry tests and fixtures that remain useful for verifier and legacy coverage
@@ -149,8 +149,7 @@ The private-state DApp is the reference app integration for the bridge. It conta
 
 Tokamak verifier Solidity sources are owned by the bridge under
 [bridge/src/verifiers/](./bridge/src/verifiers/) and [bridge/src/generated/](./bridge/src/generated/).
-The [tokamak-zkp/](./tokamak-zkp/) folder keeps verifier-key data and proof fixtures consumed by
-bridge deployment and tests.
+Bridge tests keep Tokamak proof fixtures under [bridge/test/fixtures/](./bridge/test/fixtures/).
 
 ### Bridge ZK Workflow
 

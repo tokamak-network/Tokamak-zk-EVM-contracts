@@ -83,6 +83,6 @@
 - Relative reduction: **-45.46%**
 
 ## Notes
-- Current VK loading is generated from `tokamak-zkp/TokamakVerifierKey/sigma_verify.json` at build time, then loaded in `_loadVerificationKey()`.
+- Current VK loading is generated from `bridge/src/generated/sigma_verify.json` at build time, then loaded in `_loadVerificationKey()`.
 - The latest trace includes one explicit G1ADD (`0x0b`) before final pairing; previous snapshots had zero G1ADD in this path.
 - Reporting series should use the snapshot values in this document's Measured Gas / Snapshot History sections.

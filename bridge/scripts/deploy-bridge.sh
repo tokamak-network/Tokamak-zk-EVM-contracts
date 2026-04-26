@@ -841,7 +841,6 @@ const manifest = {
   tokamakRuntime: {
     cliPackageRoot: tokamakCliPackageRoot,
     cliVersion: readJson(path.join(tokamakCliPackageRoot, "package.json")).version,
-    cacheRoot: runtimePaths.resolveTokamakCliCacheRoot(),
     runtimeRoot: runtimePaths.resolveTokamakCliRuntimeRoot(),
     setupParamsPath,
     installedSigmaVerifyJsonPath: runtimePaths.resolveTokamakCliSetupArtifactPath("sigma_verify.json"),

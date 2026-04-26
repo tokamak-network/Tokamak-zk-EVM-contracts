@@ -1,23 +1,14 @@
-import os from "node:os";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+let cachedTokamakCliRuntimeRoot = null;
 
 function resolvePackageRoot(packageName) {
   const packageJsonPath = require.resolve(`${packageName}/package.json`);
   return path.dirname(packageJsonPath);
-}
-
-function resolveCliPlatformDir() {
-  if (process.platform === "darwin") {
-    return "macos";
-  }
-  if (process.platform === "linux") {
-    return "linux";
-  }
-  throw new Error(`Unsupported Tokamak CLI platform: ${process.platform}`);
 }
 
 export function resolveTokamakCliPackageRoot() {
@@ -35,15 +26,44 @@ export function buildTokamakCliInvocation(args = []) {
   };
 }
 
-export function resolveTokamakCliCacheRoot() {
-  const configured = process.env.TOKAMAK_ZKEVM_CLI_CACHE_DIR?.trim();
-  return configured
-    ? path.resolve(configured)
-    : path.join(os.homedir(), ".tokamak-zk-evm");
+export function parseTokamakCliRuntimeRootFromDoctorOutput(output) {
+  const plainOutput = stripAnsi(String(output ?? ""));
+  const match = plainOutput.match(/^\[ ok \] Runtime workspace:\s*(.+)$/m);
+  if (!match) {
+    throw new Error("Unable to parse Tokamak runtime workspace from tokamak-cli --doctor output.");
+  }
+  return path.resolve(match[1].trim());
 }
 
 export function resolveTokamakCliRuntimeRoot() {
-  return path.join(resolveTokamakCliCacheRoot(), resolveCliPlatformDir(), "runtime");
+  if (cachedTokamakCliRuntimeRoot) {
+    return cachedTokamakCliRuntimeRoot;
+  }
+
+  const invocation = buildTokamakCliInvocation(["--doctor"]);
+  const result = spawnSync(invocation.command, invocation.args, {
+    cwd: resolveTokamakCliPackageRoot(),
+    env: process.env,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      [
+        "tokamak-cli --doctor failed while resolving the runtime workspace.",
+        "Run tokamak-cli --install first.",
+        output.trim(),
+      ].filter(Boolean).join("\n"),
+    );
+  }
+
+  cachedTokamakCliRuntimeRoot = parseTokamakCliRuntimeRootFromDoctorOutput(output);
+  return cachedTokamakCliRuntimeRoot;
 }
 
 export function resolveTokamakCliResourceDir(...segments) {
@@ -120,4 +140,8 @@ export function resolveTokamakBlockInputConfig({
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function stripAnsi(value) {
+  return value.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
 }

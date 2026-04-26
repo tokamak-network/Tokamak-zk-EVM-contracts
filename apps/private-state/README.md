@@ -143,7 +143,7 @@ The commands below are ordered by the normal execution flow.
 - installs the local Tokamak zk-EVM toolchain through the published `@tokamak-zk-evm/cli` package
 - accepts optional `--docker` to forward `tokamak-cli --install --docker`
 - supports `--docker` only on Linux hosts because that mode is implemented by the upstream Tokamak CLI
-- refreshes the local `~/.tokamak-zk-evm` runtime cache
+- refreshes the local Tokamak zk-EVM runtime workspace reported by `tokamak-cli --doctor`
 - installs the minimal private-state deployment artifacts into
   `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
 - installs the latest public Groth16 MPC `circuit_final.zkey` from the Groth16 CRS Drive folder
@@ -151,7 +151,7 @@ The commands below are ordered by the normal execution flow.
 
 `uninstall-zk-evm`
 
-- removes the local `~/.tokamak-zk-evm` runtime cache
+- removes the local Tokamak zk-EVM runtime workspace
 - accepts no options
 
 ### 2. Create the channel

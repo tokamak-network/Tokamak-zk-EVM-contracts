@@ -47,8 +47,8 @@ import { deriveRpcUrl, resolveCliNetwork } from "@tokamak-private-dapps/common-l
 import {
   buildTokamakCliInvocation,
   resolveTokamakBlockInputConfig,
-  resolveTokamakCliCacheRoot,
   resolveTokamakCliResourceDir,
+  resolveTokamakCliRuntimeRoot,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
 import {
   installPrivateStateCliArtifacts,
@@ -77,7 +77,6 @@ const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "wo
 const tokamakCliInvocation = buildTokamakCliInvocation();
 const tokamakCliCommand = tokamakCliInvocation.command;
 const tokamakCliBaseArgs = tokamakCliInvocation.args;
-const tokamakCliCacheRoot = resolveTokamakCliCacheRoot();
 const flatDeploymentArtifactPathsByChainId = new Map();
 
 const abiCoder = AbiCoder.defaultAbiCoder();
@@ -924,6 +923,7 @@ async function handleInstallZkEvm({ args }) {
     installArgs.push("--docker");
   }
   run(tokamakCliCommand, installArgs, { cwd: projectRoot });
+  const tokamakRuntimeRoot = resolveTokamakCliRuntimeRoot();
   const deploymentArtifacts = await installPrivateStateCliArtifacts({
     dappName: PRIVATE_STATE_DAPP_LABEL,
     localDeploymentBaseRoot: projectRoot,
@@ -931,7 +931,7 @@ async function handleInstallZkEvm({ args }) {
   printJson({
     action: "install",
     tokamakCli: tokamakCliBaseArgs[0],
-    cacheRoot: tokamakCliCacheRoot,
+    runtimeRoot: tokamakRuntimeRoot,
     docker: Boolean(args.docker),
     deploymentArtifactCacheRoot: deploymentArtifacts.cacheBaseRoot,
     deploymentArtifactRoot: deploymentArtifacts.artifactRoot,
@@ -946,13 +946,18 @@ async function handleInstallZkEvm({ args }) {
 }
 
 async function handleUninstallZkEvm() {
-  const existed = fs.existsSync(tokamakCliCacheRoot);
-  fs.rmSync(tokamakCliCacheRoot, { recursive: true, force: true });
+  let runtimeRoot = null;
+  try {
+    runtimeRoot = resolveTokamakCliRuntimeRoot();
+  } catch {
+    runtimeRoot = null;
+  }
+  run(tokamakCliCommand, [...tokamakCliBaseArgs, "--uninstall"], { cwd: projectRoot });
 
   printJson({
     action: "uninstall-zk-evm",
-    cacheRoot: tokamakCliCacheRoot,
-    existed,
+    runtimeRoot,
+    existed: runtimeRoot !== null,
   });
 }
 
@@ -4652,11 +4657,11 @@ function printHelp() {
   console.log(`
 Commands:
   --install [--docker]
-      Install the Tokamak zk-EVM CLI runtime cache and private-state deployment artifacts
+      Install the Tokamak zk-EVM CLI runtime workspace and private-state deployment artifacts
       Use --docker on Linux to forward tokamak-cli --install --docker
 
   uninstall-zk-evm
-      Remove the Tokamak zk-EVM CLI runtime cache
+      Remove the Tokamak zk-EVM CLI runtime workspace
 
   create-channel --channel-name <NAME> --join-fee <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace

@@ -4,9 +4,6 @@ This directory now contains only repository-level helpers that are still part of
 
 ## Current Areas
 
-- `scripts/zk/`
-  Maintains metadata extraction helpers used by bridge deployment and DApp registration.
-
 - `scripts/artifacts/`
   Stores long-lived generated artifacts that are intentionally kept under version control.
 
@@ -30,6 +27,8 @@ For bridge deployment and upgrades, use:
 `bridge/scripts/deploy-bridge.sh` directly refreshes the Tokamak verifier,
 bridge-facing Tokamak constants, the Groth16 runtime CRS, and the Groth16
 verifier before it broadcasts a bridge deployment.
+Current ZK deployment and DApp-registration details are documented in
+`bridge/docs/current-implementation.md`.
 
 For private-state deployment and local flows, use:
 

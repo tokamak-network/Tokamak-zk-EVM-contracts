@@ -15,7 +15,7 @@ The active bridge implementation lives under [bridge/](./bridge/). It treats eac
 - [apps/private-state/](./apps/private-state/): the current reference DApp for private note-based channel activity
 - [tokamak-zkp/](./tokamak-zkp/): the Tokamak verifier contract and verification-key artifacts used by bridge workflows
 - [groth16/](./groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
-- [scripts/](./scripts/): shared repository scripts for zk-artifact reflection and verifier refresh
+- [scripts/](./scripts/): shared repository scripts for artifact handling and current workflow support
 - [test/](./test/): root-level Foundry tests and fixtures that remain useful for verifier and legacy coverage
 
 ## Where To Start
@@ -149,9 +149,12 @@ The private-state DApp is the reference app integration for the bridge. It conta
 
 This folder contains the checked-in Tokamak verifier contract and verification-key artifacts that the bridge workspace imports during proof verification.
 
-### [scripts/zk/](./scripts/zk/)
+### Bridge ZK Workflow
 
-These scripts consume `@tokamak-zk-evm/cli`, `@tokamak-zk-evm/subcircuit-library`, `@tokamak-zk-evm/synthesizer-node`, and `tokamak-l2js` from npm. They refresh the local Tokamak verifier artifacts and bridge-facing zk metadata without a top-level Tokamak zk-EVM source checkout.
+Bridge deployment and DApp registration consume `@tokamak-zk-evm/cli`,
+`@tokamak-zk-evm/subcircuit-library`, `@tokamak-zk-evm/synthesizer-node`, `tokamak-l2js`, and
+the repository Groth16 package from npm-linked packages. Current implementation details live in
+[bridge/docs/current-implementation.md](./bridge/docs/current-implementation.md).
 
 ## Notes On Scope
 

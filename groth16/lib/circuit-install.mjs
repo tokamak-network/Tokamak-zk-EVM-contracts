@@ -83,6 +83,9 @@ export function installedTokamakL2JsVersion() {
 }
 
 function copyCircuitPackage(circuitsDir) {
+  if (path.resolve(circuitsDir) === path.join(groth16PackageRoot, "circuits")) {
+    return;
+  }
   fs.rmSync(circuitsDir, { recursive: true, force: true });
   fs.mkdirSync(circuitsDir, { recursive: true });
   for (const [source, target] of CIRCUIT_FILES) {

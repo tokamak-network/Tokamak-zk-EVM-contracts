@@ -5,16 +5,7 @@ This directory now contains only repository-level helpers that are still part of
 ## Current Areas
 
 - `scripts/zk/`
-  Maintains bridge-facing verifier artifacts, reflected Tokamak constants, and metadata extraction helpers used by bridge deployment and DApp registration.
-
-- `scripts/generate-tokamak-shared-constants.js`
-  Refreshes repository-owned shared constants from the latest reflected Tokamak setup.
-
-- `scripts/generate-tokamak-verifier-key.js`
-  Regenerates the Tokamak verifier key artifact from the reflected `sigma_verify.json` data.
-
-- `scripts/generate-tokamak-verifier-params.js`
-  Refreshes the hardcoded verifier parameters inside `tokamak-zkp/TokamakVerifier.sol`.
+  Maintains metadata extraction helpers used by bridge deployment and DApp registration.
 
 - `scripts/artifacts/`
   Stores long-lived generated artifacts that are intentionally kept under version control.
@@ -35,6 +26,10 @@ For bridge deployment and upgrades, use:
 - `bridge/scripts/deploy-bridge.sh`
 - `bridge/scripts/DeployBridgeStack.s.sol`
 - `bridge/scripts/UpgradeBridgeStack.s.sol`
+
+`bridge/scripts/deploy-bridge.sh` directly refreshes the Tokamak verifier,
+bridge-facing Tokamak constants, the Groth16 runtime CRS, and the Groth16
+verifier before it broadcasts a bridge deployment.
 
 For private-state deployment and local flows, use:
 

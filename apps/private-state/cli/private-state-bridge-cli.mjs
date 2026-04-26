@@ -921,7 +921,6 @@ async function handleInstallZkEvm({ args }) {
     installArgs.push("--docker");
   }
   run(tokamakCliCommand, installArgs, { cwd: projectRoot });
-  run("node", [path.join("scripts", "generate-tokamak-shared-constants.js")], { cwd: projectRoot });
   const deploymentArtifacts = await installPrivateStateCliArtifacts({
     dappName: PRIVATE_STATE_DAPP_LABEL,
     localDeploymentBaseRoot: projectRoot,

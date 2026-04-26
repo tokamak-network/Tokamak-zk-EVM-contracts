@@ -5,7 +5,6 @@
     "groth16"
   ],
   "scripts": {
-    "gen:tokamak-vk": "node scripts/generate-tokamak-verifier-key.js",
     "test:bridge:unit": "forge test --root bridge -vv",
     "test:private-state:cli-e2e": "node apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs"
   },

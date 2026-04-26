@@ -96,29 +96,19 @@ contract Groth16Verifier {
                 mstore(add(mIn, 64), y0)
                 mstore(add(mIn, 96), y1)
                 mstore(add(mIn, 128), s)
-
                 success := staticcall(sub(gas(), 2000), 0x0c, mIn, 160, mIn, 128)
-                if iszero(success) {
-                    mstore(0, 0)
-                    return(0, 0x20)
-                }
-
+                if iszero(success) { mstore(0, 0) return(0, 0x20) }
                 mstore(add(mIn, 128), mload(pR))
                 mstore(add(mIn, 160), mload(add(pR, 32)))
                 mstore(add(mIn, 192), mload(add(pR, 64)))
                 mstore(add(mIn, 224), mload(add(pR, 96)))
-
                 success := staticcall(sub(gas(), 2000), 0x0b, mIn, 256, pR, 128)
-                if iszero(success) {
-                    mstore(0, 0)
-                    return(0, 0x20)
-                }
+                if iszero(success) { mstore(0, 0) return(0, 0x20) }
             }
 
             function checkPairing(pA, pB, pC, pubSignals, pMem) -> isOk {
                 let _pPairing := add(pMem, pPairing)
                 let _pVk := add(pMem, pVk)
-
                 mstore(_pVk, IC0x_PART1)
                 mstore(add(_pVk, 32), IC0x_PART2)
                 mstore(add(_pVk, 64), IC0y_PART1)
@@ -136,13 +126,11 @@ contract Groth16Verifier {
 
                 mstore(_pPairing, calldataload(pA))
                 mstore(add(_pPairing, 32), calldataload(add(pA, 32)))
-
                 let y_high := calldataload(add(pA, 64))
                 let y_low := calldataload(add(pA, 96))
                 let neg_y_high
                 let neg_y_low
                 let borrow := 0
-
                 switch lt(Q_MOD_PART2, y_low)
                 case 1 {
                     neg_y_low := sub(Q_MOD_PART2, y_low)
@@ -150,14 +138,10 @@ contract Groth16Verifier {
                     neg_y_low := add(neg_y_low, 1)
                     borrow := 1
                 }
-                default {
-                    neg_y_low := sub(Q_MOD_PART2, y_low)
-                }
-
+                default { neg_y_low := sub(Q_MOD_PART2, y_low) }
                 neg_y_high := sub(sub(Q_MOD_PART1, y_high), borrow)
                 mstore(add(_pPairing, 64), neg_y_high)
                 mstore(add(_pPairing, 96), neg_y_low)
-
                 mstore(add(_pPairing, 128), calldataload(add(pB, 64)))
                 mstore(add(_pPairing, 160), calldataload(add(pB, 96)))
                 mstore(add(_pPairing, 192), calldataload(pB))
@@ -166,12 +150,10 @@ contract Groth16Verifier {
                 mstore(add(_pPairing, 288), calldataload(add(pB, 224)))
                 mstore(add(_pPairing, 320), calldataload(add(pB, 128)))
                 mstore(add(_pPairing, 352), calldataload(add(pB, 160)))
-
                 mstore(add(_pPairing, 384), alphax_PART1)
                 mstore(add(_pPairing, 416), alphax_PART2)
                 mstore(add(_pPairing, 448), alphay_PART1)
                 mstore(add(_pPairing, 480), alphay_PART2)
-
                 mstore(add(_pPairing, 512), betax2_PART1)
                 mstore(add(_pPairing, 544), betax2_PART2)
                 mstore(add(_pPairing, 576), betax1_PART1)
@@ -180,12 +162,10 @@ contract Groth16Verifier {
                 mstore(add(_pPairing, 672), betay2_PART2)
                 mstore(add(_pPairing, 704), betay1_PART1)
                 mstore(add(_pPairing, 736), betay1_PART2)
-
                 mstore(add(_pPairing, 768), mload(add(pMem, pVk)))
                 mstore(add(_pPairing, 800), mload(add(pMem, add(pVk, 32))))
                 mstore(add(_pPairing, 832), mload(add(pMem, add(pVk, 64))))
                 mstore(add(_pPairing, 864), mload(add(pMem, add(pVk, 96))))
-
                 mstore(add(_pPairing, 896), gammax2_PART1)
                 mstore(add(_pPairing, 928), gammax2_PART2)
                 mstore(add(_pPairing, 960), gammax1_PART1)
@@ -194,12 +174,10 @@ contract Groth16Verifier {
                 mstore(add(_pPairing, 1056), gammay2_PART2)
                 mstore(add(_pPairing, 1088), gammay1_PART1)
                 mstore(add(_pPairing, 1120), gammay1_PART2)
-
                 mstore(add(_pPairing, 1152), calldataload(pC))
                 mstore(add(_pPairing, 1184), calldataload(add(pC, 32)))
                 mstore(add(_pPairing, 1216), calldataload(add(pC, 64)))
                 mstore(add(_pPairing, 1248), calldataload(add(pC, 96)))
-
                 mstore(add(_pPairing, 1280), deltax2_PART1)
                 mstore(add(_pPairing, 1312), deltax2_PART2)
                 mstore(add(_pPairing, 1344), deltax1_PART1)
@@ -208,7 +186,6 @@ contract Groth16Verifier {
                 mstore(add(_pPairing, 1440), deltay2_PART2)
                 mstore(add(_pPairing, 1472), deltay1_PART1)
                 mstore(add(_pPairing, 1504), deltay1_PART2)
-
                 let success := staticcall(sub(gas(), 2000), 0x0f, _pPairing, 1536, _pPairing, 0x20)
                 isOk := and(success, mload(_pPairing))
             }

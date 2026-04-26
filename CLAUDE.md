@@ -82,7 +82,7 @@ The system automatically selects tree sizes based on channel requirements:
 ### Core Contracts
 - `src/BridgeCore.sol` - Main bridge logic
 - `src/interface/IBridgeCore.sol` - Core interface definitions
-- `tokamak-zkp/TokamakVerifier.sol` - ZK proof verification
+- `bridge/src/verifiers/TokamakVerifier.sol` - ZK proof verification
 - `src/library/ZecFrost.sol` - FROST signatures
 - `src/library/RLP.sol` - RLP encoding utilities
 

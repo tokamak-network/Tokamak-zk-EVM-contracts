@@ -1,8 +1,8 @@
     // SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
-import {ITokamakVerifier} from "./ITokamakVerifier.sol";
-import {TokamakVerifierKeyGenerated} from "./TokamakVerifierKey/TokamakVerifierKey.generated.sol";
+import {ITokamakVerifier} from "../interfaces/ITokamakVerifier.sol";
+import {TokamakVerifierKeyGenerated} from "../generated/TokamakVerifierKey.generated.sol";
 
 /* solhint-disable max-line-length */
 /// @author Project Ooo team

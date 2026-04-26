@@ -1,7 +1,7 @@
 # TokamakVerifier Gas Section Breakdown
 
 ## Scope
-- Target: `tokamak-zkp/TokamakVerifier.sol` (`verify` path)
+- Target: `bridge/src/verifiers/TokamakVerifier.sol` (`verify` path)
 - Primary test: `test/verifier/Verifier.t.sol::testVerifier`
 - Trace command (current snapshot):
   - `NO_PROXY='*' no_proxy='*' forge test --match-contract testTokamakVerifier --match-test testVerifier -vvvvv --offline`
@@ -13,26 +13,26 @@
 
 ## Functional Sections
 1. Verification key load
-- `_loadVerificationKey()` (`tokamak-zkp/TokamakVerifier.sol:429`)
+- `_loadVerificationKey()` (`bridge/src/verifiers/TokamakVerifier.sol:429`)
 
 2. Step 1: Proof loading and validation
-- `loadProof()` (`tokamak-zkp/TokamakVerifier.sol:593`)
+- `loadProof()` (`bridge/src/verifiers/TokamakVerifier.sol:593`)
 
 3. Step 2: Transcript/challenge initialization
-- `initializeTranscript()` (`tokamak-zkp/TokamakVerifier.sol:848`)
+- `initializeTranscript()` (`bridge/src/verifiers/TokamakVerifier.sol:848`)
 
 4. Step 3: Query/scalar preparation
-- `prepareQueries()` (`tokamak-zkp/TokamakVerifier.sol:931`)
-- `computeLagrangeK0Eval()` (`tokamak-zkp/TokamakVerifier.sol:955`)
-- `computeAPUB()` (`tokamak-zkp/TokamakVerifier.sol:991`)
+- `prepareQueries()` (`bridge/src/verifiers/TokamakVerifier.sol:931`)
+- `computeLagrangeK0Eval()` (`bridge/src/verifiers/TokamakVerifier.sol:955`)
+- `computeAPUB()` (`bridge/src/verifiers/TokamakVerifier.sol:991`)
 
 5. Step 4: Aggregated commitment construction
-- `prepareLhsAuxSingleMSM()` (`tokamak-zkp/TokamakVerifier.sol:1121`)
-- `prepareRHS1()` (`tokamak-zkp/TokamakVerifier.sol:1248`)
-- `prepareRHS2()` (`tokamak-zkp/TokamakVerifier.sol:1261`)
+- `prepareLhsAuxSingleMSM()` (`bridge/src/verifiers/TokamakVerifier.sol:1121`)
+- `prepareRHS1()` (`bridge/src/verifiers/TokamakVerifier.sol:1248`)
+- `prepareRHS2()` (`bridge/src/verifiers/TokamakVerifier.sol:1261`)
 
 6. Step 5: Final pairing check
-- `finalPairing()` (`tokamak-zkp/TokamakVerifier.sol:1303`)
+- `finalPairing()` (`bridge/src/verifiers/TokamakVerifier.sol:1303`)
 
 ## Measured Gas
 

@@ -13,7 +13,7 @@ The active bridge implementation lives under [bridge/](./bridge/). It treats eac
 - [bridge/](./bridge/): the current bridge workspace, including contracts, deployment scripts, tests, and bridge documentation
 - [apps/](./apps/): bridge-coupled DApps that follow the repository's zk-L2 assumptions
 - [apps/private-state/](./apps/private-state/): the current reference DApp for private note-based channel activity
-- [tokamak-zkp/](./tokamak-zkp/): the Tokamak verifier contract and verification-key artifacts used by bridge workflows
+- [tokamak-zkp/](./tokamak-zkp/): Tokamak verifier-key data and proof fixtures used by bridge workflows
 - [groth16/](./groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
 - [scripts/](./scripts/): shared repository scripts for artifact handling and current workflow support
 - [test/](./test/): root-level Foundry tests and fixtures that remain useful for verifier and legacy coverage
@@ -33,7 +33,7 @@ At a high level, the repository is organized around three layers:
 
 - Ethereum-facing bridge contracts: the shared settlement and custody surface under [bridge/](./bridge/)
 - DApp-specific channel integrations: application contracts, app-local deployment manifests, and user-facing tooling under [apps/](./apps/)
-- Shared proving substrate: published Tokamak zk-EVM npm packages and reflected verifier artifacts under [tokamak-zkp/](./tokamak-zkp/)
+- Shared proving substrate: published Tokamak zk-EVM npm packages and bridge-owned verifier sources under [bridge/src/](./bridge/src/)
 
 The current bridge is not described here as a generic rollup shell. It is a bridge for dedicated app channels with:
 
@@ -145,9 +145,12 @@ The private-state DApp is the reference app integration for the bridge. It conta
 - app deployment artifacts under [apps/private-state/deploy/](./apps/private-state/deploy/)
 - protocol and security documents under [apps/private-state/docs/](./apps/private-state/docs/)
 
-### [tokamak-zkp/](./tokamak-zkp/)
+### Tokamak Verifier Artifacts
 
-This folder contains the checked-in Tokamak verifier contract and verification-key artifacts that the bridge workspace imports during proof verification.
+Tokamak verifier Solidity sources are owned by the bridge under
+[bridge/src/verifiers/](./bridge/src/verifiers/) and [bridge/src/generated/](./bridge/src/generated/).
+The [tokamak-zkp/](./tokamak-zkp/) folder keeps verifier-key data and proof fixtures consumed by
+bridge deployment and tests.
 
 ### Bridge ZK Workflow
 

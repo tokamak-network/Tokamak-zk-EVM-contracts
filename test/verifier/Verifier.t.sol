@@ -4,7 +4,7 @@ pragma solidity 0.8.29;
 import {Test} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 
-import {TokamakVerifier} from "../../tokamak-zkp/TokamakVerifier.sol";
+import {TokamakVerifier} from "../../bridge/src/verifiers/TokamakVerifier.sol";
 
 contract TokamakVerifierRootTest is Test {
     using stdJson for string;

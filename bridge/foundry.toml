@@ -3,12 +3,10 @@ src = "src"
 test = "test"
 out = "out"
 libs = ["../lib"]
-allow_paths = ["../tokamak-zkp"]
 remappings = [
     "@openzeppelin/=../lib/openzeppelin-contracts/contracts/",
     "@openzeppelin-upgradeable/=../lib/openzeppelin-contracts-upgradeable/contracts/",
     "forge-std/=../lib/forge-std/src/",
-    "tokamak-zkp/=../tokamak-zkp/",
 ]
 
 optimizer = true
@@ -29,12 +27,10 @@ src = "src"
 test = "test"
 out = "out"
 libs = ["../lib"]
-allow_paths = ["../tokamak-zkp"]
 remappings = [
     "@openzeppelin/=../lib/openzeppelin-contracts/contracts/",
     "@openzeppelin-upgradeable/=../lib/openzeppelin-contracts-upgradeable/contracts/",
     "forge-std/=../lib/forge-std/src/",
-    "tokamak-zkp/=../tokamak-zkp/",
 ]
 
 optimizer = true

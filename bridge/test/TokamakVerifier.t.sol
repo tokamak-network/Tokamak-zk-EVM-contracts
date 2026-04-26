@@ -4,16 +4,16 @@ pragma solidity 0.8.29;
 import {Test} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 
-import {TokamakVerifier} from "../TokamakVerifier.sol";
+import {TokamakVerifier} from "../src/verifiers/TokamakVerifier.sol";
 
 contract TokamakVerifierTest is Test {
     using stdJson for string;
 
-    string internal constant PROOF_PATH = "./test/fixtures/mintNotes1-proof/resource/prove/fixture/proof.json";
+    string internal constant PROOF_PATH = "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/prove/fixture/proof.json";
     string internal constant PREPROCESS_PATH =
-        "./test/fixtures/mintNotes1-proof/resource/preprocess/fixture/preprocess.json";
+        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/preprocess/fixture/preprocess.json";
     string internal constant INSTANCE_PATH =
-        "./test/fixtures/mintNotes1-proof/resource/synthesizer/fixture/instance.json";
+        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/synthesizer/fixture/instance.json";
     TokamakVerifier internal verifier;
 
     function setUp() public {

@@ -17,7 +17,7 @@ import {
   resolveTokamakBlockInputConfig,
   resolveTokamakCliPreprocessOutputDir,
   resolveTokamakCliSynthOutputDir,
-} from "../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+} from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
 import { createTimestampLabel } from "../../scripts/drive/lib/google-drive-upload.mjs";
 
 const __filename = fileURLToPath(import.meta.url);

@@ -38,7 +38,7 @@ import {
   resolveTokamakBlockInputConfig,
   resolveTokamakCliResourceDir,
   resolveTokamakCliSetupOutputDir,
-} from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
+} from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
 import {
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,

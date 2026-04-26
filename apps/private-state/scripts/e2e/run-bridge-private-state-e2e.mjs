@@ -37,12 +37,6 @@ import {
   utf8ToBytes,
 } from "@ethereumjs/util";
 import {
-  buildDAppDefinitions,
-  buildFunctionDefinition,
-  hashTokamakPublicInputs,
-  writeJson,
-} from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
-import {
   buildTokamakCliInvocation,
   resolveTokamakBlockInputConfig,
   resolveTokamakCliResourceDir,
@@ -65,6 +59,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
+const adminAddDAppPath = path.resolve(bridgeRoot, "scripts", "admin-add-dapp.mjs");
 const bridgeArtifactTimestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 const bridgeArtifactSnapshot = bridgeArtifactPaths(repoRoot, 31337, bridgeArtifactTimestamp);
 const tokamakCliInvocation = buildTokamakCliInvocation();
@@ -75,6 +70,7 @@ const bridgeAbiManifestPath = bridgeArtifactSnapshot.abiManifestPath;
 const bridgeDeploymentSummaryPath = path.resolve(outputRoot, "bridge-deployment.json");
 const grothInputDir = path.resolve(outputRoot, "groth-inputs");
 const tokamakStepsDir = path.resolve(outputRoot, "tokamak-steps");
+const registrationExampleRoot = path.resolve(outputRoot, "registration-examples");
 const summaryPath = path.resolve(outputRoot, "summary.json");
 const providerUrl = process.env.ANVIL_RPC_URL?.trim() || "http://127.0.0.1:8545";
 const anvilMnemonic = process.env.APPS_ANVIL_MNEMONIC?.trim() || "test test test test test test test test test test test junk";
@@ -97,9 +93,6 @@ const bridgeCoreAbi = [
   "function canonicalAsset() external view returns (address)",
   "function createChannel(uint256 channelId, uint256 dappId, address leader, uint256 initialJoinFee) external returns (address manager, address bridgeTokenVault)",
   "function getChannel(uint256 channelId) external view returns (tuple(bool exists,uint256 dappId,address leader,address asset,address manager,address bridgeTokenVault,bytes32 aPubBlockHash))",
-];
-const dAppManagerAbi = [
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
 ];
 const channelManagerAbi = [
   "function currentRootVectorHash() external view returns (bytes32)",
@@ -182,6 +175,16 @@ function run(command, args, { cwd = repoRoot, env = process.env } = {}) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function writeJson(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(
+    filePath,
+    `${JSON.stringify(value, (_key, current) => (
+      typeof current === "bigint" ? current.toString() : current
+    ), 2)}\n`,
+  );
 }
 
 function latestPrivateStateArtifactDir() {
@@ -528,6 +531,10 @@ function hashRootVector(roots) {
   return keccak256(abiCoder.encode(["bytes32[]"], [normalizedRootVector(roots)]));
 }
 
+function hashTokamakPublicInputs(values) {
+  return keccak256(abiCoder.encode(["uint256[]"], [values]));
+}
+
 function normalizeTokamakAPubBlock(values) {
   let normalizedValues = values.slice();
   if (normalizedValues.length > tokamakAPubBlockLength) {
@@ -596,20 +603,10 @@ function loadExistingTokamakStep(step, currentSnapshot, blockInfo, contractCodes
   assertStepArtifactsMatchCurrentContext(stepDir, currentSnapshot, transactionSnapshot, blockInfo);
 
   const nextSnapshot = readJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"));
-  const metadataRecord = buildFunctionDefinition({
-    groupName: "private-state-e2e",
-    exampleName: step.name,
-    transactionJsonPath: path.join(stepDir, "transaction.json"),
-    snapshotJsonPath: path.join(stepDir, "previous_state_snapshot.json"),
-    preprocessJsonPath: path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
-    instanceJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance.json"),
-    instanceDescriptionJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance_description.json"),
-  });
 
   return {
     stepDir,
     transactionSnapshot,
-    metadataRecord,
     payload: loadTokamakPayloadFromStep(stepDir),
     nextSnapshot,
   };
@@ -645,20 +642,10 @@ async function runTokamakStep(step, currentSnapshot, blockInfo, contractCodes) {
       .map((address) => createAddressFromString(address).toString());
   }
   writeJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
-  const metadataRecord = buildFunctionDefinition({
-    groupName: "private-state-e2e",
-    exampleName: step.name,
-    transactionJsonPath: path.join(stepDir, "transaction.json"),
-    snapshotJsonPath: path.join(stepDir, "previous_state_snapshot.json"),
-    preprocessJsonPath: path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
-    instanceJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance.json"),
-    instanceDescriptionJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance_description.json"),
-  });
 
   return {
     stepDir,
     transactionSnapshot,
-    metadataRecord,
     payload: loadTokamakPayloadFromStep(stepDir),
     nextSnapshot,
   };
@@ -696,6 +683,23 @@ async function materializeTokamakResults(tokamakScenarios, initialSnapshot, bloc
     tokamakResults,
     finalSnapshot: currentSnapshot,
   };
+}
+
+function writeRegistrationExamplesFromTokamakResults(tokamakResults) {
+  const groupRoot = path.join(registrationExampleRoot, "private-state");
+  cleanDir(groupRoot);
+  for (const result of tokamakResults) {
+    const exampleDir = path.join(groupRoot, result.scenario.name);
+    ensureDir(exampleDir);
+    for (const fileName of [
+      "previous_state_snapshot.json",
+      "transaction.json",
+      "block_info.json",
+      "contract_codes.json",
+    ]) {
+      fs.copyFileSync(path.join(result.stepDir, fileName), path.join(exampleDir, fileName));
+    }
+  }
 }
 
 async function currentStorageBigInt(stateManager, address, keyHex) {
@@ -843,30 +847,6 @@ async function deployBridgeStack() {
   const deployment = readJson(bridgeDeploymentArtifactPath);
   writeJson(bridgeDeploymentSummaryPath, deployment);
   return deployment;
-}
-
-function toStorageMetadata(entries) {
-  return entries.map((entry) => ({
-    storageAddr: entry.storageAddress,
-    preAllocatedKeys: entry.preAllocKeys,
-    userStorageSlots: entry.userSlots,
-    isChannelTokenVaultStorage: entry.isChannelTokenVaultStorage,
-  }));
-}
-
-function toFunctionMetadata(entries) {
-  return entries.map((entry) => ({
-    entryContract: entry.entryContract,
-    functionSig: entry.functionSig,
-    preprocessInputHash: entry.preprocessInputHash,
-    instanceLayout: {
-      entryContractOffsetWords: entry.entryContractOffsetWords,
-      functionSigOffsetWords: entry.functionSigOffsetWords,
-      currentRootVectorOffsetWords: entry.currentRootVectorOffsetWords,
-      updatedRootVectorOffsetWords: entry.updatedRootVectorOffsetWords,
-      eventLogs: entry.eventLogs,
-    },
-  }));
 }
 
 async function main() {
@@ -1156,13 +1136,13 @@ async function main() {
     options,
   );
 
-  const dApps = buildDAppDefinitions(metadataRun.tokamakResults.map((result) => result.metadataRecord));
-  expect(dApps.length === 1, `Expected one derived DApp, found ${dApps.length}.`);
-  const derivedDApp = dApps[0];
   const uniqueAPubBlockHashes = new Set(
-    metadataRun.tokamakResults.map((result) => ethers.toBigInt(result.metadataRecord.aPubBlockHash).toString()),
+    metadataRun.tokamakResults.map((result) => ethers.toBigInt(
+      hashTokamakPublicInputs(result.payload.aPubBlock),
+    ).toString()),
   );
   expect(uniqueAPubBlockHashes.size === 1, "All Tokamak steps must share one aPubBlockHash for the channel.");
+  writeRegistrationExamplesFromTokamakResults(metadataRun.tokamakResults);
 
   console.log("E2E: deploying bridge stack.");
   const bridgeDeployment = await deployBridgeStack();
@@ -1173,7 +1153,6 @@ async function main() {
   expect(mockAssetCode !== "0x", "Mock asset deployment must exist before installing canonical asset code.");
   await provider.send("anvil_setCode", [canonicalAssetAddress, mockAssetCode]);
   const asset = new Contract(canonicalAssetAddress, mockErc20Abi, bridgeDeployer);
-  const dAppManager = new Contract(bridgeDeployment.dAppManager, dAppManagerAbi, bridgeDeployer);
   let bridgeDeployerNonce = await provider.getTransactionCount(bridgeDeployer.address, "latest");
   const participantNonces = new Map();
   for (const participant of participants) {
@@ -1191,15 +1170,42 @@ async function main() {
   }
 
   console.log("E2E: registering derived DApp on bridge.");
-  await (
-    await dAppManager.registerDApp(
-      dappId,
-      keccak256(ethers.toUtf8Bytes("private-state-e2e")),
-      toStorageMetadata(derivedDApp.storageMetadata),
-      toFunctionMetadata(derivedDApp.functions),
-      { nonce: bridgeDeployerNonce++ },
-    )
-  ).wait();
+  const registrationManifestPath = path.join(outputRoot, "dapp-registration.31337.json");
+  run(
+    "node",
+    [
+      adminAddDAppPath,
+      "--group",
+      "private-state",
+      "--dapp-id",
+      String(dappId),
+      "--deployment-path",
+      bridgeDeploymentArtifactPath,
+      "--abi-manifest",
+      bridgeAbiManifestPath,
+      "--dapp-manager",
+      bridgeDeployment.dAppManager,
+      "--app-network",
+      "anvil",
+      "--app-deployment-path",
+      path.join(privateStateArtifactDir, "deployment.31337.latest.json"),
+      "--storage-layout-path",
+      path.join(privateStateArtifactDir, "storage-layout.31337.latest.json"),
+      "--example-root",
+      registrationExampleRoot,
+      "--rpc-url",
+      providerUrl,
+      "--private-key",
+      anvilDeployerPrivateKey,
+      "--manifest-out",
+      registrationManifestPath,
+      "--artifacts-out",
+      path.join(outputRoot, "dapp-metadata"),
+      "--replace-existing",
+    ],
+    { cwd: repoRoot },
+  );
+  bridgeDeployerNonce = await provider.getTransactionCount(bridgeDeployer.address, "latest");
 
   console.log("E2E: creating channel.");
   await (

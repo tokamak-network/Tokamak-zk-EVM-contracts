@@ -8,7 +8,6 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   AbiCoder,
-  Contract,
   HDNodeWallet,
   Interface,
   JsonRpcProvider,
@@ -34,10 +33,6 @@ import {
   hexToBigInt,
   hexToBytes,
 } from "@ethereumjs/util";
-import {
-  buildDAppDefinitions,
-  buildFunctionDefinition,
-} from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
 import {
   buildTokamakCliInvocation,
   resolveTokamakBlockInputConfig,
@@ -66,6 +61,7 @@ const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
 const cliPath = path.resolve(appRoot, "cli", "private-state-bridge-cli.mjs");
 const bridgeDeployHelperPath = path.resolve(bridgeRoot, "scripts", "deploy-bridge.sh");
+const adminAddDAppPath = path.resolve(bridgeRoot, "scripts", "admin-add-dapp.mjs");
 const privateStateDeployScriptPath = path.resolve(
   appRoot,
   "scripts",
@@ -88,7 +84,6 @@ const anvilDeployerPrivateKey =
 const channelName = "private-state-cli-e2e";
 const dappId = "1";
 const dappLabel = "private-state";
-const dappIdNumber = Number(dappId);
 const joinFeeTokens = "1";
 const depositAmountTokens = "3";
 const claimAmountTokens = "9";
@@ -115,11 +110,6 @@ const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "wo
 const abiCoder = AbiCoder.defaultAbiCoder();
 const noteCommitmentDomain = keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NOTE_COMMITMENT"));
 const registrationLaunchInputsRoot = path.resolve(outputRoot, "generated-launch-inputs");
-const dAppManagerAbi = [
-  "function deleteDApp(uint256 dappId) external",
-  "function registerDApp(uint256 dappId, bytes32 labelHash, tuple(address storageAddr, bytes32[] preAllocatedKeys, uint8[] userStorageSlots, bool isChannelTokenVaultStorage)[] storages, tuple(address entryContract, bytes4 functionSig, bytes32 preprocessInputHash, tuple(uint8 entryContractOffsetWords, uint8 functionSigOffsetWords, uint8 currentRootVectorOffsetWords, uint8 updatedRootVectorOffsetWords, tuple(uint16 startOffsetWords, uint8 topicCount)[] eventLogs) instanceLayout)[] functions) external",
-  "function getDAppInfo(uint256 dappId) external view returns (tuple(bool exists, bytes32 labelHash, uint256 channelTokenVaultTreeIndex))",
-];
 const localRegistrationExamples = [
   "mintNotes1",
   "mintNotes2",
@@ -675,8 +665,10 @@ function buildEncryptedMintOutput({
   };
 }
 
-function writeRegistrationLaunchBundle(exampleName, snapshot, transaction, blockInfo, contractCodes) {
-  const bundleDir = path.join(registrationLaunchInputsRoot, exampleName);
+function writeRegistrationLaunchBundle(exampleName, snapshot, transaction, blockInfo, contractCodes, { register = true } = {}) {
+  const bundleDir = register
+    ? path.join(registrationLaunchInputsRoot, dappLabel, exampleName)
+    : path.join(dappMetadataRoot, "_internal-inputs", exampleName);
   cleanDir(bundleDir);
   writeJson(path.join(bundleDir, "previous_state_snapshot.json"), snapshot);
   writeJson(path.join(bundleDir, "transaction.json"), transaction);
@@ -764,18 +756,7 @@ async function runTokamakMetadataStep(exampleName, bundleSourceDir) {
   }
   writeJson(path.join(stepDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
-  const metadataRecord = buildFunctionDefinition({
-    groupName: dappLabel,
-    exampleName,
-    transactionJsonPath: path.join(stepDir, "transaction.json"),
-    snapshotJsonPath: path.join(stepDir, "previous_state_snapshot.json"),
-    preprocessJsonPath: path.join(stepDir, "resource", "preprocess", "output", "preprocess.json"),
-    instanceJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance.json"),
-    instanceDescriptionJsonPath: path.join(stepDir, "resource", "synthesizer", "output", "instance_description.json"),
-  });
-
   return {
-    metadataRecord,
     nextSnapshot,
   };
 }
@@ -926,6 +907,7 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
     sender,
     calldata,
     nonce = 0,
+    register = true,
   }) {
     const transaction = buildTokamakTxSnapshot({
       signerPrivateKey: sender.registration.l2Identity.l2PrivateKey,
@@ -940,11 +922,10 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
       transaction,
       blockInfo,
       contractCodes,
+      { register },
     );
     return runTokamakMetadataStep(exampleName, bundleDir);
   }
-
-  const records = [];
 
   const mintNotes1 = await materializeExample({
     exampleName: "mintNotes1",
@@ -955,7 +936,6 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
       encryptedMints.aMint.output.encryptedNoteValue,
     ]]]),
   });
-  records.push(mintNotes1.metadataRecord);
 
   const mintNotes2 = await materializeExample({
     exampleName: "mintNotes2",
@@ -966,7 +946,6 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
       [encryptedMints.aMintSplit2.output.value, encryptedMints.aMintSplit2.output.encryptedNoteValue],
     ]]),
   });
-  records.push(mintNotes2.metadataRecord);
 
   const transferNotes1To1 = await materializeExample({
     exampleName: "transferNotes1To1",
@@ -984,7 +963,6 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
       notes.aMint.salt,
     ]]]),
   });
-  records.push(transferNotes1To1.metadataRecord);
 
   const internalMintB = await materializeExample({
     exampleName: "_internal-mint-b",
@@ -994,6 +972,7 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
       encryptedMints.bMint.output.value,
       encryptedMints.bMint.output.encryptedNoteValue,
     ]]]),
+    register: false,
   });
 
   const internalMintC = await materializeExample({
@@ -1004,6 +983,7 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
       encryptedMints.cMint.output.value,
       encryptedMints.cMint.output.encryptedNoteValue,
     ]]]),
+    register: false,
   });
 
   const transferNotes1To2 = await materializeExample({
@@ -1027,7 +1007,6 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
       notes.aMint.salt,
     ]]]),
   });
-  records.push(transferNotes1To2.metadataRecord);
 
   const transferNotes2To1 = await materializeExample({
     exampleName: "transferNotes2To1",
@@ -1052,9 +1031,8 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
       ],
     ]]),
   });
-  records.push(transferNotes2To1.metadataRecord);
 
-  const redeemNotes1 = await materializeExample({
+  await materializeExample({
     exampleName: "redeemNotes1",
     previousSnapshot: transferNotes2To1.nextSnapshot,
     sender: participantC,
@@ -1064,19 +1042,7 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
       notes.aToC.salt,
     ]], participantC.registration.l2Identity.l2Address]),
   });
-  records.push(redeemNotes1.metadataRecord);
-
-  return records;
-}
-
-async function materializeCurrentDAppDefinition(provider, participants) {
-  const records = await materializeRegistrationLaunchBundles(provider, participants);
-  const dapps = buildDAppDefinitions(records);
-  expect(dapps.length === 1, `Expected one derived DApp definition, found ${dapps.length}.`);
-  return {
-    definition: dapps[0],
-    records,
-  };
+  return localRegistrationExamples;
 }
 
 function runPrivateStateCli(args, options = {}) {
@@ -1393,81 +1359,58 @@ function prepareCanonicalAsset(bridgeDeployment, participants) {
 }
 
 async function registerPrivateStateDApp(provider, bridgeDeployment, participants) {
-  const derived = await materializeCurrentDAppDefinition(provider, participants);
-  const deployer = new Wallet(anvilDeployerPrivateKey, provider);
-  const dAppManager = new Contract(bridgeDeployment.dAppManager, dAppManagerAbi, deployer);
+  await materializeRegistrationLaunchBundles(provider, participants);
   const privateStateArtifactDir = latestPrivateStateArtifactDir();
   const registrationManifestPath = path.join(privateStateArtifactDir, "dapp-registration.31337.json");
-  let deletedExistingRegistration = false;
-  let deleteTxHash = null;
-  let deleteBlockNumber = null;
 
-  try {
-    const existingInfo = await dAppManager.getDAppInfo(ethers.toBigInt(dappId));
-    if (existingInfo.exists) {
-      const deleteTx = await dAppManager.deleteDApp(ethers.toBigInt(dappId));
-      const deleteReceipt = await deleteTx.wait();
-      deletedExistingRegistration = true;
-      deleteTxHash = deleteTx.hash;
-      deleteBlockNumber = deleteReceipt?.blockNumber ?? null;
-    }
-  } catch (error) {
-    if (error?.code !== "CALL_EXCEPTION") {
-      throw error;
-    }
-  }
-
-  const tx = await dAppManager.registerDApp(
-    ethers.toBigInt(dappId),
-    derived.definition.labelHash,
-    derived.definition.storageMetadata.map((storage) => ({
-      storageAddr: storage.storageAddress,
-      preAllocatedKeys: storage.preAllocKeys,
-      userStorageSlots: storage.userSlots,
-      isChannelTokenVaultStorage: storage.isChannelTokenVaultStorage,
-    })),
-    derived.definition.functions.map((fn) => ({
-      entryContract: fn.entryContract,
-      functionSig: fn.functionSig,
-      preprocessInputHash: fn.preprocessInputHash,
-      instanceLayout: {
-        entryContractOffsetWords: fn.entryContractOffsetWords,
-        functionSigOffsetWords: fn.functionSigOffsetWords,
-        currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
-        updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
-        eventLogs: fn.eventLogs,
-      },
-    })),
+  run(
+    "node",
+    [
+      adminAddDAppPath,
+      "--group",
+      dappLabel,
+      "--dapp-id",
+      dappId,
+      "--deployment-path",
+      latestBridgeDeploymentPath(),
+      "--dapp-manager",
+      bridgeDeployment.dAppManager,
+      "--app-network",
+      "anvil",
+      "--app-deployment-path",
+      path.join(privateStateArtifactDir, "deployment.31337.latest.json"),
+      "--storage-layout-path",
+      path.join(privateStateArtifactDir, "storage-layout.31337.latest.json"),
+      "--example-root",
+      registrationLaunchInputsRoot,
+      "--rpc-url",
+      providerUrl,
+      "--private-key",
+      anvilDeployerPrivateKey,
+      "--manifest-out",
+      registrationManifestPath,
+      "--artifacts-out",
+      dappMetadataRoot,
+      "--replace-existing",
+    ],
+    { quiet: true, label: "bridge:admin-add-dapp" },
   );
-  const receipt = await tx.wait();
+
+  const manifest = readJson(registrationManifestPath);
+  writeJson(path.join(outputRoot, "dapp-registration.json"), manifest);
+  const registration = manifest.registration ?? {};
   const result = {
     reusedExistingRegistration: false,
-    deletedExistingRegistration,
-    deleteTxHash,
-    deleteBlockNumber,
-    txHash: tx.hash,
-    blockNumber: receipt?.blockNumber ?? null,
-    storageCount: derived.definition.storageMetadata.length,
-    functionCount: derived.definition.functions.length,
+    deletedExistingRegistration: Boolean(registration.deletedExistingRegistration),
+    deleteTxHash: registration.deleteTxHash ?? null,
+    deleteBlockNumber: registration.deleteBlockNumber ?? null,
+    txHash: registration.txHash,
+    blockNumber: registration.blockNumber ?? null,
+    storageCount: registration.storageCount,
+    functionCount: registration.functionCount,
     artifactsRoot: dappMetadataRoot,
     registrationManifestPath,
   };
-  const manifest = {
-    generatedAt: new Date().toISOString(),
-    deploymentPath: latestBridgeDeploymentPath(),
-    appDeploymentPath: path.join(privateStateArtifactDir, "deployment.31337.latest.json"),
-    storageLayoutPath: path.join(privateStateArtifactDir, "storage-layout.31337.latest.json"),
-    dappId: dappIdNumber,
-    dappLabel,
-    dAppManager: bridgeDeployment.dAppManager,
-    rpcUrl: providerUrl,
-    result,
-    definition: derived.definition,
-    records: derived.records,
-  };
-
-  writeJson(path.join(outputRoot, "dapp-registration.json"), manifest);
-  writeJson(registrationManifestPath, manifest);
   return result;
 }
 

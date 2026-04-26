@@ -1,31 +1,28 @@
-# ZK Reflection Helpers
+# ZK Deployment Helpers
 
 This directory contains internal helpers that keep the repository aligned with the installed
 Tokamak zk-EVM CLI runtime, the published Tokamak subcircuit library package, and the latest
 published `tokamak-l2js` package.
 
-## Internal reflection entrypoint
+## Bridge deployment
 
-- [reflect-submodule-updates.mjs](./reflect-submodule-updates.mjs)
-
-This helper is not intended to be the primary user-facing command anymore. It is called
-indirectly by [deploy-bridge.sh](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/deploy-bridge.sh)
-before bridge deployment, and it can also be reused by other admin automation.
-
-The reflection step performs the following tasks:
+Bridge deployment performs its ZK refresh directly inside
+[deploy-bridge.sh](/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/scripts/deploy-bridge.sh)
+instead of routing through a separate reflection orchestrator. The deployment
+helper performs the following tasks before broadcasting:
 
 1. Runs the installed `@tokamak-zk-evm/cli` runtime refresh with `tokamak-cli --install`.
 2. Copies the installed `sigma_verify.json` into `tokamak-zkp/TokamakVerifierKey/`.
 3. Refreshes the hardcoded verifier parameters inside `tokamak-zkp/TokamakVerifier.sol` from the
    published `@tokamak-zk-evm/subcircuit-library` `setupParams.json`.
-4. Regenerates Groth16 `updateTree` trusted setup and Solidity verifier artifacts.
+4. Regenerates or downloads the selected Groth16 `updateTree` CRS artifacts and regenerates the
+   Solidity verifier.
 5. Resolves the latest published `tokamak-l2js` package and records its `MT_DEPTH`.
-6. Writes a reflection manifest that deployment tooling can consume when it needs updated
+6. Writes a bridge ZK manifest that deployment tooling can consume when it needs updated
    bridge-facing constants.
 
-The current reflection manifest is written to:
-
-- `scripts/zk/artifacts/reflection.latest.json`
+The current manifest is written into the timestamped bridge deployment directory as
+`zk-reflection.latest.json`.
 
 ## DApp registration
 

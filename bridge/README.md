@@ -86,7 +86,7 @@ Optional environment variables:
 - `BRIDGE_MOCK_ASSET_NAME`
 - `BRIDGE_MOCK_ASSET_SYMBOL`
 - `BRIDGE_OUTPUT_PATH`
-- `BRIDGE_REFLECTION_MANIFEST_PATH`
+- `BRIDGE_REFLECTION_MANIFEST_PATH` to override the bridge ZK manifest output path
 - `BRIDGE_SKIP_TOKAMAK_INSTALL=1`
 - `BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH=1`
 - `BRIDGE_SKIP_GROTH_REFRESH=1`
@@ -116,11 +116,11 @@ The helper derives the correct Alchemy RPC URL from:
 If you need a non-Alchemy endpoint, set `BRIDGE_RPC_URL_OVERRIDE`.
 
 The helper also resolves the latest published `tokamak-l2js` package and reads
-its exported `MT_DEPTH` before broadcasting deployment. Internally it now runs
-`scripts/zk/reflect-submodule-updates.mjs`, which also refreshes the Tokamak
-verifier parameters from `setupParams.json` and regenerates the Groth16
-`updateTree` artifacts before deployment. The reflected `MT_DEPTH` value is
-forwarded into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
+its exported `MT_DEPTH` before broadcasting deployment. The helper refreshes the
+Tokamak verifier parameters from `setupParams.json`, regenerates the Groth16
+`updateTree` verifier, and writes the bridge ZK manifest directly from
+`bridge/scripts/deploy-bridge.sh`. The resolved `MT_DEPTH` value is forwarded
+into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
 
 The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
 When unset, the bridge helper defaults to `mpc` for every supported network.

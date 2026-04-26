@@ -48,6 +48,234 @@ latest_complete_bridge_dir() {
         | tail -n 1
 }
 
+run_tokamak_cli_install() {
+    node --input-type=module - "$PROJECT_ROOT" <<'NODE'
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repoRoot = process.argv[2];
+const runtimePaths = await import(pathToFileURL(path.join(repoRoot, "scripts/zk/lib/tokamak-runtime-paths.mjs")).href);
+const invocation = runtimePaths.buildTokamakCliInvocation(["--install"]);
+const result = spawnSync(invocation.command, invocation.args, {
+  cwd: repoRoot,
+  stdio: "inherit",
+  env: process.env,
+});
+
+if (result.error) {
+  throw result.error;
+}
+if (result.status !== 0) {
+  process.exit(result.status ?? 1);
+}
+NODE
+}
+
+refresh_tokamak_verifier_solidity() {
+    node --input-type=module - "$PROJECT_ROOT" <<'NODE'
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repoRoot = process.argv[2];
+const runtimePaths = await import(pathToFileURL(path.join(repoRoot, "scripts/zk/lib/tokamak-runtime-paths.mjs")).href);
+const installedSigmaVerifyJsonPath = runtimePaths.resolveTokamakCliSetupArtifactPath("sigma_verify.json");
+const setupParamsPath = runtimePaths.resolveSubcircuitSetupParamsPath();
+const sigmaVerifyJsonPath = path.join(repoRoot, "tokamak-zkp", "TokamakVerifierKey", "sigma_verify.json");
+
+function assertFile(filePath, label) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing ${label}: ${filePath}`);
+  }
+}
+
+function run(args) {
+  const result = spawnSync(process.execPath, args, {
+    cwd: repoRoot,
+    stdio: "inherit",
+    env: process.env,
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
+assertFile(installedSigmaVerifyJsonPath, "Tokamak sigma_verify.json");
+assertFile(setupParamsPath, "Tokamak setupParams.json");
+fs.mkdirSync(path.dirname(sigmaVerifyJsonPath), { recursive: true });
+fs.copyFileSync(installedSigmaVerifyJsonPath, sigmaVerifyJsonPath);
+
+run([path.join(repoRoot, "scripts/generate-tokamak-verifier-key.js")]);
+run([path.join(repoRoot, "scripts/generate-tokamak-verifier-params.js")]);
+NODE
+}
+
+refresh_bridge_zk_constants() {
+    node --input-type=module - "$PROJECT_ROOT" <<'NODE'
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repoRoot = process.argv[2];
+const runtimePaths = await import(pathToFileURL(path.join(repoRoot, "scripts/zk/lib/tokamak-runtime-paths.mjs")).href);
+const setupParamsPath = runtimePaths.resolveSubcircuitSetupParamsPath();
+
+function run(args) {
+  const result = spawnSync(process.execPath, args, {
+    cwd: repoRoot,
+    stdio: "inherit",
+    env: process.env,
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
+run([path.join(repoRoot, "scripts/generate-tokamak-shared-constants.js"), setupParamsPath]);
+run([path.join(repoRoot, "scripts/groth16/render-update-tree-circuit.mjs")]);
+NODE
+}
+
+refresh_groth16_verifier_solidity() {
+    local groth_source="$1"
+    local groth_crs_dir
+    local groth_verification_key_path
+    local groth_verifier_output_path="$PROJECT_ROOT/groth16/verifier/src/Groth16Verifier.sol"
+
+    case "$groth_source" in
+        trusted)
+            node "$PROJECT_ROOT/scripts/groth16/trusted-setup/generate_update_tree_setup.mjs"
+            groth_crs_dir="$PROJECT_ROOT/groth16/trusted-setup/crs"
+            ;;
+        mpc)
+            groth_crs_dir="$PROJECT_ROOT/groth16/mpc-setup/crs"
+            node --input-type=module - "$PROJECT_ROOT" "$groth_crs_dir" <<'NODE'
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repoRoot = process.argv[2];
+const outputDir = process.argv[3];
+const publicDriveCrs = await import(pathToFileURL(path.join(repoRoot, "groth16/lib/public-drive-crs.mjs")).href);
+const result = await publicDriveCrs.downloadLatestPublicGroth16MpcArtifacts({
+  outputDir,
+  selectedFiles: [
+    "circuit_final.zkey",
+    "verification_key.json",
+    "metadata.json",
+    "zkey_provenance.json",
+  ],
+});
+console.log(`Downloaded Groth16 MPC archive: ${result.archiveName}`);
+NODE
+            ;;
+        *)
+            echo "Unsupported BRIDGE_GROTH_SOURCE=$groth_source" >&2
+            echo "Supported values: trusted, mpc" >&2
+            exit 1
+            ;;
+    esac
+
+    groth_verification_key_path="$groth_crs_dir/verification_key.json"
+    python3 "$PROJECT_ROOT/scripts/groth16/verifier/generate_update_tree_verifier.py" \
+        "$groth_verification_key_path" \
+        "$groth_verifier_output_path"
+}
+
+write_bridge_zk_manifest() {
+    local manifest_path="$1"
+    local groth_source="$2"
+
+    node --input-type=module - "$PROJECT_ROOT" "$manifest_path" "$groth_source" <<'NODE'
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repoRoot = process.argv[2];
+const manifestPath = process.argv[3];
+const grothSource = process.argv[4];
+const runtimePaths = await import(pathToFileURL(path.join(repoRoot, "scripts/zk/lib/tokamak-runtime-paths.mjs")).href);
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function runCapture(args) {
+  const result = spawnSync(process.execPath, args, {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: process.env,
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error([
+      `Command failed: node ${args.join(" ")}`,
+      result.stdout?.trim(),
+      result.stderr?.trim(),
+    ].filter(Boolean).join("\n"));
+  }
+  return result.stdout;
+}
+
+function grothCrsDirFor(source) {
+  if (source === "trusted") {
+    return path.join(repoRoot, "groth16", "trusted-setup", "crs");
+  }
+  if (source === "mpc") {
+    return path.join(repoRoot, "groth16", "mpc-setup", "crs");
+  }
+  throw new Error(`Unsupported Groth16 source: ${source}`);
+}
+
+const tokamakCliPackageRoot = runtimePaths.resolveTokamakCliPackageRoot();
+const tokamakL2js = JSON.parse(runCapture([path.join(repoRoot, "bridge/scripts/resolve-latest-mt-depth.mjs")]));
+const setupParamsPath = runtimePaths.resolveSubcircuitSetupParamsPath();
+const grothCrsDir = grothCrsDirFor(grothSource);
+const manifest = {
+  generatedAt: new Date().toISOString(),
+  tokamakRuntime: {
+    cliPackageRoot: tokamakCliPackageRoot,
+    cliVersion: readJson(path.join(tokamakCliPackageRoot, "package.json")).version,
+    cacheRoot: runtimePaths.resolveTokamakCliCacheRoot(),
+    runtimeRoot: runtimePaths.resolveTokamakCliRuntimeRoot(),
+    setupParamsPath,
+    installedSigmaVerifyJsonPath: runtimePaths.resolveTokamakCliSetupArtifactPath("sigma_verify.json"),
+  },
+  tokamakL2js,
+  tokamakVerifier: {
+    sigmaVerifyJsonPath: path.join(repoRoot, "tokamak-zkp", "TokamakVerifierKey", "sigma_verify.json"),
+    generatedVerifierKeyPath: path.join(repoRoot, "tokamak-zkp", "TokamakVerifierKey", "TokamakVerifierKey.generated.sol"),
+    verifierSourcePath: path.join(repoRoot, "tokamak-zkp", "TokamakVerifier.sol"),
+    setupParams: readJson(setupParamsPath),
+  },
+  groth16: {
+    source: grothSource,
+    verificationKeyPath: path.join(grothCrsDir, "verification_key.json"),
+    verifierPath: path.join(repoRoot, "groth16", "verifier", "src", "Groth16Verifier.sol"),
+    metadata: readJson(path.join(grothCrsDir, "metadata.json")),
+  },
+  bridge: {
+    recommendedMerkleTreeLevels: tokamakL2js.mtDepth,
+  },
+};
+
+fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+console.log(`Wrote bridge ZK manifest: ${manifestPath}`);
+NODE
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --mode)
@@ -163,29 +391,31 @@ if [[ -n "$LATEST_BRIDGE_DIR" ]]; then
     DEFAULT_BRIDGE_INPUT_PATH="$LATEST_BRIDGE_DIR/bridge.${BRIDGE_CHAIN_ID}.json"
 fi
 
-REFLECTION_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$BRIDGE_CANONICAL_DIR/zk-reflection.latest.json}"
-
-REFLECTION_CMD=(
-    node "$PROJECT_ROOT/scripts/zk/reflect-submodule-updates.mjs"
-    --manifest-out "$REFLECTION_MANIFEST_PATH"
-    --groth-source "$BRIDGE_GROTH_SOURCE"
-)
+ZK_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$BRIDGE_CANONICAL_DIR/zk-reflection.latest.json}"
 
 if [[ "${BRIDGE_SKIP_TOKAMAK_INSTALL:-0}" == "1" ]]; then
-    REFLECTION_CMD+=("--skip-install")
+    echo "Skipping tokamak-cli runtime install because BRIDGE_SKIP_TOKAMAK_INSTALL=1"
+else
+    run_tokamak_cli_install
 fi
 
 if [[ "${BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH:-0}" == "1" ]]; then
-    REFLECTION_CMD+=("--skip-tokamak-verifier")
+    echo "Skipping Tokamak verifier Solidity refresh because BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH=1"
+else
+    refresh_tokamak_verifier_solidity
 fi
+
+refresh_bridge_zk_constants
 
 if [[ "${BRIDGE_SKIP_GROTH_REFRESH:-0}" == "1" ]]; then
-    REFLECTION_CMD+=("--skip-groth")
+    echo "Skipping Groth16 verifier Solidity refresh because BRIDGE_SKIP_GROTH_REFRESH=1"
+else
+    refresh_groth16_verifier_solidity "$BRIDGE_GROTH_SOURCE"
 fi
 
-"${REFLECTION_CMD[@]}"
+write_bridge_zk_manifest "$ZK_MANIFEST_PATH" "$BRIDGE_GROTH_SOURCE"
 
-MT_DEPTH_METADATA="$(cat "$REFLECTION_MANIFEST_PATH")"
+MT_DEPTH_METADATA="$(cat "$ZK_MANIFEST_PATH")"
 BRIDGE_MERKLE_TREE_LEVELS="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.mtDepth));});')"
 BRIDGE_MERKLE_TREE_SOURCE_VERSION="$(printf '%s' "$MT_DEPTH_METADATA" | node -e 'process.stdin.on("data",(buf)=>{const parsed=JSON.parse(String(buf)); process.stdout.write(String(parsed.tokamakL2js.version));});')"
 export BRIDGE_MERKLE_TREE_LEVELS
@@ -236,7 +466,7 @@ echo "Environment file: ${ENV_FILE}"
 echo "Resolved tokamak-l2js version: ${BRIDGE_MERKLE_TREE_SOURCE_VERSION}"
 echo "Resolved tokamak-l2js MT_DEPTH: ${BRIDGE_MERKLE_TREE_LEVELS}"
 echo "Groth16 artifact source: ${BRIDGE_GROTH_SOURCE}"
-echo "Reflection manifest: ${REFLECTION_MANIFEST_PATH}"
+echo "ZK manifest: ${ZK_MANIFEST_PATH}"
 
 if [[ "${BRIDGE_NETWORK}" != "anvil" ]]; then
     node "$PROJECT_ROOT/bridge/scripts/upload-bridge-artifacts.mjs" \

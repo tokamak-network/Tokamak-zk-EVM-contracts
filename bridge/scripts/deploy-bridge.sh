@@ -504,7 +504,7 @@ refresh_groth16_verifier_solidity() {
     local groth_source="$1"
     local groth_crs_dir="$PROJECT_ROOT/groth16/crs"
     local groth_verification_key_path="$groth_crs_dir/verification_key.json"
-    local groth_verifier_output_path="$PROJECT_ROOT/groth16/verifier/src/Groth16Verifier.sol"
+    local groth_verifier_output_path="$PROJECT_ROOT/bridge/src/generated/Groth16Verifier.sol"
 
     case "$groth_source" in
         trusted|mpc)
@@ -851,7 +851,7 @@ const manifest = {
   groth16: {
     source: grothSource,
     verificationKeyPath: path.join(grothCrsDir, "verification_key.json"),
-    verifierPath: path.join(repoRoot, "groth16", "verifier", "src", "Groth16Verifier.sol"),
+    verifierPath: path.join(repoRoot, "bridge", "src", "generated", "Groth16Verifier.sol"),
     metadata: readJson(path.join(grothCrsDir, "metadata.json")),
   },
   bridge: {

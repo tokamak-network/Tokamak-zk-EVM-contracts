@@ -19,7 +19,7 @@ import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {FeeOnTransferMockERC20} from "../src/mocks/FeeOnTransferMockERC20.sol";
 import {DepositGrothProofFixture, WithdrawGrothProofFixture} from "./GrothProofFixtures.sol";
-import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
+import {Groth16Verifier} from "../src/generated/Groth16Verifier.sol";
 import {TokamakVerifier} from "tokamak-zkp/TokamakVerifier.sol";
 
 contract BridgeFlowTest is Test {

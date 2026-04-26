@@ -8,7 +8,6 @@ remappings = [
     "@openzeppelin/=../lib/openzeppelin-contracts/contracts/",
     "@openzeppelin-upgradeable/=../lib/openzeppelin-contracts-upgradeable/contracts/",
     "forge-std/=../lib/forge-std/src/",
-    "groth16-verifier/=../groth16/verifier/",
     "tokamak-zkp/=../tokamak-zkp/",
 ]
 
@@ -35,7 +34,6 @@ remappings = [
     "@openzeppelin/=../lib/openzeppelin-contracts/contracts/",
     "@openzeppelin-upgradeable/=../lib/openzeppelin-contracts-upgradeable/contracts/",
     "forge-std/=../lib/forge-std/src/",
-    "groth16-verifier/=../groth16/verifier/",
     "tokamak-zkp/=../tokamak-zkp/",
 ]
 

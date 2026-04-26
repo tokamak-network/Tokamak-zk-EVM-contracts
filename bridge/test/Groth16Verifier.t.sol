@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "../src/Groth16Verifier.sol";
-import "./UpdateTreeProofFixture.sol";
+import {Groth16Verifier} from "../src/generated/Groth16Verifier.sol";
+import {UpdateTreeProofFixture} from "./UpdateTreeProofFixture.sol";
 
 contract Groth16VerifierTest {
     function testVerifyProofAcceptsTheExampleProof() public {

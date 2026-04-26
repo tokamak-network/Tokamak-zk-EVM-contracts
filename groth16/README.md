@@ -119,5 +119,6 @@ The generated proof follows the Groth16 format for BLS12-381:
 
 ### Integration with Smart Contracts
 
-The verification key and proofs are compatible with Ethereum smart contracts using the generated Solidity verifier:
-- `trusted-setup/merkle_tree_verifier.sol`
+The verification key and proofs are compatible with Ethereum smart contracts using a generated
+Solidity verifier. In this repository, the bridge owns the generated verifier source under
+`bridge/src/generated/Groth16Verifier.sol`.

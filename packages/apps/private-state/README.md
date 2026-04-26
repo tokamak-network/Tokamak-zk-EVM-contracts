@@ -46,7 +46,7 @@ Required variables:
 For `APPS_NETWORK=anvil`, scripts default to `http://127.0.0.1:8545`.
 
 Deployment artifacts can be materialized into `packages/apps/private-state/deploy` by running
-`packages/apps/private-state/scripts/deploy/write-deploy-artifacts.sh`:
+`packages/apps/private-state/scripts/deploy/write-deploy-artifacts.mjs`:
 
 - `deployment.<chain-id>.<timestamp>.json`
 - `deployment.<chain-id>.latest.json`

@@ -5,7 +5,6 @@
   "type": "module",
   "exports": {
     "./network-config": "./src/network-config.mjs",
-    "./network-config.sh": "./src/network-config.sh",
     "./tokamak-runtime-paths": "./src/tokamak-runtime-paths.mjs",
     "./artifact-cache": "./src/artifact-cache.mjs"
   },

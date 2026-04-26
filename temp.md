@@ -4,22 +4,17 @@ This note records the current audit findings for repository scripts, focusing on
 
 ## Findings
 
-1. Network configuration is duplicated between JavaScript and shell.
-   - `packages/common/src/network-config.mjs` and `packages/common/src/network-config.sh` both define network-to-chain and Alchemy mappings.
-   - The shell file is still used by private-state anvil/deploy scripts, so it is not dead.
-   - The duplication creates drift risk when adding or changing networks.
-
-2. Latest `tokamak-l2js` installation and `MT_DEPTH` resolution logic is duplicated.
+1. Latest `tokamak-l2js` installation and `MT_DEPTH` resolution logic is duplicated.
    - `bridge/scripts/resolve-latest-mt-depth.mjs` resolves and temporarily installs latest `tokamak-l2js` to read `MT_DEPTH`.
    - `packages/groth16/mpc-setup/generate_update_tree_setup_from_dusk.mjs` has a similar responsibility for Groth16 circuit generation.
    - This should be centralized if both bridge and Groth16 setup continue to depend on latest published `tokamak-l2js`.
 
-3. `bridge/scripts/deploy-bridge.sh` repeats inline Node runtime-path resolution.
+2. `bridge/scripts/deploy-bridge.sh` repeats inline Node runtime-path resolution.
    - The script imports `@tokamak-private-dapps/common-library/tokamak-runtime-paths` in several separate inline Node blocks.
    - This is not immediately removable because previous design direction embedded deployment flow into the bridge deploy script.
    - It is still a maintainability cost.
 
-4. Bridge deployment keeps a compatibility fallback for Tokamak setup version metadata.
+3. Bridge deployment keeps a compatibility fallback for Tokamak setup version metadata.
    - `bridge/scripts/deploy-bridge.sh` falls back to the Tokamak CLI package version when `build-metadata-mpc-setup.json` is missing.
    - If current deployment requires setup metadata, this fallback should be replaced with a fail-fast error.
 
@@ -30,12 +25,7 @@ This note records the current audit findings for repository scripts, focusing on
    - The `tokamak-zkp` names inside it are deployment artifact layout names, not a live dependency on a root `tokamak-zkp` folder.
    - It should not be deleted without replacing its bridge/admin callers.
 
-2. Private-state anvil and deploy shell scripts
-   - They are still invoked by package scripts, Makefile targets, or e2e flows.
-   - They depend on `packages/common/src/network-config.sh`, so that shell helper remains active until those scripts are rewritten to call a JavaScript helper.
-
 ## Suggested Cleanup Order
 
-1. Consolidate network configuration so one source of truth generates or serves both JS and shell consumers.
-2. Share the `tokamak-l2js` latest-version and `MT_DEPTH` resolver.
-3. Decide whether bridge deployment metadata fallbacks should remain or fail fast.
+1. Share the `tokamak-l2js` latest-version and `MT_DEPTH` resolver.
+2. Decide whether bridge deployment metadata fallbacks should remain or fail fast.

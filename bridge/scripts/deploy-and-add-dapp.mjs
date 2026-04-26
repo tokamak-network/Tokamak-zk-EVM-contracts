@@ -3,42 +3,33 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { APP_NETWORKS, resolveAppNetwork } from "@tokamak-private-dapps/common-library/network-config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
 const deployPrivateStateScriptPath = path.join(
   repoRoot,
+  "packages",
   "apps",
   "private-state",
   "scripts",
   "deploy",
-  "deploy-private-state.sh",
+  "deploy-private-state.mjs",
 );
 const writePrivateStateArtifactsPath = path.join(
   repoRoot,
+  "packages",
   "apps",
   "private-state",
   "scripts",
   "deploy",
-  "write-deploy-artifacts.sh",
+  "write-deploy-artifacts.mjs",
 );
 const addDappScriptPath = path.join(repoRoot, "bridge", "scripts", "admin-add-dapp.mjs");
 
-const APP_NETWORK_CHAIN_IDS = new Map([
-  ["sepolia", 11155111],
-  ["mainnet", 1],
-  ["base-sepolia", 84532],
-  ["base-mainnet", 8453],
-  ["arb-sepolia", 421614],
-  ["arb-mainnet", 42161],
-  ["op-mainnet", 10],
-  ["op-sepolia", 11155420],
-  ["anvil", 31337],
-]);
-
 const CHAIN_ID_TO_APP_NETWORK = new Map(
-  Array.from(APP_NETWORK_CHAIN_IDS.entries()).map(([network, chainId]) => [chainId, network]),
+  Object.entries(APP_NETWORKS).map(([network, config]) => [config.chainId, network]),
 );
 
 function usage() {
@@ -143,10 +134,7 @@ function run(command, args, { cwd = repoRoot, env = process.env } = {}) {
 async function main() {
   const { deployOptions, forwardedArgs } = parseArgs(process.argv.slice(2));
   const appNetwork = deployOptions.appNetwork ?? resolveDefaultAppNetwork();
-  const appChainId = APP_NETWORK_CHAIN_IDS.get(appNetwork);
-  if (!appChainId) {
-    throw new Error(`Unsupported app deployment network: ${appNetwork}`);
-  }
+  const appChainId = resolveAppNetwork(appNetwork).chainId;
   const deployEnv = {
     ...process.env,
     APPS_NETWORK: appNetwork,
@@ -159,12 +147,12 @@ async function main() {
     deployEnv.APPS_RPC_URL_OVERRIDE = deployOptions.appRpcUrl;
   }
 
-  await run("bash", [deployPrivateStateScriptPath], {
+  await run("node", [deployPrivateStateScriptPath], {
     cwd: repoRoot,
     env: deployEnv,
   });
 
-  await run("bash", [writePrivateStateArtifactsPath, String(appChainId)], {
+  await run("node", [writePrivateStateArtifactsPath, String(appChainId)], {
     cwd: repoRoot,
     env: deployEnv,
   });

@@ -68,7 +68,7 @@ const privateStateDeployScriptPath = path.resolve(
   "deploy",
   "DeployPrivateState.s.sol:DeployPrivateStateScript",
 );
-const privateStateArtifactWriterPath = path.resolve(appRoot, "scripts", "deploy", "write-deploy-artifacts.sh");
+const privateStateArtifactWriterPath = path.resolve(appRoot, "scripts", "deploy", "write-deploy-artifacts.mjs");
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const systemMonitorRoot = path.resolve(outputRoot, "system-monitor");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
@@ -1272,7 +1272,7 @@ function deployPrivateStateForCliE2E() {
       },
     },
   );
-  run("bash", [privateStateArtifactWriterPath, "31337"], {
+  run("node", [privateStateArtifactWriterPath, "31337"], {
     cwd: repoRoot,
     quiet: true,
     label: "private-state:write-deploy-artifacts",

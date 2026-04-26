@@ -4,12 +4,7 @@ This note records the current audit findings for repository scripts, focusing on
 
 ## Findings
 
-1. `scripts/artifacts/lib/google-drive-artifact-cache.mjs` is an unused router leftover.
-   - It only re-exports `packages/common/src/artifact-cache.mjs`.
-   - No repository code currently references it by path or basename.
-   - It is a deletion candidate unless external consumers still rely on the old path.
-
-2. `utils/` hash helper scripts are not wired into current workflows.
+1. `utils/` hash helper scripts are not wired into current workflows.
    - `utils/computeBlockHashFromEvent.js`
    - `utils/computeBlockInfoHash.js`
    - `utils/computeFunctionInstanceHash.js`
@@ -17,26 +12,26 @@ This note records the current audit findings for repository scripts, focusing on
    - They are not called from package scripts, CI, documentation, or other repository code.
    - `utils/compareBlockHashMethods.js` appears broken if retained because it uses `ethers.toBigInt` without importing `ethers`.
 
-3. Public Groth16 CRS download logic is duplicated.
+2. Public Groth16 CRS download logic is duplicated.
    - `packages/common/src/artifact-cache.mjs` and `packages/groth16/lib/public-drive-crs.mjs` both contain Google Drive folder scraping, archive selection, zip extraction, provenance parsing, and hash validation logic for the same Groth16 MPC artifacts.
    - The better ownership boundary is to keep Groth16 CRS-specific logic in the Groth16 package and have private-state installation call that package API, or extract only generic Drive/zip helpers into common code.
 
-4. Network configuration is duplicated between JavaScript and shell.
+3. Network configuration is duplicated between JavaScript and shell.
    - `packages/common/src/network-config.mjs` and `packages/common/src/network-config.sh` both define network-to-chain and Alchemy mappings.
    - The shell file is still used by private-state anvil/deploy scripts, so it is not dead.
    - The duplication creates drift risk when adding or changing networks.
 
-5. Latest `tokamak-l2js` installation and `MT_DEPTH` resolution logic is duplicated.
+4. Latest `tokamak-l2js` installation and `MT_DEPTH` resolution logic is duplicated.
    - `bridge/scripts/resolve-latest-mt-depth.mjs` resolves and temporarily installs latest `tokamak-l2js` to read `MT_DEPTH`.
    - `packages/groth16/mpc-setup/generate_update_tree_setup_from_dusk.mjs` has a similar responsibility for Groth16 circuit generation.
    - This should be centralized if both bridge and Groth16 setup continue to depend on latest published `tokamak-l2js`.
 
-6. `bridge/scripts/deploy-bridge.sh` repeats inline Node runtime-path resolution.
+5. `bridge/scripts/deploy-bridge.sh` repeats inline Node runtime-path resolution.
    - The script imports `@tokamak-private-dapps/common-library/tokamak-runtime-paths` in several separate inline Node blocks.
    - This is not immediately removable because previous design direction embedded deployment flow into the bridge deploy script.
    - It is still a maintainability cost.
 
-7. Bridge deployment keeps a compatibility fallback for Tokamak setup version metadata.
+6. Bridge deployment keeps a compatibility fallback for Tokamak setup version metadata.
    - `bridge/scripts/deploy-bridge.sh` falls back to the Tokamak CLI package version when `build-metadata-mpc-setup.json` is missing.
    - If current deployment requires setup metadata, this fallback should be replaced with a fail-fast error.
 
@@ -53,10 +48,8 @@ This note records the current audit findings for repository scripts, focusing on
 
 ## Suggested Cleanup Order
 
-1. Delete the unused compatibility router `scripts/artifacts/lib/google-drive-artifact-cache.mjs`.
-2. Delete or archive the unused `utils/` hash debugging scripts.
-3. Consolidate Groth16 CRS Drive download logic under one owner.
-4. Consolidate network configuration so one source of truth generates or serves both JS and shell consumers.
-5. Share the `tokamak-l2js` latest-version and `MT_DEPTH` resolver.
-6. Decide whether bridge deployment metadata fallbacks should remain or fail fast.
-
+1. Delete or archive the unused `utils/` hash debugging scripts.
+2. Consolidate Groth16 CRS Drive download logic under one owner.
+3. Consolidate network configuration so one source of truth generates or serves both JS and shell consumers.
+4. Share the `tokamak-l2js` latest-version and `MT_DEPTH` resolver.
+5. Decide whether bridge deployment metadata fallbacks should remain or fail fast.

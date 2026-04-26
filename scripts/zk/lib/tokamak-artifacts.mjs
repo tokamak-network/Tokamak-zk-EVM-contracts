@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { AbiCoder, ethers, getAddress, keccak256 } from "ethers";
+import { resolveTokamakBlockInputConfig } from "./tokamak-runtime-paths.mjs";
 
 const abiCoder = AbiCoder.defaultAbiCoder();
-const TOKAMAK_APUB_BLOCK_LENGTH = 43;
+const { aPubBlockLength: TOKAMAK_APUB_BLOCK_LENGTH } = resolveTokamakBlockInputConfig();
 
 const CAPACITY_ERROR_PATTERNS = [
   /insufficient .* length/i,

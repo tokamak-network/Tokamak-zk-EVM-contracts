@@ -44,6 +44,7 @@ import {
 } from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
 import {
   buildTokamakCliInvocation,
+  resolveTokamakBlockInputConfig,
   resolveTokamakCliResourceDir,
   resolveTokamakCliSetupOutputDir,
 } from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
@@ -83,8 +84,10 @@ const anvilDeployerPrivateKey =
 const channelName = "private-state-bridge-genesis";
 const channelId = deriveChannelIdFromName(channelName);
 const dappId = 1;
-const tokamakAPubBlockLength = 43;
-const tokamakPrevBlockHashCount = 4;
+const {
+  aPubBlockLength: tokamakAPubBlockLength,
+  previousBlockHashCount: tokamakPrevBlockHashCount,
+} = resolveTokamakBlockInputConfig();
 const amountUnit = 10n ** 18n;
 const joinFee = 1n * amountUnit;
 const depositAmount = 3n * amountUnit;

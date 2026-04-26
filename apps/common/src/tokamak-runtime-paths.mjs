@@ -1,4 +1,5 @@
 import os from "node:os";
+import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 
@@ -83,4 +84,40 @@ export function resolveSubcircuitSetupParamsPath() {
 
 export function resolveSubcircuitFrontendCfgPath() {
   return path.join(resolveSubcircuitLibraryRoot(), "frontendCfg.json");
+}
+
+export function resolveTokamakBlockInputConfig({
+  setupParamsPath = resolveSubcircuitSetupParamsPath(),
+  frontendCfgPath = resolveSubcircuitFrontendCfgPath(),
+} = {}) {
+  const setupParams = readJson(setupParamsPath);
+  const frontendCfg = readJson(frontendCfgPath);
+  const lUser = Number(setupParams.l_user);
+  const lFree = Number(setupParams.l_free);
+  if (!Number.isInteger(lUser) || lUser < 0) {
+    throw new Error(`setupParams.json l_user must be a non-negative integer. Received: ${setupParams.l_user}`);
+  }
+  if (!Number.isInteger(lFree) || lFree <= 0) {
+    throw new Error(`setupParams.json l_free must be a positive integer. Received: ${setupParams.l_free}`);
+  }
+  const aPubBlockLength = lFree - lUser;
+  if (!Number.isInteger(aPubBlockLength) || aPubBlockLength <= 0) {
+    throw new Error(`setupParams.json must satisfy l_free - l_user > 0. Received: ${lFree} - ${lUser} = ${aPubBlockLength}`);
+  }
+  const previousBlockHashCount = Number(frontendCfg.nPrevBlockHashes);
+  if (!Number.isInteger(previousBlockHashCount) || previousBlockHashCount < 0) {
+    throw new Error(`frontendCfg.json nPrevBlockHashes must be a non-negative integer. Received: ${frontendCfg.nPrevBlockHashes}`);
+  }
+  return {
+    setupParamsPath,
+    frontendCfgPath,
+    lUser,
+    lFree,
+    aPubBlockLength,
+    previousBlockHashCount,
+  };
+}
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }

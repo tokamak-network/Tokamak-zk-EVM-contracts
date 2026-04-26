@@ -46,6 +46,7 @@ import {
 import { deriveRpcUrl, resolveCliNetwork } from "@tokamak-private-dapps/common-library/network-config";
 import {
   buildTokamakCliInvocation,
+  resolveTokamakBlockInputConfig,
   resolveTokamakCliCacheRoot,
   resolveTokamakCliResourceDir,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
@@ -83,8 +84,10 @@ const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
   "function decimals() view returns (uint8)",
 ];
-const TOKAMAK_APUB_BLOCK_LENGTH = 43;
-const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = 4;
+const {
+  aPubBlockLength: TOKAMAK_APUB_BLOCK_LENGTH,
+  previousBlockHashCount: TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT,
+} = resolveTokamakBlockInputConfig();
 const WALLET_ENCRYPTION_VERSION = 1;
 const WALLET_ENCRYPTION_ALGORITHM = "aes-256-gcm";
 const PRIVATE_STATE_DAPP_LABEL = "private-state";

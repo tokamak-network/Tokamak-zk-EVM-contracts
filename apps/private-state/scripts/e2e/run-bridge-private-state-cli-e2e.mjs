@@ -40,6 +40,7 @@ import {
 } from "../../../../scripts/zk/lib/tokamak-artifacts.mjs";
 import {
   buildTokamakCliInvocation,
+  resolveTokamakBlockInputConfig,
   resolveTokamakCliResourceDir,
   resolveTokamakCliSetupOutputDir,
 } from "../../../../scripts/zk/lib/tokamak-runtime-paths.mjs";
@@ -95,8 +96,10 @@ const amountUnit = 10n ** 18n;
 const joinFeeBaseUnits = 1n * amountUnit;
 const depositAmountBaseUnits = 3n * amountUnit;
 const claimAmountBaseUnits = 9n * amountUnit;
-const tokamakAPubBlockLength = 43;
-const tokamakPrevBlockHashCount = 4;
+const {
+  aPubBlockLength: tokamakAPubBlockLength,
+  previousBlockHashCount: tokamakPrevBlockHashCount,
+} = resolveTokamakBlockInputConfig();
 const requiredTokamakSetupArtifacts = [
   "combined_sigma.rkyv",
   "sigma_preprocess.rkyv",

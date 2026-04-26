@@ -408,54 +408,6 @@ const targetFiles = [
       },
     ],
   },
-  {
-    path: "apps/private-state/cli/private-state-bridge-cli.mjs",
-    replacements: [
-      {
-        pattern: /const TOKAMAK_APUB_BLOCK_LENGTH = \d+;/,
-        render: ({ aPubBlockLength }) => `const TOKAMAK_APUB_BLOCK_LENGTH = ${aPubBlockLength};`,
-      },
-      {
-        pattern: /const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = \d+;/,
-        render: ({ previousBlockHashCount }) => `const TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT = ${previousBlockHashCount};`,
-      },
-    ],
-  },
-  {
-    path: "scripts/zk/lib/tokamak-artifacts.mjs",
-    replacements: [
-      {
-        pattern: /const TOKAMAK_APUB_BLOCK_LENGTH = \d+;/,
-        render: ({ aPubBlockLength }) => `const TOKAMAK_APUB_BLOCK_LENGTH = ${aPubBlockLength};`,
-      },
-    ],
-  },
-  {
-    path: "apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs",
-    replacements: [
-      {
-        pattern: /const tokamakAPubBlockLength = \d+;/,
-        render: ({ aPubBlockLength }) => `const tokamakAPubBlockLength = ${aPubBlockLength};`,
-      },
-      {
-        pattern: /const tokamakPrevBlockHashCount = \d+;/,
-        render: ({ previousBlockHashCount }) => `const tokamakPrevBlockHashCount = ${previousBlockHashCount};`,
-      },
-    ],
-  },
-  {
-    path: "apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs",
-    replacements: [
-      {
-        pattern: /const tokamakAPubBlockLength = \d+;/,
-        render: ({ aPubBlockLength }) => `const tokamakAPubBlockLength = ${aPubBlockLength};`,
-      },
-      {
-        pattern: /const tokamakPrevBlockHashCount = \d+;/,
-        render: ({ previousBlockHashCount }) => `const tokamakPrevBlockHashCount = ${previousBlockHashCount};`,
-      },
-    ],
-  },
 ];
 
 function renderTokamakEnvironmentSource({ mtDepth, zeroFilledTreeRoot }) {

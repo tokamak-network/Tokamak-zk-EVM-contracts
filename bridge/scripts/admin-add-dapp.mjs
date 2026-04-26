@@ -11,7 +11,7 @@ import {
   requireLatestBridgeArtifactDir,
   requireLatestDappArtifactDir,
 } from "../../scripts/artifacts/lib/deployment-layout.mjs";
-import { deriveRpcUrl } from "../../apps/scripts/network-config.mjs";
+import { deriveRpcUrl } from "@tokamak-private-dapps/common-library/network-config";
 import {
   buildTokamakCliInvocation,
   resolveTokamakBlockInputConfig,

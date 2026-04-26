@@ -125,7 +125,7 @@ into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
 The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
 When unset, the bridge helper defaults to `mpc` for every supported network.
 
-Both `trusted` and `mpc` install the selected CRS into `groth16/crs` through the
+Both `trusted` and `mpc` install the selected CRS into `packages/groth16/crs` through the
 Groth16 runtime installer before the bridge verifier is regenerated.
 
 The current bridge implementation is still intentionally hard-bound to depth
@@ -166,8 +166,8 @@ To add a new DApp metadata bundle to an already deployed bridge, use:
 `admin-add-dapp.mjs`:
 
 - assumes the private-state app is already deployed
-- mirrors the prover/CLI-consumed Groth16 artifacts from `bridge/deployments/groth16/<chain-id>/` into `apps/private-state/deploy/groth16/<chain-id>/`
-- reads the selected example-group inputs from `apps/private-state/examples/synthesizer/privateState/`
+- mirrors the prover/CLI-consumed Groth16 artifacts from `bridge/deployments/groth16/<chain-id>/` into `packages/apps/private-state/deploy/groth16/<chain-id>/`
+- reads the selected example-group inputs from `packages/apps/private-state/examples/synthesizer/privateState/`
 - runs the installed `@tokamak-zk-evm/cli` runtime without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
 - derives function metadata from `instance.json` and `instance_description.json`

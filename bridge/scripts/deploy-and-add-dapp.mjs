@@ -50,7 +50,7 @@ This orchestrator deploys the private-state app first and then invokes:
 
 Deploy-only options:
   --app-network <name>              App deployment network; defaults to APPS_NETWORK, BRIDGE_NETWORK, or the bridge chain name
-  --app-env-file <path>             Environment file for app deployment; defaults to apps/.env
+  --app-env-file <path>             Environment file for app deployment; defaults to packages/apps/.env
   --app-rpc-url <url>               RPC URL override used only for app deployment
 
 All other options are forwarded to admin-add-dapp.mjs unchanged.

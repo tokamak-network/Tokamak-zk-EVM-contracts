@@ -14,7 +14,7 @@ The old root-level deployment and upgrade wrappers were removed because they tar
 Current deployment and upgrade entrypoints now live under:
 
 - `bridge/scripts/`
-- `apps/private-state/scripts/`
+- `packages/apps/private-state/scripts/`
 
 ## Current Entrypoints
 
@@ -32,6 +32,6 @@ Current ZK deployment and DApp-registration details are documented in
 
 For private-state deployment and local flows, use:
 
-- `apps/private-state/scripts/deploy/`
-- `apps/private-state/scripts/anvil/`
-- `apps/private-state/scripts/e2e/`
+- `packages/apps/private-state/scripts/deploy/`
+- `packages/apps/private-state/scripts/anvil/`
+- `packages/apps/private-state/scripts/e2e/`

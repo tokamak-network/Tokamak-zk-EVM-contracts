@@ -41,7 +41,7 @@ bash bridge/scripts/deploy-bridge.sh --mode upgrade
 node bridge/scripts/admin-add-dapp.mjs --group mintNotes --dapp-id 1
 
 # Run the private-state CLI E2E flow
-node apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs
+node packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs
 ```
 
 ## Architecture Overview

@@ -502,7 +502,7 @@ NODE
 
 refresh_groth16_verifier_solidity() {
     local groth_source="$1"
-    local groth_crs_dir="$PROJECT_ROOT/groth16/crs"
+    local groth_crs_dir="$PROJECT_ROOT/packages/groth16/crs"
     local groth_verification_key_path="$groth_crs_dir/verification_key.json"
     local groth_verifier_output_path="$PROJECT_ROOT/bridge/src/generated/Groth16Verifier.sol"
 
@@ -522,9 +522,9 @@ import { pathToFileURL } from "node:url";
 
 const repoRoot = process.argv[2];
 const grothSource = process.argv[3];
-const runtime = await import(pathToFileURL(path.join(repoRoot, "groth16/lib/proof-runtime.mjs")).href);
+const runtime = await import(pathToFileURL(path.join(repoRoot, "packages", "groth16", "lib", "proof-runtime.mjs")).href);
 await runtime.installGroth16Runtime({
-  workspaceRoot: path.join(repoRoot, "groth16"),
+  workspaceRoot: path.join(repoRoot, "packages", "groth16"),
   trustedSetup: grothSource === "trusted",
 });
 NODE
@@ -825,7 +825,7 @@ function grothCrsDirFor(source) {
   if (source !== "trusted" && source !== "mpc") {
     throw new Error(`Unsupported Groth16 source: ${source}`);
   }
-  return path.join(repoRoot, "groth16", "crs");
+  return path.join(repoRoot, "packages", "groth16", "crs");
 }
 
 const tokamakCliPackageRoot = runtimePaths.resolveTokamakCliPackageRoot();
@@ -867,7 +867,7 @@ NODE
 
 sync_groth16_artifacts_for_bridge() {
     local chain_id="$1"
-    local source_groth_dir="$PROJECT_ROOT/groth16/crs"
+    local source_groth_dir="$PROJECT_ROOT/packages/groth16/crs"
     local timestamp_label="${BRIDGE_ARTIFACT_TIMESTAMP:-$(date -u +"%Y%m%dT%H%M%SZ")}"
     local snapshot_dir="$PROJECT_ROOT/deployment/chain-id-${chain_id}/bridge/${timestamp_label}"
     local artifact_dir="$snapshot_dir/groth16"

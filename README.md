@@ -6,15 +6,15 @@
 
 This repository hosts the current Tokamak Private App Channels worktree.
 
-The active bridge implementation lives under [bridge/](./bridge/). It treats each channel as a dedicated validity-proven execution domain for one registered DApp, while Ethereum remains the canonical layer for custody, proof verification, and settlement. The repository also contains app-level integrations under [apps/](./apps/) and consumes the reusable Tokamak zk-EVM proving stack through published npm packages.
+The active bridge implementation lives under [bridge/](./bridge/). It treats each channel as a dedicated validity-proven execution domain for one registered DApp, while Ethereum remains the canonical layer for custody, proof verification, and settlement. The repository also contains app-level integrations under [packages/apps/](./packages/apps/) and consumes the reusable Tokamak zk-EVM proving stack through published npm packages.
 
 ## What Is In This Repository
 
 - [bridge/](./bridge/): the current bridge workspace, including contracts, deployment scripts, tests, and bridge documentation
-- [apps/](./apps/): bridge-coupled DApps that follow the repository's zk-L2 assumptions
-- [apps/private-state/](./apps/private-state/): the current reference DApp for private note-based channel activity
+- [packages/apps/](./packages/apps/): bridge-coupled DApps that follow the repository's zk-L2 assumptions
+- [packages/apps/private-state/](./packages/apps/private-state/): the current reference DApp for private note-based channel activity
 - [bridge/src/generated/](./bridge/src/generated/): generated verifier sources and verifier-key data used by bridge workflows
-- [groth16/](./groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
+- [packages/groth16/](./packages/groth16/): generated Groth16 verifier artifacts used by the bridge token-vault path
 - [scripts/](./scripts/): shared repository scripts for artifact handling and current workflow support
 - [test/](./test/): root-level Foundry tests and fixtures that remain useful for verifier and legacy coverage
 
@@ -24,15 +24,15 @@ The active bridge implementation lives under [bridge/](./bridge/). It treats eac
 - Bridge white paper: [bridge/docs/zk-l2-bridge-whitepaper.md](./bridge/docs/zk-l2-bridge-whitepaper.md)
 - Bridge spec: [bridge/docs/spec.md](./bridge/docs/spec.md)
 - Verifier notes: [bridge/docs/verifier-spec.md](./bridge/docs/verifier-spec.md)
-- App workspace guide: [apps/README.md](./apps/README.md)
-- Private-state DApp guide: [apps/private-state/README.md](./apps/private-state/README.md)
+- App workspace guide: [packages/apps/README.md](./packages/apps/README.md)
+- Private-state DApp guide: [packages/apps/private-state/README.md](./packages/apps/private-state/README.md)
 
 ## Repository Model
 
 At a high level, the repository is organized around three layers:
 
 - Ethereum-facing bridge contracts: the shared settlement and custody surface under [bridge/](./bridge/)
-- DApp-specific channel integrations: application contracts, app-local deployment manifests, and user-facing tooling under [apps/](./apps/)
+- DApp-specific channel integrations: application contracts, app-local deployment manifests, and user-facing tooling under [packages/apps/](./packages/apps/)
 - Shared proving substrate: published Tokamak zk-EVM npm packages and bridge-owned verifier sources under [bridge/src/](./bridge/src/)
 
 The current bridge is not described here as a generic rollup shell. It is a bridge for dedicated app channels with:
@@ -64,7 +64,7 @@ npm install
 git submodule update --init --recursive
 ```
 
-Bridge deployment helpers read [`.env.example`](./.env.example). App deployments use [apps/.env.template](./apps/.env.template) as the template for [apps/.env](./apps/.env).
+Bridge deployment helpers read [`.env.example`](./.env.example). App deployments use [packages/apps/.env.template](./packages/apps/.env.template) as the template for [packages/apps/.env](./packages/apps/.env).
 
 ## Common Commands
 
@@ -82,12 +82,12 @@ This runs the Foundry suite under [bridge/test/](./bridge/test/), including [bri
 npm run test:private-state:cli-e2e
 ```
 
-This exercises the bridge-coupled private-state CLI flow driven by [apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](./apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs).
+This exercises the bridge-coupled private-state CLI flow driven by [packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs](./packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs).
 
 ### Private-state local workflow
 
 ```bash
-cd apps/private-state
+cd packages/apps/private-state
 make help
 make anvil-start
 make anvil-bootstrap
@@ -119,7 +119,7 @@ node bridge/scripts/admin-add-dapp.mjs --group mintNotes --dapp-id 1
 
 Bridge deployment owns the canonical mirrored Groth16 artifacts under
 `bridge/deployments/groth16/<chain-id>/`, and DApp registration mirrors the
-prover/CLI-consumed subset into `apps/private-state/deploy/groth16/<chain-id>/`.
+prover/CLI-consumed subset into `packages/apps/private-state/deploy/groth16/<chain-id>/`.
 
 See [bridge/README.md](./bridge/README.md) for deployment modes, environment variables, and bridge registration details.
 
@@ -136,14 +136,14 @@ The standalone bridge workspace contains:
 
 This is the main place to look for the current bridge implementation.
 
-### [apps/private-state/](./apps/private-state/)
+### [packages/apps/private-state/](./packages/apps/private-state/)
 
 The private-state DApp is the reference app integration for the bridge. It contains:
 
-- DApp contracts under [apps/private-state/src/](./apps/private-state/src/)
-- bridge-coupled CLI tooling under [apps/private-state/cli/](./apps/private-state/cli/)
-- app deployment artifacts under [apps/private-state/deploy/](./apps/private-state/deploy/)
-- protocol and security documents under [apps/private-state/docs/](./apps/private-state/docs/)
+- DApp contracts under [packages/apps/private-state/src/](./packages/apps/private-state/src/)
+- bridge-coupled CLI tooling under [packages/apps/private-state/cli/](./packages/apps/private-state/cli/)
+- app deployment artifacts under [packages/apps/private-state/deploy/](./packages/apps/private-state/deploy/)
+- protocol and security documents under [packages/apps/private-state/docs/](./packages/apps/private-state/docs/)
 
 ### Tokamak Verifier Artifacts
 

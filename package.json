@@ -1,18 +1,18 @@
 {
   "type": "module",
   "workspaces": [
-    "common",
-    "groth16"
+    "packages/common",
+    "packages/groth16"
   ],
   "scripts": {
     "test:bridge:unit": "forge test --root bridge -vv",
-    "test:private-state:cli-e2e": "node apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs"
+    "test:private-state:cli-e2e": "node packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs"
   },
   "dependencies": {
     "@ethereumjs/util": "^10.1.1",
     "@google-cloud/local-auth": "^3.0.1",
-    "@tokamak-private-dapps/common-library": "file:common",
-    "@tokamak-private-dapps/groth16": "file:groth16",
+    "@tokamak-private-dapps/common-library": "file:packages/common",
+    "@tokamak-private-dapps/groth16": "file:packages/groth16",
     "@tokamak-zk-evm/cli": "^2.0.8",
     "@tokamak-zk-evm/subcircuit-library": "^1.0.3",
     "@tokamak-zk-evm/synthesizer-node": "^1.0.3",

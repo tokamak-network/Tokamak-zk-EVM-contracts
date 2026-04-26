@@ -1,1 +1,1 @@
-export * from "../common/src/network-config.mjs";
+export * from "../../common/src/network-config.mjs";

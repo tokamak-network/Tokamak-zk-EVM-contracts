@@ -1,1 +1,1 @@
-export * from "../../../apps/common/src/artifact-cache.mjs";
+export * from "../../../common/src/artifact-cache.mjs";

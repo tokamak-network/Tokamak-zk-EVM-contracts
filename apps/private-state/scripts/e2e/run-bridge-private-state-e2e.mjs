@@ -60,6 +60,7 @@ const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
 const adminAddDAppPath = path.resolve(bridgeRoot, "scripts", "admin-add-dapp.mjs");
+const groth16CliPath = path.resolve(repoRoot, "groth16", "cli", "tokamak-groth16-cli.mjs");
 const bridgeArtifactTimestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 const bridgeArtifactSnapshot = bridgeArtifactPaths(repoRoot, 31337, bridgeArtifactTimestamp);
 const tokamakCliInvocation = buildTokamakCliInvocation();
@@ -740,17 +741,13 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
   };
 
   const stepDir = path.join(grothInputDir, stepName);
-  cleanDir(stepDir);
-  const inputPath = path.join(stepDir, "input.json");
+  const inputPath = path.join(grothInputDir, `${stepName}.input.json`);
   writeJson(inputPath, input);
 
-  run("node", ["scripts/groth16/prover/updateTree/generateProof.mjs", "--input", inputPath], { cwd: repoRoot });
+  run("node", [groth16CliPath, "--prove", inputPath, "--output", stepDir], { cwd: repoRoot });
 
-  const proofJson = readJson(path.join(repoRoot, "groth16", "prover", "updateTree", "proof.json"));
-  const publicSignals = readJson(path.join(repoRoot, "groth16", "prover", "updateTree", "public.json"));
-
-  writeJson(path.join(stepDir, "proof.json"), proofJson);
-  writeJson(path.join(stepDir, "public.json"), publicSignals);
+  const proofJson = readJson(path.join(stepDir, "proof.json"));
+  const publicSignals = readJson(path.join(stepDir, "public.json"));
 
   const solidityProof = toGrothSolidityProof(proofJson);
   const grothUpdate = {
@@ -865,6 +862,7 @@ async function main() {
 
   if (options.runInstall) {
     run(tokamakCliInvocation.command, [...tokamakCliInvocation.args, "--install"], { cwd: repoRoot });
+    run("node", [groth16CliPath, "--install", "--trusted-setup"], { cwd: repoRoot });
   }
 
   const provider = new JsonRpcProvider(providerUrl);

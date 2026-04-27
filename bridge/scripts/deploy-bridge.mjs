@@ -59,13 +59,6 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function toProjectRelativePath(filePath) {
-  if (typeof filePath !== "string" || filePath.length === 0) {
-    return filePath;
-  }
-  return path.relative(projectRoot, filePath).split(path.sep).join("/");
-}
-
 function assertFileExists(filePath, label) {
   if (!fs.existsSync(filePath)) {
     fail(`Missing ${label}: ${filePath}`);
@@ -117,6 +110,21 @@ function readRuntimeBinaryVersion(runtimeRoot, binaryName) {
     fail(`Could not parse ${binaryName} version from --version output: ${output}`);
   }
   return match[1];
+}
+
+function npmPackageSource({ name, version }) {
+  if (typeof name !== "string" || name.length === 0 || typeof version !== "string" || version.length === 0) {
+    return null;
+  }
+  return {
+    packageName: name,
+    version,
+    npmPackage: `${name}@${version}`,
+  };
+}
+
+function optionalReadJson(filePath) {
+  return fs.existsSync(filePath) ? readJson(filePath) : null;
 }
 
 function timestampUtcCompact() {
@@ -854,39 +862,100 @@ function grothCrsPathsFor(source) {
 
 async function writeBridgeZkManifest(manifestPath, grothSource) {
   const tokamakCliPackageRoot = process.env.TOKAMAK_CLI_PACKAGE_ROOT;
+  const tokamakCliPackageJson = readJson(path.join(tokamakCliPackageRoot, "package.json"));
+  const tokamakCliRuntimeRoot = process.env.TOKAMAK_CLI_RUNTIME_ROOT;
+  const tokamakSetupOutputDir = process.env.TOKAMAK_CLI_SETUP_OUTPUT_DIR;
   const tokamak = await import("tokamak-l2js");
   const tokamakPackageJson = readJson(resolveTokamakPackageJsonPath());
   const mtDepth = Number(tokamak.MT_DEPTH);
   if (!Number.isInteger(mtDepth) || mtDepth <= 0) {
     fail(`tokamak-l2js MT_DEPTH must be a positive integer. Received: ${String(tokamak.MT_DEPTH)}`);
   }
+  const tokamakBuildMetadataPath = path.join(tokamakSetupOutputDir, "build-metadata-mpc-setup.json");
+  const tokamakBuildMetadata = readJson(tokamakBuildMetadataPath);
+  const tokamakSetupPackage = npmPackageSource({
+    name: tokamakBuildMetadata.packageName,
+    version: tokamakBuildMetadata.packageVersion,
+  });
+  const subcircuitLibrary = tokamakBuildMetadata.dependencies?.subcircuitLibrary;
+  const subcircuitLibraryPackage = npmPackageSource({
+    name: subcircuitLibrary?.packageName,
+    version: subcircuitLibrary?.buildVersion,
+  });
+  const tokamakBackendBinaries = Object.fromEntries(
+    ["preprocess", "prove", "verify"].map((binaryName) => [
+      binaryName,
+      readRuntimeBinaryVersion(tokamakCliRuntimeRoot, binaryName),
+    ]),
+  );
   const tokamakL2js = {
-    version: tokamakPackageJson.version,
+    package: npmPackageSource(tokamakPackageJson),
     mtDepth,
   };
   const setupParamsPath = process.env.SUBCIRCUIT_SETUP_PARAMS_PATH;
   const grothPaths = grothCrsPathsFor(grothSource);
+  const grothPackageJson = readJson(path.join(projectRoot, "packages", "groth16", "package.json"));
+  const grothProvenance = optionalReadJson(grothPaths.provenancePath);
+  const grothArchiveSource = grothSource === "mpc" && grothProvenance?.zkey_download_url
+    ? {
+        type: "google-drive-archive",
+        folderUrl: grothProvenance.published_folder_url ?? null,
+        archiveName: grothProvenance.published_archive_name ?? null,
+        downloadUrl: grothProvenance.zkey_download_url,
+      }
+    : {
+        type: "npm-generated-trusted-setup",
+        package: npmPackageSource(grothPackageJson),
+      };
   const manifest = {
     generatedAt: new Date().toISOString(),
     tokamakRuntime: {
-      cliPackageRoot: toProjectRelativePath(tokamakCliPackageRoot),
-      cliVersion: readJson(path.join(tokamakCliPackageRoot, "package.json")).version,
-      runtimeRoot: toProjectRelativePath(process.env.TOKAMAK_CLI_RUNTIME_ROOT),
-      setupParamsPath: toProjectRelativePath(setupParamsPath),
-      installedSigmaVerifyJsonPath: toProjectRelativePath(process.env.TOKAMAK_SIGMA_VERIFY_PATH),
+      cliPackage: npmPackageSource(tokamakCliPackageJson),
+      setupPackage: tokamakSetupPackage,
+      backendBinaries: tokamakBackendBinaries,
     },
     tokamakL2js,
     tokamakVerifier: {
-      sigmaVerifyJsonPath: toProjectRelativePath(path.join(projectRoot, "bridge", "src", "generated", "sigma_verify.json")),
-      generatedVerifierKeyPath: toProjectRelativePath(path.join(projectRoot, "bridge", "src", "generated", "TokamakVerifierKey.generated.sol")),
-      verifierSourcePath: toProjectRelativePath(path.join(projectRoot, "bridge", "src", "verifiers", "TokamakVerifier.sol")),
+      artifacts: {
+        sigmaVerifyJson: {
+          sourcePackage: tokamakSetupPackage?.npmPackage ?? null,
+        },
+        buildMetadata: {
+          sourcePackage: tokamakSetupPackage?.npmPackage ?? null,
+        },
+        setupParams: {
+          sourcePackage: subcircuitLibraryPackage?.npmPackage ?? null,
+          declaredRange: subcircuitLibrary?.declaredRange ?? null,
+          runtimeMode: subcircuitLibrary?.runtimeMode ?? null,
+        },
+      },
       setupParams: readJson(setupParamsPath),
     },
     groth16: {
       source: grothSource,
-      workspaceRoot: toProjectRelativePath(grothPaths.rootDir),
-      verificationKeyPath: toProjectRelativePath(grothPaths.verificationKeyPath),
-      verifierPath: toProjectRelativePath(path.join(projectRoot, "bridge", "src", "generated", "Groth16Verifier.sol")),
+      package: npmPackageSource(grothPackageJson),
+      artifactSource: grothArchiveSource,
+      artifacts: {
+        circuitFinalZkey: {
+          sourceUrl: grothProvenance?.zkey_download_url ?? null,
+          sourcePackage: grothSource === "trusted" ? npmPackageSource(grothPackageJson)?.npmPackage : null,
+          sha256: grothProvenance?.zkey_sha256 ?? null,
+        },
+        verificationKey: {
+          sourceUrl: grothProvenance?.zkey_download_url ?? null,
+          sourcePackage: grothSource === "trusted" ? npmPackageSource(grothPackageJson)?.npmPackage : null,
+          sha256: grothProvenance?.verification_key_sha256 ?? null,
+        },
+        metadata: {
+          sourceUrl: grothProvenance?.zkey_download_url ?? null,
+          sourcePackage: grothSource === "trusted" ? npmPackageSource(grothPackageJson)?.npmPackage : null,
+          sha256: grothProvenance?.metadata_sha256 ?? null,
+        },
+        zkeyProvenance: {
+          sourceUrl: grothProvenance?.zkey_download_url ?? null,
+          sourcePackage: grothSource === "trusted" ? npmPackageSource(grothPackageJson)?.npmPackage : null,
+        },
+      },
       metadata: readJson(grothPaths.metadataPath),
     },
     bridge: {
@@ -1111,7 +1180,7 @@ async function main() {
 
   const mtDepthMetadata = readJson(bridgePendingZkManifestPath);
   const bridgeMerkleTreeLevels = String(mtDepthMetadata.tokamakL2js.mtDepth);
-  const bridgeMerkleTreeSourceVersion = String(mtDepthMetadata.tokamakL2js.version);
+  const bridgeMerkleTreeSourceVersion = String(mtDepthMetadata.tokamakL2js.package.version);
   process.env.BRIDGE_MERKLE_TREE_LEVELS = bridgeMerkleTreeLevels;
 
   const canonicalBridgeOutputPath = resolveBridgePath(

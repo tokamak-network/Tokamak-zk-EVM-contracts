@@ -27,7 +27,9 @@ orchestrator. The deployment helper performs the following tasks before broadcas
    bridge-facing constants.
 
 The current manifest is written into the timestamped bridge deployment directory as
-`zk-reflection.latest.json`.
+`zk-reflection.latest.json`. The manifest records package identities, downloadable archive URLs,
+artifact hashes, and setup parameter values. It intentionally does not record generator-local file
+paths because those paths are not useful to users who consume the published deployment snapshot.
 
 ### DApp Registration
 

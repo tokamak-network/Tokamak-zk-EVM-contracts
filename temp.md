@@ -1,9 +1,9 @@
 # Repository Script Review Findings
 
-1. Groth16 trusted-setup path is retained for compatibility
+1. Groth16 trusted-setup source is retained for compatibility
    - Files: `packages/groth16/cli/tokamak-groth16-cli.mjs`, `packages/groth16/lib/proof-runtime.mjs`, `bridge/scripts/deploy-bridge.mjs`
-   - Finding: The current default Groth16 setup source is public Drive MPC, but `--trusted-setup` and `BRIDGE_GROTH_SOURCE=trusted` still copy packaged CRS artifacts from `packages/groth16/trusted-setup/crs`. This looks like an intentional compatibility path for older or offline workflows.
-   - Recommendation: Keep it only if trusted setup fallback is still an explicit operator requirement. Otherwise, mark it deprecated before removal because it affects package files and bridge deployment behavior.
+   - Finding: The current default Groth16 setup source is public Drive MPC, but `--trusted-setup` and `BRIDGE_GROTH_SOURCE=trusted` still use packaged CRS artifacts from `packages/groth16/trusted-setup/crs` as an install source. The installed runtime CRS lives in the Groth16 workspace (`~/tokamak-private-channels/groth16` by default, or `TOKAMAK_GROTH16_WORKSPACE_ROOT`), not inside the package directory.
+   - Recommendation: Keep the packaged trusted setup source only if trusted setup fallback is still an explicit operator requirement. Otherwise, mark it deprecated before removal because it affects package files and bridge deployment behavior.
 
 2. Groth16 CLI accepts `--docker` for command parity only
    - Files: `packages/groth16/cli/tokamak-groth16-cli.mjs`, `packages/groth16/lib/proof-runtime.mjs`

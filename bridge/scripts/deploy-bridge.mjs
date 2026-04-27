@@ -9,6 +9,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createAddressFromString } from "@ethereumjs/util";
 import { parse as parseDotenv } from "dotenv";
 import { ethers } from "ethers";
+import {
+  groth16WorkspacePaths,
+  resolveGroth16WorkspaceRoot,
+} from "../../packages/groth16/lib/paths.mjs";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -796,12 +800,12 @@ async function refreshGroth16VerifierSolidity(grothSource) {
     fail(`Unsupported BRIDGE_GROTH_SOURCE=${grothSource}\nSupported values: trusted, mpc`);
   }
 
-  const grothCrsDir = path.join(projectRoot, "packages", "groth16", "crs");
-  const verificationKeyPath = path.join(grothCrsDir, "verification_key.json");
+  const grothPaths = bridgeGroth16WorkspacePaths();
+  const verificationKeyPath = grothPaths.verificationKeyPath;
   const outputPath = path.join(projectRoot, "bridge", "src", "generated", "Groth16Verifier.sol");
   const runtime = await import(pathToFileURL(path.join(projectRoot, "packages", "groth16", "lib", "proof-runtime.mjs")).href);
   await runtime.installGroth16Runtime({
-    workspaceRoot: path.join(projectRoot, "packages", "groth16"),
+    workspaceRoot: grothPaths.rootDir,
     trustedSetup: grothSource === "trusted",
   });
 
@@ -811,11 +815,15 @@ async function refreshGroth16VerifierSolidity(grothSource) {
   console.log(`Generated ${path.relative(process.cwd(), outputPath)} from ${path.relative(process.cwd(), verificationKeyPath)}`);
 }
 
-function grothCrsDirFor(source) {
+function bridgeGroth16WorkspacePaths() {
+  return groth16WorkspacePaths(resolveGroth16WorkspaceRoot());
+}
+
+function grothCrsPathsFor(source) {
   if (source !== "trusted" && source !== "mpc") {
     fail(`Unsupported Groth16 source: ${source}`);
   }
-  return path.join(projectRoot, "packages", "groth16", "crs");
+  return bridgeGroth16WorkspacePaths();
 }
 
 async function writeBridgeZkManifest(manifestPath, grothSource) {
@@ -831,7 +839,7 @@ async function writeBridgeZkManifest(manifestPath, grothSource) {
     mtDepth,
   };
   const setupParamsPath = process.env.SUBCIRCUIT_SETUP_PARAMS_PATH;
-  const grothCrsDir = grothCrsDirFor(grothSource);
+  const grothPaths = grothCrsPathsFor(grothSource);
   const manifest = {
     generatedAt: new Date().toISOString(),
     tokamakRuntime: {
@@ -850,9 +858,10 @@ async function writeBridgeZkManifest(manifestPath, grothSource) {
     },
     groth16: {
       source: grothSource,
-      verificationKeyPath: path.join(grothCrsDir, "verification_key.json"),
+      workspaceRoot: grothPaths.rootDir,
+      verificationKeyPath: grothPaths.verificationKeyPath,
       verifierPath: path.join(projectRoot, "bridge", "src", "generated", "Groth16Verifier.sol"),
-      metadata: readJson(path.join(grothCrsDir, "metadata.json")),
+      metadata: readJson(grothPaths.metadataPath),
     },
     bridge: {
       recommendedMerkleTreeLevels: tokamakL2js.mtDepth,
@@ -864,7 +873,7 @@ async function writeBridgeZkManifest(manifestPath, grothSource) {
 }
 
 function syncGroth16ArtifactsForBridge(chainId) {
-  const sourceGrothDir = path.join(projectRoot, "packages", "groth16", "crs");
+  const sourceGrothDir = bridgeGroth16WorkspacePaths().crsDir;
   const timestampLabel = process.env.BRIDGE_ARTIFACT_TIMESTAMP || timestampUtcCompact();
   const snapshotDir = path.join(projectRoot, "deployment", `chain-id-${chainId}`, "bridge", timestampLabel);
   const artifactDir = path.join(snapshotDir, "groth16");

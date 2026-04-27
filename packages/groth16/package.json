@@ -28,6 +28,7 @@
     "mpc-setup/*.mjs",
     "mpc-setup/Cargo.toml",
     "mpc-setup/Cargo.lock",
+    "mpc-setup/lib",
     "mpc-setup/src",
     "trusted-setup/crs/circuit_final.zkey",
     "trusted-setup/crs/metadata.json",

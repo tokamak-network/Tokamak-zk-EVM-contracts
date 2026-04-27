@@ -61,6 +61,7 @@ import {
   requireNonEmptyString,
   resolveArtifactCacheBaseRoot as resolveGenericArtifactCacheBaseRoot,
 } from "@tokamak-private-dapps/common-library/artifact-cache";
+import { toGroth16SolidityProof } from "@tokamak-private-dapps/common-library/groth16-solidity-proof";
 import {
   PUBLIC_GROTH16_MPC_DRIVE_FOLDER_ID,
   downloadLatestPublicGroth16MpcArtifacts,
@@ -3398,7 +3399,7 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
     input,
     proofJson,
     publicSignals,
-    proof: toGrothSolidityProof(proofJson),
+    proof: toGroth16SolidityProof(proofJson),
     update: {
       currentRootVector: normalizedRootVector(currentSnapshot.stateRoots),
       updatedRoot: bytes32FromBigInt(updatedRoot),
@@ -4003,33 +4004,6 @@ async function queryContractEventsChunked({
       fragment: parsed.fragment,
     };
   }).filter((event) => event.fragment?.name === eventFragment.name);
-}
-
-function toGrothSolidityProof(proof) {
-  return {
-    pA: [
-      ...splitFieldElement(proof.pi_a[0]),
-      ...splitFieldElement(proof.pi_a[1]),
-    ],
-    pB: [
-      ...splitFieldElement(proof.pi_b[0][1]),
-      ...splitFieldElement(proof.pi_b[0][0]),
-      ...splitFieldElement(proof.pi_b[1][1]),
-      ...splitFieldElement(proof.pi_b[1][0]),
-    ],
-    pC: [
-      ...splitFieldElement(proof.pi_c[0]),
-      ...splitFieldElement(proof.pi_c[1]),
-    ],
-  };
-}
-
-function splitFieldElement(value) {
-  const hexValue = ethers.toBigInt(value).toString(16).padStart(96, "0");
-  return [
-    hexToBigInt(addHexPrefix(`${"0".repeat(32)}${hexValue.slice(0, 32)}`)),
-    hexToBigInt(addHexPrefix(hexValue.slice(32))),
-  ];
 }
 
 function serializeBigInts(value) {

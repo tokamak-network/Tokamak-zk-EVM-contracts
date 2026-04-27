@@ -9,6 +9,7 @@ The publishable package boundaries are:
 
 - `packages/common` as `@tokamak-private-dapps/common-library`
 - `packages/groth16` as `@tokamak-private-dapps/groth16`
+- `packages/apps/private-state/cli` as `@tokamak-private-dapps/private-state-cli`
 
 `packages/groth16/circuits` is an internal build package. It is marked
 `private` and must not be published independently.
@@ -16,16 +17,19 @@ The publishable package boundaries are:
 ## Version Policy
 
 - Use semantic versioning for published npm packages.
-- Keep `@tokamak-private-dapps/groth16` dependency ranges aligned with
-  `@tokamak-private-dapps/common-library` releases.
+- Keep package dependency ranges aligned with the package release order:
+  `@tokamak-private-dapps/common-library`, then `@tokamak-private-dapps/groth16`,
+  then `@tokamak-private-dapps/private-state-cli`.
 - Record user-visible bridge, DApp, package, and tooling changes in the root
   `CHANGELOG.md`.
 - Record package-consumer changes in each publishable package changelog:
   - `packages/common/CHANGELOG.md`
   - `packages/groth16/CHANGELOG.md`
+  - `packages/apps/private-state/cli/CHANGELOG.md`
 - Tag releases from the repository root with package-aware names:
   - `common-vX.Y.Z`
   - `groth16-vX.Y.Z`
+  - `private-state-cli-vX.Y.Z`
   - `workspace-vYYYY.MM.DD` for non-package repository snapshots when needed
 
 ## Automatic npm Publishing

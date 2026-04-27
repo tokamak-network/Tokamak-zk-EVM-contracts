@@ -30,6 +30,7 @@ workspace for bridge-coupled private DApps on Tokamak zk-EVM infrastructure.
 - `bridge/docs/current-implementation.md`: current implementation notes
 - `packages/apps/README.md`: app workspace conventions
 - `packages/apps/private-state/README.md`: private-state DApp operator guide
+- `packages/apps/private-state/cli/README.md`: private-state CLI npm package guide
 - `packages/apps/private-state/docs/index.md`: private-state protocol reading order
 - `packages/groth16/README.md`: Groth16 package and CLI overview
 - `RELEASING.md`: package and workspace release process
@@ -39,6 +40,7 @@ workspace for bridge-coupled private DApps on Tokamak zk-EVM infrastructure.
 
 - `@tokamak-private-dapps/common-library` lives in `packages/common`.
 - `@tokamak-private-dapps/groth16` lives in `packages/groth16`.
+- `@tokamak-private-dapps/private-state-cli` lives in `packages/apps/private-state/cli`.
 - `packages/groth16/circuits` is private and internal to the Groth16 package.
 
 ## Frequently Answered Questions
@@ -46,6 +48,17 @@ workspace for bridge-coupled private DApps on Tokamak zk-EVM infrastructure.
 ### Is the root npm package publishable?
 
 No. The root `package.json` is a private workspace manager.
+
+### How do users install the private-state CLI?
+
+Users install `@tokamak-private-dapps/private-state-cli` from npm and run the
+`private-state-cli` command. The CLI installs public bridge, DApp, and Groth16
+artifacts with `private-state-cli --install`.
+
+### What order should private DApp packages be published in?
+
+Publish `@tokamak-private-dapps/common-library` first, then
+`@tokamak-private-dapps/groth16`, then `@tokamak-private-dapps/private-state-cli`.
 
 ### Which license applies?
 

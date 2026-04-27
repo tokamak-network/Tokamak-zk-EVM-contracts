@@ -22,7 +22,7 @@
   ],
   "type": "module",
   "bin": {
-    "private-state-cli": "./private-state-bridge-cli.mjs"
+    "private-state-cli": "private-state-bridge-cli.mjs"
   },
   "files": [
     "README.md",

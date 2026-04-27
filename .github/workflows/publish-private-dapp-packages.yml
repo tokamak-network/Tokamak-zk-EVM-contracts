@@ -12,6 +12,7 @@ on:
       - 'scripts/release-readiness.cjs'
       - 'packages/common/**'
       - 'packages/groth16/**'
+      - 'packages/apps/private-state/cli/**'
 
 permissions:
   id-token: write
@@ -52,6 +53,10 @@ jobs:
             {
               outputPrefix: 'groth16',
               manifestPath: './packages/groth16/package.json',
+            },
+            {
+              outputPrefix: 'private_state',
+              manifestPath: './packages/apps/private-state/cli/package.json',
             },
           ];
 
@@ -120,6 +125,10 @@ jobs:
           echo "Groth16 local version: ${{ steps.version-check.outputs.groth16_local_version }}"
           echo "Groth16 published version: ${{ steps.version-check.outputs.groth16_published_version }}"
           echo "Groth16 should publish: ${{ steps.version-check.outputs.groth16_should_publish }}"
+          echo "Private-state CLI package: ${{ steps.version-check.outputs.private_state_package_name }}"
+          echo "Private-state CLI local version: ${{ steps.version-check.outputs.private_state_local_version }}"
+          echo "Private-state CLI published version: ${{ steps.version-check.outputs.private_state_published_version }}"
+          echo "Private-state CLI should publish: ${{ steps.version-check.outputs.private_state_should_publish }}"
 
       - name: Validate common release readiness
         if: steps.version-check.outputs.common_should_publish == 'true'
@@ -163,4 +172,26 @@ jobs:
       - name: Publish Groth16 package to npm
         if: steps.version-check.outputs.groth16_should_publish == 'true'
         working-directory: packages/groth16
+        run: npm publish --access public --ignore-scripts
+
+      - name: Validate private-state CLI release readiness
+        if: steps.version-check.outputs.private_state_should_publish == 'true'
+        working-directory: packages/apps/private-state/cli
+        run: npm run release:check
+
+      - name: Show private-state CLI release notes
+        if: steps.version-check.outputs.private_state_should_publish == 'true'
+        working-directory: packages/apps/private-state/cli
+        run: |
+          echo "## ${{ steps.version-check.outputs.private_state_package_name }} ${{ steps.version-check.outputs.private_state_local_version }}" >> "$GITHUB_STEP_SUMMARY"
+          npm run release:check -- --print-current-notes >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate private-state CLI npm package contents
+        if: steps.version-check.outputs.private_state_should_publish == 'true'
+        working-directory: packages/apps/private-state/cli
+        run: npm publish --dry-run --access public --ignore-scripts
+
+      - name: Publish private-state CLI package to npm
+        if: steps.version-check.outputs.private_state_should_publish == 'true'
+        working-directory: packages/apps/private-state/cli
         run: npm publish --access public --ignore-scripts

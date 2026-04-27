@@ -61,3 +61,19 @@ using bridge-facing commands on a new machine.
 
 Release order matters for npm publication. `@tokamak-private-dapps/common-library` and
 `@tokamak-private-dapps/groth16` must be published before this package version.
+
+## FAQ
+
+### What does this package install?
+
+It installs the `private-state-cli` terminal command and the local files needed by that command.
+It does not install bridge contracts, app contracts, or local deployment outputs.
+
+### When should I run `private-state-cli --install`?
+
+Run it once on a new machine, or after public bridge, DApp, Groth16, or Tokamak zk-EVM runtime artifacts are updated.
+
+### Does this package publish private user data?
+
+No. User wallets and channel workspaces are created locally under `~/tokamak-private-channels/`.
+Bridge-facing commands still submit public transactions and proof-backed state transitions to the selected network.

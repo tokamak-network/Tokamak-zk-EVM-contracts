@@ -23,7 +23,7 @@ function usage() {
       Remove the local Groth16 runtime workspace
 
   --prove <INPUT_JSON> [--output <DIR>]
-      Generate witness, proof, and public signals from an updateTree input JSON, then verify the proof
+      Generate witness, proof, and public signals from an updateTree input JSON
 
   --verify [<PROOF_ZIP|DIR>]
       Verify proof.json and public.json against the installed verification key

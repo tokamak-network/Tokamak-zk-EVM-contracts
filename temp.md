@@ -2,8 +2,8 @@
 
 1. Groth16 standalone prover writes default outputs inside the package
    - Files: `packages/groth16/prover/updateTree/generateProof.mjs`, `packages/groth16/package.json`
-   - Finding: The published bin `tokamak-groth16-update-tree-proof` defaults to package-local files when flags are omitted: `prover/updateTree/input_example.json`, `prover/updateTree/witness.wtns`, `prover/updateTree/proof.json`, `prover/updateTree/public.json`, `prover/updateTree/solidity_fixture.json`, and `prover/updateTree/.tmp/updateTree.verification_key.json`. It also compiles the circuit into `packages/groth16/circuits/build` unless `--skip-compile` is provided.
-   - Recommendation: Move default prover outputs and temporary verification-key export into the Groth16 user workspace (`~/tokamak-private-channels/groth16` by default, or `TOKAMAK_GROTH16_WORKSPACE_ROOT`). Keep package-local paths only as explicit developer overrides.
+   - Finding: The published bin `tokamak-groth16-update-tree-proof` defaults to package-local files when flags are omitted: `prover/updateTree/input_example.json`, `prover/updateTree/witness.wtns`, `prover/updateTree/proof.json`, `prover/updateTree/public.json`, and `prover/updateTree/solidity_fixture.json`. It also compiles the circuit into `packages/groth16/circuits/build` unless `--skip-compile` is provided.
+   - Recommendation: Move default prover outputs into the Groth16 user workspace (`~/tokamak-private-channels/groth16` by default, or `TOKAMAK_GROTH16_WORKSPACE_ROOT`). Keep package-local paths only as explicit developer overrides.
 
 2. Groth16 circuits package compiles into its own package directory
    - Files: `packages/groth16/circuits/package.json`, `packages/groth16/circuits/run-circom-2.0.mjs`

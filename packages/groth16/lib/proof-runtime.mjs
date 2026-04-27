@@ -109,7 +109,6 @@ export async function proveUpdateTree({
     "--metadata", paths.metadataPath,
     "--wasm", paths.wasmPath,
     "--zkey", paths.zkeyPath,
-    "--verification-key", paths.verificationKeyPath,
     "--witness-output", runWitnessPath,
     "--proof-output", runProofPath,
     "--public-output", runPublicPath,
@@ -123,7 +122,7 @@ export async function proveUpdateTree({
     witnessPath: result.witnessPath,
     proofPath: result.proofPath,
     publicPath: result.publicPath,
-    verificationKeyPath: result.verificationKeyPath,
+    zkeyPath: paths.zkeyPath,
     metadataPath: paths.metadataPath,
     zkeyProvenancePath: paths.provenancePath,
   };

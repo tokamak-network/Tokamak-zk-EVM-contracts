@@ -19,13 +19,11 @@ const circuitEntrypointPath = path.join(circuitsDir, "src", "circuit_updateTree.
 const circuitBuildDir = path.join(circuitsDir, "build");
 const wasmPath = path.join(circuitBuildDir, "circuit_updateTree_js", "circuit_updateTree.wasm");
 const zkeyPath = path.join(trustedSetupDir, "circuit_final.zkey");
-const verificationKeyPath = path.join(trustedSetupDir, "verification_key.json");
 const defaultInputPath = path.join(proverDataDir, "input_example.json");
 const defaultProofPath = path.join(proverDataDir, "proof.json");
 const defaultPublicPath = path.join(proverDataDir, "public.json");
 const witnessPath = path.join(proverDataDir, "witness.wtns");
 const fixturePath = path.join(proverDataDir, "solidity_fixture.json");
-const tmpDir = path.join(proverDataDir, ".tmp");
 
 function normalizeArgv(argv) {
   return Array.isArray(argv) ? argv : [];
@@ -52,11 +50,6 @@ function run(cmd, args, cwd) {
     cwd,
     stdio: "inherit",
   });
-}
-
-function ensureCleanDir(dirPath) {
-  fs.rmSync(dirPath, { recursive: true, force: true });
-  fs.mkdirSync(dirPath, { recursive: true });
 }
 
 function ensureFileExists(label, filePath) {
@@ -214,11 +207,13 @@ async function buildExampleInput(outputPath, argv) {
 
 export async function main(argv = process.argv.slice(2)) {
   const args = normalizeArgv(argv);
+  if (hasFlag(args, "--verification-key")) {
+    throw new Error("--verification-key is only used by proof verification. Proof generation requires a zkey, not a verification key.");
+  }
   const inputPath = findFlag(args, "--input") ?? defaultInputPath;
   const resolvedMetadataPath = findFlag(args, "--metadata") ?? metadataPath;
   const resolvedWasmPath = findFlag(args, "--wasm") ?? wasmPath;
   const resolvedZkeyPath = findFlag(args, "--zkey") ?? zkeyPath;
-  const requestedVerificationKeyPath = findFlag(args, "--verification-key");
   const resolvedWitnessPath = findFlag(args, "--witness-output") ?? witnessPath;
   const proofPath = findFlag(args, "--proof-output") ?? defaultProofPath;
   const publicPath = findFlag(args, "--public-output") ?? defaultPublicPath;
@@ -244,23 +239,11 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   const snarkjs = findSnarkjs();
-  let resolvedVerificationKeyPath = requestedVerificationKeyPath;
-  if (resolvedVerificationKeyPath) {
-    ensureFileExists("updateTree verification key", resolvedVerificationKeyPath);
-  } else if (resolvedZkeyPath === zkeyPath && fs.existsSync(verificationKeyPath)) {
-    resolvedVerificationKeyPath = verificationKeyPath;
-  } else {
-    fs.mkdirSync(tmpDir, { recursive: true });
-    resolvedVerificationKeyPath = path.join(tmpDir, "updateTree.verification_key.json");
-    run(snarkjs, ["zkey", "export", "verificationkey", resolvedZkeyPath, resolvedVerificationKeyPath], circuitsDir);
-  }
-
   fs.mkdirSync(path.dirname(resolvedWitnessPath), { recursive: true });
   fs.mkdirSync(path.dirname(proofPath), { recursive: true });
   fs.mkdirSync(path.dirname(publicPath), { recursive: true });
   run(snarkjs, ["wtns", "calculate", resolvedWasmPath, inputPath, resolvedWitnessPath], circuitsDir);
   run(snarkjs, ["groth16", "prove", resolvedZkeyPath, resolvedWitnessPath, proofPath, publicPath], circuitsDir);
-  run(snarkjs, ["groth16", "verify", resolvedVerificationKeyPath, publicPath, proofPath], circuitsDir);
 
   const proof = readJson(proofPath);
   const publicSignals = readJson(publicPath);
@@ -276,7 +259,6 @@ export async function main(argv = process.argv.slice(2)) {
     witnessPath: resolvedWitnessPath,
     proofPath,
     publicPath,
-    verificationKeyPath: resolvedVerificationKeyPath,
     solidityFixturePath: resolvedFixturePath,
   };
 }

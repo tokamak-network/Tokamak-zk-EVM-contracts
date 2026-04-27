@@ -26,11 +26,13 @@ The default workspace is:
 
 `--install` downloads the latest public Groth16 MPC CRS archive from the hard-coded Groth16 CRS Drive folder, installs `circuit_final.zkey`, `verification_key.json`, `metadata.json`, and `zkey_provenance.json`, renders the `updateTree` circuit from package-local templates, and compiles the circuit WASM into the workspace.
 
-`--prove <INPUT_JSON>` runs the complete proving flow: witness generation, proof generation, and proof verification. It writes the latest outputs under:
+`--prove <INPUT_JSON>` runs the proving flow only: witness generation, proof generation, and public signal generation. It writes the latest outputs under:
 
 ```text
 ~/tokamak-private-channels/groth16/runs/latest/
 ```
+
+`--verify [<PROOF_ZIP|DIR>]` verifies an existing `proof.json` and `public.json` against the installed workspace verification key. Running `--prove` does not verify the proof.
 
 ## Generating Proofs with snarkjs
 

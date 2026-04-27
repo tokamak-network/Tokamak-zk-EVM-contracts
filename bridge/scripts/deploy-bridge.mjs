@@ -59,6 +59,13 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function toProjectRelativePath(filePath) {
+  if (typeof filePath !== "string" || filePath.length === 0) {
+    return filePath;
+  }
+  return path.relative(projectRoot, filePath).split(path.sep).join("/");
+}
+
 function assertFileExists(filePath, label) {
   if (!fs.existsSync(filePath)) {
     fail(`Missing ${label}: ${filePath}`);
@@ -105,7 +112,7 @@ function readRuntimeBinaryVersion(runtimeRoot, binaryName) {
     fail(`${binaryPath} --version exited with status ${result.status ?? "unknown"}`);
   }
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
-  const match = output.match(/\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/);
+  const match = output.match(/(?:v)?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/i);
   if (!match) {
     fail(`Could not parse ${binaryName} version from --version output: ${output}`);
   }
@@ -478,7 +485,12 @@ function refreshTokamakVerifierSolidity() {
   console.log(`Updated ${path.relative(process.cwd(), tokamakVerifierSourcePath)} setup constants from ${path.relative(process.cwd(), setupParamsPath)}`);
 }
 
-function renderTokamakEnvironmentSource({ mtDepth, zeroFilledTreeRoot }) {
+function renderTokamakEnvironmentSource({
+  mtDepth,
+  zeroFilledTreeRoot,
+  aPubBlockLength,
+  previousBlockHashCount,
+}) {
   return `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
@@ -486,7 +498,10 @@ pragma solidity ^0.8.24;
 library TokamakEnvironment {
     uint8 internal constant MT_DEPTH = ${mtDepth};
     uint256 internal constant MAX_MT_LEAVES = uint256(1) << uint256(MT_DEPTH);
-    bytes32 internal constant ZERO_FILLED_TREE_ROOT = ${zeroFilledTreeRoot};
+    bytes32 internal constant ZERO_FILLED_TREE_ROOT =
+        ${zeroFilledTreeRoot};
+    uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = ${aPubBlockLength};
+    uint256 internal constant TOKAMAK_PREVIOUS_BLOCK_HASHES = ${previousBlockHashCount};
 }
 `;
 }
@@ -548,29 +563,14 @@ async function refreshBridgeZkConstants() {
   }
   const zeroFilledTreeRoot = await computeZeroFilledTreeRoot(tokamak);
 
-  const channelManagerPath = path.join(projectRoot, "bridge", "src", "ChannelManager.sol");
-  let channelManagerSource = fs.readFileSync(channelManagerPath, "utf8");
-  const replacements = [
-    {
-      pattern: /uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = \d+;/,
-      value: `uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = ${aPubBlockLength};`,
-    },
-    {
-      pattern: /uint256 internal constant TOKAMAK_PREVIOUS_BLOCK_HASHES = \d+;/,
-      value: `uint256 internal constant TOKAMAK_PREVIOUS_BLOCK_HASHES = ${previousBlockHashCount};`,
-    },
-  ];
-  for (const replacement of replacements) {
-    if (!replacement.pattern.test(channelManagerSource)) {
-      fail("Failed to update bridge/src/ChannelManager.sol: replacement marker not found.");
-    }
-    channelManagerSource = channelManagerSource.replace(replacement.pattern, replacement.value);
-  }
-  fs.writeFileSync(channelManagerPath, channelManagerSource);
-
   const generatedEnvironmentPath = path.join(projectRoot, "bridge", "src", "generated", "TokamakEnvironment.sol");
   fs.mkdirSync(path.dirname(generatedEnvironmentPath), { recursive: true });
-  fs.writeFileSync(generatedEnvironmentPath, renderTokamakEnvironmentSource({ mtDepth, zeroFilledTreeRoot }));
+  fs.writeFileSync(generatedEnvironmentPath, renderTokamakEnvironmentSource({
+    mtDepth,
+    zeroFilledTreeRoot,
+    aPubBlockLength,
+    previousBlockHashCount,
+  }));
   console.log([
     `Updated shared Tokamak constants from ${path.relative(process.cwd(), setupParamsPath)}`,
     `and ${path.relative(process.cwd(), frontendCfgPath)}.`,
@@ -869,24 +869,24 @@ async function writeBridgeZkManifest(manifestPath, grothSource) {
   const manifest = {
     generatedAt: new Date().toISOString(),
     tokamakRuntime: {
-      cliPackageRoot: tokamakCliPackageRoot,
+      cliPackageRoot: toProjectRelativePath(tokamakCliPackageRoot),
       cliVersion: readJson(path.join(tokamakCliPackageRoot, "package.json")).version,
-      runtimeRoot: process.env.TOKAMAK_CLI_RUNTIME_ROOT,
-      setupParamsPath,
-      installedSigmaVerifyJsonPath: process.env.TOKAMAK_SIGMA_VERIFY_PATH,
+      runtimeRoot: toProjectRelativePath(process.env.TOKAMAK_CLI_RUNTIME_ROOT),
+      setupParamsPath: toProjectRelativePath(setupParamsPath),
+      installedSigmaVerifyJsonPath: toProjectRelativePath(process.env.TOKAMAK_SIGMA_VERIFY_PATH),
     },
     tokamakL2js,
     tokamakVerifier: {
-      sigmaVerifyJsonPath: path.join(projectRoot, "bridge", "src", "generated", "sigma_verify.json"),
-      generatedVerifierKeyPath: path.join(projectRoot, "bridge", "src", "generated", "TokamakVerifierKey.generated.sol"),
-      verifierSourcePath: path.join(projectRoot, "bridge", "src", "verifiers", "TokamakVerifier.sol"),
+      sigmaVerifyJsonPath: toProjectRelativePath(path.join(projectRoot, "bridge", "src", "generated", "sigma_verify.json")),
+      generatedVerifierKeyPath: toProjectRelativePath(path.join(projectRoot, "bridge", "src", "generated", "TokamakVerifierKey.generated.sol")),
+      verifierSourcePath: toProjectRelativePath(path.join(projectRoot, "bridge", "src", "verifiers", "TokamakVerifier.sol")),
       setupParams: readJson(setupParamsPath),
     },
     groth16: {
       source: grothSource,
-      workspaceRoot: grothPaths.rootDir,
-      verificationKeyPath: grothPaths.verificationKeyPath,
-      verifierPath: path.join(projectRoot, "bridge", "src", "generated", "Groth16Verifier.sol"),
+      workspaceRoot: toProjectRelativePath(grothPaths.rootDir),
+      verificationKeyPath: toProjectRelativePath(grothPaths.verificationKeyPath),
+      verifierPath: toProjectRelativePath(path.join(projectRoot, "bridge", "src", "generated", "Groth16Verifier.sol")),
       metadata: readJson(grothPaths.metadataPath),
     },
     bridge: {
@@ -898,10 +898,8 @@ async function writeBridgeZkManifest(manifestPath, grothSource) {
   console.log(`Wrote bridge ZK manifest: ${manifestPath}`);
 }
 
-function syncGroth16ArtifactsForBridge(chainId) {
+function syncGroth16ArtifactsForBridge(chainId, snapshotDir) {
   const sourceGrothDir = bridgeGroth16WorkspacePaths().crsDir;
-  const timestampLabel = process.env.BRIDGE_ARTIFACT_TIMESTAMP || timestampUtcCompact();
-  const snapshotDir = path.join(projectRoot, "deployment", `chain-id-${chainId}`, "bridge", timestampLabel);
   const artifactDir = path.join(snapshotDir, "groth16");
   const manifestPath = path.join(snapshotDir, `groth16.${chainId}.latest.json`);
   const requiredPaths = [
@@ -944,11 +942,9 @@ function syncGroth16ArtifactsForBridge(chainId) {
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
 }
 
-function syncTokamakZkpArtifactsForBridge(chainId) {
-  const timestampLabel = process.env.BRIDGE_ARTIFACT_TIMESTAMP;
+function syncTokamakZkpArtifactsForBridge(chainId, snapshotDir) {
   const tokamakCliRuntimeRoot = process.env.TOKAMAK_CLI_RUNTIME_ROOT;
   const tokamakSetupOutputDir = process.env.TOKAMAK_CLI_SETUP_OUTPUT_DIR;
-  const snapshotDir = path.join(projectRoot, "deployment", `chain-id-${chainId}`, "bridge", timestampLabel);
   const artifactDir = path.join(snapshotDir, "tokamak-zkp");
   const manifestPath = path.join(snapshotDir, `tokamak-zkp.${chainId}.latest.json`);
   const combinedSigmaPath = path.join(tokamakSetupOutputDir, "combined_sigma.rkyv");
@@ -1076,11 +1072,16 @@ async function main() {
 
   const uploadTimestamp = timestampUtcCompact();
   const bridgeCanonicalDir = path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
+  const bridgePendingDir = path.join(projectRoot, "deployment", ".pending", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const latestBridgeDir = latestCompleteBridgeDir(path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge"), bridgeChainId);
   const defaultBridgeInputPath = latestBridgeDir
     ? path.join(latestBridgeDir, `bridge.${bridgeChainId}.json`)
     : `./deployments/bridge.${bridgeChainId}.json`;
-  const zkManifestPath = process.env.BRIDGE_REFLECTION_MANIFEST_PATH || path.join(bridgeCanonicalDir, "zk-reflection.latest.json");
+  const externalZkManifestPath = process.env.BRIDGE_REFLECTION_MANIFEST_PATH
+    ? resolveBridgePath(process.env.BRIDGE_REFLECTION_MANIFEST_PATH)
+    : "";
+  const bridgePendingZkManifestPath = path.join(bridgePendingDir, "zk-reflection.latest.json");
+  const canonicalZkManifestPath = path.join(bridgeCanonicalDir, "zk-reflection.latest.json");
 
   loadTokamakCliEntryContext();
 
@@ -1106,9 +1107,9 @@ async function main() {
     await refreshGroth16VerifierSolidity(process.env.BRIDGE_GROTH_SOURCE);
   }
 
-  await writeBridgeZkManifest(zkManifestPath, process.env.BRIDGE_GROTH_SOURCE);
+  await writeBridgeZkManifest(bridgePendingZkManifestPath, process.env.BRIDGE_GROTH_SOURCE);
 
-  const mtDepthMetadata = readJson(zkManifestPath);
+  const mtDepthMetadata = readJson(bridgePendingZkManifestPath);
   const bridgeMerkleTreeLevels = String(mtDepthMetadata.tokamakL2js.mtDepth);
   const bridgeMerkleTreeSourceVersion = String(mtDepthMetadata.tokamakL2js.version);
   process.env.BRIDGE_MERKLE_TREE_LEVELS = bridgeMerkleTreeLevels;
@@ -1117,7 +1118,6 @@ async function main() {
     process.env.BRIDGE_OUTPUT_PATH || path.join(bridgeCanonicalDir, `bridge.${bridgeChainId}.json`),
   );
   const canonicalBridgeInputPath = resolveBridgePath(process.env.BRIDGE_INPUT_PATH || defaultBridgeInputPath);
-  const bridgePendingDir = path.join(projectRoot, "deployment", ".pending", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const bridgePendingOutputPath = path.join(bridgePendingDir, path.basename(canonicalBridgeOutputPath));
   process.env.BRIDGE_OUTPUT_PATH = bridgePendingOutputPath;
   process.env.BRIDGE_INPUT_PATH = canonicalBridgeInputPath;
@@ -1160,7 +1160,7 @@ async function main() {
   console.log(`Resolved tokamak-l2js version: ${bridgeMerkleTreeSourceVersion}`);
   console.log(`Resolved tokamak-l2js MT_DEPTH: ${bridgeMerkleTreeLevels}`);
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
-  console.log(`ZK manifest: ${zkManifestPath}`);
+  console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);
 
   if (process.env.BRIDGE_NETWORK !== "anvil") {
     run("node", [
@@ -1196,8 +1196,8 @@ async function main() {
   ], { stdio: ["ignore", "ignore", "inherit"] });
 
   updateDeploymentAbiManifestPath(bridgePendingOutputPathAbs, bridgeAbiManifestPathAbs);
-  syncGroth16ArtifactsForBridge(bridgeChainId);
-  syncTokamakZkpArtifactsForBridge(bridgeChainId);
+  syncGroth16ArtifactsForBridge(bridgeChainId, bridgePendingDir);
+  syncTokamakZkpArtifactsForBridge(bridgeChainId, bridgePendingDir);
 
   if (process.env.BRIDGE_NETWORK !== "anvil") {
     run("node", [
@@ -1212,13 +1212,21 @@ async function main() {
     ]);
   }
 
-  fs.mkdirSync(path.dirname(canonicalBridgeOutputPath), { recursive: true });
-  fs.renameSync(bridgePendingOutputPathAbs, canonicalBridgeOutputPath);
-  fs.mkdirSync(path.dirname(bridgeAbiManifestPathAbs), { recursive: true });
-  fs.renameSync(bridgePendingAbiManifestPath, bridgeAbiManifestPathAbs);
-  fs.rmSync(bridgePendingDir, { recursive: true, force: true });
+  fs.mkdirSync(path.dirname(bridgeCanonicalDir), { recursive: true });
+  if (fs.existsSync(bridgeCanonicalDir)) {
+    fail(`Refusing to overwrite existing bridge deployment snapshot: ${bridgeCanonicalDir}`);
+  }
+  fs.renameSync(bridgePendingDir, bridgeCanonicalDir);
 
-  console.log(`Deployment artifact: ${canonicalBridgeOutputPath}`);
+  const publishedBridgeOutputPath = path.join(bridgeCanonicalDir, path.basename(canonicalBridgeOutputPath));
+  if (publishedBridgeOutputPath !== canonicalBridgeOutputPath) {
+    copyFile(publishedBridgeOutputPath, canonicalBridgeOutputPath);
+  }
+  if (externalZkManifestPath) {
+    copyFile(canonicalZkManifestPath, externalZkManifestPath);
+  }
+
+  console.log(`Deployment artifact: ${publishedBridgeOutputPath}`);
   console.log(`ABI manifest: ${bridgeAbiManifestPathAbs}`);
 }
 

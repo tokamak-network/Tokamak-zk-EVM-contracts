@@ -89,12 +89,37 @@ function shouldSkipUpload(chainId) {
   return process.env.BRIDGE_NETWORK === "anvil" || String(chainId) === "31337";
 }
 
+function bridgeArtifactPathsFromDir(rootDir, chainId) {
+  return {
+    rootDir,
+    deploymentPath: path.join(rootDir, `bridge.${chainId}.json`),
+    abiManifestPath: path.join(rootDir, `bridge-abi-manifest.${chainId}.json`),
+    grothManifestPath: path.join(rootDir, `groth16.${chainId}.latest.json`),
+    grothZkeyPath: path.join(rootDir, "groth16", "circuit_final.zkey"),
+    grothVerificationKeyPath: path.join(rootDir, "groth16", "verification_key.json"),
+    grothMetadataPath: path.join(rootDir, "groth16", "metadata.json"),
+    grothZkeyProvenancePath: path.join(rootDir, "groth16", "zkey_provenance.json"),
+    tokamakZkpManifestPath: path.join(rootDir, `tokamak-zkp.${chainId}.latest.json`),
+    tokamakBuildMetadataPath: path.join(rootDir, "tokamak-zkp", "build-metadata-mpc-setup.json"),
+    tokamakCrsProvenancePath: path.join(rootDir, "tokamak-zkp", "crs_provenance.json"),
+    reflectionManifestPath: path.join(rootDir, "zk-reflection.latest.json"),
+  };
+}
+
 function collectBridgeArtifactFiles({ chainId, deploymentPath, abiManifestPath }) {
-  const latestTimestampLabel = latestBridgeTimestampLabel(repoRoot, chainId);
-  if (!latestTimestampLabel) {
-    throw new Error(`No bridge artifact snapshot exists for chain ${chainId}.`);
+  const explicitSnapshotDir = deploymentPath || abiManifestPath
+    ? path.dirname(deploymentPath ?? abiManifestPath)
+    : null;
+  let snapshot;
+  if (explicitSnapshotDir) {
+    snapshot = bridgeArtifactPathsFromDir(explicitSnapshotDir, chainId);
+  } else {
+    const latestTimestampLabel = latestBridgeTimestampLabel(repoRoot, chainId);
+    if (!latestTimestampLabel) {
+      throw new Error(`No bridge artifact snapshot exists for chain ${chainId}.`);
+    }
+    snapshot = bridgeArtifactPaths(repoRoot, chainId, latestTimestampLabel);
   }
-  const snapshot = bridgeArtifactPaths(repoRoot, chainId, latestTimestampLabel);
 
   return [
     deploymentPath

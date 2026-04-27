@@ -1,20 +1,20 @@
 {
   "generatedAt": "2026-04-27T18:30:52.112Z",
   "tokamakRuntime": {
-    "cliPackageRoot": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/node_modules/@tokamak-zk-evm/cli",
+    "cliPackageRoot": "node_modules/@tokamak-zk-evm/cli",
     "cliVersion": "2.0.8",
-    "runtimeRoot": "/Users/jehyuk/.tokamak-zk-evm/macos/runtime",
-    "setupParamsPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/node_modules/@tokamak-zk-evm/subcircuit-library/subcircuits/library/setupParams.json",
-    "installedSigmaVerifyJsonPath": "/Users/jehyuk/.tokamak-zk-evm/macos/runtime/resource/setup/output/sigma_verify.json"
+    "runtimeRoot": "../../../.tokamak-zk-evm/macos/runtime",
+    "setupParamsPath": "node_modules/@tokamak-zk-evm/subcircuit-library/subcircuits/library/setupParams.json",
+    "installedSigmaVerifyJsonPath": "../../../.tokamak-zk-evm/macos/runtime/resource/setup/output/sigma_verify.json"
   },
   "tokamakL2js": {
     "version": "0.1.3",
     "mtDepth": 30
   },
   "tokamakVerifier": {
-    "sigmaVerifyJsonPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/src/generated/sigma_verify.json",
-    "generatedVerifierKeyPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/src/generated/TokamakVerifierKey.generated.sol",
-    "verifierSourcePath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/src/verifiers/TokamakVerifier.sol",
+    "sigmaVerifyJsonPath": "bridge/src/generated/sigma_verify.json",
+    "generatedVerifierKeyPath": "bridge/src/generated/TokamakVerifierKey.generated.sol",
+    "verifierSourcePath": "bridge/src/verifiers/TokamakVerifier.sol",
     "setupParams": {
       "l_free": 128,
       "l_user_out": 65,
@@ -29,9 +29,9 @@
   },
   "groth16": {
     "source": "mpc",
-    "workspaceRoot": "/Users/jehyuk/tokamak-private-channels/groth16",
-    "verificationKeyPath": "/Users/jehyuk/tokamak-private-channels/groth16/crs/verification_key.json",
-    "verifierPath": "/Users/jehyuk/Documents/repo/Tokamak-zk-EVM-contracts/bridge/src/generated/Groth16Verifier.sol",
+    "workspaceRoot": "../../../tokamak-private-channels/groth16",
+    "verificationKeyPath": "../../../tokamak-private-channels/groth16/crs/verification_key.json",
+    "verifierPath": "bridge/src/generated/Groth16Verifier.sol",
     "metadata": {
       "circuit": "updateTree",
       "tokamakL2JsVersion": "0.1.3",

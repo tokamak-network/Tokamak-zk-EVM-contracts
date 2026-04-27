@@ -5,5 +5,8 @@ pragma solidity ^0.8.24;
 library TokamakEnvironment {
     uint8 internal constant MT_DEPTH = 30;
     uint256 internal constant MAX_MT_LEAVES = uint256(1) << uint256(MT_DEPTH);
-    bytes32 internal constant ZERO_FILLED_TREE_ROOT = 0x2706b30e61bdfc645b1dc231f0ba1884d4732b9dac54a28d5cb718b8e27e375d;
+    bytes32 internal constant ZERO_FILLED_TREE_ROOT =
+        0x2706b30e61bdfc645b1dc231f0ba1884d4732b9dac54a28d5cb718b8e27e375d;
+    uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 43;
+    uint256 internal constant TOKAMAK_PREVIOUS_BLOCK_HASHES = 4;
 }

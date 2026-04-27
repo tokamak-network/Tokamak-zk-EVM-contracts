@@ -4,12 +4,7 @@ This note records the current audit findings for repository scripts, focusing on
 
 ## Findings
 
-1. `bridge/scripts/deploy-bridge.sh` repeats inline Node runtime-path resolution.
-   - The script imports `@tokamak-private-dapps/common-library/tokamak-runtime-paths` in several separate inline Node blocks.
-   - This is not immediately removable because previous design direction embedded deployment flow into the bridge deploy script.
-   - It is still a maintainability cost.
-
-2. Bridge deployment keeps a compatibility fallback for Tokamak setup version metadata.
+1. Bridge deployment keeps a compatibility fallback for Tokamak setup version metadata.
    - `bridge/scripts/deploy-bridge.sh` falls back to the Tokamak CLI package version when `build-metadata-mpc-setup.json` is missing.
    - If current deployment requires setup metadata, this fallback should be replaced with a fail-fast error.
 

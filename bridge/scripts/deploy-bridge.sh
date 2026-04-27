@@ -48,27 +48,49 @@ latest_complete_bridge_dir() {
         | tail -n 1
 }
 
-run_tokamak_cli_install() {
-    node --input-type=module - "$PROJECT_ROOT" <<'NODE'
-import { spawnSync } from "node:child_process";
+load_tokamak_cli_entry_context() {
+    eval "$(
+        node --input-type=module <<'NODE'
 import path from "node:path";
+import { createRequire } from "node:module";
 
-const repoRoot = process.argv[2];
-const runtimePaths = await import("@tokamak-private-dapps/common-library/tokamak-runtime-paths");
-const invocation = runtimePaths.buildTokamakCliInvocation(["--install"]);
-const result = spawnSync(invocation.command, invocation.args, {
-  cwd: repoRoot,
-  stdio: "inherit",
-  env: process.env,
-});
+const require = createRequire(import.meta.url);
+const packageRoot = path.dirname(require.resolve("@tokamak-zk-evm/cli/package.json"));
+const entryPath = path.join(packageRoot, "dist", "cli.js");
 
-if (result.error) {
-  throw result.error;
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
-if (result.status !== 0) {
-  process.exit(result.status ?? 1);
-}
+
+console.log(`export TOKAMAK_CLI_PACKAGE_ROOT=${shellQuote(packageRoot)}`);
+console.log(`export TOKAMAK_CLI_ENTRY_PATH=${shellQuote(entryPath)}`);
 NODE
+    )"
+}
+
+load_tokamak_runtime_context() {
+    eval "$(
+        node --input-type=module <<'NODE'
+const runtimePaths = await import("@tokamak-private-dapps/common-library/tokamak-runtime-paths");
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
+const setupOutputDir = runtimePaths.resolveTokamakCliSetupOutputDir();
+console.log(`export TOKAMAK_CLI_PACKAGE_ROOT=${shellQuote(runtimePaths.resolveTokamakCliPackageRoot())}`);
+console.log(`export TOKAMAK_CLI_ENTRY_PATH=${shellQuote(runtimePaths.resolveTokamakCliEntryPath())}`);
+console.log(`export TOKAMAK_CLI_RUNTIME_ROOT=${shellQuote(runtimePaths.resolveTokamakCliRuntimeRoot())}`);
+console.log(`export TOKAMAK_CLI_SETUP_OUTPUT_DIR=${shellQuote(setupOutputDir)}`);
+console.log(`export TOKAMAK_SIGMA_VERIFY_PATH=${shellQuote(runtimePaths.resolveTokamakCliSetupArtifactPath("sigma_verify.json"))}`);
+console.log(`export SUBCIRCUIT_SETUP_PARAMS_PATH=${shellQuote(runtimePaths.resolveSubcircuitSetupParamsPath())}`);
+console.log(`export SUBCIRCUIT_FRONTEND_CFG_PATH=${shellQuote(runtimePaths.resolveSubcircuitFrontendCfgPath())}`);
+NODE
+    )"
+}
+
+run_tokamak_cli_install() {
+    node "$TOKAMAK_CLI_ENTRY_PATH" --install
 }
 
 refresh_tokamak_verifier_solidity() {
@@ -78,9 +100,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.argv[2];
-const runtimePaths = await import("@tokamak-private-dapps/common-library/tokamak-runtime-paths");
-const installedSigmaVerifyJsonPath = runtimePaths.resolveTokamakCliSetupArtifactPath("sigma_verify.json");
-const setupParamsPath = runtimePaths.resolveSubcircuitSetupParamsPath();
+const installedSigmaVerifyJsonPath = process.env.TOKAMAK_SIGMA_VERIFY_PATH;
+const setupParamsPath = process.env.SUBCIRCUIT_SETUP_PARAMS_PATH;
 const sigmaVerifyJsonPath = path.join(repoRoot, "bridge", "src", "generated", "sigma_verify.json");
 const tokamakVerifierGeneratedPath = path.join(repoRoot, "bridge", "src", "generated", "TokamakVerifierKey.generated.sol");
 const tokamakVerifierSourcePath = path.join(repoRoot, "bridge", "src", "verifiers", "TokamakVerifier.sol");
@@ -387,9 +408,8 @@ import { createAddressFromString } from "@ethereumjs/util";
 import { ethers } from "ethers";
 
 const repoRoot = process.argv[2];
-const runtimePaths = await import("@tokamak-private-dapps/common-library/tokamak-runtime-paths");
-const setupParamsPath = runtimePaths.resolveSubcircuitSetupParamsPath();
-const frontendCfgPath = runtimePaths.resolveSubcircuitFrontendCfgPath();
+const setupParamsPath = process.env.SUBCIRCUIT_SETUP_PARAMS_PATH;
+const frontendCfgPath = process.env.SUBCIRCUIT_FRONTEND_CFG_PATH;
 const require = createRequire(import.meta.url);
 const targetFiles = [
   {
@@ -795,7 +815,6 @@ import path from "node:path";
 const repoRoot = process.argv[2];
 const manifestPath = process.argv[3];
 const grothSource = process.argv[4];
-const runtimePaths = await import("@tokamak-private-dapps/common-library/tokamak-runtime-paths");
 const require = createRequire(import.meta.url);
 
 function readJson(filePath) {
@@ -817,7 +836,7 @@ function resolveTokamakPackageJsonPath() {
   return path.join(packageRoot, "package.json");
 }
 
-const tokamakCliPackageRoot = runtimePaths.resolveTokamakCliPackageRoot();
+const tokamakCliPackageRoot = process.env.TOKAMAK_CLI_PACKAGE_ROOT;
 const tokamak = await import("tokamak-l2js");
 const tokamakPackageJson = readJson(resolveTokamakPackageJsonPath());
 const mtDepth = Number(tokamak.MT_DEPTH);
@@ -828,16 +847,16 @@ const tokamakL2js = {
   version: tokamakPackageJson.version,
   mtDepth,
 };
-const setupParamsPath = runtimePaths.resolveSubcircuitSetupParamsPath();
+const setupParamsPath = process.env.SUBCIRCUIT_SETUP_PARAMS_PATH;
 const grothCrsDir = grothCrsDirFor(grothSource);
 const manifest = {
   generatedAt: new Date().toISOString(),
   tokamakRuntime: {
     cliPackageRoot: tokamakCliPackageRoot,
     cliVersion: readJson(path.join(tokamakCliPackageRoot, "package.json")).version,
-    runtimeRoot: runtimePaths.resolveTokamakCliRuntimeRoot(),
+    runtimeRoot: process.env.TOKAMAK_CLI_RUNTIME_ROOT,
     setupParamsPath,
-    installedSigmaVerifyJsonPath: runtimePaths.resolveTokamakCliSetupArtifactPath("sigma_verify.json"),
+    installedSigmaVerifyJsonPath: process.env.TOKAMAK_SIGMA_VERIFY_PATH,
   },
   tokamakL2js,
   tokamakVerifier: {
@@ -932,9 +951,8 @@ import path from "node:path";
 const repoRoot = process.argv[2];
 const chainId = process.argv[3];
 const timestampLabel = process.argv[4];
-const runtimePaths = await import("@tokamak-private-dapps/common-library/tokamak-runtime-paths");
-const tokamakCliPackageRoot = runtimePaths.resolveTokamakCliPackageRoot();
-const tokamakSetupOutputDir = runtimePaths.resolveTokamakCliSetupOutputDir();
+const tokamakCliPackageRoot = process.env.TOKAMAK_CLI_PACKAGE_ROOT;
+const tokamakSetupOutputDir = process.env.TOKAMAK_CLI_SETUP_OUTPUT_DIR;
 const snapshotDir = path.join(repoRoot, "deployment", `chain-id-${chainId}`, "bridge", timestampLabel);
 const artifactDir = path.join(snapshotDir, "tokamak-zkp");
 const manifestPath = path.join(snapshotDir, `tokamak-zkp.${chainId}.latest.json`);
@@ -1138,11 +1156,15 @@ fi
 
 ZK_MANIFEST_PATH="${BRIDGE_REFLECTION_MANIFEST_PATH:-$BRIDGE_CANONICAL_DIR/zk-reflection.latest.json}"
 
+load_tokamak_cli_entry_context
+
 if [[ "${BRIDGE_SKIP_TOKAMAK_INSTALL:-0}" == "1" ]]; then
     echo "Skipping tokamak-cli runtime install because BRIDGE_SKIP_TOKAMAK_INSTALL=1"
 else
     run_tokamak_cli_install
 fi
+
+load_tokamak_runtime_context
 
 if [[ "${BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH:-0}" == "1" ]]; then
     echo "Skipping Tokamak verifier Solidity refresh because BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH=1"

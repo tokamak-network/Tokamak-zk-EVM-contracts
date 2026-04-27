@@ -7,6 +7,7 @@ import {
   downloadLatestPublicGroth16MpcArtifacts,
   extractZipEntriesFromBuffer,
 } from "./public-drive-crs.mjs";
+import { installGroth16DockerRuntime, readDockerBootstrap } from "./docker-runtime.mjs";
 import {
   groth16WorkspacePaths,
   resolveGroth16WorkspaceRoot,
@@ -32,9 +33,31 @@ export async function installGroth16Runtime({
   trustedSetup = false,
   noSetup = false,
   docker = false,
+  verbose = false,
 } = {}) {
   const paths = groth16WorkspacePaths(workspaceRoot);
+
+  if (docker) {
+    const dockerBootstrap = installGroth16DockerRuntime({
+      workspaceRoot: paths.rootDir,
+      trustedSetup,
+      noSetup,
+      verbose,
+    });
+    const manifest = fs.existsSync(paths.manifestPath) ? readJson(paths.manifestPath) : {};
+    const updatedManifest = {
+      ...manifest,
+      workspaceRoot: paths.rootDir,
+      installMode: "docker",
+      dockerRequested: true,
+      docker: dockerBootstrap,
+    };
+    writeJson(paths.manifestPath, updatedManifest);
+    return updatedManifest;
+  }
+
   fs.mkdirSync(paths.rootDir, { recursive: true });
+  fs.rmSync(paths.dockerDir, { recursive: true, force: true });
 
   const fallbackMetadata = {
     mtDepth: Number((await import("tokamak-l2js")).MT_DEPTH),
@@ -75,7 +98,8 @@ export async function installGroth16Runtime({
     installedAt: new Date().toISOString(),
     workspaceRoot: paths.rootDir,
     crsSource: noSetup ? "skipped" : trustedSetup ? "local-trusted-setup" : "public-drive-mpc",
-    dockerRequested: Boolean(docker),
+    installMode: "native",
+    dockerRequested: false,
     crs: crsInstall,
     circuit: circuitInstall,
     tokamakL2JsVersion: installedTokamakL2JsVersion(),
@@ -120,7 +144,7 @@ export async function verifyUpdateTreeProof({
     assertInstalledCrs(paths);
     assertFile("Groth16 proof", proofPath);
     assertFile("Groth16 public signals", publicPath);
-    runSnarkjs(["groth16", "verify", paths.verificationKeyPath, publicPath, proofPath], paths.rootDir);
+    runSnarkjs(["groth16", "verify", paths.verificationKeyPath, publicPath, proofPath], paths.rootDir, { workspaceRoot: paths.rootDir });
   } finally {
     if (proofInput.cleanupDir) {
       fs.rmSync(proofInput.cleanupDir, { recursive: true, force: true });
@@ -200,6 +224,7 @@ export function doctorGroth16Runtime({
   const add = (name, ok, details = null) => checks.push({ name, ok, details });
   const installManifest = fs.existsSync(paths.manifestPath) ? readJson(paths.manifestPath) : null;
   const requiresProvenance = installManifest?.crsSource !== "skipped";
+  const dockerBootstrap = readDockerBootstrap(paths.rootDir);
 
   add("workspace", fs.existsSync(paths.rootDir), paths.rootDir);
   for (const [name, filePath] of [
@@ -212,6 +237,9 @@ export function doctorGroth16Runtime({
   }
   if (requiresProvenance || fs.existsSync(paths.provenancePath)) {
     add("zkey_provenance.json", fs.existsSync(paths.provenancePath), paths.provenancePath);
+  }
+  if (installManifest?.installMode === "docker" || dockerBootstrap) {
+    add("docker bootstrap", Boolean(dockerBootstrap), paths.dockerBootstrapPath);
   }
 
   let hashChecks = [];

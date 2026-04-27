@@ -35,6 +35,14 @@ The fixed workspace is:
 ~/tokamak-private-channels/groth16/crs/zkey_provenance.json
 ```
 
+`--install --docker` is supported on Linux hosts and Windows hosts with Docker Desktop. It builds the packaged Ubuntu 22 Docker image, mounts the fixed Groth16 workspace into the container, runs the install flow there, and stores Docker bootstrap files under:
+
+```text
+~/tokamak-private-channels/groth16/docker/
+```
+
+After a Docker install, `--prove` and `--verify` run snarkjs through the saved Docker bootstrap when Docker is available. Linux hosts can fall back to native snarkjs when Docker is not running. Windows hosts require Docker Desktop because native Groth16 runtime execution is not supported there. macOS hosts should use the native install path.
+
 `--prove <INPUT_JSON>` runs the proving flow only: witness generation, proof generation, and public signal generation. It always writes proof artifacts to fixed workspace paths:
 
 ```text

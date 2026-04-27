@@ -15,7 +15,9 @@
   },
   "files": [
     "README.md",
+    ".dockerignore",
     "cli",
+    "docker",
     "lib",
     "circuits/src",
     "circuits/circom-platform.mjs",

@@ -1,18 +1,16 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { ethers } from "ethers";
 import { groth16WorkspacePaths } from "../../lib/paths.mjs";
+import { runSnarkjs } from "../../lib/snarkjs.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
-const grothRoot = path.resolve(__dirname, "../..");
-const circuitsDir = path.join(grothRoot, "circuits");
 
 const UNSUPPORTED_PATH_FLAGS = [
   "--metadata",
@@ -47,29 +45,10 @@ function hasFlag(argv, name) {
   return argv.includes(name);
 }
 
-function run(cmd, args, cwd) {
-  execFileSync(cmd, args, {
-    cwd,
-    stdio: "inherit",
-  });
-}
-
 function ensureFileExists(label, filePath) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Missing ${label}: ${filePath}`);
   }
-}
-
-function findSnarkjs() {
-  const candidates = [
-    path.join(circuitsDir, "node_modules", ".bin", "snarkjs"),
-    path.join(grothRoot, "node_modules", ".bin", "snarkjs"),
-  ];
-  const localSnarkjs = candidates.find((candidate) => fs.existsSync(candidate));
-  if (localSnarkjs) {
-    return localSnarkjs;
-  }
-  return "snarkjs";
 }
 
 async function loadTokamakL2Js(expectedVersion) {
@@ -175,9 +154,8 @@ export async function main(argv = process.argv.slice(2), { workspaceRoot } = {})
     ensureFileExists(label, filePath);
   }
 
-  const snarkjs = findSnarkjs();
-  run(snarkjs, ["wtns", "calculate", paths.wasmPath, paths.inputPath, paths.witnessPath], circuitsDir);
-  run(snarkjs, ["groth16", "prove", paths.zkeyPath, paths.witnessPath, paths.proofPath, paths.publicPath], circuitsDir);
+  runSnarkjs(["wtns", "calculate", paths.wasmPath, paths.inputPath, paths.witnessPath], paths.rootDir, { workspaceRoot: paths.rootDir });
+  runSnarkjs(["groth16", "prove", paths.zkeyPath, paths.witnessPath, paths.proofPath, paths.publicPath], paths.rootDir, { workspaceRoot: paths.rootDir });
 
   const publicSignals = readJson(paths.publicPath);
   if (publicSignals.length !== 5) {

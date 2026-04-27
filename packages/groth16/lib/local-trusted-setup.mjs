@@ -18,7 +18,7 @@ export async function generateLocalTrustedSetup({
   assertFile("compiled updateTree r1cs", resolvedR1csPath);
 
   const normalizedMetadata = normalizeMetadata(metadata);
-  const constraintCount = readConstraintCount(resolvedR1csPath, paths.rootDir);
+  const constraintCount = readConstraintCount(resolvedR1csPath, paths.rootDir, paths.rootDir);
   const power = nextPowerOfTwoExponent(constraintCount + 1);
   const workDir = path.join(paths.tmpDir, "trusted-setup");
   const ptau0 = path.join(workDir, "powersoftau_0000.ptau");
@@ -38,7 +38,7 @@ export async function generateLocalTrustedSetup({
   const phase2ContributionEntropy = randomEntropy("phase2 contribution");
   const phase2Beacon = randomHex(32);
 
-  runSnarkjs(["powersoftau", "new", CURVE, String(power), ptau0], paths.rootDir);
+  runSnarkjs(["powersoftau", "new", CURVE, String(power), ptau0], paths.rootDir, { workspaceRoot: paths.rootDir });
   runSnarkjs([
     "powersoftau",
     "contribute",
@@ -46,10 +46,10 @@ export async function generateLocalTrustedSetup({
     ptau1,
     "--name=local updateTree phase1 contribution",
     `--entropy=${phase1ContributionEntropy}`,
-  ], paths.rootDir);
-  runSnarkjs(["powersoftau", "beacon", ptau1, ptauBeacon, phase1Beacon, BEACON_ITERATIONS], paths.rootDir);
-  runSnarkjs(["powersoftau", "prepare", "phase2", ptauBeacon, phase1FinalPtau], paths.rootDir);
-  runSnarkjs(["groth16", "setup", resolvedR1csPath, phase1FinalPtau, zkey0], paths.rootDir);
+  ], paths.rootDir, { workspaceRoot: paths.rootDir });
+  runSnarkjs(["powersoftau", "beacon", ptau1, ptauBeacon, phase1Beacon, BEACON_ITERATIONS], paths.rootDir, { workspaceRoot: paths.rootDir });
+  runSnarkjs(["powersoftau", "prepare", "phase2", ptauBeacon, phase1FinalPtau], paths.rootDir, { workspaceRoot: paths.rootDir });
+  runSnarkjs(["groth16", "setup", resolvedR1csPath, phase1FinalPtau, zkey0], paths.rootDir, { workspaceRoot: paths.rootDir });
   runSnarkjs([
     "zkey",
     "contribute",
@@ -57,7 +57,7 @@ export async function generateLocalTrustedSetup({
     zkey1,
     "--name=local updateTree phase2 contribution",
     `--entropy=${phase2ContributionEntropy}`,
-  ], paths.rootDir);
+  ], paths.rootDir, { workspaceRoot: paths.rootDir });
   runSnarkjs([
     "zkey",
     "beacon",
@@ -66,9 +66,9 @@ export async function generateLocalTrustedSetup({
     phase2Beacon,
     BEACON_ITERATIONS,
     "--name=local updateTree phase2 beacon",
-  ], paths.rootDir);
-  runSnarkjs(["zkey", "verify", resolvedR1csPath, phase1FinalPtau, paths.zkeyPath], paths.rootDir);
-  runSnarkjs(["zkey", "export", "verificationkey", paths.zkeyPath, paths.verificationKeyPath], paths.rootDir);
+  ], paths.rootDir, { workspaceRoot: paths.rootDir });
+  runSnarkjs(["zkey", "verify", resolvedR1csPath, phase1FinalPtau, paths.zkeyPath], paths.rootDir, { workspaceRoot: paths.rootDir });
+  runSnarkjs(["zkey", "export", "verificationkey", paths.zkeyPath, paths.verificationKeyPath], paths.rootDir, { workspaceRoot: paths.rootDir });
 
   const generatedAt = new Date().toISOString();
   const outputMetadata = {
@@ -149,8 +149,8 @@ function normalizeMetadata(metadata) {
   return { mtDepth, tokamakL2JsVersion };
 }
 
-function readConstraintCount(r1csPath, cwd) {
-  const info = stripAnsi(captureSnarkjs(["r1cs", "info", r1csPath], cwd));
+function readConstraintCount(r1csPath, cwd, workspaceRoot) {
+  const info = stripAnsi(captureSnarkjs(["r1cs", "info", r1csPath], cwd, { workspaceRoot }));
   const match = info.match(/# of Constraints:\s+(\d+)/);
   if (!match) {
     throw new Error("Failed to parse constraint count from snarkjs r1cs info output.");

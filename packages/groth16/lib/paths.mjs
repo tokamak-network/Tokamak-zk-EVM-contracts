@@ -21,6 +21,7 @@ export function groth16WorkspacePaths(workspaceRoot = resolveGroth16WorkspaceRoo
   const buildDir = path.join(rootDir, "build");
   const proofDir = path.join(rootDir, "proof");
   const tmpDir = path.join(rootDir, "tmp");
+  const dockerDir = path.join(rootDir, "docker");
 
   return {
     rootDir,
@@ -28,8 +29,11 @@ export function groth16WorkspacePaths(workspaceRoot = resolveGroth16WorkspaceRoo
     buildDir,
     proofDir,
     tmpDir,
+    dockerDir,
     circuitSourceDir: path.join(tmpDir, "circuit-src"),
     verifyTmpDir: path.join(tmpDir, "verify"),
+    dockerBootstrapPath: path.join(dockerDir, "bootstrap.json"),
+    dockerRunScriptPath: path.join(dockerDir, "run.sh"),
     wasmPath: path.join(buildDir, "circuit_updateTree.wasm"),
     r1csPath: path.join(buildDir, "circuit_updateTree.r1cs"),
     zkeyPath: path.join(crsDir, "circuit_final.zkey"),

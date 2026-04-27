@@ -16,7 +16,7 @@ function usage() {
       By default CRS artifacts are installed from the public Groth16 MPC archive
       Use --trusted-setup to generate a local trusted setup in the workspace instead
       Use --no-setup to skip CRS provisioning while still rendering and compiling the circuit
-      --docker is accepted for command parity but the Groth16 runtime uses packaged native Circom binaries
+      Use --docker on Linux or Windows with Docker Desktop to install and run Groth16 commands through an Ubuntu 22 container
 
   --uninstall
       Remove the local Groth16 runtime workspace
@@ -112,6 +112,7 @@ async function main(argv = process.argv.slice(2)) {
         trustedSetup: args.trustedSetup,
         noSetup: args.noSetup,
         docker: args.docker,
+        verbose: args.verbose,
       }), args);
       return;
     case "--uninstall":

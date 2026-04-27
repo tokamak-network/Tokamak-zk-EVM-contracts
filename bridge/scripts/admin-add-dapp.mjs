@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AbiCoder, Contract, JsonRpcProvider, Wallet, ethers, getAddress, keccak256 } from "ethers";
 import {
+  dappArtifactDir,
   dappArtifactPaths,
   latestBridgeTimestampLabel,
   requireLatestBridgeArtifactDir,
@@ -25,6 +26,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
 const privateStateExampleRoot = path.join(
   repoRoot,
+  "packages",
   "apps",
   "private-state",
   "examples",
@@ -40,6 +42,7 @@ const uploadDappArtifactsScriptPath = path.join(
 );
 const abiCoder = AbiCoder.defaultAbiCoder();
 const { aPubBlockLength: TOKAMAK_APUB_BLOCK_LENGTH } = resolveTokamakBlockInputConfig();
+const TIMESTAMP_LABEL_PATTERN = /^\d{8}T\d{6}Z$/;
 const CAPACITY_ERROR_PATTERNS = [
   /insufficient .* length/i,
   /insufficient s_max/i,
@@ -703,7 +706,7 @@ function resolvePrivateStateManifestPath(rootDir, chainId, kind) {
 }
 
 function resolveDappSourceRoot(rootDir, dappLabel) {
-  const appRoot = path.join(rootDir, "apps", dappLabel);
+  const appRoot = path.join(rootDir, "packages", "apps", dappLabel);
   const sourceRoot = path.join(appRoot, "src");
 
   if (fs.existsSync(sourceRoot) && fs.statSync(sourceRoot).isDirectory()) {
@@ -713,6 +716,17 @@ function resolveDappSourceRoot(rootDir, dappLabel) {
   throw new Error(
     `Unable to locate source directory for ${dappLabel}: ${sourceRoot}`,
   );
+}
+
+function resolveDappSnapshotTimestamp(rootDir, chainId, dappLabel, manifestOut, fallbackTimestamp) {
+  const manifestDir = path.resolve(path.dirname(manifestOut));
+  const timestampLabel = path.basename(manifestDir);
+  if (!TIMESTAMP_LABEL_PATTERN.test(timestampLabel)) {
+    return fallbackTimestamp;
+  }
+
+  const expectedDir = path.resolve(dappArtifactDir(rootDir, chainId, dappLabel, timestampLabel));
+  return manifestDir === expectedDir ? timestampLabel : fallbackTimestamp;
 }
 
 const APP_NETWORK_CHAIN_IDS = new Map([
@@ -1083,9 +1097,17 @@ async function main() {
     options.storageLayoutPath ?? resolvePrivateStateManifestPath(repoRoot, appChainId, "storage-layout");
   const dappLabel = options.dappLabel ?? "private-state";
   const sourceRoot = resolveDappSourceRoot(repoRoot, dappLabel);
-  const uploadTimestamp = createTimestampLabel();
+  const generatedTimestamp = createTimestampLabel();
+  const defaultDappSnapshot = dappArtifactPaths(repoRoot, chainId, dappLabel, generatedTimestamp);
+  const manifestOut = options.manifestOut ?? defaultDappSnapshot.registrationManifestPath;
+  const uploadTimestamp = resolveDappSnapshotTimestamp(
+    repoRoot,
+    chainId,
+    dappLabel,
+    manifestOut,
+    generatedTimestamp,
+  );
   const dappSnapshot = dappArtifactPaths(repoRoot, chainId, dappLabel, uploadTimestamp);
-  const manifestOut = options.manifestOut ?? dappSnapshot.registrationManifestPath;
   const manifestPendingOut = path.join(
     repoRoot,
     "deployment",

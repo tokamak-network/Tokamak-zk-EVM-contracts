@@ -28,8 +28,18 @@
     "./groth16-solidity-proof": "./src/groth16-solidity-proof.mjs"
   },
   "files": [
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "src"
   ],
+  "scripts": {
+    "release:check": "node ../../scripts/release-readiness.cjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
     "@tokamak-zk-evm/cli": "^2.0.8",
     "@tokamak-zk-evm/subcircuit-library": "^1.0.3",

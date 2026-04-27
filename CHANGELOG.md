@@ -13,6 +13,8 @@ This project follows a package-oriented changelog model:
 
 ### Workspace
 
+- Added an automatic npm publish workflow for the private DApp packages.
+- Added package-level release readiness checks for npm deployment.
 - Documented the repository as a private npm workspace rather than a publishable package.
 - Added repository-level dual-license files for `MIT OR Apache-2.0`.
 - Added search and AI-answer discovery material.

@@ -91,18 +91,47 @@ function resolveRuntimeBinaryPath(runtimeRoot, binaryName) {
   return path.join(runtimeRoot, "bin", executableName);
 }
 
+function prependEnvPath(existing, nextValue) {
+  return existing && existing.length > 0 ? `${nextValue}${path.delimiter}${existing}` : nextValue;
+}
+
+function runtimeBackendEnvironment(runtimeRoot) {
+  const icicleLibDir = path.join(runtimeRoot, "backend-lib", "icicle", "lib");
+  const env = { ...process.env };
+  env.LD_LIBRARY_PATH = prependEnvPath(env.LD_LIBRARY_PATH, icicleLibDir);
+  if (process.platform === "darwin") {
+    env.DYLD_LIBRARY_PATH = prependEnvPath(env.DYLD_LIBRARY_PATH, icicleLibDir);
+    env.ICICLE_BACKEND_INSTALL_DIR = path.join(icicleLibDir, "backend");
+    return env;
+  }
+  env.ICICLE_BACKEND_INSTALL_DIR = process.platform === "linux"
+    ? path.join(icicleLibDir, "backend")
+    : "";
+  return env;
+}
+
+function formatCommandOutput(label, value) {
+  const output = String(value ?? "").trim();
+  return `${label}:\n${output.length > 0 ? output : "(empty)"}`;
+}
+
 function readRuntimeBinaryVersion(runtimeRoot, binaryName) {
   const binaryPath = resolveRuntimeBinaryPath(runtimeRoot, binaryName);
   assertFileExists(binaryPath, `Tokamak zk proof backend binary: ${binaryName}`);
   const result = spawnSync(binaryPath, ["--version"], {
     encoding: "utf8",
+    env: runtimeBackendEnvironment(runtimeRoot),
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (result.error) {
     throw result.error;
   }
   if (result.status !== 0) {
-    fail(`${binaryPath} --version exited with status ${result.status ?? "unknown"}`);
+    fail([
+      `${binaryPath} --version exited with status ${result.status ?? "unknown"}`,
+      formatCommandOutput("stdout", result.stdout),
+      formatCommandOutput("stderr", result.stderr),
+    ].join("\n"));
   }
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
   const match = output.match(/(?:v)?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/i);

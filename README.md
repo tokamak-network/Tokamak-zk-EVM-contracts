@@ -92,7 +92,6 @@ make help
 make anvil-start
 make anvil-bootstrap
 make test
-make e2e-bridge
 make e2e-bridge-cli
 ```
 

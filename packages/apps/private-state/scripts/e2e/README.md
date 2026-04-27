@@ -1,16 +1,16 @@
 # Private-State Bridge E2E
 
-`run-bridge-private-state-e2e.mjs` executes a genesis-based end-to-end scenario that combines:
+`run-bridge-private-state-cli-e2e.mjs` executes the bridge-coupled private-state participant scenario through command-line entrypoints.
+It keeps bridge deployment, DApp registration, and canonical-asset minting in existing helper commands because the
+current private-state CLI intentionally starts at user-facing bridge and note flows rather than admin bootstrap flows.
+
+The scenario combines:
 
 - L1 ERC-20 funding into the bridge vault
 - Groth-backed L1 -> L2 accounting deposits
 - Tokamak proof-backed private-state mint / transfer / redeem steps
 - Groth-backed L2 -> L1 withdrawal
 - Final ERC-20 claim on L1
-
-`run-bridge-private-state-cli-e2e.mjs` executes the same participant scenario through command-line entrypoints.
-It keeps bridge deployment, DApp registration, and canonical-asset minting in existing helper commands because the
-current private-state CLI intentionally starts at user-facing bridge and note flows rather than admin bootstrap flows.
 
 ## Scenario
 
@@ -37,7 +37,6 @@ The harness uses three participants:
 ## Run
 
 ```bash
-node packages/apps/private-state/scripts/e2e/run-bridge-private-state-e2e.mjs
 node packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs
 ```
 
@@ -46,10 +45,6 @@ Optional flag:
 - `--keep-anvil`: leave the local anvil process running after success
 
 ## Outputs
-
-The harness writes step-by-step artifacts under:
-
-`packages/apps/private-state/scripts/e2e/output/private-state-bridge-genesis`
 
 The CLI-driven harness writes its final summary under:
 
@@ -61,6 +56,6 @@ After a successful run, the harness prunes temporary CLI e2e artifacts and leave
 - the channel workspace created for the test under `~/tokamak-private-channels/workspace/<network>/<channel>/channel/`
 - the participant wallets created for the test under `~/tokamak-private-channels/workspace/<network>/<channel>/wallets/`
 
-To keep disk usage bounded, both harnesses now archive only the step-local Tokamak outputs they
-actually consume downstream (`synthesizer`, `preprocess`, and where needed `prove`) instead of
-copying the full shared `resource/setup/output` directory into every step artifact bundle.
+To keep disk usage bounded, the harness archives only the step-local Tokamak outputs it actually consumes downstream
+(`synthesizer`, `preprocess`, and where needed `prove`) instead of copying the full shared `resource/setup/output`
+directory into every step artifact bundle.

@@ -1,4 +1,4 @@
-.PHONY: help anvil-start anvil-bootstrap anvil-stop test deploy-sepolia deploy-sepolia-verify deploy-mainnet deploy-mainnet-verify cli-bridge-help e2e-bridge e2e-bridge-cli
+.PHONY: help anvil-start anvil-bootstrap anvil-stop test deploy-sepolia deploy-sepolia-verify deploy-mainnet deploy-mainnet-verify cli-bridge-help e2e-bridge-cli
 
 APP_ENV_FILE ?= $(abspath ../.env)
 DEPLOY_ENV_MKDIR := /tmp
@@ -19,7 +19,6 @@ help:
 		'  make anvil-bootstrap         Deploy mock TON and private-state to anvil' \
 		'  make anvil-stop              Stop the local anvil node' \
 		'  make test                    Run the private-state Foundry test suite' \
-		'  make e2e-bridge              Run the genesis-based bridge/private-state end-to-end flow' \
 		'  make e2e-bridge-cli          Run the CLI-driven bridge/private-state end-to-end flow' \
 		'  make deploy-sepolia          Deploy to Sepolia using packages/apps/.env values' \
 		'  make deploy-sepolia-verify   Deploy to Sepolia and verify on Etherscan' \
@@ -38,9 +37,6 @@ anvil-stop:
 
 test:
 	@cd ../.. && forge test --offline --match-contract PrivateStateControllerTest
-
-e2e-bridge:
-	@node scripts/e2e/run-bridge-private-state-e2e.mjs
 
 e2e-bridge-cli:
 	@node scripts/e2e/run-bridge-private-state-cli-e2e.mjs

@@ -46,7 +46,7 @@ import {
   workspaceWalletsDir as sharedWorkspaceWalletsDir,
   walletDirForName as sharedWalletDirForName,
   walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
-} from "../utils/private-state-cli-shared.mjs";
+} from "../../cli/lib/private-state-cli-shared.mjs";
 import {
   deriveNoteReceiveKeyMaterial,
   encryptMintNoteValueForOwner,
@@ -1054,7 +1054,7 @@ function runPrivateStateCli(args, options = {}) {
 }
 
 function installPrivateStateCliRuntimeForE2E() {
-  return runPrivateStateCli(["--install"], {
+  return runPrivateStateCli(["--install", "--include-local-artifacts"], {
     label: "private-state-cli:install",
   });
 }

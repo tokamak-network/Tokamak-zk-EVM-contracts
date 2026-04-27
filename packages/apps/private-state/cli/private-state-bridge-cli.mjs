@@ -4,7 +4,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import {
   createCipheriv,
@@ -79,11 +78,9 @@ import {
   walletDirForName,
   walletMetadataPathForDir,
   walletNameForChannelAndAddress,
-} from "../scripts/utils/private-state-cli-shared.mjs";
+} from "./lib/private-state-cli-shared.mjs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, "../../..");
+const defaultCommandCwd = process.cwd();
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const tokamakCliInvocation = buildTokamakCliInvocation();
 const tokamakCliCommand = tokamakCliInvocation.command;
@@ -933,17 +930,20 @@ async function handleInstallZkEvm({ args }) {
   if (args.docker) {
     installArgs.push("--docker");
   }
-  run(tokamakCliCommand, installArgs, { cwd: projectRoot });
+  run(tokamakCliCommand, installArgs);
   const tokamakRuntimeRoot = resolveTokamakCliRuntimeRoot();
+  const localDeploymentBaseRoot = args.includeLocalArtifacts ? process.cwd() : null;
   const deploymentArtifacts = await installPrivateStateCliArtifacts({
     dappName: PRIVATE_STATE_DAPP_LABEL,
-    localDeploymentBaseRoot: projectRoot,
+    localDeploymentBaseRoot,
   });
   printJson({
     action: "install",
     tokamakCli: tokamakCliBaseArgs[0],
     runtimeRoot: tokamakRuntimeRoot,
     docker: Boolean(args.docker),
+    includeLocalArtifacts: Boolean(args.includeLocalArtifacts),
+    localDeploymentBaseRoot,
     deploymentArtifactCacheRoot: deploymentArtifacts.cacheBaseRoot,
     deploymentArtifactRoot: deploymentArtifacts.artifactRoot,
     installedDeploymentArtifacts: deploymentArtifacts.installed.map((entry) => ({
@@ -963,7 +963,7 @@ async function handleUninstallZkEvm() {
   } catch {
     runtimeRoot = null;
   }
-  run(tokamakCliCommand, [...tokamakCliBaseArgs, "--uninstall"], { cwd: projectRoot });
+  run(tokamakCliCommand, [...tokamakCliBaseArgs, "--uninstall"]);
 
   printJson({
     action: "uninstall-zk-evm",
@@ -3412,7 +3412,7 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   };
 }
 
-function run(command, args, { cwd = projectRoot, env = process.env, quiet = false } = {}) {
+function run(command, args, { cwd = defaultCommandCwd, env = process.env, quiet = false } = {}) {
   const result = spawnSync(command, args, {
     cwd,
     env,
@@ -3424,7 +3424,7 @@ function run(command, args, { cwd = projectRoot, env = process.env, quiet = fals
   }
 }
 
-function runCaptured(command, args, { cwd = projectRoot, env = process.env } = {}) {
+function runCaptured(command, args, { cwd = defaultCommandCwd, env = process.env } = {}) {
   const result = spawnSync(command, args, {
     cwd,
     env,
@@ -3476,7 +3476,7 @@ function printLocalProofGenerationNotice(operationName) {
 }
 
 function runTokamakCliStage({ operationDir, stageName, args }) {
-  const result = runCaptured(tokamakCliCommand, [...tokamakCliBaseArgs, ...args], { cwd: projectRoot });
+  const result = runCaptured(tokamakCliCommand, [...tokamakCliBaseArgs, ...args]);
   const logPath = writeTokamakCliStageLog(operationDir, stageName, result);
   if (result.status !== 0) {
     throw new Error(
@@ -4457,8 +4457,8 @@ function assertInstallZkEvmArgs(args) {
   assertAllowedCommandKeys(
     args,
     "--install",
-    new Set(["command", "positional", "install", "docker"]),
-    "optional --docker",
+    new Set(["command", "positional", "install", "docker", "includeLocalArtifacts"]),
+    "optional --docker and --include-local-artifacts",
   );
 }
 
@@ -4640,9 +4640,10 @@ function persistCurrentState(context) {
 function printHelp() {
   console.log(`
 Commands:
-  --install [--docker]
+  --install [--docker] [--include-local-artifacts]
       Install the Tokamak zk-EVM CLI runtime workspace and private-state deployment artifacts
       Use --docker on Linux to forward tokamak-cli --install --docker
+      Use --include-local-artifacts to also install local deployment/ artifacts from the current working directory
 
   uninstall-zk-evm
       Remove the Tokamak zk-EVM CLI runtime workspace

@@ -24,7 +24,8 @@
   "type": "module",
   "workspaces": [
     "packages/common",
-    "packages/groth16"
+    "packages/groth16",
+    "packages/apps/private-state/cli"
   ],
   "scripts": {
     "test:bridge:unit": "forge test --root bridge -vv",

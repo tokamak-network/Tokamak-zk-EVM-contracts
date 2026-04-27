@@ -6,8 +6,7 @@
   "bin": {
     "tokamak-groth16": "./cli/tokamak-groth16-cli.mjs",
     "tokamak-groth16-cli": "./cli/tokamak-groth16-cli.mjs",
-    "tokamak-groth16-update-tree-proof": "./prover/updateTree/generateProof.mjs",
-    "tokamak-groth16-publish-mpc-setup": "./mpc-setup/publish_update_tree_setup.mjs"
+    "tokamak-groth16-update-tree-proof": "./prover/updateTree/generateProof.mjs"
   },
   "exports": {
     "./public-drive-crs": "./lib/public-drive-crs.mjs",
@@ -25,11 +24,6 @@
     "circuits/circom-2.0-linux-amd64",
     "circuits/package.json",
     "circuits/package-lock.json",
-    "mpc-setup/*.mjs",
-    "mpc-setup/Cargo.toml",
-    "mpc-setup/Cargo.lock",
-    "mpc-setup/lib",
-    "mpc-setup/src",
     "trusted-setup/crs/circuit_final.zkey",
     "trusted-setup/crs/metadata.json",
     "trusted-setup/crs/verification_key.json",

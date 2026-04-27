@@ -56,14 +56,6 @@ function pointFromNoteReceivePubKey(noteReceivePubKey) {
   return jubjub.ExtendedPoint.fromAffine({ x, y });
 }
 
-function parseJubjubPrivateScalar(privateKey) {
-  const scalar = ethers.toBigInt(privateKey);
-  if (scalar <= 0n || scalar >= JUBJUB_ORDER) {
-    throw new Error("Jubjub note-receive private key must be within the scalar field range.");
-  }
-  return scalar;
-}
-
 function deriveEphemeralJubjubScalar() {
   const raw = ethers.toBigInt(ethers.hexlify(jubjub.utils.randomPrivateKey(randomBytes(32))));
   return (raw % (JUBJUB_ORDER - 1n)) + 1n;
@@ -86,10 +78,6 @@ function poseidonHexFromBytes(bytesLike) {
 
 function fieldElementHex(value) {
   return normalizeBytes32Hex(ethers.toBeHex(value));
-}
-
-function normalizeTagHex(value) {
-  return ethers.hexlify(ethers.zeroPadValue(value, 16)).toLowerCase();
 }
 
 function packEncryptedNoteValue({
@@ -120,19 +108,6 @@ function packEncryptedNoteValue({
   ]);
 }
 
-function unpackEncryptedNoteValue(encryptedNoteValue) {
-  const [ephemeralPubKeyX, packedMeta, ciphertextValue] = normalizeEncryptedNoteValueWords(encryptedNoteValue);
-  const packedMetaBytes = ethers.getBytes(packedMeta);
-  return {
-    ephemeralPubKeyX,
-    ephemeralPubKeyYParity: packedMetaBytes[0],
-    nonce: ethers.hexlify(packedMetaBytes.slice(1, 13)),
-    ciphertextValue,
-    tag: ethers.hexlify(packedMetaBytes.slice(13, 29)),
-    scheme: packedMetaBytes[29],
-  };
-}
-
 function buildNoteReceiveTypedData({ chainId, channelId, channelName, account }) {
   return {
     domain: {
@@ -156,10 +131,6 @@ function encodeNoteValuePlaintext(value) {
     throw new Error("Encrypted note plaintext value must fit within the BLS12-381 scalar field.");
   }
   return scalar;
-}
-
-function decodeNoteValuePlaintext(valueField) {
-  return ethers.toBigInt(valueField).toString();
 }
 
 function deriveFieldMask({
@@ -335,89 +306,4 @@ function encryptFieldNoteValue({
     tag,
     scheme,
   });
-}
-
-export function decryptEncryptedNoteValue({
-  encryptedValue,
-  noteReceivePrivateKey,
-  chainId,
-  channelId,
-  owner,
-}) {
-  return decryptFieldEncryptedNoteValue({
-    encryptedValue,
-    privateKey: noteReceivePrivateKey,
-    chainId,
-    channelId,
-    owner,
-    encryptionInfo: TRANSFER_NOTE_FIELD_ENCRYPTION_INFO,
-    expectedScheme: ENCRYPTED_NOTE_SCHEME_TRANSFER,
-  });
-}
-
-export function decryptMintEncryptedNoteValue({
-  encryptedValue,
-  noteReceivePrivateKey,
-  chainId,
-  channelId,
-  owner,
-}) {
-  return decryptFieldEncryptedNoteValue({
-    encryptedValue,
-    privateKey: noteReceivePrivateKey,
-    chainId,
-    channelId,
-    owner,
-    encryptionInfo: MINT_NOTE_FIELD_ENCRYPTION_INFO,
-    expectedScheme: ENCRYPTED_NOTE_SCHEME_SELF_MINT,
-  });
-}
-
-function decryptFieldEncryptedNoteValue({
-  encryptedValue,
-  privateKey,
-  chainId,
-  channelId,
-  owner,
-  encryptionInfo,
-  expectedScheme,
-}) {
-  const normalized = unpackEncryptedNoteValue(encryptedValue);
-  if (normalized.scheme !== expectedScheme) {
-    throw new Error(`Encrypted note value scheme mismatch. Expected ${expectedScheme}, received ${normalized.scheme}.`);
-  }
-  const sharedSecretPoint = pointFromNoteReceivePubKey({
-      x: normalized.ephemeralPubKeyX,
-      yParity: normalized.ephemeralPubKeyYParity,
-    }).multiply(parseJubjubPrivateScalar(privateKey));
-  const expectedTag = deriveCipherTag({
-    sharedSecretPoint,
-    chainId,
-    channelId,
-    owner,
-    nonce: normalized.nonce,
-    ciphertextValue: ethers.toBigInt(normalized.ciphertextValue),
-    encryptionInfo,
-  });
-  if (ethers.toBigInt(normalizeTagHex(expectedTag)) !== ethers.toBigInt(normalizeTagHex(normalized.tag))) {
-    throw new Error("Encrypted note value integrity tag mismatch.");
-  }
-  const fieldMask = deriveFieldMask({
-    sharedSecretPoint,
-    chainId,
-    channelId,
-    owner,
-    nonce: normalized.nonce,
-    encryptionInfo,
-  });
-  const plaintext = (
-    ethers.toBigInt(normalized.ciphertextValue)
-    - fieldMask
-    + BLS12_381_SCALAR_FIELD_MODULUS
-  ) % BLS12_381_SCALAR_FIELD_MODULUS;
-  return decodeNoteValuePlaintext(plaintext);
-}
-
-export function encryptedNoteValueTuple(encryptedValue) {
-  return normalizeEncryptedNoteValueWords(encryptedValue);
 }

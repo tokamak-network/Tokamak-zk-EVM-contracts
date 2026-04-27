@@ -126,7 +126,9 @@ The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
 When unset, the bridge helper defaults to `mpc` for every supported network.
 
 Both `trusted` and `mpc` install the selected CRS into the fixed Groth16 runtime workspace
-(`~/tokamak-private-channels/groth16`) before the bridge verifier is regenerated.
+(`~/tokamak-private-channels/groth16`) before the bridge verifier is regenerated. `trusted`
+generates a local snarkjs trusted setup in that workspace. `mpc` downloads the latest public
+Groth16 MPC archive.
 
 The bridge implementation validates the locally installed `tokamak-l2js`
 `MT_DEPTH` before deployment so it fails rather than silently deploying a
@@ -237,6 +239,6 @@ After a successful bridge deployment, the bridge-owned Groth16 deployment mirror
 - `bridge/deployments/groth16/<chain-id>/circuit_final.zkey`
 - `bridge/deployments/groth16/<chain-id>/metadata.json`
 - `bridge/deployments/groth16/<chain-id>/verification_key.json`
-- `bridge/deployments/groth16/<chain-id>/phase1_final_14.ptau` when the selected source provides it
+- `bridge/deployments/groth16/<chain-id>/zkey_provenance.json` when the selected source provides it
 
-When `BRIDGE_GROTH_SOURCE=mpc`, bridge refresh downloads the latest public Groth16 MPC archive from the Groth16 CRS Drive folder before regenerating the verifier.
+When `BRIDGE_GROTH_SOURCE=mpc`, bridge refresh downloads the latest public Groth16 MPC archive from the Groth16 CRS Drive folder before regenerating the verifier. When `BRIDGE_GROTH_SOURCE=trusted`, bridge refresh generates a local trusted setup in the Groth16 runtime workspace before regenerating the verifier.

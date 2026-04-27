@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,7 +8,6 @@ import {
   extractZipEntriesFromBuffer,
 } from "./public-drive-crs.mjs";
 import {
-  groth16PackageRoot,
   groth16WorkspacePaths,
   resolveGroth16WorkspaceRoot,
 } from "./paths.mjs";
@@ -18,6 +16,8 @@ import {
   installWorkspaceCircuit,
   installedTokamakL2JsVersion,
 } from "./circuit-install.mjs";
+import { generateLocalTrustedSetup } from "./local-trusted-setup.mjs";
+import { runSnarkjs } from "./snarkjs.mjs";
 import { main as generateUpdateTreeProof } from "../prover/updateTree/generateProof.mjs";
 
 const CRS_FILES = [
@@ -36,9 +36,23 @@ export async function installGroth16Runtime({
   const paths = groth16WorkspacePaths(workspaceRoot);
   fs.mkdirSync(paths.rootDir, { recursive: true });
 
+  const fallbackMetadata = {
+    mtDepth: Number((await import("tokamak-l2js")).MT_DEPTH),
+    tokamakL2JsVersion: installedTokamakL2JsVersion(),
+  };
   let crsInstall = null;
+  let circuitInstall = null;
+
   if (trustedSetup) {
-    crsInstall = copyTrustedSetupArtifacts(paths.crsDir);
+    circuitInstall = await installWorkspaceCircuit({
+      workspaceRoot: paths.rootDir,
+      metadata: fallbackMetadata,
+    });
+    crsInstall = await generateLocalTrustedSetup({
+      workspaceRoot: paths.rootDir,
+      metadata: fallbackMetadata,
+      r1csPath: paths.r1csPath,
+    });
   } else if (!noSetup) {
     crsInstall = await downloadLatestPublicGroth16MpcArtifacts({
       outputDir: paths.crsDir,
@@ -50,22 +64,17 @@ export async function installGroth16Runtime({
     assertInstalledCrs(paths);
   }
 
-  const circuitMetadataPath = fs.existsSync(paths.metadataPath)
-    ? paths.metadataPath
-    : path.join(groth16PackageRoot, "mpc-setup", "crs", "metadata.json");
-  const fallbackMetadata = {
-    mtDepth: Number((await import("tokamak-l2js")).MT_DEPTH),
-    tokamakL2JsVersion: installedTokamakL2JsVersion(),
-  };
-  const circuitInstall = await installWorkspaceCircuit({
-    workspaceRoot: paths.rootDir,
-    metadataPath: fs.existsSync(circuitMetadataPath) ? circuitMetadataPath : null,
-    metadata: fs.existsSync(circuitMetadataPath) ? null : fallbackMetadata,
-  });
+  if (!circuitInstall) {
+    circuitInstall = await installWorkspaceCircuit({
+      workspaceRoot: paths.rootDir,
+      metadataPath: fs.existsSync(paths.metadataPath) ? paths.metadataPath : null,
+      metadata: fs.existsSync(paths.metadataPath) ? null : fallbackMetadata,
+    });
+  }
   const manifest = {
     installedAt: new Date().toISOString(),
     workspaceRoot: paths.rootDir,
-    crsSource: noSetup ? "skipped" : trustedSetup ? "trusted-setup" : "public-drive-mpc",
+    crsSource: noSetup ? "skipped" : trustedSetup ? "local-trusted-setup" : "public-drive-mpc",
     dockerRequested: Boolean(docker),
     crs: crsInstall,
     circuit: circuitInstall,
@@ -111,7 +120,7 @@ export async function verifyUpdateTreeProof({
     assertInstalledCrs(paths);
     assertFile("Groth16 proof", proofPath);
     assertFile("Groth16 public signals", publicPath);
-    run(findSnarkjs(), ["groth16", "verify", paths.verificationKeyPath, publicPath, proofPath], paths.rootDir);
+    runSnarkjs(["groth16", "verify", paths.verificationKeyPath, publicPath, proofPath], paths.rootDir);
   } finally {
     if (proofInput.cleanupDir) {
       fs.rmSync(proofInput.cleanupDir, { recursive: true, force: true });
@@ -190,7 +199,7 @@ export function doctorGroth16Runtime({
   const checks = [];
   const add = (name, ok, details = null) => checks.push({ name, ok, details });
   const installManifest = fs.existsSync(paths.manifestPath) ? readJson(paths.manifestPath) : null;
-  const requiresProvenance = installManifest?.crsSource !== "trusted-setup";
+  const requiresProvenance = installManifest?.crsSource !== "skipped";
 
   add("workspace", fs.existsSync(paths.rootDir), paths.rootDir);
   for (const [name, filePath] of [
@@ -235,16 +244,6 @@ export function doctorGroth16Runtime({
   return { ok, workspaceRoot: paths.rootDir, checks };
 }
 
-function copyTrustedSetupArtifacts(crsDir) {
-  const sourceDir = path.join(groth16PackageRoot, "trusted-setup", "crs");
-  fs.rmSync(crsDir, { recursive: true, force: true });
-  fs.mkdirSync(crsDir, { recursive: true });
-  for (const fileName of CRS_FILES.filter((entry) => entry !== "zkey_provenance.json")) {
-    fs.copyFileSync(path.join(sourceDir, fileName), path.join(crsDir, fileName));
-  }
-  return { source: "trusted-setup", sourceDir, installedFiles: CRS_FILES.filter((entry) => entry !== "zkey_provenance.json") };
-}
-
 function assertInstalledProver(paths) {
   assertFile("Groth16 proving key", paths.zkeyPath);
   assertFile("Groth16 metadata", paths.metadataPath);
@@ -255,21 +254,6 @@ function assertInstalledCrs(paths) {
   assertFile("Groth16 proving key", paths.zkeyPath);
   assertFile("Groth16 verification key", paths.verificationKeyPath);
   assertFile("Groth16 metadata", paths.metadataPath);
-}
-
-function findSnarkjs() {
-  const candidates = [
-    path.join(groth16PackageRoot, "node_modules", ".bin", "snarkjs"),
-    path.join(groth16PackageRoot, "..", "node_modules", ".bin", "snarkjs"),
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? "snarkjs";
-}
-
-function run(command, args, cwd) {
-  execFileSync(command, args, {
-    cwd,
-    stdio: "inherit",
-  });
 }
 
 function assertFile(label, filePath) {

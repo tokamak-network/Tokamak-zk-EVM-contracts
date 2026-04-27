@@ -14,7 +14,7 @@ function usage() {
   --install [--trusted-setup] [--no-setup] [--docker]
       Prepare the local Groth16 runtime under ~/tokamak-private-channels/groth16
       By default CRS artifacts are installed from the public Groth16 MPC archive
-      Use --trusted-setup to install packaged trusted setup artifacts instead
+      Use --trusted-setup to generate a local trusted setup in the workspace instead
       Use --no-setup to skip CRS provisioning while still rendering and compiling the circuit
       --docker is accepted for command parity but the Groth16 runtime uses packaged native Circom binaries
 

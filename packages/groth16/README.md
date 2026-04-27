@@ -26,6 +26,15 @@ The fixed workspace is:
 
 `--install` downloads the latest public Groth16 MPC CRS archive from the hard-coded Groth16 CRS Drive folder, installs `circuit_final.zkey`, `verification_key.json`, `metadata.json`, and `zkey_provenance.json`, renders the `updateTree` circuit from package-local templates, and compiles the circuit WASM/R1CS into the workspace build directory.
 
+`--install --trusted-setup` does not copy any package-local CRS. It renders and compiles the workspace circuit, runs a local snarkjs powers-of-tau and Groth16 setup, and writes the generated CRS only under the fixed workspace:
+
+```text
+~/tokamak-private-channels/groth16/crs/circuit_final.zkey
+~/tokamak-private-channels/groth16/crs/verification_key.json
+~/tokamak-private-channels/groth16/crs/metadata.json
+~/tokamak-private-channels/groth16/crs/zkey_provenance.json
+```
+
 `--prove <INPUT_JSON>` runs the proving flow only: witness generation, proof generation, and public signal generation. It always writes proof artifacts to fixed workspace paths:
 
 ```text
@@ -48,10 +57,10 @@ The fixed workspace is:
 npm install -g snarkjs
 ```
 
-2. Ensure you have the required files:
-   - Circuit WASM file: `circuits/build/merkle_tree_circuit_js/merkle_tree_circuit.wasm`
-   - Final proving key: `trusted-setup/merkle_tree_circuit_final.zkey`
-   - Verification key: `trusted-setup/verification_key.json`
+2. Run `tokamak-groth16 --install` or `tokamak-groth16 --install --trusted-setup` so the workspace contains:
+   - Circuit WASM file: `~/tokamak-private-channels/groth16/build/circuit_updateTree.wasm`
+   - Final proving key: `~/tokamak-private-channels/groth16/crs/circuit_final.zkey`
+   - Verification key: `~/tokamak-private-channels/groth16/crs/verification_key.json`
 
 ### Input Format
 
@@ -70,13 +79,13 @@ Create an input JSON file with your Merkle tree data:
 
 1. **Calculate witness**:
 ```bash
-snarkjs wtns calculate circuits/build/merkle_tree_circuit_js/merkle_tree_circuit.wasm input.json witness.wtns
+snarkjs wtns calculate ~/tokamak-private-channels/groth16/build/circuit_updateTree.wasm input.json witness.wtns
 ```
 This generates `witness.wtns` - a binary file containing all the intermediate values (witness) computed by the circuit for your specific input.
 
 2. **Generate the proof**:
 ```bash
-snarkjs groth16 prove trusted-setup/merkle_tree_circuit_final.zkey witness.wtns proof.json public.json
+snarkjs groth16 prove ~/tokamak-private-channels/groth16/crs/circuit_final.zkey witness.wtns proof.json public.json
 ```
 
 This creates:
@@ -88,7 +97,7 @@ This creates:
 Verify the proof using the verification key:
 
 ```bash
-snarkjs groth16 verify trusted-setup/verification_key.json public.json proof.json
+snarkjs groth16 verify ~/tokamak-private-channels/groth16/crs/verification_key.json public.json proof.json
 ```
 
 ### Example Workflow
@@ -101,13 +110,13 @@ echo '{
 }' > input.json
 
 # 2. Calculate witness
-snarkjs wtns calculate circuits/build/merkle_tree_circuit_js/merkle_tree_circuit.wasm input.json witness.wtns
+snarkjs wtns calculate ~/tokamak-private-channels/groth16/build/circuit_updateTree.wasm input.json witness.wtns
 
 # 3. Generate proof
-snarkjs groth16 prove trusted-setup/merkle_tree_circuit_final.zkey witness.wtns proof.json public.json
+snarkjs groth16 prove ~/tokamak-private-channels/groth16/crs/circuit_final.zkey witness.wtns proof.json public.json
 
 # 4. Verify proof
-snarkjs groth16 verify trusted-setup/verification_key.json public.json proof.json
+snarkjs groth16 verify ~/tokamak-private-channels/groth16/crs/verification_key.json public.json proof.json
 ```
 
 ### Proof Format

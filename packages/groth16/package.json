@@ -38,7 +38,7 @@
     "prover/updateTree/input_example.json"
   ],
   "scripts": {
-    "compile": "npm --prefix circuits run compile",
+    "compile:dev": "npm --prefix circuits run compile:dev",
     "proof:update-tree": "node prover/updateTree/generateProof.mjs",
     "mpc:generate-update-tree": "node mpc-setup/generate_update_tree_setup_from_dusk.mjs",
     "mpc:preflight-update-tree-publish": "node mpc-setup/publish_update_tree_setup.mjs --preflight",

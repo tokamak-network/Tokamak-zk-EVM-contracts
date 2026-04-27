@@ -328,8 +328,8 @@ Leaf format: poseidon4(index, computed_merkle_key, value, 0)
 ## Running Tests
 
 ```bash
-# Compile the circuit with BLS12-381 curve
-npm run compile
+# Compile the circuit with BLS12-381 curve for repository development
+npm run compile:dev
 
 # Run comprehensive circuit tests
 npm test

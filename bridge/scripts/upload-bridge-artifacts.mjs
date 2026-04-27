@@ -9,13 +9,14 @@ import {
   createTimestampLabel,
   preflightExclusiveFolderPath,
   resolveDriveUploadConfig,
+  updateBridgeArtifactIndex,
   uploadFilesByRelativePath,
   writeUploadReceipt,
 } from "../../scripts/drive/lib/google-drive-upload.mjs";
 import {
   bridgeArtifactPaths,
   latestBridgeTimestampLabel,
-} from "../../scripts/artifacts/lib/deployment-layout.mjs";
+} from "../../scripts/deployment/lib/deployment-layout.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -88,12 +89,37 @@ function shouldSkipUpload(chainId) {
   return process.env.BRIDGE_NETWORK === "anvil" || String(chainId) === "31337";
 }
 
+function bridgeArtifactPathsFromDir(rootDir, chainId) {
+  return {
+    rootDir,
+    deploymentPath: path.join(rootDir, `bridge.${chainId}.json`),
+    abiManifestPath: path.join(rootDir, `bridge-abi-manifest.${chainId}.json`),
+    grothManifestPath: path.join(rootDir, `groth16.${chainId}.latest.json`),
+    grothZkeyPath: path.join(rootDir, "groth16", "circuit_final.zkey"),
+    grothVerificationKeyPath: path.join(rootDir, "groth16", "verification_key.json"),
+    grothMetadataPath: path.join(rootDir, "groth16", "metadata.json"),
+    grothZkeyProvenancePath: path.join(rootDir, "groth16", "zkey_provenance.json"),
+    tokamakZkpManifestPath: path.join(rootDir, `tokamak-zkp.${chainId}.latest.json`),
+    tokamakBuildMetadataPath: path.join(rootDir, "tokamak-zkp", "build-metadata-mpc-setup.json"),
+    tokamakCrsProvenancePath: path.join(rootDir, "tokamak-zkp", "crs_provenance.json"),
+    reflectionManifestPath: path.join(rootDir, "zk-reflection.latest.json"),
+  };
+}
+
 function collectBridgeArtifactFiles({ chainId, deploymentPath, abiManifestPath }) {
-  const latestTimestampLabel = latestBridgeTimestampLabel(repoRoot, chainId);
-  if (!latestTimestampLabel) {
-    throw new Error(`No bridge artifact snapshot exists for chain ${chainId}.`);
+  const explicitSnapshotDir = deploymentPath || abiManifestPath
+    ? path.dirname(deploymentPath ?? abiManifestPath)
+    : null;
+  let snapshot;
+  if (explicitSnapshotDir) {
+    snapshot = bridgeArtifactPathsFromDir(explicitSnapshotDir, chainId);
+  } else {
+    const latestTimestampLabel = latestBridgeTimestampLabel(repoRoot, chainId);
+    if (!latestTimestampLabel) {
+      throw new Error(`No bridge artifact snapshot exists for chain ${chainId}.`);
+    }
+    snapshot = bridgeArtifactPaths(repoRoot, chainId, latestTimestampLabel);
   }
-  const snapshot = bridgeArtifactPaths(repoRoot, chainId, latestTimestampLabel);
 
   return [
     deploymentPath
@@ -149,7 +175,16 @@ async function main() {
   const files = collectBridgeArtifactFiles(options);
   const { leafId, leafUrl } = await createExclusiveFolderPath(drive, config.folderId, targetSegments, timestamp);
 
-  await uploadFilesByRelativePath(drive, leafId, files);
+  const uploadedFiles = await uploadFilesByRelativePath(drive, leafId, files);
+  await updateBridgeArtifactIndex({
+    drive,
+    config,
+    chainId: Number(chainId),
+    timestamp,
+    folderId: leafId,
+    folderUrl: leafUrl,
+    uploadedFiles,
+  });
 
   if (options.receiptOut) {
     writeUploadReceipt(options.receiptOut, {
@@ -160,6 +195,7 @@ async function main() {
       driveRootUrl: config.folderUrl,
       uploadedAt: new Date().toISOString(),
       files: files.map(({ relativePath }) => relativePath),
+      artifactIndex: "artifact-index.json",
     });
   }
 

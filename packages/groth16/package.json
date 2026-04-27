@@ -1,0 +1,75 @@
+{
+  "name": "@tokamak-private-dapps/groth16",
+  "version": "0.1.0",
+  "description": "Groth16 circuits, setup, and proof helpers for Tokamak private DApps.",
+  "license": "MIT OR Apache-2.0",
+  "author": "Tokamak Network",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokamak-network/Tokamak-zk-EVM-contracts.git",
+    "directory": "packages/groth16"
+  },
+  "homepage": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/packages/groth16#readme",
+  "bugs": {
+    "url": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/issues"
+  },
+  "keywords": [
+    "tokamak",
+    "groth16",
+    "zk-snark",
+    "circom",
+    "private-dapps",
+    "merkle-tree"
+  ],
+  "type": "module",
+  "bin": {
+    "tokamak-groth16": "cli/tokamak-groth16-cli.mjs"
+  },
+  "exports": {
+    "./public-drive-crs": "./lib/public-drive-crs.mjs",
+    "./prover/updateTree/generateProof": "./prover/updateTree/generateProof.mjs"
+  },
+  "files": [
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    ".dockerignore",
+    "cli",
+    "docker",
+    "lib",
+    "circuits/src",
+    "circuits/circom-platform.mjs",
+    "circuits/run-circom-2.0.mjs",
+    "circuits/circom-2.0-darwin-arm64",
+    "circuits/circom-2.0-linux-amd64",
+    "circuits/package.json",
+    "circuits/package-lock.json",
+    "prover/README.md",
+    "prover/updateTree/generateProof.mjs",
+    "prover/updateTree/input_example.json"
+  ],
+  "scripts": {
+    "compile:dev": "npm --prefix circuits run compile:dev",
+    "proof:update-tree": "node prover/updateTree/generateProof.mjs",
+    "mpc:generate-update-tree": "node mpc-setup/generate_update_tree_setup_from_dusk.mjs",
+    "mpc:preflight-update-tree-publish": "node mpc-setup/publish_update_tree_setup.mjs --preflight",
+    "mpc:publish-update-tree": "node mpc-setup/publish_update_tree_setup.mjs",
+    "release:check": "node ../../scripts/release-readiness.cjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@tokamak-private-dapps/common-library": "^0.1.0",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.14.1",
+    "snarkjs": "^0.7.5",
+    "tokamak-l2js": "^0.1.3",
+    "yauzl": "^3.2.0",
+    "yazl": "^3.3.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

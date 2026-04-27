@@ -1,0 +1,54 @@
+{
+  "name": "@tokamak-private-dapps/private-state-cli",
+  "version": "0.1.1",
+  "description": "Command-line client for the Tokamak private-state DApp.",
+  "license": "MIT OR Apache-2.0",
+  "author": "Tokamak Network",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokamak-network/Tokamak-zk-EVM-contracts.git",
+    "directory": "packages/apps/private-state/cli"
+  },
+  "homepage": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/packages/apps/private-state/cli#readme",
+  "bugs": {
+    "url": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/issues"
+  },
+  "keywords": [
+    "tokamak",
+    "private-dapps",
+    "private-state",
+    "zk-evm",
+    "cli"
+  ],
+  "type": "module",
+  "bin": {
+    "private-state-cli": "private-state-bridge-cli.mjs"
+  },
+  "files": [
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "private-state-bridge-cli.mjs",
+    "cli-assistant.html",
+    "lib"
+  ],
+  "scripts": {
+    "release:check": "node ../../../../scripts/release-readiness.cjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@ethereumjs/util": "^10.1.1",
+    "@noble/curves": "^1.2.0",
+    "@tokamak-private-dapps/common-library": "^0.1.0",
+    "@tokamak-private-dapps/groth16": "^0.1.0",
+    "@tokamak-zk-evm/cli": "^2.0.8",
+    "ethers": "^6.14.1",
+    "tokamak-l2js": "^0.1.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

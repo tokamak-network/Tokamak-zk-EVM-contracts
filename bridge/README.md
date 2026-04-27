@@ -1,9 +1,10 @@
 # Bridge Workspace
 
-This folder contains a standalone bridge-contract implementation derived only from:
+This folder contains a standalone bridge-contract implementation. Start with:
 
-- `bridge/docs/zk-l2-bridge-design-notes.md`
 - `bridge/docs/spec.md`
+- `bridge/docs/zk-l2-bridge-whitepaper.md`
+- `bridge/docs/current-implementation.md`
 
 The existing bridge implementation under the repository `src` directory was intentionally not referenced or reused.
 
@@ -25,9 +26,9 @@ The documents do not specify enough operational detail to implement every produc
 
 - final proposal-pool and token-economics behavior
 
-Tokamak proof verification is no longer mocked. The bridge now calls the real verifier under `tokamak-zkp/`, binds the user-supplied transaction instance to fields extracted from `aPubUser`, and checks the channel-scoped `aPubBlockHash` together with the DApp-managed preprocess-input hash and per-function storage-write metadata. The channel manager no longer stores the full current root vector on-chain; it stores only `currentRootVectorHash`. The full updated root vector is emitted as `CurrentRootVectorObserved` after every proof-backed state transition so off-chain indexers can reconstruct the post-state that produced the new hash. After a successful verification, `executeChannelTransaction` emits `StorageWriteObserved` for every decoded `aPubUser` storage write, and the Groth-backed `deposit` and `withdraw` paths emit the same event format for their `channelTokenVault` writes. Under the latest synthesizer format, those events now expose the storage key rather than the derived tree index. The bridge still derives the `channelTokenVault` leaf index internally from that storage key when it updates the local leaf cache. A Tokamak proof that changes the `channelTokenVault` root without a matching `channelTokenVault` storage write is rejected.
+Tokamak proof verification is no longer mocked. The bridge now calls the real verifier under `bridge/src/verifiers/`, binds the user-supplied transaction instance to fields extracted from `aPubUser`, and checks the channel-scoped `aPubBlockHash` together with the DApp-managed preprocess-input hash and per-function storage-write metadata. The channel manager no longer stores the full current root vector on-chain; it stores only `currentRootVectorHash`. The full updated root vector is emitted as `CurrentRootVectorObserved` after every proof-backed state transition so off-chain indexers can reconstruct the post-state that produced the new hash. After a successful verification, `executeChannelTransaction` emits `StorageWriteObserved` for every decoded `aPubUser` storage write, and the Groth-backed `deposit` and `withdraw` paths emit the same event format for their `channelTokenVault` writes. Under the latest synthesizer format, those events now expose the storage key rather than the derived tree index. The bridge still derives the `channelTokenVault` leaf index internally from that storage key when it updates the local leaf cache. A Tokamak proof that changes the `channelTokenVault` root without a matching `channelTokenVault` storage write is rejected.
 
-Groth proof verification is also no longer mocked. The bridge expects raw Groth16 proof coordinates and forwards them into the generated `updateTree` verifier under `groth16/verifier/`. Under the current circuit model, each `channelTokenVault` leaf is the raw stored balance value rather than a key-value hash.
+Groth proof verification is also no longer mocked. The bridge expects raw Groth16 proof coordinates and forwards them into the generated `updateTree` verifier under `bridge/src/generated/`. Under the current circuit model, each `channelTokenVault` leaf is the raw stored balance value rather than a key-value hash.
 
 ## Security-Critical Assumptions
 
@@ -86,7 +87,7 @@ Optional environment variables:
 - `BRIDGE_MOCK_ASSET_NAME`
 - `BRIDGE_MOCK_ASSET_SYMBOL`
 - `BRIDGE_OUTPUT_PATH`
-- `BRIDGE_REFLECTION_MANIFEST_PATH`
+- `BRIDGE_REFLECTION_MANIFEST_PATH` to override the bridge ZK manifest output path
 - `BRIDGE_SKIP_TOKAMAK_INSTALL=1`
 - `BRIDGE_SKIP_TOKAMAK_VERIFIER_REFRESH=1`
 - `BRIDGE_SKIP_GROTH_REFRESH=1`
@@ -98,14 +99,14 @@ fill in the bridge variables, and use the helper script:
 cp .env.example .env
 $EDITOR .env
 
-bash bridge/scripts/deploy-bridge.sh
+node bridge/scripts/deploy-bridge.mjs
 ```
 
 Or select the deployment mode explicitly:
 
 ```bash
-bash bridge/scripts/deploy-bridge.sh --mode upgrade
-bash bridge/scripts/deploy-bridge.sh --mode redeploy-proxy
+node bridge/scripts/deploy-bridge.mjs --mode upgrade
+node bridge/scripts/deploy-bridge.mjs --mode redeploy-proxy
 ```
 
 The helper derives the correct Alchemy RPC URL from:
@@ -115,26 +116,24 @@ The helper derives the correct Alchemy RPC URL from:
 
 If you need a non-Alchemy endpoint, set `BRIDGE_RPC_URL_OVERRIDE`.
 
-The helper also resolves the latest published `tokamak-l2js` package and reads
-its exported `MT_DEPTH` before broadcasting deployment. Internally it now runs
-`scripts/zk/reflect-submodule-updates.mjs`, which also refreshes the Tokamak
-verifier parameters from `setupParams.json` and regenerates the Groth16
-`updateTree` artifacts before deployment. The reflected `MT_DEPTH` value is
-forwarded into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
+The helper reads the locally installed `tokamak-l2js` package and its exported
+`MT_DEPTH` before broadcasting deployment. The helper refreshes the
+Tokamak verifier parameters from `setupParams.json`, regenerates the Groth16
+`updateTree` verifier, and writes the bridge ZK manifest directly from
+`bridge/scripts/deploy-bridge.mjs`. The installed `MT_DEPTH` value is forwarded
+into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
 
 The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
-When unset, the bridge helper defaults to:
+When unset, the bridge helper defaults to `mpc` for every supported network.
 
-- `mainnet` -> `mpc`
-- every other supported network -> `trusted`
+Both `trusted` and `mpc` install the selected CRS into the fixed Groth16 runtime workspace
+(`~/tokamak-private-channels/groth16`) before the bridge verifier is regenerated. `trusted`
+generates a local snarkjs trusted setup in that workspace. `mpc` downloads the latest public
+Groth16 MPC archive.
 
-`trusted` regenerates artifacts under `groth16/trusted-setup/crs`, while `mpc`
-regenerates artifacts under `groth16/mpc-setup/crs`.
-
-The current bridge implementation is still intentionally hard-bound to depth
-`12` for soundness. If the latest `tokamak-l2js` publishes a different
-`MT_DEPTH`, deployment will fail rather than silently deploying a mismatched
-bridge configuration.
+The bridge implementation validates the locally installed `tokamak-l2js`
+`MT_DEPTH` before deployment so it fails rather than silently deploying a
+mismatched bridge configuration.
 
 The helper now has two explicit modes:
 
@@ -144,13 +143,13 @@ The helper now has two explicit modes:
 `upgrade` never creates or replaces proxies. If the network-scoped deployment artifact is missing or is not proxy-based,
 the command fails and you must run `redeploy-proxy` intentionally.
 
-The script writes one deployment artifact per network under `bridge/deployments/` by default:
+The script writes one timestamped deployment artifact per chain under `deployment/` by default:
 
-- `bridge/deployments/bridge.<chain-id>.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/bridge.<chain-id>.json`
 
 It also generates one ABI manifest per network from the current Foundry build artifacts:
 
-- `bridge/deployments/bridge-abi-manifest.<chain-id>.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/bridge-abi-manifest.<chain-id>.json`
 
 The deployment JSON is post-processed to include `chainId` and `abiManifestPath` so downstream tooling can resolve the correct bridge ABI set without hardcoded function signatures.
 
@@ -169,8 +168,8 @@ To add a new DApp metadata bundle to an already deployed bridge, use:
 `admin-add-dapp.mjs`:
 
 - assumes the private-state app is already deployed
-- mirrors the prover/CLI-consumed Groth16 artifacts from `bridge/deployments/groth16/<chain-id>/` into `apps/private-state/deploy/groth16/<chain-id>/`
-- reads the selected example-group inputs from `apps/private-state/examples/synthesizer/privateState/`
+- writes chain-scoped DApp registration snapshots under `deployment/chain-id-<chain-id>/dapps/private-state/<timestamp>/`
+- reads the selected example-group inputs from `packages/apps/private-state/examples/synthesizer/privateState/`
 - runs the installed `@tokamak-zk-evm/cli` runtime without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
 - derives function metadata from `instance.json` and `instance_description.json`
@@ -187,6 +186,8 @@ Example usage:
 ```bash
 node bridge/scripts/deploy-and-add-dapp.mjs \
   --group mintNotes \
+  --group transferNotes \
+  --group redeemNotes \
   --dapp-id 1
 ```
 
@@ -237,8 +238,10 @@ Until that confirmation exists, the user's channel registration is not final and
 
 After a successful bridge deployment, the bridge-owned Groth16 deployment mirror is refreshed under:
 
-- `bridge/deployments/groth16.<chain-id>.latest.json`
-- `bridge/deployments/groth16/<chain-id>/circuit_final.zkey`
-- `bridge/deployments/groth16/<chain-id>/metadata.json`
-- `bridge/deployments/groth16/<chain-id>/verification_key.json`
-- `bridge/deployments/groth16/<chain-id>/phase1_final_14.ptau` when the selected source provides it
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16.<chain-id>.latest.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/circuit_final.zkey`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/metadata.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/verification_key.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/zkey_provenance.json` when the selected source provides it
+
+When `BRIDGE_GROTH_SOURCE=mpc`, bridge refresh downloads the latest public Groth16 MPC archive from the Groth16 CRS Drive folder before regenerating the verifier. When `BRIDGE_GROTH_SOURCE=trusted`, bridge refresh generates a local trusted setup in the Groth16 runtime workspace before regenerating the verifier.

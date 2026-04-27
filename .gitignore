@@ -50,15 +50,19 @@ ignition/deployments/chain-31337
 /.github
 
 # Groth16 directories to exclude
-groth16/trusted-setup/pow_of_tau/
-groth16/trusted-setup/crs/
-groth16/circuits/build/
+packages/groth16/trusted-setup/pow_of_tau/
+packages/groth16/trusted-setup/crs/
+packages/groth16/crs/
+packages/groth16/mpc-setup/crs/
+packages/groth16/install-manifest.json
+packages/groth16/circuits/build/
+deployment/**/groth16/circuit_final.zkey
 *.ptau
 .DS_Store
 # Keep app CLI workspaces out of git while preserving sentinel files.
-apps/*/cli/workspace/*
-!apps/*/cli/workspace/.gitignore
-apps/*/deploy/synthesizer-layouts/*
+packages/apps/*/cli/workspace/*
+!packages/apps/*/cli/workspace/.gitignore
+packages/apps/*/deploy/synthesizer-layouts/*
 scripts/zk/rkyv-to-json/target/
 # Ignore per-DApp generated zk artifacts while keeping shared manifests.
 scripts/output/zk-artifacts/*/

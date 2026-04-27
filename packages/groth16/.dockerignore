@@ -1,0 +1,8 @@
+node_modules
+circuits/node_modules
+circuits/build
+mpc-setup
+trusted-setup
+*.tgz
+.git
+.DS_Store

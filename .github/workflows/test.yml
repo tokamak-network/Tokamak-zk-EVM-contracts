@@ -140,12 +140,12 @@ jobs:
         run: npm ci
 
       - name: Install Groth16 circuit dependencies
-        run: npm ci --prefix groth16/circuits
+        run: npm ci --prefix packages/groth16/circuits
 
       - name: Verify Groth16 circuit tooling
         run: |
-          test -x groth16/circuits/node_modules/.bin/snarkjs
-          groth16/circuits/node_modules/.bin/snarkjs g16v --help >/dev/null
+          test -x packages/groth16/circuits/node_modules/.bin/snarkjs
+          packages/groth16/circuits/node_modules/.bin/snarkjs g16v --help >/dev/null
 
       - name: Install tsx
         run: npm install -g tsx
@@ -224,7 +224,7 @@ jobs:
       - name: Run private-state bridge CLI end-to-end test
         run: |
           bash scripts/ci/run-with-memory-monitor.sh \
-            --log-dir apps/private-state/scripts/e2e/output/private-state-bridge-cli/system-monitor \
+            --log-dir packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/system-monitor \
             -- \
             npm run test:private-state:cli-e2e
 
@@ -235,9 +235,9 @@ jobs:
           name: private-state-cli-e2e-failure-diagnostics
           if-no-files-found: warn
           path: |
-            apps/private-state/scripts/e2e/output/private-state-bridge-cli/failure-diagnostics.json
-            apps/private-state/scripts/e2e/output/private-state-bridge-cli/summary.json
-            apps/private-state/scripts/e2e/output/private-state-bridge-cli/**
+            packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/failure-diagnostics.json
+            packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/summary.json
+            packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/**
             ${{ env.HOME }}/tokamak-private-channels/workspace/anvil/private-state-cli-e2e/channel/current/**
             ${{ env.HOME }}/tokamak-private-channels/workspace/anvil/private-state-cli-e2e/channel/operations/**
             ${{ env.HOME }}/tokamak-private-channels/workspace/anvil/private-state-cli-e2e/wallets/**/operations/**

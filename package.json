@@ -1,21 +1,52 @@
 {
+  "name": "tokamak-private-app-channels-workspace",
+  "private": true,
+  "description": "Workspace for Tokamak Private App Channels bridge contracts, private DApps, and Groth16 tooling.",
+  "license": "MIT OR Apache-2.0",
+  "author": "Tokamak Network",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokamak-network/Tokamak-zk-EVM-contracts.git"
+  },
+  "homepage": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts#readme",
+  "bugs": {
+    "url": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/issues"
+  },
+  "keywords": [
+    "tokamak",
+    "zk-evm",
+    "zk-rollup",
+    "private-app-channels",
+    "groth16",
+    "foundry",
+    "solidity"
+  ],
   "type": "module",
+  "workspaces": [
+    "packages/common",
+    "packages/groth16",
+    "packages/apps/private-state/cli"
+  ],
   "scripts": {
-    "gen:tokamak-vk": "node scripts/generate-tokamak-verifier-key.js",
     "test:bridge:unit": "forge test --root bridge -vv",
-    "test:private-state:cli-e2e": "node apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs"
+    "test:private-state:cli-e2e": "node packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs"
   },
   "dependencies": {
     "@ethereumjs/util": "^10.1.1",
     "@google-cloud/local-auth": "^3.0.1",
-    "@tokamak-zk-evm/cli": "^2.0.7",
+    "@tokamak-private-dapps/common-library": "file:packages/common",
+    "@tokamak-private-dapps/groth16": "file:packages/groth16",
+    "@tokamak-zk-evm/cli": "^2.0.8",
     "@tokamak-zk-evm/subcircuit-library": "^1.0.3",
     "@tokamak-zk-evm/synthesizer-node": "^1.0.3",
+    "dotenv": "^16.4.7",
     "ethers": "^6.14.1",
     "fs": "^0.0.1-security",
     "googleapis": "^171.4.0",
     "js-sha3": "^0.9.3",
     "msgpackr": "^1.11.3",
-    "tokamak-l2js": "^0.1.3"
+    "snarkjs": "^0.7.5",
+    "tokamak-l2js": "^0.1.3",
+    "yazl": "^3.3.1"
   }
 }

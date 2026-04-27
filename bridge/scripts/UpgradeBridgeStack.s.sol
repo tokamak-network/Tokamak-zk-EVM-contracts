@@ -9,8 +9,8 @@ import {DAppManager} from "../src/DAppManager.sol";
 import {L1TokenVault} from "../src/L1TokenVault.sol";
 import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
-import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
-import {TokamakVerifier} from "tokamak-zkp/TokamakVerifier.sol";
+import {Groth16Verifier} from "../src/generated/Groth16Verifier.sol";
+import {TokamakVerifier} from "../src/verifiers/TokamakVerifier.sol";
 
 contract UpgradeBridgeStackScript is Script {
     using stdJson for string;

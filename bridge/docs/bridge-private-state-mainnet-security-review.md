@@ -7,7 +7,7 @@ Date: 2026-04-10
 This document reviews the current implementation that would be used to deploy:
 
 - the L1 bridge stack under `bridge/src`
-- the `private-state` DApp under `apps/private-state/src`
+- the `private-state` DApp under `packages/apps/private-state/src`
 
 The review is focused on two threat classes:
 
@@ -25,12 +25,12 @@ Reviewed code and artifacts:
 - `bridge/src/ChannelManager.sol`
 - `bridge/src/DAppManager.sol`
 - `bridge/src/BridgeAdminManager.sol`
-- `apps/private-state/src/PrivateStateController.sol`
-- `apps/private-state/src/L2AccountingVault.sol`
-- `apps/private-state/cli/private-state-bridge-cli.mjs`
+- `packages/apps/private-state/src/PrivateStateController.sol`
+- `packages/apps/private-state/src/L2AccountingVault.sol`
+- `packages/apps/private-state/cli/private-state-bridge-cli.mjs`
 - `bridge/scripts/DeployBridgeStack.s.sol`
-- `bridge/deployments/bridge.11155111.json`
-- `bridge/deployments/dapp-registration.11155111.json`
+- `deployment/chain-id-11155111/bridge/<timestamp>/bridge.11155111.json`
+- `deployment/chain-id-11155111/dapps/private-state/<timestamp>/dapp-registration.11155111.json`
 - `test/private-state/PrivateStateController.t.sol`
 - `bridge/test/BridgeFlow.t.sol`
 
@@ -41,7 +41,7 @@ Verification performed:
 
 Verification limitation:
 
-- the repository root Foundry configuration still compiles legacy broken tests under `test/bridge`, so `make test` for `apps/private-state` currently fails before it can isolate the private-state suite
+- the repository root Foundry configuration still compiles legacy broken tests under `test/bridge`, so `make test` for `packages/apps/private-state` currently fails before it can isolate the private-state suite
 
 ## 3. Executive Conclusion
 
@@ -86,7 +86,7 @@ See `bridge/src/L1TokenVault.sol`.
 - BLS12-381 scalar-field overflow checks on credits
 - underflow protection on debits
 
-See `apps/private-state/src/L2AccountingVault.sol`.
+See `packages/apps/private-state/src/L2AccountingVault.sol`.
 
 ### 4.3 Note lifecycle functions preserve ownership and value
 
@@ -98,7 +98,7 @@ See `apps/private-state/src/L2AccountingVault.sol`.
 - one-time commitment creation
 - credit back to liquid balance only through redeem paths
 
-See `apps/private-state/src/PrivateStateController.sol`.
+See `packages/apps/private-state/src/PrivateStateController.sol`.
 
 ### 4.4 The bridge rejects unsupported token transfer behavior
 
@@ -218,7 +218,7 @@ Relevant code:
 - `bridge/src/DAppManager.sol:384`
 - `bridge/src/BridgeAdminManager.sol:38`
 - `bridge/scripts/DeployBridgeStack.s.sol:35-90`
-- `bridge/deployments/bridge.11155111.json:12-18`
+- `deployment/chain-id-11155111/bridge/<timestamp>/bridge.11155111.json:12-18`
 
 Why it matters:
 
@@ -263,7 +263,7 @@ Severity: High
 Relevant code:
 
 - `bridge/src/ChannelManager.sol:222-272`
-- `apps/private-state/cli/private-state-bridge-cli.mjs:1052-1113`
+- `packages/apps/private-state/cli/private-state-bridge-cli.mjs:1052-1113`
 - `bridge/src/ChannelManager.sol:71`
 - `bridge/src/ChannelManager.sol:245-266`
 
@@ -397,8 +397,8 @@ Severity: High
 Relevant code:
 
 - `tokamak-l2js` `TokamakL2StateManager`
-- `apps/private-state/src/PrivateStateController.sol`
-- `apps/private-state/cli/private-state-bridge-cli.mjs`
+- `packages/apps/private-state/src/PrivateStateController.sol`
+- `packages/apps/private-state/cli/private-state-bridge-cli.mjs`
 - `bridge/src/ChannelManager.sol`
 
 Why it matters:

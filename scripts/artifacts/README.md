@@ -10,7 +10,7 @@ Legacy network-specific contract manifests from the removed root deployment flow
 
 They are no longer the authoritative source for current bridge deployments. Current bridge deployment outputs live under:
 
-- `bridge/deployments/`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/`
 
 ## Convention
 

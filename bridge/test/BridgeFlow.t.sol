@@ -19,8 +19,8 @@ import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {FeeOnTransferMockERC20} from "../src/mocks/FeeOnTransferMockERC20.sol";
 import {DepositGrothProofFixture, WithdrawGrothProofFixture} from "./GrothProofFixtures.sol";
-import {Groth16Verifier} from "groth16-verifier/src/Groth16Verifier.sol";
-import {TokamakVerifier} from "tokamak-zkp/TokamakVerifier.sol";
+import {Groth16Verifier} from "../src/generated/Groth16Verifier.sol";
+import {TokamakVerifier} from "../src/verifiers/TokamakVerifier.sol";
 
 contract BridgeFlowTest is Test {
     using stdJson for string;
@@ -36,11 +36,11 @@ contract BridgeFlowTest is Test {
     uint256 internal constant DEFAULT_JOIN_FEE = 1 ether;
     string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
     string internal constant REAL_TOKAMAK_PROOF_PATH =
-        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/prove/fixture/proof.json";
+        "test/fixtures/mintNotes1-proof/resource/prove/fixture/proof.json";
     string internal constant REAL_TOKAMAK_PREPROCESS_PATH =
-        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/preprocess/fixture/preprocess.json";
+        "test/fixtures/mintNotes1-proof/resource/preprocess/fixture/preprocess.json";
     string internal constant REAL_TOKAMAK_INSTANCE_PATH =
-        "../tokamak-zkp/test/fixtures/mintNotes1-proof/resource/synthesizer/fixture/instance.json";
+        "test/fixtures/mintNotes1-proof/resource/synthesizer/fixture/instance.json";
     address internal constant REAL_TOKAMAK_APP_STORAGE = 0x8b64A4D3DF1771d7dFC93b374f545563B680b420;
     uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 43;
 

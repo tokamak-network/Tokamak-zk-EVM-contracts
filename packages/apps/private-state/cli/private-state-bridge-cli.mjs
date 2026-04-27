@@ -3351,7 +3351,6 @@ async function assertWorkspaceAlignedWithChain(context) {
 }
 
 async function buildGrothTransition({ operationDir, workspace, stateManager, vaultAddress, keyHex, nextValue }) {
-  const grothArtifacts = loadGroth16UpdateTreeArtifacts(Number(workspace.chainId));
   const vaultAddressObj = createAddressFromString(vaultAddress);
   const keyBigInt = ethers.toBigInt(keyHex);
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
@@ -3378,22 +3377,14 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
   };
 
   const inputPath = path.join(operationDir, "input.json");
-  const proofOutputPath = path.join(operationDir, "proof.json");
-  const publicOutputPath = path.join(operationDir, "public.json");
   writeJson(inputPath, input);
-  await generateUpdateTreeProof([
+  const proofManifest = await generateUpdateTreeProof([
     "--input",
     inputPath,
-    "--zkey",
-    grothArtifacts.zkeyPath,
-    "--proof-output",
-    proofOutputPath,
-    "--public-output",
-    publicOutputPath,
   ]);
 
-  const proofJson = readJson(proofOutputPath);
-  const publicSignals = readJson(publicOutputPath);
+  const proofJson = readJson(proofManifest.proofPath);
+  const publicSignals = readJson(proofManifest.publicPath);
 
   return {
     input,
@@ -4151,42 +4142,6 @@ function networkNameFromChainId(chainId) {
   if (chainId === 11155111) return "sepolia";
   if (chainId === 31337) return "anvil";
   throw new Error(`Unsupported chain ID for private-state bridge CLI: ${chainId}`);
-}
-
-function groth16UpdateTreeManifestPath(chainId) {
-  return requireFlatDeploymentArtifactPathsForChainId(chainId).grothManifestPath;
-}
-
-function resolveDeployManifestArtifactPath(manifestPath, artifactPath) {
-  expect(
-    typeof artifactPath === "string" && artifactPath.length > 0,
-    `Invalid artifact path entry in ${manifestPath}.`,
-  );
-  return path.isAbsolute(artifactPath)
-    ? artifactPath
-    : path.resolve(path.dirname(manifestPath), artifactPath);
-}
-
-function loadGroth16UpdateTreeArtifacts(chainId) {
-  const manifestPath = groth16UpdateTreeManifestPath(chainId);
-  expect(
-    fs.existsSync(manifestPath),
-    `Missing Groth16 updateTree manifest for chain ${chainId}: ${manifestPath}.`,
-  );
-
-  const manifest = readJson(manifestPath);
-  const zkeyPath = resolveDeployManifestArtifactPath(manifestPath, manifest.artifacts?.zkeyPath);
-
-  for (const [label, artifactPath] of [
-    ["Groth16 updateTree proving key", zkeyPath],
-  ]) {
-    expect(fs.existsSync(artifactPath), `Missing ${label} for chain ${chainId}: ${artifactPath}.`);
-  }
-
-  return {
-    manifestPath,
-    zkeyPath,
-  };
 }
 
 function findStorageSlot(storageLayoutManifest, contractName, label) {

@@ -991,37 +991,46 @@ function readCliVersion() {
   return packageJson.version;
 }
 
-function readSetupVersion(buildMetadataPathValue, fallbackVersion) {
-  if (!fs.existsSync(buildMetadataPathValue)) {
-    return fallbackVersion;
-  }
+function readSetupVersion(buildMetadataPathValue) {
   const metadata = readJson(buildMetadataPathValue);
-  return typeof metadata.packageVersion === "string" && metadata.packageVersion.length > 0
-    ? metadata.packageVersion
-    : fallbackVersion;
+  if (typeof metadata.packageVersion !== "string" || metadata.packageVersion.length === 0) {
+    throw new Error(`Tokamak setup metadata has no packageVersion: ${buildMetadataPathValue}`);
+  }
+  return metadata.packageVersion;
+}
+
+function assertSetupVersionMatchesCliVersion(setupVersion, cliVersion) {
+  if (setupVersion !== cliVersion) {
+    throw new Error(
+      [
+        "Tokamak setup metadata version does not match the installed tokamak-cli package version.",
+        `tokamak-cli package version: ${cliVersion}`,
+        `build-metadata-mpc-setup.json packageVersion: ${setupVersion}`,
+      ].join("\n"),
+    );
+  }
 }
 
 assertFileExists(combinedSigmaPath, "combined_sigma.rkyv");
 assertFileExists(sigmaPreprocessPath, "sigma_preprocess.rkyv");
 assertFileExists(sigmaVerifyPath, "sigma_verify.json");
+assertFileExists(buildMetadataPath, "build-metadata-mpc-setup.json");
+const cliVersion = readCliVersion();
+const artifactVersion = readSetupVersion(buildMetadataPath);
+assertSetupVersionMatchesCliVersion(artifactVersion, cliVersion);
+
 fs.rmSync(artifactDir, { recursive: true, force: true });
 
-let relativeBuildMetadataPath = null;
-if (fs.existsSync(buildMetadataPath)) {
-  fs.mkdirSync(artifactDir, { recursive: true });
-  copyFile(buildMetadataPath, path.join(artifactDir, "build-metadata-mpc-setup.json"));
-  relativeBuildMetadataPath = "tokamak-zkp/build-metadata-mpc-setup.json";
-}
+fs.mkdirSync(artifactDir, { recursive: true });
+copyFile(buildMetadataPath, path.join(artifactDir, "build-metadata-mpc-setup.json"));
+const relativeBuildMetadataPath = "tokamak-zkp/build-metadata-mpc-setup.json";
 
 let relativeCrsProvenancePath = null;
 if (fs.existsSync(crsProvenancePath)) {
-  fs.mkdirSync(artifactDir, { recursive: true });
   copyFile(crsProvenancePath, path.join(artifactDir, "crs_provenance.json"));
   relativeCrsProvenancePath = "tokamak-zkp/crs_provenance.json";
 }
 
-const cliVersion = readCliVersion();
-const artifactVersion = readSetupVersion(buildMetadataPath, cliVersion);
 writeJson(manifestPath, {
   generatedAtUtc: new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z"),
   chainId: Number(chainId),

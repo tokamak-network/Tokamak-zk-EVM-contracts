@@ -4,9 +4,7 @@ This note records the current audit findings for repository scripts, focusing on
 
 ## Findings
 
-1. Bridge deployment keeps a compatibility fallback for Tokamak setup version metadata.
-   - `bridge/scripts/deploy-bridge.sh` falls back to the Tokamak CLI package version when `build-metadata-mpc-setup.json` is missing.
-   - If current deployment requires setup metadata, this fallback should be replaced with a fail-fast error.
+No unresolved findings remain.
 
 ## Keep For Now
 
@@ -17,4 +15,4 @@ This note records the current audit findings for repository scripts, focusing on
 
 ## Suggested Cleanup Order
 
-1. Decide whether bridge deployment metadata fallbacks should remain or fail fast.
+No cleanup items remain.

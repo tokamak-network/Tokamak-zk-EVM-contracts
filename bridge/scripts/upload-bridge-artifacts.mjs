@@ -16,7 +16,7 @@ import {
 import {
   bridgeArtifactPaths,
   latestBridgeTimestampLabel,
-} from "../../scripts/artifacts/lib/deployment-layout.mjs";
+} from "../../scripts/deployment/lib/deployment-layout.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

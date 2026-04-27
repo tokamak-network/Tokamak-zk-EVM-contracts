@@ -45,7 +45,7 @@ import {
 import {
   bridgeArtifactPaths,
   requireLatestDappArtifactDir,
-} from "../../../../scripts/artifacts/lib/deployment-layout.mjs";
+} from "../../../../../scripts/deployment/lib/deployment-layout.mjs";
 import {
   computeEncryptedNoteSalt,
   deriveNoteReceiveKeyMaterial,

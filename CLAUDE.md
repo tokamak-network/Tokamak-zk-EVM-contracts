@@ -34,8 +34,8 @@ forge test --match-test testChannelCreationAndDeposits
 ### Deployment & Scripts
 ```bash
 # Deploy or upgrade the current bridge stack
-bash bridge/scripts/deploy-bridge.sh --mode redeploy-proxy
-bash bridge/scripts/deploy-bridge.sh --mode upgrade
+node bridge/scripts/deploy-bridge.mjs --mode redeploy-proxy
+node bridge/scripts/deploy-bridge.mjs --mode upgrade
 
 # Register a DApp on an already deployed bridge
 node bridge/scripts/admin-add-dapp.mjs --group mintNotes --dapp-id 1
@@ -96,7 +96,7 @@ The system automatically selects tree sizes based on channel requirements:
 ### Deployment Scripts
 - `bridge/scripts/DeployBridgeStack.s.sol` - Current bridge deployment script
 - `bridge/scripts/UpgradeBridgeStack.s.sol` - Current bridge upgrade script
-- `bridge/scripts/deploy-bridge.sh` - Current bridge deployment wrapper
+- `bridge/scripts/deploy-bridge.mjs` - Current bridge deployment wrapper
 - `bridge/scripts/admin-add-dapp.mjs` - Current bridge-side DApp registration entrypoint
 
 ## Security Features

@@ -20,11 +20,11 @@ Current deployment and upgrade entrypoints now live under:
 
 For bridge deployment and upgrades, use:
 
-- `bridge/scripts/deploy-bridge.sh`
+- `bridge/scripts/deploy-bridge.mjs`
 - `bridge/scripts/DeployBridgeStack.s.sol`
 - `bridge/scripts/UpgradeBridgeStack.s.sol`
 
-`bridge/scripts/deploy-bridge.sh` directly refreshes the Tokamak verifier,
+`bridge/scripts/deploy-bridge.mjs` directly refreshes the Tokamak verifier,
 bridge-facing Tokamak constants, the Groth16 runtime CRS, and the Groth16
 verifier before it broadcasts a bridge deployment.
 Current ZK deployment and DApp-registration details are documented in

@@ -101,7 +101,7 @@ make e2e-bridge-cli
 cp .env.example .env
 $EDITOR .env
 
-bash bridge/scripts/deploy-bridge.sh
+node bridge/scripts/deploy-bridge.mjs
 ```
 
 For an already deployed bridge stack, deploy-and-register the private-state DApp with:

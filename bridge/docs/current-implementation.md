@@ -13,7 +13,7 @@ published Tokamak subcircuit library package, the Groth16 package, and the local
 ### Bridge Deployment
 
 Bridge deployment performs its ZK refresh directly inside
-[deploy-bridge.sh](../scripts/deploy-bridge.sh) instead of routing through a separate reflection
+[deploy-bridge.mjs](../scripts/deploy-bridge.mjs) instead of routing through a separate reflection
 orchestrator. The deployment helper performs the following tasks before broadcasting:
 
 1. Runs the installed `@tokamak-zk-evm/cli` runtime refresh with `tokamak-cli --install`.

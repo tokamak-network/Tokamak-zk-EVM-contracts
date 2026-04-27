@@ -98,14 +98,14 @@ fill in the bridge variables, and use the helper script:
 cp .env.example .env
 $EDITOR .env
 
-bash bridge/scripts/deploy-bridge.sh
+node bridge/scripts/deploy-bridge.mjs
 ```
 
 Or select the deployment mode explicitly:
 
 ```bash
-bash bridge/scripts/deploy-bridge.sh --mode upgrade
-bash bridge/scripts/deploy-bridge.sh --mode redeploy-proxy
+node bridge/scripts/deploy-bridge.mjs --mode upgrade
+node bridge/scripts/deploy-bridge.mjs --mode redeploy-proxy
 ```
 
 The helper derives the correct Alchemy RPC URL from:
@@ -119,7 +119,7 @@ The helper reads the locally installed `tokamak-l2js` package and its exported
 `MT_DEPTH` before broadcasting deployment. The helper refreshes the
 Tokamak verifier parameters from `setupParams.json`, regenerates the Groth16
 `updateTree` verifier, and writes the bridge ZK manifest directly from
-`bridge/scripts/deploy-bridge.sh`. The installed `MT_DEPTH` value is forwarded
+`bridge/scripts/deploy-bridge.mjs`. The installed `MT_DEPTH` value is forwarded
 into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
 
 The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.

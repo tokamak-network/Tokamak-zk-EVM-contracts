@@ -60,7 +60,7 @@ const repoRoot = path.resolve(__dirname, "..", "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "packages", "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
 const cliPath = path.resolve(appRoot, "cli", "private-state-bridge-cli.mjs");
-const bridgeDeployHelperPath = path.resolve(bridgeRoot, "scripts", "deploy-bridge.sh");
+const bridgeDeployHelperPath = path.resolve(bridgeRoot, "scripts", "deploy-bridge.mjs");
 const adminAddDAppPath = path.resolve(bridgeRoot, "scripts", "admin-add-dapp.mjs");
 const privateStateDeployScriptPath = path.resolve(
   appRoot,
@@ -1298,7 +1298,7 @@ function deployBridgeStack() {
   }
 
   run(
-    "bash",
+    "node",
     [
       bridgeDeployHelperPath,
       "--mode",

@@ -23,13 +23,10 @@
   ],
   "type": "module",
   "bin": {
-    "tokamak-groth16": "cli/tokamak-groth16-cli.mjs",
-    "tokamak-groth16-cli": "cli/tokamak-groth16-cli.mjs",
-    "tokamak-groth16-update-tree-proof": "prover/updateTree/generateProof.mjs"
+    "tokamak-groth16": "cli/tokamak-groth16-cli.mjs"
   },
   "exports": {
     "./public-drive-crs": "./lib/public-drive-crs.mjs",
-    "./runtime": "./lib/proof-runtime.mjs",
     "./prover/updateTree/generateProof": "./prover/updateTree/generateProof.mjs"
   },
   "files": [

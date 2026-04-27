@@ -22,6 +22,8 @@ import {
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
+  deriveL2KeysFromSignature,
+  fromEdwardsToAddress,
   getUserStorageKey,
   poseidon,
 } from "tokamak-l2js";
@@ -40,14 +42,6 @@ import {
   resolveTokamakCliSetupOutputDir,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
 import {
-  deriveChannelIdFromName,
-  deriveParticipantIdentityFromSigner,
-  workspaceDirForName as sharedWorkspaceDirForName,
-  workspaceWalletsDir as sharedWorkspaceWalletsDir,
-  walletDirForName as sharedWalletDirForName,
-  walletNameForChannelAndAddress as sharedWalletNameForChannelAndAddress,
-} from "../../cli/lib/private-state-cli-shared.mjs";
-import {
   deriveNoteReceiveKeyMaterial,
   encryptMintNoteValueForOwner,
   computeEncryptedNoteSalt,
@@ -59,7 +53,18 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "packages", "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
-const cliPath = path.resolve(appRoot, "cli", "private-state-bridge-cli.mjs");
+const cliPackageManifestPath = path.resolve(appRoot, "cli", "package.json");
+const cliPackageManifest = JSON.parse(fs.readFileSync(cliPackageManifestPath, "utf8"));
+const cliPackageSpec = process.env.PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC?.trim()
+  || `${cliPackageManifest.name}@${cliPackageManifest.version}`;
+const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
+const cliInstallRoot = path.resolve(outputRoot, "npm-cli-install");
+const cliBinPath = path.join(
+  cliInstallRoot,
+  "node_modules",
+  ".bin",
+  process.platform === "win32" ? "private-state-cli.cmd" : "private-state-cli",
+);
 const bridgeDeployHelperPath = path.resolve(bridgeRoot, "scripts", "deploy-bridge.mjs");
 const adminAddDAppPath = path.resolve(bridgeRoot, "scripts", "admin-add-dapp.mjs");
 const privateStateDeployScriptPath = path.resolve(
@@ -69,7 +74,6 @@ const privateStateDeployScriptPath = path.resolve(
   "DeployPrivateState.s.sol:DeployPrivateStateScript",
 );
 const privateStateArtifactWriterPath = path.resolve(appRoot, "scripts", "deploy", "write-deploy-artifacts.mjs");
-const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const systemMonitorRoot = path.resolve(outputRoot, "system-monitor");
 const bridgeEnvPath = path.resolve(outputRoot, "bridge.anvil.env");
 const summaryPath = path.resolve(outputRoot, "summary.json");
@@ -109,6 +113,7 @@ const tokamakStepArtifactDirectories = [
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const noteCommitmentDomain = keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NOTE_COMMITMENT"));
+const l2PasswordSigningDomain = "Tokamak private-state L2 password binding";
 const registrationLaunchInputsRoot = path.resolve(outputRoot, "generated-launch-inputs");
 const localRegistrationExamples = [
   "mintNotes1",
@@ -125,13 +130,14 @@ function usage() {
   node packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs [options]
 
 Options:
-  --skip-install                      Skip Tokamak/private-state CLI install steps
+  --skip-install                      Skip Tokamak runtime and private-state artifact install steps
   --skip-groth-setup                  Skip bridge Groth16 refresh during local redeploy
   --keep-anvil                         Leave anvil running after success
   --help                               Show this help
 
 Notes:
-  - The participant scenario is executed through the private-state CLI only.
+  - The participant scenario is executed through an npm-installed private-state-cli binary only.
+  - Set PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC to override the npm package spec. Default: ${cliPackageSpec}
   - Bridge deployment, DApp registration, and canonical-asset minting still use existing command-line helpers because
     the current private-state CLI does not expose those administrative setup flows.
 `);
@@ -172,6 +178,63 @@ function expect(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function slugifyPathComponent(value) {
+  return String(value)
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+function deriveChannelIdFromName(name) {
+  return ethers.toBigInt(keccak256(ethers.toUtf8Bytes(name)));
+}
+
+function buildL2PasswordSigningMessage({ channelName: name, password }) {
+  if (typeof name !== "string" || name.length === 0) {
+    throw new Error("Missing channel name for L2 identity derivation.");
+  }
+  return [
+    l2PasswordSigningDomain,
+    `channel:${name}`,
+    `password:${String(password)}`,
+  ].join("\n");
+}
+
+async function deriveParticipantIdentityFromSigner({ channelName: name, password, signer }) {
+  const seedSignature = await signer.signMessage(buildL2PasswordSigningMessage({ channelName: name, password }));
+  const keySet = deriveL2KeysFromSignature(seedSignature);
+  const l2Address = getAddress(fromEdwardsToAddress(keySet.publicKey).toString());
+  return {
+    seedSignature,
+    l2PrivateKey: keySet.privateKey,
+    l2PublicKey: keySet.publicKey,
+    l2Address,
+  };
+}
+
+function walletNameForChannelAndAddress(name, l1Address) {
+  return `${name}-${getAddress(l1Address)}`;
+}
+
+function workspaceNetworkDir(root, networkName) {
+  return path.join(root, slugifyPathComponent(networkName));
+}
+
+function workspaceDirForName(root, networkName, workspaceName) {
+  return path.join(
+    workspaceNetworkDir(root, networkName),
+    slugifyPathComponent(workspaceName),
+  );
+}
+
+function workspaceWalletsDir(workspaceDir) {
+  return path.join(workspaceDir, "wallets");
+}
+
+function walletDirForNameInRoot(walletsRoot, walletName) {
+  return path.join(walletsRoot, slugifyPathComponent(walletName));
 }
 
 let currentCliE2EOptions = {
@@ -364,6 +427,34 @@ function runJsonCommand(command, args, options = {}) {
   } finally {
     fs.rmSync(jsonOutputPath, { force: true });
   }
+}
+
+function installPrivateStateCliPackageForE2E() {
+  cleanDir(cliInstallRoot);
+  writeJson(path.join(cliInstallRoot, "package.json"), {
+    private: true,
+    type: "module",
+    description: "Temporary private-state CLI E2E install root.",
+  });
+  run("npm", ["install", "--no-audit", "--no-fund", cliPackageSpec], {
+    cwd: cliInstallRoot,
+    quiet: true,
+    label: "private-state-cli:npm-install",
+  });
+  expect(
+    fs.existsSync(cliBinPath),
+    `npm install completed but private-state-cli binary is missing: ${cliBinPath}`,
+  );
+  run(cliBinPath, ["--help"], {
+    cwd: cliInstallRoot,
+    quiet: true,
+    label: "private-state-cli:npm-smoke-help",
+  });
+  return {
+    packageSpec: cliPackageSpec,
+    installRoot: cliInstallRoot,
+    binPath: cliBinPath,
+  };
 }
 
 function extractTrailingJsonObject(stdout) {
@@ -1046,8 +1137,13 @@ async function materializeRegistrationLaunchBundles(provider, participants) {
 }
 
 function runPrivateStateCli(args, options = {}) {
-  return runJsonCommand("node", [cliPath, ...args], {
+  expect(
+    fs.existsSync(cliBinPath),
+    `Missing npm-installed private-state-cli binary: ${cliBinPath}`,
+  );
+  return runJsonCommand(cliBinPath, args, {
     ...options,
+    cwd: options.cwd ?? cliInstallRoot,
     label: options.label ?? `private-state-cli:${args[0] ?? "unknown"}`,
     quiet: options.quiet ?? true,
   });
@@ -1055,6 +1151,8 @@ function runPrivateStateCli(args, options = {}) {
 
 function installPrivateStateCliRuntimeForE2E() {
   return runPrivateStateCli(["--install", "--include-local-artifacts"], {
+    // Local anvil artifacts are generated under the repository deployment/ tree during bootstrap.
+    cwd: repoRoot,
     label: "private-state-cli:install",
   });
 }
@@ -1141,9 +1239,9 @@ async function resolveParticipantRegistrations(provider, participants) {
 }
 
 function walletDirForName(walletName) {
-  const workspaceDir = sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
-  const walletsRoot = sharedWorkspaceWalletsDir(workspaceDir);
-  return sharedWalletDirForName(walletsRoot, walletName);
+  const workspaceDir = workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
+  const walletsRoot = workspaceWalletsDir(workspaceDir);
+  return walletDirForNameInRoot(walletsRoot, walletName);
 }
 
 function assertBigIntEq(actual, expected, label) {
@@ -1155,7 +1253,7 @@ function assertBigIntEq(actual, expected, label) {
 
 function removeCliRunState() {
   cleanDir(outputRoot);
-  fs.rmSync(sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName), { recursive: true, force: true });
+  fs.rmSync(workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName), { recursive: true, force: true });
 }
 
 function pruneCliRunOutput() {
@@ -1208,7 +1306,7 @@ function extractReferencedPaths(text) {
 }
 
 function writeFailureDiagnostics(error) {
-  const workspaceDir = sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
+  const workspaceDir = workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName);
   const channelOperationsRoot = path.join(workspaceDir, "channel", "operations");
   const walletsRoot = path.join(workspaceDir, "wallets");
   const walletDiagnostics = fs.existsSync(walletsRoot)
@@ -1468,7 +1566,7 @@ function joinChannel(participant) {
     assertResolvedWalletIdentity(result, participant, `${participant.alias} join-channel`);
   }
   expect(
-    result.wallet === sharedWalletNameForChannelAndAddress(channelName, result.l1Address),
+    result.wallet === walletNameForChannelAndAddress(channelName, result.l1Address),
     `join-channel returned unexpected wallet name ${result.wallet}.`,
   );
   return result;
@@ -1516,7 +1614,7 @@ function deleteWalletDir(participant) {
 }
 
 function deleteWorkspaceDir() {
-  fs.rmSync(sharedWorkspaceDirForName(workspaceRoot, workspaceNetworkName, channelName), {
+  fs.rmSync(workspaceDirForName(workspaceRoot, workspaceNetworkName, channelName), {
     recursive: true,
     force: true,
   });
@@ -1633,11 +1731,13 @@ async function main() {
   let bridgeDeployment = null;
   let canonicalAsset = null;
   let dappRegistrationResult = null;
+  let cliPackageInstall = null;
   const commandResults = {
     participants: {},
   };
 
   try {
+    cliPackageInstall = installPrivateStateCliPackageForE2E();
     console.log("E2E CLI: bootstrapping anvil and local deployments.");
     bootstrapAnvil();
     await resolveParticipantRegistrations(provider, participants);
@@ -1845,6 +1945,7 @@ async function main() {
     const summary = {
       providerUrl,
       channelName,
+      cliPackage: cliPackageInstall,
       bridgeDeployment,
       canonicalAsset,
       dappRegistration: dappRegistrationResult,

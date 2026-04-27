@@ -4,6 +4,11 @@
 It keeps bridge deployment, DApp registration, and canonical-asset minting in existing helper commands because the
 current private-state CLI intentionally starts at user-facing bridge and note flows rather than admin bootstrap flows.
 
+The participant flow runs through an npm-installed `private-state-cli` binary, not the repository source file. By
+default, the harness installs the exact `@tokamak-private-dapps/private-state-cli` version declared in
+`packages/apps/private-state/cli/package.json` from the npm registry. Set `PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC` to test a
+different published tag, version, or package spec.
+
 The scenario combines:
 
 - L1 ERC-20 funding into the bridge vault
@@ -43,6 +48,8 @@ node packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mj
 Optional flag:
 
 - `--keep-anvil`: leave the local anvil process running after success
+- `--skip-install`: skip Tokamak runtime and private-state artifact installation after npm package installation
+- `--skip-groth-setup`: skip bridge Groth16 refresh during local redeploy
 
 ## Outputs
 

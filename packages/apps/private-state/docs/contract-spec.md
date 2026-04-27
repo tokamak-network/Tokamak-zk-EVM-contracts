@@ -205,12 +205,13 @@ This same storage vector must be used consistently by:
 
 ## 10. Deployment Artifacts
 
-Successful deployments write app-local artifacts under `packages/apps/private-state/deploy`:
+Successful deployments write chain-scoped app artifacts under
+`deployment/chain-id-<chain-id>/dapps/private-state/<timestamp>/`:
 
 - deployment manifests
 - storage-layout manifests
 - callable ABI JSON files
-- proving-key metadata
-- Synthesizer layout artifacts
+- DApp registration manifests after bridge registration
+- source snapshots used by the registration artifact
 
 These artifacts drive both bridge registration and CLI proof-generation workflows.

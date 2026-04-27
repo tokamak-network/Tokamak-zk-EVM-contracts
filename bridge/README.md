@@ -143,13 +143,13 @@ The helper now has two explicit modes:
 `upgrade` never creates or replaces proxies. If the network-scoped deployment artifact is missing or is not proxy-based,
 the command fails and you must run `redeploy-proxy` intentionally.
 
-The script writes one deployment artifact per network under `bridge/deployments/` by default:
+The script writes one timestamped deployment artifact per chain under `deployment/` by default:
 
-- `bridge/deployments/bridge.<chain-id>.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/bridge.<chain-id>.json`
 
 It also generates one ABI manifest per network from the current Foundry build artifacts:
 
-- `bridge/deployments/bridge-abi-manifest.<chain-id>.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/bridge-abi-manifest.<chain-id>.json`
 
 The deployment JSON is post-processed to include `chainId` and `abiManifestPath` so downstream tooling can resolve the correct bridge ABI set without hardcoded function signatures.
 
@@ -168,7 +168,7 @@ To add a new DApp metadata bundle to an already deployed bridge, use:
 `admin-add-dapp.mjs`:
 
 - assumes the private-state app is already deployed
-- mirrors the prover/CLI-consumed Groth16 artifacts from `bridge/deployments/groth16/<chain-id>/` into `packages/apps/private-state/deploy/groth16/<chain-id>/`
+- writes chain-scoped DApp registration snapshots under `deployment/chain-id-<chain-id>/dapps/private-state/<timestamp>/`
 - reads the selected example-group inputs from `packages/apps/private-state/examples/synthesizer/privateState/`
 - runs the installed `@tokamak-zk-evm/cli` runtime without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
@@ -186,6 +186,8 @@ Example usage:
 ```bash
 node bridge/scripts/deploy-and-add-dapp.mjs \
   --group mintNotes \
+  --group transferNotes \
+  --group redeemNotes \
   --dapp-id 1
 ```
 
@@ -236,10 +238,10 @@ Until that confirmation exists, the user's channel registration is not final and
 
 After a successful bridge deployment, the bridge-owned Groth16 deployment mirror is refreshed under:
 
-- `bridge/deployments/groth16.<chain-id>.latest.json`
-- `bridge/deployments/groth16/<chain-id>/circuit_final.zkey`
-- `bridge/deployments/groth16/<chain-id>/metadata.json`
-- `bridge/deployments/groth16/<chain-id>/verification_key.json`
-- `bridge/deployments/groth16/<chain-id>/zkey_provenance.json` when the selected source provides it
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16.<chain-id>.latest.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/circuit_final.zkey`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/metadata.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/verification_key.json`
+- `deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/zkey_provenance.json` when the selected source provides it
 
 When `BRIDGE_GROTH_SOURCE=mpc`, bridge refresh downloads the latest public Groth16 MPC archive from the Groth16 CRS Drive folder before regenerating the verifier. When `BRIDGE_GROTH_SOURCE=trusted`, bridge refresh generates a local trusted setup in the Groth16 runtime workspace before regenerating the verifier.

@@ -33,6 +33,8 @@ This project follows a package-oriented changelog model:
 ### Private-State CLI
 
 - Added npm package metadata, release readiness, and automated publishing coverage.
+- Updated channel balance proof generation to use only the fixed Groth16 runtime workspace proof paths.
+- Added npm-installed CLI E2E coverage for local tarball package specs before publication.
 
 ### Bridge
 

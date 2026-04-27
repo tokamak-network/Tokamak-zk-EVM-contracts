@@ -59,6 +59,10 @@ Wallet data is encrypted with the password supplied to `join-channel` or `recove
 Proof-backed commands require installed bridge, DApp, and Groth16 artifacts. Run `private-state-cli --install` before
 using bridge-facing commands on a new machine.
 
+Channel balance commands such as `deposit-channel` and `withdraw-channel` use the installed Groth16 runtime workspace
+directly. Proof generation writes to the fixed workspace paths under `~/tokamak-private-channels/groth16/proof`; the CLI
+does not pass custom `--zkey`, proof-output, or public-output paths to the Groth16 prover.
+
 Release order matters for npm publication. `@tokamak-private-dapps/common-library` and
 `@tokamak-private-dapps/groth16` must be published before this package version.
 

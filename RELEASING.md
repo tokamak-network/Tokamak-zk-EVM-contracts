@@ -58,6 +58,8 @@ scope and GitHub repository environment.
 3. Run `npm run test:bridge:unit`.
 4. Run `npm run test:private-state:cli-e2e` when bridge, Groth16, private-state,
    deployment, or CLI behavior changes.
+   For unpublished private-state CLI changes, run the same E2E against a local
+   tarball with `PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC`.
 5. Verify relative Markdown links.
 6. Update `CHANGELOG.md`.
 7. Update the package changelog for every package whose version changes.

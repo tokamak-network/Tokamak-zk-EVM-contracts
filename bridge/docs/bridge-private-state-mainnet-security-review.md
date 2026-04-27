@@ -29,8 +29,8 @@ Reviewed code and artifacts:
 - `packages/apps/private-state/src/L2AccountingVault.sol`
 - `packages/apps/private-state/cli/private-state-bridge-cli.mjs`
 - `bridge/scripts/DeployBridgeStack.s.sol`
-- `bridge/deployments/bridge.11155111.json`
-- `bridge/deployments/dapp-registration.11155111.json`
+- `deployment/chain-id-11155111/bridge/<timestamp>/bridge.11155111.json`
+- `deployment/chain-id-11155111/dapps/private-state/<timestamp>/dapp-registration.11155111.json`
 - `test/private-state/PrivateStateController.t.sol`
 - `bridge/test/BridgeFlow.t.sol`
 
@@ -218,7 +218,7 @@ Relevant code:
 - `bridge/src/DAppManager.sol:384`
 - `bridge/src/BridgeAdminManager.sol:38`
 - `bridge/scripts/DeployBridgeStack.s.sol:35-90`
-- `bridge/deployments/bridge.11155111.json:12-18`
+- `deployment/chain-id-11155111/bridge/<timestamp>/bridge.11155111.json:12-18`
 
 Why it matters:
 

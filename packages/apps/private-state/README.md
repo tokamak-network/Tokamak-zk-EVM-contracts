@@ -45,21 +45,18 @@ Required variables:
 
 For `APPS_NETWORK=anvil`, scripts default to `http://127.0.0.1:8545`.
 
-Deployment artifacts can be materialized into `packages/apps/private-state/deploy` by running
+Deployment artifacts can be materialized into `deployment/chain-id-<chain-id>/dapps/private-state/<timestamp>/` by running
 `packages/apps/private-state/scripts/deploy/write-deploy-artifacts.mjs`:
 
-- `deployment.<chain-id>.<timestamp>.json`
 - `deployment.<chain-id>.latest.json`
-- `storage-layout.<chain-id>.<timestamp>.json`
 - `storage-layout.<chain-id>.latest.json`
 - `PrivateStateController.callable-abi.json`
 - `L2AccountingVault.callable-abi.json`
 
-Bridge-side DApp registration then refreshes the app-local Groth16 consumption mirror under:
+Bridge-side DApp registration then writes the registered DApp snapshot in the same chain-scoped deployment layout:
 
-- `groth16-updateTree.<chain-id>.latest.json`
-- `groth16/<chain-id>/circuit_final.zkey`
-- `groth16/<chain-id>/metadata.json`
+- `dapp-registration.<chain-id>.json`
+- `source/`
 
 Bridge-side DApp registration consumes repo-owned Synthesizer example inputs under:
 
@@ -96,12 +93,13 @@ The CLI:
 - requires `--network` on bridge-facing commands that do not already have a local wallet
 - does not read `packages/apps/.env`
 - rebuilds wallet-backed providers from the wallet metadata `rpcUrl`
-- reads the bridge deployment manifest and ABI manifest from `bridge/deployments/`
+- reads installed bridge, DApp, registration, and Groth16 artifacts from
+  `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
 - binds every channel to the canonical Tokamak Network Token for the selected network
 - stores channel state under `~/tokamak-private-channels/workspace/<network>/<channel>/channel/`
 - stores per-user wallets under `~/tokamak-private-channels/workspace/<network>/<channel>/wallets/<wallet>/`
-- loads deployed proving artifacts from `packages/apps/private-state/deploy/` for proof-backed channel and wallet commands
-- may rebuild the local `updateTree` circuit before proof generation, but never reruns trusted setup
+- uses the fixed Groth16 runtime workspace under `~/tokamak-private-channels/groth16/` for channel balance proofs
+- may rebuild the local `updateTree` circuit before proof generation, but never reruns trusted setup during normal proof-backed commands
 - materializes or refreshes saved channel workspaces automatically for wallet-backed snapshot commands
 
 Important rules:
@@ -146,6 +144,7 @@ The commands below are ordered by the normal execution flow.
 - installs the minimal private-state deployment artifacts into
   `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
 - installs the latest public Groth16 MPC `circuit_final.zkey` from the Groth16 CRS Drive folder
+- writes Groth16 proof outputs only under the fixed runtime workspace proof directory
 - refreshes shared bridge constants derived from `tokamak-l2js`
 
 `uninstall-zk-evm`

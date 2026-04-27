@@ -7,7 +7,7 @@ current private-state CLI intentionally starts at user-facing bridge and note fl
 The participant flow runs through an npm-installed `private-state-cli` binary, not the repository source file. By
 default, the harness installs the exact `@tokamak-private-dapps/private-state-cli` version declared in
 `packages/apps/private-state/cli/package.json` from the npm registry. Set `PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC` to test a
-different published tag, version, or package spec.
+different published tag, version, local tarball, or package spec before publishing a new CLI version.
 
 The scenario combines:
 
@@ -43,6 +43,14 @@ The harness uses three participants:
 
 ```bash
 node packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs
+```
+
+To test an unpublished local package build, pack the CLI and point the harness at the tarball:
+
+```bash
+npm pack ./packages/apps/private-state/cli --pack-destination /tmp/private-state-cli-pack
+PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC=/tmp/private-state-cli-pack/tokamak-private-dapps-private-state-cli-<version>.tgz \
+  npm run test:private-state:cli-e2e
 ```
 
 Optional flag:

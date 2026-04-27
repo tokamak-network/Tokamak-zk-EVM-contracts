@@ -16,8 +16,8 @@ The private-state CLI is not a thin transaction sender. It is an off-chain proto
 The normal command flow is:
 
 1. `create-channel`
-2. `join-channel`
-3. `deposit-bridge`
+2. `deposit-bridge`
+3. `join-channel`
 4. `deposit-channel`
 5. `mint-notes`
 6. `transfer-notes`
@@ -61,6 +61,11 @@ Before proof generation, the CLI materializes a transaction bundle containing:
 - `contract_codes.json`
 
 These inputs must match the registered function metadata for the active DApp and channel.
+
+`deposit-channel` and `withdraw-channel` are the channel-token-vault accounting exceptions. They generate the Groth16
+`updateTree` proof from the current wallet snapshot and always consume the installed Groth16 runtime workspace. The
+prover writes `proof.json` and `public.json` to the fixed workspace proof directory rather than to per-operation output
+paths.
 
 ## 5. Snapshot Rules
 

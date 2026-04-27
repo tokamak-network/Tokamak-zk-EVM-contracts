@@ -110,18 +110,28 @@ node bridge/scripts/deploy-bridge.mjs
 For an already deployed bridge stack, deploy-and-register the private-state DApp with:
 
 ```bash
-node bridge/scripts/deploy-and-add-dapp.mjs --group mintNotes --dapp-id 1
+node bridge/scripts/deploy-and-add-dapp.mjs \
+  --group mintNotes \
+  --group transferNotes \
+  --group redeemNotes \
+  --dapp-id 1
 ```
 
 If the app is already deployed and only registration is needed, use:
 
 ```bash
-node bridge/scripts/admin-add-dapp.mjs --group mintNotes --dapp-id 1
+node bridge/scripts/admin-add-dapp.mjs \
+  --group mintNotes \
+  --group transferNotes \
+  --group redeemNotes \
+  --dapp-id 1
 ```
 
-Bridge deployment owns the canonical mirrored Groth16 artifacts under
-`bridge/deployments/groth16/<chain-id>/`, and DApp registration mirrors the
-prover/CLI-consumed subset into `packages/apps/private-state/deploy/groth16/<chain-id>/`.
+Bridge deployment owns the chain-scoped Groth16 deployment snapshot under
+`deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/`. The npm CLI installs the
+proof-consuming subset into `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
+and uses the fixed Groth16 runtime workspace under `~/tokamak-private-channels/groth16/` for
+proof generation.
 
 See [bridge/README.md](./bridge/README.md) for deployment modes, environment variables, and bridge registration details.
 
@@ -144,7 +154,7 @@ The private-state DApp is the reference app integration for the bridge. It conta
 
 - DApp contracts under [packages/apps/private-state/src/](./packages/apps/private-state/src/)
 - bridge-coupled CLI tooling under [packages/apps/private-state/cli/](./packages/apps/private-state/cli/)
-- app deployment artifacts under [packages/apps/private-state/deploy/](./packages/apps/private-state/deploy/)
+- chain-scoped app deployment snapshots under [deployment/](./deployment/)
 - protocol and security documents under [packages/apps/private-state/docs/](./packages/apps/private-state/docs/)
 
 ### Tokamak Verifier Artifacts

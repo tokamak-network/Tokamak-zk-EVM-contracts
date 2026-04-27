@@ -86,6 +86,32 @@ function run(command, args, { cwd = invocationCwd, env = process.env, stdio = "i
   return result;
 }
 
+function resolveRuntimeBinaryPath(runtimeRoot, binaryName) {
+  const executableName = process.platform === "win32" ? `${binaryName}.exe` : binaryName;
+  return path.join(runtimeRoot, "bin", executableName);
+}
+
+function readRuntimeBinaryVersion(runtimeRoot, binaryName) {
+  const binaryPath = resolveRuntimeBinaryPath(runtimeRoot, binaryName);
+  assertFileExists(binaryPath, `Tokamak zk proof backend binary: ${binaryName}`);
+  const result = spawnSync(binaryPath, ["--version"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    fail(`${binaryPath} --version exited with status ${result.status ?? "unknown"}`);
+  }
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim();
+  const match = output.match(/\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/);
+  if (!match) {
+    fail(`Could not parse ${binaryName} version from --version output: ${output}`);
+  }
+  return match[1];
+}
+
 function timestampUtcCompact() {
   return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
@@ -920,7 +946,7 @@ function syncGroth16ArtifactsForBridge(chainId) {
 
 function syncTokamakZkpArtifactsForBridge(chainId) {
   const timestampLabel = process.env.BRIDGE_ARTIFACT_TIMESTAMP;
-  const tokamakCliPackageRoot = process.env.TOKAMAK_CLI_PACKAGE_ROOT;
+  const tokamakCliRuntimeRoot = process.env.TOKAMAK_CLI_RUNTIME_ROOT;
   const tokamakSetupOutputDir = process.env.TOKAMAK_CLI_SETUP_OUTPUT_DIR;
   const snapshotDir = path.join(projectRoot, "deployment", `chain-id-${chainId}`, "bridge", timestampLabel);
   const artifactDir = path.join(snapshotDir, "tokamak-zkp");
@@ -936,21 +962,29 @@ function syncTokamakZkpArtifactsForBridge(chainId) {
   assertFileExists(sigmaVerifyPath, "required Tokamak zk proof artifact: sigma_verify.json");
   assertFileExists(buildMetadataPath, "required Tokamak zk proof artifact: build-metadata-mpc-setup.json");
 
-  const cliPackageJsonPath = path.join(tokamakCliPackageRoot, "package.json");
-  const cliVersion = readJson(cliPackageJsonPath).version;
-  if (typeof cliVersion !== "string" || cliVersion.length === 0) {
-    fail(`Tokamak CLI package has no version: ${cliPackageJsonPath}`);
+  if (typeof tokamakCliRuntimeRoot !== "string" || tokamakCliRuntimeRoot.length === 0) {
+    fail("Missing TOKAMAK_CLI_RUNTIME_ROOT for Tokamak zk proof backend version checks");
   }
   const buildMetadata = readJson(buildMetadataPath);
   const artifactVersion = buildMetadata.packageVersion;
   if (typeof artifactVersion !== "string" || artifactVersion.length === 0) {
     fail(`Tokamak setup metadata has no packageVersion: ${buildMetadataPath}`);
   }
-  if (artifactVersion !== cliVersion) {
+  const backendVersions = Object.fromEntries(
+    ["preprocess", "prove", "verify"].map((binaryName) => [
+      binaryName,
+      readRuntimeBinaryVersion(tokamakCliRuntimeRoot, binaryName),
+    ]),
+  );
+  const mismatchedBackendVersions = Object.entries(backendVersions)
+    .filter(([, version]) => version !== artifactVersion);
+  if (mismatchedBackendVersions.length > 0) {
     fail([
-      "Tokamak setup metadata version does not match the installed tokamak-cli package version.",
-      `tokamak-cli package version: ${cliVersion}`,
+      "Tokamak setup metadata version does not match the installed backend binary versions.",
       `build-metadata-mpc-setup.json packageVersion: ${artifactVersion}`,
+      `preprocess binary version: ${backendVersions.preprocess}`,
+      `prove binary version: ${backendVersions.prove}`,
+      `verify binary version: ${backendVersions.verify}`,
     ].join("\n"));
   }
 

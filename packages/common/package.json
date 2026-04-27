@@ -2,6 +2,24 @@
   "name": "@tokamak-private-dapps/common-library",
   "version": "0.1.0",
   "description": "Shared runtime helpers for Tokamak private DApp CLIs.",
+  "license": "MIT OR Apache-2.0",
+  "author": "Tokamak Network",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokamak-network/Tokamak-zk-EVM-contracts.git",
+    "directory": "packages/common"
+  },
+  "homepage": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/packages/common#readme",
+  "bugs": {
+    "url": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/issues"
+  },
+  "keywords": [
+    "tokamak",
+    "private-dapps",
+    "zk-evm",
+    "cli-runtime",
+    "ethers"
+  ],
   "type": "module",
   "exports": {
     "./network-config": "./src/network-config.mjs",

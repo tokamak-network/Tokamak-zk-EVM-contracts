@@ -1,4 +1,26 @@
 {
+  "name": "tokamak-private-app-channels-workspace",
+  "private": true,
+  "description": "Workspace for Tokamak Private App Channels bridge contracts, private DApps, and Groth16 tooling.",
+  "license": "MIT OR Apache-2.0",
+  "author": "Tokamak Network",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tokamak-network/Tokamak-zk-EVM-contracts.git"
+  },
+  "homepage": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts#readme",
+  "bugs": {
+    "url": "https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/issues"
+  },
+  "keywords": [
+    "tokamak",
+    "zk-evm",
+    "zk-rollup",
+    "private-app-channels",
+    "groth16",
+    "foundry",
+    "solidity"
+  ],
   "type": "module",
   "workspaces": [
     "packages/common",

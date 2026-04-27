@@ -1,9 +1,10 @@
 # Bridge Workspace
 
-This folder contains a standalone bridge-contract implementation derived only from:
+This folder contains a standalone bridge-contract implementation. Start with:
 
-- `bridge/docs/zk-l2-bridge-design-notes.md`
 - `bridge/docs/spec.md`
+- `bridge/docs/zk-l2-bridge-whitepaper.md`
+- `bridge/docs/current-implementation.md`
 
 The existing bridge implementation under the repository `src` directory was intentionally not referenced or reused.
 

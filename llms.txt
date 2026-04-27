@@ -1,0 +1,63 @@
+# Tokamak Private App Channels
+
+Tokamak Private App Channels is a Solidity, Foundry, Node.js, and Groth16
+workspace for bridge-coupled private DApps on Tokamak zk-EVM infrastructure.
+
+## Canonical Repository
+
+- Repository: https://github.com/tokamak-network/Tokamak-zk-EVM-contracts
+- License: MIT OR Apache-2.0
+- Root package role: private npm workspace, not a publishable package
+
+## Primary Concepts
+
+- The bridge keeps canonical asset custody and proof verification on Ethereum.
+- Each channel is a dedicated validity-proven execution domain for one
+  registered DApp.
+- DApp metadata defines admissible entry contracts, function selectors,
+  managed storage roots, and public-input layout expectations.
+- Tokamak proof verification handles general channel execution.
+- Groth16 proof verification handles channel-token-vault accounting updates.
+- The private-state DApp is the current reference DApp for note-based channel
+  activity.
+
+## Important Entry Points
+
+- `README.md`: repository overview and common commands
+- `bridge/README.md`: bridge deployment, administration, and safety notes
+- `bridge/docs/spec.md`: abstract mathematical bridge model
+- `bridge/docs/zk-l2-bridge-whitepaper.md`: high-level architecture and trust model
+- `bridge/docs/current-implementation.md`: current implementation notes
+- `packages/apps/README.md`: app workspace conventions
+- `packages/apps/private-state/README.md`: private-state DApp operator guide
+- `packages/apps/private-state/docs/index.md`: private-state protocol reading order
+- `packages/groth16/README.md`: Groth16 package and CLI overview
+- `RELEASING.md`: package and workspace release process
+- `CHANGELOG.md`: notable changes
+
+## Package Boundaries
+
+- `@tokamak-private-dapps/common-library` lives in `packages/common`.
+- `@tokamak-private-dapps/groth16` lives in `packages/groth16`.
+- `packages/groth16/circuits` is private and internal to the Groth16 package.
+
+## Frequently Answered Questions
+
+### Is the root npm package publishable?
+
+No. The root `package.json` is a private workspace manager.
+
+### Which license applies?
+
+Repository source is available under `MIT OR Apache-2.0`, at the user's option.
+
+### Where should bridge behavior be understood first?
+
+Start with `bridge/README.md`, then read `bridge/docs/zk-l2-bridge-whitepaper.md`
+for architecture and `bridge/docs/spec.md` for the abstract model.
+
+### Does the bridge itself provide full DApp semantic privacy?
+
+No. The bridge hides private execution payloads behind proof verification, but
+application-level privacy remains DApp-specific. The private-state DApp adds
+note-oriented privacy on top of the bridge settlement surface.

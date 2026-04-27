@@ -1,6 +1,6 @@
 # Tokamak Private App Channels
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](./LICENSE)
 [![Foundry](https://img.shields.io/badge/Foundry-Enabled-green.svg)](https://getfoundry.sh/)
 [![Node.js](https://img.shields.io/badge/Node.js-Required-blue.svg)](https://nodejs.org/)
 
@@ -26,6 +26,9 @@ The active bridge implementation lives under [bridge/](./bridge/). It treats eac
 - Verifier notes: [bridge/docs/verifier-spec.md](./bridge/docs/verifier-spec.md)
 - App workspace guide: [packages/apps/README.md](./packages/apps/README.md)
 - Private-state DApp guide: [packages/apps/private-state/README.md](./packages/apps/private-state/README.md)
+- AI/search summary: [llms.txt](./llms.txt)
+- Release process: [RELEASING.md](./RELEASING.md)
+- Changelog: [CHANGELOG.md](./CHANGELOG.md)
 
 ## Repository Model
 
@@ -163,4 +166,6 @@ Some root-level scripts and tests remain from earlier bridge iterations. They ar
 
 ## License
 
-Repository source files use MIT SPDX identifiers.
+Repository source files are licensed under either MIT or Apache-2.0, at your option.
+See [LICENSE](./LICENSE), [LICENSE-MIT](./LICENSE-MIT), and
+[LICENSE-APACHE](./LICENSE-APACHE).

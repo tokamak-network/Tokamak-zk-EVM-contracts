@@ -6,8 +6,6 @@ This directory only supports the `updateTree` circuit.
 
 - `updateTree/generateProof.mjs`: Generates a witness, proof, and public signals for the `updateTree` circuit.
 - `updateTree/input_example.json`: Deterministic example input rendered from `tokamak-l2js`.
-- `updateTree/proof.json`: Example proof output.
-- `updateTree/public.json`: Example public-signal output.
 
 ## Hashing Rule
 
@@ -27,17 +25,7 @@ To use a custom input file:
 node packages/groth16/prover/updateTree/generateProof.mjs --input /path/to/input.json
 ```
 
-To use a prebuilt proving key and skip circuit compilation:
-
-```bash
-node packages/groth16/prover/updateTree/generateProof.mjs \
-  --input /path/to/input.json \
-  --skip-compile \
-  --wasm /path/to/circuit_updateTree.wasm \
-  --zkey /path/to/circuit_final.zkey \
-  --proof-output /path/to/proof.json \
-  --public-output /path/to/public.json
-```
+The script requires an installed Groth16 runtime and always writes to the fixed workspace paths under `~/tokamak-private-channels/groth16/proof`. Output path flags are intentionally unsupported; use `tokamak-groth16 --extract-proof <OUTPUT_ZIP_PATH>` to export proof artifacts to a user-selected file path.
 
 ## Input Shape
 
@@ -51,5 +39,4 @@ The circuit input JSON must contain:
 - `storage_value_after`
 - `proof`
 
-The bundled script regenerates `input_example.json` from `tokamak-l2js` and the trusted-setup metadata before producing `proof.json` and `public.json`.
-When `--skip-compile` is used, the script does not rebuild the circuit and instead uses the prebuilt proving inputs supplied on the command line. If no verification key path is supplied, the script exports one from the provided zkey before running the local proof check.
+When no `--input` is provided, the bundled script regenerates the fixed workspace `proof/input.json` from `tokamak-l2js` and the installed CRS metadata before producing `proof/proof.json` and `proof/public.json`.

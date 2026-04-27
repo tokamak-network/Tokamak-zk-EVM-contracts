@@ -25,20 +25,37 @@ export async function installWorkspaceCircuit({
   const paths = groth16WorkspacePaths(workspaceRoot);
   const resolvedMetadata = metadata ?? readJson(metadataPath ?? paths.metadataPath);
 
-  copyCircuitPackage(paths.circuitsDir);
+  copyCircuitPackage(paths.circuitSourceDir);
   renderCircuit({
-    circuitsDir: paths.circuitsDir,
+    circuitsDir: paths.circuitSourceDir,
     mtDepth: resolvedMetadata.mtDepth,
     tokamakL2JsVersion: resolvedMetadata.tokamakL2JsVersion,
   });
-  ensureCircuitDependencies(paths.circuitsDir);
-  run("npm", ["run", "compile"], paths.circuitsDir);
+  ensureCircuitDependencies(paths.circuitSourceDir);
+  fs.rmSync(paths.buildDir, { recursive: true, force: true });
+  run("node", [
+    "./run-circom-2.0.mjs",
+    "src/circuit_updateTree.circom",
+    "--r1cs",
+    "--wasm",
+    "--sym",
+    "--output",
+    paths.buildDir,
+    "--prime",
+    "bls12381",
+  ], paths.circuitSourceDir);
+
+  const generatedWasmPath = path.join(paths.buildDir, "circuit_updateTree_js", "circuit_updateTree.wasm");
+  fs.renameSync(generatedWasmPath, paths.wasmPath);
+  fs.rmSync(path.join(paths.buildDir, "circuit_updateTree_js"), { recursive: true, force: true });
+  fs.rmSync(path.join(paths.buildDir, "circuit_updateTree.sym"), { force: true });
+  fs.rmSync(paths.circuitSourceDir, { recursive: true, force: true });
 
   assertFile("compiled updateTree wasm", paths.wasmPath);
   assertFile("compiled updateTree r1cs", paths.r1csPath);
 
   return {
-    circuitsDir: paths.circuitsDir,
+    buildDir: paths.buildDir,
     wasmPath: paths.wasmPath,
     r1csPath: paths.r1csPath,
   };

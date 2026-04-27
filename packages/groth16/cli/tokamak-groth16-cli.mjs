@@ -8,7 +8,6 @@ import {
   uninstallGroth16Runtime,
   verifyUpdateTreeProof,
 } from "../lib/proof-runtime.mjs";
-import { resolveGroth16WorkspaceRoot } from "../lib/paths.mjs";
 
 function usage() {
   console.log(`Commands:
@@ -22,14 +21,14 @@ function usage() {
   --uninstall
       Remove the local Groth16 runtime workspace
 
-  --prove <INPUT_JSON> [--output <DIR>]
+  --prove <INPUT_JSON>
       Generate witness, proof, and public signals from an updateTree input JSON
 
   --verify [<PROOF_ZIP|DIR>]
       Verify proof.json and public.json against the installed verification key
 
   --extract-proof <OUTPUT_ZIP_PATH>
-      Collect the latest proof artifacts and zip them to the given path
+      Export the fixed workspace proof artifacts to the given zip path
 
   --doctor
       Check package and runtime health
@@ -38,7 +37,6 @@ function usage() {
       Show this help
 
 Options:
-  --workspace <DIR>  Override the Groth16 runtime workspace root
   --verbose          Show detailed JSON output
 `);
 }
@@ -47,25 +45,15 @@ function parseArgs(argv) {
   const parsed = {
     command: null,
     positional: [],
-    workspaceRoot: null,
     trustedSetup: false,
     noSetup: false,
     docker: false,
-    output: null,
     verbose: false,
     help: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
-    const next = argv[index + 1];
-    const take = (name) => {
-      if (!next || next.startsWith("--")) {
-        throw new Error(`Missing value for ${name}.`);
-      }
-      index += 1;
-      return next;
-    };
 
     switch (current) {
       case "--install":
@@ -87,12 +75,6 @@ function parseArgs(argv) {
         break;
       case "--docker":
         parsed.docker = true;
-        break;
-      case "--workspace":
-        parsed.workspaceRoot = take(current);
-        break;
-      case "--output":
-        parsed.output = take(current);
         break;
       case "--verbose":
         parsed.verbose = true;
@@ -120,8 +102,6 @@ async function main(argv = process.argv.slice(2)) {
     return;
   }
 
-  const workspaceRoot = resolveGroth16WorkspaceRoot(args.workspaceRoot ?? undefined);
-
   switch (args.command) {
     case "--install":
       assertNoPositionals(args);
@@ -129,7 +109,6 @@ async function main(argv = process.argv.slice(2)) {
         throw new Error("--trusted-setup and --no-setup cannot be used together.");
       }
       printResult(await installGroth16Runtime({
-        workspaceRoot,
         trustedSetup: args.trustedSetup,
         noSetup: args.noSetup,
         docker: args.docker,
@@ -137,33 +116,29 @@ async function main(argv = process.argv.slice(2)) {
       return;
     case "--uninstall":
       assertNoPositionals(args);
-      printResult(uninstallGroth16Runtime({ workspaceRoot }), args);
+      printResult(uninstallGroth16Runtime(), args);
       return;
     case "--prove":
       assertPositionals(args, 1, "--prove requires <INPUT_JSON>.");
       printResult(await proveUpdateTree({
-        workspaceRoot,
         inputPath: args.positional[0],
-        outputDir: args.output,
       }), args);
       return;
     case "--verify":
       assertMaxPositionals(args, 1, "--verify accepts at most one proof directory or zip.");
       printResult(await verifyUpdateTreeProof({
-        workspaceRoot,
         inputPath: args.positional[0] ?? null,
       }), args);
       return;
     case "--extract-proof":
       assertPositionals(args, 1, "--extract-proof requires <OUTPUT_ZIP_PATH>.");
       printResult(await extractLatestProof({
-        workspaceRoot,
         outputPath: args.positional[0],
       }), args);
       return;
     case "--doctor":
       assertNoPositionals(args);
-      printResult(doctorGroth16Runtime({ workspaceRoot }), { ...args, verbose: true });
+      printResult(doctorGroth16Runtime(), { ...args, verbose: true });
       return;
     default:
       throw new Error(`Unsupported command: ${args.command}`);

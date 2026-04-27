@@ -125,9 +125,8 @@ into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
 The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
 When unset, the bridge helper defaults to `mpc` for every supported network.
 
-Both `trusted` and `mpc` install the selected CRS into the Groth16 runtime workspace
-(`~/tokamak-private-channels/groth16` by default, or `TOKAMAK_GROTH16_WORKSPACE_ROOT`)
-before the bridge verifier is regenerated.
+Both `trusted` and `mpc` install the selected CRS into the fixed Groth16 runtime workspace
+(`~/tokamak-private-channels/groth16`) before the bridge verifier is regenerated.
 
 The bridge implementation validates the locally installed `tokamak-l2js`
 `MT_DEPTH` before deployment so it fails rather than silently deploying a

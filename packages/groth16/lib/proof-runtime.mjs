@@ -87,47 +87,12 @@ export function uninstallGroth16Runtime({
 export async function proveUpdateTree({
   inputPath,
   workspaceRoot = resolveGroth16WorkspaceRoot(),
-  outputDir,
 } = {}) {
   const paths = groth16WorkspacePaths(workspaceRoot);
   const resolvedInputPath = path.resolve(requireNonEmptyString(inputPath, "inputPath"));
-  const runDir = outputDir ? path.resolve(outputDir) : paths.latestRunDir;
-  const runInputPath = path.join(runDir, "input.json");
-  const runWitnessPath = path.join(runDir, "witness.wtns");
-  const runProofPath = path.join(runDir, "proof.json");
-  const runPublicPath = path.join(runDir, "public.json");
-  const runFixturePath = path.join(runDir, "solidity_fixture.json");
-  const runManifestPath = path.join(runDir, "proof-manifest.json");
 
-  assertInstalledRuntime(paths);
-  fs.rmSync(runDir, { recursive: true, force: true });
-  fs.mkdirSync(runDir, { recursive: true });
-  fs.copyFileSync(resolvedInputPath, runInputPath);
-
-  const result = await generateUpdateTreeProof([
-    "--input", runInputPath,
-    "--metadata", paths.metadataPath,
-    "--wasm", paths.wasmPath,
-    "--zkey", paths.zkeyPath,
-    "--witness-output", runWitnessPath,
-    "--proof-output", runProofPath,
-    "--public-output", runPublicPath,
-    "--solidity-fixture-output", runFixturePath,
-    "--skip-compile",
-  ]);
-  const manifest = {
-    generatedAt: new Date().toISOString(),
-    workspaceRoot: paths.rootDir,
-    inputPath: runInputPath,
-    witnessPath: result.witnessPath,
-    proofPath: result.proofPath,
-    publicPath: result.publicPath,
-    zkeyPath: paths.zkeyPath,
-    metadataPath: paths.metadataPath,
-    zkeyProvenancePath: paths.provenancePath,
-  };
-  writeJson(runManifestPath, manifest);
-  return manifest;
+  assertInstalledProver(paths);
+  return generateUpdateTreeProof(["--input", resolvedInputPath], { workspaceRoot: paths.rootDir });
 }
 
 export async function verifyUpdateTreeProof({
@@ -135,14 +100,23 @@ export async function verifyUpdateTreeProof({
   workspaceRoot = resolveGroth16WorkspaceRoot(),
 } = {}) {
   const paths = groth16WorkspacePaths(workspaceRoot);
-  const proofDir = inputPath ? await materializeProofInput(inputPath, paths) : paths.latestRunDir;
+  const proofInput = inputPath
+    ? await materializeProofInput(inputPath, paths)
+    : { proofDir: paths.proofDir, cleanupDir: null };
+  const proofDir = proofInput.proofDir;
   const proofPath = path.join(proofDir, "proof.json");
   const publicPath = path.join(proofDir, "public.json");
 
-  assertInstalledCrs(paths);
-  assertFile("Groth16 proof", proofPath);
-  assertFile("Groth16 public signals", publicPath);
-  run(findSnarkjs(), ["groth16", "verify", paths.verificationKeyPath, publicPath, proofPath], paths.rootDir);
+  try {
+    assertInstalledCrs(paths);
+    assertFile("Groth16 proof", proofPath);
+    assertFile("Groth16 public signals", publicPath);
+    run(findSnarkjs(), ["groth16", "verify", paths.verificationKeyPath, publicPath, proofPath], paths.rootDir);
+  } finally {
+    if (proofInput.cleanupDir) {
+      fs.rmSync(proofInput.cleanupDir, { recursive: true, force: true });
+    }
+  }
   return {
     proofPath,
     publicPath,
@@ -153,24 +127,29 @@ export async function verifyUpdateTreeProof({
 async function materializeProofInput(inputPath, paths) {
   const resolvedInputPath = path.resolve(inputPath);
   if (!resolvedInputPath.endsWith(".zip")) {
-    return resolvedInputPath;
+    return { proofDir: resolvedInputPath, cleanupDir: null };
   }
 
-  const tempDir = path.join(paths.rootDir, "runs", ".verify-tmp");
+  const tempDir = paths.verifyTmpDir;
   fs.rmSync(tempDir, { recursive: true, force: true });
   fs.mkdirSync(tempDir, { recursive: true });
-  const entries = await extractZipEntriesFromBuffer(fs.readFileSync(resolvedInputPath), [
-    "proof.json",
-    "public.json",
-  ]);
-  for (const fileName of ["proof.json", "public.json"]) {
-    const content = entries.get(fileName);
-    if (!content) {
-      throw new Error(`Proof archive is missing ${fileName}: ${resolvedInputPath}`);
+  try {
+    const entries = await extractZipEntriesFromBuffer(fs.readFileSync(resolvedInputPath), [
+      "proof.json",
+      "public.json",
+    ]);
+    for (const fileName of ["proof.json", "public.json"]) {
+      const content = entries.get(fileName);
+      if (!content) {
+        throw new Error(`Proof archive is missing ${fileName}: ${resolvedInputPath}`);
+      }
+      fs.writeFileSync(path.join(tempDir, fileName), content);
     }
-    fs.writeFileSync(path.join(tempDir, fileName), content);
+  } catch (error) {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    throw error;
   }
-  return tempDir;
+  return { proofDir: tempDir, cleanupDir: tempDir };
 }
 
 export async function extractLatestProof({
@@ -180,10 +159,10 @@ export async function extractLatestProof({
   const resolvedOutputPath = path.resolve(requireNonEmptyString(outputPath, "outputPath"));
   const paths = groth16WorkspacePaths(workspaceRoot);
   const files = [
-    [path.join(paths.latestRunDir, "input.json"), "input.json"],
-    [path.join(paths.latestRunDir, "proof.json"), "proof.json"],
-    [path.join(paths.latestRunDir, "public.json"), "public.json"],
-    [path.join(paths.latestRunDir, "proof-manifest.json"), "proof-manifest.json"],
+    [paths.inputPath, "input.json"],
+    [paths.proofPath, "proof.json"],
+    [paths.publicPath, "public.json"],
+    [paths.proofManifestPath, "proof-manifest.json"],
     [paths.metadataPath, "metadata.json"],
   ];
   if (fs.existsSync(paths.provenancePath)) {
@@ -266,8 +245,9 @@ function copyTrustedSetupArtifacts(crsDir) {
   return { source: "trusted-setup", sourceDir, installedFiles: CRS_FILES.filter((entry) => entry !== "zkey_provenance.json") };
 }
 
-function assertInstalledRuntime(paths) {
-  assertInstalledCrs(paths);
+function assertInstalledProver(paths) {
+  assertFile("Groth16 proving key", paths.zkeyPath);
+  assertFile("Groth16 metadata", paths.metadataPath);
   assertInstalledCircuit(paths.rootDir);
 }
 

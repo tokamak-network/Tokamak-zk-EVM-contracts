@@ -18,21 +18,26 @@ tokamak-groth16 --extract-proof ./update-tree-proof.zip
 tokamak-groth16 --doctor
 ```
 
-The default workspace is:
+The fixed workspace is:
 
 ```text
 ~/tokamak-private-channels/groth16/
 ```
 
-`--install` downloads the latest public Groth16 MPC CRS archive from the hard-coded Groth16 CRS Drive folder, installs `circuit_final.zkey`, `verification_key.json`, `metadata.json`, and `zkey_provenance.json`, renders the `updateTree` circuit from package-local templates, and compiles the circuit WASM into the workspace.
+`--install` downloads the latest public Groth16 MPC CRS archive from the hard-coded Groth16 CRS Drive folder, installs `circuit_final.zkey`, `verification_key.json`, `metadata.json`, and `zkey_provenance.json`, renders the `updateTree` circuit from package-local templates, and compiles the circuit WASM/R1CS into the workspace build directory.
 
-`--prove <INPUT_JSON>` runs the proving flow only: witness generation, proof generation, and public signal generation. It writes the latest outputs under:
+`--prove <INPUT_JSON>` runs the proving flow only: witness generation, proof generation, and public signal generation. It always writes proof artifacts to fixed workspace paths:
 
 ```text
-~/tokamak-private-channels/groth16/runs/latest/
+~/tokamak-private-channels/groth16/proof/input.json
+~/tokamak-private-channels/groth16/proof/proof.json
+~/tokamak-private-channels/groth16/proof/public.json
+~/tokamak-private-channels/groth16/proof/proof-manifest.json
 ```
 
 `--verify [<PROOF_ZIP|DIR>]` verifies an existing `proof.json` and `public.json` against the installed workspace verification key. Running `--prove` does not verify the proof.
+
+`--extract-proof <OUTPUT_ZIP_PATH>` is the only Groth16 CLI command that lets the user choose an output file path. It exports the fixed workspace proof artifacts into the requested zip file.
 
 ## Generating Proofs with snarkjs
 

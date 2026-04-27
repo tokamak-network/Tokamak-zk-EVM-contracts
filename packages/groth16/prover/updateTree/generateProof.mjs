@@ -6,24 +6,26 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { ethers } from "ethers";
+import { groth16WorkspacePaths } from "../../lib/paths.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 const grothRoot = path.resolve(__dirname, "../..");
 const circuitsDir = path.join(grothRoot, "circuits");
-const trustedSetupDir = path.join(grothRoot, "trusted-setup", "crs");
-const proverDataDir = path.join(grothRoot, "prover", "updateTree");
-const metadataPath = path.join(trustedSetupDir, "metadata.json");
-const circuitEntrypointPath = path.join(circuitsDir, "src", "circuit_updateTree.circom");
-const circuitBuildDir = path.join(circuitsDir, "build");
-const wasmPath = path.join(circuitBuildDir, "circuit_updateTree_js", "circuit_updateTree.wasm");
-const zkeyPath = path.join(trustedSetupDir, "circuit_final.zkey");
-const defaultInputPath = path.join(proverDataDir, "input_example.json");
-const defaultProofPath = path.join(proverDataDir, "proof.json");
-const defaultPublicPath = path.join(proverDataDir, "public.json");
-const witnessPath = path.join(proverDataDir, "witness.wtns");
-const fixturePath = path.join(proverDataDir, "solidity_fixture.json");
+
+const UNSUPPORTED_PATH_FLAGS = [
+  "--metadata",
+  "--wasm",
+  "--zkey",
+  "--witness-output",
+  "--proof-output",
+  "--public-output",
+  "--solidity-fixture-output",
+  "--output",
+  "--workspace",
+  "--verification-key",
+];
 
 function normalizeArgv(argv) {
   return Array.isArray(argv) ? argv : [];
@@ -56,20 +58,6 @@ function ensureFileExists(label, filePath) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Missing ${label}: ${filePath}`);
   }
-}
-
-function ensureCircuitDependencies() {
-  const poseidonCircuit = path.join(
-    circuitsDir,
-    "node_modules",
-    "poseidon-bls12381-circom",
-    "circuits",
-    "poseidon255.circom",
-  );
-  if (fs.existsSync(poseidonCircuit)) {
-    return;
-  }
-  run("npm", ["install", "--ignore-scripts"], circuitsDir);
 }
 
 function findSnarkjs() {
@@ -106,66 +94,14 @@ function findPackageJson(startDir) {
   throw new Error(`Cannot locate package.json above ${startDir}.`);
 }
 
-function splitFieldElement(value) {
-  const normalized = ethers.toBigInt(value);
-  const hex = normalized.toString(16).padStart(96, "0");
-  return {
-    part1: `0x${"0".repeat(32)}${hex.slice(0, 32)}`,
-    part2: `0x${hex.slice(32)}`,
-  };
-}
-
-function buildSolidityFixture(proof, publicSignals) {
-  const pA = [
-    splitFieldElement(proof.pi_a[0]).part1,
-    splitFieldElement(proof.pi_a[0]).part2,
-    splitFieldElement(proof.pi_a[1]).part1,
-    splitFieldElement(proof.pi_a[1]).part2,
-  ];
-  const pB = [
-    splitFieldElement(proof.pi_b[0][1]).part1,
-    splitFieldElement(proof.pi_b[0][1]).part2,
-    splitFieldElement(proof.pi_b[0][0]).part1,
-    splitFieldElement(proof.pi_b[0][0]).part2,
-    splitFieldElement(proof.pi_b[1][1]).part1,
-    splitFieldElement(proof.pi_b[1][1]).part2,
-    splitFieldElement(proof.pi_b[1][0]).part1,
-    splitFieldElement(proof.pi_b[1][0]).part2,
-  ];
-  const pC = [
-    splitFieldElement(proof.pi_c[0]).part1,
-    splitFieldElement(proof.pi_c[0]).part2,
-    splitFieldElement(proof.pi_c[1]).part1,
-    splitFieldElement(proof.pi_c[1]).part2,
-  ];
-  return {
-    pA,
-    pB,
-    pC,
-    pubSignals: publicSignals.map((value) => value.toString()),
-  };
-}
-
-function assertCircuitDepth(mtDepth) {
-  const entrypoint = fs.readFileSync(circuitEntrypointPath, "utf8");
-  const expectedSnippet = `updateTree(${mtDepth})`;
-  if (!entrypoint.includes(expectedSnippet)) {
-    throw new Error(
-      `Circuit entrypoint depth mismatch. Expected ${expectedSnippet} in ${circuitEntrypointPath}.`,
-    );
-  }
-}
-
-async function buildExampleInput(outputPath, argv) {
-  const resolvedMetadataPath = findFlag(argv, "--metadata") ?? metadataPath;
-  const metadata = readJson(resolvedMetadataPath);
+async function buildExampleInput(outputPath, metadataPath) {
+  const metadata = readJson(metadataPath);
   const tokamak = await loadTokamakL2Js(metadata.tokamakL2JsVersion);
   if (tokamak.MT_DEPTH !== metadata.mtDepth) {
     throw new Error(
       `tokamak-l2js MT_DEPTH mismatch: metadata=${metadata.mtDepth}, package=${tokamak.MT_DEPTH}.`,
     );
   }
-  assertCircuitDepth(metadata.mtDepth);
 
   const storageKey = 111n;
   const storageValueBefore = 0n;
@@ -205,62 +141,63 @@ async function buildExampleInput(outputPath, argv) {
   fs.writeFileSync(outputPath, JSON.stringify(input, null, 2) + "\n");
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2), { workspaceRoot } = {}) {
   const args = normalizeArgv(argv);
-  if (hasFlag(args, "--verification-key")) {
-    throw new Error("--verification-key is only used by proof verification. Proof generation requires a zkey, not a verification key.");
+  for (const flag of UNSUPPORTED_PATH_FLAGS) {
+    if (hasFlag(args, flag)) {
+      throw new Error(`${flag} is not supported. Groth16 proof generation writes only to the fixed workspace proof paths.`);
+    }
   }
-  const inputPath = findFlag(args, "--input") ?? defaultInputPath;
-  const resolvedMetadataPath = findFlag(args, "--metadata") ?? metadataPath;
-  const resolvedWasmPath = findFlag(args, "--wasm") ?? wasmPath;
-  const resolvedZkeyPath = findFlag(args, "--zkey") ?? zkeyPath;
-  const resolvedWitnessPath = findFlag(args, "--witness-output") ?? witnessPath;
-  const proofPath = findFlag(args, "--proof-output") ?? defaultProofPath;
-  const publicPath = findFlag(args, "--public-output") ?? defaultPublicPath;
-  const resolvedFixturePath = findFlag(args, "--solidity-fixture-output") ?? fixturePath;
-  const skipCompile = hasFlag(args, "--skip-compile");
-
-  if (inputPath === defaultInputPath || !fs.existsSync(inputPath)) {
-    const metadata = readJson(resolvedMetadataPath);
-    assertCircuitDepth(metadata.mtDepth);
-    await buildExampleInput(defaultInputPath, args);
+  if (hasFlag(args, "--skip-compile")) {
+    throw new Error("--skip-compile is not supported. Install the Groth16 runtime before generating proofs.");
   }
 
-  if (!skipCompile) {
-    ensureCircuitDependencies();
-    run("npm", ["run", "compile"], circuitsDir);
+  const paths = groth16WorkspacePaths(workspaceRoot);
+  const inputFlagPath = findFlag(args, "--input");
+  const providedInput = inputFlagPath ? fs.readFileSync(inputFlagPath, "utf8") : null;
+
+  fs.rmSync(paths.proofDir, { recursive: true, force: true });
+  fs.mkdirSync(paths.proofDir, { recursive: true });
+  fs.mkdirSync(paths.tmpDir, { recursive: true });
+  fs.rmSync(paths.witnessPath, { force: true });
+
+  if (providedInput === null) {
+    await buildExampleInput(paths.inputPath, paths.metadataPath);
+  } else {
+    fs.writeFileSync(paths.inputPath, providedInput, "utf8");
   }
 
   for (const [label, filePath] of [
-    ["updateTree wasm", resolvedWasmPath],
-    ["updateTree proving key", resolvedZkeyPath],
+    ["Groth16 metadata", paths.metadataPath],
+    ["updateTree wasm", paths.wasmPath],
+    ["updateTree proving key", paths.zkeyPath],
   ]) {
     ensureFileExists(label, filePath);
   }
 
   const snarkjs = findSnarkjs();
-  fs.mkdirSync(path.dirname(resolvedWitnessPath), { recursive: true });
-  fs.mkdirSync(path.dirname(proofPath), { recursive: true });
-  fs.mkdirSync(path.dirname(publicPath), { recursive: true });
-  run(snarkjs, ["wtns", "calculate", resolvedWasmPath, inputPath, resolvedWitnessPath], circuitsDir);
-  run(snarkjs, ["groth16", "prove", resolvedZkeyPath, resolvedWitnessPath, proofPath, publicPath], circuitsDir);
+  run(snarkjs, ["wtns", "calculate", paths.wasmPath, paths.inputPath, paths.witnessPath], circuitsDir);
+  run(snarkjs, ["groth16", "prove", paths.zkeyPath, paths.witnessPath, paths.proofPath, paths.publicPath], circuitsDir);
 
-  const proof = readJson(proofPath);
-  const publicSignals = readJson(publicPath);
+  const publicSignals = readJson(paths.publicPath);
   if (publicSignals.length !== 5) {
     throw new Error(`Expected 5 public signals for updateTree, got ${publicSignals.length}.`);
   }
-  const fixture = buildSolidityFixture(proof, publicSignals);
-  fs.mkdirSync(path.dirname(resolvedFixturePath), { recursive: true });
-  fs.writeFileSync(resolvedFixturePath, JSON.stringify(fixture, null, 2) + "\n");
 
-  return {
-    inputPath,
-    witnessPath: resolvedWitnessPath,
-    proofPath,
-    publicPath,
-    solidityFixturePath: resolvedFixturePath,
+  fs.rmSync(paths.witnessPath, { force: true });
+  const manifest = {
+    generatedAt: new Date().toISOString(),
+    workspaceRoot: paths.rootDir,
+    inputPath: paths.inputPath,
+    proofPath: paths.proofPath,
+    publicPath: paths.publicPath,
+    zkeyPath: paths.zkeyPath,
+    metadataPath: paths.metadataPath,
+    zkeyProvenancePath: paths.provenancePath,
   };
+  fs.writeFileSync(paths.proofManifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+
+  return manifest;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {

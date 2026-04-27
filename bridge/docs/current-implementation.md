@@ -7,7 +7,7 @@ stable architecture notes.
 ## ZK Deployment Helpers
 
 Bridge deployment and DApp registration consume the installed Tokamak zk-EVM CLI runtime, the
-published Tokamak subcircuit library package, the Groth16 package, and the latest published
+published Tokamak subcircuit library package, the Groth16 package, and the locally installed
 `tokamak-l2js` package.
 
 ### Bridge Deployment
@@ -22,7 +22,7 @@ orchestrator. The deployment helper performs the following tasks before broadcas
    published `@tokamak-zk-evm/subcircuit-library` `setupParams.json`.
 4. Regenerates or downloads the selected Groth16 `updateTree` CRS artifacts and regenerates the
    Solidity verifier.
-5. Resolves the latest published `tokamak-l2js` package and records its `MT_DEPTH`.
+5. Reads the locally installed `tokamak-l2js` package and records its `MT_DEPTH`.
 6. Writes a bridge ZK manifest that deployment tooling can consume when it needs updated
    bridge-facing constants.
 

@@ -8,5 +8,5 @@ include "./templates.circom";
 // MT_DEPTH: 30
 
 // This entrypoint is rendered by the updateTree trusted-setup generator.
-// The generator injects the latest tokamak-l2js MT_DEPTH into the updateTree depth parameter.
+// The generator injects the locally installed tokamak-l2js MT_DEPTH into the updateTree depth parameter.
 component main{public [root_before, root_after, storage_key, storage_value_before, storage_value_after]} = updateTree(30);

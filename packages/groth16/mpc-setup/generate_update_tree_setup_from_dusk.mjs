@@ -4,13 +4,15 @@ import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import https from "node:https";
+import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL, URL, URLSearchParams } from "node:url";
+import { fileURLToPath, URL, URLSearchParams } from "node:url";
 
 import { resolveCircomBinaryPath } from "../circuits/circom-platform.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
 const groth16Root = path.resolve(__dirname, "..");
 const circuitsRoot = path.join(groth16Root, "circuits");
 const trustedSetupRoot = path.join(groth16Root, "mpc-setup");
@@ -164,25 +166,13 @@ function nextPowerOfTwoExponent(value) {
     return power;
 }
 
-function readLatestPackageVersion() {
-    const raw = runCapture("npm", ["view", "tokamak-l2js", "version", "--json"]);
-    const version = JSON.parse(raw.trim());
-    if (typeof version !== "string" || version.length === 0) {
-        throw new Error("Failed to resolve the latest tokamak-l2js version.");
-    }
-    return version;
-}
-
 function cleanupStaleTemporaryState() {
     if (!fs.existsSync(tmpRoot)) {
         return;
     }
 
     for (const entry of fs.readdirSync(tmpRoot)) {
-        if (
-            entry.startsWith("tokamak-l2js-latest-") ||
-            entry.startsWith("updateTree-dusk-setup-")
-        ) {
+        if (entry.startsWith("updateTree-dusk-setup-")) {
             fs.rmSync(path.join(tmpRoot, entry), { recursive: true, force: true });
         }
     }
@@ -355,38 +345,12 @@ function buildPhase1SourceProvenance({ responsePath, responseSha256, autoDownloa
     };
 }
 
-async function installLatestTokamakL2Js(version, installDir) {
-    fs.mkdirSync(installDir, { recursive: true });
-    fs.writeFileSync(
-        path.join(installDir, "package.json"),
-        JSON.stringify(
-            {
-                name: "update-tree-mpc-setup-runner",
-                private: true,
-                type: "module"
-            },
-            null,
-            2
-        ) + "\n"
-    );
-
-    run(
-        "npm",
-        ["install", "--no-package-lock", "--ignore-scripts", `tokamak-l2js@${version}`],
-        { cwd: installDir }
-    );
-
-    const packageRoot = path.join(installDir, "node_modules", "tokamak-l2js");
-    const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
-    const moduleUrl = pathToFileURL(path.join(packageRoot, "dist", "index.js")).href;
-    const pkg = await import(moduleUrl);
-    const mtDepth = pkg.MT_DEPTH;
-
-    if (!Number.isInteger(mtDepth) || mtDepth <= 0) {
-        throw new Error(`Invalid MT_DEPTH exported by tokamak-l2js@${packageJson.version}: ${String(mtDepth)}`);
-    }
-
-    return { version: packageJson.version, mtDepth };
+function resolveTokamakL2JsPackageJsonPath() {
+    const entryPath = require.resolve("tokamak-l2js");
+    const packageRoot = entryPath.includes(`${path.sep}dist${path.sep}`)
+        ? entryPath.slice(0, entryPath.lastIndexOf(`${path.sep}dist${path.sep}`))
+        : path.dirname(entryPath);
+    return path.join(packageRoot, "package.json");
 }
 
 function renderCircuit(mtDepth, version) {
@@ -563,19 +527,18 @@ async function main() {
     fs.mkdirSync(tmpRoot, { recursive: true });
     cleanupStaleTemporaryState();
 
-    const installDir = fs.mkdtempSync(path.join(tmpRoot, "tokamak-l2js-latest-"));
-    try {
-        const latestVersion = readLatestPackageVersion();
-        const manifest = await installLatestTokamakL2Js(latestVersion, installDir);
-
-        renderCircuit(manifest.mtDepth, manifest.version);
-        compileCircuit();
-
-        const constraintCount = readConstraintCount(compiledR1csPath);
-        await generateSetupArtifacts(constraintCount, manifest);
-    } finally {
-        fs.rmSync(installDir, { recursive: true, force: true });
+    const tokamakL2jsPackageJson = JSON.parse(fs.readFileSync(resolveTokamakL2JsPackageJsonPath(), "utf8"));
+    const tokamakL2js = await import("tokamak-l2js");
+    const mtDepth = tokamakL2js.MT_DEPTH;
+    if (!Number.isInteger(mtDepth) || mtDepth <= 0) {
+        throw new Error(`Invalid MT_DEPTH exported by tokamak-l2js@${tokamakL2jsPackageJson.version}: ${String(mtDepth)}`);
     }
+    const manifest = { version: tokamakL2jsPackageJson.version, mtDepth };
+    renderCircuit(manifest.mtDepth, manifest.version);
+    compileCircuit();
+
+    const constraintCount = readConstraintCount(compiledR1csPath);
+    await generateSetupArtifacts(constraintCount, manifest);
 }
 
 main().catch((error) => {

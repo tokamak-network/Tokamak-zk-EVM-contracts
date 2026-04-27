@@ -8,7 +8,7 @@ The setup script extracts phase 1 powers for the required `updateTree` size from
 
 The script performs these steps:
 
-1. Resolve the latest `tokamak-l2js` version and render `packages/groth16/circuits/src/circuit_updateTree.circom`.
+1. Read the locally installed `tokamak-l2js` package and render `packages/groth16/circuits/src/circuit_updateTree.circom`.
 2. Compile the circuit and compute the minimum required Powers of Tau power.
 3. Download the published Dusk response artifact for contribution `0015`.
 4. Verify the downloaded response file hash against the published report value.

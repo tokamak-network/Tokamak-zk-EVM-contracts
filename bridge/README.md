@@ -115,11 +115,11 @@ The helper derives the correct Alchemy RPC URL from:
 
 If you need a non-Alchemy endpoint, set `BRIDGE_RPC_URL_OVERRIDE`.
 
-The helper also resolves the latest published `tokamak-l2js` package and reads
-its exported `MT_DEPTH` before broadcasting deployment. The helper refreshes the
+The helper reads the locally installed `tokamak-l2js` package and its exported
+`MT_DEPTH` before broadcasting deployment. The helper refreshes the
 Tokamak verifier parameters from `setupParams.json`, regenerates the Groth16
 `updateTree` verifier, and writes the bridge ZK manifest directly from
-`bridge/scripts/deploy-bridge.sh`. The resolved `MT_DEPTH` value is forwarded
+`bridge/scripts/deploy-bridge.sh`. The installed `MT_DEPTH` value is forwarded
 into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
 
 The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
@@ -128,10 +128,9 @@ When unset, the bridge helper defaults to `mpc` for every supported network.
 Both `trusted` and `mpc` install the selected CRS into `packages/groth16/crs` through the
 Groth16 runtime installer before the bridge verifier is regenerated.
 
-The current bridge implementation is still intentionally hard-bound to depth
-`12` for soundness. If the latest `tokamak-l2js` publishes a different
-`MT_DEPTH`, deployment will fail rather than silently deploying a mismatched
-bridge configuration.
+The bridge implementation validates the locally installed `tokamak-l2js`
+`MT_DEPTH` before deployment so it fails rather than silently deploying a
+mismatched bridge configuration.
 
 The helper now has two explicit modes:
 

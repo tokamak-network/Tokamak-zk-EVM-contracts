@@ -788,37 +788,18 @@ write_bridge_zk_manifest() {
     local groth_source="$2"
 
     node --input-type=module - "$PROJECT_ROOT" "$manifest_path" "$groth_source" <<'NODE'
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 
 const repoRoot = process.argv[2];
 const manifestPath = process.argv[3];
 const grothSource = process.argv[4];
 const runtimePaths = await import("@tokamak-private-dapps/common-library/tokamak-runtime-paths");
+const require = createRequire(import.meta.url);
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
-function runCapture(args) {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    env: process.env,
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error([
-      `Command failed: node ${args.join(" ")}`,
-      result.stdout?.trim(),
-      result.stderr?.trim(),
-    ].filter(Boolean).join("\n"));
-  }
-  return result.stdout;
 }
 
 function grothCrsDirFor(source) {
@@ -828,8 +809,25 @@ function grothCrsDirFor(source) {
   return path.join(repoRoot, "packages", "groth16", "crs");
 }
 
+function resolveTokamakPackageJsonPath() {
+  const entryPath = require.resolve("tokamak-l2js");
+  const packageRoot = entryPath.includes(`${path.sep}dist${path.sep}`)
+    ? entryPath.slice(0, entryPath.lastIndexOf(`${path.sep}dist${path.sep}`))
+    : path.dirname(entryPath);
+  return path.join(packageRoot, "package.json");
+}
+
 const tokamakCliPackageRoot = runtimePaths.resolveTokamakCliPackageRoot();
-const tokamakL2js = JSON.parse(runCapture([path.join(repoRoot, "bridge/scripts/resolve-latest-mt-depth.mjs")]));
+const tokamak = await import("tokamak-l2js");
+const tokamakPackageJson = readJson(resolveTokamakPackageJsonPath());
+const mtDepth = Number(tokamak.MT_DEPTH);
+if (!Number.isInteger(mtDepth) || mtDepth <= 0) {
+  throw new Error(`tokamak-l2js MT_DEPTH must be a positive integer. Received: ${String(tokamak.MT_DEPTH)}`);
+}
+const tokamakL2js = {
+  version: tokamakPackageJson.version,
+  mtDepth,
+};
 const setupParamsPath = runtimePaths.resolveSubcircuitSetupParamsPath();
 const grothCrsDir = grothCrsDirFor(grothSource);
 const manifest = {

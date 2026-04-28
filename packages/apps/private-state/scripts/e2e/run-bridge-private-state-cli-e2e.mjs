@@ -1583,8 +1583,19 @@ function recoverWallet(participant) {
   return result;
 }
 
-function getMyAddress(participant) {
-  return runAnvilCliCommand("get-my-address", walletCliArgs(participant));
+function getMyWalletMeta(participant) {
+  return runAnvilCliCommand("get-my-wallet-meta", walletCliArgs(participant));
+}
+
+function getMyL1Address(participant) {
+  return runPrivateStateCli([
+    "get-my-l1-address",
+    ...signerCliArgs(participant),
+  ]);
+}
+
+function listLocalWallets(args = []) {
+  return runPrivateStateCli(["list-local-wallets", ...args]);
 }
 
 function getMyBridgeFund(participant) {
@@ -1777,20 +1788,37 @@ async function main() {
           "recover-wallet must stop when the existing wallet is already valid.",
         );
       }
-      participantResults.getMyAddress = getMyAddress(participant);
+      participantResults.getMyWalletMeta = getMyWalletMeta(participant);
+      participantResults.getMyL1Address = getMyL1Address(participant);
       participantResults.depositChannel = depositChannel(participant);
       participantResults.getMyChannelFund = getMyChannelFund(participant);
       participantResults.getMyBridgeFund = getMyBridgeFund(participant);
 
       expect(
-        String(participantResults.getMyAddress.registeredL2Address).toLowerCase()
+        String(participantResults.getMyWalletMeta.registeredL2Address).toLowerCase()
           === String(participantResults.joinChannel.l2Address).toLowerCase(),
         `${participant.alias} registered L2 address mismatch.`,
       );
       expect(
-        participantResults.getMyAddress.registrationExists === true
-          && participantResults.getMyAddress.matchesWallet === true,
+        participantResults.getMyWalletMeta.registrationExists === true
+          && participantResults.getMyWalletMeta.matchesWallet === true,
         `${participant.alias} channel registration does not match the local wallet.`,
+      );
+      expect(
+        participantResults.getMyWalletMeta.wallet === participant.walletName,
+        `${participant.alias} wallet metadata returned an unexpected wallet name.`,
+      );
+      expect(
+        getAddress(participantResults.getMyWalletMeta.l1Address) === getAddress(participant.l1Address),
+        `${participant.alias} wallet metadata returned an unexpected L1 address.`,
+      );
+      expect(
+        getAddress(participantResults.getMyWalletMeta.walletL2Address) === getAddress(participant.l2Address),
+        `${participant.alias} wallet metadata returned an unexpected wallet L2 address.`,
+      );
+      expect(
+        getAddress(participantResults.getMyL1Address.l1Address) === getAddress(participant.l1Address),
+        `${participant.alias} get-my-l1-address returned an unexpected L1 address.`,
       );
       assertBigIntEq(
         participantResults.getMyChannelFund.channelDepositBaseUnits,
@@ -1804,6 +1832,18 @@ async function main() {
       );
 
       commandResults.participants[participant.alias] = participantResults;
+    }
+
+    const localWalletList = listLocalWallets([
+      "--network", workspaceNetworkName,
+      "--channel-name", channelName,
+    ]);
+    const listedWallets = new Set(localWalletList.wallets.map((wallet) => wallet.wallet));
+    for (const participant of participants) {
+      expect(
+        listedWallets.has(participant.walletName),
+        `list-local-wallets did not include ${participant.walletName}.`,
+      );
     }
 
     recoverWorkspaceResult = recoverWorkspace();
@@ -1952,6 +1992,7 @@ async function main() {
       createChannel: createChannelResult,
       recoverWorkspace: recoverWorkspaceResult,
       recoverWorkspaceAfterNotes: recoverWorkspaceAfterNotesResult,
+      localWallets: localWalletList,
       participants: participants.map((participant) => ({
         alias: participant.alias,
         password: participant.password,

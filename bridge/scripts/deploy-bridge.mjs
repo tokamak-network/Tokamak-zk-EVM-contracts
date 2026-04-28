@@ -22,6 +22,8 @@ const bridgeRoot = path.join(projectRoot, "bridge");
 const invocationCwd = process.cwd();
 const envFile = process.env.BRIDGE_ENV_FILE || path.join(projectRoot, ".env");
 const initialDeployMode = process.env.BRIDGE_DEPLOY_MODE || "upgrade";
+const TOKAMAK_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
+const GROTH16_CLI_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 
 const BLS12_381_FQ_MODULUS = BigInt(
   "0x1a0111ea397fe69a4b1ba7b6434bacd7"
@@ -150,6 +152,36 @@ function npmPackageSource({ name, version }) {
     version,
     npmPackage: `${name}@${version}`,
   };
+}
+
+function readLatestNpmPackageVersion(packageName) {
+  const result = spawnSync("npm", ["view", packageName, "dist-tags.latest", "--json"], {
+    cwd: projectRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    fail([
+      `npm view ${packageName} dist-tags.latest --json exited with status ${result.status ?? "unknown"}`,
+      formatCommandOutput("stdout", result.stdout),
+      formatCommandOutput("stderr", result.stderr),
+    ].join("\n"));
+  }
+
+  const rawVersion = String(result.stdout ?? "").trim();
+  let version;
+  try {
+    version = JSON.parse(rawVersion);
+  } catch {
+    version = rawVersion.replace(/^"|"$/g, "");
+  }
+  if (typeof version !== "string" || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+    fail(`Could not resolve a valid latest npm version for ${packageName}: ${rawVersion}`);
+  }
+  return version;
 }
 
 function optionalReadJson(filePath) {
@@ -696,6 +728,12 @@ function generateGroth16VerifierContract(vkData) {
 pragma solidity >=0.7.0 <0.9.0;
 
 contract Groth16Verifier {
+    string public compatibleBackendVersion;
+
+    constructor(string memory compatibleBackendVersion_) {
+        compatibleBackendVersion = compatibleBackendVersion_;
+    }
+
     uint256 constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
     uint256 constant Q_MOD_PART1 = 0x000000000000000000000000000000001a0111ea397fe69a4b1ba7b6434bacd7;
     uint256 constant Q_MOD_PART2 = 0x64774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab;
@@ -945,6 +983,7 @@ async function writeBridgeZkManifest(manifestPath, grothSource) {
     },
     tokamakL2js,
     tokamakVerifier: {
+      compatibleBackendVersion: process.env.BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION,
       artifacts: {
         sigmaVerifyJson: {
           sourcePackage: tokamakSetupPackage?.npmPackage ?? null,
@@ -963,6 +1002,7 @@ async function writeBridgeZkManifest(manifestPath, grothSource) {
     groth16: {
       source: grothSource,
       package: npmPackageSource(grothPackageJson),
+      compatibleBackendVersion: process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION,
       artifactSource: grothArchiveSource,
       artifacts: {
         circuitFinalZkey: {
@@ -1205,6 +1245,11 @@ async function main() {
     await refreshGroth16VerifierSolidity(process.env.BRIDGE_GROTH_SOURCE);
   }
 
+  process.env.BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION =
+    readLatestNpmPackageVersion(TOKAMAK_CLI_PACKAGE_NAME);
+  process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION =
+    readLatestNpmPackageVersion(GROTH16_CLI_PACKAGE_NAME);
+
   await writeBridgeZkManifest(bridgePendingZkManifestPath, process.env.BRIDGE_GROTH_SOURCE);
 
   const mtDepthMetadata = readJson(bridgePendingZkManifestPath);
@@ -1257,6 +1302,12 @@ async function main() {
   console.log(`Environment file: ${envFile}`);
   console.log(`Resolved tokamak-l2js version: ${bridgeMerkleTreeSourceVersion}`);
   console.log(`Resolved tokamak-l2js MT_DEPTH: ${bridgeMerkleTreeLevels}`);
+  console.log(
+    `Resolved ${TOKAMAK_CLI_PACKAGE_NAME} latest version: ${process.env.BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION}`,
+  );
+  console.log(
+    `Resolved ${GROTH16_CLI_PACKAGE_NAME} latest version: ${process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION}`,
+  );
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
   console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);
 

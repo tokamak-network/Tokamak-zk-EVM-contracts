@@ -6,7 +6,7 @@ import {UpdateTreeProofFixture} from "./UpdateTreeProofFixture.sol";
 
 contract Groth16VerifierTest {
     function testVerifyProofAcceptsTheExampleProof() public {
-        Groth16Verifier verifier = new Groth16Verifier();
+        Groth16Verifier verifier = new Groth16Verifier("0.1.1");
         bool ok = verifier.verifyProof(
             UpdateTreeProofFixture.pA(),
             UpdateTreeProofFixture.pB(),
@@ -17,7 +17,7 @@ contract Groth16VerifierTest {
     }
 
     function testVerifyProofRejectsTamperedPublicSignals() public {
-        Groth16Verifier verifier = new Groth16Verifier();
+        Groth16Verifier verifier = new Groth16Verifier("0.1.1");
         uint256[5] memory pubSignals = UpdateTreeProofFixture.pubSignals();
         pubSignals[4] += 1;
 
@@ -28,5 +28,13 @@ contract Groth16VerifierTest {
             pubSignals
         );
         require(!ok, "expected verification to fail after tampering with public inputs");
+    }
+
+    function testExposesCompatibleBackendVersion() public {
+        Groth16Verifier verifier = new Groth16Verifier("0.1.1");
+        require(
+            keccak256(bytes(verifier.compatibleBackendVersion())) == keccak256(bytes("0.1.1")),
+            "unexpected compatible backend version"
+        );
     }
 }

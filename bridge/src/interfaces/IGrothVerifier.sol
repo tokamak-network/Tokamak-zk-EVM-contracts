@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 interface IGrothVerifier {
+    function compatibleBackendVersion() external view returns (string memory);
+
     function verifyProof(
         uint256[4] calldata pA,
         uint256[8] calldata pB,

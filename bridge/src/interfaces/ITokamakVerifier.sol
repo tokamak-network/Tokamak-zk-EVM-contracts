@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 interface ITokamakVerifier {
+    function compatibleBackendVersion() external view returns (string memory);
+
     function verify(
         uint128[] calldata _proof_part1,
         uint256[] calldata _proof_part2,

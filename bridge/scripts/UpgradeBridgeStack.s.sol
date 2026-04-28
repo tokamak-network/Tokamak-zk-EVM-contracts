@@ -36,6 +36,8 @@ contract UpgradeBridgeStackScript is Script {
         address deployer = vm.addr(deployerPrivateKey);
         string memory inputPath = _resolvePath(vm.envOr("BRIDGE_INPUT_PATH", string("./deployments/bridge.json")));
         string memory outputPath = _resolvePath(vm.envOr("BRIDGE_OUTPUT_PATH", string("./deployments/bridge.json")));
+        string memory grothCompatibleBackendVersion = vm.envString("BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION");
+        string memory tokamakCompatibleBackendVersion = vm.envString("BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION");
 
         string memory existingJson = vm.readFile(inputPath);
         address bridgeAdminManagerProxy = existingJson.readAddress(".bridgeAdminManager");
@@ -50,8 +52,8 @@ contract UpgradeBridgeStackScript is Script {
 
         BridgeAdminManager bridgeAdminManagerImplementation = new BridgeAdminManager();
         DAppManager dAppManagerImplementation = new DAppManager();
-        Groth16Verifier grothVerifierImplementation = new Groth16Verifier();
-        TokamakVerifier tokamakVerifierImplementation = new TokamakVerifier();
+        Groth16Verifier grothVerifierImplementation = new Groth16Verifier(grothCompatibleBackendVersion);
+        TokamakVerifier tokamakVerifierImplementation = new TokamakVerifier(tokamakCompatibleBackendVersion);
         BridgeCore bridgeCoreImplementation = new BridgeCore();
         L1TokenVault bridgeTokenVaultImplementation = new L1TokenVault();
 
@@ -118,7 +120,17 @@ contract UpgradeBridgeStackScript is Script {
         vm.serializeAddress(deploymentJson, "dAppManager", result.dAppManager);
         vm.serializeAddress(deploymentJson, "dAppManagerImplementation", result.dAppManagerImplementation);
         vm.serializeAddress(deploymentJson, "grothVerifier", result.grothVerifier);
+        vm.serializeString(
+            deploymentJson,
+            "grothVerifierCompatibleBackendVersion",
+            Groth16Verifier(result.grothVerifier).compatibleBackendVersion()
+        );
         vm.serializeAddress(deploymentJson, "tokamakVerifier", result.tokamakVerifier);
+        vm.serializeString(
+            deploymentJson,
+            "tokamakVerifierCompatibleBackendVersion",
+            TokamakVerifier(result.tokamakVerifier).compatibleBackendVersion()
+        );
         vm.serializeAddress(deploymentJson, "bridgeCore", result.bridgeCore);
         vm.serializeAddress(deploymentJson, "bridgeCoreImplementation", result.bridgeCoreImplementation);
         vm.serializeAddress(deploymentJson, "bridgeTokenVault", result.bridgeTokenVault);
@@ -127,7 +139,7 @@ contract UpgradeBridgeStackScript is Script {
         vm.writeJson(finalJson, outputPath);
     }
 
-    function _logUpgrade(UpgradeResult memory result) private pure {
+    function _logUpgrade(UpgradeResult memory result) private view {
         console2.log("Bridge deployer:", result.deployer);
         console2.log("Bridge owner:", result.owner);
         console2.log("BridgeAdminManager proxy:", result.bridgeAdminManager);
@@ -136,6 +148,14 @@ contract UpgradeBridgeStackScript is Script {
         console2.log("DAppManager implementation:", result.dAppManagerImplementation);
         console2.log("BridgeCore proxy:", result.bridgeCore);
         console2.log("BridgeCore implementation:", result.bridgeCoreImplementation);
+        console2.log(
+            "Groth16Verifier compatible backend version:",
+            Groth16Verifier(result.grothVerifier).compatibleBackendVersion()
+        );
+        console2.log(
+            "TokamakVerifier compatible backend version:",
+            TokamakVerifier(result.tokamakVerifier).compatibleBackendVersion()
+        );
         console2.log("L1TokenVault proxy:", result.bridgeTokenVault);
         console2.log("L1TokenVault implementation:", result.bridgeTokenVaultImplementation);
     }

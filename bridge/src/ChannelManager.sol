@@ -216,6 +216,14 @@ contract ChannelManager {
         }
     }
 
+    function grothVerifierCompatibleBackendVersion() external view returns (string memory) {
+        return grothVerifier.compatibleBackendVersion();
+    }
+
+    function tokamakVerifierCompatibleBackendVersion() external view returns (string memory) {
+        return tokamakVerifier.compatibleBackendVersion();
+    }
+
     modifier onlyBridgeCore() {
         if (msg.sender != bridgeCore) revert OnlyBridgeCore();
         _;

@@ -14,6 +14,12 @@ import {TokamakVerifierKeyGenerated} from "../generated/TokamakVerifierKey.gener
 /// The notation used in the code is the same as in the papers.
 /* solhint-enable max-line-length */
 contract TokamakVerifier is ITokamakVerifier {
+    string public compatibleBackendVersion;
+
+    constructor(string memory compatibleBackendVersion_) {
+        compatibleBackendVersion = compatibleBackendVersion_;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                     Proof
     //////////////////////////////////////////////////////////////*/

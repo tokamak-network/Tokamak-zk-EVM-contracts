@@ -26,8 +26,7 @@
     "tokamak-groth16": "cli/tokamak-groth16-cli.mjs"
   },
   "exports": {
-    "./public-drive-crs": "./lib/public-drive-crs.mjs",
-    "./prover/updateTree/generateProof": "./prover/updateTree/generateProof.mjs"
+    "./public-drive-crs": "./lib/public-drive-crs.mjs"
   },
   "files": [
     "README.md",

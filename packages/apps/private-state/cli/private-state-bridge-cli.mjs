@@ -67,7 +67,6 @@ import {
   PUBLIC_GROTH16_MPC_DRIVE_FOLDER_ID,
   downloadLatestPublicGroth16MpcArtifacts,
 } from "@tokamak-private-dapps/groth16/public-drive-crs";
-import { main as generateUpdateTreeProof } from "@tokamak-private-dapps/groth16/prover/updateTree/generateProof";
 import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
   deriveChannelIdFromName,
@@ -3457,10 +3456,7 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
 
   const inputPath = path.join(operationDir, "input.json");
   writeJson(inputPath, input);
-  const proofManifest = await generateUpdateTreeProof([
-    "--input",
-    inputPath,
-  ]);
+  const proofManifest = runGroth16UpdateTreeProof(inputPath);
 
   const proofJson = readJson(proofManifest.proofPath);
   const publicSignals = readJson(proofManifest.publicPath);
@@ -3505,6 +3501,21 @@ function runCaptured(command, args, { cwd = defaultCommandCwd, env = process.env
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? "",
   };
+}
+
+function runGroth16UpdateTreeProof(inputPath) {
+  const packageRoot = resolveGroth16PackageRoot();
+  const entryPath = resolveGroth16CliEntryPath(packageRoot);
+  run(process.execPath, [entryPath, "--prove", inputPath], { cwd: packageRoot });
+  const manifestPath = groth16ProofManifestPath();
+  const manifest = readJson(manifestPath);
+  expect(typeof manifest.proofPath === "string" && manifest.proofPath.length > 0, "Groth16 proof manifest is missing proofPath.");
+  expect(typeof manifest.publicPath === "string" && manifest.publicPath.length > 0, "Groth16 proof manifest is missing publicPath.");
+  return manifest;
+}
+
+function groth16ProofManifestPath() {
+  return path.join(os.homedir(), "tokamak-private-channels", "groth16", "proof", "proof-manifest.json");
 }
 
 function runTokamakProofPipeline({ operationDir, bundlePath }) {

@@ -1838,10 +1838,10 @@ async function main() {
       "--network", workspaceNetworkName,
       "--channel-name", channelName,
     ]);
-    const listedWallets = new Set(localWalletList.wallets.map((wallet) => wallet.wallet));
+    const listedWallets = new Set(localWalletList.wallets.map((wallet) => wallet.wallet.toLowerCase()));
     for (const participant of participants) {
       expect(
-        listedWallets.has(participant.walletName),
+        listedWallets.has(participant.walletName.toLowerCase()),
         `list-local-wallets did not include ${participant.walletName}.`,
       );
     }

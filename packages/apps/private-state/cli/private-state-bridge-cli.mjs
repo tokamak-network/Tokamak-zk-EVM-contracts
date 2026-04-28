@@ -942,6 +942,9 @@ async function handleInstallZkEvm({ args }) {
   }
   run(tokamakCliCommand, installArgs);
   const tokamakRuntimeRoot = resolveTokamakCliRuntimeRoot();
+  const groth16Runtime = installGroth16RuntimeForPrivateState({
+    docker: Boolean(args.docker),
+  });
   const localDeploymentBaseRoot = args.includeLocalArtifacts ? process.cwd() : null;
   const deploymentArtifacts = await installPrivateStateCliArtifacts({
     dappName: PRIVATE_STATE_DAPP_LABEL,
@@ -952,11 +955,13 @@ async function handleInstallZkEvm({ args }) {
     includeLocalArtifacts: Boolean(args.includeLocalArtifacts),
     localDeploymentBaseRoot,
     deploymentArtifacts,
+    groth16Runtime,
   });
   printJson({
     action: "install",
     tokamakCli: tokamakCliBaseArgs[0],
     runtimeRoot: tokamakRuntimeRoot,
+    groth16Runtime,
     docker: Boolean(args.docker),
     includeLocalArtifacts: Boolean(args.includeLocalArtifacts),
     localDeploymentBaseRoot,
@@ -4629,8 +4634,8 @@ function printHelp() {
   console.log(`
 Commands:
   --install [--docker] [--include-local-artifacts]
-      Install the Tokamak zk-EVM CLI runtime workspace and private-state deployment artifacts
-      Use --docker on Linux to forward tokamak-cli --install --docker
+      Install the Tokamak zk-EVM CLI runtime, Groth16 runtime, and private-state deployment artifacts
+      Use --docker on Linux to forward Docker mode to the Tokamak zk-EVM and Groth16 runtimes
       Use --include-local-artifacts to also install local deployment/ artifacts from the current working directory
 
   uninstall-zk-evm
@@ -4927,6 +4932,7 @@ function writePrivateStateCliInstallManifest({
   includeLocalArtifacts,
   localDeploymentBaseRoot,
   deploymentArtifacts,
+  groth16Runtime,
 }) {
   const manifestPath = privateStateCliInstallManifestPath(deploymentArtifacts.cacheBaseRoot);
   const manifest = {
@@ -4941,6 +4947,7 @@ function writePrivateStateCliInstallManifest({
       includeLocalArtifacts,
       localDeploymentBaseRoot,
       artifactCacheRoot: deploymentArtifacts.cacheBaseRoot,
+      groth16Runtime,
       installedDeploymentArtifacts: deploymentArtifacts.installed.map((entry) => ({
         chainId: entry.chainId,
         source: entry.source,
@@ -4966,6 +4973,7 @@ function buildDoctorReport() {
   const installManifest = readJsonIfExists(installManifestPath);
   const dependencyReports = collectDependencyPackageReports(installManifest);
   const tokamakCli = inspectTokamakCliRuntime();
+  const groth16Runtime = inspectGroth16Runtime();
   const checks = [
     {
       name: "dependency package versions",
@@ -4993,6 +5001,16 @@ function buildDoctorReport() {
         })),
       },
     },
+    {
+      name: "groth16 runtime",
+      ok: groth16Runtime.installed,
+      details: {
+        packageRoot: groth16Runtime.packageRoot,
+        workspaceRoot: groth16Runtime.workspaceRoot,
+        doctorStatus: groth16Runtime.doctor.status,
+        checks: groth16Runtime.checks,
+      },
+    },
   ];
 
   return {
@@ -5012,8 +5030,22 @@ function buildDoctorReport() {
     },
     dependencies: dependencyReports,
     tokamakCli,
+    groth16Runtime,
     checks,
   };
+}
+
+function installGroth16RuntimeForPrivateState({ docker }) {
+  const packageRoot = resolveGroth16PackageRoot();
+  const entryPath = resolveGroth16CliEntryPath(packageRoot);
+  const args = [entryPath, "--install"];
+  if (docker) {
+    args.push("--docker");
+  }
+  run(process.execPath, args, { cwd: packageRoot });
+  const runtime = inspectGroth16Runtime();
+  expect(runtime.installed, "Groth16 runtime install completed, but tokamak-groth16 --doctor still reports an unhealthy runtime.");
+  return runtime;
 }
 
 function collectDependencyPackageReports(installManifest = null) {
@@ -5087,6 +5119,35 @@ function findPackageJsonForName(startDir, expectedName) {
   throw new Error(`Cannot locate package.json for ${expectedName} above ${startDir}.`);
 }
 
+function resolveGroth16PackageRoot() {
+  const publicDriveCrsPath = require.resolve("@tokamak-private-dapps/groth16/public-drive-crs");
+  return path.dirname(findPackageJsonForName(path.dirname(publicDriveCrsPath), "@tokamak-private-dapps/groth16"));
+}
+
+function resolveGroth16CliEntryPath(packageRoot = resolveGroth16PackageRoot()) {
+  return path.join(packageRoot, "cli", "tokamak-groth16-cli.mjs");
+}
+
+function inspectGroth16Runtime() {
+  const packageRoot = resolveGroth16PackageRoot();
+  const entryPath = resolveGroth16CliEntryPath(packageRoot);
+  const doctor = runCaptured(process.execPath, [entryPath, "--doctor", "--verbose"], { cwd: packageRoot });
+  const stdout = stripAnsi(doctor.stdout).trim();
+  const stderr = stripAnsi(doctor.stderr).trim();
+  const report = parseJsonReport(stdout);
+  return {
+    installed: doctor.status === 0 && report?.ok === true,
+    packageRoot,
+    workspaceRoot: report?.workspaceRoot ?? null,
+    checks: report?.checks ?? [],
+    doctor: {
+      status: doctor.status,
+      stdout,
+      stderr,
+    },
+  };
+}
+
 function inspectTokamakCliRuntime() {
   const doctor = runCaptured(tokamakCliCommand, [...tokamakCliBaseArgs, "--doctor"], {
     cwd: resolveTokamakCliPackageRoot(),
@@ -5116,6 +5177,14 @@ function inspectTokamakCliRuntime() {
     },
     installations,
   };
+}
+
+function parseJsonReport(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 function resolveTokamakCliCacheRoot() {

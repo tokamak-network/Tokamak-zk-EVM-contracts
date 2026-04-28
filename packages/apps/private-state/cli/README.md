@@ -8,7 +8,8 @@ Command-line client for the Tokamak private-state DApp.
 npm install -g @tokamak-private-dapps/private-state-cli
 ```
 
-Install the local Tokamak zk-EVM runtime workspace and public private-state deployment artifacts:
+Install the local Tokamak zk-EVM runtime workspace, Groth16 runtime workspace, and public private-state deployment
+artifacts:
 
 ```bash
 private-state-cli --install
@@ -52,7 +53,7 @@ Use `private-state-cli --help` for the full command list and required options.
 
 `private-state-cli --doctor` reports the CLI package version, dependency versions recorded by the last
 `private-state-cli --install`, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
-install mode, Docker mode, and CUDA runtime metadata.
+install mode, Docker mode, CUDA runtime metadata, and Groth16 runtime health.
 
 ## Workspace
 
@@ -81,7 +82,8 @@ Release order matters for npm publication. `@tokamak-private-dapps/common-librar
 ### What does this package install?
 
 It installs the `private-state-cli` terminal command and the local files needed by that command.
-It does not install bridge contracts, app contracts, or local deployment outputs.
+It does not install bridge contracts, app contracts, or local deployment outputs. The `private-state-cli --install`
+command provisions the local Tokamak zk-EVM and Groth16 runtime workspaces used by proof-backed commands.
 
 ### When should I run `private-state-cli --install`?
 

@@ -364,34 +364,34 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant ALPHA_POWER4_Y1_PART2 = 0x01597ab09398b775d54c7b75e6af259196eecac5818e09eab53449a53a5477c6;
 
     // -[γ]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant GAMMA_X0_PART1 = 0x0000000000000000000000000000000009966ef777b1788f44207f51531d6718;
-    uint256 internal constant GAMMA_X0_PART2 = 0xee3d7595db917cb331d63fb5769390f99235fa083ceb336f3f964652efe07180;
-    uint256 internal constant GAMMA_X1_PART1 = 0x0000000000000000000000000000000000c479271ccc698dd88194374da3a610;
-    uint256 internal constant GAMMA_X1_PART2 = 0xb7d1d64429252be8970c2cea752459e4c742f588b5d36b480fcf4a5e4f09f376;
-    uint256 internal constant GAMMA_Y0_PART1 = 0x000000000000000000000000000000000d8df897e8684e7831a7b2dd13c701e0;
-    uint256 internal constant GAMMA_Y0_PART2 = 0x134672fd0beeb210d4292f8825d388136b7605da6ca19545fb440dce5dd10112;
-    uint256 internal constant GAMMA_Y1_PART1 = 0x000000000000000000000000000000001983c64ccf3228e3b664849dd1f9ced2;
-    uint256 internal constant GAMMA_Y1_PART2 = 0x4c5f543aaee877ac58a17837a6e9d1a0e6721177d2c75c0eef1aefbb8f90c514;
+    uint256 internal constant GAMMA_X0_PART1 = 0x000000000000000000000000000000000d8cae42905881de98e1211de91e4204;
+    uint256 internal constant GAMMA_X0_PART2 = 0x61df9d4e2485187e0df8f758b9c70c0c15e6de99c63511025c57c47911c10f5b;
+    uint256 internal constant GAMMA_X1_PART1 = 0x0000000000000000000000000000000013e56113c9a0e171edf54de5a8f46dc4;
+    uint256 internal constant GAMMA_X1_PART2 = 0xb5f9da0e4f28c03af42db92d7c9592cc0afcea5417f3ec864ba9358743d2c34b;
+    uint256 internal constant GAMMA_Y0_PART1 = 0x0000000000000000000000000000000013215867996e8171cc933d28502e0e14;
+    uint256 internal constant GAMMA_Y0_PART2 = 0x4531d8766a7ed70fa024be2348733feace092a3277a070cf4ea78f8bc3c6207e;
+    uint256 internal constant GAMMA_Y1_PART1 = 0x0000000000000000000000000000000016666a8978c5e2ff2ceec679d80bae31;
+    uint256 internal constant GAMMA_Y1_PART2 = 0x20eff88dfe1192f08e812985543c17b01d824b1c95e1212253099c37171d31c1;
 
     // -[η]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant ETA_X0_PART1 = 0x000000000000000000000000000000000fe2431610c18a8fb31d5cb3a2168cfa;
-    uint256 internal constant ETA_X0_PART2 = 0x602270280c0ee09100f566e7c3979baba19717958cb2b0018020f33b75ab4b7c;
-    uint256 internal constant ETA_X1_PART1 = 0x000000000000000000000000000000001994f6f514085147b57b2213fb9d984b;
-    uint256 internal constant ETA_X1_PART2 = 0xe4748c1015d16fff2f9ba915402afcedc7f222bf98f7a489fbfccb78608aff04;
-    uint256 internal constant ETA_Y0_PART1 = 0x0000000000000000000000000000000011a0406a7ec8b7075f9eef339132f063;
-    uint256 internal constant ETA_Y0_PART2 = 0xc97120125b8b6516de6fd1be5a18834a235ab563e219fbdec81d84ee327ce5e9;
-    uint256 internal constant ETA_Y1_PART1 = 0x0000000000000000000000000000000006bd14e721e3d39b0233fd29b6d5fcc5;
-    uint256 internal constant ETA_Y1_PART2 = 0xffc588fc26c5b38100a43973015314d5bec452d1f480d0c8678426f5e55d5a95;
+    uint256 internal constant ETA_X0_PART1 = 0x0000000000000000000000000000000001947881a09c184b2a786a32a74e8e9a;
+    uint256 internal constant ETA_X0_PART2 = 0xee9506e397dc2752afb68c3fd28505345ec7f2cb66d5e7c2a51625ad678f1944;
+    uint256 internal constant ETA_X1_PART1 = 0x00000000000000000000000000000000069f041da00b1fa197a8187e855569db;
+    uint256 internal constant ETA_X1_PART2 = 0xb5346943dc0f66e315fa6bbca3deebb8090d52af5d6dac19fd51457cd49d0b4a;
+    uint256 internal constant ETA_Y0_PART1 = 0x000000000000000000000000000000001286ddd6430c15351c30d26f5b82255b;
+    uint256 internal constant ETA_Y0_PART2 = 0xc9bf3bd993e7e581ac33663b5d59b25522cfdf6a9ccce06142d4e37f4feefda1;
+    uint256 internal constant ETA_Y1_PART1 = 0x000000000000000000000000000000000a119772f2183dfbde9d2c7778020954;
+    uint256 internal constant ETA_Y1_PART2 = 0x5ccca5438b0f4f8701e983b97a314ea68fefcdd8eb76e1335edf0f2a580dcac2;
 
     // -[δ]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant DELTA_X0_PART1 = 0x000000000000000000000000000000000f365c6f4bd554cb7ddb712b18869c7d;
-    uint256 internal constant DELTA_X0_PART2 = 0x28e8de0328c9a4cece66a0ec1df72050c50a0131e4d215cdf7bd9e6ecd8d0720;
-    uint256 internal constant DELTA_X1_PART1 = 0x0000000000000000000000000000000013e62ee425c7d8a2dd560159e235818b;
-    uint256 internal constant DELTA_X1_PART2 = 0xb111854c9302c1ac5293fe90975008de5ec29f161f9361b881d529f3d03ff26a;
-    uint256 internal constant DELTA_Y0_PART1 = 0x00000000000000000000000000000000048a0951d3d0b05f54dd49df2c0467fc;
-    uint256 internal constant DELTA_Y0_PART2 = 0xc539f018eb37faf89427b97887f60c633700220d6b80c51c924af06ed4e3eaea;
-    uint256 internal constant DELTA_Y1_PART1 = 0x0000000000000000000000000000000000b244e10eb60ced86a557ac29d9a69c;
-    uint256 internal constant DELTA_Y1_PART2 = 0x5758846b38c5e928303a100c8ee256f8c7e815989f5b05621946628c1af05534;
+    uint256 internal constant DELTA_X0_PART1 = 0x0000000000000000000000000000000011c4aecae5b97ab6b5bee92b4f330ee1;
+    uint256 internal constant DELTA_X0_PART2 = 0x22047247ae1edccf76d7424526854b04ea5570b000c38aafb09aa8c9ff0aa022;
+    uint256 internal constant DELTA_X1_PART1 = 0x000000000000000000000000000000001144c4edebd9631603be50e2245ab78d;
+    uint256 internal constant DELTA_X1_PART2 = 0x8f32b5ae5c201ffd17ecf6c86d233af3e26894f382e934199ef9c644c2c3c7f2;
+    uint256 internal constant DELTA_Y0_PART1 = 0x00000000000000000000000000000000184cd091e223ce56b04d61f2a67ae0e7;
+    uint256 internal constant DELTA_Y0_PART2 = 0x501a17e62d7ee2fc1582cea260b04819900ec7bfbde2f10c15bde72c183bfc87;
+    uint256 internal constant DELTA_Y1_PART1 = 0x000000000000000000000000000000000c90a84dc9a26b561b4a7c0b4e8eb530;
+    uint256 internal constant DELTA_Y1_PART2 = 0x5bd47b633a4c15dc691324117899da169f905478af050c943986017312c1b8d4;
 
     // -[x]_2, refreshed from sigma_verify.json and negated for pairing.
     uint256 internal constant X_X0_PART1 = 0x000000000000000000000000000000000fd840491fe66a0cc60f45930d88a9b5;
@@ -404,14 +404,14 @@ contract TokamakVerifier is ITokamakVerifier {
     uint256 internal constant X_Y1_PART2 = 0x3f38addb65bd1a43d48dc2b8f6e15c452a9ad7e17c83fed266eb7fc8055b2e1e;
 
     // -[y]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant Y_X0_PART1 = 0x0000000000000000000000000000000006984917b7872f68dde1b3822eae282c;
-    uint256 internal constant Y_X0_PART2 = 0x005df2763e61405dd2d6bfe3ef2ad6a15629515095dbaed2ebaa4b34e01fe37c;
-    uint256 internal constant Y_X1_PART1 = 0x000000000000000000000000000000000f196f4004ecd68bc313c26b311f4cd8;
-    uint256 internal constant Y_X1_PART2 = 0x4bc0299a0dc3dee5c731add574239a3b1dd45a4492c4cca03bbdd77823837f93;
-    uint256 internal constant Y_Y0_PART1 = 0x000000000000000000000000000000000e64f1edaf9c6c182b27a9ecc823d879;
-    uint256 internal constant Y_Y0_PART2 = 0xa5a75d2c6fc625b3bed77c0c021610c2cdb9389c7371e2b367e1227fc52c599e;
-    uint256 internal constant Y_Y1_PART1 = 0x00000000000000000000000000000000090387e49ccbd5fa83704d711a4d8074;
-    uint256 internal constant Y_Y1_PART2 = 0x24bc2736a95f5cd67f70e9e9a13d7135d7b64799f0daef26d188f9a346fb78f8;
+    uint256 internal constant Y_X0_PART1 = 0x000000000000000000000000000000000ff6b7ed45c188beb565b540e0b6326c;
+    uint256 internal constant Y_X0_PART2 = 0x9aa869ec3d9cbe9048891eed7c6b6a287d94add7ba5336d08a47f8ad38c1e65e;
+    uint256 internal constant Y_X1_PART1 = 0x000000000000000000000000000000000149a06e4866a1c41e654415fcfc2953;
+    uint256 internal constant Y_X1_PART2 = 0x83a6d8e6a87eff869eafd893a0d9317f3f47f8b8ce2695fc41ae49ecb26e2b58;
+    uint256 internal constant Y_Y0_PART1 = 0x000000000000000000000000000000000e7d92455561beb6bf525344876055c1;
+    uint256 internal constant Y_Y0_PART2 = 0x7e488c1f4283c55623c27814c8cd57ef342153d5dbd98658eb8b5b3aed52794e;
+    uint256 internal constant Y_Y1_PART1 = 0x000000000000000000000000000000000ca4401add61e5849c73278e44c226db;
+    uint256 internal constant Y_Y1_PART2 = 0x13b8f7d2a42fc64ce2f62cdeeef58c24da43757f31025c174fbaa7b0b76ba8d3;
 
     /// @notice Load verification keys to memory in runtime.
     /// @dev The constants are loaded into memory in a specific layout declared in the constants starting from

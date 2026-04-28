@@ -41,7 +41,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "@tokamak-zk-evm/cli": "^2.0.8",
+    "@tokamak-zk-evm/cli": "^2.0.12",
     "@tokamak-zk-evm/subcircuit-library": "^1.0.3",
     "ethers": "^6.14.1"
   },

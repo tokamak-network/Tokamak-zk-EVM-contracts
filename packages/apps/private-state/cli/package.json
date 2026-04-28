@@ -44,7 +44,7 @@
     "@noble/curves": "^1.2.0",
     "@tokamak-private-dapps/common-library": "^0.1.0",
     "@tokamak-private-dapps/groth16": "^0.1.1",
-    "@tokamak-zk-evm/cli": "^2.0.8",
+    "@tokamak-zk-evm/cli": "^2.0.12",
     "ethers": "^6.14.1",
     "tokamak-l2js": "^0.1.3"
   },

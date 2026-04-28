@@ -1291,7 +1291,7 @@ async function main() {
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
   console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);
 
-  if (process.env.BRIDGE_NETWORK !== "anvil") {
+  if (process.env.BRIDGE_NETWORK !== "anvil" && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1") {
     run("node", [
       path.join(projectRoot, "bridge", "scripts", "upload-bridge-artifacts.mjs"),
       String(bridgeChainId),
@@ -1299,6 +1299,8 @@ async function main() {
       uploadTimestamp,
       "--preflight",
     ]);
+  } else if (process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD === "1") {
+    console.log("Skipping bridge artifact upload preflight because BRIDGE_SKIP_ARTIFACT_UPLOAD=1");
   }
 
   fs.mkdirSync(bridgePendingDir, { recursive: true });
@@ -1328,7 +1330,7 @@ async function main() {
   syncGroth16ArtifactsForBridge(bridgeChainId, bridgePendingDir);
   syncTokamakZkpArtifactsForBridge(bridgeChainId, bridgePendingDir);
 
-  if (process.env.BRIDGE_NETWORK !== "anvil") {
+  if (process.env.BRIDGE_NETWORK !== "anvil" && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1") {
     run("node", [
       path.join(projectRoot, "bridge", "scripts", "upload-bridge-artifacts.mjs"),
       String(bridgeChainId),
@@ -1339,6 +1341,8 @@ async function main() {
       "--abi-manifest-path",
       bridgePendingAbiManifestPath,
     ]);
+  } else if (process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD === "1") {
+    console.log("Skipping bridge artifact upload because BRIDGE_SKIP_ARTIFACT_UPLOAD=1");
   }
 
   fs.mkdirSync(path.dirname(bridgeCanonicalDir), { recursive: true });

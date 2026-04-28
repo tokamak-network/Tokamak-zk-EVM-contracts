@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import {
   createCipheriv,
   createDecipheriv,
@@ -46,6 +47,7 @@ import { deriveRpcUrl, resolveCliNetwork } from "@tokamak-private-dapps/common-l
 import {
   buildTokamakCliInvocation,
   resolveTokamakBlockInputConfig,
+  resolveTokamakCliPackageRoot,
   resolveTokamakCliResourceDir,
   resolveTokamakCliRuntimeRoot,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
@@ -80,7 +82,9 @@ import {
   walletNameForChannelAndAddress,
 } from "./lib/private-state-cli-shared.mjs";
 
+const require = createRequire(import.meta.url);
 const defaultCommandCwd = process.cwd();
+const privateStateCliPackageRoot = path.dirname(require.resolve("./package.json"));
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const tokamakCliInvocation = buildTokamakCliInvocation();
 const tokamakCliCommand = tokamakCliInvocation.command;
@@ -218,6 +222,12 @@ async function main() {
   if (args.command === "uninstall-zk-evm") {
     assertUninstallZkEvmArgs(args);
     await handleUninstallZkEvm();
+    return;
+  }
+
+  if (args.command === "--doctor") {
+    assertDoctorArgs(args);
+    await handleDoctor({ args });
     return;
   }
 
@@ -937,6 +947,12 @@ async function handleInstallZkEvm({ args }) {
     dappName: PRIVATE_STATE_DAPP_LABEL,
     localDeploymentBaseRoot,
   });
+  const installManifest = writePrivateStateCliInstallManifest({
+    dockerRequested: Boolean(args.docker),
+    includeLocalArtifacts: Boolean(args.includeLocalArtifacts),
+    localDeploymentBaseRoot,
+    deploymentArtifacts,
+  });
   printJson({
     action: "install",
     tokamakCli: tokamakCliBaseArgs[0],
@@ -953,6 +969,7 @@ async function handleInstallZkEvm({ args }) {
       dappTimestamp: entry.dappTimestamp,
       artifactDir: entry.artifactDir,
     })),
+    installManifestPath: installManifest.manifestPath,
   });
 }
 
@@ -970,6 +987,14 @@ async function handleUninstallZkEvm() {
     runtimeRoot,
     existed: runtimeRoot !== null,
   });
+}
+
+async function handleDoctor() {
+  const report = buildDoctorReport();
+  printJson(report);
+  if (!report.ok) {
+    process.exitCode = 1;
+  }
 }
 
 async function handleGetMyAddress({ args, provider }) {
@@ -4217,6 +4242,10 @@ function parseArgs(argv) {
     parsed.command = "--install";
     parsed.positional = ["--install"];
   }
+  if (!parsed.command && parsed.doctor === true) {
+    parsed.command = "--doctor";
+    parsed.positional = ["--doctor"];
+  }
   return parsed;
 }
 
@@ -4421,6 +4450,10 @@ function assertUninstallZkEvmArgs(args) {
   assertAllowedCommandKeys(args, "uninstall-zk-evm", new Set(["command", "positional"]), "no options");
 }
 
+function assertDoctorArgs(args) {
+  assertAllowedCommandKeys(args, "--doctor", new Set(["command", "positional", "doctor"]), "no options");
+}
+
 function assertMintNotesArgs(args) {
   requireArg(args.amounts, "--amounts");
   assertWalletPasswordArgs(args, "mint-notes", ["amounts"], "--wallet, --password, --network, and --amounts");
@@ -4602,6 +4635,9 @@ Commands:
 
   uninstall-zk-evm
       Remove the Tokamak zk-EVM CLI runtime workspace
+
+  --doctor
+      Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
 
   create-channel --channel-name <NAME> --join-fee <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
@@ -4880,6 +4916,358 @@ function privateStateCliArtifactPaths(cacheBaseRoot = resolveArtifactCacheBaseRo
     privateStateControllerAbiPath: path.join(rootDir, "PrivateStateController.callable-abi.json"),
     dappRegistrationPath: path.join(rootDir, `dapp-registration.${normalizedChainId}.json`),
   };
+}
+
+function privateStateCliInstallManifestPath(cacheBaseRoot = resolveArtifactCacheBaseRoot()) {
+  return path.join(privateStateCliArtifactRoot(cacheBaseRoot), "install-manifest.json");
+}
+
+function writePrivateStateCliInstallManifest({
+  dockerRequested,
+  includeLocalArtifacts,
+  localDeploymentBaseRoot,
+  deploymentArtifacts,
+}) {
+  const manifestPath = privateStateCliInstallManifestPath(deploymentArtifacts.cacheBaseRoot);
+  const manifest = {
+    installedAt: new Date().toISOString(),
+    package: packageReportSummary(readPackageReport({
+      name: "@tokamak-private-dapps/private-state-cli",
+      packageJsonPath: path.join(privateStateCliPackageRoot, "package.json"),
+    })),
+    dependencies: collectDependencyPackageReports().map(({ name, version }) => ({
+      name,
+      version,
+    })),
+    install: {
+      dockerRequested,
+      includeLocalArtifacts,
+      localDeploymentBaseRoot,
+    },
+    deploymentArtifacts: {
+      cacheBaseRoot: deploymentArtifacts.cacheBaseRoot,
+      artifactRoot: deploymentArtifacts.artifactRoot,
+      installed: deploymentArtifacts.installed.map((entry) => ({
+        chainId: entry.chainId,
+        source: entry.source,
+        bridgeTimestamp: entry.bridgeTimestamp,
+        dappTimestamp: entry.dappTimestamp,
+        artifactDir: entry.artifactDir,
+      })),
+    },
+  };
+  writeJson(manifestPath, manifest);
+  return { manifestPath, manifest };
+}
+
+function packageReportSummary(report) {
+  return {
+    name: report.name,
+    version: report.version,
+  };
+}
+
+function buildDoctorReport() {
+  const cacheBaseRoot = resolveArtifactCacheBaseRoot();
+  const installManifestPath = privateStateCliInstallManifestPath(cacheBaseRoot);
+  const installManifest = readJsonIfExists(installManifestPath);
+  const dependencyReports = collectDependencyPackageReports(installManifest);
+  const tokamakCli = inspectTokamakCliRuntime();
+  const groth16 = inspectGroth16Runtime();
+  const deploymentArtifacts = inspectInstalledDeploymentArtifacts(cacheBaseRoot);
+  const checks = [
+    {
+      name: "dependency package versions",
+      ok: dependencyReports.every((entry) => entry.ok),
+      details: dependencyReports.map((entry) => ({
+        name: entry.name,
+        currentVersion: entry.version,
+        installVersion: entry.installVersion,
+        ok: entry.ok,
+        error: entry.error,
+      })),
+    },
+    {
+      name: "tokamak zk-evm runtime",
+      ok: tokamakCli.installed,
+      details: {
+        doctorStatus: tokamakCli.doctor.status,
+        runtimeRoot: tokamakCli.runtimeRoot,
+        installations: tokamakCli.installations.map(({ platform, installMode, packageVersion, docker }) => ({
+          platform,
+          installMode,
+          packageVersion,
+          dockerEnvironment: docker?.dockerEnvironment ?? null,
+          useGpus: docker?.useGpus ?? null,
+        })),
+      },
+    },
+    {
+      name: "private-state deployment artifacts",
+      ok: deploymentArtifacts.ok,
+      details: {
+        artifactRoot: deploymentArtifacts.artifactRoot,
+        chains: deploymentArtifacts.chains.map((entry) => ({
+          chainId: entry.chainId,
+          complete: entry.complete,
+          missing: entry.missing,
+        })),
+      },
+    },
+    {
+      name: "groth16 runtime",
+      ok: groth16.installed,
+      details: {
+        workspaceRoot: groth16.workspaceRoot,
+        installMode: groth16.installMode,
+        packageVersion: groth16.packageVersion,
+        dockerEnvironment: groth16.docker?.dockerEnvironment ?? null,
+      },
+    },
+  ];
+
+  return {
+    action: "doctor",
+    ok: checks.every((check) => check.ok),
+    generatedAt: new Date().toISOString(),
+    package: readPackageReport({
+      name: "@tokamak-private-dapps/private-state-cli",
+      packageJsonPath: path.join(privateStateCliPackageRoot, "package.json"),
+    }),
+    installManifest: {
+      path: installManifestPath,
+      exists: Boolean(installManifest),
+      installedAt: installManifest?.installedAt ?? null,
+      dockerRequested: installManifest?.install?.dockerRequested ?? null,
+      includeLocalArtifacts: installManifest?.install?.includeLocalArtifacts ?? null,
+    },
+    dependencies: dependencyReports,
+    tokamakCli,
+    groth16,
+    deploymentArtifacts,
+    checks,
+  };
+}
+
+function collectDependencyPackageReports(installManifest = null) {
+  const installVersions = new Map(
+    Array.isArray(installManifest?.dependencies)
+      ? installManifest.dependencies.map((entry) => [entry.name, entry.version])
+      : [],
+  );
+  const targets = [
+    {
+      name: "@tokamak-zk-evm/cli",
+      packageJsonPath: path.join(resolveTokamakCliPackageRoot(), "package.json"),
+    },
+    {
+      name: "@tokamak-private-dapps/groth16",
+      resolveTarget: "@tokamak-private-dapps/groth16/public-drive-crs",
+    },
+    {
+      name: "@tokamak-private-dapps/common-library",
+      resolveTarget: "@tokamak-private-dapps/common-library/artifact-cache",
+    },
+    { name: "tokamak-l2js", resolveTarget: "tokamak-l2js" },
+    { name: "ethers", resolveTarget: "ethers" },
+    { name: "@noble/curves", resolveTarget: "@noble/curves/jubjub" },
+    { name: "@ethereumjs/util", resolveTarget: "@ethereumjs/util" },
+  ];
+
+  return targets.map((target) => {
+    const report = readPackageReport(target);
+    const installVersion = installVersions.get(report.name) ?? null;
+    return {
+      ...report,
+      installVersion,
+      ok: Boolean(report.version) && (installVersion === null || installVersion === report.version),
+    };
+  });
+}
+
+function readPackageReport({ name, packageJsonPath = null, resolveTarget = null }) {
+  try {
+    const resolvedPackageJsonPath = packageJsonPath
+      ? path.resolve(packageJsonPath)
+      : findPackageJsonForName(path.dirname(require.resolve(resolveTarget ?? name)), name);
+    const packageJson = readJson(resolvedPackageJsonPath);
+    return {
+      name: packageJson.name ?? name,
+      version: packageJson.version ?? null,
+      packageRoot: path.dirname(resolvedPackageJsonPath),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      name,
+      version: null,
+      packageRoot: null,
+      error: error.message,
+      ok: false,
+    };
+  }
+}
+
+function findPackageJsonForName(startDir, expectedName) {
+  let current = path.resolve(startDir);
+  while (current !== path.dirname(current)) {
+    const candidate = path.join(current, "package.json");
+    if (fs.existsSync(candidate)) {
+      const packageJson = readJson(candidate);
+      if (packageJson.name === expectedName) {
+        return candidate;
+      }
+    }
+    current = path.dirname(current);
+  }
+  throw new Error(`Cannot locate package.json for ${expectedName} above ${startDir}.`);
+}
+
+function inspectTokamakCliRuntime() {
+  const doctor = runCaptured(tokamakCliCommand, [...tokamakCliBaseArgs, "--doctor"], {
+    cwd: resolveTokamakCliPackageRoot(),
+  });
+  const doctorOutput = stripAnsi(`${doctor.stdout}${doctor.stderr}`);
+  const runtimeRoot = parseRuntimeRootFromTokamakDoctorOutput(doctorOutput);
+  const cacheRoot = resolveTokamakCliCacheRoot();
+  const installations = readTokamakCliInstallations(cacheRoot);
+  const dockerModeInstalled = installations.some((entry) => entry.installMode === "docker" || entry.docker);
+  const cudaCompatible = installations.some((entry) => entry.docker?.useGpus === true);
+
+  return {
+    installed: doctor.status === 0 || installations.length > 0,
+    packageRoot: resolveTokamakCliPackageRoot(),
+    cacheRoot,
+    runtimeRoot,
+    packageVersion: readPackageReport({
+      name: "@tokamak-zk-evm/cli",
+      packageJsonPath: path.join(resolveTokamakCliPackageRoot(), "package.json"),
+    }).version,
+    dockerModeInstalled,
+    cudaCompatible,
+    doctor: {
+      status: doctor.status,
+      stdout: stripAnsi(doctor.stdout).trim(),
+      stderr: stripAnsi(doctor.stderr).trim(),
+    },
+    installations,
+  };
+}
+
+function resolveTokamakCliCacheRoot() {
+  return path.resolve(process.env.TOKAMAK_ZKEVM_CLI_CACHE_DIR ?? path.join(os.homedir(), ".tokamak-zk-evm"));
+}
+
+function readTokamakCliInstallations(cacheRoot) {
+  if (!fs.existsSync(cacheRoot)) {
+    return [];
+  }
+  return fs.readdirSync(cacheRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const platformDir = path.join(cacheRoot, entry.name);
+      const statePath = path.join(platformDir, "installation.json");
+      if (!fs.existsSync(statePath)) {
+        return null;
+      }
+      const state = readJsonIfExists(statePath);
+      const dockerBootstrapPath = path.join(platformDir, "docker", "bootstrap.json");
+      const docker = readJsonIfExists(dockerBootstrapPath);
+      return {
+        platform: entry.name,
+        statePath,
+        runtimeRoot: path.join(platformDir, "runtime"),
+        installMode: state?.installMode ?? (docker ? "docker" : null),
+        packageVersion: state?.packageVersion ?? docker?.packageVersion ?? null,
+        installedAt: state?.installedAt ?? null,
+        dockerBootstrapPath,
+        docker,
+      };
+    })
+    .filter(Boolean);
+}
+
+function parseRuntimeRootFromTokamakDoctorOutput(output) {
+  const match = String(output ?? "").match(/^\[ ok \] Runtime workspace:\s*(.+)$/m);
+  return match ? path.resolve(match[1].trim()) : null;
+}
+
+function inspectGroth16Runtime() {
+  const workspaceRoot = path.join(defaultArtifactCacheBaseRoot(), "groth16");
+  const manifestPath = path.join(workspaceRoot, "install-manifest.json");
+  const dockerBootstrapPath = path.join(workspaceRoot, "docker", "bootstrap.json");
+  const manifest = readJsonIfExists(manifestPath);
+  const docker = readJsonIfExists(dockerBootstrapPath);
+  const requiredFiles = [
+    path.join(workspaceRoot, "crs", "circuit_final.zkey"),
+    path.join(workspaceRoot, "crs", "verification_key.json"),
+    path.join(workspaceRoot, "crs", "metadata.json"),
+    path.join(workspaceRoot, "build", "circuit_updateTree.wasm"),
+  ];
+
+  return {
+    installed: fs.existsSync(workspaceRoot) && requiredFiles.every((filePath) => fs.existsSync(filePath)),
+    workspaceRoot,
+    manifestPath,
+    manifestExists: Boolean(manifest),
+    installMode: manifest?.installMode ?? (docker ? "docker" : null),
+    packageVersion: manifest?.docker?.packageVersion ?? docker?.packageVersion ?? readPackageReport({
+      name: "@tokamak-private-dapps/groth16",
+      resolveTarget: "@tokamak-private-dapps/groth16/public-drive-crs",
+    }).version,
+    dockerModeInstalled: manifest?.installMode === "docker" || Boolean(docker),
+    cudaCompatible: false,
+    dockerBootstrapPath,
+    docker,
+    requiredFiles: requiredFiles.map((filePath) => ({
+      path: filePath,
+      exists: fs.existsSync(filePath),
+    })),
+  };
+}
+
+function inspectInstalledDeploymentArtifacts(cacheBaseRoot = resolveArtifactCacheBaseRoot()) {
+  const artifactRoot = privateStateCliArtifactRoot(cacheBaseRoot);
+  const chains = fs.existsSync(artifactRoot)
+    ? fs.readdirSync(artifactRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && /^chain-id-\d+$/.test(entry.name))
+      .map((entry) => inspectInstalledDeploymentArtifactChain(cacheBaseRoot, entry.name.replace(/^chain-id-/, "")))
+      .sort((left, right) => left.chainId - right.chainId)
+    : [];
+  return {
+    artifactRoot,
+    ok: chains.length > 0 && chains.every((entry) => entry.complete),
+    chains,
+  };
+}
+
+function inspectInstalledDeploymentArtifactChain(cacheBaseRoot, chainId) {
+  const paths = privateStateCliArtifactPaths(cacheBaseRoot, chainId);
+  const requiredFiles = [
+    paths.bridgeDeploymentPath,
+    paths.bridgeAbiManifestPath,
+    paths.grothManifestPath,
+    paths.grothZkeyPath,
+    paths.dappDeploymentPath,
+    paths.dappStorageLayoutPath,
+    paths.privateStateControllerAbiPath,
+    paths.dappRegistrationPath,
+  ];
+  const files = requiredFiles.map((filePath) => ({
+    path: filePath,
+    exists: fs.existsSync(filePath),
+  }));
+  return {
+    chainId: Number(chainId),
+    artifactDir: paths.rootDir,
+    complete: files.every((entry) => entry.exists),
+    missing: files.filter((entry) => !entry.exists).map((entry) => entry.path),
+    files,
+  };
+}
+
+function stripAnsi(value) {
+  return String(value ?? "").replace(/\u001b\[[0-9;]*m/g, "");
 }
 
 async function installPrivateStateCliArtifacts({

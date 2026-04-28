@@ -27,6 +27,12 @@ Run the CLI with:
 private-state-cli <command> ...
 ```
 
+Check the installed package and runtime state with:
+
+```bash
+private-state-cli --doctor
+```
+
 ## Commands
 
 The normal private-state flow is:
@@ -43,6 +49,10 @@ The normal private-state flow is:
 10. `withdraw-bridge`
 
 Use `private-state-cli --help` for the full command list and required options.
+
+`private-state-cli --doctor` reports the CLI package version, dependency versions recorded by the last
+`private-state-cli --install`, current dependency versions, Tokamak zk-EVM runtime install mode, Docker/CUDA runtime
+metadata, Groth16 runtime status, and installed deployment artifact completeness.
 
 ## Workspace
 

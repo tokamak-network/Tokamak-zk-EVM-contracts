@@ -1,6 +1,6 @@
 {
   "name": "@tokamak-private-dapps/groth16",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Groth16 circuits, setup, and proof helpers for Tokamak private DApps.",
   "license": "MIT OR Apache-2.0",
   "author": "Tokamak Network",

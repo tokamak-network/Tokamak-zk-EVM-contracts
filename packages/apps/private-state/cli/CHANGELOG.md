@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 - 2026-04-28
+
+- Switched channel balance proof generation to invoke `tokamak-groth16 --prove` instead of importing Groth16 proof internals directly.
+- Read proof artifacts from the fixed Groth16 runtime workspace manifest.
+
 ## 0.1.4 - 2026-04-28
 
 - Paced chunked log recovery queries at five requests per second to avoid RPC throughput bursts.

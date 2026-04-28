@@ -231,6 +231,12 @@ async function main() {
     return;
   }
 
+  if (args.command === "get-my-l1-address") {
+    assertGetMyL1AddressArgs(args);
+    handleGetMyL1Address({ args });
+    return;
+  }
+
   const walletCommandHandlers = {
     "mint-notes": {
       assert: assertMintNotesArgs,
@@ -256,9 +262,9 @@ async function main() {
       assert: (parsedArgs) => assertWalletChannelMoveArgs(parsedArgs, "withdraw-channel"),
       run: ({ provider }) => handleGrothVaultMove({ args, provider, direction: "withdraw" }),
     },
-    "get-my-address": {
-      assert: assertGetMyAddressArgs,
-      run: ({ provider }) => handleGetMyAddress({ args, provider }),
+    "get-my-wallet-meta": {
+      assert: assertGetMyWalletMetaArgs,
+      run: ({ provider }) => handleGetMyWalletMeta({ args, provider }),
     },
     "get-my-channel-fund": {
       assert: assertGetMyChannelFundArgs,
@@ -1002,7 +1008,16 @@ async function handleDoctor() {
   }
 }
 
-async function handleGetMyAddress({ args, provider }) {
+function handleGetMyL1Address({ args }) {
+  const privateKey = normalizePrivateKey(requireArg(args.privateKey, "--private-key"));
+  const signer = new Wallet(privateKey);
+  printJson({
+    action: "get-my-l1-address",
+    l1Address: signer.address,
+  });
+}
+
+async function handleGetMyWalletMeta({ args, provider }) {
   const { wallet, walletMetadata } = loadUnlockedWalletWithMetadata(args);
   const { signer, l2Identity } = restoreWalletParticipant(wallet, provider);
   const context = await loadChannelContext({
@@ -1020,7 +1035,7 @@ async function handleGetMyAddress({ args, provider }) {
       === ethers.toBigInt(normalizeBytes32Hex(expectedStorageKey));
 
   printJson({
-    action: "get-my-address",
+    action: "get-my-wallet-meta",
     wallet: wallet.walletName,
     network: walletMetadata.network,
     channelName: walletMetadata.channelName,
@@ -4571,8 +4586,18 @@ function assertJoinChannelArgs(args) {
   assertExplicitSignerPasswordCommandArgs(args, "join-channel");
 }
 
-function assertGetMyAddressArgs(args) {
-  assertWalletPasswordArgs(args, "get-my-address", [], "--wallet, --password, and --network");
+function assertGetMyWalletMetaArgs(args) {
+  assertWalletPasswordArgs(args, "get-my-wallet-meta", [], "--wallet, --password, and --network");
+}
+
+function assertGetMyL1AddressArgs(args) {
+  requireArg(args.privateKey, "--private-key");
+  assertAllowedCommandKeys(
+    args,
+    "get-my-l1-address",
+    new Set(["command", "positional", "privateKey"]),
+    "--private-key",
+  );
 }
 
 function assertWithdrawBridgeArgs(args) {
@@ -4665,8 +4690,11 @@ Commands:
   join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Pay the channel join fee and bind a wallet to a channel-specific L2 identity
 
-  get-my-address --wallet <NAME> --password <PASSWORD> --network <NAME>
+  get-my-wallet-meta --wallet <NAME> --password <PASSWORD> --network <NAME>
       Check whether a wallet matches the on-chain channel registration
+
+  get-my-l1-address --private-key <HEX>
+      Derive the L1 address for a private key
 
   deposit-channel --wallet <NAME> --password <PASSWORD> --network <NAME> --amount <TOKENS>
       Move bridged funds into the channel L2 accounting balance

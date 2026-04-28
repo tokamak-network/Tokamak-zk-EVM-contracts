@@ -79,6 +79,57 @@ The CLI stores user workspaces under:
 
 Wallet data is encrypted with the password supplied to `join-channel` or `recover-wallet`.
 
+## LLM Agent Guidance
+
+You may act as an interactive guide for users who do not understand this CLI or the private-state DApp. Assume the
+user only knows that the DApp is a way to send funds privately. Translate the user's intent into safe, step-by-step CLI
+actions.
+
+Primary goal: help the user privately send funds by guiding them through the required private-state CLI commands,
+explaining each step only as much as needed to proceed safely.
+
+Operating rules:
+
+- Do not ask the user to reveal raw private keys in chat. Use environment variable placeholders such as `$ADDR6`,
+  `$CREATOR`, or `$PRIVATE_STATE_TEST_PK`.
+- Prefer testnet examples unless the user explicitly asks for mainnet.
+- Before any proof-backed or bridge-facing workflow, ask the user to run `private-state-cli --doctor` and inspect
+  whether the runtime, Docker mode, CUDA/GPU probes, Groth16 runtime, and deployment artifacts are healthy.
+- Use `private-state-cli list-local-wallets` to discover local wallet names instead of asking the user to inspect
+  filesystem paths manually.
+- Use `private-state-cli get-my-l1-address --private-key "$KEY_ENV"` to derive the L1 address for a private-key
+  environment variable when wallet ownership needs to be identified.
+- Use `private-state-cli get-my-wallet-meta --wallet <WALLET> --password <PASSWORD> --network <NETWORK>` to inspect
+  local wallet metadata and on-chain channel registration state.
+- Use `private-state-cli get-my-bridge-fund` and `private-state-cli get-my-channel-fund` to check balances before
+  telling the user to move funds.
+- Explain that wallet names are local CLI identifiers, while private transfers use notes owned by L2 addresses
+  registered in the channel.
+- Do not present one fixed command sequence as universally correct. Some flows start from an existing channel or wallet,
+  while others require creating or joining a channel first.
+- When the user asks for a transfer, first determine whether the sender has minted notes available. If not, guide them
+  through funding the bridge, joining or recovering the channel wallet, depositing into the channel, and minting notes.
+- When generating commands, use placeholders for secrets and explicit values for public fields. Show one command at a
+  time unless the user asks for a batch.
+
+Suggested interaction flow:
+
+1. Identify the target network, usually `sepolia` for testing.
+2. Identify whether a channel already exists.
+3. Identify the sender and recipient wallets or private-key environment variables.
+4. Run `--doctor`.
+5. Run `list-local-wallets` and relevant metadata or balance checks.
+6. If needed, guide the user through `create-channel`, `deposit-bridge`, `join-channel`, `deposit-channel`, and
+   `mint-notes`.
+7. For a private transfer, select available note IDs from `get-my-notes`, find the recipient L2 address from
+   `get-my-wallet-meta`, then build `transfer-notes`.
+8. After transfer, guide the recipient to run `get-my-notes` to recover received notes from event logs.
+
+Example style: if the user says, "ADDR6 sends 10 tokens privately to ADDR8", do not assume the required note exists.
+First ask or check which channel and network to use, whether ADDR6 and ADDR8 are already joined, what the local wallet
+names are, and whether ADDR6 has an unused note worth exactly 10 or notes that sum to 10. Then provide the next concrete
+command.
+
 ## Artifacts
 
 Proof-backed commands require installed bridge, DApp, and Groth16 artifacts. Run `private-state-cli --install` before

@@ -41,7 +41,6 @@ const l2AccountingVault = findAdditionalContractAddress(transactions, "L2Account
 writeJson(deploymentLatestPath, {
   generatedAtUtc: timestampUtc,
   chainId: Number(chainId),
-  broadcastRunFile: runFile,
   deployer,
   contracts: {
     deploymentFactory,

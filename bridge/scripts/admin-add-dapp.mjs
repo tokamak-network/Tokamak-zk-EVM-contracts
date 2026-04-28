@@ -40,6 +40,14 @@ const uploadDappArtifactsScriptPath = path.join(
   "scripts",
   "upload-dapp-artifacts.mjs",
 );
+const privateStateCliPackageJsonPath = path.join(
+  repoRoot,
+  "packages",
+  "apps",
+  "private-state",
+  "cli",
+  "package.json",
+);
 const abiCoder = AbiCoder.defaultAbiCoder();
 const { aPubBlockLength: TOKAMAK_APUB_BLOCK_LENGTH } = resolveTokamakBlockInputConfig();
 const TIMESTAMP_LABEL_PATTERN = /^\d{8}T\d{6}Z$/;
@@ -78,6 +86,15 @@ function copyDir(sourceDir, targetDir) {
 function copyFile(sourcePath, targetPath) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.copyFileSync(sourcePath, targetPath);
+}
+
+function readNpmPackageSource(packageJsonPath) {
+  const packageJson = readJson(packageJsonPath);
+  return {
+    kind: "npm",
+    name: packageJson.name,
+    version: packageJson.version,
+  };
 }
 
 function slugify(value) {
@@ -1217,20 +1234,24 @@ async function main() {
 
   const manifest = {
     generatedAt: new Date().toISOString(),
-    deploymentPath,
-    abiManifestPath,
     appNetwork,
     appChainId,
-    appDeploymentPath: dappSnapshot.deploymentPath,
-    storageLayoutPath: dappSnapshot.storageLayoutPath,
-    sourceDir: dappSnapshot.sourceDir,
-    exampleRoot: options.exampleRoot,
     groupNames: options.groups,
     dappLabel,
     dappId: options.dappId,
     dAppManager: dAppManagerAddress,
-    rpcUrl,
-    artifactsRoot,
+    artifactSources: {
+      privateStateCli: readNpmPackageSource(privateStateCliPackageJsonPath),
+      uploadedFiles: [
+        path.basename(manifestPendingOut),
+        path.basename(dappSnapshot.deploymentPath),
+        path.basename(dappSnapshot.storageLayoutPath),
+        path.basename(dappSnapshot.privateStateControllerAbiPath),
+        path.basename(dappSnapshot.l2AccountingVaultAbiPath),
+        "source/PrivateStateController.sol",
+        "source/L2AccountingVault.sol",
+      ],
+    },
     processedExamples: allProcessed.map((entry) => ({
       groupName: entry.groupName,
       exampleName: entry.exampleName,

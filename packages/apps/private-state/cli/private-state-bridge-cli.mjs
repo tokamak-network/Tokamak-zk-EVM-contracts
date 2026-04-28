@@ -90,6 +90,8 @@ const tokamakCliInvocation = buildTokamakCliInvocation();
 const tokamakCliCommand = tokamakCliInvocation.command;
 const tokamakCliBaseArgs = tokamakCliInvocation.args;
 const flatDeploymentArtifactPathsByChainId = new Map();
+const DOCKER_CUDA_PROBE_IMAGE = "nvidia/cuda:12.2.0-base-ubuntu22.04";
+const DOCTOR_GPU_PROBE_TIMEOUT_MS = 120000;
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
@@ -5090,6 +5092,7 @@ function buildDoctorReport() {
   const dependencyReports = collectDependencyPackageReports(installManifest);
   const tokamakCli = inspectTokamakCliRuntime();
   const groth16Runtime = inspectGroth16Runtime();
+  const gpuDockerReadiness = inspectGpuDockerReadiness(tokamakCli);
   const checks = [
     {
       name: "dependency package versions",
@@ -5115,6 +5118,18 @@ function buildDoctorReport() {
           dockerEnvironment: docker?.dockerEnvironment ?? null,
           useGpus: docker?.useGpus ?? null,
         })),
+      },
+    },
+    {
+      name: "tokamak docker gpu readiness",
+      ok: gpuDockerReadiness.ok,
+      details: {
+        expectedUseGpus: gpuDockerReadiness.expectedUseGpus,
+        liveUseGpus: gpuDockerReadiness.liveUseGpus,
+        mismatch: gpuDockerReadiness.mismatch,
+        mismatchError: gpuDockerReadiness.mismatchError,
+        hostNvidiaSmi: summarizeProbeResult(gpuDockerReadiness.hostNvidiaSmi),
+        dockerNvidiaSmi: summarizeProbeResult(gpuDockerReadiness.dockerNvidiaSmi),
       },
     },
     {
@@ -5147,6 +5162,7 @@ function buildDoctorReport() {
     dependencies: dependencyReports,
     tokamakCli,
     groth16Runtime,
+    gpuDockerReadiness,
     checks,
   };
 }
@@ -5293,6 +5309,76 @@ function inspectTokamakCliRuntime() {
     },
     installations,
   };
+}
+
+function inspectGpuDockerReadiness(tokamakCli) {
+  const hostNvidiaSmi = runProbe("nvidia-smi", ["--query-gpu=name,driver_version", "--format=csv,noheader"]);
+  const dockerNvidiaSmi = runProbe("docker", [
+    "run",
+    "--rm",
+    "--gpus",
+    "all",
+    DOCKER_CUDA_PROBE_IMAGE,
+    "nvidia-smi",
+  ]);
+  const expectedUseGpus = Boolean(tokamakCli.cudaCompatible);
+  const liveUseGpus = hostNvidiaSmi.ok && dockerNvidiaSmi.ok;
+  const mismatch = expectedUseGpus !== liveUseGpus;
+  return {
+    ok: !mismatch,
+    expectedUseGpus,
+    liveUseGpus,
+    mismatch,
+    mismatchError: mismatch
+      ? [
+        "Tokamak CLI Docker GPU metadata does not match live NVIDIA/Docker GPU probes.",
+        `metadata useGpus=${expectedUseGpus}; live useGpus=${liveUseGpus}.`,
+      ].join(" ")
+      : null,
+    probeImage: DOCKER_CUDA_PROBE_IMAGE,
+    hostNvidiaSmi,
+    dockerNvidiaSmi,
+  };
+}
+
+function runProbe(command, args) {
+  const result = spawnSync(command, args, {
+    encoding: "utf8",
+    timeout: DOCTOR_GPU_PROBE_TIMEOUT_MS,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  return {
+    command,
+    args,
+    ok: !result.error && result.status === 0,
+    status: result.status,
+    signal: result.signal,
+    error: result.error ? result.error.message : null,
+    stdout: stripAnsi(result.stdout ?? "").trim(),
+    stderr: stripAnsi(result.stderr ?? "").trim(),
+    timedOut: result.error?.code === "ETIMEDOUT",
+  };
+}
+
+function summarizeProbeResult(result) {
+  return {
+    command: [result.command, ...result.args].join(" "),
+    ok: result.ok,
+    status: result.status,
+    signal: result.signal,
+    error: result.error,
+    timedOut: result.timedOut,
+    stdout: truncateText(result.stdout, 2000),
+    stderr: truncateText(result.stderr, 2000),
+  };
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value ?? "");
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength)}...`;
 }
 
 function parseJsonReport(value) {

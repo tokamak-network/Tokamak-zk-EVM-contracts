@@ -53,7 +53,8 @@ Use `private-state-cli --help` for the full command list and required options.
 
 `private-state-cli --doctor` reports the CLI package version, dependency versions recorded by the last
 `private-state-cli --install`, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
-install mode, Docker mode, CUDA runtime metadata, and Groth16 runtime health.
+install mode, Docker mode, CUDA runtime metadata, live `nvidia-smi` and Docker GPU probe results, and Groth16
+runtime health. The doctor check fails when the Tokamak Docker `useGpus` metadata does not match the live GPU probes.
 
 ## Workspace
 

@@ -237,6 +237,12 @@ async function main() {
     return;
   }
 
+  if (args.command === "list-local-wallets") {
+    assertListLocalWalletsArgs(args);
+    handleListLocalWallets({ args });
+    return;
+  }
+
   const walletCommandHandlers = {
     "mint-notes": {
       assert: assertMintNotesArgs,
@@ -1014,6 +1020,28 @@ function handleGetMyL1Address({ args }) {
   printJson({
     action: "get-my-l1-address",
     l1Address: signer.address,
+  });
+}
+
+function handleListLocalWallets({ args }) {
+  const networkFilter = args.network ? requireNetworkName(args) : null;
+  if (networkFilter) {
+    resolveCliNetwork(networkFilter);
+  }
+  const channelFilter = args.channelName ? slugifyPathComponent(requireArg(args.channelName, "--channel-name")) : null;
+  const wallets = listLocalWallets({
+    networkFilter,
+    channelFilter,
+  });
+
+  printJson({
+    action: "list-local-wallets",
+    workspaceRoot,
+    filters: {
+      network: networkFilter,
+      channelName: args.channelName ?? null,
+    },
+    wallets,
   });
 }
 
@@ -4397,6 +4425,48 @@ function resolveWalletPathCandidates(walletName) {
   return candidates;
 }
 
+function listLocalWallets({ networkFilter = null, channelFilter = null } = {}) {
+  if (!fs.existsSync(workspaceRoot)) {
+    return [];
+  }
+
+  const wallets = [];
+  for (const networkEntry of fs.readdirSync(workspaceRoot, { withFileTypes: true })) {
+    if (!networkEntry.isDirectory() || (networkFilter && networkEntry.name !== slugifyPathComponent(networkFilter))) {
+      continue;
+    }
+    const networkDir = path.join(workspaceRoot, networkEntry.name);
+    for (const channelEntry of fs.readdirSync(networkDir, { withFileTypes: true })) {
+      if (!channelEntry.isDirectory() || (channelFilter && channelEntry.name !== channelFilter)) {
+        continue;
+      }
+      const walletsDir = path.join(networkDir, channelEntry.name, "wallets");
+      if (!fs.existsSync(walletsDir)) {
+        continue;
+      }
+      for (const walletEntry of fs.readdirSync(walletsDir, { withFileTypes: true })) {
+        if (!walletEntry.isDirectory()) {
+          continue;
+        }
+        const walletDir = path.join(walletsDir, walletEntry.name);
+        wallets.push({
+          wallet: walletEntry.name,
+          network: networkEntry.name,
+          channelName: channelEntry.name,
+          walletDir,
+          metadataPath: walletMetadataPath(walletDir),
+          hasMetadata: fs.existsSync(walletMetadataPath(walletDir)),
+          hasEncryptedWallet: walletConfigExists(walletDir),
+        });
+      }
+    }
+  }
+  return wallets.sort((left, right) =>
+    [left.network, left.channelName, left.wallet].join("\0")
+      .localeCompare([right.network, right.channelName, right.wallet].join("\0")),
+  );
+}
+
 function channelDataPath(workspaceDir) {
   return workspaceChannelDir(workspaceDir);
 }
@@ -4600,6 +4670,21 @@ function assertGetMyL1AddressArgs(args) {
   );
 }
 
+function assertListLocalWalletsArgs(args) {
+  if (args.network !== undefined) {
+    requireNetworkName(args);
+  }
+  if (args.channelName !== undefined) {
+    requireArg(args.channelName, "--channel-name");
+  }
+  assertAllowedCommandKeys(
+    args,
+    "list-local-wallets",
+    new Set(["command", "positional", "network", "channelName"]),
+    "optional --network and --channel-name",
+  );
+}
+
 function assertWithdrawBridgeArgs(args) {
   requireArg(args.amount, "--amount");
   requireNetworkName(args);
@@ -4695,6 +4780,9 @@ Commands:
 
   get-my-l1-address --private-key <HEX>
       Derive the L1 address for a private key
+
+  list-local-wallets [--network <NAME>] [--channel-name <NAME>]
+      List saved local wallet names that can be reused with --wallet
 
   deposit-channel --wallet <NAME> --password <PASSWORD> --network <NAME> --amount <TOKENS>
       Move bridged funds into the channel L2 accounting balance

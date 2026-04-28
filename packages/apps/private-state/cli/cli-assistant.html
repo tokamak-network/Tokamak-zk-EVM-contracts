@@ -530,6 +530,7 @@
         { id: "recover-wallet", description: "Rebuild the recoverable portion of a wallet.", fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"] },
         { id: "get-my-wallet-meta", description: "Check whether a saved wallet matches on-chain registration.", fields: ["wallet", "password", "network"] },
         { id: "get-my-l1-address", description: "Derive the L1 address for a private key.", fields: ["privateKey"] },
+        { id: "list-local-wallets", description: "List saved local wallet names that can be reused with --wallet.", fields: ["network", "channelName"] },
         { id: "deposit-channel", description: "Move bridged funds into the channel L2 accounting balance.", fields: ["wallet", "password", "network", "amount"] },
         { id: "withdraw-channel", description: "Move channel L2 balance back into the shared bridge vault.", fields: ["wallet", "password", "network", "amount"] },
         { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "password", "network"] },

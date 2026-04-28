@@ -25,7 +25,7 @@ export function runSnarkjs(args, cwd, { workspaceRoot = resolveGroth16WorkspaceR
     cwd,
     stdio: "inherit",
   });
-  if (dockerResult !== null) {
+  if (dockerResult.executed) {
     return;
   }
   execFileSync(findSnarkjs(), args, {
@@ -41,8 +41,8 @@ export function captureSnarkjs(args, cwd, { workspaceRoot = resolveGroth16Worksp
     args,
     cwd,
   });
-  if (dockerResult !== null) {
-    return dockerResult;
+  if (dockerResult.executed) {
+    return dockerResult.output;
   }
   return execFileSync(findSnarkjs(), args, {
     cwd,

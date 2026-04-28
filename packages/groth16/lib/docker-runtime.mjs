@@ -79,20 +79,36 @@ export function readDockerBootstrap(workspaceRoot = resolveGroth16WorkspaceRoot(
   }
 }
 
+function readInstallManifest(paths) {
+  try {
+    return JSON.parse(fs.readFileSync(paths.manifestPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 export function dockerBootstrapRunnable(workspaceRoot = resolveGroth16WorkspaceRoot()) {
-  const bootstrap = readDockerBootstrap(workspaceRoot);
+  const paths = groth16WorkspacePaths(workspaceRoot);
+  const bootstrap = readDockerBootstrap(paths.rootDir);
+  const manifest = readInstallManifest(paths);
+  const dockerRequired = manifest?.installMode === "docker"
+    || Boolean(bootstrap)
+    || fs.existsSync(paths.dockerBootstrapPath);
   if (!bootstrap) {
-    if (process.platform === "win32") {
-      throw new Error("Groth16 Docker runtime is not installed. Run `tokamak-groth16 --install --docker` first.");
+    if (dockerRequired || process.platform === "win32") {
+      throw new Error(`Groth16 Docker runtime is required, but the Docker bootstrap is missing or invalid: ${paths.dockerBootstrapPath}`);
     }
     return null;
   }
   if (process.platform === "darwin") {
+    if (dockerRequired) {
+      throw new Error("Groth16 Docker runtime is installed, but Docker mode is not supported on macOS.");
+    }
     return null;
   }
   if (!dockerDaemonAvailable()) {
-    if (process.platform === "win32") {
-      throw new Error("Docker Desktop is required to run the installed Groth16 Docker runtime on Windows.");
+    if (dockerRequired || process.platform === "win32") {
+      throw new Error("Docker is required to run the installed Groth16 Docker runtime, but the Docker daemon is not available.");
     }
     return null;
   }
@@ -110,7 +126,7 @@ function runDockerToolInternal({
   const paths = groth16WorkspacePaths(workspaceRoot);
   const bootstrap = dockerBootstrapRunnable(paths.rootDir);
   if (!bootstrap) {
-    return null;
+    return { executed: false, output: null };
   }
   const dockerArgs = [
     ...dockerRunPrefix(bootstrap),
@@ -126,11 +142,12 @@ function runDockerToolInternal({
     bootstrap.imageName,
     ...args.map((arg) => mapContainerArgument(arg, paths.rootDir)),
   ];
-  return execFileSync("docker", dockerArgs, {
+  const output = execFileSync("docker", dockerArgs, {
     cwd: groth16PackageRoot,
     stdio,
     encoding,
   });
+  return { executed: true, output };
 }
 
 function detectDockerHostPlatform() {

@@ -15,6 +15,15 @@ artifacts:
 private-state-cli --install
 ```
 
+By default, `--install` resolves the latest `@tokamak-zk-evm/cli` and `@tokamak-private-dapps/groth16` versions from
+the npm registry. To pin exact proof backend versions for a channel, pass explicit versions:
+
+```bash
+private-state-cli --install --tokamak-zk-evm-cli-version 2.0.8 --groth16-cli-version 0.1.1
+```
+
+The Groth16 installer downloads the public Google Drive CRS archive with the same version as the selected Groth16 CLI.
+
 `--install` downloads public deployment artifacts from the configured artifact index. It does not read repository-local
 `deployment/` outputs by default. Repository development workflows that need local anvil artifacts can opt in explicitly:
 
@@ -52,7 +61,7 @@ A common private-state flow is:
 Use `private-state-cli --help` for the full command list and required options.
 
 `private-state-cli --doctor` reports the CLI package version, dependency versions recorded by the last
-`private-state-cli --install`, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
+`private-state-cli --install`, selected proof backend runtime versions, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
 install mode, Docker mode, CUDA runtime metadata, live `nvidia-smi` and Docker GPU probe results, and Groth16
 runtime health. The doctor check fails when the Tokamak Docker `useGpus` metadata does not match the live GPU probes.
 

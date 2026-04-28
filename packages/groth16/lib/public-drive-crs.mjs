@@ -18,6 +18,7 @@ const require = createRequire(import.meta.url);
 const yauzl = require("yauzl");
 
 let latestGroth16MpcArchivePromise = null;
+const groth16MpcArchivePromisesByVersion = new Map();
 
 export async function downloadLatestPublicGroth16MpcArtifacts({
   outputDir,
@@ -30,9 +31,46 @@ export async function downloadLatestPublicGroth16MpcArtifacts({
   expectedVersion = null,
   expectedVersionLabel = "expected version",
 } = {}) {
+  const archive = await loadLatestPublicGroth16MpcArchive();
+  return downloadPublicGroth16MpcArtifactsFromArchive({
+    archive,
+    outputDir,
+    selectedFiles,
+    expectedVersion,
+    expectedVersionLabel,
+  });
+}
+
+export async function downloadPublicGroth16MpcArtifactsByVersion({
+  version,
+  outputDir,
+  selectedFiles = [
+    "circuit_final.zkey",
+    "verification_key.json",
+    "metadata.json",
+    "zkey_provenance.json",
+  ],
+} = {}) {
+  const normalizedVersion = requireSemverVersion(version, "Groth16 MPC CRS version");
+  const archive = await loadPublicGroth16MpcArchiveByVersion(normalizedVersion);
+  return downloadPublicGroth16MpcArtifactsFromArchive({
+    archive,
+    outputDir,
+    selectedFiles,
+    expectedVersion: normalizedVersion,
+    expectedVersionLabel: "requested Groth16 MPC CRS version",
+  });
+}
+
+async function downloadPublicGroth16MpcArtifactsFromArchive({
+  archive,
+  outputDir,
+  selectedFiles,
+  expectedVersion = null,
+  expectedVersionLabel = "expected version",
+}) {
   const normalizedOutputDir = path.resolve(requireNonEmptyString(outputDir, "outputDir"));
   const normalizedSelection = normalizeGroth16MpcArtifactSelection(selectedFiles);
-  const archive = await loadLatestPublicGroth16MpcArchive();
   const archiveFileNames = [...new Set([
     ...normalizedSelection.map((entry) => entry.archivePath),
     "zkey_provenance.json",
@@ -82,6 +120,12 @@ export async function findLatestPublicGroth16MpcArchiveMetadata() {
   return serializeGroth16MpcArchiveMetadata(await findLatestPublicGroth16MpcArchive());
 }
 
+export async function findPublicGroth16MpcArchiveMetadataByVersion(version) {
+  return serializeGroth16MpcArchiveMetadata(
+    await findPublicGroth16MpcArchiveByVersion(requireSemverVersion(version, "Groth16 MPC CRS version")),
+  );
+}
+
 export async function assertLatestPublicGroth16MpcArchiveVersion(
   expectedVersion,
   { expectedVersionLabel = "expected version" } = {},
@@ -108,7 +152,34 @@ async function loadLatestPublicGroth16MpcArchive() {
   return latestGroth16MpcArchivePromise;
 }
 
+async function loadPublicGroth16MpcArchiveByVersion(version) {
+  const normalizedVersion = requireSemverVersion(version, "Groth16 MPC CRS version");
+  if (!groth16MpcArchivePromisesByVersion.has(normalizedVersion)) {
+    groth16MpcArchivePromisesByVersion.set(normalizedVersion, (async () => {
+      const archive = await findPublicGroth16MpcArchiveByVersion(normalizedVersion);
+      const buffer = await downloadPublicDriveFileToBuffer(archive.fileId);
+      return { ...archive, buffer };
+    })());
+  }
+  return groth16MpcArchivePromisesByVersion.get(normalizedVersion);
+}
+
 async function findLatestPublicGroth16MpcArchive() {
+  const archives = await listPublicGroth16MpcArchives();
+  return archives.sort(compareGroth16MpcArchives).at(-1);
+}
+
+async function findPublicGroth16MpcArchiveByVersion(version) {
+  const normalizedVersion = requireSemverVersion(version, "Groth16 MPC CRS version");
+  const archives = (await listPublicGroth16MpcArchives())
+    .filter((archive) => archive.version === normalizedVersion);
+  if (archives.length === 0) {
+    throw new Error(`No ${GROTH16_MPC_ARCHIVE_PREFIX} archive found for version ${normalizedVersion}.`);
+  }
+  return archives.sort(compareGroth16MpcArchives).at(-1);
+}
+
+async function listPublicGroth16MpcArchives() {
   const folderUrl = `${DRIVE_FOLDER_BASE_URL}/${PUBLIC_GROTH16_MPC_DRIVE_FOLDER_ID}`;
   const response = await fetch(folderUrl, { redirect: "follow" });
   if (!response.ok) {
@@ -120,7 +191,7 @@ async function findLatestPublicGroth16MpcArchive() {
   if (archives.length === 0) {
     throw new Error(`No ${GROTH16_MPC_ARCHIVE_PREFIX} archive found in ${folderUrl}.`);
   }
-  return archives.sort(compareGroth16MpcArchives).at(-1);
+  return archives;
 }
 
 function parsePublicGroth16MpcArchiveListing(html) {
@@ -202,7 +273,7 @@ function validateGroth16MpcArchiveVersion({
     const normalizedExpectedVersion = requireSemverVersion(expectedVersion, expectedVersionLabel);
     if (archive.version !== normalizedExpectedVersion) {
       throw new Error(
-        `Latest public Groth16 MPC CRS archive version ${archive.version} does not match `
+        `Public Groth16 MPC CRS archive version ${archive.version} does not match `
           + `${expectedVersionLabel} ${normalizedExpectedVersion}: ${archive.archiveName}`,
       );
     }

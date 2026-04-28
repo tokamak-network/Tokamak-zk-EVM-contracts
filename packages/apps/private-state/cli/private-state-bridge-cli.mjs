@@ -152,6 +152,9 @@ const JUBJUB_D = jubjub.CURVE.d;
 const BLS12_381_SCALAR_FIELD_MODULUS =
   hexToBigInt(addHexPrefix("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"));
 const DEFAULT_LOG_CHUNK_SIZE = 2000;
+const DEFAULT_LOG_REQUESTS_PER_SECOND = 5;
+const LOG_REQUEST_INTERVAL_MS = Math.ceil(1000 / DEFAULT_LOG_REQUESTS_PER_SECOND);
+let lastLogRequestStartedAtMs = 0;
 
 async function prepareDeploymentArtifacts(chainId) {
   const normalizedChainId = Number(chainId);
@@ -3854,11 +3857,29 @@ async function reconstructChannelSnapshot({
     provider,
   );
   const latestBlock = await provider.getBlockNumber();
-  const rootEvents = await queryContractEventsChunked({
-    contract: channelManager,
-    eventName: "CurrentRootVectorObserved",
+  const currentRootVectorObservedTopic =
+    normalizeBytes32Hex(channelManager.interface.getEvent("CurrentRootVectorObserved").topicHash);
+  const channelManagerLogs = await fetchLogsChunked(provider, {
+    address: channelInfo.manager,
+    topics: [[
+      currentRootVectorObservedTopic,
+      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
+      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
+    ]],
     fromBlock: genesisBlockNumber,
     toBlock: latestBlock,
+  });
+  const channelManagerEvents = channelManagerLogs.map((log) => {
+    const topic0 = log.topics[0] ? normalizeBytes32Hex(log.topics[0]) : null;
+    if (topic0 !== null && ethers.toBigInt(topic0) === ethers.toBigInt(currentRootVectorObservedTopic)) {
+      const parsed = channelManager.interface.parseLog(log);
+      return {
+        ...log,
+        args: parsed.args,
+        fragment: parsed.fragment,
+      };
+    }
+    return log;
   });
   const vaultStorageWriteEvents = await queryContractEventsChunked({
     contract: bridgeTokenVault,
@@ -3866,18 +3887,9 @@ async function reconstructChannelSnapshot({
     fromBlock: genesisBlockNumber,
     toBlock: latestBlock,
   });
-  const observedStorageLogs = await fetchLogsChunked(provider, {
-    address: channelInfo.manager,
-    topics: [[
-      CONTROLLER_STORAGE_KEY_OBSERVED_TOPIC,
-      VAULT_STORAGE_WRITE_OBSERVED_TOPIC,
-    ]],
-    fromBlock: genesisBlockNumber,
-    toBlock: latestBlock,
-  });
 
   const groupedEvents = new Map();
-  for (const event of [...rootEvents, ...vaultStorageWriteEvents, ...observedStorageLogs]) {
+  for (const event of [...channelManagerEvents, ...vaultStorageWriteEvents]) {
     const key = event.transactionHash;
     const group = groupedEvents.get(key) ?? [];
     group.push(event);
@@ -4000,6 +4012,7 @@ async function fetchLogsChunked(provider, {
   while (cursor <= resolvedToBlock) {
     const chunkToBlock = Math.min(resolvedToBlock, cursor + chunkSize - 1);
     try {
+      await throttleLogRequest();
       const logs = await provider.getLogs({
         address,
         topics,
@@ -4009,6 +4022,12 @@ async function fetchLogsChunked(provider, {
       aggregatedLogs.push(...logs);
       cursor = chunkToBlock + 1;
     } catch (error) {
+      if (isRateLimitError(error)) {
+        throw new Error(
+          `RPC log query rate limit exceeded. Log chunk requests are paced at ${DEFAULT_LOG_REQUESTS_PER_SECOND} requests per second.`,
+          { cause: error },
+        );
+      }
       const suggestedChunkSize = deriveRecommendedLogChunkSize(error, chunkSize);
       if (suggestedChunkSize >= chunkSize) {
         throw error;
@@ -4018,6 +4037,31 @@ async function fetchLogsChunked(provider, {
   }
 
   return aggregatedLogs;
+}
+
+async function throttleLogRequest() {
+  const elapsedMs = Date.now() - lastLogRequestStartedAtMs;
+  if (elapsedMs < LOG_REQUEST_INTERVAL_MS) {
+    await sleep(LOG_REQUEST_INTERVAL_MS - elapsedMs);
+  }
+  lastLogRequestStartedAtMs = Date.now();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(error) {
+  const serializedError = [
+    error?.code,
+    error?.status,
+    error?.message,
+    error?.shortMessage,
+    error?.info?.responseStatus,
+    error?.info?.responseBody,
+  ].filter((value) => value !== undefined && value !== null).join("\n");
+
+  return /\b429\b|too many requests|rate limit|compute units/i.test(serializedError);
 }
 
 function deriveRecommendedLogChunkSize(error, currentChunkSize) {

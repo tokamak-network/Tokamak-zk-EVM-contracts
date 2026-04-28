@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 - 2026-04-28
+
+- Paced chunked log recovery queries at five requests per second to avoid RPC throughput bursts.
+- Combined channel manager recovery log scans and filtered wallet note recovery scans to reduce RPC usage.
+
 ## 0.1.3 - 2026-04-28
 
 - Installed the Groth16 runtime during `private-state-cli --install` and reported Groth16 readiness from `--doctor`.

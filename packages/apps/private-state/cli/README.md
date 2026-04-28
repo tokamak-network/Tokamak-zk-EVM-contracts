@@ -51,8 +51,8 @@ The normal private-state flow is:
 Use `private-state-cli --help` for the full command list and required options.
 
 `private-state-cli --doctor` reports the CLI package version, dependency versions recorded by the last
-`private-state-cli --install`, current dependency versions, Tokamak zk-EVM runtime install mode, Docker/CUDA runtime
-metadata, Groth16 runtime status, and installed deployment artifact completeness.
+`private-state-cli --install`, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
+install mode, Docker mode, and CUDA runtime metadata.
 
 ## Workspace
 

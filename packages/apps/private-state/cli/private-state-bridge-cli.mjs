@@ -4931,28 +4931,21 @@ function writePrivateStateCliInstallManifest({
   const manifestPath = privateStateCliInstallManifestPath(deploymentArtifacts.cacheBaseRoot);
   const manifest = {
     installedAt: new Date().toISOString(),
-    package: packageReportSummary(readPackageReport({
+    package: summarizePackageReport(readPackageReport({
       name: "@tokamak-private-dapps/private-state-cli",
       packageJsonPath: path.join(privateStateCliPackageRoot, "package.json"),
     })),
-    dependencies: collectDependencyPackageReports().map(({ name, version }) => ({
-      name,
-      version,
-    })),
+    dependencies: collectDependencyPackageReports().map(summarizePackageReport),
     install: {
       dockerRequested,
       includeLocalArtifacts,
       localDeploymentBaseRoot,
-    },
-    deploymentArtifacts: {
-      cacheBaseRoot: deploymentArtifacts.cacheBaseRoot,
-      artifactRoot: deploymentArtifacts.artifactRoot,
-      installed: deploymentArtifacts.installed.map((entry) => ({
+      artifactCacheRoot: deploymentArtifacts.cacheBaseRoot,
+      installedDeploymentArtifacts: deploymentArtifacts.installed.map((entry) => ({
         chainId: entry.chainId,
         source: entry.source,
         bridgeTimestamp: entry.bridgeTimestamp,
         dappTimestamp: entry.dappTimestamp,
-        artifactDir: entry.artifactDir,
       })),
     },
   };
@@ -4960,7 +4953,7 @@ function writePrivateStateCliInstallManifest({
   return { manifestPath, manifest };
 }
 
-function packageReportSummary(report) {
+function summarizePackageReport(report) {
   return {
     name: report.name,
     version: report.version,
@@ -4973,8 +4966,6 @@ function buildDoctorReport() {
   const installManifest = readJsonIfExists(installManifestPath);
   const dependencyReports = collectDependencyPackageReports(installManifest);
   const tokamakCli = inspectTokamakCliRuntime();
-  const groth16 = inspectGroth16Runtime();
-  const deploymentArtifacts = inspectInstalledDeploymentArtifacts(cacheBaseRoot);
   const checks = [
     {
       name: "dependency package versions",
@@ -5002,28 +4993,6 @@ function buildDoctorReport() {
         })),
       },
     },
-    {
-      name: "private-state deployment artifacts",
-      ok: deploymentArtifacts.ok,
-      details: {
-        artifactRoot: deploymentArtifacts.artifactRoot,
-        chains: deploymentArtifacts.chains.map((entry) => ({
-          chainId: entry.chainId,
-          complete: entry.complete,
-          missing: entry.missing,
-        })),
-      },
-    },
-    {
-      name: "groth16 runtime",
-      ok: groth16.installed,
-      details: {
-        workspaceRoot: groth16.workspaceRoot,
-        installMode: groth16.installMode,
-        packageVersion: groth16.packageVersion,
-        dockerEnvironment: groth16.docker?.dockerEnvironment ?? null,
-      },
-    },
   ];
 
   return {
@@ -5043,8 +5012,6 @@ function buildDoctorReport() {
     },
     dependencies: dependencyReports,
     tokamakCli,
-    groth16,
-    deploymentArtifacts,
     checks,
   };
 }
@@ -5069,9 +5036,6 @@ function collectDependencyPackageReports(installManifest = null) {
       resolveTarget: "@tokamak-private-dapps/common-library/artifact-cache",
     },
     { name: "tokamak-l2js", resolveTarget: "tokamak-l2js" },
-    { name: "ethers", resolveTarget: "ethers" },
-    { name: "@noble/curves", resolveTarget: "@noble/curves/jubjub" },
-    { name: "@ethereumjs/util", resolveTarget: "@ethereumjs/util" },
   ];
 
   return targets.map((target) => {
@@ -5190,80 +5154,6 @@ function readTokamakCliInstallations(cacheRoot) {
 function parseRuntimeRootFromTokamakDoctorOutput(output) {
   const match = String(output ?? "").match(/^\[ ok \] Runtime workspace:\s*(.+)$/m);
   return match ? path.resolve(match[1].trim()) : null;
-}
-
-function inspectGroth16Runtime() {
-  const workspaceRoot = path.join(defaultArtifactCacheBaseRoot(), "groth16");
-  const manifestPath = path.join(workspaceRoot, "install-manifest.json");
-  const dockerBootstrapPath = path.join(workspaceRoot, "docker", "bootstrap.json");
-  const manifest = readJsonIfExists(manifestPath);
-  const docker = readJsonIfExists(dockerBootstrapPath);
-  const requiredFiles = [
-    path.join(workspaceRoot, "crs", "circuit_final.zkey"),
-    path.join(workspaceRoot, "crs", "verification_key.json"),
-    path.join(workspaceRoot, "crs", "metadata.json"),
-    path.join(workspaceRoot, "build", "circuit_updateTree.wasm"),
-  ];
-
-  return {
-    installed: fs.existsSync(workspaceRoot) && requiredFiles.every((filePath) => fs.existsSync(filePath)),
-    workspaceRoot,
-    manifestPath,
-    manifestExists: Boolean(manifest),
-    installMode: manifest?.installMode ?? (docker ? "docker" : null),
-    packageVersion: manifest?.docker?.packageVersion ?? docker?.packageVersion ?? readPackageReport({
-      name: "@tokamak-private-dapps/groth16",
-      resolveTarget: "@tokamak-private-dapps/groth16/public-drive-crs",
-    }).version,
-    dockerModeInstalled: manifest?.installMode === "docker" || Boolean(docker),
-    cudaCompatible: false,
-    dockerBootstrapPath,
-    docker,
-    requiredFiles: requiredFiles.map((filePath) => ({
-      path: filePath,
-      exists: fs.existsSync(filePath),
-    })),
-  };
-}
-
-function inspectInstalledDeploymentArtifacts(cacheBaseRoot = resolveArtifactCacheBaseRoot()) {
-  const artifactRoot = privateStateCliArtifactRoot(cacheBaseRoot);
-  const chains = fs.existsSync(artifactRoot)
-    ? fs.readdirSync(artifactRoot, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && /^chain-id-\d+$/.test(entry.name))
-      .map((entry) => inspectInstalledDeploymentArtifactChain(cacheBaseRoot, entry.name.replace(/^chain-id-/, "")))
-      .sort((left, right) => left.chainId - right.chainId)
-    : [];
-  return {
-    artifactRoot,
-    ok: chains.length > 0 && chains.every((entry) => entry.complete),
-    chains,
-  };
-}
-
-function inspectInstalledDeploymentArtifactChain(cacheBaseRoot, chainId) {
-  const paths = privateStateCliArtifactPaths(cacheBaseRoot, chainId);
-  const requiredFiles = [
-    paths.bridgeDeploymentPath,
-    paths.bridgeAbiManifestPath,
-    paths.grothManifestPath,
-    paths.grothZkeyPath,
-    paths.dappDeploymentPath,
-    paths.dappStorageLayoutPath,
-    paths.privateStateControllerAbiPath,
-    paths.dappRegistrationPath,
-  ];
-  const files = requiredFiles.map((filePath) => ({
-    path: filePath,
-    exists: fs.existsSync(filePath),
-  }));
-  return {
-    chainId: Number(chainId),
-    artifactDir: paths.rootDir,
-    complete: files.every((entry) => entry.exists),
-    missing: files.filter((entry) => !entry.exists).map((entry) => entry.path),
-    files,
-  };
 }
 
 function stripAnsi(value) {

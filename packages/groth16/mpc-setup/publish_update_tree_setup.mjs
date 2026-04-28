@@ -108,6 +108,15 @@ function buildArchiveName(provenance) {
   return `${ARCHIVE_PREFIX}-v${version}-${buildArchiveTimestamp(provenance)}.zip`;
 }
 
+function assertProvenanceVersionMatchesPackage(provenance, packageVersion = readPackageVersion()) {
+  const version = provenance.backend_version;
+  if (version !== packageVersion) {
+    throw new Error(
+      `zkey_provenance.json backend_version ${version ?? "<missing>"} does not match package version ${packageVersion}.`,
+    );
+  }
+}
+
 function buildArchiveVersionPrefix(version = readPackageVersion()) {
   return `${ARCHIVE_PREFIX}-v${version}-`;
 }
@@ -218,6 +227,7 @@ export async function publishUpdateTreeSetup() {
   const config = readDriveUploadConfig();
   const provenance = readJson(provenancePath);
   const originalProvenance = structuredClone(provenance);
+  assertProvenanceVersionMatchesPackage(provenance);
 
   await validateProvenanceHashes(provenance);
 

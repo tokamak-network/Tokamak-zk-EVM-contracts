@@ -15,6 +15,30 @@ env:
   FOUNDRY_PROFILE: ci
 
 jobs:
+  groth16-crs-version:
+    name: Groth16 CRS Version Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Check Groth16 package and CRS versions
+        working-directory: packages/groth16
+        run: npm run crs:check-version
+
   bridge-unit-tests:
     name: Bridge Unit Tests
     runs-on: ubuntu-latest

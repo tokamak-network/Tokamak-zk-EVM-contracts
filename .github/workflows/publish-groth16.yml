@@ -101,6 +101,11 @@ jobs:
         working-directory: packages/groth16
         run: npm run release:check
 
+      - name: Validate Groth16 CRS version
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/groth16
+        run: npm run crs:check-version
+
       - name: Show Groth16 release notes
         if: steps.version-check.outputs.should_publish == 'true'
         working-directory: packages/groth16

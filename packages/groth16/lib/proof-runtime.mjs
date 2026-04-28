@@ -8,6 +8,7 @@ import {
   extractZipEntriesFromBuffer,
 } from "./public-drive-crs.mjs";
 import { installGroth16DockerRuntime, readDockerBootstrap } from "./docker-runtime.mjs";
+import { fetchLatestNpmPackageVersion, GROTH16_NPM_PACKAGE_NAME } from "./npm-registry.mjs";
 import {
   groth16WorkspacePaths,
   resolveGroth16WorkspaceRoot,
@@ -34,6 +35,7 @@ export async function installGroth16Runtime({
   noSetup = false,
   docker = false,
   verbose = false,
+  publicMpcExpectedVersion = null,
 } = {}) {
   const paths = groth16WorkspacePaths(workspaceRoot);
 
@@ -77,9 +79,13 @@ export async function installGroth16Runtime({
       r1csPath: paths.r1csPath,
     });
   } else if (!noSetup) {
+    const expectedVersion = publicMpcExpectedVersion
+      ?? await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
     crsInstall = await downloadLatestPublicGroth16MpcArtifacts({
       outputDir: paths.crsDir,
       selectedFiles: CRS_FILES,
+      expectedVersion,
+      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
     });
   }
 

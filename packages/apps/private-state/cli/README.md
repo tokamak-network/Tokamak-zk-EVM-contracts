@@ -36,7 +36,7 @@ private-state-cli --doctor
 
 ## Commands
 
-The normal private-state flow is:
+A common private-state flow is:
 
 1. `create-channel`
 2. `deposit-bridge`
@@ -55,6 +55,19 @@ Use `private-state-cli --help` for the full command list and required options.
 `private-state-cli --install`, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
 install mode, Docker mode, CUDA runtime metadata, live `nvidia-smi` and Docker GPU probe results, and Groth16
 runtime health. The doctor check fails when the Tokamak Docker `useGpus` metadata does not match the live GPU probes.
+
+Local helper commands:
+
+```bash
+private-state-cli list-local-wallets --network sepolia --channel-name cuda
+private-state-cli get-my-wallet-meta --wallet <WALLET_NAME> --password <PASSWORD> --network sepolia
+private-state-cli get-my-l1-address --private-key <HEX>
+```
+
+`list-local-wallets` reads only the local workspace and prints saved wallet names that can be reused with `--wallet`.
+`get-my-wallet-meta` opens an encrypted local wallet and reports the stored L1/L2 identity metadata plus the current
+on-chain channel registration match state. `get-my-l1-address` is a simple offline helper that derives the L1 address
+for a private key.
 
 ## Workspace
 

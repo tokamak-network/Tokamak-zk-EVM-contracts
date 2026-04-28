@@ -96,6 +96,10 @@ const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
   "function decimals() view returns (uint8)",
 ];
+const channelVerifierVersionAbi = [
+  "function grothVerifierCompatibleBackendVersion() view returns (string)",
+  "function tokamakVerifierCompatibleBackendVersion() view returns (string)",
+];
 const {
   aPubBlockLength: TOKAMAK_APUB_BLOCK_LENGTH,
   previousBlockHashCount: TOKAMAK_PREVIOUS_BLOCK_HASH_COUNT,
@@ -1309,10 +1313,16 @@ async function handleGrothVaultMove({ args, provider, direction }) {
   const contextResult = await loadPreferredWalletChannelContext({ walletContext, provider });
   const context = contextResult.context;
   const network = contextResult.network;
+  const operationName = args.command === "withdraw-channel"
+    ? "withdraw-channel"
+    : direction === "deposit"
+      ? "deposit-channel"
+      : "withdraw";
   expect(
     ethers.toBigInt(walletContext.wallet.channelId) === ethers.toBigInt(context.workspace.channelId),
     "The provided wallet does not belong to the selected channel.",
   );
+  await assertChannelProofBackendVersionCompatibility({ context, operationName });
 
   const { signer, l2Identity } = restoreWalletParticipant(walletContext, provider);
   const amountInput = requireArg(args.amount, "--amount");
@@ -1364,11 +1374,6 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     nextValue = currentValue - amount;
   }
 
-  const operationName = args.command === "withdraw-channel"
-    ? "withdraw-channel"
-    : direction === "deposit"
-      ? "deposit-channel"
-      : "withdraw";
   const operationDir = createWalletOperationDir(
     walletContext.walletName,
     walletContext.wallet.network,
@@ -3057,6 +3062,7 @@ async function executeWalletTemplateSend({
 }) {
   await assertWorkspaceAlignedWithChain(context, signer.provider);
   assertWalletMatchesChannelContext(wallet, l2Identity, context);
+  await assertChannelProofBackendVersionCompatibility({ context, operationName });
 
   const controllerAbi = readJson(
     requireLatestDappDeployArtifactPath(context.workspace.chainId, path.basename(templatePayload.abiFile)),
@@ -3426,6 +3432,111 @@ async function assertWorkspaceAlignedWithChain(context) {
       `Workspace: ${context.workspaceDir}`,
     ].join(" "),
   );
+}
+
+async function assertChannelProofBackendVersionCompatibility({ context, operationName }) {
+  const channelVersions = await readChannelVerifierCompatibleBackendVersions(context);
+  const localVersions = readLocalProofBackendPackageVersions();
+  const checks = [
+    {
+      label: "Groth16",
+      packageName: "@tokamak-private-dapps/groth16",
+      channelVersion: channelVersions.groth16,
+      localVersion: localVersions.groth16,
+    },
+    {
+      label: "Tokamak zk-EVM",
+      packageName: "@tokamak-zk-evm/cli",
+      channelVersion: channelVersions.tokamak,
+      localVersion: localVersions.tokamak,
+    },
+  ];
+  const mismatches = checks.filter(({ channelVersion, localVersion }) => channelVersion !== localVersion);
+  if (mismatches.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    [
+      `Channel proof backend version mismatch before ${operationName} proof generation.`,
+      `Channel: ${context.workspace.channelName ?? context.workspaceName ?? context.workspace.channelId}.`,
+      ...mismatches.map(({ label, packageName, channelVersion, localVersion }) => (
+        `${label} verifier expects ${packageName} ${channelVersion}, but the local installed package version is ${localVersion}.`
+      )),
+      "Install the matching CLI package versions before generating proofs for this channel.",
+    ].join(" "),
+  );
+}
+
+async function readChannelVerifierCompatibleBackendVersions(context) {
+  const channelManagerAddress = getAddress(context.workspace.channelManager);
+  const channelManager = new Contract(
+    channelManagerAddress,
+    channelVerifierVersionAbi,
+    context.channelManager.runner,
+  );
+  try {
+    const [groth16, tokamak] = await Promise.all([
+      channelManager.grothVerifierCompatibleBackendVersion(),
+      channelManager.tokamakVerifierCompatibleBackendVersion(),
+    ]);
+    return {
+      groth16: requireVersionString(groth16, "channel Groth16 verifier compatibleBackendVersion"),
+      tokamak: requireVersionString(tokamak, "channel Tokamak verifier compatibleBackendVersion"),
+    };
+  } catch (error) {
+    throw new Error(
+      [
+        `Unable to read verifier compatibleBackendVersion values from channel manager ${channelManagerAddress}.`,
+        "The target channel must expose grothVerifierCompatibleBackendVersion() and tokamakVerifierCompatibleBackendVersion().",
+      ].join(" "),
+      { cause: error },
+    );
+  }
+}
+
+function readLocalProofBackendPackageVersions() {
+  return {
+    groth16: requirePackageReportVersion(
+      readPackageReport({
+        name: "@tokamak-private-dapps/groth16",
+        resolveTarget: "@tokamak-private-dapps/groth16/public-drive-crs",
+      }),
+    ),
+    tokamak: requirePackageReportVersion(readTokamakCliPackageReport()),
+  };
+}
+
+function readTokamakCliPackageReport() {
+  try {
+    return readPackageReport({
+      name: "@tokamak-zk-evm/cli",
+      packageJsonPath: path.join(resolveTokamakCliPackageRoot(), "package.json"),
+    });
+  } catch (error) {
+    return {
+      name: "@tokamak-zk-evm/cli",
+      version: null,
+      packageRoot: null,
+      error: error.message,
+      ok: false,
+    };
+  }
+}
+
+function requirePackageReportVersion(report) {
+  if (!report.version) {
+    throw new Error(
+      `Unable to determine local ${report.name} package version${report.error ? `: ${report.error}` : "."}`,
+    );
+  }
+  return requireVersionString(report.version, `${report.name} package version`);
+}
+
+function requireVersionString(value, label) {
+  const normalized = String(value ?? "").trim();
+  expect(normalized.length > 0, `${label} is missing.`);
+  return normalized;
 }
 
 async function buildGrothTransition({ operationDir, workspace, stateManager, vaultAddress, keyHex, nextValue }) {

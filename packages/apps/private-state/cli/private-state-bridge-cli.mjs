@@ -2033,6 +2033,7 @@ async function recoverDeliveredNotesFromEventLogs({
   const nullifierUsedSlot = ethers.toBigInt(findStorageSlot(storageLayoutManifest, "PrivateStateController", "nullifierUsed"));
   const observedLogs = await fetchLogsChunked(provider, {
     address: context.workspace.channelManager,
+    topics: [NOTE_VALUE_ENCRYPTED_TOPIC],
     fromBlock: scanStartBlock,
     toBlock: latestBlock,
   });

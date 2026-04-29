@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7 - 2026-04-29
+
+- Required the Groth16 package version with verified public CRS archive selection.
+
 ## 0.1.6 - 2026-04-29
 
 - Added `--groth16-cli-version` and `--tokamak-zk-evm-cli-version` install options with npm latest defaults.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 - 2026-04-29
+
+- Verified public Google Drive CRS archive selections against embedded provenance before installation.
+- Skipped Drive folder listing candidates whose file IDs do not match the advertised Groth16 archive version.
+
 ## 0.1.2 - 2026-04-29
 
 - Added public Google Drive CRS lookup by exact Groth16 package version.

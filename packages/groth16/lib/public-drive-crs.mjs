@@ -145,7 +145,7 @@ async function loadLatestPublicGroth16MpcArchive() {
   if (!latestGroth16MpcArchivePromise) {
     latestGroth16MpcArchivePromise = (async () => {
       const archive = await findLatestPublicGroth16MpcArchive();
-      const buffer = await downloadPublicDriveFileToBuffer(archive.fileId);
+      const buffer = archive.buffer ?? await downloadPublicDriveFileToBuffer(archive.fileId);
       return { ...archive, buffer };
     })();
   }
@@ -157,7 +157,7 @@ async function loadPublicGroth16MpcArchiveByVersion(version) {
   if (!groth16MpcArchivePromisesByVersion.has(normalizedVersion)) {
     groth16MpcArchivePromisesByVersion.set(normalizedVersion, (async () => {
       const archive = await findPublicGroth16MpcArchiveByVersion(normalizedVersion);
-      const buffer = await downloadPublicDriveFileToBuffer(archive.fileId);
+      const buffer = archive.buffer ?? await downloadPublicDriveFileToBuffer(archive.fileId);
       return { ...archive, buffer };
     })());
   }
@@ -166,7 +166,7 @@ async function loadPublicGroth16MpcArchiveByVersion(version) {
 
 async function findLatestPublicGroth16MpcArchive() {
   const archives = await listPublicGroth16MpcArchives();
-  return archives.sort(compareGroth16MpcArchives).at(-1);
+  return findNewestVerifiedPublicGroth16MpcArchive(archives);
 }
 
 async function findPublicGroth16MpcArchiveByVersion(version) {
@@ -176,7 +176,36 @@ async function findPublicGroth16MpcArchiveByVersion(version) {
   if (archives.length === 0) {
     throw new Error(`No ${GROTH16_MPC_ARCHIVE_PREFIX} archive found for version ${normalizedVersion}.`);
   }
-  return archives.sort(compareGroth16MpcArchives).at(-1);
+  return findNewestVerifiedPublicGroth16MpcArchive(archives);
+}
+
+async function findNewestVerifiedPublicGroth16MpcArchive(archives) {
+  const candidates = [...archives].sort(compareGroth16MpcArchives).reverse();
+  const rejected = [];
+
+  for (const archive of candidates) {
+    try {
+      const buffer = await downloadPublicDriveFileToBuffer(archive.fileId);
+      const extracted = await extractZipEntriesFromBuffer(buffer, ["zkey_provenance.json"]);
+      const provenance = parseGroth16MpcProvenance(extracted.get("zkey_provenance.json"));
+      validateGroth16MpcArchiveVersion({
+        archive,
+        provenance,
+        expectedVersion: null,
+        expectedVersionLabel: "Groth16 MPC CRS version",
+      });
+      return { ...archive, buffer };
+    } catch (error) {
+      rejected.push(`${archive.archiveName} (${archive.fileId}): ${error.message}`);
+    }
+  }
+
+  throw new Error(
+    [
+      "No verified public Groth16 MPC archive could be selected.",
+      ...rejected.map((reason) => `- ${reason}`),
+    ].join("\n"),
+  );
 }
 
 async function listPublicGroth16MpcArchives() {

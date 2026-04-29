@@ -1,0 +1,22 @@
+{
+  "kind": "bridge",
+  "chainId": 11155111,
+  "timestamp": "20260428T234927Z",
+  "folderUrl": "https://drive.google.com/drive/folders/1MKsnAcS5GVz648fOU4_6nBZNa_0FxVtB",
+  "driveRootUrl": "https://drive.google.com/drive/folders/12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ",
+  "uploadedAt": "2026-04-29T00:02:47.809Z",
+  "files": [
+    "bridge.11155111.json",
+    "bridge-abi-manifest.11155111.json",
+    "groth16.11155111.latest.json",
+    "groth16/circuit_final.zkey",
+    "groth16/verification_key.json",
+    "groth16/metadata.json",
+    "groth16/zkey_provenance.json",
+    "tokamak-zkp.11155111.latest.json",
+    "tokamak-zkp/build-metadata-mpc-setup.json",
+    "tokamak-zkp/crs_provenance.json",
+    "zk-reflection.latest.json"
+  ],
+  "artifactIndex": "artifact-index.json"
+}

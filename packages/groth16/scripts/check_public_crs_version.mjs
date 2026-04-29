@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import {
   assertLatestPublicGroth16MpcArchiveVersion,
   findLatestPublicGroth16MpcArchiveMetadata,
+  normalizeGroth16CompatibleBackendVersion,
+  readGroth16CompatibleBackendVersionFromPackageJson,
 } from "../lib/public-drive-crs.mjs";
 import {
   fetchLatestNpmPackageVersion,
@@ -26,8 +28,8 @@ function usage() {
   node packages/groth16/scripts/check_public_crs_version.mjs [--package] [--npm-latest]
 
 Options:
-  --package      Require the latest public Groth16 CRS archive version to match packages/groth16/package.json
-  --npm-latest   Require the latest public Groth16 CRS archive version to match the npm latest dist-tag
+  --package      Require the latest public Groth16 CRS archive compatibility version to match packages/groth16/package.json
+  --npm-latest   Require the latest public Groth16 CRS archive compatibility version to match the npm latest dist-tag major.minor
 
 If no option is provided, --package is used.
 `);
@@ -57,22 +59,33 @@ async function main(argv = process.argv.slice(2)) {
 
   const packageJson = readJson(packageJsonPath);
   const archive = await findLatestPublicGroth16MpcArchiveMetadata();
+  const packageCompatibleVersion = readGroth16CompatibleBackendVersionFromPackageJson(packageJson, packageJson.name);
   console.log(`Latest public Groth16 CRS archive: ${archive.archiveName}`);
-  console.log(`Latest public Groth16 CRS version: ${archive.version}`);
+  console.log(`Latest public Groth16 CRS compatibility version: ${archive.version}`);
 
   if (modes.has("package")) {
-    await assertLatestPublicGroth16MpcArchiveVersion(packageJson.version, {
-      expectedVersionLabel: `${packageJson.name} package version`,
+    await assertLatestPublicGroth16MpcArchiveVersion(packageCompatibleVersion, {
+      expectedVersionLabel: `${packageJson.name} compatible backend version`,
     });
-    console.log(`${packageJson.name} package version matches latest public Groth16 CRS: ${packageJson.version}`);
+    console.log(
+      `${packageJson.name} compatible backend version matches latest public Groth16 CRS: `
+        + `${packageCompatibleVersion}`,
+    );
   }
 
   if (modes.has("npm-latest")) {
     const npmLatest = await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
-    await assertLatestPublicGroth16MpcArchiveVersion(npmLatest, {
-      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
+    const npmLatestCompatibleVersion = normalizeGroth16CompatibleBackendVersion(
+      npmLatest,
+      `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
+    );
+    await assertLatestPublicGroth16MpcArchiveVersion(npmLatestCompatibleVersion, {
+      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version`,
     });
-    console.log(`${GROTH16_NPM_PACKAGE_NAME} npm latest version matches latest public Groth16 CRS: ${npmLatest}`);
+    console.log(
+      `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version matches latest public Groth16 CRS: `
+        + `${npmLatestCompatibleVersion} (package ${npmLatest})`,
+    );
   }
 }
 

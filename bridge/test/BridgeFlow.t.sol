@@ -34,7 +34,7 @@ contract BridgeFlowTest is Test {
         0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     bytes32 internal constant INITIAL_ZERO_ROOT = TokamakEnvironment.ZERO_FILLED_TREE_ROOT;
     uint256 internal constant DEFAULT_JOIN_FEE = 1 ether;
-    string internal constant GROTH_COMPATIBLE_BACKEND_VERSION = "0.1.1";
+    string internal constant GROTH_COMPATIBLE_BACKEND_VERSION = "0.1";
     string internal constant TOKAMAK_COMPATIBLE_BACKEND_VERSION = "2.0.8";
     string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
     string internal constant REAL_TOKAMAK_PROOF_PATH =

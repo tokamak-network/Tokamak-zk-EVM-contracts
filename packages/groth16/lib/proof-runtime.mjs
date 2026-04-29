@@ -8,11 +8,13 @@ import {
   extractZipEntriesFromBuffer,
 } from "./public-drive-crs.mjs";
 import { installGroth16DockerRuntime, readDockerBootstrap } from "./docker-runtime.mjs";
-import { fetchLatestNpmPackageVersion, GROTH16_NPM_PACKAGE_NAME } from "./npm-registry.mjs";
+import { GROTH16_NPM_PACKAGE_NAME } from "./npm-registry.mjs";
 import {
+  groth16PackageRoot,
   groth16WorkspacePaths,
   resolveGroth16WorkspaceRoot,
 } from "./paths.mjs";
+import { readGroth16CompatibleBackendVersionFromPackageJsonPath } from "./versioning.mjs";
 import {
   assertInstalledCircuit,
   installWorkspaceCircuit,
@@ -80,12 +82,15 @@ export async function installGroth16Runtime({
     });
   } else if (!noSetup) {
     const expectedVersion = publicMpcExpectedVersion
-      ?? await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
+      ?? readGroth16CompatibleBackendVersionFromPackageJsonPath(
+        path.join(groth16PackageRoot, "package.json"),
+        GROTH16_NPM_PACKAGE_NAME,
+      );
     crsInstall = await downloadLatestPublicGroth16MpcArtifacts({
       outputDir: paths.crsDir,
       selectedFiles: CRS_FILES,
       expectedVersion,
-      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
+      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} compatible backend version`,
     });
   }
 

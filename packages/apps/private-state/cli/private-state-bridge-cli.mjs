@@ -65,6 +65,8 @@ import {
   PUBLIC_GROTH16_MPC_DRIVE_FOLDER_ID,
   downloadLatestPublicGroth16MpcArtifacts,
   downloadPublicGroth16MpcArtifactsByVersion,
+  normalizeGroth16CompatibleBackendVersion,
+  readGroth16CompatibleBackendVersionFromPackageJson,
 } from "@tokamak-private-dapps/groth16/public-drive-crs";
 import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
@@ -967,7 +969,7 @@ async function handleInstallZkEvm({ args }) {
   const deploymentArtifacts = await installPrivateStateCliArtifacts({
     dappName: PRIVATE_STATE_DAPP_LABEL,
     localDeploymentBaseRoot,
-    groth16CrsVersion: selectedVersions.groth16,
+    groth16CrsVersion: groth16Runtime.compatibleBackendVersion,
   });
   const installManifest = writePrivateStateCliInstallManifest({
     dockerRequested: Boolean(args.docker),
@@ -3445,14 +3447,19 @@ async function assertChannelProofBackendVersionCompatibility({ context, operatio
     {
       label: "Groth16",
       packageName: GROTH16_PACKAGE_NAME,
-      channelVersion: channelVersions.groth16,
-      localVersion: localVersions.groth16,
+      versionKind: "compatible backend version",
+      channelVersion: normalizeGroth16CompatibleBackendVersion(
+        channelVersions.groth16,
+        "channel Groth16 verifier compatibleBackendVersion",
+      ),
+      localVersion: localVersions.groth16.compatibleBackendVersion,
     },
     {
       label: "Tokamak zk-EVM",
       packageName: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
+      versionKind: "package version",
       channelVersion: channelVersions.tokamak,
-      localVersion: localVersions.tokamak,
+      localVersion: localVersions.tokamak.packageVersion,
     },
   ];
   const mismatches = checks.filter(({ channelVersion, localVersion }) => channelVersion !== localVersion);
@@ -3464,10 +3471,11 @@ async function assertChannelProofBackendVersionCompatibility({ context, operatio
     [
       `Channel proof backend version mismatch before ${operationName} proof generation.`,
       `Channel: ${context.workspace.channelName ?? context.workspaceName ?? context.workspace.channelId}.`,
-      ...mismatches.map(({ label, packageName, channelVersion, localVersion }) => (
-        `${label} verifier expects ${packageName} ${channelVersion}, but the local installed package version is ${localVersion}.`
+      ...mismatches.map(({ label, packageName, versionKind, channelVersion, localVersion }) => (
+        `${label} verifier expects ${packageName} ${versionKind} ${channelVersion}, `
+          + `but the local installed ${versionKind} is ${localVersion ?? "<missing>"}.`
       )),
-      "Install the matching CLI package versions before generating proofs for this channel.",
+      "Install proof backend runtimes compatible with this channel before generating proofs.",
     ].join(" "),
   );
 }
@@ -3500,14 +3508,16 @@ async function readChannelVerifierCompatibleBackendVersions(context) {
 }
 
 function readLocalProofBackendPackageVersions() {
+  const groth16Runtime = inspectGroth16Runtime();
   return {
-    groth16: requirePackageReportVersion(
-      readPackageReport({
-        name: GROTH16_PACKAGE_NAME,
-        packageJsonPath: path.join(resolveActiveGroth16PackageRoot(), "package.json"),
-      }),
-    ),
-    tokamak: requirePackageReportVersion(readTokamakCliPackageReport()),
+    groth16: {
+      packageVersion: groth16Runtime.packageVersion,
+      compatibleBackendVersion: groth16Runtime.crsCompatibleBackendVersion
+        ?? groth16Runtime.compatibleBackendVersion,
+    },
+    tokamak: {
+      packageVersion: requirePackageReportVersion(readTokamakCliPackageReport()),
+    },
   };
 }
 
@@ -5386,6 +5396,9 @@ function buildDoctorReport() {
 
 function buildSelectedRuntimeVersionCheck({ installManifest, tokamakCli, groth16Runtime }) {
   const selectedVersions = installManifest?.install?.selectedVersions ?? null;
+  const selectedGroth16CompatibleBackendVersion = selectedVersions?.groth16
+    ? normalizeGroth16CompatibleBackendVersion(selectedVersions.groth16, "selected Groth16 CLI version")
+    : null;
   const details = [
     {
       name: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
@@ -5396,12 +5409,16 @@ function buildSelectedRuntimeVersionCheck({ installManifest, tokamakCli, groth16
     {
       name: GROTH16_PACKAGE_NAME,
       selectedVersion: selectedVersions?.groth16 ?? null,
+      selectedCompatibleBackendVersion: selectedGroth16CompatibleBackendVersion,
       installedVersion: groth16Runtime.packageVersion ?? null,
+      compatibleBackendVersion: groth16Runtime.compatibleBackendVersion ?? null,
       crsVersion: groth16Runtime.crsVersion ?? null,
+      crsCompatibleBackendVersion: groth16Runtime.crsCompatibleBackendVersion ?? null,
       ok: !selectedVersions?.groth16
         || (
           selectedVersions.groth16 === groth16Runtime.packageVersion
-          && selectedVersions.groth16 === groth16Runtime.crsVersion
+          && selectedGroth16CompatibleBackendVersion === groth16Runtime.compatibleBackendVersion
+          && selectedGroth16CompatibleBackendVersion === groth16Runtime.crsCompatibleBackendVersion
         ),
     },
   ];
@@ -5501,13 +5518,15 @@ async function installGroth16RuntimeForPrivateState({ version, docker }) {
     args.push("--docker");
   }
   run(process.execPath, args, { cwd: packageRoot });
-  const crsInstall = await installGroth16CrsForPrivateStateVersion(version);
+  const compatibleBackendVersion = readGroth16PackageCompatibleBackendVersion(packageRoot);
+  const crsInstall = await installGroth16CrsForPrivateStateVersion(compatibleBackendVersion);
   const runtime = inspectGroth16Runtime({ packageRoot });
   expect(runtime.installed, "Groth16 runtime install completed, but tokamak-groth16 --doctor still reports an unhealthy runtime.");
   return {
     ...runtime,
     packageName: GROTH16_PACKAGE_NAME,
     packageVersion: version,
+    compatibleBackendVersion,
     packageRoot,
     entryPath,
     installPrefix: packageInstall.installPrefix,
@@ -5668,6 +5687,13 @@ function resolveGroth16PackageRoot() {
   return path.dirname(findPackageJsonForName(path.dirname(publicDriveCrsPath), "@tokamak-private-dapps/groth16"));
 }
 
+function readGroth16PackageCompatibleBackendVersion(packageRoot = resolveActiveGroth16PackageRoot()) {
+  return readGroth16CompatibleBackendVersionFromPackageJson(
+    readJson(path.join(packageRoot, "package.json")),
+    GROTH16_PACKAGE_NAME,
+  );
+}
+
 function resolveActiveGroth16PackageRoot() {
   const manifestPackageRoot = readPrivateStateCliInstallManifest()?.install?.groth16Runtime?.packageRoot;
   if (manifestPackageRoot && fs.existsSync(path.join(manifestPackageRoot, "package.json"))) {
@@ -5692,17 +5718,24 @@ function inspectGroth16Runtime({ packageRoot = resolveActiveGroth16PackageRoot()
   const report = parseJsonReport(stdout);
   const workspaceRoot = report?.workspaceRoot ?? defaultGroth16WorkspaceRoot();
   const workspaceManifest = readJsonIfExists(path.join(workspaceRoot, "install-manifest.json"));
+  const crsVersion = workspaceManifest?.crs?.version ?? null;
   const packageReport = readPackageReport({
     name: GROTH16_PACKAGE_NAME,
     packageJsonPath: path.join(packageRoot, "package.json"),
   });
+  const compatibleBackendVersion = readGroth16PackageCompatibleBackendVersion(packageRoot);
+  const crsCompatibleBackendVersion = crsVersion
+    ? normalizeGroth16CompatibleBackendVersion(crsVersion, "installed Groth16 CRS version")
+    : null;
   return {
     installed: doctor.status === 0 && report?.ok === true,
     packageVersion: packageReport.version,
+    compatibleBackendVersion,
     packageRoot,
     entryPath,
     workspaceRoot: report?.workspaceRoot ?? null,
-    crsVersion: workspaceManifest?.crs?.version ?? null,
+    crsVersion,
+    crsCompatibleBackendVersion,
     crs: workspaceManifest?.crs ?? null,
     checks: report?.checks ?? [],
     doctor: {

@@ -14,7 +14,10 @@ import {
   groth16WorkspacePaths,
   resolveGroth16WorkspaceRoot,
 } from "../../packages/groth16/lib/paths.mjs";
-import { assertLatestPublicGroth16MpcArchiveVersion } from "../../packages/groth16/lib/public-drive-crs.mjs";
+import {
+  assertLatestPublicGroth16MpcArchiveVersion,
+  normalizeGroth16CompatibleBackendVersion,
+} from "../../packages/groth16/lib/public-drive-crs.mjs";
 import {
   fetchLatestNpmPackageVersion,
   GROTH16_NPM_PACKAGE_NAME,
@@ -1205,11 +1208,16 @@ async function main() {
 
   process.env.BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION =
     await fetchLatestNpmPackageVersion(TOKAMAK_CLI_PACKAGE_NAME);
+  const groth16LatestPackageVersion = await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
+  process.env.BRIDGE_GROTH_PACKAGE_VERSION = groth16LatestPackageVersion;
   process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION =
-    await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
+    normalizeGroth16CompatibleBackendVersion(
+      groth16LatestPackageVersion,
+      `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
+    );
   if (process.env.BRIDGE_GROTH_SOURCE === "mpc") {
     await assertLatestPublicGroth16MpcArchiveVersion(process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION, {
-      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
+      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version`,
     });
   }
 
@@ -1275,7 +1283,10 @@ async function main() {
     `Resolved ${TOKAMAK_CLI_PACKAGE_NAME} latest version: ${process.env.BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION}`,
   );
   console.log(
-    `Resolved ${GROTH16_NPM_PACKAGE_NAME} latest version: ${process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION}`,
+    `Resolved ${GROTH16_NPM_PACKAGE_NAME} compatible backend version: ${process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION}`,
+  );
+  console.log(
+    `Resolved ${GROTH16_NPM_PACKAGE_NAME} latest package version: ${process.env.BRIDGE_GROTH_PACKAGE_VERSION}`,
   );
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
   console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);

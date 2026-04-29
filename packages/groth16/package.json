@@ -22,6 +22,9 @@
     "merkle-tree"
   ],
   "type": "module",
+  "tokamakPrivateDapps": {
+    "groth16CompatibleBackendVersion": "0.1"
+  },
   "bin": {
     "tokamak-groth16": "cli/tokamak-groth16-cli.mjs"
   },
@@ -35,6 +38,7 @@
     ".dockerignore",
     "cli",
     "docker",
+    "docs",
     "lib",
     "scripts",
     "circuits/src",

@@ -22,7 +22,8 @@ the npm registry. To pin exact proof backend versions for a channel, pass explic
 private-state-cli --install --tokamak-zk-evm-cli-version 2.0.8 --groth16-cli-version 0.1.1
 ```
 
-The Groth16 installer downloads the public Google Drive CRS archive with the same version as the selected Groth16 CLI.
+The Groth16 installer downloads the public Google Drive CRS archive whose major.minor compatibility version matches the
+selected Groth16 CLI package version.
 
 `--install` downloads public deployment artifacts from the configured artifact index. It does not read repository-local
 `deployment/` outputs by default. Repository development workflows that need local anvil artifacts can opt in explicitly:

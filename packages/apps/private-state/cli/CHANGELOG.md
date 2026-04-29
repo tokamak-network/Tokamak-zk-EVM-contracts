@@ -2,6 +2,7 @@
 
 ## 0.1.7 - 2026-04-29
 
+- Matched Groth16 channel verifier compatibility against the installed CRS major.minor compatibility version.
 - Required the Groth16 package version with verified public CRS archive selection.
 
 ## 0.1.6 - 2026-04-29

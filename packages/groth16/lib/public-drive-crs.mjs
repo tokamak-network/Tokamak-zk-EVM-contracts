@@ -7,13 +7,25 @@ import {
   requireNonEmptyString,
   sha256Buffer,
 } from "@tokamak-private-dapps/common-library/artifact-cache";
+import {
+  normalizeGroth16CompatibleBackendVersion,
+  parseGroth16CompatibleBackendVersionParts,
+  readGroth16CompatibleBackendVersionFromPackageJson,
+  readGroth16CompatibleBackendVersionFromPackageJsonPath,
+} from "./versioning.mjs";
+
+export {
+  normalizeGroth16CompatibleBackendVersion,
+  readGroth16CompatibleBackendVersionFromPackageJson,
+  readGroth16CompatibleBackendVersionFromPackageJsonPath,
+};
 
 export const PUBLIC_GROTH16_MPC_DRIVE_FOLDER_ID = "1jAIBqV-KG6PxFPDFpgtg9PDIceDDqk6N";
 
 const DRIVE_FOLDER_BASE_URL = "https://drive.google.com/drive/folders";
 const GROTH16_MPC_ARCHIVE_PREFIX = "tokamak-private-dapps-groth16";
 const GROTH16_MPC_ARCHIVE_PATTERN =
-  /^tokamak-private-dapps-groth16-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?)-(\d{8}T\d{6}Z)\.zip$/;
+  /^tokamak-private-dapps-groth16-v(\d+\.\d+(?:\.\d+(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?)?)-(\d{8}T\d{6}Z)\.zip$/;
 const require = createRequire(import.meta.url);
 const yauzl = require("yauzl");
 
@@ -51,7 +63,7 @@ export async function downloadPublicGroth16MpcArtifactsByVersion({
     "zkey_provenance.json",
   ],
 } = {}) {
-  const normalizedVersion = requireSemverVersion(version, "Groth16 MPC CRS version");
+  const normalizedVersion = normalizeGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
   const archive = await loadPublicGroth16MpcArchiveByVersion(normalizedVersion);
   return downloadPublicGroth16MpcArtifactsFromArchive({
     archive,
@@ -122,7 +134,9 @@ export async function findLatestPublicGroth16MpcArchiveMetadata() {
 
 export async function findPublicGroth16MpcArchiveMetadataByVersion(version) {
   return serializeGroth16MpcArchiveMetadata(
-    await findPublicGroth16MpcArchiveByVersion(requireSemverVersion(version, "Groth16 MPC CRS version")),
+    await findPublicGroth16MpcArchiveByVersion(
+      normalizeGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version"),
+    ),
   );
 }
 
@@ -131,10 +145,10 @@ export async function assertLatestPublicGroth16MpcArchiveVersion(
   { expectedVersionLabel = "expected version" } = {},
 ) {
   const archive = await findLatestPublicGroth16MpcArchive();
-  const normalizedExpectedVersion = requireSemverVersion(expectedVersion, expectedVersionLabel);
+  const normalizedExpectedVersion = normalizeGroth16CompatibleBackendVersion(expectedVersion, expectedVersionLabel);
   if (archive.version !== normalizedExpectedVersion) {
     throw new Error(
-      `Latest public Groth16 MPC CRS archive version ${archive.version} does not match `
+      `Latest public Groth16 MPC CRS compatibility version ${archive.version} does not match `
         + `${expectedVersionLabel} ${normalizedExpectedVersion}: ${archive.archiveName}`,
     );
   }
@@ -153,7 +167,7 @@ async function loadLatestPublicGroth16MpcArchive() {
 }
 
 async function loadPublicGroth16MpcArchiveByVersion(version) {
-  const normalizedVersion = requireSemverVersion(version, "Groth16 MPC CRS version");
+  const normalizedVersion = normalizeGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
   if (!groth16MpcArchivePromisesByVersion.has(normalizedVersion)) {
     groth16MpcArchivePromisesByVersion.set(normalizedVersion, (async () => {
       const archive = await findPublicGroth16MpcArchiveByVersion(normalizedVersion);
@@ -170,11 +184,11 @@ async function findLatestPublicGroth16MpcArchive() {
 }
 
 async function findPublicGroth16MpcArchiveByVersion(version) {
-  const normalizedVersion = requireSemverVersion(version, "Groth16 MPC CRS version");
+  const normalizedVersion = normalizeGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
   const archives = (await listPublicGroth16MpcArchives())
     .filter((archive) => archive.version === normalizedVersion);
   if (archives.length === 0) {
-    throw new Error(`No ${GROTH16_MPC_ARCHIVE_PREFIX} archive found for version ${normalizedVersion}.`);
+    throw new Error(`No ${GROTH16_MPC_ARCHIVE_PREFIX} archive found for compatibility version ${normalizedVersion}.`);
   }
   return findNewestVerifiedPublicGroth16MpcArchive(archives);
 }
@@ -256,9 +270,13 @@ function parseGroth16MpcArchiveName(archiveName) {
     return null;
   }
   const [, version, timestamp] = match;
-  return {
+  const compatibleVersion = normalizeGroth16CompatibleBackendVersion(
     version,
-    versionParts: parseSemverVersion(version),
+    `${archiveName} archive version`,
+  );
+  return {
+    version: compatibleVersion,
+    versionParts: parseGroth16CompatibleBackendVersionParts(compatibleVersion),
     timestamp,
   };
 }
@@ -286,23 +304,23 @@ function validateGroth16MpcArchiveVersion({
   expectedVersionLabel,
 }) {
   if (provenance) {
-    const provenanceVersion = requireSemverVersion(
+    const provenanceVersion = normalizeGroth16CompatibleBackendVersion(
       provenance.backend_version,
       `${archive.archiveName} provenance backend_version`,
     );
     if (provenanceVersion !== archive.version) {
       throw new Error(
-        `Groth16 MPC archive ${archive.archiveName} version ${archive.version} does not match `
+        `Groth16 MPC archive ${archive.archiveName} compatibility version ${archive.version} does not match `
           + `provenance backend_version ${provenanceVersion}.`,
       );
     }
   }
 
   if (expectedVersion !== null && expectedVersion !== undefined) {
-    const normalizedExpectedVersion = requireSemverVersion(expectedVersion, expectedVersionLabel);
+    const normalizedExpectedVersion = normalizeGroth16CompatibleBackendVersion(expectedVersion, expectedVersionLabel);
     if (archive.version !== normalizedExpectedVersion) {
       throw new Error(
-        `Public Groth16 MPC CRS archive version ${archive.version} does not match `
+        `Public Groth16 MPC CRS compatibility version ${archive.version} does not match `
           + `${expectedVersionLabel} ${normalizedExpectedVersion}: ${archive.archiveName}`,
       );
     }
@@ -319,22 +337,6 @@ function serializeGroth16MpcArchiveMetadata(archive) {
     version: archive.version,
     timestamp: archive.timestamp,
   };
-}
-
-function requireSemverVersion(value, label) {
-  const version = String(value ?? "").trim();
-  parseSemverVersion(version, label);
-  return version;
-}
-
-function parseSemverVersion(value, label = "version") {
-  const version = String(value ?? "").trim();
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?(?:\+([0-9A-Za-z.]+))?$/.exec(version);
-  if (!match) {
-    throw new Error(`Invalid ${label}: ${String(value)}`);
-  }
-  const [, major, minor, patch, prerelease = "", build = ""] = match;
-  return [Number(major), Number(minor), Number(patch), prerelease, build];
 }
 
 function normalizeGroth16MpcArtifactSelection(selectedFiles) {

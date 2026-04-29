@@ -425,7 +425,7 @@ async fn validate_drive_folder(
         .collect::<Vec<_>>();
     if !existing_names.is_empty() {
         return Err(format!(
-            "drive folder {} already contains Groth16 zkey archive(s) for this package version: {}; bump the package version before publishing again",
+            "drive folder {} already contains Groth16 zkey archive(s) for this compatibility version: {}; bump the Groth16 compatible backend version before publishing again",
             config.folder_id,
             existing_names.join(", ")
         ));

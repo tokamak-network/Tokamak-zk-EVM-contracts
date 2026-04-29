@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { groth16PackageRoot, groth16WorkspacePaths, resolveGroth16WorkspaceRoot } from "./paths.mjs";
 import { captureSnarkjs, runSnarkjs } from "./snarkjs.mjs";
+import { readGroth16CompatibleBackendVersionFromPackageJsonPath } from "./versioning.mjs";
 
 const CIRCUIT_NAME = "updateTree";
 const CURVE = "bls12-381";
@@ -91,7 +92,7 @@ export async function generateLocalTrustedSetup({
   const phase1FinalPtauSha256 = sha256FileSync(phase1FinalPtau);
   writeJson(paths.provenancePath, {
     generated_at_utc: generatedAt,
-    backend_version: resolveGroth16PackageVersion(),
+    backend_version: resolveGroth16CompatibleBackendVersion(),
     source: "local-trusted-setup",
     circuit: CIRCUIT_NAME,
     constraint_count: constraintCount,
@@ -180,12 +181,11 @@ function randomHex(byteLength) {
   return randomBytes(byteLength).toString("hex");
 }
 
-function resolveGroth16PackageVersion() {
-  const packageJson = JSON.parse(fs.readFileSync(path.join(groth16PackageRoot, "package.json"), "utf8"));
-  if (typeof packageJson.version === "string" && packageJson.version.length > 0) {
-    return packageJson.version;
-  }
-  throw new Error("packages/groth16/package.json is missing a package version.");
+function resolveGroth16CompatibleBackendVersion() {
+  return readGroth16CompatibleBackendVersionFromPackageJsonPath(
+    path.join(groth16PackageRoot, "package.json"),
+    "Groth16 package",
+  );
 }
 
 function writeJson(filePath, value) {

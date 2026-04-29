@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveCircomBinaryPath } from "../circuits/circom-platform.mjs";
+import { readGroth16CompatibleBackendVersionFromPackageJsonPath } from "../lib/versioning.mjs";
 import {
     createCommandRunner,
     downloadFile,
@@ -101,13 +102,8 @@ function cleanupStaleTemporaryState() {
     }
 }
 
-function resolveGroth16BackendVersion() {
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-    if (typeof packageJson.version === "string" && packageJson.version.length > 0) {
-        return packageJson.version;
-    }
-
-    throw new Error(`${packageJsonPath} is missing a package version.`);
+function resolveGroth16CompatibleBackendVersion() {
+    return readGroth16CompatibleBackendVersionFromPackageJsonPath(packageJsonPath, "Groth16 package");
 }
 
 async function ensureDuskResponse(workDir) {
@@ -318,7 +314,7 @@ async function generateSetupArtifacts(constraintCount, manifest) {
         JSON.stringify(
             {
                 generated_at_utc: new Date().toISOString(),
-                backend_version: resolveGroth16BackendVersion(),
+                backend_version: resolveGroth16CompatibleBackendVersion(),
                 phase1_source_provenance: buildPhase1SourceProvenance({
                     responsePath,
                     responseSha256,

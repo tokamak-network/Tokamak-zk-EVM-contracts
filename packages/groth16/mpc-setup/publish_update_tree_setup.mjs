@@ -8,6 +8,10 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import yazl from "yazl";
+import {
+  normalizeGroth16CompatibleBackendVersion,
+  readGroth16CompatibleBackendVersionFromPackageJsonPath,
+} from "../lib/versioning.mjs";
 
 dotenv.config();
 
@@ -74,13 +78,8 @@ function writeJson(filePath, payload) {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
-function readPackageVersion() {
-  const packageJson = readJson(packageJsonPath);
-  const version = packageJson.version;
-  if (typeof version !== "string" || version.length === 0) {
-    throw new Error(`${packageJsonPath} is missing a package version.`);
-  }
-  return version;
+function readPackageCompatibleBackendVersion() {
+  return readGroth16CompatibleBackendVersionFromPackageJsonPath(packageJsonPath, "Groth16 package");
 }
 
 function assertOutputFiles() {
@@ -108,16 +107,30 @@ function buildArchiveName(provenance) {
   return `${ARCHIVE_PREFIX}-v${version}-${buildArchiveTimestamp(provenance)}.zip`;
 }
 
-function assertProvenanceVersionMatchesPackage(provenance, packageVersion = readPackageVersion()) {
+function assertProvenanceVersionMatchesPackage(
+  provenance,
+  compatibleBackendVersion = readPackageCompatibleBackendVersion(),
+) {
   const version = provenance.backend_version;
-  if (version !== packageVersion) {
+  const normalizedVersion = normalizeGroth16CompatibleBackendVersion(
+    version,
+    "zkey_provenance.json backend_version",
+  );
+  if (version !== normalizedVersion) {
     throw new Error(
-      `zkey_provenance.json backend_version ${version ?? "<missing>"} does not match package version ${packageVersion}.`,
+      `zkey_provenance.json backend_version must be canonical major.minor ${normalizedVersion}, `
+        + `but found ${version ?? "<missing>"}. Regenerate the Groth16 CRS before publishing.`,
+    );
+  }
+  if (normalizedVersion !== compatibleBackendVersion) {
+    throw new Error(
+      `zkey_provenance.json backend_version ${normalizedVersion} does not match package compatible backend `
+        + `version ${compatibleBackendVersion}.`,
     );
   }
 }
 
-function buildArchiveVersionPrefix(version = readPackageVersion()) {
+function buildArchiveVersionPrefix(version = readPackageCompatibleBackendVersion()) {
   return `${ARCHIVE_PREFIX}-v${version}-`;
 }
 
@@ -253,7 +266,7 @@ export async function publishUpdateTreeSetup() {
 
 export async function preflightUpdateTreeSetupPublish() {
   const config = readDriveUploadConfig();
-  const version = readPackageVersion();
+  const version = readPackageCompatibleBackendVersion();
   preflightDriveUpload(config, buildArchiveVersionPrefix(version));
 }
 

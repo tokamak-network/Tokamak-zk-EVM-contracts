@@ -317,6 +317,91 @@ function deriveEntryContractFromTransaction(transactionJsonPath) {
   return getAddress(transaction.to);
 }
 
+async function fetchTargetContractCodes(provider, appContext) {
+  const contractAddresses = [
+    appContext.entryContract,
+    ...appContext.storageMetadata.map((entry) => entry.storageAddress),
+  ];
+  const uniqueAddresses = [];
+  const seen = new Set();
+
+  for (const address of contractAddresses) {
+    const normalizedAddress = getAddress(address);
+    const key = normalizedAddress.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    uniqueAddresses.push(normalizedAddress);
+  }
+
+  const contractCodes = [];
+  for (const address of uniqueAddresses) {
+    const code = await provider.getCode(address);
+    if (code === "0x") {
+      throw new Error(`No deployed bytecode found for target DApp contract at ${address}.`);
+    }
+    contractCodes.push({ address, code });
+  }
+
+  return contractCodes;
+}
+
+function materializeTargetExampleInputs({ entry, exampleOutputRoot, appContext, contractCodes }) {
+  const inputRoot = path.join(exampleOutputRoot, "launch-input");
+  ensureDir(inputRoot);
+
+  const transaction = readJson(entry.files.transaction);
+  if (getAddress(transaction.to) !== appContext.entryContract) {
+    throw new Error(
+      [
+        `Transaction target ${transaction.to} does not match target DApp entry contract ${appContext.entryContract}.`,
+        `Refusing to rewrite ${entry.files.transaction} because Tokamak L2 signatures bind the target address.`,
+        "Regenerate the registration launch inputs for the target deployment before registering the DApp.",
+      ].join(" "),
+    );
+  }
+
+  const previousState = readJson(entry.files.previousState);
+  if (!Array.isArray(previousState.storageAddresses)) {
+    throw new Error(`previous_state_snapshot.json is missing storageAddresses: ${entry.files.previousState}`);
+  }
+  if (previousState.storageAddresses.length !== appContext.storageMetadata.length) {
+    throw new Error(
+      [
+        `Storage address vector length mismatch for ${entry.files.previousState}.`,
+        `Example has ${previousState.storageAddresses.length}, target DApp has ${appContext.storageMetadata.length}.`,
+      ].join(" "),
+    );
+  }
+  const targetStorageAddresses = appContext.storageMetadata.map((storage) => storage.storageAddress);
+  for (let index = 0; index < targetStorageAddresses.length; index += 1) {
+    if (getAddress(previousState.storageAddresses[index]) !== targetStorageAddresses[index]) {
+      throw new Error(
+        [
+          `Snapshot storage address ${previousState.storageAddresses[index]} at index ${index}`,
+          `does not match target DApp storage address ${targetStorageAddresses[index]}.`,
+          `Regenerate ${entry.files.previousState} for the target deployment before registering the DApp.`,
+        ].join(" "),
+      );
+    }
+  }
+
+  const files = {
+    previousState: path.join(inputRoot, "previous_state_snapshot.json"),
+    transaction: path.join(inputRoot, "transaction.json"),
+    blockInfo: path.join(inputRoot, "block_info.json"),
+    contractCode: path.join(inputRoot, "contract_codes.json"),
+  };
+
+  copyFile(entry.files.previousState, files.previousState);
+  copyFile(entry.files.transaction, files.transaction);
+  copyFile(entry.files.blockInfo, files.blockInfo);
+  writeJson(files.contractCode, contractCodes);
+
+  return files;
+}
+
 function buildFunctionDefinition({
   groupName,
   exampleName,
@@ -552,6 +637,9 @@ Options:
 
 Example groups are resolved relative to:
   <example-root>/<group>/<example-name>/
+
+The transaction and previous-state inputs must already target the selected app deployment.
+The script fetches contract_codes.json from the target app RPC before synthesizing.
 `);
 }
 
@@ -822,6 +910,8 @@ function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
   if (!controller || !l2AccountingVault) {
     throw new Error(`App deployment manifest is missing controller/L2AccountingVault: ${appDeploymentPath}`);
   }
+  const controllerAddress = getAddress(controller);
+  const l2AccountingVaultAddress = getAddress(l2AccountingVault);
 
   const liquidBalanceSlot = storageLayout.contracts?.L2AccountingVault?.storageLayout?.storage?.find(
     (entry) => entry.label === "liquidBalances",
@@ -837,21 +927,22 @@ function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
   }
 
   return {
-    entryContract: controller,
+    entryContract: controllerAddress,
     storageMetadata: [
       {
-        storageAddress: controller,
+        storageAddress: controllerAddress,
         preAllocKeys: [],
         userSlots: [],
         isChannelTokenVaultStorage: false,
       },
       {
-        storageAddress: l2AccountingVault,
+        storageAddress: l2AccountingVaultAddress,
         preAllocKeys: [],
         userSlots: [liquidBalanceSlotNumber],
         isChannelTokenVaultStorage: true,
       },
     ],
+    contractCodes: [],
   };
 }
 
@@ -993,9 +1084,15 @@ async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel, e
   for (const entry of entries) {
     const exampleName = entry.name;
     const exampleOutputRoot = path.join(archiveRoot, slugify(exampleName));
+    const targetInputFiles = materializeTargetExampleInputs({
+      entry,
+      exampleOutputRoot,
+      appContext,
+      contractCodes: appContext.contractCodes,
+    });
 
     try {
-      const invocation = buildTokamakCliInvocation(buildTokamakCliArgs(entry.files));
+      const invocation = buildTokamakCliInvocation(buildTokamakCliArgs(targetInputFiles));
       await run(invocation.command, invocation.args, { cwd: repoRoot });
     } catch (error) {
       const output = error.output ?? String(error);
@@ -1035,8 +1132,8 @@ async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel, e
       buildFunctionDefinition({
         groupName: dappLabel,
         exampleName: `${groupName}/${exampleName}`,
-        transactionJsonPath: entry.files.transaction,
-        snapshotJsonPath: entry.files.previousState,
+        transactionJsonPath: targetInputFiles.transaction,
+        snapshotJsonPath: targetInputFiles.previousState,
         preprocessJsonPath: path.join(exampleOutputRoot, "preprocess.json"),
         instanceJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance.json"),
         instanceDescriptionJsonPath: path.join(exampleOutputRoot, "synthesizer-output", "instance_description.json"),
@@ -1138,6 +1235,7 @@ async function main() {
   const artifactsRoot = path.join(options.artifactsOut, dappLabel);
   ensureDir(artifactsRoot);
   const appContext = loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath });
+  appContext.contractCodes = await fetchTargetContractCodes(appProvider, appContext);
   const sourceDeploymentDir = path.dirname(appDeploymentPath);
   const sourceControllerAbiPath = path.join(sourceDeploymentDir, "PrivateStateController.callable-abi.json");
   const sourceVaultAbiPath = path.join(sourceDeploymentDir, "L2AccountingVault.callable-abi.json");

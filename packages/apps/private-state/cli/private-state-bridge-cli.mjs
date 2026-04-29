@@ -3875,10 +3875,6 @@ function normalizeBytes16Hex(value) {
   return normalizeBytesHex(value, 16);
 }
 
-function normalizeBytes20Hex(value) {
-  return normalizeBytesHex(value, 20);
-}
-
 function normalizeBytes32Hex(hexValue) {
   return normalizeBytesHex(hexValue, 32);
 }

@@ -2,20 +2,16 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   createDriveClient,
   createExclusiveFolderPath,
-  createTimestampLabel,
   preflightExclusiveFolderPath,
   resolveDriveUploadConfig,
   updateDappArtifactIndex,
   uploadFilesByRelativePath,
   writeUploadReceipt,
 } from "../../scripts/drive/lib/google-drive-upload.mjs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { createTimestampLabel } from "../../scripts/deployment/lib/deployment-layout.mjs";
 
 function usage() {
   console.error(

@@ -6,20 +6,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AbiCoder, Contract, JsonRpcProvider, Wallet, ethers, getAddress, keccak256 } from "ethers";
 import {
+  createTimestampLabel,
   dappArtifactDir,
   dappArtifactPaths,
-  latestBridgeTimestampLabel,
   requireLatestBridgeArtifactDir,
   requireLatestDappArtifactDir,
 } from "../../scripts/deployment/lib/deployment-layout.mjs";
-import { deriveRpcUrl } from "@tokamak-private-dapps/common-library/network-config";
+import { APP_NETWORKS, deriveRpcUrl, resolveAppNetwork } from "@tokamak-private-dapps/common-library/network-config";
 import {
   buildTokamakCliInvocation,
   resolveTokamakBlockInputConfig,
   resolveTokamakCliPreprocessOutputDir,
   resolveTokamakCliSynthOutputDir,
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
-import { createTimestampLabel } from "../../scripts/drive/lib/google-drive-upload.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -191,11 +190,7 @@ function normalizeTokamakAPubBlock(values) {
   return normalizedValues.concat(new Array(TOKAMAK_APUB_BLOCK_LENGTH - normalizedValues.length).fill(0n));
 }
 
-function extractTokamakRegistrationArtifacts(preprocessJsonPath) {
-  const preprocess = readJson(preprocessJsonPath);
-  const part1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
-  const part2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
-
+function extractTokamakRegistrationArtifacts(part1, part2, preprocessJsonPath) {
   if (part1.length !== 6 || part2.length !== 6) {
     throw new Error(
       `Unexpected preprocess layout in ${preprocessJsonPath}. Expected 3 G1 points encoded as 6 part1 and 6 part2 entries.`,
@@ -416,11 +411,11 @@ function buildFunctionDefinition({
   const selector = deriveFunctionSelectorFromTransaction(transactionJsonPath);
   const derivedEntryContract = deriveEntryContractFromTransaction(transactionJsonPath);
   const derivedStorageMetadata = deriveRegistrationMetadataFromSnapshot(snapshotJsonPath, derivedEntryContract);
-  const extracted = extractTokamakRegistrationArtifacts(preprocessJsonPath);
   const instance = readJson(instanceJsonPath);
   const preprocess = readJson(preprocessJsonPath);
   const preprocessPart1 = toBigIntArray(preprocess.preprocess_entries_part1, "preprocess_entries_part1");
   const preprocessPart2 = toBigIntArray(preprocess.preprocess_entries_part2, "preprocess_entries_part2");
+  const extracted = extractTokamakRegistrationArtifacts(preprocessPart1, preprocessPart2, preprocessJsonPath);
   const eventLogs = extractEventLogs(instanceDescriptionJsonPath);
   const functionLayout = extractFunctionLayout(instanceDescriptionJsonPath);
   const entryContract = entryContractOverride ? getAddress(entryContractOverride) : derivedEntryContract;
@@ -834,20 +829,8 @@ function resolveDappSnapshotTimestamp(rootDir, chainId, dappLabel, manifestOut, 
   return manifestDir === expectedDir ? timestampLabel : fallbackTimestamp;
 }
 
-const APP_NETWORK_CHAIN_IDS = new Map([
-  ["sepolia", 11155111],
-  ["mainnet", 1],
-  ["base-sepolia", 84532],
-  ["base-mainnet", 8453],
-  ["arb-sepolia", 421614],
-  ["arb-mainnet", 42161],
-  ["op-mainnet", 10],
-  ["op-sepolia", 11155420],
-  ["anvil", 31337],
-]);
-
 const CHAIN_ID_TO_APP_NETWORK = new Map(
-  Array.from(APP_NETWORK_CHAIN_IDS.entries()).map(([network, chainId]) => [chainId, network]),
+  Object.entries(APP_NETWORKS).map(([network, config]) => [config.chainId, network]),
 );
 
 function resolveBridgeDeploymentPath(chainId) {
@@ -877,11 +860,11 @@ function resolveDefaultAppNetwork(chainId) {
 }
 
 function resolveAppChainId(appNetwork) {
-  const chainId = APP_NETWORK_CHAIN_IDS.get(appNetwork);
-  if (!chainId) {
+  try {
+    return resolveAppNetwork(appNetwork).chainId;
+  } catch {
     throw new Error(`Unsupported --app-network=${appNetwork}`);
   }
-  return chainId;
 }
 
 function resolveAppRpcUrl(appNetwork) {

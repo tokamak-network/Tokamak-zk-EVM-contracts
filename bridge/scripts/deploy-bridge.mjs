@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createAddressFromString } from "@ethereumjs/util";
 import { parse as parseDotenv } from "dotenv";
 import { ethers } from "ethers";
+import { resolveAppNetwork } from "@tokamak-private-dapps/common-library/network-config";
 import {
   groth16WorkspacePaths,
   resolveGroth16WorkspaceRoot,
@@ -18,6 +19,7 @@ import {
   fetchLatestNpmPackageVersion,
   GROTH16_NPM_PACKAGE_NAME,
 } from "../../packages/groth16/lib/npm-registry.mjs";
+import { createTimestampLabel } from "../../scripts/deployment/lib/deployment-layout.mjs";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -162,16 +164,19 @@ function optionalReadJson(filePath) {
   return fs.existsSync(filePath) ? readJson(filePath) : null;
 }
 
-function timestampUtcCompact() {
-  return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-}
-
 function resolveBridgePath(inputPath) {
   return path.isAbsolute(inputPath) ? inputPath : path.resolve(bridgeRoot, inputPath);
 }
 
 function cleanupBroadcastTraces(scriptName, chainId) {
   fs.rmSync(path.join(bridgeRoot, "broadcast", scriptName, String(chainId)), { recursive: true, force: true });
+}
+
+function resolveBridgeNetwork(networkName) {
+  if (!["sepolia", "mainnet", "anvil"].includes(networkName)) {
+    fail(`Unsupported BRIDGE_NETWORK=${networkName}\nSupported values: sepolia, mainnet, anvil`);
+  }
+  return resolveAppNetwork(networkName);
 }
 
 function latestCompleteBridgeDir(rootDir, chainId) {
@@ -1039,7 +1044,7 @@ function syncGroth16ArtifactsForBridge(chainId, snapshotDir) {
   }
 
   writeJson(manifestPath, {
-    generatedAtUtc: timestampUtcCompact(),
+    generatedAtUtc: createTimestampLabel(),
     chainId: Number(chainId),
     grothArtifactSource: process.env.BRIDGE_GROTH_SOURCE,
     artifactDir: "groth16",
@@ -1106,7 +1111,7 @@ function syncTokamakZkpArtifactsForBridge(chainId, snapshotDir) {
   }
 
   writeJson(manifestPath, {
-    generatedAtUtc: timestampUtcCompact(),
+    generatedAtUtc: createTimestampLabel(),
     chainId: Number(chainId),
     tokamakZkpArtifactSource: "cli-runtime-cache",
     artifactDir: "tokamak-zkp",
@@ -1141,24 +1146,8 @@ async function main() {
   }
   requireEnv(requiredVars);
 
-  let bridgeChainId;
-  let bridgeAlchemyNetwork;
-  switch (process.env.BRIDGE_NETWORK) {
-    case "sepolia":
-      bridgeChainId = 11155111;
-      bridgeAlchemyNetwork = "eth-sepolia";
-      break;
-    case "mainnet":
-      bridgeChainId = 1;
-      bridgeAlchemyNetwork = "eth-mainnet";
-      break;
-    case "anvil":
-      bridgeChainId = 31337;
-      bridgeAlchemyNetwork = "";
-      break;
-    default:
-      fail(`Unsupported BRIDGE_NETWORK=${process.env.BRIDGE_NETWORK}\nSupported values: sepolia, mainnet, anvil`);
-  }
+  const bridgeNetwork = resolveBridgeNetwork(process.env.BRIDGE_NETWORK);
+  const bridgeChainId = bridgeNetwork.chainId;
 
   const effectiveGrothSource = process.env.BRIDGE_GROTH_SOURCE || "mpc";
   if (effectiveGrothSource !== "trusted" && effectiveGrothSource !== "mpc") {
@@ -1175,15 +1164,15 @@ async function main() {
   if (process.env.BRIDGE_RPC_URL_OVERRIDE) {
     bridgeRpcUrl = process.env.BRIDGE_RPC_URL_OVERRIDE;
     networkLabel = "<override>";
-  } else if (process.env.BRIDGE_NETWORK === "anvil") {
-    bridgeRpcUrl = "http://127.0.0.1:8545";
+  } else if (bridgeNetwork.defaultRpcUrl) {
+    bridgeRpcUrl = bridgeNetwork.defaultRpcUrl;
     networkLabel = "anvil-localhost";
   } else {
-    bridgeRpcUrl = `https://${bridgeAlchemyNetwork}.g.alchemy.com/v2/${process.env.BRIDGE_ALCHEMY_API_KEY}`;
-    networkLabel = bridgeAlchemyNetwork;
+    bridgeRpcUrl = `https://${bridgeNetwork.alchemyNetwork}.g.alchemy.com/v2/${process.env.BRIDGE_ALCHEMY_API_KEY}`;
+    networkLabel = bridgeNetwork.alchemyNetwork;
   }
 
-  const uploadTimestamp = timestampUtcCompact();
+  const uploadTimestamp = createTimestampLabel();
   const bridgeCanonicalDir = path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const bridgePendingDir = path.join(projectRoot, "deployment", ".pending", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const latestBridgeDir = latestCompleteBridgeDir(path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge"), bridgeChainId);

@@ -66,6 +66,10 @@ export function latestDappArtifactDir(repoRoot, chainId, dappName) {
   return label ? dappArtifactDir(repoRoot, chainId, dappName, label) : null;
 }
 
+export function createTimestampLabel(date = new Date()) {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
 export function requireLatestBridgeArtifactDir(repoRoot, chainId) {
   const artifactDir = latestBridgeArtifactDir(repoRoot, chainId);
   if (!artifactDir) {
@@ -83,7 +87,10 @@ export function requireLatestDappArtifactDir(repoRoot, chainId, dappName) {
 }
 
 export function bridgeArtifactPaths(repoRoot, chainId, timestampLabel) {
-  const rootDir = bridgeArtifactDir(repoRoot, chainId, timestampLabel);
+  return bridgeArtifactPathsFromDir(bridgeArtifactDir(repoRoot, chainId, timestampLabel), chainId);
+}
+
+export function bridgeArtifactPathsFromDir(rootDir, chainId) {
   return {
     rootDir,
     deploymentPath: path.join(rootDir, `bridge.${chainId}.json`),

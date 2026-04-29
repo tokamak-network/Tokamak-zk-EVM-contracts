@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 import {
   createDriveClient,
   createExclusiveFolderPath,
-  createTimestampLabel,
   preflightExclusiveFolderPath,
   resolveDriveUploadConfig,
   updateBridgeArtifactIndex,
@@ -15,6 +14,8 @@ import {
 } from "../../scripts/drive/lib/google-drive-upload.mjs";
 import {
   bridgeArtifactPaths,
+  bridgeArtifactPathsFromDir,
+  createTimestampLabel,
   latestBridgeTimestampLabel,
 } from "../../scripts/deployment/lib/deployment-layout.mjs";
 
@@ -87,23 +88,6 @@ function parseArgs(argv) {
 
 function shouldSkipUpload(chainId) {
   return process.env.BRIDGE_NETWORK === "anvil" || String(chainId) === "31337";
-}
-
-function bridgeArtifactPathsFromDir(rootDir, chainId) {
-  return {
-    rootDir,
-    deploymentPath: path.join(rootDir, `bridge.${chainId}.json`),
-    abiManifestPath: path.join(rootDir, `bridge-abi-manifest.${chainId}.json`),
-    grothManifestPath: path.join(rootDir, `groth16.${chainId}.latest.json`),
-    grothZkeyPath: path.join(rootDir, "groth16", "circuit_final.zkey"),
-    grothVerificationKeyPath: path.join(rootDir, "groth16", "verification_key.json"),
-    grothMetadataPath: path.join(rootDir, "groth16", "metadata.json"),
-    grothZkeyProvenancePath: path.join(rootDir, "groth16", "zkey_provenance.json"),
-    tokamakZkpManifestPath: path.join(rootDir, `tokamak-zkp.${chainId}.latest.json`),
-    tokamakBuildMetadataPath: path.join(rootDir, "tokamak-zkp", "build-metadata-mpc-setup.json"),
-    tokamakCrsProvenancePath: path.join(rootDir, "tokamak-zkp", "crs_provenance.json"),
-    reflectionManifestPath: path.join(rootDir, "zk-reflection.latest.json"),
-  };
 }
 
 function collectBridgeArtifactFiles({ chainId, deploymentPath, abiManifestPath }) {

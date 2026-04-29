@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createTimestampLabel, dappArtifactPaths } from "../../../../../scripts/deployment/lib/deployment-layout.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,10 +23,11 @@ if (!fs.existsSync(runFile)) {
   process.exit(1);
 }
 
-const timestampUtc = process.env.PRIVATE_STATE_ARTIFACT_TIMESTAMP ?? formatTimestampUtc(new Date());
-const deployDir = path.join(projectRoot, "deployment", `chain-id-${chainId}`, "dapps", dappName, timestampUtc);
-const deploymentLatestPath = path.join(deployDir, `deployment.${chainId}.latest.json`);
-const storageLayoutLatestPath = path.join(deployDir, `storage-layout.${chainId}.latest.json`);
+const timestampUtc = process.env.PRIVATE_STATE_ARTIFACT_TIMESTAMP ?? createTimestampLabel();
+const artifactPaths = dappArtifactPaths(projectRoot, chainId, dappName, timestampUtc);
+const deployDir = artifactPaths.rootDir;
+const deploymentLatestPath = artifactPaths.deploymentPath;
+const storageLayoutLatestPath = artifactPaths.storageLayoutPath;
 
 fs.mkdirSync(deployDir, { recursive: true });
 
@@ -73,7 +75,7 @@ writeJson(storageLayoutLatestPath, {
 
 writeCallableAbi({
   artifactPath: path.join(projectRoot, "out", "PrivateStateController.sol", "PrivateStateController.json"),
-  outputPath: path.join(deployDir, "PrivateStateController.callable-abi.json"),
+  outputPath: artifactPaths.privateStateControllerAbiPath,
   names: [
     "computeNoteCommitment",
     "computeNullifier",
@@ -103,7 +105,7 @@ writeCallableAbi({
 
 writeCallableAbi({
   artifactPath: path.join(projectRoot, "out", "L2AccountingVault.sol", "L2AccountingVault.json"),
-  outputPath: path.join(deployDir, "L2AccountingVault.callable-abi.json"),
+  outputPath: artifactPaths.l2AccountingVaultAbiPath,
   names: [
     "controller",
     "liquidBalances",
@@ -157,8 +159,4 @@ function readJson(filePath) {
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-function formatTimestampUtc(date) {
-  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }

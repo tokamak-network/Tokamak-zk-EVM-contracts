@@ -12,12 +12,14 @@ import {
   parseGroth16CompatibleBackendVersionParts,
   readGroth16CompatibleBackendVersionFromPackageJson,
   readGroth16CompatibleBackendVersionFromPackageJsonPath,
+  requireCanonicalGroth16CompatibleBackendVersion,
 } from "./versioning.mjs";
 
 export {
   normalizeGroth16CompatibleBackendVersion,
   readGroth16CompatibleBackendVersionFromPackageJson,
   readGroth16CompatibleBackendVersionFromPackageJsonPath,
+  requireCanonicalGroth16CompatibleBackendVersion,
 };
 
 export const PUBLIC_GROTH16_MPC_DRIVE_FOLDER_ID = "1jAIBqV-KG6PxFPDFpgtg9PDIceDDqk6N";
@@ -25,7 +27,7 @@ export const PUBLIC_GROTH16_MPC_DRIVE_FOLDER_ID = "1jAIBqV-KG6PxFPDFpgtg9PDIceDD
 const DRIVE_FOLDER_BASE_URL = "https://drive.google.com/drive/folders";
 const GROTH16_MPC_ARCHIVE_PREFIX = "tokamak-private-dapps-groth16";
 const GROTH16_MPC_ARCHIVE_PATTERN =
-  /^tokamak-private-dapps-groth16-v(\d+\.\d+(?:\.\d+(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?)?)-(\d{8}T\d{6}Z)\.zip$/;
+  /^tokamak-private-dapps-groth16-v(\d+\.\d+)-(\d{8}T\d{6}Z)\.zip$/;
 const require = createRequire(import.meta.url);
 const yauzl = require("yauzl");
 
@@ -270,7 +272,7 @@ function parseGroth16MpcArchiveName(archiveName) {
     return null;
   }
   const [, version, timestamp] = match;
-  const compatibleVersion = normalizeGroth16CompatibleBackendVersion(
+  const compatibleVersion = requireCanonicalGroth16CompatibleBackendVersion(
     version,
     `${archiveName} archive version`,
   );
@@ -304,7 +306,7 @@ function validateGroth16MpcArchiveVersion({
   expectedVersionLabel,
 }) {
   if (provenance) {
-    const provenanceVersion = normalizeGroth16CompatibleBackendVersion(
+    const provenanceVersion = requireCanonicalGroth16CompatibleBackendVersion(
       provenance.backend_version,
       `${archive.archiveName} provenance backend_version`,
     );

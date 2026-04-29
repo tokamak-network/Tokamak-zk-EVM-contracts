@@ -45,12 +45,11 @@ All Groth16 compatibility checks between package, CRS, and verifier contract com
 Examples:
 
 - Package `0.1.3`, CRS `0.1`, and verifier `0.1` are compatible.
-- Package `0.1.3`, legacy CRS archive name `v0.1.2`, and legacy verifier value `0.1.2` normalize to `0.1` and are compatible.
 - Package `0.2.0`, CRS `0.1`, and verifier `0.1` are incompatible.
 
-Normalization accepts `MAJOR.MINOR` and exact semantic versions such as `MAJOR.MINOR.PATCH`, then compares the
-`MAJOR.MINOR` prefix. Newly generated CRS provenance and newly deployed verifier contracts must store the canonical
-`MAJOR.MINOR` form.
+Package-version normalization accepts exact semantic versions such as `MAJOR.MINOR.PATCH`, then derives the
+`MAJOR.MINOR` compatibility prefix. CRS archive names, CRS provenance, and verifier contracts must store the canonical
+`MAJOR.MINOR` form and must not be accepted with a patch component.
 
 ## Increment Rules
 
@@ -130,8 +129,8 @@ New `zkey_provenance.json` files must store:
 }
 ```
 
-Legacy archives whose names or provenance use `MAJOR.MINOR.PATCH` may be consumed only after normalization to
-`MAJOR.MINOR`. Publishing new CRS artifacts with a patch component in `backend_version` is invalid.
+CRS archives whose names or provenance use `MAJOR.MINOR.PATCH` are invalid and must not be selected, downloaded, or
+published.
 
 The Drive file name and file ID advertised by the public folder listing are not trusted by themselves. Selection must
 download the candidate archive and validate embedded provenance and hashes before using it.
@@ -153,9 +152,9 @@ The Groth16 CRS download uses the installed package compatibility version, not t
 installing package `0.1.3` downloads a CRS compatible with `0.1`.
 
 Before proof generation, private-state CLI reads the target channel's `grothVerifierCompatibleBackendVersion()` and
-normalizes it to `MAJOR.MINOR`. It then compares that value with the locally installed Groth16 CRS compatibility version.
-Tokamak zk-EVM CLI compatibility remains an exact package-version check unless that package defines a different
-compatibility rule.
+requires it to already be canonical `MAJOR.MINOR`. It then compares that value with the locally installed Groth16 CRS
+compatibility version, which must also be canonical `MAJOR.MINOR`. Tokamak zk-EVM CLI compatibility remains an exact
+package-version check unless that package defines a different compatibility rule.
 
 ## CI Checks
 
@@ -193,4 +192,3 @@ For a major Groth16 release:
 3. Generate and upload new CRS artifacts.
 4. Deploy compatible bridge verifier contracts.
 5. Coordinate DApp and channel migration explicitly.
-

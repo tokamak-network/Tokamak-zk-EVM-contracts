@@ -2,6 +2,7 @@
 
 ## 0.1.7 - 2026-04-29
 
+- Required Groth16 channel verifier and installed CRS compatibility versions to use canonical major.minor form.
 - Matched Groth16 channel verifier compatibility against the installed CRS major.minor compatibility version.
 - Required the Groth16 package version with verified public CRS archive selection.
 

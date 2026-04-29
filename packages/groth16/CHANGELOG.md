@@ -2,6 +2,7 @@
 
 ## 0.1.3 - 2026-04-29
 
+- Rejected Groth16 CRS archive names and provenance versions that are not canonical major.minor compatibility versions.
 - Introduced major.minor Groth16 compatible backend version metadata for CRS and verifier compatibility checks.
 - Documented strict Groth16 package, verifier contract, and CRS version management rules.
 - Verified public Google Drive CRS archive selections against embedded provenance before installation.

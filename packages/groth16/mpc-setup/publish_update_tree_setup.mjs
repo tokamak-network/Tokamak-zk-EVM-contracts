@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import yazl from "yazl";
 import {
-  normalizeGroth16CompatibleBackendVersion,
   readGroth16CompatibleBackendVersionFromPackageJsonPath,
+  requireCanonicalGroth16CompatibleBackendVersion,
 } from "../lib/versioning.mjs";
 
 dotenv.config();
@@ -112,16 +112,10 @@ function assertProvenanceVersionMatchesPackage(
   compatibleBackendVersion = readPackageCompatibleBackendVersion(),
 ) {
   const version = provenance.backend_version;
-  const normalizedVersion = normalizeGroth16CompatibleBackendVersion(
+  const normalizedVersion = requireCanonicalGroth16CompatibleBackendVersion(
     version,
     "zkey_provenance.json backend_version",
   );
-  if (version !== normalizedVersion) {
-    throw new Error(
-      `zkey_provenance.json backend_version must be canonical major.minor ${normalizedVersion}, `
-        + `but found ${version ?? "<missing>"}. Regenerate the Groth16 CRS before publishing.`,
-    );
-  }
   if (normalizedVersion !== compatibleBackendVersion) {
     throw new Error(
       `zkey_provenance.json backend_version ${normalizedVersion} does not match package compatible backend `

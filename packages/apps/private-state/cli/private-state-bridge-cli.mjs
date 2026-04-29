@@ -67,6 +67,7 @@ import {
   downloadPublicGroth16MpcArtifactsByVersion,
   normalizeGroth16CompatibleBackendVersion,
   readGroth16CompatibleBackendVersionFromPackageJson,
+  requireCanonicalGroth16CompatibleBackendVersion,
 } from "@tokamak-private-dapps/groth16/public-drive-crs";
 import {
   CHANNEL_BOUND_L2_DERIVATION_MODE,
@@ -3448,7 +3449,7 @@ async function assertChannelProofBackendVersionCompatibility({ context, operatio
       label: "Groth16",
       packageName: GROTH16_PACKAGE_NAME,
       versionKind: "compatible backend version",
-      channelVersion: normalizeGroth16CompatibleBackendVersion(
+      channelVersion: requireCanonicalGroth16CompatibleBackendVersion(
         channelVersions.groth16,
         "channel Groth16 verifier compatibleBackendVersion",
       ),
@@ -5725,7 +5726,7 @@ function inspectGroth16Runtime({ packageRoot = resolveActiveGroth16PackageRoot()
   });
   const compatibleBackendVersion = readGroth16PackageCompatibleBackendVersion(packageRoot);
   const crsCompatibleBackendVersion = crsVersion
-    ? normalizeGroth16CompatibleBackendVersion(crsVersion, "installed Groth16 CRS version")
+    ? requireCanonicalGroth16CompatibleBackendVersion(crsVersion, "installed Groth16 CRS version")
     : null;
   return {
     installed: doctor.status === 0 && report?.ok === true,

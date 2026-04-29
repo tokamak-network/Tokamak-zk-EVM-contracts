@@ -69,3 +69,4 @@ scripts/output/zk-artifacts/*/
 **/output/
 **/output/**
 client_secret_*.json
+google-drive-oauth-token.json

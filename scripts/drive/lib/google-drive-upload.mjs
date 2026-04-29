@@ -47,7 +47,60 @@ export function resolveDriveUploadConfig() {
   };
 }
 
-async function loadSavedCredentialsIfExist(tokenPath) {
+function readOAuthClientKey(clientJsonPath) {
+  const keys = JSON.parse(fs.readFileSync(clientJsonPath, "utf8"));
+  const key = keys.installed ?? keys.web;
+  if (!key) {
+    throw new Error(`OAuth client JSON is missing installed/web credentials: ${clientJsonPath}`);
+  }
+  return key;
+}
+
+function createOAuthClientFromUserToken(clientJsonPath, token) {
+  const key = readOAuthClientKey(clientJsonPath);
+  const client = new google.auth.OAuth2(
+    key.client_id,
+    key.client_secret,
+    key.redirect_uris?.[0],
+  );
+  client.setCredentials(normalizeUserTokenCredentials(token));
+  return client;
+}
+
+function parseTokenExpiryDate(value) {
+  if (typeof value === "number" || typeof value === "string") {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      return numeric < 10 ** 12 ? numeric * 1000 : numeric;
+    }
+  }
+  if (Array.isArray(value) && value.length >= 6) {
+    const [year, ordinalDay, hour, minute, second, nanosecond] = value.map(Number);
+    if ([year, ordinalDay, hour, minute, second, nanosecond].every(Number.isFinite)) {
+      return Date.UTC(year, 0, ordinalDay, hour, minute, second, Math.floor(nanosecond / 1_000_000));
+    }
+  }
+  return null;
+}
+
+function normalizeUserTokenCredentials(token) {
+  const expiryDate = parseTokenExpiryDate(token.expiry_date ?? token.expires_at);
+  if (token.refresh_token && (!expiryDate || expiryDate <= Date.now() + 60_000)) {
+    return {
+      refresh_token: token.refresh_token,
+      expiry_date: 0,
+      id_token: token.id_token,
+    };
+  }
+  return {
+    access_token: token.access_token,
+    refresh_token: token.refresh_token,
+    expiry_date: expiryDate ?? undefined,
+    id_token: token.id_token,
+  };
+}
+
+async function loadSavedCredentialsIfExist(tokenPath, clientJsonPath) {
   if (!tokenPath) {
     return null;
   }
@@ -56,6 +109,15 @@ async function loadSavedCredentialsIfExist(tokenPath) {
   }
 
   const credentials = JSON.parse(fs.readFileSync(tokenPath, "utf8"));
+  if (Array.isArray(credentials) && credentials.length > 0 && credentials[0]?.token) {
+    return createOAuthClientFromUserToken(clientJsonPath, credentials[0].token);
+  }
+  if (credentials?.type === "authorized_user") {
+    return google.auth.fromJSON(credentials);
+  }
+  if (credentials?.refresh_token || credentials?.access_token) {
+    return createOAuthClientFromUserToken(clientJsonPath, credentials);
+  }
   return google.auth.fromJSON(credentials);
 }
 
@@ -63,11 +125,7 @@ async function saveCredentials(client, clientJsonPath, tokenPath) {
   if (!tokenPath) {
     return;
   }
-  const keys = JSON.parse(fs.readFileSync(clientJsonPath, "utf8"));
-  const key = keys.installed ?? keys.web;
-  if (!key) {
-    throw new Error(`OAuth client JSON is missing installed/web credentials: ${clientJsonPath}`);
-  }
+  const key = readOAuthClientKey(clientJsonPath);
   if (!client.credentials.refresh_token) {
     throw new Error("Google OAuth flow did not return a refresh token.");
   }
@@ -95,7 +153,7 @@ async function assertAuthenticatedClient(authClient) {
 }
 
 export async function createDriveClient(config = resolveDriveUploadConfig()) {
-  let authClient = await loadSavedCredentialsIfExist(config.oauthTokenPath);
+  let authClient = await loadSavedCredentialsIfExist(config.oauthTokenPath, config.oauthClientJsonPath);
   if (!authClient) {
     authClient = await authenticate({
       scopes: DRIVE_SCOPES,

@@ -105,7 +105,6 @@ const requiredTokamakSetupArtifacts = [
   "sigma_verify.json",
 ];
 const tokamakCliInvocation = buildTokamakCliInvocation();
-const tokamakSetupDistDir = resolveTokamakCliSetupOutputDir();
 const tokamakStepArtifactDirectories = [
   path.join("synthesizer", "output"),
   path.join("preprocess", "output"),
@@ -779,6 +778,7 @@ function deriveChannelTokenVaultLeafIndex(storageKey) {
 }
 
 function assertTokamakSetupArtifactsInstalled() {
+  const tokamakSetupDistDir = resolveTokamakCliSetupOutputDir();
   const missingInDist = requiredTokamakSetupArtifacts.filter(
     (fileName) => !fs.existsSync(path.join(tokamakSetupDistDir, fileName)),
   );

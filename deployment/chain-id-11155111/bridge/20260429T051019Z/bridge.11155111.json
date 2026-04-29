@@ -1,0 +1,21 @@
+{
+  "abiManifestPath": "bridge-abi-manifest.11155111.json",
+  "bridgeAdminManager": "0xeb41355300E6A6c8d511Db9cC2cf9B7735Cc5a45",
+  "bridgeAdminManagerImplementation": "0xe0315137d13b294612eBEd8d713297f57C9561Bc",
+  "bridgeCore": "0xB463C19b5Dadcd20f15f89c304F8bb76787e9913",
+  "bridgeCoreImplementation": "0xf060Ec7C789a4fF87889B35FAc483874044B3AEA",
+  "bridgeTokenVault": "0xF0a5b0a28771512D952FAcEa1a44B22D371CE26B",
+  "bridgeTokenVaultImplementation": "0x6548E2A38282f06fdEA386A285d59EA47678DC1A",
+  "chainId": 11155111,
+  "dAppManager": "0x89dB43E8973d8ee91dC6746F14acc381d5F4600F",
+  "dAppManagerImplementation": "0xE2Cf98Dc66C2D0c53308a3AfbE397Aa6Af8D5D83",
+  "deployer": "0x7BA7171625dBbFb546749674BE1731ede8DA4E25",
+  "grothVerifier": "0xEA746C3DD0c315069F3d04F403C88601636957c0",
+  "grothVerifierCompatibleBackendVersion": "0.1.2",
+  "merkleTreeLevels": 30,
+  "mockAsset": "0x0000000000000000000000000000000000000000",
+  "owner": "0x7BA7171625dBbFb546749674BE1731ede8DA4E25",
+  "proxyKind": "uups",
+  "tokamakVerifier": "0x2629866bDa77Ae3bC53d8A224aD273f6284899C6",
+  "tokamakVerifierCompatibleBackendVersion": "2.0.14"
+}

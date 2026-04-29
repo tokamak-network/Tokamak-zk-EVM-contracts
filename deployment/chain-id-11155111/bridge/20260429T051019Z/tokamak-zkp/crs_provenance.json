@@ -1,0 +1,29 @@
+{
+  "generated_at_utc": "2026-04-29T01:19:40.918028+00:00",
+  "backend_version": "2.0.14",
+  "phase1_source_provenance": {
+    "DuskGroth16": {
+      "source_url": "https://drive.usercontent.google.com/download?id=1nv9WpxXWMiP8-YwImd2FVn523u7_sb48&export=download&confirm=t",
+      "source_size_bytes": 603981040,
+      "raw_encoding": "compressed-response",
+      "pinned_contribution": "0015",
+      "pinned_readme_url": "https://raw.githubusercontent.com/dusk-network/trusted-setup/main/contributions/0015/README.md",
+      "pinned_drive_file_id": "1nv9WpxXWMiP8-YwImd2FVn523u7_sb48",
+      "expected_source_sha256": "52c9d47e5cddd585b9b0c2e5ade6f809046d516289302871766bdc463e7be214",
+      "actual_source_sha256": "52c9d47e5cddd585b9b0c2e5ade6f809046d516289302871766bdc463e7be214",
+      "auto_downloaded": false,
+      "downloaded_contribution": null,
+      "downloaded_readme_url": null,
+      "downloaded_drive_file_id": null,
+      "max_g1_exp_used": 40960,
+      "max_g2_exp_used": 32768,
+      "transcript_consistency_verified": true
+    }
+  },
+  "combined_sigma_sha256": "9badffd460fd2d03dcf20c89527f9f135f3c4a1dfe9f159ccb93136d016ea130",
+  "sigma_preprocess_sha256": "f9ee36cd8a3c1efb13294c315088462aa411f3aab1a9db30ece8f238c98ab738",
+  "sigma_verify_sha256": "fcbdc770886846ff443d76413f17571b711f57a6250885831d371648324b5dfc",
+  "published_folder_url": "https://drive.google.com/drive/folders/14xqCbLoyoVmUVTTlopiXtKnoHPBGL-Sv",
+  "published_archive_name": "tokamak-backend-crs-v2.0.14-20260429T011940Z.zip",
+  "crs_download_url": null
+}

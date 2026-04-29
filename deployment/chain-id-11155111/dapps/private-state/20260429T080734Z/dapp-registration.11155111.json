@@ -1,0 +1,98 @@
+{
+  "generatedAt": "2026-04-29T08:09:13.623Z",
+  "appNetwork": "sepolia",
+  "appChainId": 11155111,
+  "groupNames": [
+    "mintNotes",
+    "transferNotes",
+    "redeemNotes"
+  ],
+  "dappLabel": "private-state",
+  "dappId": 3,
+  "dAppManager": "0x89dB43E8973d8ee91dC6746F14acc381d5F4600F",
+  "artifactSources": {
+    "privateStateCli": {
+      "kind": "npm",
+      "name": "@tokamak-private-dapps/private-state-cli",
+      "version": "0.1.7"
+    },
+    "uploadedFiles": [
+      "dapp-registration.11155111.json",
+      "deployment.11155111.latest.json",
+      "storage-layout.11155111.latest.json",
+      "PrivateStateController.callable-abi.json",
+      "L2AccountingVault.callable-abi.json",
+      "source/PrivateStateController.sol",
+      "source/L2AccountingVault.sol"
+    ]
+  },
+  "processedExamples": [
+    {
+      "groupName": "private-state",
+      "exampleName": "mintNotes/mintNotes1",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x626ad23f"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "mintNotes/mintNotes2",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x516a9d53"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "transferNotes/transferNotes1To1",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x224c3c60"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "transferNotes/transferNotes1To2",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x6b24ef62"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "transferNotes/transferNotes2To1",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x3f97509c"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "redeemNotes/redeemNotes1",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0xc0856c7c"
+    }
+  ],
+  "skippedExamples": [],
+  "registration": {
+    "txHash": "0xd0ce258409726246aad40e7e258eda1ad28c66f2dba11ede9cfddd5efa1dfcbb",
+    "blockNumber": 10754464,
+    "deletedExistingRegistration": true,
+    "deleteTxHash": "0x044c9e260e1f385ec76affea7b49319d56a0e64eaa567e59425a377c6db1863e",
+    "deleteBlockNumber": 10754463,
+    "labelHash": "0x280fff58e494db3de12ebbdf607529639a8dce993a3771df1774946231ec4d35",
+    "storageCount": 2,
+    "functionCount": 6
+  },
+  "publication": {
+    "kind": "dapp",
+    "dappName": "private-state",
+    "bridgeChainId": 11155111,
+    "appChainId": 11155111,
+    "timestamp": "20260429T080734Z",
+    "folderUrl": "https://drive.google.com/drive/folders/1-1lSa0a0_qghCB3EzCPbdHrU2N0pqVYr",
+    "driveRootUrl": "https://drive.google.com/drive/folders/12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ",
+    "uploadedAt": "2026-04-29T08:09:37.078Z",
+    "files": [
+      "dapp-registration.11155111.json",
+      "deployment.11155111.latest.json",
+      "storage-layout.11155111.latest.json",
+      "PrivateStateController.callable-abi.json",
+      "L2AccountingVault.callable-abi.json",
+      "source/L2AccountingVault.sol",
+      "source/PrivateStateController.sol"
+    ],
+    "artifactIndex": "artifact-index.json"
+  }
+}

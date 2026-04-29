@@ -163,6 +163,14 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Install latest Tokamak zk-EVM CLI
+        id: tokamak-cli
+        run: |
+          npm install --no-save @tokamak-zk-evm/cli@latest
+          TOKAMAK_CLI_VERSION="$(node -p "require('./node_modules/@tokamak-zk-evm/cli/package.json').version")"
+          echo "version=${TOKAMAK_CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+          npm ls @tokamak-zk-evm/cli
+
       - name: Install Groth16 circuit dependencies
         run: npm ci --prefix packages/groth16/circuits
 
@@ -231,7 +239,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.tokamak-zk-evm/linux/downloads/crs
-          key: tokamak-zkevm-crs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: tokamak-zkevm-crs-${{ runner.os }}-${{ steps.tokamak-cli.outputs.version }}
           restore-keys: |
             tokamak-zkevm-crs-${{ runner.os }}-
 

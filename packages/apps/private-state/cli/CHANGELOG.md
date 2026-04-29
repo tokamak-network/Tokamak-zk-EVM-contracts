@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.6 - 2026-04-29
+
+- Added `--groth16-cli-version` and `--tokamak-zk-evm-cli-version` install options with npm latest defaults.
+- Installed selected proof backend package versions into managed runtime directories.
+- Downloaded Groth16 CRS artifacts matching the selected Groth16 CLI version.
+- Checked channel verifier compatible backend versions before local proof generation.
+- Reported selected proof backend runtime versions from `--doctor`.
+
 ## 0.1.5 - 2026-04-28
 
 - Switched channel balance proof generation to invoke `tokamak-groth16 --prove` instead of importing Groth16 proof internals directly.

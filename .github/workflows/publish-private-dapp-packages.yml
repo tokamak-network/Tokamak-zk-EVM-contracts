@@ -1,0 +1,328 @@
+name: Publish private DApp packages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/publish-private-dapp-packages.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'RELEASING.md'
+      - 'scripts/release-readiness.cjs'
+      - 'packages/common/**'
+      - 'packages/groth16/**'
+      - 'packages/apps/private-state/cli/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish-common:
+    name: Publish @tokamak-private-dapps/common-library to npm
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Compare package version with npm
+        id: version-check
+        shell: bash
+        run: |
+          node <<'EOF_NODE' >> "$GITHUB_OUTPUT"
+          const { execSync } = require('node:child_process');
+          const pkg = require('./packages/common/package.json');
+
+          function compareSemver(left, right) {
+            const leftParts = left.split('.').map((value) => Number(value));
+            const rightParts = right.split('.').map((value) => Number(value));
+            const maxLength = Math.max(leftParts.length, rightParts.length);
+
+            for (let index = 0; index < maxLength; index += 1) {
+              const leftValue = leftParts[index] ?? 0;
+              const rightValue = rightParts[index] ?? 0;
+              if (leftValue > rightValue) return 1;
+              if (leftValue < rightValue) return -1;
+            }
+
+            return 0;
+          }
+
+          if (pkg.private === true) {
+            throw new Error(`${pkg.name} is marked private and cannot be published.`);
+          }
+
+          let publishedVersion = null;
+          try {
+            publishedVersion = execSync(`npm view "${pkg.name}" version`, {
+              encoding: 'utf8',
+              stdio: ['ignore', 'pipe', 'pipe'],
+            }).trim();
+          } catch (error) {
+            publishedVersion = null;
+          }
+
+          const comparison =
+            publishedVersion === null ? 1 : compareSemver(pkg.version, publishedVersion);
+          if (comparison < 0) {
+            throw new Error(
+              `Local version ${pkg.version} is behind npm version ${publishedVersion} for ${pkg.name}.`,
+            );
+          }
+
+          const shouldPublish = publishedVersion === null || comparison > 0;
+          console.log(`package_name=${pkg.name}`);
+          console.log(`local_version=${pkg.version}`);
+          console.log(`published_version=${publishedVersion ?? 'none'}`);
+          console.log(`should_publish=${shouldPublish}`);
+          EOF_NODE
+
+      - name: Show version decision
+        run: |
+          echo "Package: ${{ steps.version-check.outputs.package_name }}"
+          echo "Local version: ${{ steps.version-check.outputs.local_version }}"
+          echo "Published version: ${{ steps.version-check.outputs.published_version }}"
+          echo "Should publish: ${{ steps.version-check.outputs.should_publish }}"
+
+      - name: Validate common release readiness
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/common
+        run: npm run release:check
+
+      - name: Show common release notes
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/common
+        run: |
+          echo "## ${{ steps.version-check.outputs.package_name }} ${{ steps.version-check.outputs.local_version }}" >> "$GITHUB_STEP_SUMMARY"
+          npm run release:check -- --print-current-notes >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate npm package contents
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/common
+        run: npm publish --dry-run --access public --ignore-scripts
+
+      - name: Publish to npm
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/common
+        run: npm publish --access public --ignore-scripts
+
+  publish-groth16:
+    name: Publish @tokamak-private-dapps/groth16 to npm
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Compare package version with npm
+        id: version-check
+        shell: bash
+        run: |
+          node <<'EOF_NODE' >> "$GITHUB_OUTPUT"
+          const { execSync } = require('node:child_process');
+          const pkg = require('./packages/groth16/package.json');
+
+          function compareSemver(left, right) {
+            const leftParts = left.split('.').map((value) => Number(value));
+            const rightParts = right.split('.').map((value) => Number(value));
+            const maxLength = Math.max(leftParts.length, rightParts.length);
+
+            for (let index = 0; index < maxLength; index += 1) {
+              const leftValue = leftParts[index] ?? 0;
+              const rightValue = rightParts[index] ?? 0;
+              if (leftValue > rightValue) return 1;
+              if (leftValue < rightValue) return -1;
+            }
+
+            return 0;
+          }
+
+          if (pkg.private === true) {
+            throw new Error(`${pkg.name} is marked private and cannot be published.`);
+          }
+
+          let publishedVersion = null;
+          try {
+            publishedVersion = execSync(`npm view "${pkg.name}" version`, {
+              encoding: 'utf8',
+              stdio: ['ignore', 'pipe', 'pipe'],
+            }).trim();
+          } catch (error) {
+            publishedVersion = null;
+          }
+
+          const comparison =
+            publishedVersion === null ? 1 : compareSemver(pkg.version, publishedVersion);
+          if (comparison < 0) {
+            throw new Error(
+              `Local version ${pkg.version} is behind npm version ${publishedVersion} for ${pkg.name}.`,
+            );
+          }
+
+          const shouldPublish = publishedVersion === null || comparison > 0;
+          console.log(`package_name=${pkg.name}`);
+          console.log(`local_version=${pkg.version}`);
+          console.log(`published_version=${publishedVersion ?? 'none'}`);
+          console.log(`should_publish=${shouldPublish}`);
+          EOF_NODE
+
+      - name: Show version decision
+        run: |
+          echo "Package: ${{ steps.version-check.outputs.package_name }}"
+          echo "Local version: ${{ steps.version-check.outputs.local_version }}"
+          echo "Published version: ${{ steps.version-check.outputs.published_version }}"
+          echo "Should publish: ${{ steps.version-check.outputs.should_publish }}"
+
+      - name: Validate Groth16 release readiness
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/groth16
+        run: npm run release:check
+
+      - name: Validate Groth16 CRS version
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/groth16
+        run: npm run crs:check-version
+
+      - name: Show Groth16 release notes
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/groth16
+        run: |
+          echo "## ${{ steps.version-check.outputs.package_name }} ${{ steps.version-check.outputs.local_version }}" >> "$GITHUB_STEP_SUMMARY"
+          npm run release:check -- --print-current-notes >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate npm package contents
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/groth16
+        run: npm publish --dry-run --access public --ignore-scripts
+
+      - name: Publish to npm
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/groth16
+        run: npm publish --access public --ignore-scripts
+
+  publish-private-state-cli:
+    name: Publish @tokamak-private-dapps/private-state-cli to npm
+    runs-on: ubuntu-22.04
+    needs:
+      - publish-common
+      - publish-groth16
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Compare package version with npm
+        id: version-check
+        shell: bash
+        run: |
+          node <<'EOF_NODE' >> "$GITHUB_OUTPUT"
+          const { execSync } = require('node:child_process');
+          const pkg = require('./packages/apps/private-state/cli/package.json');
+
+          function compareSemver(left, right) {
+            const leftParts = left.split('.').map((value) => Number(value));
+            const rightParts = right.split('.').map((value) => Number(value));
+            const maxLength = Math.max(leftParts.length, rightParts.length);
+
+            for (let index = 0; index < maxLength; index += 1) {
+              const leftValue = leftParts[index] ?? 0;
+              const rightValue = rightParts[index] ?? 0;
+              if (leftValue > rightValue) return 1;
+              if (leftValue < rightValue) return -1;
+            }
+
+            return 0;
+          }
+
+          if (pkg.private === true) {
+            throw new Error(`${pkg.name} is marked private and cannot be published.`);
+          }
+
+          let publishedVersion = null;
+          try {
+            publishedVersion = execSync(`npm view "${pkg.name}" version`, {
+              encoding: 'utf8',
+              stdio: ['ignore', 'pipe', 'pipe'],
+            }).trim();
+          } catch (error) {
+            publishedVersion = null;
+          }
+
+          const comparison =
+            publishedVersion === null ? 1 : compareSemver(pkg.version, publishedVersion);
+          if (comparison < 0) {
+            throw new Error(
+              `Local version ${pkg.version} is behind npm version ${publishedVersion} for ${pkg.name}.`,
+            );
+          }
+
+          const shouldPublish = publishedVersion === null || comparison > 0;
+          console.log(`package_name=${pkg.name}`);
+          console.log(`local_version=${pkg.version}`);
+          console.log(`published_version=${publishedVersion ?? 'none'}`);
+          console.log(`should_publish=${shouldPublish}`);
+          EOF_NODE
+
+      - name: Show version decision
+        run: |
+          echo "Package: ${{ steps.version-check.outputs.package_name }}"
+          echo "Local version: ${{ steps.version-check.outputs.local_version }}"
+          echo "Published version: ${{ steps.version-check.outputs.published_version }}"
+          echo "Should publish: ${{ steps.version-check.outputs.should_publish }}"
+
+      - name: Validate private-state CLI release readiness
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/apps/private-state/cli
+        run: npm run release:check
+
+      - name: Show private-state CLI release notes
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/apps/private-state/cli
+        run: |
+          echo "## ${{ steps.version-check.outputs.package_name }} ${{ steps.version-check.outputs.local_version }}" >> "$GITHUB_STEP_SUMMARY"
+          npm run release:check -- --print-current-notes >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate npm package contents
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/apps/private-state/cli
+        run: npm publish --dry-run --access public --ignore-scripts
+
+      - name: Publish to npm
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/apps/private-state/cli
+        run: npm publish --access public --ignore-scripts

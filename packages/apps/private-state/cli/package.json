@@ -1,6 +1,6 @@
 {
   "name": "@tokamak-private-dapps/private-state-cli",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Command-line client for the Tokamak private-state DApp.",
   "license": "MIT OR Apache-2.0",
   "author": "Tokamak Network",
@@ -43,7 +43,7 @@
     "@ethereumjs/util": "^10.1.1",
     "@noble/curves": "^1.2.0",
     "@tokamak-private-dapps/common-library": "^0.1.0",
-    "@tokamak-private-dapps/groth16": "^0.1.1",
+    "@tokamak-private-dapps/groth16": "^0.1.2",
     "@tokamak-zk-evm/cli": "^2.0.12",
     "ethers": "^6.14.1",
     "tokamak-l2js": "^0.1.3"

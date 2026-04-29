@@ -1,0 +1,159 @@
+{
+  "generatedAt": "2026-04-29T06:18:01.868Z",
+  "appNetwork": "sepolia",
+  "appChainId": 11155111,
+  "groupNames": [
+    "mintNotes",
+    "transferNotes",
+    "redeemNotes"
+  ],
+  "dappLabel": "private-state",
+  "dappId": 3,
+  "dAppManager": "0x89dB43E8973d8ee91dC6746F14acc381d5F4600F",
+  "artifactSources": {
+    "privateStateCli": {
+      "kind": "npm",
+      "name": "@tokamak-private-dapps/private-state-cli",
+      "version": "0.1.7"
+    },
+    "uploadedFiles": [
+      "dapp-registration.11155111.json",
+      "deployment.11155111.latest.json",
+      "storage-layout.11155111.latest.json",
+      "PrivateStateController.callable-abi.json",
+      "L2AccountingVault.callable-abi.json",
+      "source/PrivateStateController.sol",
+      "source/L2AccountingVault.sol"
+    ]
+  },
+  "processedExamples": [
+    {
+      "groupName": "private-state",
+      "exampleName": "mintNotes/mintNotes1",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x626ad23f"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "mintNotes/mintNotes2",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x516a9d53"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "transferNotes/transferNotes1To1",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x224c3c60"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "transferNotes/transferNotes1To2",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x6b24ef62"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "transferNotes/transferNotes2To1",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0x3f97509c"
+    },
+    {
+      "groupName": "private-state",
+      "exampleName": "redeemNotes/redeemNotes1",
+      "entryContract": "0xA0E24CFabE79DD3b20d95337545bfE3d2A3dc660",
+      "functionSig": "0xc0856c7c"
+    }
+  ],
+  "skippedExamples": [
+    {
+      "groupName": "mintNotes",
+      "exampleName": "mintNotes3",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "mintNotes",
+      "exampleName": "mintNotes4",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "mintNotes",
+      "exampleName": "mintNotes5",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "mintNotes",
+      "exampleName": "mintNotes6",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "transferNotes",
+      "exampleName": "transferNotes1To3",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "transferNotes",
+      "exampleName": "transferNotes2To2",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "transferNotes",
+      "exampleName": "transferNotes3To1",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "transferNotes",
+      "exampleName": "transferNotes3To2",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "transferNotes",
+      "exampleName": "transferNotes4To1",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "redeemNotes",
+      "exampleName": "redeemNotes2",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "redeemNotes",
+      "exampleName": "redeemNotes3",
+      "reason": "qap-compiler capacity exceeded"
+    },
+    {
+      "groupName": "redeemNotes",
+      "exampleName": "redeemNotes4",
+      "reason": "qap-compiler capacity exceeded"
+    }
+  ],
+  "registration": {
+    "txHash": "0x38a61e4003647382105ab101e033b68f7851fb72360a2f7480729af64c89425b",
+    "blockNumber": 10753952,
+    "deletedExistingRegistration": true,
+    "deleteTxHash": "0x2464628ca0cfffe669abc27adc112fb72544f5a8568ad32fe28839ccf8e62b4a",
+    "deleteBlockNumber": 10753951,
+    "labelHash": "0x280fff58e494db3de12ebbdf607529639a8dce993a3771df1774946231ec4d35",
+    "storageCount": 2,
+    "functionCount": 6
+  },
+  "publication": {
+    "kind": "dapp",
+    "dappName": "private-state",
+    "bridgeChainId": 11155111,
+    "appChainId": 11155111,
+    "timestamp": "20260429T061617Z",
+    "folderUrl": "https://drive.google.com/drive/folders/11j_y0eKvNd6sh0JZH-8XOGIG38he5HWb",
+    "driveRootUrl": "https://drive.google.com/drive/folders/12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ",
+    "uploadedAt": "2026-04-29T06:18:27.133Z",
+    "files": [
+      "dapp-registration.11155111.json",
+      "deployment.11155111.latest.json",
+      "storage-layout.11155111.latest.json",
+      "PrivateStateController.callable-abi.json",
+      "L2AccountingVault.callable-abi.json",
+      "source/L2AccountingVault.sol",
+      "source/PrivateStateController.sol"
+    ],
+    "artifactIndex": "artifact-index.json"
+  }
+}

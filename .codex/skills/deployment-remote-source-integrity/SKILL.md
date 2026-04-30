@@ -21,6 +21,83 @@ Use these repository entrypoints for deployment and registration work:
 The combined wrapper does not bypass any of this skill's checks. Apply the bridge/DApp deployment
 and DApp registration checks before running it.
 
+## External NPM Dependencies
+
+Before running any entry script, upgrade its external npm dependencies from the npm registry. Do
+not use `npm ci`, and do not rely on `package-lock.json` to choose dependency versions. Use
+`npm install --no-save --package-lock=false <package>@latest ...` so the deployment uses registry
+latest without rewriting package manifests or lockfiles.
+
+Entry script dependency sets:
+
+- `bridge/scripts/deploy-bridge.mjs`
+  - `@ethereumjs/util`
+  - `@tokamak-private-dapps/common-library`
+  - `@tokamak-private-dapps/groth16`
+  - `@tokamak-zk-evm/cli`
+  - `@tokamak-zk-evm/subcircuit-library`
+  - `@tokamak-zk-evm/synthesizer-node`
+  - `@google-cloud/local-auth`
+  - `dotenv`
+  - `ethers`
+  - `googleapis`
+  - `yauzl`
+  - `yazl`
+- `packages/apps/private-state/scripts/deploy/deploy-private-state.mjs`
+  - `@tokamak-private-dapps/common-library`
+  - `dotenv`
+- `packages/apps/private-state/scripts/deploy/write-deploy-artifacts.mjs`
+  - no external npm dependency beyond the repository-local helpers and the `forge` executable
+- `bridge/scripts/admin-add-dapp.mjs`
+  - `@tokamak-private-dapps/common-library`
+  - `@tokamak-zk-evm/cli`
+  - `@tokamak-zk-evm/subcircuit-library`
+  - `@tokamak-zk-evm/synthesizer-node`
+  - `@google-cloud/local-auth`
+  - `ethers`
+  - `googleapis`
+- `bridge/scripts/deploy-and-add-dapp.mjs`
+  - union of the private-state DApp deploy dependencies and DApp registration dependencies
+
+For a bridge deployment, run:
+
+```bash
+npm install --no-save --package-lock=false \
+  @ethereumjs/util@latest \
+  @tokamak-private-dapps/common-library@latest \
+  @tokamak-private-dapps/groth16@latest \
+  @tokamak-zk-evm/cli@latest \
+  @tokamak-zk-evm/subcircuit-library@latest \
+  @tokamak-zk-evm/synthesizer-node@latest \
+  @google-cloud/local-auth@latest \
+  dotenv@latest \
+  ethers@latest \
+  googleapis@latest \
+  yauzl@latest \
+  yazl@latest
+```
+
+For a private-state DApp deployment, run:
+
+```bash
+npm install --no-save --package-lock=false \
+  @tokamak-private-dapps/common-library@latest \
+  dotenv@latest
+```
+
+For a DApp registration, run:
+
+```bash
+npm install --no-save --package-lock=false \
+  @tokamak-private-dapps/common-library@latest \
+  @tokamak-zk-evm/cli@latest \
+  @tokamak-zk-evm/subcircuit-library@latest \
+  @tokamak-zk-evm/synthesizer-node@latest \
+  @google-cloud/local-auth@latest \
+  ethers@latest \
+  googleapis@latest
+```
+
 ## Bridge Deployment Mode
 
 Bridge deployment supports `upgrade` and `redeploy-proxy` modes through

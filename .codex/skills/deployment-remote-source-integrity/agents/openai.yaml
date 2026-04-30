@@ -1,4 +1,4 @@
 interface:
   display_name: "Deployment Source Integrity"
-  short_description: "Require deploy metadata to reference remote main commits and reject no-op contract deploys."
-  default_prompt: "Use this skill before bridge or DApp deployment, DApp registration, or deployment metadata upload so sourceUrl metadata points to a commit on remote main and contract deployments are not repeated without contract-code changes unless forced."
+  short_description: "Use latest registry dependencies and require source-safe deployments."
+  default_prompt: "Use this skill before bridge or DApp deployment, DApp registration, or deployment metadata upload so external npm dependencies are upgraded to registry latest, sourceUrl metadata points to a commit on remote main, and no-op contract deployments are rejected unless forced."

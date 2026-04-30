@@ -469,7 +469,7 @@ function installPrivateStateCliPackageForE2E() {
     type: "module",
     description: "Temporary private-state CLI E2E install root.",
   });
-  run("npm", ["install", "--no-audit", "--no-fund", ...cliPackageSpecs], {
+  run("npm", ["install", "--package-lock=false", "--no-audit", "--no-fund", ...cliPackageSpecs], {
     cwd: cliInstallRoot,
     quiet: true,
     label: "private-state-cli:npm-install",

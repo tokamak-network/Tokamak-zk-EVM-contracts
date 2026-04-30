@@ -117,7 +117,7 @@ function main(argv = process.argv.slice(2)) {
     `${JSON.stringify({ private: true, type: "module" }, null, 2)}\n`,
   );
 
-  run("npm", ["install", "--no-audit", "--no-fund", ...tarballPaths], { cwd: installRoot });
+  run("npm", ["install", "--package-lock=false", "--no-audit", "--no-fund", ...tarballPaths], { cwd: installRoot });
 
   for (const entry of entries) {
     const installedPackage = readInstalledPackage(installRoot, entry.name);

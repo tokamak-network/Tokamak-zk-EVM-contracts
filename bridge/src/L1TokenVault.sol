@@ -249,8 +249,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
 
         context.channelManager
             .applyVaultUpdate(
-                update.currentRootVector,
-                update.updatedRoot
+                update.currentRootVector, update.updatedRoot, context.registration.l2Address, update.updatedUserValue
             );
 
         emit StorageWriteObserved(

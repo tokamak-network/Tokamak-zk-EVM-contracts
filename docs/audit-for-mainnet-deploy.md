@@ -6,15 +6,21 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
 
 ## Findings
 
-1. Critical: `exitChannel` can release an occupied channel-token-vault slot while the L2 accounting balance is still non-zero.
+1. Critical: `exitChannel` could release an occupied channel-token-vault slot while the L2 accounting balance was still non-zero.
 
-   `L1TokenVault.exitChannel(...)` unregisters the caller through `ChannelManager.unregisterChannelTokenVaultIdentity(...)` without verifying that the registered `channelTokenVaultKey` currently has a zero balance in the accepted channel root. After unregistering, the same `channelTokenVaultKey`, leaf index, and L2 address binding become available for registration by another L1 address. A new registrant can then submit a valid withdraw proof against the existing non-zero leaf value and move the orphaned channel balance into their own L1 available balance.
+   `L1TokenVault.exitChannel(...)` previously unregistered the caller through `ChannelManager.unregisterChannelTokenVaultIdentity(...)` without verifying that the registered `channelTokenVaultKey` currently had a zero balance in the accepted channel root. After unregistering, the same `channelTokenVaultKey`, leaf index, and L2 address binding became available for registration by another L1 address. A new registrant could then submit a valid withdraw proof against the existing non-zero leaf value and move the orphaned channel balance into their own L1 available balance.
 
-   The repository currently has a test that accepts this behavior: `bridge/test/BridgeFlow.t.sol::testExitChannelAllowsNonZeroChannelBalance`. The CLI has a zero-balance guard for `exit-channel`, but that guard is local UX logic and can be bypassed with `--force`; it is not an on-chain security boundary.
+   The CLI zero-balance guard for `exit-channel` was useful local UX logic, but it was not a sufficient security boundary because direct contract calls and `--force` could bypass it.
 
-   Upgradeability classification: future exits can be fixed by upgrading the UUPS `L1TokenVault` implementation, for example by requiring a proof-backed zero-balance transition or by rejecting exit unless the channel-token-vault leaf is proven zero. Already executed non-zero exits, key reuse, or stolen balances are not reliably recoverable by a later upgrade.
+   Mitigation implemented in this branch: `ChannelManager` now stores `isChannelTokenVaultBalanceZero` in each channel-token-vault registration. The flag starts as `true` at registration, is updated by L1 Groth deposit/withdraw paths from the accepted `updatedUserValue`, is updated by `executeChannelTransaction(...)` when it observes a proof-backed `LiquidBalanceStorageWriteObserved(address,bytes32)` event from the L2 accounting vault, and is checked before unregistering a channel-token-vault identity. A non-zero flag now makes `exitChannel(...)` revert through `ChannelManager.ChannelTokenVaultBalanceNotZero`.
 
-   Mainnet recommendation: for the planned first mainnet proxy deployment, do not deploy until the on-chain exit path enforces zero channel balance or otherwise preserves ownership of non-zero channel-token-vault leaves. This audit assumes there are no existing mainnet channels, so no channel migration is in scope.
+   This approach intentionally avoids an exit-specific Groth proof and does not restore an on-chain leaf cache. It relies instead on the Tokamak zk-EVM guarantee that observed event logs are part of the verified public output. If an off-chain executor tampers with the log data, the resulting on-chain proof is not valid, so the bridge may safely decode the observed `LiquidBalanceStorageWriteObserved(address,bytes32)` event to update the flag.
+
+   Privacy note: the flag intentionally exposes only the minimum on-chain state needed for this exit rule: whether the registered L2 accounting balance is currently zero. No additional balance-transition event is emitted for the flag itself. The flag does not reveal more than the already accepted proof-backed `LiquidBalanceStorageWriteObserved(address,bytes32)` public output from which it is derived. To keep the flag complete, the bridge rejects non-zero observed liquid-balance writes for unregistered L2 addresses instead of silently accepting balance state that no registration flag can track.
+
+   Upgradeability classification: this issue is fixable for future exits by upgrading the UUPS `L1TokenVault` implementation and deploying new `ChannelManager` instances that include the flag check. Already executed non-zero exits, key reuse, or stolen balances are not reliably recoverable by a later upgrade.
+
+   Mainnet recommendation: for the planned first mainnet proxy deployment, deploy only with the on-chain zero-balance flag mitigation and its tests included. This audit assumes there are no existing mainnet channels, so no channel migration is in scope.
 
 2. High: mainnet deployment safety policies are not enforced inside the deployment script.
 
@@ -92,6 +98,12 @@ The private-state DApp has no contract-level owner role. The controller-to-vault
 
 The private-state CLI exists under `packages/apps/private-state/cli` and supports bridge-coupled workflows. The DApp Makefile exposes local anvil, test, E2E, and public-network deployment commands. The CLI's `exit-channel` zero-balance check is useful for user safety but must not be treated as sufficient because direct contract calls can bypass it.
 
+### Proof-Backed Log Accounting
+
+`L2AccountingVault` emits `LiquidBalanceStorageWriteObserved(address,bytes32)` after liquid-balance credits and debits. `ChannelManager.executeChannelTransaction(...)` decodes this event only after Tokamak proof verification and uses it to synchronize the registered channel-token-vault zero-balance flag. The trust assumption is that Tokamak zk-EVM binds emitted logs into the verified public output; malformed or tampered logs cannot be accepted without a valid proof.
+
+The bridge ignores zero-value events for unregistered L2 addresses, but rejects non-zero observed liquid-balance writes when the L2 address has no channel-token-vault registration. This preserves the invariant that any non-zero liquid balance capable of later exiting has a tracked zero-balance flag. For registered channel identities, multiple observed writes in a single accepted transaction are applied in order, so the final observed write determines the exit eligibility flag. No dedicated flag-update event is emitted, which avoids adding another L1-indexed activity signal beyond the proof-backed public output.
+
 ### Synthesizer Compatibility Deliverables
 
 The repository contains Synthesizer example inputs under `packages/apps/private-state/examples/synthesizer/privateState/`. No files were found under `packages/apps/private-state/scripts/synthesizer-compat-test`, so the stricter per-function compatibility-script deliverable is not present in the expected script directory. Mainnet registration should rely only on freshly regenerated artifacts from the exact deployed contracts and should not treat stale examples as sufficient.
@@ -121,10 +133,10 @@ This means a forced redeployment would need an explicit operational reason; it i
   - Passed mint and transfer functions before stopping on inline assembly in `redeemNotes1`.
 - `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/L2AccountingVault.sol --contract L2AccountingVault`
   - Passed `creditLiquidBalance` and `debitLiquidBalance`.
-- `forge test --root bridge --match-path test/BridgeFlow.t.sol --match-test 'testExitChannelAllowsNonZeroChannelBalance|testGrothWithdrawAndClaimToWallet|testExitChannelRefundsAccordingToTimeBucketAndClearsRegistration'`
-  - Passed 3 tests.
-- `npm run test:bridge:unit -- --match-test 'testExitChannelAllowsNonZeroChannelBalance|testGrothWithdrawAndClaimToWallet|testExitChannelRefundsAccordingToTimeBucketAndClearsRegistration'`
-  - Passed 3 tests.
+- `forge test --root bridge --match-path test/BridgeFlow.t.sol --match-test 'testChannelReturnsRegisteredTokenVaultIdentityForUser|testGrothDepositUpdatesVaultStateAndRootVector|testExitChannelRejectsNonZeroChannelBalance|testGrothWithdrawAndClaimToWallet|testFullWithdrawRestoresZeroBalanceExitEligibility|testTokamakObservedLiquidBalanceWriteUpdatesZeroBalanceFlag|testTokamakObservedLiquidBalanceWriteRejectsUnregisteredNonzeroBalance|testTokamakVerificationEmitsObservedEventTopicZeroCorrectly'`
+  - Passed 8 tests.
+- `forge test --root bridge --match-path test/BridgeFlow.t.sol`
+  - Passed 50 tests.
 - `forge test --match-path test/private-state/PrivateStateController.t.sol`
   - Failed at global compilation because `test/verifier/Verifier.t.sol` still calls `new TokamakVerifier()` without the constructor argument now required by `TokamakVerifier`.
 - `make -C packages/apps/private-state test`
@@ -132,4 +144,4 @@ This means a forced redeployment would need an explicit operational reason; it i
 
 ## Deployment Decision
 
-Under the first mainnet proxy deployment assumption, mainnet deployment should not proceed until Finding 1 is fixed on-chain and the deployment scripts enforce the mainnet source-integrity and proxy-mode gates in Finding 2. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.
+Under the first mainnet proxy deployment assumption, mainnet deployment should proceed only after the zero-balance flag mitigation for Finding 1 and the deployment-script gates in Finding 2 are included in the deployment branch. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.

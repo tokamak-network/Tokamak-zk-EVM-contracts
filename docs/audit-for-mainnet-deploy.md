@@ -1,0 +1,135 @@
+# Mainnet Deployment Security Audit
+
+Date: 2026-04-30
+Reviewed commit: `d43fabaafa9a7ac67ebf22e1e2495e45bdc69bf8`
+Scope: bridge contracts, private-state DApp contracts, deployment scripts, registration flow, CLI trust boundaries, and deployment metadata gates relevant to mainnet deployment.
+
+## Findings
+
+1. Critical: `exitChannel` can release an occupied channel-token-vault slot while the L2 accounting balance is still non-zero.
+
+   `L1TokenVault.exitChannel(...)` unregisters the caller through `ChannelManager.unregisterChannelTokenVaultIdentity(...)` without verifying that the registered `channelTokenVaultKey` currently has a zero balance in the accepted channel root. After unregistering, the same `channelTokenVaultKey`, leaf index, and L2 address binding become available for registration by another L1 address. A new registrant can then submit a valid withdraw proof against the existing non-zero leaf value and move the orphaned channel balance into their own L1 available balance.
+
+   The repository currently has a test that accepts this behavior: `bridge/test/BridgeFlow.t.sol::testExitChannelAllowsNonZeroChannelBalance`. The CLI has a zero-balance guard for `exit-channel`, but that guard is local UX logic and can be bypassed with `--force`; it is not an on-chain security boundary.
+
+   Upgradeability classification: future exits can be fixed by upgrading the UUPS `L1TokenVault` implementation, for example by requiring a proof-backed zero-balance transition or by rejecting exit unless the channel-token-vault leaf is proven zero. Already executed non-zero exits, key reuse, or stolen balances are not reliably recoverable by a later upgrade.
+
+   Mainnet recommendation: do not deploy until the on-chain exit path enforces zero channel balance or otherwise preserves ownership of non-zero channel-token-vault leaves.
+
+2. High: mainnet deployment safety policies are not enforced inside the deployment script.
+
+   The deployment discipline requires that mainnet use `upgrade` mode once a proxy exists, that exact local `HEAD` already be present on remote `main`, and that deployment-relevant Solidity changes be compared against the previous deployment metadata. These rules currently live in operational instructions, not as hard checks in `bridge/scripts/deploy-bridge.mjs`.
+
+   A mistaken `redeploy-proxy` on mainnet can create new root bridge addresses and split state from existing deployments. A deployment from a commit that is not on remote `main` can also produce metadata whose source links are not resolvable by users or auditors.
+
+   Upgradeability classification: script-level guards can be added before deployment. If a mainnet proxy redeployment has already happened and users or channels start using the wrong address set, normal UUPS upgrades cannot merge the two state histories.
+
+   Mainnet recommendation: add script-enforced mainnet guards before deployment, including remote-main source integrity, dirty-worktree blocking for deployment-relevant files, previous-deployment Solidity diff checks, and a hard refusal of `redeploy-proxy` when mainnet proxy metadata exists.
+
+3. High: deployed `ChannelManager` instances are not upgradeable and freeze verifier and DApp execution metadata at channel creation.
+
+   `BridgeCore`, `DAppManager`, `BridgeAdminManager`, and `L1TokenVault` are UUPS-upgradeable. Per-channel `ChannelManager` instances are regular contracts created by `BridgeCore.createChannel(...)`. Each `ChannelManager` stores immutable verifier addresses, immutable channel metadata, a fixed managed-storage vector, fixed function metadata copied from `DAppManager`, and fixed refund schedule parameters.
+
+   Updating `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, or DApp registration metadata only affects future channel creation. Existing channels keep their originally captured verifier and function metadata.
+
+   Upgradeability classification: framework-level bugs can often be fixed for future channels through UUPS upgrades and new channel creation. Bugs in an already deployed channel's verifier binding, function layout, managed storage vector, or accepted execution grammar require channel migration; they are not repairable in place by upgrading `BridgeCore`.
+
+   Mainnet recommendation: treat channel creation as a final commitment. Create mainnet channels only after verifier versions, Groth16 setup artifacts, `aPubUser` offsets, function selectors, and managed storage addresses have been independently checked against the exact DApp deployment.
+
+4. Medium: private-state DApp contracts are intentionally non-upgradeable.
+
+   `PrivateStateController` and `L2AccountingVault` use immutable deployment-time wiring and expose no owner or admin upgrade path. This is consistent with the current DApp design, but it means any contract-level bug in the DApp instance registered to a mainnet channel cannot be patched in place.
+
+   Upgradeability classification: a new DApp instance can be deployed and registered under a new or replacement DApp ID, and new channels can use that registration. Existing channels bound to the old contracts remain bound to the old contracts.
+
+   Mainnet recommendation: treat DApp deployment and registration as final for each channel generation. Do not register the DApp on mainnet until its exact deployed bytecode, callable ABI set, storage-layout manifest, and Synthesizer registration artifacts match the intended function set.
+
+## Other Security Checks
+
+### zk-L2 Privacy Assumption
+
+The private-state DApp assumes the Tokamak zk-L2 model where user transaction contents are private to the caller and L1 observers see proofs plus resulting state transitions. The contracts do not add L1 mempool calldata-hiding logic, which is appropriate under this execution model. The DApp documentation correctly states that the contracts themselves do not provide note-ownership privacy without the surrounding proving-based L2 execution environment.
+
+### Bridge-Managed Custody
+
+The custody model is structurally correct: canonical asset custody remains in the L1 bridge vault, while the private-state DApp keeps L2 accounting balances, note commitments, and nullifiers. `L2AccountingVault` is accounting-only and can be mutated only by its immutable controller. Users do not directly move canonical assets inside the L2 DApp contracts.
+
+### L2 Accounting Bounds
+
+`L2AccountingVault.creditLiquidBalance(...)` rejects zero amounts, rejects zero accounts, and prevents balances from reaching or exceeding the BLS12-381 scalar field order. `debitLiquidBalance(...)` rejects zero amounts, rejects zero accounts, and prevents native underflow by checking available balance before subtraction.
+
+### User-Facing Symbolic Paths
+
+The static successful-path checker passed these private-state functions:
+
+- `mintNotes1` through `mintNotes6`
+- `transferNotes1To1`
+- `transferNotes1To2`
+- `transferNotes1To3`
+- `transferNotes2To1`
+- `transferNotes2To2`
+- `transferNotes3To1`
+- `transferNotes3To2`
+- `transferNotes4To1`
+- `L2AccountingVault.creditLiquidBalance`
+- `L2AccountingVault.debitLiquidBalance`
+
+The checker could not parse the `redeemNotes1` through `redeemNotes4` functions because their zero-address receiver guard is implemented in inline assembly. Manual review indicates those redeem functions still have one successful path: validate non-zero receiver, prepare spendable notes, consume nullifiers, sum value, and credit liquid balance.
+
+### Function Bytecode and Placement Discipline
+
+The private-state user-facing functions use fixed-arity entrypoints rather than a generic multi-mode dispatcher. The mint, transfer, and redeem families are mostly unrolled, which fits the fixed-circuit and placement-discipline requirements better than dynamic loops. Some functions still use helper calls for commitment, nullifier, encrypted-note salt, and storage-key derivation; those helpers appear to serve shared correctness and size/placement goals rather than optional feature branching.
+
+### Storage Layout and Address Split
+
+The private-state DApp separates liquid accounting state from note/nullifier state across `L2AccountingVault` and `PrivateStateController`. This split is appropriate because accounting balances and note state grow differently and have different mutation semantics.
+
+### Admin and Ownership
+
+The private-state DApp has no contract-level owner role. The controller-to-vault relationship is immutable and deployment-bound. Bridge administration remains owner-controlled through UUPS-upgradeable bridge components, so the bridge owner key or governance process is a mainnet-critical trust boundary.
+
+### CLI and Local Command Surface
+
+The private-state CLI exists under `packages/apps/private-state/cli` and supports bridge-coupled workflows. The DApp Makefile exposes local anvil, test, E2E, and public-network deployment commands. The CLI's `exit-channel` zero-balance check is useful for user safety but must not be treated as sufficient because direct contract calls can bypass it.
+
+### Synthesizer Compatibility Deliverables
+
+The repository contains Synthesizer example inputs under `packages/apps/private-state/examples/synthesizer/privateState/`. No files were found under `packages/apps/private-state/scripts/synthesizer-compat-test`, so the stricter per-function compatibility-script deliverable is not present in the expected script directory. Mainnet registration should rely only on freshly regenerated artifacts from the exact deployed contracts and should not treat stale examples as sufficient.
+
+### Deployment Source Integrity
+
+The current local `HEAD` was checked after `git fetch --prune origin main` and is contained in `origin/main`:
+
+- `d43fabaafa9a7ac67ebf22e1e2495e45bdc69bf8`
+
+There is no local `deployment/chain-id-1` mainnet deployment directory. Therefore local metadata cannot prove whether a mainnet bridge proxy already exists. If a proxy already exists on mainnet, only `upgrade` mode should be used.
+
+Latest Sepolia bridge and private-state deployment metadata both record previous source commit `6648d5f452196fb72c729f24cc1118b6fab3203c`. Comparing that commit to the reviewed `HEAD` showed no deployment-relevant Solidity diff under:
+
+- `bridge/src/**/*.sol`
+- `packages/apps/private-state/src/**/*.sol`
+
+This means a forced redeployment would need an explicit operational reason; it is not justified by changed contract source alone.
+
+### Canonical Asset
+
+`BridgeCore.canonicalAsset()` hard-codes Tokamak Network Token for Ethereum mainnet as `0x2be5e8c109e2197D077D13A82dAead6a9b3433C5`. This matches the Tokamak Network token contract address shown by CoinGecko on 2026-04-30. The bridge assumes exact-transfer ERC-20 behavior; token pausing, blacklisting, fee-on-transfer behavior, or governance changes in the canonical token remain external trust and availability risks.
+
+## Verification Performed
+
+- `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/PrivateStateController.sol --contract PrivateStateController`
+  - Passed mint and transfer functions before stopping on inline assembly in `redeemNotes1`.
+- `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/L2AccountingVault.sol --contract L2AccountingVault`
+  - Passed `creditLiquidBalance` and `debitLiquidBalance`.
+- `forge test --root bridge --match-path test/BridgeFlow.t.sol --match-test 'testExitChannelAllowsNonZeroChannelBalance|testGrothWithdrawAndClaimToWallet|testExitChannelRefundsAccordingToTimeBucketAndClearsRegistration'`
+  - Passed 3 tests.
+- `npm run test:bridge:unit -- --match-test 'testExitChannelAllowsNonZeroChannelBalance|testGrothWithdrawAndClaimToWallet|testExitChannelRefundsAccordingToTimeBucketAndClearsRegistration'`
+  - Passed 3 tests.
+- `forge test --match-path test/private-state/PrivateStateController.t.sol`
+  - Failed at global compilation because `test/verifier/Verifier.t.sol` still calls `new TokamakVerifier()` without the constructor argument now required by `TokamakVerifier`.
+- `make -C packages/apps/private-state test`
+  - Failed for the same global compilation issue.
+
+## Deployment Decision
+
+Mainnet deployment should not proceed until Finding 1 is fixed on-chain and the deployment scripts enforce the mainnet source-integrity and proxy-mode gates in Finding 2. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.

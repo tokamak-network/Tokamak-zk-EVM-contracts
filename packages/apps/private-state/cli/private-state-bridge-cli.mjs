@@ -65,7 +65,7 @@ import {
   PUBLIC_GROTH16_MPC_DRIVE_FOLDER_ID,
   downloadLatestPublicGroth16MpcArtifacts,
   downloadPublicGroth16MpcArtifactsByVersion,
-  normalizeGroth16CompatibleBackendVersion,
+  normalizeGroth16PackageVersionToCompatibleBackendVersion,
   readGroth16CompatibleBackendVersionFromPackageJson,
   requireCanonicalGroth16CompatibleBackendVersion,
 } from "@tokamak-private-dapps/groth16/public-drive-crs";
@@ -5240,14 +5240,11 @@ function requireSemverVersion(value, label) {
   return normalized;
 }
 
-function normalizeTokamakCompatibleBackendVersion(value, label = "Tokamak compatible backend version") {
+function normalizeTokamakPackageVersionToCompatibleBackendVersion(value, label = "Tokamak package version") {
   const version = String(value ?? "").trim();
-  const match = COMPATIBLE_BACKEND_VERSION_PATTERN.exec(version) ?? EXACT_SEMVER_PATTERN.exec(version);
+  const match = EXACT_SEMVER_PATTERN.exec(version);
   if (!match) {
-    throw new Error(
-      `${label} must be a major.minor compatibility version or an exact semantic version. `
-        + `Received: ${String(value)}`,
-    );
+    throw new Error(`${label} must be an exact semantic version. Received: ${String(value)}`);
   }
   const [, major, minor] = match;
   return `${Number(major)}.${Number(minor)}`;
@@ -5454,10 +5451,13 @@ function buildDoctorReport() {
 function buildSelectedRuntimeVersionCheck({ installManifest, tokamakCli, groth16Runtime }) {
   const selectedVersions = installManifest?.install?.selectedVersions ?? null;
   const selectedTokamakCompatibleBackendVersion = selectedVersions?.tokamak
-    ? normalizeTokamakCompatibleBackendVersion(selectedVersions.tokamak, "selected Tokamak zk-EVM CLI version")
+    ? normalizeTokamakPackageVersionToCompatibleBackendVersion(
+      selectedVersions.tokamak,
+      "selected Tokamak zk-EVM CLI version",
+    )
     : null;
   const selectedGroth16CompatibleBackendVersion = selectedVersions?.groth16
-    ? normalizeGroth16CompatibleBackendVersion(selectedVersions.groth16, "selected Groth16 CLI version")
+    ? normalizeGroth16PackageVersionToCompatibleBackendVersion(selectedVersions.groth16, "selected Groth16 CLI version")
     : null;
   const details = [
     {
@@ -5770,7 +5770,7 @@ function readTokamakCliPackageCompatibleBackendVersion(packageRoot = resolveActi
 }
 
 function readTokamakCliCompatibleBackendVersionFromPackageJson(packageJson, label = "Tokamak zk-EVM CLI package") {
-  const packageVersion = normalizeTokamakCompatibleBackendVersion(
+  const packageVersion = normalizeTokamakPackageVersionToCompatibleBackendVersion(
     packageJson?.version,
     `${label} version`,
   );

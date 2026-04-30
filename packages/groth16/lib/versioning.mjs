@@ -4,14 +4,11 @@ const COMPATIBLE_BACKEND_CONFIG_KEY = "groth16CompatibleBackendVersion";
 const COMPATIBLE_BACKEND_VERSION_PATTERN = /^(\d+)\.(\d+)$/;
 const EXACT_SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?$/;
 
-export function normalizeGroth16CompatibleBackendVersion(value, label = "Groth16 compatible backend version") {
+export function normalizeGroth16PackageVersionToCompatibleBackendVersion(value, label = "Groth16 package version") {
   const version = String(value ?? "").trim();
-  const match = COMPATIBLE_BACKEND_VERSION_PATTERN.exec(version) ?? EXACT_SEMVER_PATTERN.exec(version);
+  const match = EXACT_SEMVER_PATTERN.exec(version);
   if (!match) {
-    throw new Error(
-      `${label} must be a major.minor compatibility version or an exact semantic version. `
-        + `Received: ${String(value)}`,
-    );
+    throw new Error(`${label} must be an exact semantic version. Received: ${String(value)}`);
   }
   const [, major, minor] = match;
   return `${Number(major)}.${Number(minor)}`;
@@ -43,13 +40,13 @@ export function parseGroth16CompatibleBackendVersionParts(value, label = "Groth1
 }
 
 export function readGroth16CompatibleBackendVersionFromPackageJson(packageJson, label = "Groth16 package") {
-  const packageVersion = normalizeGroth16CompatibleBackendVersion(
+  const packageVersion = normalizeGroth16PackageVersionToCompatibleBackendVersion(
     packageJson?.version,
     `${label} version`,
   );
   const configuredVersion = packageJson?.tokamakPrivateDapps?.[COMPATIBLE_BACKEND_CONFIG_KEY];
   if (configuredVersion === undefined || configuredVersion === null) {
-    return packageVersion;
+    throw new Error(`${label} tokamakPrivateDapps.${COMPATIBLE_BACKEND_CONFIG_KEY} is missing.`);
   }
 
   const compatibleVersion = requireCanonicalGroth16CompatibleBackendVersion(

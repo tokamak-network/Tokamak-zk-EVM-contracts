@@ -153,8 +153,9 @@ installing package `0.1.3` downloads a CRS compatible with `0.1`.
 
 Before proof generation, private-state CLI reads the target channel's `grothVerifierCompatibleBackendVersion()` and
 requires it to already be canonical `MAJOR.MINOR`. It then compares that value with the locally installed Groth16 CRS
-compatibility version, which must also be canonical `MAJOR.MINOR`. Tokamak zk-EVM CLI compatibility remains an exact
-package-version check unless that package defines a different compatibility rule.
+compatibility version, which must also be canonical `MAJOR.MINOR`. The same rule applies to Tokamak zk-EVM: private-state
+CLI reads the target channel's `tokamakVerifierCompatibleBackendVersion()` and compares it with the installed
+`@tokamak-zk-evm/cli` package's canonical `tokamakZkEvm.compatibleBackendVersion`.
 
 ## CI Checks
 

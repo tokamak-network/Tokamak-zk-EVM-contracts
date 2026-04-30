@@ -37,8 +37,6 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     }
 
     IERC20 public asset;
-    // Reserved to preserve the historical storage layout after verifier ownership moved to BridgeCore.
-    IGrothVerifier private _legacyGrothVerifierSlot;
     IChannelRegistry public channelRegistry;
     uint256 private _feeTreasuryBalance;
 
@@ -67,7 +65,6 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         }
 
         asset = asset_;
-        _legacyGrothVerifierSlot = channelRegistry_.grothVerifier();
         channelRegistry = channelRegistry_;
     }
 

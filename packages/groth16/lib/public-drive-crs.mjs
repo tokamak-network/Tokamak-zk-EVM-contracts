@@ -8,7 +8,7 @@ import {
   sha256Buffer,
 } from "@tokamak-private-dapps/common-library/artifact-cache";
 import {
-  normalizeGroth16CompatibleBackendVersion,
+  normalizeGroth16PackageVersionToCompatibleBackendVersion,
   parseGroth16CompatibleBackendVersionParts,
   readGroth16CompatibleBackendVersionFromPackageJson,
   readGroth16CompatibleBackendVersionFromPackageJsonPath,
@@ -16,7 +16,7 @@ import {
 } from "./versioning.mjs";
 
 export {
-  normalizeGroth16CompatibleBackendVersion,
+  normalizeGroth16PackageVersionToCompatibleBackendVersion,
   readGroth16CompatibleBackendVersionFromPackageJson,
   readGroth16CompatibleBackendVersionFromPackageJsonPath,
   requireCanonicalGroth16CompatibleBackendVersion,
@@ -65,7 +65,7 @@ export async function downloadPublicGroth16MpcArtifactsByVersion({
     "zkey_provenance.json",
   ],
 } = {}) {
-  const normalizedVersion = normalizeGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
+  const normalizedVersion = requireCanonicalGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
   const archive = await loadPublicGroth16MpcArchiveByVersion(normalizedVersion);
   return downloadPublicGroth16MpcArtifactsFromArchive({
     archive,
@@ -137,7 +137,7 @@ export async function findLatestPublicGroth16MpcArchiveMetadata() {
 export async function findPublicGroth16MpcArchiveMetadataByVersion(version) {
   return serializeGroth16MpcArchiveMetadata(
     await findPublicGroth16MpcArchiveByVersion(
-      normalizeGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version"),
+      requireCanonicalGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version"),
     ),
   );
 }
@@ -147,7 +147,7 @@ export async function assertLatestPublicGroth16MpcArchiveVersion(
   { expectedVersionLabel = "expected version" } = {},
 ) {
   const archive = await findLatestPublicGroth16MpcArchive();
-  const normalizedExpectedVersion = normalizeGroth16CompatibleBackendVersion(expectedVersion, expectedVersionLabel);
+  const normalizedExpectedVersion = requireCanonicalGroth16CompatibleBackendVersion(expectedVersion, expectedVersionLabel);
   if (archive.version !== normalizedExpectedVersion) {
     throw new Error(
       `Latest public Groth16 MPC CRS compatibility version ${archive.version} does not match `
@@ -169,7 +169,7 @@ async function loadLatestPublicGroth16MpcArchive() {
 }
 
 async function loadPublicGroth16MpcArchiveByVersion(version) {
-  const normalizedVersion = normalizeGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
+  const normalizedVersion = requireCanonicalGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
   if (!groth16MpcArchivePromisesByVersion.has(normalizedVersion)) {
     groth16MpcArchivePromisesByVersion.set(normalizedVersion, (async () => {
       const archive = await findPublicGroth16MpcArchiveByVersion(normalizedVersion);
@@ -186,7 +186,7 @@ async function findLatestPublicGroth16MpcArchive() {
 }
 
 async function findPublicGroth16MpcArchiveByVersion(version) {
-  const normalizedVersion = normalizeGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
+  const normalizedVersion = requireCanonicalGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
   const archives = (await listPublicGroth16MpcArchives())
     .filter((archive) => archive.version === normalizedVersion);
   if (archives.length === 0) {
@@ -319,7 +319,10 @@ function validateGroth16MpcArchiveVersion({
   }
 
   if (expectedVersion !== null && expectedVersion !== undefined) {
-    const normalizedExpectedVersion = normalizeGroth16CompatibleBackendVersion(expectedVersion, expectedVersionLabel);
+    const normalizedExpectedVersion = requireCanonicalGroth16CompatibleBackendVersion(
+      expectedVersion,
+      expectedVersionLabel,
+    );
     if (archive.version !== normalizedExpectedVersion) {
       throw new Error(
         `Public Groth16 MPC CRS compatibility version ${archive.version} does not match `

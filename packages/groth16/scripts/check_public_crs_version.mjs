@@ -5,8 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   findLatestPublicGroth16MpcArchiveMetadata,
-  normalizeGroth16CompatibleBackendVersion,
+  normalizeGroth16PackageVersionToCompatibleBackendVersion,
   readGroth16CompatibleBackendVersionFromPackageJson,
+  requireCanonicalGroth16CompatibleBackendVersion,
 } from "../lib/public-drive-crs.mjs";
 import {
   fetchLatestNpmPackageVersion,
@@ -72,7 +73,7 @@ async function main(argv = process.argv.slice(2)) {
 
   if (modes.has("npm-latest")) {
     const npmLatest = await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
-    const npmLatestCompatibleVersion = normalizeGroth16CompatibleBackendVersion(
+    const npmLatestCompatibleVersion = normalizeGroth16PackageVersionToCompatibleBackendVersion(
       npmLatest,
       `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
     );
@@ -89,7 +90,7 @@ async function main(argv = process.argv.slice(2)) {
 }
 
 function assertArchiveVersionMatches(archive, expectedVersion, expectedVersionLabel) {
-  const normalizedExpectedVersion = normalizeGroth16CompatibleBackendVersion(expectedVersion, expectedVersionLabel);
+  const normalizedExpectedVersion = requireCanonicalGroth16CompatibleBackendVersion(expectedVersion, expectedVersionLabel);
   if (archive.version !== normalizedExpectedVersion) {
     throw new Error(
       `Latest public Groth16 MPC CRS compatibility version ${archive.version} does not match `

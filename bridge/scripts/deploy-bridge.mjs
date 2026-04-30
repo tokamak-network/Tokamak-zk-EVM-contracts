@@ -16,7 +16,7 @@ import {
 } from "../../packages/groth16/lib/paths.mjs";
 import {
   assertLatestPublicGroth16MpcArchiveVersion,
-  normalizeGroth16CompatibleBackendVersion,
+  normalizeGroth16PackageVersionToCompatibleBackendVersion,
 } from "../../packages/groth16/lib/public-drive-crs.mjs";
 import {
   fetchLatestNpmPackageVersion,
@@ -75,14 +75,11 @@ function requireNonEmptyString(value, label) {
   return normalized;
 }
 
-function normalizeTokamakCompatibleBackendVersion(value, label = "Tokamak compatible backend version") {
+function normalizeTokamakPackageVersionToCompatibleBackendVersion(value, label = "Tokamak package version") {
   const version = String(value ?? "").trim();
-  const match = COMPATIBLE_BACKEND_VERSION_PATTERN.exec(version) ?? EXACT_SEMVER_PATTERN.exec(version);
+  const match = EXACT_SEMVER_PATTERN.exec(version);
   if (!match) {
-    fail(
-      `${label} must be a major.minor compatibility version or an exact semantic version. `
-        + `Received: ${String(value)}`,
-    );
+    fail(`${label} must be an exact semantic version. Received: ${String(value)}`);
   }
   const [, major, minor] = match;
   return `${Number(major)}.${Number(minor)}`;
@@ -106,7 +103,7 @@ function requireCanonicalTokamakCompatibleBackendVersion(
 }
 
 function readTokamakCliCompatibleBackendVersionFromPackageJson(packageJson, label = "Tokamak zk-EVM CLI package") {
-  const packageVersion = normalizeTokamakCompatibleBackendVersion(
+  const packageVersion = normalizeTokamakPackageVersionToCompatibleBackendVersion(
     packageJson?.version,
     `${label} version`,
   );
@@ -1302,7 +1299,7 @@ async function main() {
     );
   const groth16LatestPackageVersion = await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
   process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION =
-    normalizeGroth16CompatibleBackendVersion(
+    normalizeGroth16PackageVersionToCompatibleBackendVersion(
       groth16LatestPackageVersion,
       `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
     );

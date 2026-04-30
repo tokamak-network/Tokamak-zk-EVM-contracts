@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 - 2026-04-30
+
+- Reused common proof backend version helpers for Groth16 package and CRS compatibility validation.
+- Reused common npm registry helpers for public CRS version checks.
+- Removed the unused public CRS metadata lookup by explicit version.
+
 ## 0.1.3 - 2026-04-29
 
 - Rejected Groth16 CRS archive names and provenance versions that are not canonical major.minor compatibility versions.

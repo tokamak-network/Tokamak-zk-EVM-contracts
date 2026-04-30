@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.8 - 2026-04-30
+
+- Reused common proof backend version helpers for Tokamak and Groth16 compatibility checks.
+- Reused common npm registry metadata lookup during proof backend runtime installation.
+
 ## 0.1.7 - 2026-04-29
 
 - Required Groth16 channel verifier and installed CRS compatibility versions to use canonical major.minor form.

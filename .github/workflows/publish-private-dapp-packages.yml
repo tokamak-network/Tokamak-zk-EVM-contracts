@@ -9,7 +9,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'RELEASING.md'
-      - 'scripts/npm-publish-version-decision.cjs'
+      - 'scripts/npm-publish-version-decision.mjs'
       - 'scripts/release-readiness.cjs'
       - 'packages/common/**'
       - 'packages/groth16/**'
@@ -42,7 +42,7 @@ jobs:
       - name: Compare package version with npm
         id: version-check
         shell: bash
-        run: node scripts/npm-publish-version-decision.cjs packages/common/package.json >> "$GITHUB_OUTPUT"
+        run: node scripts/npm-publish-version-decision.mjs packages/common/package.json >> "$GITHUB_OUTPUT"
 
       - name: Show version decision
         run: |
@@ -95,7 +95,7 @@ jobs:
       - name: Compare package version with npm
         id: version-check
         shell: bash
-        run: node scripts/npm-publish-version-decision.cjs packages/groth16/package.json >> "$GITHUB_OUTPUT"
+        run: node scripts/npm-publish-version-decision.mjs packages/groth16/package.json >> "$GITHUB_OUTPUT"
 
       - name: Show version decision
         run: |
@@ -156,7 +156,7 @@ jobs:
       - name: Compare package version with npm
         id: version-check
         shell: bash
-        run: node scripts/npm-publish-version-decision.cjs packages/apps/private-state/cli/package.json >> "$GITHUB_OUTPUT"
+        run: node scripts/npm-publish-version-decision.mjs packages/apps/private-state/cli/package.json >> "$GITHUB_OUTPUT"
 
       - name: Show version decision
         run: |

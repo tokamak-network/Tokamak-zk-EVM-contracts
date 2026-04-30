@@ -1,6 +1,6 @@
 {
   "name": "@tokamak-private-dapps/common-library",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared runtime helpers for Tokamak private DApp CLIs.",
   "license": "MIT OR Apache-2.0",
   "author": "Tokamak Network",
@@ -25,7 +25,9 @@
     "./network-config": "./src/network-config.mjs",
     "./tokamak-runtime-paths": "./src/tokamak-runtime-paths.mjs",
     "./artifact-cache": "./src/artifact-cache.mjs",
-    "./groth16-solidity-proof": "./src/groth16-solidity-proof.mjs"
+    "./groth16-solidity-proof": "./src/groth16-solidity-proof.mjs",
+    "./npm-registry": "./src/npm-registry.mjs",
+    "./proof-backend-versioning": "./src/proof-backend-versioning.mjs"
   },
   "files": [
     "README.md",

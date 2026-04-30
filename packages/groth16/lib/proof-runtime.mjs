@@ -8,7 +8,6 @@ import {
   extractZipEntriesFromBuffer,
 } from "./public-drive-crs.mjs";
 import { installGroth16DockerRuntime, readDockerBootstrap } from "./docker-runtime.mjs";
-import { GROTH16_NPM_PACKAGE_NAME } from "./npm-registry.mjs";
 import {
   groth16PackageRoot,
   groth16WorkspacePaths,
@@ -24,6 +23,7 @@ import { generateLocalTrustedSetup } from "./local-trusted-setup.mjs";
 import { runSnarkjs } from "./snarkjs.mjs";
 import { main as generateUpdateTreeProof } from "../prover/updateTree/generateProof.mjs";
 
+const GROTH16_NPM_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const CRS_FILES = [
   "circuit_final.zkey",
   "verification_key.json",

@@ -11,8 +11,9 @@ import {
 } from "../lib/public-drive-crs.mjs";
 import {
   fetchLatestNpmPackageVersion,
-  GROTH16_NPM_PACKAGE_NAME,
-} from "../lib/npm-registry.mjs";
+} from "@tokamak-private-dapps/common-library/npm-registry";
+
+const GROTH16_NPM_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 
-const { execFileSync } = require("node:child_process");
-const path = require("node:path");
+import path from "node:path";
+import { createRequire } from "node:module";
+import { fetchLatestNpmPackageVersion } from "@tokamak-private-dapps/common-library/npm-registry";
+import { requireExactSemverVersion } from "@tokamak-private-dapps/common-library/proof-backend-versioning";
+
+const require = createRequire(import.meta.url);
 
 function usage() {
-  console.error("Usage: node scripts/npm-publish-version-decision.cjs <package-json-path>");
+  console.error("Usage: node scripts/npm-publish-version-decision.mjs <package-json-path>");
 }
 
 function compareSemver(left, right) {
@@ -20,29 +24,24 @@ function compareSemver(left, right) {
 }
 
 function parseSemver(value, label) {
-  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(value));
-  if (!match) {
-    throw new Error(`${label} must be a canonical x.y.z semver: ${value}`);
-  }
-  return match.slice(1).map((part) => Number(part));
+  const version = requireExactSemverVersion(value, label);
+  const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  return [major, minor, patch].map((part) => Number(part));
 }
 
 function readPackageJson(packageJsonPath) {
   return require(path.resolve(packageJsonPath));
 }
 
-function readPublishedVersion(packageName) {
+async function readPublishedVersion(packageName) {
   try {
-    return execFileSync("npm", ["view", packageName, "version"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
+    return await fetchLatestNpmPackageVersion(packageName);
   } catch (error) {
     return null;
   }
 }
 
-function main(argv = process.argv.slice(2)) {
+async function main(argv = process.argv.slice(2)) {
   const [packageJsonPath] = argv;
   if (!packageJsonPath || argv.length !== 1) {
     usage();
@@ -54,7 +53,7 @@ function main(argv = process.argv.slice(2)) {
     throw new Error(`${pkg.name} is marked private and cannot be published.`);
   }
 
-  const publishedVersion = readPublishedVersion(pkg.name);
+  const publishedVersion = await readPublishedVersion(pkg.name);
   const comparison = publishedVersion === null ? 1 : compareSemver(pkg.version, publishedVersion);
   if (comparison < 0) {
     throw new Error(`Local version ${pkg.version} is behind npm version ${publishedVersion} for ${pkg.name}.`);
@@ -68,7 +67,7 @@ function main(argv = process.argv.slice(2)) {
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);

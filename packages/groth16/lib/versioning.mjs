@@ -1,37 +1,15 @@
 import fs from "node:fs";
+import {
+  normalizePackageVersionToCompatibleBackendVersion,
+  requireCanonicalCompatibleBackendVersion,
+} from "@tokamak-private-dapps/common-library/proof-backend-versioning";
 
 const COMPATIBLE_BACKEND_CONFIG_KEY = "groth16CompatibleBackendVersion";
-const COMPATIBLE_BACKEND_VERSION_PATTERN = /^(\d+)\.(\d+)$/;
-const EXACT_SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?$/;
 
-export function normalizeGroth16PackageVersionToCompatibleBackendVersion(value, label = "Groth16 package version") {
-  const version = String(value ?? "").trim();
-  const match = EXACT_SEMVER_PATTERN.exec(version);
-  if (!match) {
-    throw new Error(`${label} must be an exact semantic version. Received: ${String(value)}`);
-  }
-  const [, major, minor] = match;
-  return `${Number(major)}.${Number(minor)}`;
-}
+export const normalizeGroth16PackageVersionToCompatibleBackendVersion =
+  normalizePackageVersionToCompatibleBackendVersion;
 
-export function requireCanonicalGroth16CompatibleBackendVersion(
-  value,
-  label = "Groth16 compatible backend version",
-) {
-  const version = String(value ?? "").trim();
-  const match = COMPATIBLE_BACKEND_VERSION_PATTERN.exec(version);
-  if (!match) {
-    throw new Error(
-      `${label} must be a canonical major.minor compatibility version. Received: ${String(value)}`,
-    );
-  }
-  const [, major, minor] = match;
-  const canonicalVersion = `${Number(major)}.${Number(minor)}`;
-  if (version !== canonicalVersion) {
-    throw new Error(`${label} must be canonical ${canonicalVersion}. Received: ${version}`);
-  }
-  return canonicalVersion;
-}
+export const requireCanonicalGroth16CompatibleBackendVersion = requireCanonicalCompatibleBackendVersion;
 
 export function parseGroth16CompatibleBackendVersionParts(value, label = "Groth16 compatible backend version") {
   return requireCanonicalGroth16CompatibleBackendVersion(value, label)

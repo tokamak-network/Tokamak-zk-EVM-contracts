@@ -134,14 +134,6 @@ export async function findLatestPublicGroth16MpcArchiveMetadata() {
   return serializeGroth16MpcArchiveMetadata(await findLatestPublicGroth16MpcArchive());
 }
 
-export async function findPublicGroth16MpcArchiveMetadataByVersion(version) {
-  return serializeGroth16MpcArchiveMetadata(
-    await findPublicGroth16MpcArchiveByVersion(
-      requireCanonicalGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version"),
-    ),
-  );
-}
-
 export async function assertLatestPublicGroth16MpcArchiveVersion(
   expectedVersion,
   { expectedVersionLabel = "expected version" } = {},

@@ -439,8 +439,8 @@ contract ChannelManager {
     function applyVaultUpdate(
         bytes32[] calldata currentRootVector,
         bytes32 updatedChannelTokenVaultRoot,
-        address l2Address,
-        uint256 updatedUserValue
+        address l1Address,
+        bool isUpdatedUserBalanceZero
     ) external onlyBridgeTokenVault returns (bool) {
         if (currentRootVector.length != _managedStorageAddresses.length) {
             revert APubUserTooShort(_managedStorageAddresses.length, currentRootVector.length);
@@ -455,7 +455,7 @@ contract ChannelManager {
         }
         updatedRootVector[channelTokenVaultTreeIndex] = updatedChannelTokenVaultRoot;
         currentRootVectorHash = keccak256(abi.encode(updatedRootVector));
-        _setChannelTokenVaultBalanceZeroFlagByL2Address(l2Address, updatedUserValue == 0);
+        _setChannelTokenVaultBalanceZeroFlag(l1Address, isUpdatedUserBalanceZero);
         emit CurrentRootVectorObserved(currentRootVectorHash, updatedRootVector);
         return true;
     }

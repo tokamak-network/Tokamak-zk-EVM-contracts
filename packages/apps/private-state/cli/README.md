@@ -24,6 +24,8 @@ private-state-cli --install --tokamak-zk-evm-cli-version 2.0.8 --groth16-cli-ver
 
 The Groth16 installer downloads the public Google Drive CRS archive whose major.minor compatibility version matches the
 selected Groth16 CLI package version.
+The Tokamak zk-EVM installer requires the selected CLI package to declare
+`tokamakZkEvm.compatibleBackendVersion` as a canonical major.minor version matching the selected package version.
 
 `--install` downloads public deployment artifacts from the configured artifact index. It does not read repository-local
 `deployment/` outputs by default. Repository development workflows that need local anvil artifacts can opt in explicitly:
@@ -148,6 +150,8 @@ using bridge-facing commands on a new machine.
 Channel balance commands such as `deposit-channel` and `withdraw-channel` use the installed Groth16 runtime workspace
 directly. Proof generation writes to the fixed workspace paths under `~/tokamak-private-channels/groth16/proof`; the CLI
 does not pass custom `--zkey`, proof-output, or public-output paths to the Groth16 prover.
+Before proof generation, the CLI compares the target channel's verifier compatibility versions with the installed
+Tokamak zk-EVM and Groth16 major.minor compatibility versions.
 
 Release order matters for npm publication. `@tokamak-private-dapps/common-library` and
 `@tokamak-private-dapps/groth16` must be published before this package version.

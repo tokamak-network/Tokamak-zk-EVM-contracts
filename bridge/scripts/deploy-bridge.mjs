@@ -33,6 +33,8 @@ const invocationCwd = process.cwd();
 const envFile = process.env.BRIDGE_ENV_FILE || path.join(projectRoot, ".env");
 const initialDeployMode = process.env.BRIDGE_DEPLOY_MODE || "upgrade";
 const TOKAMAK_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
+const COMPATIBLE_BACKEND_VERSION_PATTERN = /^(\d+)\.(\d+)$/;
+const EXACT_SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?$/;
 
 const BLS12_381_FQ_MODULUS = BigInt(
   "0x1a0111ea397fe69a4b1ba7b6434bacd7"
@@ -65,6 +67,64 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
+function requireNonEmptyString(value, label) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    fail(`${label} must be a non-empty string.`);
+  }
+  return normalized;
+}
+
+function normalizeTokamakCompatibleBackendVersion(value, label = "Tokamak compatible backend version") {
+  const version = String(value ?? "").trim();
+  const match = COMPATIBLE_BACKEND_VERSION_PATTERN.exec(version) ?? EXACT_SEMVER_PATTERN.exec(version);
+  if (!match) {
+    fail(
+      `${label} must be a major.minor compatibility version or an exact semantic version. `
+        + `Received: ${String(value)}`,
+    );
+  }
+  const [, major, minor] = match;
+  return `${Number(major)}.${Number(minor)}`;
+}
+
+function requireCanonicalTokamakCompatibleBackendVersion(
+  value,
+  label = "Tokamak compatible backend version",
+) {
+  const version = String(value ?? "").trim();
+  const match = COMPATIBLE_BACKEND_VERSION_PATTERN.exec(version);
+  if (!match) {
+    fail(`${label} must be a canonical major.minor compatibility version. Received: ${String(value)}`);
+  }
+  const [, major, minor] = match;
+  const canonicalVersion = `${Number(major)}.${Number(minor)}`;
+  if (version !== canonicalVersion) {
+    fail(`${label} must be canonical ${canonicalVersion}. Received: ${version}`);
+  }
+  return canonicalVersion;
+}
+
+function readTokamakCliCompatibleBackendVersionFromPackageJson(packageJson, label = "Tokamak zk-EVM CLI package") {
+  const packageVersion = normalizeTokamakCompatibleBackendVersion(
+    packageJson?.version,
+    `${label} version`,
+  );
+  const configuredVersion = packageJson?.tokamakZkEvm?.compatibleBackendVersion;
+  if (configuredVersion === undefined || configuredVersion === null) {
+    fail(`${label} tokamakZkEvm.compatibleBackendVersion is missing.`);
+  }
+
+  const compatibleVersion = requireCanonicalTokamakCompatibleBackendVersion(
+    configuredVersion,
+    `${label} tokamakZkEvm.compatibleBackendVersion`,
+  );
+  if (compatibleVersion !== packageVersion) {
+    fail(`${label} compatible backend version ${compatibleVersion} must match package major.minor ${packageVersion}.`);
+  }
+  return compatibleVersion;
+}
+
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
@@ -79,6 +139,33 @@ function assertFileExists(filePath, label) {
 function copyFile(sourcePath, targetPath) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.copyFileSync(sourcePath, targetPath);
+}
+
+async function fetchLatestNpmPackageManifest(packageName) {
+  const normalizedPackageName = requireNonEmptyString(packageName, "packageName");
+  const registryUrl = `https://registry.npmjs.org/${encodeURIComponent(normalizedPackageName)}`;
+  const response = await fetch(registryUrl, { redirect: "follow" });
+  if (!response.ok) {
+    fail(`Failed to read npm package metadata for ${normalizedPackageName}: HTTP ${response.status}.`);
+  }
+
+  let metadata;
+  try {
+    metadata = await response.json();
+  } catch (error) {
+    fail(`npm package metadata for ${normalizedPackageName} is not valid JSON: ${error.message}`);
+  }
+
+  const latest = metadata?.["dist-tags"]?.latest;
+  if (typeof latest !== "string" || !EXACT_SEMVER_PATTERN.test(latest)) {
+    fail(`npm package ${normalizedPackageName} has no valid latest dist-tag.`);
+  }
+
+  const manifest = metadata?.versions?.[latest];
+  if (!manifest || typeof manifest !== "object") {
+    fail(`npm package ${normalizedPackageName} is missing manifest data for latest version ${latest}.`);
+  }
+  return manifest;
 }
 
 function run(command, args, { cwd = invocationCwd, env = process.env, stdio = "inherit" } = {}) {
@@ -1206,8 +1293,13 @@ async function main() {
 
   await refreshBridgeZkConstants();
 
+  const tokamakLatestPackageManifest = await fetchLatestNpmPackageManifest(TOKAMAK_CLI_PACKAGE_NAME);
+  const tokamakLatestPackageVersion = tokamakLatestPackageManifest.version;
   process.env.BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION =
-    await fetchLatestNpmPackageVersion(TOKAMAK_CLI_PACKAGE_NAME);
+    readTokamakCliCompatibleBackendVersionFromPackageJson(
+      tokamakLatestPackageManifest,
+      `${TOKAMAK_CLI_PACKAGE_NAME} npm latest package`,
+    );
   const groth16LatestPackageVersion = await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
   process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION =
     normalizeGroth16CompatibleBackendVersion(
@@ -1279,7 +1371,10 @@ async function main() {
   console.log(`Resolved tokamak-l2js version: ${bridgeMerkleTreeSourceVersion}`);
   console.log(`Resolved tokamak-l2js MT_DEPTH: ${bridgeMerkleTreeLevels}`);
   console.log(
-    `Resolved ${TOKAMAK_CLI_PACKAGE_NAME} latest version: ${process.env.BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION}`,
+    `Resolved ${TOKAMAK_CLI_PACKAGE_NAME} compatible backend version: ${process.env.BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION}`,
+  );
+  console.log(
+    `Resolved ${TOKAMAK_CLI_PACKAGE_NAME} latest package version: ${tokamakLatestPackageVersion}`,
   );
   console.log(
     `Resolved ${GROTH16_NPM_PACKAGE_NAME} compatible backend version: ${process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION}`,

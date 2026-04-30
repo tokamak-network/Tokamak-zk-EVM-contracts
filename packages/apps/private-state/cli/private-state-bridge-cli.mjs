@@ -92,6 +92,8 @@ const DOCKER_CUDA_PROBE_IMAGE = "nvidia/cuda:12.2.0-base-ubuntu22.04";
 const DOCTOR_GPU_PROBE_TIMEOUT_MS = 120000;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
+const COMPATIBLE_BACKEND_VERSION_PATTERN = /^(\d+)\.(\d+)$/;
+const EXACT_SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?$/;
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
@@ -3458,9 +3460,12 @@ async function assertChannelProofBackendVersionCompatibility({ context, operatio
     {
       label: "Tokamak zk-EVM",
       packageName: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
-      versionKind: "package version",
-      channelVersion: channelVersions.tokamak,
-      localVersion: localVersions.tokamak.packageVersion,
+      versionKind: "compatible backend version",
+      channelVersion: requireCanonicalTokamakCompatibleBackendVersion(
+        channelVersions.tokamak,
+        "channel Tokamak verifier compatibleBackendVersion",
+      ),
+      localVersion: localVersions.tokamak.compatibleBackendVersion,
     },
   ];
   const mismatches = checks.filter(({ channelVersion, localVersion }) => channelVersion !== localVersion);
@@ -3510,6 +3515,7 @@ async function readChannelVerifierCompatibleBackendVersions(context) {
 
 function readLocalProofBackendPackageVersions() {
   const groth16Runtime = inspectGroth16Runtime();
+  const tokamakPackageReport = readTokamakCliPackageReport();
   return {
     groth16: {
       packageVersion: groth16Runtime.packageVersion,
@@ -3517,22 +3523,35 @@ function readLocalProofBackendPackageVersions() {
         ?? groth16Runtime.compatibleBackendVersion,
     },
     tokamak: {
-      packageVersion: requirePackageReportVersion(readTokamakCliPackageReport()),
+      packageVersion: requirePackageReportVersion(tokamakPackageReport),
+      compatibleBackendVersion: requirePackageReportCompatibleBackendVersion(tokamakPackageReport),
     },
   };
 }
 
-function readTokamakCliPackageReport() {
+function readTokamakCliPackageReport(packageRoot = null) {
   try {
-    return readPackageReport({
+    const resolvedPackageRoot = packageRoot ?? resolveActiveTokamakCliPackageRoot();
+    const packageJsonPath = path.join(resolvedPackageRoot, "package.json");
+    const packageJson = readJson(packageJsonPath);
+    const report = readPackageReport({
       name: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
-      packageJsonPath: path.join(resolveActiveTokamakCliPackageRoot(), "package.json"),
+      packageJsonPath,
+      packageJson,
     });
+    return {
+      ...report,
+      compatibleBackendVersion: readTokamakCliCompatibleBackendVersionFromPackageJson(
+        packageJson,
+        TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
+      ),
+    };
   } catch (error) {
     return {
       name: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
       version: null,
       packageRoot: null,
+      compatibleBackendVersion: null,
       error: error.message,
       ok: false,
     };
@@ -3546,6 +3565,15 @@ function requirePackageReportVersion(report) {
     );
   }
   return requireVersionString(report.version, `${report.name} package version`);
+}
+
+function requirePackageReportCompatibleBackendVersion(report) {
+  if (!report.compatibleBackendVersion) {
+    throw new Error(
+      `Unable to determine local ${report.name} compatible backend version${report.error ? `: ${report.error}` : "."}`,
+    );
+  }
+  return requireVersionString(report.compatibleBackendVersion, `${report.name} compatible backend version`);
 }
 
 function requireVersionString(value, label) {
@@ -5206,10 +5234,42 @@ function expect(condition, message) {
 
 function requireSemverVersion(value, label) {
   const normalized = requireNonEmptyString(value, label);
-  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?$/.test(normalized)) {
+  if (!EXACT_SEMVER_PATTERN.test(normalized)) {
     throw new Error(`${label} must be an exact semantic version. Received: ${normalized}`);
   }
   return normalized;
+}
+
+function normalizeTokamakCompatibleBackendVersion(value, label = "Tokamak compatible backend version") {
+  const version = String(value ?? "").trim();
+  const match = COMPATIBLE_BACKEND_VERSION_PATTERN.exec(version) ?? EXACT_SEMVER_PATTERN.exec(version);
+  if (!match) {
+    throw new Error(
+      `${label} must be a major.minor compatibility version or an exact semantic version. `
+        + `Received: ${String(value)}`,
+    );
+  }
+  const [, major, minor] = match;
+  return `${Number(major)}.${Number(minor)}`;
+}
+
+function requireCanonicalTokamakCompatibleBackendVersion(
+  value,
+  label = "Tokamak compatible backend version",
+) {
+  const version = String(value ?? "").trim();
+  const match = COMPATIBLE_BACKEND_VERSION_PATTERN.exec(version);
+  if (!match) {
+    throw new Error(
+      `${label} must be a canonical major.minor compatibility version. Received: ${String(value)}`,
+    );
+  }
+  const [, major, minor] = match;
+  const canonicalVersion = `${Number(major)}.${Number(minor)}`;
+  if (version !== canonicalVersion) {
+    throw new Error(`${label} must be canonical ${canonicalVersion}. Received: ${version}`);
+  }
+  return canonicalVersion;
 }
 
 function resolveArtifactCacheBaseRoot(
@@ -5393,6 +5453,9 @@ function buildDoctorReport() {
 
 function buildSelectedRuntimeVersionCheck({ installManifest, tokamakCli, groth16Runtime }) {
   const selectedVersions = installManifest?.install?.selectedVersions ?? null;
+  const selectedTokamakCompatibleBackendVersion = selectedVersions?.tokamak
+    ? normalizeTokamakCompatibleBackendVersion(selectedVersions.tokamak, "selected Tokamak zk-EVM CLI version")
+    : null;
   const selectedGroth16CompatibleBackendVersion = selectedVersions?.groth16
     ? normalizeGroth16CompatibleBackendVersion(selectedVersions.groth16, "selected Groth16 CLI version")
     : null;
@@ -5400,8 +5463,14 @@ function buildSelectedRuntimeVersionCheck({ installManifest, tokamakCli, groth16
     {
       name: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
       selectedVersion: selectedVersions?.tokamak ?? null,
+      selectedCompatibleBackendVersion: selectedTokamakCompatibleBackendVersion,
       installedVersion: tokamakCli.packageVersion ?? null,
-      ok: !selectedVersions?.tokamak || selectedVersions.tokamak === tokamakCli.packageVersion,
+      compatibleBackendVersion: tokamakCli.compatibleBackendVersion ?? null,
+      ok: !selectedVersions?.tokamak
+        || (
+          selectedVersions.tokamak === tokamakCli.packageVersion
+          && selectedTokamakCompatibleBackendVersion === tokamakCli.compatibleBackendVersion
+        ),
     },
     {
       name: GROTH16_PACKAGE_NAME,
@@ -5485,6 +5554,7 @@ async function installTokamakCliRuntimeForPrivateState({ version, docker }) {
   });
   const doctorOutput = stripAnsi(`${doctor.stdout}${doctor.stderr}`);
   const runtimeRoot = parseRuntimeRootFromTokamakDoctorOutput(doctorOutput);
+  const compatibleBackendVersion = readTokamakCliPackageCompatibleBackendVersion(packageInstall.packageRoot);
   expect(
     doctor.status === 0 && runtimeRoot,
     [
@@ -5495,6 +5565,7 @@ async function installTokamakCliRuntimeForPrivateState({ version, docker }) {
   return {
     packageName: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
     packageVersion: version,
+    compatibleBackendVersion,
     packageRoot: packageInstall.packageRoot,
     entryPath: invocation.entryPath,
     installPrefix: packageInstall.installPrefix,
@@ -5641,15 +5712,15 @@ function collectDependencyPackageReports(installManifest = null) {
   });
 }
 
-function readPackageReport({ name, packageJsonPath = null, resolveTarget = null }) {
+function readPackageReport({ name, packageJsonPath = null, packageJson = null, resolveTarget = null }) {
   try {
     const resolvedPackageJsonPath = packageJsonPath
       ? path.resolve(packageJsonPath)
       : findPackageJsonForName(path.dirname(require.resolve(resolveTarget ?? name)), name);
-    const packageJson = readJson(resolvedPackageJsonPath);
+    const resolvedPackageJson = packageJson ?? readJson(resolvedPackageJsonPath);
     return {
-      name: packageJson.name ?? name,
-      version: packageJson.version ?? null,
+      name: resolvedPackageJson.name ?? name,
+      version: resolvedPackageJson.version ?? null,
       packageRoot: path.dirname(resolvedPackageJsonPath),
       error: null,
     };
@@ -5689,6 +5760,35 @@ function readGroth16PackageCompatibleBackendVersion(packageRoot = resolveActiveG
     readJson(path.join(packageRoot, "package.json")),
     GROTH16_PACKAGE_NAME,
   );
+}
+
+function readTokamakCliPackageCompatibleBackendVersion(packageRoot = resolveActiveTokamakCliPackageRoot()) {
+  return readTokamakCliCompatibleBackendVersionFromPackageJson(
+    readJson(path.join(packageRoot, "package.json")),
+    TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
+  );
+}
+
+function readTokamakCliCompatibleBackendVersionFromPackageJson(packageJson, label = "Tokamak zk-EVM CLI package") {
+  const packageVersion = normalizeTokamakCompatibleBackendVersion(
+    packageJson?.version,
+    `${label} version`,
+  );
+  const configuredVersion = packageJson?.tokamakZkEvm?.compatibleBackendVersion;
+  if (configuredVersion === undefined || configuredVersion === null) {
+    throw new Error(`${label} tokamakZkEvm.compatibleBackendVersion is missing.`);
+  }
+
+  const compatibleVersion = requireCanonicalTokamakCompatibleBackendVersion(
+    configuredVersion,
+    `${label} tokamakZkEvm.compatibleBackendVersion`,
+  );
+  if (compatibleVersion !== packageVersion) {
+    throw new Error(
+      `${label} compatible backend version ${compatibleVersion} must match package major.minor ${packageVersion}.`,
+    );
+  }
+  return compatibleVersion;
 }
 
 function resolveActiveGroth16PackageRoot() {
@@ -5776,6 +5876,7 @@ function requireActiveTokamakCliRuntimeRoot() {
 
 function inspectTokamakCliRuntime({ packageRoot = resolveActiveTokamakCliPackageRoot() } = {}) {
   const invocation = buildTokamakCliInvocationForPackageRoot(packageRoot);
+  const packageReport = readTokamakCliPackageReport(invocation.packageRoot);
   const doctor = runCaptured(invocation.command, [...invocation.args, "--doctor"], {
     cwd: invocation.packageRoot,
   });
@@ -5792,10 +5893,9 @@ function inspectTokamakCliRuntime({ packageRoot = resolveActiveTokamakCliPackage
     entryPath: invocation.entryPath,
     cacheRoot,
     runtimeRoot,
-    packageVersion: readPackageReport({
-      name: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
-      packageJsonPath: path.join(invocation.packageRoot, "package.json"),
-    }).version,
+    packageVersion: packageReport.version,
+    compatibleBackendVersion: packageReport.compatibleBackendVersion,
+    packageError: packageReport.error,
     dockerModeInstalled,
     cudaCompatible,
     doctor: {

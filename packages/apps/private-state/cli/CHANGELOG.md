@@ -5,6 +5,7 @@
 - Required Groth16 channel verifier and installed CRS compatibility versions to use canonical major.minor form.
 - Matched Groth16 channel verifier compatibility against the installed CRS major.minor compatibility version.
 - Required the Groth16 package version with verified public CRS archive selection.
+- Required Tokamak zk-EVM channel verifier and CLI package compatibility versions to use canonical major.minor form.
 
 ## 0.1.6 - 2026-04-29
 

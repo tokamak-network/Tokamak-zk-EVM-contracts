@@ -63,6 +63,14 @@ A common private-state flow is:
 
 Use `private-state-cli --help` for the full command list and required options.
 
+Channel policy warning:
+
+- `create-channel` commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout,
+  managed storage vector, and refund policy are fixed for that channel.
+- `join-channel` means the user accepts the channel's current policy. Later policy-level fixes require a new channel or
+  migration; the existing channel is intentionally not mutated in place without renewed user consent.
+- The CLI prints this warning before sending a channel-creation transaction or a first channel-registration transaction.
+
 `private-state-cli --doctor` reports the CLI package version, dependency versions recorded by the last
 `private-state-cli --install`, selected proof backend runtime versions, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
 install mode, Docker mode, CUDA runtime metadata, live `nvidia-smi` and Docker GPU probe results, and Groth16
@@ -117,6 +125,9 @@ Operating rules:
   telling the user to move funds.
 - Explain that wallet names are local CLI identifiers, while private transfers use notes owned by L2 addresses
   registered in the channel.
+- Before guiding a user through `create-channel` or `join-channel`, explain that channel policy is immutable after
+  creation and that joining a channel means accepting its current verifier, DApp metadata, function layout, managed
+  storage vector, and refund policy.
 - Do not present one fixed command sequence as universally correct. Some flows start from an existing channel or wallet,
   while others require creating or joining a channel first.
 - When the user asks for a transfer, first determine whether the sender has minted notes available. If not, guide them

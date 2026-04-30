@@ -400,6 +400,11 @@
                 case, you lose ownership of all notes because you can no longer use them, and that ownership cannot be
                 recovered.
               </li>
+              <li>
+                Channel policy is immutable after creation. Joining a channel means accepting its verifier bindings,
+                DApp metadata, function layout, managed storage vector, and refund policy; later policy-level fixes
+                require a new channel or migration.
+              </li>
             </ul>
           </div>
         </section>
@@ -521,12 +526,12 @@
       const commands = [
         { id: "install-zk-evm", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
         { id: "uninstall-zk-evm", description: "Remove the Tokamak zk-EVM CLI runtime workspace.", fields: [] },
-        { id: "create-channel", description: "Create the bridge channel and initialize its workspace.", fields: ["channelName", "network", "privateKey", "alchemyApiKey"] },
+        { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "privateKey", "alchemyApiKey"] },
         { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "alchemyApiKey"] },
         { id: "deposit-bridge", description: "Deposit canonical tokens into the shared bridge vault.", fields: ["amount", "network", "privateKey", "alchemyApiKey"] },
         { id: "withdraw-bridge", description: "Withdraw shared bridge-vault funds back to the L1 wallet.", fields: ["amount", "network", "privateKey", "alchemyApiKey"] },
         { id: "get-my-bridge-fund", description: "Read the current bridge-vault balance.", fields: ["network", "privateKey", "alchemyApiKey"] },
-        { id: "join-channel", description: "Bind the caller to a channel-specific L2 identity.", fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"] },
+        { id: "join-channel", description: "Accept the channel policy and bind the caller to a channel-specific L2 identity.", fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"] },
         { id: "recover-wallet", description: "Rebuild the recoverable portion of a wallet.", fields: ["channelName", "password", "network", "privateKey", "alchemyApiKey"] },
         { id: "get-my-wallet-meta", description: "Check whether a saved wallet matches on-chain registration.", fields: ["wallet", "password", "network"] },
         { id: "get-my-l1-address", description: "Derive the L1 address for a private key.", fields: ["privateKey"] },

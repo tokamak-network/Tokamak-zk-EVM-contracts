@@ -14,7 +14,7 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
 
    Upgradeability classification: future exits can be fixed by upgrading the UUPS `L1TokenVault` implementation, for example by requiring a proof-backed zero-balance transition or by rejecting exit unless the channel-token-vault leaf is proven zero. Already executed non-zero exits, key reuse, or stolen balances are not reliably recoverable by a later upgrade.
 
-   Mainnet recommendation: do not deploy until the on-chain exit path enforces zero channel balance or otherwise preserves ownership of non-zero channel-token-vault leaves.
+   Mainnet recommendation: for the planned first mainnet proxy deployment, do not deploy until the on-chain exit path enforces zero channel balance or otherwise preserves ownership of non-zero channel-token-vault leaves. This audit assumes there are no existing mainnet channels, so no channel migration is in scope.
 
 2. High: mainnet deployment safety policies are not enforced inside the deployment script.
 
@@ -102,7 +102,7 @@ The current local `HEAD` was checked after `git fetch --prune origin main` and i
 
 - `d43fabaafa9a7ac67ebf22e1e2495e45bdc69bf8`
 
-There is no local `deployment/chain-id-1` mainnet deployment directory. Therefore local metadata cannot prove whether a mainnet bridge proxy already exists. If a proxy already exists on mainnet, only `upgrade` mode should be used.
+This review assumes the mainnet launch is the first proxy deployment and that there are no existing mainnet bridge channels. There is no local `deployment/chain-id-1` mainnet deployment directory for an existing proxy address set. If that assumption changes before launch, the deployment decision must be revisited before executing the script.
 
 Latest Sepolia bridge and private-state deployment metadata both record previous source commit `6648d5f452196fb72c729f24cc1118b6fab3203c`. Comparing that commit to the reviewed `HEAD` showed no deployment-relevant Solidity diff under:
 
@@ -132,4 +132,4 @@ This means a forced redeployment would need an explicit operational reason; it i
 
 ## Deployment Decision
 
-Mainnet deployment should not proceed until Finding 1 is fixed on-chain and the deployment scripts enforce the mainnet source-integrity and proxy-mode gates in Finding 2. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.
+Under the first mainnet proxy deployment assumption, mainnet deployment should not proceed until Finding 1 is fixed on-chain and the deployment scripts enforce the mainnet source-integrity and proxy-mode gates in Finding 2. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.

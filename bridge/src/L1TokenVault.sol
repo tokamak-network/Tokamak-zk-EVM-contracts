@@ -116,7 +116,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         return true;
     }
 
-    function deposit(
+    function depositToChannelVault(
         uint256 channelId,
         BridgeStructs.GrothProof calldata proof,
         BridgeStructs.GrothUpdate calldata update
@@ -132,7 +132,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         return true;
     }
 
-    function withdraw(
+    function withdrawFromChannelVault(
         uint256 channelId,
         BridgeStructs.GrothProof calldata proof,
         BridgeStructs.GrothUpdate calldata update
@@ -249,7 +249,8 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
 
         context.channelManager
             .applyVaultUpdate(
-                update.currentRootVector, update.updatedRoot, context.registration.l2Address, update.updatedUserValue
+                update.currentRootVector,
+                update.updatedRoot
             );
 
         emit StorageWriteObserved(

@@ -1402,8 +1402,9 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     nextValue,
   });
 
+  const methodName = direction === "deposit" ? "depositToChannelVault" : "withdrawFromChannelVault";
   const receipt = await waitForReceipt(
-    await bridgeTokenVault[direction](ethers.toBigInt(context.workspace.channelId), transition.proof, transition.update),
+    await bridgeTokenVault[methodName](ethers.toBigInt(context.workspace.channelId), transition.proof, transition.update),
   );
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(

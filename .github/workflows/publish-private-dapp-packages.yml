@@ -214,10 +214,10 @@ jobs:
       - name: Install npm dependencies
         run: npm install --package-lock=false
 
-      - name: Install latest Tokamak zk-EVM CLI
+      - name: Install latest Tokamak zk-EVM CLI and E2E curve dependency
         id: tokamak-cli
         run: |
-          npm install --package-lock=false --no-save @tokamak-zk-evm/cli@latest
+          npm install --package-lock=false --no-save @tokamak-zk-evm/cli@latest @noble/curves@1.9.7
           TOKAMAK_CLI_VERSION="$(node -p "require('./node_modules/@tokamak-zk-evm/cli/package.json').version")"
           echo "version=${TOKAMAK_CLI_VERSION}" >> "${GITHUB_OUTPUT}"
           npm ls @tokamak-zk-evm/cli

@@ -21,6 +21,20 @@ Use these repository entrypoints for deployment and registration work:
 The combined wrapper does not bypass any of this skill's checks. Apply the bridge/DApp deployment
 and DApp registration checks before running it.
 
+## Bridge Deployment Mode
+
+Bridge deployment supports `upgrade` and `redeploy-proxy` modes through
+`node bridge/scripts/deploy-bridge.mjs --mode <mode>`.
+
+- Sepolia: prefer `upgrade` whenever the existing deployment artifact makes upgrade mode usable.
+  Use `redeploy-proxy` only when upgrade mode cannot be used because the target network has no
+  usable proxy deployment artifact yet, or when the user explicitly requests a forced proxy
+  redeployment.
+- Mainnet: if a bridge proxy is already deployed, use `upgrade` mode only. Do not run
+  `redeploy-proxy` against mainnet once a proxy exists, even if the user request is informal or
+  ambiguous. Stop and ask for clarification if the available metadata does not make proxy
+  existence clear.
+
 ## Hard Rule
 
 Do not deploy or register unless the exact local `HEAD` commit is already present on the remote

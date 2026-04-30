@@ -2,19 +2,30 @@
 
 Date: 2026-04-30
 Reviewed commit: `d43fabaafa9a7ac67ebf22e1e2495e45bdc69bf8`
+Resolution update commit: `4c66d2e8f2998cd38ac394205f680dc7052c71a5`
 Scope: bridge contracts, private-state DApp contracts, deployment scripts, registration flow, CLI trust boundaries, and deployment metadata gates relevant to mainnet deployment.
 
 ## Findings
 
 1. Critical: `exitChannel` can release an occupied channel-token-vault slot while the L2 accounting balance is still non-zero.
 
+   Status: resolved in `4c66d2e8f2998cd38ac394205f680dc7052c71a5`.
+
    `L1TokenVault.exitChannel(...)` unregisters the caller through `ChannelManager.unregisterChannelTokenVaultIdentity(...)` without verifying that the registered `channelTokenVaultKey` currently has a zero balance in the accepted channel root. After unregistering, the same `channelTokenVaultKey`, leaf index, and L2 address binding become available for registration by another L1 address. A new registrant can then submit a valid withdraw proof against the existing non-zero leaf value and move the orphaned channel balance into their own L1 available balance.
 
-   The repository currently has a test that accepts this behavior: `bridge/test/BridgeFlow.t.sol::testExitChannelAllowsNonZeroChannelBalance`. The CLI has a zero-balance guard for `exit-channel`, but that guard is local UX logic and can be bypassed with `--force`; it is not an on-chain security boundary.
+   At the original review commit, the repository had a test that accepted this behavior: `bridge/test/BridgeFlow.t.sol::testExitChannelAllowsNonZeroChannelBalance`. The CLI had a zero-balance guard for `exit-channel`, but that guard was local UX logic and could be bypassed with `--force`; it was not an on-chain security boundary.
 
-   Upgradeability classification: future exits can be fixed by upgrading the UUPS `L1TokenVault` implementation, for example by requiring a proof-backed zero-balance transition or by rejecting exit unless the channel-token-vault leaf is proven zero. Already executed non-zero exits, key reuse, or stolen balances are not reliably recoverable by a later upgrade.
+   Resolution details: channel-token-vault registrations now include an `isZeroBalance` flag initialized to `true` when the identity is registered. `ChannelManager.unregisterChannelTokenVaultIdentity(...)` rejects exit with `ChannelTokenVaultBalanceNotZero` unless the flag is true. The flag is updated from proof-backed observed storage writes, not from the transaction caller.
 
-   Mainnet recommendation: do not deploy until the on-chain exit path enforces zero channel balance or otherwise preserves ownership of non-zero channel-token-vault leaves.
+   The Groth16 deposit and withdraw path updates the flag before emitting `L1TokenVault.StorageWriteObserved(address,uint256,uint256)`. `L1TokenVault` passes the same `storageAddr`, `storageKey`, and `value` to `ChannelManager.observeChannelTokenVaultStorageWrite(...)`; `ChannelManager` validates that `storageAddr` is the registered channel-token-vault storage address, resolves the owner from the observed `storageKey`, and sets `isZeroBalance` from `value == 0`.
+
+   The Tokamak zk-L2 DApp execution path updates the same flag when `executeChannelTransaction` processes a raw observed log whose topic is `LiquidBalanceStorageWriteObserved(address,bytes32)`. `ChannelManager` decodes the L2 address and written value from the log data, resolves the registered owner from the decoded L2 address, and sets `isZeroBalance` from `value == 0`. The owner is therefore derived from event contents in both supported observation paths; the transaction caller is not used to select the owner.
+
+   Unknown or inconsistent observed writes now fail closed. The StorageWriteObserved path rejects an unexpected storage address or unregistered storage key. The LiquidBalanceStorageWriteObserved path rejects malformed event data or an unregistered L2 address. This is appropriate because these writes are part of proof-backed bridge state transitions; accepting an unregistered observed owner would make the exit-safety flag ambiguous.
+
+   Upgradeability classification: this issue was fixable before mainnet deployment by changing the first deployed UUPS implementation set. Already executed non-zero exits, key reuse, or stolen balances would not have been reliably recoverable by a later upgrade, so this fix must be present before any mainnet channel is opened.
+
+   Mainnet recommendation: resolved for the reviewed implementation update. Before deployment, keep the new regression coverage in the release gate and verify that deployed bytecode contains the `isZeroBalance` registration field, both observed-write update paths, and the `ChannelTokenVaultBalanceNotZero` exit guard.
 
 2. High: mainnet deployment safety policies are not enforced inside the deployment script.
 
@@ -92,6 +103,8 @@ The private-state DApp has no contract-level owner role. The controller-to-vault
 
 The private-state CLI exists under `packages/apps/private-state/cli` and supports bridge-coupled workflows. The DApp Makefile exposes local anvil, test, E2E, and public-network deployment commands. The CLI's `exit-channel` zero-balance check is useful for user safety but must not be treated as sufficient because direct contract calls can bypass it.
 
+After the resolution of Finding 1, the CLI guard is defense-in-depth rather than the primary security boundary. The on-chain exit path now independently rejects non-zero channel vault balances based on proof-backed observed storage writes.
+
 ### Synthesizer Compatibility Deliverables
 
 The repository contains Synthesizer example inputs under `packages/apps/private-state/examples/synthesizer/privateState/`. No files were found under `packages/apps/private-state/scripts/synthesizer-compat-test`, so the stricter per-function compatibility-script deliverable is not present in the expected script directory. Mainnet registration should rely only on freshly regenerated artifacts from the exact deployed contracts and should not treat stale examples as sufficient.
@@ -117,6 +130,9 @@ This means a forced redeployment would need an explicit operational reason; it i
 
 ## Verification Performed
 
+- `forge test --root bridge --match-path test/BridgeFlow.t.sol`
+  - Passed 50 tests after the Finding 1 resolution.
+  - Includes regression coverage for rejecting non-zero channel exit, restoring exit eligibility after a full withdraw, and updating `isZeroBalance` from the Tokamak observed `LiquidBalanceStorageWriteObserved` raw-log path.
 - `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/PrivateStateController.sol --contract PrivateStateController`
   - Passed mint and transfer functions before stopping on inline assembly in `redeemNotes1`.
 - `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/L2AccountingVault.sol --contract L2AccountingVault`
@@ -132,4 +148,4 @@ This means a forced redeployment would need an explicit operational reason; it i
 
 ## Deployment Decision
 
-Mainnet deployment should not proceed until Finding 1 is fixed on-chain and the deployment scripts enforce the mainnet source-integrity and proxy-mode gates in Finding 2. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.
+Finding 1 has been resolved on-chain by the `isZeroBalance` registration flag and proof-backed observed-write updates. Mainnet deployment should still not proceed until the deployment scripts enforce the mainnet source-integrity and proxy-mode gates in Finding 2. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.

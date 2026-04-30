@@ -1209,7 +1209,6 @@ async function main() {
   process.env.BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION =
     await fetchLatestNpmPackageVersion(TOKAMAK_CLI_PACKAGE_NAME);
   const groth16LatestPackageVersion = await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
-  process.env.BRIDGE_GROTH_PACKAGE_VERSION = groth16LatestPackageVersion;
   process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION =
     normalizeGroth16CompatibleBackendVersion(
       groth16LatestPackageVersion,
@@ -1286,7 +1285,7 @@ async function main() {
     `Resolved ${GROTH16_NPM_PACKAGE_NAME} compatible backend version: ${process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION}`,
   );
   console.log(
-    `Resolved ${GROTH16_NPM_PACKAGE_NAME} latest package version: ${process.env.BRIDGE_GROTH_PACKAGE_VERSION}`,
+    `Resolved ${GROTH16_NPM_PACKAGE_NAME} latest package version: ${groth16LatestPackageVersion}`,
   );
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
   console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);

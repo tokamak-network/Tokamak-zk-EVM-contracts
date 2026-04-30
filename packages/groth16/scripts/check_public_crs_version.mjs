@@ -4,7 +4,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  assertLatestPublicGroth16MpcArchiveVersion,
   findLatestPublicGroth16MpcArchiveMetadata,
   normalizeGroth16CompatibleBackendVersion,
   readGroth16CompatibleBackendVersionFromPackageJson,
@@ -64,9 +63,7 @@ async function main(argv = process.argv.slice(2)) {
   console.log(`Latest public Groth16 CRS compatibility version: ${archive.version}`);
 
   if (modes.has("package")) {
-    await assertLatestPublicGroth16MpcArchiveVersion(packageCompatibleVersion, {
-      expectedVersionLabel: `${packageJson.name} compatible backend version`,
-    });
+    assertArchiveVersionMatches(archive, packageCompatibleVersion, `${packageJson.name} compatible backend version`);
     console.log(
       `${packageJson.name} compatible backend version matches latest public Groth16 CRS: `
         + `${packageCompatibleVersion}`,
@@ -79,12 +76,24 @@ async function main(argv = process.argv.slice(2)) {
       npmLatest,
       `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
     );
-    await assertLatestPublicGroth16MpcArchiveVersion(npmLatestCompatibleVersion, {
-      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version`,
-    });
+    assertArchiveVersionMatches(
+      archive,
+      npmLatestCompatibleVersion,
+      `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version`,
+    );
     console.log(
       `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version matches latest public Groth16 CRS: `
         + `${npmLatestCompatibleVersion} (package ${npmLatest})`,
+    );
+  }
+}
+
+function assertArchiveVersionMatches(archive, expectedVersion, expectedVersionLabel) {
+  const normalizedExpectedVersion = normalizeGroth16CompatibleBackendVersion(expectedVersion, expectedVersionLabel);
+  if (archive.version !== normalizedExpectedVersion) {
+    throw new Error(
+      `Latest public Groth16 MPC CRS compatibility version ${archive.version} does not match `
+        + `${expectedVersionLabel} ${normalizedExpectedVersion}: ${archive.archiveName}`,
     );
   }
 }

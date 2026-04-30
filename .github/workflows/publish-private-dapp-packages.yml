@@ -9,6 +9,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'RELEASING.md'
+      - 'scripts/npm-publish-version-decision.cjs'
       - 'scripts/release-readiness.cjs'
       - 'packages/common/**'
       - 'packages/groth16/**'
@@ -41,54 +42,7 @@ jobs:
       - name: Compare package version with npm
         id: version-check
         shell: bash
-        run: |
-          node <<'EOF_NODE' >> "$GITHUB_OUTPUT"
-          const { execSync } = require('node:child_process');
-          const pkg = require('./packages/common/package.json');
-
-          function compareSemver(left, right) {
-            const leftParts = left.split('.').map((value) => Number(value));
-            const rightParts = right.split('.').map((value) => Number(value));
-            const maxLength = Math.max(leftParts.length, rightParts.length);
-
-            for (let index = 0; index < maxLength; index += 1) {
-              const leftValue = leftParts[index] ?? 0;
-              const rightValue = rightParts[index] ?? 0;
-              if (leftValue > rightValue) return 1;
-              if (leftValue < rightValue) return -1;
-            }
-
-            return 0;
-          }
-
-          if (pkg.private === true) {
-            throw new Error(`${pkg.name} is marked private and cannot be published.`);
-          }
-
-          let publishedVersion = null;
-          try {
-            publishedVersion = execSync(`npm view "${pkg.name}" version`, {
-              encoding: 'utf8',
-              stdio: ['ignore', 'pipe', 'pipe'],
-            }).trim();
-          } catch (error) {
-            publishedVersion = null;
-          }
-
-          const comparison =
-            publishedVersion === null ? 1 : compareSemver(pkg.version, publishedVersion);
-          if (comparison < 0) {
-            throw new Error(
-              `Local version ${pkg.version} is behind npm version ${publishedVersion} for ${pkg.name}.`,
-            );
-          }
-
-          const shouldPublish = publishedVersion === null || comparison > 0;
-          console.log(`package_name=${pkg.name}`);
-          console.log(`local_version=${pkg.version}`);
-          console.log(`published_version=${publishedVersion ?? 'none'}`);
-          console.log(`should_publish=${shouldPublish}`);
-          EOF_NODE
+        run: node scripts/npm-publish-version-decision.cjs packages/common/package.json >> "$GITHUB_OUTPUT"
 
       - name: Show version decision
         run: |
@@ -141,54 +95,7 @@ jobs:
       - name: Compare package version with npm
         id: version-check
         shell: bash
-        run: |
-          node <<'EOF_NODE' >> "$GITHUB_OUTPUT"
-          const { execSync } = require('node:child_process');
-          const pkg = require('./packages/groth16/package.json');
-
-          function compareSemver(left, right) {
-            const leftParts = left.split('.').map((value) => Number(value));
-            const rightParts = right.split('.').map((value) => Number(value));
-            const maxLength = Math.max(leftParts.length, rightParts.length);
-
-            for (let index = 0; index < maxLength; index += 1) {
-              const leftValue = leftParts[index] ?? 0;
-              const rightValue = rightParts[index] ?? 0;
-              if (leftValue > rightValue) return 1;
-              if (leftValue < rightValue) return -1;
-            }
-
-            return 0;
-          }
-
-          if (pkg.private === true) {
-            throw new Error(`${pkg.name} is marked private and cannot be published.`);
-          }
-
-          let publishedVersion = null;
-          try {
-            publishedVersion = execSync(`npm view "${pkg.name}" version`, {
-              encoding: 'utf8',
-              stdio: ['ignore', 'pipe', 'pipe'],
-            }).trim();
-          } catch (error) {
-            publishedVersion = null;
-          }
-
-          const comparison =
-            publishedVersion === null ? 1 : compareSemver(pkg.version, publishedVersion);
-          if (comparison < 0) {
-            throw new Error(
-              `Local version ${pkg.version} is behind npm version ${publishedVersion} for ${pkg.name}.`,
-            );
-          }
-
-          const shouldPublish = publishedVersion === null || comparison > 0;
-          console.log(`package_name=${pkg.name}`);
-          console.log(`local_version=${pkg.version}`);
-          console.log(`published_version=${publishedVersion ?? 'none'}`);
-          console.log(`should_publish=${shouldPublish}`);
-          EOF_NODE
+        run: node scripts/npm-publish-version-decision.cjs packages/groth16/package.json >> "$GITHUB_OUTPUT"
 
       - name: Show version decision
         run: |
@@ -249,54 +156,7 @@ jobs:
       - name: Compare package version with npm
         id: version-check
         shell: bash
-        run: |
-          node <<'EOF_NODE' >> "$GITHUB_OUTPUT"
-          const { execSync } = require('node:child_process');
-          const pkg = require('./packages/apps/private-state/cli/package.json');
-
-          function compareSemver(left, right) {
-            const leftParts = left.split('.').map((value) => Number(value));
-            const rightParts = right.split('.').map((value) => Number(value));
-            const maxLength = Math.max(leftParts.length, rightParts.length);
-
-            for (let index = 0; index < maxLength; index += 1) {
-              const leftValue = leftParts[index] ?? 0;
-              const rightValue = rightParts[index] ?? 0;
-              if (leftValue > rightValue) return 1;
-              if (leftValue < rightValue) return -1;
-            }
-
-            return 0;
-          }
-
-          if (pkg.private === true) {
-            throw new Error(`${pkg.name} is marked private and cannot be published.`);
-          }
-
-          let publishedVersion = null;
-          try {
-            publishedVersion = execSync(`npm view "${pkg.name}" version`, {
-              encoding: 'utf8',
-              stdio: ['ignore', 'pipe', 'pipe'],
-            }).trim();
-          } catch (error) {
-            publishedVersion = null;
-          }
-
-          const comparison =
-            publishedVersion === null ? 1 : compareSemver(pkg.version, publishedVersion);
-          if (comparison < 0) {
-            throw new Error(
-              `Local version ${pkg.version} is behind npm version ${publishedVersion} for ${pkg.name}.`,
-            );
-          }
-
-          const shouldPublish = publishedVersion === null || comparison > 0;
-          console.log(`package_name=${pkg.name}`);
-          console.log(`local_version=${pkg.version}`);
-          console.log(`published_version=${publishedVersion ?? 'none'}`);
-          console.log(`should_publish=${shouldPublish}`);
-          EOF_NODE
+        run: node scripts/npm-publish-version-decision.cjs packages/apps/private-state/cli/package.json >> "$GITHUB_OUTPUT"
 
       - name: Show version decision
         run: |

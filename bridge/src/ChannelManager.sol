@@ -13,6 +13,8 @@ contract ChannelManager {
     uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = TokamakEnvironment.MAX_MT_LEAVES;
     uint256 internal constant SPLIT_WORD_SIZE = 2;
     uint16 internal constant BPS_DENOMINATOR = 10_000;
+    bytes32 internal constant LIQUID_BALANCE_STORAGE_WRITE_OBSERVED_TOPIC =
+        keccak256("LiquidBalanceStorageWriteObserved(address,bytes32)");
 
     struct CachedEventLog {
         uint16 startOffsetWords;
@@ -46,10 +48,13 @@ contract ChannelManager {
     error InvalidNoteReceivePubKey();
     error InvalidNoteReceivePubKeyYParity(uint8 yParity);
     error ChannelTokenVaultIdentityNotRegistered(address user);
+    error ChannelTokenVaultBalanceNotZero(address user);
+    error UnregisteredLiquidBalanceObservedEventAddress(address l2Address);
     error InvalidJoinFeeRefundSchedule();
     error UnsupportedObservedEventTopicCount(uint8 topicCount);
     error InvalidObservedEventBoundary(uint16 startOffsetWords, uint256 endOffsetWords);
     error InvalidObservedEventDataLength(uint16 startOffsetWords, uint256 dataWordLength);
+    error InvalidLiquidBalanceObservedEventDataLength(uint256 actualLength);
 
     uint256 public immutable channelId;
     uint256 public immutable dappId;
@@ -259,7 +264,9 @@ contract ChannelManager {
         BridgeStructs.NoteReceivePubKey calldata noteReceivePubKey,
         uint256 joinFeePaid
     ) external onlyBridgeTokenVault {
-        if (l1Address == address(0)) revert InvalidL1Address();
+        if (l1Address == address(0)) {
+            revert InvalidL1Address();
+        }
         if (l2Address == address(0)) revert InvalidL2Address();
         if (_channelTokenVaultRegistrations[l1Address].exists) {
             revert ChannelTokenVaultIdentityAlreadyRegistered(l1Address);
@@ -297,7 +304,8 @@ contract ChannelManager {
             joinedAt: uint64(block.timestamp),
             noteReceivePubKey: BridgeStructs.NoteReceivePubKey({
                 x: noteReceivePubKey.x, yParity: noteReceivePubKey.yParity
-            })
+            }),
+            isChannelTokenVaultBalanceZero: true
         });
         _channelTokenVaultKeyOwners[channelTokenVaultKey] = l1Address;
         _channelTokenVaultLeafOwners[leafIndex] = l1Address;
@@ -318,6 +326,7 @@ contract ChannelManager {
     function unregisterChannelTokenVaultIdentity(address l1Address) external onlyBridgeTokenVault returns (bool) {
         BridgeStructs.ChannelTokenVaultRegistration memory registration = _channelTokenVaultRegistrations[l1Address];
         if (!registration.exists) revert ChannelTokenVaultIdentityNotRegistered(l1Address);
+        if (!registration.isChannelTokenVaultBalanceZero) revert ChannelTokenVaultBalanceNotZero(l1Address);
 
         delete _channelTokenVaultRegistrations[l1Address];
         delete _channelTokenVaultKeyOwners[registration.channelTokenVaultKey];
@@ -427,11 +436,12 @@ contract ChannelManager {
         return true;
     }
 
-    function applyVaultUpdate(bytes32[] calldata currentRootVector, bytes32 updatedChannelTokenVaultRoot)
-        external
-        onlyBridgeTokenVault
-        returns (bool)
-    {
+    function applyVaultUpdate(
+        bytes32[] calldata currentRootVector,
+        bytes32 updatedChannelTokenVaultRoot,
+        address l2Address,
+        uint256 updatedUserValue
+    ) external onlyBridgeTokenVault returns (bool) {
         if (currentRootVector.length != _managedStorageAddresses.length) {
             revert APubUserTooShort(_managedStorageAddresses.length, currentRootVector.length);
         }
@@ -445,6 +455,7 @@ contract ChannelManager {
         }
         updatedRootVector[channelTokenVaultTreeIndex] = updatedChannelTokenVaultRoot;
         currentRootVectorHash = keccak256(abi.encode(updatedRootVector));
+        _setChannelTokenVaultBalanceZeroFlagByL2Address(l2Address, updatedUserValue == 0);
         emit CurrentRootVectorObserved(currentRootVectorHash, updatedRootVector);
         return true;
     }
@@ -478,7 +489,8 @@ contract ChannelManager {
                 leafIndex: 0,
                 joinFeePaid: 0,
                 joinedAt: 0,
-                noteReceivePubKey: BridgeStructs.NoteReceivePubKey({x: bytes32(0), yParity: 0})
+                noteReceivePubKey: BridgeStructs.NoteReceivePubKey({x: bytes32(0), yParity: 0}),
+                isChannelTokenVaultBalanceZero: false
             });
         }
         return _channelTokenVaultRegistrations[l1Address];
@@ -572,8 +584,44 @@ contract ChannelManager {
                 }
             }
 
+            _observeLiquidBalanceStorageWrite(eventLog.topicCount, topics, logData);
             _emitRawLog(logData, eventLog.topicCount, topics);
         }
+    }
+
+    function _observeLiquidBalanceStorageWrite(uint8 topicCount, uint256[4] memory topics, bytes memory logData)
+        private
+    {
+        if (topicCount != 1 || bytes32(topics[0]) != LIQUID_BALANCE_STORAGE_WRITE_OBSERVED_TOPIC) {
+            return;
+        }
+        if (logData.length != 64) {
+            revert InvalidLiquidBalanceObservedEventDataLength(logData.length);
+        }
+
+        (address l2Address, bytes32 value) = abi.decode(logData, (address, bytes32));
+        _setChannelTokenVaultBalanceZeroFlagByL2Address(l2Address, value == bytes32(0));
+    }
+
+    function _setChannelTokenVaultBalanceZeroFlagByL2Address(address l2Address, bool isZeroBalance) private {
+        address l1Address = _channelTokenVaultL2AddressOwners[l2Address];
+        if (l1Address == address(0)) {
+            if (!isZeroBalance) {
+                revert UnregisteredLiquidBalanceObservedEventAddress(l2Address);
+            }
+            return;
+        }
+        _setChannelTokenVaultBalanceZeroFlag(l1Address, isZeroBalance);
+    }
+
+    function _setChannelTokenVaultBalanceZeroFlag(address l1Address, bool isZeroBalance) private {
+        BridgeStructs.ChannelTokenVaultRegistration storage registration = _channelTokenVaultRegistrations[l1Address];
+        if (!registration.exists) revert ChannelTokenVaultIdentityNotRegistered(l1Address);
+        if (registration.isChannelTokenVaultBalanceZero == isZeroBalance) {
+            return;
+        }
+
+        registration.isChannelTokenVaultBalanceZero = isZeroBalance;
     }
 
     function _resolveObservedEventBoundary(

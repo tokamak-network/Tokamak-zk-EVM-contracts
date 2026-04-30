@@ -20,7 +20,7 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
 
    Upgradeability classification: this issue is fixable for future exits by upgrading the UUPS `L1TokenVault` implementation and deploying new `ChannelManager` instances that include the flag check. Already executed non-zero exits, key reuse, or stolen balances are not reliably recoverable by a later upgrade.
 
-   Mainnet recommendation: deploy only with the on-chain zero-balance flag mitigation and its tests included. Existing channels created before this `ChannelManager` change must be treated as migration candidates because deployed `ChannelManager` instances are not upgradeable.
+   Mainnet recommendation: for the planned first mainnet proxy deployment, deploy only with the on-chain zero-balance flag mitigation and its tests included. This audit assumes there are no existing mainnet channels, so no channel migration is in scope.
 
 2. High: mainnet deployment safety policies are not enforced inside the deployment script.
 
@@ -114,7 +114,7 @@ The current local `HEAD` was checked after `git fetch --prune origin main` and i
 
 - `d43fabaafa9a7ac67ebf22e1e2495e45bdc69bf8`
 
-There is no local `deployment/chain-id-1` mainnet deployment directory. Therefore local metadata cannot prove whether a mainnet bridge proxy already exists. If a proxy already exists on mainnet, only `upgrade` mode should be used.
+This review assumes the mainnet launch is the first proxy deployment and that there are no existing mainnet bridge channels. There is no local `deployment/chain-id-1` mainnet deployment directory for an existing proxy address set. If that assumption changes before launch, the deployment decision must be revisited before executing the script.
 
 Latest Sepolia bridge and private-state deployment metadata both record previous source commit `6648d5f452196fb72c729f24cc1118b6fab3203c`. Comparing that commit to the reviewed `HEAD` showed no deployment-relevant Solidity diff under:
 
@@ -144,4 +144,4 @@ This means a forced redeployment would need an explicit operational reason; it i
 
 ## Deployment Decision
 
-Mainnet deployment should proceed only after the zero-balance flag mitigation for Finding 1 and the deployment-script gates in Finding 2 are included in the deployment branch. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.
+Under the first mainnet proxy deployment assumption, mainnet deployment should proceed only after the zero-balance flag mitigation for Finding 1 and the deployment-script gates in Finding 2 are included in the deployment branch. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.

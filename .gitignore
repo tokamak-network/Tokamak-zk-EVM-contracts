@@ -7,6 +7,10 @@ out/
 /broadcast/*/31337/
 /broadcast/**/dry-run/
 
+# Deployment and DApp registration artifacts are uploaded to Google Drive.
+/deployment/
+/bridge/deployments/
+
 # Dotenv file
 .env
 

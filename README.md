@@ -30,6 +30,17 @@ The active bridge implementation lives under [bridge/](./bridge/). It treats eac
 - Release process: [RELEASING.md](./RELEASING.md)
 - Changelog: [CHANGELOG.md](./CHANGELOG.md)
 
+## Deployment And Registration Artifacts
+
+Bridge deployment artifacts and DApp registration artifacts are published to Google Drive:
+
+https://drive.google.com/drive/folders/12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ
+
+GitHub is not the artifact store for deployment or DApp registration results. This repository
+keeps the source code, deployment scripts, and artifact upload tooling; generated deployment
+metadata, registration manifests, ABI snapshots, CRS snapshots, and source snapshots should be
+looked up through the Google Drive artifact index and uploaded folders.
+
 ## Repository Model
 
 At a high level, the repository is organized around three layers:
@@ -127,11 +138,10 @@ node bridge/scripts/admin-add-dapp.mjs \
   --dapp-id 1
 ```
 
-Bridge deployment owns the chain-scoped Groth16 deployment snapshot under
-`deployment/chain-id-<chain-id>/bridge/<timestamp>/groth16/`. The npm CLI installs the
-proof-consuming subset into `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
-and uses the fixed Groth16 runtime workspace under `~/tokamak-private-channels/groth16/` for
-proof generation.
+Bridge deployment publishes the chain-scoped Groth16 deployment snapshot to the Google Drive
+artifact store. The npm CLI installs the proof-consuming subset into
+`~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/` and uses the fixed Groth16
+runtime workspace under `~/tokamak-private-channels/groth16/` for proof generation.
 
 See [bridge/README.md](./bridge/README.md) for deployment modes, environment variables, and bridge registration details.
 
@@ -154,7 +164,7 @@ The private-state DApp is the reference app integration for the bridge. It conta
 
 - DApp contracts under [packages/apps/private-state/src/](./packages/apps/private-state/src/)
 - bridge-coupled CLI tooling under [packages/apps/private-state/cli/](./packages/apps/private-state/cli/)
-- chain-scoped app deployment snapshots under [deployment/](./deployment/)
+- app deployment and registration scripts that publish artifacts to Google Drive
 - protocol and security documents under [packages/apps/private-state/docs/](./packages/apps/private-state/docs/)
 
 ### Tokamak Verifier Artifacts

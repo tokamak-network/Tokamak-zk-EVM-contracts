@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deployment Source Integrity"
+  short_description: "Require deploy metadata to reference source commits already on remote."
+  default_prompt: "Use this skill before bridge or DApp deployment, DApp registration, or deployment metadata upload so sourceUrl and commit metadata point to source code that already exists on the remote repository."

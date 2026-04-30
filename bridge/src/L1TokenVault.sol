@@ -116,7 +116,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         return true;
     }
 
-    function deposit(
+    function depositToChannelVault(
         uint256 channelId,
         BridgeStructs.GrothProof calldata proof,
         BridgeStructs.GrothUpdate calldata update
@@ -132,7 +132,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         return true;
     }
 
-    function withdraw(
+    function withdrawFromChannelVault(
         uint256 channelId,
         BridgeStructs.GrothProof calldata proof,
         BridgeStructs.GrothUpdate calldata update
@@ -247,17 +247,13 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         bool ok = context.channelManager.grothVerifier().verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
         if (!ok) revert GrothProofRejected();
 
-        context.channelManager
-            .applyVaultUpdate(
-                update.currentRootVector,
-                update.updatedRoot
-            );
+        context.channelManager.applyVaultUpdate(update.currentRootVector, update.updatedRoot);
 
-        emit StorageWriteObserved(
-            context.channelManager.channelTokenVaultStorageAddress(),
-            uint256(context.registration.channelTokenVaultKey),
-            update.updatedUserValue
-        );
+        address storageAddr = context.channelManager.channelTokenVaultStorageAddress();
+        uint256 storageKey = uint256(context.registration.channelTokenVaultKey);
+        uint256 value = update.updatedUserValue;
+        context.channelManager.observeChannelTokenVaultStorageWrite(storageAddr, storageKey, value);
+        emit StorageWriteObserved(storageAddr, storageKey, value);
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}

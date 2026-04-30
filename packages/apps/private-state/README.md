@@ -106,6 +106,8 @@ Important rules:
 
 - `--amount` is always a human token amount and is converted with the canonical token decimals
 - `--password` accepts any string
+- channel creation commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for that channel
+- joining a channel means accepting that channel's current policy; later fixes to policy-level bugs require a new channel or migration rather than in-place mutation of the joined channel
 - `join-channel` binds `channelName + password` to the user's L1 private key and derives the channel-specific L2 identity
 - `join-channel` is the only command that sets up encrypted L1/L2 wallet keys
 - wallet folder names are fixed to `<channelName>-<l1Address>`
@@ -160,6 +162,8 @@ The commands below are ordered by the normal execution flow.
 - always binds the channel to the `private-state` DApp
 - always creates the saved channel workspace for the channel
 - requires `--alchemy-api-key` on public networks
+- prints an immutable-channel-policy warning before sending the transaction
+- should be run only after the verifier versions, DApp registration metadata, function layout, managed storage vector, and refund policy have been reviewed for the intended channel
 
 Example:
 
@@ -204,6 +208,8 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - stores the resolved `rpcUrl` in the wallet metadata so later wallet-backed commands do not need CLI RPC inputs
 - returns the deterministic wallet name `<channelName>-<l1Address>`
 - requires `--alchemy-api-key` on public networks
+- prints an immutable-channel-policy warning before first registration
+- should be treated as user acceptance of the channel's fixed verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy
 
 `recover-wallet`
 

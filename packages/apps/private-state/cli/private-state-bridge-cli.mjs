@@ -166,6 +166,22 @@ const DEFAULT_LOG_REQUESTS_PER_SECOND = 5;
 const LOG_REQUEST_INTERVAL_MS = Math.ceil(1000 / DEFAULT_LOG_REQUESTS_PER_SECOND);
 let lastLogRequestStartedAtMs = 0;
 
+function printImmutableChannelPolicyWarning({ action, channelName, channelId, channelManager = null }) {
+  const details = [
+    `WARNING: ${action} commits to an immutable channel policy.`,
+    `Channel: ${channelName} (${channelId.toString()})`,
+  ];
+  if (channelManager) {
+    details.push(`ChannelManager: ${channelManager}`);
+  }
+  details.push(
+    "The channel verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for this channel.",
+    "Those policy fields are intentionally not upgraded in place without channel-user consent.",
+    "If a policy bug is discovered later, the expected mitigation is creating or joining a new channel, not mutating this channel.",
+  );
+  console.error(details.join("\n"));
+}
+
 async function prepareDeploymentArtifacts(chainId) {
   const normalizedChainId = Number(chainId);
   const existingPaths = flatDeploymentArtifactPathsByChainId.get(normalizedChainId);
@@ -382,6 +398,11 @@ async function handleChannelCreate({ args, network, provider }) {
     dappLabel: PRIVATE_STATE_DAPP_LABEL,
   });
 
+  printImmutableChannelPolicyWarning({
+    action: "create-channel",
+    channelName,
+    channelId,
+  });
   const receipt = await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader, joinFee));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
@@ -1205,6 +1226,12 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       signer,
     );
     let nextNonce = await provider.getTransactionCount(signer.address, "pending");
+    printImmutableChannelPolicyWarning({
+      action: "join-channel",
+      channelName: context.workspace.channelName,
+      channelId: ethers.toBigInt(context.workspace.channelId),
+      channelManager: context.workspace.channelManager,
+    });
     if (joinFee !== 0n) {
       approveReceipt = await waitForReceipt(
         await asset.approve(context.workspace.bridgeTokenVault, joinFee, { nonce: nextNonce++ }),
@@ -1402,8 +1429,9 @@ async function handleGrothVaultMove({ args, provider, direction }) {
     nextValue,
   });
 
+  const methodName = direction === "deposit" ? "depositToChannelVault" : "withdrawFromChannelVault";
   const receipt = await waitForReceipt(
-    await bridgeTokenVault[direction](ethers.toBigInt(context.workspace.channelId), transition.proof, transition.update),
+    await bridgeTokenVault[methodName](ethers.toBigInt(context.workspace.channelId), transition.proof, transition.update),
   );
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
@@ -4985,6 +5013,7 @@ Commands:
 
   create-channel --channel-name <NAME> --join-fee <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
+      Prints an immutable-channel-policy warning before sending the transaction
 
   recover-workspace --channel-name <NAME> --network <NAME> --alchemy-api-key <KEY>
       Rebuild the local channel workspace from bridge state
@@ -5003,6 +5032,7 @@ Commands:
 
   join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Pay the channel join fee and bind a wallet to a channel-specific L2 identity
+      Prints an immutable-channel-policy warning before first registration
 
   get-my-wallet-meta --wallet <NAME> --password <PASSWORD> --network <NAME>
       Check whether a wallet matches the on-chain channel registration

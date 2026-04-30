@@ -48,6 +48,8 @@ Important operational context:
 - channels are treated as one-shot deployments with a fixed execution grammar for their lifetime
 - if a later compiler or subcircuit-library release expands the admissible function surface, the intended workflow is to create new channels with the expanded function set rather than mutate existing channels in place
 
+This channel immutability is intentional policy, not an accidental upgradeability gap. The channel's verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund schedule are part of the operating policy users accept when they join. They should not be changed in place during active channel use without renewed user consent. The tradeoff is that a policy-level bug in an existing channel normally requires creating a new channel or migrating users rather than mutating that channel.
+
 Reviewers and operators should evaluate a channel against the function family it intentionally declares at creation time, not against every function family that might become supportable in a future proving release.
 
 ## Deployment
@@ -235,6 +237,8 @@ Operators and user-facing documentation should instruct users not to:
 until the `join-channel` transaction has been confirmed on-chain and the registration receipt has been checked successfully.
 
 Until that confirmation exists, the user's channel registration is not final and later channel actions can be mis-targeted or fail against incomplete channel identity state.
+
+Users should also treat `join-channel` as acceptance of the channel's immutable operating policy. Before joining, users should be shown the channel's verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy at a level appropriate for the interface. If a later policy-level issue is found, the expected mitigation is a new channel or migration flow, not in-place mutation of the joined channel.
 
 After a successful bridge deployment, the bridge-owned Groth16 deployment mirror is refreshed under:
 

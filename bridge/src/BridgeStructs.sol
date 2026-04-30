@@ -15,6 +15,7 @@ library BridgeStructs {
         uint256 joinFeePaid;
         uint64 joinedAt;
         NoteReceivePubKey noteReceivePubKey;
+        bool isZeroBalance;
     }
 
     struct EventLogMetadata {

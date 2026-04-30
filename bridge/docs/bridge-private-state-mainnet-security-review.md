@@ -72,8 +72,8 @@ The `private-state` DApp cannot move canonical ERC-20 custody on its own. Canoni
 
 - `fund(...)`
 - `claimToWallet(...)`
-- Groth-backed `deposit(...)`
-- Groth-backed `withdraw(...)`
+- Groth-backed `depositToChannelVault(...)`
+- Groth-backed `withdrawFromChannelVault(...)`
 
 See `bridge/src/L1TokenVault.sol`.
 

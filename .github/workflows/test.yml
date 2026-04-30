@@ -15,34 +15,10 @@ env:
   FOUNDRY_PROFILE: ci
 
 jobs:
-  groth16-crs-version:
-    name: Groth16 CRS Version Check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install workspace dependencies
-        run: npm ci
-
-      - name: Check Groth16 package and CRS versions
-        working-directory: packages/groth16
-        run: npm run crs:check-version
-
-  bridge-unit-tests:
-    name: Bridge Unit Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  source-validation:
+    name: Source Validation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -73,10 +49,24 @@ jobs:
           done
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: '24'
           cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Validate package release metadata
+        run: |
+          npm --workspace @tokamak-private-dapps/common-library run release:check
+          npm --workspace @tokamak-private-dapps/groth16 run release:check
+          npm --workspace @tokamak-private-dapps/private-state-cli run release:check
+
+      - name: Validate Groth16 CRS version
+        working-directory: packages/groth16
+        run: npm run crs:check-version
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -89,17 +79,70 @@ jobs:
       - name: Run bridge unit tests
         run: npm run test:bridge:unit
 
-  private-state-cli-e2e:
-    name: Private-State CLI E2E
+  package-validation:
+    name: Package Validation
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
-    needs: bridge-unit-tests
+    timeout-minutes: 20
+    needs: source-validation
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Pack private DApp packages
+        run: node scripts/ci/pack-private-dapp-packages.mjs --out package-tarballs
+
+      - name: Smoke test packed packages
+        run: |
+          node scripts/ci/smoke-test-private-dapp-packages.mjs \
+            package-tarballs/manifest.json \
+            --install-root "${RUNNER_TEMP}/private-dapp-package-consumer"
+
+      - name: Upload package tarballs
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-dapp-package-tarballs
+          path: package-tarballs
+
+  integration-e2e:
+    name: Private-State CLI Integration E2E
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    needs: package-validation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Download package tarballs
+        uses: actions/download-artifact@v4
+        with:
+          name: private-dapp-package-tarballs
+          path: package-tarballs
+
+      - name: Export private DApp package specs
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = JSON.parse(fs.readFileSync('package-tarballs/manifest.json', 'utf8'));
+          const specs = manifest.packages.map((entry) => path.resolve(entry.path)).join('\n');
+          fs.appendFileSync(process.env.GITHUB_ENV, `PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS<<EOF\n${specs}\nEOF\n`);
+          NODE
 
       - name: Checkout Foundry submodules
         run: |
@@ -124,10 +167,11 @@ jobs:
           done
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: '24'
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

@@ -55,8 +55,8 @@ const appRoot = path.resolve(repoRoot, "packages", "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
 const cliPackageManifestPath = path.resolve(appRoot, "cli", "package.json");
 const cliPackageManifest = JSON.parse(fs.readFileSync(cliPackageManifestPath, "utf8"));
-const cliPackageSpec = process.env.PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC?.trim()
-  || `${cliPackageManifest.name}@${cliPackageManifest.version}`;
+const cliPackageSpecs = resolveCliPackageSpecs();
+const cliPackageSpecLabel = cliPackageSpecs.join(" ");
 const outputRoot = path.resolve(appRoot, "scripts", "e2e", "output", "private-state-bridge-cli");
 const cliInstallRoot = path.resolve(outputRoot, "npm-cli-install");
 const cliBinPath = path.join(
@@ -136,10 +136,44 @@ Options:
 
 Notes:
   - The participant scenario is executed through an npm-installed private-state-cli binary only.
-  - Set PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC to override the npm package spec. Default: ${cliPackageSpec}
+  - Set PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC to override the npm package spec. Default: ${cliPackageSpecLabel}
+  - Set PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS to install multiple npm package specs before running the binary.
   - Bridge deployment, DApp registration, and canonical-asset minting still use existing command-line helpers because
     the current private-state CLI does not expose those administrative setup flows.
 `);
+}
+
+function resolveCliPackageSpecs() {
+  const multiValue = process.env.PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS?.trim();
+  if (multiValue) {
+    return parsePackageSpecs(multiValue, "PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS");
+  }
+
+  const singleValue = process.env.PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC?.trim();
+  if (singleValue) {
+    return [singleValue];
+  }
+
+  return [`${cliPackageManifest.name}@${cliPackageManifest.version}`];
+}
+
+function parsePackageSpecs(value, envName) {
+  if (value.startsWith("[")) {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed) || parsed.some((entry) => typeof entry !== "string" || entry.trim() === "")) {
+      throw new Error(`${envName} JSON value must be an array of non-empty strings.`);
+    }
+    return parsed.map((entry) => entry.trim());
+  }
+
+  const specs = value
+    .split(/[\r\n,]+/u)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (specs.length === 0) {
+    throw new Error(`${envName} did not contain any npm package specs.`);
+  }
+  return specs;
 }
 
 function parseArgs(argv) {
@@ -435,7 +469,7 @@ function installPrivateStateCliPackageForE2E() {
     type: "module",
     description: "Temporary private-state CLI E2E install root.",
   });
-  run("npm", ["install", "--no-audit", "--no-fund", cliPackageSpec], {
+  run("npm", ["install", "--no-audit", "--no-fund", ...cliPackageSpecs], {
     cwd: cliInstallRoot,
     quiet: true,
     label: "private-state-cli:npm-install",
@@ -450,7 +484,7 @@ function installPrivateStateCliPackageForE2E() {
     label: "private-state-cli:npm-smoke-help",
   });
   return {
-    packageSpec: cliPackageSpec,
+    packageSpecs: cliPackageSpecs,
     installRoot: cliInstallRoot,
     binPath: cliBinPath,
   };

@@ -11,29 +11,345 @@ on:
       - 'RELEASING.md'
       - 'scripts/npm-publish-version-decision.mjs'
       - 'scripts/release-readiness.cjs'
+      - 'scripts/ci/**'
       - 'packages/common/**'
       - 'packages/groth16/**'
       - 'packages/apps/private-state/cli/**'
+      - 'packages/apps/private-state/scripts/e2e/**'
+  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
+env:
+  FOUNDRY_PROFILE: ci
+
 jobs:
-  publish-common:
-    name: Publish @tokamak-private-dapps/common-library to npm
+  source-validation:
+    name: Source Validation
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Checkout Foundry submodules
+        run: |
+          set -euo pipefail
+          submodules=(
+            lib/forge-std
+            lib/openzeppelin-contracts
+            lib/openzeppelin-contracts-upgradeable
+          )
+          for attempt in 1 2 3 4 5; do
+            git submodule sync -- "${submodules[@]}"
+            if git -c protocol.version=2 submodule update --init --force --depth=1 --jobs=1 -- "${submodules[@]}"; then
+              exit 0
+            fi
+            status=$?
+            if [ "${attempt}" -eq 5 ]; then
+              exit "${status}"
+            fi
+            git submodule deinit -f -- "${submodules[@]}" || true
+            rm -rf "${submodules[@]}"
+            sleep $((attempt * 15))
+          done
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-          cache: 'npm'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Validate package release metadata
+        run: |
+          npm --workspace @tokamak-private-dapps/common-library run release:check
+          npm --workspace @tokamak-private-dapps/groth16 run release:check
+          npm --workspace @tokamak-private-dapps/private-state-cli run release:check
+
+      - name: Validate Groth16 CRS version
+        working-directory: packages/groth16
+        run: npm run crs:check-version
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Show Forge version
+        run: forge --version
+
+      - name: Run bridge unit tests
+        run: npm run test:bridge:unit
+
+  package-validation:
+    name: Package Validation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: source-validation
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Pack private DApp packages
+        run: node scripts/ci/pack-private-dapp-packages.mjs --out package-tarballs
+
+      - name: Smoke test packed packages
+        run: |
+          node scripts/ci/smoke-test-private-dapp-packages.mjs \
+            package-tarballs/manifest.json \
+            --install-root "${RUNNER_TEMP}/private-dapp-package-consumer"
+
+      - name: Upload package tarballs
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-dapp-package-tarballs
+          path: package-tarballs
+
+  integration-e2e:
+    name: Private-State CLI Integration E2E
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    needs: package-validation
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Download package tarballs
+        uses: actions/download-artifact@v4
+        with:
+          name: private-dapp-package-tarballs
+          path: package-tarballs
+
+      - name: Export private DApp package specs
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = JSON.parse(fs.readFileSync('package-tarballs/manifest.json', 'utf8'));
+          const specs = manifest.packages.map((entry) => path.resolve(entry.path)).join('\n');
+          fs.appendFileSync(process.env.GITHUB_ENV, `PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS<<EOF\n${specs}\nEOF\n`);
+          NODE
+
+      - name: Checkout Foundry submodules
+        run: |
+          set -euo pipefail
+          submodules=(
+            lib/forge-std
+            lib/openzeppelin-contracts
+            lib/openzeppelin-contracts-upgradeable
+          )
+          for attempt in 1 2 3 4 5; do
+            git submodule sync -- "${submodules[@]}"
+            if git -c protocol.version=2 submodule update --init --force --depth=1 --jobs=1 -- "${submodules[@]}"; then
+              exit 0
+            fi
+            status=$?
+            if [ "${attempt}" -eq 5 ]; then
+              exit "${status}"
+            fi
+            git submodule deinit -f -- "${submodules[@]}" || true
+            rm -rf "${submodules[@]}"
+            sleep $((attempt * 15))
+          done
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies for Tokamak toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \
+            curl \
+            wget \
+            make \
+            build-essential \
+            python3 \
+            zip \
+            unzip \
+            pkg-config \
+            libssl-dev \
+            jq \
+            git-lfs \
+            cmake \
+            dos2unix \
+            time
+          git lfs install --skip-repo
+
+      - name: Install Circom
+        run: |
+          wget https://github.com/iden3/circom/releases/download/v2.2.2/circom-linux-amd64
+          chmod +x circom-linux-amd64
+          sudo mv circom-linux-amd64 /usr/local/bin/circom
+          circom --version
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install latest Tokamak zk-EVM CLI
+        id: tokamak-cli
+        run: |
+          npm install --no-save @tokamak-zk-evm/cli@latest
+          TOKAMAK_CLI_VERSION="$(node -p "require('./node_modules/@tokamak-zk-evm/cli/package.json').version")"
+          echo "version=${TOKAMAK_CLI_VERSION}" >> "${GITHUB_OUTPUT}"
+          npm ls @tokamak-zk-evm/cli
+
+      - name: Install Groth16 circuit dependencies
+        run: npm ci --prefix packages/groth16/circuits
+
+      - name: Verify Groth16 circuit tooling
+        run: |
+          test -x packages/groth16/circuits/node_modules/.bin/snarkjs
+          packages/groth16/circuits/node_modules/.bin/snarkjs g16v --help >/dev/null
+
+      - name: Install tsx
+        run: npm install -g tsx
+
+      - name: Verify Tokamak install prerequisites
+        run: |
+          for cmd in \
+            git \
+            curl \
+            wget \
+            tar \
+            unzip \
+            make \
+            jq \
+            git-lfs \
+            node \
+            npm \
+            python3 \
+            rustc \
+            cargo \
+            cmake \
+            dos2unix \
+            circom \
+            tsx; do
+            command -v "${cmd}" >/dev/null 2>&1 || {
+              echo "Missing required command: ${cmd}" >&2
+              exit 1
+            }
+          done
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Show toolchain versions
+        run: |
+          node --version
+          npm --version
+          rustc --version
+          cargo --version
+          git --version
+          curl --version | head -n 1
+          wget --version | head -n 1
+          tar --version | head -n 1
+          unzip -v | head -n 1
+          jq --version
+          git-lfs version
+          cmake --version | head -n 1
+          dos2unix --version | head -n 1
+          circom --version
+          tsx --version
+          forge --version
+          cast --version
+          anvil --version
+
+      - name: Restore Tokamak CRS cache
+        id: tokamak-crs-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.tokamak-zk-evm/linux/downloads/crs
+          key: tokamak-zkevm-crs-${{ runner.os }}-${{ steps.tokamak-cli.outputs.version }}
+          restore-keys: |
+            tokamak-zkevm-crs-${{ runner.os }}-
+
+      - name: Run private-state bridge CLI end-to-end test
+        run: |
+          bash scripts/ci/run-with-memory-monitor.sh \
+            --log-dir packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/system-monitor \
+            -- \
+            npm run test:private-state:cli-e2e
+
+      - name: Save Tokamak CRS cache
+        if: always() && steps.tokamak-crs-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.tokamak-zk-evm/linux/downloads/crs
+          key: ${{ steps.tokamak-crs-cache.outputs.cache-primary-key }}
+
+      - name: Upload private-state CLI failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-state-cli-e2e-failure-diagnostics
+          if-no-files-found: warn
+          path: |
+            packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/failure-diagnostics.json
+            packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/summary.json
+            packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/**
+            ${{ env.HOME }}/tokamak-private-channels/workspace/anvil/private-state-cli-e2e/channel/current/**
+            ${{ env.HOME }}/tokamak-private-channels/workspace/anvil/private-state-cli-e2e/channel/operations/**
+            ${{ env.HOME }}/tokamak-private-channels/workspace/anvil/private-state-cli-e2e/wallets/**/operations/**
+
+  publish-common:
+    name: Publish @tokamak-private-dapps/common-library to npm
+    runs-on: ubuntu-22.04
+    needs: integration-e2e
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download package tarballs
+        uses: actions/download-artifact@v4
+        with:
+          name: private-dapp-package-tarballs
+          path: package-tarballs
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install workspace dependencies
@@ -44,49 +360,58 @@ jobs:
         shell: bash
         run: node scripts/npm-publish-version-decision.mjs packages/common/package.json >> "$GITHUB_OUTPUT"
 
+      - name: Resolve package tarball
+        id: tarball
+        env:
+          PACKAGE_NAME: '@tokamak-private-dapps/common-library'
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = JSON.parse(fs.readFileSync('package-tarballs/manifest.json', 'utf8'));
+          const entry = manifest.packages.find((candidate) => candidate.name === process.env.PACKAGE_NAME);
+          if (!entry) throw new Error(`Missing tarball for ${process.env.PACKAGE_NAME}`);
+          console.log(`path=${path.resolve(entry.path)}`);
+          console.log(`version=${entry.version}`);
+          NODE
+
       - name: Show version decision
         run: |
           echo "Package: ${{ steps.version-check.outputs.package_name }}"
           echo "Local version: ${{ steps.version-check.outputs.local_version }}"
           echo "Published version: ${{ steps.version-check.outputs.published_version }}"
           echo "Should publish: ${{ steps.version-check.outputs.should_publish }}"
-
-      - name: Validate common release readiness
-        if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/common
-        run: npm run release:check
-
-      - name: Show common release notes
-        if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/common
-        run: |
-          echo "## ${{ steps.version-check.outputs.package_name }} ${{ steps.version-check.outputs.local_version }}" >> "$GITHUB_STEP_SUMMARY"
-          npm run release:check -- --print-current-notes >> "$GITHUB_STEP_SUMMARY"
+          echo "Tarball: ${{ steps.tarball.outputs.path }}"
 
       - name: Validate npm package contents
         if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/common
-        run: npm publish --dry-run --access public --ignore-scripts
+        run: npm publish "${{ steps.tarball.outputs.path }}" --dry-run --access public --ignore-scripts
 
       - name: Publish to npm
         if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/common
-        run: npm publish --access public --ignore-scripts
+        run: npm publish "${{ steps.tarball.outputs.path }}" --access public --ignore-scripts
 
   publish-groth16:
     name: Publish @tokamak-private-dapps/groth16 to npm
     runs-on: ubuntu-22.04
+    needs: integration-e2e
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Download package tarballs
+        uses: actions/download-artifact@v4
+        with:
+          name: private-dapp-package-tarballs
+          path: package-tarballs
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install workspace dependencies
@@ -97,39 +422,36 @@ jobs:
         shell: bash
         run: node scripts/npm-publish-version-decision.mjs packages/groth16/package.json >> "$GITHUB_OUTPUT"
 
+      - name: Resolve package tarball
+        id: tarball
+        env:
+          PACKAGE_NAME: '@tokamak-private-dapps/groth16'
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = JSON.parse(fs.readFileSync('package-tarballs/manifest.json', 'utf8'));
+          const entry = manifest.packages.find((candidate) => candidate.name === process.env.PACKAGE_NAME);
+          if (!entry) throw new Error(`Missing tarball for ${process.env.PACKAGE_NAME}`);
+          console.log(`path=${path.resolve(entry.path)}`);
+          console.log(`version=${entry.version}`);
+          NODE
+
       - name: Show version decision
         run: |
           echo "Package: ${{ steps.version-check.outputs.package_name }}"
           echo "Local version: ${{ steps.version-check.outputs.local_version }}"
           echo "Published version: ${{ steps.version-check.outputs.published_version }}"
           echo "Should publish: ${{ steps.version-check.outputs.should_publish }}"
-
-      - name: Validate Groth16 release readiness
-        if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/groth16
-        run: npm run release:check
-
-      - name: Validate Groth16 CRS version
-        if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/groth16
-        run: npm run crs:check-version
-
-      - name: Show Groth16 release notes
-        if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/groth16
-        run: |
-          echo "## ${{ steps.version-check.outputs.package_name }} ${{ steps.version-check.outputs.local_version }}" >> "$GITHUB_STEP_SUMMARY"
-          npm run release:check -- --print-current-notes >> "$GITHUB_STEP_SUMMARY"
+          echo "Tarball: ${{ steps.tarball.outputs.path }}"
 
       - name: Validate npm package contents
         if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/groth16
-        run: npm publish --dry-run --access public --ignore-scripts
+        run: npm publish "${{ steps.tarball.outputs.path }}" --dry-run --access public --ignore-scripts
 
       - name: Publish to npm
         if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/groth16
-        run: npm publish --access public --ignore-scripts
+        run: npm publish "${{ steps.tarball.outputs.path }}" --access public --ignore-scripts
 
   publish-private-state-cli:
     name: Publish @tokamak-private-dapps/private-state-cli to npm
@@ -142,12 +464,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Download package tarballs
+        uses: actions/download-artifact@v4
+        with:
+          name: private-dapp-package-tarballs
+          path: package-tarballs
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: package-lock.json
 
       - name: Install workspace dependencies
@@ -158,31 +486,33 @@ jobs:
         shell: bash
         run: node scripts/npm-publish-version-decision.mjs packages/apps/private-state/cli/package.json >> "$GITHUB_OUTPUT"
 
+      - name: Resolve package tarball
+        id: tarball
+        env:
+          PACKAGE_NAME: '@tokamak-private-dapps/private-state-cli'
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const manifest = JSON.parse(fs.readFileSync('package-tarballs/manifest.json', 'utf8'));
+          const entry = manifest.packages.find((candidate) => candidate.name === process.env.PACKAGE_NAME);
+          if (!entry) throw new Error(`Missing tarball for ${process.env.PACKAGE_NAME}`);
+          console.log(`path=${path.resolve(entry.path)}`);
+          console.log(`version=${entry.version}`);
+          NODE
+
       - name: Show version decision
         run: |
           echo "Package: ${{ steps.version-check.outputs.package_name }}"
           echo "Local version: ${{ steps.version-check.outputs.local_version }}"
           echo "Published version: ${{ steps.version-check.outputs.published_version }}"
           echo "Should publish: ${{ steps.version-check.outputs.should_publish }}"
-
-      - name: Validate private-state CLI release readiness
-        if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/apps/private-state/cli
-        run: npm run release:check
-
-      - name: Show private-state CLI release notes
-        if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/apps/private-state/cli
-        run: |
-          echo "## ${{ steps.version-check.outputs.package_name }} ${{ steps.version-check.outputs.local_version }}" >> "$GITHUB_STEP_SUMMARY"
-          npm run release:check -- --print-current-notes >> "$GITHUB_STEP_SUMMARY"
+          echo "Tarball: ${{ steps.tarball.outputs.path }}"
 
       - name: Validate npm package contents
         if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/apps/private-state/cli
-        run: npm publish --dry-run --access public --ignore-scripts
+        run: npm publish "${{ steps.tarball.outputs.path }}" --dry-run --access public --ignore-scripts
 
       - name: Publish to npm
         if: steps.version-check.outputs.should_publish == 'true'
-        working-directory: packages/apps/private-state/cli
-        run: npm publish --access public --ignore-scripts
+        run: npm publish "${{ steps.tarball.outputs.path }}" --access public --ignore-scripts

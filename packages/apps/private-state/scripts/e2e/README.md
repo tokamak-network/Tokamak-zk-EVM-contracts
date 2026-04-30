@@ -53,6 +53,10 @@ PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC=/tmp/private-state-cli-pack/tokamak-private-d
   npm run test:private-state:cli-e2e
 ```
 
+To test unpublished package dependencies together, set `PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS` to a newline-separated,
+comma-separated, or JSON-array list of npm package specs. The harness installs every listed package into the temporary
+consumer project before executing the `private-state-cli` binary.
+
 Optional flag:
 
 - `--keep-anvil`: leave the local anvil process running after success

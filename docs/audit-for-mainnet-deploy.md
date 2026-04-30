@@ -6,6 +6,7 @@ Resolution update commits:
 
 - `4c66d2e8f2998cd38ac394205f680dc7052c71a5`
 - `7547fd957c675676d4cf72854deb0bcdbe1cab0a`
+- `52815b645431490a663892bacfbef3cdd1396702`
 
 Scope: bridge contracts, private-state DApp contracts, deployment scripts, registration flow, CLI trust boundaries, and deployment metadata gates relevant to mainnet deployment.
 
@@ -47,15 +48,21 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
 
    Mainnet recommendation: resolved for the bridge deployment entrypoint. Keep mainnet bridge deployment routed through `node bridge/scripts/deploy-bridge.mjs`; bypassing it with direct `forge script` commands would bypass these operational hard gates.
 
-3. High: deployed `ChannelManager` instances are not upgradeable and freeze verifier and DApp execution metadata at channel creation.
+3. Accepted design constraint: deployed `ChannelManager` instances intentionally freeze channel policy at channel creation.
+
+   Status: accepted immutable-channel-policy tradeoff. Mitigation implemented in `52815b645431490a663892bacfbef3cdd1396702` through user/operator disclosure in CLI and README documentation.
 
    `BridgeCore`, `DAppManager`, `BridgeAdminManager`, and `L1TokenVault` are UUPS-upgradeable. Per-channel `ChannelManager` instances are regular contracts created by `BridgeCore.createChannel(...)`. Each `ChannelManager` stores immutable verifier addresses, immutable channel metadata, a fixed managed-storage vector, fixed function metadata copied from `DAppManager`, and fixed refund schedule parameters.
 
    Updating `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, or DApp registration metadata only affects future channel creation. Existing channels keep their originally captured verifier and function metadata.
 
-   Upgradeability classification: framework-level bugs can often be fixed for future channels through UUPS upgrades and new channel creation. Bugs in an already deployed channel's verifier binding, function layout, managed storage vector, or accepted execution grammar require channel migration; they are not repairable in place by upgrading `BridgeCore`.
+   Design rationale: this immutability is intentional. A channel's verifier bindings, DApp execution grammar, managed storage vector, and refund schedule are part of the operating policy users implicitly accept when they join that channel. Changing those policy fields in place during active channel use, without renewed user consent, is not acceptable under the intended channel model.
 
-   Mainnet recommendation: treat channel creation as a final commitment. Create mainnet channels only after verifier versions, Groth16 setup artifacts, `aPubUser` offsets, function selectors, and managed storage addresses have been independently checked against the exact DApp deployment.
+   Tradeoff: the design prevents unilateral policy changes for existing channel users, but it also means bugs in an already deployed channel's verifier binding, function layout, managed storage vector, refund schedule, or accepted execution grammar require channel migration. They are not repairable in place by upgrading `BridgeCore`.
+
+   Mitigation: channel creation and channel joining must warn operators and users that they are committing to an immutable channel policy. The CLI and README now describe that the expected response to a later policy or metadata bug is creating or joining a new channel, not mutating the existing channel.
+
+   Mainnet recommendation: accepted with explicit disclosure. Create mainnet channels only after verifier versions, Groth16 setup artifacts, `aPubUser` offsets, function selectors, and managed storage addresses have been independently checked against the exact DApp deployment, and make sure users see the immutable-policy warning before joining.
 
 4. Medium: private-state DApp contracts are intentionally non-upgradeable.
 
@@ -160,4 +167,4 @@ This means a forced redeployment would need an explicit operational reason; it i
 
 ## Deployment Decision
 
-Findings 1 and 2 have been resolved by the `isZeroBalance` on-chain exit guard and the mainnet deployment-script hard gates. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.
+Findings 1 and 2 have been resolved by the `isZeroBalance` on-chain exit guard and the mainnet deployment-script hard gates. Finding 3 is an accepted immutable-channel-policy tradeoff with CLI and README disclosure. Finding 4 remains a design constraint rather than an immediate code defect. Together, Findings 3 and 4 raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.

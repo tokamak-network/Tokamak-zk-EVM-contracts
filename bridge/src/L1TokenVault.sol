@@ -248,7 +248,10 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         if (!ok) revert GrothProofRejected();
 
         context.channelManager
-            .applyVaultUpdate(update.currentRootVector, update.updatedRoot, msg.sender, update.updatedUserValue == 0);
+            .applyVaultUpdate(
+                update.currentRootVector,
+                update.updatedRoot
+            );
 
         emit StorageWriteObserved(
             context.channelManager.channelTokenVaultStorageAddress(),

@@ -41,6 +41,16 @@ const envFile = process.env.BRIDGE_ENV_FILE || path.join(projectRoot, ".env");
 const initialDeployMode = process.env.BRIDGE_DEPLOY_MODE || "upgrade";
 const TOKAMAK_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const GROTH16_NPM_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
+const MAINNET_NETWORK_NAME = "mainnet";
+const MAINNET_BRIDGE_SOLIDITY_DIFF_PATHS = [":(glob)bridge/src/**/*.sol"];
+const MAINNET_DEPLOYMENT_RELEVANT_DIRTY_PATHS = [
+  ":(glob)bridge/src/**/*.sol",
+  ":(glob)bridge/scripts/**/*.mjs",
+  ":(glob)bridge/scripts/**/*.sol",
+  ":(glob)scripts/deployment/**/*.mjs",
+  ":(glob)scripts/drive/**/*.mjs",
+  ":(glob)packages/groth16/lib/**/*.mjs",
+];
 
 const BLS12_381_FQ_MODULUS = BigInt(
   "0x1a0111ea397fe69a4b1ba7b6434bacd7"
@@ -103,6 +113,30 @@ function run(command, args, { cwd = invocationCwd, env = process.env, stdio = "i
     fail(`${command} ${args.join(" ")} exited with status ${result.status ?? "unknown"}`);
   }
   return result;
+}
+
+function git(args, { allowFailure = false } = {}) {
+  const result = spawnSync("git", args, {
+    cwd: projectRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (!allowFailure && result.status !== 0) {
+    fail([
+      `git ${args.join(" ")} exited with status ${result.status ?? "unknown"}`,
+      formatCommandOutput("stdout", result.stdout),
+      formatCommandOutput("stderr", result.stderr),
+    ].join("\n"));
+  }
+  return {
+    ok: result.status === 0,
+    stdout: String(result.stdout ?? "").trim(),
+    stderr: String(result.stderr ?? "").trim(),
+    status: result.status,
+  };
 }
 
 function resolveRuntimeBinaryPath(runtimeRoot, binaryName) {
@@ -201,6 +235,111 @@ function latestCompleteBridgeDir(rootDir, chainId) {
     .filter((candidateDir) => fs.existsSync(path.join(candidateDir, `bridge.${chainId}.json`)))
     .sort()
     .at(-1) ?? "";
+}
+
+function assertMainnetProxyMode({ deployMode, latestBridgeDir }) {
+  if (process.env.BRIDGE_NETWORK !== MAINNET_NETWORK_NAME || deployMode !== "redeploy-proxy") {
+    return;
+  }
+  if (latestBridgeDir) {
+    fail([
+      "Refusing mainnet redeploy-proxy because an existing bridge deployment snapshot was found.",
+      `Existing snapshot: ${latestBridgeDir}`,
+      "Use --mode upgrade for mainnet once proxy metadata exists.",
+    ].join("\n"));
+  }
+}
+
+function assertCleanMainnetDeploymentWorktree() {
+  const status = git([
+    "status",
+    "--porcelain",
+    "--untracked-files=all",
+    "--",
+    ...MAINNET_DEPLOYMENT_RELEVANT_DIRTY_PATHS,
+  ]).stdout;
+  if (status.length === 0) {
+    return;
+  }
+  fail([
+    "Refusing mainnet deployment from a dirty deployment-relevant worktree.",
+    "Commit or discard these changes before deploying:",
+    status,
+  ].join("\n"));
+}
+
+function assertHeadOnRemoteMain() {
+  git(["fetch", "--prune", "origin", "main"]);
+  const head = git(["rev-parse", "HEAD"]).stdout;
+  const contained = git(["merge-base", "--is-ancestor", head, "origin/main"], { allowFailure: true });
+  if (!contained.ok) {
+    fail([
+      "Refusing mainnet deployment because local HEAD is not contained in origin/main.",
+      `HEAD: ${head}`,
+      "Push the exact deployment commit to remote main before deploying.",
+    ].join("\n"));
+  }
+  return head;
+}
+
+function readPreviousBridgeSourceCommit(latestBridgeDir, chainId) {
+  if (!latestBridgeDir) {
+    return null;
+  }
+  const latestBridgePath = path.join(latestBridgeDir, `bridge.${chainId}.json`);
+  const deployment = readJson(latestBridgePath);
+  const commit = deployment.sourceCode?.repository?.commit;
+  if (typeof commit !== "string" || commit.length === 0 || commit === "unknown") {
+    fail(`Latest bridge deployment metadata has no source commit: ${latestBridgePath}`);
+  }
+  return { commit, latestBridgePath };
+}
+
+function assertBridgeSolidityChangedSincePreviousDeployment(previousCommit, currentCommit, latestBridgePath) {
+  const previousExists = git(["cat-file", "-e", `${previousCommit}^{commit}`], { allowFailure: true });
+  if (!previousExists.ok) {
+    fail([
+      "Latest bridge deployment metadata references a source commit that cannot be resolved locally.",
+      `Metadata path: ${latestBridgePath}`,
+      `Previous commit: ${previousCommit}`,
+      "Fetch the missing commit or verify the deployment metadata before deploying.",
+    ].join("\n"));
+  }
+  const diff = git([
+    "diff",
+    "--name-only",
+    previousCommit,
+    currentCommit,
+    "--",
+    ...MAINNET_BRIDGE_SOLIDITY_DIFF_PATHS,
+  ]).stdout;
+  if (diff.length === 0) {
+    fail([
+      "Refusing mainnet bridge deployment because no bridge Solidity source changed since the latest deployment metadata.",
+      `Metadata path: ${latestBridgePath}`,
+      `Previous commit: ${previousCommit}`,
+      `Current commit: ${currentCommit}`,
+      "Do not deploy a new mainnet bridge implementation without a deployment-relevant Solidity change.",
+    ].join("\n"));
+  }
+  console.log([
+    "Mainnet bridge Solidity diff since latest deployment metadata:",
+    diff,
+  ].join("\n"));
+}
+
+function assertMainnetDeploymentSourceIntegrity({ deployMode, bridgeChainId, latestBridgeDir }) {
+  if (process.env.BRIDGE_NETWORK !== MAINNET_NETWORK_NAME) {
+    return;
+  }
+  assertMainnetProxyMode({ deployMode, latestBridgeDir });
+  assertCleanMainnetDeploymentWorktree();
+  const head = assertHeadOnRemoteMain();
+  const previous = readPreviousBridgeSourceCommit(latestBridgeDir, bridgeChainId);
+  if (previous) {
+    assertBridgeSolidityChangedSincePreviousDeployment(previous.commit, head, previous.latestBridgePath);
+  }
+  console.log(`Mainnet source integrity check passed for HEAD ${head}.`);
 }
 
 function parseArgs(argv) {
@@ -1188,6 +1327,7 @@ async function main() {
   const bridgeCanonicalDir = path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const bridgePendingDir = path.join(projectRoot, "deployment", ".pending", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const latestBridgeDir = latestCompleteBridgeDir(path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge"), bridgeChainId);
+  assertMainnetProxyMode({ deployMode, latestBridgeDir });
   const defaultBridgeInputPath = latestBridgeDir
     ? path.join(latestBridgeDir, `bridge.${bridgeChainId}.json`)
     : `./deployments/bridge.${bridgeChainId}.json`;
@@ -1239,6 +1379,8 @@ async function main() {
   } else {
     await refreshGroth16VerifierSolidity(process.env.BRIDGE_GROTH_SOURCE);
   }
+
+  assertMainnetDeploymentSourceIntegrity({ deployMode, bridgeChainId, latestBridgeDir });
 
   await writeBridgeZkManifest(bridgePendingZkManifestPath, process.env.BRIDGE_GROTH_SOURCE);
 

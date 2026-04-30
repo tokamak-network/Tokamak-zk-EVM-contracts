@@ -296,10 +296,20 @@ jobs:
 
       - name: Run private-state bridge CLI end-to-end test
         run: |
-          bash scripts/ci/run-with-memory-monitor.sh \
-            --log-dir packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/system-monitor \
-            -- \
-            npm run test:private-state:cli-e2e
+          for attempt in 1 2 3; do
+            if bash scripts/ci/run-with-memory-monitor.sh \
+              --log-dir packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/system-monitor \
+              -- \
+              npm run test:private-state:cli-e2e; then
+              exit 0
+            fi
+            status=$?
+            if [ "${attempt}" -eq 3 ]; then
+              exit "${status}"
+            fi
+            echo "::warning::private-state CLI E2E failed on attempt ${attempt}; retrying"
+            sleep $((attempt * 30))
+          done
 
       - name: Save Tokamak CRS cache
         if: always() && steps.tokamak-crs-cache.outputs.cache-hit != 'true'

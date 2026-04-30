@@ -64,13 +64,19 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
 
    Mainnet recommendation: accepted with explicit disclosure. Create mainnet channels only after verifier versions, Groth16 setup artifacts, `aPubUser` offsets, function selectors, and managed storage addresses have been independently checked against the exact DApp deployment, and make sure users see the immutable-policy warning before joining.
 
-4. Medium: private-state DApp contracts are intentionally non-upgradeable.
+4. Accepted design constraint: channel-bound private-state DApp implementations are intentionally fixed.
 
-   `PrivateStateController` and `L2AccountingVault` use immutable deployment-time wiring and expose no owner or admin upgrade path. This is consistent with the current DApp design, but it means any contract-level bug in the DApp instance registered to a mainnet channel cannot be patched in place.
+   Status: accepted immutable-channel/DApp-binding tradeoff. This follows the same policy rationale as Finding 3.
 
-   Upgradeability classification: a new DApp instance can be deployed and registered under a new or replacement DApp ID, and new channels can use that registration. Existing channels bound to the old contracts remain bound to the old contracts.
+   `PrivateStateController` and `L2AccountingVault` use immutable deployment-time wiring and expose no owner or admin upgrade path. In addition, once a channel is created against registered DApp metadata, the channel keeps the DApp implementation and execution metadata it captured at creation time. This is intentional: the DApp implementation is part of the channel operating policy that users accept when they join.
 
-   Mainnet recommendation: treat DApp deployment and registration as final for each channel generation. Do not register the DApp on mainnet until its exact deployed bytecode, callable ABI set, storage-layout manifest, and Synthesizer registration artifacts match the intended function set.
+   Design rationale: changing the DApp implementation for an active channel would change the channel's behavior after users already joined under the original rules. That would be a unilateral policy change unless every affected user explicitly consents. The current design therefore favors immutable channel/DApp binding over in-place patchability.
+
+   Tradeoff: a new DApp instance can be deployed and registered under a new or replacement DApp ID, and new channels can use that registration. Existing channels bound to the old DApp implementation remain bound to it. Contract-level bugs in the DApp instance used by an existing channel require channel migration or a new channel generation; they are not repaired by replacing the DApp implementation in place.
+
+   Mitigation: treat DApp deployment, registration, and channel creation as one final policy package for each channel generation. User-facing warnings added for Finding 3 also cover this point because they state that joining a channel accepts the channel's DApp metadata and fixed execution policy.
+
+   Mainnet recommendation: accepted with explicit disclosure. Do not register the DApp or create mainnet channels until the exact deployed bytecode, callable ABI set, storage-layout manifest, Synthesizer registration artifacts, and channel-captured DApp metadata match the intended function set.
 
 ## Other Security Checks
 
@@ -167,4 +173,4 @@ This means a forced redeployment would need an explicit operational reason; it i
 
 ## Deployment Decision
 
-Findings 1 and 2 have been resolved by the `isZeroBalance` on-chain exit guard and the mainnet deployment-script hard gates. Finding 3 is an accepted immutable-channel-policy tradeoff with CLI and README disclosure. Finding 4 remains a design constraint rather than an immediate code defect. Together, Findings 3 and 4 raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.
+Findings 1 and 2 have been resolved by the `isZeroBalance` on-chain exit guard and the mainnet deployment-script hard gates. Findings 3 and 4 are accepted immutable-policy tradeoffs with CLI and README disclosure. They raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.

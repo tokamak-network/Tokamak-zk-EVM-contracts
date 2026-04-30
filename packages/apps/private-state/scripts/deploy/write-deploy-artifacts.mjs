@@ -5,6 +5,10 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createTimestampLabel, dappArtifactPaths } from "../../../../../scripts/deployment/lib/deployment-layout.mjs";
+import {
+  buildSourceCodeMetadata,
+  PRIVATE_STATE_DAPP_SOURCE_PATHS,
+} from "../../../../../scripts/deployment/lib/source-code-metadata.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,6 +48,7 @@ writeJson(deploymentLatestPath, {
   generatedAtUtc: timestampUtc,
   chainId: Number(chainId),
   deployer,
+  sourceCode: buildSourceCodeMetadata(projectRoot, PRIVATE_STATE_DAPP_SOURCE_PATHS),
   contracts: {
     deploymentFactory,
     controller,

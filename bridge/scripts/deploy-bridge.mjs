@@ -26,6 +26,10 @@ import {
   assertLatestPublicGroth16MpcArchiveVersion,
 } from "../../packages/groth16/lib/public-drive-crs.mjs";
 import { createTimestampLabel } from "../../scripts/deployment/lib/deployment-layout.mjs";
+import {
+  BRIDGE_SOURCE_PATHS,
+  buildSourceCodeMetadata,
+} from "../../scripts/deployment/lib/source-code-metadata.mjs";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -1136,6 +1140,7 @@ function syncTokamakZkpArtifactsForBridge(chainId, snapshotDir) {
 function updateDeploymentAbiManifestPath(deploymentPath, canonicalAbiManifestPath) {
   const deployment = readJson(deploymentPath);
   deployment.abiManifestPath = path.basename(canonicalAbiManifestPath);
+  deployment.sourceCode = buildSourceCodeMetadata(projectRoot, BRIDGE_SOURCE_PATHS);
   writeJson(deploymentPath, deployment);
 }
 

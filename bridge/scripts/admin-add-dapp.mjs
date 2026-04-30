@@ -12,6 +12,10 @@ import {
   requireLatestBridgeArtifactDir,
   requireLatestDappArtifactDir,
 } from "../../scripts/deployment/lib/deployment-layout.mjs";
+import {
+  buildSourceCodeMetadata,
+  PRIVATE_STATE_DAPP_SOURCE_PATHS,
+} from "../../scripts/deployment/lib/source-code-metadata.mjs";
 import { APP_NETWORKS, deriveRpcUrl, resolveAppNetwork } from "@tokamak-private-dapps/common-library/network-config";
 import {
   buildTokamakCliInvocation,
@@ -947,6 +951,7 @@ async function writeDeploymentSnapshotWithBytecode({ provider, sourcePath, targe
   }
 
   deployment.deployedBytecode = deployedBytecode;
+  deployment.sourceCode = buildSourceCodeMetadata(repoRoot, PRIVATE_STATE_DAPP_SOURCE_PATHS);
   writeJson(targetPath, deployment);
 }
 

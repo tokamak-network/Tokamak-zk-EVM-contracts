@@ -2,7 +2,11 @@
 
 Date: 2026-04-30
 Reviewed commit: `d43fabaafa9a7ac67ebf22e1e2495e45bdc69bf8`
-Resolution update commit: `4c66d2e8f2998cd38ac394205f680dc7052c71a5`
+Resolution update commits:
+
+- `4c66d2e8f2998cd38ac394205f680dc7052c71a5`
+- `7547fd957c675676d4cf72854deb0bcdbe1cab0a`
+
 Scope: bridge contracts, private-state DApp contracts, deployment scripts, registration flow, CLI trust boundaries, and deployment metadata gates relevant to mainnet deployment.
 
 ## Findings
@@ -29,13 +33,19 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
 
 2. High: mainnet deployment safety policies are not enforced inside the deployment script.
 
+   Status: resolved in `7547fd957c675676d4cf72854deb0bcdbe1cab0a`.
+
    The deployment discipline requires that mainnet use `upgrade` mode once a proxy exists, that exact local `HEAD` already be present on remote `main`, and that deployment-relevant Solidity changes be compared against the previous deployment metadata. These rules currently live in operational instructions, not as hard checks in `bridge/scripts/deploy-bridge.mjs`.
 
    A mistaken `redeploy-proxy` on mainnet can create new root bridge addresses and split state from existing deployments. A deployment from a commit that is not on remote `main` can also produce metadata whose source links are not resolvable by users or auditors.
 
-   Upgradeability classification: script-level guards can be added before deployment. If a mainnet proxy redeployment has already happened and users or channels start using the wrong address set, normal UUPS upgrades cannot merge the two state histories.
+   Resolution details: `bridge/scripts/deploy-bridge.mjs` now runs mainnet-only hard gates before broadcasting. If local mainnet bridge deployment metadata already exists, `--mode redeploy-proxy` is rejected and the operator is directed to use `--mode upgrade`. The script also blocks mainnet deployment from a dirty deployment-relevant worktree, including bridge Solidity sources, generated verifier Solidity, bridge deployment scripts, deployment metadata helpers, artifact upload helpers, and Groth16 deployment helpers.
 
-   Mainnet recommendation: add script-enforced mainnet guards before deployment, including remote-main source integrity, dirty-worktree blocking for deployment-relevant files, previous-deployment Solidity diff checks, and a hard refusal of `redeploy-proxy` when mainnet proxy metadata exists.
+   The script fetches `origin/main` and requires the exact local `HEAD` commit to be contained in that remote branch before mainnet deployment can continue. When previous bridge deployment metadata exists, the script reads `.sourceCode.repository.commit`, verifies that commit is locally resolvable, and compares it to current `HEAD` over `bridge/src/**/*.sol`. If no bridge Solidity source changed, the script refuses to deploy a new mainnet bridge implementation.
+
+   Upgradeability classification: this issue was fixed at the deployment tooling layer before mainnet deployment. If a mainnet proxy redeployment had already happened and users or channels started using the wrong address set, normal UUPS upgrades would not merge the split state histories.
+
+   Mainnet recommendation: resolved for the bridge deployment entrypoint. Keep mainnet bridge deployment routed through `node bridge/scripts/deploy-bridge.mjs`; bypassing it with direct `forge script` commands would bypass these operational hard gates.
 
 3. High: deployed `ChannelManager` instances are not upgradeable and freeze verifier and DApp execution metadata at channel creation.
 
@@ -133,6 +143,8 @@ This means a forced redeployment would need an explicit operational reason; it i
 - `forge test --root bridge --match-path test/BridgeFlow.t.sol`
   - Passed 50 tests after the Finding 1 resolution.
   - Includes regression coverage for rejecting non-zero channel exit, restoring exit eligibility after a full withdraw, and updating `isZeroBalance` from the Tokamak observed `LiquidBalanceStorageWriteObserved` raw-log path.
+- `node --check bridge/scripts/deploy-bridge.mjs`
+  - Passed after the Finding 2 deployment-gate update.
 - `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/PrivateStateController.sol --contract PrivateStateController`
   - Passed mint and transfer functions before stopping on inline assembly in `redeemNotes1`.
 - `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/L2AccountingVault.sol --contract L2AccountingVault`
@@ -148,4 +160,4 @@ This means a forced redeployment would need an explicit operational reason; it i
 
 ## Deployment Decision
 
-Finding 1 has been resolved on-chain by the `isZeroBalance` registration flag and proof-backed observed-write updates. Mainnet deployment should still not proceed until the deployment scripts enforce the mainnet source-integrity and proxy-mode gates in Finding 2. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.
+Findings 1 and 2 have been resolved by the `isZeroBalance` on-chain exit guard and the mainnet deployment-script hard gates. Findings 3 and 4 are design constraints rather than immediate code defects, but they raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.

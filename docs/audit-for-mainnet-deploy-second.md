@@ -2,9 +2,10 @@
 
 Date: 2026-05-01
 Reviewed commit: `99bc73964040c818884014e9140a0696bb90aa0e`
+Gas-cost documentation updated through: `aacb524`
 Branch: `bridge-mainnet-audit-second`
 
-Scope: bridge contracts, private-state DApp contracts, DApp metadata and compatible-backend-version snapshot flow, deployment and DApp registration scripts, private-state CLI channel-creation trust boundary, and mainnet deployment readiness.
+Scope: bridge contracts, private-state DApp contracts, DApp metadata and compatible-backend-version snapshot flow, deployment and DApp registration scripts, private-state CLI channel-creation trust boundary, mainnet gas-cost documentation, and mainnet deployment readiness.
 
 This pass focuses on the bridge update that changed DApp artifact/metadata and compatible backend version management:
 
@@ -142,6 +143,19 @@ The private-state DApp has no owner role. The bridge root contracts remain owner
 
 The repository still has Synthesizer example inputs under `packages/apps/private-state/examples/synthesizer/privateState/`, but no per-function scripts under `packages/apps/private-state/scripts/synthesizer-compat-test`. Mainnet registration should rely on freshly regenerated artifacts for the exact deployed DApp contracts and exact backend versions, not on stale example outputs.
 
+### Mainnet Gas-Cost Documentation
+
+`bridge/docs/gas-prices.md` has been added as an operational mainnet-readiness document. It records measured gas usage for owner/operator calls and user calls, separates actual CLI E2E receipt measurements from Forge gas-report measurements, and converts measured gas usage to USD using ETH/USD 2,267.90.
+
+The call cost tables intentionally use the six-month historical `Typical effective gas price` baselines from the embedded Ethereum mainnet fee-history chart rather than the single timestamped MetaMask fee tiers:
+
+- `Typical effective gas price` Block p50: 0.106 gwei.
+- `Typical effective gas price` Block p90: 0.886 gwei.
+
+The historical distribution covers 1,295,600 Ethereum mainnet blocks from 2025-11-01 to 2026-05-01, using `eth_feeHistory` reward percentiles 10, 50, and 90. The SVG chart focuses both graphs on the 0-3 gwei display window. Raw RPC response chunks are stored as `bridge/docs/assets/ethereum-gas-fee-history-2025-11-01-to-2026-05-01.eth-fee-history.raw.jsonl.gz`, so the chart and summary can be reproduced from repository-local source data.
+
+This is not a protocol security issue, but it is relevant for launch readiness: users and operators can now see expected transaction costs under historical Block p50 and Block p90 typical-fee assumptions. The document should not be treated as a gas-price guarantee; it is a historical distribution and timestamped conversion snapshot.
+
 ## Verification Performed
 
 - `forge test --root bridge`
@@ -156,6 +170,11 @@ The repository still has Synthesizer example inputs under `packages/apps/private
   - Passed mint and transfer functions before stopping on inline assembly in `redeemNotes1`.
 - Local private-state CLI E2E was run against the same reviewed commit with a locally packed CLI tarball before this document was written.
   - Passed the full bridge/private-state flow, including deployment, DApp registration/update path, channel creation, join/deposit, mint, transfer, redeem, withdraw, exit, and bridge withdrawal.
+- `bridge/docs/gas-prices.md` was updated after the security review with measured call gas, historical Ethereum mainnet fee distribution, and USD conversions.
+  - Raw `eth_feeHistory` data was stored as gzip JSONL under `bridge/docs/assets`.
+  - `gzip -t bridge/docs/assets/ethereum-gas-fee-history-2025-11-01-to-2026-05-01.eth-fee-history.raw.jsonl.gz` passed.
+  - `xmllint --noout bridge/docs/assets/ethereum-gas-fee-distribution-2025-11-01-to-2026-05-01.svg` passed.
+  - `git diff --check` passed for the gas-price documentation updates.
 
 ## Deployment Decision
 
@@ -167,5 +186,7 @@ The reviewed Solidity and bridge tests pass, and no new critical protocol bug wa
 - Prove that no previous mainnet bridge proxy exists, or import/reconstruct mainnet metadata and use upgrade mode.
 - Merge/push the exact deployment commit to `origin/main`.
 - Confirm the bridge owner is the intended mainnet governance account.
+
+Gas-cost documentation is now available in `bridge/docs/gas-prices.md`; it improves operator/user cost visibility but does not close the open deployment blockers above.
 
 The most important non-upgradeable boundary is unchanged: once a channel is created, its verifier bindings, DApp metadata, compatible backend versions, storage vector, and function layout are final for that channel.

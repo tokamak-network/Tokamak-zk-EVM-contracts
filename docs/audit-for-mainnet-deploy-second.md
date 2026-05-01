@@ -49,17 +49,7 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
    UUPS upgradeability classification: prevention is implemented before mainnet. If a split deployment were still created outside this gate and used by users, UUPS could not merge the two proxy state histories.
 
-3. Medium: the reviewed commit is not contained in `origin/main`, so the current checkout is not deployment-ready under the repository's own mainnet source-integrity rule.
-
-   Status: open deployment blocker for this exact checkout.
-
-   `git merge-base --is-ancestor HEAD origin/main` returned non-zero for this branch. At the time of this update, the branch contains reviewed bridge and documentation commits after `origin/main` (`origin/main` at `ca5ed9d`). The mainnet deployment script requires the exact local `HEAD` to be contained in `origin/main` before it will continue.
-
-   Impact: source links in deployment metadata would not be stable for users and auditors if this exact commit were deployed before it is pushed/merged to remote main. The current deployment tooling should block this condition, so the immediate risk is operational rather than an on-chain bug.
-
-   UUPS upgradeability classification: not a UUPS issue. Fix by merging/pushing the exact deployment commit to `origin/main` before mainnet deployment.
-
-4. Medium: DApp metadata and verifier updates are immediate owner actions with no on-chain delay or second approval step.
+3. Medium: DApp metadata and verifier updates are immediate owner actions with no on-chain delay or second approval step.
 
    Status: accepted trust-boundary risk unless governance is strengthened before mainnet.
 
@@ -71,7 +61,7 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
    Required pre-mainnet action: deploy with `BRIDGE_OWNER` set to the intended mainnet governance account, preferably a multisig or timelock-controlled account. Treat any EOA owner as a launch blocker unless explicitly accepted. Publish the exact verifier and DApp metadata snapshot that governance intends to make available for first mainnet channels.
 
-5. Low: direct owner calls to `registerDApp` or `updateDAppMetadata` can still register structurally bad metadata that the admin script would normally filter out.
+4. Low: direct owner calls to `registerDApp` or `updateDAppMetadata` can still register structurally bad metadata that the admin script would normally filter out.
 
    Status: open defense-in-depth issue.
 
@@ -193,11 +183,10 @@ This is not a protocol security issue, but it is relevant for launch readiness: 
 
 Do not treat the current checkout as ready for mainnet broadcast yet.
 
-The reviewed Solidity and bridge tests pass, and no new critical protocol bug was found in the DAM/CBV snapshot implementation. Finding 1 is resolved by the DApp metadata digest preflight and `BridgeCore.createChannel(...)` digest check. Finding 2 is resolved by checking Google Drive deployment history before allowing mainnet `redeploy-proxy`. However, mainnet launch should wait until the remaining open deployment/tooling findings are closed or explicitly accepted:
+The reviewed Solidity and bridge tests pass, and no new critical protocol bug was found in the DAM/CBV snapshot implementation. Finding 1 is resolved by the DApp metadata digest preflight and `BridgeCore.createChannel(...)` digest check. Finding 2 is resolved by checking Google Drive deployment history before allowing mainnet `redeploy-proxy`. However, mainnet launch should wait until the remaining governance assumptions are closed or explicitly accepted:
 
-- Merge/push the exact deployment commit to `origin/main`.
 - Confirm the bridge owner is the intended mainnet governance account.
 
-Gas-cost documentation is now available in `bridge/docs/gas-prices.md`; it improves operator/user cost visibility but does not close the open deployment blockers above.
+Gas-cost documentation is now available in `bridge/docs/gas-prices.md`; it improves operator/user cost visibility but does not close the remaining launch conditions above.
 
 The most important non-upgradeable boundary is unchanged: once a channel is created, its verifier bindings, DApp metadata, compatible backend versions, storage vector, and function layout are final for that channel.

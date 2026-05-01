@@ -1,7 +1,7 @@
 # Mainnet Deployment Security Audit - Second Pass
 
 Date: 2026-05-01
-Reviewed commit: `99bc73964040c818884014e9140a0696bb90aa0e`
+Reviewed code through: `10e9278`
 Gas-cost documentation updated through: `aacb524`
 Branch: `bridge-mainnet-audit-second`
 
@@ -11,26 +11,29 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
 - `DAppManager.registerDApp(...)` stores immutable `dappId` and `labelHash`, stores replaceable DApp runtime metadata, and snapshots the current BridgeCore verifier addresses and compatible backend versions.
 - `DAppManager.updateDAppMetadata(...)` can replace storages/functions on mainnet for an existing `dappId`, while preserving `labelHash`, and snapshots the current BridgeCore verifier addresses and compatible backend versions again.
-- `BridgeCore.createChannel(...)` reads the DApp verifier snapshot from `DAppManager` and passes it into a newly deployed `ChannelManager`.
+- `DAppManager.registerDApp(...)` and `updateDAppMetadata(...)` compute a metadata digest over the immutable DApp identity, current runtime metadata roots, and verifier snapshot.
+- `BridgeCore.createChannel(...)` requires the caller to provide the expected DApp metadata digest, rejects stale or unexpected digests, reads the DApp verifier snapshot from `DAppManager`, and passes the captured snapshot into a newly deployed `ChannelManager`.
 - `ChannelManager` stores the verifier addresses and compatible backend version strings captured at channel creation. Existing channels do not follow later BridgeCore or DAppManager updates.
 
 ## Findings
 
-1. High: `create-channel` only verifies `labelHash` before committing to mutable DApp metadata that has become channel-immutable.
+1. High: `create-channel` only verified `labelHash` before committing to mutable DApp metadata that has become channel-immutable.
 
-   Status: open.
+   Status: resolved before mainnet.
 
    The new DApp policy intentionally allows `DAppManager.updateDAppMetadata(...)` on mainnet. That means a DApp ID can keep the same immutable `labelHash` while its storages, functions, preprocess hashes, observed-event layouts, verifier addresses, and compatible backend versions are replaced for future channels.
 
-   The private-state CLI's `create-channel` path resolves the DApp ID with `resolveDAppIdByLabel(...)`. That helper reads the local DApp registration manifest and checks only that the on-chain `DAppInfo` exists and that its `labelHash` matches `keccak256("private-state")`. It does not query and compare the full on-chain `DAppManager` metadata through `getManagedStorageAddresses`, `getRegisteredFunctions`, `getFunctionMetadata`, `getFunctionEventLogs`, and `getDAppVerifierSnapshot` before sending `BridgeCore.createChannel(...)`.
+   Original issue: the private-state CLI's `create-channel` path resolved the DApp ID with `resolveDAppIdByLabel(...)` and only checked that the on-chain `DAppInfo` existed and that its `labelHash` matched `keccak256("private-state")`. That was no longer enough once DApp metadata became replaceable for future channels.
 
-   This was less dangerous when DApp metadata was permanently fixed at registration. After this update, `labelHash` is no longer enough to prove that the DApp ID currently points at the same metadata bundle the local operator intends to freeze into a new channel.
+   Resolution: `DAppManager` now computes and stores `metadataDigest` with schema `DAPP_METADATA_DIGEST_SCHEMA` on both `registerDApp(...)` and `updateDAppMetadata(...)`. The digest commits to the DApp ID, immutable `labelHash`, channel-token-vault storage index, storage metadata root, function metadata root, and verifier snapshot hash. The function metadata root covers entry contracts, selectors, preprocess hashes, instance layout offsets, and event-log metadata. The verifier snapshot hash covers Groth16 verifier address/version and Tokamak verifier address/version.
 
-   Impact: an operator can create a mainnet channel against stale, unintended, or maliciously replaced DApp metadata while the label still matches. Once created, that `ChannelManager` has no upgrade path and keeps the captured metadata and verifier snapshot. A later `DAppManager.updateDAppMetadata(...)`, `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, or UUPS upgrade only affects future channels. The affected channel must be abandoned or migrated.
+   `BridgeCore.createChannel(...)` now takes `expectedDAppMetadataDigest` and reverts with `DAppMetadataDigestMismatch` if the current on-chain digest differs. The private-state CLI reads `registration.metadataDigest` and `registration.metadataDigestSchema` from the local DApp registration manifest, verifies that the on-chain `DAppInfo` has the same digest and schema, and passes that digest into `createChannel(...)`. This closes the stale-label channel-creation path for the normal CLI flow and for direct owner calls that use an independently reviewed expected digest.
 
-   UUPS upgradeability classification: not repairable in place for already-created channels. Future prevention is possible through CLI/script changes and possibly through UUPS changes to add stronger metadata attestation APIs, but a bad channel snapshot is intentionally immutable.
+   Impact after resolution: a DApp metadata update that preserves the same label cannot silently affect a channel creation that is using a stale manifest digest; the transaction fails before a channel is deployed. A bad channel snapshot remains non-repairable if an owner intentionally or negligently approves the wrong digest, but that is now an explicit operator/governance failure rather than an implicit label-only mismatch.
 
-   Required pre-mainnet action: before mainnet channel creation, add a hard preflight to the `create-channel` path that compares the on-chain DApp metadata and verifier snapshot against the exact local DApp registration manifest and installed backend versions. The comparison should fail before `createChannel` is sent if any storage address, function selector, preprocess hash, instance layout, event-log metadata, verifier address, or compatible backend version differs.
+   UUPS upgradeability classification: prevention is implemented before mainnet. If a channel is still created with an explicitly wrong but current digest, that individual channel remains intentionally immutable and cannot be repaired in place by a later UUPS upgrade.
+
+   Verification: `forge test --root bridge --match-test testChannelCreationRejectsStaleDAppMetadataDigest` passed. `node --check packages/apps/private-state/cli/private-state-bridge-cli.mjs` passed.
 
 2. High: missing local mainnet deployment metadata can still make `redeploy-proxy` unsafe if a mainnet proxy exists outside this checkout.
 
@@ -48,7 +51,7 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
    Status: open deployment blocker for this exact checkout.
 
-   `git merge-base --is-ancestor HEAD origin/main` returned non-zero for reviewed commit `99bc73964040c818884014e9140a0696bb90aa0e`. The mainnet deployment script requires the exact local `HEAD` to be contained in `origin/main` before it will continue.
+   `git merge-base --is-ancestor HEAD origin/main` returned non-zero for this branch. At the time of this update, the branch contains reviewed bridge and documentation commits after `origin/main` (`origin/main` at `ca5ed9d`). The mainnet deployment script requires the exact local `HEAD` to be contained in `origin/main` before it will continue.
 
    Impact: source links in deployment metadata would not be stable for users and auditors if this exact commit were deployed before it is pushed/merged to remote main. The current deployment tooling should block this condition, so the immediate risk is operational rather than an on-chain bug.
 
@@ -159,16 +162,20 @@ This is not a protocol security issue, but it is relevant for launch readiness: 
 ## Verification Performed
 
 - `forge test --root bridge`
-  - Passed 57 tests across BridgeFlow, Groth16Verifier, and TokamakVerifier.
+  - Passed 58 tests across BridgeFlow, Groth16Verifier, and TokamakVerifier.
 - `node --check bridge/scripts/deploy-bridge.mjs`
   - Passed syntax check.
 - `node --check bridge/scripts/admin-add-dapp.mjs`
   - Passed syntax check.
+- `node --check packages/apps/private-state/cli/private-state-bridge-cli.mjs`
+  - Passed syntax check after the `create-channel` metadata-digest preflight was added.
+- `forge test --root bridge --match-test testChannelCreationRejectsStaleDAppMetadataDigest`
+  - Passed the stale-DApp-metadata rejection test for `BridgeCore.createChannel(...)`.
 - `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/L2AccountingVault.sol --contract L2AccountingVault`
   - Passed `creditLiquidBalance` and `debitLiquidBalance`.
 - `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/PrivateStateController.sol --contract PrivateStateController`
   - Passed mint and transfer functions before stopping on inline assembly in `redeemNotes1`.
-- Local private-state CLI E2E was run against the same reviewed commit with a locally packed CLI tarball before this document was written.
+- Local private-state CLI E2E was run during this audit pass with a locally packed CLI tarball before the later gas-documentation updates.
   - Passed the full bridge/private-state flow, including deployment, DApp registration/update path, channel creation, join/deposit, mint, transfer, redeem, withdraw, exit, and bridge withdrawal.
 - `bridge/docs/gas-prices.md` was updated after the security review with measured call gas, historical Ethereum mainnet fee distribution, and USD conversions.
   - Raw `eth_feeHistory` data was stored as gzip JSONL under `bridge/docs/assets`.
@@ -180,9 +187,8 @@ This is not a protocol security issue, but it is relevant for launch readiness: 
 
 Do not treat the current checkout as ready for mainnet broadcast yet.
 
-The reviewed Solidity and bridge tests pass, and no new critical protocol bug was found in the DAM/CBV snapshot implementation. However, mainnet launch should wait until the open deployment/tooling findings are closed or explicitly accepted:
+The reviewed Solidity and bridge tests pass, and no new critical protocol bug was found in the DAM/CBV snapshot implementation. Finding 1 is resolved by the DApp metadata digest preflight and `BridgeCore.createChannel(...)` digest check. However, mainnet launch should wait until the remaining open deployment/tooling findings are closed or explicitly accepted:
 
-- Add a pre-`createChannel` DAM/CBV comparison in the CLI or an equivalent operational gate.
 - Prove that no previous mainnet bridge proxy exists, or import/reconstruct mainnet metadata and use upgrade mode.
 - Merge/push the exact deployment commit to `origin/main`.
 - Confirm the bridge owner is the intended mainnet governance account.

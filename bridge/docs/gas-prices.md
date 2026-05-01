@@ -36,7 +36,7 @@ The raw RPC response chunks used to generate the chart are stored at `assets/eth
 
 ## Owner And Operator Calls
 
-| Function | Caller role | Measured gas used | Measurement source | USD at MetaMask Low | USD at MetaMask Medium/High |
+| Function | Caller role | Measured gas used | Measurement source | USD at 0.234161612 gwei | USD at 2.232963096 gwei |
 |---|---|---:|---|---:|---:|
 | `DAppManager.bindBridgeCore` | Owner | 26,069 | Forge gas report | $0.014 | $0.132 |
 | `DAppManager.registerDApp` | Owner | 276,832-1,007,387 | Forge gas report | $0.147-$0.535 | $1.40-$5.10 |
@@ -52,7 +52,7 @@ The raw RPC response chunks used to generate the chart are stored at `assets/eth
 
 ## User Calls
 
-| Function | Caller role | Measured gas used | Measurement source | USD at MetaMask Low | USD at MetaMask Medium/High |
+| Function | Caller role | Measured gas used | Measurement source | USD at 0.234161612 gwei | USD at 2.232963096 gwei |
 |---|---|---:|---|---:|---:|
 | `L1TokenVault.fund` | User | 72,845-89,945 | CLI E2E receipt | $0.039-$0.048 | $0.369-$0.455 |
 | `L1TokenVault.joinChannel` | User | 323,678-326,490 | CLI E2E receipt | $0.172-$0.173 | $1.64-$1.65 |

@@ -20,7 +20,7 @@ The chart below summarizes Ethereum mainnet block-level fee history from 2025-11
 
 ![Ethereum mainnet gas fee distribution](assets/ethereum-gas-fee-distribution-2025-11-01-to-2026-05-01.svg)
 
-The historical data comes from Ethereum JSON-RPC `eth_feeHistory` with reward percentiles 10, 50, and 90. Effective fee is calculated as `block base fee + priority reward percentile`. This is a block-level historical fee distribution, not a historical MetaMask recommendation backfill.
+The historical data comes from Ethereum JSON-RPC `eth_feeHistory` with reward percentiles 10, 50, and 90. Effective fee is calculated as `block base fee + priority reward percentile`. This is a block-level historical fee distribution, not a historical MetaMask recommendation backfill. The chart's x-axis is focused on 0-3 gwei; that window contains 97.72% of p50-transaction blocks and 89.82% of p90-transaction blocks in the measured range.
 
 | Metric | p10 | p50 | p90 | p99 | Max |
 |---|---:|---:|---:|---:|---:|
@@ -29,6 +29,8 @@ The historical data comes from Ethereum JSON-RPC `eth_feeHistory` with reward pe
 | Effective fee, p90 transaction | 0.237 gwei | 1.425 gwei | 3.030 gwei | 21.873 gwei | 13,492.028 gwei |
 
 At the measurement timestamp above, MetaMask Medium and High both used a 2 gwei priority fee. Against the six-month `eth_feeHistory` distribution, that setting is above the median effective fee for p50 transactions, but it is still within the observed fast-inclusion band: the six-month p90 transaction effective fee has a median of 1.425 gwei and a p90 of 3.030 gwei.
+
+The raw RPC response chunks used to generate the chart are stored at `assets/ethereum-gas-fee-history-2025-11-01-to-2026-05-01.eth-fee-history.raw.jsonl.gz`. Each JSONL record stores the original `eth_feeHistory` request parameters and result payload; gas quantities remain in the original hex-encoded wei format returned by the RPC endpoint.
 
 ## Owner And Operator Calls
 
@@ -67,5 +69,5 @@ Supporting ERC-20 approvals are not bridge contract calls, but the CLI E2E measu
 | `packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/summary.json` | Actual local EOA transaction receipts for the private-state bridge CLI flow. |
 | `forge test --root bridge --gas-report` | Current-worktree function gas measurements for owner/operator functions that do not have CLI E2E receipts. |
 | MetaMask gas API, Ethereum mainnet network 1 | Timestamped low/medium/high fee inputs. |
-| Ethereum JSON-RPC `eth_feeHistory` | Six-month block-level base fee and priority reward percentile distribution for the embedded chart. |
+| Ethereum JSON-RPC `eth_feeHistory` | Six-month block-level base fee and priority reward percentile distribution for the embedded chart; raw chunk responses are stored under `bridge/docs/assets`. |
 | CoinGecko simple price API | Timestamped ETH/USD input. |

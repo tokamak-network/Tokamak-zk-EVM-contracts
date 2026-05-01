@@ -30,5 +30,14 @@
     "p99": 21.873285939430044,
     "p995": 40.1907155874773,
     "max": 13492.027541632
+  },
+  "rawRpcData": "assets/ethereum-gas-fee-history-2025-11-01-to-2026-05-01.eth-fee-history.raw.jsonl.gz",
+  "source": "https://eth-mainnet.public.blastapi.io",
+  "display": {
+    "xMinGwei": 0,
+    "xMaxGwei": 3,
+    "histogramBins": 60,
+    "p50BlocksWithinDisplayWindowPercent": 97.719667,
+    "p90BlocksWithinDisplayWindowPercent": 89.815993
   }
 }

@@ -22,6 +22,8 @@ The chart below summarizes Ethereum mainnet block-level fee history from 2025-11
 
 The historical data comes from Ethereum JSON-RPC `eth_feeHistory` with reward percentiles 10, 50, and 90. Effective fee is calculated as `block base fee + priority reward percentile`. This is a block-level historical fee distribution, not a historical MetaMask recommendation backfill. The chart's x-axis is focused on 0-3 gwei; that window contains 97.72% of p50-transaction blocks and 89.82% of p90-transaction blocks in the measured range.
 
+In the quantile table, `p10`, `p50`, `p90`, and `p99` mean the 10th, 50th, 90th, and 99th percentiles across the measured six-month block set. For example, `p50` is the median value, `p90` means 90% of measured blocks were at or below that value, and `p99` means 99% of measured blocks were at or below that value. These table percentiles summarize the six-month block distribution; they are separate from the `eth_feeHistory` reward percentiles used to estimate p50 and p90 transaction effective fees inside each block.
+
 | Metric | p10 | p50 | p90 | p99 | Max |
 |---|---:|---:|---:|---:|---:|
 | Base fee | 0.032 gwei | 0.080 gwei | 0.510 gwei | 3.445 gwei | 97.679 gwei |

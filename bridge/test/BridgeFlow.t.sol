@@ -83,6 +83,15 @@ contract BridgeFlowTest is Test {
         address appStorageAddr = address(0x1234);
         address secondaryVaultStorageAddr = address(0xF00E);
         dAppManager = _deployDAppManagerProxy(address(this));
+        grothVerifier = new Groth16Verifier(GROTH_COMPATIBLE_BACKEND_VERSION);
+        bridgeCore = _deployBridgeCoreProxy(
+            address(this),
+            adminManager,
+            dAppManager,
+            IGrothVerifier(address(grothVerifier)),
+            ITokamakVerifier(address(tokamakVerifier))
+        );
+        dAppManager.bindBridgeCore(address(bridgeCore));
         dAppManager.registerDApp(
             1,
             keccak256("private-app"),
@@ -96,14 +105,6 @@ contract BridgeFlowTest is Test {
             _singleVaultDAppFunction()
         );
 
-        grothVerifier = new Groth16Verifier(GROTH_COMPATIBLE_BACKEND_VERSION);
-        bridgeCore = _deployBridgeCoreProxy(
-            address(this),
-            adminManager,
-            dAppManager,
-            IGrothVerifier(address(grothVerifier)),
-            ITokamakVerifier(address(tokamakVerifier))
-        );
         channelId = _deriveChannelId(channelName);
         secondChannelId = _deriveChannelId(secondChannelName);
         bridgeTokenVault = _deployTokenVaultProxy(address(this), bridgeCore);
@@ -167,6 +168,13 @@ contract BridgeFlowTest is Test {
 
         assertTrue(dAppManager.isSupportedFunction(1, appContract, APP_SIG));
         assertEq(dAppManager.getChannelTokenVaultTreeIndex(1), 0);
+        assertEq(dAppManager.bridgeCore(), address(bridgeCore));
+
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot = dAppManager.getDAppVerifierSnapshot(1);
+        assertEq(verifierSnapshot.grothVerifier, address(grothVerifier));
+        assertEq(verifierSnapshot.grothVerifierCompatibleBackendVersion, GROTH_COMPATIBLE_BACKEND_VERSION);
+        assertEq(verifierSnapshot.tokamakVerifier, address(tokamakVerifier));
+        assertEq(verifierSnapshot.tokamakVerifierCompatibleBackendVersion, TOKAMAK_COMPATIBLE_BACKEND_VERSION);
 
         bytes32[] memory preAllocKeys = dAppManager.getPreAllocKeys(1, address(0xF00D));
         assertEq(preAllocKeys.length, 1);
@@ -177,6 +185,49 @@ contract BridgeFlowTest is Test {
         assertEq(userSlots[0], 0);
         assertTrue(dAppManager.isChannelTokenVaultStorageAddress(1, address(0xF00D)));
         assertFalse(dAppManager.isChannelTokenVaultStorageAddress(1, address(0x1234)));
+    }
+
+    function testOwnerCanUpdateDAppMetadataAndVerifierSnapshot() public {
+        Groth16Verifier updatedGrothVerifier = new Groth16Verifier("0.2");
+        TokamakVerifier updatedTokamakVerifier = new TokamakVerifier("2.1");
+
+        bridgeCore.setGrothVerifier(IGrothVerifier(address(updatedGrothVerifier)));
+        bridgeCore.setTokamakVerifier(ITokamakVerifier(address(updatedTokamakVerifier)));
+        dAppManager.updateDAppMetadata(1, _singleVaultStorageLayout(address(0xF11D)), _singleVaultDAppFunction());
+
+        DAppManager.DAppInfo memory info = dAppManager.getDAppInfo(1);
+        assertTrue(info.exists);
+        assertEq(info.labelHash, keccak256("private-app"));
+        assertEq(info.channelTokenVaultTreeIndex, 0);
+
+        address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(1);
+        assertEq(managedStorageAddresses.length, 1);
+        assertEq(managedStorageAddresses[0], address(0xF11D));
+        assertFalse(dAppManager.isSupportedFunction(1, appContract, APP_SIG));
+        assertTrue(dAppManager.isSupportedFunction(1, appContract2, APP_SIG_2));
+
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot = dAppManager.getDAppVerifierSnapshot(1);
+        assertEq(verifierSnapshot.grothVerifier, address(updatedGrothVerifier));
+        assertEq(verifierSnapshot.grothVerifierCompatibleBackendVersion, "0.2");
+        assertEq(verifierSnapshot.tokamakVerifier, address(updatedTokamakVerifier));
+        assertEq(verifierSnapshot.tokamakVerifierCompatibleBackendVersion, "2.1");
+
+        address[] memory existingChannelStorages = channelManager.getManagedStorageAddresses();
+        assertEq(existingChannelStorages.length, 2);
+        assertEq(existingChannelStorages[0], address(0xF00D));
+        assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
+        assertEq(address(channelManager.tokamakVerifier()), address(tokamakVerifier));
+
+        (address manager,) =
+            bridgeCore.createChannel(_deriveChannelId("updated-dapp-metadata"), 1, leader, DEFAULT_JOIN_FEE);
+        ChannelManager updatedChannelManager = ChannelManager(manager);
+        address[] memory updatedChannelStorages = updatedChannelManager.getManagedStorageAddresses();
+        assertEq(updatedChannelStorages.length, 1);
+        assertEq(updatedChannelStorages[0], address(0xF11D));
+        assertEq(address(updatedChannelManager.grothVerifier()), address(updatedGrothVerifier));
+        assertEq(updatedChannelManager.grothVerifierCompatibleBackendVersion(), "0.2");
+        assertEq(address(updatedChannelManager.tokamakVerifier()), address(updatedTokamakVerifier));
+        assertEq(updatedChannelManager.tokamakVerifierCompatibleBackendVersion(), "2.1");
     }
 
     function testOwnerCanDeleteUnboundDAppOnSepolia() public {
@@ -859,14 +910,25 @@ contract BridgeFlowTest is Test {
         assertTrue(accepted);
     }
 
-    function testNewChannelSnapshotsRotatedGrothVerifierDefault() public {
-        IGrothVerifier rotatedGrothVerifier = IGrothVerifier(address(0xBEEF));
-        bridgeCore.setGrothVerifier(rotatedGrothVerifier);
+    function testNewChannelKeepsRegisteredGrothVerifierUntilDAppMetadataUpdate() public {
+        Groth16Verifier rotatedGrothVerifier = new Groth16Verifier("0.2");
+        bridgeCore.setGrothVerifier(IGrothVerifier(address(rotatedGrothVerifier)));
 
         (address managerAddress,) = bridgeCore.createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE);
         ChannelManager secondManager = ChannelManager(managerAddress);
-        assertEq(address(secondManager.grothVerifier()), address(rotatedGrothVerifier));
+        assertEq(address(secondManager.grothVerifier()), address(grothVerifier));
         assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
+
+        dAppManager.updateDAppMetadata(
+            1,
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            _defaultDAppFunctions(defaultPreprocessInputHash)
+        );
+        (address updatedManagerAddress,) =
+            bridgeCore.createChannel(_deriveChannelId("groth-after-metadata-update"), 1, leader, DEFAULT_JOIN_FEE);
+        ChannelManager updatedManager = ChannelManager(updatedManagerAddress);
+        assertEq(address(updatedManager.grothVerifier()), address(rotatedGrothVerifier));
+        assertEq(updatedManager.grothVerifierCompatibleBackendVersion(), "0.2");
     }
 
     function testExistingChannelKeepsTokamakVerifierSnapshotAfterDefaultRotation() public {
@@ -890,15 +952,23 @@ contract BridgeFlowTest is Test {
         assertEq(localChannelManager.currentRootVectorHash(), _hashRootVector(updatedRoots));
     }
 
-    function testNewChannelSnapshotsRotatedTokamakVerifierDefault() public {
-        ITokamakVerifier rotatedTokamakVerifier = ITokamakVerifier(address(0xCAFE));
-        bridgeCore.setTokamakVerifier(rotatedTokamakVerifier);
+    function testNewChannelKeepsRegisteredTokamakVerifierUntilDAppMetadataUpdate() public {
+        dAppManager.registerDApp(
+            3,
+            keccak256("tokamak-before-metadata-update"),
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            _executionDAppFunctions()
+        );
+        TokamakVerifier rotatedTokamakVerifier = new TokamakVerifier("2.1");
+        bridgeCore.setTokamakVerifier(ITokamakVerifier(address(rotatedTokamakVerifier)));
         vm.mockCall(
-            address(rotatedTokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+            address(tokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
         );
 
-        ChannelManager localChannelManager = _createExecutionChannel(3, "tokamak-rotated-verifier");
-        assertEq(address(localChannelManager.tokamakVerifier()), address(rotatedTokamakVerifier));
+        (address manager,) =
+            bridgeCore.createChannel(_deriveChannelId("tokamak-before-metadata-update"), 3, leader, DEFAULT_JOIN_FEE);
+        ChannelManager localChannelManager = ChannelManager(manager);
+        assertEq(address(localChannelManager.tokamakVerifier()), address(tokamakVerifier));
         assertEq(address(channelManager.tokamakVerifier()), address(tokamakVerifier));
         bytes32[] memory currentRoots = _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT);
         bytes32[] memory updatedRoots = _rootVector(bytes32(uint256(555)), bytes32(uint256(777)));
@@ -908,6 +978,19 @@ contract BridgeFlowTest is Test {
         bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
         assertTrue(accepted);
         assertEq(localChannelManager.currentRootVectorHash(), _hashRootVector(updatedRoots));
+
+        dAppManager.updateDAppMetadata(
+            3, _defaultStorageLayouts(address(0xF00D), address(0x1234)), _executionDAppFunctions()
+        );
+        vm.mockCall(
+            address(rotatedTokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+        );
+
+        (address updatedManager,) =
+            bridgeCore.createChannel(_deriveChannelId("tokamak-after-metadata-update"), 3, leader, DEFAULT_JOIN_FEE);
+        ChannelManager updatedChannelManager = ChannelManager(updatedManager);
+        assertEq(address(updatedChannelManager.tokamakVerifier()), address(rotatedTokamakVerifier));
+        assertEq(updatedChannelManager.tokamakVerifierCompatibleBackendVersion(), "2.1");
     }
 
     function testRootProxyAddressesStayStableAcrossUpgrade() public {

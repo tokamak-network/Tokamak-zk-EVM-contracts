@@ -55,10 +55,8 @@ contract DeployBridgeStackScript is Script {
             address(adminManagerImplementation),
             abi.encodeCall(BridgeAdminManager.initialize, (owner, merkleTreeLevels))
         );
-        ERC1967Proxy dAppManagerProxy = new ERC1967Proxy(
-            address(dAppManagerImplementation),
-            abi.encodeCall(DAppManager.initialize, (deployer))
-        );
+        ERC1967Proxy dAppManagerProxy =
+            new ERC1967Proxy(address(dAppManagerImplementation), abi.encodeCall(DAppManager.initialize, (deployer)));
         ERC1967Proxy bridgeCoreProxy = new ERC1967Proxy(
             address(bridgeCoreImplementation),
             abi.encodeCall(
@@ -85,6 +83,7 @@ contract DeployBridgeStackScript is Script {
         );
 
         BridgeCore(address(bridgeCoreProxy)).bindBridgeTokenVault(address(bridgeTokenVaultProxy));
+        DAppManager(address(dAppManagerProxy)).bindBridgeCore(address(bridgeCoreProxy));
         if (owner != deployer) {
             DAppManager(address(dAppManagerProxy)).transferOwnership(owner);
             BridgeCore(address(bridgeCoreProxy)).transferOwnership(owner);
@@ -128,9 +127,7 @@ contract DeployBridgeStackScript is Script {
         vm.serializeUint(deploymentJson, "merkleTreeLevels", merkleTreeLevels);
         vm.serializeString(deploymentJson, "proxyKind", "uups");
         vm.serializeAddress(deploymentJson, "bridgeAdminManager", result.bridgeAdminManager);
-        vm.serializeAddress(
-            deploymentJson, "bridgeAdminManagerImplementation", result.bridgeAdminManagerImplementation
-        );
+        vm.serializeAddress(deploymentJson, "bridgeAdminManagerImplementation", result.bridgeAdminManagerImplementation);
         vm.serializeAddress(deploymentJson, "dAppManager", result.dAppManager);
         vm.serializeAddress(deploymentJson, "dAppManagerImplementation", result.dAppManagerImplementation);
         vm.serializeAddress(deploymentJson, "grothVerifier", result.grothVerifier);
@@ -148,9 +145,7 @@ contract DeployBridgeStackScript is Script {
         vm.serializeAddress(deploymentJson, "bridgeCore", result.bridgeCore);
         vm.serializeAddress(deploymentJson, "bridgeCoreImplementation", result.bridgeCoreImplementation);
         vm.serializeAddress(deploymentJson, "bridgeTokenVault", result.bridgeTokenVault);
-        vm.serializeAddress(
-            deploymentJson, "bridgeTokenVaultImplementation", result.bridgeTokenVaultImplementation
-        );
+        vm.serializeAddress(deploymentJson, "bridgeTokenVaultImplementation", result.bridgeTokenVaultImplementation);
         string memory finalJson = vm.serializeAddress(deploymentJson, "mockAsset", result.mockAsset);
         vm.writeJson(finalJson, outputPath);
     }

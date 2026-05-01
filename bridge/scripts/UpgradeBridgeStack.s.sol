@@ -68,6 +68,7 @@ contract UpgradeBridgeStackScript is Script {
         bridgeTokenVaultProxyContract.upgradeTo(address(bridgeTokenVaultImplementation));
         bridgeCoreProxyContract.setGrothVerifier(IGrothVerifier(address(grothVerifierImplementation)));
         bridgeCoreProxyContract.setTokamakVerifier(ITokamakVerifier(address(tokamakVerifierImplementation)));
+        dAppManagerProxyContract.bindBridgeCore(bridgeCoreProxy);
 
         address owner = bridgeCoreProxyContract.owner();
         address grothVerifier = address(bridgeCoreProxyContract.grothVerifier());

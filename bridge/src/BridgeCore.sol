@@ -65,13 +65,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     event GrothVerifierUpdated(address indexed grothVerifier);
     event TokamakVerifierUpdated(address indexed tokamakVerifier);
     event JoinFeeRefundScheduleUpdated(
-        uint64 cutoff1,
-        uint16 bps1,
-        uint64 cutoff2,
-        uint16 bps2,
-        uint64 cutoff3,
-        uint16 bps3,
-        uint16 bps4
+        uint64 cutoff1, uint16 bps1, uint64 cutoff2, uint16 bps2, uint64 cutoff3, uint16 bps3, uint16 bps4
     );
 
     constructor() {
@@ -163,6 +157,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         }
         uint256 channelTokenVaultTreeIndex = dAppManager.getChannelTokenVaultTreeIndex(dappId);
         BridgeStructs.FunctionReference[] memory registeredFunctions = dAppManager.getRegisteredFunctions(dappId);
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot = dAppManager.getDAppVerifierSnapshot(dappId);
 
         bytes32[] memory initialRootVector = new bytes32[](managedStorageAddresses.length);
         for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
@@ -178,8 +173,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             managedStorageAddresses,
             registeredFunctions,
             address(this),
-            grothVerifier,
-            tokamakVerifier,
+            verifierSnapshot,
             initialJoinFee,
             defaultJoinFeeRefundCutoff1,
             defaultJoinFeeRefundBps1,
@@ -256,9 +250,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint16 bps4
     ) private {
         if (
-            cutoff1 == 0 || cutoff1 >= cutoff2 || cutoff2 >= cutoff3 || bps1 > BPS_DENOMINATOR
-                || bps2 > BPS_DENOMINATOR || bps3 > BPS_DENOMINATOR || bps4 > BPS_DENOMINATOR || bps1 < bps2
-                || bps2 < bps3 || bps3 < bps4
+            cutoff1 == 0 || cutoff1 >= cutoff2 || cutoff2 >= cutoff3 || bps1 > BPS_DENOMINATOR || bps2 > BPS_DENOMINATOR
+                || bps3 > BPS_DENOMINATOR || bps4 > BPS_DENOMINATOR || bps1 < bps2 || bps2 < bps3 || bps3 < bps4
         ) {
             revert InvalidJoinFeeRefundSchedule();
         }

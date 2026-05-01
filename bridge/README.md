@@ -175,13 +175,15 @@ To add a new DApp metadata bundle to an already deployed bridge, use:
 - runs the installed `@tokamak-zk-evm/cli` runtime without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
 - derives function metadata from `instance.json` and `instance_description.json`
-- calls `DAppManager.registerDApp(...)` on the deployed bridge
+- calls `DAppManager.registerDApp(...)` for a new DApp ID, or `DAppManager.updateDAppMetadata(...)` with `--replace-existing`
 
 Current constraint:
 
 - `DAppManager.deleteDApp(...)` is available only on Sepolia
 - DApp deletion ignores active channel count, so channel managers can outlive their parent DApp registration
 - mainnet and every non-Sepolia network reject `deleteDApp(...)` outright
+- `DAppManager.updateDAppMetadata(...)` is available on mainnet, but keeps the existing `dappId` and `labelHash`
+- channels keep the DApp metadata and verifier snapshot that existed at channel creation time
 
 Example usage:
 

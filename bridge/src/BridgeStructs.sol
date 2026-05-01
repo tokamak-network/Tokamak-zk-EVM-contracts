@@ -45,6 +45,13 @@ library BridgeStructs {
         InstanceLayout instanceLayout;
     }
 
+    struct DAppVerifierSnapshot {
+        address grothVerifier;
+        string grothVerifierCompatibleBackendVersion;
+        address tokamakVerifier;
+        string tokamakVerifierCompatibleBackendVersion;
+    }
+
     struct GrothProof {
         uint256[4] pA;
         uint256[8] pB;

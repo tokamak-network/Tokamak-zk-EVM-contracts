@@ -68,6 +68,8 @@ contract ChannelManager {
     address public immutable bridgeCore;
     IGrothVerifier public immutable grothVerifier;
     ITokamakVerifier public immutable tokamakVerifier;
+    string private _grothVerifierCompatibleBackendVersion;
+    string private _tokamakVerifierCompatibleBackendVersion;
     uint64 public immutable joinFeeRefundCutoff1;
     uint64 public immutable joinFeeRefundCutoff2;
     uint64 public immutable joinFeeRefundCutoff3;
@@ -115,8 +117,7 @@ contract ChannelManager {
         address[] memory managedStorageAddresses_,
         BridgeStructs.FunctionReference[] memory allowedFunctions_,
         address bridgeCore_,
-        IGrothVerifier grothVerifier_,
-        ITokamakVerifier tokamakVerifier_,
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot_,
         uint256 initialJoinFee_,
         uint64 joinFeeRefundCutoff1_,
         uint16 joinFeeRefundBps1_,
@@ -132,8 +133,10 @@ contract ChannelManager {
         genesisBlockNumber = block.number;
         leader = leader_;
         bridgeCore = bridgeCore_;
-        grothVerifier = grothVerifier_;
-        tokamakVerifier = tokamakVerifier_;
+        grothVerifier = IGrothVerifier(verifierSnapshot_.grothVerifier);
+        tokamakVerifier = ITokamakVerifier(verifierSnapshot_.tokamakVerifier);
+        _grothVerifierCompatibleBackendVersion = verifierSnapshot_.grothVerifierCompatibleBackendVersion;
+        _tokamakVerifierCompatibleBackendVersion = verifierSnapshot_.tokamakVerifierCompatibleBackendVersion;
         if (
             joinFeeRefundCutoff1_ == 0 || joinFeeRefundCutoff1_ >= joinFeeRefundCutoff2_
                 || joinFeeRefundCutoff2_ >= joinFeeRefundCutoff3_ || joinFeeRefundBps1_ > BPS_DENOMINATOR
@@ -224,11 +227,11 @@ contract ChannelManager {
     }
 
     function grothVerifierCompatibleBackendVersion() external view returns (string memory) {
-        return grothVerifier.compatibleBackendVersion();
+        return _grothVerifierCompatibleBackendVersion;
     }
 
     function tokamakVerifierCompatibleBackendVersion() external view returns (string memory) {
-        return tokamakVerifier.compatibleBackendVersion();
+        return _tokamakVerifierCompatibleBackendVersion;
     }
 
     modifier onlyBridgeCore() {

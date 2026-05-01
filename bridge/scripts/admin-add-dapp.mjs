@@ -632,7 +632,7 @@ Options:
   --private-key <hex>               Broadcaster key; defaults from BRIDGE_DEPLOYER_PRIVATE_KEY
   --manifest-out <path>             Output manifest path; defaults to deployment/chain-id-<chain>/dapps/<dapp-name>/<timestamp>/dapp-registration.<chain-id>.json
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
-  --replace-existing                Delete an existing DApp ID before registering the new definition
+  --replace-existing                Update an existing DApp ID with a matching immutable labelHash
 
 Example groups are resolved relative to:
   <example-root>/<group>/<example-name>/
@@ -1138,27 +1138,58 @@ async function processDAppGroup(groupName, archiveRoot, appContext, dappLabel, e
   return { processed, skipped };
 }
 
-async function assertOrDeleteExistingDApp(dAppManager, dappId, replaceExisting) {
+function buildDAppManagerMetadata(dapp) {
+  return {
+    storages: dapp.storageMetadata.map((storage) => ({
+      storageAddr: storage.storageAddress,
+      preAllocatedKeys: storage.preAllocKeys,
+      userStorageSlots: storage.userSlots,
+      isChannelTokenVaultStorage: storage.isChannelTokenVaultStorage,
+    })),
+    functions: dapp.functions.map((fn) => ({
+      entryContract: fn.entryContract,
+      functionSig: fn.functionSig,
+      preprocessInputHash: fn.preprocessInputHash,
+      instanceLayout: {
+        entryContractOffsetWords: fn.entryContractOffsetWords,
+        functionSigOffsetWords: fn.functionSigOffsetWords,
+        currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
+        updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
+        eventLogs: fn.eventLogs,
+      },
+    })),
+  };
+}
+
+function normalizeBytes32(value) {
+  return ethers.hexlify(value).toLowerCase();
+}
+
+async function resolveDAppRegistrationMode(dAppManager, dappId, replaceExisting, labelHash) {
   try {
-    await dAppManager.getDAppInfo(dappId);
+    const info = await dAppManager.getDAppInfo(dappId);
     if (!replaceExisting) {
-      throw new Error(`DApp ${dappId} already exists. Modifying existing DApp metadata is not supported.`);
+      throw new Error(`DApp ${dappId} already exists. Pass --replace-existing to update its metadata.`);
     }
-    const tx = await dAppManager.deleteDApp(dappId);
-    const receipt = await tx.wait();
+    if (normalizeBytes32(info.labelHash) !== normalizeBytes32(labelHash)) {
+      throw new Error(
+        `DApp ${dappId} already exists with immutable labelHash ${info.labelHash}; ` +
+          `refusing to replace it with ${labelHash}. Use a new dappId for a different label.`,
+      );
+    }
     return {
-      deletedExistingRegistration: true,
-      deleteTxHash: tx.hash,
-      deleteBlockNumber: receipt?.blockNumber ?? null,
+      operation: "update",
+      existingRegistration: true,
+      previousLabelHash: info.labelHash,
     };
   } catch (error) {
     const revertName = error?.revert?.name ?? error?.info?.errorName ?? error?.errorName;
     const shortMessage = error?.shortMessage ?? error?.message ?? "";
     if (revertName === "UnknownDApp" || shortMessage.includes("UnknownDApp")) {
       return {
-        deletedExistingRegistration: false,
-        deleteTxHash: null,
-        deleteBlockNumber: null,
+        operation: "register",
+        existingRegistration: false,
+        previousLabelHash: null,
       };
     }
     if (String(error?.message ?? "").includes("already exists")) {
@@ -1278,34 +1309,18 @@ async function main() {
   const wallet = new Wallet(privateKey, provider);
   const dAppManager = new Contract(dAppManagerAddress, loadDAppManagerAbi(abiManifestPath), wallet);
 
-  const existingRegistration = await assertOrDeleteExistingDApp(
+  const metadata = buildDAppManagerMetadata(dapp);
+  const registrationMode = await resolveDAppRegistrationMode(
     dAppManager,
     options.dappId,
     options.replaceExisting,
+    dapp.labelHash,
   );
 
-  const tx = await dAppManager.registerDApp(
-    options.dappId,
-    dapp.labelHash,
-    dapp.storageMetadata.map((storage) => ({
-      storageAddr: storage.storageAddress,
-      preAllocatedKeys: storage.preAllocKeys,
-      userStorageSlots: storage.userSlots,
-      isChannelTokenVaultStorage: storage.isChannelTokenVaultStorage,
-    })),
-    dapp.functions.map((fn) => ({
-      entryContract: fn.entryContract,
-      functionSig: fn.functionSig,
-      preprocessInputHash: fn.preprocessInputHash,
-      instanceLayout: {
-        entryContractOffsetWords: fn.entryContractOffsetWords,
-        functionSigOffsetWords: fn.functionSigOffsetWords,
-        currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
-        updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
-        eventLogs: fn.eventLogs,
-      },
-    }))
-  );
+  const tx =
+    registrationMode.operation === "update"
+      ? await dAppManager.updateDAppMetadata(options.dappId, metadata.storages, metadata.functions)
+      : await dAppManager.registerDApp(options.dappId, dapp.labelHash, metadata.storages, metadata.functions);
   const receipt = await tx.wait();
   ensureDir(dappSnapshot.rootDir);
   await writeDeploymentSnapshotWithBytecode({
@@ -1346,11 +1361,15 @@ async function main() {
     })),
     skippedExamples: allSkipped,
     registration: {
+      operation: registrationMode.operation,
       txHash: tx.hash,
       blockNumber: receipt?.blockNumber ?? null,
-      deletedExistingRegistration: existingRegistration.deletedExistingRegistration,
-      deleteTxHash: existingRegistration.deleteTxHash,
-      deleteBlockNumber: existingRegistration.deleteBlockNumber,
+      existingRegistration: registrationMode.existingRegistration,
+      updatedExistingRegistration: registrationMode.operation === "update",
+      previousLabelHash: registrationMode.previousLabelHash,
+      deletedExistingRegistration: false,
+      deleteTxHash: null,
+      deleteBlockNumber: null,
       labelHash: dapp.labelHash,
       storageCount: dapp.storageMetadata.length,
       functionCount: dapp.functions.length,
@@ -1399,7 +1418,8 @@ async function main() {
   fs.renameSync(manifestPendingOut, manifestOut);
   console.log(`Using app deployment manifest: ${appDeploymentPath}`);
   console.log(`Using app storage layout manifest: ${storageLayoutPath}`);
-  console.log(`Registered DApp ${options.dappId} for groups ${options.groups.join(", ")} as ${dappLabel}.`);
+  const operationLabel = registrationMode.operation === "update" ? "Updated" : "Registered";
+  console.log(`${operationLabel} DApp ${options.dappId} for groups ${options.groups.join(", ")} as ${dappLabel}.`);
   console.log(`Wrote manifest: ${manifestOut}`);
 }
 

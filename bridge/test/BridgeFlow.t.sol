@@ -387,13 +387,13 @@ contract BridgeFlowTest is Test {
         assertEq(secondRegistration.leafIndex, 8);
     }
 
-    function testChannelReturnsRegisteredTokenVaultIdentityForUser() public {
+    function testChannelManagerReturnsRegisteredTokenVaultIdentityForUser() public {
         bytes32 key = bytes32(uint256(17));
 
         _joinChannel(channelId, alice, alice, key, 17);
 
         BridgeStructs.ChannelTokenVaultRegistration memory registration =
-            bridgeCore.getChannelTokenVaultRegistration(channelId, alice);
+            channelManager.getChannelTokenVaultRegistration(alice);
         assertTrue(registration.exists);
         assertEq(registration.l2Address, alice);
         assertEq(registration.channelTokenVaultKey, key);

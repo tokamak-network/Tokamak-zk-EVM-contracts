@@ -638,7 +638,7 @@ function rewriteVerifierG2Constants(source, points) {
       if (!name || !value) {
         fail(`Failed to parse generated constant line: ${line}`);
       }
-      const pattern = new RegExp(`uint256 internal constant ${name} = 0x[0-9a-f]+;`);
+      const pattern = new RegExp(`uint256\\s+internal\\s+constant\\s+${name}\\s*=\\s*0x[0-9a-f]+;`);
       if (!pattern.test(output)) {
         fail(`TokamakVerifier.sol is missing expected G2 constant ${name}`);
       }
@@ -649,19 +649,19 @@ function rewriteVerifierG2Constants(source, points) {
 }
 
 function rewriteVerifierSetupParams(source, setupParams) {
-  const lUserPattern = /uint256 internal constant EXPECTED_L_USER = \d+;/;
-  const lFreePattern = /uint256 internal constant EXPECTED_L_FREE = \d+;/;
-  const omegaLFreePattern = /uint256 internal constant OMEGA_L_FREE = 0x[0-9a-f]+;/;
-  const nPattern = /uint256 internal constant CONSTANT_N = \d+;/;
-  const miPattern = /uint256 internal constant CONSTANT_MI = \d+;/;
-  const omegaMiPattern = /uint256 internal constant OMEGA_MI_1 = 0x[0-9a-f]+;/;
-  const smaxPattern = /uint256 internal constant EXPECTED_SMAX = \d+;/;
-  const omegaPattern = /uint256 internal constant OMEGA_SMAX_MINUS_1 =\s*\n\s*0x[0-9a-f]+;/;
-  const denominatorSlotPattern = /uint256 internal constant COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT = 0x[0-9a-f]+;/;
-  const prefixSlotPattern = /uint256 internal constant COMPUTE_APUB_PREFIX_BUFFER_SLOT = 0x[0-9a-f]+;/;
-  const step4CgSlotPattern = /uint256 internal constant STEP4_COEFF_C_G_SLOT = 0x[0-9a-f]+;/;
-  const step4CfSlotPattern = /uint256 internal constant STEP4_COEFF_C_F_SLOT = 0x[0-9a-f]+;/;
-  const step4CbSlotPattern = /uint256 internal constant STEP4_COEFF_C_B_SLOT = 0x[0-9a-f]+;/;
+  const lUserPattern = /uint256\s+internal\s+constant\s+EXPECTED_L_USER\s*=\s*\d+;/;
+  const lFreePattern = /uint256\s+internal\s+constant\s+EXPECTED_L_FREE\s*=\s*\d+;/;
+  const omegaLFreePattern = /uint256\s+internal\s+constant\s+OMEGA_L_FREE\s*=\s*0x[0-9a-f]+;/;
+  const nPattern = /uint256\s+internal\s+constant\s+CONSTANT_N\s*=\s*\d+;/;
+  const miPattern = /uint256\s+internal\s+constant\s+CONSTANT_MI\s*=\s*\d+;/;
+  const omegaMiPattern = /uint256\s+internal\s+constant\s+OMEGA_MI_1\s*=\s*0x[0-9a-f]+;/;
+  const smaxPattern = /uint256\s+internal\s+constant\s+EXPECTED_SMAX\s*=\s*\d+;/;
+  const omegaPattern = /uint256\s+internal\s+constant\s+OMEGA_SMAX_MINUS_1\s*=\s*0x[0-9a-f]+;/;
+  const denominatorSlotPattern = /uint256\s+internal\s+constant\s+COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT\s*=\s*0x[0-9a-f]+;/;
+  const prefixSlotPattern = /uint256\s+internal\s+constant\s+COMPUTE_APUB_PREFIX_BUFFER_SLOT\s*=\s*0x[0-9a-f]+;/;
+  const step4CgSlotPattern = /uint256\s+internal\s+constant\s+STEP4_COEFF_C_G_SLOT\s*=\s*0x[0-9a-f]+;/;
+  const step4CfSlotPattern = /uint256\s+internal\s+constant\s+STEP4_COEFF_C_F_SLOT\s*=\s*0x[0-9a-f]+;/;
+  const step4CbSlotPattern = /uint256\s+internal\s+constant\s+STEP4_COEFF_C_B_SLOT\s*=\s*0x[0-9a-f]+;/;
   const patterns = [
     lUserPattern,
     lFreePattern,

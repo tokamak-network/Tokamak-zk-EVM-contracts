@@ -36,7 +36,7 @@
     "@google-cloud/local-auth": "^3.0.1",
     "@tokamak-private-dapps/common-library": "file:packages/common",
     "@tokamak-private-dapps/groth16": "file:packages/groth16",
-    "@tokamak-zk-evm/cli": "^2.0.14",
+    "@tokamak-zk-evm/cli": "^2.0.16",
     "@tokamak-zk-evm/subcircuit-library": "^1.0.3",
     "@tokamak-zk-evm/synthesizer-node": "^1.0.3",
     "dotenv": "^16.4.7",

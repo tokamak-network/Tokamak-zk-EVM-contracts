@@ -242,36 +242,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         return _channels[channelId].manager;
     }
 
-    function getChannelTokenVaultRegistration(uint256 channelId, address l1Address)
-        external
-        view
-        returns (BridgeStructs.ChannelTokenVaultRegistration memory)
-    {
-        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return
-            ChannelManager(_channels[channelId].manager).getChannelTokenVaultRegistration(l1Address);
-    }
-
-    function getChannelTokenVaultRegistrationByL2Address(uint256 channelId, address l2Address)
-        external
-        view
-        returns (BridgeStructs.ChannelTokenVaultRegistration memory)
-    {
-        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return ChannelManager(_channels[channelId].manager)
-            .getChannelTokenVaultRegistrationByL2Address(l2Address);
-    }
-
-    function getNoteReceivePubKeyByL2Address(uint256 channelId, address l2Address)
-        external
-        view
-        returns (BridgeStructs.NoteReceivePubKey memory)
-    {
-        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return
-            ChannelManager(_channels[channelId].manager).getNoteReceivePubKeyByL2Address(l2Address);
-    }
-
     function _authorizeUpgrade(address) internal override onlyOwner { }
 
     function _setJoinFeeRefundSchedule(

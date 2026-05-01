@@ -4,7 +4,7 @@ Date: 2026-05-02
 
 ## BridgeCore Contract Size
 
-### Current Problem
+### Original Problem
 
 The private-state CLI e2e run with `@tokamak-zk-evm/cli@2.0.16` exposed a deploy-blocking
 contract-size issue:
@@ -27,6 +27,42 @@ After that removal, `forge build --root bridge --sizes` reported:
 This is enough to deploy, but it is not a fundamental solution. A `911 byte` margin is too small for
 a mainnet-facing UUPS implementation that is still under active security hardening.
 
+### ChannelDeployer Split
+
+The root cause was addressed by splitting channel deployment mechanics out of `BridgeCore` into
+`ChannelDeployer`.
+
+`BridgeCore` still owns the channel-creation policy decision:
+
+- Channel ID uniqueness.
+- Bound bridge token vault requirement.
+- Non-zero leader.
+- Bridge Merkle tree configuration check.
+- Maximum managed storage count check.
+- Expected DApp metadata digest check.
+- Channel registry write.
+- `ChannelCreated` event emission.
+
+`ChannelDeployer` performs the deployment mechanics:
+
+- Loads managed storage addresses from `DAppManager`.
+- Loads registered function references from `DAppManager`.
+- Builds the zero-filled initial root vector.
+- Deploys `ChannelManager`.
+- Returns the deployed manager address to `BridgeCore`.
+
+`BridgeCore` then binds the channel token vault and records the channel deployment.
+
+Current size after the split:
+
+| Contract | Runtime Size | Runtime Margin |
+| --- | ---: | ---: |
+| `BridgeCore` | `8,822 bytes` | `15,754 bytes` |
+| `ChannelDeployer` | `16,062 bytes` | `8,514 bytes` |
+
+This leaves `BridgeCore` with enough bytecode margin for future UUPS hardening while preserving
+`BridgeCore` as the canonical policy and registry root.
+
 ### Why The Current Shape Is Fragile
 
 `BridgeCore` currently combines too many responsibilities:
@@ -44,11 +80,11 @@ Each additional defensive check, event, getter, metadata field, or policy snapsh
 implementation bytecode budget. The current emergency reduction removed view helpers, but the next
 mainnet-hardening change can push the implementation back over the limit.
 
-### Recommended Fundamental Fix
+### Recommended Follow-Up
 
-Before mainnet deployment, split `BridgeCore` into a thinner root coordinator and dedicated modules.
+The first split is complete. The remaining recommendation is to make the size budget explicit in CI.
 The target should be a `BridgeCore` implementation with at least `2 KB` to `3 KB` of runtime size
-margin after all planned mainnet checks are included.
+margin after all planned mainnet checks are included. The current margin is well above that target.
 
 Recommended structure:
 
@@ -58,12 +94,9 @@ Recommended structure:
    - Exposes `getChannel` and `getChannelManager`.
    - Authorizes upgrades.
 
-2. Move channel creation heavy logic out of `BridgeCore`.
-   - Introduce a `ChannelFactory` or `ChannelCreator` contract.
-   - It should validate DApp snapshots, copy channel policy data, deploy `ChannelManager`, bind the
-     bridge token vault, and return the resulting channel deployment data.
-   - `BridgeCore.createChannel` should become a thin owner-only wrapper that calls the factory and
-     stores the final registry record.
+2. Keep channel deployment mechanics outside `BridgeCore`.
+   - `ChannelDeployer` should remain an execution helper, not a policy owner.
+   - `BridgeCore.createChannel` should continue to make the final policy decision and registry write.
 
 3. Move mutable bridge policy/configuration into a dedicated manager when possible.
    - Verifier address management and join-fee refund schedule management are good candidates.

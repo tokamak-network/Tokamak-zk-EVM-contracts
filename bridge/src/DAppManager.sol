@@ -274,6 +274,11 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         }
     }
 
+    function getManagedStorageCount(uint256 dappId) external view returns (uint256) {
+        _requireDApp(dappId);
+        return _managedStorageAddresses[dappId].length;
+    }
+
     function getChannelTokenVaultTreeIndex(uint256 dappId) external view returns (uint256) {
         return _requireDApp(dappId).channelTokenVaultTreeIndex;
     }

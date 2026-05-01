@@ -9,6 +9,7 @@ import { BridgeStructs } from "./BridgeStructs.sol";
 import { BridgeAdminManager } from "./BridgeAdminManager.sol";
 import { DAppManager } from "./DAppManager.sol";
 import { ChannelManager } from "./ChannelManager.sol";
+import { ChannelDeployer } from "./ChannelDeployer.sol";
 import { TokamakEnvironment } from "./generated/TokamakEnvironment.sol";
 import { IGrothVerifier } from "./interfaces/IGrothVerifier.sol";
 import { ITokamakVerifier } from "./interfaces/ITokamakVerifier.sol";
@@ -30,6 +31,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
     error InvalidAdminManager();
     error InvalidDAppManager();
+    error InvalidChannelDeployer();
     error InvalidGrothVerifier();
     error InvalidTokamakVerifier();
     error InvalidBridgeTokenVault();
@@ -52,6 +54,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
     BridgeAdminManager public adminManager;
     DAppManager public dAppManager;
+    ChannelDeployer public channelDeployer;
     IGrothVerifier public grothVerifier;
     ITokamakVerifier public tokamakVerifier;
     address public bridgeTokenVault;
@@ -69,6 +72,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint256 indexed channelId, uint256 indexed dappId, address manager, address bridgeTokenVault
     );
     event BridgeTokenVaultBound(address indexed bridgeTokenVault);
+    event ChannelDeployerUpdated(address indexed channelDeployer);
     event GrothVerifierUpdated(address indexed grothVerifier);
     event TokamakVerifierUpdated(address indexed tokamakVerifier);
     event JoinFeeRefundScheduleUpdated(
@@ -89,6 +93,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         address initialOwner,
         BridgeAdminManager adminManager_,
         DAppManager dAppManager_,
+        ChannelDeployer channelDeployer_,
         IGrothVerifier grothVerifier_,
         ITokamakVerifier tokamakVerifier_
     ) external initializer {
@@ -96,6 +101,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             revert InvalidAdminManager();
         }
         if (address(dAppManager_) == address(0)) revert InvalidDAppManager();
+        if (address(channelDeployer_) == address(0) || address(channelDeployer_).code.length == 0) {
+            revert InvalidChannelDeployer();
+        }
         if (address(grothVerifier_) == address(0)) revert InvalidGrothVerifier();
         if (address(tokamakVerifier_) == address(0)) revert InvalidTokamakVerifier();
 
@@ -107,9 +115,18 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
         adminManager = adminManager_;
         dAppManager = dAppManager_;
+        channelDeployer = channelDeployer_;
         grothVerifier = grothVerifier_;
         tokamakVerifier = tokamakVerifier_;
         _setJoinFeeRefundSchedule(6 hours, 7_500, 24 hours, 5_000, 3 days, 2_500, 0);
+    }
+
+    function setChannelDeployer(ChannelDeployer channelDeployer_) external onlyOwner {
+        if (address(channelDeployer_) == address(0) || address(channelDeployer_).code.length == 0) {
+            revert InvalidChannelDeployer();
+        }
+        channelDeployer = channelDeployer_;
+        emit ChannelDeployerUpdated(address(channelDeployer_));
     }
 
     function setGrothVerifier(IGrothVerifier grothVerifier_) external onlyOwner {
@@ -170,9 +187,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
                 adminManager.nMerkleTreeLevels(), TokamakEnvironment.MT_DEPTH
             );
         }
-        address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(dappId);
-        if (managedStorageAddresses.length > MAX_MANAGED_STORAGES) {
-            revert TooManyManagedStorages(managedStorageAddresses.length, MAX_MANAGED_STORAGES);
+        uint256 managedStorageCount = dAppManager.getManagedStorageCount(dappId);
+        if (managedStorageCount > MAX_MANAGED_STORAGES) {
+            revert TooManyManagedStorages(managedStorageCount, MAX_MANAGED_STORAGES);
         }
         DAppManager.DAppInfo memory dAppInfo = dAppManager.getDAppInfo(dappId);
         if (dAppInfo.metadataDigest != expectedDAppMetadataDigest) {
@@ -181,24 +198,14 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             );
         }
         uint256 channelTokenVaultTreeIndex = dAppInfo.channelTokenVaultTreeIndex;
-        BridgeStructs.FunctionReference[] memory registeredFunctions =
-            dAppManager.getRegisteredFunctions(dappId);
         BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot =
             dAppManager.getDAppVerifierSnapshot(dappId);
 
-        bytes32[] memory initialRootVector = new bytes32[](managedStorageAddresses.length);
-        for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
-            initialRootVector[i] = TokamakEnvironment.ZERO_FILLED_TREE_ROOT;
-        }
-
-        ChannelManager channelManager = new ChannelManager(
+        address channelManagerAddress = channelDeployer.deployChannelManager(
             channelId,
             dappId,
             leader,
             channelTokenVaultTreeIndex,
-            initialRootVector,
-            managedStorageAddresses,
-            registeredFunctions,
             address(this),
             verifierSnapshot,
             dAppInfo.metadataDigestSchema,
@@ -211,8 +218,10 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             defaultJoinFeeRefundCutoff3,
             defaultJoinFeeRefundBps3,
             defaultJoinFeeRefundBps4,
-            dAppManager
+            dAppManager,
+            managedStorageCount
         );
+        ChannelManager channelManager = ChannelManager(channelManagerAddress);
 
         channelManager.bindBridgeTokenVault(bridgeTokenVault);
 

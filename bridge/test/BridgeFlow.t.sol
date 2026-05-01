@@ -10,6 +10,7 @@ import { BridgeStructs } from "../src/BridgeStructs.sol";
 import { BridgeAdminManager } from "../src/BridgeAdminManager.sol";
 import { DAppManager } from "../src/DAppManager.sol";
 import { BridgeCore } from "../src/BridgeCore.sol";
+import { ChannelDeployer } from "../src/ChannelDeployer.sol";
 import { ChannelManager } from "../src/ChannelManager.sol";
 import { L1TokenVault } from "../src/L1TokenVault.sol";
 import { TokamakEnvironment } from "../src/generated/TokamakEnvironment.sol";
@@ -50,6 +51,7 @@ contract BridgeFlowTest is Test {
 
     BridgeAdminManager internal adminManager;
     DAppManager internal dAppManager;
+    ChannelDeployer internal channelDeployer;
     BridgeCore internal bridgeCore;
     Groth16Verifier internal grothVerifier;
     TokamakVerifier internal tokamakVerifier;
@@ -84,11 +86,13 @@ contract BridgeFlowTest is Test {
         address appStorageAddr = address(0x1234);
         address secondaryVaultStorageAddr = address(0xF00E);
         dAppManager = _deployDAppManagerProxy(address(this));
+        channelDeployer = new ChannelDeployer();
         grothVerifier = new Groth16Verifier(GROTH_COMPATIBLE_BACKEND_VERSION);
         bridgeCore = _deployBridgeCoreProxy(
             address(this),
             adminManager,
             dAppManager,
+            channelDeployer,
             IGrothVerifier(address(grothVerifier)),
             ITokamakVerifier(address(tokamakVerifier))
         );
@@ -1312,12 +1316,14 @@ contract BridgeFlowTest is Test {
 
         BridgeAdminManager newAdminImplementation = new BridgeAdminManager();
         DAppManager newDAppImplementation = new DAppManager();
+        ChannelDeployer newChannelDeployer = new ChannelDeployer();
         BridgeCore newBridgeImplementation = new BridgeCore();
         L1TokenVault newTokenVaultImplementation = new L1TokenVault();
 
         adminManager.upgradeTo(address(newAdminImplementation));
         dAppManager.upgradeTo(address(newDAppImplementation));
         bridgeCore.upgradeTo(address(newBridgeImplementation));
+        bridgeCore.setChannelDeployer(newChannelDeployer);
         bridgeTokenVault.upgradeTo(address(newTokenVaultImplementation));
 
         assertEq(address(adminManager), adminProxyAddress);
@@ -1327,6 +1333,7 @@ contract BridgeFlowTest is Test {
         assertEq(adminManager.owner(), address(this));
         assertEq(dAppManager.owner(), address(this));
         assertEq(bridgeCore.owner(), address(this));
+        assertEq(address(bridgeCore.channelDeployer()), address(newChannelDeployer));
         assertEq(bridgeTokenVault.owner(), address(this));
 
         assertTrue(_implementationOf(adminProxyAddress) != previousAdminImplementation);
@@ -1627,6 +1634,7 @@ contract BridgeFlowTest is Test {
         address owner,
         BridgeAdminManager localAdminManager,
         DAppManager localDAppManager,
+        ChannelDeployer localChannelDeployer,
         IGrothVerifier localGrothVerifier,
         ITokamakVerifier localTokamakVerifier
     ) internal returns (BridgeCore) {
@@ -1639,6 +1647,7 @@ contract BridgeFlowTest is Test {
                     owner,
                     localAdminManager,
                     localDAppManager,
+                    localChannelDeployer,
                     localGrothVerifier,
                     localTokamakVerifier
                 )

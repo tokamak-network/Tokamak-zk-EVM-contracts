@@ -5,6 +5,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
+import {ChannelDeployer} from "../src/ChannelDeployer.sol";
 import {DAppManager} from "../src/DAppManager.sol";
 import {L1TokenVault} from "../src/L1TokenVault.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
@@ -25,6 +26,7 @@ contract DeployBridgeStackScript is Script {
         address dAppManagerImplementation;
         address grothVerifier;
         address tokamakVerifier;
+        address channelDeployer;
         address bridgeCore;
         address bridgeCoreImplementation;
         address bridgeTokenVault;
@@ -46,6 +48,7 @@ contract DeployBridgeStackScript is Script {
 
         BridgeAdminManager adminManagerImplementation = new BridgeAdminManager();
         DAppManager dAppManagerImplementation = new DAppManager();
+        ChannelDeployer channelDeployer = new ChannelDeployer();
         Groth16Verifier grothVerifier = new Groth16Verifier(grothCompatibleBackendVersion);
         TokamakVerifier tokamakVerifier = new TokamakVerifier(tokamakCompatibleBackendVersion);
         BridgeCore bridgeCoreImplementation = new BridgeCore();
@@ -65,6 +68,7 @@ contract DeployBridgeStackScript is Script {
                     deployer,
                     BridgeAdminManager(address(adminManagerProxy)),
                     DAppManager(address(dAppManagerProxy)),
+                    channelDeployer,
                     IGrothVerifier(address(grothVerifier)),
                     ITokamakVerifier(address(tokamakVerifier))
                 )
@@ -107,6 +111,7 @@ contract DeployBridgeStackScript is Script {
             dAppManagerImplementation: address(dAppManagerImplementation),
             grothVerifier: address(grothVerifier),
             tokamakVerifier: address(tokamakVerifier),
+            channelDeployer: address(channelDeployer),
             bridgeCore: address(bridgeCoreProxy),
             bridgeCoreImplementation: address(bridgeCoreImplementation),
             bridgeTokenVault: address(bridgeTokenVaultProxy),
@@ -142,6 +147,7 @@ contract DeployBridgeStackScript is Script {
             "tokamakVerifierCompatibleBackendVersion",
             TokamakVerifier(result.tokamakVerifier).compatibleBackendVersion()
         );
+        vm.serializeAddress(deploymentJson, "channelDeployer", result.channelDeployer);
         vm.serializeAddress(deploymentJson, "bridgeCore", result.bridgeCore);
         vm.serializeAddress(deploymentJson, "bridgeCoreImplementation", result.bridgeCoreImplementation);
         vm.serializeAddress(deploymentJson, "bridgeTokenVault", result.bridgeTokenVault);
@@ -169,6 +175,7 @@ contract DeployBridgeStackScript is Script {
             "TokamakVerifier compatible backend version:",
             TokamakVerifier(result.tokamakVerifier).compatibleBackendVersion()
         );
+        console2.log("ChannelDeployer:", result.channelDeployer);
         console2.log("BridgeCore proxy:", result.bridgeCore);
         console2.log("BridgeCore implementation:", result.bridgeCoreImplementation);
         console2.log("L1TokenVault proxy:", result.bridgeTokenVault);

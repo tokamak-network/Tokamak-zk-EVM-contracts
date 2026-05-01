@@ -14,6 +14,22 @@ MetaMask Ethereum mainnet gas inputs at the measurement timestamp:
 
 USD values use `gasUsed * effectiveGasPriceGwei * 1e-9 * ETH_USD`. The suggested max fee cap is a ceiling, not the amount necessarily charged after EIP-1559 base-fee refunding.
 
+## Six-Month Historical Distribution
+
+The chart below summarizes Ethereum mainnet block-level fee history from 2025-11-01 to 2026-05-01, generated at 2026-05-01T02:48:26Z. It covers blocks 23,701,606 through 24,997,205, for 1,295,600 blocks total.
+
+![Ethereum mainnet gas fee distribution](assets/ethereum-gas-fee-distribution-2025-11-01-to-2026-05-01.svg)
+
+The historical data comes from Ethereum JSON-RPC `eth_feeHistory` with reward percentiles 10, 50, and 90. Effective fee is calculated as `block base fee + priority reward percentile`. This is a block-level historical fee distribution, not a historical MetaMask recommendation backfill.
+
+| Metric | p10 | p50 | p90 | p99 | Max |
+|---|---:|---:|---:|---:|---:|
+| Base fee | 0.032 gwei | 0.080 gwei | 0.510 gwei | 3.445 gwei | 97.679 gwei |
+| Effective fee, p50 transaction | 0.035 gwei | 0.106 gwei | 0.886 gwei | 5.190 gwei | 13,492.028 gwei |
+| Effective fee, p90 transaction | 0.237 gwei | 1.425 gwei | 3.030 gwei | 21.873 gwei | 13,492.028 gwei |
+
+At the measurement timestamp above, MetaMask Medium and High both used a 2 gwei priority fee. Against the six-month `eth_feeHistory` distribution, that setting is above the median effective fee for p50 transactions, but it is still within the observed fast-inclusion band: the six-month p90 transaction effective fee has a median of 1.425 gwei and a p90 of 3.030 gwei.
+
 ## Owner And Operator Calls
 
 | Function | Caller role | Measured gas used | Measurement source | USD at MetaMask Low | USD at MetaMask Medium/High |
@@ -51,4 +67,5 @@ Supporting ERC-20 approvals are not bridge contract calls, but the CLI E2E measu
 | `packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/summary.json` | Actual local EOA transaction receipts for the private-state bridge CLI flow. |
 | `forge test --root bridge --gas-report` | Current-worktree function gas measurements for owner/operator functions that do not have CLI E2E receipts. |
 | MetaMask gas API, Ethereum mainnet network 1 | Timestamped low/medium/high fee inputs. |
+| Ethereum JSON-RPC `eth_feeHistory` | Six-month block-level base fee and priority reward percentile distribution for the embedded chart. |
 | CoinGecko simple price API | Timestamped ETH/USD input. |

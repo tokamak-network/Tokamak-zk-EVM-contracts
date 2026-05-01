@@ -51,15 +51,17 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
 3. Medium: DApp metadata and verifier updates are immediate owner actions with no on-chain delay or second approval step.
 
-   Status: accepted trust-boundary risk unless governance is strengthened before mainnet.
+   Status: accepted operational risk with CLI and documentation mitigation.
 
    `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, and `DAppManager.updateDAppMetadata(...)` are all owner-only and take effect for the next DApp metadata snapshot or next channel creation without an on-chain timelock, proposal delay, or two-party acceptance. This is consistent with the current UUPS owner trust model, but the new metadata update policy makes the owner path more operationally sensitive: an accidental or compromised owner action can create bad future channel snapshots while preserving the same DApp label.
 
    Existing channels remain protected from later policy mutation, which is the intended channel-consent model. The tradeoff is that every future channel created after a bad owner action can become permanently bound to the bad snapshot.
 
+   Operator decision: this risk is accepted as an operational governance risk for mainnet. The intended owner model is still a single operator-controlled key path, whether that key is held directly or behind a multisig. If a bad snapshot is published and a user creates or joins a channel before the mistake is noticed, the intended mitigation is public notice, deprecating the affected channel, publishing corrected DApp metadata or verifier bindings, and having users create or join a new channel. Users can always create a fresh channel with the corrected snapshot.
+
    UUPS upgradeability classification: partially upgradeable for future operations. Ownership can be transferred and UUPS implementations can add stronger governance, timelocks, or staged updates. They cannot repair channels already created with a bad snapshot.
 
-   Required pre-mainnet action: deploy with `BRIDGE_OWNER` set to the intended mainnet governance account, preferably a multisig or timelock-controlled account. Treat any EOA owner as a launch blocker unless explicitly accepted. Publish the exact verifier and DApp metadata snapshot that governance intends to make available for first mainnet channels.
+   Mitigation implemented before mainnet: the private-state CLI prints the DApp metadata digest, digest schema, Groth16 verifier address, Groth16 compatible backend version, Tokamak verifier address, and Tokamak compatible backend version before `create-channel` and before a first `join-channel` registration. The CLI and DApp protocol documentation now warn users and operators that signing means accepting that exact immutable channel policy. If any displayed value is unexpected or unreviewed, the user should not create or join the channel.
 
 4. Low: direct owner calls to `registerDApp` or `updateDAppMetadata` can still register structurally bad metadata that the admin script would normally filter out.
 

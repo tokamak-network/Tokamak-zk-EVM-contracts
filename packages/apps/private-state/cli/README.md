@@ -69,7 +69,12 @@ Channel policy warning:
   managed storage vector, and refund policy are fixed for that channel.
 - `join-channel` means the user accepts the channel's current policy. Later policy-level fixes require a new channel or
   migration; the existing channel is intentionally not mutated in place without renewed user consent.
-- The CLI prints this warning before sending a channel-creation transaction or a first channel-registration transaction.
+- Before sending a channel-creation transaction or a first channel-registration transaction, the CLI prints the policy
+  snapshot that will be accepted: DApp metadata digest, digest schema, Groth16 verifier address, Groth16 compatible
+  backend version, Tokamak verifier address, and Tokamak compatible backend version.
+- Users and operators must review this snapshot before signing. If any digest, schema, verifier address, or compatible
+  backend version is unexpected or has not been reviewed, do not create or join the channel. A later correction creates
+  a new channel; it does not rewrite the policy of an already-created channel.
 
 `private-state-cli --doctor` reports the CLI package version, dependency versions recorded by the last
 `private-state-cli --install`, selected proof backend runtime versions, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime

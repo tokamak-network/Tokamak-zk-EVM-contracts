@@ -101,6 +101,14 @@ When the bridge creates a channel, it:
 
 Existing channels do not automatically inherit later DApp metadata changes. Re-registration affects future channels and any logic that explicitly reloads metadata, not already-created channel-local caches.
 
+Before creating or joining a channel, the CLI prints the exact immutable policy snapshot that the user is about to
+accept: DApp metadata digest, digest schema, Groth16 verifier address and compatible backend version, and Tokamak
+verifier address and compatible backend version. This snapshot is the practical review boundary for channel consent.
+If the owner later discovers that a bad DApp metadata or verifier snapshot was used, the expected response is to
+announce the affected channel, stop using it, register corrected metadata or verifiers, and create a fresh channel.
+Users should not sign channel creation or first registration until the displayed snapshot matches the policy they intend
+to accept.
+
 ## 8. Proof Acceptance Path
 
 At runtime `ChannelManager.executeChannelTransaction(...)`:

@@ -20,17 +20,17 @@ The chart below summarizes Ethereum mainnet block-level fee history from 2025-11
 
 ![Ethereum mainnet gas fee distribution](assets/ethereum-gas-fee-distribution-2025-11-01-to-2026-05-01.svg)
 
-The historical data comes from Ethereum JSON-RPC `eth_feeHistory` with reward percentiles 10, 50, and 90. Effective fee is calculated as `block base fee + priority reward percentile`. This is a block-level historical fee distribution, not a historical MetaMask recommendation backfill. The chart's x-axis is focused on 0-3 gwei; that window contains 97.72% of p50-transaction blocks and 89.82% of p90-transaction blocks in the measured range.
+The historical data comes from Ethereum JSON-RPC `eth_feeHistory` with reward percentiles 10, 50, and 90. Effective fee is calculated as `block base fee + priority reward percentile`. This is a block-level historical fee distribution, not a historical MetaMask recommendation backfill. The chart's x-axis is focused on 0-3 gwei; that window contains 97.72% of the in-block p50 reward series and 89.82% of the in-block p90 reward series in the measured range.
 
-In the quantile table, `p10`, `p50`, `p90`, and `p99` mean the 10th, 50th, 90th, and 99th percentiles across the measured six-month block set. For example, `p50` is the median value, `p90` means 90% of measured blocks were at or below that value, and `p99` means 99% of measured blocks were at or below that value. These table percentiles summarize the six-month block distribution; they are separate from the `eth_feeHistory` reward percentiles used to estimate p50 and p90 transaction effective fees inside each block.
+The table has two separate dimensions. The columns are percentiles across the measured six-month block set: `Block p50` is the median block-level value, `Block p90` means 90% of measured blocks were at or below that value, and `Block p99` means 99% of measured blocks were at or below that value. The rows named `in-block p50 reward` and `in-block p90 reward` are different: they use the `eth_feeHistory` reward percentile inside each individual block before the six-month block distribution is summarized.
 
-| Metric | p10 | p50 | p90 | p99 | Max |
+| Metric | Block p10 | Block p50 | Block p90 | Block p99 | Max |
 |---|---:|---:|---:|---:|---:|
 | Base fee | 0.032 gwei | 0.080 gwei | 0.510 gwei | 3.445 gwei | 97.679 gwei |
-| Effective fee, p50 transaction | 0.035 gwei | 0.106 gwei | 0.886 gwei | 5.190 gwei | 13,492.028 gwei |
-| Effective fee, p90 transaction | 0.237 gwei | 1.425 gwei | 3.030 gwei | 21.873 gwei | 13,492.028 gwei |
+| Effective fee using in-block p50 reward | 0.035 gwei | 0.106 gwei | 0.886 gwei | 5.190 gwei | 13,492.028 gwei |
+| Effective fee using in-block p90 reward | 0.237 gwei | 1.425 gwei | 3.030 gwei | 21.873 gwei | 13,492.028 gwei |
 
-At the measurement timestamp above, MetaMask Medium and High both used a 2 gwei priority fee. Against the six-month `eth_feeHistory` distribution, that setting is above the median effective fee for p50 transactions, but it is still within the observed fast-inclusion band: the six-month p90 transaction effective fee has a median of 1.425 gwei and a p90 of 3.030 gwei.
+At the measurement timestamp above, MetaMask Medium and High both used a 2 gwei priority fee. Against the six-month `eth_feeHistory` distribution, that setting is above the median effective fee calculated with the in-block p50 reward, but it is still within the observed fast-inclusion band: the effective fee calculated with the in-block p90 reward has a six-month median of 1.425 gwei and a six-month Block p90 value of 3.030 gwei.
 
 The raw RPC response chunks used to generate the chart are stored at `assets/ethereum-gas-fee-history-2025-11-01-to-2026-05-01.eth-fee-history.raw.jsonl.gz`. Each JSONL record stores the original `eth_feeHistory` request parameters and result payload; gas quantities remain in the original hex-encoded wei format returned by the RPC endpoint.
 

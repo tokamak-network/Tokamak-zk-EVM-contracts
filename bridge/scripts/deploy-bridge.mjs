@@ -30,6 +30,13 @@ import {
   BRIDGE_SOURCE_PATHS,
   buildSourceCodeMetadata,
 } from "../../scripts/deployment/lib/source-code-metadata.mjs";
+import {
+  createDriveClient,
+  findChildFileMetadata,
+  findChildFolderId,
+  listChildFolders,
+  resolveDriveUploadConfigWithFolderId,
+} from "../../scripts/drive/lib/google-drive-upload.mjs";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -42,6 +49,7 @@ const initialDeployMode = process.env.BRIDGE_DEPLOY_MODE || "upgrade";
 const TOKAMAK_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const GROTH16_NPM_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const MAINNET_NETWORK_NAME = "mainnet";
+const MAINNET_DEPLOYMENT_DRIVE_FOLDER_ID = "12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ";
 const MAINNET_BRIDGE_SOLIDITY_DIFF_PATHS = [":(glob)bridge/src/**/*.sol"];
 const MAINNET_DEPLOYMENT_RELEVANT_DIRTY_PATHS = [
   ":(glob)bridge/src/**/*.sol",
@@ -237,17 +245,98 @@ function latestCompleteBridgeDir(rootDir, chainId) {
     .at(-1) ?? "";
 }
 
-function assertMainnetProxyMode({ deployMode, latestBridgeDir }) {
+function readOptionalEnvTrimmed(name) {
+  const value = process.env[name]?.trim();
+  return value && value.length > 0 ? value : null;
+}
+
+function resolveMainnetDeploymentDriveConfig() {
+  const folderId =
+    readOptionalEnvTrimmed("BRIDGE_DEPLOYMENT_DRIVE_FOLDER_ID")
+    ?? MAINNET_DEPLOYMENT_DRIVE_FOLDER_ID;
+  try {
+    return resolveDriveUploadConfigWithFolderId(folderId);
+  } catch (error) {
+    fail([
+      "Failed to configure Google Drive deployment history check for mainnet redeploy-proxy.",
+      error instanceof Error ? error.message : String(error),
+    ].join("\n"));
+  }
+}
+
+async function findDriveBridgeDeploymentSnapshots({ chainId }) {
+  const config = resolveMainnetDeploymentDriveConfig();
+  const drive = await createDriveClient(config);
+  const chainFolderName = `chain-id-${chainId}`;
+  const chainFolderId = await findChildFolderId(drive, config.folderId, chainFolderName);
+  if (!chainFolderId) {
+    return {
+      config,
+      snapshots: [],
+      checkedPath: chainFolderName,
+    };
+  }
+
+  const bridgeFolderId = await findChildFolderId(drive, chainFolderId, "bridge");
+  if (!bridgeFolderId) {
+    return {
+      config,
+      snapshots: [],
+      checkedPath: `${chainFolderName}/bridge`,
+    };
+  }
+
+  const timestampPattern = /^20\d{6}T\d{6}Z$/;
+  const timestampFolders = (await listChildFolders(drive, bridgeFolderId))
+    .filter((folder) => timestampPattern.test(folder.name ?? ""))
+    .sort((left, right) => String(left.name).localeCompare(String(right.name)));
+  const snapshots = [];
+  for (const folder of timestampFolders) {
+    const deploymentFile = await findChildFileMetadata(drive, folder.id, `bridge.${chainId}.json`);
+    if (deploymentFile) {
+      snapshots.push({
+        timestamp: folder.name,
+        folderId: folder.id,
+        folderUrl: folder.webViewLink ?? `https://drive.google.com/drive/folders/${folder.id}`,
+        deploymentFileId: deploymentFile.id,
+        deploymentFileUrl: deploymentFile.webViewLink ?? null,
+      });
+    }
+  }
+
+  return {
+    config,
+    snapshots,
+    checkedPath: `${chainFolderName}/bridge`,
+  };
+}
+
+async function assertMainnetProxyModeFromDrive({ deployMode, bridgeChainId }) {
   if (process.env.BRIDGE_NETWORK !== MAINNET_NETWORK_NAME || deployMode !== "redeploy-proxy") {
     return;
   }
-  if (latestBridgeDir) {
+
+  const { config, snapshots, checkedPath } = await findDriveBridgeDeploymentSnapshots({
+    chainId: bridgeChainId,
+  });
+  if (snapshots.length > 0) {
+    const latest = snapshots.at(-1);
     fail([
-      "Refusing mainnet redeploy-proxy because an existing bridge deployment snapshot was found.",
-      `Existing snapshot: ${latestBridgeDir}`,
+      "Refusing mainnet redeploy-proxy because an existing bridge deployment snapshot was found on Google Drive.",
+      `Drive root: ${config.folderUrl}`,
+      `Checked path: ${checkedPath}`,
+      `Latest snapshot: ${latest.timestamp}`,
+      `Snapshot folder: ${latest.folderUrl}`,
       "Use --mode upgrade for mainnet once proxy metadata exists.",
     ].join("\n"));
   }
+
+  console.log([
+    "Mainnet Google Drive deployment history check passed.",
+    `Drive root: ${config.folderUrl}`,
+    `Checked path: ${checkedPath}`,
+    "No existing bridge deployment snapshots were found.",
+  ].join("\n"));
 }
 
 function assertCleanMainnetDeploymentWorktree() {
@@ -332,7 +421,6 @@ function assertMainnetDeploymentSourceIntegrity({ deployMode, bridgeChainId, lat
   if (process.env.BRIDGE_NETWORK !== MAINNET_NETWORK_NAME) {
     return;
   }
-  assertMainnetProxyMode({ deployMode, latestBridgeDir });
   assertCleanMainnetDeploymentWorktree();
   const head = assertHeadOnRemoteMain();
   const previous = readPreviousBridgeSourceCommit(latestBridgeDir, bridgeChainId);
@@ -1327,7 +1415,11 @@ async function main() {
   const bridgeCanonicalDir = path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const bridgePendingDir = path.join(projectRoot, "deployment", ".pending", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const latestBridgeDir = latestCompleteBridgeDir(path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge"), bridgeChainId);
-  assertMainnetProxyMode({ deployMode, latestBridgeDir });
+  await assertMainnetProxyModeFromDrive({ deployMode, bridgeChainId });
+  const sourceIntegrityLatestBridgeDir =
+    process.env.BRIDGE_NETWORK === MAINNET_NETWORK_NAME && deployMode === "redeploy-proxy"
+      ? ""
+      : latestBridgeDir;
   const defaultBridgeInputPath = latestBridgeDir
     ? path.join(latestBridgeDir, `bridge.${bridgeChainId}.json`)
     : `./deployments/bridge.${bridgeChainId}.json`;
@@ -1380,7 +1472,11 @@ async function main() {
     await refreshGroth16VerifierSolidity(process.env.BRIDGE_GROTH_SOURCE);
   }
 
-  assertMainnetDeploymentSourceIntegrity({ deployMode, bridgeChainId, latestBridgeDir });
+  assertMainnetDeploymentSourceIntegrity({
+    deployMode,
+    bridgeChainId,
+    latestBridgeDir: sourceIntegrityLatestBridgeDir,
+  });
 
   await writeBridgeZkManifest(bridgePendingZkManifestPath, process.env.BRIDGE_GROTH_SOURCE);
 

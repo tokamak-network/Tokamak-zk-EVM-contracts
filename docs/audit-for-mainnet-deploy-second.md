@@ -35,17 +35,19 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
    Verification: `forge test --root bridge --match-test testChannelCreationRejectsStaleDAppMetadataDigest` passed. `node --check packages/apps/private-state/cli/private-state-bridge-cli.mjs` passed.
 
-2. High: missing local mainnet deployment metadata can still make `redeploy-proxy` unsafe if a mainnet proxy exists outside this checkout.
+2. High: missing local mainnet deployment metadata could make `redeploy-proxy` unsafe if a mainnet proxy exists outside this checkout.
 
-   Status: open operational blocker unless this is the first mainnet bridge deployment.
+   Status: resolved before mainnet by moving the `redeploy-proxy` existence check to Google Drive deployment history.
 
-   `bridge/scripts/deploy-bridge.mjs` rejects `redeploy-proxy` on mainnet only when a local `deployment/chain-id-1/bridge/<timestamp>/bridge.1.json` snapshot exists. This checkout currently has no local `deployment/chain-id-1` bridge metadata. Therefore the script cannot prove whether no bridge proxy exists on mainnet, or whether the local repository is missing historical mainnet metadata.
+   Original issue: `bridge/scripts/deploy-bridge.mjs` rejected `redeploy-proxy` on mainnet only when a local `deployment/chain-id-1/bridge/<timestamp>/bridge.1.json` snapshot existed. This checkout currently has no local `deployment/chain-id-1` bridge metadata, so local files alone could not prove whether no bridge proxy exists on mainnet or whether this checkout was missing historical mainnet metadata.
 
-   Impact: if any mainnet bridge proxy has already been deployed outside the local metadata set, a mistaken `redeploy-proxy` would create a second root bridge state. UUPS upgrades cannot merge two proxy state histories after users or channels begin using both address sets.
+   Resolution: mainnet `redeploy-proxy` now checks the Google Drive deployment-history folder before deployment. The configured default folder is `https://drive.google.com/drive/folders/12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ`, with `BRIDGE_DEPLOYMENT_DRIVE_FOLDER_ID` available as an explicit override. The bridge artifact upload script uses the same folder source. The deploy script looks for Drive snapshots under `chain-id-1/bridge/<timestamp>/bridge.1.json`. If any snapshot exists, it refuses `redeploy-proxy` and instructs the operator to use `--mode upgrade`. If the Drive path has no bridge snapshots, it treats that as the first mainnet bridge deployment. If the Drive lookup cannot be performed, the script fails rather than falling back to local metadata.
 
-   UUPS upgradeability classification: not repairable by UUPS after a split deployment is used. UUPS can upgrade one proxy's implementation, but it cannot merge state held in different proxy addresses or reconcile channels/users that interacted with different roots.
+   The user-provided current launch assumption is that mainnet has not been deployed yet, so the expected Drive state before first deployment is no `chain-id-1/bridge` bridge snapshot.
 
-   Required pre-mainnet action: before any mainnet broadcast, explicitly prove that this is the first mainnet bridge deployment, or reconstruct/import the existing mainnet deployment metadata and use `--mode upgrade`. Do not rely only on absence of local `deployment/chain-id-1` files.
+   Impact after resolution: the deployment script no longer treats absence of local `deployment/chain-id-1` files as proof of first deployment. A split root bridge state can still occur if an operator bypasses the script or uses the wrong Drive folder, but the repository mainnet deployment path now gates the dangerous mode on the shared remote deployment record.
+
+   UUPS upgradeability classification: prevention is implemented before mainnet. If a split deployment were still created outside this gate and used by users, UUPS could not merge the two proxy state histories.
 
 3. Medium: the reviewed commit is not contained in `origin/main`, so the current checkout is not deployment-ready under the repository's own mainnet source-integrity rule.
 
@@ -164,7 +166,11 @@ This is not a protocol security issue, but it is relevant for launch readiness: 
 - `forge test --root bridge`
   - Passed 58 tests across BridgeFlow, Groth16Verifier, and TokamakVerifier.
 - `node --check bridge/scripts/deploy-bridge.mjs`
-  - Passed syntax check.
+  - Passed syntax check after the mainnet Google Drive deployment-history check was added.
+- `node --check scripts/drive/lib/google-drive-upload.mjs`
+  - Passed syntax check after adding read-only Drive folder listing exports.
+- `node --check bridge/scripts/upload-bridge-artifacts.mjs`
+  - Passed syntax check after aligning bridge artifact upload with the bridge deployment Drive folder.
 - `node --check bridge/scripts/admin-add-dapp.mjs`
   - Passed syntax check.
 - `node --check packages/apps/private-state/cli/private-state-bridge-cli.mjs`
@@ -187,9 +193,8 @@ This is not a protocol security issue, but it is relevant for launch readiness: 
 
 Do not treat the current checkout as ready for mainnet broadcast yet.
 
-The reviewed Solidity and bridge tests pass, and no new critical protocol bug was found in the DAM/CBV snapshot implementation. Finding 1 is resolved by the DApp metadata digest preflight and `BridgeCore.createChannel(...)` digest check. However, mainnet launch should wait until the remaining open deployment/tooling findings are closed or explicitly accepted:
+The reviewed Solidity and bridge tests pass, and no new critical protocol bug was found in the DAM/CBV snapshot implementation. Finding 1 is resolved by the DApp metadata digest preflight and `BridgeCore.createChannel(...)` digest check. Finding 2 is resolved by checking Google Drive deployment history before allowing mainnet `redeploy-proxy`. However, mainnet launch should wait until the remaining open deployment/tooling findings are closed or explicitly accepted:
 
-- Prove that no previous mainnet bridge proxy exists, or import/reconstruct mainnet metadata and use upgrade mode.
 - Merge/push the exact deployment commit to `origin/main`.
 - Confirm the bridge owner is the intended mainnet governance account.
 

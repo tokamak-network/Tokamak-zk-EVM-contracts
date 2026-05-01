@@ -7,7 +7,7 @@ import {
   createDriveClient,
   createExclusiveFolderPath,
   preflightExclusiveFolderPath,
-  resolveDriveUploadConfig,
+  resolveDriveUploadConfigWithFolderId,
   updateBridgeArtifactIndex,
   uploadFilesByRelativePath,
   writeUploadReceipt,
@@ -22,6 +22,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
+const DEFAULT_BRIDGE_DEPLOYMENT_DRIVE_FOLDER_ID = "12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ";
 
 function usage() {
   console.error(
@@ -90,6 +91,13 @@ function shouldSkipUpload(chainId) {
   return process.env.BRIDGE_NETWORK === "anvil" || String(chainId) === "31337";
 }
 
+function resolveBridgeDriveUploadConfig() {
+  const folderId =
+    process.env.BRIDGE_DEPLOYMENT_DRIVE_FOLDER_ID?.trim()
+    || DEFAULT_BRIDGE_DEPLOYMENT_DRIVE_FOLDER_ID;
+  return resolveDriveUploadConfigWithFolderId(folderId);
+}
+
 function collectBridgeArtifactFiles({ chainId, deploymentPath, abiManifestPath }) {
   const explicitSnapshotDir = deploymentPath || abiManifestPath
     ? path.dirname(deploymentPath ?? abiManifestPath)
@@ -145,7 +153,7 @@ async function main() {
     return;
   }
 
-  const config = resolveDriveUploadConfig();
+  const config = resolveBridgeDriveUploadConfig();
   const drive = await createDriveClient(config);
   const timestamp = options.timestamp ?? createTimestampLabel();
   const targetSegments = [`chain-id-${chainId}`, "bridge"];

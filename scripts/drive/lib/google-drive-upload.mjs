@@ -27,6 +27,10 @@ function readOptionalEnv(name) {
 
 export function resolveDriveUploadConfig() {
   const folderId = readRequiredEnv("TOKAMAK_MPC_DRIVE_FOLDER_ID");
+  return resolveDriveUploadConfigWithFolderId(folderId);
+}
+
+export function resolveDriveUploadConfigWithFolderId(folderId) {
   const oauthClientJsonPath = path.resolve(readRequiredEnv("GOOGLE_DRIVE_OAUTH_CLIENT_JSON_PATH"));
   const configuredTokenPath = readOptionalEnv("GOOGLE_DRIVE_OAUTH_TOKEN_PATH");
   const oauthTokenPath = configuredTokenPath ? path.resolve(configuredTokenPath) : null;
@@ -171,7 +175,7 @@ function escapeDriveQueryValue(value) {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
-async function findChildFolderId(drive, parentId, name) {
+export async function findChildFolderId(drive, parentId, name) {
   const response = await drive.files.list({
     q: [
       `mimeType = '${DRIVE_FOLDER_MIME_TYPE}'`,
@@ -188,7 +192,7 @@ async function findChildFolderId(drive, parentId, name) {
   return response.data.files?.[0]?.id ?? null;
 }
 
-async function findChildFileMetadata(drive, parentId, name) {
+export async function findChildFileMetadata(drive, parentId, name) {
   const response = await drive.files.list({
     q: [
       `mimeType != '${DRIVE_FOLDER_MIME_TYPE}'`,
@@ -207,6 +211,28 @@ async function findChildFileMetadata(drive, parentId, name) {
     throw new Error(`Drive folder ${parentId} contains multiple files named ${name}.`);
   }
   return files[0] ?? null;
+}
+
+export async function listChildFolders(drive, parentId) {
+  const folders = [];
+  let pageToken;
+  do {
+    const response = await drive.files.list({
+      q: [
+        `mimeType = '${DRIVE_FOLDER_MIME_TYPE}'`,
+        `trashed = false`,
+        `'${parentId}' in parents`,
+      ].join(" and "),
+      fields: "nextPageToken, files(id, name, modifiedTime, webViewLink)",
+      pageSize: 100,
+      pageToken,
+      includeItemsFromAllDrives: true,
+      supportsAllDrives: true,
+    });
+    folders.push(...(response.data.files ?? []));
+    pageToken = response.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return folders;
 }
 
 async function createFolder(drive, parentId, name) {

@@ -1,24 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import {BridgeStructs} from "./BridgeStructs.sol";
-import {BridgeAdminManager} from "./BridgeAdminManager.sol";
-import {DAppManager} from "./DAppManager.sol";
-import {ChannelManager} from "./ChannelManager.sol";
-import {TokamakEnvironment} from "./generated/TokamakEnvironment.sol";
-import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
-import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
-import {IChannelRegistry} from "./interfaces/IChannelRegistry.sol";
+import { Initializable } from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
+import { BridgeStructs } from "./BridgeStructs.sol";
+import { BridgeAdminManager } from "./BridgeAdminManager.sol";
+import { DAppManager } from "./DAppManager.sol";
+import { ChannelManager } from "./ChannelManager.sol";
+import { TokamakEnvironment } from "./generated/TokamakEnvironment.sol";
+import { IGrothVerifier } from "./interfaces/IGrothVerifier.sol";
+import { ITokamakVerifier } from "./interfaces/ITokamakVerifier.sol";
+import { IChannelRegistry } from "./interfaces/IChannelRegistry.sol";
 
 contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChannelRegistry {
     uint256 internal constant MAX_MANAGED_STORAGES = 11;
     uint16 internal constant BPS_DENOMINATOR = 10_000;
-    address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET = 0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
-    address internal constant TOKAMAK_NETWORK_TOKEN_SEPOLIA = 0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
+    address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET =
+        0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
+    address internal constant TOKAMAK_NETWORK_TOKEN_SEPOLIA =
+        0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
 
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);
@@ -34,6 +36,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     error BridgeTokenVaultAlreadySet();
     error UnsupportedCanonicalAssetChain(uint256 chainId);
     error InvalidJoinFeeRefundSchedule();
+    error DAppMetadataDigestMismatch(uint256 dappId, bytes32 expectedDigest, bytes32 actualDigest);
 
     struct ChannelDeployment {
         bool exists;
@@ -43,6 +46,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         address manager;
         address bridgeTokenVault;
         bytes32 aPubBlockHash;
+        bytes32 dappMetadataDigestSchema;
+        bytes32 dappMetadataDigest;
     }
 
     BridgeAdminManager public adminManager;
@@ -60,12 +65,20 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
     mapping(uint256 => ChannelDeployment) private _channels;
 
-    event ChannelCreated(uint256 indexed channelId, uint256 indexed dappId, address manager, address bridgeTokenVault);
+    event ChannelCreated(
+        uint256 indexed channelId, uint256 indexed dappId, address manager, address bridgeTokenVault
+    );
     event BridgeTokenVaultBound(address indexed bridgeTokenVault);
     event GrothVerifierUpdated(address indexed grothVerifier);
     event TokamakVerifierUpdated(address indexed tokamakVerifier);
     event JoinFeeRefundScheduleUpdated(
-        uint64 cutoff1, uint16 bps1, uint64 cutoff2, uint16 bps2, uint64 cutoff3, uint16 bps3, uint16 bps4
+        uint64 cutoff1,
+        uint16 bps1,
+        uint64 cutoff2,
+        uint16 bps2,
+        uint64 cutoff3,
+        uint16 bps3,
+        uint16 bps4
     );
 
     constructor() {
@@ -79,7 +92,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         IGrothVerifier grothVerifier_,
         ITokamakVerifier tokamakVerifier_
     ) external initializer {
-        if (address(adminManager_) == address(0)) revert InvalidAdminManager();
+        if (address(adminManager_) == address(0)) {
+            revert InvalidAdminManager();
+        }
         if (address(dAppManager_) == address(0)) revert InvalidDAppManager();
         if (address(grothVerifier_) == address(0)) revert InvalidGrothVerifier();
         if (address(tokamakVerifier_) == address(0)) revert InvalidTokamakVerifier();
@@ -138,26 +153,38 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         revert UnsupportedCanonicalAssetChain(block.chainid);
     }
 
-    function createChannel(uint256 channelId, uint256 dappId, address leader, uint256 initialJoinFee)
-        external
-        onlyOwner
-        returns (address manager, address boundBridgeTokenVault)
-    {
+    function createChannel(
+        uint256 channelId,
+        uint256 dappId,
+        address leader,
+        uint256 initialJoinFee,
+        bytes32 expectedDAppMetadataDigest
+    ) external onlyOwner returns (address manager, address boundBridgeTokenVault) {
         IERC20 asset = IERC20(canonicalAsset());
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (bridgeTokenVault == address(0)) revert InvalidBridgeTokenVault();
         if (leader == address(0)) revert InvalidLeader();
         if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
         if (adminManager.nMerkleTreeLevels() != TokamakEnvironment.MT_DEPTH) {
-            revert UnsupportedMerkleTreeLevels(adminManager.nMerkleTreeLevels(), TokamakEnvironment.MT_DEPTH);
+            revert UnsupportedMerkleTreeLevels(
+                adminManager.nMerkleTreeLevels(), TokamakEnvironment.MT_DEPTH
+            );
         }
         address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(dappId);
         if (managedStorageAddresses.length > MAX_MANAGED_STORAGES) {
             revert TooManyManagedStorages(managedStorageAddresses.length, MAX_MANAGED_STORAGES);
         }
-        uint256 channelTokenVaultTreeIndex = dAppManager.getChannelTokenVaultTreeIndex(dappId);
-        BridgeStructs.FunctionReference[] memory registeredFunctions = dAppManager.getRegisteredFunctions(dappId);
-        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot = dAppManager.getDAppVerifierSnapshot(dappId);
+        DAppManager.DAppInfo memory dAppInfo = dAppManager.getDAppInfo(dappId);
+        if (dAppInfo.metadataDigest != expectedDAppMetadataDigest) {
+            revert DAppMetadataDigestMismatch(
+                dappId, expectedDAppMetadataDigest, dAppInfo.metadataDigest
+            );
+        }
+        uint256 channelTokenVaultTreeIndex = dAppInfo.channelTokenVaultTreeIndex;
+        BridgeStructs.FunctionReference[] memory registeredFunctions =
+            dAppManager.getRegisteredFunctions(dappId);
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot =
+            dAppManager.getDAppVerifierSnapshot(dappId);
 
         bytes32[] memory initialRootVector = new bytes32[](managedStorageAddresses.length);
         for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
@@ -174,6 +201,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             registeredFunctions,
             address(this),
             verifierSnapshot,
+            dAppInfo.metadataDigestSchema,
+            dAppInfo.metadataDigest,
             initialJoinFee,
             defaultJoinFeeRefundCutoff1,
             defaultJoinFeeRefundBps1,
@@ -195,7 +224,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             asset: address(asset),
             manager: address(channelManager),
             bridgeTokenVault: bridgeTokenVault,
-            aPubBlockHash: channelAPubBlockHash
+            aPubBlockHash: channelAPubBlockHash,
+            dappMetadataDigestSchema: dAppInfo.metadataDigestSchema,
+            dappMetadataDigest: dAppInfo.metadataDigest
         });
         emit ChannelCreated(channelId, dappId, address(channelManager), bridgeTokenVault);
         return (address(channelManager), bridgeTokenVault);
@@ -217,7 +248,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         returns (BridgeStructs.ChannelTokenVaultRegistration memory)
     {
         if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return ChannelManager(_channels[channelId].manager).getChannelTokenVaultRegistration(l1Address);
+        return
+            ChannelManager(_channels[channelId].manager).getChannelTokenVaultRegistration(l1Address);
     }
 
     function getChannelTokenVaultRegistrationByL2Address(uint256 channelId, address l2Address)
@@ -226,7 +258,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         returns (BridgeStructs.ChannelTokenVaultRegistration memory)
     {
         if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return ChannelManager(_channels[channelId].manager).getChannelTokenVaultRegistrationByL2Address(l2Address);
+        return ChannelManager(_channels[channelId].manager)
+            .getChannelTokenVaultRegistrationByL2Address(l2Address);
     }
 
     function getNoteReceivePubKeyByL2Address(uint256 channelId, address l2Address)
@@ -235,10 +268,11 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         returns (BridgeStructs.NoteReceivePubKey memory)
     {
         if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return ChannelManager(_channels[channelId].manager).getNoteReceivePubKeyByL2Address(l2Address);
+        return
+            ChannelManager(_channels[channelId].manager).getNoteReceivePubKeyByL2Address(l2Address);
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyOwner { }
 
     function _setJoinFeeRefundSchedule(
         uint64 cutoff1,
@@ -250,8 +284,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint16 bps4
     ) private {
         if (
-            cutoff1 == 0 || cutoff1 >= cutoff2 || cutoff2 >= cutoff3 || bps1 > BPS_DENOMINATOR || bps2 > BPS_DENOMINATOR
-                || bps3 > BPS_DENOMINATOR || bps4 > BPS_DENOMINATOR || bps1 < bps2 || bps2 < bps3 || bps3 < bps4
+            cutoff1 == 0 || cutoff1 >= cutoff2 || cutoff2 >= cutoff3 || bps1 > BPS_DENOMINATOR
+                || bps2 > BPS_DENOMINATOR || bps3 > BPS_DENOMINATOR || bps4 > BPS_DENOMINATOR
+                || bps1 < bps2 || bps2 < bps3 || bps3 < bps4
         ) {
             revert InvalidJoinFeeRefundSchedule();
         }

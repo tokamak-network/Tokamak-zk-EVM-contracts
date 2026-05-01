@@ -1322,6 +1322,7 @@ async function main() {
       ? await dAppManager.updateDAppMetadata(options.dappId, metadata.storages, metadata.functions)
       : await dAppManager.registerDApp(options.dappId, dapp.labelHash, metadata.storages, metadata.functions);
   const receipt = await tx.wait();
+  const registeredInfo = await dAppManager.getDAppInfo(options.dappId);
   ensureDir(dappSnapshot.rootDir);
   await writeDeploymentSnapshotWithBytecode({
     provider: appProvider,
@@ -1371,6 +1372,8 @@ async function main() {
       deleteTxHash: null,
       deleteBlockNumber: null,
       labelHash: dapp.labelHash,
+      metadataDigestSchema: registeredInfo.metadataDigestSchema,
+      metadataDigest: registeredInfo.metadataDigest,
       storageCount: dapp.storageMetadata.length,
       functionCount: dapp.functions.length,
     },

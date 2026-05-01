@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BridgeStructs} from "./BridgeStructs.sol";
-import {DAppManager} from "./DAppManager.sol";
-import {TokamakEnvironment} from "./generated/TokamakEnvironment.sol";
-import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
-import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
+import { BridgeStructs } from "./BridgeStructs.sol";
+import { DAppManager } from "./DAppManager.sol";
+import { TokamakEnvironment } from "./generated/TokamakEnvironment.sol";
+import { IGrothVerifier } from "./interfaces/IGrothVerifier.sol";
+import { ITokamakVerifier } from "./interfaces/ITokamakVerifier.sol";
 
 contract ChannelManager {
-    uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = TokamakEnvironment.TOKAMAK_APUB_BLOCK_LENGTH;
-    uint256 internal constant TOKAMAK_PREVIOUS_BLOCK_HASHES = TokamakEnvironment.TOKAMAK_PREVIOUS_BLOCK_HASHES;
+    uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH =
+        TokamakEnvironment.TOKAMAK_APUB_BLOCK_LENGTH;
+    uint256 internal constant TOKAMAK_PREVIOUS_BLOCK_HASHES =
+        TokamakEnvironment.TOKAMAK_PREVIOUS_BLOCK_HASHES;
     uint256 internal constant TOKEN_VAULT_MT_LEAF_COUNT = TokamakEnvironment.MAX_MT_LEAVES;
     uint256 internal constant SPLIT_WORD_SIZE = 2;
     uint16 internal constant BPS_DENOMINATOR = 10_000;
@@ -68,6 +70,8 @@ contract ChannelManager {
     address public immutable bridgeCore;
     IGrothVerifier public immutable grothVerifier;
     ITokamakVerifier public immutable tokamakVerifier;
+    bytes32 public immutable dappMetadataDigestSchema;
+    bytes32 public immutable dappMetadataDigest;
     string private _grothVerifierCompatibleBackendVersion;
     string private _tokamakVerifierCompatibleBackendVersion;
     uint64 public immutable joinFeeRefundCutoff1;
@@ -88,7 +92,8 @@ contract ChannelManager {
     mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
     mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
     mapping(bytes32 => CachedEventLog[]) private _functionEventLogs;
-    mapping(address => BridgeStructs.ChannelTokenVaultRegistration) private _channelTokenVaultRegistrations;
+    mapping(address => BridgeStructs.ChannelTokenVaultRegistration) private
+        _channelTokenVaultRegistrations;
     mapping(bytes32 => address) private _channelTokenVaultKeyOwners;
     mapping(uint256 => address) private _channelTokenVaultLeafOwners;
     mapping(address => address) private _channelTokenVaultL2AddressOwners;
@@ -118,6 +123,8 @@ contract ChannelManager {
         BridgeStructs.FunctionReference[] memory allowedFunctions_,
         address bridgeCore_,
         BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot_,
+        bytes32 dappMetadataDigestSchema_,
+        bytes32 dappMetadataDigest_,
         uint256 initialJoinFee_,
         uint64 joinFeeRefundCutoff1_,
         uint16 joinFeeRefundBps1_,
@@ -135,14 +142,20 @@ contract ChannelManager {
         bridgeCore = bridgeCore_;
         grothVerifier = IGrothVerifier(verifierSnapshot_.grothVerifier);
         tokamakVerifier = ITokamakVerifier(verifierSnapshot_.tokamakVerifier);
-        _grothVerifierCompatibleBackendVersion = verifierSnapshot_.grothVerifierCompatibleBackendVersion;
-        _tokamakVerifierCompatibleBackendVersion = verifierSnapshot_.tokamakVerifierCompatibleBackendVersion;
+        dappMetadataDigestSchema = dappMetadataDigestSchema_;
+        dappMetadataDigest = dappMetadataDigest_;
+        _grothVerifierCompatibleBackendVersion =
+        verifierSnapshot_.grothVerifierCompatibleBackendVersion;
+        _tokamakVerifierCompatibleBackendVersion =
+        verifierSnapshot_.tokamakVerifierCompatibleBackendVersion;
         if (
             joinFeeRefundCutoff1_ == 0 || joinFeeRefundCutoff1_ >= joinFeeRefundCutoff2_
-                || joinFeeRefundCutoff2_ >= joinFeeRefundCutoff3_ || joinFeeRefundBps1_ > BPS_DENOMINATOR
-                || joinFeeRefundBps2_ > BPS_DENOMINATOR || joinFeeRefundBps3_ > BPS_DENOMINATOR
-                || joinFeeRefundBps4_ > BPS_DENOMINATOR || joinFeeRefundBps1_ < joinFeeRefundBps2_
-                || joinFeeRefundBps2_ < joinFeeRefundBps3_ || joinFeeRefundBps3_ < joinFeeRefundBps4_
+                || joinFeeRefundCutoff2_ >= joinFeeRefundCutoff3_
+                || joinFeeRefundBps1_ > BPS_DENOMINATOR || joinFeeRefundBps2_ > BPS_DENOMINATOR
+                || joinFeeRefundBps3_ > BPS_DENOMINATOR || joinFeeRefundBps4_ > BPS_DENOMINATOR
+                || joinFeeRefundBps1_ < joinFeeRefundBps2_
+                || joinFeeRefundBps2_ < joinFeeRefundBps3_
+                || joinFeeRefundBps3_ < joinFeeRefundBps4_
         ) {
             revert InvalidJoinFeeRefundSchedule();
         }
@@ -204,8 +217,9 @@ contract ChannelManager {
         }
 
         for (uint256 i = 0; i < allowedFunctions_.length; i++) {
-            bytes32 functionKey =
-                _computeFunctionKey(allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig);
+            bytes32 functionKey = _computeFunctionKey(
+                allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig
+            );
             _allowedFunctionKeys[functionKey] = true;
             BridgeStructs.FunctionConfig memory functionConfig = dAppManager_.getFunctionMetadata(
                 dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig
@@ -219,7 +233,8 @@ contract ChannelManager {
             for (uint256 j = 0; j < eventLogs.length; j++) {
                 _functionEventLogs[functionKey].push(
                     CachedEventLog({
-                        startOffsetWords: eventLogs[j].startOffsetWords, topicCount: eventLogs[j].topicCount
+                        startOffsetWords: eventLogs[j].startOffsetWords,
+                        topicCount: eventLogs[j].topicCount
                     })
                 );
             }
@@ -328,8 +343,13 @@ contract ChannelManager {
         );
     }
 
-    function unregisterChannelTokenVaultIdentity(address l1Address) external onlyBridgeTokenVault returns (bool) {
-        BridgeStructs.ChannelTokenVaultRegistration memory registration = _channelTokenVaultRegistrations[l1Address];
+    function unregisterChannelTokenVaultIdentity(address l1Address)
+        external
+        onlyBridgeTokenVault
+        returns (bool)
+    {
+        BridgeStructs.ChannelTokenVaultRegistration memory registration =
+            _channelTokenVaultRegistrations[l1Address];
         if (!registration.exists) revert ChannelTokenVaultIdentityNotRegistered(l1Address);
         if (!registration.isZeroBalance) revert ChannelTokenVaultBalanceNotZero(l1Address);
 
@@ -342,8 +362,13 @@ contract ChannelManager {
         return true;
     }
 
-    function getExitFeeRefundQuote(address l1Address) external view returns (uint256 refundAmount, uint16 refundBps) {
-        BridgeStructs.ChannelTokenVaultRegistration memory registration = _channelTokenVaultRegistrations[l1Address];
+    function getExitFeeRefundQuote(address l1Address)
+        external
+        view
+        returns (uint256 refundAmount, uint16 refundBps)
+    {
+        BridgeStructs.ChannelTokenVaultRegistration memory registration =
+            _channelTokenVaultRegistrations[l1Address];
         if (!registration.exists) {
             return (0, 0);
         }
@@ -362,9 +387,13 @@ contract ChannelManager {
         refundAmount = (registration.joinFeePaid * refundBps) / BPS_DENOMINATOR;
     }
 
-    function executeChannelTransaction(BridgeStructs.TokamakProofPayload calldata payload) external returns (bool) {
-        bytes32 actualPreprocessInputHash =
-            keccak256(abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2));
+    function executeChannelTransaction(BridgeStructs.TokamakProofPayload calldata payload)
+        external
+        returns (bool)
+    {
+        bytes32 actualPreprocessInputHash = keccak256(
+            abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2)
+        );
         bytes32 functionKey = _functionKeyByPreprocessInputHash[actualPreprocessInputHash];
         if (!_allowedFunctionKeys[functionKey]) {
             revert UnsupportedChannelFunction(address(0), bytes4(0));
@@ -372,13 +401,15 @@ contract ChannelManager {
         BridgeStructs.FunctionConfig memory functionConfig = _functionConfigs[functionKey];
 
         uint256 rootVectorLength = _managedStorageAddresses.length;
-        uint256 requiredLength = functionConfig.updatedRootVectorOffsetWords + rootVectorLength * SPLIT_WORD_SIZE;
+        uint256 requiredLength =
+            functionConfig.updatedRootVectorOffsetWords + rootVectorLength * SPLIT_WORD_SIZE;
         uint256 currentRootVectorRequiredLength =
             functionConfig.currentRootVectorOffsetWords + rootVectorLength * SPLIT_WORD_SIZE;
         if (currentRootVectorRequiredLength > requiredLength) {
             requiredLength = currentRootVectorRequiredLength;
         }
-        uint256 entryContractRequiredLength = functionConfig.entryContractOffsetWords + SPLIT_WORD_SIZE;
+        uint256 entryContractRequiredLength =
+            functionConfig.entryContractOffsetWords + SPLIT_WORD_SIZE;
         if (entryContractRequiredLength > requiredLength) {
             requiredLength = entryContractRequiredLength;
         }
@@ -390,12 +421,14 @@ contract ChannelManager {
             revert APubUserTooShort(requiredLength, payload.aPubUser.length);
         }
 
-        uint256 entryContractValue = _decodeSplitWord(payload.aPubUser, functionConfig.entryContractOffsetWords);
+        uint256 entryContractValue =
+            _decodeSplitWord(payload.aPubUser, functionConfig.entryContractOffsetWords);
         if (entryContractValue > type(uint160).max) {
             revert EntryContractPublicInputOutOfRange(entryContractValue);
         }
         address entryContract = address(uint160(entryContractValue));
-        uint256 functionSigValue = _decodeSplitWord(payload.aPubUser, functionConfig.functionSigOffsetWords);
+        uint256 functionSigValue =
+            _decodeSplitWord(payload.aPubUser, functionConfig.functionSigOffsetWords);
         if (functionSigValue > type(uint32).max) {
             revert FunctionSigPublicInputOutOfRange(functionSigValue);
         }
@@ -406,7 +439,9 @@ contract ChannelManager {
 
         bytes32 expectedPreprocessInputHash = functionConfig.preprocessInputHash;
         if (actualPreprocessInputHash != expectedPreprocessInputHash) {
-            revert PreprocessInputHashMismatch(expectedPreprocessInputHash, actualPreprocessInputHash);
+            revert PreprocessInputHashMismatch(
+                expectedPreprocessInputHash, actualPreprocessInputHash
+            );
         }
         if (payload.aPubBlock.length != TOKAMAK_APUB_BLOCK_LENGTH) {
             revert APubBlockLengthMismatch(TOKAMAK_APUB_BLOCK_LENGTH, payload.aPubBlock.length);
@@ -416,13 +451,15 @@ contract ChannelManager {
             revert APubBlockHashMismatch(aPubBlockHash, actualAPubBlockHash);
         }
 
-        bytes32[] memory currentRootVector =
-            _decodeRootVectorFromAPubUser(payload.aPubUser, functionConfig.currentRootVectorOffsetWords);
+        bytes32[] memory currentRootVector = _decodeRootVectorFromAPubUser(
+            payload.aPubUser, functionConfig.currentRootVectorOffsetWords
+        );
         if (keccak256(abi.encode(currentRootVector)) != currentRootVectorHash) {
             revert UnexpectedCurrentRootVector();
         }
-        bytes32[] memory updatedRootVector =
-            _decodeRootVectorFromAPubUser(payload.aPubUser, functionConfig.updatedRootVectorOffsetWords);
+        bytes32[] memory updatedRootVector = _decodeRootVectorFromAPubUser(
+            payload.aPubUser, functionConfig.updatedRootVectorOffsetWords
+        );
 
         bool ok = tokamakVerifier.verify(
             payload.proofPart1,
@@ -441,11 +478,10 @@ contract ChannelManager {
         return true;
     }
 
-    function applyVaultUpdate(bytes32[] calldata currentRootVector, bytes32 updatedChannelTokenVaultRoot)
-        external
-        onlyBridgeTokenVault
-        returns (bool)
-    {
+    function applyVaultUpdate(
+        bytes32[] calldata currentRootVector,
+        bytes32 updatedChannelTokenVaultRoot
+    ) external onlyBridgeTokenVault returns (bool) {
         if (currentRootVector.length != _managedStorageAddresses.length) {
             revert APubUserTooShort(_managedStorageAddresses.length, currentRootVector.length);
         }
@@ -463,13 +499,15 @@ contract ChannelManager {
         return true;
     }
 
-    function observeChannelTokenVaultStorageWrite(address storageAddr, uint256 storageKey, uint256 value)
-        external
-        onlyBridgeTokenVault
-        returns (bool)
-    {
+    function observeChannelTokenVaultStorageWrite(
+        address storageAddr,
+        uint256 storageKey,
+        uint256 value
+    ) external onlyBridgeTokenVault returns (bool) {
         if (storageAddr != channelTokenVaultStorageAddress) {
-            revert UnexpectedChannelTokenVaultStorageAddress(channelTokenVaultStorageAddress, storageAddr);
+            revert UnexpectedChannelTokenVaultStorageAddress(
+                channelTokenVaultStorageAddress, storageAddr
+            );
         }
         _setChannelTokenVaultZeroBalanceByStorageKey(bytes32(storageKey), value == 0);
         return true;
@@ -504,7 +542,7 @@ contract ChannelManager {
                 leafIndex: 0,
                 joinFeePaid: 0,
                 joinedAt: 0,
-                noteReceivePubKey: BridgeStructs.NoteReceivePubKey({x: bytes32(0), yParity: 0}),
+                noteReceivePubKey: BridgeStructs.NoteReceivePubKey({ x: bytes32(0), yParity: 0 }),
                 isZeroBalance: false
             });
         }
@@ -518,27 +556,31 @@ contract ChannelManager {
     {
         address l1Address = _channelTokenVaultL2AddressOwners[l2Address];
         if (l1Address == address(0)) {
-            return BridgeStructs.NoteReceivePubKey({x: bytes32(0), yParity: 0});
+            return BridgeStructs.NoteReceivePubKey({ x: bytes32(0), yParity: 0 });
         }
         return _channelTokenVaultRegistrations[l1Address].noteReceivePubKey;
     }
 
-    function _decodeRootVectorFromAPubUser(uint256[] calldata aPubUser, uint256 rootVectorOffsetWords)
-        private
-        view
-        returns (bytes32[] memory rootVector)
-    {
+    function _decodeRootVectorFromAPubUser(
+        uint256[] calldata aPubUser,
+        uint256 rootVectorOffsetWords
+    ) private view returns (bytes32[] memory rootVector) {
         uint256 rootVectorLength = _managedStorageAddresses.length;
         rootVector = new bytes32[](rootVectorLength);
         for (uint256 i = 0; i < rootVectorLength;) {
-            rootVector[i] = bytes32(_decodeSplitWord(aPubUser, rootVectorOffsetWords + i * SPLIT_WORD_SIZE));
+            rootVector[i] =
+                bytes32(_decodeSplitWord(aPubUser, rootVectorOffsetWords + i * SPLIT_WORD_SIZE));
             unchecked {
                 ++i;
             }
         }
     }
 
-    function _decodeSplitWord(uint256[] calldata words, uint256 startIndex) private pure returns (uint256 combined) {
+    function _decodeSplitWord(uint256[] calldata words, uint256 startIndex)
+        private
+        pure
+        returns (uint256 combined)
+    {
         uint256 lower;
         uint256 upper;
         assembly ("memory-safe") {
@@ -555,7 +597,11 @@ contract ChannelManager {
         combined = lower | (upper << 128);
     }
 
-    function _computeFunctionKey(address entryContract, bytes4 functionSig) private pure returns (bytes32) {
+    function _computeFunctionKey(address entryContract, bytes4 functionSig)
+        private
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encode(entryContract, functionSig));
     }
 
@@ -587,13 +633,15 @@ contract ChannelManager {
 
             uint256[4] memory topics;
             for (uint256 topicIndex = 0; topicIndex < eventLog.topicCount; topicIndex++) {
-                topics[topicIndex] =
-                    _decodeSplitWord(aPubUser, uint256(eventLog.startOffsetWords) + topicIndex * SPLIT_WORD_SIZE);
+                topics[topicIndex] = _decodeSplitWord(
+                    aPubUser, uint256(eventLog.startOffsetWords) + topicIndex * SPLIT_WORD_SIZE
+                );
             }
 
             bytes memory logData = new bytes((dataWordLength / SPLIT_WORD_SIZE) * 32);
             for (uint256 wordIndex = 0; wordIndex < dataWordLength / SPLIT_WORD_SIZE; wordIndex++) {
-                uint256 value = _decodeSplitWord(aPubUser, dataStartOffset + wordIndex * SPLIT_WORD_SIZE);
+                uint256 value =
+                    _decodeSplitWord(aPubUser, dataStartOffset + wordIndex * SPLIT_WORD_SIZE);
                 assembly ("memory-safe") {
                     mstore(add(add(logData, 0x20), mul(wordIndex, 0x20)), value)
                 }
@@ -604,9 +652,11 @@ contract ChannelManager {
         }
     }
 
-    function _observeLiquidBalanceStorageWrite(uint8 topicCount, uint256[4] memory topics, bytes memory logData)
-        private
-    {
+    function _observeLiquidBalanceStorageWrite(
+        uint8 topicCount,
+        uint256[4] memory topics,
+        bytes memory logData
+    ) private {
         if (topicCount != 1 || bytes32(topics[0]) != LIQUID_BALANCE_STORAGE_WRITE_OBSERVED_TOPIC) {
             return;
         }
@@ -618,20 +668,25 @@ contract ChannelManager {
         _setChannelTokenVaultZeroBalanceByL2Address(l2Address, value == bytes32(0));
     }
 
-    function _setChannelTokenVaultZeroBalanceByStorageKey(bytes32 storageKey, bool isZeroBalance) private {
+    function _setChannelTokenVaultZeroBalanceByStorageKey(bytes32 storageKey, bool isZeroBalance)
+        private
+    {
         address l1Address = _channelTokenVaultKeyOwners[storageKey];
         if (l1Address == address(0)) revert ChannelTokenVaultKeyNotRegistered(storageKey);
         _setChannelTokenVaultZeroBalance(l1Address, isZeroBalance);
     }
 
-    function _setChannelTokenVaultZeroBalanceByL2Address(address l2Address, bool isZeroBalance) private {
+    function _setChannelTokenVaultZeroBalanceByL2Address(address l2Address, bool isZeroBalance)
+        private
+    {
         address l1Address = _channelTokenVaultL2AddressOwners[l2Address];
         if (l1Address == address(0)) revert ChannelTokenVaultL2AddressNotRegistered(l2Address);
         _setChannelTokenVaultZeroBalance(l1Address, isZeroBalance);
     }
 
     function _setChannelTokenVaultZeroBalance(address l1Address, bool isZeroBalance) private {
-        BridgeStructs.ChannelTokenVaultRegistration storage registration = _channelTokenVaultRegistrations[l1Address];
+        BridgeStructs.ChannelTokenVaultRegistration storage registration =
+            _channelTokenVaultRegistrations[l1Address];
         if (!registration.exists) revert ChannelTokenVaultIdentityNotRegistered(l1Address);
         if (registration.isZeroBalance == isZeroBalance) {
             return;
@@ -655,23 +710,29 @@ contract ChannelManager {
             }
         }
 
-        boundary =
-            _minObservedBoundary(boundary, functionConfig.updatedRootVectorOffsetWords, eventLog.startOffsetWords);
-        boundary = _minObservedBoundary(boundary, functionConfig.entryContractOffsetWords, eventLog.startOffsetWords);
-        boundary = _minObservedBoundary(boundary, functionConfig.functionSigOffsetWords, eventLog.startOffsetWords);
-        boundary =
-            _minObservedBoundary(boundary, functionConfig.currentRootVectorOffsetWords, eventLog.startOffsetWords);
+        boundary = _minObservedBoundary(
+            boundary, functionConfig.updatedRootVectorOffsetWords, eventLog.startOffsetWords
+        );
+        boundary = _minObservedBoundary(
+            boundary, functionConfig.entryContractOffsetWords, eventLog.startOffsetWords
+        );
+        boundary = _minObservedBoundary(
+            boundary, functionConfig.functionSigOffsetWords, eventLog.startOffsetWords
+        );
+        boundary = _minObservedBoundary(
+            boundary, functionConfig.currentRootVectorOffsetWords, eventLog.startOffsetWords
+        );
 
         if (boundary == type(uint256).max) {
             revert InvalidObservedEventBoundary(eventLog.startOffsetWords, boundary);
         }
     }
 
-    function _minObservedBoundary(uint256 currentBoundary, uint256 candidateBoundary, uint16 startOffsetWords)
-        private
-        pure
-        returns (uint256)
-    {
+    function _minObservedBoundary(
+        uint256 currentBoundary,
+        uint256 candidateBoundary,
+        uint16 startOffsetWords
+    ) private pure returns (uint256) {
         if (candidateBoundary > startOffsetWords && candidateBoundary < currentBoundary) {
             return candidateBoundary;
         }
@@ -686,7 +747,15 @@ contract ChannelManager {
             case 0 { log0(dataPtr, dataLength) }
             case 1 { log1(dataPtr, dataLength, mload(topics)) }
             case 2 { log2(dataPtr, dataLength, mload(topics), mload(add(topics, 0x20))) }
-            case 3 { log3(dataPtr, dataLength, mload(topics), mload(add(topics, 0x20)), mload(add(topics, 0x40))) }
+            case 3 {
+                log3(
+                    dataPtr,
+                    dataLength,
+                    mload(topics),
+                    mload(add(topics, 0x20)),
+                    mload(add(topics, 0x40))
+                )
+            }
             case 4 {
                 log4(
                     dataPtr,

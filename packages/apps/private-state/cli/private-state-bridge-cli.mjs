@@ -392,18 +392,20 @@ async function handleChannelCreate({ args, network, provider }) {
   const joinFeeInput = requireArg(args.joinFee, "--join-fee");
   const joinFee = parseTokenAmount(joinFeeInput, canonicalAssetDecimals);
   const channelId = deriveChannelIdFromName(channelName);
-  const dappId = await resolveDAppIdByLabel({
+  const dapp = await resolveDAppIdByLabel({
     provider,
     bridgeResources,
     dappLabel: PRIVATE_STATE_DAPP_LABEL,
   });
+  const dappId = dapp.dappId;
 
   printImmutableChannelPolicyWarning({
     action: "create-channel",
     channelName,
     channelId,
   });
-  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader, joinFee));
+  const receipt =
+    await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader, joinFee, dapp.metadataDigest));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
   const workspaceResult = await initializeChannelWorkspace({
@@ -420,6 +422,8 @@ async function handleChannelCreate({ args, network, provider }) {
     channelName,
     channelId: channelId.toString(),
     dappId,
+    dappMetadataDigest: dapp.metadataDigest,
+    dappMetadataDigestSchema: dapp.metadataDigestSchema,
     leader,
     joinFeeBaseUnits: joinFee.toString(),
     joinFeeTokens: ethers.formatUnits(joinFee, canonicalAssetDecimals),
@@ -447,9 +451,16 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
   const manifestLabel = typeof manifest.dappLabel === "string" ? manifest.dappLabel : null;
   const manifestDappId = manifest.dappId;
   const manifestManager = typeof manifest.dAppManager === "string" ? getAddress(manifest.dAppManager) : null;
+  const manifestMetadataDigest = normalizeBytes32Hex(manifest.registration?.metadataDigest);
+  const manifestMetadataDigestSchema = normalizeBytes32Hex(manifest.registration?.metadataDigestSchema);
 
   expect(manifestLabel === dappLabel, `DApp registration manifest label mismatch in ${manifestPath}.`);
   expect(Number.isInteger(manifestDappId), `DApp registration manifest is missing an integer dappId: ${manifestPath}.`);
+  expect(manifestMetadataDigest !== null, `DApp registration manifest is missing registration.metadataDigest: ${manifestPath}.`);
+  expect(
+    manifestMetadataDigestSchema !== null,
+    `DApp registration manifest is missing registration.metadataDigestSchema: ${manifestPath}.`,
+  );
   expect(
     manifestManager !== null
       && ethers.toBigInt(manifestManager) === ethers.toBigInt(getAddress(bridgeResources.bridgeDeployment.dAppManager)),
@@ -462,7 +473,21 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     ethers.toBigInt(normalizeBytes32Hex(info.labelHash)) === ethers.toBigInt(expectedLabelHash),
     `DApp id ${manifestDappId} from ${manifestPath} does not match label ${dappLabel} on-chain.`,
   );
-  return Number(manifestDappId);
+  const onchainMetadataDigest = normalizeBytes32Hex(info.metadataDigest);
+  const onchainMetadataDigestSchema = normalizeBytes32Hex(info.metadataDigestSchema);
+  expect(
+    ethers.toBigInt(onchainMetadataDigest) === ethers.toBigInt(manifestMetadataDigest),
+    `DApp id ${manifestDappId} metadata digest ${onchainMetadataDigest} does not match ${manifestMetadataDigest} from ${manifestPath}.`,
+  );
+  expect(
+    ethers.toBigInt(onchainMetadataDigestSchema) === ethers.toBigInt(manifestMetadataDigestSchema),
+    `DApp id ${manifestDappId} metadata digest schema ${onchainMetadataDigestSchema} does not match ${manifestMetadataDigestSchema} from ${manifestPath}.`,
+  );
+  return {
+    dappId: Number(manifestDappId),
+    metadataDigest: onchainMetadataDigest,
+    metadataDigestSchema: onchainMetadataDigestSchema,
+  };
 }
 
 async function handleWorkspaceInit({ args, network, provider }) {

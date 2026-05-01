@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {Vm} from "forge-std/Vm.sol";
-import {stdJson} from "forge-std/StdJson.sol";
-import {ERC1967Proxy} from "@openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
-import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import {BridgeStructs} from "../src/BridgeStructs.sol";
-import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
-import {DAppManager} from "../src/DAppManager.sol";
-import {BridgeCore} from "../src/BridgeCore.sol";
-import {ChannelManager} from "../src/ChannelManager.sol";
-import {L1TokenVault} from "../src/L1TokenVault.sol";
-import {TokamakEnvironment} from "../src/generated/TokamakEnvironment.sol";
-import {IChannelRegistry} from "../src/interfaces/IChannelRegistry.sol";
-import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
-import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
-import {MockERC20} from "../src/mocks/MockERC20.sol";
-import {FeeOnTransferMockERC20} from "../src/mocks/FeeOnTransferMockERC20.sol";
-import {DepositGrothProofFixture, WithdrawGrothProofFixture} from "./GrothProofFixtures.sol";
-import {Groth16Verifier} from "../src/generated/Groth16Verifier.sol";
-import {TokamakVerifier} from "../src/verifiers/TokamakVerifier.sol";
+import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { stdJson } from "forge-std/StdJson.sol";
+import { ERC1967Proxy } from "@openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
+import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
+import { BridgeStructs } from "../src/BridgeStructs.sol";
+import { BridgeAdminManager } from "../src/BridgeAdminManager.sol";
+import { DAppManager } from "../src/DAppManager.sol";
+import { BridgeCore } from "../src/BridgeCore.sol";
+import { ChannelManager } from "../src/ChannelManager.sol";
+import { L1TokenVault } from "../src/L1TokenVault.sol";
+import { TokamakEnvironment } from "../src/generated/TokamakEnvironment.sol";
+import { IChannelRegistry } from "../src/interfaces/IChannelRegistry.sol";
+import { IGrothVerifier } from "../src/interfaces/IGrothVerifier.sol";
+import { ITokamakVerifier } from "../src/interfaces/ITokamakVerifier.sol";
+import { MockERC20 } from "../src/mocks/MockERC20.sol";
+import { FeeOnTransferMockERC20 } from "../src/mocks/FeeOnTransferMockERC20.sol";
+import { DepositGrothProofFixture, WithdrawGrothProofFixture } from "./GrothProofFixtures.sol";
+import { Groth16Verifier } from "../src/generated/Groth16Verifier.sol";
+import { TokamakVerifier } from "../src/verifiers/TokamakVerifier.sol";
 
 contract BridgeFlowTest is Test {
     using stdJson for string;
@@ -72,8 +72,9 @@ contract BridgeFlowTest is Test {
 
     function setUp() public {
         BridgeStructs.TokamakProofPayload memory tokamakFixture = _loadTokamakProofPayload();
-        defaultPreprocessInputHash =
-            _computePointEncodingHash(tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2);
+        defaultPreprocessInputHash = _computePointEncodingHash(
+            tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2
+        );
 
         adminManager = _deployAdminManagerProxy(address(this), TokamakEnvironment.MT_DEPTH);
 
@@ -116,7 +117,8 @@ contract BridgeFlowTest is Test {
         asset.mint(alice, 1_000 ether);
         asset.mint(bob, 1_000 ether);
 
-        (address manager, address vault) = bridgeCore.createChannel(channelId, 1, leader, DEFAULT_JOIN_FEE);
+        (address manager, address vault) =
+            bridgeCore.createChannel(channelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
 
         channelManager = ChannelManager(manager);
         assertEq(vault, address(bridgeTokenVault));
@@ -142,7 +144,9 @@ contract BridgeFlowTest is Test {
     function testRejectsUnsupportedMerkleTreeLevels() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                BridgeAdminManager.UnsupportedMerkleTreeLevels.selector, uint8(13), TokamakEnvironment.MT_DEPTH
+                BridgeAdminManager.UnsupportedMerkleTreeLevels.selector,
+                uint8(13),
+                TokamakEnvironment.MT_DEPTH
             )
         );
         adminManager.setMerkleTreeLevels(13);
@@ -153,13 +157,16 @@ contract BridgeFlowTest is Test {
         assertTrue(info.exists);
         assertEq(info.labelHash, keccak256("private-app"));
         assertEq(info.channelTokenVaultTreeIndex, 0);
+        assertEq(info.metadataDigestSchema, dAppManager.DAPP_METADATA_DIGEST_SCHEMA());
+        assertTrue(info.metadataDigest != bytes32(0));
 
         address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(1);
         assertEq(managedStorageAddresses.length, 2);
         assertEq(managedStorageAddresses[0], address(0xF00D));
         assertEq(managedStorageAddresses[1], address(0x1234));
 
-        BridgeStructs.FunctionConfig memory functionConfig = dAppManager.getFunctionMetadata(1, appContract, APP_SIG);
+        BridgeStructs.FunctionConfig memory functionConfig =
+            dAppManager.getFunctionMetadata(1, appContract, APP_SIG);
         assertEq(functionConfig.preprocessInputHash, defaultPreprocessInputHash);
         assertEq(functionConfig.entryContractOffsetWords, 22);
         assertEq(functionConfig.functionSigOffsetWords, 24);
@@ -170,11 +177,17 @@ contract BridgeFlowTest is Test {
         assertEq(dAppManager.getChannelTokenVaultTreeIndex(1), 0);
         assertEq(dAppManager.bridgeCore(), address(bridgeCore));
 
-        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot = dAppManager.getDAppVerifierSnapshot(1);
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot =
+            dAppManager.getDAppVerifierSnapshot(1);
         assertEq(verifierSnapshot.grothVerifier, address(grothVerifier));
-        assertEq(verifierSnapshot.grothVerifierCompatibleBackendVersion, GROTH_COMPATIBLE_BACKEND_VERSION);
+        assertEq(
+            verifierSnapshot.grothVerifierCompatibleBackendVersion, GROTH_COMPATIBLE_BACKEND_VERSION
+        );
         assertEq(verifierSnapshot.tokamakVerifier, address(tokamakVerifier));
-        assertEq(verifierSnapshot.tokamakVerifierCompatibleBackendVersion, TOKAMAK_COMPATIBLE_BACKEND_VERSION);
+        assertEq(
+            verifierSnapshot.tokamakVerifierCompatibleBackendVersion,
+            TOKAMAK_COMPATIBLE_BACKEND_VERSION
+        );
 
         bytes32[] memory preAllocKeys = dAppManager.getPreAllocKeys(1, address(0xF00D));
         assertEq(preAllocKeys.length, 1);
@@ -193,12 +206,16 @@ contract BridgeFlowTest is Test {
 
         bridgeCore.setGrothVerifier(IGrothVerifier(address(updatedGrothVerifier)));
         bridgeCore.setTokamakVerifier(ITokamakVerifier(address(updatedTokamakVerifier)));
-        dAppManager.updateDAppMetadata(1, _singleVaultStorageLayout(address(0xF11D)), _singleVaultDAppFunction());
+        dAppManager.updateDAppMetadata(
+            1, _singleVaultStorageLayout(address(0xF11D)), _singleVaultDAppFunction()
+        );
 
         DAppManager.DAppInfo memory info = dAppManager.getDAppInfo(1);
         assertTrue(info.exists);
         assertEq(info.labelHash, keccak256("private-app"));
         assertEq(info.channelTokenVaultTreeIndex, 0);
+        assertEq(info.metadataDigestSchema, dAppManager.DAPP_METADATA_DIGEST_SCHEMA());
+        assertTrue(info.metadataDigest != bytes32(0));
 
         address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(1);
         assertEq(managedStorageAddresses.length, 1);
@@ -206,7 +223,8 @@ contract BridgeFlowTest is Test {
         assertFalse(dAppManager.isSupportedFunction(1, appContract, APP_SIG));
         assertTrue(dAppManager.isSupportedFunction(1, appContract2, APP_SIG_2));
 
-        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot = dAppManager.getDAppVerifierSnapshot(1);
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot =
+            dAppManager.getDAppVerifierSnapshot(1);
         assertEq(verifierSnapshot.grothVerifier, address(updatedGrothVerifier));
         assertEq(verifierSnapshot.grothVerifierCompatibleBackendVersion, "0.2");
         assertEq(verifierSnapshot.tokamakVerifier, address(updatedTokamakVerifier));
@@ -218,8 +236,13 @@ contract BridgeFlowTest is Test {
         assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
         assertEq(address(channelManager.tokamakVerifier()), address(tokamakVerifier));
 
-        (address manager,) =
-            bridgeCore.createChannel(_deriveChannelId("updated-dapp-metadata"), 1, leader, DEFAULT_JOIN_FEE);
+        (address manager,) = bridgeCore.createChannel(
+            _deriveChannelId("updated-dapp-metadata"),
+            1,
+            leader,
+            DEFAULT_JOIN_FEE,
+            info.metadataDigest
+        );
         ChannelManager updatedChannelManager = ChannelManager(manager);
         address[] memory updatedChannelStorages = updatedChannelManager.getManagedStorageAddresses();
         assertEq(updatedChannelStorages.length, 1);
@@ -228,6 +251,8 @@ contract BridgeFlowTest is Test {
         assertEq(updatedChannelManager.grothVerifierCompatibleBackendVersion(), "0.2");
         assertEq(address(updatedChannelManager.tokamakVerifier()), address(updatedTokamakVerifier));
         assertEq(updatedChannelManager.tokamakVerifierCompatibleBackendVersion(), "2.1");
+        assertEq(updatedChannelManager.dappMetadataDigestSchema(), info.metadataDigestSchema);
+        assertEq(updatedChannelManager.dappMetadataDigest(), info.metadataDigest);
     }
 
     function testOwnerCanDeleteUnboundDAppOnSepolia() public {
@@ -283,6 +308,37 @@ contract BridgeFlowTest is Test {
         assertEq(channelManager.currentRootVectorHash(), _hashRootVector(currentRoots));
     }
 
+    function testChannelCreationRejectsStaleDAppMetadataDigest() public {
+        bytes32 staleDigest = _dAppMetadataDigest(1);
+
+        dAppManager.updateDAppMetadata(
+            1,
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            _defaultDAppFunctions(bytes32("UPDATED_PREPROCESS_HASH"))
+        );
+        bytes32 updatedDigest = _dAppMetadataDigest(1);
+        assertTrue(updatedDigest != staleDigest);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BridgeCore.DAppMetadataDigestMismatch.selector, 1, staleDigest, updatedDigest
+            )
+        );
+        bridgeCore.createChannel(
+            _deriveChannelId("stale-dapp-digest"), 1, leader, DEFAULT_JOIN_FEE, staleDigest
+        );
+
+        (address manager,) = bridgeCore.createChannel(
+            _deriveChannelId("fresh-dapp-digest"), 1, leader, DEFAULT_JOIN_FEE, updatedDigest
+        );
+        ChannelManager digestChannelManager = ChannelManager(manager);
+        assertEq(
+            digestChannelManager.dappMetadataDigestSchema(),
+            dAppManager.DAPP_METADATA_DIGEST_SCHEMA()
+        );
+        assertEq(digestChannelManager.dappMetadataDigest(), updatedDigest);
+    }
+
     function testChannelStoresGenesisBlockNumber() public view {
         assertEq(channelManager.genesisBlockNumber(), block.number);
     }
@@ -290,10 +346,18 @@ contract BridgeFlowTest is Test {
     function testRejectsPerChannelLeafCollision() public {
         _joinChannel(channelId, alice, alice, bytes32(uint256(1)), 1);
 
-        vm.expectRevert(abi.encodeWithSelector(ChannelManager.ChannelTokenVaultLeafIndexAlreadyRegistered.selector, 1));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ChannelManager.ChannelTokenVaultLeafIndexAlreadyRegistered.selector, 1
+            )
+        );
         vm.prank(bob);
         bridgeTokenVault.joinChannel(
-            channelId, bob, bytes32(uint256(1 + TOKEN_VAULT_MT_LEAF_COUNT)), 1, _defaultNoteReceivePubKey()
+            channelId,
+            bob,
+            bytes32(uint256(1 + TOKEN_VAULT_MT_LEAF_COUNT)),
+            1,
+            _defaultNoteReceivePubKey()
         );
     }
 
@@ -302,8 +366,9 @@ contract BridgeFlowTest is Test {
 
         _joinChannel(channelId, alice, alice, reusedKey, 8);
 
-        (address secondManagerAddress, address secondVaultAddress) =
-            bridgeCore.createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE);
+        (address secondManagerAddress, address secondVaultAddress) = bridgeCore.createChannel(
+            secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1)
+        );
         ChannelManager secondChannelManager = ChannelManager(secondManagerAddress);
         _joinChannel(secondChannelId, bob, bob, reusedKey, 8);
 
@@ -358,14 +423,18 @@ contract BridgeFlowTest is Test {
         bridgeCore.setJoinFeeRefundSchedule(1 hours, 1_000, 2 hours, 500, 4 hours, 250, 0);
 
         _joinChannel(channelId, alice, alice, bytes32(uint256(17)), 17);
-        (uint256 existingRefundAmount, uint16 existingRefundBps) = channelManager.getExitFeeRefundQuote(alice);
+        (uint256 existingRefundAmount, uint16 existingRefundBps) =
+            channelManager.getExitFeeRefundQuote(alice);
         assertEq(existingRefundBps, 7_500);
         assertEq(existingRefundAmount, (DEFAULT_JOIN_FEE * 7_500) / 10_000);
 
-        (address secondManagerAddress,) = bridgeCore.createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE);
+        (address secondManagerAddress,) = bridgeCore.createChannel(
+            secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1)
+        );
         ChannelManager secondChannelManager = ChannelManager(secondManagerAddress);
         _joinChannel(secondChannelId, bob, bob, bytes32(uint256(18)), 18);
-        (uint256 secondRefundAmount, uint16 secondRefundBps) = secondChannelManager.getExitFeeRefundQuote(bob);
+        (uint256 secondRefundAmount, uint16 secondRefundBps) =
+            secondChannelManager.getExitFeeRefundQuote(bob);
         assertEq(secondRefundBps, 1_000);
         assertEq(secondRefundAmount, (DEFAULT_JOIN_FEE * 1_000) / 10_000);
     }
@@ -396,7 +465,10 @@ contract BridgeFlowTest is Test {
     function testRejectsDAppRegistrationWithMultipleTokenVaultStorages() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                DAppManager.MultipleChannelTokenVaultStorageAddresses.selector, 3, address(0xF00D), address(0xF00E)
+                DAppManager.MultipleChannelTokenVaultStorageAddresses.selector,
+                3,
+                address(0xF00D),
+                address(0xF00E)
             )
         );
         dAppManager.registerDApp(
@@ -408,7 +480,8 @@ contract BridgeFlowTest is Test {
     }
 
     function testRejectsDAppRegistrationWithoutPreprocessHash() public {
-        BridgeStructs.DAppFunctionMetadata[] memory functions = new BridgeStructs.DAppFunctionMetadata[](1);
+        BridgeStructs.DAppFunctionMetadata[] memory functions =
+            new BridgeStructs.DAppFunctionMetadata[](1);
         functions[0] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract,
             functionSig: APP_SIG,
@@ -417,16 +490,22 @@ contract BridgeFlowTest is Test {
         });
 
         vm.expectRevert(
-            abi.encodeWithSelector(DAppManager.MissingPreprocessInputHash.selector, uint256(3), appContract, APP_SIG)
+            abi.encodeWithSelector(
+                DAppManager.MissingPreprocessInputHash.selector, uint256(3), appContract, APP_SIG
+            )
         );
         dAppManager.registerDApp(
-            3, keccak256("missing-preprocess-hash"), _defaultStorageLayouts(address(0xF00D), address(0x1234)), functions
+            3,
+            keccak256("missing-preprocess-hash"),
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            functions
         );
     }
 
     function testRejectsDAppRegistrationWithDuplicatePreprocessHash() public {
         bytes32 duplicateHash = bytes32("DUPLICATE_PREPROCESS_HASH");
-        BridgeStructs.DAppFunctionMetadata[] memory functions = new BridgeStructs.DAppFunctionMetadata[](2);
+        BridgeStructs.DAppFunctionMetadata[] memory functions =
+            new BridgeStructs.DAppFunctionMetadata[](2);
         functions[0] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract,
             functionSig: APP_SIG,
@@ -441,7 +520,9 @@ contract BridgeFlowTest is Test {
         });
 
         vm.expectRevert(
-            abi.encodeWithSelector(DAppManager.DuplicatePreprocessInputHash.selector, uint256(3), duplicateHash)
+            abi.encodeWithSelector(
+                DAppManager.DuplicatePreprocessInputHash.selector, uint256(3), duplicateHash
+            )
         );
         dAppManager.registerDApp(
             3,
@@ -476,7 +557,8 @@ contract BridgeFlowTest is Test {
             });
         }
 
-        BridgeStructs.DAppFunctionMetadata[] memory functions = new BridgeStructs.DAppFunctionMetadata[](1);
+        BridgeStructs.DAppFunctionMetadata[] memory functions =
+            new BridgeStructs.DAppFunctionMetadata[](1);
         functions[0] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract,
             functionSig: APP_SIG,
@@ -485,9 +567,20 @@ contract BridgeFlowTest is Test {
         });
 
         dAppManager.registerDApp(3, keccak256("oversized-dapp"), storages, functions);
+        bytes32 dappMetadataDigest = _dAppMetadataDigest(3);
 
-        vm.expectRevert(abi.encodeWithSelector(BridgeCore.TooManyManagedStorages.selector, uint256(12), uint256(11)));
-        bridgeCore.createChannel(_deriveChannelId("missing-block-context-channel"), 3, leader, DEFAULT_JOIN_FEE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BridgeCore.TooManyManagedStorages.selector, uint256(12), uint256(11)
+            )
+        );
+        bridgeCore.createChannel(
+            _deriveChannelId("missing-block-context-channel"),
+            3,
+            leader,
+            DEFAULT_JOIN_FEE,
+            dappMetadataDigest
+        );
     }
 
     function testGrothDepositUpdatesVaultStateAndRootVector() public {
@@ -525,17 +618,27 @@ contract BridgeFlowTest is Test {
         uint256 storageWriteCount;
         uint256 rootVectorObservedCount;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == address(bridgeTokenVault) && logs[i].topics[0] == storageWriteTopic) {
+            if (
+                logs[i].emitter == address(bridgeTokenVault)
+                    && logs[i].topics[0] == storageWriteTopic
+            ) {
                 storageWriteCount += 1;
-                assertEq(address(uint160(uint256(logs[i].topics[1]))), channelManager.channelTokenVaultStorageAddress());
+                assertEq(
+                    address(uint160(uint256(logs[i].topics[1]))),
+                    channelManager.channelTokenVaultStorageAddress()
+                );
                 (uint256 storageKey, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
                 assertEq(storageKey, uint256(registration.channelTokenVaultKey));
                 assertEq(value, update.updatedUserValue);
-            } else if (logs[i].emitter == address(channelManager) && logs[i].topics[0] == rootVectorObservedTopic) {
+            } else if (
+                logs[i].emitter == address(channelManager)
+                    && logs[i].topics[0] == rootVectorObservedTopic
+            ) {
                 rootVectorObservedCount += 1;
                 bytes32 emittedRootVectorHash = bytes32(logs[i].topics[1]);
                 bytes32[] memory emittedRootVector = abi.decode(logs[i].data, (bytes32[]));
-                bytes32[] memory expectedRootVector = _rootVector(bytes32(pubSignals[1]), INITIAL_ZERO_ROOT);
+                bytes32[] memory expectedRootVector =
+                    _rootVector(bytes32(pubSignals[1]), INITIAL_ZERO_ROOT);
                 assertEq(emittedRootVectorHash, _hashRootVector(expectedRootVector));
                 assertEq(emittedRootVector.length, expectedRootVector.length);
                 for (uint256 j = 0; j < emittedRootVector.length; j++) {
@@ -571,7 +674,9 @@ contract BridgeFlowTest is Test {
             channelManager.getChannelTokenVaultRegistration(alice);
         assertFalse(registration.isZeroBalance);
 
-        vm.expectRevert(abi.encodeWithSelector(ChannelManager.ChannelTokenVaultBalanceNotZero.selector, alice));
+        vm.expectRevert(
+            abi.encodeWithSelector(ChannelManager.ChannelTokenVaultBalanceNotZero.selector, alice)
+        );
         vm.prank(alice);
         bridgeTokenVault.exitChannel(channelId);
     }
@@ -627,17 +732,27 @@ contract BridgeFlowTest is Test {
         uint256 storageWriteCount;
         uint256 rootVectorObservedCount;
         for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == address(bridgeTokenVault) && logs[i].topics[0] == storageWriteTopic) {
+            if (
+                logs[i].emitter == address(bridgeTokenVault)
+                    && logs[i].topics[0] == storageWriteTopic
+            ) {
                 storageWriteCount += 1;
-                assertEq(address(uint160(uint256(logs[i].topics[1]))), channelManager.channelTokenVaultStorageAddress());
+                assertEq(
+                    address(uint160(uint256(logs[i].topics[1]))),
+                    channelManager.channelTokenVaultStorageAddress()
+                );
                 (uint256 storageKey, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
                 assertEq(storageKey, uint256(registration.channelTokenVaultKey));
                 assertEq(value, withdrawUpdate.updatedUserValue);
-            } else if (logs[i].emitter == address(channelManager) && logs[i].topics[0] == rootVectorObservedTopic) {
+            } else if (
+                logs[i].emitter == address(channelManager)
+                    && logs[i].topics[0] == rootVectorObservedTopic
+            ) {
                 rootVectorObservedCount += 1;
                 bytes32 emittedRootVectorHash = bytes32(logs[i].topics[1]);
                 bytes32[] memory emittedRootVector = abi.decode(logs[i].data, (bytes32[]));
-                bytes32[] memory expectedRootVector = _rootVector(bytes32(withdrawSignals[1]), INITIAL_ZERO_ROOT);
+                bytes32[] memory expectedRootVector =
+                    _rootVector(bytes32(withdrawSignals[1]), INITIAL_ZERO_ROOT);
                 assertEq(emittedRootVectorHash, _hashRootVector(expectedRootVector));
                 assertEq(emittedRootVector.length, expectedRootVector.length);
                 for (uint256 j = 0; j < emittedRootVector.length; j++) {
@@ -695,8 +810,13 @@ contract BridgeFlowTest is Test {
         vm.etch(address(feeAsset), address(feeAssetImplementation).code);
         feeAsset.mint(alice, 100 ether);
 
-        (address manager, address vault) =
-            bridgeCore.createChannel(_deriveChannelId("fee-on-transfer-channel"), 1, leader, 100 ether);
+        (address manager, address vault) = bridgeCore.createChannel(
+            _deriveChannelId("fee-on-transfer-channel"),
+            1,
+            leader,
+            100 ether,
+            _dAppMetadataDigest(1)
+        );
 
         manager;
         L1TokenVault feeVault = L1TokenVault(vault);
@@ -704,11 +824,17 @@ contract BridgeFlowTest is Test {
         feeAsset.approve(address(feeVault), type(uint256).max);
 
         vm.expectRevert(
-            abi.encodeWithSelector(L1TokenVault.UnsupportedAssetTransferBehavior.selector, 100 ether, 99 ether)
+            abi.encodeWithSelector(
+                L1TokenVault.UnsupportedAssetTransferBehavior.selector, 100 ether, 99 ether
+            )
         );
         vm.prank(alice);
         feeVault.joinChannel(
-            _deriveChannelId("fee-on-transfer-channel"), alice, bytes32(uint256(111)), 111, _defaultNoteReceivePubKey()
+            _deriveChannelId("fee-on-transfer-channel"),
+            alice,
+            bytes32(uint256(111)),
+            111,
+            _defaultNoteReceivePubKey()
         );
     }
 
@@ -725,7 +851,9 @@ contract BridgeFlowTest is Test {
             updatedUserValue: 10
         });
 
-        vm.expectRevert(abi.encodeWithSelector(L1TokenVault.NotRegisteredInChannel.selector, alice, channelId));
+        vm.expectRevert(
+            abi.encodeWithSelector(L1TokenVault.NotRegisteredInChannel.selector, alice, channelId)
+        );
         vm.prank(alice);
         bridgeTokenVault.depositToChannelVault(channelId, _depositProof(), update);
     }
@@ -745,7 +873,11 @@ contract BridgeFlowTest is Test {
             updatedUserValue: BLS12_381_SCALAR_FIELD_MODULUS
         });
 
-        vm.expectRevert(abi.encodeWithSelector(L1TokenVault.L2ValueOutOfRange.selector, BLS12_381_SCALAR_FIELD_MODULUS));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L1TokenVault.L2ValueOutOfRange.selector, BLS12_381_SCALAR_FIELD_MODULUS
+            )
+        );
         vm.prank(alice);
         bridgeTokenVault.depositToChannelVault(channelId, _depositProof(), update);
     }
@@ -765,7 +897,11 @@ contract BridgeFlowTest is Test {
             updatedUserValue: 0
         });
 
-        vm.expectRevert(abi.encodeWithSelector(L1TokenVault.L2ValueOutOfRange.selector, BLS12_381_SCALAR_FIELD_MODULUS));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                L1TokenVault.L2ValueOutOfRange.selector, BLS12_381_SCALAR_FIELD_MODULUS
+            )
+        );
         vm.prank(alice);
         bridgeTokenVault.withdrawFromChannelVault(channelId, _withdrawProof(), update);
     }
@@ -844,7 +980,9 @@ contract BridgeFlowTest is Test {
         _writeSplitWord(proofPayload.aPubUser, 28, uint256(INITIAL_ZERO_ROOT));
 
         vm.expectRevert(
-            abi.encodeWithSelector(ChannelManager.UnsupportedChannelFunction.selector, address(0xBEEF), APP_SIG)
+            abi.encodeWithSelector(
+                ChannelManager.UnsupportedChannelFunction.selector, address(0xBEEF), APP_SIG
+            )
         );
         channelManager.executeChannelTransaction(proofPayload);
     }
@@ -855,7 +993,9 @@ contract BridgeFlowTest is Test {
         proofPayload.aPubUser = shortened;
 
         vm.expectRevert(
-            abi.encodeWithSelector(ChannelManager.APubUserTooShort.selector, uint256(30), uint256(shortened.length))
+            abi.encodeWithSelector(
+                ChannelManager.APubUserTooShort.selector, uint256(30), uint256(shortened.length)
+            )
         );
         channelManager.executeChannelTransaction(proofPayload);
     }
@@ -867,8 +1007,13 @@ contract BridgeFlowTest is Test {
     }
 
     function testChannelExposesVerifierCompatibleBackendVersions() public view {
-        assertEq(channelManager.grothVerifierCompatibleBackendVersion(), GROTH_COMPATIBLE_BACKEND_VERSION);
-        assertEq(channelManager.tokamakVerifierCompatibleBackendVersion(), TOKAMAK_COMPATIBLE_BACKEND_VERSION);
+        assertEq(
+            channelManager.grothVerifierCompatibleBackendVersion(), GROTH_COMPATIBLE_BACKEND_VERSION
+        );
+        assertEq(
+            channelManager.tokamakVerifierCompatibleBackendVersion(),
+            TOKAMAK_COMPATIBLE_BACKEND_VERSION
+        );
     }
 
     function testOwnerCanUpdateVerifierAddresses() public {
@@ -914,7 +1059,9 @@ contract BridgeFlowTest is Test {
         Groth16Verifier rotatedGrothVerifier = new Groth16Verifier("0.2");
         bridgeCore.setGrothVerifier(IGrothVerifier(address(rotatedGrothVerifier)));
 
-        (address managerAddress,) = bridgeCore.createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE);
+        (address managerAddress,) = bridgeCore.createChannel(
+            secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1)
+        );
         ChannelManager secondManager = ChannelManager(managerAddress);
         assertEq(address(secondManager.grothVerifier()), address(grothVerifier));
         assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
@@ -924,8 +1071,13 @@ contract BridgeFlowTest is Test {
             _defaultStorageLayouts(address(0xF00D), address(0x1234)),
             _defaultDAppFunctions(defaultPreprocessInputHash)
         );
-        (address updatedManagerAddress,) =
-            bridgeCore.createChannel(_deriveChannelId("groth-after-metadata-update"), 1, leader, DEFAULT_JOIN_FEE);
+        (address updatedManagerAddress,) = bridgeCore.createChannel(
+            _deriveChannelId("groth-after-metadata-update"),
+            1,
+            leader,
+            DEFAULT_JOIN_FEE,
+            _dAppMetadataDigest(1)
+        );
         ChannelManager updatedManager = ChannelManager(updatedManagerAddress);
         assertEq(address(updatedManager.grothVerifier()), address(rotatedGrothVerifier));
         assertEq(updatedManager.grothVerifierCompatibleBackendVersion(), "0.2");
@@ -939,7 +1091,9 @@ contract BridgeFlowTest is Test {
         assertEq(address(bridgeCore.tokamakVerifier()), address(rotatedTokamakVerifier));
         assertEq(address(localChannelManager.tokamakVerifier()), address(tokamakVerifier));
         vm.mockCall(
-            address(tokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+            address(tokamakVerifier),
+            abi.encodeWithSelector(ITokamakVerifier.verify.selector),
+            abi.encode(true)
         );
 
         bytes32[] memory currentRoots = _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT);
@@ -962,11 +1116,18 @@ contract BridgeFlowTest is Test {
         TokamakVerifier rotatedTokamakVerifier = new TokamakVerifier("2.1");
         bridgeCore.setTokamakVerifier(ITokamakVerifier(address(rotatedTokamakVerifier)));
         vm.mockCall(
-            address(tokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+            address(tokamakVerifier),
+            abi.encodeWithSelector(ITokamakVerifier.verify.selector),
+            abi.encode(true)
         );
 
-        (address manager,) =
-            bridgeCore.createChannel(_deriveChannelId("tokamak-before-metadata-update"), 3, leader, DEFAULT_JOIN_FEE);
+        (address manager,) = bridgeCore.createChannel(
+            _deriveChannelId("tokamak-before-metadata-update"),
+            3,
+            leader,
+            DEFAULT_JOIN_FEE,
+            _dAppMetadataDigest(3)
+        );
         ChannelManager localChannelManager = ChannelManager(manager);
         assertEq(address(localChannelManager.tokamakVerifier()), address(tokamakVerifier));
         assertEq(address(channelManager.tokamakVerifier()), address(tokamakVerifier));
@@ -983,11 +1144,18 @@ contract BridgeFlowTest is Test {
             3, _defaultStorageLayouts(address(0xF00D), address(0x1234)), _executionDAppFunctions()
         );
         vm.mockCall(
-            address(rotatedTokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+            address(rotatedTokamakVerifier),
+            abi.encodeWithSelector(ITokamakVerifier.verify.selector),
+            abi.encode(true)
         );
 
-        (address updatedManager,) =
-            bridgeCore.createChannel(_deriveChannelId("tokamak-after-metadata-update"), 3, leader, DEFAULT_JOIN_FEE);
+        (address updatedManager,) = bridgeCore.createChannel(
+            _deriveChannelId("tokamak-after-metadata-update"),
+            3,
+            leader,
+            DEFAULT_JOIN_FEE,
+            _dAppMetadataDigest(3)
+        );
         ChannelManager updatedChannelManager = ChannelManager(updatedManager);
         assertEq(address(updatedChannelManager.tokamakVerifier()), address(rotatedTokamakVerifier));
         assertEq(updatedChannelManager.tokamakVerifierCompatibleBackendVersion(), "2.1");
@@ -1026,11 +1194,14 @@ contract BridgeFlowTest is Test {
         assertTrue(_implementationOf(adminProxyAddress) != previousAdminImplementation);
         assertTrue(_implementationOf(dAppProxyAddress) != previousDAppImplementation);
         assertTrue(_implementationOf(bridgeProxyAddress) != previousBridgeImplementation);
-        assertTrue(_implementationOf(bridgeTokenVaultProxyAddress) != previousTokenVaultImplementation);
+        assertTrue(
+            _implementationOf(bridgeTokenVaultProxyAddress) != previousTokenVaultImplementation
+        );
     }
 
     function testTokamakVerificationRejectsProofForUnexpectedCurrentState() public {
-        ChannelManager localChannelManager = _createExecutionChannel(3, "tokamak-unexpected-current-root");
+        ChannelManager localChannelManager =
+            _createExecutionChannel(3, "tokamak-unexpected-current-root");
         BridgeStructs.TokamakProofPayload memory proofPayload = _buildExecutableTokamakProofPayload(
             appContract,
             APP_SIG,
@@ -1075,7 +1246,9 @@ contract BridgeFlowTest is Test {
             _buildExecutableTokamakProofPayload(appContract, APP_SIG, currentRoots, updatedRoots);
 
         vm.mockCall(
-            address(tokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+            address(tokamakVerifier),
+            abi.encodeWithSelector(ITokamakVerifier.verify.selector),
+            abi.encode(true)
         );
         vm.recordLogs();
         bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
@@ -1108,8 +1281,13 @@ contract BridgeFlowTest is Test {
             _defaultStorageLayouts(address(0xF00D), address(0x1234)),
             _executionDAppFunctionsWithObservedEvent(eventStartOffsetWords, eventTopicCount)
         );
-        (address manager,) =
-            bridgeCore.createChannel(_deriveChannelId("tokamak-observed-event"), 3, leader, DEFAULT_JOIN_FEE);
+        (address manager,) = bridgeCore.createChannel(
+            _deriveChannelId("tokamak-observed-event"),
+            3,
+            leader,
+            DEFAULT_JOIN_FEE,
+            _dAppMetadataDigest(3)
+        );
         ChannelManager localChannelManager = ChannelManager(manager);
 
         bytes32[] memory currentRoots = _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT);
@@ -1120,7 +1298,9 @@ contract BridgeFlowTest is Test {
         _writeSplitWord(proofPayload.aPubUser, eventStartOffsetWords + 2, observedData);
 
         vm.mockCall(
-            address(tokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+            address(tokamakVerifier),
+            abi.encodeWithSelector(ITokamakVerifier.verify.selector),
+            abi.encode(true)
         );
         vm.recordLogs();
         bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
@@ -1149,19 +1329,27 @@ contract BridgeFlowTest is Test {
             3,
             keccak256("tokamak-liquid-balance-observed-event"),
             _defaultStorageLayouts(address(0xF00D), address(0x1234)),
-            _executionDAppFunctionsWithObservedEventLayout(36, eventStartOffsetWords, eventTopicCount)
+            _executionDAppFunctionsWithObservedEventLayout(
+                36, eventStartOffsetWords, eventTopicCount
+            )
         );
-        (address manager,) = bridgeCore.createChannel(observedChannelId, 3, leader, DEFAULT_JOIN_FEE);
+        (address manager,) = bridgeCore.createChannel(
+            observedChannelId, 3, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(3)
+        );
         ChannelManager localChannelManager = ChannelManager(manager);
         _joinChannel(observedChannelId, alice, alice, bytes32(uint256(111)), 111);
 
         bytes32[] memory currentRoots = _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT);
         bytes32[] memory updatedRoots = _rootVector(bytes32(uint256(555)), bytes32(uint256(777)));
         BridgeStructs.TokamakProofPayload memory nonzeroPayload =
-            _buildLiquidBalanceObservedTokamakProofPayload(alice, bytes32(uint256(7)), currentRoots, updatedRoots);
+            _buildLiquidBalanceObservedTokamakProofPayload(
+                alice, bytes32(uint256(7)), currentRoots, updatedRoots
+            );
 
         vm.mockCall(
-            address(tokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+            address(tokamakVerifier),
+            abi.encodeWithSelector(ITokamakVerifier.verify.selector),
+            abi.encode(true)
         );
         bool accepted = localChannelManager.executeChannelTransaction(nonzeroPayload);
         assertTrue(accepted);
@@ -1172,7 +1360,9 @@ contract BridgeFlowTest is Test {
 
         bytes32[] memory finalRoots = _rootVector(bytes32(uint256(888)), bytes32(uint256(999)));
         BridgeStructs.TokamakProofPayload memory zeroPayload =
-            _buildLiquidBalanceObservedTokamakProofPayload(alice, bytes32(0), updatedRoots, finalRoots);
+            _buildLiquidBalanceObservedTokamakProofPayload(
+                alice, bytes32(0), updatedRoots, finalRoots
+            );
         accepted = localChannelManager.executeChannelTransaction(zeroPayload);
         assertTrue(accepted);
 
@@ -1189,51 +1379,76 @@ contract BridgeFlowTest is Test {
             3,
             keccak256("tokamak-liquid-balance-unregistered-event"),
             _defaultStorageLayouts(address(0xF00D), address(0x1234)),
-            _executionDAppFunctionsWithObservedEventLayout(36, eventStartOffsetWords, eventTopicCount)
+            _executionDAppFunctionsWithObservedEventLayout(
+                36, eventStartOffsetWords, eventTopicCount
+            )
         );
-        (address manager,) = bridgeCore.createChannel(observedChannelId, 3, leader, DEFAULT_JOIN_FEE);
+        (address manager,) = bridgeCore.createChannel(
+            observedChannelId, 3, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(3)
+        );
         ChannelManager localChannelManager = ChannelManager(manager);
 
-        BridgeStructs.TokamakProofPayload memory proofPayload = _buildLiquidBalanceObservedTokamakProofPayload(
-            alice,
-            bytes32(uint256(7)),
-            _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT),
-            _rootVector(bytes32(uint256(555)), bytes32(uint256(777)))
-        );
+        BridgeStructs.TokamakProofPayload memory proofPayload =
+            _buildLiquidBalanceObservedTokamakProofPayload(
+                alice,
+                bytes32(uint256(7)),
+                _rootVector(INITIAL_ZERO_ROOT, INITIAL_ZERO_ROOT),
+                _rootVector(bytes32(uint256(555)), bytes32(uint256(777)))
+            );
 
         vm.mockCall(
-            address(tokamakVerifier), abi.encodeWithSelector(ITokamakVerifier.verify.selector), abi.encode(true)
+            address(tokamakVerifier),
+            abi.encodeWithSelector(ITokamakVerifier.verify.selector),
+            abi.encode(true)
         );
-        vm.expectRevert(abi.encodeWithSelector(ChannelManager.ChannelTokenVaultL2AddressNotRegistered.selector, alice));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ChannelManager.ChannelTokenVaultL2AddressNotRegistered.selector, alice
+            )
+        );
         localChannelManager.executeChannelTransaction(proofPayload);
     }
 
-    function _loadTokamakProofPayload() internal view returns (BridgeStructs.TokamakProofPayload memory payload) {
+    function _loadTokamakProofPayload()
+        internal
+        view
+        returns (BridgeStructs.TokamakProofPayload memory payload)
+    {
         string memory json = vm.readFile(TOKAMAK_FIXTURE_PATH);
 
         payload.proofPart1 = _toUint128Array(json.readUintArray(".proofPart1"));
         payload.proofPart2 = json.readUintArray(".proofPart2");
-        payload.functionPreprocessPart1 = _toUint128Array(json.readUintArray(".functionPreprocessPart1"));
+        payload.functionPreprocessPart1 =
+            _toUint128Array(json.readUintArray(".functionPreprocessPart1"));
         payload.functionPreprocessPart2 = json.readUintArray(".functionPreprocessPart2");
         uint256[] memory publicInputs = json.readUintArray(".publicInputs");
         payload.aPubUser = _slice(publicInputs, 0, 50);
         payload.aPubBlock = _currentBlockAPubBlock();
     }
 
-    function _loadRealTokamakProofPayload() internal view returns (BridgeStructs.TokamakProofPayload memory payload) {
+    function _loadRealTokamakProofPayload()
+        internal
+        view
+        returns (BridgeStructs.TokamakProofPayload memory payload)
+    {
         string memory proofJson = vm.readFile(REAL_TOKAMAK_PROOF_PATH);
         string memory preprocessJson = vm.readFile(REAL_TOKAMAK_PREPROCESS_PATH);
         string memory instanceJson = vm.readFile(REAL_TOKAMAK_INSTANCE_PATH);
 
         payload.proofPart1 = _toUint128Array(proofJson.readUintArray(".proof_entries_part1"));
         payload.proofPart2 = proofJson.readUintArray(".proof_entries_part2");
-        payload.functionPreprocessPart1 = _toUint128Array(preprocessJson.readUintArray(".preprocess_entries_part1"));
+        payload.functionPreprocessPart1 =
+            _toUint128Array(preprocessJson.readUintArray(".preprocess_entries_part1"));
         payload.functionPreprocessPart2 = preprocessJson.readUintArray(".preprocess_entries_part2");
         payload.aPubUser = instanceJson.readUintArray(".a_pub_user");
         payload.aPubBlock = _normalizeAPubBlock(instanceJson.readUintArray(".a_pub_block"));
     }
 
-    function _rootVector(bytes32 left, bytes32 right) internal pure returns (bytes32[] memory roots) {
+    function _rootVector(bytes32 left, bytes32 right)
+        internal
+        pure
+        returns (bytes32[] memory roots)
+    {
         roots = new bytes32[](2);
         roots[0] = left;
         roots[1] = right;
@@ -1243,20 +1458,30 @@ contract BridgeFlowTest is Test {
         return _channelRootVectorWithVaultRoot(INITIAL_ZERO_ROOT);
     }
 
-    function _channelRootVectorWithVaultRoot(bytes32 vaultRoot) internal pure returns (bytes32[] memory roots) {
+    function _channelRootVectorWithVaultRoot(bytes32 vaultRoot)
+        internal
+        pure
+        returns (bytes32[] memory roots)
+    {
         return _rootVector(vaultRoot, INITIAL_ZERO_ROOT);
     }
 
-    function _deployAdminManagerProxy(address owner, uint8 levels) internal returns (BridgeAdminManager) {
+    function _deployAdminManagerProxy(address owner, uint8 levels)
+        internal
+        returns (BridgeAdminManager)
+    {
         BridgeAdminManager implementation = new BridgeAdminManager();
-        ERC1967Proxy proxy =
-            new ERC1967Proxy(address(implementation), abi.encodeCall(BridgeAdminManager.initialize, (owner, levels)));
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(implementation), abi.encodeCall(BridgeAdminManager.initialize, (owner, levels))
+        );
         return BridgeAdminManager(address(proxy));
     }
 
     function _deployDAppManagerProxy(address owner) internal returns (DAppManager) {
         DAppManager implementation = new DAppManager();
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), abi.encodeCall(DAppManager.initialize, (owner)));
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(implementation), abi.encodeCall(DAppManager.initialize, (owner))
+        );
         return DAppManager(address(proxy));
     }
 
@@ -1272,19 +1497,32 @@ contract BridgeFlowTest is Test {
             address(implementation),
             abi.encodeCall(
                 BridgeCore.initialize,
-                (owner, localAdminManager, localDAppManager, localGrothVerifier, localTokamakVerifier)
+                (
+                    owner,
+                    localAdminManager,
+                    localDAppManager,
+                    localGrothVerifier,
+                    localTokamakVerifier
+                )
             )
         );
         return BridgeCore(address(proxy));
     }
 
-    function _deployTokenVaultProxy(address owner, BridgeCore localBridgeCore) internal returns (L1TokenVault) {
+    function _deployTokenVaultProxy(address owner, BridgeCore localBridgeCore)
+        internal
+        returns (L1TokenVault)
+    {
         L1TokenVault implementation = new L1TokenVault();
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(implementation),
             abi.encodeCall(
                 L1TokenVault.initialize,
-                (owner, IERC20(localBridgeCore.canonicalAsset()), IChannelRegistry(address(localBridgeCore)))
+                (
+                    owner,
+                    IERC20(localBridgeCore.canonicalAsset()),
+                    IChannelRegistry(address(localBridgeCore))
+                )
             )
         );
         return L1TokenVault(address(proxy));
@@ -1310,11 +1548,19 @@ contract BridgeFlowTest is Test {
         roots[1] = _decodeBytes32FromSplitWords(aPubUser, offset + 2);
     }
 
-    function _entryContractFromAPubUser(uint256[] memory aPubUser, uint256 offset) internal pure returns (address) {
+    function _entryContractFromAPubUser(uint256[] memory aPubUser, uint256 offset)
+        internal
+        pure
+        returns (address)
+    {
         return address(uint160(_decodeUint256FromSplitWords(aPubUser, offset)));
     }
 
-    function _functionSigFromAPubUser(uint256[] memory aPubUser, uint256 offset) internal pure returns (bytes4) {
+    function _functionSigFromAPubUser(uint256[] memory aPubUser, uint256 offset)
+        internal
+        pure
+        returns (bytes4)
+    {
         return bytes4(uint32(_decodeUint256FromSplitWords(aPubUser, offset)));
     }
 
@@ -1372,11 +1618,11 @@ contract BridgeFlowTest is Test {
         });
     }
 
-    function _threeStorageLayouts(address firstVaultStorage, address appStorage, address secondVaultStorage)
-        internal
-        pure
-        returns (BridgeStructs.StorageMetadata[] memory storageLayouts)
-    {
+    function _threeStorageLayouts(
+        address firstVaultStorage,
+        address appStorage,
+        address secondVaultStorage
+    ) internal pure returns (BridgeStructs.StorageMetadata[] memory storageLayouts) {
         storageLayouts = new BridgeStructs.StorageMetadata[](3);
         storageLayouts[0] = BridgeStructs.StorageMetadata({
             storageAddr: firstVaultStorage,
@@ -1412,7 +1658,11 @@ contract BridgeFlowTest is Test {
         });
     }
 
-    function _singleVaultDAppFunction() internal view returns (BridgeStructs.DAppFunctionMetadata[] memory functions) {
+    function _singleVaultDAppFunction()
+        internal
+        view
+        returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
+    {
         functions = new BridgeStructs.DAppFunctionMetadata[](1);
         functions[0] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract2,
@@ -1422,7 +1672,11 @@ contract BridgeFlowTest is Test {
         });
     }
 
-    function _executionDAppFunctions() internal view returns (BridgeStructs.DAppFunctionMetadata[] memory functions) {
+    function _executionDAppFunctions()
+        internal
+        view
+        returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
+    {
         functions = new BridgeStructs.DAppFunctionMetadata[](1);
         functions[0] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract,
@@ -1478,7 +1732,11 @@ contract BridgeFlowTest is Test {
         functions[0] = functionMetadata;
     }
 
-    function _conflictingDAppFunctions() internal view returns (BridgeStructs.DAppFunctionMetadata[] memory functions) {
+    function _conflictingDAppFunctions()
+        internal
+        view
+        returns (BridgeStructs.DAppFunctionMetadata[] memory functions)
+    {
         functions = new BridgeStructs.DAppFunctionMetadata[](2);
         functions[0] = BridgeStructs.DAppFunctionMetadata({
             entryContract: appContract,
@@ -1494,7 +1752,11 @@ contract BridgeFlowTest is Test {
         });
     }
 
-    function _emptyEventLogs() internal pure returns (BridgeStructs.EventLogMetadata[] memory eventLogs) {
+    function _emptyEventLogs()
+        internal
+        pure
+        returns (BridgeStructs.EventLogMetadata[] memory eventLogs)
+    {
         eventLogs = new BridgeStructs.EventLogMetadata[](0);
     }
 
@@ -1503,16 +1765,26 @@ contract BridgeFlowTest is Test {
         pure
         returns (BridgeStructs.NoteReceivePubKey memory noteReceivePubKey)
     {
-        noteReceivePubKey = BridgeStructs.NoteReceivePubKey({x: bytes32(uint256(0x1234)), yParity: 1});
+        noteReceivePubKey =
+            BridgeStructs.NoteReceivePubKey({ x: bytes32(uint256(0x1234)), yParity: 1 });
     }
 
-    function _joinChannel(uint256 targetChannelId, address user, address l2Address, bytes32 key, uint256 leafIndex)
-        internal
-    {
+    function _joinChannel(
+        uint256 targetChannelId,
+        address user,
+        address l2Address,
+        bytes32 key,
+        uint256 leafIndex
+    ) internal {
         vm.prank(user);
-        bool joined =
-            bridgeTokenVault.joinChannel(targetChannelId, l2Address, key, leafIndex, _defaultNoteReceivePubKey());
+        bool joined = bridgeTokenVault.joinChannel(
+            targetChannelId, l2Address, key, leafIndex, _defaultNoteReceivePubKey()
+        );
         assertTrue(joined);
+    }
+
+    function _dAppMetadataDigest(uint256 targetDappId) internal view returns (bytes32) {
+        return dAppManager.getDAppInfo(targetDappId).metadataDigest;
     }
 
     function _instanceLayout(
@@ -1539,7 +1811,9 @@ contract BridgeFlowTest is Test {
         uint8 topicCount
     ) internal pure returns (BridgeStructs.InstanceLayout memory layout) {
         BridgeStructs.EventLogMetadata[] memory eventLogs = new BridgeStructs.EventLogMetadata[](1);
-        eventLogs[0] = BridgeStructs.EventLogMetadata({startOffsetWords: startOffsetWords, topicCount: topicCount});
+        eventLogs[0] = BridgeStructs.EventLogMetadata({
+            startOffsetWords: startOffsetWords, topicCount: topicCount
+        });
         layout = BridgeStructs.InstanceLayout({
             entryContractOffsetWords: entryContractOffsetWords,
             functionSigOffsetWords: functionSigOffsetWords,
@@ -1549,7 +1823,11 @@ contract BridgeFlowTest is Test {
         });
     }
 
-    function _blankTokamakProofPayload() internal pure returns (BridgeStructs.TokamakProofPayload memory payload) {
+    function _blankTokamakProofPayload()
+        internal
+        pure
+        returns (BridgeStructs.TokamakProofPayload memory payload)
+    {
         payload.proofPart1 = new uint128[](0);
         payload.proofPart2 = new uint256[](0);
         payload.functionPreprocessPart1 = new uint128[](0);
@@ -1601,18 +1879,31 @@ contract BridgeFlowTest is Test {
         _writeSplitWord(payload.aPubUser, 38, uint256(updatedRoots[1]));
     }
 
-    function _createExecutionChannel(uint256 dappId, string memory channelLabel) internal returns (ChannelManager) {
+    function _createExecutionChannel(uint256 dappId, string memory channelLabel)
+        internal
+        returns (ChannelManager)
+    {
         dAppManager.registerDApp(
             dappId,
             keccak256(bytes(channelLabel)),
             _defaultStorageLayouts(address(0xF00D), address(0x1234)),
             _executionDAppFunctions()
         );
-        (address manager,) = bridgeCore.createChannel(_deriveChannelId(channelLabel), dappId, leader, DEFAULT_JOIN_FEE);
+        (address manager,) = bridgeCore.createChannel(
+            _deriveChannelId(channelLabel),
+            dappId,
+            leader,
+            DEFAULT_JOIN_FEE,
+            _dAppMetadataDigest(dappId)
+        );
         return ChannelManager(manager);
     }
 
-    function _normalizeAPubBlock(uint256[] memory aPubBlock) internal pure returns (uint256[] memory normalized) {
+    function _normalizeAPubBlock(uint256[] memory aPubBlock)
+        internal
+        pure
+        returns (uint256[] memory normalized)
+    {
         uint256 normalizedLength = aPubBlock.length;
         if (normalizedLength > TOKAMAK_APUB_BLOCK_LENGTH) {
             for (uint256 i = TOKAMAK_APUB_BLOCK_LENGTH; i < normalizedLength; i++) {
@@ -1629,11 +1920,19 @@ contract BridgeFlowTest is Test {
         }
     }
 
-    function _decodeBytes32FromSplitWords(uint256[] memory words, uint256 offset) internal pure returns (bytes32) {
+    function _decodeBytes32FromSplitWords(uint256[] memory words, uint256 offset)
+        internal
+        pure
+        returns (bytes32)
+    {
         return bytes32(_decodeUint256FromSplitWords(words, offset));
     }
 
-    function _decodeUint256FromSplitWords(uint256[] memory words, uint256 offset) internal pure returns (uint256) {
+    function _decodeUint256FromSplitWords(uint256[] memory words, uint256 offset)
+        internal
+        pure
+        returns (uint256)
+    {
         return words[offset] | (words[offset + 1] << 128);
     }
 
@@ -1668,19 +1967,26 @@ contract BridgeFlowTest is Test {
 
         uint256 currentBlockNumber = block.number;
         for (uint256 i = 0; i < 4; i++) {
-            vm.setBlockhash(currentBlockNumber - (i + 1), bytes32(_decodeUint256FromSplitWords(aPubBlock, 16 + i * 2)));
+            vm.setBlockhash(
+                currentBlockNumber - (i + 1),
+                bytes32(_decodeUint256FromSplitWords(aPubBlock, 16 + i * 2))
+            );
         }
     }
 
     function _depositProof() private pure returns (BridgeStructs.GrothProof memory proof) {
         proof = BridgeStructs.GrothProof({
-            pA: DepositGrothProofFixture.pA(), pB: DepositGrothProofFixture.pB(), pC: DepositGrothProofFixture.pC()
+            pA: DepositGrothProofFixture.pA(),
+            pB: DepositGrothProofFixture.pB(),
+            pC: DepositGrothProofFixture.pC()
         });
     }
 
     function _withdrawProof() private pure returns (BridgeStructs.GrothProof memory proof) {
         proof = BridgeStructs.GrothProof({
-            pA: WithdrawGrothProofFixture.pA(), pB: WithdrawGrothProofFixture.pB(), pC: WithdrawGrothProofFixture.pC()
+            pA: WithdrawGrothProofFixture.pA(),
+            pB: WithdrawGrothProofFixture.pB(),
+            pC: WithdrawGrothProofFixture.pC()
         });
     }
 
@@ -1706,19 +2012,24 @@ contract BridgeFlowTest is Test {
 
     function _mockGrothVerifierAcceptsAllProofs() private {
         vm.mockCall(
-            address(grothVerifier), abi.encodeWithSelector(IGrothVerifier.verifyProof.selector), abi.encode(true)
+            address(grothVerifier),
+            abi.encodeWithSelector(IGrothVerifier.verifyProof.selector),
+            abi.encode(true)
         );
     }
 
-    function _assertSingleCurrentRootVectorObserved(Vm.Log[] memory logs, bytes32[] memory expectedRootVector)
-        private
-        view
-    {
+    function _assertSingleCurrentRootVectorObserved(
+        Vm.Log[] memory logs,
+        bytes32[] memory expectedRootVector
+    ) private view {
         bytes32 rootVectorObservedTopic = keccak256("CurrentRootVectorObserved(bytes32,bytes32[])");
         uint256 rootVectorObservedCount;
 
         for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == address(channelManager) && logs[i].topics[0] == rootVectorObservedTopic) {
+            if (
+                logs[i].emitter == address(channelManager)
+                    && logs[i].topics[0] == rootVectorObservedTopic
+            ) {
                 rootVectorObservedCount += 1;
                 bytes32 emittedRootVectorHash = bytes32(logs[i].topics[1]);
                 bytes32[] memory emittedRootVector = abi.decode(logs[i].data, (bytes32[]));
@@ -1761,12 +2072,18 @@ contract BridgeFlowTest is Test {
         }
     }
 
-    function _computePointEncodingHash(uint128[] memory part1, uint256[] memory part2) internal pure returns (bytes32) {
+    function _computePointEncodingHash(uint128[] memory part1, uint256[] memory part2)
+        internal
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encode(part1, part2));
     }
 
     function _executionPreprocessInputHash() internal pure returns (bytes32) {
-        return _computePointEncodingHash(_executionFunctionPreprocessPart1(), _executionFunctionPreprocessPart2());
+        return _computePointEncodingHash(
+            _executionFunctionPreprocessPart1(), _executionFunctionPreprocessPart2()
+        );
     }
 
     function _executionFunctionPreprocessPart1() internal pure returns (uint128[] memory values) {
@@ -1797,7 +2114,10 @@ contract BridgeFlowTest is Test {
         return storageKey % TOKEN_VAULT_MT_LEAF_COUNT;
     }
 
-    function _seedChannelCurrentRoots(ChannelManager targetChannelManager, bytes32[] memory currentRoots) internal {
+    function _seedChannelCurrentRoots(
+        ChannelManager targetChannelManager,
+        bytes32[] memory currentRoots
+    ) internal {
         // ChannelManager layout keeps `genesisBlockNumber` at slot 0, `bridgeTokenVault` at slot 1,
         // and `currentRootVectorHash` at slot 2.
         vm.store(address(targetChannelManager), bytes32(uint256(2)), _hashRootVector(currentRoots));

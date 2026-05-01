@@ -1,8 +1,8 @@
-    // SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
-import {ITokamakVerifier} from "../interfaces/ITokamakVerifier.sol";
-import {TokamakVerifierKeyGenerated} from "../generated/TokamakVerifierKey.generated.sol";
+import { ITokamakVerifier } from "../interfaces/ITokamakVerifier.sol";
+import { TokamakVerifierKeyGenerated } from "../generated/TokamakVerifierKey.generated.sol";
 
 /* solhint-disable max-line-length */
 /// @author Project Ooo team
@@ -172,12 +172,18 @@ contract TokamakVerifier is ITokamakVerifier {
                                 Challenges
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal constant CHALLENGE_THETA_0_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x000;
-    uint256 internal constant CHALLENGE_THETA_1_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x020;
-    uint256 internal constant CHALLENGE_THETA_2_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x040;
-    uint256 internal constant CHALLENGE_KAPPA_0_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x060;
-    uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x080;
-    uint256 internal constant CHALLENGE_KAPPA_2_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0a0;
+    uint256 internal constant CHALLENGE_THETA_0_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80
+        + 0x000;
+    uint256 internal constant CHALLENGE_THETA_1_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80
+        + 0x020;
+    uint256 internal constant CHALLENGE_THETA_2_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80
+        + 0x040;
+    uint256 internal constant CHALLENGE_KAPPA_0_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80
+        + 0x060;
+    uint256 internal constant CHALLENGE_KAPPA_1_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80
+        + 0x080;
+    uint256 internal constant CHALLENGE_KAPPA_2_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80
+        + 0x0a0;
     uint256 internal constant CHALLENGE_ZETA_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x0c0;
     uint256 internal constant CHALLENGE_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100;
 
@@ -186,16 +192,20 @@ contract TokamakVerifier is ITokamakVerifier {
     //////////////////////////////////////////////////////////////*/
 
     // t_n(χ)
-    uint256 internal constant INTERMERDIARY_SCALAR_T_N_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x120;
+    uint256 internal constant INTERMERDIARY_SCALAR_T_N_CHI_SLOT =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x120;
     // t_smax(ζ)
     uint256 internal constant INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT =
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x140;
     // t_ml(χ)
-    uint256 internal constant INTERMERDIARY_SCALAR_T_MI_CHI_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x160;
+    uint256 internal constant INTERMERDIARY_SCALAR_T_MI_CHI_SLOT =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x160;
     // K_0(χ)
-    uint256 internal constant INTERMEDIARY_SCALAR_KO_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x180;
+    uint256 internal constant INTERMEDIARY_SCALAR_KO_SLOT =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x180;
     // A_eval = A(chi)
-    uint256 internal constant INTERMEDIARY_SCALAR_APUB_SLOT = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0;
+    uint256 internal constant INTERMEDIARY_SCALAR_APUB_SLOT =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0;
 
     uint256 internal constant PAIRING_AGG_LHS_AUX_X_SLOT_PART1 =
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x2a0;
@@ -239,16 +249,24 @@ contract TokamakVerifier is ITokamakVerifier {
         0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x080;
 
     // [x]_1
-    uint256 internal constant VK_POLY_X_X_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x0a0;
-    uint256 internal constant VK_POLY_X_X_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x0c0;
-    uint256 internal constant VK_POLY_X_Y_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x0e0;
-    uint256 internal constant VK_POLY_X_Y_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x100;
+    uint256 internal constant VK_POLY_X_X_PART1 =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x0a0;
+    uint256 internal constant VK_POLY_X_X_PART2 =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x0c0;
+    uint256 internal constant VK_POLY_X_Y_PART1 =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x0e0;
+    uint256 internal constant VK_POLY_X_Y_PART2 =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x100;
 
     // [y]_1
-    uint256 internal constant VK_POLY_Y_X_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x120;
-    uint256 internal constant VK_POLY_Y_X_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x140;
-    uint256 internal constant VK_POLY_Y_Y_PART1 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x160;
-    uint256 internal constant VK_POLY_Y_Y_PART2 = 0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x180;
+    uint256 internal constant VK_POLY_Y_X_PART1 =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x120;
+    uint256 internal constant VK_POLY_Y_X_PART2 =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x140;
+    uint256 internal constant VK_POLY_Y_Y_PART1 =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x160;
+    uint256 internal constant VK_POLY_Y_Y_PART2 =
+        0x8000 + 0x200 + 0x120 + 0xa20 + 0x80 + 0x100 + 0x1a0 + 0x480 + 0x180;
 
     // [1]_1
     uint256 internal constant VK_IDENTITY_X_PART1 =
@@ -266,19 +284,24 @@ contract TokamakVerifier is ITokamakVerifier {
 
     // Scalar field size
     // R_MOD is the main subgroup order
-    uint256 internal constant R_MOD = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
+    uint256 internal constant R_MOD =
+        0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001;
 
     /// @dev flip of 0xe000000000000000000000000000000000000000000000000000000000000000;
-    uint256 internal constant FR_MASK = 0x1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256 internal constant FR_MASK =
+        0x1fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
     // n, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
     uint256 internal constant CONSTANT_N = 4096;
     // ω_64
-    uint256 internal constant OMEGA_64 = 0x0e4840ac57f86f5e293b1d67bc8de5d9a12a70a615d0b8e4d2fc5e69ac5db47f;
+    uint256 internal constant OMEGA_64 =
+        0x0e4840ac57f86f5e293b1d67bc8de5d9a12a70a615d0b8e4d2fc5e69ac5db47f;
     // ω_128
-    uint256 internal constant OMEGA_128 = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
+    uint256 internal constant OMEGA_128 =
+        0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
     // ω_512
-    uint256 internal constant OMEGA_512 = 0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
+    uint256 internal constant OMEGA_512 =
+        0x1bb466679a5d88b1ecfbede342dee7f415c1ad4c687f28a233811ea1fe0c65f4;
     // m_i = l_D - l, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
     uint256 internal constant CONSTANT_MI = 4096;
     // l_user, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
@@ -286,12 +309,14 @@ contract TokamakVerifier is ITokamakVerifier {
     // l_free, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
     uint256 internal constant EXPECTED_L_FREE = 128;
     // omega_{l_free}, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
-    uint256 internal constant OMEGA_L_FREE = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
+    uint256 internal constant OMEGA_L_FREE =
+        0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
     // s_max, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
     uint256 internal constant EXPECTED_SMAX = 256;
 
     // omega_{m_i}^{-1}, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
-    uint256 internal constant OMEGA_MI_1 = 0x58c3ba636d174692ad5a534045625d9514180e0e8b24f12309f239f760b82267;
+    uint256 internal constant OMEGA_MI_1 =
+        0x58c3ba636d174692ad5a534045625d9514180e0e8b24f12309f239f760b82267;
     // omega_{s_max}^{-1}, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
     uint256 internal constant OMEGA_SMAX_MINUS_1 =
         0x6d64ed25272e58ee91b000235a5bfd4fc03cae032393991be9561c176a2f777a;
@@ -314,104 +339,184 @@ contract TokamakVerifier is ITokamakVerifier {
     // Format: X0_PART1, X0_PART2, X1_PART1, X1_PART2, Y0_PART1, Y0_PART2, Y1_PART1, Y1_PART2
 
     // [1]_2 (Identity/Generator point H), refreshed from sigma_verify.json.
-    uint256 internal constant IDENTITY2_X0_PART1 = 0x0000000000000000000000000000000013e02b6052719f607dacd3a088274f65;
-    uint256 internal constant IDENTITY2_X0_PART2 = 0x596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e;
-    uint256 internal constant IDENTITY2_X1_PART1 = 0x00000000000000000000000000000000024aa2b2f08f0a91260805272dc51051;
-    uint256 internal constant IDENTITY2_X1_PART2 = 0xc6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8;
-    uint256 internal constant IDENTITY2_Y0_PART1 = 0x000000000000000000000000000000000606c4a02ea734cc32acd2b02bc28b99;
-    uint256 internal constant IDENTITY2_Y0_PART2 = 0xcb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be;
-    uint256 internal constant IDENTITY2_Y1_PART1 = 0x000000000000000000000000000000000ce5d527727d6e118cc9cdc6da2e351a;
-    uint256 internal constant IDENTITY2_Y1_PART2 = 0xadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801;
+    uint256 internal constant IDENTITY2_X0_PART1 =
+        0x0000000000000000000000000000000013e02b6052719f607dacd3a088274f65;
+    uint256 internal constant IDENTITY2_X0_PART2 =
+        0x596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e;
+    uint256 internal constant IDENTITY2_X1_PART1 =
+        0x00000000000000000000000000000000024aa2b2f08f0a91260805272dc51051;
+    uint256 internal constant IDENTITY2_X1_PART2 =
+        0xc6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8;
+    uint256 internal constant IDENTITY2_Y0_PART1 =
+        0x000000000000000000000000000000000606c4a02ea734cc32acd2b02bc28b99;
+    uint256 internal constant IDENTITY2_Y0_PART2 =
+        0xcb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be;
+    uint256 internal constant IDENTITY2_Y1_PART1 =
+        0x000000000000000000000000000000000ce5d527727d6e118cc9cdc6da2e351a;
+    uint256 internal constant IDENTITY2_Y1_PART2 =
+        0xadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801;
 
     // [α]_2, refreshed from sigma_verify.json.
-    uint256 internal constant ALPHA_X0_PART1 = 0x00000000000000000000000000000000034289d007faad5feab722a30d9ac950;
-    uint256 internal constant ALPHA_X0_PART2 = 0x422a7f9e37a01849d37dcda7bbfa0492949c16bd620bad36ce20e779450d1423;
-    uint256 internal constant ALPHA_X1_PART1 = 0x00000000000000000000000000000000093f57f8f806ab233d8434d0267c7754;
-    uint256 internal constant ALPHA_X1_PART2 = 0x1be6c915576c1bddfa460bf8b6e8f1f937c81a3871fd50a3aa81726065086aad;
-    uint256 internal constant ALPHA_Y0_PART1 = 0x0000000000000000000000000000000004d89fd2c1e7527eb39911672cb4ee30;
-    uint256 internal constant ALPHA_Y0_PART2 = 0x5d9a98575dd9351b8be857d2714db52fe352408b1b7eda48051b0aebad8d68c4;
-    uint256 internal constant ALPHA_Y1_PART1 = 0x0000000000000000000000000000000002b195572a97a24b3d937fbc5a3f17e3;
-    uint256 internal constant ALPHA_Y1_PART2 = 0x2447f72db948e76770d9feb379768e7e1bf4319a5cd42f1fee53c907ad8526e2;
+    uint256 internal constant ALPHA_X0_PART1 =
+        0x00000000000000000000000000000000034289d007faad5feab722a30d9ac950;
+    uint256 internal constant ALPHA_X0_PART2 =
+        0x422a7f9e37a01849d37dcda7bbfa0492949c16bd620bad36ce20e779450d1423;
+    uint256 internal constant ALPHA_X1_PART1 =
+        0x00000000000000000000000000000000093f57f8f806ab233d8434d0267c7754;
+    uint256 internal constant ALPHA_X1_PART2 =
+        0x1be6c915576c1bddfa460bf8b6e8f1f937c81a3871fd50a3aa81726065086aad;
+    uint256 internal constant ALPHA_Y0_PART1 =
+        0x0000000000000000000000000000000004d89fd2c1e7527eb39911672cb4ee30;
+    uint256 internal constant ALPHA_Y0_PART2 =
+        0x5d9a98575dd9351b8be857d2714db52fe352408b1b7eda48051b0aebad8d68c4;
+    uint256 internal constant ALPHA_Y1_PART1 =
+        0x0000000000000000000000000000000002b195572a97a24b3d937fbc5a3f17e3;
+    uint256 internal constant ALPHA_Y1_PART2 =
+        0x2447f72db948e76770d9feb379768e7e1bf4319a5cd42f1fee53c907ad8526e2;
 
     // [α^2]_2, refreshed from sigma_verify.json.
-    uint256 internal constant ALPHA_POWER2_X0_PART1 = 0x000000000000000000000000000000001909c0ad9d7658042a2b60842c0b0516;
-    uint256 internal constant ALPHA_POWER2_X0_PART2 = 0x7ea0cec8fd603ec362b53f777309333c04634d699ac1a51fa912413ddf02796b;
-    uint256 internal constant ALPHA_POWER2_X1_PART1 = 0x000000000000000000000000000000000df79b8707062baa404dda649be447c5;
-    uint256 internal constant ALPHA_POWER2_X1_PART2 = 0x9dedc36b3591f4f5b818b9247eabec29bf526919022f2020c2a06c5d4df0f973;
-    uint256 internal constant ALPHA_POWER2_Y0_PART1 = 0x000000000000000000000000000000000c90af2e608571fed42a1d7e617ad227;
-    uint256 internal constant ALPHA_POWER2_Y0_PART2 = 0x5ae378ffbab95fd8cb79e79ea24dc0f072f8617e6f63b9965b96992a163d72e7;
-    uint256 internal constant ALPHA_POWER2_Y1_PART1 = 0x000000000000000000000000000000000b2475e8e122bdd9d68d5dac9ec71995;
-    uint256 internal constant ALPHA_POWER2_Y1_PART2 = 0x095af85f2ef84a34815d97d7da60d463a70ff74595ba174de837b15ead72dd67;
+    uint256 internal constant ALPHA_POWER2_X0_PART1 =
+        0x000000000000000000000000000000001909c0ad9d7658042a2b60842c0b0516;
+    uint256 internal constant ALPHA_POWER2_X0_PART2 =
+        0x7ea0cec8fd603ec362b53f777309333c04634d699ac1a51fa912413ddf02796b;
+    uint256 internal constant ALPHA_POWER2_X1_PART1 =
+        0x000000000000000000000000000000000df79b8707062baa404dda649be447c5;
+    uint256 internal constant ALPHA_POWER2_X1_PART2 =
+        0x9dedc36b3591f4f5b818b9247eabec29bf526919022f2020c2a06c5d4df0f973;
+    uint256 internal constant ALPHA_POWER2_Y0_PART1 =
+        0x000000000000000000000000000000000c90af2e608571fed42a1d7e617ad227;
+    uint256 internal constant ALPHA_POWER2_Y0_PART2 =
+        0x5ae378ffbab95fd8cb79e79ea24dc0f072f8617e6f63b9965b96992a163d72e7;
+    uint256 internal constant ALPHA_POWER2_Y1_PART1 =
+        0x000000000000000000000000000000000b2475e8e122bdd9d68d5dac9ec71995;
+    uint256 internal constant ALPHA_POWER2_Y1_PART2 =
+        0x095af85f2ef84a34815d97d7da60d463a70ff74595ba174de837b15ead72dd67;
 
     // [α^3]_2, refreshed from sigma_verify.json.
-    uint256 internal constant ALPHA_POWER3_X0_PART1 = 0x000000000000000000000000000000000051b699a4c977eab087d8f3fb100234;
-    uint256 internal constant ALPHA_POWER3_X0_PART2 = 0xca8f9ab9ec2d84769fcf8a6a999021579f78e29e81c6911e3ee1bb868de10b19;
-    uint256 internal constant ALPHA_POWER3_X1_PART1 = 0x000000000000000000000000000000000b477a017fb4ba1901048bbf67a1c576;
-    uint256 internal constant ALPHA_POWER3_X1_PART2 = 0xf3377f378426d68eb5d4c24d4d10438791ecf4d16630921b65005a1c8a80fbe9;
-    uint256 internal constant ALPHA_POWER3_Y0_PART1 = 0x000000000000000000000000000000000d5258592704eb980b451fa215ec7714;
-    uint256 internal constant ALPHA_POWER3_Y0_PART2 = 0xc8f6aa2be5d773faea761ce2737dc8126b2cadeb52fc3b8ccdb3fce98f4202df;
-    uint256 internal constant ALPHA_POWER3_Y1_PART1 = 0x00000000000000000000000000000000141d6e6bcc12277e7c1c33b534ed033c;
-    uint256 internal constant ALPHA_POWER3_Y1_PART2 = 0x5488cc691fc99cbaeaac71a434e5c19618a40c4a00a18d903285943f6ba94fe8;
+    uint256 internal constant ALPHA_POWER3_X0_PART1 =
+        0x000000000000000000000000000000000051b699a4c977eab087d8f3fb100234;
+    uint256 internal constant ALPHA_POWER3_X0_PART2 =
+        0xca8f9ab9ec2d84769fcf8a6a999021579f78e29e81c6911e3ee1bb868de10b19;
+    uint256 internal constant ALPHA_POWER3_X1_PART1 =
+        0x000000000000000000000000000000000b477a017fb4ba1901048bbf67a1c576;
+    uint256 internal constant ALPHA_POWER3_X1_PART2 =
+        0xf3377f378426d68eb5d4c24d4d10438791ecf4d16630921b65005a1c8a80fbe9;
+    uint256 internal constant ALPHA_POWER3_Y0_PART1 =
+        0x000000000000000000000000000000000d5258592704eb980b451fa215ec7714;
+    uint256 internal constant ALPHA_POWER3_Y0_PART2 =
+        0xc8f6aa2be5d773faea761ce2737dc8126b2cadeb52fc3b8ccdb3fce98f4202df;
+    uint256 internal constant ALPHA_POWER3_Y1_PART1 =
+        0x00000000000000000000000000000000141d6e6bcc12277e7c1c33b534ed033c;
+    uint256 internal constant ALPHA_POWER3_Y1_PART2 =
+        0x5488cc691fc99cbaeaac71a434e5c19618a40c4a00a18d903285943f6ba94fe8;
 
     // [α^4]_2, refreshed from sigma_verify.json.
-    uint256 internal constant ALPHA_POWER4_X0_PART1 = 0x000000000000000000000000000000000d4b13721cdcd6aa4f3d1ce5d2141fde;
-    uint256 internal constant ALPHA_POWER4_X0_PART2 = 0xe74a7e9f2b9128da8961eb187e129ae57fd1d2c7c66006d38426b72fa18c4137;
-    uint256 internal constant ALPHA_POWER4_X1_PART1 = 0x000000000000000000000000000000000010ef98caa3943cd772e523530eca9d;
-    uint256 internal constant ALPHA_POWER4_X1_PART2 = 0x3f5d81c4ef75eb3638789e4bb711f204eabb20610f9d3c6bf158a6e92e38cbeb;
-    uint256 internal constant ALPHA_POWER4_Y0_PART1 = 0x000000000000000000000000000000000c4aad341b2c63d949a828b5543056d0;
-    uint256 internal constant ALPHA_POWER4_Y0_PART2 = 0x0b68f6870ee0b771defc41a8bce8b0ee59e56df547cc26e6ab6523db5315d631;
-    uint256 internal constant ALPHA_POWER4_Y1_PART1 = 0x000000000000000000000000000000000707e22518e33b5eb6c6c5aa51b2332c;
-    uint256 internal constant ALPHA_POWER4_Y1_PART2 = 0x01597ab09398b775d54c7b75e6af259196eecac5818e09eab53449a53a5477c6;
+    uint256 internal constant ALPHA_POWER4_X0_PART1 =
+        0x000000000000000000000000000000000d4b13721cdcd6aa4f3d1ce5d2141fde;
+    uint256 internal constant ALPHA_POWER4_X0_PART2 =
+        0xe74a7e9f2b9128da8961eb187e129ae57fd1d2c7c66006d38426b72fa18c4137;
+    uint256 internal constant ALPHA_POWER4_X1_PART1 =
+        0x000000000000000000000000000000000010ef98caa3943cd772e523530eca9d;
+    uint256 internal constant ALPHA_POWER4_X1_PART2 =
+        0x3f5d81c4ef75eb3638789e4bb711f204eabb20610f9d3c6bf158a6e92e38cbeb;
+    uint256 internal constant ALPHA_POWER4_Y0_PART1 =
+        0x000000000000000000000000000000000c4aad341b2c63d949a828b5543056d0;
+    uint256 internal constant ALPHA_POWER4_Y0_PART2 =
+        0x0b68f6870ee0b771defc41a8bce8b0ee59e56df547cc26e6ab6523db5315d631;
+    uint256 internal constant ALPHA_POWER4_Y1_PART1 =
+        0x000000000000000000000000000000000707e22518e33b5eb6c6c5aa51b2332c;
+    uint256 internal constant ALPHA_POWER4_Y1_PART2 =
+        0x01597ab09398b775d54c7b75e6af259196eecac5818e09eab53449a53a5477c6;
 
     // -[γ]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant GAMMA_X0_PART1 = 0x000000000000000000000000000000000a82792d18f6bc0edaf19eb3ab6ba510;
-    uint256 internal constant GAMMA_X0_PART2 = 0x31fa11c035715a2c71eccfc5ec81a560c03ad36a9af33225b67af61625619201;
-    uint256 internal constant GAMMA_X1_PART1 = 0x000000000000000000000000000000000142c48b208f73fd8f0cc4565a698485;
-    uint256 internal constant GAMMA_X1_PART2 = 0xdb27c856b5bb118f607233e75085e87ba727820276a8f2c4562ac2188488d245;
-    uint256 internal constant GAMMA_Y0_PART1 = 0x000000000000000000000000000000000f1bac557d38db2b4b80e81d64e25ce3;
-    uint256 internal constant GAMMA_Y0_PART2 = 0x16b2458ae12ffeecab5fbe5f85847d2f2e6fb0d5981522b402fcbb5b2dac0263;
-    uint256 internal constant GAMMA_Y1_PART1 = 0x0000000000000000000000000000000017b64d298978c8fc4f7a18aec01e8f18;
-    uint256 internal constant GAMMA_Y1_PART2 = 0xe828aefa2638a1cac8bda74363f2df5907766bfa29f3f63310d30e2f56200529;
+    uint256 internal constant GAMMA_X0_PART1 =
+        0x000000000000000000000000000000000a82792d18f6bc0edaf19eb3ab6ba510;
+    uint256 internal constant GAMMA_X0_PART2 =
+        0x31fa11c035715a2c71eccfc5ec81a560c03ad36a9af33225b67af61625619201;
+    uint256 internal constant GAMMA_X1_PART1 =
+        0x000000000000000000000000000000000142c48b208f73fd8f0cc4565a698485;
+    uint256 internal constant GAMMA_X1_PART2 =
+        0xdb27c856b5bb118f607233e75085e87ba727820276a8f2c4562ac2188488d245;
+    uint256 internal constant GAMMA_Y0_PART1 =
+        0x000000000000000000000000000000000f1bac557d38db2b4b80e81d64e25ce3;
+    uint256 internal constant GAMMA_Y0_PART2 =
+        0x16b2458ae12ffeecab5fbe5f85847d2f2e6fb0d5981522b402fcbb5b2dac0263;
+    uint256 internal constant GAMMA_Y1_PART1 =
+        0x0000000000000000000000000000000017b64d298978c8fc4f7a18aec01e8f18;
+    uint256 internal constant GAMMA_Y1_PART2 =
+        0xe828aefa2638a1cac8bda74363f2df5907766bfa29f3f63310d30e2f56200529;
 
     // -[η]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant ETA_X0_PART1 = 0x000000000000000000000000000000000bb7b521b9018772d329260cfb5bce54;
-    uint256 internal constant ETA_X0_PART2 = 0x765f606f70f13cb6d4c8e458a7bbaa7c6f4bb0946230b40c07487d7acf10c00c;
-    uint256 internal constant ETA_X1_PART1 = 0x000000000000000000000000000000000384621273aff62b3bc5e038b57894d2;
-    uint256 internal constant ETA_X1_PART2 = 0x1d11a7744e00a520d13adde4757bedb25cfb3d316b251d2d887503b85cf590f2;
-    uint256 internal constant ETA_Y0_PART1 = 0x000000000000000000000000000000000d8a29c3d98ccb00ac394232b2515408;
-    uint256 internal constant ETA_Y0_PART2 = 0x9c2101f4c222018581be7c85d143a371f1788b93145955f910c4759144b9e4c8;
-    uint256 internal constant ETA_Y1_PART1 = 0x000000000000000000000000000000001821f1eb79782cbea8df5cda7f905615;
-    uint256 internal constant ETA_Y1_PART2 = 0xcf541e3f1f6674171fea5223f2f653a9b852773fa89205827875fa076c8a63fa;
+    uint256 internal constant ETA_X0_PART1 =
+        0x000000000000000000000000000000000bb7b521b9018772d329260cfb5bce54;
+    uint256 internal constant ETA_X0_PART2 =
+        0x765f606f70f13cb6d4c8e458a7bbaa7c6f4bb0946230b40c07487d7acf10c00c;
+    uint256 internal constant ETA_X1_PART1 =
+        0x000000000000000000000000000000000384621273aff62b3bc5e038b57894d2;
+    uint256 internal constant ETA_X1_PART2 =
+        0x1d11a7744e00a520d13adde4757bedb25cfb3d316b251d2d887503b85cf590f2;
+    uint256 internal constant ETA_Y0_PART1 =
+        0x000000000000000000000000000000000d8a29c3d98ccb00ac394232b2515408;
+    uint256 internal constant ETA_Y0_PART2 =
+        0x9c2101f4c222018581be7c85d143a371f1788b93145955f910c4759144b9e4c8;
+    uint256 internal constant ETA_Y1_PART1 =
+        0x000000000000000000000000000000001821f1eb79782cbea8df5cda7f905615;
+    uint256 internal constant ETA_Y1_PART2 =
+        0xcf541e3f1f6674171fea5223f2f653a9b852773fa89205827875fa076c8a63fa;
 
     // -[δ]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant DELTA_X0_PART1 = 0x0000000000000000000000000000000019dcd4f3cd4b657714ce629f51b18b41;
-    uint256 internal constant DELTA_X0_PART2 = 0xe0a2d5c17d2ae1a753f29ca88dfddc9ab7deb6d9e80c4b1027d9e6d7dc2e4917;
-    uint256 internal constant DELTA_X1_PART1 = 0x000000000000000000000000000000000497013e6908a31883358c6b46775fb2;
-    uint256 internal constant DELTA_X1_PART2 = 0xcb72449afe178196bbc9c41ef2ba20edee7ea99847b6be406eeb7c5c15cebeee;
-    uint256 internal constant DELTA_Y0_PART1 = 0x0000000000000000000000000000000014aba99eff6e42ee965f4e041bf7db11;
-    uint256 internal constant DELTA_Y0_PART2 = 0x808196bb730c39230388de2ede9bc5ab398227c365ade201ba98098658013235;
-    uint256 internal constant DELTA_Y1_PART1 = 0x0000000000000000000000000000000002844f26437f6f4848e6436c408d6d42;
-    uint256 internal constant DELTA_Y1_PART2 = 0xfbe2854283671dabce05b7d9dd75ddc62441b9f5b0552550d18cc83c8b8bbeea;
+    uint256 internal constant DELTA_X0_PART1 =
+        0x0000000000000000000000000000000019dcd4f3cd4b657714ce629f51b18b41;
+    uint256 internal constant DELTA_X0_PART2 =
+        0xe0a2d5c17d2ae1a753f29ca88dfddc9ab7deb6d9e80c4b1027d9e6d7dc2e4917;
+    uint256 internal constant DELTA_X1_PART1 =
+        0x000000000000000000000000000000000497013e6908a31883358c6b46775fb2;
+    uint256 internal constant DELTA_X1_PART2 =
+        0xcb72449afe178196bbc9c41ef2ba20edee7ea99847b6be406eeb7c5c15cebeee;
+    uint256 internal constant DELTA_Y0_PART1 =
+        0x0000000000000000000000000000000014aba99eff6e42ee965f4e041bf7db11;
+    uint256 internal constant DELTA_Y0_PART2 =
+        0x808196bb730c39230388de2ede9bc5ab398227c365ade201ba98098658013235;
+    uint256 internal constant DELTA_Y1_PART1 =
+        0x0000000000000000000000000000000002844f26437f6f4848e6436c408d6d42;
+    uint256 internal constant DELTA_Y1_PART2 =
+        0xfbe2854283671dabce05b7d9dd75ddc62441b9f5b0552550d18cc83c8b8bbeea;
 
     // -[x]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant X_X0_PART1 = 0x000000000000000000000000000000000fd840491fe66a0cc60f45930d88a9b5;
-    uint256 internal constant X_X0_PART2 = 0x62136137f78260648ce6a4bf5d31849f18de090e2644780d2bf6b42e20842276;
-    uint256 internal constant X_X1_PART1 = 0x000000000000000000000000000000000fabe7238383b48bd61f25125a0d0933;
-    uint256 internal constant X_X1_PART2 = 0x06ef5511550312e2c1a9fb985e21ce1bf71b1fb0565c3b54836463eb1f043d48;
-    uint256 internal constant X_Y0_PART1 = 0x0000000000000000000000000000000010e716bbdb338901b238d9f87c72f114;
-    uint256 internal constant X_Y0_PART2 = 0x08a7fb342bd25a78136d46bd782b23628d8ddb01304d9b7f67a267f3878e2270;
-    uint256 internal constant X_Y1_PART1 = 0x0000000000000000000000000000000011660f79174de9952ac8f61b370e68e3;
-    uint256 internal constant X_Y1_PART2 = 0x3f38addb65bd1a43d48dc2b8f6e15c452a9ad7e17c83fed266eb7fc8055b2e1e;
+    uint256 internal constant X_X0_PART1 =
+        0x000000000000000000000000000000000fd840491fe66a0cc60f45930d88a9b5;
+    uint256 internal constant X_X0_PART2 =
+        0x62136137f78260648ce6a4bf5d31849f18de090e2644780d2bf6b42e20842276;
+    uint256 internal constant X_X1_PART1 =
+        0x000000000000000000000000000000000fabe7238383b48bd61f25125a0d0933;
+    uint256 internal constant X_X1_PART2 =
+        0x06ef5511550312e2c1a9fb985e21ce1bf71b1fb0565c3b54836463eb1f043d48;
+    uint256 internal constant X_Y0_PART1 =
+        0x0000000000000000000000000000000010e716bbdb338901b238d9f87c72f114;
+    uint256 internal constant X_Y0_PART2 =
+        0x08a7fb342bd25a78136d46bd782b23628d8ddb01304d9b7f67a267f3878e2270;
+    uint256 internal constant X_Y1_PART1 =
+        0x0000000000000000000000000000000011660f79174de9952ac8f61b370e68e3;
+    uint256 internal constant X_Y1_PART2 =
+        0x3f38addb65bd1a43d48dc2b8f6e15c452a9ad7e17c83fed266eb7fc8055b2e1e;
 
     // -[y]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant Y_X0_PART1 = 0x000000000000000000000000000000000db7d44a5c4e0ac9e257fc88ab244f84;
-    uint256 internal constant Y_X0_PART2 = 0x49993ea510d51defa4f0087a4227b467251bcece298332959a4309bc26e858a7;
-    uint256 internal constant Y_X1_PART1 = 0x000000000000000000000000000000000800359448db36b504e3e7c5f8272fa5;
-    uint256 internal constant Y_X1_PART2 = 0xad074f84366819836b6a3432b0d904f158301c2d56d5bef870fd2ec8821394e4;
-    uint256 internal constant Y_Y0_PART1 = 0x000000000000000000000000000000000e6b4b796f05eea8c8bd289a96b405a3;
-    uint256 internal constant Y_Y0_PART2 = 0x7bcade68cf95ddecdcc921a1f9a36374965a86b531c1af1fe59f20ab145e8037;
-    uint256 internal constant Y_Y1_PART1 = 0x0000000000000000000000000000000016c2890e136a124f262c958cf89dcfb8;
-    uint256 internal constant Y_Y1_PART2 = 0xe2cee0ae2927899869fd67a2812c77e6dd0b399386039e0a31a6852e5abdf5dd;
+    uint256 internal constant Y_X0_PART1 =
+        0x000000000000000000000000000000000db7d44a5c4e0ac9e257fc88ab244f84;
+    uint256 internal constant Y_X0_PART2 =
+        0x49993ea510d51defa4f0087a4227b467251bcece298332959a4309bc26e858a7;
+    uint256 internal constant Y_X1_PART1 =
+        0x000000000000000000000000000000000800359448db36b504e3e7c5f8272fa5;
+    uint256 internal constant Y_X1_PART2 =
+        0xad074f84366819836b6a3432b0d904f158301c2d56d5bef870fd2ec8821394e4;
+    uint256 internal constant Y_Y0_PART1 =
+        0x000000000000000000000000000000000e6b4b796f05eea8c8bd289a96b405a3;
+    uint256 internal constant Y_Y0_PART2 =
+        0x7bcade68cf95ddecdcc921a1f9a36374965a86b531c1af1fe59f20ab145e8037;
+    uint256 internal constant Y_Y1_PART1 =
+        0x0000000000000000000000000000000016c2890e136a124f262c958cf89dcfb8;
+    uint256 internal constant Y_Y1_PART2 =
+        0xe2cee0ae2927899869fd67a2812c77e6dd0b399386039e0a31a6852e5abdf5dd;
 
     /// @notice Load verification keys to memory in runtime.
     /// @dev The constants are loaded into memory in a specific layout declared in the constants starting from
@@ -598,13 +703,21 @@ contract TokamakVerifier is ITokamakVerifier {
                     and(
                         and(
                             and(eq(part1LengthInWords, 38), eq(part2LengthInWords, 42)),
-                            and(eq(preprocessedPart1LengthInWords, 6), eq(preprocessedPart2LengthInWords, 6))
+                            and(
+                                eq(preprocessedPart1LengthInWords, 6),
+                                eq(preprocessedPart2LengthInWords, 6)
+                            )
                         ),
-                        and(eq(aPubUserLength, EXPECTED_L_USER), eq(aPubBlockLength, sub(EXPECTED_L_FREE, EXPECTED_L_USER)))
+                        and(
+                            eq(aPubUserLength, EXPECTED_L_USER),
+                            eq(aPubBlockLength, sub(EXPECTED_L_FREE, EXPECTED_L_USER))
+                        )
                     )
 
                 // revert if the length of the proof is not valid
-                if iszero(isValid) { revertWithMessage(27, "loadProof: Proof is invalid") }
+                if iszero(isValid) {
+                    revertWithMessage(27, "loadProof: Proof is invalid")
+                }
 
                 // S PERMUTATION POLYNOMIALS & O_pub,fix
                 {
@@ -992,9 +1105,13 @@ contract TokamakVerifier is ITokamakVerifier {
                         if eq(chi, omega_power) {
                             let val
                             switch lt(i, l_user)
-                            case 1 { val := calldataload(add(add(aPubUserOffset, 0x24), mul(i, 0x20))) }
+                            case 1 {
+                                val := calldataload(add(add(aPubUserOffset, 0x24), mul(i, 0x20)))
+                            }
                             default {
-                                val := calldataload(add(add(aPubBlockOffset, 0x24), mul(sub(i, l_user), 0x20)))
+                                val := calldataload(
+                                    add(add(aPubBlockOffset, 0x24), mul(sub(i, l_user), 0x20))
+                                )
                             }
                             mstore(INTERMEDIARY_SCALAR_APUB_SLOT, val)
                             leave
@@ -1021,7 +1138,9 @@ contract TokamakVerifier is ITokamakVerifier {
                     switch lt(i, l_user)
                     case 1 { val := calldataload(add(add(aPubUserOffset, 0x24), mul(i, 0x20))) }
                     default {
-                        val := calldataload(add(add(aPubBlockOffset, 0x24), mul(sub(i, l_user), 0x20)))
+                        val := calldataload(
+                            add(add(aPubBlockOffset, 0x24), mul(sub(i, l_user), 0x20))
+                        )
                     }
                     if val {
                         let denominator := addmod(chi, sub(R_MOD, omega_power), R_MOD)
@@ -1052,7 +1171,9 @@ contract TokamakVerifier is ITokamakVerifier {
                     for { let j := nonZeroCount } gt(j, 0) { j := sub(j, 1) } {
                         let idx := sub(j, 1)
                         let prefixPrev := 1
-                        if idx { prefixPrev := mload(add(prefixOffset, sub(mul(idx, 0x20), 0x20))) }
+                        if idx {
+                            prefixPrev := mload(add(prefixOffset, sub(mul(idx, 0x20), 0x20)))
+                        }
 
                         let invDenominatorFull := mulmod(prefixPrev, running, R_MOD)
                         let denominatorFull := mload(add(denomOffset, mul(idx, 0x20)))
@@ -1138,9 +1259,14 @@ contract TokamakVerifier is ITokamakVerifier {
                     let chi_minus_1 := addmod(chi, sub(R_MOD, 1), R_MOD)
                     let kappa0_chi_minus_1 := mulmod(kappa0, chi_minus_1, R_MOD)
                     let kappa0_pow2_k0 :=
-                        mulmod(mulmod(kappa0, kappa0, R_MOD), mload(INTERMEDIARY_SCALAR_KO_SLOT), R_MOD)
+                        mulmod(
+                            mulmod(kappa0, kappa0, R_MOD),
+                            mload(INTERMEDIARY_SCALAR_KO_SLOT),
+                            R_MOD
+                        )
                     let kappa0_mix := addmod(kappa0_chi_minus_1, kappa0_pow2_k0, R_MOD)
-                    let c_g := mulmod(mulmod(common, mload(PROOF_R1XY_SLOT), R_MOD), kappa0_mix, R_MOD)
+                    let c_g :=
+                        mulmod(mulmod(common, mload(PROOF_R1XY_SLOT), R_MOD), kappa0_mix, R_MOD)
                     let c_f_inner :=
                         addmod(
                             mulmod(kappa0_chi_minus_1, mload(PROOF_R2XY_SLOT), R_MOD),
@@ -1155,48 +1281,113 @@ contract TokamakVerifier is ITokamakVerifier {
 
                 // (1 + κ2κ1^4) * [A_free]_1
                 msmStoreTerm(
-                    msmPtr, 0, PROOF_POLY_A_FREE_X_SLOT_PART1, addmod(1, mulmod(kappa2, kappa1_pow4, R_MOD), R_MOD)
+                    msmPtr,
+                    0,
+                    PROOF_POLY_A_FREE_X_SLOT_PART1,
+                    addmod(1, mulmod(kappa2, kappa1_pow4, R_MOD), R_MOD)
                 )
-                msmStoreTerm(msmPtr, 1, PROOF_POLY_U_X_SLOT_PART1, mulmod(kappa2, mload(PROOF_VXY_SLOT), R_MOD))
-                msmStoreTerm(msmPtr, 2, PROOF_POLY_W_X_SLOT_PART1, addmod(0, sub(R_MOD, kappa2), R_MOD))
+                msmStoreTerm(
+                    msmPtr,
+                    1,
+                    PROOF_POLY_U_X_SLOT_PART1,
+                    mulmod(kappa2, mload(PROOF_VXY_SLOT), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    2,
+                    PROOF_POLY_W_X_SLOT_PART1,
+                    addmod(0, sub(R_MOD, kappa2), R_MOD)
+                )
                 msmStoreTerm(msmPtr, 3, PROOF_POLY_V_X_SLOT_PART1, mulmod(kappa2, kappa1, R_MOD))
                 msmStoreTerm(
                     msmPtr,
                     4,
                     PROOF_POLY_QAX_X_SLOT_PART1,
-                    addmod(0, sub(R_MOD, mulmod(kappa2, mload(INTERMERDIARY_SCALAR_T_N_CHI_SLOT), R_MOD)), R_MOD)
+                    addmod(
+                        0,
+                        sub(R_MOD, mulmod(kappa2, mload(INTERMERDIARY_SCALAR_T_N_CHI_SLOT), R_MOD)),
+                        R_MOD
+                    )
                 )
                 msmStoreTerm(
                     msmPtr,
                     5,
                     PROOF_POLY_QAY_X_SLOT_PART1,
-                    addmod(0, sub(R_MOD, mulmod(kappa2, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT), R_MOD)), R_MOD)
+                    addmod(
+                        0,
+                        sub(
+                            R_MOD,
+                            mulmod(kappa2, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT), R_MOD)
+                        ),
+                        R_MOD
+                    )
                 )
                 msmStoreTerm(
-                    msmPtr, 6, VK_POLY_KXLX_X_PART1, mulmod(common, addmod(mload(PROOF_R1XY_SLOT), sub(R_MOD, 1), R_MOD), R_MOD)
+                    msmPtr,
+                    6,
+                    VK_POLY_KXLX_X_PART1,
+                    mulmod(common, addmod(mload(PROOF_R1XY_SLOT), sub(R_MOD, 1), R_MOD), R_MOD)
                 )
                 msmStoreTerm(msmPtr, 7, PROOF_POLY_B_X_SLOT_PART1, mload(STEP4_COEFF_C_B_SLOT))
-                msmStoreTerm(msmPtr, 8, PUBLIC_INPUTS_S_0_X_SLOT_PART1, mulmod(theta0, mload(STEP4_COEFF_C_F_SLOT), R_MOD))
-                msmStoreTerm(msmPtr, 9, PUBLIC_INPUTS_S_1_X_SLOT_PART1, mulmod(theta1, mload(STEP4_COEFF_C_F_SLOT), R_MOD))
-                msmStoreTerm(msmPtr, 10, VK_POLY_X_X_PART1, mulmod(theta0, mload(STEP4_COEFF_C_G_SLOT), R_MOD))
-                msmStoreTerm(msmPtr, 11, VK_POLY_Y_X_PART1, mulmod(theta1, mload(STEP4_COEFF_C_G_SLOT), R_MOD))
+                msmStoreTerm(
+                    msmPtr,
+                    8,
+                    PUBLIC_INPUTS_S_0_X_SLOT_PART1,
+                    mulmod(theta0, mload(STEP4_COEFF_C_F_SLOT), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    9,
+                    PUBLIC_INPUTS_S_1_X_SLOT_PART1,
+                    mulmod(theta1, mload(STEP4_COEFF_C_F_SLOT), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    10,
+                    VK_POLY_X_X_PART1,
+                    mulmod(theta0, mload(STEP4_COEFF_C_G_SLOT), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    11,
+                    VK_POLY_Y_X_PART1,
+                    mulmod(theta1, mload(STEP4_COEFF_C_G_SLOT), R_MOD)
+                )
                 msmStoreTerm(
                     msmPtr,
                     12,
                     PROOF_POLY_QCX_X_SLOT_PART1,
-                    addmod(0, sub(R_MOD, mulmod(common, mload(INTERMERDIARY_SCALAR_T_MI_CHI_SLOT), R_MOD)), R_MOD)
+                    addmod(
+                        0,
+                        sub(
+                            R_MOD,
+                            mulmod(common, mload(INTERMERDIARY_SCALAR_T_MI_CHI_SLOT), R_MOD)
+                        ),
+                        R_MOD
+                    )
                 )
                 msmStoreTerm(
                     msmPtr,
                     13,
                     PROOF_POLY_QCY_X_SLOT_PART1,
-                    addmod(0, sub(R_MOD, mulmod(common, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT), R_MOD)), R_MOD)
+                    addmod(
+                        0,
+                        sub(
+                            R_MOD,
+                            mulmod(common, mload(INTERMERDIARY_SCALAR_T_SMAX_ZETA_SLOT), R_MOD)
+                        ),
+                        R_MOD
+                    )
                 )
                 msmStoreTerm(
                     msmPtr,
                     14,
                     PROOF_POLY_R_X_SLOT_PART1,
-                    addmod(mulmod(kappa2, kappa1_pow3, R_MOD), addmod(kappa2_pow2, kappa2_pow3, R_MOD), R_MOD)
+                    addmod(
+                        mulmod(kappa2, kappa1_pow3, R_MOD),
+                        addmod(kappa2_pow2, kappa2_pow3, R_MOD),
+                        R_MOD
+                    )
                 )
 
                 {
@@ -1204,12 +1395,20 @@ contract TokamakVerifier is ITokamakVerifier {
                         addmod(
                             addmod(
                                 // κ2κ1^4 * A_eval
-                                mulmod(mulmod(kappa2, kappa1_pow4, R_MOD), mload(INTERMEDIARY_SCALAR_APUB_SLOT), R_MOD),
+                                mulmod(
+                                    mulmod(kappa2, kappa1_pow4, R_MOD),
+                                    mload(INTERMEDIARY_SCALAR_APUB_SLOT),
+                                    R_MOD
+                                ),
                                 mulmod(mulmod(kappa2, kappa1, R_MOD), mload(PROOF_VXY_SLOT), R_MOD),
                                 R_MOD
                             ),
                             addmod(
-                                mulmod(mulmod(kappa2, kappa1_pow3, R_MOD), mload(PROOF_R1XY_SLOT), R_MOD),
+                                mulmod(
+                                    mulmod(kappa2, kappa1_pow3, R_MOD),
+                                    mload(PROOF_R1XY_SLOT),
+                                    R_MOD
+                                ),
                                 addmod(
                                     mulmod(kappa2_pow2, mload(PROOF_R2XY_SLOT), R_MOD),
                                     mulmod(kappa2_pow3, mload(PROOF_R3XY_SLOT), R_MOD),
@@ -1229,10 +1428,30 @@ contract TokamakVerifier is ITokamakVerifier {
                 }
 
                 msmStoreTerm(msmPtr, 16, PROOF_POLY_PI_CHI_X_SLOT_PART1, mulmod(kappa2, chi, R_MOD))
-                msmStoreTerm(msmPtr, 17, PROOF_POLY_PI_ZETA_X_SLOT_PART1, mulmod(kappa2, zeta, R_MOD))
-                msmStoreTerm(msmPtr, 18, PROOF_POLY_M_CHI_X_SLOT_PART1, mulmod(kappa2_pow2, mulmod(OMEGA_MI_1, chi, R_MOD), R_MOD))
-                msmStoreTerm(msmPtr, 19, PROOF_POLY_M_ZETA_X_SLOT_PART1, mulmod(kappa2_pow2, zeta, R_MOD))
-                msmStoreTerm(msmPtr, 20, PROOF_POLY_N_CHI_X_SLOT_PART1, mulmod(kappa2_pow3, mulmod(OMEGA_MI_1, chi, R_MOD), R_MOD))
+                msmStoreTerm(
+                    msmPtr,
+                    17,
+                    PROOF_POLY_PI_ZETA_X_SLOT_PART1,
+                    mulmod(kappa2, zeta, R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    18,
+                    PROOF_POLY_M_CHI_X_SLOT_PART1,
+                    mulmod(kappa2_pow2, mulmod(OMEGA_MI_1, chi, R_MOD), R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    19,
+                    PROOF_POLY_M_ZETA_X_SLOT_PART1,
+                    mulmod(kappa2_pow2, zeta, R_MOD)
+                )
+                msmStoreTerm(
+                    msmPtr,
+                    20,
+                    PROOF_POLY_N_CHI_X_SLOT_PART1,
+                    mulmod(kappa2_pow3, mulmod(OMEGA_MI_1, chi, R_MOD), R_MOD)
+                )
                 msmStoreTerm(
                     msmPtr,
                     21,
@@ -1374,7 +1593,9 @@ contract TokamakVerifier is ITokamakVerifier {
                 mstore(0xfa0, mload(PROOF_POLY_OPUB_X_SLOT_PART2))
                 mstore(0xfc0, mload(PROOF_POLY_OPUB_Y_SLOT_PART1))
                 mstore(0xfe0, mload(PROOF_POLY_OPUB_Y_SLOT_PART2))
-                if iszero(staticcall(gas(), 0x0b, 0xf00, 0x100, 0x780, 0x80)) { revertWithMessage(22, "g1add precompile failed") }
+                if iszero(staticcall(gas(), 0x0b, 0xf00, 0x100, 0x780, 0x80)) {
+                    revertWithMessage(22, "g1add precompile failed")
+                }
 
                 // load -[γ]_2
                 mstore(0x800, GAMMA_X1_PART1)
@@ -1452,8 +1673,12 @@ contract TokamakVerifier is ITokamakVerifier {
 
                 // precompile call
                 let success := staticcall(gas(), 0x0f, 0, 0xf00, 0x00, 0x20)
-                if iszero(success) { revertWithMessage(32, "finalPairing: precompile failure") }
-                if iszero(mload(0)) { revertWithMessage(29, "finalPairing: pairing failure") }
+                if iszero(success) {
+                    revertWithMessage(32, "finalPairing: precompile failure")
+                }
+                if iszero(mload(0)) {
+                    revertWithMessage(29, "finalPairing: pairing failure")
+                }
             }
 
             // Step1: Load the PI/proof

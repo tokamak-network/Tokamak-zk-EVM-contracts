@@ -93,6 +93,11 @@ contract BridgeFlowTest is Test {
             ITokamakVerifier(address(tokamakVerifier))
         );
         dAppManager.bindBridgeCore(address(bridgeCore));
+        _etchDAppCode(vaultStorageAddr);
+        _etchDAppCode(appStorageAddr);
+        _etchDAppCode(secondaryVaultStorageAddr);
+        _etchDAppCode(appContract);
+        _etchDAppCode(appContract2);
         dAppManager.registerDApp(
             1,
             keccak256("private-app"),
@@ -206,6 +211,7 @@ contract BridgeFlowTest is Test {
 
         bridgeCore.setGrothVerifier(IGrothVerifier(address(updatedGrothVerifier)));
         bridgeCore.setTokamakVerifier(ITokamakVerifier(address(updatedTokamakVerifier)));
+        _etchDAppCode(address(0xF11D));
         dAppManager.updateDAppMetadata(
             1, _singleVaultStorageLayout(address(0xF11D)), _singleVaultDAppFunction()
         );
@@ -268,6 +274,7 @@ contract BridgeFlowTest is Test {
         vm.chainId(11155111);
 
         dAppManager.deleteDApp(2);
+        _etchDAppCode(address(0xF11D));
 
         dAppManager.registerDApp(
             2,
@@ -479,6 +486,136 @@ contract BridgeFlowTest is Test {
         );
     }
 
+    function testRejectsDAppRegistrationWithZeroLabelHash() public {
+        vm.expectRevert(abi.encodeWithSelector(DAppManager.InvalidDAppLabelHash.selector, 3));
+        dAppManager.registerDApp(
+            3,
+            bytes32(0),
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            _defaultDAppFunctions(defaultPreprocessInputHash)
+        );
+    }
+
+    function testRejectsDAppRegistrationWithZeroStorageAddress() public {
+        BridgeStructs.StorageMetadata[] memory storages =
+            _defaultStorageLayouts(address(0), address(0x1234));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DAppManager.InvalidStorageAddress.selector, uint256(3), address(0)
+            )
+        );
+        dAppManager.registerDApp(
+            3,
+            keccak256("zero-storage-address"),
+            storages,
+            _defaultDAppFunctions(defaultPreprocessInputHash)
+        );
+    }
+
+    function testRejectsDAppRegistrationWithNonContractStorageAddress() public {
+        address nonContractStorage = address(0xBAD5000);
+        BridgeStructs.StorageMetadata[] memory storages =
+            _defaultStorageLayouts(nonContractStorage, address(0x1234));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DAppManager.InvalidStorageAddress.selector, uint256(3), nonContractStorage
+            )
+        );
+        dAppManager.registerDApp(
+            3,
+            keccak256("non-contract-storage-address"),
+            storages,
+            _defaultDAppFunctions(defaultPreprocessInputHash)
+        );
+    }
+
+    function testRejectsDAppRegistrationWithZeroFunctionEntryContract() public {
+        BridgeStructs.DAppFunctionMetadata[] memory functions =
+            new BridgeStructs.DAppFunctionMetadata[](1);
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: address(0),
+            functionSig: APP_SIG,
+            preprocessInputHash: bytes32("PREPROCESS_INPUT"),
+            instanceLayout: _instanceLayout(22, 24, 26, 0)
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DAppManager.InvalidFunctionEntryContract.selector, uint256(3), address(0), APP_SIG
+            )
+        );
+        dAppManager.registerDApp(
+            3,
+            keccak256("zero-function-entry"),
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            functions
+        );
+    }
+
+    function testRejectsDAppRegistrationWithNonContractFunctionEntryContract() public {
+        address nonContractEntry = address(0xBADF00D);
+        BridgeStructs.DAppFunctionMetadata[] memory functions =
+            new BridgeStructs.DAppFunctionMetadata[](1);
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: nonContractEntry,
+            functionSig: APP_SIG,
+            preprocessInputHash: bytes32("PREPROCESS_INPUT"),
+            instanceLayout: _instanceLayout(22, 24, 26, 0)
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DAppManager.InvalidFunctionEntryContract.selector,
+                uint256(3),
+                nonContractEntry,
+                APP_SIG
+            )
+        );
+        dAppManager.registerDApp(
+            3,
+            keccak256("non-contract-function-entry"),
+            _defaultStorageLayouts(address(0xF00D), address(0x1234)),
+            functions
+        );
+    }
+
+    function testRejectsDAppMetadataUpdateWithNonContractStorageAddress() public {
+        address nonContractStorage = address(0xBAD7000);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DAppManager.InvalidStorageAddress.selector, uint256(1), nonContractStorage
+            )
+        );
+        dAppManager.updateDAppMetadata(
+            1, _singleVaultStorageLayout(nonContractStorage), _singleVaultDAppFunction()
+        );
+    }
+
+    function testRejectsDAppMetadataUpdateWithNonContractFunctionEntryContract() public {
+        address nonContractEntry = address(0xBAD7001);
+        BridgeStructs.DAppFunctionMetadata[] memory functions =
+            new BridgeStructs.DAppFunctionMetadata[](1);
+        functions[0] = BridgeStructs.DAppFunctionMetadata({
+            entryContract: nonContractEntry,
+            functionSig: APP_SIG,
+            preprocessInputHash: bytes32("PREPROCESS_INPUT"),
+            instanceLayout: _instanceLayout(22, 24, 26, 0)
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DAppManager.InvalidFunctionEntryContract.selector,
+                uint256(1),
+                nonContractEntry,
+                APP_SIG
+            )
+        );
+        dAppManager.updateDAppMetadata(1, _singleVaultStorageLayout(address(0xF00D)), functions);
+    }
+
     function testRejectsDAppRegistrationWithoutPreprocessHash() public {
         BridgeStructs.DAppFunctionMetadata[] memory functions =
             new BridgeStructs.DAppFunctionMetadata[](1);
@@ -549,6 +686,7 @@ contract BridgeFlowTest is Test {
     function testRejectsChannelCreationWithTooManyManagedStorages() public {
         BridgeStructs.StorageMetadata[] memory storages = new BridgeStructs.StorageMetadata[](12);
         for (uint256 i = 0; i < storages.length; i++) {
+            _etchDAppCode(address(uint160(0x1000 + i)));
             storages[i] = BridgeStructs.StorageMetadata({
                 storageAddr: address(uint160(0x1000 + i)),
                 preAllocatedKeys: new bytes32[](0),
@@ -1785,6 +1923,12 @@ contract BridgeFlowTest is Test {
 
     function _dAppMetadataDigest(uint256 targetDappId) internal view returns (bytes32) {
         return dAppManager.getDAppInfo(targetDappId).metadataDigest;
+    }
+
+    function _etchDAppCode(address target) internal {
+        if (target.code.length == 0) {
+            vm.etch(target, address(this).code);
+        }
     }
 
     function _instanceLayout(

@@ -34,10 +34,13 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     error UnknownDApp(uint256 dappId);
     error DuplicateDApp(uint256 dappId);
+    error InvalidDAppLabelHash(uint256 dappId);
     error EmptyStorageLayout(uint256 dappId);
     error EmptyFunctionList(uint256 dappId);
+    error InvalidStorageAddress(uint256 dappId, address storageAddr);
     error DuplicateStorageAddress(uint256 dappId, address storageAddr);
     error UnknownStorageAddress(uint256 dappId, address storageAddr);
+    error InvalidFunctionEntryContract(uint256 dappId, address entryContract, bytes4 functionSig);
     error DuplicateFunction(uint256 dappId, address entryContract, bytes4 functionSig);
     error UnsupportedChannelFunction(uint256 dappId, address entryContract, bytes4 functionSig);
     error MissingChannelTokenVaultStorageAddress(uint256 dappId);
@@ -144,6 +147,9 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     ) external onlyOwner {
         if (_dapps[dappId].exists) {
             revert DuplicateDApp(dappId);
+        }
+        if (labelHash == bytes32(0)) {
+            revert InvalidDAppLabelHash(dappId);
         }
         DAppMetadataDigestParts memory digestParts =
             _storeDAppRuntimeMetadata(dappId, storages, functions);
@@ -336,6 +342,12 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         for (uint256 i = 0; i < storages.length; i++) {
             BridgeStructs.StorageMetadata calldata storageMetadata = storages[i];
+            if (storageMetadata.storageAddr == address(0)) {
+                revert InvalidStorageAddress(dappId, storageMetadata.storageAddr);
+            }
+            if (storageMetadata.storageAddr.code.length == 0) {
+                revert InvalidStorageAddress(dappId, storageMetadata.storageAddr);
+            }
             if (_knownStorageAddress[dappId][storageMetadata.storageAddr]) {
                 revert DuplicateStorageAddress(dappId, storageMetadata.storageAddr);
             }
@@ -386,6 +398,16 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         BridgeStructs.DAppFunctionMetadata calldata fnMetadata
     ) private returns (bytes32 functionMetadataHash) {
         bytes32 functionKey = computeFunctionKey(fnMetadata.entryContract, fnMetadata.functionSig);
+        if (fnMetadata.entryContract == address(0)) {
+            revert InvalidFunctionEntryContract(
+                dappId, fnMetadata.entryContract, fnMetadata.functionSig
+            );
+        }
+        if (fnMetadata.entryContract.code.length == 0) {
+            revert InvalidFunctionEntryContract(
+                dappId, fnMetadata.entryContract, fnMetadata.functionSig
+            );
+        }
         if (_supportedFunctions[dappId][functionKey]) {
             revert DuplicateFunction(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
         }

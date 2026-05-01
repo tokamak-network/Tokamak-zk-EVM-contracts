@@ -63,17 +63,17 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
    Mitigation implemented before mainnet: the private-state CLI prints the DApp metadata digest, digest schema, Groth16 verifier address, Groth16 compatible backend version, Tokamak verifier address, and Tokamak compatible backend version before `create-channel` and before a first `join-channel` registration. The CLI and DApp protocol documentation now warn users and operators that signing means accepting that exact immutable channel policy. If any displayed value is unexpected or unreviewed, the user should not create or join the channel.
 
-4. Low: direct owner calls to `registerDApp` or `updateDAppMetadata` can still register structurally bad metadata that the admin script would normally filter out.
+4. Low: direct owner calls to `registerDApp` or `updateDAppMetadata` could register structurally bad metadata that the admin script would normally filter out.
 
-   Status: open defense-in-depth issue.
+   Status: resolved before mainnet with contract-level defense-in-depth checks.
 
-   The contract validates duplicate storage addresses, duplicate functions, duplicate preprocess hashes, non-empty storage/function lists, event topic count, and exactly one channel-token-vault storage. It does not reject a zero `storageAddr`, a zero `entryContract`, a zero `labelHash`, or non-contract target addresses. The `admin-add-dapp.mjs` flow derives metadata from deployed artifacts and checks target deployment/storage-layout consistency, so the normal path is much safer than raw contract calls. However, the on-chain API itself still trusts the owner to avoid malformed metadata.
+   Original issue: the contract validated duplicate storage addresses, duplicate functions, duplicate preprocess hashes, non-empty storage/function lists, event topic count, and exactly one channel-token-vault storage. It did not reject a zero `storageAddr`, a zero `entryContract`, a zero `labelHash`, or non-contract target addresses. The `admin-add-dapp.mjs` flow derived metadata from deployed artifacts and checked target deployment/storage-layout consistency, so the normal path was much safer than raw contract calls, but the on-chain API itself still trusted the owner to avoid these malformed values.
 
-   Impact: a malformed DApp registration/update can break future channel creation or create channels whose execution policy is unusable. As with Finding 1, already-created channels cannot be repaired in place.
+   Resolution: `DAppManager.registerDApp(...)` now rejects zero `labelHash`. The shared registration/update metadata storage path rejects zero storage addresses, storage addresses with no contract code, zero function entry contracts, and function entry contracts with no contract code. These checks apply to both initial DApp registration and `updateDAppMetadata(...)`.
 
-   UUPS upgradeability classification: fixable for future registrations/updates through a DAppManager UUPS implementation that adds stricter metadata validation. Existing bad channels remain immutable and require migration.
+   Impact after resolution: direct owner calls can no longer insert the most obvious malformed address values that the admin script would normally prevent. The admin script remains the canonical registration path because it performs higher-level artifact/layout consistency checks that are intentionally not duplicated on-chain.
 
-   Recommended action: add on-chain defense-in-depth checks for zero addresses and, where appropriate, code existence for storage and entry contracts. Keep the admin script as the canonical registration path even after contract-level checks are added.
+   UUPS upgradeability classification: fixed before mainnet for future registrations/updates. If a malformed channel had already been created before this fix, it would still be immutable and require migration, but no mainnet channel exists under the current launch assumption.
 
 ## Prior Findings Rechecked
 

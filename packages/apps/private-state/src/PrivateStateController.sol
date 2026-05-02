@@ -181,8 +181,8 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(noteValue, output0Value);
         }
 
-        _useNullifier(nullifiers[0]);
-        _registerCommitment(outputCommitments[0]);
+        _useTransferNullifier(nullifiers[0]);
+        _registerTransferCommitment(outputCommitments[0]);
         emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
     }
 
@@ -202,9 +202,9 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(noteValue, totalOutputValue);
         }
 
-        _useNullifier(nullifiers[0]);
-        _registerCommitment(outputCommitments[0]);
-        _registerCommitment(outputCommitments[1]);
+        _useTransferNullifier(nullifiers[0]);
+        _registerTransferCommitment(outputCommitments[0]);
+        _registerTransferCommitment(outputCommitments[1]);
         emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
         emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
     }
@@ -227,10 +227,10 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(noteValue, totalOutputValue);
         }
 
-        _useNullifier(nullifiers[0]);
-        _registerCommitment(outputCommitments[0]);
-        _registerCommitment(outputCommitments[1]);
-        _registerCommitment(outputCommitments[2]);
+        _useTransferNullifier(nullifiers[0]);
+        _registerTransferCommitment(outputCommitments[0]);
+        _registerTransferCommitment(outputCommitments[1]);
+        _registerTransferCommitment(outputCommitments[2]);
         emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
         emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
         emit NoteValueEncrypted(outputs[2].encryptedNoteValue);
@@ -259,9 +259,9 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
         }
 
-        _useNullifier(nullifiers[0]);
-        _useNullifier(nullifiers[1]);
-        _registerCommitment(outputCommitments[0]);
+        _useTransferNullifier(nullifiers[0]);
+        _useTransferNullifier(nullifiers[1]);
+        _registerTransferCommitment(outputCommitments[0]);
         emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
     }
 
@@ -291,10 +291,10 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
         }
 
-        _useNullifier(nullifiers[0]);
-        _useNullifier(nullifiers[1]);
-        _registerCommitment(outputCommitments[0]);
-        _registerCommitment(outputCommitments[1]);
+        _useTransferNullifier(nullifiers[0]);
+        _useTransferNullifier(nullifiers[1]);
+        _registerTransferCommitment(outputCommitments[0]);
+        _registerTransferCommitment(outputCommitments[1]);
         emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
         emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
     }
@@ -327,10 +327,10 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
         }
 
-        _useNullifier(nullifiers[0]);
-        _useNullifier(nullifiers[1]);
-        _useNullifier(nullifiers[2]);
-        _registerCommitment(outputCommitments[0]);
+        _useTransferNullifier(nullifiers[0]);
+        _useTransferNullifier(nullifiers[1]);
+        _useTransferNullifier(nullifiers[2]);
+        _registerTransferCommitment(outputCommitments[0]);
         emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
     }
 
@@ -358,11 +358,11 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
         }
 
-        _useNullifier(nullifiers[0]);
-        _useNullifier(nullifiers[1]);
-        _useNullifier(nullifiers[2]);
-        _registerCommitment(outputCommitments[0]);
-        _registerCommitment(outputCommitments[1]);
+        _useTransferNullifier(nullifiers[0]);
+        _useTransferNullifier(nullifiers[1]);
+        _useTransferNullifier(nullifiers[2]);
+        _registerTransferCommitment(outputCommitments[0]);
+        _registerTransferCommitment(outputCommitments[1]);
         emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
         emit NoteValueEncrypted(outputs[1].encryptedNoteValue);
     }
@@ -400,11 +400,11 @@ contract PrivateStateController {
             revert InputOutputValueMismatch(totalInputValue, totalOutputValue);
         }
 
-        _useNullifier(nullifiers[0]);
-        _useNullifier(nullifiers[1]);
-        _useNullifier(nullifiers[2]);
-        _useNullifier(nullifiers[3]);
-        _registerCommitment(outputCommitments[0]);
+        _useTransferNullifier(nullifiers[0]);
+        _useTransferNullifier(nullifiers[1]);
+        _useTransferNullifier(nullifiers[2]);
+        _useTransferNullifier(nullifiers[3]);
+        _registerTransferCommitment(outputCommitments[0]);
         emit NoteValueEncrypted(outputs[0].encryptedNoteValue);
     }
 
@@ -648,6 +648,44 @@ contract PrivateStateController {
         }
         nullifierUsed[nullifier] = true;
         emit StorageKeyObserved(_mappingStorageKey(nullifier, _nullifierUsedSlot()));
+    }
+
+    function _registerTransferCommitment(bytes32 commitment) internal {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, commitment)
+            mstore(add(ptr, 0x20), commitmentExists.slot)
+            let storageKey := keccak256(ptr, 0x40)
+            let storedValue := sload(storageKey)
+            if and(storedValue, 0xff) {
+                mstore(0x00, shl(224, 0xc5f89f05))
+                mstore(0x04, commitment)
+                revert(0x00, 0x24)
+            }
+            sstore(storageKey, or(and(storedValue, not(0xff)), 0x01))
+            mstore(ptr, storageKey)
+            log1(ptr, 0x20, 0x31fdacb9f064af42e193fb5a792739255c68dae3b03bc03067583c822620cf84)
+            mstore(0x40, add(ptr, 0x40))
+        }
+    }
+
+    function _useTransferNullifier(bytes32 nullifier) internal {
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, nullifier)
+            mstore(add(ptr, 0x20), nullifierUsed.slot)
+            let storageKey := keccak256(ptr, 0x40)
+            let storedValue := sload(storageKey)
+            if and(storedValue, 0xff) {
+                mstore(0x00, shl(224, 0xa483dd04))
+                mstore(0x04, nullifier)
+                revert(0x00, 0x24)
+            }
+            sstore(storageKey, or(and(storedValue, not(0xff)), 0x01))
+            mstore(ptr, storageKey)
+            log1(ptr, 0x20, 0x31fdacb9f064af42e193fb5a792739255c68dae3b03bc03067583c822620cf84)
+            mstore(0x40, add(ptr, 0x40))
+        }
     }
 
     function _loadValidatedNote(Note calldata note)

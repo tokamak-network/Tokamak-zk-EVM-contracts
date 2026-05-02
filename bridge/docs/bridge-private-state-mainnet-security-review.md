@@ -314,20 +314,20 @@ Refined implementation plan under the current policy decisions:
 
 - replace the current gas-only `join-channel` path with a paid join flow that:
   - removes the standalone free registration call from the user-facing CLI
-  - charges a TON-denominated join fee
+  - charges a TON-denominated join toll
   - stores that fee in a bridge-controlled treasury that no operator, leader, or channel creator can withdraw from directly
-  - creates the channel registration only inside the same transaction that pays the join fee
-- make the join fee channel-configurable:
-  - the channel creator chooses the initial TON join fee at `createChannel(...)` time
-  - the channel creator may update that channel's join fee later
-  - the changed fee applies only to future joins; existing registrations must not be rewritten in place
+  - creates the channel registration only inside the same transaction that pays the join toll
+- make the join toll channel-configurable:
+  - the channel creator chooses the initial TON join toll at `createChannel(...)` time
+  - the channel creator may update that channel's join toll later
+  - the changed toll applies only to future joins; existing registrations must not be rewritten in place
 - remove the earlier `minimumBootstrapBalance` requirement and do not force a channel deposit at join time
 - remove the earlier requirement that every withdraw must be an exit, so post-join channel balance management may continue independently of registration lifetime
 - add an exit path that:
   - requires `currentUserValue == 0`
   - deletes the registration and frees the reserved `leafIndex`, key binding, L2 address binding, and note-receive key binding only after the full exit path succeeds
   - allows the same L1 account to rejoin the same channel after a successful exit
-  - refunds only a time-decayed fraction of the recorded join fee back to the exiting user from treasury
+  - refunds only a time-decayed fraction of the recorded join toll back to the exiting user from treasury
   - computes the refundable fraction from an owner-updatable lookup table
   - starts with the following schedule:
     - exit within 6 hours: `75%`
@@ -336,7 +336,7 @@ Refined implementation plan under the current policy decisions:
     - exit after 3 days: `0%`
   - preserves the invariant that no treasury outflow path exists except this decayed exit refund
 - extend the per-user registration state with:
-  - the recorded join-fee-paid amount
+  - the recorded join-toll-paid amount
   - the join timestamp or equivalent epoch marker used for refund decay
 - update the CLI and user guidance so:
   - `join-channel` becomes a paid registration action rather than a free reservation call
@@ -344,7 +344,7 @@ Refined implementation plan under the current policy decisions:
   - the CLI refuses `exit` unless the current channel balance is already zero
   - the exit flow clearly discloses the current refund fraction before the user confirms
 - preserve transaction atomicity:
-  - if the paid join path fails, the registration and fee side effects must roll back together
+  - if the paid join path fails, the registration and toll side effects must roll back together
   - if exit cleanup or refund transfer fails, the registration deletion must also revert
 
 Additional review of the refined plan:
@@ -355,30 +355,30 @@ Additional review of the refined plan:
 - Compared with a fully non-refundable fee, the refund schedule weakens short-horizon deterrence but strengthens long-horizon deterrence relative to the earlier full-refund empty-exit policy.
   - An attacker can still join, wait briefly, and exit with a high refund if the decay curve is too slow.
   - An attacker who occupies slots for a long period can no longer recover the full fee simply by performing one last-minute action before exit.
-- The main deterrent is now the non-refunded fraction of the join fee as a function of occupancy time:
+- The main deterrent is now the non-refunded fraction of the join toll as a function of occupancy time:
   - short-lived joins remain relatively cheap if the early refund buckets are generous
   - long-lived slot occupation becomes increasingly expensive as the refund fraction decays
 - Because the bootstrap-deposit requirement is removed, the design no longer benefits from capital-lock deterrence.
-  - The join fee schedule therefore becomes the dominant anti-DoS control.
-- Mutable creator-controlled join fees introduce a new governance and fairness risk:
-  - the channel creator can make future joins economically impossible by raising the fee
+  - The join toll schedule therefore becomes the dominant anti-DoS control.
+- Mutable creator-controlled join tolls introduce a new governance and fairness risk:
+  - the channel creator can make future joins economically impossible by raising the toll
   - the channel creator can also lower the fee for a favored cohort and effectively turn a nominally permissionless channel into a creator-priced admission system
 - Because of that, the implementation must define whether fee changes are expected operational behavior or an abuse case that should be disclosed to users as a trust assumption.
-- Refund accounting must be tied to the fee actually paid at join time.
+- Refund accounting must be tied to the toll actually paid at join time.
   - If exit refunds use the current fee rather than the recorded paid fee, later fee increases create an over-refund drain on the treasury and later fee decreases create under-refunds.
 - The refund schedule itself becomes a privileged governance lever because the bridge owner can change the lookup table after channels are live.
   - A tighter table can make exits much more expensive than users expected at join time.
   - A looser table can weaken DoS deterrence retroactively.
   - This refund-schedule mutability must therefore be disclosed as a trust assumption unless it is time-locked or future-only.
 - The current policy also leaves one operational design choice to be disclosed clearly:
-  - the treasury becomes a sink for non-refunded join fees, with outflows only for decayed exit refunds
+  - the treasury becomes a sink for non-refunded join tolls, with outflows only for decayed exit refunds
   - if that is the intended terminal behavior, the system should document that those fees are not protocol revenue and are not claimable by governance or operators
 
 Expected mitigation strength:
 
 - this materially improves the current finding because leaf exhaustion is no longer a gas-only sybil attack
 - exhausting all `4096` indices would require, per occupied slot:
-  - one TON-denominated join fee paid into treasury
+  - one TON-denominated join toll paid into treasury
   - acceptance of whatever non-refundable fraction remains after the chosen occupancy duration
 - an attacker who wants to recycle capital instead of leaving slots permanently occupied would recover only the decayed refund fraction, not the full fee
 - the attack therefore becomes an economic denial of service rather than a near-free registration griefing primitive

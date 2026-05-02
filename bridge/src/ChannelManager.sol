@@ -56,7 +56,7 @@ contract ChannelManager {
     error ChannelTokenVaultKeyNotRegistered(bytes32 key);
     error ChannelTokenVaultL2AddressNotRegistered(address l2Address);
     error UnexpectedChannelTokenVaultStorageAddress(address expected, address actual);
-    error InvalidJoinFeeRefundSchedule();
+    error InvalidJoinTollRefundSchedule();
     error UnsupportedObservedEventTopicCount(uint8 topicCount);
     error InvalidObservedEventBoundary(uint16 startOffsetWords, uint256 endOffsetWords);
     error InvalidObservedEventDataLength(uint16 startOffsetWords, uint256 dataWordLength);
@@ -77,17 +77,17 @@ contract ChannelManager {
     bytes32 public immutable functionRoot;
     string private _grothVerifierCompatibleBackendVersion;
     string private _tokamakVerifierCompatibleBackendVersion;
-    uint64 public immutable joinFeeRefundCutoff1;
-    uint64 public immutable joinFeeRefundCutoff2;
-    uint64 public immutable joinFeeRefundCutoff3;
-    uint16 public immutable joinFeeRefundBps1;
-    uint16 public immutable joinFeeRefundBps2;
-    uint16 public immutable joinFeeRefundBps3;
-    uint16 public immutable joinFeeRefundBps4;
+    uint64 public immutable joinTollRefundCutoff1;
+    uint64 public immutable joinTollRefundCutoff2;
+    uint64 public immutable joinTollRefundCutoff3;
+    uint16 public immutable joinTollRefundBps1;
+    uint16 public immutable joinTollRefundBps2;
+    uint16 public immutable joinTollRefundBps3;
+    uint16 public immutable joinTollRefundBps4;
 
     address public bridgeTokenVault;
     bytes32 public currentRootVectorHash;
-    uint256 public joinFee;
+    uint256 public joinToll;
 
     address[] private _managedStorageAddresses;
 
@@ -98,13 +98,13 @@ contract ChannelManager {
     mapping(address => address) private _channelTokenVaultL2AddressOwners;
 
     event BridgeTokenVaultBound(address indexed bridgeTokenVault);
-    event JoinFeeUpdated(uint256 previousJoinFee, uint256 newJoinFee);
+    event JoinTollUpdated(uint256 previousJoinToll, uint256 newJoinToll);
     event ChannelTokenVaultIdentityRegistered(
         address indexed l1Address,
         address indexed l2Address,
         bytes32 indexed channelTokenVaultKey,
         uint256 leafIndex,
-        uint256 joinFeePaid,
+        uint256 joinTollPaid,
         uint64 joinedAt,
         bytes32 noteReceivePubKeyX,
         uint8 noteReceivePubKeyYParity
@@ -122,14 +122,14 @@ contract ChannelManager {
         bytes32 dappMetadataDigestSchema_,
         bytes32 dappMetadataDigest_,
         bytes32 functionRoot_,
-        uint256 initialJoinFee_,
-        uint64 joinFeeRefundCutoff1_,
-        uint16 joinFeeRefundBps1_,
-        uint64 joinFeeRefundCutoff2_,
-        uint16 joinFeeRefundBps2_,
-        uint64 joinFeeRefundCutoff3_,
-        uint16 joinFeeRefundBps3_,
-        uint16 joinFeeRefundBps4_,
+        uint256 initialJoinToll_,
+        uint64 joinTollRefundCutoff1_,
+        uint16 joinTollRefundBps1_,
+        uint64 joinTollRefundCutoff2_,
+        uint16 joinTollRefundBps2_,
+        uint64 joinTollRefundCutoff3_,
+        uint16 joinTollRefundBps3_,
+        uint16 joinTollRefundBps4_,
         DAppManager dAppManager_,
         uint256 expectedManagedStorageCount_
     ) {
@@ -148,24 +148,24 @@ contract ChannelManager {
         _tokamakVerifierCompatibleBackendVersion =
         verifierSnapshot_.tokamakVerifierCompatibleBackendVersion;
         if (
-            joinFeeRefundCutoff1_ == 0 || joinFeeRefundCutoff1_ >= joinFeeRefundCutoff2_
-                || joinFeeRefundCutoff2_ >= joinFeeRefundCutoff3_
-                || joinFeeRefundBps1_ > BPS_DENOMINATOR || joinFeeRefundBps2_ > BPS_DENOMINATOR
-                || joinFeeRefundBps3_ > BPS_DENOMINATOR || joinFeeRefundBps4_ > BPS_DENOMINATOR
-                || joinFeeRefundBps1_ < joinFeeRefundBps2_
-                || joinFeeRefundBps2_ < joinFeeRefundBps3_
-                || joinFeeRefundBps3_ < joinFeeRefundBps4_
+            joinTollRefundCutoff1_ == 0 || joinTollRefundCutoff1_ >= joinTollRefundCutoff2_
+                || joinTollRefundCutoff2_ >= joinTollRefundCutoff3_
+                || joinTollRefundBps1_ > BPS_DENOMINATOR || joinTollRefundBps2_ > BPS_DENOMINATOR
+                || joinTollRefundBps3_ > BPS_DENOMINATOR || joinTollRefundBps4_ > BPS_DENOMINATOR
+                || joinTollRefundBps1_ < joinTollRefundBps2_
+                || joinTollRefundBps2_ < joinTollRefundBps3_
+                || joinTollRefundBps3_ < joinTollRefundBps4_
         ) {
-            revert InvalidJoinFeeRefundSchedule();
+            revert InvalidJoinTollRefundSchedule();
         }
-        joinFee = initialJoinFee_;
-        joinFeeRefundCutoff1 = joinFeeRefundCutoff1_;
-        joinFeeRefundCutoff2 = joinFeeRefundCutoff2_;
-        joinFeeRefundCutoff3 = joinFeeRefundCutoff3_;
-        joinFeeRefundBps1 = joinFeeRefundBps1_;
-        joinFeeRefundBps2 = joinFeeRefundBps2_;
-        joinFeeRefundBps3 = joinFeeRefundBps3_;
-        joinFeeRefundBps4 = joinFeeRefundBps4_;
+        joinToll = initialJoinToll_;
+        joinTollRefundCutoff1 = joinTollRefundCutoff1_;
+        joinTollRefundCutoff2 = joinTollRefundCutoff2_;
+        joinTollRefundCutoff3 = joinTollRefundCutoff3_;
+        joinTollRefundBps1 = joinTollRefundBps1_;
+        joinTollRefundBps2 = joinTollRefundBps2_;
+        joinTollRefundBps3 = joinTollRefundBps3_;
+        joinTollRefundBps4 = joinTollRefundBps4_;
 
         address[] memory managedStorageAddresses = dAppManager_.getManagedStorageAddresses(dappId_);
         if (managedStorageAddresses.length != expectedManagedStorageCount_) {
@@ -253,10 +253,10 @@ contract ChannelManager {
         emit BridgeTokenVaultBound(bridgeTokenVault_);
     }
 
-    function setJoinFee(uint256 joinFee_) external onlyLeader {
-        uint256 previousJoinFee = joinFee;
-        joinFee = joinFee_;
-        emit JoinFeeUpdated(previousJoinFee, joinFee_);
+    function setJoinToll(uint256 joinToll_) external onlyLeader {
+        uint256 previousJoinToll = joinToll;
+        joinToll = joinToll_;
+        emit JoinTollUpdated(previousJoinToll, joinToll_);
     }
 
     function registerChannelTokenVaultIdentity(
@@ -265,7 +265,7 @@ contract ChannelManager {
         bytes32 channelTokenVaultKey,
         uint256 leafIndex,
         BridgeStructs.NoteReceivePubKey calldata noteReceivePubKey,
-        uint256 joinFeePaid
+        uint256 joinTollPaid
     ) external onlyBridgeTokenVault {
         if (l1Address == address(0)) {
             revert InvalidL1Address();
@@ -303,7 +303,7 @@ contract ChannelManager {
             l2Address: l2Address,
             channelTokenVaultKey: channelTokenVaultKey,
             leafIndex: leafIndex,
-            joinFeePaid: joinFeePaid,
+            joinTollPaid: joinTollPaid,
             joinedAt: uint64(block.timestamp),
             noteReceivePubKey: BridgeStructs.NoteReceivePubKey({
                 x: noteReceivePubKey.x, yParity: noteReceivePubKey.yParity
@@ -319,7 +319,7 @@ contract ChannelManager {
             l2Address,
             channelTokenVaultKey,
             leafIndex,
-            joinFeePaid,
+            joinTollPaid,
             uint64(block.timestamp),
             noteReceivePubKey.x,
             noteReceivePubKey.yParity
@@ -345,7 +345,7 @@ contract ChannelManager {
         return true;
     }
 
-    function getExitFeeRefundQuote(address l1Address)
+    function getExitTollRefundQuote(address l1Address)
         external
         view
         returns (uint256 refundAmount, uint16 refundBps)
@@ -357,17 +357,17 @@ contract ChannelManager {
         }
 
         uint256 elapsed = block.timestamp - uint256(registration.joinedAt);
-        if (elapsed <= joinFeeRefundCutoff1) {
-            refundBps = joinFeeRefundBps1;
-        } else if (elapsed <= joinFeeRefundCutoff2) {
-            refundBps = joinFeeRefundBps2;
-        } else if (elapsed <= joinFeeRefundCutoff3) {
-            refundBps = joinFeeRefundBps3;
+        if (elapsed <= joinTollRefundCutoff1) {
+            refundBps = joinTollRefundBps1;
+        } else if (elapsed <= joinTollRefundCutoff2) {
+            refundBps = joinTollRefundBps2;
+        } else if (elapsed <= joinTollRefundCutoff3) {
+            refundBps = joinTollRefundBps3;
         } else {
-            refundBps = joinFeeRefundBps4;
+            refundBps = joinTollRefundBps4;
         }
 
-        refundAmount = (registration.joinFeePaid * refundBps) / BPS_DENOMINATOR;
+        refundAmount = (registration.joinTollPaid * refundBps) / BPS_DENOMINATOR;
     }
 
     function executeChannelTransaction(
@@ -537,7 +537,7 @@ contract ChannelManager {
                 l2Address: address(0),
                 channelTokenVaultKey: bytes32(0),
                 leafIndex: 0,
-                joinFeePaid: 0,
+                joinTollPaid: 0,
                 joinedAt: 0,
                 noteReceivePubKey: BridgeStructs.NoteReceivePubKey({ x: bytes32(0), yParity: 0 }),
                 isZeroBalance: false

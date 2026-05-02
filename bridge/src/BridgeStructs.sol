@@ -12,7 +12,7 @@ library BridgeStructs {
         address l2Address;
         bytes32 channelTokenVaultKey;
         uint256 leafIndex;
-        uint256 joinFeePaid;
+        uint256 joinTollPaid;
         uint64 joinedAt;
         NoteReceivePubKey noteReceivePubKey;
         bool isZeroBalance;

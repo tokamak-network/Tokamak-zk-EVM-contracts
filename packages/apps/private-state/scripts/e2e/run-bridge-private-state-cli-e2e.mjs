@@ -88,11 +88,11 @@ const anvilDeployerPrivateKey =
 const channelName = "private-state-cli-e2e";
 const dappId = "1";
 const dappLabel = "private-state";
-const joinFeeTokens = "1";
+const joinTollTokens = "1";
 const depositAmountTokens = "3";
 const claimAmountTokens = "9";
 const amountUnit = 10n ** 18n;
-const joinFeeBaseUnits = 1n * amountUnit;
+const joinTollBaseUnits = 1n * amountUnit;
 const depositAmountBaseUnits = 3n * amountUnit;
 const claimAmountBaseUnits = 9n * amountUnit;
 const {
@@ -1477,7 +1477,7 @@ function prepareCanonicalAsset(bridgeDeployment, participants) {
         canonicalAsset,
         "mint(address,uint256)",
         participant.l1Address,
-        (depositAmountBaseUnits + joinFeeBaseUnits).toString(),
+        (depositAmountBaseUnits + joinTollBaseUnits).toString(),
         "--private-key",
         anvilDeployerPrivateKey,
         "--rpc-url",
@@ -1573,7 +1573,7 @@ function signerCliArgs(participant) {
 function createChannel() {
   return runAnvilCliCommand("create-channel", [
     "--channel-name", channelName,
-    "--join-fee", joinFeeTokens,
+    "--join-toll", joinTollTokens,
     "--private-key", anvilDeployerPrivateKey,
   ]);
 }
@@ -1983,7 +1983,7 @@ async function main() {
     );
     assertBigIntEq(
       exitChannelResult.refundAmountBaseUnits,
-      (joinFeeBaseUnits * 75n) / 100n,
+      (joinTollBaseUnits * 75n) / 100n,
       "participant-c exit-channel refund amount",
     );
     expect(
@@ -2001,7 +2001,7 @@ async function main() {
     );
     assertBigIntEq(
       l1BalanceAfterClaim - l1BalanceBeforeClaim,
-      claimAmountBaseUnits + ((joinFeeBaseUnits * 75n) / 100n),
+      claimAmountBaseUnits + ((joinTollBaseUnits * 75n) / 100n),
       "participant-c L1 ERC20 claim delta including exit refund",
     );
     for (const participant of participants.slice(0, 2)) {

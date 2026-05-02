@@ -32,7 +32,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     error InvalidBridgeTokenVault();
     error BridgeTokenVaultAlreadySet();
     error UnsupportedCanonicalAssetChain(uint256 chainId);
-    error InvalidJoinFeeRefundSchedule();
+    error InvalidJoinTollRefundSchedule();
     error DAppMetadataDigestMismatch(uint256 dappId, bytes32 expectedDigest, bytes32 actualDigest);
 
     struct ChannelDeployment {
@@ -52,13 +52,13 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     IGrothVerifier public grothVerifier;
     ITokamakVerifier public tokamakVerifier;
     address public bridgeTokenVault;
-    uint64 public defaultJoinFeeRefundCutoff1;
-    uint64 public defaultJoinFeeRefundCutoff2;
-    uint64 public defaultJoinFeeRefundCutoff3;
-    uint16 public defaultJoinFeeRefundBps1;
-    uint16 public defaultJoinFeeRefundBps2;
-    uint16 public defaultJoinFeeRefundBps3;
-    uint16 public defaultJoinFeeRefundBps4;
+    uint64 public defaultJoinTollRefundCutoff1;
+    uint64 public defaultJoinTollRefundCutoff2;
+    uint64 public defaultJoinTollRefundCutoff3;
+    uint16 public defaultJoinTollRefundBps1;
+    uint16 public defaultJoinTollRefundBps2;
+    uint16 public defaultJoinTollRefundBps3;
+    uint16 public defaultJoinTollRefundBps4;
 
     mapping(uint256 => ChannelDeployment) private _channels;
 
@@ -69,7 +69,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     event ChannelDeployerUpdated(address indexed channelDeployer);
     event GrothVerifierUpdated(address indexed grothVerifier);
     event TokamakVerifierUpdated(address indexed tokamakVerifier);
-    event JoinFeeRefundScheduleUpdated(
+    event JoinTollRefundScheduleUpdated(
         uint64 cutoff1,
         uint16 bps1,
         uint64 cutoff2,
@@ -109,7 +109,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         channelDeployer = channelDeployer_;
         grothVerifier = grothVerifier_;
         tokamakVerifier = tokamakVerifier_;
-        _setJoinFeeRefundSchedule(6 hours, 7_500, 24 hours, 5_000, 3 days, 2_500, 0);
+        _setJoinTollRefundSchedule(6 hours, 7_500, 24 hours, 5_000, 3 days, 2_500, 0);
     }
 
     function setChannelDeployer(ChannelDeployer channelDeployer_) external onlyOwner {
@@ -139,7 +139,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         emit BridgeTokenVaultBound(bridgeTokenVault_);
     }
 
-    function setJoinFeeRefundSchedule(
+    function setJoinTollRefundSchedule(
         uint64 cutoff1,
         uint16 bps1,
         uint64 cutoff2,
@@ -148,7 +148,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint16 bps3,
         uint16 bps4
     ) external onlyOwner {
-        _setJoinFeeRefundSchedule(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
+        _setJoinTollRefundSchedule(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
     }
 
     function canonicalAsset() public view returns (address) {
@@ -164,7 +164,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     function createChannel(
         uint256 channelId,
         uint256 dappId,
-        uint256 initialJoinFee,
+        uint256 initialJoinToll,
         bytes32 expectedDAppMetadataDigest
     ) external returns (address manager, address boundBridgeTokenVault) {
         address leader = msg.sender;
@@ -195,14 +195,14 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             dAppInfo.metadataDigestSchema,
             dAppInfo.metadataDigest,
             dAppInfo.functionRoot,
-            initialJoinFee,
-            defaultJoinFeeRefundCutoff1,
-            defaultJoinFeeRefundBps1,
-            defaultJoinFeeRefundCutoff2,
-            defaultJoinFeeRefundBps2,
-            defaultJoinFeeRefundCutoff3,
-            defaultJoinFeeRefundBps3,
-            defaultJoinFeeRefundBps4,
+            initialJoinToll,
+            defaultJoinTollRefundCutoff1,
+            defaultJoinTollRefundBps1,
+            defaultJoinTollRefundCutoff2,
+            defaultJoinTollRefundBps2,
+            defaultJoinTollRefundCutoff3,
+            defaultJoinTollRefundBps3,
+            defaultJoinTollRefundBps4,
             dAppManager,
             managedStorageCount
         );
@@ -218,7 +218,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             dAppInfo.metadataDigestSchema,
             dAppInfo.metadataDigest,
             dAppInfo.functionRoot,
-            initialJoinFee
+            initialJoinToll
         );
         channelManager.bindBridgeTokenVault(bridgeTokenVault);
 
@@ -260,7 +260,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         bytes32 dappMetadataDigestSchema,
         bytes32 dappMetadataDigest,
         bytes32 functionRoot,
-        uint256 initialJoinFee
+        uint256 initialJoinToll
     ) private view {
         address manager = address(channelManager);
         if (
@@ -273,20 +273,20 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
                 || channelManager.functionRoot() != functionRoot
                 || address(channelManager.grothVerifier()) != verifierSnapshot.grothVerifier
                 || address(channelManager.tokamakVerifier()) != verifierSnapshot.tokamakVerifier
-                || channelManager.joinFee() != initialJoinFee
-                || channelManager.joinFeeRefundCutoff1() != defaultJoinFeeRefundCutoff1
-                || channelManager.joinFeeRefundBps1() != defaultJoinFeeRefundBps1
-                || channelManager.joinFeeRefundCutoff2() != defaultJoinFeeRefundCutoff2
-                || channelManager.joinFeeRefundBps2() != defaultJoinFeeRefundBps2
-                || channelManager.joinFeeRefundCutoff3() != defaultJoinFeeRefundCutoff3
-                || channelManager.joinFeeRefundBps3() != defaultJoinFeeRefundBps3
-                || channelManager.joinFeeRefundBps4() != defaultJoinFeeRefundBps4
+                || channelManager.joinToll() != initialJoinToll
+                || channelManager.joinTollRefundCutoff1() != defaultJoinTollRefundCutoff1
+                || channelManager.joinTollRefundBps1() != defaultJoinTollRefundBps1
+                || channelManager.joinTollRefundCutoff2() != defaultJoinTollRefundCutoff2
+                || channelManager.joinTollRefundBps2() != defaultJoinTollRefundBps2
+                || channelManager.joinTollRefundCutoff3() != defaultJoinTollRefundCutoff3
+                || channelManager.joinTollRefundBps3() != defaultJoinTollRefundBps3
+                || channelManager.joinTollRefundBps4() != defaultJoinTollRefundBps4
         ) {
             revert InvalidChannelManager(manager);
         }
     }
 
-    function _setJoinFeeRefundSchedule(
+    function _setJoinTollRefundSchedule(
         uint64 cutoff1,
         uint16 bps1,
         uint64 cutoff2,
@@ -300,17 +300,17 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
                 || bps2 > BPS_DENOMINATOR || bps3 > BPS_DENOMINATOR || bps4 > BPS_DENOMINATOR
                 || bps1 < bps2 || bps2 < bps3 || bps3 < bps4
         ) {
-            revert InvalidJoinFeeRefundSchedule();
+            revert InvalidJoinTollRefundSchedule();
         }
 
-        defaultJoinFeeRefundCutoff1 = cutoff1;
-        defaultJoinFeeRefundCutoff2 = cutoff2;
-        defaultJoinFeeRefundCutoff3 = cutoff3;
-        defaultJoinFeeRefundBps1 = bps1;
-        defaultJoinFeeRefundBps2 = bps2;
-        defaultJoinFeeRefundBps3 = bps3;
-        defaultJoinFeeRefundBps4 = bps4;
+        defaultJoinTollRefundCutoff1 = cutoff1;
+        defaultJoinTollRefundCutoff2 = cutoff2;
+        defaultJoinTollRefundCutoff3 = cutoff3;
+        defaultJoinTollRefundBps1 = bps1;
+        defaultJoinTollRefundBps2 = bps2;
+        defaultJoinTollRefundBps3 = bps3;
+        defaultJoinTollRefundBps4 = bps4;
 
-        emit JoinFeeRefundScheduleUpdated(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
+        emit JoinTollRefundScheduleUpdated(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
     }
 }

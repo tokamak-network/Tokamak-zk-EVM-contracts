@@ -33,14 +33,14 @@ contract WrongLeaderChannelDeployer {
         bytes32 dappMetadataDigestSchema,
         bytes32 dappMetadataDigest,
         bytes32 functionRoot,
-        uint256 initialJoinFee,
-        uint64 joinFeeRefundCutoff1,
-        uint16 joinFeeRefundBps1,
-        uint64 joinFeeRefundCutoff2,
-        uint16 joinFeeRefundBps2,
-        uint64 joinFeeRefundCutoff3,
-        uint16 joinFeeRefundBps3,
-        uint16 joinFeeRefundBps4,
+        uint256 initialJoinToll,
+        uint64 joinTollRefundCutoff1,
+        uint16 joinTollRefundBps1,
+        uint64 joinTollRefundCutoff2,
+        uint16 joinTollRefundBps2,
+        uint64 joinTollRefundCutoff3,
+        uint16 joinTollRefundBps3,
+        uint16 joinTollRefundBps4,
         DAppManager dAppManager,
         uint256 expectedManagedStorageCount
     ) external returns (address manager) {
@@ -55,14 +55,14 @@ contract WrongLeaderChannelDeployer {
                 dappMetadataDigestSchema,
                 dappMetadataDigest,
                 functionRoot,
-                initialJoinFee,
-                joinFeeRefundCutoff1,
-                joinFeeRefundBps1,
-                joinFeeRefundCutoff2,
-                joinFeeRefundBps2,
-                joinFeeRefundCutoff3,
-                joinFeeRefundBps3,
-                joinFeeRefundBps4,
+                initialJoinToll,
+                joinTollRefundCutoff1,
+                joinTollRefundBps1,
+                joinTollRefundCutoff2,
+                joinTollRefundBps2,
+                joinTollRefundCutoff3,
+                joinTollRefundBps3,
+                joinTollRefundBps4,
                 dAppManager,
                 expectedManagedStorageCount
             )
@@ -83,7 +83,7 @@ contract BridgeFlowTest is Test {
     bytes32 internal constant INITIAL_ZERO_ROOT = TokamakEnvironment.ZERO_FILLED_TREE_ROOT;
     bytes32 internal constant LIQUID_BALANCE_STORAGE_WRITE_OBSERVED_TOPIC =
         keccak256("LiquidBalanceStorageWriteObserved(address,bytes32)");
-    uint256 internal constant DEFAULT_JOIN_FEE = 1 ether;
+    uint256 internal constant DEFAULT_JOIN_TOLL = 1 ether;
     string internal constant GROTH_COMPATIBLE_BACKEND_VERSION = "0.1";
     string internal constant TOKAMAK_COMPATIBLE_BACKEND_VERSION = "2.0";
     string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
@@ -170,7 +170,7 @@ contract BridgeFlowTest is Test {
         asset.mint(bob, 1_000 ether);
 
         (address manager, address vault) =
-            _createChannel(channelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
+            _createChannel(channelId, 1, leader, DEFAULT_JOIN_TOLL, _dAppMetadataDigest(1));
 
         channelManager = ChannelManager(manager);
         assertEq(vault, address(bridgeTokenVault));
@@ -269,7 +269,7 @@ contract BridgeFlowTest is Test {
             _deriveChannelId("updated-dapp-metadata"),
             1,
             leader,
-            DEFAULT_JOIN_FEE,
+            DEFAULT_JOIN_TOLL,
             info.metadataDigest
         );
         ChannelManager updatedChannelManager = ChannelManager(manager);
@@ -355,11 +355,11 @@ contract BridgeFlowTest is Test {
             )
         );
         _createChannel(
-            _deriveChannelId("stale-dapp-digest"), 1, leader, DEFAULT_JOIN_FEE, staleDigest
+            _deriveChannelId("stale-dapp-digest"), 1, leader, DEFAULT_JOIN_TOLL, staleDigest
         );
 
         (address manager,) = _createChannel(
-            _deriveChannelId("fresh-dapp-digest"), 1, leader, DEFAULT_JOIN_FEE, updatedDigest
+            _deriveChannelId("fresh-dapp-digest"), 1, leader, DEFAULT_JOIN_TOLL, updatedDigest
         );
         ChannelManager digestChannelManager = ChannelManager(manager);
         assertEq(
@@ -397,7 +397,7 @@ contract BridgeFlowTest is Test {
         _joinChannel(channelId, alice, alice, reusedKey, 8);
 
         (address secondManagerAddress, address secondVaultAddress) =
-            _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
+            _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_TOLL, _dAppMetadataDigest(1));
         ChannelManager secondChannelManager = ChannelManager(secondManagerAddress);
         _joinChannel(secondChannelId, bob, bob, reusedKey, 8);
 
@@ -420,16 +420,16 @@ contract BridgeFlowTest is Test {
         assertEq(registration.l2Address, alice);
         assertEq(registration.channelTokenVaultKey, key);
         assertEq(registration.leafIndex, 17);
-        assertEq(registration.joinFeePaid, DEFAULT_JOIN_FEE);
+        assertEq(registration.joinTollPaid, DEFAULT_JOIN_TOLL);
         assertTrue(registration.isZeroBalance);
-        assertEq(bridgeTokenVault.feeTreasuryBalance(), DEFAULT_JOIN_FEE);
+        assertEq(bridgeTokenVault.tollTreasuryBalance(), DEFAULT_JOIN_TOLL);
     }
 
-    function testLeaderCanUpdateJoinFeeForFutureJoinsOnly() public {
+    function testLeaderCanUpdateJoinTollForFutureJoinsOnly() public {
         _joinChannel(channelId, alice, alice, bytes32(uint256(17)), 17);
 
         vm.prank(leader);
-        channelManager.setJoinFee(2 ether);
+        channelManager.setJoinToll(2 ether);
 
         _joinChannel(channelId, bob, bob, bytes32(uint256(18)), 18);
 
@@ -437,34 +437,34 @@ contract BridgeFlowTest is Test {
             channelManager.getChannelTokenVaultRegistration(alice);
         BridgeStructs.ChannelTokenVaultRegistration memory bobRegistration =
             channelManager.getChannelTokenVaultRegistration(bob);
-        assertEq(aliceRegistration.joinFeePaid, DEFAULT_JOIN_FEE);
-        assertEq(bobRegistration.joinFeePaid, 2 ether);
-        assertEq(bridgeTokenVault.feeTreasuryBalance(), 3 ether);
+        assertEq(aliceRegistration.joinTollPaid, DEFAULT_JOIN_TOLL);
+        assertEq(bobRegistration.joinTollPaid, 2 ether);
+        assertEq(bridgeTokenVault.tollTreasuryBalance(), 3 ether);
     }
 
-    function testOnlyLeaderCanUpdateJoinFee() public {
+    function testOnlyLeaderCanUpdateJoinToll() public {
         vm.expectRevert(ChannelManager.OnlyLeader.selector);
         vm.prank(alice);
-        channelManager.setJoinFee(2 ether);
+        channelManager.setJoinToll(2 ether);
     }
 
     function testChannelSnapshotsRefundScheduleAtCreation() public {
-        bridgeCore.setJoinFeeRefundSchedule(1 hours, 1_000, 2 hours, 500, 4 hours, 250, 0);
+        bridgeCore.setJoinTollRefundSchedule(1 hours, 1_000, 2 hours, 500, 4 hours, 250, 0);
 
         _joinChannel(channelId, alice, alice, bytes32(uint256(17)), 17);
         (uint256 existingRefundAmount, uint16 existingRefundBps) =
-            channelManager.getExitFeeRefundQuote(alice);
+            channelManager.getExitTollRefundQuote(alice);
         assertEq(existingRefundBps, 7_500);
-        assertEq(existingRefundAmount, (DEFAULT_JOIN_FEE * 7_500) / 10_000);
+        assertEq(existingRefundAmount, (DEFAULT_JOIN_TOLL * 7_500) / 10_000);
 
         (address secondManagerAddress,) =
-            _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
+            _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_TOLL, _dAppMetadataDigest(1));
         ChannelManager secondChannelManager = ChannelManager(secondManagerAddress);
         _joinChannel(secondChannelId, bob, bob, bytes32(uint256(18)), 18);
         (uint256 secondRefundAmount, uint16 secondRefundBps) =
-            secondChannelManager.getExitFeeRefundQuote(bob);
+            secondChannelManager.getExitTollRefundQuote(bob);
         assertEq(secondRefundBps, 1_000);
-        assertEq(secondRefundAmount, (DEFAULT_JOIN_FEE * 1_000) / 10_000);
+        assertEq(secondRefundAmount, (DEFAULT_JOIN_TOLL * 1_000) / 10_000);
     }
 
     function testExitChannelRefundsAccordingToTimeBucketAndClearsRegistration() public {
@@ -478,7 +478,7 @@ contract BridgeFlowTest is Test {
         assertTrue(exited);
 
         assertEq(asset.balanceOf(alice), balanceBefore + 0.5 ether);
-        assertEq(bridgeTokenVault.feeTreasuryBalance(), 0.5 ether);
+        assertEq(bridgeTokenVault.tollTreasuryBalance(), 0.5 ether);
 
         BridgeStructs.ChannelTokenVaultRegistration memory registration =
             channelManager.getChannelTokenVaultRegistration(alice);
@@ -737,7 +737,7 @@ contract BridgeFlowTest is Test {
             _deriveChannelId("missing-block-context-channel"),
             3,
             leader,
-            DEFAULT_JOIN_FEE,
+            DEFAULT_JOIN_TOLL,
             dappMetadataDigest
         );
     }
@@ -962,7 +962,7 @@ contract BridgeFlowTest is Test {
         assertTrue(exited);
     }
 
-    function testRejectsFeeOnTransferAssetDuringJoinFeeCollection() public {
+    function testRejectsFeeOnTransferAssetDuringJoinTollCollection() public {
         FeeOnTransferMockERC20 feeAssetImplementation =
             new FeeOnTransferMockERC20("Fee Asset", "FEE", 100, address(0xFEE));
         FeeOnTransferMockERC20 feeAsset = FeeOnTransferMockERC20(address(asset));
@@ -1178,7 +1178,7 @@ contract BridgeFlowTest is Test {
     function testCreateChannelUsesCallerAsLeader() public {
         uint256 callerChannelId = _deriveChannelId("caller-owned-channel");
         (address manager,) =
-            _createChannel(callerChannelId, 1, alice, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
+            _createChannel(callerChannelId, 1, alice, DEFAULT_JOIN_TOLL, _dAppMetadataDigest(1));
         assertEq(ChannelManager(manager).leader(), alice);
     }
 
@@ -1226,7 +1226,7 @@ contract BridgeFlowTest is Test {
         bridgeCore.setGrothVerifier(IGrothVerifier(address(rotatedGrothVerifier)));
 
         (address managerAddress,) =
-            _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
+            _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_TOLL, _dAppMetadataDigest(1));
         ChannelManager secondManager = ChannelManager(managerAddress);
         assertEq(address(secondManager.grothVerifier()), address(grothVerifier));
         assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
@@ -1240,7 +1240,7 @@ contract BridgeFlowTest is Test {
             _deriveChannelId("groth-after-metadata-update"),
             1,
             leader,
-            DEFAULT_JOIN_FEE,
+            DEFAULT_JOIN_TOLL,
             _dAppMetadataDigest(1)
         );
         ChannelManager updatedManager = ChannelManager(updatedManagerAddress);
@@ -1291,7 +1291,7 @@ contract BridgeFlowTest is Test {
             _deriveChannelId("tokamak-before-metadata-update"),
             3,
             leader,
-            DEFAULT_JOIN_FEE,
+            DEFAULT_JOIN_TOLL,
             _dAppMetadataDigest(3)
         );
         ChannelManager localChannelManager = ChannelManager(manager);
@@ -1320,7 +1320,7 @@ contract BridgeFlowTest is Test {
             _deriveChannelId("tokamak-after-metadata-update"),
             3,
             leader,
-            DEFAULT_JOIN_FEE,
+            DEFAULT_JOIN_TOLL,
             _dAppMetadataDigest(3)
         );
         ChannelManager updatedChannelManager = ChannelManager(updatedManager);
@@ -1369,7 +1369,7 @@ contract BridgeFlowTest is Test {
         uint256 badChannelId = _deriveChannelId("bad-deployer-channel");
         bytes32 metadataDigest = _dAppMetadataDigest(1);
         vm.expectPartialRevert(BridgeCore.InvalidChannelManager.selector);
-        _createChannel(badChannelId, 1, leader, DEFAULT_JOIN_FEE, metadataDigest);
+        _createChannel(badChannelId, 1, leader, DEFAULT_JOIN_TOLL, metadataDigest);
     }
 
     function testTokamakVerificationRejectsProofForUnexpectedCurrentState() public {
@@ -1459,7 +1459,7 @@ contract BridgeFlowTest is Test {
             _deriveChannelId("tokamak-observed-event"),
             3,
             leader,
-            DEFAULT_JOIN_FEE,
+            DEFAULT_JOIN_TOLL,
             _dAppMetadataDigest(3)
         );
         ChannelManager localChannelManager = ChannelManager(manager);
@@ -1513,7 +1513,7 @@ contract BridgeFlowTest is Test {
             )
         );
         (address manager,) =
-            _createChannel(observedChannelId, 3, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(3));
+            _createChannel(observedChannelId, 3, leader, DEFAULT_JOIN_TOLL, _dAppMetadataDigest(3));
         ChannelManager localChannelManager = ChannelManager(manager);
         _joinChannel(observedChannelId, alice, alice, bytes32(uint256(111)), 111);
 
@@ -1567,7 +1567,7 @@ contract BridgeFlowTest is Test {
             )
         );
         (address manager,) =
-            _createChannel(observedChannelId, 3, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(3));
+            _createChannel(observedChannelId, 3, leader, DEFAULT_JOIN_TOLL, _dAppMetadataDigest(3));
         ChannelManager localChannelManager = ChannelManager(manager);
 
         BridgeStructs.TokamakProofPayload memory proofPayload =
@@ -1991,12 +1991,12 @@ contract BridgeFlowTest is Test {
         uint256 targetChannelId,
         uint256 targetDappId,
         address channelLeader,
-        uint256 initialJoinFee,
+        uint256 initialJoinToll,
         bytes32 expectedDAppMetadataDigest
     ) internal returns (address manager, address boundBridgeTokenVault) {
         vm.prank(channelLeader);
         return bridgeCore.createChannel(
-            targetChannelId, targetDappId, initialJoinFee, expectedDAppMetadataDigest
+            targetChannelId, targetDappId, initialJoinToll, expectedDAppMetadataDigest
         );
     }
 
@@ -2116,7 +2116,7 @@ contract BridgeFlowTest is Test {
             _deriveChannelId(channelLabel),
             dappId,
             leader,
-            DEFAULT_JOIN_FEE,
+            DEFAULT_JOIN_TOLL,
             _dAppMetadataDigest(dappId)
         );
         return ChannelManager(manager);

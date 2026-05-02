@@ -68,8 +68,8 @@ remain in the original hex-encoded wei format returned by the RPC endpoint.
 | `BridgeCore.setChannelDeployer` | Owner | 11,663 | Forge gas report | $0.003 | $0.024 |
 | `BridgeCore.setGrothVerifier` | Owner | 9,045 | Forge gas report | $0.002 | $0.018 |
 | `BridgeCore.setTokamakVerifier` | Owner | 8,957 | Forge gas report | $0.002 | $0.018 |
-| `BridgeCore.setJoinFeeRefundSchedule` | Owner | 16,517 | Forge gas report | $0.004 | $0.034 |
-| `ChannelManager.setJoinFee` | Channel leader | 22,119-28,418 | Forge gas report | $0.005-$0.007 | $0.045-$0.058 |
+| `BridgeCore.setJoinTollRefundSchedule` | Owner | 16,517 | Forge gas report | $0.004 | $0.034 |
+| `ChannelManager.setJoinToll` | Channel leader | 22,119-28,418 | Forge gas report | $0.005-$0.007 | $0.045-$0.058 |
 
 ## User Calls
 

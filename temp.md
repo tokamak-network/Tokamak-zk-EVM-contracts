@@ -77,7 +77,7 @@ from `TokamakEnvironment`, without deploying or upgrading a separate admin manag
 - Verifier address management.
 - Bridge token vault binding.
 - Canonical asset selection.
-- Default join-fee refund policy.
+- Default join-toll refund policy.
 - DApp metadata digest checks during channel creation.
 - Channel deployment.
 - Channel registry storage and lookup.
@@ -105,7 +105,7 @@ Recommended structure:
    - `BridgeCore.createChannel` should continue to make the final policy decision and registry write.
 
 3. Move mutable bridge policy/configuration into a dedicated manager when possible.
-   - Verifier address management and join-fee refund schedule management are good candidates.
+   - Verifier address management and join-toll refund schedule management are good candidates.
    - `BridgeCore` can keep pointers to these managers instead of embedding all policy mutation logic.
 
 4. Avoid future pass-through getters on `BridgeCore`.

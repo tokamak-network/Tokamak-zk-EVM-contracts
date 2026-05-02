@@ -435,8 +435,8 @@ async function handleChannelCreate({ args, network, provider }) {
   );
   const canonicalAsset = getAddress(await bridgeCore.canonicalAsset());
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
-  const joinFeeInput = requireArg(args.joinFee, "--join-fee");
-  const joinFee = parseTokenAmount(joinFeeInput, canonicalAssetDecimals);
+  const joinTollInput = requireArg(args.joinToll, "--join-toll");
+  const joinToll = parseTokenAmount(joinTollInput, canonicalAssetDecimals);
   const channelId = deriveChannelIdFromName(channelName);
   const dapp = await resolveDAppIdByLabel({
     provider,
@@ -453,7 +453,7 @@ async function handleChannelCreate({ args, network, provider }) {
     policySnapshot,
   });
   const receipt =
-    await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, joinFee, dapp.metadataDigest));
+    await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, joinToll, dapp.metadataDigest));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
   const workspaceResult = await initializeChannelWorkspace({
@@ -474,8 +474,8 @@ async function handleChannelCreate({ args, network, provider }) {
     dappMetadataDigestSchema: dapp.metadataDigestSchema,
     policySnapshot,
     leader,
-    joinFeeBaseUnits: joinFee.toString(),
-    joinFeeTokens: ethers.formatUnits(joinFee, canonicalAssetDecimals),
+    joinTollBaseUnits: joinToll.toString(),
+    joinTollTokens: ethers.formatUnits(joinToll, canonicalAssetDecimals),
     canonicalAsset,
     canonicalAssetDecimals,
     asset: channelInfo.asset,
@@ -1317,11 +1317,11 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   let resolvedLeafIndex = leafIndex;
   let approveReceipt = null;
   let receipt = null;
-  let joinFee = 0n;
+  let joinToll = 0n;
   let status = null;
 
   if (!existingRegistration.exists) {
-    joinFee = ethers.toBigInt(await context.channelManager.joinFee());
+    joinToll = ethers.toBigInt(await context.channelManager.joinToll());
     const asset = new Contract(
       context.workspace.canonicalAsset,
       context.bridgeAbiManifest.contracts.erc20.abi,
@@ -1335,9 +1335,9 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       channelManager: context.workspace.channelManager,
       policySnapshot: context.workspace.policySnapshot,
     });
-    if (joinFee !== 0n) {
+    if (joinToll !== 0n) {
       approveReceipt = await waitForReceipt(
-        await asset.approve(context.workspace.bridgeTokenVault, joinFee, { nonce: nextNonce++ }),
+        await asset.approve(context.workspace.bridgeTokenVault, joinToll, { nonce: nextNonce++ }),
       );
     }
     receipt = await waitForReceipt(
@@ -1371,7 +1371,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       "The existing note-receive public key parity does not match the derived note-receive public key.",
     );
     resolvedLeafIndex = existingRegistration.leafIndex;
-    joinFee = ethers.toBigInt(existingRegistration.joinFeePaid);
+    joinToll = ethers.toBigInt(existingRegistration.joinTollPaid);
     status = "already-registered";
   }
 
@@ -1397,8 +1397,8 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
     leafIndex: resolvedLeafIndex.toString(),
-    joinFeeBaseUnits: joinFee.toString(),
-    joinFeeTokens: ethers.formatUnits(joinFee, Number(context.workspace.canonicalAssetDecimals)),
+    joinTollBaseUnits: joinToll.toString(),
+    joinTollTokens: ethers.formatUnits(joinToll, Number(context.workspace.canonicalAssetDecimals)),
     noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
     policySnapshot: context.workspace.policySnapshot,
     approveGasUsed: approveReceipt ? receiptGasUsed(approveReceipt) : null,
@@ -1427,7 +1427,7 @@ async function handleExitChannel({ args, provider }) {
       "Run withdraw-channel first, or rerun exit-channel with --force to bypass this CLI check.",
     ].join(" "),
   );
-  const [refundAmount, refundBps] = await context.channelManager.getExitFeeRefundQuote(signer.address);
+  const [refundAmount, refundBps] = await context.channelManager.getExitTollRefundQuote(signer.address);
   const receipt = await waitForReceipt(
     await context.bridgeTokenVault.connect(signer).exitChannel(ethers.toBigInt(context.workspace.channelId)),
   );
@@ -5065,15 +5065,15 @@ function assertGetMyNotesArgs(args) {
 
 function assertCreateChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
-  requireArg(args.joinFee, "--join-fee");
+  requireArg(args.joinToll, "--join-toll");
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, "create-channel");
   requireArg(args.privateKey, "--private-key");
   assertAllowedCommandKeys(
     args,
     "create-channel",
-    new Set(["command", "positional", "channelName", "joinFee", "network", "alchemyApiKey", "privateKey"]),
-    "--channel-name, --join-fee, --network, --private-key, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "channelName", "joinToll", "network", "alchemyApiKey", "privateKey"]),
+    "--channel-name, --join-toll, --network, --private-key, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5235,7 +5235,7 @@ Commands:
   --doctor
       Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
 
-  create-channel --channel-name <NAME> --join-fee <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
       Prints the immutable policy snapshot before sending the transaction
 
@@ -5255,7 +5255,7 @@ Commands:
       Rebuild a recoverable local wallet from on-chain channel state
 
   join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
-      Pay the channel join fee and bind a wallet to a channel-specific L2 identity
+      Pay the channel join toll and bind a wallet to a channel-specific L2 identity
       Prints the immutable policy snapshot before first registration
 
   get-my-wallet-meta --wallet <NAME> --password <PASSWORD> --network <NAME>

@@ -35,7 +35,7 @@ contract L1TokenVault is
     error UnknownChannel(uint256 channelId);
     error UnsupportedAssetTransferBehavior(uint256 expectedDelta, uint256 actualDelta);
     error NotRegisteredInChannel(address user, uint256 channelId);
-    error InsufficientFeeTreasuryBalance(uint256 available, uint256 requested);
+    error InsufficientTollTreasuryBalance(uint256 available, uint256 requested);
 
     struct ChannelVaultUpdateContext {
         ChannelManager channelManager;
@@ -45,14 +45,14 @@ contract L1TokenVault is
 
     IERC20 public asset;
     IChannelRegistry public channelRegistry;
-    uint256 private _feeTreasuryBalance;
+    uint256 private _tollTreasuryBalance;
 
     mapping(address => uint256) private _availableBalances;
 
     event AssetsFunded(address indexed user, uint256 amount);
     event StorageWriteObserved(address indexed storageAddr, uint256 storageKey, uint256 value);
     event AssetsClaimed(address indexed user, uint256 amount);
-    event ChannelJoinFeePaid(address indexed user, uint256 indexed channelId, uint256 amount);
+    event ChannelJoinTollPaid(address indexed user, uint256 indexed channelId, uint256 amount);
     event ChannelExitRefunded(
         address indexed user, uint256 indexed channelId, uint256 amount, uint16 refundBps
     );
@@ -108,23 +108,23 @@ contract L1TokenVault is
         address channelManagerAddress = channelRegistry.getChannelManager(channelId);
         if (channelManagerAddress == address(0)) revert UnknownChannel(channelId);
         ChannelManager channelManager = ChannelManager(channelManagerAddress);
-        uint256 joinFeeAmount = channelManager.joinFee();
+        uint256 joinTollAmount = channelManager.joinToll();
 
         uint256 vaultBalanceBefore = asset.balanceOf(address(this));
-        if (joinFeeAmount != 0) {
-            asset.safeTransferFrom(msg.sender, address(this), joinFeeAmount);
+        if (joinTollAmount != 0) {
+            asset.safeTransferFrom(msg.sender, address(this), joinTollAmount);
         }
         uint256 vaultBalanceDelta = asset.balanceOf(address(this)) - vaultBalanceBefore;
-        if (vaultBalanceDelta != joinFeeAmount) {
-            revert UnsupportedAssetTransferBehavior(joinFeeAmount, vaultBalanceDelta);
+        if (vaultBalanceDelta != joinTollAmount) {
+            revert UnsupportedAssetTransferBehavior(joinTollAmount, vaultBalanceDelta);
         }
 
-        _feeTreasuryBalance += joinFeeAmount;
+        _tollTreasuryBalance += joinTollAmount;
         channelManager.registerChannelTokenVaultIdentity(
-            msg.sender, l2Address, channelTokenVaultKey, leafIndex, noteReceivePubKey, joinFeeAmount
+            msg.sender, l2Address, channelTokenVaultKey, leafIndex, noteReceivePubKey, joinTollAmount
         );
 
-        emit ChannelJoinFeePaid(msg.sender, channelId, joinFeeAmount);
+        emit ChannelJoinTollPaid(msg.sender, channelId, joinTollAmount);
         return true;
     }
 
@@ -168,14 +168,14 @@ contract L1TokenVault is
             channelManager.getChannelTokenVaultRegistration(msg.sender);
         if (!registration.exists) revert NotRegisteredInChannel(msg.sender, channelId);
 
-        (uint256 refundAmount, uint16 refundBps) = channelManager.getExitFeeRefundQuote(msg.sender);
+        (uint256 refundAmount, uint16 refundBps) = channelManager.getExitTollRefundQuote(msg.sender);
         channelManager.unregisterChannelTokenVaultIdentity(msg.sender);
 
         if (refundAmount != 0) {
-            if (_feeTreasuryBalance < refundAmount) {
-                revert InsufficientFeeTreasuryBalance(_feeTreasuryBalance, refundAmount);
+            if (_tollTreasuryBalance < refundAmount) {
+                revert InsufficientTollTreasuryBalance(_tollTreasuryBalance, refundAmount);
             }
-            _feeTreasuryBalance -= refundAmount;
+            _tollTreasuryBalance -= refundAmount;
 
             uint256 vaultBalanceBefore = asset.balanceOf(address(this));
             uint256 recipientBalanceBefore = asset.balanceOf(msg.sender);
@@ -218,8 +218,8 @@ contract L1TokenVault is
         return _availableBalances[user];
     }
 
-    function feeTreasuryBalance() external view returns (uint256) {
-        return _feeTreasuryBalance;
+    function tollTreasuryBalance() external view returns (uint256) {
+        return _tollTreasuryBalance;
     }
 
     function _requireL2ValueInField(uint256 value) private pure {

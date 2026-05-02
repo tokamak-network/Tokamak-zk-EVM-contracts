@@ -297,7 +297,7 @@ Resolution:
   write.
 - The validation checks code existence and snapshot fields: `bridgeCore`, `channelId`, `dappId`,
   `leader`, channel-token-vault tree index, metadata digest schema, metadata digest, function root,
-  verifier addresses, join fee, and refund schedule.
+  verifier addresses, join toll, and refund schedule.
 
 Evidence:
 
@@ -356,7 +356,7 @@ Resolution:
 - `BridgeCore.createChannel(...)` is permissionless.
 - The `leader` parameter was removed.
 - `leader` is now `msg.sender`.
-- The CLI calls `createChannel(channelId, dappId, joinFee, metadataDigest)`.
+- The CLI calls `createChannel(channelId, dappId, joinToll, metadataDigest)`.
 
 Evidence:
 
@@ -423,29 +423,29 @@ complete the L1-to-channel path for a saturated channel.
 Mitigation:
 
 - Joining a channel is now a paid action through `L1TokenVault.joinChannel(...)`.
-- The channel creator chooses the initial join fee at `createChannel(...)`.
-- `ChannelManager` records `joinFeePaid` and `joinedAt` per registration.
+- The channel creator chooses the initial join toll at `createChannel(...)`.
+- `ChannelManager` records `joinTollPaid` and `joinedAt` per registration.
 - Exit is allowed only after the channel-token-vault balance is zero.
-- Exit refunds a time-decayed fraction of the paid join fee and frees the reserved L1, L2, storage
+- Exit refunds a time-decayed fraction of the paid join toll and frees the reserved L1, L2, storage
   key, and leaf-index bindings only after unregistering succeeds.
-- The bridge tracks join fees in `_feeTreasuryBalance`; the only current outflow path is decayed
+- The bridge tracks join tolls in `_tollTreasuryBalance`; the only current outflow path is decayed
   exit refund.
 
 Evidence:
 
-- Code: `bridge/src/L1TokenVault.sol::joinChannel(...)` charges the channel join fee and records it
+- Code: `bridge/src/L1TokenVault.sol::joinChannel(...)` charges the channel join toll and records it
   in treasury accounting.
 - Code: `bridge/src/L1TokenVault.sol::exitChannel(...)` queries the refund quote, unregisters the
   user, and pays only the decayed refund.
 - Code: `bridge/src/ChannelManager.sol::registerChannelTokenVaultIdentity(...)` records
-  `joinFeePaid` and `joinedAt`.
-- Code: `bridge/src/ChannelManager.sol::getExitFeeRefundQuote(...)` computes the refund from the
-  recorded fee paid at join time.
-- Code: `bridge/src/ChannelManager.sol::setJoinFee(...)` lets the channel leader price future joins.
+  `joinTollPaid` and `joinedAt`.
+- Code: `bridge/src/ChannelManager.sol::getExitTollRefundQuote(...)` computes the refund from the
+  recorded toll paid at join time.
+- Code: `bridge/src/ChannelManager.sol::setJoinToll(...)` lets the channel leader price future joins.
 
 Residual risk: this changes registration exhaustion from a gas-only sybil griefing primitive into
 an economic denial-of-service attack. A sufficiently funded attacker can still buy all available
-slots, and a channel leader can raise the future join fee. Users should treat join-fee policy as
+slots, and a channel leader can raise the future join toll. Users should treat join-toll policy as
 part of the channel policy they inspect before joining.
 
 ### C12. Exact-Transfer Canonical Asset Dependency

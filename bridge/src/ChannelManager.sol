@@ -27,7 +27,7 @@ contract ChannelManager {
     error OnlyBridgeTokenVault();
     error OnlyLeader();
     error BridgeTokenVaultAlreadySet();
-    error StorageAddressVectorLengthMismatch();
+    error ManagedStorageCountMismatch(uint256 expectedCount, uint256 actualCount);
     error UnexpectedCurrentRootVector();
     error UnsupportedChannelFunction(address entryContract, bytes4 functionSig);
     error TokamakProofRejected();
@@ -118,9 +118,6 @@ contract ChannelManager {
         uint256 dappId_,
         address leader_,
         uint256 channelTokenVaultTreeIndex_,
-        bytes32[] memory initialRootVector_,
-        address[] memory managedStorageAddresses_,
-        BridgeStructs.FunctionReference[] memory allowedFunctions_,
         address bridgeCore_,
         BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot_,
         bytes32 dappMetadataDigestSchema_,
@@ -133,7 +130,8 @@ contract ChannelManager {
         uint64 joinFeeRefundCutoff3_,
         uint16 joinFeeRefundBps3_,
         uint16 joinFeeRefundBps4_,
-        DAppManager dAppManager_
+        DAppManager dAppManager_,
+        uint256 expectedManagedStorageCount_
     ) {
         channelId = channelId_;
         dappId = dappId_;
@@ -168,6 +166,18 @@ contract ChannelManager {
         joinFeeRefundBps3 = joinFeeRefundBps3_;
         joinFeeRefundBps4 = joinFeeRefundBps4_;
 
+        address[] memory managedStorageAddresses = dAppManager_.getManagedStorageAddresses(dappId_);
+        if (managedStorageAddresses.length != expectedManagedStorageCount_) {
+            revert ManagedStorageCountMismatch(
+                expectedManagedStorageCount_, managedStorageAddresses.length
+            );
+        }
+
+        bytes32[] memory initialRootVector = new bytes32[](managedStorageAddresses.length);
+        for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
+            initialRootVector[i] = TokamakEnvironment.ZERO_FILLED_TREE_ROOT;
+        }
+
         uint256[] memory aPubBlock = new uint256[](TOKAMAK_APUB_BLOCK_LENGTH);
         uint256 selfBalance;
         assembly ("memory-safe") {
@@ -201,34 +211,32 @@ contract ChannelManager {
         }
         aPubBlockHash = keccak256(abi.encode(aPubBlock));
 
-        if (channelTokenVaultTreeIndex_ >= initialRootVector_.length) {
+        if (channelTokenVaultTreeIndex_ >= initialRootVector.length) {
             revert InvalidChannelTokenVaultTreeIndex();
         }
         channelTokenVaultTreeIndex = channelTokenVaultTreeIndex_;
-        channelTokenVaultStorageAddress = managedStorageAddresses_[channelTokenVaultTreeIndex_];
+        channelTokenVaultStorageAddress = managedStorageAddresses[channelTokenVaultTreeIndex_];
 
-        if (managedStorageAddresses_.length != initialRootVector_.length) {
-            revert StorageAddressVectorLengthMismatch();
+        currentRootVectorHash = keccak256(abi.encode(initialRootVector));
+        for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
+            _managedStorageAddresses.push(managedStorageAddresses[i]);
         }
 
-        currentRootVectorHash = keccak256(abi.encode(initialRootVector_));
-        for (uint256 i = 0; i < managedStorageAddresses_.length; i++) {
-            _managedStorageAddresses.push(managedStorageAddresses_[i]);
-        }
-
-        for (uint256 i = 0; i < allowedFunctions_.length; i++) {
+        BridgeStructs.FunctionReference[] memory allowedFunctions =
+            dAppManager_.getRegisteredFunctions(dappId_);
+        for (uint256 i = 0; i < allowedFunctions.length; i++) {
             bytes32 functionKey = _computeFunctionKey(
-                allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig
+                allowedFunctions[i].entryContract, allowedFunctions[i].functionSig
             );
             _allowedFunctionKeys[functionKey] = true;
             BridgeStructs.FunctionConfig memory functionConfig = dAppManager_.getFunctionMetadata(
-                dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig
+                dappId_, allowedFunctions[i].entryContract, allowedFunctions[i].functionSig
             );
             _functionConfigs[functionKey] = functionConfig;
             _functionKeyByPreprocessInputHash[functionConfig.preprocessInputHash] = functionKey;
 
             BridgeStructs.EventLogMetadata[] memory eventLogs = dAppManager_.getFunctionEventLogs(
-                dappId_, allowedFunctions_[i].entryContract, allowedFunctions_[i].functionSig
+                dappId_, allowedFunctions[i].entryContract, allowedFunctions[i].functionSig
             );
             for (uint256 j = 0; j < eventLogs.length; j++) {
                 _functionEventLogs[functionKey].push(

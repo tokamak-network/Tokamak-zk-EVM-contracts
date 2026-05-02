@@ -1,17 +1,17 @@
 # Mainnet Deployment Security Audit - Third Pass
 
 Date: 2026-05-02
-Reviewed commit: `6751ad2`
+Reviewed base commit: `a932504`
 Branch: `bridge-mainnet-audit-second`
 
-Scope: only the `ChannelDeployer` split introduced by `6751ad2`. This pass does not re-audit the
-full bridge, DAM/CBV policy, private-state DApp logic, gas documentation, or npm audit findings
-except where the new split touches them.
+Scope: only the `ChannelDeployer` split and the follow-up thin-factory hardening. This pass does not
+re-audit the full bridge, DAM/CBV policy, private-state DApp logic, gas documentation, or npm audit
+findings except where the split touches them.
 
 ## Change Summary
 
-The latest change moves `ChannelManager` deployment mechanics out of `BridgeCore` and into the new
-`ChannelDeployer` contract.
+The latest change keeps `ChannelManager` deployment mechanics out of `BridgeCore`, but narrows
+`ChannelDeployer` into a thin factory.
 
 `BridgeCore` still owns the channel-creation policy decision:
 
@@ -24,69 +24,93 @@ The latest change moves `ChannelManager` deployment mechanics out of `BridgeCore
 - Channel registry write.
 - `ChannelCreated` event emission.
 
-`ChannelDeployer` now performs the deployment mechanics:
+`ChannelDeployer` now performs only the external deployment step:
 
-- Reads managed storage addresses from `DAppManager`.
-- Reads registered function references from `DAppManager`.
-- Builds the zero-filled initial root vector.
 - Deploys `ChannelManager`.
 - Returns the deployed manager address to `BridgeCore`.
+
+`ChannelManager` now performs its own initialization from `DAppManager`:
+
+- Reads managed storage addresses from `DAppManager`.
+- Checks the managed-storage count against the `BridgeCore`-validated count.
+- Builds the zero-filled initial root vector.
+- Reads registered function references from `DAppManager`.
+- Caches function metadata and event-log metadata from `DAppManager`.
+
+`BridgeCore` now validates the returned manager before binding the bridge token vault or writing the
+channel registry:
+
+- `code.length`.
+- `bridgeCore`.
+- `channelId`.
+- `dappId`.
+- `leader`.
+- `channelTokenVaultTreeIndex`.
+- DApp metadata digest schema and digest.
+- Groth16 verifier address.
+- Tokamak verifier address.
+- Initial join fee.
+- Join-fee refund schedule.
 
 The split solved the deploy-blocking `BridgeCore` size pressure:
 
 | Contract | Runtime Size | Runtime Margin |
 | --- | ---: | ---: |
-| `BridgeCore` | `8,822 bytes` | `15,754 bytes` |
-| `ChannelDeployer` | `16,062 bytes` | `8,514 bytes` |
+| `BridgeCore` | `10,844 bytes` | `13,732 bytes` |
+| `ChannelDeployer` | `15,152 bytes` | `9,424 bytes` |
 | `ChannelManager` | `9,749 bytes` | `14,827 bytes` |
 | `DAppManager` | `14,122 bytes` | `10,454 bytes` |
 
 Before the split, `BridgeCore` had only `911 bytes` of runtime margin after the temporary getter
-removal. The root contract now has enough bytecode room for future UUPS hardening.
+removal. The root contract still has enough bytecode room after the returned-manager invariant
+checks.
 
 ## Findings
 
-1. Medium: `BridgeCore` now trusts a mutable external deployer to return the channel manager that
-   becomes canonical for a channel.
+1. Low: `BridgeCore` still depends on the configured deployer returning a contract with correct
+   `ChannelManager` semantics, but the metadata/snapshot compatibility risk has been mitigated.
 
-   Status: open for explicit operator acceptance or pre-mainnet hardening.
+   Status: mitigated by this change; residual bytecode-identity risk remains operational.
 
    `BridgeCore.createChannel(...)` still validates the DApp metadata digest, managed-storage count,
-   leader, bridge token vault, and Merkle tree configuration. However, the actual `ChannelManager`
-   deployment is delegated to `channelDeployer.deployChannelManager(...)`. `BridgeCore` then casts
-   the returned address to `ChannelManager`, calls `bindBridgeTokenVault(...)`, reads
-   `aPubBlockHash()`, stores that address in `_channels[channelId]`, and emits `ChannelCreated`.
+   leader, bridge token vault, and Merkle tree configuration. The actual `ChannelManager`
+   deployment is still delegated to `channelDeployer.deployChannelManager(...)`, but the deployer no
+   longer assembles managed-storage arrays, function references, or the initial root vector.
+   `ChannelManager` reads those values from `DAppManager` itself.
 
-   The deployment script deploys the expected `ChannelDeployer`, and `BridgeCore.initialize(...)`
-   plus `setChannelDeployer(...)` reject zero addresses and EOAs. That prevents a trivial invalid
-   address, but it does not prove that the deployer address is the audited implementation or that
-   the returned manager has the exact expected immutable snapshot.
+   After deployment, `BridgeCore` now verifies that the returned contract has code and that its
+   externally visible snapshot matches the channel policy that `BridgeCore` just approved:
+   `bridgeCore`, `channelId`, `dappId`, `leader`, `channelTokenVaultTreeIndex`,
+   `dappMetadataDigestSchema`, `dappMetadataDigest`, `grothVerifier`, `tokamakVerifier`,
+   `joinFee`, and the join-fee refund schedule.
 
-   Attack or failure model:
+   This mitigates the main compatibility failure modes:
 
    - If the owner accidentally or maliciously sets `channelDeployer` to an incompatible contract,
-     future `createChannel(...)` calls can revert or register a bad manager.
-   - If the wrong deployer returns a contract that implements the expected selectors but does not
-     preserve `ChannelManager` semantics, the channel can become permanently bound to a bad
-     execution boundary.
-   - This does not let an arbitrary user mutate an existing channel because `createChannel(...)` and
-     `setChannelDeployer(...)` remain owner-only. The risk is an owner/governance/deployment-path
-     risk for future channels.
+     future `createChannel(...)` calls should revert before the bad manager is bound or registered
+     unless that contract faithfully exposes the expected snapshot.
+   - If a deployer passes the wrong DApp, verifier, channel ID, leader, digest, fee, or refund
+     schedule into the manager constructor, `BridgeCore` rejects the returned manager.
+   - Because `ChannelManager` reads DApp storage/function metadata directly from `DAppManager`, the
+     deployer can no longer tamper with those arrays while still using the audited `ChannelManager`.
 
-   Recommended hardening:
+   Residual risk:
 
-   - Add post-deployment invariants in `BridgeCore.createChannel(...)` before writing `_channels`.
-     At minimum, check the returned manager's `bridgeCore()`, `channelId()`, `dappId()`,
-     `leader()`, `dappMetadataDigestSchema()`, `dappMetadataDigest()`, `grothVerifier()`,
-     `tokamakVerifier()`, and `channelTokenVaultTreeIndex()`.
-   - Consider checking `channelManagerAddress.code.length != 0` before interacting with it.
+   - The invariant checks do not prove full bytecode identity. A malicious contract could mimic the
+     checked getters and still implement unsafe channel-execution semantics. This remains an
+     owner/deployment-path risk, not a permissionless user attack.
+
+   Recommended operating control:
+
    - Record the audited `ChannelDeployer` source commit and address in deployment metadata and make
      the operator verify it before channel creation.
+   - Treat a `channelDeployer` change as a privileged deployment event requiring the same review
+     level as a `BridgeCore` upgrade.
 
-   UUPS upgradeability classification: fixable for future channels by upgrading `BridgeCore` or by
-   setting a corrected `ChannelDeployer`. Not fixable for a channel already created with a bad
-   registered manager because `ChannelManager` policy is intentionally immutable and the channel
-   registry entry represents the user's accepted channel boundary.
+   UUPS upgradeability classification: the invariant checks are now implemented for future
+   channels. The residual bytecode-identity risk is fixable for future channels by setting a
+   corrected deployer or upgrading `BridgeCore`; it is not fixable for a channel already created
+   with a bad registered manager because `ChannelManager` policy is intentionally immutable.
 
 2. Medium: the `BridgeCore` storage layout changed relative to pre-split deployments.
 
@@ -192,11 +216,14 @@ or compatible backend versions. `BridgeCore.createChannel(...)` still requires
 ## Verification Performed
 
 - `forge test --root bridge`
-  - Passed 65 tests.
+  - Passed 66 tests.
+  - Includes `testCreateChannelRejectsIncompatibleDeployerReturn`, which verifies that
+    `BridgeCore` rejects a deployer-returned manager with a mismatched immutable snapshot.
 - `forge build --root bridge --sizes`
   - Passed.
-  - `BridgeCore`: `8,822 bytes`, margin `15,754 bytes`.
-  - `ChannelDeployer`: `16,062 bytes`, margin `8,514 bytes`.
+  - `BridgeCore`: `10,844 bytes`, margin `13,732 bytes`.
+  - `ChannelDeployer`: `15,152 bytes`, margin `9,424 bytes`.
+  - `ChannelManager`: `9,749 bytes`, margin `14,827 bytes`.
 - `forge fmt --root bridge --check`
   - Passed after formatting generated verifier files that the E2E deployment flow rewrote.
 - `node --check bridge/scripts/deploy-bridge.mjs`
@@ -210,17 +237,18 @@ or compatible backend versions. `BridgeCore.createChannel(...)` still requires
   - Covered bridge deployment, DApp registration, channel creation through `ChannelDeployer`, three
     participant joins, bridge/channel deposits, mint, transfer, redeem, channel withdrawal, exit,
     and bridge withdrawal.
+  - Current-worktree `createChannel` receipt gas after the hardening: `3,898,099`.
 
 ## Deployment Decision
 
-Do not broadcast mainnet until the operator explicitly accepts or mitigates Findings 1 and 2.
+Do not broadcast mainnet until the operator explicitly accepts Finding 2 under the first-mainnet
+deployment assumption and records the audited `ChannelDeployer` address/source commit in deployment
+metadata.
 
 For the stated first-mainnet-deployment assumption, the storage-layout issue is not a blocker if the
 remote deployment history confirms that no previous mainnet bridge proxy exists and the deployment
 uses the current implementation as the first proxy implementation.
 
-The stronger pre-mainnet posture is to add `BridgeCore` post-deployment invariant checks for the
-returned `ChannelManager`. The split created enough `BridgeCore` bytecode margin to add those checks
-without reintroducing the original size problem. If the operator accepts owner-only deployer trust
-instead, channel creation must be treated as an explicit commitment to the audited
-`ChannelDeployer` address and source commit.
+Finding 1's compatibility hardening has been implemented. The remaining deployer risk is the normal
+privileged-deployment risk that the operator must verify the actual deployed `ChannelDeployer`
+implementation, not just the manager snapshot it returns.

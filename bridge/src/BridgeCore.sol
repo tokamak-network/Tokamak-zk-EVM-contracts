@@ -32,6 +32,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     error InvalidAdminManager();
     error InvalidDAppManager();
     error InvalidChannelDeployer();
+    error InvalidChannelManager(address manager);
     error InvalidGrothVerifier();
     error InvalidTokamakVerifier();
     error InvalidBridgeTokenVault();
@@ -223,6 +224,17 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         );
         ChannelManager channelManager = ChannelManager(channelManagerAddress);
 
+        _validateChannelManager(
+            channelManager,
+            channelId,
+            dappId,
+            leader,
+            channelTokenVaultTreeIndex,
+            verifierSnapshot,
+            dAppInfo.metadataDigestSchema,
+            dAppInfo.metadataDigest,
+            initialJoinFee
+        );
         channelManager.bindBridgeTokenVault(bridgeTokenVault);
 
         bytes32 channelAPubBlockHash = channelManager.aPubBlockHash();
@@ -252,6 +264,40 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner { }
+
+    function _validateChannelManager(
+        ChannelManager channelManager,
+        uint256 channelId,
+        uint256 dappId,
+        address leader,
+        uint256 channelTokenVaultTreeIndex,
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot,
+        bytes32 dappMetadataDigestSchema,
+        bytes32 dappMetadataDigest,
+        uint256 initialJoinFee
+    ) private view {
+        address manager = address(channelManager);
+        if (
+            manager.code.length == 0 || channelManager.bridgeCore() != address(this)
+                || channelManager.channelId() != channelId || channelManager.dappId() != dappId
+                || channelManager.leader() != leader
+                || channelManager.channelTokenVaultTreeIndex() != channelTokenVaultTreeIndex
+                || channelManager.dappMetadataDigestSchema() != dappMetadataDigestSchema
+                || channelManager.dappMetadataDigest() != dappMetadataDigest
+                || address(channelManager.grothVerifier()) != verifierSnapshot.grothVerifier
+                || address(channelManager.tokamakVerifier()) != verifierSnapshot.tokamakVerifier
+                || channelManager.joinFee() != initialJoinFee
+                || channelManager.joinFeeRefundCutoff1() != defaultJoinFeeRefundCutoff1
+                || channelManager.joinFeeRefundBps1() != defaultJoinFeeRefundBps1
+                || channelManager.joinFeeRefundCutoff2() != defaultJoinFeeRefundCutoff2
+                || channelManager.joinFeeRefundBps2() != defaultJoinFeeRefundBps2
+                || channelManager.joinFeeRefundCutoff3() != defaultJoinFeeRefundCutoff3
+                || channelManager.joinFeeRefundBps3() != defaultJoinFeeRefundBps3
+                || channelManager.joinFeeRefundBps4() != defaultJoinFeeRefundBps4
+        ) {
+            revert InvalidChannelManager(manager);
+        }
+    }
 
     function _setJoinFeeRefundSchedule(
         uint64 cutoff1,

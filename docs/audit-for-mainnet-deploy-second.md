@@ -142,7 +142,7 @@ The repository still has Synthesizer example inputs under `packages/apps/private
 
 ### Mainnet Gas-Cost Documentation
 
-`bridge/docs/gas-prices.md` has been added as an operational mainnet-readiness document. It records measured gas usage for owner/operator calls and user calls, separates actual CLI E2E receipt measurements from Forge gas-report measurements, and converts measured gas usage to USD using ETH/USD 2,267.90.
+`bridge/docs/gas-assessment.md` has been added as an operational mainnet-readiness document. It records measured gas usage for owner/operator calls and user calls, separates actual CLI E2E receipt measurements from Forge gas-report measurements, and converts measured gas usage to USD using the timestamped ETH/USD input recorded in that document.
 
 The call cost tables intentionally use the six-month historical `Typical effective gas price` baselines from the embedded Ethereum mainnet fee-history chart rather than the single timestamped MetaMask fee tiers:
 
@@ -175,7 +175,7 @@ This is not a protocol security issue, but it is relevant for launch readiness: 
   - Passed mint and transfer functions before stopping on inline assembly in `redeemNotes1`.
 - Local private-state CLI E2E was run during this audit pass with a locally packed CLI tarball before the later gas-documentation updates.
   - Passed the full bridge/private-state flow, including deployment, DApp registration/update path, channel creation, join/deposit, mint, transfer, redeem, withdraw, exit, and bridge withdrawal.
-- `bridge/docs/gas-prices.md` was updated after the security review with measured call gas, historical Ethereum mainnet fee distribution, and USD conversions.
+- `bridge/docs/gas-assessment.md` was updated after the security review with measured call gas, historical Ethereum mainnet fee distribution, and USD conversions.
   - Raw `eth_feeHistory` data was stored as gzip JSONL under `bridge/docs/assets`.
   - `gzip -t bridge/docs/assets/ethereum-gas-fee-history-2025-11-01-to-2026-05-01.eth-fee-history.raw.jsonl.gz` passed.
   - `xmllint --noout bridge/docs/assets/ethereum-gas-fee-distribution-2025-11-01-to-2026-05-01.svg` passed.
@@ -189,6 +189,6 @@ The reviewed Solidity and bridge tests pass, and no new critical protocol bug wa
 
 - Confirm the bridge owner is the intended mainnet governance account.
 
-Gas-cost documentation is now available in `bridge/docs/gas-prices.md`; it improves operator/user cost visibility but does not close the remaining launch conditions above.
+Gas-cost documentation is now available in `bridge/docs/gas-assessment.md`; it improves operator/user cost visibility but does not close the remaining launch conditions above.
 
 The most important non-upgradeable boundary is unchanged: once a channel is created, its verifier bindings, DApp metadata, compatible backend versions, storage vector, and function layout are final for that channel.

@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
-import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
 import {ChannelDeployer} from "../src/ChannelDeployer.sol";
 import {DAppManager} from "../src/DAppManager.sol";
@@ -14,14 +13,13 @@ import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
 import {ITokamakVerifier} from "../src/interfaces/ITokamakVerifier.sol";
 import {IChannelRegistry} from "../src/interfaces/IChannelRegistry.sol";
 import {Groth16Verifier} from "../src/generated/Groth16Verifier.sol";
+import {TokamakEnvironment} from "../src/generated/TokamakEnvironment.sol";
 import {TokamakVerifier} from "../src/verifiers/TokamakVerifier.sol";
 
 contract DeployBridgeStackScript is Script {
     struct DeploymentResult {
         address owner;
         address deployer;
-        address bridgeAdminManager;
-        address bridgeAdminManagerImplementation;
         address dAppManager;
         address dAppManagerImplementation;
         address grothVerifier;
@@ -38,7 +36,6 @@ contract DeployBridgeStackScript is Script {
         uint256 deployerPrivateKey = vm.envUint("BRIDGE_DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         address owner = vm.envOr("BRIDGE_OWNER", deployer);
-        uint8 merkleTreeLevels = uint8(vm.envUint("BRIDGE_MERKLE_TREE_LEVELS"));
         bool deployMockAsset = vm.envOr("BRIDGE_DEPLOY_MOCK_ASSET", false);
         string memory grothCompatibleBackendVersion = vm.envString("BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION");
         string memory tokamakCompatibleBackendVersion = vm.envString("BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION");
@@ -46,7 +43,6 @@ contract DeployBridgeStackScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        BridgeAdminManager adminManagerImplementation = new BridgeAdminManager();
         DAppManager dAppManagerImplementation = new DAppManager();
         ChannelDeployer channelDeployer = new ChannelDeployer();
         Groth16Verifier grothVerifier = new Groth16Verifier(grothCompatibleBackendVersion);
@@ -54,10 +50,6 @@ contract DeployBridgeStackScript is Script {
         BridgeCore bridgeCoreImplementation = new BridgeCore();
         L1TokenVault bridgeTokenVaultImplementation = new L1TokenVault();
 
-        ERC1967Proxy adminManagerProxy = new ERC1967Proxy(
-            address(adminManagerImplementation),
-            abi.encodeCall(BridgeAdminManager.initialize, (owner, merkleTreeLevels))
-        );
         ERC1967Proxy dAppManagerProxy =
             new ERC1967Proxy(address(dAppManagerImplementation), abi.encodeCall(DAppManager.initialize, (deployer)));
         ERC1967Proxy bridgeCoreProxy = new ERC1967Proxy(
@@ -66,7 +58,6 @@ contract DeployBridgeStackScript is Script {
                 BridgeCore.initialize,
                 (
                     deployer,
-                    BridgeAdminManager(address(adminManagerProxy)),
                     DAppManager(address(dAppManagerProxy)),
                     channelDeployer,
                     IGrothVerifier(address(grothVerifier)),
@@ -105,8 +96,6 @@ contract DeployBridgeStackScript is Script {
         result = DeploymentResult({
             owner: owner,
             deployer: deployer,
-            bridgeAdminManager: address(adminManagerProxy),
-            bridgeAdminManagerImplementation: address(adminManagerImplementation),
             dAppManager: address(dAppManagerProxy),
             dAppManagerImplementation: address(dAppManagerImplementation),
             grothVerifier: address(grothVerifier),
@@ -119,20 +108,16 @@ contract DeployBridgeStackScript is Script {
             mockAsset: mockAsset
         });
 
-        _writeDeploymentArtifact(result, merkleTreeLevels, outputPath);
-        _logDeployment(result, merkleTreeLevels);
+        _writeDeploymentArtifact(result, outputPath);
+        _logDeployment(result);
     }
 
-    function _writeDeploymentArtifact(DeploymentResult memory result, uint8 merkleTreeLevels, string memory outputPath)
-        private
-    {
+    function _writeDeploymentArtifact(DeploymentResult memory result, string memory outputPath) private {
         string memory deploymentJson = "bridgeDeployment";
         vm.serializeAddress(deploymentJson, "owner", result.owner);
         vm.serializeAddress(deploymentJson, "deployer", result.deployer);
-        vm.serializeUint(deploymentJson, "merkleTreeLevels", merkleTreeLevels);
+        vm.serializeUint(deploymentJson, "merkleTreeLevels", TokamakEnvironment.MT_DEPTH);
         vm.serializeString(deploymentJson, "proxyKind", "uups");
-        vm.serializeAddress(deploymentJson, "bridgeAdminManager", result.bridgeAdminManager);
-        vm.serializeAddress(deploymentJson, "bridgeAdminManagerImplementation", result.bridgeAdminManagerImplementation);
         vm.serializeAddress(deploymentJson, "dAppManager", result.dAppManager);
         vm.serializeAddress(deploymentJson, "dAppManagerImplementation", result.dAppManagerImplementation);
         vm.serializeAddress(deploymentJson, "grothVerifier", result.grothVerifier);
@@ -156,13 +141,11 @@ contract DeployBridgeStackScript is Script {
         vm.writeJson(finalJson, outputPath);
     }
 
-    function _logDeployment(DeploymentResult memory result, uint8 merkleTreeLevels) private view {
+    function _logDeployment(DeploymentResult memory result) private view {
         console2.log("Bridge deployer:", result.deployer);
         console2.log("Bridge owner:", result.owner);
         console2.log("Proxy kind: UUPS");
-        console2.log("Merkle tree levels:", merkleTreeLevels);
-        console2.log("BridgeAdminManager proxy:", result.bridgeAdminManager);
-        console2.log("BridgeAdminManager implementation:", result.bridgeAdminManagerImplementation);
+        console2.log("Merkle tree levels:", TokamakEnvironment.MT_DEPTH);
         console2.log("DAppManager proxy:", result.dAppManager);
         console2.log("DAppManager implementation:", result.dAppManagerImplementation);
         console2.log("Groth16Verifier:", result.grothVerifier);

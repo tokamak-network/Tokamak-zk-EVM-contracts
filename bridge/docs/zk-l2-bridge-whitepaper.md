@@ -33,7 +33,6 @@ The current implementation has six major parts:
 
 - `BridgeCore`: the root coordination contract that creates channels, binds verifiers, and anchors the shared settlement surface
 - `DAppManager`: the metadata registry that defines which storage addresses and function surfaces a DApp is allowed to use
-- `BridgeAdminManager`: the administrative parameter surface, including the Merkle-tree depth that the bridge accepts
 - `L1TokenVault`: the shared Ethereum-side custody contract for the canonical asset
 - `ChannelManager`: a per-channel contract that validates Tokamak proofs and tracks the current state commitment of that channel
 - off-chain execution and proving infrastructure: the environment in which users execute application logic, assemble witnesses, and produce proofs
@@ -143,7 +142,7 @@ For readers who want one concrete intuition: an outside observer may be able to 
 
 ### 4.1 Shared Control Plane
 
-`BridgeCore`, `DAppManager`, `BridgeAdminManager`, and `L1TokenVault` form the shared bridge control plane. In the current implementation these root-entry contracts are upgradeable through UUPS proxies so that the bridge can evolve without forcing a full address reset for the main control surface.
+`BridgeCore`, `DAppManager`, and `L1TokenVault` form the shared bridge control plane. In the current implementation these root-entry contracts are upgradeable through UUPS proxies so that the bridge can evolve without forcing a full address reset for the main control surface.
 
 This is another explicit design choice: shared infrastructure may need controlled upgradeability, but accepted per-channel state transitions must still remain explicit and externally observable.
 

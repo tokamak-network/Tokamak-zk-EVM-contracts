@@ -4,9 +4,10 @@ Date: 2026-05-02
 Reviewed base commit: `a932504`
 Branch: `bridge-mainnet-audit-second`
 
-Scope: only the `ChannelDeployer` split and the follow-up thin-factory hardening. This pass does not
-re-audit the full bridge, DAM/CBV policy, private-state DApp logic, gas documentation, or npm audit
-findings except where the split touches them.
+Scope: only the `ChannelDeployer` split, the follow-up thin-factory hardening, and the
+`BridgeAdminManager` removal. This pass does not re-audit the full bridge, DAM/CBV policy,
+private-state DApp logic, gas documentation, or npm audit findings except where these changes touch
+them.
 
 ## Change Summary
 
@@ -18,7 +19,6 @@ The latest change keeps `ChannelManager` deployment mechanics out of `BridgeCore
 - Channel ID uniqueness.
 - Bound bridge token vault requirement.
 - Non-zero leader.
-- Bridge Merkle tree configuration check.
 - Maximum managed-storage count check.
 - Expected DApp metadata digest check.
 - Channel registry write.
@@ -52,11 +52,16 @@ channel registry:
 - Initial join fee.
 - Join-fee refund schedule.
 
+The follow-up cleanup removes `BridgeAdminManager`. The bridge no longer stores a mutable or
+separately administered Merkle-tree depth. Tree-depth dependent logic uses the generated
+`TokamakEnvironment` constants directly in the contracts that actually need them, primarily
+`ChannelManager`.
+
 The split solved the deploy-blocking `BridgeCore` size pressure:
 
 | Contract | Runtime Size | Runtime Margin |
 | --- | ---: | ---: |
-| `BridgeCore` | `10,844 bytes` | `13,732 bytes` |
+| `BridgeCore` | `10,424 bytes` | `14,152 bytes` |
 | `ChannelDeployer` | `15,152 bytes` | `9,424 bytes` |
 | `ChannelManager` | `9,749 bytes` | `14,827 bytes` |
 | `DAppManager` | `14,122 bytes` | `10,454 bytes` |
@@ -73,9 +78,9 @@ checks.
    Status: mitigated by this change; residual bytecode-identity risk remains operational.
 
    `BridgeCore.createChannel(...)` still validates the DApp metadata digest, managed-storage count,
-   leader, bridge token vault, and Merkle tree configuration. The actual `ChannelManager`
-   deployment is still delegated to `channelDeployer.deployChannelManager(...)`, but the deployer no
-   longer assembles managed-storage arrays, function references, or the initial root vector.
+   leader, and bridge token vault. The actual `ChannelManager` deployment is still delegated to
+   `channelDeployer.deployChannelManager(...)`, but the deployer no longer assembles
+   managed-storage arrays, function references, or the initial root vector.
    `ChannelManager` reads those values from `DAppManager` itself.
 
    After deployment, `BridgeCore` now verifies that the returned contract has code and that its
@@ -112,20 +117,23 @@ checks.
    corrected deployer or upgrading `BridgeCore`; it is not fixable for a channel already created
    with a bad registered manager because `ChannelManager` policy is intentionally immutable.
 
-2. Medium: the `BridgeCore` storage layout changed relative to pre-split deployments.
+2. Medium: the `BridgeCore` storage layout changed relative to earlier local/pre-mainnet
+   implementations.
 
    Status: acceptable for the stated first-mainnet-deployment assumption, unsafe for upgrading a
    pre-split `BridgeCore` proxy without a migration-aware implementation.
 
-   The change adds `ChannelDeployer public channelDeployer` between existing `dAppManager` and
-   `grothVerifier` storage declarations. This is safe for a first deployment of the current
-   implementation because the proxy storage is initialized from zero using the new layout. It is not
-   storage-layout compatible with an already deployed pre-split `BridgeCore` proxy.
+   The changes remove `BridgeAdminManager public adminManager` and add
+   `ChannelDeployer public channelDeployer` before the verifier fields. This is safe for a first
+   deployment of the current implementation because the proxy storage is initialized from zero using
+   the new layout. It is not storage-layout compatible with an already deployed older `BridgeCore`
+   proxy.
 
    Impact if applied to an old proxy:
 
-   - The old `grothVerifier` storage slot would be interpreted as `channelDeployer`.
-   - The old `tokamakVerifier` slot would be interpreted as `grothVerifier`.
+   - A proxy initialized with an older layout would interpret the existing slots under the new field
+     order.
+   - Verifier, deployer, vault, and refund-schedule fields could be read from the wrong slots.
    - Later fields would shift, corrupting bridge configuration.
 
    The current launch assumption is that mainnet has not yet been deployed. Under that assumption,
@@ -173,14 +181,14 @@ checks.
    upgrading `BridgeCore` if needed. Already deployed orphan managers are harmless if ignored by
    tooling, but they cannot be deleted from chain history.
 
-4. Low: deployment artifacts and ABI manifests now include a new contract address.
+4. Low: deployment artifacts and ABI manifests changed shape.
 
    Status: resolved by scripts and E2E.
 
    `DeployBridgeStack.s.sol`, `UpgradeBridgeStack.s.sol`, and
-   `generate-bridge-abi-manifest.mjs` now include `channelDeployer`. The private-state CLI E2E
-   passed after this change, which confirms that existing CLI channel creation still works with the
-   new artifact shape.
+   `generate-bridge-abi-manifest.mjs` now include `channelDeployer` and no longer include
+   `bridgeAdminManager`. The private-state CLI E2E passed after this change, which confirms that
+   existing CLI channel creation still works with the new artifact shape.
 
    Residual operational requirement: mainnet deployment review must include the `channelDeployer`
    address and source commit together with the existing proxy, verifier, and vault addresses.
@@ -216,12 +224,12 @@ or compatible backend versions. `BridgeCore.createChannel(...)` still requires
 ## Verification Performed
 
 - `forge test --root bridge`
-  - Passed 66 tests.
+  - Passed 64 tests.
   - Includes `testCreateChannelRejectsIncompatibleDeployerReturn`, which verifies that
     `BridgeCore` rejects a deployer-returned manager with a mismatched immutable snapshot.
 - `forge build --root bridge --sizes`
   - Passed.
-  - `BridgeCore`: `10,844 bytes`, margin `13,732 bytes`.
+  - `BridgeCore`: `10,424 bytes`, margin `14,152 bytes`.
   - `ChannelDeployer`: `15,152 bytes`, margin `9,424 bytes`.
   - `ChannelManager`: `9,749 bytes`, margin `14,827 bytes`.
 - `forge fmt --root bridge --check`
@@ -233,11 +241,11 @@ or compatible backend versions. `BridgeCore.createChannel(...)` still requires
 - `git diff --check`
   - Passed before this document was added.
 - Private-state CLI E2E with local private-state CLI tarball and `@tokamak-zk-evm/cli@2.0.16`
-  passed after the split.
+  passed after the `BridgeAdminManager` removal.
   - Covered bridge deployment, DApp registration, channel creation through `ChannelDeployer`, three
     participant joins, bridge/channel deposits, mint, transfer, redeem, channel withdrawal, exit,
     and bridge withdrawal.
-  - Current-worktree `createChannel` receipt gas after the hardening: `3,898,099`.
+  - Current-worktree `createChannel` receipt gas after the cleanup: `3,884,651`.
 
 ## Deployment Decision
 

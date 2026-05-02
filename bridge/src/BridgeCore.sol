@@ -6,11 +6,9 @@ import { OwnableUpgradeable } from "@openzeppelin-upgradeable/access/OwnableUpgr
 import { UUPSUpgradeable } from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 import { BridgeStructs } from "./BridgeStructs.sol";
-import { BridgeAdminManager } from "./BridgeAdminManager.sol";
 import { DAppManager } from "./DAppManager.sol";
 import { ChannelManager } from "./ChannelManager.sol";
 import { ChannelDeployer } from "./ChannelDeployer.sol";
-import { TokamakEnvironment } from "./generated/TokamakEnvironment.sol";
 import { IGrothVerifier } from "./interfaces/IGrothVerifier.sol";
 import { ITokamakVerifier } from "./interfaces/ITokamakVerifier.sol";
 import { IChannelRegistry } from "./interfaces/IChannelRegistry.sol";
@@ -25,11 +23,8 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);
-    error InvalidMerkleTreeConfiguration();
-    error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
     error InvalidLeader();
     error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
-    error InvalidAdminManager();
     error InvalidDAppManager();
     error InvalidChannelDeployer();
     error InvalidChannelManager(address manager);
@@ -53,7 +48,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         bytes32 dappMetadataDigest;
     }
 
-    BridgeAdminManager public adminManager;
     DAppManager public dAppManager;
     ChannelDeployer public channelDeployer;
     IGrothVerifier public grothVerifier;
@@ -92,16 +86,14 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
     function initialize(
         address initialOwner,
-        BridgeAdminManager adminManager_,
         DAppManager dAppManager_,
         ChannelDeployer channelDeployer_,
         IGrothVerifier grothVerifier_,
         ITokamakVerifier tokamakVerifier_
     ) external initializer {
-        if (address(adminManager_) == address(0)) {
-            revert InvalidAdminManager();
+        if (address(dAppManager_) == address(0)) {
+            revert InvalidDAppManager();
         }
-        if (address(dAppManager_) == address(0)) revert InvalidDAppManager();
         if (address(channelDeployer_) == address(0) || address(channelDeployer_).code.length == 0) {
             revert InvalidChannelDeployer();
         }
@@ -114,7 +106,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             _transferOwnership(initialOwner);
         }
 
-        adminManager = adminManager_;
         dAppManager = dAppManager_;
         channelDeployer = channelDeployer_;
         grothVerifier = grothVerifier_;
@@ -182,12 +173,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (bridgeTokenVault == address(0)) revert InvalidBridgeTokenVault();
         if (leader == address(0)) revert InvalidLeader();
-        if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
-        if (adminManager.nMerkleTreeLevels() != TokamakEnvironment.MT_DEPTH) {
-            revert UnsupportedMerkleTreeLevels(
-                adminManager.nMerkleTreeLevels(), TokamakEnvironment.MT_DEPTH
-            );
-        }
         uint256 managedStorageCount = dAppManager.getManagedStorageCount(dappId);
         if (managedStorageCount > MAX_MANAGED_STORAGES) {
             revert TooManyManagedStorages(managedStorageCount, MAX_MANAGED_STORAGES);

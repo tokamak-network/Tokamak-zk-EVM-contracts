@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {stdJson} from "forge-std/StdJson.sol";
-import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
 import {ChannelDeployer} from "../src/ChannelDeployer.sol";
 import {DAppManager} from "../src/DAppManager.sol";
@@ -19,8 +18,6 @@ contract UpgradeBridgeStackScript is Script {
     struct UpgradeResult {
         address owner;
         address deployer;
-        address bridgeAdminManager;
-        address bridgeAdminManagerImplementation;
         address dAppManager;
         address dAppManagerImplementation;
         address grothVerifier;
@@ -42,7 +39,6 @@ contract UpgradeBridgeStackScript is Script {
         string memory tokamakCompatibleBackendVersion = vm.envString("BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION");
 
         string memory existingJson = vm.readFile(inputPath);
-        address bridgeAdminManagerProxy = existingJson.readAddress(".bridgeAdminManager");
         address dAppManagerProxy = existingJson.readAddress(".dAppManager");
         address bridgeCoreProxy = existingJson.readAddress(".bridgeCore");
         if (existingJson.parseRaw(".bridgeTokenVault").length == 0) {
@@ -52,7 +48,6 @@ contract UpgradeBridgeStackScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        BridgeAdminManager bridgeAdminManagerImplementation = new BridgeAdminManager();
         DAppManager dAppManagerImplementation = new DAppManager();
         ChannelDeployer channelDeployer = new ChannelDeployer();
         Groth16Verifier grothVerifierImplementation = new Groth16Verifier(grothCompatibleBackendVersion);
@@ -60,12 +55,10 @@ contract UpgradeBridgeStackScript is Script {
         BridgeCore bridgeCoreImplementation = new BridgeCore();
         L1TokenVault bridgeTokenVaultImplementation = new L1TokenVault();
 
-        BridgeAdminManager adminManagerProxyContract = BridgeAdminManager(bridgeAdminManagerProxy);
         DAppManager dAppManagerProxyContract = DAppManager(dAppManagerProxy);
         BridgeCore bridgeCoreProxyContract = BridgeCore(bridgeCoreProxy);
         L1TokenVault bridgeTokenVaultProxyContract = L1TokenVault(bridgeTokenVaultProxy);
 
-        adminManagerProxyContract.upgradeTo(address(bridgeAdminManagerImplementation));
         dAppManagerProxyContract.upgradeTo(address(dAppManagerImplementation));
         bridgeCoreProxyContract.upgradeTo(address(bridgeCoreImplementation));
         bridgeTokenVaultProxyContract.upgradeTo(address(bridgeTokenVaultImplementation));
@@ -88,8 +81,6 @@ contract UpgradeBridgeStackScript is Script {
         result = UpgradeResult({
             owner: owner,
             deployer: deployer,
-            bridgeAdminManager: bridgeAdminManagerProxy,
-            bridgeAdminManagerImplementation: address(bridgeAdminManagerImplementation),
             dAppManager: dAppManagerProxy,
             dAppManagerImplementation: address(dAppManagerImplementation),
             grothVerifier: grothVerifier,
@@ -121,8 +112,6 @@ contract UpgradeBridgeStackScript is Script {
             vm.serializeString(deploymentJson, "abiManifestPath", existingJson.readString(".abiManifestPath"));
         }
         vm.serializeString(deploymentJson, "proxyKind", "uups");
-        vm.serializeAddress(deploymentJson, "bridgeAdminManager", result.bridgeAdminManager);
-        vm.serializeAddress(deploymentJson, "bridgeAdminManagerImplementation", result.bridgeAdminManagerImplementation);
         vm.serializeAddress(deploymentJson, "dAppManager", result.dAppManager);
         vm.serializeAddress(deploymentJson, "dAppManagerImplementation", result.dAppManagerImplementation);
         vm.serializeAddress(deploymentJson, "grothVerifier", result.grothVerifier);
@@ -149,8 +138,6 @@ contract UpgradeBridgeStackScript is Script {
     function _logUpgrade(UpgradeResult memory result) private view {
         console2.log("Bridge deployer:", result.deployer);
         console2.log("Bridge owner:", result.owner);
-        console2.log("BridgeAdminManager proxy:", result.bridgeAdminManager);
-        console2.log("BridgeAdminManager implementation:", result.bridgeAdminManagerImplementation);
         console2.log("DAppManager proxy:", result.dAppManager);
         console2.log("DAppManager implementation:", result.dAppManagerImplementation);
         console2.log("BridgeCore proxy:", result.bridgeCore);

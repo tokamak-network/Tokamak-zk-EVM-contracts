@@ -1483,7 +1483,6 @@ async function main() {
   const mtDepthMetadata = readJson(bridgePendingZkManifestPath);
   const bridgeMerkleTreeLevels = String(mtDepthMetadata.tokamakL2js.mtDepth);
   const bridgeMerkleTreeSourceVersion = String(mtDepthMetadata.tokamakL2js.package.version);
-  process.env.BRIDGE_MERKLE_TREE_LEVELS = bridgeMerkleTreeLevels;
 
   const canonicalBridgeOutputPath = resolveBridgePath(
     process.env.BRIDGE_OUTPUT_PATH || path.join(bridgeCanonicalDir, `bridge.${bridgeChainId}.json`),

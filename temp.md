@@ -37,7 +37,6 @@ The root cause was addressed by splitting channel deployment mechanics out of `B
 - Channel ID uniqueness.
 - Bound bridge token vault requirement.
 - Non-zero leader.
-- Bridge Merkle tree configuration check.
 - Maximum managed storage count check.
 - Expected DApp metadata digest check.
 - Channel registry write.
@@ -57,11 +56,18 @@ Current size after the split:
 
 | Contract | Runtime Size | Runtime Margin |
 | --- | ---: | ---: |
-| `BridgeCore` | `8,822 bytes` | `15,754 bytes` |
-| `ChannelDeployer` | `16,062 bytes` | `8,514 bytes` |
+| `BridgeCore` | `10,424 bytes` | `14,152 bytes` |
+| `ChannelDeployer` | `15,152 bytes` | `9,424 bytes` |
+| `ChannelManager` | `9,749 bytes` | `14,827 bytes` |
+| `DAppManager` | `14,122 bytes` | `10,454 bytes` |
 
 This leaves `BridgeCore` with enough bytecode margin for future UUPS hardening while preserving
 `BridgeCore` as the canonical policy and registry root.
+
+The later overengineering cleanup removed `BridgeAdminManager`. It had duplicated a tree-depth
+configuration surface even though tree-depth dependent bridge logic already depends on generated
+`TokamakEnvironment` constants. The deployment artifacts now record `merkleTreeLevels` as metadata
+from `TokamakEnvironment`, without deploying or upgrading a separate admin manager.
 
 ### Why The Current Shape Is Fragile
 

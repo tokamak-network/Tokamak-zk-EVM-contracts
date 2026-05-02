@@ -11,7 +11,6 @@ const bridgeRoot = path.resolve(__dirname, "..");
 const projectRoot = path.resolve(bridgeRoot, "..");
 
 const artifactMap = {
-  bridgeAdminManager: "out/BridgeAdminManager.sol/BridgeAdminManager.json",
   bridgeCore: "out/BridgeCore.sol/BridgeCore.json",
   channelDeployer: "out/ChannelDeployer.sol/ChannelDeployer.json",
   dAppManager: "out/DAppManager.sol/DAppManager.json",

@@ -53,7 +53,6 @@ The system uses a modular architecture with specialized manager contracts:
 - **BridgeDepositManager.sol**: Handles deposits and token management 
 - **BridgeProofManager.sol**: ZK proof submission and verification
 - **BridgeWithdrawManager.sol**: Per-token withdrawal processing
-- **BridgeAdminManager.sol**: Administrative functions
 
 ### Channel Lifecycle
 1. **Initialization**: Channel creation with participants and target contract

@@ -7,7 +7,6 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { ERC1967Proxy } from "@openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
 import { BridgeStructs } from "../src/BridgeStructs.sol";
-import { BridgeAdminManager } from "../src/BridgeAdminManager.sol";
 import { DAppManager } from "../src/DAppManager.sol";
 import { BridgeCore } from "../src/BridgeCore.sol";
 import { ChannelDeployer } from "../src/ChannelDeployer.sol";
@@ -95,7 +94,6 @@ contract BridgeFlowTest is Test {
     address internal constant REAL_TOKAMAK_APP_STORAGE = 0x8b64A4D3DF1771d7dFC93b374f545563B680b420;
     uint256 internal constant TOKAMAK_APUB_BLOCK_LENGTH = 43;
 
-    BridgeAdminManager internal adminManager;
     DAppManager internal dAppManager;
     ChannelDeployer internal channelDeployer;
     BridgeCore internal bridgeCore;
@@ -124,8 +122,6 @@ contract BridgeFlowTest is Test {
             tokamakFixture.functionPreprocessPart1, tokamakFixture.functionPreprocessPart2
         );
 
-        adminManager = _deployAdminManagerProxy(address(this), TokamakEnvironment.MT_DEPTH);
-
         tokamakVerifier = new TokamakVerifier(TOKAMAK_COMPATIBLE_BACKEND_VERSION);
 
         address vaultStorageAddr = address(0xF00D);
@@ -136,7 +132,6 @@ contract BridgeFlowTest is Test {
         grothVerifier = new Groth16Verifier(GROTH_COMPATIBLE_BACKEND_VERSION);
         bridgeCore = _deployBridgeCoreProxy(
             address(this),
-            adminManager,
             dAppManager,
             channelDeployer,
             IGrothVerifier(address(grothVerifier)),
@@ -190,21 +185,6 @@ contract BridgeFlowTest is Test {
 
         assertEq(bridgeTokenVault.availableBalanceOf(alice), 100 ether);
         assertEq(asset.balanceOf(address(bridgeTokenVault)), 100 ether);
-    }
-
-    function testAdminManagerReturnsMaxMerkleTreeLeaves() public view {
-        assertEq(adminManager.getMaxMerkleTreeLeaves(), TokamakEnvironment.MAX_MT_LEAVES);
-    }
-
-    function testRejectsUnsupportedMerkleTreeLevels() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                BridgeAdminManager.UnsupportedMerkleTreeLevels.selector,
-                uint8(13),
-                TokamakEnvironment.MT_DEPTH
-            )
-        );
-        adminManager.setMerkleTreeLevels(13);
     }
 
     function testDAppManagerExposesRegisteredMetadata() public view {
@@ -1350,39 +1330,32 @@ contract BridgeFlowTest is Test {
     }
 
     function testRootProxyAddressesStayStableAcrossUpgrade() public {
-        address adminProxyAddress = address(adminManager);
         address dAppProxyAddress = address(dAppManager);
         address bridgeProxyAddress = address(bridgeCore);
         address bridgeTokenVaultProxyAddress = address(bridgeTokenVault);
 
-        address previousAdminImplementation = _implementationOf(adminProxyAddress);
         address previousDAppImplementation = _implementationOf(dAppProxyAddress);
         address previousBridgeImplementation = _implementationOf(bridgeProxyAddress);
         address previousTokenVaultImplementation = _implementationOf(bridgeTokenVaultProxyAddress);
 
-        BridgeAdminManager newAdminImplementation = new BridgeAdminManager();
         DAppManager newDAppImplementation = new DAppManager();
         ChannelDeployer newChannelDeployer = new ChannelDeployer();
         BridgeCore newBridgeImplementation = new BridgeCore();
         L1TokenVault newTokenVaultImplementation = new L1TokenVault();
 
-        adminManager.upgradeTo(address(newAdminImplementation));
         dAppManager.upgradeTo(address(newDAppImplementation));
         bridgeCore.upgradeTo(address(newBridgeImplementation));
         bridgeCore.setChannelDeployer(newChannelDeployer);
         bridgeTokenVault.upgradeTo(address(newTokenVaultImplementation));
 
-        assertEq(address(adminManager), adminProxyAddress);
         assertEq(address(dAppManager), dAppProxyAddress);
         assertEq(address(bridgeCore), bridgeProxyAddress);
         assertEq(address(bridgeTokenVault), bridgeTokenVaultProxyAddress);
-        assertEq(adminManager.owner(), address(this));
         assertEq(dAppManager.owner(), address(this));
         assertEq(bridgeCore.owner(), address(this));
         assertEq(address(bridgeCore.channelDeployer()), address(newChannelDeployer));
         assertEq(bridgeTokenVault.owner(), address(this));
 
-        assertTrue(_implementationOf(adminProxyAddress) != previousAdminImplementation);
         assertTrue(_implementationOf(dAppProxyAddress) != previousDAppImplementation);
         assertTrue(_implementationOf(bridgeProxyAddress) != previousBridgeImplementation);
         assertTrue(
@@ -1667,17 +1640,6 @@ contract BridgeFlowTest is Test {
         return _rootVector(vaultRoot, INITIAL_ZERO_ROOT);
     }
 
-    function _deployAdminManagerProxy(address owner, uint8 levels)
-        internal
-        returns (BridgeAdminManager)
-    {
-        BridgeAdminManager implementation = new BridgeAdminManager();
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(implementation), abi.encodeCall(BridgeAdminManager.initialize, (owner, levels))
-        );
-        return BridgeAdminManager(address(proxy));
-    }
-
     function _deployDAppManagerProxy(address owner) internal returns (DAppManager) {
         DAppManager implementation = new DAppManager();
         ERC1967Proxy proxy = new ERC1967Proxy(
@@ -1688,7 +1650,6 @@ contract BridgeFlowTest is Test {
 
     function _deployBridgeCoreProxy(
         address owner,
-        BridgeAdminManager localAdminManager,
         DAppManager localDAppManager,
         ChannelDeployer localChannelDeployer,
         IGrothVerifier localGrothVerifier,
@@ -1701,7 +1662,6 @@ contract BridgeFlowTest is Test {
                 BridgeCore.initialize,
                 (
                     owner,
-                    localAdminManager,
                     localDAppManager,
                     localChannelDeployer,
                     localGrothVerifier,

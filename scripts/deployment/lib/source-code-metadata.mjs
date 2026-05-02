@@ -2,7 +2,6 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 export const BRIDGE_SOURCE_PATHS = [
-  "bridge/src/BridgeAdminManager.sol",
   "bridge/src/BridgeCore.sol",
   "bridge/src/BridgeStructs.sol",
   "bridge/src/ChannelManager.sol",

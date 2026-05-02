@@ -24,7 +24,6 @@ Reviewed code and artifacts:
 - `bridge/src/L1TokenVault.sol`
 - `bridge/src/ChannelManager.sol`
 - `bridge/src/DAppManager.sol`
-- `bridge/src/BridgeAdminManager.sol`
 - `packages/apps/private-state/src/PrivateStateController.sol`
 - `packages/apps/private-state/src/L2AccountingVault.sol`
 - `packages/apps/private-state/cli/private-state-bridge-cli.mjs`
@@ -216,7 +215,6 @@ Relevant code:
 - `bridge/src/BridgeCore.sol:208`
 - `bridge/src/L1TokenVault.sol:200`
 - `bridge/src/DAppManager.sol:384`
-- `bridge/src/BridgeAdminManager.sol:38`
 - `bridge/scripts/DeployBridgeStack.s.sol:35-90`
 - `deployment/chain-id-11155111/bridge/<timestamp>/bridge.11155111.json:12-18`
 

@@ -52,7 +52,7 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
 
    Status: accepted immutable-channel-policy tradeoff. Mitigation implemented in `52815b645431490a663892bacfbef3cdd1396702` through user/operator disclosure in CLI and README documentation.
 
-   `BridgeCore`, `DAppManager`, `BridgeAdminManager`, and `L1TokenVault` are UUPS-upgradeable. Per-channel `ChannelManager` instances are regular contracts created by `BridgeCore.createChannel(...)`. Each `ChannelManager` stores immutable verifier addresses, immutable channel metadata, a fixed managed-storage vector, fixed function metadata copied from `DAppManager`, and fixed refund schedule parameters.
+   `BridgeCore`, `DAppManager`, and `L1TokenVault` are UUPS-upgradeable. Per-channel `ChannelManager` instances are regular contracts created by `BridgeCore.createChannel(...)`. Each `ChannelManager` stores immutable verifier addresses, immutable channel metadata, a fixed managed-storage vector, fixed function metadata copied from `DAppManager`, and fixed refund schedule parameters.
 
    Updating `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, or DApp registration metadata only affects future channel creation. Existing channels keep their originally captured verifier and function metadata.
 

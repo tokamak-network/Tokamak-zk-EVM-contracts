@@ -61,7 +61,6 @@ The standalone bridge workspace now includes a Foundry deployment script:
 
 On the first proxy-based deployment it creates:
 
-- `BridgeAdminManager` proxy and implementation
 - `DAppManager` proxy and implementation
 - `Groth16Verifier`
 - `TokamakVerifier`
@@ -71,7 +70,7 @@ On the first proxy-based deployment it creates:
 After that initial migration, the helper script upgrades the existing proxies in place instead of creating new root-entry addresses. In other words:
 
 - first proxy deployment: root bridge addresses change once, because the legacy non-proxy deployment cannot be converted in place
-- later upgrades: `BridgeAdminManager`, `DAppManager`, and `BridgeCore` keep the same proxy addresses while only their implementations are redeployed
+- later upgrades: `DAppManager`, `BridgeCore`, and `L1TokenVault` keep the same proxy addresses while only their implementations are redeployed
 
 Required environment variables:
 
@@ -122,8 +121,8 @@ The helper reads the locally installed `tokamak-l2js` package and its exported
 `MT_DEPTH` before broadcasting deployment. The helper refreshes the
 Tokamak verifier parameters from `setupParams.json`, regenerates the Groth16
 `updateTree` verifier, and writes the bridge ZK manifest directly from
-`bridge/scripts/deploy-bridge.mjs`. The installed `MT_DEPTH` value is forwarded
-into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
+`bridge/scripts/deploy-bridge.mjs`. The installed `MT_DEPTH` value is recorded
+in deployment metadata through the generated `TokamakEnvironment` constants.
 
 The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
 When unset, the bridge helper defaults to `mpc` for every supported network.

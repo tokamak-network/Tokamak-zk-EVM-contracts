@@ -196,6 +196,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             verifierSnapshot,
             dAppInfo.metadataDigestSchema,
             dAppInfo.metadataDigest,
+            dAppInfo.functionRoot,
             initialJoinFee,
             defaultJoinFeeRefundCutoff1,
             defaultJoinFeeRefundBps1,
@@ -218,6 +219,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             verifierSnapshot,
             dAppInfo.metadataDigestSchema,
             dAppInfo.metadataDigest,
+            dAppInfo.functionRoot,
             initialJoinFee
         );
         channelManager.bindBridgeTokenVault(bridgeTokenVault);
@@ -259,6 +261,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot,
         bytes32 dappMetadataDigestSchema,
         bytes32 dappMetadataDigest,
+        bytes32 functionRoot,
         uint256 initialJoinFee
     ) private view {
         address manager = address(channelManager);
@@ -269,6 +272,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
                 || channelManager.channelTokenVaultTreeIndex() != channelTokenVaultTreeIndex
                 || channelManager.dappMetadataDigestSchema() != dappMetadataDigestSchema
                 || channelManager.dappMetadataDigest() != dappMetadataDigest
+                || channelManager.functionRoot() != functionRoot
                 || address(channelManager.grothVerifier()) != verifierSnapshot.grothVerifier
                 || address(channelManager.tokamakVerifier()) != verifierSnapshot.tokamakVerifier
                 || channelManager.joinFee() != initialJoinFee

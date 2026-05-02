@@ -4,10 +4,10 @@ Date: 2026-05-02
 Reviewed base commit: `a932504`
 Branch: `bridge-mainnet-audit-second`
 
-Scope: only the `ChannelDeployer` split, the follow-up thin-factory hardening, and the
-`BridgeAdminManager` removal. This pass does not re-audit the full bridge, DAM/CBV policy,
-private-state DApp logic, gas documentation, or npm audit findings except where these changes touch
-them.
+Scope: only the `ChannelDeployer` split, the follow-up thin-factory hardening, the
+`BridgeAdminManager` removal, and the later function metadata root/proof update. This pass does not
+re-audit the full bridge, DAM/CBV policy, private-state DApp logic, gas documentation, or npm audit
+findings except where these changes touch them.
 
 ## Change Summary
 
@@ -34,8 +34,13 @@ The latest change keeps `ChannelManager` deployment mechanics out of `BridgeCore
 - Reads managed storage addresses from `DAppManager`.
 - Checks the managed-storage count against the `BridgeCore`-validated count.
 - Builds the zero-filled initial root vector.
-- Reads registered function references from `DAppManager`.
-- Caches function metadata and event-log metadata from `DAppManager`.
+- Stores the registered DApp function root passed by `BridgeCore`.
+
+Function metadata is no longer deep-copied into every `ChannelManager`. `DAppManager` computes a
+Merkle root over the registered function metadata at DApp registration/update time. `BridgeCore`
+passes that root into the channel constructor, validates that the returned manager exposes the same
+root, and channel execution requires calldata-supplied function metadata plus a Merkle proof against
+the channel's immutable root.
 
 `BridgeCore` now validates the returned manager before binding the bridge token vault or writing the
 channel registry:
@@ -47,6 +52,7 @@ channel registry:
 - `leader`.
 - `channelTokenVaultTreeIndex`.
 - DApp metadata digest schema and digest.
+- DApp function root.
 - Groth16 verifier address.
 - Tokamak verifier address.
 - Initial join fee.
@@ -61,14 +67,15 @@ The split solved the deploy-blocking `BridgeCore` size pressure:
 
 | Contract | Runtime Size | Runtime Margin |
 | --- | ---: | ---: |
-| `BridgeCore` | `10,424 bytes` | `14,152 bytes` |
-| `ChannelDeployer` | `15,152 bytes` | `9,424 bytes` |
-| `ChannelManager` | `9,749 bytes` | `14,827 bytes` |
-| `DAppManager` | `14,122 bytes` | `10,454 bytes` |
+| `BridgeCore` | `10,917 bytes` | `13,659 bytes` |
+| `ChannelDeployer` | `15,003 bytes` | `9,573 bytes` |
+| `ChannelManager` | `10,957 bytes` | `13,619 bytes` |
+| `DAppManager` | `14,474 bytes` | `10,102 bytes` |
 
 Before the split, `BridgeCore` had only `911 bytes` of runtime margin after the temporary getter
 removal. The root contract still has enough bytecode room after the returned-manager invariant
-checks.
+checks. After the function metadata root/proof update, `BridgeCore.createChannel` measured 2,762,240
+gas in CLI E2E, down from the earlier 3,884,651 gas deep-copy design.
 
 ## Findings
 
@@ -86,8 +93,8 @@ checks.
    After deployment, `BridgeCore` now verifies that the returned contract has code and that its
    externally visible snapshot matches the channel policy that `BridgeCore` just approved:
    `bridgeCore`, `channelId`, `dappId`, `leader`, `channelTokenVaultTreeIndex`,
-   `dappMetadataDigestSchema`, `dappMetadataDigest`, `grothVerifier`, `tokamakVerifier`,
-   `joinFee`, and the join-fee refund schedule.
+   `dappMetadataDigestSchema`, `dappMetadataDigest`, `functionRoot`, `grothVerifier`,
+   `tokamakVerifier`, `joinFee`, and the join-fee refund schedule.
 
    This mitigates the main compatibility failure modes:
 
@@ -96,8 +103,9 @@ checks.
      unless that contract faithfully exposes the expected snapshot.
    - If a deployer passes the wrong DApp, verifier, channel ID, leader, digest, fee, or refund
      schedule into the manager constructor, `BridgeCore` rejects the returned manager.
-   - Because `ChannelManager` reads DApp storage/function metadata directly from `DAppManager`, the
-     deployer can no longer tamper with those arrays while still using the audited `ChannelManager`.
+   - Because `ChannelManager` reads DApp storage metadata directly from `DAppManager` and stores the
+     function root approved by `BridgeCore`, the deployer can no longer tamper with those values
+     while still using the audited `ChannelManager`.
 
    Residual risk:
 
@@ -196,6 +204,31 @@ checks.
    UUPS upgradeability classification: artifact omissions are operationally fixable before users
    rely on the deployment metadata. They do not change already-created channel semantics.
 
+5. Informational: function metadata now moves through calldata during execution, but is root-bound.
+
+   Status: no unresolved security finding from this update.
+
+   `ChannelManager.executeChannelTransaction(...)` now accepts a `FunctionMetadataProof` containing
+   function metadata and Merkle siblings. The manager hashes the metadata on-chain and verifies the
+   proof against the immutable `functionRoot` stored at channel creation. It then checks that:
+
+   - the proved metadata preprocess hash equals the hash of the submitted Tokamak preprocess points;
+   - the entry contract and function selector decoded from `aPubUser` match the proved metadata;
+   - event-log decoding metadata is taken from the proved metadata, not from uncommitted calldata.
+
+   This preserves the intended channel policy immutability without per-channel function metadata
+   storage. A malformed CLI manifest or wrong proof causes execution to revert; it does not let an
+   executor choose an unregistered function or alternate event-log layout.
+
+   Residual operational requirement: registration manifests must preserve the function metadata and
+   Merkle proofs generated at DApp registration/update time. Losing the manifest does not compromise
+   funds, but it can make user execution unavailable until the proof material is reconstructed from
+   the registered metadata artifacts.
+
+   UUPS upgradeability classification: the root-bound verification is active for newly created
+   channels. Existing channels created before this update keep their old execution ABI and cannot be
+   retrofitted without creating new channels.
+
 ## Non-Findings
 
 ### BridgeCore Remains The Policy Root
@@ -215,9 +248,12 @@ still do not follow later `BridgeCore`, `DAppManager`, verifier, or deployer cha
 `L1TokenVault` still resolves channel managers through `IChannelRegistry.getChannelManager(...)`,
 with `BridgeCore` as the registry. It does not trust `ChannelDeployer` directly.
 
-### DAM/CBV Digest Semantics Are Unchanged
+### DAM/CBV Digest Semantics Are Preserved
 
-The split does not change how `DAppManager` computes or stores metadata digests, verifier snapshots,
+The split does not change the DAM/CBV channel commitment rule: channel creation still freezes the
+registered DApp digest and verifier snapshot. The function metadata update changes the internal
+function commitment from per-channel deep copies to an immutable channel function root, but not the
+policy that channels bind to the DApp metadata selected at creation.
 or compatible backend versions. `BridgeCore.createChannel(...)` still requires
 `expectedDAppMetadataDigest`.
 

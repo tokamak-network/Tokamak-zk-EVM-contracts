@@ -45,6 +45,11 @@ library BridgeStructs {
         InstanceLayout instanceLayout;
     }
 
+    struct FunctionMetadataProof {
+        DAppFunctionMetadata metadata;
+        bytes32[] siblings;
+    }
+
     struct DAppVerifierSnapshot {
         address grothVerifier;
         string grothVerifierCompatibleBackendVersion;

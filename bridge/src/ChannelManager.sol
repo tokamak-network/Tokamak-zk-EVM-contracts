@@ -17,11 +17,12 @@ contract ChannelManager {
     uint16 internal constant BPS_DENOMINATOR = 10_000;
     bytes32 internal constant LIQUID_BALANCE_STORAGE_WRITE_OBSERVED_TOPIC =
         keccak256("LiquidBalanceStorageWriteObserved(address,bytes32)");
-
-    struct CachedEventLog {
-        uint16 startOffsetWords;
-        uint8 topicCount;
-    }
+    bytes32 private constant FUNCTION_ITEM_DOMAIN = keccak256("dapp.metadata.v1.function-item");
+    bytes32 private constant FUNCTION_MERKLE_NODE_DOMAIN =
+        keccak256("dapp.metadata.v1.function-merkle-node");
+    bytes32 private constant INSTANCE_LAYOUT_DOMAIN = keccak256("dapp.metadata.v1.instance-layout");
+    bytes32 private constant EVENT_LOG_ROOT_DOMAIN = keccak256("dapp.metadata.v1.event-log-root");
+    bytes32 private constant EVENT_LOG_ITEM_DOMAIN = keccak256("dapp.metadata.v1.event-log-item");
 
     error OnlyBridgeCore();
     error OnlyBridgeTokenVault();
@@ -30,6 +31,7 @@ contract ChannelManager {
     error ManagedStorageCountMismatch(uint256 expectedCount, uint256 actualCount);
     error UnexpectedCurrentRootVector();
     error UnsupportedChannelFunction(address entryContract, bytes4 functionSig);
+    error InvalidFunctionMetadataProof(bytes32 leaf, bytes32 expectedRoot);
     error TokamakProofRejected();
     error InvalidChannelTokenVaultTreeIndex();
     error PreprocessInputHashMismatch(bytes32 expectedHash, bytes32 actualHash);
@@ -72,6 +74,7 @@ contract ChannelManager {
     ITokamakVerifier public immutable tokamakVerifier;
     bytes32 public immutable dappMetadataDigestSchema;
     bytes32 public immutable dappMetadataDigest;
+    bytes32 public immutable functionRoot;
     string private _grothVerifierCompatibleBackendVersion;
     string private _tokamakVerifierCompatibleBackendVersion;
     uint64 public immutable joinFeeRefundCutoff1;
@@ -88,10 +91,6 @@ contract ChannelManager {
 
     address[] private _managedStorageAddresses;
 
-    mapping(bytes32 => bool) private _allowedFunctionKeys;
-    mapping(bytes32 => BridgeStructs.FunctionConfig) private _functionConfigs;
-    mapping(bytes32 => bytes32) private _functionKeyByPreprocessInputHash;
-    mapping(bytes32 => CachedEventLog[]) private _functionEventLogs;
     mapping(address => BridgeStructs.ChannelTokenVaultRegistration) private
         _channelTokenVaultRegistrations;
     mapping(bytes32 => address) private _channelTokenVaultKeyOwners;
@@ -122,6 +121,7 @@ contract ChannelManager {
         BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot_,
         bytes32 dappMetadataDigestSchema_,
         bytes32 dappMetadataDigest_,
+        bytes32 functionRoot_,
         uint256 initialJoinFee_,
         uint64 joinFeeRefundCutoff1_,
         uint16 joinFeeRefundBps1_,
@@ -142,6 +142,7 @@ contract ChannelManager {
         tokamakVerifier = ITokamakVerifier(verifierSnapshot_.tokamakVerifier);
         dappMetadataDigestSchema = dappMetadataDigestSchema_;
         dappMetadataDigest = dappMetadataDigest_;
+        functionRoot = functionRoot_;
         _grothVerifierCompatibleBackendVersion =
         verifierSnapshot_.grothVerifierCompatibleBackendVersion;
         _tokamakVerifierCompatibleBackendVersion =
@@ -220,32 +221,6 @@ contract ChannelManager {
         currentRootVectorHash = keccak256(abi.encode(initialRootVector));
         for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
             _managedStorageAddresses.push(managedStorageAddresses[i]);
-        }
-
-        BridgeStructs.FunctionReference[] memory allowedFunctions =
-            dAppManager_.getRegisteredFunctions(dappId_);
-        for (uint256 i = 0; i < allowedFunctions.length; i++) {
-            bytes32 functionKey = _computeFunctionKey(
-                allowedFunctions[i].entryContract, allowedFunctions[i].functionSig
-            );
-            _allowedFunctionKeys[functionKey] = true;
-            BridgeStructs.FunctionConfig memory functionConfig = dAppManager_.getFunctionMetadata(
-                dappId_, allowedFunctions[i].entryContract, allowedFunctions[i].functionSig
-            );
-            _functionConfigs[functionKey] = functionConfig;
-            _functionKeyByPreprocessInputHash[functionConfig.preprocessInputHash] = functionKey;
-
-            BridgeStructs.EventLogMetadata[] memory eventLogs = dAppManager_.getFunctionEventLogs(
-                dappId_, allowedFunctions[i].entryContract, allowedFunctions[i].functionSig
-            );
-            for (uint256 j = 0; j < eventLogs.length; j++) {
-                _functionEventLogs[functionKey].push(
-                    CachedEventLog({
-                        startOffsetWords: eventLogs[j].startOffsetWords,
-                        topicCount: eventLogs[j].topicCount
-                    })
-                );
-            }
         }
     }
 
@@ -395,18 +370,27 @@ contract ChannelManager {
         refundAmount = (registration.joinFeePaid * refundBps) / BPS_DENOMINATOR;
     }
 
-    function executeChannelTransaction(BridgeStructs.TokamakProofPayload calldata payload)
-        external
-        returns (bool)
-    {
+    function executeChannelTransaction(
+        BridgeStructs.TokamakProofPayload calldata payload,
+        BridgeStructs.FunctionMetadataProof calldata functionProof
+    ) external returns (bool) {
         bytes32 actualPreprocessInputHash = keccak256(
             abi.encode(payload.functionPreprocessPart1, payload.functionPreprocessPart2)
         );
-        bytes32 functionKey = _functionKeyByPreprocessInputHash[actualPreprocessInputHash];
-        if (!_allowedFunctionKeys[functionKey]) {
-            revert UnsupportedChannelFunction(address(0), bytes4(0));
+        BridgeStructs.DAppFunctionMetadata calldata functionMetadata = functionProof.metadata;
+        bytes32 functionLeaf = _hashFunctionMetadata(functionMetadata);
+        if (!_verifyFunctionMetadataProof(functionLeaf, functionProof.siblings)) {
+            revert InvalidFunctionMetadataProof(functionLeaf, functionRoot);
         }
-        BridgeStructs.FunctionConfig memory functionConfig = _functionConfigs[functionKey];
+        BridgeStructs.FunctionConfig memory functionConfig = BridgeStructs.FunctionConfig({
+            preprocessInputHash: functionMetadata.preprocessInputHash,
+            entryContractOffsetWords: functionMetadata.instanceLayout.entryContractOffsetWords,
+            functionSigOffsetWords: functionMetadata.instanceLayout.functionSigOffsetWords,
+            currentRootVectorOffsetWords: functionMetadata.instanceLayout
+            .currentRootVectorOffsetWords,
+            updatedRootVectorOffsetWords: functionMetadata.instanceLayout
+                .updatedRootVectorOffsetWords
+        });
 
         uint256 rootVectorLength = _managedStorageAddresses.length;
         uint256 requiredLength =
@@ -441,7 +425,10 @@ contract ChannelManager {
             revert FunctionSigPublicInputOutOfRange(functionSigValue);
         }
         bytes4 functionSig = bytes4(uint32(functionSigValue));
-        if (_computeFunctionKey(entryContract, functionSig) != functionKey) {
+        if (
+            entryContract != functionMetadata.entryContract
+                || functionSig != functionMetadata.functionSig
+        ) {
             revert UnsupportedChannelFunction(entryContract, functionSig);
         }
 
@@ -479,7 +466,9 @@ contract ChannelManager {
         );
         if (!ok) revert TokamakProofRejected();
 
-        _emitObservedEventLogs(payload.aPubUser, functionConfig, _functionEventLogs[functionKey]);
+        _emitObservedEventLogs(
+            payload.aPubUser, functionConfig, functionMetadata.instanceLayout.eventLogs
+        );
         currentRootVectorHash = keccak256(abi.encode(updatedRootVector));
         emit CurrentRootVectorObserved(currentRootVectorHash, updatedRootVector);
 
@@ -605,25 +594,77 @@ contract ChannelManager {
         combined = lower | (upper << 128);
     }
 
-    function _computeFunctionKey(address entryContract, bytes4 functionSig)
+    function _deriveLeafIndexFromStorageKey(uint256 storageKey) private pure returns (uint256) {
+        return storageKey % TOKEN_VAULT_MT_LEAF_COUNT;
+    }
+
+    function _hashFunctionMetadata(BridgeStructs.DAppFunctionMetadata calldata fnMetadata)
         private
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encode(entryContract, functionSig));
+        bytes32 eventLogsHash = keccak256(
+            abi.encode(EVENT_LOG_ROOT_DOMAIN, fnMetadata.instanceLayout.eventLogs.length)
+        );
+        for (uint256 i = 0; i < fnMetadata.instanceLayout.eventLogs.length; i++) {
+            BridgeStructs.EventLogMetadata calldata eventLog =
+                fnMetadata.instanceLayout.eventLogs[i];
+            eventLogsHash = keccak256(
+                abi.encode(
+                    EVENT_LOG_ITEM_DOMAIN,
+                    eventLogsHash,
+                    eventLog.startOffsetWords,
+                    eventLog.topicCount
+                )
+            );
+        }
+
+        bytes32 instanceLayoutHash = keccak256(
+            abi.encode(
+                INSTANCE_LAYOUT_DOMAIN,
+                fnMetadata.instanceLayout.entryContractOffsetWords,
+                fnMetadata.instanceLayout.functionSigOffsetWords,
+                fnMetadata.instanceLayout.currentRootVectorOffsetWords,
+                fnMetadata.instanceLayout.updatedRootVectorOffsetWords,
+                eventLogsHash
+            )
+        );
+
+        return keccak256(
+            abi.encode(
+                FUNCTION_ITEM_DOMAIN,
+                fnMetadata.entryContract,
+                fnMetadata.functionSig,
+                fnMetadata.preprocessInputHash,
+                instanceLayoutHash
+            )
+        );
     }
 
-    function _deriveLeafIndexFromStorageKey(uint256 storageKey) private pure returns (uint256) {
-        return storageKey % TOKEN_VAULT_MT_LEAF_COUNT;
+    function _verifyFunctionMetadataProof(bytes32 leaf, bytes32[] calldata siblings)
+        private
+        view
+        returns (bool)
+    {
+        bytes32 computed = leaf;
+        for (uint256 i = 0; i < siblings.length; i++) {
+            computed = _hashFunctionMerklePair(computed, siblings[i]);
+        }
+        return computed == functionRoot;
+    }
+
+    function _hashFunctionMerklePair(bytes32 left, bytes32 right) private pure returns (bytes32) {
+        (bytes32 first, bytes32 second) = left <= right ? (left, right) : (right, left);
+        return keccak256(abi.encode(FUNCTION_MERKLE_NODE_DOMAIN, first, second));
     }
 
     function _emitObservedEventLogs(
         uint256[] calldata aPubUser,
         BridgeStructs.FunctionConfig memory functionConfig,
-        CachedEventLog[] storage eventLogs
+        BridgeStructs.EventLogMetadata[] calldata eventLogs
     ) private {
         for (uint256 i = 0; i < eventLogs.length; i++) {
-            CachedEventLog storage eventLog = eventLogs[i];
+            BridgeStructs.EventLogMetadata calldata eventLog = eventLogs[i];
             if (eventLog.topicCount > 4) {
                 revert UnsupportedObservedEventTopicCount(eventLog.topicCount);
             }
@@ -705,10 +746,10 @@ contract ChannelManager {
 
     function _resolveObservedEventBoundary(
         BridgeStructs.FunctionConfig memory functionConfig,
-        CachedEventLog[] storage eventLogs,
+        BridgeStructs.EventLogMetadata[] calldata eventLogs,
         uint256 eventLogIndex
-    ) private view returns (uint256 boundary) {
-        CachedEventLog storage eventLog = eventLogs[eventLogIndex];
+    ) private pure returns (uint256 boundary) {
+        BridgeStructs.EventLogMetadata calldata eventLog = eventLogs[eventLogIndex];
         boundary = type(uint256).max;
 
         if (eventLogIndex + 1 < eventLogs.length) {

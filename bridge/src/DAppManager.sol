@@ -26,6 +26,8 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     bytes32 private constant USER_SLOT_ITEM_DOMAIN = keccak256("dapp.metadata.v1.user-slot-item");
     bytes32 private constant FUNCTION_ROOT_DOMAIN = keccak256("dapp.metadata.v1.function-root");
     bytes32 private constant FUNCTION_ITEM_DOMAIN = keccak256("dapp.metadata.v1.function-item");
+    bytes32 private constant FUNCTION_MERKLE_NODE_DOMAIN =
+        keccak256("dapp.metadata.v1.function-merkle-node");
     bytes32 private constant INSTANCE_LAYOUT_DOMAIN = keccak256("dapp.metadata.v1.instance-layout");
     bytes32 private constant EVENT_LOG_ROOT_DOMAIN = keccak256("dapp.metadata.v1.event-log-root");
     bytes32 private constant EVENT_LOG_ITEM_DOMAIN = keccak256("dapp.metadata.v1.event-log-item");
@@ -63,6 +65,7 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint256 channelTokenVaultTreeIndex;
         bytes32 metadataDigestSchema;
         bytes32 metadataDigest;
+        bytes32 functionRoot;
     }
 
     struct DAppMetadataDigestParts {
@@ -162,7 +165,8 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             labelHash: labelHash,
             channelTokenVaultTreeIndex: digestParts.channelTokenVaultTreeIndex,
             metadataDigestSchema: DAPP_METADATA_DIGEST_SCHEMA,
-            metadataDigest: metadataDigest
+            metadataDigest: metadataDigest,
+            functionRoot: digestParts.functionRoot
         });
         emit DAppRegistered(dappId, labelHash, storages.length, functions.length);
         emit DAppMetadataDigestUpdated(dappId, DAPP_METADATA_DIGEST_SCHEMA, metadataDigest);
@@ -186,7 +190,8 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             labelHash: info.labelHash,
             channelTokenVaultTreeIndex: digestParts.channelTokenVaultTreeIndex,
             metadataDigestSchema: DAPP_METADATA_DIGEST_SCHEMA,
-            metadataDigest: metadataDigest
+            metadataDigest: metadataDigest,
+            functionRoot: digestParts.functionRoot
         });
         emit DAppMetadataUpdated(dappId, info.labelHash, storages.length, functions.length);
         emit DAppMetadataDigestUpdated(dappId, DAPP_METADATA_DIGEST_SCHEMA, metadataDigest);
@@ -342,7 +347,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
         digestParts.channelTokenVaultTreeIndex = type(uint256).max;
         digestParts.storageRoot = keccak256(abi.encode(STORAGE_ROOT_DOMAIN, storages.length));
-        digestParts.functionRoot = keccak256(abi.encode(FUNCTION_ROOT_DOMAIN, functions.length));
         address channelTokenVaultStorageAddress;
 
         for (uint256 i = 0; i < storages.length; i++) {
@@ -391,11 +395,11 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             revert MissingChannelTokenVaultStorageAddress(dappId);
         }
 
+        bytes32[] memory functionHashes = new bytes32[](functions.length);
         for (uint256 i = 0; i < functions.length; i++) {
-            bytes32 functionMetadataHash = _storeFunctionMetadata(dappId, functions[i]);
-            digestParts.functionRoot =
-                keccak256(abi.encode(digestParts.functionRoot, functionMetadataHash));
+            functionHashes[i] = _storeFunctionMetadata(dappId, functions[i]);
         }
+        digestParts.functionRoot = _computeFunctionMerkleRoot(functionHashes);
     }
 
     function _storeFunctionMetadata(
@@ -598,6 +602,27 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                 instanceLayoutHash
             )
         );
+    }
+
+    function _computeFunctionMerkleRoot(bytes32[] memory leaves) private pure returns (bytes32) {
+        uint256 levelLength = leaves.length;
+        while (levelLength > 1) {
+            uint256 nextLength = (levelLength + 1) / 2;
+            for (uint256 i = 0; i < nextLength; i++) {
+                uint256 leftIndex = i * 2;
+                uint256 rightIndex = leftIndex + 1;
+                bytes32 left = leaves[leftIndex];
+                bytes32 right = rightIndex < levelLength ? leaves[rightIndex] : left;
+                leaves[i] = _hashFunctionMerklePair(left, right);
+            }
+            levelLength = nextLength;
+        }
+        return leaves[0];
+    }
+
+    function _hashFunctionMerklePair(bytes32 left, bytes32 right) private pure returns (bytes32) {
+        (bytes32 first, bytes32 second) = left <= right ? (left, right) : (right, left);
+        return keccak256(abi.encode(FUNCTION_MERKLE_NODE_DOMAIN, first, second));
     }
 
     function _hashVerifierSnapshot(BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot)

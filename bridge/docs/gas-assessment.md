@@ -1,8 +1,8 @@
 # Bridge Gas Assessment
 
-Measurement timestamp: 2026-05-02T03:25:21Z / 2026-05-02 11:25:21 +08.
+Measurement timestamp: 2026-05-02T04:43:44Z / 2026-05-02 12:43:44 +08.
 
-ETH/USD: 2,303.96 USD.
+ETH/USD: 2,300.89 USD.
 
 All contract gas values below are measured values from the current worktree. They are not gas
 estimates.
@@ -61,27 +61,27 @@ remain in the original hex-encoded wei format returned by the RPC endpoint.
 | Function | Caller role | Measured gas used | Measurement source | USD at 0.106 gwei (Typical Block p50) | USD at 0.886 gwei (Typical Block p90) |
 |---|---|---:|---|---:|---:|
 | `DAppManager.bindBridgeCore` | Owner | 26,091 | Forge gas report | $0.006 | $0.053 |
-| `DAppManager.registerDApp` | Owner | 5,338-1,043,732 | Forge gas report | $0.001-$0.255 | $0.011-$2.13 |
-| `DAppManager.updateDAppMetadata` | Owner | 119,040-395,746 | Forge gas report | $0.029-$0.097 | $0.243-$0.808 |
-| `DAppManager.deleteDApp` | Owner, Sepolia/local only | 13,902-149,012 | Forge gas report | $0.003-$0.036 | $0.028-$0.304 |
+| `DAppManager.registerDApp` | Owner | 5,338-1,066,062 | Forge gas report | $0.001-$0.260 | $0.011-$2.17 |
+| `DAppManager.updateDAppMetadata` | Owner | 120,965-400,957 | Forge gas report | $0.030-$0.098 | $0.247-$0.817 |
+| `DAppManager.deleteDApp` | Owner, Sepolia/local only | 16,044-154,066 | Forge gas report | $0.004-$0.038 | $0.033-$0.314 |
 | `BridgeCore.bindBridgeTokenVault` | Owner | 5,119-9,164 | Forge gas report | $0.001-$0.002 | $0.010-$0.019 |
 | `BridgeCore.setChannelDeployer` | Owner | 11,663 | Forge gas report | $0.003 | $0.024 |
 | `BridgeCore.setGrothVerifier` | Owner | 9,045 | Forge gas report | $0.002 | $0.018 |
 | `BridgeCore.setTokamakVerifier` | Owner | 8,957 | Forge gas report | $0.002 | $0.018 |
-| `BridgeCore.setJoinFeeRefundSchedule` | Owner | 16,517 | Forge gas report | $0.004 | $0.034 |
-| `BridgeCore.createChannel` | Owner | 3,884,651 | CLI E2E receipt | $0.949 | $7.93 |
+| `BridgeCore.setJoinFeeRefundSchedule` | Owner | 16,520 | Forge gas report | $0.004 | $0.034 |
+| `BridgeCore.createChannel` | Owner | 2,762,240 | CLI E2E receipt | $0.674 | $5.63 |
 | `ChannelManager.setJoinFee` | Channel leader | 22,119-28,418 | Forge gas report | $0.005-$0.007 | $0.045-$0.058 |
 
 ## User Calls
 
 | Function | Caller role | Measured gas used | Measurement source | USD at 0.106 gwei (Typical Block p50) | USD at 0.886 gwei (Typical Block p90) |
 |---|---|---:|---|---:|---:|
-| `L1TokenVault.fund` | User | 72,845-89,945 | CLI E2E receipts | $0.018-$0.022 | $0.149-$0.184 |
-| `L1TokenVault.joinChannel` | User | 323,722-326,534 | CLI E2E receipts | $0.079-$0.080 | $0.661-$0.667 |
-| `L1TokenVault.depositToChannelVault` | User | 336,335-336,359 | CLI E2E receipts | $0.082-$0.082 | $0.687-$0.687 |
-| `ChannelManager.executeChannelTransaction` | User | 830,814-865,674 | CLI E2E receipts | $0.203-$0.211 | $1.70-$1.77 |
-| `L1TokenVault.withdrawFromChannelVault` | User | 380,295 | CLI E2E receipt | $0.093 | $0.776 |
-| `L1TokenVault.exitChannel` | User | 130,148 | CLI E2E receipt | $0.032 | $0.266 |
+| `L1TokenVault.fund` | User | 72,845-89,945 | CLI E2E receipts | $0.018-$0.022 | $0.149-$0.183 |
+| `L1TokenVault.joinChannel` | User | 323,747-326,559 | CLI E2E receipts | $0.079-$0.080 | $0.660-$0.666 |
+| `L1TokenVault.depositToChannelVault` | User | 336,399-336,455 | CLI E2E receipts | $0.082-$0.082 | $0.686-$0.686 |
+| `ChannelManager.executeChannelTransaction` | User | 827,609-861,692 | CLI E2E receipts | $0.202-$0.210 | $1.69-$1.76 |
+| `L1TokenVault.withdrawFromChannelVault` | User | 380,391 | CLI E2E receipt | $0.093 | $0.775 |
+| `L1TokenVault.exitChannel` | User | 130,168 | CLI E2E receipt | $0.032 | $0.265 |
 | `L1TokenVault.claimToWallet` | User | 52,317 | CLI E2E receipt | $0.013 | $0.107 |
 
 Supporting ERC-20 approvals are not bridge contract calls, but the CLI E2E measured `ERC20.approve`
@@ -92,8 +92,19 @@ input.
 
 | Source | Scope |
 |---|---|
-| `packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/summary.json` | Actual local EOA transaction receipts for the private-state bridge CLI flow, generated after the BridgeAdminManager removal. |
+| `packages/apps/private-state/scripts/e2e/output/private-state-bridge-cli/summary.json` | Actual local EOA transaction receipts for the private-state bridge CLI flow, generated after the function metadata root/proof update. |
 | `forge test --root bridge --gas-report` | Current-worktree function gas measurements for owner/operator functions that do not have CLI E2E receipts. |
 | MetaMask gas API, Ethereum mainnet network 1 | Timestamped low/medium/high fee inputs. |
 | Ethereum JSON-RPC `eth_feeHistory` | Six-month block-level base fee and priority reward percentile distribution for the embedded chart; raw chunk responses are stored under `bridge/docs/assets`. |
 | CoinGecko simple price API | Timestamped ETH/USD input. |
+
+## Latest Function Metadata Root/Proof Delta
+
+Before replacing per-channel function metadata deep copies with a channel-level function root,
+`BridgeCore.createChannel` measured 3,884,651 gas. The current E2E receipt measures 2,762,240 gas,
+a reduction of 1,122,411 gas, or 28.89%.
+
+The user execution path now submits function metadata and a Merkle proof in calldata. The measured
+`ChannelManager.executeChannelTransaction` range is 827,609-861,692 gas, which is not higher than
+the previous 830,814-865,674 gas E2E range because the removed channel storage reads offset the
+additional proof verification and calldata.

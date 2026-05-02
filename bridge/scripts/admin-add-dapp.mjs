@@ -52,6 +52,11 @@ const privateStateCliPackageJsonPath = path.join(
   "package.json",
 );
 const abiCoder = AbiCoder.defaultAbiCoder();
+const FUNCTION_ITEM_DOMAIN = keccak256(ethers.toUtf8Bytes("dapp.metadata.v1.function-item"));
+const FUNCTION_MERKLE_NODE_DOMAIN = keccak256(ethers.toUtf8Bytes("dapp.metadata.v1.function-merkle-node"));
+const INSTANCE_LAYOUT_DOMAIN = keccak256(ethers.toUtf8Bytes("dapp.metadata.v1.instance-layout"));
+const EVENT_LOG_ROOT_DOMAIN = keccak256(ethers.toUtf8Bytes("dapp.metadata.v1.event-log-root"));
+const EVENT_LOG_ITEM_DOMAIN = keccak256(ethers.toUtf8Bytes("dapp.metadata.v1.event-log-item"));
 const { aPubBlockLength: TOKAMAK_APUB_BLOCK_LENGTH } = resolveTokamakBlockInputConfig();
 const TIMESTAMP_LABEL_PATTERN = /^\d{8}T\d{6}Z$/;
 const CAPACITY_ERROR_PATTERNS = [
@@ -178,6 +183,128 @@ function hashTokamakPointEncoding(part1, part2) {
 
 function hashTokamakPublicInputs(values) {
   return keccak256(abiCoder.encode(["uint256[]"], [values]));
+}
+
+function hashEventLogMetadata(eventLogs) {
+  let eventLogsHash = keccak256(
+    abiCoder.encode(["bytes32", "uint256"], [EVENT_LOG_ROOT_DOMAIN, eventLogs.length]),
+  );
+  for (const eventLog of eventLogs) {
+    eventLogsHash = keccak256(
+      abiCoder.encode(
+        ["bytes32", "bytes32", "uint16", "uint8"],
+        [EVENT_LOG_ITEM_DOMAIN, eventLogsHash, eventLog.startOffsetWords, eventLog.topicCount],
+      ),
+    );
+  }
+  return eventLogsHash;
+}
+
+function functionMetadataForManifest(fn) {
+  return {
+    entryContract: getAddress(fn.entryContract),
+    functionSig: fn.functionSig,
+    preprocessInputHash: normalizeBytes32(fn.preprocessInputHash),
+    instanceLayout: {
+      entryContractOffsetWords: fn.entryContractOffsetWords,
+      functionSigOffsetWords: fn.functionSigOffsetWords,
+      currentRootVectorOffsetWords: fn.currentRootVectorOffsetWords,
+      updatedRootVectorOffsetWords: fn.updatedRootVectorOffsetWords,
+      eventLogs: fn.eventLogs.map((eventLog) => ({
+        startOffsetWords: eventLog.startOffsetWords,
+        topicCount: eventLog.topicCount,
+      })),
+    },
+  };
+}
+
+function hashFunctionMetadata(fn) {
+  const metadata = functionMetadataForManifest(fn);
+  const eventLogsHash = hashEventLogMetadata(metadata.instanceLayout.eventLogs);
+  const instanceLayoutHash = keccak256(
+    abiCoder.encode(
+      ["bytes32", "uint8", "uint8", "uint8", "uint8", "bytes32"],
+      [
+        INSTANCE_LAYOUT_DOMAIN,
+        metadata.instanceLayout.entryContractOffsetWords,
+        metadata.instanceLayout.functionSigOffsetWords,
+        metadata.instanceLayout.currentRootVectorOffsetWords,
+        metadata.instanceLayout.updatedRootVectorOffsetWords,
+        eventLogsHash,
+      ],
+    ),
+  );
+  return keccak256(
+    abiCoder.encode(
+      ["bytes32", "address", "bytes4", "bytes32", "bytes32"],
+      [
+        FUNCTION_ITEM_DOMAIN,
+        metadata.entryContract,
+        metadata.functionSig,
+        metadata.preprocessInputHash,
+        instanceLayoutHash,
+      ],
+    ),
+  );
+}
+
+function hashFunctionMerklePair(left, right) {
+  const [first, second] = ethers.toBigInt(left) <= ethers.toBigInt(right)
+    ? [left, right]
+    : [right, left];
+  return keccak256(
+    abiCoder.encode(["bytes32", "bytes32", "bytes32"], [FUNCTION_MERKLE_NODE_DOMAIN, first, second]),
+  );
+}
+
+function computeFunctionMerkleRoot(leaves) {
+  let level = leaves.slice();
+  while (level.length > 1) {
+    const next = [];
+    for (let index = 0; index < level.length; index += 2) {
+      const left = level[index];
+      const right = index + 1 < level.length ? level[index + 1] : left;
+      next.push(hashFunctionMerklePair(left, right));
+    }
+    level = next;
+  }
+  return level[0];
+}
+
+function buildFunctionMerkleProof(leaves, leafIndex) {
+  const proof = [];
+  let index = leafIndex;
+  let level = leaves.slice();
+  while (level.length > 1) {
+    const siblingIndex = index % 2 === 0
+      ? Math.min(index + 1, level.length - 1)
+      : index - 1;
+    proof.push(level[siblingIndex]);
+
+    const next = [];
+    for (let pairIndex = 0; pairIndex < level.length; pairIndex += 2) {
+      const left = level[pairIndex];
+      const right = pairIndex + 1 < level.length ? level[pairIndex + 1] : left;
+      next.push(hashFunctionMerklePair(left, right));
+    }
+    index = Math.floor(index / 2);
+    level = next;
+  }
+  return proof;
+}
+
+function buildFunctionMetadataProofs(functions) {
+  const leaves = functions.map((fn) => hashFunctionMetadata(fn));
+  const root = computeFunctionMerkleRoot(leaves);
+  return {
+    root,
+    functions: functions.map((fn, index) => ({
+      exampleNames: fn.exampleNames,
+      metadata: functionMetadataForManifest(fn),
+      merkleLeaf: leaves[index],
+      merkleProof: buildFunctionMerkleProof(leaves, index),
+    })),
+  };
 }
 
 function normalizeTokamakAPubBlock(values) {
@@ -1305,6 +1432,7 @@ async function main() {
     throw new Error(`Expected exactly one DApp definition for ${dappLabel}, received ${dapps.length}.`);
   }
   const dapp = dapps[0];
+  const functionProofs = buildFunctionMetadataProofs(dapp.functions);
 
   const wallet = new Wallet(privateKey, provider);
   const dAppManager = new Contract(dAppManagerAddress, loadDAppManagerAbi(abiManifestPath), wallet);
@@ -1323,6 +1451,11 @@ async function main() {
       : await dAppManager.registerDApp(options.dappId, dapp.labelHash, metadata.storages, metadata.functions);
   const receipt = await tx.wait();
   const registeredInfo = await dAppManager.getDAppInfo(options.dappId);
+  if (normalizeBytes32(registeredInfo.functionRoot) !== normalizeBytes32(functionProofs.root)) {
+    throw new Error(
+      `On-chain functionRoot ${registeredInfo.functionRoot} does not match locally computed root ${functionProofs.root}.`,
+    );
+  }
   ensureDir(dappSnapshot.rootDir);
   await writeDeploymentSnapshotWithBytecode({
     provider: appProvider,
@@ -1374,8 +1507,13 @@ async function main() {
       labelHash: dapp.labelHash,
       metadataDigestSchema: registeredInfo.metadataDigestSchema,
       metadataDigest: registeredInfo.metadataDigest,
+      functionRoot: registeredInfo.functionRoot,
       storageCount: dapp.storageMetadata.length,
       functionCount: dapp.functions.length,
+    },
+    functionMetadataProofs: {
+      root: functionProofs.root,
+      functions: functionProofs.functions,
     },
   };
   writeJson(manifestPendingOut, manifest);

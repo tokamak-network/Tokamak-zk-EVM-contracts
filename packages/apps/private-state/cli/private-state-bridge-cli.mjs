@@ -192,6 +192,7 @@ function printImmutableChannelPolicyWarning({
       `  DApp id: ${policySnapshot.dappId}`,
       `  DApp metadata digest schema: ${policySnapshot.dappMetadataDigestSchema}`,
       `  DApp metadata digest: ${policySnapshot.dappMetadataDigest}`,
+      `  DApp function root: ${policySnapshot.functionRoot}`,
       `  Groth16 verifier: ${policySnapshot.grothVerifier}`,
       `  Groth16 compatible backend version: ${policySnapshot.grothVerifierCompatibleBackendVersion}`,
       `  Tokamak verifier: ${policySnapshot.tokamakVerifier}`,
@@ -206,12 +207,14 @@ function normalizeDAppPolicySnapshot({
   dappId,
   metadataDigest,
   metadataDigestSchema,
+  functionRoot,
   verifierSnapshot,
 }) {
   return {
     dappId: Number(dappId),
     dappMetadataDigestSchema: normalizeBytes32Hex(metadataDigestSchema),
     dappMetadataDigest: normalizeBytes32Hex(metadataDigest),
+    functionRoot: normalizeBytes32Hex(functionRoot),
     grothVerifier: getAddress(verifierSnapshot.grothVerifier),
     grothVerifierCompatibleBackendVersion: requireVersionString(
       verifierSnapshot.grothVerifierCompatibleBackendVersion,
@@ -499,6 +502,7 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
   const manifestManager = typeof manifest.dAppManager === "string" ? getAddress(manifest.dAppManager) : null;
   const manifestMetadataDigest = normalizeBytes32Hex(manifest.registration?.metadataDigest);
   const manifestMetadataDigestSchema = normalizeBytes32Hex(manifest.registration?.metadataDigestSchema);
+  const manifestFunctionRoot = normalizeBytes32Hex(manifest.registration?.functionRoot);
 
   expect(manifestLabel === dappLabel, `DApp registration manifest label mismatch in ${manifestPath}.`);
   expect(Number.isInteger(manifestDappId), `DApp registration manifest is missing an integer dappId: ${manifestPath}.`);
@@ -506,6 +510,10 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
   expect(
     manifestMetadataDigestSchema !== null,
     `DApp registration manifest is missing registration.metadataDigestSchema: ${manifestPath}.`,
+  );
+  expect(
+    manifestFunctionRoot !== null,
+    `DApp registration manifest is missing registration.functionRoot: ${manifestPath}.`,
   );
   expect(
     manifestManager !== null
@@ -521,11 +529,13 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
   );
   const onchainMetadataDigest = normalizeBytes32Hex(info.metadataDigest);
   const onchainMetadataDigestSchema = normalizeBytes32Hex(info.metadataDigestSchema);
+  const onchainFunctionRoot = normalizeBytes32Hex(info.functionRoot);
   const verifierSnapshot = await dAppManager.getDAppVerifierSnapshot(manifestDappId);
   const policySnapshot = normalizeDAppPolicySnapshot({
     dappId: manifestDappId,
     metadataDigest: onchainMetadataDigest,
     metadataDigestSchema: onchainMetadataDigestSchema,
+    functionRoot: onchainFunctionRoot,
     verifierSnapshot,
   });
   expect(
@@ -536,10 +546,15 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     ethers.toBigInt(onchainMetadataDigestSchema) === ethers.toBigInt(manifestMetadataDigestSchema),
     `DApp id ${manifestDappId} metadata digest schema ${onchainMetadataDigestSchema} does not match ${manifestMetadataDigestSchema} from ${manifestPath}.`,
   );
+  expect(
+    ethers.toBigInt(onchainFunctionRoot) === ethers.toBigInt(manifestFunctionRoot),
+    `DApp id ${manifestDappId} function root ${onchainFunctionRoot} does not match ${manifestFunctionRoot} from ${manifestPath}.`,
+  );
   return {
     dappId: Number(manifestDappId),
     metadataDigest: onchainMetadataDigest,
     metadataDigestSchema: onchainMetadataDigestSchema,
+    functionRoot: onchainFunctionRoot,
     policySnapshot,
   };
 }
@@ -686,6 +701,7 @@ async function initializeChannelWorkspace({
     aPubBlockHash: normalizeBytes32Hex(channelInfo.aPubBlockHash),
     dappMetadataDigestSchema: policySnapshot.dappMetadataDigestSchema,
     dappMetadataDigest: policySnapshot.dappMetadataDigest,
+    functionRoot: policySnapshot.functionRoot,
     policySnapshot,
     managedStorageAddresses,
     liquidBalancesSlot: liquidBalancesSlot.toString(),
@@ -1576,6 +1592,63 @@ async function handleWithdrawBridge({ args, network, provider }) {
     txUrl: explorerTxUrl(network, receipt.hash),
     receipt: sanitizeReceipt(receipt),
   });
+}
+
+function resolveFunctionMetadataProofForExecution({
+  chainId,
+  controllerAddress,
+  functionSelector,
+  preprocessInputHash,
+  expectedFunctionRoot,
+}) {
+  const manifestPath = requireFlatDeploymentArtifactPathsForChainId(chainId).dappRegistrationPath;
+  const manifest = readJson(manifestPath);
+  const proofRoot = normalizeBytes32Hex(manifest.functionMetadataProofs?.root);
+  const expectedRoot = normalizeBytes32Hex(expectedFunctionRoot);
+  expect(
+    ethers.toBigInt(proofRoot) === ethers.toBigInt(expectedRoot),
+    `DApp function proof root ${proofRoot} does not match channel function root ${expectedRoot}.`,
+  );
+
+  const functions = manifest.functionMetadataProofs?.functions;
+  expect(Array.isArray(functions), `DApp registration manifest is missing functionMetadataProofs.functions: ${manifestPath}.`);
+  const normalizedController = getAddress(controllerAddress);
+  const normalizedSelector = normalizeBytesHex(functionSelector, 4);
+  const normalizedPreprocessInputHash = normalizeBytes32Hex(preprocessInputHash);
+  const entry = functions.find((candidate) => {
+    const metadata = candidate?.metadata;
+    return metadata
+      && getAddress(metadata.entryContract) === normalizedController
+      && normalizeBytesHex(metadata.functionSig, 4) === normalizedSelector
+      && normalizeBytes32Hex(metadata.preprocessInputHash) === normalizedPreprocessInputHash;
+  });
+  expect(
+    entry !== undefined,
+    [
+      `No DApp function metadata proof found for ${normalizedController} ${normalizedSelector}.`,
+      `Expected preprocess input hash: ${normalizedPreprocessInputHash}.`,
+      `Manifest: ${manifestPath}.`,
+    ].join(" "),
+  );
+
+  return {
+    metadata: {
+      entryContract: getAddress(entry.metadata.entryContract),
+      functionSig: normalizeBytesHex(entry.metadata.functionSig, 4),
+      preprocessInputHash: normalizeBytes32Hex(entry.metadata.preprocessInputHash),
+      instanceLayout: {
+        entryContractOffsetWords: Number(entry.metadata.instanceLayout.entryContractOffsetWords),
+        functionSigOffsetWords: Number(entry.metadata.instanceLayout.functionSigOffsetWords),
+        currentRootVectorOffsetWords: Number(entry.metadata.instanceLayout.currentRootVectorOffsetWords),
+        updatedRootVectorOffsetWords: Number(entry.metadata.instanceLayout.updatedRootVectorOffsetWords),
+        eventLogs: entry.metadata.instanceLayout.eventLogs.map((eventLog) => ({
+          startOffsetWords: Number(eventLog.startOffsetWords),
+          topicCount: Number(eventLog.topicCount),
+        })),
+      },
+    },
+    siblings: entry.merkleProof.map((sibling) => normalizeBytes32Hex(sibling)),
+  };
 }
 
 async function handleMintNotes({ args, provider }) {
@@ -3234,6 +3307,16 @@ async function executeWalletTemplateSend({
   writeJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
   const payload = loadTokamakPayloadFromStep(operationDir);
+  const functionProof = resolveFunctionMetadataProofForExecution({
+    chainId: context.workspace.chainId,
+    controllerAddress: context.workspace.controller,
+    functionSelector: calldata.slice(0, 10),
+    preprocessInputHash: hashTokamakPointEncoding(
+      payload.functionPreprocessPart1,
+      payload.functionPreprocessPart2,
+    ),
+    expectedFunctionRoot: context.workspace.functionRoot ?? context.workspace.policySnapshot?.functionRoot,
+  });
   const noteLifecycle = extractControllerStorageDelta({
     previousSnapshot: context.currentSnapshot,
     nextSnapshot,
@@ -3248,7 +3331,9 @@ async function executeWalletTemplateSend({
   );
 
   const receipt =
-    await waitForReceipt(await context.channelManager.connect(signer).executeChannelTransaction(payload));
+    await waitForReceipt(
+      await context.channelManager.connect(signer).executeChannelTransaction(payload, functionProof),
+    );
 
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
@@ -3639,6 +3724,7 @@ async function readChannelPolicySnapshot({ channelManager, dappId }) {
     const [
       dappMetadataDigestSchema,
       dappMetadataDigest,
+      functionRoot,
       grothVerifier,
       grothVerifierCompatibleBackendVersion,
       tokamakVerifier,
@@ -3646,6 +3732,7 @@ async function readChannelPolicySnapshot({ channelManager, dappId }) {
     ] = await Promise.all([
       channelManager.dappMetadataDigestSchema(),
       channelManager.dappMetadataDigest(),
+      channelManager.functionRoot(),
       channelManager.grothVerifier(),
       channelManager.grothVerifierCompatibleBackendVersion(),
       channelManager.tokamakVerifier(),
@@ -3655,6 +3742,7 @@ async function readChannelPolicySnapshot({ channelManager, dappId }) {
       dappId: Number(dappId),
       dappMetadataDigestSchema: normalizeBytes32Hex(dappMetadataDigestSchema),
       dappMetadataDigest: normalizeBytes32Hex(dappMetadataDigest),
+      functionRoot: normalizeBytes32Hex(functionRoot),
       grothVerifier: getAddress(grothVerifier),
       grothVerifierCompatibleBackendVersion: requireVersionString(
         grothVerifierCompatibleBackendVersion,
@@ -4085,6 +4173,10 @@ function bigintToHex32(value) {
 
 function hashTokamakPublicInputs(values) {
   return keccak256(abiCoder.encode(["uint256[]"], [values]));
+}
+
+function hashTokamakPointEncoding(part1, part2) {
+  return keccak256(abiCoder.encode(["uint128[]", "uint256[]"], [part1, part2]));
 }
 
 function encodeTokamakBlockInfo(blockInfo) {
@@ -5726,6 +5818,10 @@ async function installGroth16RuntimeForPrivateState({ version, docker }) {
 async function installGroth16CrsForPrivateStateVersion(version) {
   const workspaceRoot = defaultGroth16WorkspaceRoot();
   const crsDir = path.join(workspaceRoot, "crs");
+  const existingInstall = readExistingGroth16CrsInstall({ version, crsDir });
+  if (existingInstall) {
+    return existingInstall;
+  }
   const crsInstall = await downloadPublicGroth16MpcArtifactsByVersion({
     version,
     outputDir: crsDir,
@@ -5745,6 +5841,51 @@ async function installGroth16CrsForPrivateStateVersion(version) {
     crs: crsInstall,
   });
   return crsInstall;
+}
+
+function readExistingGroth16CrsInstall({ version, crsDir }) {
+  const normalizedVersion = requireCanonicalGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
+  const selectedFiles = [
+    "circuit_final.zkey",
+    "verification_key.json",
+    "metadata.json",
+    "zkey_provenance.json",
+  ];
+  const targetPaths = selectedFiles.map((fileName) => path.join(crsDir, fileName));
+  if (!targetPaths.every((targetPath) => fs.existsSync(targetPath))) {
+    return null;
+  }
+  const metadata = readJson(path.join(crsDir, "metadata.json"));
+  const metadataVersion = requireCanonicalGroth16CompatibleBackendVersion(
+    metadata.compatibleBackendVersion,
+    "installed Groth16 MPC CRS version",
+  );
+  if (metadataVersion !== normalizedVersion) {
+    return null;
+  }
+  const provenance = readJson(path.join(crsDir, "zkey_provenance.json"));
+  return {
+    source: "local-cache",
+    archiveName: provenance.published_archive_name ?? null,
+    archiveFileId: parseDriveFileIdFromDownloadUrl(provenance.zkey_download_url),
+    folderUrl: provenance.published_folder_url ?? null,
+    version: normalizedVersion,
+    installedFiles: selectedFiles.map((archivePath, index) => ({
+      archivePath,
+      targetPath: targetPaths[index],
+    })),
+  };
+}
+
+function parseDriveFileIdFromDownloadUrl(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
+  try {
+    return new URL(value).searchParams.get("id");
+  } catch {
+    return null;
+  }
 }
 
 function installManagedNpmPackage({ packageName, version, cacheBaseRoot = resolveArtifactCacheBaseRoot() }) {

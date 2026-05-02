@@ -32,6 +32,7 @@ contract WrongLeaderChannelDeployer {
         BridgeStructs.DAppVerifierSnapshot calldata verifierSnapshot,
         bytes32 dappMetadataDigestSchema,
         bytes32 dappMetadataDigest,
+        bytes32 functionRoot,
         uint256 initialJoinFee,
         uint64 joinFeeRefundCutoff1,
         uint16 joinFeeRefundBps1,
@@ -53,6 +54,7 @@ contract WrongLeaderChannelDeployer {
                 verifierSnapshot,
                 dappMetadataDigestSchema,
                 dappMetadataDigest,
+                functionRoot,
                 initialJoinFee,
                 joinFeeRefundCutoff1,
                 joinFeeRefundBps1,
@@ -1152,7 +1154,7 @@ contract BridgeFlowTest is Test {
                 ChannelManager.UnsupportedChannelFunction.selector, address(0xBEEF), APP_SIG
             )
         );
-        channelManager.executeChannelTransaction(proofPayload);
+        channelManager.executeChannelTransaction(proofPayload, _defaultFunctionProof());
     }
 
     function testTokamakVerificationRejectsShortAPubUser() public {
@@ -1165,7 +1167,7 @@ contract BridgeFlowTest is Test {
                 ChannelManager.APubUserTooShort.selector, uint256(30), uint256(shortened.length)
             )
         );
-        channelManager.executeChannelTransaction(proofPayload);
+        channelManager.executeChannelTransaction(proofPayload, _defaultFunctionProof());
     }
 
     function testChannelUsesRealTokamakVerifier() public view {
@@ -1269,7 +1271,8 @@ contract BridgeFlowTest is Test {
         BridgeStructs.TokamakProofPayload memory proofPayload =
             _buildExecutableTokamakProofPayload(appContract, APP_SIG, currentRoots, updatedRoots);
 
-        bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
+        bool accepted =
+            localChannelManager.executeChannelTransaction(proofPayload, _executionFunctionProof());
         assertTrue(accepted);
         assertEq(localChannelManager.currentRootVectorHash(), _hashRootVector(updatedRoots));
     }
@@ -1304,7 +1307,8 @@ contract BridgeFlowTest is Test {
         BridgeStructs.TokamakProofPayload memory proofPayload =
             _buildExecutableTokamakProofPayload(appContract, APP_SIG, currentRoots, updatedRoots);
 
-        bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
+        bool accepted =
+            localChannelManager.executeChannelTransaction(proofPayload, _executionFunctionProof());
         assertTrue(accepted);
         assertEq(localChannelManager.currentRootVectorHash(), _hashRootVector(updatedRoots));
 
@@ -1384,7 +1388,7 @@ contract BridgeFlowTest is Test {
         );
 
         vm.expectRevert(ChannelManager.UnexpectedCurrentRootVector.selector);
-        localChannelManager.executeChannelTransaction(proofPayload);
+        localChannelManager.executeChannelTransaction(proofPayload, _executionFunctionProof());
     }
 
     function testTokamakVerificationRejectsAPubBlockLengthMismatch() public {
@@ -1409,7 +1413,7 @@ contract BridgeFlowTest is Test {
                 uint256(TOKAMAK_APUB_BLOCK_LENGTH - 1)
             )
         );
-        localChannelManager.executeChannelTransaction(proofPayload);
+        localChannelManager.executeChannelTransaction(proofPayload, _executionFunctionProof());
     }
 
     function testTokamakVerificationUpdatesRootsOnAcceptedProof() public {
@@ -1425,7 +1429,8 @@ contract BridgeFlowTest is Test {
             abi.encode(true)
         );
         vm.recordLogs();
-        bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
+        bool accepted =
+            localChannelManager.executeChannelTransaction(proofPayload, _executionFunctionProof());
         assertTrue(accepted);
 
         assertEq(localChannelManager.currentRootVectorHash(), _hashRootVector(updatedRoots));
@@ -1477,7 +1482,12 @@ contract BridgeFlowTest is Test {
             abi.encode(true)
         );
         vm.recordLogs();
-        bool accepted = localChannelManager.executeChannelTransaction(proofPayload);
+        bool accepted = localChannelManager.executeChannelTransaction(
+            proofPayload,
+            _singleFunctionProof(
+                _executionDAppFunctionsWithObservedEvent(eventStartOffsetWords, eventTopicCount)[0]
+            )
+        );
         assertTrue(accepted);
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -1525,7 +1535,12 @@ contract BridgeFlowTest is Test {
             abi.encodeWithSelector(ITokamakVerifier.verify.selector),
             abi.encode(true)
         );
-        bool accepted = localChannelManager.executeChannelTransaction(nonzeroPayload);
+        BridgeStructs.FunctionMetadataProof memory functionProof = _singleFunctionProof(
+            _executionDAppFunctionsWithObservedEventLayout(
+                36, eventStartOffsetWords, eventTopicCount
+            )[0]
+        );
+        bool accepted = localChannelManager.executeChannelTransaction(nonzeroPayload, functionProof);
         assertTrue(accepted);
 
         BridgeStructs.ChannelTokenVaultRegistration memory registration =
@@ -1537,7 +1552,7 @@ contract BridgeFlowTest is Test {
             _buildLiquidBalanceObservedTokamakProofPayload(
                 alice, bytes32(0), updatedRoots, finalRoots
             );
-        accepted = localChannelManager.executeChannelTransaction(zeroPayload);
+        accepted = localChannelManager.executeChannelTransaction(zeroPayload, functionProof);
         assertTrue(accepted);
 
         registration = localChannelManager.getChannelTokenVaultRegistration(alice);
@@ -1580,7 +1595,14 @@ contract BridgeFlowTest is Test {
                 ChannelManager.ChannelTokenVaultL2AddressNotRegistered.selector, alice
             )
         );
-        localChannelManager.executeChannelTransaction(proofPayload);
+        localChannelManager.executeChannelTransaction(
+            proofPayload,
+            _singleFunctionProof(
+                _executionDAppFunctionsWithObservedEventLayout(
+                    36, eventStartOffsetWords, eventTopicCount
+                )[0]
+            )
+        );
     }
 
     function _loadTokamakProofPayload()
@@ -1893,6 +1915,32 @@ contract BridgeFlowTest is Test {
     {
         functions = new BridgeStructs.DAppFunctionMetadata[](1);
         functions[0] = functionMetadata;
+    }
+
+    function _singleFunctionProof(BridgeStructs.DAppFunctionMetadata memory functionMetadata)
+        internal
+        pure
+        returns (BridgeStructs.FunctionMetadataProof memory proof)
+    {
+        proof = BridgeStructs.FunctionMetadataProof({
+            metadata: functionMetadata, siblings: new bytes32[](0)
+        });
+    }
+
+    function _defaultFunctionProof()
+        internal
+        view
+        returns (BridgeStructs.FunctionMetadataProof memory)
+    {
+        return _singleFunctionProof(_defaultDAppFunctions(defaultPreprocessInputHash)[0]);
+    }
+
+    function _executionFunctionProof()
+        internal
+        view
+        returns (BridgeStructs.FunctionMetadataProof memory)
+    {
+        return _singleFunctionProof(_executionDAppFunctions()[0]);
     }
 
     function _conflictingDAppFunctions()

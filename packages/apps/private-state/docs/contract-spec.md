@@ -10,11 +10,20 @@ The `private-state` DApp is implemented with two storage contracts:
 `PrivateStateController` is the user-facing application entrypoint.
 `L2AccountingVault` is an accounting-only balance store controlled by the controller.
 
+The split is intentional. `PrivateStateController` owns the note lifecycle and exposes the functions
+that users model in the proving environment. `L2AccountingVault` owns only liquid accounting
+balances. Keeping the accounting store separate makes the bridge-coupled vault surface explicit and
+keeps note logic from becoming implicit custody logic.
+
 ## 2. L2AccountingVault
 
 ### Purpose
 
 `L2AccountingVault` tracks per-account liquid balances on L2. It is not a custody vault.
+
+In this document, "liquid" means bridge-accountable value that is immediately usable for minting
+notes or for bridge withdrawal accounting. It does not mean that the L2 vault holds the canonical
+token. Canonical custody remains in the L1 bridge vault.
 
 ### Storage
 
@@ -35,6 +44,11 @@ The `private-state` DApp is implemented with two storage contracts:
 - `debitLiquidBalance(account, amount)` decreases accounting balance
 
 No direct user-facing `deposit` or `withdraw` functions exist on the vault itself.
+
+Example: a bridge-accepted deposit increases liquid balance through the bridge execution path. A user
+does not call `L2AccountingVault` directly to mint assets. Conversely, redeeming notes credits liquid
+balance inside this vault, but the user still needs the bridge withdrawal flow to move canonical
+tokens back to L1.
 
 ## 3. PrivateStateController
 
@@ -93,6 +107,11 @@ The event intentionally does not include:
 
 The opaque encrypted payload is the delivery object. The note salt is derived from it rather than emitted separately.
 
+This event is deliberately small. It tells recipients that an encrypted delivery object exists, but
+it does not reveal who the recipient is or which note commitment was produced. The recipient's CLI
+must decrypt candidate payloads, reconstruct the note, and check the resulting commitment against
+accepted state.
+
 ## 4. Mint Semantics
 
 Mint entrypoints are fixed-arity:
@@ -112,6 +131,10 @@ Each output:
 - derives `commitment = H(owner, value, salt)`
 
 The total minted value is debited from `L2AccountingVault.liquidBalances[msg.sender]`.
+
+The important effect is a value-form conversion. Minting does not create new bridge value. It debits
+the caller's liquid accounting balance inside the channel and creates note commitments that represent
+the same total value.
 
 ## 5. Transfer Semantics
 
@@ -144,6 +167,10 @@ The contract enforces exact conservation:
 
 - `sum(input values) == sum(output values)`
 
+Transfer is therefore a note reshape, not a mint. The input notes are consumed by writing their
+nullifiers, and the output notes are created by writing new commitments. The sender cannot increase
+total value by choosing more outputs or larger output values.
+
 ## 6. Redeem Semantics
 
 Redeem entrypoints are fixed-arity:
@@ -160,6 +187,9 @@ Each redeem path:
 - sums redeemed value
 - credits `receiver` in `L2AccountingVault`
 
+Redeem is the reverse value-form conversion of mint. It consumes private notes and recreates liquid
+accounting balance. It still does not transfer canonical tokens to L1 by itself.
+
 ## 7. Commitment and Nullifier Construction
 
 The controller exposes:
@@ -174,6 +204,10 @@ The fixed domains are:
 
 The implementation writes fixed-shape words into memory and hashes them in a direct assembly path.
 
+Domain separation prevents the same plaintext tuple from being interpreted as both a commitment and
+a nullifier under the same hash domain. The helper functions exist so off-chain tools can reproduce
+the exact identifiers that the contract uses.
+
 ## 8. Public Constraints Embedded in Storage
 
 The controller stores two public truth tables:
@@ -186,6 +220,10 @@ These are used by:
 - note spending
 - wallet reconciliation
 - event-driven note recovery
+
+Together these mappings define note liveness. A note can be considered available for use only when
+its commitment exists and its nullifier has not been used. Wallets should treat both mappings as
+part of state reconciliation, not as optional display data.
 
 ## 9. Managed Storage Vector
 
@@ -202,6 +240,9 @@ This same storage vector must be used consistently by:
 - Synthesizer launch inputs
 - CLI workspace snapshots
 - compatibility fixtures
+
+The order matters because bridge public inputs refer to storage trees by index. If two tools use the
+same addresses in a different order, they are no longer describing the same root vector.
 
 ## 10. Deployment Artifacts
 

@@ -4,6 +4,15 @@ This document consolidates the CLI-to-DApp and bridge-to-DApp workflows for the 
 DApp. It describes the normal user command flow, the local workspace model, the proof input bundle,
 and the bridge metadata coupling that makes the DApp executable through a private app channel.
 
+The workflow has two layers:
+
+- user-facing commands, such as mint, transfer, redeem, and withdraw
+- bridge-facing proof and metadata checks that decide whether the resulting state transition is
+  accepted
+
+A command can be well formed from the user's point of view and still fail at the bridge layer if the
+proof input, metadata digest, storage vector, or event layout does not match the channel policy.
+
 ## 1. CLI Role
 
 The private-state CLI is an off-chain protocol participant, not a thin transaction sender.
@@ -17,6 +26,10 @@ It:
 - generates proofs locally
 - submits bridge-coupled transactions
 - scans bridge-propagated logs for encrypted note delivery
+
+This role matters because the contracts do not store a complete user wallet. The CLI is responsible
+for reconstructing the user's actionable view from accepted bridge outputs, local encrypted wallet
+state, and user-held secrets.
 
 ## 2. Normal Command Flow
 
@@ -37,6 +50,15 @@ The normal flow is:
 chooses the initial join toll. `join-channel` binds the user's L1 identity to a channel-specific L2
 identity and registers the note-receive public key for encrypted note delivery.
 
+The flow moves value through three representations:
+
+1. L1 custody in the bridge vault
+2. liquid L2 accounting balance in `L2AccountingVault`
+3. private notes in `PrivateStateController`
+
+Deposits and withdrawals move between the first two representations. Mint and redeem move between
+the second and third. Transfer moves value between notes without touching L1 custody.
+
 ## 3. Channel Policy Review
 
 Before creating or joining a channel, the CLI should display the immutable channel policy that the
@@ -54,6 +76,10 @@ If the bridge owner later discovers that a bad DApp metadata or verifier snapsho
 expected response is to announce the affected channel, stop using it, register corrected metadata or
 verifiers for future channels, and create a fresh channel. Existing channel policy is intentionally
 not rewritten in place.
+
+Example: if a channel was created with the wrong function root, later fixing the DApp registry does
+not rewrite that channel. A user should move to a new channel whose policy snapshot contains the
+correct function root.
 
 ## 4. Workspace And Wallet Artifacts
 
@@ -78,6 +104,11 @@ The wallet contains:
 - last scanned encrypted-note event block
 - wallet-local operation history
 
+The channel workspace is shared context for the channel. The encrypted wallet is user-specific
+context. Losing the workspace is recoverable if the wallet and chain data can reconstruct it. Losing
+the encrypted wallet or its password has stronger consequences because it can remove the secrets
+needed to use notes.
+
 ## 5. Bridge Registration Model
 
 The bridge does not discover DApp behavior at runtime. It executes against pre-registered metadata.
@@ -97,6 +128,10 @@ This metadata is stored by `DAppManager`. A channel snapshots the DApp metadata 
 schema, function root, verifier snapshot, and managed storage binding when the channel is created.
 Existing channels do not automatically inherit later DApp metadata changes.
 
+This is the bridge-level definition of "the DApp supported by this channel." It is not enough for a
+Solidity function to exist in the deployed contract. The function must also be represented in the
+channel's accepted function root and metadata layout.
+
 ## 6. Managed Storage Vector
 
 For `private-state`, the managed storage vector must match the storage-layout manifest.
@@ -114,6 +149,10 @@ The bridge treats this vector as ordered. The same order must be used by:
 - Synthesizer examples
 - proof preprocess metadata
 
+Example: if the controller is index `0` and the accounting vault is index `1` during registration,
+then every root vector, storage-write descriptor, and proof input must keep that same order. Swapping
+the order changes the meaning of the public inputs.
+
 ## 7. Function Metadata
 
 Each registered function has:
@@ -129,6 +168,9 @@ The bridge looks up the function at runtime by `preprocessInputHash`, not merely
 change in generated preprocess layout can make a function unusable until the DApp metadata is
 updated for future channels and a new channel is created against that updated policy.
 
+This is why bridge support is stricter than ABI support. Two calls with the same Solidity selector
+can still be incompatible with a channel if the proof preprocessing layout changed.
+
 ## 8. Proof Input Bundle
 
 Before proof generation, the CLI materializes a transaction bundle containing:
@@ -139,6 +181,9 @@ Before proof generation, the CLI materializes a transaction bundle containing:
 - `contract_codes.json`
 
 These inputs must match the registered function metadata for the active DApp and channel.
+
+The bundle is the bridge-checkable explanation of the private transaction. The raw private intent is
+not what L1 verifies. L1 verifies a proof and the public inputs derived from this bundle.
 
 `deposit-channel` and `withdraw-channel` are channel-token-vault accounting exceptions. They
 generate the Groth16 `updateTree` proof from the current wallet snapshot and always consume the
@@ -156,6 +201,10 @@ The CLI reconstructs this from real channel state rather than from a synthetic e
 mismatched deployment manifests, storage-layout manifests, bridge ABI manifests, or channel metadata
 can make valid user intent fail because the bridge metadata model is strict.
 
+Example: if the wallet builds a proof against an old controller address while the channel was created
+with a newer managed storage vector, the proof can be rejected even if the user's intended transfer
+would have been valid under the old local files.
+
 ## 10. Mint Flow
 
 For `mint-notes`, the CLI:
@@ -168,6 +217,9 @@ For `mint-notes`, the CLI:
 
 The contract then derives note salts from the encrypted payloads.
 
+Self-mint still uses the encrypted delivery path. This keeps note reconstruction uniform: the wallet
+recovers self-minted notes and received transfer notes through the same event scanning logic.
+
 ## 11. Transfer Flow
 
 For `transfer-notes`, the CLI:
@@ -179,6 +231,9 @@ For `transfer-notes`, the CLI:
 
 The sender does not send plaintext note payloads to the recipient through sidecar inbox files.
 
+This makes Ethereum logs the shared delivery surface. The recipient still needs the note-receive
+private key to decide whether a candidate encrypted payload belongs to them.
+
 ## 12. Redeem Flow
 
 For `redeem-notes`, the CLI:
@@ -188,6 +243,9 @@ For `redeem-notes`, the CLI:
 3. submits the matching `redeemNotesN` call
 
 Redemption converts notes back into liquid accounting balance rather than directly into L1 custody.
+
+To leave the bridge, the user redeems notes first and then runs the channel and bridge withdrawal
+flow. Redeem alone does not release canonical tokens.
 
 ## 13. Event Recovery Protocol
 
@@ -206,6 +264,9 @@ Recovery flow:
 6. confirm current bridge/controller state before classifying the note as `unused` or `spent`
 
 The same event decryption path is used for transferred note outputs and self-minted note outputs.
+
+This classification step is necessary because decryption alone is not enough. The wallet must also
+check accepted state to determine whether the reconstructed note is still unused.
 
 ## 14. Storage Writes And Event Logs
 

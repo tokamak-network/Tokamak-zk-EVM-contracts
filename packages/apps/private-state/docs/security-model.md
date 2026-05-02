@@ -4,6 +4,15 @@ This document describes the security model for the `private-state` DApp. It incl
 security assumptions inherited by the DApp, the local CLI security model, and the note-specific
 risks that follow from finite leaf projection.
 
+The document separates three questions that are easy to confuse:
+
+- who has custody of canonical tokens
+- who can produce or recover the secrets needed to use notes
+- whether the finite Merkle leaf domain can block an otherwise valid state transition
+
+The first question is answered by the bridge. The second is answered by the CLI wallet and key
+derivation model. The third is a capacity and liveness issue inherited from the bridge storage model.
+
 ## 1. Security Boundaries
 
 The DApp inherits the bridge's core security boundary:
@@ -14,6 +23,11 @@ The DApp inherits the bridge's core security boundary:
 - L1 accepts state transitions only after bridge-side proof and metadata checks pass.
 - A channel is governed by the DApp metadata, verifier snapshot, function root, managed storage
   vector, and join-toll policy that were fixed when that channel was created.
+
+In this document, `security boundary` means the line beyond which the DApp does not claim direct
+control. For example, `private-state` can define how notes are minted, transferred, and redeemed, but
+it does not define who may upgrade the bridge root contracts or whether the canonical token keeps
+exact-transfer behavior.
 
 The DApp itself adds three local secret domains:
 
@@ -62,6 +76,14 @@ The operational risk is time-dependent. A live channel accumulates storage keys,
 question is not only whether a static set of keys collides. It is whether at least one collision
 appears during the channel's lifetime.
 
+In this document, `leaf collision` means that two different storage keys project to the same finite
+Merkle leaf index. It does not mean that the original 256-bit storage keys are equal. The collision
+comes from compressing a large key space into a finite tree domain.
+
+Example: if two unrelated storage keys both map to leaf index `42`, the bridge-managed tree cannot
+represent them as two independent live leaves at that index. A proof that needs to write the second
+key may become unacceptable even if the DApp-level Solidity logic is otherwise valid.
+
 Under a Poissonized occupancy model, each leaf receives an independent Poisson count with mean
 `mu(t) / N`. No collision has occurred by time `t` exactly when every leaf has received zero or one
 arrival:
@@ -98,18 +120,39 @@ channel with growing storage usage should not be treated as collision-free forev
 
 The note-specific risk is different from the general channel collision risk.
 
+The important distinction is between a retryable creation-time failure and a post-creation liveness
+failure.
+
 When a note is created, the DApp immediately writes its commitment. If the commitment leaf collides
-with an existing occupied leaf, the transaction cannot be accepted in the normal flow. However, the
-note's nullifier is also already determined by the note plaintext:
+with an existing occupied leaf, the transaction cannot be accepted in the normal flow. That failure
+happens before the note becomes a valid unused note. The user or wallet can construct a different
+output, for example by changing the encrypted payload and therefore the salt, and retry.
+
+The nullifier has a different timing profile. A note's nullifier is already determined by the note
+plaintext:
 
 - `owner`
 - `value`
 - `salt`
 
-The nullifier is not written until the note is spent, transferred, or redeemed. Therefore an accepted
-unused note has a fixed future nullifier leaf that can be hit by some later unrelated storage key
-before the note owner spends it. If that happens, the note can become unspendable even though the
-note owner did nothing wrong.
+However, the nullifier is not written until the note is spent, transferred, or redeemed. Therefore an
+accepted unused note has a fixed future nullifier leaf that remains exposed while the note is held.
+If a later unrelated storage key occupies that leaf before the owner spends the note, the owner
+cannot change the nullifier without changing the note itself. But changing the note would also change
+the commitment, so it would no longer be the already-accepted note.
+
+This is why future nullifier collision is more severe than commitment collision:
+
+- commitment collision is detected before the note becomes valid, so it is a retryable creation
+  failure
+- future nullifier collision can occur after the note is already valid, so it can strand an otherwise
+  valid unused note
+
+Example: Alice mints a note and the commitment is accepted. The note is now real channel state. Alice
+waits before redeeming it. During that waiting period, other channel activity introduces new storage
+keys. If one of those keys lands on Alice's future nullifier leaf, Alice's later redeem attempt may
+fail because the nullifier write cannot be accepted for that already-occupied leaf. Alice cannot
+choose a new nullifier for that same note.
 
 Assume:
 
@@ -173,6 +216,10 @@ This risk is lower than the general channel-wide probability of any leaf collisi
 one fixed target leaf, not any pair among all occupied leaves. It is still security-relevant because
 the consequence is note liveness loss: a valid unused note may later become unspendable.
 
+The practical conclusion is that note age matters. A note that is created and redeemed quickly has
+less exposure to future unrelated storage keys. A note held for a long time remains exposed for a
+longer period.
+
 ## 5. Wallet File Encryption
 
 The CLI stores a channel wallet as an encrypted local file under the workspace.
@@ -187,6 +234,10 @@ The wallet password is used to decrypt:
 The wallet password should be treated as a long-term ownership secret. If the wallet file and wallet
 password are both stolen, the attacker can decrypt the wallet and recover key material sufficient to
 endanger channel funds.
+
+The password should not be treated like a temporary UI unlock code. It participates in recovering
+the channel-bound L2 identity, so losing it can break spendability even if the Ethereum key remains
+available.
 
 ## 6. Channel-Bound L2 Identity
 
@@ -231,6 +282,10 @@ The two key families have different roles:
 This separation allows incoming note delivery to be recovered from Ethereum logs without using the
 note-spending key as the delivery key.
 
+Example: Bob can use the note-receive private key to discover that an encrypted output belongs to
+him. Bob still needs the L2 private key to transfer or redeem that note. Discovery and spendability
+are deliberately separate.
+
 ## 8. Recovery Model
 
 If the wallet file is lost, recovery is still possible if the user retains:
@@ -250,6 +305,9 @@ If the wallet password is lost:
 - existing note ciphertexts may still be recognized or decrypted through the note-receive path
 - the notes can no longer be used
 - note ownership, in the strict spendable sense, is lost
+
+This can look counterintuitive. A user may still see note data but be unable to spend it. The reason
+is that readable note plaintext is not the same as the L2 private key required to authorize note use.
 
 If the wallet file and wallet password are both stolen, the attacker can decrypt stored key material
 and compromise channel funds.

@@ -5,15 +5,23 @@ This directory contains the design, protocol, security, and implementation docum
 ## Reading Order
 
 1. [Background Theory](background-theory.md)
-   Explains the custody model, zk-L2 assumptions, note/accounting split, and the protocol trust model.
+   Start here. Defines the custody model, zk-L2 assumptions, liquid accounting balance, notes, note
+   commitments, nullifiers, and the ownership-versus-readability distinction.
 2. [Contract Specification](contract-spec.md)
-   Defines the on-chain storage layout, contract responsibilities, public data model, and event model.
+   Maps the concepts from the background document to the two Solidity contracts, their storage, and
+   their public state-transition semantics.
 3. [Function Constraints](function-constraints.md)
-   Lists the fixed-arity entrypoints and the constraints that each user-facing function must satisfy.
+   Explains why the user-facing entrypoints are fixed-arity and lists the validity constraints that
+   each mint, transfer, and redeem shape must satisfy.
 4. [Security Model](security-model.md)
    Documents bridge-inherited security assumptions, finite leaf collision risk, future nullifier collision probability, wallet encryption, channel-bound L2 derivation, note-receive key derivation, and recovery behavior.
 5. [Workflow](workflow.md)
    Describes the CLI workflow, wallet/workspace artifacts, bridge registration metadata, proof input bundle format, event recovery flow, and bridge-DApp execution coupling.
+
+The intended reading path moves from concepts, to contracts, to per-function constraints, to
+security assumptions, and finally to end-to-end workflow. A reader who only needs operational
+sequence can read [Workflow](workflow.md) after the first three sections of
+[Background Theory](background-theory.md), but security-sensitive operation requires the full set.
 
 ## Scope
 

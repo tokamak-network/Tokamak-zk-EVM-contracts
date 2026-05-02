@@ -546,7 +546,8 @@ The graph below assumes one new storage key attempts to occupy a leaf index per 
 setting gives a domain of `1,073,741,824` leaves. Under this assumption, the collision probability
 for `d = 30` crosses roughly 50% after about 26.8 days and roughly 90% after about 48.8 days. This
 is why finite leaf projection creates a channel-lifespan capacity limit rather than a one-time
-static-set risk.
+static-set risk. The graph uses a logarithmic probability axis so low-probability early-lifespan
+regions remain visible.
 
 ![General channel lifespan leaf collision probability by operating period and depth](../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 

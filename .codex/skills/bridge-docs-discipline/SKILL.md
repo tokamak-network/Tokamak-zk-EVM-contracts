@@ -12,6 +12,35 @@ mixing up the roles of:
 - `bridge/docs/zk-l2-bridge-design-notes.md`
 - `bridge/docs/current-implementation.md`
 
+## Documentation Writing Quality
+
+Every sentence, paragraph, section, and document must have a logical flow. The writing
+must carry the reader smoothly from the problem or thesis, through the reasoning, to the
+conclusion. Do not leave a statement hanging after presenting a fact. Explain why the
+fact matters, what it enables, what risk it creates, or what conclusion follows from it.
+
+Each paragraph should give the reader a reason to continue. Avoid writing lists of true
+statements that do not explain their own relevance. Prefer a progression such as:
+
+1. introduce the problem, concept, or claim
+2. define the terms needed to understand it
+3. explain the mechanism or reasoning
+4. give a concrete example when the concept is not common
+5. state the resulting implication or conclusion
+
+For any concept or term that is not ordinary, universal, or already established in the
+same document, define it accurately and clearly before relying on it. When a definition
+is subtle, include an example that shows how the term is used in the system. The example
+should reduce ambiguity, not add another unexplained abstraction.
+
+Before finishing documentation work, review the edited text as a third-party reader:
+
+- Can the reader tell why each sentence is present?
+- Does each paragraph have a clear conclusion or implication?
+- Does each section follow naturally from the previous section?
+- Are nonstandard terms defined before they are used as premises?
+- Are examples included where a new concept would otherwise be hard to internalize?
+
 ## Role Split
 
 ### `bridge/docs/spec.md`

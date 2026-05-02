@@ -207,8 +207,18 @@ Allowed optimization techniques:
 - Collapse repeated validation or repeated hashing when the same intermediate value can be reused.
 - Use assembly when it materially reduces placement usage and does not weaken validation or make the control flow ambiguous.
 - For fixed-shape hash inputs, replace `abi.encode(...)+keccak256(...)` scaffolding with `memory-safe` assembly that stages words directly in memory and hashes the exact byte span.
+- For hot mapping updates, especially note commitment registration, nullifier consumption, and account-balance state transitions, prefer a direct assembly path when it can compute `keccak256(key, slot)` once and reuse the resulting storage key for `sload`, `sstore`, and any required storage-key observation event. High-level Solidity mapping access plus a separate emitted storage-key helper can duplicate the mapping-key hash and add avoidable Synthesizer placements.
 - When doing manual memory staging for hashing, reserve scratch space from the free-memory pointer and advance it after use so future assembly blocks cannot collide with the same offsets.
 - Do not spend placements on explicit zero-hash guards for commitments, nullifiers, or similar cryptographic digests unless the design has a concrete reason to treat a zero digest as semantically special.
+
+Assembly storage-key reuse rules:
+
+- Preserve the Solidity storage layout exactly: stage the mapping key at `ptr`, stage the mapping slot at `ptr + 0x20`, and compute the same storage key that Solidity would use.
+- Reuse the computed storage key for all operations in that helper. Do not recompute it for an existence check, the write, and the observation log separately.
+- Keep revert behavior byte-for-byte compatible where tests or callers depend on custom errors. Manually encode the selector and arguments only when the high-level error path would reintroduce the placement-heavy scaffolding being removed.
+- Use `memory-safe` assembly and allocate scratch space from `mload(0x40)`. Advance the free-memory pointer after staging the hash input and log payload.
+- Apply the pattern consistently across fixed-arity sibling entrypoints so one arity does not keep paying placements for high-level mapping access while another uses the optimized path.
+- After the change, inspect the IR or bytecode enough to confirm the helper did not become an external `CALL`; Solidity internal helpers should compile to local control flow.
 
 Review questions:
 
@@ -220,6 +230,7 @@ Review questions:
 - Can a shared intermediate hash or decoded field be computed once and reused?
 - Would an assembly block remove measurable placement-heavy scaffolding without obscuring correctness?
 - Is any fixed-shape runtime hash still paying placement overhead for generic ABI encoding that could be replaced with direct `mstore` plus `keccak256(ptr, len)`?
+- Is a mapping storage key being recomputed separately for `sload`, `sstore`, or a storage-key observation log when one computed key could be reused?
 - Is the function still paying placements for a zero-hash guard on a cryptographic digest that can be treated as practically impossible instead?
 
 ## 9. Placement Analysis Methodology

@@ -555,7 +555,50 @@ Channel registration slot exhaustion is economically mitigated, not cryptographi
 
 Canonical-asset behavior is an accepted external dependency. The bridge assumes exact-transfer accounting for the chosen asset. If the canonical asset later pauses, blacklists, rebases, or charges transfer fees, the bridge cannot make custody accounting correct by itself.
 
-Finite storage leaf projection collisions are mitigated by parameter choice and channel-lifetime management, not eliminated. Storage keys are projected into a finite Merkle-tree leaf space, so collision probability grows as more distinct keys are used over a channel's life. The current review models this as a Poisson arrival process with one new storage key per minute and recommends treating channels as finite-life policy instances rather than perpetual mutable systems.
+Finite storage leaf projection collisions are mitigated by parameter choice and channel-lifetime management, not eliminated. A `leaf collision` means that two different storage keys project to the same finite Merkle-tree leaf index. The original storage keys do not have to be equal; the collision comes from mapping a much larger storage-key space into a finite tree domain. If a later transition needs a leaf that has already been occupied by an unrelated key, the bridge may reject an otherwise valid DApp-level transition because the finite tree cannot represent both keys independently at that index.
+
+This is not a one-time static-set question. A live channel accumulates storage keys over time, so the
+probability of at least one collision is a function of channel operating time. Let:
+
+- `d` be the Merkle tree depth
+- `N = 2^d` be the finite leaf domain size
+- `t` be the channel operating period
+- `lambda` be the average arrival rate of new storage keys that attempt to occupy a leaf
+- `mu(t) = lambda t` be the expected number of arrived storage keys
+
+Under the standard Poissonized occupancy model, each of the `N` leaves independently receives a
+Poisson count with mean `mu(t) / N`. No collision has occurred by time `t` exactly when every leaf
+has received either zero or one arrival:
+
+$$
+\Pr[\text{no collision by } t]
+= \left(e^{-\mu(t)/N}\left(1+\frac{\mu(t)}{N}\right)\right)^N
+= e^{-\mu(t)}\left(1+\frac{\mu(t)}{2^d}\right)^{2^d}
+$$
+
+Therefore the channel-lifespan collision probability is:
+
+$$
+\Pr[\text{at least one collision by } t]
+= 1 - e^{-\mu(t)}\left(1+\frac{\mu(t)}{2^d}\right)^{2^d}
+$$
+
+For `mu(t) << 2^d`, this is approximated by the birthday exponent:
+
+$$
+\Pr[\text{at least one collision by } t]
+\approx 1 - \exp\left(-\frac{\mu(t)^2}{2\cdot 2^d}\right)
+$$
+
+The graph below assumes one new storage key attempts to occupy a leaf index per minute on average,
+so `lambda = 1/minute` and `mu(t) = 1440t` when `t` is measured in days. At the current `d = 30`
+setting, the finite domain has `1,073,741,824` leaves. Under this assumption, the collision
+probability for `d = 30` crosses roughly 50% after about 26.8 days and roughly 90% after about 48.8
+days. The conclusion is operational: finite leaf projection creates a channel-lifespan capacity
+limit, so long-lived high-activity channels should be treated as finite-life policy instances rather
+than perpetual mutable systems.
+
+![General channel lifespan leaf collision probability by operating period and depth](assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
 Direct `ChannelDeployer` calls can create orphan channel-manager contracts. This is not considered a custody risk because `L1TokenVault` and canonical bridge lookups use the `BridgeCore` registry, and `BridgeCore` validates deployed managers before accepting them. Orphan managers are therefore noise, not canonical channels.
 

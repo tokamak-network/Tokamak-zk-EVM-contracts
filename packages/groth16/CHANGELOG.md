@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 - 2026-05-02
+
+- Bumped the Groth16 compatible backend version to `0.2` for the new `updateTree` circuit generation line.
+- Updated the Dusk-backed MPC setup flow so it installs the latest `tokamak-l2js` release from npm before rendering and compiling the circuit.
+- Updated the Tokamak runtime dependency line to the `tokamak-l2js` release that exports the 36-level Merkle tree configuration.
+
 ## 0.1.4 - 2026-04-30
 
 - Reused common proof backend version helpers for Groth16 package and CRS compatibility validation.

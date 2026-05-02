@@ -28,13 +28,34 @@ That choice is the core design thesis of the system:
 
 The result is a bridge architecture that tries to make proof-backed app channels operationally practical without collapsing everything into a single monolithic Layer 2. Each channel gets its own manager, its own state commitment, and its own proof-validated updates, while the bridge provides the shared control plane for DApp registration, channel creation, token custody, and verifier access.
 
+The rest of this paper follows that claim from definition to consequence. Section 2 defines the
+system objects. Sections 3 through 5 explain why the bridge is shaped this way. Section 6 walks
+through the lifecycle of a channel. Sections 7 and 8 separate the security posture from the concrete
+implementation and operating policy. The intended reader should be able to answer one practical
+question by the end: what exactly is fixed, verified, and trusted when a user joins a private app
+channel?
+
 ## 2. System Model
+
+Before describing the components, the main nouns need to be fixed.
+
+A `DApp` is an application whose bridge-facing storage and function surface has been registered with
+the bridge. A `channel` is a channel-local execution domain for exactly one registered DApp. A
+`control plane` is the shared L1 surface that creates channels, stores DApp metadata, manages
+custody, and points to verifiers. A `user-in-channel` is a user's channel-local participation context:
+the same L1 account may have different local state, registrations, and secrets in different
+channels.
+
+Example: one L1 account can join a `private-state` channel for note transfers and another channel
+for a different DApp. Those two memberships share the same Ethereum settlement layer, but they do not
+share one global application state.
 
 The current implementation has six major parts:
 
 - `BridgeCore`: the root coordination contract that creates channels, binds verifiers, and anchors the shared settlement surface
 - `DAppManager`: the metadata registry that defines which storage addresses and function surfaces a DApp is allowed to use
 - `L1TokenVault`: the shared Ethereum-side custody contract for the canonical asset
+- `ChannelDeployer`: the factory used by `BridgeCore` to deploy per-channel managers without keeping deployment bytecode inside the core contract
 - `ChannelManager`: a per-channel contract that validates Tokamak proofs and tracks the current state commitment of that channel
 - off-chain execution and proving infrastructure: the environment in which users execute application logic, assemble witnesses, and produce proofs
 
@@ -51,6 +72,11 @@ The user side of the topology is also layered. A user has one global Ethereum-fa
 ## 3. Design Philosophy
 
 <img src="overview.png" alt="High-level system overview" />
+
+The design choices below are not independent preferences. Each one answers a specific failure mode
+that would otherwise make private app channels hard to reason about: unclear custody, ambiguous proof
+meaning, mutable channel policy, hidden accepted state, or overstated privacy. Reading them in order
+shows why the bridge is deliberately narrower than a generic rollup.
 
 ### 3.1 Ethereum Remains the Trust Anchor
 
@@ -88,6 +114,11 @@ This is a deliberate design choice. The bridge is not secure merely because a pr
 
 The design philosophy here is that programmability should enter through registration, not through ambiguous runtime interpretation.
 
+Example: if a proof claims to execute a function whose selector exists in a DApp contract but whose
+preprocess input hash was never registered for the channel, the bridge should not treat that proof as
+admissible merely because the selector looks familiar. The metadata is the bridge's vocabulary for
+what the proof is allowed to mean.
+
 ### 3.4 Channel Isolation Matters More Than Global Composability
 
 Each channel has its own `ChannelManager`, its own state commitment, and its own token-vault registrations. The current bridge prefers isolation over deep shared-state composability between channels.
@@ -110,6 +141,11 @@ The bridge wants on-chain state to be compact, but it does not want accepted tra
 - emitted observations of accepted root vectors and storage writes
 
 This means the bridge does not try to persist every detail forever in contract storage. Instead, it keeps the authoritative commitment on-chain and emits enough accepted observations for indexers and external observers to reconstruct the sequence of accepted states.
+
+For example, the contract does not need to store every application storage root as separate
+persistent state after each transition. It can store the commitment to the root vector and publish
+the accepted root-vector observation. That gives the bridge a compact state variable while still
+giving observers the data needed to audit the accepted history.
 
 ### 3.6 Custody and Application Execution Are Separated
 
@@ -141,6 +177,11 @@ For readers who want one concrete intuition: an outside observer may be able to 
 
 ## 4. Architecture
 
+The architecture section maps the design philosophy onto concrete system boundaries. The key point
+is that shared bridge infrastructure and channel-local execution are deliberately separated. Shared
+contracts can evolve under controlled upgrade policy, while each accepted channel keeps the policy
+snapshot that users joined.
+
 ### 4.1 Shared Control Plane
 
 `BridgeCore`, `DAppManager`, and `L1TokenVault` form the shared bridge control plane. In the current implementation these root-entry contracts are upgradeable through UUPS proxies so that the bridge can evolve without forcing a full address reset for the main control surface.
@@ -150,6 +191,11 @@ This is another explicit design choice: shared infrastructure may need controlle
 ### 4.2 Per-Channel Execution Surface
 
 A new channel is created by `BridgeCore` only after the bridge verifies that the DApp metadata exists, the configured Merkle-tree depth matches the supported value, and the managed storage surface is within the bridge's supported bounds.
+
+`Execution surface` means the set of storage domains and function families that the channel will
+recognize as admissible. It is not the same as every public function that exists in the DApp's
+Solidity bytecode. A function becomes part of a channel's execution surface only when the DApp
+metadata and channel function root make it admissible for that channel.
 
 At creation time the channel fixes:
 
@@ -162,9 +208,17 @@ At creation time the channel fixes:
 
 This means a channel is born with a pre-committed execution grammar. The bridge does not let that grammar drift at runtime.
 
+`Execution grammar` is the channel's fixed language of valid state transitions: which DApp, which
+storage vector, which function families, which verifier snapshot, and which public-input layout.
+The term matters because a proof is meaningful only when interpreted through this grammar.
+
 That fixed grammar should not be misunderstood as accidental incompleteness. The intended operating model is that the qap-compiler and its subcircuit library expose a bounded admissible function surface at any given release. A channel is expected to snapshot only the function families that fit within that proving-capacity bound when the channel is created.
 
 Under that model, channels are one-shot deployments rather than long-lived mutable products. If a later compiler or subcircuit-library release expands the supportable function family, the intended response is to create fresh channels with the expanded execution grammar rather than retroactively reinterpret or patch older channels.
+
+Example: if an early channel supports only a subset of transfer shapes because those were the shapes
+available in the proving stack, a later proving release may justify a new channel with more shapes.
+It should not silently expand the old channel after users already joined its narrower policy.
 
 ### 4.3 Token-Vault Identity Layer
 
@@ -210,15 +264,27 @@ The key architectural rule is that no off-chain actor is authoritative by itself
 
 ## 5. State and Proof Model
 
+The state model explains what Ethereum actually accepts. The bridge does not accept "the DApp ran
+some code" as a vague claim. It accepts proof-backed movement from one channel commitment to another,
+under a registered public-input layout.
+
 ### 5.1 Root-Vector State
 
 The authoritative state commitment of a channel is a vector of Merkle roots, one root per managed storage address. One entry is reserved for the `channelTokenVault` tree, while the other entries can represent application-managed storage trees.
+
+`Root vector` means the ordered list of storage-tree roots for the channel. The order is part of the
+meaning. If index `0` is the application controller and index `1` is the channel token vault, then a
+proof and every observer must interpret the roots in that same order.
 
 This vector model reflects the bridge's design priorities:
 
 - one channel can cover both vault state and application state
 - the bridge can stay agnostic to many application semantics
 - accepted transitions can still be checked against a bounded, bridge-visible commitment structure
+
+Example: a DApp can keep one tree for application notes and another tree for liquid accounting. The
+bridge does not need to understand every note, but it can still verify that a transition consumed the
+previous root vector and produced the next accepted root vector.
 
 ### 5.2 Tokamak Proofs for Application Execution
 
@@ -269,6 +335,10 @@ The current bridge contributes to that goal by publishing accepted root vectors,
 
 ## 6. Core Operational Flows
 
+The flows below connect the abstract model to user-visible operation. They are ordered by lifecycle:
+first the DApp is admitted, then users fund and join, then proofs advance state, and finally users
+recover value through the vault-oriented exit path.
+
 ### 6.1 DApp Registration and Channel Creation
 
 The lifecycle begins with DApp registration. The bridge owner registers the storage surface and
@@ -284,6 +354,10 @@ This also means future proving-capacity expansion is expected to produce new cha
 ### 6.2 Funding and Vault Participation
 
 Users first fund the shared L1 vault and then register their channel-token-vault identity inside the channel. After that, deposits and withdrawals are expressed as proof-backed updates to the channel-token-vault tree.
+
+The channel-token-vault identity is the bridge's way to bind an L1 user, a channel-local L2 address,
+and a vault storage key together. This binding is what lets the vault path remain narrower than
+general DApp execution while still supporting user-specific accounting updates.
 
 This flow preserves two important separations:
 
@@ -340,6 +414,10 @@ The broader architectural consequence is that third-party indexers are a conveni
 
 ## 7. Security Posture, Advantages, and Tradeoffs
 
+This section separates three different kinds of statements: what the bridge tries to guarantee, what
+advantages follow from that design, and what costs or assumptions remain. Keeping those categories
+separate matters because a tradeoff is not the same thing as a broken guarantee.
+
 The current implementation is built around the following security posture:
 
 - Ethereum is the canonical custodian and validity gate
@@ -379,6 +457,11 @@ Sixth, some present-day integration and user-experience burden remains above the
 
 This section is intentionally implementation-specific. The earlier sections describe the bridge model and the design rationale. This section records how the current contracts, scripts, and operational policy instantiate that model for mainnet deployment review.
 
+`Policy` in this section means a decision surface that affects what future proofs, channels, or
+users are allowed to do. Some policies are root-level and upgradeable. Some are DApp-level and apply
+only to future channels. Some are channel-level and become immutable when the channel is created. The
+main operational task is to avoid confusing those layers.
+
 ### 8.1 Contract Relationship Map
 
 The current bridge implementation separates the shared control plane from channel-local execution contracts.
@@ -405,6 +488,9 @@ The resulting authority graph is:
 
 The bridge has several distinct policy surfaces, and they are intentionally managed at different layers.
 
+The reason for splitting policy this way is consent. A future bridge or DApp update can improve the
+system for new channels, but it should not reinterpret the rules that existing users already joined.
+
 Root bridge policy is upgradeable. `BridgeCore`, `DAppManager`, and `L1TokenVault` are root bridge components that can be maintained through UUPS upgrades under the bridge owner's authority. This is the mechanism for future bridge maintenance, verifier default replacement, new registration checks, or operational policy fixes.
 
 DApp policy is updateable only for future channels. A registered DApp can receive a full replacement of its updateable runtime metadata. The immutable parts are the DApp id and the label hash. The updateable parts include the managed storage surface, function metadata, preprocess-input hashes, metadata digest, function root, and the verifier snapshot copied from the current bridge verifier pointers at the update time.
@@ -414,6 +500,10 @@ Channel policy is immutable after channel creation. A channel snapshots the DApp
 Join-toll policy is channel-local. The channel creator becomes the leader and chooses the initial join toll during channel creation. The leader can later update the join toll for future joins, while the refund schedule is fixed in the channel manager at creation. The join toll is an economic throttle, not a cryptographic security primitive.
 
 Asset policy is conservative. The canonical asset must behave like an exact-transfer token. Fee-on-transfer, rebasing, blacklisting, pausing, or other balance-mutating behavior can break the bridge's custody accounting assumptions.
+
+Example: if a token charges a transfer fee, the vault may receive less than the amount the user tried
+to deposit. Unless the bridge treats that behavior as invalid, L1 custody and L2 accounting can
+diverge. This is why exact-transfer behavior is not a cosmetic preference.
 
 ### 8.3 Policy Lifecycle And Artifact Publication
 
@@ -453,6 +543,10 @@ The channel stores `genesisBlockNumber`, not an explicit timestamp. The creation
 
 The current mainnet posture does not claim that every operational risk has been eliminated. The following issues are either accepted as trust assumptions or mitigated to a level considered practical for the current launch.
 
+The purpose of listing these issues is to prevent the white paper from overstating the model. A risk
+can be acceptable for launch only when the reader can see who bears it, how it is constrained, and
+what operational response remains available.
+
 Privileged owner authority is an accepted trust assumption. The bridge owner can upgrade root UUPS contracts, update future verifier defaults, and change future-channel policy surfaces. Existing channels snapshot their policy, but root custody and future-channel governance still depend on disciplined owner operation. A timelock or multisig can improve this later, but the present launch model accepts owner trust.
 
 DApp metadata and verifier update mistakes are operationally accepted. The owner can register or update a bad DApp policy for future channels. The digest gate prevents a channel creator from accidentally creating a channel against a registry value that changed after review, but it does not prove that the reviewed policy is semantically correct. The practical control is publication, review, and visible channel migration if a bad policy is discovered.
@@ -468,6 +562,10 @@ Direct `ChannelDeployer` calls can create orphan channel-manager contracts. This
 ## 9. Future Work
 
 Several of the present tradeoffs are expected to compress with better tooling.
+
+Future work is therefore not only about adding features. It is about reducing the operational burden
+created by the current trust boundaries: easier DApp registration review, easier user recovery,
+cheaper proving or submission paths, and clearer artifact publication.
 
 One direction is DApp-integration tooling. The current bridge already benefits from a reusable proving pipeline, so future work can focus on standardizing the remaining bridge-facing work: generating admissible metadata, validating storage surfaces, scaffolding client sync and recovery components, and packaging common integration patterns so that new DApps require less bespoke adaptation.
 

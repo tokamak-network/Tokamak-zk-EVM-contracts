@@ -10,14 +10,10 @@ This directory contains the design, protocol, security, and implementation docum
    Defines the on-chain storage layout, contract responsibilities, public data model, and event model.
 3. [Function Constraints](function-constraints.md)
    Lists the fixed-arity entrypoints and the constraints that each user-facing function must satisfy.
-4. [Optimization Techniques](optimization.md)
-   Describes the bytecode and Synthesizer-placement optimization rules used by the contracts and generators.
-5. [CLI Security Model](cli-security.md)
-   Documents wallet encryption, channel-bound L2 derivation, note-receive key derivation, and the recovery model.
-6. [CLI to DApp Protocol](cli-dapp-protocol.md)
-   Describes the wallet/workspace artifacts, calldata construction rules, proof input bundle format, and event recovery flow.
-7. [Bridge to DApp Protocol](bridge-dapp-protocol.md)
-   Describes DApp registration metadata, managed storage vectors, channel registration, bridge event propagation, and execution coupling.
+4. [Security Model](security-model.md)
+   Documents bridge-inherited security assumptions, finite leaf collision risk, future nullifier collision probability, wallet encryption, channel-bound L2 derivation, note-receive key derivation, and recovery behavior.
+5. [Workflow](workflow.md)
+   Describes the CLI workflow, wallet/workspace artifacts, bridge registration metadata, proof input bundle format, event recovery flow, and bridge-DApp execution coupling.
 
 ## Scope
 
@@ -28,6 +24,6 @@ These documents cover:
 - the bridge-coupled execution model
 - the CLI and proof-generation workflow
 - the note-receive key architecture
-- the fixed-circuit and placement-optimization rules used by the implementation
+- the fixed-circuit function shape used by the implementation
 
 They do not replace operator runbooks or deployment command references. Operational quickstart material remains in the app README and script help output.

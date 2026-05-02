@@ -453,7 +453,7 @@ async function handleChannelCreate({ args, network, provider }) {
     policySnapshot,
   });
   const receipt =
-    await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader, joinFee, dapp.metadataDigest));
+    await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, joinFee, dapp.metadataDigest));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
   const workspaceResult = await initializeChannelWorkspace({

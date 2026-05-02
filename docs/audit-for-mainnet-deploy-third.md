@@ -14,11 +14,11 @@ findings except where these changes touch them.
 The latest change keeps `ChannelManager` deployment mechanics out of `BridgeCore`, but narrows
 `ChannelDeployer` into a thin factory.
 
-`BridgeCore` still owns the channel-creation policy decision:
+`BridgeCore` still enforces the channel-creation policy:
 
 - Channel ID uniqueness.
 - Bound bridge token vault requirement.
-- Non-zero leader.
+- Channel leader is fixed to the channel creator (`msg.sender`).
 - Maximum managed-storage count check.
 - Expected DApp metadata digest check.
 - Channel registry write.
@@ -67,18 +67,19 @@ The split solved the deploy-blocking `BridgeCore` size pressure:
 
 | Contract | Runtime Size | Runtime Margin |
 | --- | ---: | ---: |
-| `BridgeCore` | `10,917 bytes` | `13,659 bytes` |
+| `BridgeCore` | `10,437 bytes` | `14,139 bytes` |
 | `ChannelDeployer` | `15,003 bytes` | `9,573 bytes` |
 | `ChannelManager` | `10,957 bytes` | `13,619 bytes` |
 | `DAppManager` | `12,294 bytes` | `12,282 bytes` |
 
 Before the split, `BridgeCore` had only `911 bytes` of runtime margin after the temporary getter
 removal. The root contract still has enough bytecode room after the returned-manager invariant
-checks. After the function metadata root/proof update, `BridgeCore.createChannel` measured 2,762,020
-gas in CLI E2E, down from the earlier 3,884,651 gas deep-copy design. The follow-up cleanup removed
-the old on-chain DApp function metadata lookup layer from `DAppManager`; function metadata is now
-validated during registration/update, committed through `functionRoot`, and published through the
-registration manifest used by the CLI.
+checks. After the function metadata root/proof update and the permissionless channel-creation
+change, `BridgeCore.createChannel` measured 2,731,347 gas in the current Forge gas report, down from
+the earlier 3,884,651 gas deep-copy design. The follow-up cleanup removed the old on-chain DApp
+function metadata lookup layer from `DAppManager`; function metadata is now validated during
+registration/update, committed through `functionRoot`, and published through the registration
+manifest used by the CLI.
 
 ## Findings
 
@@ -88,8 +89,8 @@ registration manifest used by the CLI.
    Status: mitigated by this change; residual bytecode-identity risk remains operational.
 
    `BridgeCore.createChannel(...)` still validates the DApp metadata digest, managed-storage count,
-   leader, and bridge token vault. The actual `ChannelManager` deployment is still delegated to
-   `channelDeployer.deployChannelManager(...)`, but the deployer no longer assembles
+   caller-derived leader, and bridge token vault. The actual `ChannelManager` deployment is still
+   delegated to `channelDeployer.deployChannelManager(...)`, but the deployer no longer assembles
    managed-storage arrays, function references, or the initial root vector.
    `ChannelManager` reads those values from `DAppManager` itself.
 
@@ -104,8 +105,8 @@ registration manifest used by the CLI.
    - If the owner accidentally or maliciously sets `channelDeployer` to an incompatible contract,
      future `createChannel(...)` calls should revert before the bad manager is bound or registered
      unless that contract faithfully exposes the expected snapshot.
-   - If a deployer passes the wrong DApp, verifier, channel ID, leader, digest, fee, or refund
-     schedule into the manager constructor, `BridgeCore` rejects the returned manager.
+   - If a deployer passes the wrong DApp, verifier, channel ID, caller-derived leader, digest, fee,
+     or refund schedule into the manager constructor, `BridgeCore` rejects the returned manager.
    - Because `ChannelManager` reads DApp storage metadata directly from `DAppManager` and stores the
      function root approved by `BridgeCore`, the deployer can no longer tamper with those values
      while still using the audited `ChannelManager`.
@@ -114,12 +115,12 @@ registration manifest used by the CLI.
 
    - The invariant checks do not prove full bytecode identity. A malicious contract could mimic the
      checked getters and still implement unsafe channel-execution semantics. This remains an
-     owner/deployment-path risk, not a permissionless user attack.
+     owner/deployment-path risk because only the bridge owner can set `channelDeployer`.
 
    Recommended operating control:
 
    - Record the audited `ChannelDeployer` source commit and address in deployment metadata and make
-     the operator verify it before channel creation.
+     the operator verify it before enabling public channel creation.
    - Treat a `channelDeployer` change as a privileged deployment event requiring the same review
      level as a `BridgeCore` upgrade.
 
@@ -268,7 +269,7 @@ or compatible backend versions. `BridgeCore.createChannel(...)` still requires
     `BridgeCore` rejects a deployer-returned manager with a mismatched immutable snapshot.
 - `forge build --root bridge --sizes`
   - Passed.
-  - `BridgeCore`: `10,917 bytes`, margin `13,659 bytes`.
+  - `BridgeCore`: `10,437 bytes`, margin `14,139 bytes`.
   - `ChannelDeployer`: `15,003 bytes`, margin `9,573 bytes`.
   - `ChannelManager`: `10,957 bytes`, margin `13,619 bytes`.
   - `DAppManager`: `12,294 bytes`, margin `12,282 bytes`.
@@ -289,7 +290,10 @@ or compatible backend versions. `BridgeCore.createChannel(...)` still requires
   - Covered bridge deployment, DApp registration, channel creation through `ChannelDeployer`, three
     participant joins, bridge/channel deposits, mint, transfer, redeem, channel withdrawal, exit,
     and bridge withdrawal.
-  - Current-worktree `createChannel` receipt gas after the function root/proof update: `2,762,020`.
+- `forge test --root bridge --gas-report`
+  - Passed after the permissionless channel-creation change.
+  - Current-worktree `BridgeCore.createChannel` successful full-path gas: `2,731,347`.
+- Private-state CLI E2E was intentionally not rerun for the permissionless channel-creation change.
 
 ## Deployment Decision
 

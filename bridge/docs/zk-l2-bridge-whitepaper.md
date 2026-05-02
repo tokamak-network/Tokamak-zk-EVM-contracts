@@ -195,7 +195,11 @@ This is why many of the bridge's guarantees are expressed per channel and per us
 
 The high-level information flow follows the same layered topology.
 
-Administrative information flows from the bridge owner into the shared control plane through DApp registration and channel creation. That flow fixes the admissible execution grammar before users begin interacting with a channel.
+Administrative information flows from the bridge owner into the shared control plane through DApp
+registration. Channel creation is permissionless after registration: the creator selects an
+already-registered DApp policy, accepts its digest and verifier snapshot, and becomes the channel
+leader. That flow fixes the admissible execution grammar before users begin interacting with a
+channel.
 
 Execution information flows from channel-local off-chain environments into Ethereum as proof-backed submissions. For general application execution, the submitted signal is a Tokamak proof payload together with the public inputs needed for the bridge to identify the channel function, the current accepted commitment, the updated commitment, and the bridge-visible outputs of that transition. For vault balance movement, the submitted signal is a Groth-backed token-vault update tied to the user's registered channel-token-vault identity.
 
@@ -266,7 +270,9 @@ The current bridge contributes to that goal by publishing accepted root vectors,
 
 ### 6.1 DApp Registration and Channel Creation
 
-The lifecycle begins with DApp registration. The bridge owner registers the storage surface and function metadata that define the DApp's admissible execution surface. Only after that can `BridgeCore` create a channel for the DApp.
+The lifecycle begins with DApp registration. The bridge owner registers the storage surface and
+function metadata that define the DApp's admissible execution surface. Only after that can a channel
+creator ask `BridgeCore` to create a channel for the DApp.
 
 The design lesson is simple: the bridge wants the admissible state-transition language to be fixed before users start submitting proofs.
 

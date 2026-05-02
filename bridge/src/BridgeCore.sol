@@ -23,7 +23,6 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);
-    error InvalidLeader();
     error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
     error InvalidDAppManager();
     error InvalidChannelDeployer();
@@ -165,14 +164,13 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     function createChannel(
         uint256 channelId,
         uint256 dappId,
-        address leader,
         uint256 initialJoinFee,
         bytes32 expectedDAppMetadataDigest
-    ) external onlyOwner returns (address manager, address boundBridgeTokenVault) {
+    ) external returns (address manager, address boundBridgeTokenVault) {
+        address leader = msg.sender;
         IERC20 asset = IERC20(canonicalAsset());
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (bridgeTokenVault == address(0)) revert InvalidBridgeTokenVault();
-        if (leader == address(0)) revert InvalidLeader();
         uint256 managedStorageCount = dAppManager.getManagedStorageCount(dappId);
         if (managedStorageCount > MAX_MANAGED_STORAGES) {
             revert TooManyManagedStorages(managedStorageCount, MAX_MANAGED_STORAGES);

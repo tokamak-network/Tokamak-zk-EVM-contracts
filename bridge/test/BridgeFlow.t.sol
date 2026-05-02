@@ -170,7 +170,7 @@ contract BridgeFlowTest is Test {
         asset.mint(bob, 1_000 ether);
 
         (address manager, address vault) =
-            bridgeCore.createChannel(channelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
+            _createChannel(channelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
 
         channelManager = ChannelManager(manager);
         assertEq(vault, address(bridgeTokenVault));
@@ -265,7 +265,7 @@ contract BridgeFlowTest is Test {
         assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
         assertEq(address(channelManager.tokamakVerifier()), address(tokamakVerifier));
 
-        (address manager,) = bridgeCore.createChannel(
+        (address manager,) = _createChannel(
             _deriveChannelId("updated-dapp-metadata"),
             1,
             leader,
@@ -354,11 +354,11 @@ contract BridgeFlowTest is Test {
                 BridgeCore.DAppMetadataDigestMismatch.selector, 1, staleDigest, updatedDigest
             )
         );
-        bridgeCore.createChannel(
+        _createChannel(
             _deriveChannelId("stale-dapp-digest"), 1, leader, DEFAULT_JOIN_FEE, staleDigest
         );
 
-        (address manager,) = bridgeCore.createChannel(
+        (address manager,) = _createChannel(
             _deriveChannelId("fresh-dapp-digest"), 1, leader, DEFAULT_JOIN_FEE, updatedDigest
         );
         ChannelManager digestChannelManager = ChannelManager(manager);
@@ -396,9 +396,8 @@ contract BridgeFlowTest is Test {
 
         _joinChannel(channelId, alice, alice, reusedKey, 8);
 
-        (address secondManagerAddress, address secondVaultAddress) = bridgeCore.createChannel(
-            secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1)
-        );
+        (address secondManagerAddress, address secondVaultAddress) =
+            _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
         ChannelManager secondChannelManager = ChannelManager(secondManagerAddress);
         _joinChannel(secondChannelId, bob, bob, reusedKey, 8);
 
@@ -458,9 +457,8 @@ contract BridgeFlowTest is Test {
         assertEq(existingRefundBps, 7_500);
         assertEq(existingRefundAmount, (DEFAULT_JOIN_FEE * 7_500) / 10_000);
 
-        (address secondManagerAddress,) = bridgeCore.createChannel(
-            secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1)
-        );
+        (address secondManagerAddress,) =
+            _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
         ChannelManager secondChannelManager = ChannelManager(secondManagerAddress);
         _joinChannel(secondChannelId, bob, bob, bytes32(uint256(18)), 18);
         (uint256 secondRefundAmount, uint16 secondRefundBps) =
@@ -735,7 +733,7 @@ contract BridgeFlowTest is Test {
                 BridgeCore.TooManyManagedStorages.selector, uint256(12), uint256(11)
             )
         );
-        bridgeCore.createChannel(
+        _createChannel(
             _deriveChannelId("missing-block-context-channel"),
             3,
             leader,
@@ -971,7 +969,7 @@ contract BridgeFlowTest is Test {
         vm.etch(address(feeAsset), address(feeAssetImplementation).code);
         feeAsset.mint(alice, 100 ether);
 
-        (address manager, address vault) = bridgeCore.createChannel(
+        (address manager, address vault) = _createChannel(
             _deriveChannelId("fee-on-transfer-channel"),
             1,
             leader,
@@ -1177,6 +1175,13 @@ contract BridgeFlowTest is Test {
         );
     }
 
+    function testCreateChannelUsesCallerAsLeader() public {
+        uint256 callerChannelId = _deriveChannelId("caller-owned-channel");
+        (address manager,) =
+            _createChannel(callerChannelId, 1, alice, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
+        assertEq(ChannelManager(manager).leader(), alice);
+    }
+
     function testOwnerCanUpdateVerifierAddresses() public {
         IGrothVerifier newGrothVerifier = IGrothVerifier(address(0xBEEF));
         ITokamakVerifier newTokamakVerifier = ITokamakVerifier(address(0xCAFE));
@@ -1220,9 +1225,8 @@ contract BridgeFlowTest is Test {
         Groth16Verifier rotatedGrothVerifier = new Groth16Verifier("0.2");
         bridgeCore.setGrothVerifier(IGrothVerifier(address(rotatedGrothVerifier)));
 
-        (address managerAddress,) = bridgeCore.createChannel(
-            secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1)
-        );
+        (address managerAddress,) =
+            _createChannel(secondChannelId, 1, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(1));
         ChannelManager secondManager = ChannelManager(managerAddress);
         assertEq(address(secondManager.grothVerifier()), address(grothVerifier));
         assertEq(address(channelManager.grothVerifier()), address(grothVerifier));
@@ -1232,7 +1236,7 @@ contract BridgeFlowTest is Test {
             _defaultStorageLayouts(address(0xF00D), address(0x1234)),
             _defaultDAppFunctions(defaultPreprocessInputHash)
         );
-        (address updatedManagerAddress,) = bridgeCore.createChannel(
+        (address updatedManagerAddress,) = _createChannel(
             _deriveChannelId("groth-after-metadata-update"),
             1,
             leader,
@@ -1283,7 +1287,7 @@ contract BridgeFlowTest is Test {
             abi.encode(true)
         );
 
-        (address manager,) = bridgeCore.createChannel(
+        (address manager,) = _createChannel(
             _deriveChannelId("tokamak-before-metadata-update"),
             3,
             leader,
@@ -1312,7 +1316,7 @@ contract BridgeFlowTest is Test {
             abi.encode(true)
         );
 
-        (address updatedManager,) = bridgeCore.createChannel(
+        (address updatedManager,) = _createChannel(
             _deriveChannelId("tokamak-after-metadata-update"),
             3,
             leader,
@@ -1365,7 +1369,7 @@ contract BridgeFlowTest is Test {
         uint256 badChannelId = _deriveChannelId("bad-deployer-channel");
         bytes32 metadataDigest = _dAppMetadataDigest(1);
         vm.expectPartialRevert(BridgeCore.InvalidChannelManager.selector);
-        bridgeCore.createChannel(badChannelId, 1, leader, DEFAULT_JOIN_FEE, metadataDigest);
+        _createChannel(badChannelId, 1, leader, DEFAULT_JOIN_FEE, metadataDigest);
     }
 
     function testTokamakVerificationRejectsProofForUnexpectedCurrentState() public {
@@ -1451,7 +1455,7 @@ contract BridgeFlowTest is Test {
             _defaultStorageLayouts(address(0xF00D), address(0x1234)),
             _executionDAppFunctionsWithObservedEvent(eventStartOffsetWords, eventTopicCount)
         );
-        (address manager,) = bridgeCore.createChannel(
+        (address manager,) = _createChannel(
             _deriveChannelId("tokamak-observed-event"),
             3,
             leader,
@@ -1508,9 +1512,8 @@ contract BridgeFlowTest is Test {
                 36, eventStartOffsetWords, eventTopicCount
             )
         );
-        (address manager,) = bridgeCore.createChannel(
-            observedChannelId, 3, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(3)
-        );
+        (address manager,) =
+            _createChannel(observedChannelId, 3, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(3));
         ChannelManager localChannelManager = ChannelManager(manager);
         _joinChannel(observedChannelId, alice, alice, bytes32(uint256(111)), 111);
 
@@ -1563,9 +1566,8 @@ contract BridgeFlowTest is Test {
                 36, eventStartOffsetWords, eventTopicCount
             )
         );
-        (address manager,) = bridgeCore.createChannel(
-            observedChannelId, 3, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(3)
-        );
+        (address manager,) =
+            _createChannel(observedChannelId, 3, leader, DEFAULT_JOIN_FEE, _dAppMetadataDigest(3));
         ChannelManager localChannelManager = ChannelManager(manager);
 
         BridgeStructs.TokamakProofPayload memory proofPayload =
@@ -1985,6 +1987,19 @@ contract BridgeFlowTest is Test {
         assertTrue(joined);
     }
 
+    function _createChannel(
+        uint256 targetChannelId,
+        uint256 targetDappId,
+        address channelLeader,
+        uint256 initialJoinFee,
+        bytes32 expectedDAppMetadataDigest
+    ) internal returns (address manager, address boundBridgeTokenVault) {
+        vm.prank(channelLeader);
+        return bridgeCore.createChannel(
+            targetChannelId, targetDappId, initialJoinFee, expectedDAppMetadataDigest
+        );
+    }
+
     function _dAppMetadataDigest(uint256 targetDappId) internal view returns (bytes32) {
         return dAppManager.getDAppInfo(targetDappId).metadataDigest;
     }
@@ -2097,7 +2112,7 @@ contract BridgeFlowTest is Test {
             _defaultStorageLayouts(address(0xF00D), address(0x1234)),
             _executionDAppFunctions()
         );
-        (address manager,) = bridgeCore.createChannel(
+        (address manager,) = _createChannel(
             _deriveChannelId(channelLabel),
             dappId,
             leader,

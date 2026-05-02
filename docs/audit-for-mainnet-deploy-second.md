@@ -27,9 +27,9 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
    Resolution: `DAppManager` now computes and stores `metadataDigest` with schema `DAPP_METADATA_DIGEST_SCHEMA` on both `registerDApp(...)` and `updateDAppMetadata(...)`. The digest commits to the DApp ID, immutable `labelHash`, channel-token-vault storage index, storage metadata root, function metadata root, and verifier snapshot hash. The function metadata root covers entry contracts, selectors, preprocess hashes, instance layout offsets, and event-log metadata. The verifier snapshot hash covers Groth16 verifier address/version and Tokamak verifier address/version.
 
-   `BridgeCore.createChannel(...)` now takes `expectedDAppMetadataDigest` and reverts with `DAppMetadataDigestMismatch` if the current on-chain digest differs. The private-state CLI reads `registration.metadataDigest` and `registration.metadataDigestSchema` from the local DApp registration manifest, verifies that the on-chain `DAppInfo` has the same digest and schema, and passes that digest into `createChannel(...)`. This closes the stale-label channel-creation path for the normal CLI flow and for direct owner calls that use an independently reviewed expected digest.
+   `BridgeCore.createChannel(...)` now takes `expectedDAppMetadataDigest` and reverts with `DAppMetadataDigestMismatch` if the current on-chain digest differs. The private-state CLI reads `registration.metadataDigest` and `registration.metadataDigestSchema` from the local DApp registration manifest, verifies that the on-chain `DAppInfo` has the same digest and schema, and passes that digest into `createChannel(...)`. This closes the stale-label channel-creation path for the normal CLI flow and for direct user calls that use an independently reviewed expected digest.
 
-   Impact after resolution: a DApp metadata update that preserves the same label cannot silently affect a channel creation that is using a stale manifest digest; the transaction fails before a channel is deployed. A bad channel snapshot remains non-repairable if an owner intentionally or negligently approves the wrong digest, but that is now an explicit operator/governance failure rather than an implicit label-only mismatch.
+   Impact after resolution: a DApp metadata update that preserves the same label cannot silently affect a channel creation that is using a stale manifest digest; the transaction fails before a channel is deployed. A bad channel snapshot remains non-repairable if a user intentionally or negligently creates a channel against the wrong current digest, but that is now an explicit channel-creator consent failure rather than an implicit label-only mismatch.
 
    UUPS upgradeability classification: prevention is implemented before mainnet. If a channel is still created with an explicitly wrong but current digest, that individual channel remains intentionally immutable and cannot be repaired in place by a later UUPS upgrade.
 
@@ -53,7 +53,7 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
    Status: accepted operational risk with CLI and documentation mitigation.
 
-   `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, and `DAppManager.updateDAppMetadata(...)` are all owner-only and take effect for the next DApp metadata snapshot or next channel creation without an on-chain timelock, proposal delay, or two-party acceptance. This is consistent with the current UUPS owner trust model, but the new metadata update policy makes the owner path more operationally sensitive: an accidental or compromised owner action can create bad future channel snapshots while preserving the same DApp label.
+   `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, and `DAppManager.updateDAppMetadata(...)` are all owner-only and take effect for the next DApp metadata snapshot or next channel creation without an on-chain timelock, proposal delay, or two-party acceptance. This is consistent with the current UUPS owner trust model, but the new metadata update policy makes the owner path more operationally sensitive: an accidental or compromised owner action can publish bad future channel policy inputs while preserving the same DApp label.
 
    Existing channels remain protected from later policy mutation, which is the intended channel-consent model. The tradeoff is that every future channel created after a bad owner action can become permanently bound to the bad snapshot.
 
@@ -130,7 +130,7 @@ The DApp continues to split note/nullifier state and liquid accounting state acr
 
 ### Admin and Ownership
 
-The private-state DApp has no owner role. The bridge root contracts remain owner-controlled UUPS proxies. Mainnet safety depends on the owner account and the operational process around verifier rotation, DApp metadata updates, bridge upgrades, and channel creation.
+The private-state DApp has no owner role. The bridge root contracts remain owner-controlled UUPS proxies. Mainnet safety depends on the owner account and the operational process around verifier rotation, DApp metadata updates, and bridge upgrades. Channel creation is permissionless, and the channel creator becomes the channel leader.
 
 ### DApp Registration Artifacts
 

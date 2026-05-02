@@ -85,6 +85,10 @@ Mainnet assumptions:
 | C7 | Incompatible manager returned by ChannelDeployer | Low | Resolved |
 | C8 | Per-channel function metadata deep copy | Low | Resolved |
 | C9 | Channel creation permission model drift | Low | Resolved |
+| C10 | Privileged bridge owner custody authority | Critical | Accepted trust assumption |
+| C11 | Channel registration slot exhaustion | High | Mitigated by economic cost |
+| C12 | Exact-transfer canonical asset dependency | Medium | Accepted external dependency |
+| C13 | Finite storage leaf projection collisions | Medium | Mitigated by collision-probability reduction |
 
 ## Resolved Checklist
 
@@ -364,6 +368,187 @@ Evidence:
 Non-finding: a caller can create a desirable channel name first. This is expected first-come channel
 name ownership, not a protocol attack. Users should resolve actual channels from `BridgeCore`, not
 from names alone.
+
+### C10. Privileged Bridge Owner Custody Authority
+
+Importance: Critical.
+
+Status: accepted trust assumption.
+
+Root cause: the root bridge stack is intentionally UUPS-upgradeable and owner-controlled.
+`BridgeCore`, `DAppManager`, and `L1TokenVault` still authorize upgrades through `onlyOwner`.
+`BridgeCore` also lets the owner set future default Groth16 and Tokamak verifier addresses.
+
+Attack or failure enabled: a malicious or compromised owner can deploy an implementation that
+bypasses proof checks, freezes deposits or withdrawals, changes channel registry behavior, changes
+future verifier defaults, or transfers custody out of the vault. This is not an unprivileged
+exploit path; it is the core governance trust assumption for this launch model.
+
+Current control:
+
+- Channels snapshot verifier bindings and DApp metadata at creation, so verifier default changes do
+  not rewrite already-created channels.
+- The CLI displays immutable channel policy snapshots before channel creation and join.
+- Mainnet deployment metadata must record source commits, implementation addresses, verifier
+  addresses, `ChannelDeployer`, vault, and DApp registration addresses.
+- The bridge owner trust assumption is accepted under the current single-operator launch model.
+
+Evidence:
+
+- Code: `bridge/src/BridgeCore.sol`, `bridge/src/DAppManager.sol`,
+  `bridge/src/L1TokenVault.sol`.
+- Code: `packages/apps/private-state/cli/private-state-bridge-cli.mjs` prints immutable policy
+  snapshot values before channel creation and first join.
+- Related commits: `99bc739` (`Allow DApp metadata verifier snapshots to update`) and
+  `52815b6` (`Warn users about immutable channel policy`).
+
+Maintenance note: future governance can move ownership to a timelock or multisig, separate pause
+authority from upgrade authority, or freeze custody-critical upgrades after a maturation period. An
+already-executed malicious owner upgrade cannot be treated as recoverable by ordinary UUPS policy.
+
+### C11. Channel Registration Slot Exhaustion
+
+Importance: High.
+
+Status: mitigated by economic cost.
+
+Root cause: channel-token-vault registration reserves a finite channel leaf index. In the earlier
+free-registration design, an attacker could repeatedly join with many L1/L2 identities and consume
+registration slots while paying only gas.
+
+Attack or failure enabled: a channel could be denied to new users by exhausting available leaf
+indices. This is primarily a liveness attack, but it can strand user workflow because users cannot
+complete the L1-to-channel path for a saturated channel.
+
+Mitigation:
+
+- Joining a channel is now a paid action through `L1TokenVault.joinChannel(...)`.
+- The channel creator chooses the initial join fee at `createChannel(...)`.
+- `ChannelManager` records `joinFeePaid` and `joinedAt` per registration.
+- Exit is allowed only after the channel-token-vault balance is zero.
+- Exit refunds a time-decayed fraction of the paid join fee and frees the reserved L1, L2, storage
+  key, and leaf-index bindings only after unregistering succeeds.
+- The bridge tracks join fees in `_feeTreasuryBalance`; the only current outflow path is decayed
+  exit refund.
+
+Evidence:
+
+- Code: `bridge/src/L1TokenVault.sol::joinChannel(...)` charges the channel join fee and records it
+  in treasury accounting.
+- Code: `bridge/src/L1TokenVault.sol::exitChannel(...)` queries the refund quote, unregisters the
+  user, and pays only the decayed refund.
+- Code: `bridge/src/ChannelManager.sol::registerChannelTokenVaultIdentity(...)` records
+  `joinFeePaid` and `joinedAt`.
+- Code: `bridge/src/ChannelManager.sol::getExitFeeRefundQuote(...)` computes the refund from the
+  recorded fee paid at join time.
+- Code: `bridge/src/ChannelManager.sol::setJoinFee(...)` lets the channel leader price future joins.
+
+Residual risk: this changes registration exhaustion from a gas-only sybil griefing primitive into
+an economic denial-of-service attack. A sufficiently funded attacker can still buy all available
+slots, and a channel leader can raise the future join fee. Users should treat join-fee policy as
+part of the channel policy they inspect before joining.
+
+### C12. Exact-Transfer Canonical Asset Dependency
+
+Importance: Medium.
+
+Status: accepted external dependency.
+
+Root cause: the bridge is designed around a canonical ERC-20 that behaves as an exact-transfer
+token. Mainnet `BridgeCore.canonicalAsset()` hard-codes Tokamak Network Token for Ethereum mainnet.
+
+Attack or failure enabled: if the canonical token pauses transfers, blacklists participants,
+introduces transfer fees, rebases, or otherwise changes observed transfer deltas, deposits, joins,
+claims, or refunds can revert. This is an external availability and governance dependency, not a
+bridge-internal theft primitive.
+
+Current guard:
+
+- `L1TokenVault` checks observed token balance deltas for `fund(...)`, `joinChannel(...)`,
+  `exitChannel(...)` refunds, and `claimToWallet(...)`.
+- Fee-on-transfer or otherwise non-exact behavior reverts with `UnsupportedAssetTransferBehavior`.
+- The canonical token's transfer behavior and governance are accepted as an explicit bridge trust
+  assumption.
+
+Evidence:
+
+- Code: `bridge/src/BridgeCore.sol::canonicalAsset()`.
+- Code: `bridge/src/L1TokenVault.sol::fund(...)`, `joinChannel(...)`, `exitChannel(...)`, and
+  `claimToWallet(...)`.
+
+Operational note: user-facing docs must not present the bridge as token-agnostic. The bridge is
+safe only under the accepted exact-transfer behavior of the configured canonical asset.
+
+### C13. Finite Storage Leaf Projection Collisions
+
+Importance: Medium.
+
+Status: mitigated by collision-probability reduction.
+
+Root cause: managed storage keys are projected into a finite Merkle leaf domain. For any finite
+depth below a full 256-bit key path, distinct storage keys can map to the same leaf index. This is a
+bridge/state-manager storage abstraction property rather than a normal EVM mapping property.
+
+Failure enabled: a valid DApp transition can be denied if unrelated storage keys collide in the
+finite leaf domain. The impact is not direct asset theft, but an availability and usability failure:
+an otherwise valid storage write can become impossible because another key already occupies the same
+finite leaf.
+
+Mitigation:
+
+- The generated environment currently uses `MT_DEPTH = 30`, which increases the managed storage
+  leaf domain to `N = 2^30`.
+- Increasing tree depth reduces random leaf-collision probability exponentially in the depth.
+- The CLI observes and tracks storage keys, commitments, and nullifiers so users can reconcile
+  local state against bridge state. This helps detection and local accounting, but it does not
+  mathematically eliminate collisions.
+
+Collision probability model:
+
+Let `d` be the Merkle tree depth, `N = 2^d` be the finite leaf domain size, and `k` be the number of
+distinct storage keys projected uniformly into that finite domain. The exact no-collision
+probability is:
+
+$$
+\Pr[\text{no collision}]
+= \prod_{i=0}^{k-1}\left(1 - \frac{i}{2^d}\right)
+$$
+
+Therefore:
+
+$$
+\Pr[\text{at least one collision}]
+= 1 - \prod_{i=0}^{k-1}\left(1 - \frac{i}{2^d}\right)
+$$
+
+For review and graphing, the standard birthday-bound approximation is:
+
+$$
+\Pr[\text{at least one collision}]
+\approx 1 - \exp\left(-\frac{k(k-1)}{2\cdot 2^d}\right)
+$$
+
+For fixed `k`, increasing `d` by one bit approximately halves the collision exponent. The current
+`d = 30` setting gives a domain of `1,073,741,824` leaves. The graph below is intentionally general:
+it models finite leaf projection for arbitrary storage keys, not any DApp-specific event-rate
+process.
+
+![General Merkle leaf collision probability by key count and depth](../bridge/docs/assets/general_leaf_collision_probability_keys_d12_36_step6_logx_logy.svg)
+
+Evidence:
+
+- Code: `bridge/src/generated/TokamakEnvironment.sol` sets `MT_DEPTH = 30` and derives
+  `MAX_MT_LEAVES`.
+- Code: `bridge/src/ChannelManager.sol::_deriveLeafIndexFromStorageKey(...)` maps a storage key
+  into the finite leaf domain.
+- Code: `packages/apps/private-state/src/PrivateStateController.sol` emits observed storage keys
+  for commitment and nullifier writes.
+- Code: `packages/apps/private-state/cli/private-state-bridge-cli.mjs` derives and tracks
+  commitment/nullifier storage keys and reconciles note state from snapshots.
+
+Operational note: do not describe the dense finite-leaf storage projection as collision-free. If
+future deployments reduce tree depth or materially increase managed storage-key volume, this item
+must be re-reviewed as a capacity and usability risk.
 
 ## Additional Checks
 

@@ -196,21 +196,13 @@ contract BridgeFlowTest is Test {
         assertEq(info.channelTokenVaultTreeIndex, 0);
         assertEq(info.metadataDigestSchema, dAppManager.DAPP_METADATA_DIGEST_SCHEMA());
         assertTrue(info.metadataDigest != bytes32(0));
+        assertTrue(info.functionRoot != bytes32(0));
 
         address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(1);
         assertEq(managedStorageAddresses.length, 2);
         assertEq(managedStorageAddresses[0], address(0xF00D));
         assertEq(managedStorageAddresses[1], address(0x1234));
 
-        BridgeStructs.FunctionConfig memory functionConfig =
-            dAppManager.getFunctionMetadata(1, appContract, APP_SIG);
-        assertEq(functionConfig.preprocessInputHash, defaultPreprocessInputHash);
-        assertEq(functionConfig.entryContractOffsetWords, 22);
-        assertEq(functionConfig.functionSigOffsetWords, 24);
-        assertEq(functionConfig.currentRootVectorOffsetWords, 26);
-        assertEq(functionConfig.updatedRootVectorOffsetWords, 0);
-
-        assertTrue(dAppManager.isSupportedFunction(1, appContract, APP_SIG));
         assertEq(dAppManager.getChannelTokenVaultTreeIndex(1), 0);
         assertEq(dAppManager.bridgeCore(), address(bridgeCore));
 
@@ -254,12 +246,11 @@ contract BridgeFlowTest is Test {
         assertEq(info.channelTokenVaultTreeIndex, 0);
         assertEq(info.metadataDigestSchema, dAppManager.DAPP_METADATA_DIGEST_SCHEMA());
         assertTrue(info.metadataDigest != bytes32(0));
+        assertTrue(info.functionRoot != bytes32(0));
 
         address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(1);
         assertEq(managedStorageAddresses.length, 1);
         assertEq(managedStorageAddresses[0], address(0xF11D));
-        assertFalse(dAppManager.isSupportedFunction(1, appContract, APP_SIG));
-        assertTrue(dAppManager.isSupportedFunction(1, appContract2, APP_SIG_2));
 
         BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot =
             dAppManager.getDAppVerifierSnapshot(1);

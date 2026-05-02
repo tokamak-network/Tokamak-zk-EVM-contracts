@@ -70,12 +70,15 @@ The split solved the deploy-blocking `BridgeCore` size pressure:
 | `BridgeCore` | `10,917 bytes` | `13,659 bytes` |
 | `ChannelDeployer` | `15,003 bytes` | `9,573 bytes` |
 | `ChannelManager` | `10,957 bytes` | `13,619 bytes` |
-| `DAppManager` | `14,474 bytes` | `10,102 bytes` |
+| `DAppManager` | `12,294 bytes` | `12,282 bytes` |
 
 Before the split, `BridgeCore` had only `911 bytes` of runtime margin after the temporary getter
 removal. The root contract still has enough bytecode room after the returned-manager invariant
-checks. After the function metadata root/proof update, `BridgeCore.createChannel` measured 2,762,240
-gas in CLI E2E, down from the earlier 3,884,651 gas deep-copy design.
+checks. After the function metadata root/proof update, `BridgeCore.createChannel` measured 2,762,020
+gas in CLI E2E, down from the earlier 3,884,651 gas deep-copy design. The follow-up cleanup removed
+the old on-chain DApp function metadata lookup layer from `DAppManager`; function metadata is now
+validated during registration/update, committed through `functionRoot`, and published through the
+registration manifest used by the CLI.
 
 ## Findings
 
@@ -265,23 +268,28 @@ or compatible backend versions. `BridgeCore.createChannel(...)` still requires
     `BridgeCore` rejects a deployer-returned manager with a mismatched immutable snapshot.
 - `forge build --root bridge --sizes`
   - Passed.
-  - `BridgeCore`: `10,424 bytes`, margin `14,152 bytes`.
-  - `ChannelDeployer`: `15,152 bytes`, margin `9,424 bytes`.
-  - `ChannelManager`: `9,749 bytes`, margin `14,827 bytes`.
+  - `BridgeCore`: `10,917 bytes`, margin `13,659 bytes`.
+  - `ChannelDeployer`: `15,003 bytes`, margin `9,573 bytes`.
+  - `ChannelManager`: `10,957 bytes`, margin `13,619 bytes`.
+  - `DAppManager`: `12,294 bytes`, margin `12,282 bytes`.
 - `forge fmt --root bridge --check`
-  - Passed after formatting generated verifier files that the E2E deployment flow rewrote.
+  - Passed.
 - `node --check bridge/scripts/deploy-bridge.mjs`
   - Passed.
 - `node --check bridge/scripts/generate-bridge-abi-manifest.mjs`
   - Passed.
-- `git diff --check`
-  - Passed before this document was added.
+- `node --check bridge/scripts/admin-add-dapp.mjs`
+  - Passed.
+- `node --check packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs`
+  - Passed.
+- `node --check packages/apps/private-state/cli/private-state-bridge-cli.mjs`
+  - Passed.
 - Private-state CLI E2E with local private-state CLI tarball and `@tokamak-zk-evm/cli@2.0.16`
-  passed after the `BridgeAdminManager` removal.
+  passed after the DAppManager function metadata lookup cleanup.
   - Covered bridge deployment, DApp registration, channel creation through `ChannelDeployer`, three
     participant joins, bridge/channel deposits, mint, transfer, redeem, channel withdrawal, exit,
     and bridge withdrawal.
-  - Current-worktree `createChannel` receipt gas after the cleanup: `3,884,651`.
+  - Current-worktree `createChannel` receipt gas after the function root/proof update: `2,762,020`.
 
 ## Deployment Decision
 

@@ -1,6 +1,6 @@
 # Bridge Gas Assessment
 
-Measurement timestamp: 2026-05-02T04:43:44Z / 2026-05-02 12:43:44 +08.
+Measurement timestamp: 2026-05-02T05:09:58Z / 2026-05-02 13:09:58 +08.
 
 ETH/USD: 2,300.89 USD.
 
@@ -60,16 +60,16 @@ remain in the original hex-encoded wei format returned by the RPC endpoint.
 
 | Function | Caller role | Measured gas used | Measurement source | USD at 0.106 gwei (Typical Block p50) | USD at 0.886 gwei (Typical Block p90) |
 |---|---|---:|---|---:|---:|
-| `DAppManager.bindBridgeCore` | Owner | 26,091 | Forge gas report | $0.006 | $0.053 |
-| `DAppManager.registerDApp` | Owner | 5,338-1,066,062 | Forge gas report | $0.001-$0.260 | $0.011-$2.17 |
-| `DAppManager.updateDAppMetadata` | Owner | 120,965-400,957 | Forge gas report | $0.030-$0.098 | $0.247-$0.817 |
-| `DAppManager.deleteDApp` | Owner, Sepolia/local only | 16,044-154,066 | Forge gas report | $0.004-$0.038 | $0.033-$0.314 |
+| `DAppManager.bindBridgeCore` | Owner | 26,025 | Forge gas report | $0.006 | $0.053 |
+| `DAppManager.registerDApp` | Owner | 5,250-930,977 | Forge gas report | $0.001-$0.227 | $0.011-$1.90 |
+| `DAppManager.updateDAppMetadata` | Owner | 86,601-275,325 | Forge gas report | $0.021-$0.067 | $0.177-$0.561 |
+| `DAppManager.deleteDApp` | Owner, Sepolia/local only | 15,934-119,587 | Forge gas report | $0.004-$0.029 | $0.032-$0.244 |
 | `BridgeCore.bindBridgeTokenVault` | Owner | 5,119-9,164 | Forge gas report | $0.001-$0.002 | $0.010-$0.019 |
 | `BridgeCore.setChannelDeployer` | Owner | 11,663 | Forge gas report | $0.003 | $0.024 |
 | `BridgeCore.setGrothVerifier` | Owner | 9,045 | Forge gas report | $0.002 | $0.018 |
 | `BridgeCore.setTokamakVerifier` | Owner | 8,957 | Forge gas report | $0.002 | $0.018 |
 | `BridgeCore.setJoinFeeRefundSchedule` | Owner | 16,520 | Forge gas report | $0.004 | $0.034 |
-| `BridgeCore.createChannel` | Owner | 2,762,240 | CLI E2E receipt | $0.674 | $5.63 |
+| `BridgeCore.createChannel` | Owner | 2,762,020 | CLI E2E receipt | $0.674 | $5.63 |
 | `ChannelManager.setJoinFee` | Channel leader | 22,119-28,418 | Forge gas report | $0.005-$0.007 | $0.045-$0.058 |
 
 ## User Calls
@@ -78,9 +78,9 @@ remain in the original hex-encoded wei format returned by the RPC endpoint.
 |---|---|---:|---|---:|---:|
 | `L1TokenVault.fund` | User | 72,845-89,945 | CLI E2E receipts | $0.018-$0.022 | $0.149-$0.183 |
 | `L1TokenVault.joinChannel` | User | 323,747-326,559 | CLI E2E receipts | $0.079-$0.080 | $0.660-$0.666 |
-| `L1TokenVault.depositToChannelVault` | User | 336,399-336,455 | CLI E2E receipts | $0.082-$0.082 | $0.686-$0.686 |
-| `ChannelManager.executeChannelTransaction` | User | 827,609-861,692 | CLI E2E receipts | $0.202-$0.210 | $1.69-$1.76 |
-| `L1TokenVault.withdrawFromChannelVault` | User | 380,391 | CLI E2E receipt | $0.093 | $0.775 |
+| `L1TokenVault.depositToChannelVault` | User | 336,387-336,467 | CLI E2E receipts | $0.082-$0.082 | $0.686-$0.686 |
+| `ChannelManager.executeChannelTransaction` | User | 827,621-861,608 | CLI E2E receipts | $0.202-$0.210 | $1.69-$1.76 |
+| `L1TokenVault.withdrawFromChannelVault` | User | 380,435 | CLI E2E receipt | $0.093 | $0.776 |
 | `L1TokenVault.exitChannel` | User | 130,168 | CLI E2E receipt | $0.032 | $0.265 |
 | `L1TokenVault.claimToWallet` | User | 52,317 | CLI E2E receipt | $0.013 | $0.107 |
 
@@ -101,10 +101,10 @@ input.
 ## Latest Function Metadata Root/Proof Delta
 
 Before replacing per-channel function metadata deep copies with a channel-level function root,
-`BridgeCore.createChannel` measured 3,884,651 gas. The current E2E receipt measures 2,762,240 gas,
-a reduction of 1,122,411 gas, or 28.89%.
+`BridgeCore.createChannel` measured 3,884,651 gas. The current E2E receipt measures 2,762,020 gas,
+a reduction of 1,122,631 gas, or 28.90%.
 
 The user execution path now submits function metadata and a Merkle proof in calldata. The measured
-`ChannelManager.executeChannelTransaction` range is 827,609-861,692 gas, which is not higher than
+`ChannelManager.executeChannelTransaction` range is 827,621-861,608 gas, which is not higher than
 the previous 830,814-865,674 gas E2E range because the removed channel storage reads offset the
 additional proof verification and calldata.

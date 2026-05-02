@@ -1533,9 +1533,6 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
   const registration = manifest.registration ?? {};
   const result = {
     reusedExistingRegistration: false,
-    deletedExistingRegistration: Boolean(registration.deletedExistingRegistration),
-    deleteTxHash: registration.deleteTxHash ?? null,
-    deleteBlockNumber: registration.deleteBlockNumber ?? null,
     txHash: registration.txHash,
     blockNumber: registration.blockNumber ?? null,
     storageCount: registration.storageCount,

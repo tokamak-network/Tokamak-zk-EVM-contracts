@@ -44,7 +44,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     error UnknownStorageAddress(uint256 dappId, address storageAddr);
     error InvalidFunctionEntryContract(uint256 dappId, address entryContract, bytes4 functionSig);
     error DuplicateFunction(uint256 dappId, address entryContract, bytes4 functionSig);
-    error UnsupportedChannelFunction(uint256 dappId, address entryContract, bytes4 functionSig);
     error MissingChannelTokenVaultStorageAddress(uint256 dappId);
     error MultipleChannelTokenVaultStorageAddresses(
         uint256 dappId, address firstStorageAddr, address secondStorageAddr
@@ -78,12 +77,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     mapping(uint256 => DAppInfo) private _dapps;
     mapping(uint256 => BridgeStructs.DAppVerifierSnapshot) private _verifierSnapshots;
-    mapping(uint256 => mapping(bytes32 => bool)) private _supportedFunctions;
-    mapping(uint256 => mapping(bytes32 => BridgeStructs.FunctionConfig)) private _functionConfigs;
-    mapping(uint256 => mapping(bytes32 => BridgeStructs.EventLogMetadata[])) private
-        _functionEventLogs;
-    mapping(uint256 => mapping(bytes32 => bool)) private _knownPreprocessInputHash;
-    mapping(uint256 => BridgeStructs.FunctionReference[]) private _registeredFunctions;
 
     mapping(uint256 => address[]) private _managedStorageAddresses;
     mapping(uint256 => mapping(address => bool)) private _knownStorageAddress;
@@ -197,45 +190,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         emit DAppMetadataDigestUpdated(dappId, DAPP_METADATA_DIGEST_SCHEMA, metadataDigest);
     }
 
-    function isSupportedFunction(uint256 dappId, address entryContract, bytes4 functionSig)
-        external
-        view
-        returns (bool)
-    {
-        if (!_dapps[dappId].exists) {
-            return false;
-        }
-        return _supportedFunctions[dappId][computeFunctionKey(entryContract, functionSig)];
-    }
-
-    function getFunctionMetadata(uint256 dappId, address entryContract, bytes4 functionSig)
-        external
-        view
-        returns (BridgeStructs.FunctionConfig memory)
-    {
-        bytes32 functionKey = computeFunctionKey(entryContract, functionSig);
-        if (!_supportedFunctions[dappId][functionKey]) {
-            revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
-        }
-        return _functionConfigs[dappId][functionKey];
-    }
-
-    function getFunctionEventLogs(uint256 dappId, address entryContract, bytes4 functionSig)
-        external
-        view
-        returns (BridgeStructs.EventLogMetadata[] memory out)
-    {
-        bytes32 functionKey = computeFunctionKey(entryContract, functionSig);
-        if (!_supportedFunctions[dappId][functionKey]) {
-            revert UnsupportedChannelFunction(dappId, entryContract, functionSig);
-        }
-        BridgeStructs.EventLogMetadata[] storage eventLogs = _functionEventLogs[dappId][functionKey];
-        out = new BridgeStructs.EventLogMetadata[](eventLogs.length);
-        for (uint256 i = 0; i < eventLogs.length; i++) {
-            out[i] = eventLogs[i];
-        }
-    }
-
     function getDAppInfo(uint256 dappId) external view returns (DAppInfo memory) {
         if (!_dapps[dappId].exists) {
             revert UnknownDApp(dappId);
@@ -250,20 +204,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     {
         _requireDApp(dappId);
         return _verifierSnapshots[dappId];
-    }
-
-    function getRegisteredFunctions(uint256 dappId)
-        external
-        view
-        returns (BridgeStructs.FunctionReference[] memory out)
-    {
-        _requireDApp(dappId);
-
-        BridgeStructs.FunctionReference[] storage refs = _registeredFunctions[dappId];
-        out = new BridgeStructs.FunctionReference[](refs.length);
-        for (uint256 i = 0; i < refs.length; i++) {
-            out[i] = refs[i];
-        }
     }
 
     function getManagedStorageAddresses(uint256 dappId)
@@ -321,14 +261,6 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     {
         _requireKnownStorage(dappId, storageAddr);
         return _isChannelTokenVaultStorage[dappId][storageAddr];
-    }
-
-    function computeFunctionKey(address entryContract, bytes4 functionSig)
-        public
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encode(entryContract, functionSig));
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner { }
@@ -396,17 +328,24 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         }
 
         bytes32[] memory functionHashes = new bytes32[](functions.length);
+        bytes32[] memory functionKeys = new bytes32[](functions.length);
+        bytes32[] memory preprocessInputHashes = new bytes32[](functions.length);
         for (uint256 i = 0; i < functions.length; i++) {
-            functionHashes[i] = _storeFunctionMetadata(dappId, functions[i]);
+            functionHashes[i] = _validateAndHashFunctionMetadata(
+                dappId, functions[i], functionKeys, preprocessInputHashes, i
+            );
         }
         digestParts.functionRoot = _computeFunctionMerkleRoot(functionHashes);
     }
 
-    function _storeFunctionMetadata(
+    function _validateAndHashFunctionMetadata(
         uint256 dappId,
-        BridgeStructs.DAppFunctionMetadata calldata fnMetadata
-    ) private returns (bytes32 functionMetadataHash) {
-        bytes32 functionKey = computeFunctionKey(fnMetadata.entryContract, fnMetadata.functionSig);
+        BridgeStructs.DAppFunctionMetadata calldata fnMetadata,
+        bytes32[] memory functionKeys,
+        bytes32[] memory preprocessInputHashes,
+        uint256 functionIndex
+    ) private view returns (bytes32 functionMetadataHash) {
+        bytes32 functionKey = _computeFunctionKey(fnMetadata.entryContract, fnMetadata.functionSig);
         if (fnMetadata.entryContract == address(0)) {
             revert InvalidFunctionEntryContract(
                 dappId, fnMetadata.entryContract, fnMetadata.functionSig
@@ -417,25 +356,23 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                 dappId, fnMetadata.entryContract, fnMetadata.functionSig
             );
         }
-        if (_supportedFunctions[dappId][functionKey]) {
-            revert DuplicateFunction(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
-        }
         if (fnMetadata.preprocessInputHash == bytes32(0)) {
             revert MissingPreprocessInputHash(
                 dappId, fnMetadata.entryContract, fnMetadata.functionSig
             );
         }
-        if (_knownPreprocessInputHash[dappId][fnMetadata.preprocessInputHash]) {
-            revert DuplicatePreprocessInputHash(dappId, fnMetadata.preprocessInputHash);
+
+        for (uint256 i = 0; i < functionIndex; i++) {
+            if (functionKeys[i] == functionKey) {
+                revert DuplicateFunction(dappId, fnMetadata.entryContract, fnMetadata.functionSig);
+            }
+            if (preprocessInputHashes[i] == fnMetadata.preprocessInputHash) {
+                revert DuplicatePreprocessInputHash(dappId, fnMetadata.preprocessInputHash);
+            }
         }
 
-        _supportedFunctions[dappId][functionKey] = true;
-        _knownPreprocessInputHash[dappId][fnMetadata.preprocessInputHash] = true;
-        _registeredFunctions[dappId].push(
-            BridgeStructs.FunctionReference({
-                entryContract: fnMetadata.entryContract, functionSig: fnMetadata.functionSig
-            })
-        );
+        functionKeys[functionIndex] = functionKey;
+        preprocessInputHashes[functionIndex] = fnMetadata.preprocessInputHash;
 
         for (uint256 j = 0; j < fnMetadata.instanceLayout.eventLogs.length; j++) {
             BridgeStructs.EventLogMetadata calldata eventLog =
@@ -445,37 +382,12 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                     dappId, fnMetadata.entryContract, fnMetadata.functionSig, eventLog.topicCount
                 );
             }
-            _functionEventLogs[dappId][functionKey].push(
-                BridgeStructs.EventLogMetadata({
-                    startOffsetWords: eventLog.startOffsetWords, topicCount: eventLog.topicCount
-                })
-            );
         }
 
         functionMetadataHash = _hashFunctionMetadata(fnMetadata);
-        _functionConfigs[dappId][functionKey] = BridgeStructs.FunctionConfig({
-            preprocessInputHash: fnMetadata.preprocessInputHash,
-            entryContractOffsetWords: fnMetadata.instanceLayout.entryContractOffsetWords,
-            functionSigOffsetWords: fnMetadata.instanceLayout.functionSigOffsetWords,
-            currentRootVectorOffsetWords: fnMetadata.instanceLayout.currentRootVectorOffsetWords,
-            updatedRootVectorOffsetWords: fnMetadata.instanceLayout.updatedRootVectorOffsetWords
-        });
     }
 
     function _clearDAppRuntimeMetadata(uint256 dappId) private {
-        BridgeStructs.FunctionReference[] storage refs = _registeredFunctions[dappId];
-        for (uint256 i = 0; i < refs.length; i++) {
-            bytes32 functionKey = computeFunctionKey(refs[i].entryContract, refs[i].functionSig);
-            bytes32 preprocessInputHash = _functionConfigs[dappId][functionKey].preprocessInputHash;
-            if (preprocessInputHash != bytes32(0)) {
-                delete _knownPreprocessInputHash[dappId][preprocessInputHash];
-            }
-            delete _supportedFunctions[dappId][functionKey];
-            delete _functionConfigs[dappId][functionKey];
-            delete _functionEventLogs[dappId][functionKey];
-        }
-        delete _registeredFunctions[dappId];
-
         address[] storage managedStorageAddresses = _managedStorageAddresses[dappId];
         for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
             address storageAddr = managedStorageAddresses[i];
@@ -623,6 +535,14 @@ contract DAppManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     function _hashFunctionMerklePair(bytes32 left, bytes32 right) private pure returns (bytes32) {
         (bytes32 first, bytes32 second) = left <= right ? (left, right) : (right, left);
         return keccak256(abi.encode(FUNCTION_MERKLE_NODE_DOMAIN, first, second));
+    }
+
+    function _computeFunctionKey(address entryContract, bytes4 functionSig)
+        private
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(entryContract, functionSig));
     }
 
     function _hashVerifierSnapshot(BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot)

@@ -63,11 +63,6 @@ library BridgeStructs {
         uint256[4] pC;
     }
 
-    struct FunctionReference {
-        address entryContract;
-        bytes4 functionSig;
-    }
-
     struct FunctionConfig {
         bytes32 preprocessInputHash;
         uint8 entryContractOffsetWords;

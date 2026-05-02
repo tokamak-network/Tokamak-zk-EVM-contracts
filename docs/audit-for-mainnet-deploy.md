@@ -2,11 +2,15 @@
 
 Date: 2026-04-30
 Reviewed commit: `d43fabaafa9a7ac67ebf22e1e2495e45bdc69bf8`
+Current resolution recheck: 2026-05-02, through `73f214f` (`Make channel creation permissionless`)
 Resolution update commits:
 
 - `4c66d2e8f2998cd38ac394205f680dc7052c71a5`
 - `7547fd957c675676d4cf72854deb0bcdbe1cab0a`
 - `52815b645431490a663892bacfbef3cdd1396702`
+- `eb7fd30` (`Use function root proofs for channel execution`)
+- `352494c` (`Remove stale DApp function metadata storage`)
+- `73f214f` (`Make channel creation permissionless`)
 
 Scope: bridge contracts, private-state DApp contracts, deployment scripts, registration flow, CLI trust boundaries, and deployment metadata gates relevant to mainnet deployment.
 
@@ -32,6 +36,14 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
 
    Mainnet recommendation: resolved for the reviewed implementation update. Before deployment, keep the new regression coverage in the release gate and verify that deployed bytecode contains the `isZeroBalance` registration field, both observed-write update paths, and the `ChannelTokenVaultBalanceNotZero` exit guard.
 
+   Current-code evidence:
+
+   - `bridge/src/BridgeStructs.sol` defines `ChannelTokenVaultRegistration.isZeroBalance`.
+   - `bridge/src/ChannelManager.sol` initializes the flag to `true` in `registerChannelTokenVaultIdentity(...)`, rejects exit in `unregisterChannelTokenVaultIdentity(...)` when the flag is false, updates the flag from `observeChannelTokenVaultStorageWrite(...)`, and updates it from proof-backed `LiquidBalanceStorageWriteObserved(address,bytes32)` raw logs during `executeChannelTransaction(...)`.
+   - `bridge/src/L1TokenVault.sol` routes Groth-backed `depositToChannelVault(...)` and `withdrawFromChannelVault(...)` storage observations into `ChannelManager.observeChannelTokenVaultStorageWrite(...)`.
+   - `packages/apps/private-state/src/L2AccountingVault.sol` emits `LiquidBalanceStorageWriteObserved(address,bytes32)` on liquid-balance writes, which is the event consumed by the Tokamak execution path.
+   - Regression coverage was added in `bridge/test/BridgeFlow.t.sol` by commit `4c66d2e8f2998cd38ac394205f680dc7052c71a5`, including non-zero exit rejection and observed-write flag updates.
+
 2. High: mainnet deployment safety policies are not enforced inside the deployment script.
 
    Status: resolved in `7547fd957c675676d4cf72854deb0bcdbe1cab0a`.
@@ -48,11 +60,18 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
 
    Mainnet recommendation: resolved for the bridge deployment entrypoint. Keep mainnet bridge deployment routed through `node bridge/scripts/deploy-bridge.mjs`; bypassing it with direct `forge script` commands would bypass these operational hard gates.
 
+   Current-code evidence:
+
+   - `bridge/scripts/deploy-bridge.mjs` keeps the deployment-relevant dirty-worktree gate for mainnet bridge Solidity, deployment scripts, Drive helpers, deployment metadata helpers, and Groth16 helper code.
+   - The same script fetches `origin/main` and refuses mainnet deployment unless local `HEAD` is contained in remote `main`.
+   - Commit `073009a` moved mainnet `redeploy-proxy` detection from local files to the shared Google Drive deployment-history folder, so absence of local `deployment/chain-id-1` files is no longer treated as proof of first deployment.
+   - The configured mainnet Drive folder is `12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ`, with `BRIDGE_DEPLOYMENT_DRIVE_FOLDER_ID` available as an explicit override.
+
 3. Accepted design constraint: deployed `ChannelManager` instances intentionally freeze channel policy at channel creation.
 
    Status: accepted immutable-channel-policy tradeoff. Mitigation implemented in `52815b645431490a663892bacfbef3cdd1396702` through user/operator disclosure in CLI and README documentation.
 
-   `BridgeCore`, `DAppManager`, and `L1TokenVault` are UUPS-upgradeable. Per-channel `ChannelManager` instances are regular contracts created by `BridgeCore.createChannel(...)`. Each `ChannelManager` stores immutable verifier addresses, immutable channel metadata, a fixed managed-storage vector, fixed function metadata copied from `DAppManager`, and fixed refund schedule parameters.
+   `BridgeCore`, `DAppManager`, and `L1TokenVault` are UUPS-upgradeable. Per-channel `ChannelManager` instances are regular contracts created by `BridgeCore.createChannel(...)`. Each `ChannelManager` stores immutable verifier addresses, immutable channel metadata, a fixed managed-storage vector, an immutable DApp function root, and fixed refund schedule parameters.
 
    Updating `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, or DApp registration metadata only affects future channel creation. Existing channels keep their originally captured verifier and function metadata.
 
@@ -63,6 +82,13 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
    Mitigation: channel creation and channel joining must warn operators and users that they are committing to an immutable channel policy. The CLI and README now describe that the expected response to a later policy or metadata bug is creating or joining a new channel, not mutating the existing channel.
 
    Mainnet recommendation: accepted with explicit disclosure. Create mainnet channels only after verifier versions, Groth16 setup artifacts, `aPubUser` offsets, function selectors, and managed storage addresses have been independently checked against the exact DApp deployment, and make sure users see the immutable-policy warning before joining.
+
+   Current-code evidence:
+
+   - `bridge/src/BridgeCore.sol` creates a new `ChannelManager` for each channel and stores the returned manager in the channel registry. Channel creation is permissionless as of `73f214f`; the caller becomes the channel leader.
+   - `BridgeCore.createChannel(...)` requires an `expectedDAppMetadataDigest`, snapshots the current registered DApp verifier data, passes the DApp metadata digest and function root into the channel, validates the returned manager snapshot, and then binds the bridge token vault.
+   - `bridge/src/ChannelManager.sol` stores channel policy fields as constructor-set immutables or creation-time state, including verifier addresses, compatible backend versions, DApp metadata digest, function root, managed storage vector, `aPubBlockHash`, and refund schedule.
+   - `packages/apps/private-state/cli/private-state-bridge-cli.mjs` prints the immutable channel policy warning, DApp metadata digest, digest schema, function root, verifier addresses, and compatible backend versions before channel creation and first channel join.
 
 4. Accepted design constraint: channel-bound private-state DApp implementations are intentionally fixed.
 
@@ -77,6 +103,12 @@ Scope: bridge contracts, private-state DApp contracts, deployment scripts, regis
    Mitigation: treat DApp deployment, registration, and channel creation as one final policy package for each channel generation. User-facing warnings added for Finding 3 also cover this point because they state that joining a channel accepts the channel's DApp metadata and fixed execution policy.
 
    Mainnet recommendation: accepted with explicit disclosure. Do not register the DApp or create mainnet channels until the exact deployed bytecode, callable ABI set, storage-layout manifest, Synthesizer registration artifacts, and channel-captured DApp metadata match the intended function set.
+
+   Current-code evidence:
+
+   - `packages/apps/private-state/src/PrivateStateController.sol` and `packages/apps/private-state/src/L2AccountingVault.sol` do not expose owner upgrade hooks.
+   - `DAppManager.updateDAppMetadata(...)` can update the registration for future channels, but existing channels keep the DApp metadata digest, verifier snapshot, function root, and managed storage vector captured at creation.
+   - The function-root proof design added in `eb7fd30` changes how function metadata is supplied at execution time, but not the policy commitment: `ChannelManager.executeChannelTransaction(...)` accepts calldata function metadata only after proving it against the channel's immutable `functionRoot`.
 
 ## Other Security Checks
 

@@ -1,310 +1,332 @@
 # Mainnet Deployment Security Audit - Third Pass
 
 Date: 2026-05-02
-Reviewed base commit: `a932504`
+Reviewed code through: `73f214f` (`Make channel creation permissionless`)
 Branch: `bridge-mainnet-audit-second`
 
-Scope: only the `ChannelDeployer` split, the follow-up thin-factory hardening, the
-`BridgeAdminManager` removal, and the later function metadata root/proof update. This pass does not
-re-audit the full bridge, DAM/CBV policy, private-state DApp logic, gas documentation, or npm audit
-findings except where these changes touch them.
-
-## Change Summary
-
-The latest change keeps `ChannelManager` deployment mechanics out of `BridgeCore`, but narrows
-`ChannelDeployer` into a thin factory.
-
-`BridgeCore` still enforces the channel-creation policy:
-
-- Channel ID uniqueness.
-- Bound bridge token vault requirement.
-- Channel leader is fixed to the channel creator (`msg.sender`).
-- Maximum managed-storage count check.
-- Expected DApp metadata digest check.
-- Channel registry write.
-- `ChannelCreated` event emission.
-
-`ChannelDeployer` now performs only the external deployment step:
-
-- Deploys `ChannelManager`.
-- Returns the deployed manager address to `BridgeCore`.
-
-`ChannelManager` now performs its own initialization from `DAppManager`:
-
-- Reads managed storage addresses from `DAppManager`.
-- Checks the managed-storage count against the `BridgeCore`-validated count.
-- Builds the zero-filled initial root vector.
-- Stores the registered DApp function root passed by `BridgeCore`.
-
-Function metadata is no longer deep-copied into every `ChannelManager`. `DAppManager` computes a
-Merkle root over the registered function metadata at DApp registration/update time. `BridgeCore`
-passes that root into the channel constructor, validates that the returned manager exposes the same
-root, and channel execution requires calldata-supplied function metadata plus a Merkle proof against
-the channel's immutable root.
-
-`BridgeCore` now validates the returned manager before binding the bridge token vault or writing the
-channel registry:
-
-- `code.length`.
-- `bridgeCore`.
-- `channelId`.
-- `dappId`.
-- `leader`.
-- `channelTokenVaultTreeIndex`.
-- DApp metadata digest schema and digest.
-- DApp function root.
-- Groth16 verifier address.
-- Tokamak verifier address.
-- Initial join fee.
-- Join-fee refund schedule.
-
-The follow-up cleanup removes `BridgeAdminManager`. The bridge no longer stores a mutable or
-separately administered Merkle-tree depth. Tree-depth dependent logic uses the generated
-`TokamakEnvironment` constants directly in the contracts that actually need them, primarily
-`ChannelManager`.
-
-The split solved the deploy-blocking `BridgeCore` size pressure:
-
-| Contract | Runtime Size | Runtime Margin |
-| --- | ---: | ---: |
-| `BridgeCore` | `10,437 bytes` | `14,139 bytes` |
-| `ChannelDeployer` | `15,003 bytes` | `9,573 bytes` |
-| `ChannelManager` | `10,957 bytes` | `13,619 bytes` |
-| `DAppManager` | `12,294 bytes` | `12,282 bytes` |
-
-Before the split, `BridgeCore` had only `911 bytes` of runtime margin after the temporary getter
-removal. The root contract still has enough bytecode room after the returned-manager invariant
-checks. After the function metadata root/proof update and the permissionless channel-creation
-change, `BridgeCore.createChannel` measured 2,731,347 gas in the current Forge gas report, down from
-the earlier 3,884,651 gas deep-copy design. The follow-up cleanup removed the old on-chain DApp
-function metadata lookup layer from `DAppManager`; function metadata is now validated during
-registration/update, committed through `functionRoot`, and published through the registration
-manifest used by the CLI.
+Scope: bridge contracts, bridge deployment scripts, DApp registration scripts, and the private-state
+CLI changes introduced after the second-pass audit. This pass focuses on the `ChannelDeployer`
+split, the returned-manager hardening, removal of stale function metadata storage, function-root
+proof execution, gas-driven simplification work, and restoration of permissionless channel
+creation. It does not re-audit the private-state DApp arithmetic or note logic except where the
+bridge changes interact with it.
 
 ## Findings
 
-1. Low: `BridgeCore` still depends on the configured deployer returning a contract with correct
-   `ChannelManager` semantics, but the metadata/snapshot compatibility risk has been mitigated.
+No new unresolved practical mainnet finding was identified in this pass.
 
-   Status: mitigated by this change; residual bytecode-identity risk remains operational.
+The review did identify several risks during development, but they are either resolved in the
+current code, accepted design/operational constraints already documented in the first two audit
+passes, or non-findings under the current protocol model. The resolved items and review evidence are
+listed below so a third-party reviewer can check the implementation path.
 
-   `BridgeCore.createChannel(...)` still validates the DApp metadata digest, managed-storage count,
-   caller-derived leader, and bridge token vault. The actual `ChannelManager` deployment is still
-   delegated to `channelDeployer.deployChannelManager(...)`, but the deployer no longer assembles
-   managed-storage arrays, function references, or the initial root vector.
-   `ChannelManager` reads those values from `DAppManager` itself.
+## Resolved Issues And Evidence
 
-   After deployment, `BridgeCore` now verifies that the returned contract has code and that its
-   externally visible snapshot matches the channel policy that `BridgeCore` just approved:
-   `bridgeCore`, `channelId`, `dappId`, `leader`, `channelTokenVaultTreeIndex`,
-   `dappMetadataDigestSchema`, `dappMetadataDigest`, `functionRoot`, `grothVerifier`,
-   `tokamakVerifier`, `joinFee`, and the join-fee refund schedule.
+1. Resolved: `BridgeCore` bytecode-size pressure from direct channel deployment.
 
-   This mitigates the main compatibility failure modes:
+   Original issue: before the split, `BridgeCore` was close to the EIP-170 runtime bytecode limit.
+   Keeping channel construction, channel policy, and root registry logic in one UUPS implementation
+   left too little margin for mainnet hardening.
 
-   - If the owner accidentally or maliciously sets `channelDeployer` to an incompatible contract,
-     future `createChannel(...)` calls should revert before the bad manager is bound or registered
-     unless that contract faithfully exposes the expected snapshot.
-   - If a deployer passes the wrong DApp, verifier, channel ID, caller-derived leader, digest, fee,
-     or refund schedule into the manager constructor, `BridgeCore` rejects the returned manager.
-   - Because `ChannelManager` reads DApp storage metadata directly from `DAppManager` and stores the
-     function root approved by `BridgeCore`, the deployer can no longer tamper with those values
-     while still using the audited `ChannelManager`.
+   Resolution:
 
-   Residual risk:
+   - `6751ad2` split channel deployment into `bridge/src/ChannelDeployer.sol`.
+   - `ab5e69b` hardened the split by making `ChannelDeployer` a thin factory and having
+     `BridgeCore` validate the returned manager before registry write.
+   - `f6ae5b3` removed the redundant `BridgeAdminManager` and its mutable tree-depth plumbing.
 
-   - The invariant checks do not prove full bytecode identity. A malicious contract could mimic the
-     checked getters and still implement unsafe channel-execution semantics. This remains an
-     owner/deployment-path risk because only the bridge owner can set `channelDeployer`.
+   Current-code evidence:
 
-   Recommended operating control:
+   - `bridge/src/BridgeCore.sol::createChannel(...)` still owns channel ID uniqueness, canonical
+     asset selection, bridge token vault requirement, DApp metadata digest check, verifier snapshot
+     retrieval, returned-manager validation, vault binding, registry write, and `ChannelCreated`
+     emission.
+   - `bridge/src/ChannelDeployer.sol::deployChannelManager(...)` only deploys `ChannelManager` and
+     returns its address. It does not own channel policy.
+   - `bridge/src/ChannelManager.sol` reads managed storage addresses from `DAppManager` during
+     construction, validates the count passed by `BridgeCore`, builds the initial root vector, and
+     stores the channel's immutable DApp metadata digest and function root.
 
-   - Record the audited `ChannelDeployer` source commit and address in deployment metadata and make
-     the operator verify it before enabling public channel creation.
-   - Treat a `channelDeployer` change as a privileged deployment event requiring the same review
-     level as a `BridgeCore` upgrade.
+   Verification evidence:
 
-   UUPS upgradeability classification: the invariant checks are now implemented for future
-   channels. The residual bytecode-identity risk is fixable for future channels by setting a
-   corrected deployer or upgrading `BridgeCore`; it is not fixable for a channel already created
-   with a bad registered manager because `ChannelManager` policy is intentionally immutable.
+   - `forge build --root bridge --sizes` after the split reported `BridgeCore` runtime size
+     `10,437 bytes`, leaving `14,139 bytes` of runtime margin.
+   - `forge test --root bridge` passed after the split and later hardening.
 
-2. Medium: the `BridgeCore` storage layout changed relative to earlier local/pre-mainnet
-   implementations.
+2. Resolved: channel deployment could have accepted an incompatible returned manager.
 
-   Status: acceptable for the stated first-mainnet-deployment assumption, unsafe for upgrading a
-   pre-split `BridgeCore` proxy without a migration-aware implementation.
+   Original issue: once deployment was delegated to `ChannelDeployer`, a misconfigured deployer
+   could return a manager whose constructor inputs did not match the policy `BridgeCore` had just
+   approved. That would be a practical channel-creation risk if the mismatch were not detected
+   before the manager was bound and registered.
 
-   The changes remove `BridgeAdminManager public adminManager` and add
-   `ChannelDeployer public channelDeployer` before the verifier fields. This is safe for a first
-   deployment of the current implementation because the proxy storage is initialized from zero using
-   the new layout. It is not storage-layout compatible with an already deployed older `BridgeCore`
-   proxy.
+   Resolution:
 
-   Impact if applied to an old proxy:
+   - `BridgeCore` now validates the returned `ChannelManager` before calling
+     `bindBridgeTokenVault(...)` and before writing `_channels[channelId]`.
+   - The validation checks that the returned address has code and that the returned manager exposes
+     the expected `bridgeCore`, `channelId`, `dappId`, `leader`, channel-token-vault tree index,
+     DApp metadata digest schema, DApp metadata digest, function root, Groth16 verifier, Tokamak
+     verifier, join fee, and refund schedule.
 
-   - A proxy initialized with an older layout would interpret the existing slots under the new field
-     order.
-   - Verifier, deployer, vault, and refund-schedule fields could be read from the wrong slots.
-   - Later fields would shift, corrupting bridge configuration.
+   Current-code evidence:
 
-   The current launch assumption is that mainnet has not yet been deployed. Under that assumption,
-   this is not a mainnet deployment blocker as long as `redeploy-proxy` is truly the first mainnet
-   bridge deployment. It is still relevant for Sepolia/local upgrades and for any unexpected mainnet
-   artifact discovered before launch.
+   - `bridge/src/BridgeCore.sol::_validateChannelManager(...)` performs the returned-manager
+     snapshot checks.
+   - `bridge/src/BridgeCore.sol::createChannel(...)` calls `_validateChannelManager(...)` before
+     binding the bridge token vault and before writing the channel registry.
+   - `bridge/test/BridgeFlow.t.sol::testCreateChannelRejectsIncompatibleDeployerReturn` covers the
+     rejection path.
 
-   Recommended hardening:
+   Residual classification:
 
-   - If pre-split deployments must be upgraded, add an explicit migration-compatible implementation
-     or move the new field to an append-only storage slot before using `UpgradeBridgeStack`.
-   - For mainnet, keep the Google Drive deployment-history gate in force and refuse upgrade mode if
-     no verified current-layout proxy exists.
-   - Add a storage-layout diff check to CI before any future UUPS upgrade.
+   - The checks do not prove bytecode identity, but this is not a separate practical mainnet
+     finding under the current owner model. Only the bridge owner can set `channelDeployer`, and the
+     deployment process must still record and review the deployed `ChannelDeployer` address and
+     source commit. This is the same class of privileged deployment review required for verifier and
+     UUPS implementation addresses.
 
-   UUPS upgradeability classification: not safely fixable after a corrupted upgrade transaction has
-   executed, except by a carefully designed recovery upgrade if ownership and enough critical state
-   remain recoverable. Preventable before mainnet by first-deploying the current layout or by using
-   an append-only layout before upgrading old proxies.
+3. Resolved: per-channel function metadata deep copies made `createChannel` unnecessarily expensive.
 
-3. Low: `ChannelDeployer` is permissionless and can deploy orphan `ChannelManager` contracts.
+   Original issue: channel creation deep-copied DApp function metadata into every new
+   `ChannelManager`. This increased `createChannel` gas and bytecode/data movement without adding a
+   stronger channel policy commitment.
 
-   Status: accepted operational risk if all tools treat `BridgeCore` as the only authoritative
-   channel registry.
+   Resolution:
 
-   Anyone can call `ChannelDeployer.deployChannelManager(...)` directly with arbitrary parameters.
-   That can create `ChannelManager` contracts that are not registered in `BridgeCore`. These orphan
-   managers do not receive bridge custody authority through `L1TokenVault`, because `L1TokenVault`
-   resolves channels through `BridgeCore.getChannelManager(channelId)`. If a caller passes the real
-   `BridgeCore` address as the `bridgeCore` constructor argument, the orphan manager still cannot be
-   bound to the bridge token vault unless the real `BridgeCore` calls `bindBridgeTokenVault(...)`.
+   - `eb7fd30` replaced per-channel function metadata deep copies with an immutable channel
+     `functionRoot`.
+   - `352494c` removed stale DApp function metadata storage/getters after the root/proof path made
+     them unnecessary.
 
-   The direct protocol risk is low. The operational risk is phishing or indexer confusion if a UI,
-   explorer, or script treats `ChannelManager` deployment events or contract existence as channel
-   authority instead of checking the `BridgeCore` registry.
+   Current-code evidence:
 
-   Recommended hardening:
+   - `bridge/src/DAppManager.sol` validates function metadata at registration/update time, hashes
+     each function, computes a Merkle root, and stores that root in `DAppInfo.functionRoot`.
+   - `bridge/src/BridgeCore.sol::createChannel(...)` passes `dAppInfo.functionRoot` into the channel
+     constructor and validates that the returned manager exposes the same root.
+   - `bridge/src/ChannelManager.sol::executeChannelTransaction(...)` accepts
+     `BridgeStructs.FunctionMetadataProof`, hashes the submitted metadata, verifies the Merkle proof
+     against the channel's immutable `functionRoot`, and only then uses the metadata for preprocess
+     hash, entry-contract, selector, root-vector offset, and observed-log layout checks.
+   - `packages/apps/private-state/cli/private-state-bridge-cli.mjs` now supplies function metadata
+     and Merkle proof material from the DApp registration manifest when executing channel
+     transactions.
 
-   - Make all user-facing tools and indexers resolve channels only from `BridgeCore.getChannel(...)`
-     or `BridgeCore.getChannelManager(...)`.
-   - Optionally restrict `ChannelDeployer` with an immutable authorized `BridgeCore` if orphan
-     channel deployment noise becomes unacceptable.
+   Security result:
 
-   UUPS upgradeability classification: fixable for future deployments by replacing the deployer and
-   upgrading `BridgeCore` if needed. Already deployed orphan managers are harmless if ignored by
-   tooling, but they cannot be deleted from chain history.
+   - The executor cannot select an unregistered function or alternate observed-log layout merely by
+     changing calldata. Unproved metadata reverts with `InvalidFunctionMetadataProof`.
+   - Losing the registration manifest can affect availability until proof material is reconstructed,
+     but it does not authorize an invalid function.
 
-4. Low: deployment artifacts and ABI manifests changed shape.
+   Gas result:
 
-   Status: resolved by scripts and E2E.
+   - `bridge/docs/gas-assessment.md` records the current measured `BridgeCore.createChannel`
+     successful full-path gas as `2,731,347`, down from the earlier deep-copy design measurement of
+     `3,884,651`.
 
-   `DeployBridgeStack.s.sol`, `UpgradeBridgeStack.s.sol`, and
-   `generate-bridge-abi-manifest.mjs` now include `channelDeployer` and no longer include
-   `bridgeAdminManager`. The private-state CLI E2E passed after this change, which confirms that
-   existing CLI channel creation still works with the new artifact shape.
+4. Resolved: channel creation had drifted into an owner-call classification.
 
-   Residual operational requirement: mainnet deployment review must include the `channelDeployer`
-   address and source commit together with the existing proxy, verifier, and vault addresses.
+   Original issue: during refactoring and gas documentation, `createChannel` was treated as an
+   owner/operator call. That contradicted the original protocol design: anyone should be able to
+   create a channel, and the channel creator becomes that channel's leader.
 
-   UUPS upgradeability classification: artifact omissions are operationally fixable before users
-   rely on the deployment metadata. They do not change already-created channel semantics.
+   Resolution:
 
-5. Informational: function metadata now moves through calldata during execution, but is root-bound.
+   - `73f214f` removed the externally supplied `leader` parameter and uses `msg.sender` as the
+     channel leader.
+   - `createChannel(...)` remains open to any caller while retaining the DApp metadata digest
+     preflight, returned-manager validation, channel ID uniqueness, and bridge token vault
+     requirement.
+   - The private-state CLI now calls `createChannel(channelId, dappId, joinFee, metadataDigest)`.
 
-   Status: no unresolved security finding from this update.
+   Current-code evidence:
 
-   `ChannelManager.executeChannelTransaction(...)` now accepts a `FunctionMetadataProof` containing
-   function metadata and Merkle siblings. The manager hashes the metadata on-chain and verifies the
-   proof against the immutable `functionRoot` stored at channel creation. It then checks that:
+   - `bridge/src/BridgeCore.sol::createChannel(...)` sets `address leader = msg.sender`.
+   - `bridge/test/BridgeFlow.t.sol::testCreateChannelUsesCallerAsLeader` covers the intended
+     behavior.
+   - `bridge/docs/gas-assessment.md` classifies `BridgeCore.createChannel` under user calls.
 
-   - the proved metadata preprocess hash equals the hash of the submitted Tokamak preprocess points;
-   - the entry contract and function selector decoded from `aPubUser` match the proved metadata;
-   - event-log decoding metadata is taken from the proved metadata, not from uncommitted calldata.
+   Non-finding note:
 
-   This preserves the intended channel policy immutability without per-channel function metadata
-   storage. A malformed CLI manifest or wrong proof causes execution to revert; it does not let an
-   executor choose an unregistered function or alternate event-log layout.
+   - Permissionless channel creation means a caller can register a desirable channel name first by
+     creating the derived channel ID first. This is not treated as an attack in this protocol model;
+     channel names are first-come assets, and users can inspect the actual `BridgeCore` channel
+     registry before joining.
 
-   Residual operational requirement: registration manifests must preserve the function metadata and
-   Merkle proofs generated at DApp registration/update time. Losing the manifest does not compromise
-   funds, but it can make user execution unavailable until the proof material is reconstructed from
-   the registered metadata artifacts.
+5. Resolved: stale DApp function metadata storage remained after the function-root update.
 
-   UUPS upgradeability classification: the root-bound verification is active for newly created
-   channels. Existing channels created before this update keep their old execution ABI and cannot be
-   retrofitted without creating new channels.
+   Original issue: after moving execution to calldata-supplied function metadata proven against a
+   root, keeping function metadata arrays in `DAppManager` was redundant and could confuse future
+   maintenance.
+
+   Resolution:
+
+   - `352494c` removed stale DApp function metadata storage/getters and the related registration
+     manifest fields.
+   - Function metadata remains validated at registration/update time and committed through
+     `functionRoot`; execution proof material is distributed in the registration manifest and
+     checked by the CLI.
+
+   Current-code evidence:
+
+   - `bridge/src/DAppManager.sol` stores managed storage metadata needed by channel construction,
+     DApp metadata digest, verifier snapshot, and `functionRoot`; it no longer stores per-function
+     metadata for later on-chain lookup.
+   - `bridge/scripts/admin-add-dapp.mjs` computes function proofs locally, verifies that the
+     on-chain `functionRoot` matches the locally computed root, and writes proof material into the
+     registration manifest.
+
+## Rechecked Prior Findings
+
+### First-Pass Finding 1: Non-Zero Channel Exit
+
+Status: resolved and still valid after the third-pass changes.
+
+Evidence:
+
+- `ChannelManager.unregisterChannelTokenVaultIdentity(...)` rejects exit when
+  `registration.isZeroBalance` is false.
+- `observeChannelTokenVaultStorageWrite(...)` updates the flag from Groth-backed channel-vault
+  storage writes using the observed storage key, not the transaction caller.
+- `executeChannelTransaction(...)` updates the flag from proof-backed
+  `LiquidBalanceStorageWriteObserved(address,bytes32)` logs by decoding the L2 address and value
+  from the observed log data.
+- Function-root proofs do not weaken this guard because the observed-event layout must be proven
+  against the channel's immutable `functionRoot`.
+
+UUPS classification: future exits can be protected by upgrade, but any balance already orphaned or
+stolen before the guard would not be reliably recoverable. The guard must remain in the first
+mainnet deployment.
+
+### Second-Pass Finding 1: Stale DApp Metadata At Channel Creation
+
+Status: resolved and still valid after the third-pass changes.
+
+Evidence:
+
+- `DAppManager.registerDApp(...)` and `updateDAppMetadata(...)` compute a metadata digest and
+  function root.
+- `BridgeCore.createChannel(...)` requires the expected digest and rejects mismatch before channel
+  deployment.
+- `ChannelManager` stores the digest and function root captured at creation.
+- The CLI checks the local manifest digest/schema/root against on-chain `DAppInfo` before creating a
+  channel.
+
+UUPS classification: future channel creation can be protected by upgrade, but a channel already
+created against an explicitly wrong current digest remains immutable and requires migration.
+
+### Second-Pass Finding 2: Mainnet Redeploy-Proxy Safety
+
+Status: resolved for the repository deployment path.
+
+Evidence:
+
+- `bridge/scripts/deploy-bridge.mjs` checks the shared Google Drive deployment-history folder before
+  allowing mainnet `redeploy-proxy`.
+- The script fails closed if the Drive lookup cannot be configured or performed.
+- The script also requires a clean deployment-relevant worktree and a `HEAD` commit contained in
+  `origin/main`.
+
+UUPS classification: this is a pre-deployment operational gate. A split proxy deployment already
+used by users cannot be repaired into a single state history by UUPS upgrade.
+
+### Second-Pass Finding 3: Immediate Owner Metadata/Verifier Updates
+
+Status: accepted operational risk.
+
+Evidence:
+
+- Owner-controlled verifier and DApp metadata updates affect future DApp snapshots and future
+  channels.
+- Existing channels remain immutable and do not follow later owner updates.
+- The CLI prints the digest, function root, verifier addresses, and compatible backend versions
+  before channel creation and first join so users can review the policy they are accepting.
+
+Classification: this is not a practical open protocol finding under the current single-operator
+owner model. It remains an operational governance assumption.
 
 ## Non-Findings
 
-### BridgeCore Remains The Policy Root
+### ChannelDeployer Can Be Called Directly
 
-The split does not move DApp metadata digest policy, channel ID uniqueness, managed-storage count
-limit, bridge token vault binding requirement, or channel registry ownership out of `BridgeCore`.
-This preserves `BridgeCore` as the canonical policy and registry root rather than turning
-`ChannelDeployer` into the policy owner.
+`ChannelDeployer.deployChannelManager(...)` is permissionless, so anyone can deploy orphan
+`ChannelManager` contracts. This is not a protocol finding because custody and channel authority
+come from `BridgeCore.getChannel(...)` / `getChannelManager(...)`, and `L1TokenVault` resolves
+channels through `BridgeCore`, not through deployer events or arbitrary manager addresses.
 
-### Channel Policy Immutability Is Preserved
+Operational requirement: UIs, indexers, and scripts must treat `BridgeCore` as the only
+authoritative channel registry.
 
-`ChannelManager` is still deployed once per channel and remains non-upgradeable. Existing channels
-still do not follow later `BridgeCore`, `DAppManager`, verifier, or deployer changes.
+### BridgeCore Storage Layout Changed Before First Mainnet Deployment
 
-### L1TokenVault Channel Resolution Is Unchanged
+The split changed `BridgeCore` storage relative to older local/Sepolia pre-split implementations.
+That would matter for upgrading an old proxy. It is not a mainnet finding under the stated launch
+assumption that no mainnet bridge proxy exists yet and that mainnet will use the current
+implementation as the first proxy implementation.
 
-`L1TokenVault` still resolves channel managers through `IChannelRegistry.getChannelManager(...)`,
-with `BridgeCore` as the registry. It does not trust `ChannelDeployer` directly.
+Operational requirement: if a historical mainnet proxy is discovered in the Drive deployment
+history before launch, do not deploy this implementation as a blind upgrade. Use a
+migration-compatible implementation or first-deployment flow only after the existing state is
+understood.
 
-### DAM/CBV Digest Semantics Are Preserved
+### Function Metadata In Calldata
 
-The split does not change the DAM/CBV channel commitment rule: channel creation still freezes the
-registered DApp digest and verifier snapshot. The function metadata update changes the internal
-function commitment from per-channel deep copies to an immutable channel function root, but not the
-policy that channels bind to the DApp metadata selected at creation.
-or compatible backend versions. `BridgeCore.createChannel(...)` still requires
-`expectedDAppMetadataDigest`.
+Moving function metadata to calldata is not a trust downgrade because `ChannelManager` verifies the
+metadata against the channel's immutable `functionRoot` before using it. The calldata proof path is
+an availability and tooling concern, not an authorization gap.
+
+### Verifier Call Gas Dominates `executeChannelTransaction`
+
+Current CLI E2E receipt measurements place `executeChannelTransaction` around
+`827,621-861,608` gas. Unit traces with the verifier mocked show the bridge-side wrapper logic in
+the low tens of thousands of gas for the tested paths. This is useful for optimization planning but
+does not create a security finding.
 
 ## Verification Performed
 
+The following verification was performed during the implementation series covered by this pass:
+
 - `forge test --root bridge`
-  - Passed 64 tests.
-  - Includes `testCreateChannelRejectsIncompatibleDeployerReturn`, which verifies that
-    `BridgeCore` rejects a deployer-returned manager with a mismatched immutable snapshot.
+  - Passed after the channel-deployer split and again after the permissionless channel-creation
+    change.
+  - Current suite size after the latest commit: 65 tests.
+- `forge test --root bridge --gas-report`
+  - Passed after the permissionless channel-creation change.
+  - Current measured `BridgeCore.createChannel` successful full-path gas: `2,731,347`.
 - `forge build --root bridge --sizes`
-  - Passed.
+  - Passed after the latest covered commit.
   - `BridgeCore`: `10,437 bytes`, margin `14,139 bytes`.
   - `ChannelDeployer`: `15,003 bytes`, margin `9,573 bytes`.
   - `ChannelManager`: `10,957 bytes`, margin `13,619 bytes`.
   - `DAppManager`: `12,294 bytes`, margin `12,282 bytes`.
 - `forge fmt --root bridge --check`
   - Passed.
-- `node --check bridge/scripts/deploy-bridge.mjs`
-  - Passed.
-- `node --check bridge/scripts/generate-bridge-abi-manifest.mjs`
-  - Passed.
-- `node --check bridge/scripts/admin-add-dapp.mjs`
-  - Passed.
-- `node --check packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs`
-  - Passed.
+- `git diff --check`
+  - Passed during the latest implementation verification.
 - `node --check packages/apps/private-state/cli/private-state-bridge-cli.mjs`
-  - Passed.
-- Private-state CLI E2E with local private-state CLI tarball and `@tokamak-zk-evm/cli@2.0.16`
-  passed after the DAppManager function metadata lookup cleanup.
-  - Covered bridge deployment, DApp registration, channel creation through `ChannelDeployer`, three
-    participant joins, bridge/channel deposits, mint, transfer, redeem, channel withdrawal, exit,
-    and bridge withdrawal.
-- `forge test --root bridge --gas-report`
-  - Passed after the permissionless channel-creation change.
-  - Current-worktree `BridgeCore.createChannel` successful full-path gas: `2,731,347`.
-- Private-state CLI E2E was intentionally not rerun for the permissionless channel-creation change.
+  - Passed after the permissionless channel-creation update.
+- Private-state CLI E2E with a locally packed CLI tarball and `@tokamak-zk-evm/cli@2.0.16`
+  passed earlier in this branch after the function metadata proof and stale lookup cleanup.
+  It covered bridge deployment, DApp registration, channel creation, participant joins,
+  bridge/channel deposits, mint, transfer, redeem, channel withdrawal, exit, and bridge withdrawal.
+  It was intentionally not rerun for the later permissionless channel-creation-only change.
 
 ## Deployment Decision
 
-Do not broadcast mainnet until the operator explicitly accepts Finding 2 under the first-mainnet
-deployment assumption and records the audited `ChannelDeployer` address/source commit in deployment
-metadata.
+From this third-pass review, no new practical unresolved mainnet security finding blocks deployment.
 
-For the stated first-mainnet-deployment assumption, the storage-layout issue is not a blocker if the
-remote deployment history confirms that no previous mainnet bridge proxy exists and the deployment
-uses the current implementation as the first proxy implementation.
+Required mainnet launch controls remain:
 
-Finding 1's compatibility hardening has been implemented. The remaining deployer risk is the normal
-privileged-deployment risk that the operator must verify the actual deployed `ChannelDeployer`
-implementation, not just the manager snapshot it returns.
+- Use the repository deployment path so the Google Drive deployment-history, clean worktree, and
+  remote-source gates run.
+- Record and review the deployed `ChannelDeployer`, verifier, proxy, vault, and DApp registration
+  addresses in deployment metadata.
+- Treat `BridgeCore` as the only authoritative channel registry in all user-facing tools.
+- Require users and operators to review the DApp metadata digest, function root, verifier snapshot,
+  and compatible backend versions before creating or joining a channel.
+
+The non-upgradeable boundary remains the same: once a channel is created, its verifier bindings,
+DApp metadata digest, function root, compatible backend versions, storage vector, `aPubBlockHash`,
+and refund policy are final for that channel.

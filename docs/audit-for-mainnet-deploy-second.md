@@ -3,6 +3,7 @@
 Date: 2026-05-01
 Reviewed code through: `10e9278`
 Gas-cost documentation updated through: `aacb524`
+Current resolution recheck: 2026-05-02, through `73f214f` (`Make channel creation permissionless`)
 Branch: `bridge-mainnet-audit-second`
 
 Scope: bridge contracts, private-state DApp contracts, DApp metadata and compatible-backend-version snapshot flow, deployment and DApp registration scripts, private-state CLI channel-creation trust boundary, mainnet gas-cost documentation, and mainnet deployment readiness.
@@ -35,6 +36,14 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
    Verification: `forge test --root bridge --match-test testChannelCreationRejectsStaleDAppMetadataDigest` passed. `node --check packages/apps/private-state/cli/private-state-bridge-cli.mjs` passed.
 
+   Current-code evidence:
+
+   - `bridge/src/DAppManager.sol` computes `DAPP_METADATA_DIGEST_SCHEMA`, `metadataDigest`, and `functionRoot` during both `registerDApp(...)` and `updateDAppMetadata(...)`.
+   - The digest includes `dappId`, immutable `labelHash`, channel-token-vault storage index, storage metadata root, function metadata root, and verifier snapshot hash.
+   - `bridge/src/BridgeCore.sol::createChannel(...)` requires `expectedDAppMetadataDigest` and reverts with `DAppMetadataDigestMismatch` before deploying a channel if the caller's digest does not match current on-chain DApp metadata.
+   - `packages/apps/private-state/cli/private-state-bridge-cli.mjs` reads `registration.metadataDigest`, `registration.metadataDigestSchema`, and `registration.functionRoot` from the DApp registration manifest, checks them against on-chain `DAppInfo`, prints the policy snapshot, and passes the digest to `createChannel(...)`.
+   - `eb7fd30` moved function metadata execution to a root/proof model. `ChannelManager.executeChannelTransaction(...)` now verifies submitted function metadata against the channel's immutable `functionRoot` before trusting preprocess hashes, entry contracts, function selectors, or observed-event layouts.
+
 2. High: missing local mainnet deployment metadata could make `redeploy-proxy` unsafe if a mainnet proxy exists outside this checkout.
 
    Status: resolved before mainnet by moving the `redeploy-proxy` existence check to Google Drive deployment history.
@@ -48,6 +57,14 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
    Impact after resolution: the deployment script no longer treats absence of local `deployment/chain-id-1` files as proof of first deployment. A split root bridge state can still occur if an operator bypasses the script or uses the wrong Drive folder, but the repository mainnet deployment path now gates the dangerous mode on the shared remote deployment record.
 
    UUPS upgradeability classification: prevention is implemented before mainnet. If a split deployment were still created outside this gate and used by users, UUPS could not merge the two proxy state histories.
+
+   Current-code evidence:
+
+   - `bridge/scripts/deploy-bridge.mjs::assertMainnetProxyModeFromDrive(...)` checks the configured Drive deployment-history folder before allowing `--mode redeploy-proxy` on mainnet.
+   - The script searches `chain-id-1/bridge/<timestamp>/bridge.1.json` under the Drive root and refuses `redeploy-proxy` if any bridge snapshot exists.
+   - If the Drive lookup cannot be configured or performed, deployment fails closed rather than falling back to local metadata.
+   - The same script still enforces a clean deployment-relevant mainnet worktree and requires local `HEAD` to be contained in `origin/main`.
+   - This resolution was introduced after the original second-pass document by commit `073009a` (`Gate mainnet redeploys on Drive deployment history`).
 
 3. Medium: DApp metadata and verifier updates are immediate owner actions with no on-chain delay or second approval step.
 
@@ -63,6 +80,13 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
 
    Mitigation implemented before mainnet: the private-state CLI prints the DApp metadata digest, digest schema, Groth16 verifier address, Groth16 compatible backend version, Tokamak verifier address, and Tokamak compatible backend version before `create-channel` and before a first `join-channel` registration. The CLI and DApp protocol documentation now warn users and operators that signing means accepting that exact immutable channel policy. If any displayed value is unexpected or unreviewed, the user should not create or join the channel.
 
+   Current-code evidence:
+
+   - `packages/apps/private-state/cli/private-state-bridge-cli.mjs::printImmutableChannelPolicyWarning(...)` prints the immutable-policy warning and the full policy snapshot, including DApp metadata digest, digest schema, function root, verifier addresses, and compatible backend versions.
+   - `readChannelPolicySnapshot(...)` reads the snapshot from an already-created `ChannelManager` before first channel join.
+   - `resolveDAppIdByLabel(...)` reads the current DApp verifier snapshot and function root from `DAppManager` before channel creation.
+   - This remains an accepted owner/operator risk, not an unresolved protocol bug, because existing channels intentionally do not follow later owner metadata or verifier changes.
+
 4. Low: direct owner calls to `registerDApp` or `updateDAppMetadata` could register structurally bad metadata that the admin script would normally filter out.
 
    Status: resolved before mainnet with contract-level defense-in-depth checks.
@@ -74,6 +98,13 @@ This pass focuses on the bridge update that changed DApp artifact/metadata and c
    Impact after resolution: direct owner calls can no longer insert the most obvious malformed address values that the admin script would normally prevent. The admin script remains the canonical registration path because it performs higher-level artifact/layout consistency checks that are intentionally not duplicated on-chain.
 
    UUPS upgradeability classification: fixed before mainnet for future registrations/updates. If a malformed channel had already been created before this fix, it would still be immutable and require migration, but no mainnet channel exists under the current launch assumption.
+
+   Current-code evidence:
+
+   - `bridge/src/DAppManager.sol::registerDApp(...)` rejects zero `labelHash`.
+   - `_storeDAppRuntimeMetadata(...)` rejects empty storage/function lists, zero storage addresses, non-contract storage addresses, duplicate storage addresses, missing or multiple channel-token-vault storage entries, and then computes the storage root.
+   - `_validateAndHashFunctionMetadata(...)` rejects zero function entry contracts, non-contract function entry contracts, zero preprocess hashes, duplicate function keys, duplicate preprocess hashes, and event topic counts above four.
+   - The hardening was added by commit `5eba9ac` (`Harden DApp metadata registration validation`) with regression coverage in `bridge/test/BridgeFlow.t.sol`.
 
 ## Prior Findings Rechecked
 
@@ -183,12 +214,11 @@ This is not a protocol security issue, but it is relevant for launch readiness: 
 
 ## Deployment Decision
 
-Do not treat the current checkout as ready for mainnet broadcast yet.
+The second-pass findings are resolved or explicitly accepted under the single-operator owner model.
+This document is superseded by `docs/audit-for-mainnet-deploy-third.md` for the later
+`ChannelDeployer`, function-root proof, stale metadata cleanup, and permissionless channel-creation
+changes.
 
-The reviewed Solidity and bridge tests pass, and no new critical protocol bug was found in the DAM/CBV snapshot implementation. Finding 1 is resolved by the DApp metadata digest preflight and `BridgeCore.createChannel(...)` digest check. Finding 2 is resolved by checking Google Drive deployment history before allowing mainnet `redeploy-proxy`. However, mainnet launch should wait until the remaining governance assumptions are closed or explicitly accepted:
-
-- Confirm the bridge owner is the intended mainnet governance account.
-
-Gas-cost documentation is now available in `bridge/docs/gas-assessment.md`; it improves operator/user cost visibility but does not close the remaining launch conditions above.
-
-The most important non-upgradeable boundary is unchanged: once a channel is created, its verifier bindings, DApp metadata, compatible backend versions, storage vector, and function layout are final for that channel.
+The most important non-upgradeable boundary is unchanged: once a channel is created, its verifier
+bindings, DApp metadata digest, function root, compatible backend versions, storage vector, and
+refund policy are final for that channel.

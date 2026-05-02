@@ -1,6 +1,6 @@
 # Tokamak Private App Channels White Paper
 
-Last updated: 2026-04-01
+Last updated: 2026-05-02
 
 ## Table of Contents
 
@@ -11,8 +11,9 @@ Last updated: 2026-04-01
 5. State and Proof Model
 6. Core Operational Flows
 7. Security Posture, Advantages, and Tradeoffs
-8. Future Work
-9. Conclusion
+8. Implementation Details And Operational Policy
+9. Future Work
+10. Conclusion
 
 ## 1. Thesis
 
@@ -374,7 +375,97 @@ Fifth, the bridge uses an upgradeable shared control plane together with immutab
 
 Sixth, some present-day integration and user-experience burden remains above the common proving stack. The reusable Tokamak-zk-EVM pipeline means a new DApp does not need a bespoke proving architecture from scratch, but DApp developers still need to package bridge metadata, client sync, recovery flows, and privacy-aware UX around that shared substrate. This is better understood as a tooling and productization gap than as a fundamental limitation of the bridge architecture, but today it still affects onboarding cost.
 
-## 8. Future Work
+## 8. Implementation Details And Operational Policy
+
+This section is intentionally implementation-specific. The earlier sections describe the bridge model and the design rationale. This section records how the current contracts, scripts, and operational policy instantiate that model for mainnet deployment review.
+
+### 8.1 Contract Relationship Map
+
+The current bridge implementation separates the shared control plane from channel-local execution contracts.
+
+`BridgeCore` is the root coordination contract. It stores the current verifier pointers, the DApp manager, the L1 token vault, the channel deployer, the canonical channel registry, and the default join-toll refund policy. It is also the only accepted path for creating canonical channels. `BridgeCore.createChannel(...)` is permissionless: the caller becomes the channel leader, provides the expected DApp metadata digest, and asks the configured `ChannelDeployer` to instantiate the channel manager.
+
+`DAppManager` is the DApp policy registry. It owns the registered DApp label, the bridge-facing runtime metadata, the metadata digest, the function root, and the verifier snapshot that future channels will copy. The DApp identifier and label hash are stable once registered. The storage and function metadata can be replaced for future channels by `updateDAppMetadata(...)`.
+
+`ChannelDeployer` is a thin factory used to keep channel deployment bytecode out of `BridgeCore`. It is not itself a trust anchor. After deployment, `BridgeCore` validates that the returned `ChannelManager` contains the expected bridge address, channel id, DApp id, leader, vault address, metadata digest, function root, verifier snapshot, join toll, and refund schedule before the channel is accepted into the canonical registry.
+
+`ChannelManager` is the non-upgradeable per-channel execution and registration contract. It validates channel execution proofs, stores the accepted root-vector commitment, enforces channel-local user registration uniqueness, tracks the channel join toll and refund schedule, and exposes the immutable DApp metadata digest and function root that were fixed at channel creation.
+
+`L1TokenVault` is the shared Ethereum-side custody contract for the canonical asset. It resolves channel managers only through `BridgeCore.getChannelManager(...)`, charges the channel join toll, records the user's channel-token-vault registration, and applies proof-backed deposit and withdrawal updates to the channel-token-vault accounting domain.
+
+The resulting authority graph is:
+
+- root upgrade and verifier default changes flow through `BridgeCore`
+- DApp metadata registration and future-channel metadata updates flow through `DAppManager`
+- canonical channel creation flows through `BridgeCore` and then `ChannelDeployer`
+- channel execution and channel-local registration flow through each `ChannelManager`
+- asset custody and join-toll accounting flow through `L1TokenVault`
+
+### 8.2 Policy Surfaces
+
+The bridge has several distinct policy surfaces, and they are intentionally managed at different layers.
+
+Root bridge policy is upgradeable. `BridgeCore`, `DAppManager`, and `L1TokenVault` are root bridge components that can be maintained through UUPS upgrades under the bridge owner's authority. This is the mechanism for future bridge maintenance, verifier default replacement, new registration checks, or operational policy fixes.
+
+DApp policy is updateable only for future channels. A registered DApp can receive a full replacement of its updateable runtime metadata. The immutable parts are the DApp id and the label hash. The updateable parts include the managed storage surface, function metadata, preprocess-input hashes, metadata digest, function root, and the verifier snapshot copied from the current bridge verifier pointers at the update time.
+
+Channel policy is immutable after channel creation. A channel snapshots the DApp metadata digest, digest schema, function root, verifier addresses, compatible backend versions, managed storage binding, `aPubBlockHash`, leader, initial join toll, and refund schedule at creation. Later DApp metadata updates and later bridge verifier default changes do not rewrite an existing channel's accepted policy.
+
+Join-toll policy is channel-local. The channel creator becomes the leader and chooses the initial join toll during channel creation. The leader can later update the join toll for future joins, while the refund schedule is fixed in the channel manager at creation. The join toll is an economic throttle, not a cryptographic security primitive.
+
+Asset policy is conservative. The canonical asset must behave like an exact-transfer token. Fee-on-transfer, rebasing, blacklisting, pausing, or other balance-mutating behavior can break the bridge's custody accounting assumptions.
+
+### 8.3 Policy Lifecycle And Artifact Publication
+
+The intended DApp lifecycle is:
+
+1. The operator deploys or selects the DApp implementation and produces bridge-facing metadata.
+2. `DAppManager.registerDApp(...)` stores the initial DApp id, label hash, metadata, metadata digest, function root, and current bridge verifier snapshot.
+3. If the DApp policy must change for future channels, `DAppManager.updateDAppMetadata(...)` replaces the updateable metadata and snapshots the current bridge verifier configuration again.
+4. A channel creator calls `BridgeCore.createChannel(...)` with the expected metadata digest. If the digest no longer matches the registered DApp policy, channel creation reverts.
+5. The accepted channel stores its own immutable policy snapshot. That snapshot, not the current DApp registry entry, governs future transactions in that channel.
+
+The repository deployment scripts add an off-chain publication layer around this lifecycle. The DApp registration script writes a local manifest, uploads DApp artifacts to the configured Google Drive artifact root on public networks, and updates the artifact index with the new snapshot. This publication path is meant to give users and channel creators a reviewable artifact trail for the metadata they are about to accept.
+
+That off-chain publication layer is operational tooling, not a contract invariant. A direct owner transaction to `DAppManager.registerDApp(...)` or `updateDAppMetadata(...)` can update the on-chain registry without updating the Google Drive manifest. Mainnet operations should therefore use the repository scripts for registration and metadata updates unless there is an explicit emergency reason not to.
+
+### 8.4 Per-Channel Policy Immutability
+
+Per-channel immutability is a deliberate policy choice, not an implementation accident.
+
+When a user joins a channel, the user is treated as accepting that channel's fixed execution policy: the DApp metadata digest, the function root, the verifier snapshot, the backend versions, the token-vault storage binding, and the toll/refund policy visible at the time of channel creation or join. Changing that policy later without user consent would let an operator reinterpret the channel after users have already committed funds and local state.
+
+The consequence is that a bad channel policy cannot be repaired in place by changing the DApp registry or upgrading the root bridge. Root UUPS upgrades can fix shared contracts and can protect future channels, but they cannot honestly rewrite the policy that existing users already joined. If a deployed channel is later found to have a bad policy, the intended response is to notify users, stop recommending that channel, withdraw or redeem value through the supported paths, and create a new channel with a corrected policy.
+
+This is why the CLI and operational documents emphasize pre-join review. A channel creator or user should inspect at least:
+
+- DApp id and label
+- metadata digest and digest schema
+- function root
+- verifier addresses and compatible backend versions
+- channel manager address and bridge registry binding
+- join toll and refund policy
+- channel genesis block number and accepted root-vector history
+
+The channel stores `genesisBlockNumber`, not an explicit timestamp. The creation time can be derived from the block timestamp for that block, and the channel's `aPubBlockHash` commits the proof-context block data used by the Tokamak path.
+
+### 8.5 Remaining Accepted Or Mitigated Security Issues
+
+The current mainnet posture does not claim that every operational risk has been eliminated. The following issues are either accepted as trust assumptions or mitigated to a level considered practical for the current launch.
+
+Privileged owner authority is an accepted trust assumption. The bridge owner can upgrade root UUPS contracts, update future verifier defaults, and change future-channel policy surfaces. Existing channels snapshot their policy, but root custody and future-channel governance still depend on disciplined owner operation. A timelock or multisig can improve this later, but the present launch model accepts owner trust.
+
+DApp metadata and verifier update mistakes are operationally accepted. The owner can register or update a bad DApp policy for future channels. The digest gate prevents a channel creator from accidentally creating a channel against a registry value that changed after review, but it does not prove that the reviewed policy is semantically correct. The practical control is publication, review, and visible channel migration if a bad policy is discovered.
+
+Channel registration slot exhaustion is economically mitigated, not cryptographically impossible. An attacker can consume channel-local registration space by paying the join toll. The toll and refund schedule make this expensive and allow exits to free slots, but a funded attacker or a low-toll channel can still create availability pressure.
+
+Canonical-asset behavior is an accepted external dependency. The bridge assumes exact-transfer accounting for the chosen asset. If the canonical asset later pauses, blacklists, rebases, or charges transfer fees, the bridge cannot make custody accounting correct by itself.
+
+Finite storage leaf projection collisions are mitigated by parameter choice and channel-lifetime management, not eliminated. Storage keys are projected into a finite Merkle-tree leaf space, so collision probability grows as more distinct keys are used over a channel's life. The current review models this as a Poisson arrival process with one new storage key per minute and recommends treating channels as finite-life policy instances rather than perpetual mutable systems.
+
+Direct `ChannelDeployer` calls can create orphan channel-manager contracts. This is not considered a custody risk because `L1TokenVault` and canonical bridge lookups use the `BridgeCore` registry, and `BridgeCore` validates deployed managers before accepting them. Orphan managers are therefore noise, not canonical channels.
+
+## 9. Future Work
 
 Several of the present tradeoffs are expected to compress with better tooling.
 
@@ -384,7 +475,7 @@ Another direction is user-facing tooling. Wallet recovery, local state continuit
 
 Finally, the current system's most visible architectural tradeoff is that it buys comparatively strong privacy and clean validity finality by paying the cost of expensive validity-proof verification on the critical path. A useful future-work direction is to explore whether that tradeoff can be mediated by optional third-party or server-assisted layers, such as delegated proving, relay services, aggregation services, or other assisted submission paths. The goal would not be to weaken Ethereum-anchored validity settlement, but to let applications choose how much cost, latency, privacy, and operational independence they want to carry directly versus outsource to specialized infrastructure.
 
-## 9. Conclusion
+## 10. Conclusion
 
 The current Tokamak Private App Channels bridge is best understood as a proof-first bridge for dedicated application channels, not as a generic rollup shell. Its design philosophy is consistent across the implementation:
 

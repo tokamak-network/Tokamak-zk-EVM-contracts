@@ -505,35 +505,50 @@ Mitigation:
 
 Collision probability model:
 
-Let `d` be the Merkle tree depth, `N = 2^d` be the finite leaf domain size, and `k` be the number of
-distinct storage keys projected uniformly into that finite domain. The exact no-collision
-probability is:
+Let `d` be the Merkle tree depth, `N = 2^d` be the finite leaf domain size, and `t` be the channel
+operating period. The relevant operational question is not only whether a fixed set of `k` keys
+contains a collision after the fact. A live channel accumulates storage keys over time, so each new
+storage key has a growing chance of hitting an already-occupied finite leaf.
+
+Assume new storage keys that attempt to occupy a leaf index arrive as a Poisson process with rate
+`\lambda`. If `t` is measured in minutes, the expected number of arrived storage keys is:
 
 $$
-\Pr[\text{no collision}]
-= \prod_{i=0}^{k-1}\left(1 - \frac{i}{2^d}\right)
+\mu(t) = \lambda t
 $$
 
-Therefore:
+Under the standard Poissonized occupancy model, each of the `N` leaves independently receives a
+Poisson count with mean `\mu(t)/N`. No collision has occurred by time `t` exactly when every leaf
+has received either zero or one arrival:
 
 $$
-\Pr[\text{at least one collision}]
-= 1 - \prod_{i=0}^{k-1}\left(1 - \frac{i}{2^d}\right)
+\Pr[\text{no collision by } t]
+= \left(e^{-\mu(t)/N}\left(1+\frac{\mu(t)}{N}\right)\right)^N
+= e^{-\mu(t)}\left(1+\frac{\mu(t)}{2^d}\right)^{2^d}
 $$
 
-For review and graphing, the standard birthday-bound approximation is:
+Therefore the channel-lifespan collision probability is:
 
 $$
-\Pr[\text{at least one collision}]
-\approx 1 - \exp\left(-\frac{k(k-1)}{2\cdot 2^d}\right)
+\Pr[\text{at least one collision by } t]
+= 1 - e^{-\mu(t)}\left(1+\frac{\mu(t)}{2^d}\right)^{2^d}
 $$
 
-For fixed `k`, increasing `d` by one bit approximately halves the collision exponent. The current
-`d = 30` setting gives a domain of `1,073,741,824` leaves. The graph below is intentionally general:
-it models finite leaf projection for arbitrary storage keys, not any DApp-specific event-rate
-process.
+For `\mu(t) \ll 2^d`, this is approximated by the birthday exponent:
 
-![General Merkle leaf collision probability by key count and depth](../bridge/docs/assets/general_leaf_collision_probability_keys_d12_36_step6_logx_logy.svg)
+$$
+\Pr[\text{at least one collision by } t]
+\approx 1 - \exp\left(-\frac{\mu(t)^2}{2\cdot 2^d}\right)
+$$
+
+The graph below assumes one new storage key attempts to occupy a leaf index per minute on average, so
+`\lambda = 1/minute` and `\mu(t) = 1440t` when `t` is measured in days. The current `d = 30`
+setting gives a domain of `1,073,741,824` leaves. Under this assumption, the collision probability
+for `d = 30` crosses roughly 50% after about 26.8 days and roughly 90% after about 48.8 days. This
+is why finite leaf projection creates a channel-lifespan capacity limit rather than a one-time
+static-set risk.
+
+![General channel lifespan leaf collision probability by operating period and depth](../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
 Evidence:
 
@@ -547,8 +562,9 @@ Evidence:
   commitment/nullifier storage keys and reconciles note state from snapshots.
 
 Operational note: do not describe the dense finite-leaf storage projection as collision-free. If
-future deployments reduce tree depth or materially increase managed storage-key volume, this item
-must be re-reviewed as a capacity and usability risk.
+future deployments reduce tree depth, materially increase managed storage-key volume, or target
+channels with long expected operating lifetimes, this item must be re-reviewed as a capacity and
+usability risk.
 
 ## Additional Checks
 

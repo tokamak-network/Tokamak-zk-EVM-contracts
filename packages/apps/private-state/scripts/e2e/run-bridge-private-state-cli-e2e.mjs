@@ -53,6 +53,9 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..", "..");
 const appRoot = path.resolve(repoRoot, "packages", "apps", "private-state");
 const bridgeRoot = path.resolve(repoRoot, "bridge");
+const commonPackageRoot = path.resolve(repoRoot, "packages", "common");
+const groth16PackageRoot = path.resolve(repoRoot, "packages", "groth16");
+const cliPackageRoot = path.resolve(appRoot, "cli");
 const cliPackageManifestPath = path.resolve(appRoot, "cli", "package.json");
 const cliPackageManifest = JSON.parse(fs.readFileSync(cliPackageManifestPath, "utf8"));
 const cliPackageSpecs = resolveCliPackageSpecs();
@@ -135,9 +138,9 @@ Options:
   --help                               Show this help
 
 Notes:
-  - The participant scenario is executed through an npm-installed private-state-cli binary only.
-  - Set PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC to override the npm package spec. Default: ${cliPackageSpecLabel}
-  - Set PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS to install multiple npm package specs before running the binary.
+  - The participant scenario is executed through a private-state-cli binary installed into a temporary npm workspace.
+  - Set PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC to override the package spec. Default: ${cliPackageSpecLabel}
+  - Set PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS to install multiple package specs before running the binary.
   - Bridge deployment, DApp registration, and canonical-asset minting still use existing command-line helpers because
     the current private-state CLI does not expose those administrative setup flows.
 `);
@@ -154,7 +157,7 @@ function resolveCliPackageSpecs() {
     return [singleValue];
   }
 
-  return [`${cliPackageManifest.name}@${cliPackageManifest.version}`];
+  return [commonPackageRoot, groth16PackageRoot, cliPackageRoot];
 }
 
 function parsePackageSpecs(value, envName) {

@@ -43,6 +43,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..", "..");
 const bridgeRoot = path.join(projectRoot, "bridge");
+const groth16PackageManifestPath = path.join(projectRoot, "packages", "groth16", "package.json");
 const invocationCwd = process.cwd();
 const envFile = process.env.BRIDGE_ENV_FILE || path.join(projectRoot, ".env");
 const initialDeployMode = process.env.BRIDGE_DEPLOY_MODE || "upgrade";
@@ -1454,15 +1455,25 @@ async function main() {
       tokamakLatestPackageManifest,
       `${TOKAMAK_CLI_PACKAGE_NAME} npm latest package`,
     );
-  const groth16LatestPackageVersion = await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
+  const useLocalGroth16PackageVersion =
+    process.env.BRIDGE_NETWORK === "anvil"
+    && process.env.BRIDGE_GROTH_USE_LOCAL_PACKAGE_VERSION !== "0";
+  const groth16PackageVersion = useLocalGroth16PackageVersion
+    ? readJson(groth16PackageManifestPath).version
+    : await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
+  const groth16PackageVersionLabel = useLocalGroth16PackageVersion
+    ? `${GROTH16_NPM_PACKAGE_NAME} local package version`
+    : `${GROTH16_NPM_PACKAGE_NAME} npm latest version`;
   process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION =
     normalizePackageVersionToCompatibleBackendVersion(
-      groth16LatestPackageVersion,
-      `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
+      groth16PackageVersion,
+      groth16PackageVersionLabel,
     );
   if (process.env.BRIDGE_GROTH_SOURCE === "mpc") {
     await assertLatestPublicGroth16MpcArchiveVersion(process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION, {
-      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version`,
+      expectedVersionLabel: useLocalGroth16PackageVersion
+        ? `${GROTH16_NPM_PACKAGE_NAME} local compatible backend version`
+        : `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version`,
     });
   }
 
@@ -1539,7 +1550,7 @@ async function main() {
     `Resolved ${GROTH16_NPM_PACKAGE_NAME} compatible backend version: ${process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION}`,
   );
   console.log(
-    `Resolved ${GROTH16_NPM_PACKAGE_NAME} latest package version: ${groth16LatestPackageVersion}`,
+    `Resolved ${groth16PackageVersionLabel}: ${groth16PackageVersion}`,
   );
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
   console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);

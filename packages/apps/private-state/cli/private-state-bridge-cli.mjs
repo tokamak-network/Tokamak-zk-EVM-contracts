@@ -5722,11 +5722,7 @@ function buildSelectedRuntimeVersionCheck({ installManifest, tokamakCli, groth16
 
 async function resolvePrivateStateInstallRuntimeVersions(args) {
   const [groth16, tokamak] = await Promise.all([
-    resolveRequestedNpmPackageVersion({
-      packageName: GROTH16_PACKAGE_NAME,
-      requestedVersion: args.groth16CliVersion,
-      optionName: "--groth16-cli-version",
-    }),
+    resolveRequestedGroth16PackageVersion(args.groth16CliVersion),
     resolveRequestedNpmPackageVersion({
       packageName: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
       requestedVersion: args.tokamakZkEvmCliVersion,
@@ -5734,6 +5730,19 @@ async function resolvePrivateStateInstallRuntimeVersions(args) {
     }),
   ]);
   return { groth16, tokamak };
+}
+
+async function resolveRequestedGroth16PackageVersion(requestedVersion) {
+  if (requestedVersion !== undefined && requestedVersion !== null) {
+    return resolveRequestedNpmPackageVersion({
+      packageName: GROTH16_PACKAGE_NAME,
+      requestedVersion,
+      optionName: "--groth16-cli-version",
+    });
+  }
+
+  const bundledPackageJson = readJson(path.join(resolveGroth16PackageRoot(), "package.json"));
+  return requireSemverVersion(bundledPackageJson.version, `${GROTH16_PACKAGE_NAME} bundled package version`);
 }
 
 async function resolveRequestedNpmPackageVersion({ packageName, requestedVersion, optionName }) {
@@ -5786,10 +5795,7 @@ async function installTokamakCliRuntimeForPrivateState({ version, docker }) {
 }
 
 async function installGroth16RuntimeForPrivateState({ version, docker }) {
-  const packageInstall = installManagedNpmPackage({
-    packageName: GROTH16_PACKAGE_NAME,
-    version,
-  });
+  const packageInstall = resolveGroth16RuntimePackageInstall(version);
   const packageRoot = packageInstall.packageRoot;
   const entryPath = resolveGroth16CliEntryPath(packageRoot);
   const args = [entryPath, "--install", "--no-setup"];
@@ -5813,6 +5819,25 @@ async function installGroth16RuntimeForPrivateState({ version, docker }) {
     crs: crsInstall,
     dockerRequested: Boolean(docker),
   };
+}
+
+function resolveGroth16RuntimePackageInstall(version) {
+  const normalizedVersion = requireSemverVersion(version, `${GROTH16_PACKAGE_NAME} version`);
+  const bundledPackageRoot = resolveGroth16PackageRoot();
+  const bundledPackageJson = readJson(path.join(bundledPackageRoot, "package.json"));
+  if (bundledPackageJson.name === GROTH16_PACKAGE_NAME && bundledPackageJson.version === normalizedVersion) {
+    return {
+      packageName: GROTH16_PACKAGE_NAME,
+      version: normalizedVersion,
+      installPrefix: null,
+      packageRoot: bundledPackageRoot,
+    };
+  }
+
+  return installManagedNpmPackage({
+    packageName: GROTH16_PACKAGE_NAME,
+    version: normalizedVersion,
+  });
 }
 
 async function installGroth16CrsForPrivateStateVersion(version) {
@@ -5856,10 +5881,15 @@ function readExistingGroth16CrsInstall({ version, crsDir }) {
     return null;
   }
   const metadata = readJson(path.join(crsDir, "metadata.json"));
-  const metadataVersion = requireCanonicalGroth16CompatibleBackendVersion(
-    metadata.compatibleBackendVersion,
-    "installed Groth16 MPC CRS version",
-  );
+  let metadataVersion;
+  try {
+    metadataVersion = requireCanonicalGroth16CompatibleBackendVersion(
+      metadata.compatibleBackendVersion,
+      "installed Groth16 MPC CRS version",
+    );
+  } catch {
+    return null;
+  }
   if (metadataVersion !== normalizedVersion) {
     return null;
   }

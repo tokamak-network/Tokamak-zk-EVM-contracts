@@ -2,6 +2,10 @@
 
 Command-line client for the Tokamak private-state DApp.
 
+The full private-state DApp documentation is published with the repository:
+
+- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/packages/apps/private-state/docs
+
 ## Install
 
 ```bash
@@ -15,11 +19,12 @@ artifacts:
 private-state-cli --install
 ```
 
-By default, `--install` resolves the latest `@tokamak-zk-evm/cli` and `@tokamak-private-dapps/groth16` versions from
-the npm registry. To pin exact proof backend versions for a channel, pass explicit versions:
+By default, `--install` resolves the latest `@tokamak-zk-evm/cli` from the npm registry and uses the bundled
+`@tokamak-private-dapps/groth16` dependency version selected by the installed private-state CLI package. To pin exact
+proof backend versions for a channel, pass explicit versions:
 
 ```bash
-private-state-cli --install --tokamak-zk-evm-cli-version 2.0.8 --groth16-cli-version 0.1.1
+private-state-cli --install --tokamak-zk-evm-cli-version 2.1.0 --groth16-cli-version 0.2.0
 ```
 
 The Groth16 installer downloads the public Google Drive CRS archive whose major.minor compatibility version matches the
@@ -69,7 +74,12 @@ Channel policy warning:
   managed storage vector, and refund policy are fixed for that channel.
 - `join-channel` means the user accepts the channel's current policy. Later policy-level fixes require a new channel or
   migration; the existing channel is intentionally not mutated in place without renewed user consent.
-- The CLI prints this warning before sending a channel-creation transaction or a first channel-registration transaction.
+- Before sending a channel-creation transaction or a first channel-registration transaction, the CLI prints the policy
+  snapshot that will be accepted: DApp metadata digest, digest schema, Groth16 verifier address, Groth16 compatible
+  backend version, Tokamak verifier address, and Tokamak compatible backend version.
+- Users and operators must review this snapshot before signing. If any digest, schema, verifier address, or compatible
+  backend version is unexpected or has not been reviewed, do not create or join the channel. A later correction creates
+  a new channel; it does not rewrite the policy of an already-created channel.
 
 `private-state-cli --doctor` reports the CLI package version, dependency versions recorded by the last
 `private-state-cli --install`, selected proof backend runtime versions, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime

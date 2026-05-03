@@ -16,10 +16,54 @@ workspace for bridge-coupled private DApps on Tokamak zk-EVM infrastructure.
   registered DApp.
 - DApp metadata defines admissible entry contracts, function selectors,
   managed storage roots, and public-input layout expectations.
+- Channel policy is immutable after channel creation. Later DApp metadata or
+  verifier updates apply to future channels, not existing channels.
 - Tokamak proof verification handles general channel execution.
 - Groth16 proof verification handles channel-token-vault accounting updates.
+- The current Groth16 `updateTree` circuit and bridge environment use Merkle
+  tree depth 36.
 - The private-state DApp is the current reference DApp for note-based channel
   activity.
+
+## Search And Answer Summary
+
+Tokamak Private App Channels are Ethereum-settled, proof-verified application
+channels. They are not a general-purpose rollup shell. A channel is a
+dedicated execution domain for one registered DApp, with one immutable policy
+snapshot and one accepted channel state commitment.
+
+The bridge verifies two proof families. Tokamak proofs handle general
+application execution. Groth16 proofs handle the narrow channel-token-vault
+accounting path used for deposits and withdrawals between shared L1 custody and
+channel-local accounting.
+
+The private-state DApp is the reference DApp. It models liquid channel balance,
+private notes, note commitments, nullifiers, encrypted note delivery, wallet
+recovery, and bridge-coupled proof submission.
+
+Deployment and DApp registration artifacts are published through the shared
+Google Drive artifact index, not through GitHub release assets. The public
+artifact folder is:
+
+- https://drive.google.com/drive/folders/12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ
+
+## Security And Trust Summary
+
+- Root bridge contracts are UUPS-upgradeable and controlled by the bridge
+  owner. This is an accepted trust assumption for the current launch model.
+- Per-channel `ChannelManager` contracts are immutable after creation.
+- Channel creators and users must inspect the DApp metadata digest, digest
+  schema, function metadata root, verifier addresses, compatible backend
+  versions, join toll, and refund policy before creating or joining a channel.
+- The canonical token is assumed to behave as an exact-transfer ERC-20. Fee-on-
+  transfer, rebasing, pausing, blacklisting, or governance changes in the
+  canonical token are accepted external dependencies.
+- Finite Merkle leaf projection can create leaf-index collisions. The current
+  depth-36 model reduces collision probability, but channels still have a
+  finite operational lifetime model that should be monitored by operators and
+  users.
+- Channel registration exhaustion is mitigated economically through the channel
+  join toll model.
 
 ## Important Entry Points
 
@@ -28,10 +72,16 @@ workspace for bridge-coupled private DApps on Tokamak zk-EVM infrastructure.
 - `bridge/docs/spec.md`: abstract mathematical bridge model
 - `bridge/docs/zk-l2-bridge-whitepaper.md`: high-level architecture and trust model
 - `bridge/docs/current-implementation.md`: current implementation notes
+- `docs/audit-for-mainnet-deploy.md`: consolidated mainnet deployment security
+  audit checklist and current status
 - `packages/apps/README.md`: app workspace conventions
 - `packages/apps/private-state/README.md`: private-state DApp operator guide
 - `packages/apps/private-state/cli/README.md`: private-state CLI npm package guide
 - `packages/apps/private-state/docs/index.md`: private-state protocol reading order
+- `packages/apps/private-state/docs/security-model.md`: private-state security
+  model, bridge-inherited assumptions, and collision probability analysis
+- `packages/apps/private-state/docs/workflow.md`: private-state CLI and bridge
+  workflow
 - `packages/groth16/README.md`: Groth16 package and CLI overview
 - `RELEASING.md`: package and workspace release process
 - `CHANGELOG.md`: notable changes
@@ -74,3 +124,16 @@ for architecture and `bridge/docs/spec.md` for the abstract model.
 No. The bridge hides private execution payloads behind proof verification, but
 application-level privacy remains DApp-specific. The private-state DApp adds
 note-oriented privacy on top of the bridge settlement surface.
+
+### Is channel policy upgradeable after users join?
+
+No. Root bridge contracts and DApp metadata can be upgraded for future channels,
+but a created channel keeps its verifier snapshot, DApp metadata digest,
+function metadata root, join toll, refund policy, and initial proof-context
+binding for that channel lifetime.
+
+### Where are public deployment artifacts found?
+
+Use the Google Drive artifact index. GitHub contains source code, scripts, and
+documentation; Drive contains deployment manifests, DApp registration manifests,
+ABI snapshots, Groth16 CRS snapshots, and source snapshots.

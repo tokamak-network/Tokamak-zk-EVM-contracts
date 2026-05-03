@@ -12,7 +12,7 @@ library BridgeStructs {
         address l2Address;
         bytes32 channelTokenVaultKey;
         uint256 leafIndex;
-        uint256 joinFeePaid;
+        uint256 joinTollPaid;
         uint64 joinedAt;
         NoteReceivePubKey noteReceivePubKey;
         bool isZeroBalance;
@@ -45,15 +45,22 @@ library BridgeStructs {
         InstanceLayout instanceLayout;
     }
 
+    struct FunctionMetadataProof {
+        DAppFunctionMetadata metadata;
+        bytes32[] siblings;
+    }
+
+    struct DAppVerifierSnapshot {
+        address grothVerifier;
+        string grothVerifierCompatibleBackendVersion;
+        address tokamakVerifier;
+        string tokamakVerifierCompatibleBackendVersion;
+    }
+
     struct GrothProof {
         uint256[4] pA;
         uint256[8] pB;
         uint256[4] pC;
-    }
-
-    struct FunctionReference {
-        address entryContract;
-        bytes4 functionSig;
     }
 
     struct FunctionConfig {

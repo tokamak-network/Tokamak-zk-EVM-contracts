@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Groth16Verifier} from "../src/generated/Groth16Verifier.sol";
-import {UpdateTreeProofFixture} from "./UpdateTreeProofFixture.sol";
+import { Groth16Verifier } from "../src/generated/Groth16Verifier.sol";
+import { UpdateTreeProofFixture } from "./UpdateTreeProofFixture.sol";
 
 contract Groth16VerifierTest {
     function testVerifyProofAcceptsTheExampleProof() public {
-        Groth16Verifier verifier = new Groth16Verifier("0.1");
+        Groth16Verifier verifier = new Groth16Verifier("0.2");
         bool ok = verifier.verifyProof(
             UpdateTreeProofFixture.pA(),
             UpdateTreeProofFixture.pB(),
@@ -17,7 +17,7 @@ contract Groth16VerifierTest {
     }
 
     function testVerifyProofRejectsTamperedPublicSignals() public {
-        Groth16Verifier verifier = new Groth16Verifier("0.1");
+        Groth16Verifier verifier = new Groth16Verifier("0.2");
         uint256[5] memory pubSignals = UpdateTreeProofFixture.pubSignals();
         pubSignals[4] += 1;
 
@@ -31,9 +31,9 @@ contract Groth16VerifierTest {
     }
 
     function testExposesCompatibleBackendVersion() public {
-        Groth16Verifier verifier = new Groth16Verifier("0.1");
+        Groth16Verifier verifier = new Groth16Verifier("0.2");
         require(
-            keccak256(bytes(verifier.compatibleBackendVersion())) == keccak256(bytes("0.1")),
+            keccak256(bytes(verifier.compatibleBackendVersion())) == keccak256(bytes("0.2")),
             "unexpected compatible backend version"
         );
     }

@@ -30,18 +30,27 @@ import {
   BRIDGE_SOURCE_PATHS,
   buildSourceCodeMetadata,
 } from "../../scripts/deployment/lib/source-code-metadata.mjs";
+import {
+  createDriveClient,
+  findChildFileMetadata,
+  findChildFolderId,
+  listChildFolders,
+  resolveDriveUploadConfigWithFolderId,
+} from "../../scripts/drive/lib/google-drive-upload.mjs";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..", "..");
 const bridgeRoot = path.join(projectRoot, "bridge");
+const groth16PackageManifestPath = path.join(projectRoot, "packages", "groth16", "package.json");
 const invocationCwd = process.cwd();
 const envFile = process.env.BRIDGE_ENV_FILE || path.join(projectRoot, ".env");
 const initialDeployMode = process.env.BRIDGE_DEPLOY_MODE || "upgrade";
 const TOKAMAK_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 const GROTH16_NPM_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const MAINNET_NETWORK_NAME = "mainnet";
+const MAINNET_DEPLOYMENT_DRIVE_FOLDER_ID = "12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ";
 const MAINNET_BRIDGE_SOLIDITY_DIFF_PATHS = [":(glob)bridge/src/**/*.sol"];
 const MAINNET_DEPLOYMENT_RELEVANT_DIRTY_PATHS = [
   ":(glob)bridge/src/**/*.sol",
@@ -237,17 +246,98 @@ function latestCompleteBridgeDir(rootDir, chainId) {
     .at(-1) ?? "";
 }
 
-function assertMainnetProxyMode({ deployMode, latestBridgeDir }) {
+function readOptionalEnvTrimmed(name) {
+  const value = process.env[name]?.trim();
+  return value && value.length > 0 ? value : null;
+}
+
+function resolveMainnetDeploymentDriveConfig() {
+  const folderId =
+    readOptionalEnvTrimmed("BRIDGE_DEPLOYMENT_DRIVE_FOLDER_ID")
+    ?? MAINNET_DEPLOYMENT_DRIVE_FOLDER_ID;
+  try {
+    return resolveDriveUploadConfigWithFolderId(folderId);
+  } catch (error) {
+    fail([
+      "Failed to configure Google Drive deployment history check for mainnet redeploy-proxy.",
+      error instanceof Error ? error.message : String(error),
+    ].join("\n"));
+  }
+}
+
+async function findDriveBridgeDeploymentSnapshots({ chainId }) {
+  const config = resolveMainnetDeploymentDriveConfig();
+  const drive = await createDriveClient(config);
+  const chainFolderName = `chain-id-${chainId}`;
+  const chainFolderId = await findChildFolderId(drive, config.folderId, chainFolderName);
+  if (!chainFolderId) {
+    return {
+      config,
+      snapshots: [],
+      checkedPath: chainFolderName,
+    };
+  }
+
+  const bridgeFolderId = await findChildFolderId(drive, chainFolderId, "bridge");
+  if (!bridgeFolderId) {
+    return {
+      config,
+      snapshots: [],
+      checkedPath: `${chainFolderName}/bridge`,
+    };
+  }
+
+  const timestampPattern = /^20\d{6}T\d{6}Z$/;
+  const timestampFolders = (await listChildFolders(drive, bridgeFolderId))
+    .filter((folder) => timestampPattern.test(folder.name ?? ""))
+    .sort((left, right) => String(left.name).localeCompare(String(right.name)));
+  const snapshots = [];
+  for (const folder of timestampFolders) {
+    const deploymentFile = await findChildFileMetadata(drive, folder.id, `bridge.${chainId}.json`);
+    if (deploymentFile) {
+      snapshots.push({
+        timestamp: folder.name,
+        folderId: folder.id,
+        folderUrl: folder.webViewLink ?? `https://drive.google.com/drive/folders/${folder.id}`,
+        deploymentFileId: deploymentFile.id,
+        deploymentFileUrl: deploymentFile.webViewLink ?? null,
+      });
+    }
+  }
+
+  return {
+    config,
+    snapshots,
+    checkedPath: `${chainFolderName}/bridge`,
+  };
+}
+
+async function assertMainnetProxyModeFromDrive({ deployMode, bridgeChainId }) {
   if (process.env.BRIDGE_NETWORK !== MAINNET_NETWORK_NAME || deployMode !== "redeploy-proxy") {
     return;
   }
-  if (latestBridgeDir) {
+
+  const { config, snapshots, checkedPath } = await findDriveBridgeDeploymentSnapshots({
+    chainId: bridgeChainId,
+  });
+  if (snapshots.length > 0) {
+    const latest = snapshots.at(-1);
     fail([
-      "Refusing mainnet redeploy-proxy because an existing bridge deployment snapshot was found.",
-      `Existing snapshot: ${latestBridgeDir}`,
+      "Refusing mainnet redeploy-proxy because an existing bridge deployment snapshot was found on Google Drive.",
+      `Drive root: ${config.folderUrl}`,
+      `Checked path: ${checkedPath}`,
+      `Latest snapshot: ${latest.timestamp}`,
+      `Snapshot folder: ${latest.folderUrl}`,
       "Use --mode upgrade for mainnet once proxy metadata exists.",
     ].join("\n"));
   }
+
+  console.log([
+    "Mainnet Google Drive deployment history check passed.",
+    `Drive root: ${config.folderUrl}`,
+    `Checked path: ${checkedPath}`,
+    "No existing bridge deployment snapshots were found.",
+  ].join("\n"));
 }
 
 function assertCleanMainnetDeploymentWorktree() {
@@ -332,7 +422,6 @@ function assertMainnetDeploymentSourceIntegrity({ deployMode, bridgeChainId, lat
   if (process.env.BRIDGE_NETWORK !== MAINNET_NETWORK_NAME) {
     return;
   }
-  assertMainnetProxyMode({ deployMode, latestBridgeDir });
   assertCleanMainnetDeploymentWorktree();
   const head = assertHeadOnRemoteMain();
   const previous = readPreviousBridgeSourceCommit(latestBridgeDir, bridgeChainId);
@@ -550,7 +639,7 @@ function rewriteVerifierG2Constants(source, points) {
       if (!name || !value) {
         fail(`Failed to parse generated constant line: ${line}`);
       }
-      const pattern = new RegExp(`uint256 internal constant ${name} = 0x[0-9a-f]+;`);
+      const pattern = new RegExp(`uint256\\s+internal\\s+constant\\s+${name}\\s*=\\s*0x[0-9a-f]+;`);
       if (!pattern.test(output)) {
         fail(`TokamakVerifier.sol is missing expected G2 constant ${name}`);
       }
@@ -561,19 +650,19 @@ function rewriteVerifierG2Constants(source, points) {
 }
 
 function rewriteVerifierSetupParams(source, setupParams) {
-  const lUserPattern = /uint256 internal constant EXPECTED_L_USER = \d+;/;
-  const lFreePattern = /uint256 internal constant EXPECTED_L_FREE = \d+;/;
-  const omegaLFreePattern = /uint256 internal constant OMEGA_L_FREE = 0x[0-9a-f]+;/;
-  const nPattern = /uint256 internal constant CONSTANT_N = \d+;/;
-  const miPattern = /uint256 internal constant CONSTANT_MI = \d+;/;
-  const omegaMiPattern = /uint256 internal constant OMEGA_MI_1 = 0x[0-9a-f]+;/;
-  const smaxPattern = /uint256 internal constant EXPECTED_SMAX = \d+;/;
-  const omegaPattern = /uint256 internal constant OMEGA_SMAX_MINUS_1 =\s*\n\s*0x[0-9a-f]+;/;
-  const denominatorSlotPattern = /uint256 internal constant COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT = 0x[0-9a-f]+;/;
-  const prefixSlotPattern = /uint256 internal constant COMPUTE_APUB_PREFIX_BUFFER_SLOT = 0x[0-9a-f]+;/;
-  const step4CgSlotPattern = /uint256 internal constant STEP4_COEFF_C_G_SLOT = 0x[0-9a-f]+;/;
-  const step4CfSlotPattern = /uint256 internal constant STEP4_COEFF_C_F_SLOT = 0x[0-9a-f]+;/;
-  const step4CbSlotPattern = /uint256 internal constant STEP4_COEFF_C_B_SLOT = 0x[0-9a-f]+;/;
+  const lUserPattern = /uint256\s+internal\s+constant\s+EXPECTED_L_USER\s*=\s*\d+;/;
+  const lFreePattern = /uint256\s+internal\s+constant\s+EXPECTED_L_FREE\s*=\s*\d+;/;
+  const omegaLFreePattern = /uint256\s+internal\s+constant\s+OMEGA_L_FREE\s*=\s*0x[0-9a-f]+;/;
+  const nPattern = /uint256\s+internal\s+constant\s+CONSTANT_N\s*=\s*\d+;/;
+  const miPattern = /uint256\s+internal\s+constant\s+CONSTANT_MI\s*=\s*\d+;/;
+  const omegaMiPattern = /uint256\s+internal\s+constant\s+OMEGA_MI_1\s*=\s*0x[0-9a-f]+;/;
+  const smaxPattern = /uint256\s+internal\s+constant\s+EXPECTED_SMAX\s*=\s*\d+;/;
+  const omegaPattern = /uint256\s+internal\s+constant\s+OMEGA_SMAX_MINUS_1\s*=\s*0x[0-9a-f]+;/;
+  const denominatorSlotPattern = /uint256\s+internal\s+constant\s+COMPUTE_APUB_DENOMINATOR_BUFFER_SLOT\s*=\s*0x[0-9a-f]+;/;
+  const prefixSlotPattern = /uint256\s+internal\s+constant\s+COMPUTE_APUB_PREFIX_BUFFER_SLOT\s*=\s*0x[0-9a-f]+;/;
+  const step4CgSlotPattern = /uint256\s+internal\s+constant\s+STEP4_COEFF_C_G_SLOT\s*=\s*0x[0-9a-f]+;/;
+  const step4CfSlotPattern = /uint256\s+internal\s+constant\s+STEP4_COEFF_C_F_SLOT\s*=\s*0x[0-9a-f]+;/;
+  const step4CbSlotPattern = /uint256\s+internal\s+constant\s+STEP4_COEFF_C_B_SLOT\s*=\s*0x[0-9a-f]+;/;
   const patterns = [
     lUserPattern,
     lFreePattern,
@@ -1327,7 +1416,11 @@ async function main() {
   const bridgeCanonicalDir = path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const bridgePendingDir = path.join(projectRoot, "deployment", ".pending", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const latestBridgeDir = latestCompleteBridgeDir(path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge"), bridgeChainId);
-  assertMainnetProxyMode({ deployMode, latestBridgeDir });
+  await assertMainnetProxyModeFromDrive({ deployMode, bridgeChainId });
+  const sourceIntegrityLatestBridgeDir =
+    process.env.BRIDGE_NETWORK === MAINNET_NETWORK_NAME && deployMode === "redeploy-proxy"
+      ? ""
+      : latestBridgeDir;
   const defaultBridgeInputPath = latestBridgeDir
     ? path.join(latestBridgeDir, `bridge.${bridgeChainId}.json`)
     : `./deployments/bridge.${bridgeChainId}.json`;
@@ -1362,15 +1455,25 @@ async function main() {
       tokamakLatestPackageManifest,
       `${TOKAMAK_CLI_PACKAGE_NAME} npm latest package`,
     );
-  const groth16LatestPackageVersion = await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
+  const useLocalGroth16PackageVersion =
+    process.env.BRIDGE_NETWORK === "anvil"
+    && process.env.BRIDGE_GROTH_USE_LOCAL_PACKAGE_VERSION !== "0";
+  const groth16PackageVersion = useLocalGroth16PackageVersion
+    ? readJson(groth16PackageManifestPath).version
+    : await fetchLatestNpmPackageVersion(GROTH16_NPM_PACKAGE_NAME);
+  const groth16PackageVersionLabel = useLocalGroth16PackageVersion
+    ? `${GROTH16_NPM_PACKAGE_NAME} local package version`
+    : `${GROTH16_NPM_PACKAGE_NAME} npm latest version`;
   process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION =
     normalizePackageVersionToCompatibleBackendVersion(
-      groth16LatestPackageVersion,
-      `${GROTH16_NPM_PACKAGE_NAME} npm latest version`,
+      groth16PackageVersion,
+      groth16PackageVersionLabel,
     );
   if (process.env.BRIDGE_GROTH_SOURCE === "mpc") {
     await assertLatestPublicGroth16MpcArchiveVersion(process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION, {
-      expectedVersionLabel: `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version`,
+      expectedVersionLabel: useLocalGroth16PackageVersion
+        ? `${GROTH16_NPM_PACKAGE_NAME} local compatible backend version`
+        : `${GROTH16_NPM_PACKAGE_NAME} npm latest compatible backend version`,
     });
   }
 
@@ -1380,14 +1483,17 @@ async function main() {
     await refreshGroth16VerifierSolidity(process.env.BRIDGE_GROTH_SOURCE);
   }
 
-  assertMainnetDeploymentSourceIntegrity({ deployMode, bridgeChainId, latestBridgeDir });
+  assertMainnetDeploymentSourceIntegrity({
+    deployMode,
+    bridgeChainId,
+    latestBridgeDir: sourceIntegrityLatestBridgeDir,
+  });
 
   await writeBridgeZkManifest(bridgePendingZkManifestPath, process.env.BRIDGE_GROTH_SOURCE);
 
   const mtDepthMetadata = readJson(bridgePendingZkManifestPath);
   const bridgeMerkleTreeLevels = String(mtDepthMetadata.tokamakL2js.mtDepth);
   const bridgeMerkleTreeSourceVersion = String(mtDepthMetadata.tokamakL2js.package.version);
-  process.env.BRIDGE_MERKLE_TREE_LEVELS = bridgeMerkleTreeLevels;
 
   const canonicalBridgeOutputPath = resolveBridgePath(
     process.env.BRIDGE_OUTPUT_PATH || path.join(bridgeCanonicalDir, `bridge.${bridgeChainId}.json`),
@@ -1444,7 +1550,7 @@ async function main() {
     `Resolved ${GROTH16_NPM_PACKAGE_NAME} compatible backend version: ${process.env.BRIDGE_GROTH_COMPATIBLE_BACKEND_VERSION}`,
   );
   console.log(
-    `Resolved ${GROTH16_NPM_PACKAGE_NAME} latest package version: ${groth16LatestPackageVersion}`,
+    `Resolved ${groth16PackageVersionLabel}: ${groth16PackageVersion}`,
   );
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
   console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);

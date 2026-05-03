@@ -4,7 +4,22 @@ This directory is the `@tokamak-private-dapps/groth16` npm package. It contains 
 
 ## Architecture
 
-The circuit implements a quaternary Merkle tree using Poseidon4 hashing over the BLS12-381 curve to prove storage state consistency across channel participants.
+The package currently supports the `updateTree` circuit. The circuit proves one `channelTokenVault` leaf update against
+the fixed-depth Tokamak managed-storage tree used by the bridge. The generated entrypoint renders
+`updateTree(MT_DEPTH)` from the locally installed `tokamak-l2js` package; the current generated depth is `36`.
+
+The proof binds five public values:
+
+- `root_before`
+- `root_after`
+- `storage_key`
+- `storage_value_before`
+- `storage_value_after`
+
+The witness provides the derived leaf index and Merkle sibling path. The circuit constrains the leaf index to the lower
+`MT_DEPTH` bits of `storage_key`, verifies the before-root path with `storage_value_before`, verifies the after-root path
+with `storage_value_after`, and requires the before and after values to differ. This lets bridge contracts verify
+channel-token-vault accounting updates without storing the full tree on-chain.
 
 ## CLI
 
@@ -72,16 +87,24 @@ npm install -g snarkjs
 
 ### Input Format
 
-Create an input JSON file with your Merkle tree data:
+Create an input JSON file for one leaf update:
 
 ```json
 {
-  "merkle_keys": ["1", "2", "3", ...],
-  "storage_values": ["100", "200", "300", ...]
+  "root_before": "1",
+  "root_after": "2",
+  "leaf_index": "3",
+  "storage_key": "3",
+  "storage_value_before": "100",
+  "storage_value_after": "200",
+  "proof": ["<36 sibling values>"]
 }
 ```
 
-**Note**: All arrays must contain exactly 50 elements (padded with zeros if needed).
+The `proof` array must contain one sibling value per tree level. For the current generated `MT_DEPTH = 36` circuit, it
+therefore contains `36` entries. For a runnable local example, use
+`packages/groth16/prover/updateTree/input_example.json`; it is generated from the installed `tokamak-l2js` tree helper
+and matches the current circuit depth.
 
 ### Generate a Proof
 
@@ -111,11 +134,8 @@ snarkjs groth16 verify ~/tokamak-private-channels/groth16/crs/verification_key.j
 ### Example Workflow
 
 ```bash
-# 1. Create input file
-echo '{
-  "merkle_keys": ["1", "1", "1", ..., "1"],
-  "storage_values": ["1", "1", "1", ..., "1"],
-}' > input.json
+# 1. Create input file from the bundled deterministic example
+cp packages/groth16/prover/updateTree/input_example.json input.json
 
 # 2. Calculate witness
 snarkjs wtns calculate ~/tokamak-private-channels/groth16/build/circuit_updateTree.wasm input.json witness.wtns

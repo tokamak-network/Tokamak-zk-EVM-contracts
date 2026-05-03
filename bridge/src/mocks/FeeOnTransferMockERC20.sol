@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
+import { ERC20 } from "@openzeppelin/token/ERC20/ERC20.sol";
 
 contract FeeOnTransferMockERC20 is ERC20 {
     uint256 public immutable feeBps;

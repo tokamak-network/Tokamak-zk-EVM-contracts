@@ -45,6 +45,10 @@ const duskSource = Object.freeze({
     maxPower: 21
 });
 
+function readJson(filePath) {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
 function ensureTooling() {
     ensureCircuitDependencies();
 
@@ -104,6 +108,62 @@ function cleanupStaleTemporaryState() {
 
 function resolveGroth16CompatibleBackendVersion() {
     return readGroth16CompatibleBackendVersionFromPackageJsonPath(packageJsonPath, "Groth16 package");
+}
+
+function resolveWorkspaceRoot() {
+    const candidate = path.resolve(groth16Root, "..", "..");
+    const workspacePackageJsonPath = path.join(candidate, "package.json");
+    if (!fs.existsSync(workspacePackageJsonPath)) {
+        return null;
+    }
+
+    const workspacePackageJson = readJson(workspacePackageJsonPath);
+    const workspaces = Array.isArray(workspacePackageJson.workspaces)
+        ? workspacePackageJson.workspaces
+        : workspacePackageJson.workspaces?.packages;
+    if (!Array.isArray(workspaces) || !workspaces.includes("packages/groth16")) {
+        return null;
+    }
+    return candidate;
+}
+
+function installLatestTokamakL2JsFromRegistry() {
+    const latestVersion = stripAnsi(runCapture("npm", ["view", "tokamak-l2js", "version"])).trim();
+    if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(latestVersion)) {
+        throw new Error(`Failed to resolve latest tokamak-l2js version from npm registry: ${latestVersion}`);
+    }
+
+    const workspaceRoot = resolveWorkspaceRoot();
+    const installArgs = workspaceRoot
+        ? [
+            "install",
+            "--workspace",
+            "@tokamak-private-dapps/groth16",
+            `tokamak-l2js@${latestVersion}`,
+            "--ignore-scripts",
+            "--no-audit",
+            "--no-fund"
+        ]
+        : [
+            "install",
+            `tokamak-l2js@${latestVersion}`,
+            "--ignore-scripts",
+            "--no-audit",
+            "--no-fund"
+        ];
+    const installCwd = workspaceRoot ?? groth16Root;
+    console.log(`Installing tokamak-l2js@${latestVersion} from npm registry...`);
+    run("npm", installArgs, { cwd: installCwd });
+
+    const installedPackageJson = readJson(resolveTokamakL2JsPackageJsonPath());
+    if (installedPackageJson.version !== latestVersion) {
+        throw new Error(
+            `tokamak-l2js registry/install mismatch: registry latest is ${latestVersion}, `
+                + `but Node resolves ${installedPackageJson.version}.`
+        );
+    }
+    console.log(`Using tokamak-l2js@${installedPackageJson.version} from ${resolveTokamakL2JsPackageJsonPath()}`);
+    return installedPackageJson;
 }
 
 async function ensureDuskResponse(workDir) {
@@ -339,10 +399,10 @@ async function generateSetupArtifacts(constraintCount, manifest) {
 
 async function main() {
     ensureTooling();
+    const tokamakL2jsPackageJson = installLatestTokamakL2JsFromRegistry();
     fs.mkdirSync(tmpRoot, { recursive: true });
     cleanupStaleTemporaryState();
 
-    const tokamakL2jsPackageJson = JSON.parse(fs.readFileSync(resolveTokamakL2JsPackageJsonPath(), "utf8"));
     const tokamakL2js = await import("tokamak-l2js");
     const mtDepth = tokamakL2js.MT_DEPTH;
     if (!Number.isInteger(mtDepth) || mtDepth <= 0) {

@@ -1,6 +1,10 @@
-# Function Constraints
+# Private-State Function Constraints
 
 This document lists the constraints that each user-facing function family must satisfy.
+
+The goal is to explain both the rule and the reason for the rule. In this DApp, a valid Solidity
+call is not enough. The call must also fit the fixed circuit shape, the bridge metadata
+registration, and the wallet reconstruction model.
 
 ## 1. Global Constraints
 
@@ -13,6 +17,14 @@ These constraints apply across the DApp:
 - commitment re-creation is rejected
 - nullifier reuse is rejected
 - all accounting updates must remain inside the BLS12-381 scalar field bounds
+
+`Fixed arity` means the number of input and output notes is part of the function name rather than a
+runtime loop parameter. For example, `transferNotes2To1` consumes two notes and creates one note.
+This keeps the execution shape stable for proof generation and bridge metadata registration.
+
+`Unique successful path` means that a function should not contain multiple semantically successful
+branches that produce different proof shapes for the same entrypoint. The proving stack and bridge
+metadata are easier to reason about when each entrypoint has one intended success shape.
 
 ## 2. Mint Functions
 
@@ -38,6 +50,10 @@ These constraints apply across the DApp:
 
 Bridge registration coverage may be smaller than Solidity support on a given network because function examples can still be skipped by Synthesizer or qap-compiler capacity limits.
 
+Example: Solidity may include `mintNotes6`, but a given public deployment may register only
+`mintNotes1` through `mintNotes4` if the proving artifacts for larger shapes are not available.
+Users and tooling must check the active DApp registration, not only the Solidity ABI.
+
 ## 3. Transfer Functions
 
 ### Supported Solidity Entry Points
@@ -62,6 +78,10 @@ Bridge registration coverage may be smaller than Solidity support on a given net
 - total value is conserved exactly:
   - `sum(inputs) == sum(outputs)`
 
+Example: a transfer that consumes notes of `30` and `70` may create one output note of `100`, or two
+output notes of `40` and `60`, depending on the registered entrypoint. It may not create outputs
+whose sum is `101`, even if the calldata shape is otherwise valid.
+
 ### Registration Note
 
 The bridge can only execute transfer shapes that are currently registered for the active DApp deployment. Solidity support and registered support are not always identical.
@@ -84,6 +104,9 @@ The bridge can only execute transfer shapes that are currently registered for th
 - every input nullifier is consumed exactly once
 - the total redeemed value is credited to `receiver` in `L2AccountingVault`
 
+The `receiver` is the L2 accounting address that receives liquid balance. Redeem does not withdraw
+to L1. It only changes value form from notes back into channel liquid balance.
+
 ## 5. Contract Helper Constraints
 
 ### `computeNoteCommitment`
@@ -92,11 +115,17 @@ The bridge can only execute transfer shapes that are currently registered for th
 - rejects zero value
 - accepts caller-provided salt only as a helper input
 
+This helper is not a note creation path. It computes the identifier that the mint and transfer paths
+would store after their own validation.
+
 ### `computeNullifier`
 
 - rejects zero owner
 - rejects zero value
 - accepts caller-provided salt only as a helper input
+
+This helper is not a spend path. It computes the identifier that redeem and transfer paths would
+mark as used after validating note ownership and existence.
 
 ## 6. CLI-Imposed Constraints
 
@@ -112,6 +141,9 @@ Therefore three layers of support must be distinguished:
 - Solidity entrypoint support
 - DApp registration support
 - CLI/assistant UX support
+
+The effective user-facing support is the intersection of those layers. If any layer omits a shape,
+the user should treat that shape as unavailable for the selected network and channel.
 
 ## 7. Snapshot and Proof Constraints
 

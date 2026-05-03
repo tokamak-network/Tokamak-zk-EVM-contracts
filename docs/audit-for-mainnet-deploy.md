@@ -1,176 +1,678 @@
 # Mainnet Deployment Security Audit
 
-Date: 2026-04-30
-Reviewed commit: `d43fabaafa9a7ac67ebf22e1e2495e45bdc69bf8`
-Resolution update commits:
+Date: 2026-05-02
+Reviewed through: `73f214f` (`Make channel creation permissionless`)
+Branch: `bridge-mainnet-audit-second`
+
+This document consolidates the first, second, and third mainnet deployment audit passes. The earlier
+pass-specific documents were merged into this single checklist so reviewers can inspect the current
+security state without reconciling obsolete intermediate findings.
+
+## System Overview
+
+The system is a bridge plus private-state DApp framework for moving canonical L1 assets into
+channel-scoped private-state applications. Users join channels, deposit into channel vault
+accounting, execute private-state DApp transitions off-chain, and submit proof-backed public outputs
+to L1 contracts.
+
+The main policy choices are:
+
+- Root bridge components are UUPS-upgradeable for future protocol maintenance.
+- Each channel is intentionally immutable after creation. A channel's verifier snapshot, DApp
+  metadata digest, function root, compatible backend versions, managed storage vector,
+  `aPubBlockHash`, and refund policy are fixed for that channel.
+- DApp metadata and verifier snapshots can be updated for future channels, but existing channels do
+  not follow later updates.
+- Channel creation is permissionless. The caller of `BridgeCore.createChannel(...)` becomes that
+  channel's leader.
+- A policy mistake in an already-created channel is handled by deprecating that channel and creating
+  or joining a new one, not by mutating the existing channel in place.
+
+The current contract structure is:
+
+- `BridgeCore`: UUPS policy root and canonical channel registry. It owns verifier pointers,
+  channel creation policy, deployment metadata digest checks, and the channel registry.
+- `DAppManager`: UUPS DApp registration registry. It stores immutable `dappId`/`labelHash`,
+  replaceable future-channel runtime metadata, metadata digest, function root, and verifier
+  snapshots.
+- `L1TokenVault`: UUPS canonical asset custody and channel join/deposit/withdraw/exit entrypoint.
+  It resolves channel managers through `BridgeCore`.
+- `ChannelDeployer`: thin factory that deploys `ChannelManager`.
+- `ChannelManager`: non-upgradeable per-channel policy and state contract.
+- `PrivateStateController` and `L2AccountingVault`: non-upgradeable DApp contracts with
+  deployment-time wiring and no owner role.
+
+Component communication is intentionally narrow:
+
+- `DAppManager` snapshots the current bridge verifier addresses and compatible backend versions when
+  a DApp is registered or updated.
+- `BridgeCore.createChannel(...)` requires an expected DApp metadata digest, retrieves the current
+  DApp snapshot from `DAppManager`, asks `ChannelDeployer` to deploy a manager, validates the
+  returned manager snapshot, binds the bridge token vault, and writes the canonical registry entry.
+- `L1TokenVault` never trusts arbitrary `ChannelManager` addresses. It resolves managers through
+  `BridgeCore.getChannelManager(...)`.
+- `ChannelManager.executeChannelTransaction(...)` verifies calldata-supplied function metadata
+  against the channel's immutable `functionRoot`, calls the Tokamak verifier, processes
+  proof-backed observed logs, and updates the channel root vector hash.
+- The private-state CLI reads deployment and DApp registration manifests, prints immutable channel
+  policy snapshots, checks DApp digest/schema/root values against chain state, and passes the
+  expected digest into channel creation.
+
+Mainnet assumptions:
+
+- The reviewed deployment is the first mainnet bridge deployment. If any historical mainnet proxy
+  is found, the storage-layout and deployment-mode assumptions must be re-reviewed before broadcast.
+- Mainnet deployment uses `bridge/scripts/deploy-bridge.mjs`, not direct ad hoc `forge script`
+  commands.
+- Google Drive deployment history is the shared source of truth for detecting existing mainnet
+  bridge deployment snapshots.
+- The bridge owner is a trusted single-operator governance path for mainnet launch.
+- Tokamak zk-L2 proofs make observed public outputs, including emitted log data, binding and
+  non-forgeable.
+- Users and channel creators are expected to inspect the displayed channel policy snapshot before
+  signing channel creation or join transactions.
+
+## Checklist Summary
+
+| ID | Checklist Item | Importance | Status |
+| --- | --- | --- | --- |
+| C1 | Non-zero channel-token-vault exit | Critical | Resolved |
+| C2 | Mainnet deployment mode and source integrity | High | Resolved |
+| C3 | Stale DApp metadata at channel creation | High | Resolved |
+| C4 | DApp metadata/verifier owner update risk | Medium | Accepted with operational controls |
+| C5 | Malformed DApp metadata through raw owner calls | Low | Resolved |
+| C6 | BridgeCore size pressure from channel deployment | Low | Resolved |
+| C7 | Incompatible manager returned by ChannelDeployer | Low | Resolved |
+| C8 | Per-channel function metadata deep copy | Low | Resolved |
+| C9 | Channel creation permission model drift | Low | Resolved |
+| C10 | Privileged bridge owner custody authority | Critical | Accepted trust assumption |
+| C11 | Channel registration slot exhaustion | High | Mitigated by economic cost |
+| C12 | Exact-transfer canonical asset dependency | Medium | Accepted external dependency |
+| C13 | Finite storage leaf projection collisions | Medium | Mitigated by collision-probability reduction |
+
+## Resolved Checklist
+
+### C1. Non-Zero Channel-Token-Vault Exit
+
+Importance: Critical.
+
+Root cause: `exitChannel` originally unregistered a channel-token-vault identity without an
+on-chain check that the registered L2 accounting balance was zero. A CLI warning existed, but direct
+contract calls could bypass CLI policy.
+
+Attack enabled: a user could exit while their channel-token-vault leaf still held value. The same
+key, leaf index, and L2 address binding could later be registered by another L1 address, allowing a
+valid withdraw proof against the abandoned non-zero leaf and transferring the orphaned balance.
 
-- `4c66d2e8f2998cd38ac394205f680dc7052c71a5`
-- `7547fd957c675676d4cf72854deb0bcdbe1cab0a`
-- `52815b645431490a663892bacfbef3cdd1396702`
+Resolution:
 
-Scope: bridge contracts, private-state DApp contracts, deployment scripts, registration flow, CLI trust boundaries, and deployment metadata gates relevant to mainnet deployment.
+- Channel-token-vault registrations now store `isZeroBalance`.
+- `ChannelManager.unregisterChannelTokenVaultIdentity(...)` rejects exit unless
+  `isZeroBalance == true`.
+- Groth-backed deposit/withdraw paths update the flag through
+  `ChannelManager.observeChannelTokenVaultStorageWrite(...)`.
+- Tokamak-backed DApp execution updates the flag from proof-backed
+  `LiquidBalanceStorageWriteObserved(address,bytes32)` raw logs.
+- The owner whose flag is updated is derived from the observed storage key or event-decoded L2
+  address, not from the transaction caller.
 
-## Findings
+Evidence:
 
-1. Critical: `exitChannel` can release an occupied channel-token-vault slot while the L2 accounting balance is still non-zero.
+- Commit: `4c66d2e8f2998cd38ac394205f680dc7052c71a5`.
+- Code: `bridge/src/BridgeStructs.sol`, `bridge/src/ChannelManager.sol`,
+  `bridge/src/L1TokenVault.sol`, `packages/apps/private-state/src/L2AccountingVault.sol`.
+- Regression coverage: `bridge/test/BridgeFlow.t.sol` covers non-zero exit rejection, zero-balance
+  restoration after withdraw, and Tokamak observed-log flag updates.
 
-   Status: resolved in `4c66d2e8f2998cd38ac394205f680dc7052c71a5`.
+Upgradeability note: this must be present before mainnet channels are opened. A later UUPS upgrade
+could block future unsafe exits, but it could not reliably recover balances already orphaned or
+stolen before the guard existed.
 
-   `L1TokenVault.exitChannel(...)` unregisters the caller through `ChannelManager.unregisterChannelTokenVaultIdentity(...)` without verifying that the registered `channelTokenVaultKey` currently has a zero balance in the accepted channel root. After unregistering, the same `channelTokenVaultKey`, leaf index, and L2 address binding become available for registration by another L1 address. A new registrant can then submit a valid withdraw proof against the existing non-zero leaf value and move the orphaned channel balance into their own L1 available balance.
+### C2. Mainnet Deployment Mode And Source Integrity
 
-   At the original review commit, the repository had a test that accepted this behavior: `bridge/test/BridgeFlow.t.sol::testExitChannelAllowsNonZeroChannelBalance`. The CLI had a zero-balance guard for `exit-channel`, but that guard was local UX logic and could be bypassed with `--force`; it was not an on-chain security boundary.
+Importance: High.
 
-   Resolution details: channel-token-vault registrations now include an `isZeroBalance` flag initialized to `true` when the identity is registered. `ChannelManager.unregisterChannelTokenVaultIdentity(...)` rejects exit with `ChannelTokenVaultBalanceNotZero` unless the flag is true. The flag is updated from proof-backed observed storage writes, not from the transaction caller.
+Root cause: mainnet deployment safety rules originally lived in operational discipline rather than
+hard script checks. A missing local deployment directory also could not prove that no mainnet proxy
+existed elsewhere.
 
-   The Groth16 deposit and withdraw path updates the flag before emitting `L1TokenVault.StorageWriteObserved(address,uint256,uint256)`. `L1TokenVault` passes the same `storageAddr`, `storageKey`, and `value` to `ChannelManager.observeChannelTokenVaultStorageWrite(...)`; `ChannelManager` validates that `storageAddr` is the registered channel-token-vault storage address, resolves the owner from the observed `storageKey`, and sets `isZeroBalance` from `value == 0`.
+Attack or failure enabled: an operator could accidentally run `redeploy-proxy` on mainnet and split
+bridge state into a new root address set, or deploy from a commit that users and auditors cannot
+resolve on remote `main`.
 
-   The Tokamak zk-L2 DApp execution path updates the same flag when `executeChannelTransaction` processes a raw observed log whose topic is `LiquidBalanceStorageWriteObserved(address,bytes32)`. `ChannelManager` decodes the L2 address and written value from the log data, resolves the registered owner from the decoded L2 address, and sets `isZeroBalance` from `value == 0`. The owner is therefore derived from event contents in both supported observation paths; the transaction caller is not used to select the owner.
+Resolution:
 
-   Unknown or inconsistent observed writes now fail closed. The StorageWriteObserved path rejects an unexpected storage address or unregistered storage key. The LiquidBalanceStorageWriteObserved path rejects malformed event data or an unregistered L2 address. This is appropriate because these writes are part of proof-backed bridge state transitions; accepting an unregistered observed owner would make the exit-safety flag ambiguous.
+- Mainnet deployment runs hard gates in `bridge/scripts/deploy-bridge.mjs`.
+- Deployment-relevant dirty worktrees are rejected.
+- Local `HEAD` must be contained in `origin/main`.
+- Mainnet `redeploy-proxy` checks the shared Google Drive deployment-history folder. If any
+  `chain-id-1/bridge/<timestamp>/bridge.1.json` snapshot exists, redeploy is refused and the
+  operator must use upgrade mode.
+- Drive lookup failures fail closed.
 
-   Upgradeability classification: this issue was fixable before mainnet deployment by changing the first deployed UUPS implementation set. Already executed non-zero exits, key reuse, or stolen balances would not have been reliably recoverable by a later upgrade, so this fix must be present before any mainnet channel is opened.
+Evidence:
 
-   Mainnet recommendation: resolved for the reviewed implementation update. Before deployment, keep the new regression coverage in the release gate and verify that deployed bytecode contains the `isZeroBalance` registration field, both observed-write update paths, and the `ChannelTokenVaultBalanceNotZero` exit guard.
+- Commits: `7547fd957c675676d4cf72854deb0bcdbe1cab0a`,
+  `073009a` (`Gate mainnet redeploys on Drive deployment history`).
+- Code: `bridge/scripts/deploy-bridge.mjs`.
+- Drive root: `12HuHeR8vCWfkeGdjTAFKhv0FU-AG4aUJ`, overridable with
+  `BRIDGE_DEPLOYMENT_DRIVE_FOLDER_ID`.
 
-2. High: mainnet deployment safety policies are not enforced inside the deployment script.
+Upgradeability note: this is a pre-deployment operational gate. UUPS cannot merge two already-used
+proxy state histories.
 
-   Status: resolved in `7547fd957c675676d4cf72854deb0bcdbe1cab0a`.
+### C3. Stale DApp Metadata At Channel Creation
 
-   The deployment discipline requires that mainnet use `upgrade` mode once a proxy exists, that exact local `HEAD` already be present on remote `main`, and that deployment-relevant Solidity changes be compared against the previous deployment metadata. These rules currently live in operational instructions, not as hard checks in `bridge/scripts/deploy-bridge.mjs`.
+Importance: High.
 
-   A mistaken `redeploy-proxy` on mainnet can create new root bridge addresses and split state from existing deployments. A deployment from a commit that is not on remote `main` can also produce metadata whose source links are not resolvable by users or auditors.
+Root cause: after DApp metadata became updateable for future channels, checking only the DApp label
+was no longer enough. A DApp ID can preserve the same label while replacing storage metadata,
+function metadata, preprocess hashes, event-log layouts, verifier addresses, and compatible backend
+versions for future channels.
 
-   Resolution details: `bridge/scripts/deploy-bridge.mjs` now runs mainnet-only hard gates before broadcasting. If local mainnet bridge deployment metadata already exists, `--mode redeploy-proxy` is rejected and the operator is directed to use `--mode upgrade`. The script also blocks mainnet deployment from a dirty deployment-relevant worktree, including bridge Solidity sources, generated verifier Solidity, bridge deployment scripts, deployment metadata helpers, artifact upload helpers, and Groth16 deployment helpers.
+Attack or failure enabled: a channel creator using a stale manifest could unintentionally create a
+channel against newer on-chain DApp policy while believing they were joining the older policy.
+Because channel policy is immutable, that mistake would not be repairable in place.
 
-   The script fetches `origin/main` and requires the exact local `HEAD` commit to be contained in that remote branch before mainnet deployment can continue. When previous bridge deployment metadata exists, the script reads `.sourceCode.repository.commit`, verifies that commit is locally resolvable, and compares it to current `HEAD` over `bridge/src/**/*.sol`. If no bridge Solidity source changed, the script refuses to deploy a new mainnet bridge implementation.
+Resolution:
 
-   Upgradeability classification: this issue was fixed at the deployment tooling layer before mainnet deployment. If a mainnet proxy redeployment had already happened and users or channels started using the wrong address set, normal UUPS upgrades would not merge the split state histories.
+- `DAppManager.registerDApp(...)` and `updateDAppMetadata(...)` compute a metadata digest using
+  `DAPP_METADATA_DIGEST_SCHEMA`.
+- The digest commits to `dappId`, immutable `labelHash`, channel-token-vault storage index, storage
+  metadata root, function root, and verifier snapshot hash.
+- `BridgeCore.createChannel(...)` requires `expectedDAppMetadataDigest` and reverts on mismatch.
+- The private-state CLI compares manifest digest/schema/function-root values against on-chain
+  `DAppInfo` before creating a channel and passes the expected digest into `createChannel(...)`.
 
-   Mainnet recommendation: resolved for the bridge deployment entrypoint. Keep mainnet bridge deployment routed through `node bridge/scripts/deploy-bridge.mjs`; bypassing it with direct `forge script` commands would bypass these operational hard gates.
+Evidence:
 
-3. Accepted design constraint: deployed `ChannelManager` instances intentionally freeze channel policy at channel creation.
+- Commits: `8f6d3bc` (`Mark metadata digest channel gate resolved`), `eb7fd30`
+  (`Use function root proofs for channel execution`).
+- Code: `bridge/src/DAppManager.sol`, `bridge/src/BridgeCore.sol`,
+  `packages/apps/private-state/cli/private-state-bridge-cli.mjs`.
+- Test: `bridge/test/BridgeFlow.t.sol::testChannelCreationRejectsStaleDAppMetadataDigest`.
 
-   Status: accepted immutable-channel-policy tradeoff. Mitigation implemented in `52815b645431490a663892bacfbef3cdd1396702` through user/operator disclosure in CLI and README documentation.
+Upgradeability note: future channels are protected. A channel deliberately created against the wrong
+current digest remains immutable and must be migrated.
 
-   `BridgeCore`, `DAppManager`, `BridgeAdminManager`, and `L1TokenVault` are UUPS-upgradeable. Per-channel `ChannelManager` instances are regular contracts created by `BridgeCore.createChannel(...)`. Each `ChannelManager` stores immutable verifier addresses, immutable channel metadata, a fixed managed-storage vector, fixed function metadata copied from `DAppManager`, and fixed refund schedule parameters.
+### C4. DApp Metadata And Verifier Owner Update Risk
 
-   Updating `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, or DApp registration metadata only affects future channel creation. Existing channels keep their originally captured verifier and function metadata.
+Importance: Medium.
 
-   Design rationale: this immutability is intentional. A channel's verifier bindings, DApp execution grammar, managed storage vector, and refund schedule are part of the operating policy users implicitly accept when they join that channel. Changing those policy fields in place during active channel use, without renewed user consent, is not acceptable under the intended channel model.
+Root cause: `BridgeCore.setGrothVerifier(...)`, `BridgeCore.setTokamakVerifier(...)`, and
+`DAppManager.updateDAppMetadata(...)` are owner actions that affect future DApp snapshots and future
+channels without an on-chain delay or second approval step.
 
-   Tradeoff: the design prevents unilateral policy changes for existing channel users, but it also means bugs in an already deployed channel's verifier binding, function layout, managed storage vector, refund schedule, or accepted execution grammar require channel migration. They are not repairable in place by upgrading `BridgeCore`.
+Attack or failure enabled: an owner mistake or owner-key compromise can publish bad future channel
+policy inputs. Users who create or join a channel against that bad current snapshot become bound to
+an immutable bad channel.
 
-   Mitigation: channel creation and channel joining must warn operators and users that they are committing to an immutable channel policy. The CLI and README now describe that the expected response to a later policy or metadata bug is creating or joining a new channel, not mutating the existing channel.
+Resolution and accepted control:
 
-   Mainnet recommendation: accepted with explicit disclosure. Create mainnet channels only after verifier versions, Groth16 setup artifacts, `aPubUser` offsets, function selectors, and managed storage addresses have been independently checked against the exact DApp deployment, and make sure users see the immutable-policy warning before joining.
+- Existing channels do not follow later owner updates, preserving channel-user consent.
+- The CLI prints the immutable channel policy snapshot before channel creation and first join:
+  DApp metadata digest, digest schema, function root, verifier addresses, and compatible backend
+  versions.
+- The accepted operational response to a bad future snapshot is public notice, deprecating affected
+  channels, publishing corrected metadata/verifiers, and creating or joining new channels.
 
-4. Accepted design constraint: channel-bound private-state DApp implementations are intentionally fixed.
+Evidence:
 
-   Status: accepted immutable-channel/DApp-binding tradeoff. This follows the same policy rationale as Finding 3.
+- Commit: `52815b645431490a663892bacfbef3cdd1396702`.
+- Code: `packages/apps/private-state/cli/private-state-bridge-cli.mjs`.
+- Docs: bridge and private-state CLI README warnings describe immutable channel policy.
 
-   `PrivateStateController` and `L2AccountingVault` use immutable deployment-time wiring and expose no owner or admin upgrade path. In addition, once a channel is created against registered DApp metadata, the channel keeps the DApp implementation and execution metadata it captured at creation time. This is intentional: the DApp implementation is part of the channel operating policy that users accept when they join.
+Upgradeability note: future governance can be strengthened by UUPS upgrade, timelocks, or ownership
+transfer. Already-created bad channels remain migration events.
 
-   Design rationale: changing the DApp implementation for an active channel would change the channel's behavior after users already joined under the original rules. That would be a unilateral policy change unless every affected user explicitly consents. The current design therefore favors immutable channel/DApp binding over in-place patchability.
+### C5. Malformed DApp Metadata Through Raw Owner Calls
 
-   Tradeoff: a new DApp instance can be deployed and registered under a new or replacement DApp ID, and new channels can use that registration. Existing channels bound to the old DApp implementation remain bound to it. Contract-level bugs in the DApp instance used by an existing channel require channel migration or a new channel generation; they are not repaired by replacing the DApp implementation in place.
+Importance: Low.
 
-   Mitigation: treat DApp deployment, registration, and channel creation as one final policy package for each channel generation. User-facing warnings added for Finding 3 also cover this point because they state that joining a channel accepts the channel's DApp metadata and fixed execution policy.
+Root cause: the DApp admin script validates deployed artifacts and layout consistency, but direct
+owner calls to `registerDApp(...)` or `updateDAppMetadata(...)` previously had weaker structural
+checks.
 
-   Mainnet recommendation: accepted with explicit disclosure. Do not register the DApp or create mainnet channels until the exact deployed bytecode, callable ABI set, storage-layout manifest, Synthesizer registration artifacts, and channel-captured DApp metadata match the intended function set.
+Attack or failure enabled: a raw owner call could register zero addresses, non-contract storage
+addresses, non-contract entry contracts, or zero label/preprocess values. Such metadata could create
+channels that are unusable or permanently bound to wrong policy.
 
-## Other Security Checks
+Resolution:
 
-### zk-L2 Privacy Assumption
+- `registerDApp(...)` rejects zero `labelHash`.
+- Shared metadata storage rejects empty storage/function lists, zero storage addresses,
+  non-contract storage addresses, duplicate storage addresses, missing/multiple channel-token-vault
+  storage entries, zero function entry contracts, non-contract function entry contracts, zero
+  preprocess hashes, duplicate function keys, duplicate preprocess hashes, and event topic counts
+  above four.
 
-The private-state DApp assumes the Tokamak zk-L2 model where user transaction contents are private to the caller and L1 observers see proofs plus resulting state transitions. The contracts do not add L1 mempool calldata-hiding logic, which is appropriate under this execution model. The DApp documentation correctly states that the contracts themselves do not provide note-ownership privacy without the surrounding proving-based L2 execution environment.
+Evidence:
 
-### Bridge-Managed Custody
+- Commit: `5eba9ac` (`Harden DApp metadata registration validation`).
+- Code: `bridge/src/DAppManager.sol`.
+- Tests: regression coverage was added in `bridge/test/BridgeFlow.t.sol`.
 
-The custody model is structurally correct: canonical asset custody remains in the L1 bridge vault, while the private-state DApp keeps L2 accounting balances, note commitments, and nullifiers. `L2AccountingVault` is accounting-only and can be mutated only by its immutable controller. Users do not directly move canonical assets inside the L2 DApp contracts.
+Upgradeability note: fixed before mainnet for future registrations and updates.
 
-### L2 Accounting Bounds
+### C6. BridgeCore Size Pressure From Channel Deployment
 
-`L2AccountingVault.creditLiquidBalance(...)` rejects zero amounts, rejects zero accounts, and prevents balances from reaching or exceeding the BLS12-381 scalar field order. `debitLiquidBalance(...)` rejects zero amounts, rejects zero accounts, and prevents native underflow by checking available balance before subtraction.
+Importance: Low.
 
-### User-Facing Symbolic Paths
+Root cause: deploying `ChannelManager` directly from `BridgeCore` kept too much deployment logic in
+the root UUPS implementation and reduced bytecode margin for future hardening.
 
-The static successful-path checker passed these private-state functions:
+Failure enabled: the root contract could approach or exceed the EIP-170 bytecode limit, blocking
+deployment or discouraging needed safety checks.
 
-- `mintNotes1` through `mintNotes6`
-- `transferNotes1To1`
-- `transferNotes1To2`
-- `transferNotes1To3`
-- `transferNotes2To1`
-- `transferNotes2To2`
-- `transferNotes3To1`
-- `transferNotes3To2`
-- `transferNotes4To1`
-- `L2AccountingVault.creditLiquidBalance`
-- `L2AccountingVault.debitLiquidBalance`
+Resolution:
 
-The checker could not parse the `redeemNotes1` through `redeemNotes4` functions because their zero-address receiver guard is implemented in inline assembly. Manual review indicates those redeem functions still have one successful path: validate non-zero receiver, prepare spendable notes, consume nullifiers, sum value, and credit liquid balance.
+- `ChannelDeployer` was introduced as a thin factory.
+- `BridgeCore` remains the channel policy and registry root.
+- `BridgeAdminManager` and its redundant mutable tree-depth plumbing were removed.
 
-### Function Bytecode and Placement Discipline
+Evidence:
 
-The private-state user-facing functions use fixed-arity entrypoints rather than a generic multi-mode dispatcher. The mint, transfer, and redeem families are mostly unrolled, which fits the fixed-circuit and placement-discipline requirements better than dynamic loops. Some functions still use helper calls for commitment, nullifier, encrypted-note salt, and storage-key derivation; those helpers appear to serve shared correctness and size/placement goals rather than optional feature branching.
+- Commits: `6751ad2`, `ab5e69b`, `f6ae5b3`.
+- Code: `bridge/src/BridgeCore.sol`, `bridge/src/ChannelDeployer.sol`,
+  `bridge/src/ChannelManager.sol`.
+- Size check after the covered changes: `BridgeCore` runtime size `10,437 bytes`, margin
+  `14,139 bytes`.
 
-### Storage Layout and Address Split
+Upgradeability note: resolved before mainnet deployment.
 
-The private-state DApp separates liquid accounting state from note/nullifier state across `L2AccountingVault` and `PrivateStateController`. This split is appropriate because accounting balances and note state grow differently and have different mutation semantics.
+### C7. Incompatible Manager Returned By ChannelDeployer
 
-### Admin and Ownership
+Importance: Low.
 
-The private-state DApp has no contract-level owner role. The controller-to-vault relationship is immutable and deployment-bound. Bridge administration remains owner-controlled through UUPS-upgradeable bridge components, so the bridge owner key or governance process is a mainnet-critical trust boundary.
+Root cause: after moving deployment to `ChannelDeployer`, `BridgeCore` needed to prove that the
+returned manager matched the policy it had just approved before binding custody authority.
 
-### CLI and Local Command Surface
+Attack or failure enabled: a misconfigured or malicious deployer could return a manager with wrong
+channel ID, DApp ID, leader, digest, verifier, fee, or refund schedule. If accepted, the canonical
+registry would point at a bad channel manager.
 
-The private-state CLI exists under `packages/apps/private-state/cli` and supports bridge-coupled workflows. The DApp Makefile exposes local anvil, test, E2E, and public-network deployment commands. The CLI's `exit-channel` zero-balance check is useful for user safety but must not be treated as sufficient because direct contract calls can bypass it.
+Resolution:
 
-After the resolution of Finding 1, the CLI guard is defense-in-depth rather than the primary security boundary. The on-chain exit path now independently rejects non-zero channel vault balances based on proof-backed observed storage writes.
+- `BridgeCore.createChannel(...)` validates the returned manager before vault binding and registry
+  write.
+- The validation checks code existence and snapshot fields: `bridgeCore`, `channelId`, `dappId`,
+  `leader`, channel-token-vault tree index, metadata digest schema, metadata digest, function root,
+  verifier addresses, join toll, and refund schedule.
 
-### Synthesizer Compatibility Deliverables
+Evidence:
 
-The repository contains Synthesizer example inputs under `packages/apps/private-state/examples/synthesizer/privateState/`. No files were found under `packages/apps/private-state/scripts/synthesizer-compat-test`, so the stricter per-function compatibility-script deliverable is not present in the expected script directory. Mainnet registration should rely only on freshly regenerated artifacts from the exact deployed contracts and should not treat stale examples as sufficient.
+- Commit: `ab5e69b`.
+- Code: `bridge/src/BridgeCore.sol::_validateChannelManager(...)`.
+- Test: `bridge/test/BridgeFlow.t.sol::testCreateChannelRejectsIncompatibleDeployerReturn`.
 
-### Deployment Source Integrity
+Residual note: the checks do not prove bytecode identity. This is accepted as normal privileged
+deployment review: the owner must record and review the deployed `ChannelDeployer` address and
+source commit, just as with verifier and UUPS implementation addresses.
 
-The current local `HEAD` was checked after `git fetch --prune origin main` and is contained in `origin/main`:
+### C8. Per-Channel Function Metadata Deep Copy
 
-- `d43fabaafa9a7ac67ebf22e1e2495e45bdc69bf8`
+Importance: Low.
 
-There is no local `deployment/chain-id-1` mainnet deployment directory. Therefore local metadata cannot prove whether a mainnet bridge proxy already exists. If a proxy already exists on mainnet, only `upgrade` mode should be used.
+Root cause: each channel previously deep-copied DApp function metadata into its `ChannelManager`.
+That made `createChannel` expensive without adding a stronger policy commitment.
 
-Latest Sepolia bridge and private-state deployment metadata both record previous source commit `6648d5f452196fb72c729f24cc1118b6fab3203c`. Comparing that commit to the reviewed `HEAD` showed no deployment-relevant Solidity diff under:
+Failure enabled: this was primarily a cost and maintainability problem. Expensive channel creation
+could discourage channel creation and make the policy snapshot harder to reason about.
 
-- `bridge/src/**/*.sol`
-- `packages/apps/private-state/src/**/*.sol`
+Resolution:
 
-This means a forced redeployment would need an explicit operational reason; it is not justified by changed contract source alone.
+- `DAppManager` validates function metadata at registration/update time and computes a Merkle
+  `functionRoot`.
+- `ChannelManager` stores the immutable `functionRoot`.
+- `executeChannelTransaction(...)` accepts function metadata plus Merkle siblings, hashes the
+  metadata, verifies it against `functionRoot`, and only then trusts preprocess hashes, entry
+  contracts, function selectors, root-vector offsets, and observed-event layouts.
+- Stale on-chain DApp function metadata storage was removed.
 
-### Canonical Asset
+Evidence:
 
-`BridgeCore.canonicalAsset()` hard-codes Tokamak Network Token for Ethereum mainnet as `0x2be5e8c109e2197D077D13A82dAead6a9b3433C5`. This matches the Tokamak Network token contract address shown by CoinGecko on 2026-04-30. The bridge assumes exact-transfer ERC-20 behavior; token pausing, blacklisting, fee-on-transfer behavior, or governance changes in the canonical token remain external trust and availability risks.
+- Commits: `eb7fd30`, `352494c`.
+- Code: `bridge/src/DAppManager.sol`, `bridge/src/ChannelManager.sol`,
+  `bridge/scripts/admin-add-dapp.mjs`,
+  `packages/apps/private-state/cli/private-state-bridge-cli.mjs`.
+- Gas documentation: `bridge/docs/gas-assessment.md` records current `createChannel` full-path gas
+  as `2,731,347`, down from the earlier `3,884,651` deep-copy design measurement.
+
+Security note: calldata-supplied function metadata is not trusted unless it proves against the
+channel root. Losing manifest proof material affects availability, not authorization.
+
+### C9. Channel Creation Permission Model Drift
+
+Importance: Low.
+
+Root cause: during refactoring and gas documentation, channel creation drifted into an owner/operator
+classification even though the intended design was permissionless channel creation.
+
+Failure enabled: owner-only channel creation would centralize channel availability and contradict
+the project policy that anyone can create a channel and become its leader.
+
+Resolution:
+
+- `BridgeCore.createChannel(...)` is permissionless.
+- The `leader` parameter was removed.
+- `leader` is now `msg.sender`.
+- The CLI calls `createChannel(channelId, dappId, joinToll, metadataDigest)`.
+
+Evidence:
+
+- Commit: `73f214f`.
+- Code: `bridge/src/BridgeCore.sol`, `packages/apps/private-state/cli/private-state-bridge-cli.mjs`.
+- Test: `bridge/test/BridgeFlow.t.sol::testCreateChannelUsesCallerAsLeader`.
+- Gas documentation classifies `BridgeCore.createChannel` as a user call.
+
+Non-finding: a caller can create a desirable channel name first. This is expected first-come channel
+name ownership, not a protocol attack. Users should resolve actual channels from `BridgeCore`, not
+from names alone.
+
+### C10. Privileged Bridge Owner Custody Authority
+
+Importance: Critical.
+
+Status: accepted trust assumption.
+
+Root cause: the root bridge stack is intentionally UUPS-upgradeable and owner-controlled.
+`BridgeCore`, `DAppManager`, and `L1TokenVault` still authorize upgrades through `onlyOwner`.
+`BridgeCore` also lets the owner set future default Groth16 and Tokamak verifier addresses.
+
+Attack or failure enabled: a malicious or compromised owner can deploy an implementation that
+bypasses proof checks, freezes deposits or withdrawals, changes channel registry behavior, changes
+future verifier defaults, or transfers custody out of the vault. This is not an unprivileged
+exploit path; it is the core governance trust assumption for this launch model.
+
+Current control:
+
+- Channels snapshot verifier bindings and DApp metadata at creation, so verifier default changes do
+  not rewrite already-created channels.
+- The CLI displays immutable channel policy snapshots before channel creation and join.
+- Mainnet deployment metadata must record source commits, implementation addresses, verifier
+  addresses, `ChannelDeployer`, vault, and DApp registration addresses.
+- The bridge owner trust assumption is accepted under the current single-operator launch model.
+
+Evidence:
+
+- Code: `bridge/src/BridgeCore.sol`, `bridge/src/DAppManager.sol`,
+  `bridge/src/L1TokenVault.sol`.
+- Code: `packages/apps/private-state/cli/private-state-bridge-cli.mjs` prints immutable policy
+  snapshot values before channel creation and first join.
+- Related commits: `99bc739` (`Allow DApp metadata verifier snapshots to update`) and
+  `52815b6` (`Warn users about immutable channel policy`).
+
+Maintenance note: future governance can move ownership to a timelock or multisig, separate pause
+authority from upgrade authority, or freeze custody-critical upgrades after a maturation period. An
+already-executed malicious owner upgrade cannot be treated as recoverable by ordinary UUPS policy.
+
+### C11. Channel Registration Slot Exhaustion
+
+Importance: High.
+
+Status: mitigated by economic cost.
+
+Root cause: channel-token-vault registration reserves a finite channel leaf index. In the earlier
+free-registration design, an attacker could repeatedly join with many L1/L2 identities and consume
+registration slots while paying only gas.
+
+Attack or failure enabled: a channel could be denied to new users by exhausting available leaf
+indices. This is primarily a liveness attack, but it can strand user workflow because users cannot
+complete the L1-to-channel path for a saturated channel.
+
+Mitigation:
+
+- Joining a channel is now a paid action through `L1TokenVault.joinChannel(...)`.
+- The channel creator chooses the initial join toll at `createChannel(...)`.
+- `ChannelManager` records `joinTollPaid` and `joinedAt` per registration.
+- Exit is allowed only after the channel-token-vault balance is zero.
+- Exit refunds a time-decayed fraction of the paid join toll and frees the reserved L1, L2, storage
+  key, and leaf-index bindings only after unregistering succeeds.
+- The bridge tracks join tolls in `_tollTreasuryBalance`; the only current outflow path is decayed
+  exit refund.
+
+Evidence:
+
+- Code: `bridge/src/L1TokenVault.sol::joinChannel(...)` charges the channel join toll and records it
+  in treasury accounting.
+- Code: `bridge/src/L1TokenVault.sol::exitChannel(...)` queries the refund quote, unregisters the
+  user, and pays only the decayed refund.
+- Code: `bridge/src/ChannelManager.sol::registerChannelTokenVaultIdentity(...)` records
+  `joinTollPaid` and `joinedAt`.
+- Code: `bridge/src/ChannelManager.sol::getExitTollRefundQuote(...)` computes the refund from the
+  recorded toll paid at join time.
+- Code: `bridge/src/ChannelManager.sol::setJoinToll(...)` lets the channel leader price future joins.
+
+Residual risk: this changes registration exhaustion from a gas-only sybil griefing primitive into
+an economic denial-of-service attack. A sufficiently funded attacker can still buy all available
+slots, and a channel leader can raise the future join toll. Users should treat join-toll policy as
+part of the channel policy they inspect before joining.
+
+### C12. Exact-Transfer Canonical Asset Dependency
+
+Importance: Medium.
+
+Status: accepted external dependency.
+
+Root cause: the bridge is designed around a canonical ERC-20 that behaves as an exact-transfer
+token. Mainnet `BridgeCore.canonicalAsset()` hard-codes Tokamak Network Token for Ethereum mainnet.
+
+Attack or failure enabled: if the canonical token pauses transfers, blacklists participants,
+introduces transfer fees, rebases, or otherwise changes observed transfer deltas, deposits, joins,
+claims, or refunds can revert. This is an external availability and governance dependency, not a
+bridge-internal theft primitive.
+
+Current guard:
+
+- `L1TokenVault` checks observed token balance deltas for `fund(...)`, `joinChannel(...)`,
+  `exitChannel(...)` refunds, and `claimToWallet(...)`.
+- Fee-on-transfer or otherwise non-exact behavior reverts with `UnsupportedAssetTransferBehavior`.
+- The canonical token's transfer behavior and governance are accepted as an explicit bridge trust
+  assumption.
+
+Evidence:
+
+- Code: `bridge/src/BridgeCore.sol::canonicalAsset()`.
+- Code: `bridge/src/L1TokenVault.sol::fund(...)`, `joinChannel(...)`, `exitChannel(...)`, and
+  `claimToWallet(...)`.
+
+Operational note: user-facing docs must not present the bridge as token-agnostic. The bridge is
+safe only under the accepted exact-transfer behavior of the configured canonical asset.
+
+### C13. Finite Storage Leaf Projection Collisions
+
+Importance: Medium.
+
+Status: mitigated by collision-probability reduction.
+
+Root cause: managed storage keys are projected into a finite Merkle leaf domain. For any finite
+depth below a full 256-bit key path, distinct storage keys can map to the same leaf index. This is a
+bridge/state-manager storage abstraction property rather than a normal EVM mapping property.
+
+Failure enabled: a valid DApp transition can be denied if unrelated storage keys collide in the
+finite leaf domain. The impact is not direct asset theft, but an availability and usability failure:
+an otherwise valid storage write can become impossible because another key already occupies the same
+finite leaf.
+
+Mitigation:
+
+- The generated environment currently uses `MT_DEPTH = 36`, which increases the managed storage
+  leaf domain to `N = 2^36`.
+- Increasing tree depth reduces random leaf-collision probability exponentially in the depth.
+- The CLI observes and tracks storage keys, commitments, and nullifiers so users can reconcile
+  local state against bridge state. This helps detection and local accounting, but it does not
+  mathematically eliminate collisions.
+
+Collision probability model:
+
+Let `d` be the Merkle tree depth, `N = 2^d` be the finite leaf domain size, and `t` be the channel
+operating period. The relevant operational question is not only whether a fixed set of `k` keys
+contains a collision after the fact. A live channel accumulates storage keys over time, so each new
+storage key has a growing chance of hitting an already-occupied finite leaf.
+
+Assume new storage keys that attempt to occupy a leaf index arrive as a Poisson process with rate
+`\lambda`. If `t` is measured in minutes, the expected number of arrived storage keys is:
+
+$$
+\mu(t) = \lambda t
+$$
+
+Under the standard Poissonized occupancy model, each of the `N` leaves independently receives a
+Poisson count with mean `\mu(t)/N`. No collision has occurred by time `t` exactly when every leaf
+has received either zero or one arrival:
+
+$$
+\Pr[\text{no collision by } t]
+= \left(e^{-\mu(t)/N}\left(1+\frac{\mu(t)}{N}\right)\right)^N
+= e^{-\mu(t)}\left(1+\frac{\mu(t)}{2^d}\right)^{2^d}
+$$
+
+Therefore the channel-lifespan collision probability is:
+
+$$
+\Pr[\text{at least one collision by } t]
+= 1 - e^{-\mu(t)}\left(1+\frac{\mu(t)}{2^d}\right)^{2^d}
+$$
+
+For `\mu(t) \ll 2^d`, this is approximated by the birthday exponent:
+
+$$
+\Pr[\text{at least one collision by } t]
+\approx 1 - \exp\left(-\frac{\mu(t)^2}{2\cdot 2^d}\right)
+$$
+
+The graph below assumes one new storage key attempts to occupy a leaf index per minute on average, so
+`\lambda = 1/minute` and `\mu(t) = 1440t` when `t` is measured in days. The current `d = 36`
+setting gives a domain of `68,719,476,736` leaves. Under this assumption, the collision probability
+for `d = 36` crosses roughly 50% after about 214 days and roughly 90% after about 391 days. This is
+why finite leaf projection creates a channel-lifespan capacity limit rather than a one-time
+static-set risk, even after the depth increase materially reduces the practical collision rate. The
+graph uses a logarithmic probability axis so low-probability early-lifespan regions remain visible.
+
+![General channel lifespan leaf collision probability by operating period and depth](../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
+
+Evidence:
+
+- Code: `bridge/src/generated/TokamakEnvironment.sol` sets `MT_DEPTH = 36` and derives
+  `MAX_MT_LEAVES`.
+- Code: `bridge/src/ChannelManager.sol::_deriveLeafIndexFromStorageKey(...)` maps a storage key
+  into the finite leaf domain.
+- Code: `packages/apps/private-state/src/PrivateStateController.sol` emits observed storage keys
+  for commitment and nullifier writes.
+- Code: `packages/apps/private-state/cli/private-state-bridge-cli.mjs` derives and tracks
+  commitment/nullifier storage keys and reconciles note state from snapshots.
+
+Operational note: do not describe the dense finite-leaf storage projection as collision-free. If
+future deployments reduce tree depth, materially increase managed storage-key volume, or target
+channels with long expected operating lifetimes, this item must be re-reviewed as a capacity and
+usability risk.
+
+## Additional Checks
+
+No new unresolved practical mainnet finding was identified after the third-pass changes.
+
+The following were reviewed and classified as non-findings under the current model:
+
+- Direct calls to `ChannelDeployer` can create orphan managers, but custody and channel authority
+  come only from `BridgeCore.getChannel(...)` / `getChannelManager(...)`.
+- `BridgeCore` storage layout changed relative to older pre-split deployments. This is acceptable
+  only under the first-mainnet-deployment assumption. If a historical mainnet proxy is found, do not
+  perform a blind upgrade.
+- `executeChannelTransaction` gas is dominated by the Tokamak verifier call and proof calldata.
+  Current CLI E2E receipts are about `827,621-861,608` gas; unit traces with the verifier mocked
+  show bridge-side wrapper logic in the low tens of thousands of gas for tested paths. This is an
+  optimization topic, not a security blocker.
+- The private-state DApp has no owner role and keeps `PrivateStateController` and
+  `L2AccountingVault` deployment-wired. Existing channel-bound DApp policy is intentionally fixed.
+- The zk-L2 privacy model assumes Tokamak proof soundness and proof-backed public outputs. The
+  bridge observes balance-write events for exit safety; these public outputs must not be marketed as
+  hiding channel-vault participation or balance-write visibility.
 
 ## Verification Performed
 
-- `forge test --root bridge --match-path test/BridgeFlow.t.sol`
-  - Passed 50 tests after the Finding 1 resolution.
-  - Includes regression coverage for rejecting non-zero channel exit, restoring exit eligibility after a full withdraw, and updating `isZeroBalance` from the Tokamak observed `LiquidBalanceStorageWriteObserved` raw-log path.
+Verification was performed across the implementation series covered by this audit:
+
+- `forge test --root bridge`
+  - Passed after the channel-deployer split and again after permissionless channel creation.
+  - Latest covered suite size: 65 tests.
+- `forge test --root bridge --gas-report`
+  - Passed after permissionless channel creation.
+  - Current measured `BridgeCore.createChannel` successful full-path gas: `2,731,347`.
+- `forge build --root bridge --sizes`
+  - Passed after the latest covered commit.
+  - `BridgeCore`: `10,437 bytes`, margin `14,139 bytes`.
+  - `ChannelDeployer`: `15,003 bytes`, margin `9,573 bytes`.
+  - `ChannelManager`: `10,957 bytes`, margin `13,619 bytes`.
+  - `DAppManager`: `12,294 bytes`, margin `12,282 bytes`.
+- `forge fmt --root bridge --check`
+  - Passed during the covered implementation series.
 - `node --check bridge/scripts/deploy-bridge.mjs`
-  - Passed after the Finding 2 deployment-gate update.
-- `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/PrivateStateController.sol --contract PrivateStateController`
-  - Passed mint and transfer functions before stopping on inline assembly in `redeemNotes1`.
-- `python3 .codex/skills/app-dapp-zk-l2/scripts/check_unique_success_paths.py packages/apps/private-state/src/L2AccountingVault.sol --contract L2AccountingVault`
-  - Passed `creditLiquidBalance` and `debitLiquidBalance`.
-- `forge test --root bridge --match-path test/BridgeFlow.t.sol --match-test 'testExitChannelAllowsNonZeroChannelBalance|testGrothWithdrawAndClaimToWallet|testExitChannelRefundsAccordingToTimeBucketAndClearsRegistration'`
-  - Passed 3 tests.
-- `npm run test:bridge:unit -- --match-test 'testExitChannelAllowsNonZeroChannelBalance|testGrothWithdrawAndClaimToWallet|testExitChannelRefundsAccordingToTimeBucketAndClearsRegistration'`
-  - Passed 3 tests.
-- `forge test --match-path test/private-state/PrivateStateController.t.sol`
-  - Failed at global compilation because `test/verifier/Verifier.t.sol` still calls `new TokamakVerifier()` without the constructor argument now required by `TokamakVerifier`.
-- `make -C packages/apps/private-state test`
-  - Failed for the same global compilation issue.
+  - Passed after deployment-gate updates.
+- `node --check bridge/scripts/admin-add-dapp.mjs`
+  - Passed during the covered implementation series.
+- `node --check packages/apps/private-state/cli/private-state-bridge-cli.mjs`
+  - Passed after metadata-digest and permissionless channel-creation updates.
+- Private-state CLI E2E with a locally packed CLI tarball and `@tokamak-zk-evm/cli@2.0.16`
+  passed earlier in this branch after the function metadata proof and stale lookup cleanup. It
+  covered bridge deployment, DApp registration, channel creation, joins, deposits, mint, transfer,
+  redeem, channel withdrawal, exit, and bridge withdrawal. It was intentionally not rerun for the
+  later permissionless-channel-creation-only change.
+- Static successful-path checks passed `L2AccountingVault.creditLiquidBalance(...)` and
+  `debitLiquidBalance(...)`, and passed mint/transfer functions in `PrivateStateController` before
+  the checker stopped on inline assembly in redeem functions. Manual review kept the redeem family
+  classified as one intended successful path per fixed-arity entrypoint.
+
+## Deployment And Maintenance Guidance
+
+### After Mainnet Deployment: UUPS Maintenance
+
+- Use UUPS upgrades for root bridge maintenance, future verifier management, future DApp metadata
+  policy, deployment tooling hardening, and future governance improvements.
+- Do not assume a UUPS upgrade can fix an already-created channel's policy. Channel policy is
+  intentionally immutable.
+- Treat verifier replacement, `DAppManager` upgrade, `BridgeCore` upgrade, `L1TokenVault` upgrade,
+  and `ChannelDeployer` replacement as privileged deployment events requiring source commit,
+  address, artifact, and deployment metadata review.
+- Keep the Google Drive deployment-history gate and remote-source gate enabled for every mainnet
+  deployment.
+- If a historical mainnet proxy snapshot appears, stop and re-review storage layout before any
+  upgrade.
+
+### Adding A New DApp Or Updating DApp Metadata
+
+- Use the repository DApp registration tooling, not raw contract calls, unless the raw calldata has
+  been independently reviewed.
+- Verify deployed DApp bytecode, storage layout, function selectors, preprocess hashes,
+  event-log layout, verifier snapshot, compatible backend versions, and generated function proofs.
+- Remember that `dappId` and `labelHash` are immutable identity fields, while runtime metadata and
+  verifier snapshots are replaceable only for future channels.
+- Publish the DApp metadata digest, digest schema, function root, verifier addresses, and compatible
+  backend versions so channel creators can compare them before creating channels.
+
+### Channel Creator Checklist
+
+- Resolve the DApp through `DAppManager` and compare the displayed digest, schema, function root,
+  verifier addresses, and compatible backend versions against reviewed deployment metadata.
+- Understand that channel creation is a final policy commitment for that channel.
+- Use `BridgeCore.createChannel(...)` or the CLI path that passes the expected metadata digest.
+- Treat channel names as first-come identifiers; verify the final `channelId` and registered
+  manager through `BridgeCore`, not through a display name alone.
+
+### User Checklist Before Joining A Channel
+
+- Resolve the channel only from `BridgeCore.getChannel(...)` or `getChannelManager(...)`.
+- Review the CLI's immutable policy warning before signing.
+- Compare the channel's DApp metadata digest, function root, verifier snapshot, compatible backend
+  versions, and channel manager address against the channel announcement.
+- If a policy bug is later announced, exit only after reaching zero channel-vault balance and move
+  to a corrected channel.
 
 ## Deployment Decision
 
-Findings 1 and 2 have been resolved by the `isZeroBalance` on-chain exit guard and the mainnet deployment-script hard gates. Findings 3 and 4 are accepted immutable-policy tradeoffs with CLI and README disclosure. They raise the cost of mistakes: channel creation, DApp registration, verifier selection, and deployed DApp bytecode must be treated as final for each channel generation.
+All audit checklist items are resolved or accepted with explicit operational controls. No practical
+unresolved mainnet finding remains in the reviewed code through `73f214f`.
+
+Mainnet readiness still depends on executing the documented operational controls: deploy through the
+repository script path, preserve remote deployment history, record all deployed addresses and source
+commits, and require operators, channel creators, and users to inspect immutable channel policy
+snapshots before using a channel.

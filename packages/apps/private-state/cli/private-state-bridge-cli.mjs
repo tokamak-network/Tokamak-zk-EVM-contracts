@@ -166,7 +166,13 @@ const DEFAULT_LOG_REQUESTS_PER_SECOND = 5;
 const LOG_REQUEST_INTERVAL_MS = Math.ceil(1000 / DEFAULT_LOG_REQUESTS_PER_SECOND);
 let lastLogRequestStartedAtMs = 0;
 
-function printImmutableChannelPolicyWarning({ action, channelName, channelId, channelManager = null }) {
+function printImmutableChannelPolicyWarning({
+  action,
+  channelName,
+  channelId,
+  channelManager = null,
+  policySnapshot = null,
+}) {
   const details = [
     `WARNING: ${action} commits to an immutable channel policy.`,
     `Channel: ${channelName} (${channelId.toString()})`,
@@ -178,8 +184,48 @@ function printImmutableChannelPolicyWarning({ action, channelName, channelId, ch
     "The channel verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for this channel.",
     "Those policy fields are intentionally not upgraded in place without channel-user consent.",
     "If a policy bug is discovered later, the expected mitigation is creating or joining a new channel, not mutating this channel.",
+    "Review the DApp digest, digest schema, verifier addresses, and compatible backend versions before signing.",
   );
+  if (policySnapshot) {
+    details.push(
+      "Channel policy snapshot:",
+      `  DApp id: ${policySnapshot.dappId}`,
+      `  DApp metadata digest schema: ${policySnapshot.dappMetadataDigestSchema}`,
+      `  DApp metadata digest: ${policySnapshot.dappMetadataDigest}`,
+      `  DApp function root: ${policySnapshot.functionRoot}`,
+      `  Groth16 verifier: ${policySnapshot.grothVerifier}`,
+      `  Groth16 compatible backend version: ${policySnapshot.grothVerifierCompatibleBackendVersion}`,
+      `  Tokamak verifier: ${policySnapshot.tokamakVerifier}`,
+      `  Tokamak compatible backend version: ${policySnapshot.tokamakVerifierCompatibleBackendVersion}`,
+      "Do not sign if any snapshot value is unexpected or has not been reviewed.",
+    );
+  }
   console.error(details.join("\n"));
+}
+
+function normalizeDAppPolicySnapshot({
+  dappId,
+  metadataDigest,
+  metadataDigestSchema,
+  functionRoot,
+  verifierSnapshot,
+}) {
+  return {
+    dappId: Number(dappId),
+    dappMetadataDigestSchema: normalizeBytes32Hex(metadataDigestSchema),
+    dappMetadataDigest: normalizeBytes32Hex(metadataDigest),
+    functionRoot: normalizeBytes32Hex(functionRoot),
+    grothVerifier: getAddress(verifierSnapshot.grothVerifier),
+    grothVerifierCompatibleBackendVersion: requireVersionString(
+      verifierSnapshot.grothVerifierCompatibleBackendVersion,
+      "registered DApp Groth16 verifier compatibleBackendVersion",
+    ),
+    tokamakVerifier: getAddress(verifierSnapshot.tokamakVerifier),
+    tokamakVerifierCompatibleBackendVersion: requireVersionString(
+      verifierSnapshot.tokamakVerifierCompatibleBackendVersion,
+      "registered DApp Tokamak verifier compatibleBackendVersion",
+    ),
+  };
 }
 
 async function prepareDeploymentArtifacts(chainId) {
@@ -389,21 +435,25 @@ async function handleChannelCreate({ args, network, provider }) {
   );
   const canonicalAsset = getAddress(await bridgeCore.canonicalAsset());
   const canonicalAssetDecimals = await fetchTokenDecimals(provider, canonicalAsset);
-  const joinFeeInput = requireArg(args.joinFee, "--join-fee");
-  const joinFee = parseTokenAmount(joinFeeInput, canonicalAssetDecimals);
+  const joinTollInput = requireArg(args.joinToll, "--join-toll");
+  const joinToll = parseTokenAmount(joinTollInput, canonicalAssetDecimals);
   const channelId = deriveChannelIdFromName(channelName);
-  const dappId = await resolveDAppIdByLabel({
+  const dapp = await resolveDAppIdByLabel({
     provider,
     bridgeResources,
     dappLabel: PRIVATE_STATE_DAPP_LABEL,
   });
+  const dappId = dapp.dappId;
+  const policySnapshot = dapp.policySnapshot;
 
   printImmutableChannelPolicyWarning({
     action: "create-channel",
     channelName,
     channelId,
+    policySnapshot,
   });
-  const receipt = await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, leader, joinFee));
+  const receipt =
+    await waitForReceipt(await bridgeCore.createChannel(channelId, dappId, joinToll, dapp.metadataDigest));
   const channelInfo = await bridgeCore.getChannel(channelId);
 
   const workspaceResult = await initializeChannelWorkspace({
@@ -420,9 +470,12 @@ async function handleChannelCreate({ args, network, provider }) {
     channelName,
     channelId: channelId.toString(),
     dappId,
+    dappMetadataDigest: dapp.metadataDigest,
+    dappMetadataDigestSchema: dapp.metadataDigestSchema,
+    policySnapshot,
     leader,
-    joinFeeBaseUnits: joinFee.toString(),
-    joinFeeTokens: ethers.formatUnits(joinFee, canonicalAssetDecimals),
+    joinTollBaseUnits: joinToll.toString(),
+    joinTollTokens: ethers.formatUnits(joinToll, canonicalAssetDecimals),
     canonicalAsset,
     canonicalAssetDecimals,
     asset: channelInfo.asset,
@@ -447,9 +500,21 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
   const manifestLabel = typeof manifest.dappLabel === "string" ? manifest.dappLabel : null;
   const manifestDappId = manifest.dappId;
   const manifestManager = typeof manifest.dAppManager === "string" ? getAddress(manifest.dAppManager) : null;
+  const manifestMetadataDigest = normalizeBytes32Hex(manifest.registration?.metadataDigest);
+  const manifestMetadataDigestSchema = normalizeBytes32Hex(manifest.registration?.metadataDigestSchema);
+  const manifestFunctionRoot = normalizeBytes32Hex(manifest.registration?.functionRoot);
 
   expect(manifestLabel === dappLabel, `DApp registration manifest label mismatch in ${manifestPath}.`);
   expect(Number.isInteger(manifestDappId), `DApp registration manifest is missing an integer dappId: ${manifestPath}.`);
+  expect(manifestMetadataDigest !== null, `DApp registration manifest is missing registration.metadataDigest: ${manifestPath}.`);
+  expect(
+    manifestMetadataDigestSchema !== null,
+    `DApp registration manifest is missing registration.metadataDigestSchema: ${manifestPath}.`,
+  );
+  expect(
+    manifestFunctionRoot !== null,
+    `DApp registration manifest is missing registration.functionRoot: ${manifestPath}.`,
+  );
   expect(
     manifestManager !== null
       && ethers.toBigInt(manifestManager) === ethers.toBigInt(getAddress(bridgeResources.bridgeDeployment.dAppManager)),
@@ -462,7 +527,36 @@ async function resolveDAppIdByLabel({ provider, bridgeResources, dappLabel }) {
     ethers.toBigInt(normalizeBytes32Hex(info.labelHash)) === ethers.toBigInt(expectedLabelHash),
     `DApp id ${manifestDappId} from ${manifestPath} does not match label ${dappLabel} on-chain.`,
   );
-  return Number(manifestDappId);
+  const onchainMetadataDigest = normalizeBytes32Hex(info.metadataDigest);
+  const onchainMetadataDigestSchema = normalizeBytes32Hex(info.metadataDigestSchema);
+  const onchainFunctionRoot = normalizeBytes32Hex(info.functionRoot);
+  const verifierSnapshot = await dAppManager.getDAppVerifierSnapshot(manifestDappId);
+  const policySnapshot = normalizeDAppPolicySnapshot({
+    dappId: manifestDappId,
+    metadataDigest: onchainMetadataDigest,
+    metadataDigestSchema: onchainMetadataDigestSchema,
+    functionRoot: onchainFunctionRoot,
+    verifierSnapshot,
+  });
+  expect(
+    ethers.toBigInt(onchainMetadataDigest) === ethers.toBigInt(manifestMetadataDigest),
+    `DApp id ${manifestDappId} metadata digest ${onchainMetadataDigest} does not match ${manifestMetadataDigest} from ${manifestPath}.`,
+  );
+  expect(
+    ethers.toBigInt(onchainMetadataDigestSchema) === ethers.toBigInt(manifestMetadataDigestSchema),
+    `DApp id ${manifestDappId} metadata digest schema ${onchainMetadataDigestSchema} does not match ${manifestMetadataDigestSchema} from ${manifestPath}.`,
+  );
+  expect(
+    ethers.toBigInt(onchainFunctionRoot) === ethers.toBigInt(manifestFunctionRoot),
+    `DApp id ${manifestDappId} function root ${onchainFunctionRoot} does not match ${manifestFunctionRoot} from ${manifestPath}.`,
+  );
+  return {
+    dappId: Number(manifestDappId),
+    metadataDigest: onchainMetadataDigest,
+    metadataDigestSchema: onchainMetadataDigestSchema,
+    functionRoot: onchainFunctionRoot,
+    policySnapshot,
+  };
 }
 
 async function handleWorkspaceInit({ args, network, provider }) {
@@ -535,6 +629,10 @@ async function initializeChannelWorkspace({
   const currentRootVectorHash = normalizeBytes32Hex(await channelManager.currentRootVectorHash());
   const genesisBlockNumber = Number(await channelManager.genesisBlockNumber());
   const managedStorageAddresses = normalizedAddressVector(await channelManager.getManagedStorageAddresses());
+  const policySnapshot = await readChannelPolicySnapshot({
+    channelManager,
+    dappId: Number(channelInfo.dappId),
+  });
   const deploymentManifestPath = dappDeploymentManifestPath(network.chainId);
   const storageLayoutManifestPath = dappStorageLayoutManifestPath(network.chainId);
   const deploymentManifest = readJson(deploymentManifestPath);
@@ -601,6 +699,10 @@ async function initializeChannelWorkspace({
     controller: controllerAddress,
     l2AccountingVault: l2AccountingVaultAddress,
     aPubBlockHash: normalizeBytes32Hex(channelInfo.aPubBlockHash),
+    dappMetadataDigestSchema: policySnapshot.dappMetadataDigestSchema,
+    dappMetadataDigest: policySnapshot.dappMetadataDigest,
+    functionRoot: policySnapshot.functionRoot,
+    policySnapshot,
     managedStorageAddresses,
     liquidBalancesSlot: liquidBalancesSlot.toString(),
   };
@@ -1215,11 +1317,11 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
   let resolvedLeafIndex = leafIndex;
   let approveReceipt = null;
   let receipt = null;
-  let joinFee = 0n;
+  let joinToll = 0n;
   let status = null;
 
   if (!existingRegistration.exists) {
-    joinFee = ethers.toBigInt(await context.channelManager.joinFee());
+    joinToll = ethers.toBigInt(await context.channelManager.joinToll());
     const asset = new Contract(
       context.workspace.canonicalAsset,
       context.bridgeAbiManifest.contracts.erc20.abi,
@@ -1231,10 +1333,11 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       channelName: context.workspace.channelName,
       channelId: ethers.toBigInt(context.workspace.channelId),
       channelManager: context.workspace.channelManager,
+      policySnapshot: context.workspace.policySnapshot,
     });
-    if (joinFee !== 0n) {
+    if (joinToll !== 0n) {
       approveReceipt = await waitForReceipt(
-        await asset.approve(context.workspace.bridgeTokenVault, joinFee, { nonce: nextNonce++ }),
+        await asset.approve(context.workspace.bridgeTokenVault, joinToll, { nonce: nextNonce++ }),
       );
     }
     receipt = await waitForReceipt(
@@ -1268,7 +1371,7 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
       "The existing note-receive public key parity does not match the derived note-receive public key.",
     );
     resolvedLeafIndex = existingRegistration.leafIndex;
-    joinFee = ethers.toBigInt(existingRegistration.joinFeePaid);
+    joinToll = ethers.toBigInt(existingRegistration.joinTollPaid);
     status = "already-registered";
   }
 
@@ -1294,9 +1397,10 @@ async function handleJoinChannel({ args, network, provider, rpcUrl }) {
     l2Address: l2Identity.l2Address,
     l2StorageKey: storageKey,
     leafIndex: resolvedLeafIndex.toString(),
-    joinFeeBaseUnits: joinFee.toString(),
-    joinFeeTokens: ethers.formatUnits(joinFee, Number(context.workspace.canonicalAssetDecimals)),
+    joinTollBaseUnits: joinToll.toString(),
+    joinTollTokens: ethers.formatUnits(joinToll, Number(context.workspace.canonicalAssetDecimals)),
     noteReceivePubKey: noteReceiveKeyMaterial.noteReceivePubKey,
+    policySnapshot: context.workspace.policySnapshot,
     approveGasUsed: approveReceipt ? receiptGasUsed(approveReceipt) : null,
     gasUsed: receipt ? receiptGasUsed(receipt) : null,
     approveTxUrl: approveReceipt ? explorerTxUrl(network, approveReceipt.hash) : null,
@@ -1323,7 +1427,7 @@ async function handleExitChannel({ args, provider }) {
       "Run withdraw-channel first, or rerun exit-channel with --force to bypass this CLI check.",
     ].join(" "),
   );
-  const [refundAmount, refundBps] = await context.channelManager.getExitFeeRefundQuote(signer.address);
+  const [refundAmount, refundBps] = await context.channelManager.getExitTollRefundQuote(signer.address);
   const receipt = await waitForReceipt(
     await context.bridgeTokenVault.connect(signer).exitChannel(ethers.toBigInt(context.workspace.channelId)),
   );
@@ -1488,6 +1592,63 @@ async function handleWithdrawBridge({ args, network, provider }) {
     txUrl: explorerTxUrl(network, receipt.hash),
     receipt: sanitizeReceipt(receipt),
   });
+}
+
+function resolveFunctionMetadataProofForExecution({
+  chainId,
+  controllerAddress,
+  functionSelector,
+  preprocessInputHash,
+  expectedFunctionRoot,
+}) {
+  const manifestPath = requireFlatDeploymentArtifactPathsForChainId(chainId).dappRegistrationPath;
+  const manifest = readJson(manifestPath);
+  const proofRoot = normalizeBytes32Hex(manifest.functionMetadataProofs?.root);
+  const expectedRoot = normalizeBytes32Hex(expectedFunctionRoot);
+  expect(
+    ethers.toBigInt(proofRoot) === ethers.toBigInt(expectedRoot),
+    `DApp function proof root ${proofRoot} does not match channel function root ${expectedRoot}.`,
+  );
+
+  const functions = manifest.functionMetadataProofs?.functions;
+  expect(Array.isArray(functions), `DApp registration manifest is missing functionMetadataProofs.functions: ${manifestPath}.`);
+  const normalizedController = getAddress(controllerAddress);
+  const normalizedSelector = normalizeBytesHex(functionSelector, 4);
+  const normalizedPreprocessInputHash = normalizeBytes32Hex(preprocessInputHash);
+  const entry = functions.find((candidate) => {
+    const metadata = candidate?.metadata;
+    return metadata
+      && getAddress(metadata.entryContract) === normalizedController
+      && normalizeBytesHex(metadata.functionSig, 4) === normalizedSelector
+      && normalizeBytes32Hex(metadata.preprocessInputHash) === normalizedPreprocessInputHash;
+  });
+  expect(
+    entry !== undefined,
+    [
+      `No DApp function metadata proof found for ${normalizedController} ${normalizedSelector}.`,
+      `Expected preprocess input hash: ${normalizedPreprocessInputHash}.`,
+      `Manifest: ${manifestPath}.`,
+    ].join(" "),
+  );
+
+  return {
+    metadata: {
+      entryContract: getAddress(entry.metadata.entryContract),
+      functionSig: normalizeBytesHex(entry.metadata.functionSig, 4),
+      preprocessInputHash: normalizeBytes32Hex(entry.metadata.preprocessInputHash),
+      instanceLayout: {
+        entryContractOffsetWords: Number(entry.metadata.instanceLayout.entryContractOffsetWords),
+        functionSigOffsetWords: Number(entry.metadata.instanceLayout.functionSigOffsetWords),
+        currentRootVectorOffsetWords: Number(entry.metadata.instanceLayout.currentRootVectorOffsetWords),
+        updatedRootVectorOffsetWords: Number(entry.metadata.instanceLayout.updatedRootVectorOffsetWords),
+        eventLogs: entry.metadata.instanceLayout.eventLogs.map((eventLog) => ({
+          startOffsetWords: Number(eventLog.startOffsetWords),
+          topicCount: Number(eventLog.topicCount),
+        })),
+      },
+    },
+    siblings: entry.merkleProof.map((sibling) => normalizeBytes32Hex(sibling)),
+  };
 }
 
 async function handleMintNotes({ args, provider }) {
@@ -3146,6 +3307,16 @@ async function executeWalletTemplateSend({
   writeJson(path.join(operationDir, "resource", "synthesizer", "output", "state_snapshot.normalized.json"), nextSnapshot);
 
   const payload = loadTokamakPayloadFromStep(operationDir);
+  const functionProof = resolveFunctionMetadataProofForExecution({
+    chainId: context.workspace.chainId,
+    controllerAddress: context.workspace.controller,
+    functionSelector: calldata.slice(0, 10),
+    preprocessInputHash: hashTokamakPointEncoding(
+      payload.functionPreprocessPart1,
+      payload.functionPreprocessPart2,
+    ),
+    expectedFunctionRoot: context.workspace.functionRoot ?? context.workspace.policySnapshot?.functionRoot,
+  });
   const noteLifecycle = extractControllerStorageDelta({
     previousSnapshot: context.currentSnapshot,
     nextSnapshot,
@@ -3160,7 +3331,9 @@ async function executeWalletTemplateSend({
   );
 
   const receipt =
-    await waitForReceipt(await context.channelManager.connect(signer).executeChannelTransaction(payload));
+    await waitForReceipt(
+      await context.channelManager.connect(signer).executeChannelTransaction(payload, functionProof),
+    );
 
   const onchainRootVectorHash = normalizeBytes32Hex(await context.channelManager.currentRootVectorHash());
   expect(
@@ -3539,6 +3712,53 @@ async function readChannelVerifierCompatibleBackendVersions(context) {
       [
         `Unable to read verifier compatibleBackendVersion values from channel manager ${channelManagerAddress}.`,
         "The target channel must expose grothVerifierCompatibleBackendVersion() and tokamakVerifierCompatibleBackendVersion().",
+      ].join(" "),
+      { cause: error },
+    );
+  }
+}
+
+async function readChannelPolicySnapshot({ channelManager, dappId }) {
+  const channelManagerAddress = getAddress(await channelManager.getAddress());
+  try {
+    const [
+      dappMetadataDigestSchema,
+      dappMetadataDigest,
+      functionRoot,
+      grothVerifier,
+      grothVerifierCompatibleBackendVersion,
+      tokamakVerifier,
+      tokamakVerifierCompatibleBackendVersion,
+    ] = await Promise.all([
+      channelManager.dappMetadataDigestSchema(),
+      channelManager.dappMetadataDigest(),
+      channelManager.functionRoot(),
+      channelManager.grothVerifier(),
+      channelManager.grothVerifierCompatibleBackendVersion(),
+      channelManager.tokamakVerifier(),
+      channelManager.tokamakVerifierCompatibleBackendVersion(),
+    ]);
+    return {
+      dappId: Number(dappId),
+      dappMetadataDigestSchema: normalizeBytes32Hex(dappMetadataDigestSchema),
+      dappMetadataDigest: normalizeBytes32Hex(dappMetadataDigest),
+      functionRoot: normalizeBytes32Hex(functionRoot),
+      grothVerifier: getAddress(grothVerifier),
+      grothVerifierCompatibleBackendVersion: requireVersionString(
+        grothVerifierCompatibleBackendVersion,
+        "channel Groth16 verifier compatibleBackendVersion",
+      ),
+      tokamakVerifier: getAddress(tokamakVerifier),
+      tokamakVerifierCompatibleBackendVersion: requireVersionString(
+        tokamakVerifierCompatibleBackendVersion,
+        "channel Tokamak verifier compatibleBackendVersion",
+      ),
+    };
+  } catch (error) {
+    throw new Error(
+      [
+        `Unable to read immutable policy snapshot from channel manager ${channelManagerAddress}.`,
+        "The target channel must expose DApp digest, verifier address, and compatibleBackendVersion getters.",
       ].join(" "),
       { cause: error },
     );
@@ -3953,6 +4173,10 @@ function bigintToHex32(value) {
 
 function hashTokamakPublicInputs(values) {
   return keccak256(abiCoder.encode(["uint256[]"], [values]));
+}
+
+function hashTokamakPointEncoding(part1, part2) {
+  return keccak256(abiCoder.encode(["uint128[]", "uint256[]"], [part1, part2]));
 }
 
 function encodeTokamakBlockInfo(blockInfo) {
@@ -4841,15 +5065,15 @@ function assertGetMyNotesArgs(args) {
 
 function assertCreateChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
-  requireArg(args.joinFee, "--join-fee");
+  requireArg(args.joinToll, "--join-toll");
   requireNetworkName(args);
   requireAlchemyApiKeyForPublicNetwork(args, "create-channel");
   requireArg(args.privateKey, "--private-key");
   assertAllowedCommandKeys(
     args,
     "create-channel",
-    new Set(["command", "positional", "channelName", "joinFee", "network", "alchemyApiKey", "privateKey"]),
-    "--channel-name, --join-fee, --network, --private-key, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "channelName", "joinToll", "network", "alchemyApiKey", "privateKey"]),
+    "--channel-name, --join-toll, --network, --private-key, and --alchemy-api-key on public networks",
   );
 }
 
@@ -5011,9 +5235,9 @@ Commands:
   --doctor
       Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
 
-  create-channel --channel-name <NAME> --join-fee <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
+  create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
       Create a bridge channel and initialize its workspace
-      Prints an immutable-channel-policy warning before sending the transaction
+      Prints the immutable policy snapshot before sending the transaction
 
   recover-workspace --channel-name <NAME> --network <NAME> --alchemy-api-key <KEY>
       Rebuild the local channel workspace from bridge state
@@ -5031,8 +5255,8 @@ Commands:
       Rebuild a recoverable local wallet from on-chain channel state
 
   join-channel --channel-name <NAME> --password <PASSWORD> --network <NAME> --private-key <HEX> --alchemy-api-key <KEY>
-      Pay the channel join fee and bind a wallet to a channel-specific L2 identity
-      Prints an immutable-channel-policy warning before first registration
+      Pay the channel join toll and bind a wallet to a channel-specific L2 identity
+      Prints the immutable policy snapshot before first registration
 
   get-my-wallet-meta --wallet <NAME> --password <PASSWORD> --network <NAME>
       Check whether a wallet matches the on-chain channel registration
@@ -5498,11 +5722,7 @@ function buildSelectedRuntimeVersionCheck({ installManifest, tokamakCli, groth16
 
 async function resolvePrivateStateInstallRuntimeVersions(args) {
   const [groth16, tokamak] = await Promise.all([
-    resolveRequestedNpmPackageVersion({
-      packageName: GROTH16_PACKAGE_NAME,
-      requestedVersion: args.groth16CliVersion,
-      optionName: "--groth16-cli-version",
-    }),
+    resolveRequestedGroth16PackageVersion(args.groth16CliVersion),
     resolveRequestedNpmPackageVersion({
       packageName: TOKAMAK_ZKEVM_CLI_PACKAGE_NAME,
       requestedVersion: args.tokamakZkEvmCliVersion,
@@ -5510,6 +5730,19 @@ async function resolvePrivateStateInstallRuntimeVersions(args) {
     }),
   ]);
   return { groth16, tokamak };
+}
+
+async function resolveRequestedGroth16PackageVersion(requestedVersion) {
+  if (requestedVersion !== undefined && requestedVersion !== null) {
+    return resolveRequestedNpmPackageVersion({
+      packageName: GROTH16_PACKAGE_NAME,
+      requestedVersion,
+      optionName: "--groth16-cli-version",
+    });
+  }
+
+  const bundledPackageJson = readJson(path.join(resolveGroth16PackageRoot(), "package.json"));
+  return requireSemverVersion(bundledPackageJson.version, `${GROTH16_PACKAGE_NAME} bundled package version`);
 }
 
 async function resolveRequestedNpmPackageVersion({ packageName, requestedVersion, optionName }) {
@@ -5562,10 +5795,7 @@ async function installTokamakCliRuntimeForPrivateState({ version, docker }) {
 }
 
 async function installGroth16RuntimeForPrivateState({ version, docker }) {
-  const packageInstall = installManagedNpmPackage({
-    packageName: GROTH16_PACKAGE_NAME,
-    version,
-  });
+  const packageInstall = resolveGroth16RuntimePackageInstall(version);
   const packageRoot = packageInstall.packageRoot;
   const entryPath = resolveGroth16CliEntryPath(packageRoot);
   const args = [entryPath, "--install", "--no-setup"];
@@ -5591,9 +5821,32 @@ async function installGroth16RuntimeForPrivateState({ version, docker }) {
   };
 }
 
+function resolveGroth16RuntimePackageInstall(version) {
+  const normalizedVersion = requireSemverVersion(version, `${GROTH16_PACKAGE_NAME} version`);
+  const bundledPackageRoot = resolveGroth16PackageRoot();
+  const bundledPackageJson = readJson(path.join(bundledPackageRoot, "package.json"));
+  if (bundledPackageJson.name === GROTH16_PACKAGE_NAME && bundledPackageJson.version === normalizedVersion) {
+    return {
+      packageName: GROTH16_PACKAGE_NAME,
+      version: normalizedVersion,
+      installPrefix: null,
+      packageRoot: bundledPackageRoot,
+    };
+  }
+
+  return installManagedNpmPackage({
+    packageName: GROTH16_PACKAGE_NAME,
+    version: normalizedVersion,
+  });
+}
+
 async function installGroth16CrsForPrivateStateVersion(version) {
   const workspaceRoot = defaultGroth16WorkspaceRoot();
   const crsDir = path.join(workspaceRoot, "crs");
+  const existingInstall = readExistingGroth16CrsInstall({ version, crsDir });
+  if (existingInstall) {
+    return existingInstall;
+  }
   const crsInstall = await downloadPublicGroth16MpcArtifactsByVersion({
     version,
     outputDir: crsDir,
@@ -5613,6 +5866,56 @@ async function installGroth16CrsForPrivateStateVersion(version) {
     crs: crsInstall,
   });
   return crsInstall;
+}
+
+function readExistingGroth16CrsInstall({ version, crsDir }) {
+  const normalizedVersion = requireCanonicalGroth16CompatibleBackendVersion(version, "Groth16 MPC CRS version");
+  const selectedFiles = [
+    "circuit_final.zkey",
+    "verification_key.json",
+    "metadata.json",
+    "zkey_provenance.json",
+  ];
+  const targetPaths = selectedFiles.map((fileName) => path.join(crsDir, fileName));
+  if (!targetPaths.every((targetPath) => fs.existsSync(targetPath))) {
+    return null;
+  }
+  const metadata = readJson(path.join(crsDir, "metadata.json"));
+  let metadataVersion;
+  try {
+    metadataVersion = requireCanonicalGroth16CompatibleBackendVersion(
+      metadata.compatibleBackendVersion,
+      "installed Groth16 MPC CRS version",
+    );
+  } catch {
+    return null;
+  }
+  if (metadataVersion !== normalizedVersion) {
+    return null;
+  }
+  const provenance = readJson(path.join(crsDir, "zkey_provenance.json"));
+  return {
+    source: "local-cache",
+    archiveName: provenance.published_archive_name ?? null,
+    archiveFileId: parseDriveFileIdFromDownloadUrl(provenance.zkey_download_url),
+    folderUrl: provenance.published_folder_url ?? null,
+    version: normalizedVersion,
+    installedFiles: selectedFiles.map((archivePath, index) => ({
+      archivePath,
+      targetPath: targetPaths[index],
+    })),
+  };
+}
+
+function parseDriveFileIdFromDownloadUrl(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
+  try {
+    return new URL(value).searchParams.get("id");
+  } catch {
+    return null;
+  }
 }
 
 function installManagedNpmPackage({ packageName, version, cacheBaseRoot = resolveArtifactCacheBaseRoot() }) {

@@ -1,4 +1,4 @@
-# Background Theory
+# Private-State Background Theory
 
 ## 1. System Model
 
@@ -10,6 +10,16 @@ The system is split across two domains:
 - The proving-based L2 holds only accounting state and note state.
 
 The DApp never treats L2 as a second canonical custody layer. The L2 side stores balances, commitments, nullifiers, and proof-linked state roots only.
+
+This split is the first idea to keep in mind while reading the rest of the documentation. A user can
+have value represented in several ways while using the channel, but the only canonical token custody
+is still the L1 bridge vault. The L2 objects are accounting and privacy objects that become valid
+only when the bridge accepts the corresponding proof-backed state transition.
+
+Example: after a user deposits into the bridge and moves value into the channel, the user's L1 token
+is held by the L1 vault. The L2 accounting balance records that the user can mint notes or later
+withdraw through the bridge path. It is not a separate token contract that independently owns the
+canonical asset.
 
 ## 2. zk-L2 Assumptions
 
@@ -34,6 +44,18 @@ The DApp uses two value representations:
 
 Liquid balance is the only form that can cross the bridge accounting boundary directly. Notes are the private-state application object used for transferability inside the channel.
 
+`Liquid balance` means a public per-L2-address accounting value inside the channel's accounting
+vault. It is the form used for bridge-coupled deposit and withdrawal accounting.
+
+`Note` means a discrete private-state object that carries value in a form suitable for private
+transfer. A note can move between users inside the DApp, but it cannot be withdrawn to L1 directly.
+It must first be redeemed back into liquid balance.
+
+Example: if Alice has `100` units of liquid balance, she may mint two notes of `40` and `60`. Those
+notes can be transferred privately inside the channel. If Alice or a later recipient wants to exit to
+L1, the relevant notes must first be redeemed into liquid balance, and then the liquid balance can be
+withdrawn through the bridge.
+
 ## 4. Notes
 
 A note plaintext is:
@@ -48,6 +70,19 @@ From that plaintext the DApp derives:
 - nullifier
 
 The current contract implementation treats commitments and nullifiers as cryptographic digests over fixed-shape inputs.
+
+The three fields have different roles:
+
+- `owner` is the L2 address that is allowed to spend the note.
+- `value` is the amount represented by the note.
+- `salt` separates otherwise identical notes and binds the note to the encrypted delivery payload.
+
+The `commitment` is the public marker that says "this note exists" without revealing the plaintext.
+The `nullifier` is the public marker that says "this note has been consumed" without revealing the
+plaintext. A note is usable only if its commitment exists and its nullifier has not yet been used.
+
+Example: two notes may have the same owner and value. They remain distinct because their salts differ,
+which produces different commitments and nullifiers.
 
 ## 5. Accounting to Note Flow
 
@@ -74,6 +109,11 @@ The recipient cannot spend a note without reconstructing its plaintext.
 
 If the sender were allowed to choose and keep the output salt privately, the recipient could end up with a note that exists on-chain but cannot be reconstructed locally. That would break liveness.
 
+The problem is not only secrecy. It is recoverability. A recipient must be able to learn enough
+private note data to later prove ownership and spend or redeem the note. A system that creates a
+valid commitment but withholds the plaintext from the recipient would preserve a public state
+transition while destroying the recipient's practical ability to use the note.
+
 The implemented solution binds encrypted note data to the note itself:
 
 - the sender publishes an opaque `bytes32[3] encryptedNoteValue`
@@ -81,6 +121,10 @@ The implemented solution binds encrypted note data to the note itself:
 - the note commitment is computed from `(owner, value, salt)`
 
 That removes sender control over an undisclosed recipient salt and makes the note reconstructible from the encrypted payload.
+
+Example: if Bob receives a note, Bob's CLI scans bridge-propagated logs, decrypts the encrypted
+payload with Bob's note-receive key, derives the salt from that payload, and reconstructs the same
+commitment that the contract stored. Bob does not need Alice to send an extra sidecar file later.
 
 ## 7. Note-Receive Auxiliary Keys
 
@@ -105,6 +149,10 @@ Reading note contents depends on the note-receive key.
 Using a note depends on the channel-bound L2 identity, because note spending, transfer, and redemption require the wallet's derived `l2PrivateKey`.
 
 Under the current CLI model, losing the wallet password means losing the ability to derive the channel-bound `l2PrivateKey`, which means losing note ownership in the stronger sense even if note ciphertexts can still be recognized or decrypted.
+
+This distinction is important for recovery language. A user may still be able to see that an
+encrypted output was meant for them, but that is not enough to spend the note. Spendability requires
+the L2 private key that corresponds to the note owner.
 
 ## 9. Protocol Assumptions and Risks
 

@@ -1,39 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import {BridgeStructs} from "./BridgeStructs.sol";
-import {BridgeAdminManager} from "./BridgeAdminManager.sol";
-import {DAppManager} from "./DAppManager.sol";
-import {ChannelManager} from "./ChannelManager.sol";
-import {TokamakEnvironment} from "./generated/TokamakEnvironment.sol";
-import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
-import {ITokamakVerifier} from "./interfaces/ITokamakVerifier.sol";
-import {IChannelRegistry} from "./interfaces/IChannelRegistry.sol";
+import { Initializable } from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
+import { BridgeStructs } from "./BridgeStructs.sol";
+import { DAppManager } from "./DAppManager.sol";
+import { ChannelManager } from "./ChannelManager.sol";
+import { ChannelDeployer } from "./ChannelDeployer.sol";
+import { IGrothVerifier } from "./interfaces/IGrothVerifier.sol";
+import { ITokamakVerifier } from "./interfaces/ITokamakVerifier.sol";
+import { IChannelRegistry } from "./interfaces/IChannelRegistry.sol";
 
 contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChannelRegistry {
     uint256 internal constant MAX_MANAGED_STORAGES = 11;
     uint16 internal constant BPS_DENOMINATOR = 10_000;
-    address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET = 0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
-    address internal constant TOKAMAK_NETWORK_TOKEN_SEPOLIA = 0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
+    address internal constant TOKAMAK_NETWORK_TOKEN_MAINNET =
+        0x2be5e8c109e2197D077D13A82dAead6a9b3433C5;
+    address internal constant TOKAMAK_NETWORK_TOKEN_SEPOLIA =
+        0xa30fe40285B8f5c0457DbC3B7C8A280373c40044;
 
     error UnknownChannel(uint256 channelId);
     error ChannelAlreadyExists(uint256 channelId);
-    error InvalidMerkleTreeConfiguration();
-    error UnsupportedMerkleTreeLevels(uint8 actualLevels, uint8 expectedLevels);
-    error InvalidLeader();
     error TooManyManagedStorages(uint256 actualCount, uint256 maxSupported);
-    error InvalidAdminManager();
     error InvalidDAppManager();
+    error InvalidChannelDeployer();
+    error InvalidChannelManager(address manager);
     error InvalidGrothVerifier();
     error InvalidTokamakVerifier();
     error InvalidBridgeTokenVault();
     error BridgeTokenVaultAlreadySet();
     error UnsupportedCanonicalAssetChain(uint256 chainId);
-    error InvalidJoinFeeRefundSchedule();
+    error InvalidJoinTollRefundSchedule();
+    error DAppMetadataDigestMismatch(uint256 dappId, bytes32 expectedDigest, bytes32 actualDigest);
 
     struct ChannelDeployment {
         bool exists;
@@ -43,28 +43,33 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         address manager;
         address bridgeTokenVault;
         bytes32 aPubBlockHash;
+        bytes32 dappMetadataDigestSchema;
+        bytes32 dappMetadataDigest;
     }
 
-    BridgeAdminManager public adminManager;
     DAppManager public dAppManager;
+    ChannelDeployer public channelDeployer;
     IGrothVerifier public grothVerifier;
     ITokamakVerifier public tokamakVerifier;
     address public bridgeTokenVault;
-    uint64 public defaultJoinFeeRefundCutoff1;
-    uint64 public defaultJoinFeeRefundCutoff2;
-    uint64 public defaultJoinFeeRefundCutoff3;
-    uint16 public defaultJoinFeeRefundBps1;
-    uint16 public defaultJoinFeeRefundBps2;
-    uint16 public defaultJoinFeeRefundBps3;
-    uint16 public defaultJoinFeeRefundBps4;
+    uint64 public defaultJoinTollRefundCutoff1;
+    uint64 public defaultJoinTollRefundCutoff2;
+    uint64 public defaultJoinTollRefundCutoff3;
+    uint16 public defaultJoinTollRefundBps1;
+    uint16 public defaultJoinTollRefundBps2;
+    uint16 public defaultJoinTollRefundBps3;
+    uint16 public defaultJoinTollRefundBps4;
 
     mapping(uint256 => ChannelDeployment) private _channels;
 
-    event ChannelCreated(uint256 indexed channelId, uint256 indexed dappId, address manager, address bridgeTokenVault);
+    event ChannelCreated(
+        uint256 indexed channelId, uint256 indexed dappId, address manager, address bridgeTokenVault
+    );
     event BridgeTokenVaultBound(address indexed bridgeTokenVault);
+    event ChannelDeployerUpdated(address indexed channelDeployer);
     event GrothVerifierUpdated(address indexed grothVerifier);
     event TokamakVerifierUpdated(address indexed tokamakVerifier);
-    event JoinFeeRefundScheduleUpdated(
+    event JoinTollRefundScheduleUpdated(
         uint64 cutoff1,
         uint16 bps1,
         uint64 cutoff2,
@@ -80,13 +85,17 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
 
     function initialize(
         address initialOwner,
-        BridgeAdminManager adminManager_,
         DAppManager dAppManager_,
+        ChannelDeployer channelDeployer_,
         IGrothVerifier grothVerifier_,
         ITokamakVerifier tokamakVerifier_
     ) external initializer {
-        if (address(adminManager_) == address(0)) revert InvalidAdminManager();
-        if (address(dAppManager_) == address(0)) revert InvalidDAppManager();
+        if (address(dAppManager_) == address(0)) {
+            revert InvalidDAppManager();
+        }
+        if (address(channelDeployer_) == address(0) || address(channelDeployer_).code.length == 0) {
+            revert InvalidChannelDeployer();
+        }
         if (address(grothVerifier_) == address(0)) revert InvalidGrothVerifier();
         if (address(tokamakVerifier_) == address(0)) revert InvalidTokamakVerifier();
 
@@ -96,11 +105,19 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             _transferOwnership(initialOwner);
         }
 
-        adminManager = adminManager_;
         dAppManager = dAppManager_;
+        channelDeployer = channelDeployer_;
         grothVerifier = grothVerifier_;
         tokamakVerifier = tokamakVerifier_;
-        _setJoinFeeRefundSchedule(6 hours, 7_500, 24 hours, 5_000, 3 days, 2_500, 0);
+        _setJoinTollRefundSchedule(6 hours, 7_500, 24 hours, 5_000, 3 days, 2_500, 0);
+    }
+
+    function setChannelDeployer(ChannelDeployer channelDeployer_) external onlyOwner {
+        if (address(channelDeployer_) == address(0) || address(channelDeployer_).code.length == 0) {
+            revert InvalidChannelDeployer();
+        }
+        channelDeployer = channelDeployer_;
+        emit ChannelDeployerUpdated(address(channelDeployer_));
     }
 
     function setGrothVerifier(IGrothVerifier grothVerifier_) external onlyOwner {
@@ -122,7 +139,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         emit BridgeTokenVaultBound(bridgeTokenVault_);
     }
 
-    function setJoinFeeRefundSchedule(
+    function setJoinTollRefundSchedule(
         uint64 cutoff1,
         uint16 bps1,
         uint64 cutoff2,
@@ -131,7 +148,7 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         uint16 bps3,
         uint16 bps4
     ) external onlyOwner {
-        _setJoinFeeRefundSchedule(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
+        _setJoinTollRefundSchedule(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
     }
 
     function canonicalAsset() public view returns (address) {
@@ -144,53 +161,65 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         revert UnsupportedCanonicalAssetChain(block.chainid);
     }
 
-    function createChannel(uint256 channelId, uint256 dappId, address leader, uint256 initialJoinFee)
-        external
-        onlyOwner
-        returns (address manager, address boundBridgeTokenVault)
-    {
+    function createChannel(
+        uint256 channelId,
+        uint256 dappId,
+        uint256 initialJoinToll,
+        bytes32 expectedDAppMetadataDigest
+    ) external returns (address manager, address boundBridgeTokenVault) {
+        address leader = msg.sender;
         IERC20 asset = IERC20(canonicalAsset());
         if (_channels[channelId].exists) revert ChannelAlreadyExists(channelId);
         if (bridgeTokenVault == address(0)) revert InvalidBridgeTokenVault();
-        if (leader == address(0)) revert InvalidLeader();
-        if (adminManager.nMerkleTreeLevels() == 0) revert InvalidMerkleTreeConfiguration();
-        if (adminManager.nMerkleTreeLevels() != TokamakEnvironment.MT_DEPTH) {
-            revert UnsupportedMerkleTreeLevels(adminManager.nMerkleTreeLevels(), TokamakEnvironment.MT_DEPTH);
+        uint256 managedStorageCount = dAppManager.getManagedStorageCount(dappId);
+        if (managedStorageCount > MAX_MANAGED_STORAGES) {
+            revert TooManyManagedStorages(managedStorageCount, MAX_MANAGED_STORAGES);
         }
-        address[] memory managedStorageAddresses = dAppManager.getManagedStorageAddresses(dappId);
-        if (managedStorageAddresses.length > MAX_MANAGED_STORAGES) {
-            revert TooManyManagedStorages(managedStorageAddresses.length, MAX_MANAGED_STORAGES);
+        DAppManager.DAppInfo memory dAppInfo = dAppManager.getDAppInfo(dappId);
+        if (dAppInfo.metadataDigest != expectedDAppMetadataDigest) {
+            revert DAppMetadataDigestMismatch(
+                dappId, expectedDAppMetadataDigest, dAppInfo.metadataDigest
+            );
         }
-        uint256 channelTokenVaultTreeIndex = dAppManager.getChannelTokenVaultTreeIndex(dappId);
-        BridgeStructs.FunctionReference[] memory registeredFunctions = dAppManager.getRegisteredFunctions(dappId);
+        uint256 channelTokenVaultTreeIndex = dAppInfo.channelTokenVaultTreeIndex;
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot =
+            dAppManager.getDAppVerifierSnapshot(dappId);
 
-        bytes32[] memory initialRootVector = new bytes32[](managedStorageAddresses.length);
-        for (uint256 i = 0; i < managedStorageAddresses.length; i++) {
-            initialRootVector[i] = TokamakEnvironment.ZERO_FILLED_TREE_ROOT;
-        }
-
-        ChannelManager channelManager = new ChannelManager(
+        address channelManagerAddress = channelDeployer.deployChannelManager(
             channelId,
             dappId,
             leader,
             channelTokenVaultTreeIndex,
-            initialRootVector,
-            managedStorageAddresses,
-            registeredFunctions,
             address(this),
-            grothVerifier,
-            tokamakVerifier,
-            initialJoinFee,
-            defaultJoinFeeRefundCutoff1,
-            defaultJoinFeeRefundBps1,
-            defaultJoinFeeRefundCutoff2,
-            defaultJoinFeeRefundBps2,
-            defaultJoinFeeRefundCutoff3,
-            defaultJoinFeeRefundBps3,
-            defaultJoinFeeRefundBps4,
-            dAppManager
+            verifierSnapshot,
+            dAppInfo.metadataDigestSchema,
+            dAppInfo.metadataDigest,
+            dAppInfo.functionRoot,
+            initialJoinToll,
+            defaultJoinTollRefundCutoff1,
+            defaultJoinTollRefundBps1,
+            defaultJoinTollRefundCutoff2,
+            defaultJoinTollRefundBps2,
+            defaultJoinTollRefundCutoff3,
+            defaultJoinTollRefundBps3,
+            defaultJoinTollRefundBps4,
+            dAppManager,
+            managedStorageCount
         );
+        ChannelManager channelManager = ChannelManager(channelManagerAddress);
 
+        _validateChannelManager(
+            channelManager,
+            channelId,
+            dappId,
+            leader,
+            channelTokenVaultTreeIndex,
+            verifierSnapshot,
+            dAppInfo.metadataDigestSchema,
+            dAppInfo.metadataDigest,
+            dAppInfo.functionRoot,
+            initialJoinToll
+        );
         channelManager.bindBridgeTokenVault(bridgeTokenVault);
 
         bytes32 channelAPubBlockHash = channelManager.aPubBlockHash();
@@ -201,7 +230,9 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
             asset: address(asset),
             manager: address(channelManager),
             bridgeTokenVault: bridgeTokenVault,
-            aPubBlockHash: channelAPubBlockHash
+            aPubBlockHash: channelAPubBlockHash,
+            dappMetadataDigestSchema: dAppInfo.metadataDigestSchema,
+            dappMetadataDigest: dAppInfo.metadataDigest
         });
         emit ChannelCreated(channelId, dappId, address(channelManager), bridgeTokenVault);
         return (address(channelManager), bridgeTokenVault);
@@ -217,36 +248,45 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
         return _channels[channelId].manager;
     }
 
-    function getChannelTokenVaultRegistration(uint256 channelId, address l1Address)
-        external
-        view
-        returns (BridgeStructs.ChannelTokenVaultRegistration memory)
-    {
-        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return ChannelManager(_channels[channelId].manager).getChannelTokenVaultRegistration(l1Address);
+    function _authorizeUpgrade(address) internal override onlyOwner { }
+
+    function _validateChannelManager(
+        ChannelManager channelManager,
+        uint256 channelId,
+        uint256 dappId,
+        address leader,
+        uint256 channelTokenVaultTreeIndex,
+        BridgeStructs.DAppVerifierSnapshot memory verifierSnapshot,
+        bytes32 dappMetadataDigestSchema,
+        bytes32 dappMetadataDigest,
+        bytes32 functionRoot,
+        uint256 initialJoinToll
+    ) private view {
+        address manager = address(channelManager);
+        if (
+            manager.code.length == 0 || channelManager.bridgeCore() != address(this)
+                || channelManager.channelId() != channelId || channelManager.dappId() != dappId
+                || channelManager.leader() != leader
+                || channelManager.channelTokenVaultTreeIndex() != channelTokenVaultTreeIndex
+                || channelManager.dappMetadataDigestSchema() != dappMetadataDigestSchema
+                || channelManager.dappMetadataDigest() != dappMetadataDigest
+                || channelManager.functionRoot() != functionRoot
+                || address(channelManager.grothVerifier()) != verifierSnapshot.grothVerifier
+                || address(channelManager.tokamakVerifier()) != verifierSnapshot.tokamakVerifier
+                || channelManager.joinToll() != initialJoinToll
+                || channelManager.joinTollRefundCutoff1() != defaultJoinTollRefundCutoff1
+                || channelManager.joinTollRefundBps1() != defaultJoinTollRefundBps1
+                || channelManager.joinTollRefundCutoff2() != defaultJoinTollRefundCutoff2
+                || channelManager.joinTollRefundBps2() != defaultJoinTollRefundBps2
+                || channelManager.joinTollRefundCutoff3() != defaultJoinTollRefundCutoff3
+                || channelManager.joinTollRefundBps3() != defaultJoinTollRefundBps3
+                || channelManager.joinTollRefundBps4() != defaultJoinTollRefundBps4
+        ) {
+            revert InvalidChannelManager(manager);
+        }
     }
 
-    function getChannelTokenVaultRegistrationByL2Address(uint256 channelId, address l2Address)
-        external
-        view
-        returns (BridgeStructs.ChannelTokenVaultRegistration memory)
-    {
-        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return ChannelManager(_channels[channelId].manager).getChannelTokenVaultRegistrationByL2Address(l2Address);
-    }
-
-    function getNoteReceivePubKeyByL2Address(uint256 channelId, address l2Address)
-        external
-        view
-        returns (BridgeStructs.NoteReceivePubKey memory)
-    {
-        if (!_channels[channelId].exists) revert UnknownChannel(channelId);
-        return ChannelManager(_channels[channelId].manager).getNoteReceivePubKeyByL2Address(l2Address);
-    }
-
-    function _authorizeUpgrade(address) internal override onlyOwner {}
-
-    function _setJoinFeeRefundSchedule(
+    function _setJoinTollRefundSchedule(
         uint64 cutoff1,
         uint16 bps1,
         uint64 cutoff2,
@@ -257,20 +297,20 @@ contract BridgeCore is Initializable, OwnableUpgradeable, UUPSUpgradeable, IChan
     ) private {
         if (
             cutoff1 == 0 || cutoff1 >= cutoff2 || cutoff2 >= cutoff3 || bps1 > BPS_DENOMINATOR
-                || bps2 > BPS_DENOMINATOR || bps3 > BPS_DENOMINATOR || bps4 > BPS_DENOMINATOR || bps1 < bps2
-                || bps2 < bps3 || bps3 < bps4
+                || bps2 > BPS_DENOMINATOR || bps3 > BPS_DENOMINATOR || bps4 > BPS_DENOMINATOR
+                || bps1 < bps2 || bps2 < bps3 || bps3 < bps4
         ) {
-            revert InvalidJoinFeeRefundSchedule();
+            revert InvalidJoinTollRefundSchedule();
         }
 
-        defaultJoinFeeRefundCutoff1 = cutoff1;
-        defaultJoinFeeRefundCutoff2 = cutoff2;
-        defaultJoinFeeRefundCutoff3 = cutoff3;
-        defaultJoinFeeRefundBps1 = bps1;
-        defaultJoinFeeRefundBps2 = bps2;
-        defaultJoinFeeRefundBps3 = bps3;
-        defaultJoinFeeRefundBps4 = bps4;
+        defaultJoinTollRefundCutoff1 = cutoff1;
+        defaultJoinTollRefundCutoff2 = cutoff2;
+        defaultJoinTollRefundCutoff3 = cutoff3;
+        defaultJoinTollRefundBps1 = bps1;
+        defaultJoinTollRefundBps2 = bps2;
+        defaultJoinTollRefundBps3 = bps3;
+        defaultJoinTollRefundBps4 = bps4;
 
-        emit JoinFeeRefundScheduleUpdated(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
+        emit JoinTollRefundScheduleUpdated(cutoff1, bps1, cutoff2, bps2, cutoff3, bps3, bps4);
     }
 }

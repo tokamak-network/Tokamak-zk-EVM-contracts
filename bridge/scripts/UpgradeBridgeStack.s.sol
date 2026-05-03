@@ -3,8 +3,8 @@ pragma solidity ^0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {stdJson} from "forge-std/StdJson.sol";
-import {BridgeAdminManager} from "../src/BridgeAdminManager.sol";
 import {BridgeCore} from "../src/BridgeCore.sol";
+import {ChannelDeployer} from "../src/ChannelDeployer.sol";
 import {DAppManager} from "../src/DAppManager.sol";
 import {L1TokenVault} from "../src/L1TokenVault.sol";
 import {IGrothVerifier} from "../src/interfaces/IGrothVerifier.sol";
@@ -18,12 +18,11 @@ contract UpgradeBridgeStackScript is Script {
     struct UpgradeResult {
         address owner;
         address deployer;
-        address bridgeAdminManager;
-        address bridgeAdminManagerImplementation;
         address dAppManager;
         address dAppManagerImplementation;
         address grothVerifier;
         address tokamakVerifier;
+        address channelDeployer;
         address bridgeCore;
         address bridgeCoreImplementation;
         address bridgeTokenVault;
@@ -40,7 +39,6 @@ contract UpgradeBridgeStackScript is Script {
         string memory tokamakCompatibleBackendVersion = vm.envString("BRIDGE_TOKAMAK_COMPATIBLE_BACKEND_VERSION");
 
         string memory existingJson = vm.readFile(inputPath);
-        address bridgeAdminManagerProxy = existingJson.readAddress(".bridgeAdminManager");
         address dAppManagerProxy = existingJson.readAddress(".dAppManager");
         address bridgeCoreProxy = existingJson.readAddress(".bridgeCore");
         if (existingJson.parseRaw(".bridgeTokenVault").length == 0) {
@@ -50,24 +48,24 @@ contract UpgradeBridgeStackScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        BridgeAdminManager bridgeAdminManagerImplementation = new BridgeAdminManager();
         DAppManager dAppManagerImplementation = new DAppManager();
+        ChannelDeployer channelDeployer = new ChannelDeployer();
         Groth16Verifier grothVerifierImplementation = new Groth16Verifier(grothCompatibleBackendVersion);
         TokamakVerifier tokamakVerifierImplementation = new TokamakVerifier(tokamakCompatibleBackendVersion);
         BridgeCore bridgeCoreImplementation = new BridgeCore();
         L1TokenVault bridgeTokenVaultImplementation = new L1TokenVault();
 
-        BridgeAdminManager adminManagerProxyContract = BridgeAdminManager(bridgeAdminManagerProxy);
         DAppManager dAppManagerProxyContract = DAppManager(dAppManagerProxy);
         BridgeCore bridgeCoreProxyContract = BridgeCore(bridgeCoreProxy);
         L1TokenVault bridgeTokenVaultProxyContract = L1TokenVault(bridgeTokenVaultProxy);
 
-        adminManagerProxyContract.upgradeTo(address(bridgeAdminManagerImplementation));
         dAppManagerProxyContract.upgradeTo(address(dAppManagerImplementation));
         bridgeCoreProxyContract.upgradeTo(address(bridgeCoreImplementation));
         bridgeTokenVaultProxyContract.upgradeTo(address(bridgeTokenVaultImplementation));
+        bridgeCoreProxyContract.setChannelDeployer(channelDeployer);
         bridgeCoreProxyContract.setGrothVerifier(IGrothVerifier(address(grothVerifierImplementation)));
         bridgeCoreProxyContract.setTokamakVerifier(ITokamakVerifier(address(tokamakVerifierImplementation)));
+        dAppManagerProxyContract.bindBridgeCore(bridgeCoreProxy);
 
         address owner = bridgeCoreProxyContract.owner();
         address grothVerifier = address(bridgeCoreProxyContract.grothVerifier());
@@ -83,12 +81,11 @@ contract UpgradeBridgeStackScript is Script {
         result = UpgradeResult({
             owner: owner,
             deployer: deployer,
-            bridgeAdminManager: bridgeAdminManagerProxy,
-            bridgeAdminManagerImplementation: address(bridgeAdminManagerImplementation),
             dAppManager: dAppManagerProxy,
             dAppManagerImplementation: address(dAppManagerImplementation),
             grothVerifier: grothVerifier,
             tokamakVerifier: tokamakVerifier,
+            channelDeployer: address(channelDeployer),
             bridgeCore: bridgeCoreProxy,
             bridgeCoreImplementation: address(bridgeCoreImplementation),
             bridgeTokenVault: bridgeTokenVaultProxy,
@@ -115,8 +112,6 @@ contract UpgradeBridgeStackScript is Script {
             vm.serializeString(deploymentJson, "abiManifestPath", existingJson.readString(".abiManifestPath"));
         }
         vm.serializeString(deploymentJson, "proxyKind", "uups");
-        vm.serializeAddress(deploymentJson, "bridgeAdminManager", result.bridgeAdminManager);
-        vm.serializeAddress(deploymentJson, "bridgeAdminManagerImplementation", result.bridgeAdminManagerImplementation);
         vm.serializeAddress(deploymentJson, "dAppManager", result.dAppManager);
         vm.serializeAddress(deploymentJson, "dAppManagerImplementation", result.dAppManagerImplementation);
         vm.serializeAddress(deploymentJson, "grothVerifier", result.grothVerifier);
@@ -131,6 +126,7 @@ contract UpgradeBridgeStackScript is Script {
             "tokamakVerifierCompatibleBackendVersion",
             TokamakVerifier(result.tokamakVerifier).compatibleBackendVersion()
         );
+        vm.serializeAddress(deploymentJson, "channelDeployer", result.channelDeployer);
         vm.serializeAddress(deploymentJson, "bridgeCore", result.bridgeCore);
         vm.serializeAddress(deploymentJson, "bridgeCoreImplementation", result.bridgeCoreImplementation);
         vm.serializeAddress(deploymentJson, "bridgeTokenVault", result.bridgeTokenVault);
@@ -142,12 +138,11 @@ contract UpgradeBridgeStackScript is Script {
     function _logUpgrade(UpgradeResult memory result) private view {
         console2.log("Bridge deployer:", result.deployer);
         console2.log("Bridge owner:", result.owner);
-        console2.log("BridgeAdminManager proxy:", result.bridgeAdminManager);
-        console2.log("BridgeAdminManager implementation:", result.bridgeAdminManagerImplementation);
         console2.log("DAppManager proxy:", result.dAppManager);
         console2.log("DAppManager implementation:", result.dAppManagerImplementation);
         console2.log("BridgeCore proxy:", result.bridgeCore);
         console2.log("BridgeCore implementation:", result.bridgeCoreImplementation);
+        console2.log("ChannelDeployer:", result.channelDeployer);
         console2.log(
             "Groth16Verifier compatible backend version:",
             Groth16Verifier(result.grothVerifier).compatibleBackendVersion()

@@ -6,6 +6,10 @@ This folder contains a standalone bridge-contract implementation. Start with:
 - `bridge/docs/zk-l2-bridge-whitepaper.md`
 - `bridge/docs/current-implementation.md`
 
+The public whitepaper URL is:
+
+- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/blob/main/bridge/docs/zk-l2-bridge-whitepaper.md
+
 The existing bridge implementation under the repository `src` directory was intentionally not referenced or reused.
 
 ## Scope
@@ -34,7 +38,7 @@ Groth proof verification is also no longer mocked. The bridge expects raw Groth1
 
 The current bridge implementation hardens a few assumptions that must remain true in production:
 
-- The Groth `channelTokenVault` circuit and the bridge both assume a fixed Merkle-tree depth of `12`. The admin manager rejects other depths.
+- The Groth `channelTokenVault` circuit and the bridge both assume the same fixed Merkle-tree depth from the generated `TokamakEnvironment.MT_DEPTH` constant. The current generated depth is `36`, and deployment fails if the locally installed `tokamak-l2js` depth does not match the generated bridge environment.
 - Channel creation derives the channel-scoped `aPubBlockHash` from the channel-creation block context on-chain, so Tokamak proof submissions cannot silently skip block-context binding.
 - DApp registration requires a nonzero `preprocessInputHash`, and each function also carries fixed `aPubUser` layout metadata derived from the synthesizer `instance_description.json`. All functions in a DApp share one managed storage-address vector, so the root-vector length and the `channelTokenVault` tree index are fixed at channel creation. The bridge stores and later caches the per-function entry-contract, selector, current-root, and updated-root offsets, plus storage-write descriptors that identify the target storage through the DApp-wide managed storage-address index and record the `aPubUser` word offset at which the corresponding storage key appears. Under the current synthesizer format, every storage write still contributes four `aPubUser` words: storage-key lower/upper and storage-write lower/upper.
 - The shared `bridgeTokenVault` is hard-wired to the chain's canonical Tokamak Network Token address through `BridgeCore.canonicalAsset()`. The bridge therefore explicitly relies on Tokamak Network Token continuing to behave as an exact-transfer ERC-20 for bridge purposes. Fee-on-transfer behavior, transfer blacklisting, transfer pausing, or other balance-mutating transfer semantics would break bridge availability.
@@ -61,7 +65,6 @@ The standalone bridge workspace now includes a Foundry deployment script:
 
 On the first proxy-based deployment it creates:
 
-- `BridgeAdminManager` proxy and implementation
 - `DAppManager` proxy and implementation
 - `Groth16Verifier`
 - `TokamakVerifier`
@@ -71,7 +74,7 @@ On the first proxy-based deployment it creates:
 After that initial migration, the helper script upgrades the existing proxies in place instead of creating new root-entry addresses. In other words:
 
 - first proxy deployment: root bridge addresses change once, because the legacy non-proxy deployment cannot be converted in place
-- later upgrades: `BridgeAdminManager`, `DAppManager`, and `BridgeCore` keep the same proxy addresses while only their implementations are redeployed
+- later upgrades: `DAppManager`, `BridgeCore`, and `L1TokenVault` keep the same proxy addresses while only their implementations are redeployed
 
 Required environment variables:
 
@@ -122,8 +125,8 @@ The helper reads the locally installed `tokamak-l2js` package and its exported
 `MT_DEPTH` before broadcasting deployment. The helper refreshes the
 Tokamak verifier parameters from `setupParams.json`, regenerates the Groth16
 `updateTree` verifier, and writes the bridge ZK manifest directly from
-`bridge/scripts/deploy-bridge.mjs`. The installed `MT_DEPTH` value is forwarded
-into `DeployBridgeStack.s.sol` as `BRIDGE_MERKLE_TREE_LEVELS`.
+`bridge/scripts/deploy-bridge.mjs`. The installed `MT_DEPTH` value is recorded
+in deployment metadata through the generated `TokamakEnvironment` constants.
 
 The Groth16 refresh source is selected explicitly through `BRIDGE_GROTH_SOURCE`.
 When unset, the bridge helper defaults to `mpc` for every supported network.
@@ -175,13 +178,15 @@ To add a new DApp metadata bundle to an already deployed bridge, use:
 - runs the installed `@tokamak-zk-evm/cli` runtime without passing RPC or Alchemy arguments
 - synthesizes and preprocesses the selected example group
 - derives function metadata from `instance.json` and `instance_description.json`
-- calls `DAppManager.registerDApp(...)` on the deployed bridge
+- calls `DAppManager.registerDApp(...)` for a new DApp ID, or `DAppManager.updateDAppMetadata(...)` with `--replace-existing`
 
 Current constraint:
 
 - `DAppManager.deleteDApp(...)` is available only on Sepolia
 - DApp deletion ignores active channel count, so channel managers can outlive their parent DApp registration
 - mainnet and every non-Sepolia network reject `deleteDApp(...)` outright
+- `DAppManager.updateDAppMetadata(...)` is available on mainnet, but keeps the existing `dappId` and `labelHash`
+- channels keep the DApp metadata and verifier snapshot that existed at channel creation time
 
 Example usage:
 

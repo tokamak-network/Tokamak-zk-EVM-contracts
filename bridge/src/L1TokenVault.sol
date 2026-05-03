@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
-import {BridgeStructs} from "./BridgeStructs.sol";
-import {ChannelManager} from "./ChannelManager.sol";
-import {IGrothVerifier} from "./interfaces/IGrothVerifier.sol";
-import {IChannelRegistry} from "./interfaces/IChannelRegistry.sol";
+import { Initializable } from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {
+    ReentrancyGuardUpgradeable
+} from "@openzeppelin-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
+import { BridgeStructs } from "./BridgeStructs.sol";
+import { ChannelManager } from "./ChannelManager.sol";
+import { IGrothVerifier } from "./interfaces/IGrothVerifier.sol";
+import { IChannelRegistry } from "./interfaces/IChannelRegistry.sol";
 
-contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
+contract L1TokenVault is
+    Initializable,
+    OwnableUpgradeable,
+    UUPSUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     using SafeERC20 for IERC20;
 
     uint256 internal constant BLS12_381_SCALAR_FIELD_MODULUS =
@@ -28,7 +35,7 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
     error UnknownChannel(uint256 channelId);
     error UnsupportedAssetTransferBehavior(uint256 expectedDelta, uint256 actualDelta);
     error NotRegisteredInChannel(address user, uint256 channelId);
-    error InsufficientFeeTreasuryBalance(uint256 available, uint256 requested);
+    error InsufficientTollTreasuryBalance(uint256 available, uint256 requested);
 
     struct ChannelVaultUpdateContext {
         ChannelManager channelManager;
@@ -38,21 +45,26 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
 
     IERC20 public asset;
     IChannelRegistry public channelRegistry;
-    uint256 private _feeTreasuryBalance;
+    uint256 private _tollTreasuryBalance;
 
     mapping(address => uint256) private _availableBalances;
 
     event AssetsFunded(address indexed user, uint256 amount);
     event StorageWriteObserved(address indexed storageAddr, uint256 storageKey, uint256 value);
     event AssetsClaimed(address indexed user, uint256 amount);
-    event ChannelJoinFeePaid(address indexed user, uint256 indexed channelId, uint256 amount);
-    event ChannelExitRefunded(address indexed user, uint256 indexed channelId, uint256 amount, uint16 refundBps);
+    event ChannelJoinTollPaid(address indexed user, uint256 indexed channelId, uint256 amount);
+    event ChannelExitRefunded(
+        address indexed user, uint256 indexed channelId, uint256 amount, uint16 refundBps
+    );
 
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(address initialOwner, IERC20 asset_, IChannelRegistry channelRegistry_) external initializer {
+    function initialize(address initialOwner, IERC20 asset_, IChannelRegistry channelRegistry_)
+        external
+        initializer
+    {
         if (address(asset_) == address(0)) revert InvalidAsset();
         if (address(channelRegistry_) == address(0)) revert InvalidChannelRegistry();
 
@@ -96,23 +108,23 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         address channelManagerAddress = channelRegistry.getChannelManager(channelId);
         if (channelManagerAddress == address(0)) revert UnknownChannel(channelId);
         ChannelManager channelManager = ChannelManager(channelManagerAddress);
-        uint256 joinFeeAmount = channelManager.joinFee();
+        uint256 joinTollAmount = channelManager.joinToll();
 
         uint256 vaultBalanceBefore = asset.balanceOf(address(this));
-        if (joinFeeAmount != 0) {
-            asset.safeTransferFrom(msg.sender, address(this), joinFeeAmount);
+        if (joinTollAmount != 0) {
+            asset.safeTransferFrom(msg.sender, address(this), joinTollAmount);
         }
         uint256 vaultBalanceDelta = asset.balanceOf(address(this)) - vaultBalanceBefore;
-        if (vaultBalanceDelta != joinFeeAmount) {
-            revert UnsupportedAssetTransferBehavior(joinFeeAmount, vaultBalanceDelta);
+        if (vaultBalanceDelta != joinTollAmount) {
+            revert UnsupportedAssetTransferBehavior(joinTollAmount, vaultBalanceDelta);
         }
 
-        _feeTreasuryBalance += joinFeeAmount;
+        _tollTreasuryBalance += joinTollAmount;
         channelManager.registerChannelTokenVaultIdentity(
-            msg.sender, l2Address, channelTokenVaultKey, leafIndex, noteReceivePubKey, joinFeeAmount
+            msg.sender, l2Address, channelTokenVaultKey, leafIndex, noteReceivePubKey, joinTollAmount
         );
 
-        emit ChannelJoinFeePaid(msg.sender, channelId, joinFeeAmount);
+        emit ChannelJoinTollPaid(msg.sender, channelId, joinTollAmount);
         return true;
     }
 
@@ -121,7 +133,8 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         BridgeStructs.GrothProof calldata proof,
         BridgeStructs.GrothUpdate calldata update
     ) external nonReentrant returns (bool) {
-        ChannelVaultUpdateContext memory context = _prepareChannelVaultUpdate(channelId, msg.sender, update);
+        ChannelVaultUpdateContext memory context =
+            _prepareChannelVaultUpdate(channelId, msg.sender, update);
         if (update.updatedUserValue <= update.currentUserValue) revert InvalidAmount();
 
         uint256 amount = update.updatedUserValue - update.currentUserValue;
@@ -137,7 +150,8 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         BridgeStructs.GrothProof calldata proof,
         BridgeStructs.GrothUpdate calldata update
     ) external nonReentrant returns (bool) {
-        ChannelVaultUpdateContext memory context = _prepareChannelVaultUpdate(channelId, msg.sender, update);
+        ChannelVaultUpdateContext memory context =
+            _prepareChannelVaultUpdate(channelId, msg.sender, update);
         if (update.currentUserValue <= update.updatedUserValue) revert InvalidAmount();
 
         uint256 amount = update.currentUserValue - update.updatedUserValue;
@@ -154,14 +168,14 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
             channelManager.getChannelTokenVaultRegistration(msg.sender);
         if (!registration.exists) revert NotRegisteredInChannel(msg.sender, channelId);
 
-        (uint256 refundAmount, uint16 refundBps) = channelManager.getExitFeeRefundQuote(msg.sender);
+        (uint256 refundAmount, uint16 refundBps) = channelManager.getExitTollRefundQuote(msg.sender);
         channelManager.unregisterChannelTokenVaultIdentity(msg.sender);
 
         if (refundAmount != 0) {
-            if (_feeTreasuryBalance < refundAmount) {
-                revert InsufficientFeeTreasuryBalance(_feeTreasuryBalance, refundAmount);
+            if (_tollTreasuryBalance < refundAmount) {
+                revert InsufficientTollTreasuryBalance(_tollTreasuryBalance, refundAmount);
             }
-            _feeTreasuryBalance -= refundAmount;
+            _tollTreasuryBalance -= refundAmount;
 
             uint256 vaultBalanceBefore = asset.balanceOf(address(this));
             uint256 recipientBalanceBefore = asset.balanceOf(msg.sender);
@@ -204,8 +218,8 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         return _availableBalances[user];
     }
 
-    function feeTreasuryBalance() external view returns (uint256) {
-        return _feeTreasuryBalance;
+    function tollTreasuryBalance() external view returns (uint256) {
+        return _tollTreasuryBalance;
     }
 
     function _requireL2ValueInField(uint256 value) private pure {
@@ -214,22 +228,27 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         }
     }
 
-    function _prepareChannelVaultUpdate(uint256 channelId, address user, BridgeStructs.GrothUpdate calldata update)
-        private
-        view
-        returns (ChannelVaultUpdateContext memory context)
-    {
+    function _prepareChannelVaultUpdate(
+        uint256 channelId,
+        address user,
+        BridgeStructs.GrothUpdate calldata update
+    ) private view returns (ChannelVaultUpdateContext memory context) {
         address channelManagerAddress = channelRegistry.getChannelManager(channelId);
         if (channelManagerAddress == address(0)) revert UnknownChannel(channelId);
         context.channelManager = ChannelManager(channelManagerAddress);
         context.registration = context.channelManager.getChannelTokenVaultRegistration(user);
         if (!context.registration.exists) revert NotRegisteredInChannel(user, channelId);
-        context.currentRoot = update.currentRootVector[context.channelManager.channelTokenVaultTreeIndex()];
+        context.currentRoot =
+            update.currentRootVector[context.channelManager.channelTokenVaultTreeIndex()];
 
         _requireL2ValueInField(update.currentUserValue);
         _requireL2ValueInField(update.updatedUserValue);
-        if (update.currentUserKey != context.registration.channelTokenVaultKey) revert KeyMismatch();
-        if (update.updatedUserKey != context.registration.channelTokenVaultKey) revert KeyMismatch();
+        if (update.currentUserKey != context.registration.channelTokenVaultKey) {
+            revert KeyMismatch();
+        }
+        if (update.updatedUserKey != context.registration.channelTokenVaultKey) {
+            revert KeyMismatch();
+        }
     }
 
     function _verifyAndApplyChannelVaultUpdate(
@@ -244,7 +263,8 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         publicSignals[3] = update.currentUserValue;
         publicSignals[4] = update.updatedUserValue;
 
-        bool ok = context.channelManager.grothVerifier().verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
+        bool ok = context.channelManager.grothVerifier()
+            .verifyProof(proof.pA, proof.pB, proof.pC, publicSignals);
         if (!ok) revert GrothProofRejected();
 
         context.channelManager.applyVaultUpdate(update.currentRootVector, update.updatedRoot);
@@ -256,5 +276,5 @@ contract L1TokenVault is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         emit StorageWriteObserved(storageAddr, storageKey, value);
     }
 
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyOwner { }
 }

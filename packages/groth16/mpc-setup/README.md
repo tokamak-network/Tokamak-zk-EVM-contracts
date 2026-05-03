@@ -53,7 +53,8 @@ The publisher reads these environment variables:
 - `GOOGLE_DRIVE_OAUTH_CLIENT_JSON_PATH`: OAuth client JSON path shared by repository Drive upload scripts.
 - `GOOGLE_DRIVE_OAUTH_TOKEN_PATH`: Optional OAuth token cache path shared by repository Drive upload scripts. If omitted, the OAuth browser flow runs without persisting a token file.
 
-The uploaded archive name follows `tokamak-private-dapps-groth16-v{packageVersion}-{YYYYMMDDTHHMMSSZ}.zip`.
+The uploaded archive name follows `tokamak-private-dapps-groth16-v{compatibleBackendVersion}-{YYYYMMDDTHHMMSSZ}.zip`.
+For example, package version `0.2.0` publishes a CRS archive with compatible backend version `0.2`.
 The archive contains `circuit_final.zkey`, `verification_key.json`, `metadata.json`, and `zkey_provenance.json`.
 The generated `phase1_final_XX.ptau` is not included; its source and SHA-256 hash are recorded in `zkey_provenance.json`.
 

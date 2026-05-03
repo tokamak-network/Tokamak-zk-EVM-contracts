@@ -9,8 +9,5 @@ interface IGrothVerifier {
         uint256[8] calldata pB,
         uint256[4] calldata pC,
         uint256[5] calldata pubSignals
-    )
-        external
-        view
-        returns (bool);
+    ) external view returns (bool);
 }

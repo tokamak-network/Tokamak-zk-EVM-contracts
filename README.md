@@ -144,18 +144,13 @@ $EDITOR .env
 node bridge/scripts/deploy-bridge.mjs --network sepolia
 ```
 
-For an already deployed bridge stack, deploy-and-register the private-state DApp with:
+For an already deployed bridge stack, deploy the private-state DApp first:
 
 ```bash
-node bridge/scripts/deploy-and-add-dapp.mjs \
-  --network sepolia \
-  --group mintNotes \
-  --group transferNotes \
-  --group redeemNotes \
-  --dapp-id 1
+node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs --network sepolia
 ```
 
-If the app is already deployed and only registration is needed, use:
+Then register the deployed app on the bridge:
 
 ```bash
 node bridge/scripts/admin-add-dapp.mjs \

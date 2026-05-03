@@ -46,8 +46,12 @@ Pass the deployment network as `--network <anvil|sepolia|mainnet>` when running
 `scripts/deploy/deploy-private-state.mjs`. For `--network anvil`, scripts
 default to `http://127.0.0.1:8545`.
 
-Deployment artifacts can be materialized into `deployment/chain-id-<chain-id>/dapps/private-state/<timestamp>/` by running
-`packages/apps/private-state/scripts/deploy/write-deploy-artifacts.mjs`:
+After a successful broadcast, `deploy-private-state.mjs` automatically
+materializes deployment artifacts into
+`deployment/chain-id-<chain-id>/dapps/private-state/<timestamp>/`.
+The standalone `packages/apps/private-state/scripts/deploy/write-deploy-artifacts.mjs`
+helper remains available for recovery or rematerialization from an existing
+Foundry broadcast:
 
 - `deployment.<chain-id>.latest.json`
 - `storage-layout.<chain-id>.latest.json`

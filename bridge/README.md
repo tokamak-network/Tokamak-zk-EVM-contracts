@@ -159,15 +159,8 @@ The deployment JSON is post-processed to include `chainId` and `abiManifestPath`
 
 ## Bridge administration
 
-To add a new DApp metadata bundle to an already deployed bridge, use:
-
-- `bridge/scripts/deploy-and-add-dapp.mjs`
-- `bridge/scripts/admin-add-dapp.mjs`
-
-`deploy-and-add-dapp.mjs`:
-
-- deploys the private-state app to the selected app network first
-- then invokes `admin-add-dapp.mjs` to register the already deployed app on the bridge
+To add a new DApp metadata bundle to an already deployed bridge, deploy the
+private-state app first and then register it with `bridge/scripts/admin-add-dapp.mjs`.
 
 `admin-add-dapp.mjs`:
 
@@ -190,7 +183,15 @@ Current constraint:
 Example usage:
 
 ```bash
-node bridge/scripts/deploy-and-add-dapp.mjs \
+node packages/apps/private-state/scripts/deploy/deploy-private-state.mjs --network sepolia
+```
+
+The private-state deploy script automatically materializes the DApp deployment and
+storage-layout manifests after the forge broadcast succeeds. Then register those
+manifests on the bridge:
+
+```bash
+node bridge/scripts/admin-add-dapp.mjs \
   --network sepolia \
   --group mintNotes \
   --group transferNotes \
@@ -198,25 +199,12 @@ node bridge/scripts/deploy-and-add-dapp.mjs \
   --dapp-id 1
 ```
 
-If the app must be deployed to a different network before registration, select it explicitly:
-
-```bash
-node bridge/scripts/deploy-and-add-dapp.mjs \
-  --network sepolia \
-  --group mintNotes \
-  --group transferNotes \
-  --group redeemNotes \
-  --dapp-id 1 \
-  --app-network sepolia
-```
-
 Relevant options:
 
-- `deploy-and-add-dapp.mjs` requires `--network <name>` for bridge registration and accepts `--app-network <name>`, `--app-env-file <path>`, and `--app-rpc-url <url>` for the deployment step
 - `admin-add-dapp.mjs` requires `--network <name>` for bridge registration and accepts `--app-network <name>` to choose which already-deployed app manifests should be used
 - `admin-add-dapp.mjs` accepts `--app-deployment-path <path>` and `--storage-layout-path <path>` to override those manifests explicitly
 
-When `--app-network` is omitted, both scripts use the bridge `--network` value for the app manifest lookup.
+When `--app-network` is omitted, `admin-add-dapp.mjs` uses the bridge `--network` value for the app manifest lookup.
 
 If the private-state app is already deployed and only registration is needed, use:
 

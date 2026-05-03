@@ -47,10 +47,6 @@ try {
     "--network",
     "anvil",
   ], { env: childEnv });
-  run("node", [
-    path.join(projectRoot, "packages", "apps", "private-state", "scripts", "deploy", "write-deploy-artifacts.mjs"),
-    String(network.chainId),
-  ], { env: childEnv });
 
   const deployerAddress = runCapture("cast", ["wallet", "address", "--private-key", deployerPrivateKey], {
     env: childEnv,

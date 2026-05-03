@@ -11,6 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../../../../..");
 const envFile = process.env.APPS_ENV_FILE ?? path.join(projectRoot, "packages", "apps", ".env");
+const writeDeployArtifactsScriptPath = path.join(__dirname, "write-deploy-artifacts.mjs");
 const inputEnv = pickInputEnv();
 const options = parseCliOptions(process.argv.slice(2));
 
@@ -74,7 +75,22 @@ const result = spawnSync("forge", forgeArgs, {
   env: process.env,
   stdio: "inherit",
 });
-process.exit(result.status ?? 1);
+if (result.error) {
+  throw result.error;
+}
+if (result.status !== 0) {
+  process.exit(result.status ?? 1);
+}
+
+const artifactResult = spawnSync("node", [writeDeployArtifactsScriptPath, String(network.chainId)], {
+  cwd: projectRoot,
+  env: process.env,
+  stdio: "inherit",
+});
+if (artifactResult.error) {
+  throw artifactResult.error;
+}
+process.exit(artifactResult.status ?? 1);
 
 function pickInputEnv() {
   const names = [

@@ -8,6 +8,32 @@ This repository hosts the current Tokamak Private App Channels worktree.
 
 The active bridge implementation lives under [bridge/](./bridge/). It treats each channel as a dedicated validity-proven execution domain for one registered DApp, while Ethereum remains the canonical layer for custody, proof verification, and settlement. The repository also contains app-level integrations under [packages/apps/](./packages/apps/) and consumes the reusable Tokamak zk-EVM proving stack through published npm packages.
 
+## Quick Answers
+
+### What are Tokamak Private App Channels?
+
+Tokamak Private App Channels are Ethereum-settled, validity-proven execution domains for bridge-coupled DApps. Each
+channel is created for one registered DApp, keeps its own channel state commitment, and advances only when Ethereum
+accepts the required proof-backed transition.
+
+### What does the bridge verify on-chain?
+
+The bridge verifies Tokamak proofs for general channel execution and Groth16 proofs for channel-token-vault accounting
+updates. It also checks DApp metadata, function metadata commitments, verifier compatibility snapshots, and channel
+state commitments before accepting a transition.
+
+### What is the private-state DApp?
+
+The private-state DApp is the current reference DApp in this repository. It lets users move canonical Tokamak Network
+Token value into channel-local accounting, mint private notes, transfer notes, redeem notes, and withdraw liquid
+channel balance back through the bridge.
+
+### What remains trusted or operationally assumed?
+
+The current model assumes sound Tokamak and Groth16 verifiers, correct DApp metadata, an honest bridge owner for
+upgradeable root contracts, exact-transfer behavior of the canonical token, and user review of immutable channel policy
+before channel creation or joining.
+
 ## What Is In This Repository
 
 - [bridge/](./bridge/): the current bridge workspace, including contracts, deployment scripts, tests, and bridge documentation

@@ -1,4 +1,4 @@
-# Contract Specification
+# Private-State Contract Specification
 
 ## 1. Contract Set
 

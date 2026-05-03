@@ -1,4 +1,4 @@
-# Security Model
+# Private-State Security Model
 
 This document describes the security model for the `private-state` DApp. It includes the bridge
 security assumptions inherited by the DApp, the local CLI security model, and the note-specific

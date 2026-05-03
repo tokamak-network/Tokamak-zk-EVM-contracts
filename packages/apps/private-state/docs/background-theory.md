@@ -1,4 +1,4 @@
-# Background Theory
+# Private-State Background Theory
 
 ## 1. System Model
 

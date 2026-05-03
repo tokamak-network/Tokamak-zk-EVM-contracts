@@ -1,4 +1,4 @@
-# Workflow
+# Private-State Workflow
 
 This document consolidates the CLI-to-DApp and bridge-to-DApp workflows for the `private-state`
 DApp. It describes the normal user command flow, the local workspace model, the proof input bundle,

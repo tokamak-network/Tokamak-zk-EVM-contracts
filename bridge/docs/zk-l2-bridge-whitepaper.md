@@ -2,6 +2,19 @@
 
 Last updated: 2026-05-02
 
+## Abstract
+
+Tokamak Private App Channels are Ethereum-settled, validity-proven channels for bridge-coupled
+DApps. The bridge keeps canonical asset custody and proof verification on Ethereum, while each
+channel provides a dedicated execution domain for one registered DApp. This paper explains why the
+system uses DApp metadata, immutable per-channel policy snapshots, Tokamak proofs for general
+execution, and Groth16 proofs for channel-token-vault accounting.
+
+The practical conclusion is simple: users do not join a mutable generic rollup. They join a specific
+channel policy. That policy fixes the DApp metadata digest, function metadata root, verifier
+snapshot, compatible backend versions, join toll, refund schedule, and initial proof-context binding
+for that channel lifetime.
+
 ## Table of Contents
 
 1. Thesis

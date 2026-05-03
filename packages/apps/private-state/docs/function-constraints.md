@@ -1,4 +1,4 @@
-# Function Constraints
+# Private-State Function Constraints
 
 This document lists the constraints that each user-facing function family must satisfy.
 

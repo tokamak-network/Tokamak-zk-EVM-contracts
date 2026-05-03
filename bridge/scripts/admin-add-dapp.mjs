@@ -16,7 +16,7 @@ import {
   buildSourceCodeMetadata,
   PRIVATE_STATE_DAPP_SOURCE_PATHS,
 } from "../../scripts/deployment/lib/source-code-metadata.mjs";
-import { APP_NETWORKS, deriveRpcUrl, resolveAppNetwork } from "@tokamak-private-dapps/common-library/network-config";
+import { deriveRpcUrl, resolveAppNetwork } from "@tokamak-private-dapps/common-library/network-config";
 import {
   buildTokamakCliInvocation,
   resolveTokamakBlockInputConfig,
@@ -744,18 +744,19 @@ function buildDAppDefinitions(records) {
 
 function usage() {
   console.log(`Usage:
-  node bridge/scripts/admin-add-dapp.mjs --group <example-group> [--group <example-group> ...] --dapp-id <uint> [options]
+  node bridge/scripts/admin-add-dapp.mjs --network <anvil|sepolia|mainnet> --group <example-group> [--group <example-group> ...] --dapp-id <uint> [options]
 
 Options:
+  --network <name>                  Bridge network used for RPC and bridge deployment snapshots
   --deployment-path <path>          Bridge deployment JSON path; defaults to the latest bridge snapshot for the resolved chain
   --abi-manifest <path>             ABI manifest path; defaults to the latest bridge snapshot for the resolved chain
   --dapp-manager <address>          Override DAppManager address; defaults from deployment JSON
   --dapp-label <name>               Logical DApp label used to merge multiple example groups
-  --app-network <name>              App deployment network whose manifests should be used; defaults to APPS_NETWORK, BRIDGE_NETWORK, or the bridge chain name
+  --app-network <name>              App deployment network whose manifests should be used; defaults to --network
   --app-deployment-path <path>      App deployment manifest; defaults to private-state latest for the app chain
   --storage-layout-path <path>      App storage-layout manifest; defaults to private-state latest for the app chain
   --example-root <path>             Example root containing <group>/<example-name>/ canonical Tokamak inputs
-  --rpc-url <url>                   JSON-RPC URL; defaults from bridge env variables
+  --rpc-url <url>                   JSON-RPC URL; defaults from --network plus BRIDGE_ALCHEMY_API_KEY
   --private-key <hex>               Broadcaster key; defaults from BRIDGE_DEPLOYER_PRIVATE_KEY
   --manifest-out <path>             Output manifest path; defaults to deployment/chain-id-<chain>/dapps/<dapp-name>/<timestamp>/dapp-registration.<chain-id>.json
   --artifacts-out <path>            Directory for archived synthesizer/preprocess outputs
@@ -773,6 +774,7 @@ function parseArgs(argv) {
   const options = {
     groups: [],
     dappId: null,
+    network: null,
     deploymentPath: null,
     abiManifestPath: null,
     dAppManager: null,
@@ -801,6 +803,9 @@ function parseArgs(argv) {
     };
 
     switch (current) {
+      case "--network":
+        options.network = take(current);
+        break;
       case "--group":
         options.groups.push(take(current));
         break;
@@ -861,6 +866,10 @@ function parseArgs(argv) {
   if (!Number.isInteger(options.dappId) || options.dappId < 0) {
     throw new Error("--dapp-id must be a non-negative integer.");
   }
+  if (!options.network) {
+    throw new Error("--network is required.");
+  }
+  resolveBridgeNetwork(options.network);
 
   return options;
 }
@@ -874,10 +883,7 @@ function resolveRpcUrl(options) {
     return process.env.BRIDGE_RPC_URL_OVERRIDE;
   }
 
-  const network = process.env.BRIDGE_NETWORK;
-  if (!network) {
-    throw new Error("Missing --rpc-url and BRIDGE_NETWORK is not set.");
-  }
+  const network = options.network;
   if (network === "anvil") {
     return "http://127.0.0.1:8545";
   }
@@ -893,7 +899,15 @@ function resolveRpcUrl(options) {
     case "mainnet":
       return `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`;
     default:
-      throw new Error(`Unsupported BRIDGE_NETWORK=${network}`);
+      throw new Error(`Unsupported --network=${network}`);
+  }
+}
+
+function resolveBridgeNetwork(networkName) {
+  try {
+    return resolveAppNetwork(networkName);
+  } catch {
+    throw new Error(`Unsupported --network=${networkName}`);
   }
 }
 
@@ -960,10 +974,6 @@ function resolveDappSnapshotTimestamp(rootDir, chainId, dappLabel, manifestOut, 
   return manifestDir === expectedDir ? timestampLabel : fallbackTimestamp;
 }
 
-const CHAIN_ID_TO_APP_NETWORK = new Map(
-  Object.entries(APP_NETWORKS).map(([network, config]) => [config.chainId, network]),
-);
-
 function resolveBridgeDeploymentPath(chainId) {
   const latestDir = requireLatestBridgeArtifactDir(repoRoot, chainId);
   return path.join(latestDir, `bridge.${chainId}.json`);
@@ -972,22 +982,6 @@ function resolveBridgeDeploymentPath(chainId) {
 function resolveBridgeAbiManifestPath(chainId) {
   const latestDir = requireLatestBridgeArtifactDir(repoRoot, chainId);
   return path.join(latestDir, `bridge-abi-manifest.${chainId}.json`);
-}
-
-function resolveDefaultAppNetwork(chainId) {
-  if (process.env.APPS_NETWORK) {
-    return process.env.APPS_NETWORK;
-  }
-  if (process.env.BRIDGE_NETWORK) {
-    return process.env.BRIDGE_NETWORK;
-  }
-  const network = CHAIN_ID_TO_APP_NETWORK.get(chainId);
-  if (!network) {
-    throw new Error(
-      `Unable to infer an app deployment network for chain ID ${chainId}. Pass --app-network explicitly.`,
-    );
-  }
-  return network;
 }
 
 function resolveAppChainId(appNetwork) {
@@ -1007,12 +1001,7 @@ function resolveAppRpcUrl(appNetwork) {
 }
 
 function shouldSkipArtifactUpload(bridgeChainId, appChainId) {
-  return (
-    process.env.BRIDGE_NETWORK === "anvil" ||
-    process.env.APPS_NETWORK === "anvil" ||
-    bridgeChainId === 31337 ||
-    appChainId === 31337
-  );
+  return bridgeChainId === 31337 || appChainId === 31337;
 }
 
 function loadPrivateStateAppContext({ appDeploymentPath, storageLayoutPath }) {
@@ -1330,8 +1319,12 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const rpcUrl = resolveRpcUrl(options);
   const privateKey = normalizePrivateKey(options.privateKey);
+  const bridgeNetwork = resolveBridgeNetwork(options.network);
   const provider = new JsonRpcProvider(rpcUrl);
   const chainId = Number((await provider.getNetwork()).chainId);
+  if (chainId !== bridgeNetwork.chainId) {
+    throw new Error(`Bridge RPC chain ID mismatch for --network ${options.network}: expected ${bridgeNetwork.chainId}, received ${chainId}.`);
+  }
   const deploymentPath = options.deploymentPath ?? resolveBridgeDeploymentPath(chainId);
   const deployment = readJson(deploymentPath);
   const abiManifestPath = resolveAbiManifestPath(options, deployment, deploymentPath);
@@ -1339,7 +1332,7 @@ async function main() {
   if (!dAppManagerAddress) {
     throw new Error("Unable to resolve DAppManager address from arguments or deployment artifact.");
   }
-  const appNetwork = options.appNetwork ?? resolveDefaultAppNetwork(chainId);
+  const appNetwork = options.appNetwork ?? options.network;
   const appChainId = resolveAppChainId(appNetwork);
   let appProvider = provider;
   if (appChainId !== chainId) {

@@ -64,7 +64,7 @@ export function resolveAppNetwork(networkName) {
   const network = APP_NETWORKS[networkName];
 
   if (!network) {
-    throw new Error(`Unsupported APPS_NETWORK: ${networkName}`);
+    throw new Error(`Unsupported network: ${networkName}`);
   }
 
   return network;

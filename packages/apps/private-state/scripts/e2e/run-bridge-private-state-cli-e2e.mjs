@@ -1402,7 +1402,6 @@ function deployPrivateStateForCliE2E() {
       env: {
         ...process.env,
         APPS_DEPLOYER_PRIVATE_KEY: anvilDeployerPrivateKey,
-        APPS_NETWORK: "anvil",
         APPS_RPC_URL_OVERRIDE: providerUrl,
       },
     },
@@ -1416,7 +1415,6 @@ function deployPrivateStateForCliE2E() {
 
 function deployBridgeStack() {
   writeJsonLikeEnv(bridgeEnvPath, {
-    BRIDGE_NETWORK: "anvil",
     BRIDGE_DEPLOYER_PRIVATE_KEY: anvilDeployerPrivateKey,
     BRIDGE_RPC_URL_OVERRIDE: providerUrl,
   });
@@ -1436,6 +1434,8 @@ function deployBridgeStack() {
     "node",
     [
       bridgeDeployHelperPath,
+      "--network",
+      "anvil",
       "--mode",
       "redeploy-proxy",
     ],
@@ -1506,6 +1506,8 @@ async function registerPrivateStateDApp(provider, bridgeDeployment, participants
       dappLabel,
       "--dapp-id",
       dappId,
+      "--network",
+      "anvil",
       "--deployment-path",
       latestBridgeDeploymentPath(),
       "--dapp-manager",

@@ -88,7 +88,7 @@ function parseArgs(argv) {
 }
 
 function shouldSkipUpload(chainId) {
-  return process.env.BRIDGE_NETWORK === "anvil" || String(chainId) === "31337";
+  return String(chainId) === "31337";
 }
 
 function resolveBridgeDriveUploadConfig() {

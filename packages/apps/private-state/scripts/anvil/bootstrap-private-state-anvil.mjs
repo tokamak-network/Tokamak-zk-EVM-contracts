@@ -31,7 +31,6 @@ try {
   }
 
   fs.writeFileSync(tempEnvPath, [
-    "APPS_NETWORK=anvil",
     `APPS_DEPLOYER_PRIVATE_KEY=${deployerPrivateKey}`,
     "",
   ].join("\n"));
@@ -45,6 +44,8 @@ try {
 
   run("node", [
     path.join(projectRoot, "packages", "apps", "private-state", "scripts", "deploy", "deploy-private-state.mjs"),
+    "--network",
+    "anvil",
   ], { env: childEnv });
   run("node", [
     path.join(projectRoot, "packages", "apps", "private-state", "scripts", "deploy", "write-deploy-artifacts.mjs"),

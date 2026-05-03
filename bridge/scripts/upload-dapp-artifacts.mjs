@@ -93,12 +93,7 @@ function parseArgs(argv) {
 }
 
 function shouldSkipUpload({ bridgeChainId, appChainId }) {
-  return (
-    process.env.BRIDGE_NETWORK === "anvil" ||
-    process.env.APPS_NETWORK === "anvil" ||
-    bridgeChainId === 31337 ||
-    appChainId === 31337
-  );
+  return bridgeChainId === 31337 || appChainId === 31337;
 }
 
 function requiredFile(filePath, relativePath) {

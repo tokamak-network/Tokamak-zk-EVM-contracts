@@ -141,13 +141,14 @@ make e2e-bridge-cli
 cp .env.example .env
 $EDITOR .env
 
-node bridge/scripts/deploy-bridge.mjs
+node bridge/scripts/deploy-bridge.mjs --network sepolia
 ```
 
 For an already deployed bridge stack, deploy-and-register the private-state DApp with:
 
 ```bash
 node bridge/scripts/deploy-and-add-dapp.mjs \
+  --network sepolia \
   --group mintNotes \
   --group transferNotes \
   --group redeemNotes \
@@ -158,6 +159,7 @@ If the app is already deployed and only registration is needed, use:
 
 ```bash
 node bridge/scripts/admin-add-dapp.mjs \
+  --network sepolia \
   --group mintNotes \
   --group transferNotes \
   --group redeemNotes \

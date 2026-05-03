@@ -4,12 +4,7 @@ APP_ENV_FILE ?= $(abspath ../.env)
 DEPLOY_ENV_MKDIR := /tmp
 
 define DEPLOY_RULE
-	@tmp_env="$$(mktemp $(DEPLOY_ENV_MKDIR)/private-state.env.XXXXXX)"; \
-	trap 'rm -f "$$tmp_env" "$$tmp_env.next"' EXIT; \
-	cp "$(APP_ENV_FILE)" "$$tmp_env"; \
-	awk 'BEGIN { replaced = 0 } /^APPS_NETWORK=/ { print "APPS_NETWORK=$(1)"; replaced = 1; next } { print } END { if (replaced == 0) print "APPS_NETWORK=$(1)" }' "$$tmp_env" > "$$tmp_env.next"; \
-	mv "$$tmp_env.next" "$$tmp_env"; \
-	APPS_ENV_FILE="$$tmp_env" node scripts/deploy/deploy-private-state.mjs $(2)
+	@APPS_ENV_FILE="$(APP_ENV_FILE)" node scripts/deploy/deploy-private-state.mjs --network $(1) $(2)
 endef
 
 help:

@@ -228,9 +228,21 @@ function cleanupBroadcastTraces(scriptName, chainId) {
 
 function resolveBridgeNetwork(networkName) {
   if (!["sepolia", "mainnet", "anvil"].includes(networkName)) {
-    fail(`Unsupported BRIDGE_NETWORK=${networkName}\nSupported values: sepolia, mainnet, anvil`);
+    fail(`Unsupported --network=${networkName}\nSupported values: sepolia, mainnet, anvil`);
   }
   return resolveAppNetwork(networkName);
+}
+
+function usage() {
+  console.log(`Usage:
+  node bridge/scripts/deploy-bridge.mjs --network <anvil|sepolia|mainnet> [options] [forge-options]
+
+Options:
+  --network <name>  Bridge deployment network. Supported values: anvil, sepolia, mainnet
+  --mode <mode>     Deployment mode. Supported values: upgrade, redeploy-proxy
+  --help, -h        Show this help message
+
+Additional arguments are forwarded to forge script.`);
 }
 
 function latestCompleteBridgeDir(rootDir, chainId) {
@@ -312,8 +324,8 @@ async function findDriveBridgeDeploymentSnapshots({ chainId }) {
   };
 }
 
-async function assertMainnetProxyModeFromDrive({ deployMode, bridgeChainId }) {
-  if (process.env.BRIDGE_NETWORK !== MAINNET_NETWORK_NAME || deployMode !== "redeploy-proxy") {
+async function assertMainnetProxyModeFromDrive({ networkName, deployMode, bridgeChainId }) {
+  if (networkName !== MAINNET_NETWORK_NAME || deployMode !== "redeploy-proxy") {
     return;
   }
 
@@ -418,8 +430,8 @@ function assertBridgeSolidityChangedSincePreviousDeployment(previousCommit, curr
   ].join("\n"));
 }
 
-function assertMainnetDeploymentSourceIntegrity({ deployMode, bridgeChainId, latestBridgeDir }) {
-  if (process.env.BRIDGE_NETWORK !== MAINNET_NETWORK_NAME) {
+function assertMainnetDeploymentSourceIntegrity({ networkName, deployMode, bridgeChainId, latestBridgeDir }) {
+  if (networkName !== MAINNET_NETWORK_NAME) {
     return;
   }
   assertCleanMainnetDeploymentWorktree();
@@ -433,9 +445,23 @@ function assertMainnetDeploymentSourceIntegrity({ deployMode, bridgeChainId, lat
 
 function parseArgs(argv) {
   let deployMode = initialDeployMode;
+  let networkName = null;
   const forwardArgs = [];
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
+    if (current === "--help" || current === "-h") {
+      usage();
+      process.exit(0);
+    }
+    if (current === "--network") {
+      const value = argv[index + 1];
+      if (!value) {
+        fail("Missing value for --network");
+      }
+      networkName = value;
+      index += 1;
+      continue;
+    }
     if (current === "--mode") {
       const value = argv[index + 1];
       if (!value) {
@@ -447,7 +473,10 @@ function parseArgs(argv) {
     }
     forwardArgs.push(current);
   }
-  return { deployMode, forwardArgs };
+  if (!networkName) {
+    fail("Missing required argument: --network <sepolia|mainnet|anvil>");
+  }
+  return { deployMode, networkName, forwardArgs };
 }
 
 function loadEnvFile() {
@@ -1373,20 +1402,20 @@ function updateDeploymentAbiManifestPath(deploymentPath, canonicalAbiManifestPat
 }
 
 async function main() {
-  const { deployMode, forwardArgs } = parseArgs(process.argv.slice(2));
+  const { deployMode, networkName, forwardArgs } = parseArgs(process.argv.slice(2));
   loadEnvFile();
 
   if (process.env.BRIDGE_DEPLOYER_PRIVATE_KEY && !process.env.BRIDGE_DEPLOYER_PRIVATE_KEY.startsWith("0x")) {
     process.env.BRIDGE_DEPLOYER_PRIVATE_KEY = `0x${process.env.BRIDGE_DEPLOYER_PRIVATE_KEY}`;
   }
 
-  const requiredVars = ["BRIDGE_DEPLOYER_PRIVATE_KEY", "BRIDGE_NETWORK"];
-  if (!process.env.BRIDGE_RPC_URL_OVERRIDE && process.env.BRIDGE_NETWORK !== "anvil") {
+  const requiredVars = ["BRIDGE_DEPLOYER_PRIVATE_KEY"];
+  if (!process.env.BRIDGE_RPC_URL_OVERRIDE && networkName !== "anvil") {
     requiredVars.push("BRIDGE_ALCHEMY_API_KEY");
   }
   requireEnv(requiredVars);
 
-  const bridgeNetwork = resolveBridgeNetwork(process.env.BRIDGE_NETWORK);
+  const bridgeNetwork = resolveBridgeNetwork(networkName);
   const bridgeChainId = bridgeNetwork.chainId;
 
   const effectiveGrothSource = process.env.BRIDGE_GROTH_SOURCE || "mpc";
@@ -1416,9 +1445,9 @@ async function main() {
   const bridgeCanonicalDir = path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const bridgePendingDir = path.join(projectRoot, "deployment", ".pending", `chain-id-${bridgeChainId}`, "bridge", uploadTimestamp);
   const latestBridgeDir = latestCompleteBridgeDir(path.join(projectRoot, "deployment", `chain-id-${bridgeChainId}`, "bridge"), bridgeChainId);
-  await assertMainnetProxyModeFromDrive({ deployMode, bridgeChainId });
+  await assertMainnetProxyModeFromDrive({ networkName, deployMode, bridgeChainId });
   const sourceIntegrityLatestBridgeDir =
-    process.env.BRIDGE_NETWORK === MAINNET_NETWORK_NAME && deployMode === "redeploy-proxy"
+    networkName === MAINNET_NETWORK_NAME && deployMode === "redeploy-proxy"
       ? ""
       : latestBridgeDir;
   const defaultBridgeInputPath = latestBridgeDir
@@ -1456,7 +1485,7 @@ async function main() {
       `${TOKAMAK_CLI_PACKAGE_NAME} npm latest package`,
     );
   const useLocalGroth16PackageVersion =
-    process.env.BRIDGE_NETWORK === "anvil"
+    networkName === "anvil"
     && process.env.BRIDGE_GROTH_USE_LOCAL_PACKAGE_VERSION !== "0";
   const groth16PackageVersion = useLocalGroth16PackageVersion
     ? readJson(groth16PackageManifestPath).version
@@ -1484,6 +1513,7 @@ async function main() {
   }
 
   assertMainnetDeploymentSourceIntegrity({
+    networkName,
     deployMode,
     bridgeChainId,
     latestBridgeDir: sourceIntegrityLatestBridgeDir,
@@ -1534,7 +1564,7 @@ async function main() {
     ...forwardArgs,
   ];
 
-  console.log(`Deploying bridge to network ${process.env.BRIDGE_NETWORK} (chain ID ${bridgeChainId})`);
+  console.log(`Deploying bridge to network ${networkName} (chain ID ${bridgeChainId})`);
   console.log(`Deployment mode: ${deployMode}`);
   console.log(`RPC network label: ${networkLabel}`);
   console.log(`Environment file: ${envFile}`);
@@ -1555,7 +1585,7 @@ async function main() {
   console.log(`Groth16 artifact source: ${process.env.BRIDGE_GROTH_SOURCE}`);
   console.log(`ZK manifest: ${bridgePendingZkManifestPath}`);
 
-  if (process.env.BRIDGE_NETWORK !== "anvil" && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1") {
+  if (networkName !== "anvil" && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1") {
     run("node", [
       path.join(projectRoot, "bridge", "scripts", "upload-bridge-artifacts.mjs"),
       String(bridgeChainId),
@@ -1594,7 +1624,7 @@ async function main() {
   syncGroth16ArtifactsForBridge(bridgeChainId, bridgePendingDir);
   syncTokamakZkpArtifactsForBridge(bridgeChainId, bridgePendingDir);
 
-  if (process.env.BRIDGE_NETWORK !== "anvil" && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1") {
+  if (networkName !== "anvil" && process.env.BRIDGE_SKIP_ARTIFACT_UPLOAD !== "1") {
     run("node", [
       path.join(projectRoot, "bridge", "scripts", "upload-bridge-artifacts.mjs"),
       String(bridgeChainId),

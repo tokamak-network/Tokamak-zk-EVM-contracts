@@ -1,206 +1,121 @@
-# BridgeCore Size And npm Audit Notes
+# Private-State CLI UX Review
 
-Date: 2026-05-02
+## Scope
 
-## BridgeCore Contract Size
+This note records the current UX findings for the `private-state-cli`. The review looked at the command surface, help output, README guidance, argument validation, error handling, workspace behavior, and the Sepolia flow exercised through the CLI.
 
-### Original Problem
+## Findings
 
-The private-state CLI e2e run with `@tokamak-zk-evm/cli@2.0.16` exposed a deploy-blocking
-contract-size issue:
+### 1. High: secrets are first-class CLI arguments
 
-- `BridgeCore` runtime size before the temporary reduction: `24,849 bytes`
-- EIP-170 runtime bytecode limit: `24,576 bytes`
-- Excess: `273 bytes`
+Several commands require raw secrets directly in argv:
 
-The immediate fix removed three non-essential pass-through getters from `BridgeCore`:
+- `create-channel --private-key <HEX>`
+- `deposit-bridge --private-key <HEX>`
+- `join-channel --private-key <HEX> --password <PASSWORD>`
+- `recover-wallet --private-key <HEX> --password <PASSWORD>`
+- `withdraw-bridge --private-key <HEX>`
+- wallet commands such as `mint-notes`, `transfer-notes`, `redeem-notes`, `deposit-channel`, `withdraw-channel`, and `exit-channel` require `--password <PASSWORD>`.
 
-- `getChannelTokenVaultRegistration(uint256,address)`
-- `getChannelTokenVaultRegistrationByL2Address(uint256,address)`
-- `getNoteReceivePubKeyByL2Address(uint256,address)`
+This is poor security UX because shell history, terminal scrollback, process inspection, copied commands, and agent logs can expose private keys or wallet passwords.
 
-After that removal, `forge build --root bridge --sizes` reported:
+Recommended improvement:
 
-- `BridgeCore` runtime size: `23,665 bytes`
-- Remaining runtime margin: `911 bytes`
+- Add `--private-key-env <ENV_NAME>`.
+- Add `--private-key-file <PATH>`.
+- Add `--password-env <ENV_NAME>`.
+- Add `--password-file <PATH>`.
+- Add an interactive hidden password prompt for local terminal use.
+- Keep raw `--private-key` and `--password` only as explicit unsafe or development paths, with a warning in help text.
 
-This is enough to deploy, but it is not a fundamental solution. A `911 byte` margin is too small for
-a mainnet-facing UUPS implementation that is still under active security hardening.
+### 2. Medium: help output is a command catalog, not a guided workflow
 
-### ChannelDeployer Split
+The `--help` output lists commands, but it does not explain the user's current state or the next safe action. The README gives a common command sequence, but it is still a list of command names rather than a state-aware flow.
 
-The root cause was addressed by splitting channel deployment mechanics out of `BridgeCore` into
-`ChannelDeployer`.
+This matters because the CLI is stateful. A user may be in one of several states:
 
-`BridgeCore` still owns the channel-creation policy decision:
+- runtime is not installed
+- no channel workspace exists
+- channel exists but the user has not joined
+- user joined but has no bridge balance
+- user has bridge balance but no channel balance
+- user has channel balance but no notes
+- user has notes and can transfer
+- recipient needs to recover received notes
+- user needs to redeem, withdraw, or exit
 
-- Channel ID uniqueness.
-- Bound bridge token vault requirement.
-- Non-zero leader.
-- Maximum managed storage count check.
-- Expected DApp metadata digest check.
-- Channel registry write.
-- `ChannelCreated` event emission.
+Recommended improvement:
 
-`ChannelDeployer` performs the deployment mechanics:
+- Add a `status` or `guide` command.
+- The command should inspect installed artifacts, local workspaces, wallet metadata, bridge balance, channel balance, notes, and channel registration.
+- It should print the next safe command rather than requiring the user to infer it from the full command list.
 
-- Loads managed storage addresses from `DAppManager`.
-- Loads registered function references from `DAppManager`.
-- Builds the zero-filled initial root vector.
-- Deploys `ChannelManager`.
-- Returns the deployed manager address to `BridgeCore`.
+### 3. Medium: `--doctor` is machine-friendly but not human-friendly
 
-`BridgeCore` then binds the channel token vault and records the channel deployment.
+`--doctor` currently emits a large JSON object by default. This is useful for automation, but difficult for a human operator. It can also be confusing when `ok: true` appears together with verbose Docker or GPU probe failures that are irrelevant because Docker/GPU mode was not requested.
 
-Current size after the split:
+Recommended improvement:
 
-| Contract | Runtime Size | Runtime Margin |
-| --- | ---: | ---: |
-| `BridgeCore` | `10,424 bytes` | `14,152 bytes` |
-| `ChannelDeployer` | `15,152 bytes` | `9,424 bytes` |
-| `ChannelManager` | `9,749 bytes` | `14,827 bytes` |
-| `DAppManager` | `14,122 bytes` | `10,454 bytes` |
+- Make the default output a concise human-readable table.
+- Show only pass, fail, and relevant warning rows.
+- Include exact installed versions and compatible backend versions.
+- Keep the full JSON report behind `--json` or an environment variable.
 
-This leaves `BridgeCore` with enough bytecode margin for future UUPS hardening while preserving
-`BridgeCore` as the canonical policy and registry root.
+### 4. Medium: long proof-backed commands need explicit progress phases
 
-The later overengineering cleanup removed `BridgeAdminManager`. It had duplicated a tree-depth
-configuration surface even though tree-depth dependent bridge logic already depends on generated
-`TokamakEnvironment` constants. The deployment artifacts now record `merkleTreeLevels` as metadata
-from `TokamakEnvironment`, without deploying or upgrading a separate admin manager.
+Proof-backed commands can take tens of seconds or minutes:
 
-### Why The Current Shape Is Fragile
+- `deposit-channel`
+- `withdraw-channel`
+- `mint-notes`
+- `transfer-notes`
+- `redeem-notes`
 
-`BridgeCore` currently combines too many responsibilities:
+Internally these commands load workspace state, run Groth16 or Tokamak proof generation, submit an on-chain transaction, wait for a receipt, and update local wallet/workspace state. A user currently sees limited phase-level progress, so a long-running command can look stuck.
 
-- UUPS ownership and upgrade authorization.
-- Verifier address management.
-- Bridge token vault binding.
-- Canonical asset selection.
-- Default join-toll refund policy.
-- DApp metadata digest checks during channel creation.
-- Channel deployment.
-- Channel registry storage and lookup.
+Recommended improvement:
 
-Each additional defensive check, event, getter, metadata field, or policy snapshot consumes the same
-implementation bytecode budget. The current emergency reduction removed view helpers, but the next
-mainnet-hardening change can push the implementation back over the limit.
+- Emit durable progress phases to stderr by default.
+- Suggested phases:
+  - loading wallet
+  - checking channel policy compatibility
+  - loading workspace snapshot
+  - generating proof
+  - submitting transaction
+  - waiting for receipt
+  - updating local wallet and workspace
+- When JSON output is requested, emit machine-readable progress events or write a sidecar progress log.
 
-### Recommended Follow-Up
+### 5. Medium-Low: common errors need recovery actions
 
-The first split is complete. The remaining recommendation is to make the size budget explicit in CI.
-The target should be a `BridgeCore` implementation with at least `2 KB` to `3 KB` of runtime size
-margin after all planned mainnet checks are included. The current margin is well above that target.
+The current validation errors are generally correct, but many do not tell the user how to recover.
 
-Recommended structure:
+Examples:
 
-1. Keep `BridgeCore` as the upgradeable root registry and access-control coordinator.
-   - Owns the proxy state that must remain stable.
-   - Stores the minimal channel registry fields required by external integrations.
-   - Exposes `getChannel` and `getChannelManager`.
-   - Authorizes upgrades.
+- An invalid wallet name reports that the CLI cannot derive the channel name from the wallet, but does not suggest `list-local-wallets`.
+- Missing Sepolia RPC credentials reports `Missing --alchemy-api-key`, but there is no supported env/file alternative.
+- Wrong wallet password reports a decrypt failure, but does not tell the user whether `recover-wallet` can help or whether the password is unrecoverable.
 
-2. Keep channel deployment mechanics outside `BridgeCore`.
-   - `ChannelDeployer` should remain an execution helper, not a policy owner.
-   - `BridgeCore.createChannel` should continue to make the final policy decision and registry write.
+Recommended improvement:
 
-3. Move mutable bridge policy/configuration into a dedicated manager when possible.
-   - Verifier address management and join-toll refund schedule management are good candidates.
-   - `BridgeCore` can keep pointers to these managers instead of embedding all policy mutation logic.
+- Add actionable `Try:` lines for common failures.
+- Examples:
+  - `Try: private-state-cli list-local-wallets --network <NETWORK>`
+  - `Try: private-state-cli recover-wallet --channel-name <CHANNEL> ...`
+  - `If the wallet password is lost, the local L2 key cannot be recovered from the encrypted wallet file.`
 
-4. Avoid future pass-through getters on `BridgeCore`.
-   - If data belongs to `ChannelManager`, clients should query `ChannelManager` directly after
-     resolving it via `BridgeCore.getChannelManager(channelId)`.
-   - This preserves the root contract byte budget for consensus-critical logic only.
+## Existing UX Strengths
 
-5. Add a CI size budget.
-   - Run `forge build --root bridge --sizes`.
-   - Fail the build if `BridgeCore` runtime margin falls below a configured threshold, for example
-     `2,048 bytes`.
-   - Treat the threshold as a mainnet readiness gate, not a warning.
+- The immutable channel policy warning is explicit before channel creation and first channel registration.
+- `list-local-wallets` gives useful local wallet metadata and helps users avoid filesystem inspection.
+- Wallet flows can auto-recover missing or stale channel workspace data.
+- JSON output through `PRIVATE_STATE_CLI_JSON_OUTPUT` is useful for automation and e2e harnesses.
+- The CLI checks proof backend compatibility against the channel's immutable verifier snapshot before proof-backed execution.
 
-### Upgradeability Impact
+## Recommended Priority
 
-Because mainnet deployment has not happened yet, the cleanest fix is to redesign the deployment
-layout before the first proxy deployment. If the bridge were already deployed, the same direction
-would still be possible through UUPS, but it would be constrained by the existing proxy storage
-layout and would require a more careful migration-compatible implementation.
-
-## npm Audit Findings
-
-Current command:
-
-```sh
-npm audit --json
-```
-
-Current summary:
-
-| Severity | Count |
-| --- | ---: |
-| Critical | 0 |
-| High | 3 |
-| Moderate | 10 |
-| Total | 13 |
-
-The 13 audit entries are mostly transitive tooling issues. They collapse into three practical
-dependency chains:
-
-1. `@tokamak-zk-evm/cli` / `@tokamak-zk-evm/synthesizer-node` pulls vulnerable `vitest`, `vite`,
-   `vite-node`, `@vitest/*`, and `esbuild` versions.
-2. `@google-cloud/local-auth` pulls `google-auth-library@9`, which pulls vulnerable
-   `gaxios@6.7.1` and `uuid@9.0.1`.
-3. `snarkjs@0.7.6` pulls `bfj`, `jsonpath`, and vulnerable `underscore`.
-
-### Detailed Table
-
-| Package | Severity | Direct? | Dependency Path | Reported Issue | Recommended Resolution |
-| --- | --- | --- | --- | --- | --- |
-| `@tokamak-zk-evm/cli` | Moderate | Yes | root dependency | Inherits `@tokamak-zk-evm/synthesizer-node` audit issues. | Do not downgrade to the npm suggested `1.0.4` fix. Instead publish or adopt a patched `2.x` CLI that depends on a patched `@tokamak-zk-evm/synthesizer-node`. |
-| `@tokamak-zk-evm/synthesizer-node` | Moderate | Yes | root and CLI dependency | Pulls vulnerable `vitest` and `@vitest/coverage-v8` as installed dependencies. | Best fix: move test-only dependencies out of runtime dependencies. If they are required at runtime, update them beyond the vulnerable ranges and publish a patched `2.x` package. |
-| `@vitest/coverage-v8` | Moderate | No | `@tokamak-zk-evm/synthesizer-node` -> `@vitest/coverage-v8` | Inherits vulnerable `vitest`. | Remove from runtime dependency graph or update beyond `<=2.2.0-beta.2`. |
-| `vitest` | Moderate | No | `@tokamak-zk-evm/synthesizer-node` -> `vitest` | Depends on vulnerable `vite`, `vite-node`, and `@vitest/mocker`. | Remove from production install path or update outside the affected range. |
-| `@vitest/mocker` | Moderate | No | `vitest` -> `@vitest/mocker` | Inherits vulnerable `vite`. | Update with `vitest`, or remove `vitest` from runtime dependencies. |
-| `vite-node` | Moderate | No | `vitest` -> `vite-node` | Inherits vulnerable `vite`. | Update with `vitest`, or remove `vitest` from runtime dependencies. |
-| `vite` | Moderate | No | `vitest` -> `vite` | Path traversal / optimized dependency source-map handling; also inherits `esbuild`. | Update to a patched `vite` version beyond `<=6.4.1`, then rerun CLI e2e. |
-| `esbuild` | Moderate | No | `vite` -> `esbuild` | Development server request exposure issue. | Update through patched `vite` or force an override only after verifying synthesizer and CLI behavior. |
-| `gaxios` | Moderate | No | `@google-cloud/local-auth` -> `google-auth-library@9.15.1` -> `gaxios@6.7.1` | Inherits vulnerable `uuid`. | Prefer upgrading or replacing `@google-cloud/local-auth` so it uses `google-auth-library@10` / `gaxios@7`. Avoid blind overrides until Google Drive auth flow is tested. |
-| `uuid` | Moderate | No | `gaxios@6.7.1` -> `uuid@9.0.1` | Missing buffer bounds check in namespace UUID generation when `buf` is provided. | Resolve by upgrading the `gaxios` chain. If using overrides, test Google OAuth and Drive upload scripts. |
-| `bfj` | High | No | `snarkjs@0.7.6` -> `bfj@7.1.0` | Inherits `jsonpath` / `underscore` issue. | Prefer upgrading `snarkjs` if a patched release exists. Otherwise test an npm override for `underscore` after running Groth16 setup/proof workflows. |
-| `jsonpath` | High | No | `bfj` -> `jsonpath@1.3.0` | Inherits vulnerable `underscore`. | Resolve through `snarkjs` / `bfj` upgrade, or a carefully tested override. |
-| `underscore` | High | No | `jsonpath` -> `underscore@1.13.6` | Unlimited recursion in `_.flatten` / `_.isEqual`, potential DoS. | Update beyond the vulnerable `<=1.13.7` range if compatible with `jsonpath`; verify `snarkjs` workflows. |
-
-### Proposed Resolution Plan
-
-1. Fix the Tokamak CLI dependency chain upstream.
-   - Publish a patched `@tokamak-zk-evm/synthesizer-node@2.x`.
-   - Remove `vitest` and coverage packages from production dependencies if they are test-only.
-   - Otherwise update `vitest`, `vite`, `vite-node`, `@vitest/mocker`, `@vitest/coverage-v8`, and
-     `esbuild` outside the vulnerable ranges.
-   - Publish a patched `@tokamak-zk-evm/cli@2.x` that depends on the patched synthesizer package.
-   - Rerun the private-state CLI e2e before accepting the patched package.
-
-2. Fix the Google Drive auth dependency chain.
-   - Replace or upgrade `@google-cloud/local-auth` so it no longer installs
-     `google-auth-library@9.15.1` / `gaxios@6.7.1`.
-   - Validate:
-     - OAuth local login.
-     - Google Drive folder listing.
-     - Deployment metadata upload.
-     - Existing token cache compatibility.
-
-3. Fix the `snarkjs` dependency chain.
-   - First try a patched `snarkjs` release if available.
-   - If no patched release exists, test `npm overrides` for `underscore` beyond the vulnerable range.
-   - Validate:
-     - Groth16 setup scripts.
-     - Proof generation.
-     - Verifier export.
-     - Existing e2e scripts that consume `snarkjs` artifacts.
-
-4. Add an audit gate after the dependency fixes.
-   - Do not use `npm audit fix --force` blindly because the current suggested fix for
-     `@tokamak-zk-evm/cli` downgrades to `1.0.4`, which is incompatible with the current
-     `2.0.16` target.
-   - Add a CI job that runs `npm audit --omit=dev` or the repo's chosen install profile.
-   - Document any accepted transitive tooling risk with an owner and expiration date.
+1. Remove routine secret exposure from argv by adding env/file/prompt inputs.
+2. Add a state-aware `status` or `guide` command.
+3. Make `--doctor` human-readable by default and move full detail behind `--json`.
+4. Add durable progress phases for long proof-backed commands.
+5. Improve common error messages with recovery actions.

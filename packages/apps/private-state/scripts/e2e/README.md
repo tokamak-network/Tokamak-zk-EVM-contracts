@@ -4,10 +4,12 @@
 It keeps bridge deployment, DApp registration, and canonical-asset minting in existing helper commands because the
 current private-state CLI intentionally starts at user-facing bridge and note flows rather than admin bootstrap flows.
 
-The participant flow runs through an npm-installed `private-state-cli` binary, not the repository source file. By
-default, the harness installs the exact `@tokamak-private-dapps/private-state-cli` version declared in
-`packages/apps/private-state/cli/package.json` from the npm registry. Set `PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC` to test a
-different published tag, version, local tarball, or package spec before publishing a new CLI version.
+The participant flow runs through a `private-state-cli` binary installed into a temporary npm consumer workspace, not by
+executing the repository source file directly. By default, the harness installs the repository-local
+`packages/common`, `packages/groth16`, and `packages/apps/private-state/cli` package directories so local changes are
+tested before publication. CI overrides that default with `PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS` and installs the packed
+tarballs produced by the package-validation job. Set `PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC` to test a different published
+tag, version, local tarball, or package spec manually.
 
 The scenario combines:
 
@@ -45,7 +47,7 @@ The harness uses three participants:
 node packages/apps/private-state/scripts/e2e/run-bridge-private-state-cli-e2e.mjs
 ```
 
-To test an unpublished local package build, pack the CLI and point the harness at the tarball:
+To test an unpublished local CLI tarball explicitly, pack the CLI and point the harness at the tarball:
 
 ```bash
 npm pack ./packages/apps/private-state/cli --pack-destination /tmp/private-state-cli-pack
@@ -55,7 +57,8 @@ PRIVATE_STATE_CLI_E2E_PACKAGE_SPEC=/tmp/private-state-cli-pack/tokamak-private-d
 
 To test unpublished package dependencies together, set `PRIVATE_STATE_CLI_E2E_PACKAGE_SPECS` to a newline-separated,
 comma-separated, or JSON-array list of npm package specs. The harness installs every listed package into the temporary
-consumer project before executing the `private-state-cli` binary.
+consumer project before executing the `private-state-cli` binary. The CI workflow uses this path for the packed
+`common-library`, `groth16`, and `private-state-cli` tarballs.
 
 Optional flag:
 

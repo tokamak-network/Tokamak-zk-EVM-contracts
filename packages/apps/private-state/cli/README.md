@@ -2,6 +2,10 @@
 
 Command-line client for the Tokamak private-state DApp.
 
+The full private-state DApp documentation is published with the repository:
+
+- https://github.com/tokamak-network/Tokamak-zk-EVM-contracts/tree/main/packages/apps/private-state/docs
+
 ## Install
 
 ```bash
@@ -15,11 +19,12 @@ artifacts:
 private-state-cli --install
 ```
 
-By default, `--install` resolves the latest `@tokamak-zk-evm/cli` and `@tokamak-private-dapps/groth16` versions from
-the npm registry. To pin exact proof backend versions for a channel, pass explicit versions:
+By default, `--install` resolves the latest `@tokamak-zk-evm/cli` from the npm registry and uses the bundled
+`@tokamak-private-dapps/groth16` dependency version selected by the installed private-state CLI package. To pin exact
+proof backend versions for a channel, pass explicit versions:
 
 ```bash
-private-state-cli --install --tokamak-zk-evm-cli-version 2.0.8 --groth16-cli-version 0.1.1
+private-state-cli --install --tokamak-zk-evm-cli-version 2.1.0 --groth16-cli-version 0.2.0
 ```
 
 The Groth16 installer downloads the public Google Drive CRS archive whose major.minor compatibility version matches the

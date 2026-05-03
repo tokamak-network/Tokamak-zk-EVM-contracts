@@ -103,10 +103,11 @@ npm install --no-save --package-lock=false \
 Bridge deployment supports `upgrade` and `redeploy-proxy` modes through
 `node bridge/scripts/deploy-bridge.mjs --mode <mode>`.
 
-- Sepolia: prefer `upgrade` whenever the existing deployment artifact makes upgrade mode usable.
-  Use `redeploy-proxy` only when upgrade mode cannot be used because the target network has no
-  usable proxy deployment artifact yet, or when the user explicitly requests a forced proxy
-  redeployment.
+- Sepolia: prefer `upgrade` only when an existing proxy deployment artifact is usable and storage
+  layout compatibility between the previous implementation and the current implementation is
+  guaranteed for every proxy being upgraded. Use `redeploy-proxy` when there is no usable proxy
+  deployment artifact, when storage layout compatibility is not guaranteed, or when the user
+  explicitly requests a forced proxy redeployment.
 - Mainnet: if a bridge proxy is already deployed, use `upgrade` mode only. Do not run
   `redeploy-proxy` against mainnet once a proxy exists, even if the user request is informal or
   ambiguous. Stop and ask for clarification if the available metadata does not make proxy

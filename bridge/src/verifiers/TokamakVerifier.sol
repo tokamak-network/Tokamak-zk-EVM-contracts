@@ -309,14 +309,12 @@ contract TokamakVerifier is ITokamakVerifier {
     // l_free, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
     uint256 internal constant EXPECTED_L_FREE = 128;
     // omega_{l_free}, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
-    uint256 internal constant OMEGA_L_FREE =
-        0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
+    uint256 internal constant OMEGA_L_FREE = 0x07d0c802a94a946e8cbe2437f0b4b276501dff643be95635b750da4cab28e208;
     // s_max, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
     uint256 internal constant EXPECTED_SMAX = 256;
 
     // omega_{m_i}^{-1}, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
-    uint256 internal constant OMEGA_MI_1 =
-        0x58c3ba636d174692ad5a534045625d9514180e0e8b24f12309f239f760b82267;
+    uint256 internal constant OMEGA_MI_1 = 0x58c3ba636d174692ad5a534045625d9514180e0e8b24f12309f239f760b82267;
     // omega_{s_max}^{-1}, refreshed from setupParams.json by bridge/scripts/deploy-bridge.mjs
     uint256 internal constant OMEGA_SMAX_MINUS_1 =
         0x6d64ed25272e58ee91b000235a5bfd4fc03cae032393991be9561c176a2f777a;
@@ -339,184 +337,104 @@ contract TokamakVerifier is ITokamakVerifier {
     // Format: X0_PART1, X0_PART2, X1_PART1, X1_PART2, Y0_PART1, Y0_PART2, Y1_PART1, Y1_PART2
 
     // [1]_2 (Identity/Generator point H), refreshed from sigma_verify.json.
-    uint256 internal constant IDENTITY2_X0_PART1 =
-        0x0000000000000000000000000000000013e02b6052719f607dacd3a088274f65;
-    uint256 internal constant IDENTITY2_X0_PART2 =
-        0x596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e;
-    uint256 internal constant IDENTITY2_X1_PART1 =
-        0x00000000000000000000000000000000024aa2b2f08f0a91260805272dc51051;
-    uint256 internal constant IDENTITY2_X1_PART2 =
-        0xc6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8;
-    uint256 internal constant IDENTITY2_Y0_PART1 =
-        0x000000000000000000000000000000000606c4a02ea734cc32acd2b02bc28b99;
-    uint256 internal constant IDENTITY2_Y0_PART2 =
-        0xcb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be;
-    uint256 internal constant IDENTITY2_Y1_PART1 =
-        0x000000000000000000000000000000000ce5d527727d6e118cc9cdc6da2e351a;
-    uint256 internal constant IDENTITY2_Y1_PART2 =
-        0xadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801;
+    uint256 internal constant IDENTITY2_X0_PART1 = 0x0000000000000000000000000000000013e02b6052719f607dacd3a088274f65;
+    uint256 internal constant IDENTITY2_X0_PART2 = 0x596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e;
+    uint256 internal constant IDENTITY2_X1_PART1 = 0x00000000000000000000000000000000024aa2b2f08f0a91260805272dc51051;
+    uint256 internal constant IDENTITY2_X1_PART2 = 0xc6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8;
+    uint256 internal constant IDENTITY2_Y0_PART1 = 0x000000000000000000000000000000000606c4a02ea734cc32acd2b02bc28b99;
+    uint256 internal constant IDENTITY2_Y0_PART2 = 0xcb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be;
+    uint256 internal constant IDENTITY2_Y1_PART1 = 0x000000000000000000000000000000000ce5d527727d6e118cc9cdc6da2e351a;
+    uint256 internal constant IDENTITY2_Y1_PART2 = 0xadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801;
 
     // [α]_2, refreshed from sigma_verify.json.
-    uint256 internal constant ALPHA_X0_PART1 =
-        0x00000000000000000000000000000000034289d007faad5feab722a30d9ac950;
-    uint256 internal constant ALPHA_X0_PART2 =
-        0x422a7f9e37a01849d37dcda7bbfa0492949c16bd620bad36ce20e779450d1423;
-    uint256 internal constant ALPHA_X1_PART1 =
-        0x00000000000000000000000000000000093f57f8f806ab233d8434d0267c7754;
-    uint256 internal constant ALPHA_X1_PART2 =
-        0x1be6c915576c1bddfa460bf8b6e8f1f937c81a3871fd50a3aa81726065086aad;
-    uint256 internal constant ALPHA_Y0_PART1 =
-        0x0000000000000000000000000000000004d89fd2c1e7527eb39911672cb4ee30;
-    uint256 internal constant ALPHA_Y0_PART2 =
-        0x5d9a98575dd9351b8be857d2714db52fe352408b1b7eda48051b0aebad8d68c4;
-    uint256 internal constant ALPHA_Y1_PART1 =
-        0x0000000000000000000000000000000002b195572a97a24b3d937fbc5a3f17e3;
-    uint256 internal constant ALPHA_Y1_PART2 =
-        0x2447f72db948e76770d9feb379768e7e1bf4319a5cd42f1fee53c907ad8526e2;
+    uint256 internal constant ALPHA_X0_PART1 = 0x00000000000000000000000000000000034289d007faad5feab722a30d9ac950;
+    uint256 internal constant ALPHA_X0_PART2 = 0x422a7f9e37a01849d37dcda7bbfa0492949c16bd620bad36ce20e779450d1423;
+    uint256 internal constant ALPHA_X1_PART1 = 0x00000000000000000000000000000000093f57f8f806ab233d8434d0267c7754;
+    uint256 internal constant ALPHA_X1_PART2 = 0x1be6c915576c1bddfa460bf8b6e8f1f937c81a3871fd50a3aa81726065086aad;
+    uint256 internal constant ALPHA_Y0_PART1 = 0x0000000000000000000000000000000004d89fd2c1e7527eb39911672cb4ee30;
+    uint256 internal constant ALPHA_Y0_PART2 = 0x5d9a98575dd9351b8be857d2714db52fe352408b1b7eda48051b0aebad8d68c4;
+    uint256 internal constant ALPHA_Y1_PART1 = 0x0000000000000000000000000000000002b195572a97a24b3d937fbc5a3f17e3;
+    uint256 internal constant ALPHA_Y1_PART2 = 0x2447f72db948e76770d9feb379768e7e1bf4319a5cd42f1fee53c907ad8526e2;
 
     // [α^2]_2, refreshed from sigma_verify.json.
-    uint256 internal constant ALPHA_POWER2_X0_PART1 =
-        0x000000000000000000000000000000001909c0ad9d7658042a2b60842c0b0516;
-    uint256 internal constant ALPHA_POWER2_X0_PART2 =
-        0x7ea0cec8fd603ec362b53f777309333c04634d699ac1a51fa912413ddf02796b;
-    uint256 internal constant ALPHA_POWER2_X1_PART1 =
-        0x000000000000000000000000000000000df79b8707062baa404dda649be447c5;
-    uint256 internal constant ALPHA_POWER2_X1_PART2 =
-        0x9dedc36b3591f4f5b818b9247eabec29bf526919022f2020c2a06c5d4df0f973;
-    uint256 internal constant ALPHA_POWER2_Y0_PART1 =
-        0x000000000000000000000000000000000c90af2e608571fed42a1d7e617ad227;
-    uint256 internal constant ALPHA_POWER2_Y0_PART2 =
-        0x5ae378ffbab95fd8cb79e79ea24dc0f072f8617e6f63b9965b96992a163d72e7;
-    uint256 internal constant ALPHA_POWER2_Y1_PART1 =
-        0x000000000000000000000000000000000b2475e8e122bdd9d68d5dac9ec71995;
-    uint256 internal constant ALPHA_POWER2_Y1_PART2 =
-        0x095af85f2ef84a34815d97d7da60d463a70ff74595ba174de837b15ead72dd67;
+    uint256 internal constant ALPHA_POWER2_X0_PART1 = 0x000000000000000000000000000000001909c0ad9d7658042a2b60842c0b0516;
+    uint256 internal constant ALPHA_POWER2_X0_PART2 = 0x7ea0cec8fd603ec362b53f777309333c04634d699ac1a51fa912413ddf02796b;
+    uint256 internal constant ALPHA_POWER2_X1_PART1 = 0x000000000000000000000000000000000df79b8707062baa404dda649be447c5;
+    uint256 internal constant ALPHA_POWER2_X1_PART2 = 0x9dedc36b3591f4f5b818b9247eabec29bf526919022f2020c2a06c5d4df0f973;
+    uint256 internal constant ALPHA_POWER2_Y0_PART1 = 0x000000000000000000000000000000000c90af2e608571fed42a1d7e617ad227;
+    uint256 internal constant ALPHA_POWER2_Y0_PART2 = 0x5ae378ffbab95fd8cb79e79ea24dc0f072f8617e6f63b9965b96992a163d72e7;
+    uint256 internal constant ALPHA_POWER2_Y1_PART1 = 0x000000000000000000000000000000000b2475e8e122bdd9d68d5dac9ec71995;
+    uint256 internal constant ALPHA_POWER2_Y1_PART2 = 0x095af85f2ef84a34815d97d7da60d463a70ff74595ba174de837b15ead72dd67;
 
     // [α^3]_2, refreshed from sigma_verify.json.
-    uint256 internal constant ALPHA_POWER3_X0_PART1 =
-        0x000000000000000000000000000000000051b699a4c977eab087d8f3fb100234;
-    uint256 internal constant ALPHA_POWER3_X0_PART2 =
-        0xca8f9ab9ec2d84769fcf8a6a999021579f78e29e81c6911e3ee1bb868de10b19;
-    uint256 internal constant ALPHA_POWER3_X1_PART1 =
-        0x000000000000000000000000000000000b477a017fb4ba1901048bbf67a1c576;
-    uint256 internal constant ALPHA_POWER3_X1_PART2 =
-        0xf3377f378426d68eb5d4c24d4d10438791ecf4d16630921b65005a1c8a80fbe9;
-    uint256 internal constant ALPHA_POWER3_Y0_PART1 =
-        0x000000000000000000000000000000000d5258592704eb980b451fa215ec7714;
-    uint256 internal constant ALPHA_POWER3_Y0_PART2 =
-        0xc8f6aa2be5d773faea761ce2737dc8126b2cadeb52fc3b8ccdb3fce98f4202df;
-    uint256 internal constant ALPHA_POWER3_Y1_PART1 =
-        0x00000000000000000000000000000000141d6e6bcc12277e7c1c33b534ed033c;
-    uint256 internal constant ALPHA_POWER3_Y1_PART2 =
-        0x5488cc691fc99cbaeaac71a434e5c19618a40c4a00a18d903285943f6ba94fe8;
+    uint256 internal constant ALPHA_POWER3_X0_PART1 = 0x000000000000000000000000000000000051b699a4c977eab087d8f3fb100234;
+    uint256 internal constant ALPHA_POWER3_X0_PART2 = 0xca8f9ab9ec2d84769fcf8a6a999021579f78e29e81c6911e3ee1bb868de10b19;
+    uint256 internal constant ALPHA_POWER3_X1_PART1 = 0x000000000000000000000000000000000b477a017fb4ba1901048bbf67a1c576;
+    uint256 internal constant ALPHA_POWER3_X1_PART2 = 0xf3377f378426d68eb5d4c24d4d10438791ecf4d16630921b65005a1c8a80fbe9;
+    uint256 internal constant ALPHA_POWER3_Y0_PART1 = 0x000000000000000000000000000000000d5258592704eb980b451fa215ec7714;
+    uint256 internal constant ALPHA_POWER3_Y0_PART2 = 0xc8f6aa2be5d773faea761ce2737dc8126b2cadeb52fc3b8ccdb3fce98f4202df;
+    uint256 internal constant ALPHA_POWER3_Y1_PART1 = 0x00000000000000000000000000000000141d6e6bcc12277e7c1c33b534ed033c;
+    uint256 internal constant ALPHA_POWER3_Y1_PART2 = 0x5488cc691fc99cbaeaac71a434e5c19618a40c4a00a18d903285943f6ba94fe8;
 
     // [α^4]_2, refreshed from sigma_verify.json.
-    uint256 internal constant ALPHA_POWER4_X0_PART1 =
-        0x000000000000000000000000000000000d4b13721cdcd6aa4f3d1ce5d2141fde;
-    uint256 internal constant ALPHA_POWER4_X0_PART2 =
-        0xe74a7e9f2b9128da8961eb187e129ae57fd1d2c7c66006d38426b72fa18c4137;
-    uint256 internal constant ALPHA_POWER4_X1_PART1 =
-        0x000000000000000000000000000000000010ef98caa3943cd772e523530eca9d;
-    uint256 internal constant ALPHA_POWER4_X1_PART2 =
-        0x3f5d81c4ef75eb3638789e4bb711f204eabb20610f9d3c6bf158a6e92e38cbeb;
-    uint256 internal constant ALPHA_POWER4_Y0_PART1 =
-        0x000000000000000000000000000000000c4aad341b2c63d949a828b5543056d0;
-    uint256 internal constant ALPHA_POWER4_Y0_PART2 =
-        0x0b68f6870ee0b771defc41a8bce8b0ee59e56df547cc26e6ab6523db5315d631;
-    uint256 internal constant ALPHA_POWER4_Y1_PART1 =
-        0x000000000000000000000000000000000707e22518e33b5eb6c6c5aa51b2332c;
-    uint256 internal constant ALPHA_POWER4_Y1_PART2 =
-        0x01597ab09398b775d54c7b75e6af259196eecac5818e09eab53449a53a5477c6;
+    uint256 internal constant ALPHA_POWER4_X0_PART1 = 0x000000000000000000000000000000000d4b13721cdcd6aa4f3d1ce5d2141fde;
+    uint256 internal constant ALPHA_POWER4_X0_PART2 = 0xe74a7e9f2b9128da8961eb187e129ae57fd1d2c7c66006d38426b72fa18c4137;
+    uint256 internal constant ALPHA_POWER4_X1_PART1 = 0x000000000000000000000000000000000010ef98caa3943cd772e523530eca9d;
+    uint256 internal constant ALPHA_POWER4_X1_PART2 = 0x3f5d81c4ef75eb3638789e4bb711f204eabb20610f9d3c6bf158a6e92e38cbeb;
+    uint256 internal constant ALPHA_POWER4_Y0_PART1 = 0x000000000000000000000000000000000c4aad341b2c63d949a828b5543056d0;
+    uint256 internal constant ALPHA_POWER4_Y0_PART2 = 0x0b68f6870ee0b771defc41a8bce8b0ee59e56df547cc26e6ab6523db5315d631;
+    uint256 internal constant ALPHA_POWER4_Y1_PART1 = 0x000000000000000000000000000000000707e22518e33b5eb6c6c5aa51b2332c;
+    uint256 internal constant ALPHA_POWER4_Y1_PART2 = 0x01597ab09398b775d54c7b75e6af259196eecac5818e09eab53449a53a5477c6;
 
     // -[γ]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant GAMMA_X0_PART1 =
-        0x0000000000000000000000000000000016548a05366f6cf70a30d3e6e978d5ff;
-    uint256 internal constant GAMMA_X0_PART2 =
-        0x3047b35129b0b85229b3d622702fb1692d3c0e54a95177c6cc12e35571373872;
-    uint256 internal constant GAMMA_X1_PART1 =
-        0x000000000000000000000000000000000bb4c168b4e8f8da421faf1e36156c73;
-    uint256 internal constant GAMMA_X1_PART2 =
-        0xc19ac8e276261148e70861d0d0282eb9fb66175218908db83a4af2a2be9cc0b6;
-    uint256 internal constant GAMMA_Y0_PART1 =
-        0x0000000000000000000000000000000002f0c1a7df29c80644d2c2a859654de6;
-    uint256 internal constant GAMMA_Y0_PART2 =
-        0x6dde3f1c68bba7a990c6f076bf57ef21f3ed4ba60dbec45639dea86cf1a6a162;
-    uint256 internal constant GAMMA_Y1_PART1 =
-        0x00000000000000000000000000000000039b1a432df43e8d3d62dc7ff3d47c12;
-    uint256 internal constant GAMMA_Y1_PART2 =
-        0x393adab8cc238a316ad2ca5cef7890228f61576368266874a078c078790eea3f;
+    uint256 internal constant GAMMA_X0_PART1 = 0x0000000000000000000000000000000012ad2382e89a0c2eabab37fe1e00b965;
+    uint256 internal constant GAMMA_X0_PART2 = 0x49e78ca79265ef5dec70467df3db9ae9886624c2ce031809de6157fb81be0131;
+    uint256 internal constant GAMMA_X1_PART1 = 0x0000000000000000000000000000000018293af7b60524167ce0f92ad12530cb;
+    uint256 internal constant GAMMA_X1_PART2 = 0xa9e6489f78c5b9f78d10b5df23005e4c49b2b832046487ae26ab8d53a072aff4;
+    uint256 internal constant GAMMA_Y0_PART1 = 0x00000000000000000000000000000000179a71c33f46938dba74b81c838782e5;
+    uint256 internal constant GAMMA_Y0_PART2 = 0x833a1d2397cdcd26b354426d8ade0bc42f33f5af84c8b30e5785697603f8dfa2;
+    uint256 internal constant GAMMA_Y1_PART1 = 0x000000000000000000000000000000000031c8be832938c50bf718b9d0f4f6ee;
+    uint256 internal constant GAMMA_Y1_PART2 = 0x2c9d86ab5241a408d28d8a83b95e908e385af45a2ecbe84726fe6a22a5ac42d8;
 
     // -[η]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant ETA_X0_PART1 =
-        0x00000000000000000000000000000000128bdfe90501684add21fd1209ace1f6;
-    uint256 internal constant ETA_X0_PART2 =
-        0xda2e5c323dcb377ce86fa713d6131037ef3283ef622806a34562e56961610097;
-    uint256 internal constant ETA_X1_PART1 =
-        0x00000000000000000000000000000000080a69638b454d302c6708de704fb87f;
-    uint256 internal constant ETA_X1_PART2 =
-        0x048ed07668cffb6e8dd8b4f5417e309f0da044e61f8b115dfecc027382764c3f;
-    uint256 internal constant ETA_Y0_PART1 =
-        0x0000000000000000000000000000000018ab2ffa1a26e0cb70554677660bfa67;
-    uint256 internal constant ETA_Y0_PART2 =
-        0xa15700f3b5c30af63657d18c7c1aa325404fb9309b10a76303f4c945587b07a5;
-    uint256 internal constant ETA_Y1_PART1 =
-        0x0000000000000000000000000000000008239a8597466afb2c9075398b445fce;
-    uint256 internal constant ETA_Y1_PART2 =
-        0x6894c8d905784afb14aa606207a027b0f56d6873f893784f05e6d7e8ebc6f84d;
+    uint256 internal constant ETA_X0_PART1 = 0x00000000000000000000000000000000105c0b39d794357e2636de67a871741d;
+    uint256 internal constant ETA_X0_PART2 = 0xdae56285e5da6811ef1a6035a26eaaad262e1c9acc6582aab330413b713fbed7;
+    uint256 internal constant ETA_X1_PART1 = 0x0000000000000000000000000000000002c876b6d62089e71b7f34f5c56e1775;
+    uint256 internal constant ETA_X1_PART2 = 0x340919df0050b14ab5dc27e88f93b98ab90302c21eff307414de58b6271fcba0;
+    uint256 internal constant ETA_Y0_PART1 = 0x000000000000000000000000000000000b046a337b21bf8cf459ab2b4b7f9e1b;
+    uint256 internal constant ETA_Y0_PART2 = 0x7b873c75a30f5620617556dda3ecc5de5a5a7a1b267543f920298cd38d3b175b;
+    uint256 internal constant ETA_Y1_PART1 = 0x0000000000000000000000000000000011ee2d7645a0d639b0c90f5c23e78d3f;
+    uint256 internal constant ETA_Y1_PART2 = 0x18d8698fbfb6c5379e87b3f716181a0d706af09e07489fa96bc814b9873999ee;
 
     // -[δ]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant DELTA_X0_PART1 =
-        0x0000000000000000000000000000000001bb56c4eefb0466294d6400546c1d15;
-    uint256 internal constant DELTA_X0_PART2 =
-        0xd5b938ae8727af67eec56607e8cf955189700620762aff5cf626b66be6fb89a4;
-    uint256 internal constant DELTA_X1_PART1 =
-        0x000000000000000000000000000000000ba1355632bf852089083e4f4c94dd02;
-    uint256 internal constant DELTA_X1_PART2 =
-        0xa6c19ea38f18b3d7cef415754db5fe4b4e9ce4e2cfeb5ea41a3c327278901705;
-    uint256 internal constant DELTA_Y0_PART1 =
-        0x00000000000000000000000000000000069993ce963a2e94b34345d08a3b4c6e;
-    uint256 internal constant DELTA_Y0_PART2 =
-        0xf4e0be9bec21fa8832cc91d2d2de22c8b81870cd34d2397b3e965063df0c0323;
-    uint256 internal constant DELTA_Y1_PART1 =
-        0x000000000000000000000000000000000204edf39bdf1c6592e4d0dc01318ea3;
-    uint256 internal constant DELTA_Y1_PART2 =
-        0x912e9a2f733e8044fa7c8c0f45beb5cd61248abfe65aa22832ae6f91cfca1f7a;
+    uint256 internal constant DELTA_X0_PART1 = 0x0000000000000000000000000000000010a2dfcf425d6913c671577bdba8a53e;
+    uint256 internal constant DELTA_X0_PART2 = 0xd45f8a20b63b0d0bf28619afa9f7639205204c2b0de3174e0024e973a9bfbced;
+    uint256 internal constant DELTA_X1_PART1 = 0x0000000000000000000000000000000015e5b606d2c7826550219933beb03168;
+    uint256 internal constant DELTA_X1_PART2 = 0xefd909b7c549d8dfa21ce51fbb02d224eedbc8d1435fb48996f5456b554e5a3d;
+    uint256 internal constant DELTA_Y0_PART1 = 0x0000000000000000000000000000000002597332cb0270d58cb6d631f72129ae;
+    uint256 internal constant DELTA_Y0_PART2 = 0x9983aebebcee62d00b85213c2e2590dfe7593cb7eeb28e9c88e89785f7a2357a;
+    uint256 internal constant DELTA_Y1_PART1 = 0x000000000000000000000000000000000266d5994436d32995dcc4207f2a556e;
+    uint256 internal constant DELTA_Y1_PART2 = 0xf5c84252fd5b1b4103b22061e7ef38c1914bb00f75b4a8adc7b81dec49408dab;
 
     // -[x]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant X_X0_PART1 =
-        0x000000000000000000000000000000000fd840491fe66a0cc60f45930d88a9b5;
-    uint256 internal constant X_X0_PART2 =
-        0x62136137f78260648ce6a4bf5d31849f18de090e2644780d2bf6b42e20842276;
-    uint256 internal constant X_X1_PART1 =
-        0x000000000000000000000000000000000fabe7238383b48bd61f25125a0d0933;
-    uint256 internal constant X_X1_PART2 =
-        0x06ef5511550312e2c1a9fb985e21ce1bf71b1fb0565c3b54836463eb1f043d48;
-    uint256 internal constant X_Y0_PART1 =
-        0x0000000000000000000000000000000010e716bbdb338901b238d9f87c72f114;
-    uint256 internal constant X_Y0_PART2 =
-        0x08a7fb342bd25a78136d46bd782b23628d8ddb01304d9b7f67a267f3878e2270;
-    uint256 internal constant X_Y1_PART1 =
-        0x0000000000000000000000000000000011660f79174de9952ac8f61b370e68e3;
-    uint256 internal constant X_Y1_PART2 =
-        0x3f38addb65bd1a43d48dc2b8f6e15c452a9ad7e17c83fed266eb7fc8055b2e1e;
+    uint256 internal constant X_X0_PART1 = 0x000000000000000000000000000000000fd840491fe66a0cc60f45930d88a9b5;
+    uint256 internal constant X_X0_PART2 = 0x62136137f78260648ce6a4bf5d31849f18de090e2644780d2bf6b42e20842276;
+    uint256 internal constant X_X1_PART1 = 0x000000000000000000000000000000000fabe7238383b48bd61f25125a0d0933;
+    uint256 internal constant X_X1_PART2 = 0x06ef5511550312e2c1a9fb985e21ce1bf71b1fb0565c3b54836463eb1f043d48;
+    uint256 internal constant X_Y0_PART1 = 0x0000000000000000000000000000000010e716bbdb338901b238d9f87c72f114;
+    uint256 internal constant X_Y0_PART2 = 0x08a7fb342bd25a78136d46bd782b23628d8ddb01304d9b7f67a267f3878e2270;
+    uint256 internal constant X_Y1_PART1 = 0x0000000000000000000000000000000011660f79174de9952ac8f61b370e68e3;
+    uint256 internal constant X_Y1_PART2 = 0x3f38addb65bd1a43d48dc2b8f6e15c452a9ad7e17c83fed266eb7fc8055b2e1e;
 
     // -[y]_2, refreshed from sigma_verify.json and negated for pairing.
-    uint256 internal constant Y_X0_PART1 =
-        0x00000000000000000000000000000000187b14cdde696e37ffd8a8cc68a4dcab;
-    uint256 internal constant Y_X0_PART2 =
-        0x70e189eb5a7eb041b1b2e6641f6f9b8a7e80e49923394dfbbc330eb14706ca67;
-    uint256 internal constant Y_X1_PART1 =
-        0x000000000000000000000000000000001016e78ff8d77a593a17ecde907696bd;
-    uint256 internal constant Y_X1_PART2 =
-        0x31ee56db72b23a473a96a6f089cc3406a7c816d9407ee3cc4a0883f679d2ba6d;
-    uint256 internal constant Y_Y0_PART1 =
-        0x000000000000000000000000000000000d342cbc123598955079dfac077a8081;
-    uint256 internal constant Y_Y0_PART2 =
-        0x601a544516a6379587b6a5a3785436050feb0d298fff3cee9494a78220575ace;
-    uint256 internal constant Y_Y1_PART1 =
-        0x0000000000000000000000000000000000e1973dc3ce78955685a635ef56fd41;
-    uint256 internal constant Y_Y1_PART2 =
-        0x3db77eba7f62e090996c7244ff93fcc2f65f9b99e066a87a38022a15dec00cae;
+    uint256 internal constant Y_X0_PART1 = 0x0000000000000000000000000000000005b54ecd41c8393b5b223dcdf5847f34;
+    uint256 internal constant Y_X0_PART2 = 0xc4010c5a04917959b3361d17048832cfe76ad4ee3837ac033e9f3b45736546fd;
+    uint256 internal constant Y_X1_PART1 = 0x000000000000000000000000000000000975d01a131201d6094f3eb13b2fa98e;
+    uint256 internal constant Y_X1_PART2 = 0xea718a17c27c4a95d03489e7e511112915055c6e8b2717001db899446a244719;
+    uint256 internal constant Y_Y0_PART1 = 0x0000000000000000000000000000000007f32c9e3658f7ed7d59c117c030fa8b;
+    uint256 internal constant Y_Y0_PART2 = 0x00d36aea14d0cc435ca7720d73610ada125f999c6718211fec99a41c9b09e3cb;
+    uint256 internal constant Y_Y1_PART1 = 0x0000000000000000000000000000000016a0737dca901e9d9a356919ee85ec09;
+    uint256 internal constant Y_Y1_PART2 = 0x0156f4e83c1b7eacc98c6ebf1f9e106bc69e646a8102e451916fbb5da81d84b4;
 
     /// @notice Load verification keys to memory in runtime.
     /// @dev The constants are loaded into memory in a specific layout declared in the constants starting from
@@ -1050,7 +968,7 @@ contract TokamakVerifier is ITokamakVerifier {
             // lagrange_K0_eval computation
             function computeLagrangeK0Eval() {
                 let chi := mload(CHALLENGE_CHI_SLOT)
-                let m_i := CONSTANT_MI // 256
+                let m_i := CONSTANT_MI
 
                 // For k0_evals = [1, 0, 0, ..., 0], the polynomial evaluation becomes:
                 // lagrange_K0_eval = L_0(chi) where L_0 is the 0th Lagrange basis polynomial

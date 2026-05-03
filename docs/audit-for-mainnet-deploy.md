@@ -496,8 +496,8 @@ finite leaf.
 
 Mitigation:
 
-- The generated environment currently uses `MT_DEPTH = 30`, which increases the managed storage
-  leaf domain to `N = 2^30`.
+- The generated environment currently uses `MT_DEPTH = 36`, which increases the managed storage
+  leaf domain to `N = 2^36`.
 - Increasing tree depth reduces random leaf-collision probability exponentially in the depth.
 - The CLI observes and tracks storage keys, commitments, and nullifiers so users can reconcile
   local state against bridge state. This helps detection and local accounting, but it does not
@@ -542,18 +542,18 @@ $$
 $$
 
 The graph below assumes one new storage key attempts to occupy a leaf index per minute on average, so
-`\lambda = 1/minute` and `\mu(t) = 1440t` when `t` is measured in days. The current `d = 30`
-setting gives a domain of `1,073,741,824` leaves. Under this assumption, the collision probability
-for `d = 30` crosses roughly 50% after about 26.8 days and roughly 90% after about 48.8 days. This
-is why finite leaf projection creates a channel-lifespan capacity limit rather than a one-time
-static-set risk. The graph uses a logarithmic probability axis so low-probability early-lifespan
-regions remain visible.
+`\lambda = 1/minute` and `\mu(t) = 1440t` when `t` is measured in days. The current `d = 36`
+setting gives a domain of `68,719,476,736` leaves. Under this assumption, the collision probability
+for `d = 36` crosses roughly 50% after about 214 days and roughly 90% after about 391 days. This is
+why finite leaf projection creates a channel-lifespan capacity limit rather than a one-time
+static-set risk, even after the depth increase materially reduces the practical collision rate. The
+graph uses a logarithmic probability axis so low-probability early-lifespan regions remain visible.
 
 ![General channel lifespan leaf collision probability by operating period and depth](../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
 Evidence:
 
-- Code: `bridge/src/generated/TokamakEnvironment.sol` sets `MT_DEPTH = 30` and derives
+- Code: `bridge/src/generated/TokamakEnvironment.sol` sets `MT_DEPTH = 36` and derives
   `MAX_MT_LEAVES`.
 - Code: `bridge/src/ChannelManager.sol::_deriveLeafIndexFromStorageKey(...)` maps a storage key
   into the finite leaf domain.

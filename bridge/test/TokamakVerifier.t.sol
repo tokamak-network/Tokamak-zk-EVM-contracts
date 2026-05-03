@@ -18,11 +18,11 @@ contract TokamakVerifierTest is Test {
     TokamakVerifier internal verifier;
 
     function setUp() public {
-        verifier = new TokamakVerifier("2.0");
+        verifier = new TokamakVerifier("2.1");
     }
 
     function testExposesCompatibleBackendVersion() public view {
-        assertEq(verifier.compatibleBackendVersion(), "2.0");
+        assertEq(verifier.compatibleBackendVersion(), "2.1");
     }
 
     function testRejectsStaleMintNotes1Fixture() public {

@@ -84,8 +84,8 @@ contract BridgeFlowTest is Test {
     bytes32 internal constant LIQUID_BALANCE_STORAGE_WRITE_OBSERVED_TOPIC =
         keccak256("LiquidBalanceStorageWriteObserved(address,bytes32)");
     uint256 internal constant DEFAULT_JOIN_TOLL = 1 ether;
-    string internal constant GROTH_COMPATIBLE_BACKEND_VERSION = "0.1";
-    string internal constant TOKAMAK_COMPATIBLE_BACKEND_VERSION = "2.0";
+    string internal constant GROTH_COMPATIBLE_BACKEND_VERSION = "0.2";
+    string internal constant TOKAMAK_COMPATIBLE_BACKEND_VERSION = "2.1";
     string internal constant TOKAMAK_FIXTURE_PATH = "test/fixtures/tokamak-proof-fixture.json";
     string internal constant REAL_TOKAMAK_PROOF_PATH =
         "test/fixtures/mintNotes1-proof/resource/prove/fixture/proof.json";

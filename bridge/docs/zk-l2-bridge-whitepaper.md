@@ -591,12 +591,13 @@ $$
 $$
 
 The graph below assumes one new storage key attempts to occupy a leaf index per minute on average,
-so `lambda = 1/minute` and `mu(t) = 1440t` when `t` is measured in days. At the current `d = 30`
-setting, the finite domain has `1,073,741,824` leaves. Under this assumption, the collision
-probability for `d = 30` crosses roughly 50% after about 26.8 days and roughly 90% after about 48.8
-days. The conclusion is operational: finite leaf projection creates a channel-lifespan capacity
-limit, so long-lived high-activity channels should be treated as finite-life policy instances rather
-than perpetual mutable systems.
+so `lambda = 1/minute` and `mu(t) = 1440t` when `t` is measured in days. At the current `d = 36`
+setting, the finite domain has `68,719,476,736` leaves. Under this assumption, the collision
+probability for `d = 36` crosses roughly 50% after about 214 days and roughly 90% after about 391
+days. The conclusion is operational: finite leaf projection still creates a finite channel-lifespan
+capacity limit, but the depth increase makes the practical limit much longer. Long-lived
+high-activity channels should therefore be treated as finite-life policy instances rather than
+perpetual mutable systems.
 
 ![General channel lifespan leaf collision probability by operating period and depth](assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 

@@ -112,9 +112,10 @@ The graph below uses `lambda = 1/minute`, so `mu(t) = 1440t` when `t` is measure
 
 ![General channel lifespan leaf collision probability](../../../../bridge/docs/assets/general_leaf_collision_probability_lifespan_days_lambda1m_d12_36_step6.svg)
 
-For the current `d = 30` setting, this model gives a finite channel-lifespan capacity limit. It is
-not a statement that any particular note is likely to fail immediately. It is a statement that a
-channel with growing storage usage should not be treated as collision-free forever.
+For the current `d = 36` setting, this model gives a materially longer but still finite
+channel-lifespan capacity limit. It is not a statement that any particular note is likely to fail
+immediately. It is a statement that a channel with growing storage usage should not be treated as
+collision-free forever.
 
 ## 4. Future Nullifier Collision Probability
 

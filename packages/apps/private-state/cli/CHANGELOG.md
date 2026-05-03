@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.9 - 2026-05-03
+
+- Used the bundled Groth16 package version as the default `private-state-cli --install` Groth16 runtime version.
+- Treated stale local Groth16 CRS metadata without `compatibleBackendVersion` as a cache miss so the matching public CRS can be reinstalled.
+
 ## 0.1.8 - 2026-04-30
 
 - Reused common proof backend version helpers for Tokamak and Groth16 compatibility checks.

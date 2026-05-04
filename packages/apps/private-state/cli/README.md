@@ -108,9 +108,8 @@ private-state-cli get-my-l1-address --account <ACCOUNT_NAME> --network sepolia
 
 `account import` is the only supported way to bring an L1 signing key into the CLI: it reads `--private-key-file` once
 and stores a protected local account secret for later `--account` use. The source file does not need `0600` permissions.
-`join-channel` creates the wallet-local default secret while creating the encrypted local wallet. Use
-`--random-wallet-secret` for a generated secret or `--wallet-secret-path <PATH>` to import an existing source secret
-file. `list-local-wallets` reads only the local workspace and prints saved wallet names that can be reused with
+`join-channel` imports `--wallet-secret-path <PATH>` into the protected wallet-local default secret while creating the
+encrypted local wallet. `list-local-wallets` reads only the local workspace and prints saved wallet names that can be reused with
 `--wallet`.
 `get-my-wallet-meta` opens an encrypted local wallet and reports the stored L1/L2 identity metadata plus the current
 on-chain channel registration match state. `get-my-l1-address` is a simple offline helper that derives the L1 address

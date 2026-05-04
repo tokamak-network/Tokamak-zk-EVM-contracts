@@ -5200,7 +5200,6 @@ function resolveWalletPasswordForName({
 }
 
 function resolvedWalletPasswordSource(args) {
-  if (args.randomWalletSecret === true) return "random-wallet-secret";
   if (args.walletSecretPath !== undefined) return "wallet-secret-path";
   return "wallet-default";
 }
@@ -5215,7 +5214,7 @@ function resolveWalletDefaultPassword(networkName, walletName) {
     throw new Error(
       [
         `Missing wallet default password file: ${passwordPath}.`,
-        "Run join-channel with --random-wallet-secret or --wallet-secret-path before wallet commands.",
+        "Run join-channel with --wallet-secret-path before wallet commands.",
       ].join(" "),
     );
   }
@@ -5236,35 +5235,21 @@ function prepareJoinWalletPasswordForName({
       "Use recover-wallet or normal wallet commands for an existing local wallet.",
     ].join(" "),
   );
-  const sourcePath = args.walletSecretPath === undefined
-    ? null
-    : path.resolve(String(args.walletSecretPath));
+  const sourcePath = path.resolve(String(requireArg(args.walletSecretPath, "--wallet-secret-path")));
   const canonicalPath = path.resolve(passwordPath);
-  if (sourcePath !== null) {
-    const password = sourcePath === canonicalPath
-      ? readSecretFile(sourcePath, "--wallet-secret-path")
-      : readImportSecretSourceFile(sourcePath, "--wallet-secret-path");
-    if (sourcePath !== canonicalPath) {
-      expect(
-        !fs.existsSync(canonicalPath),
-        [
-          `Wallet default password file already exists: ${canonicalPath}.`,
-          "Remove it before joining with a different --wallet-secret-path.",
-        ].join(" "),
-      );
-      writeSecretFile(canonicalPath, password);
-    }
-    return password;
+  const password = sourcePath === canonicalPath
+    ? readSecretFile(sourcePath, "--wallet-secret-path")
+    : readImportSecretSourceFile(sourcePath, "--wallet-secret-path");
+  if (sourcePath !== canonicalPath) {
+    expect(
+      !fs.existsSync(canonicalPath),
+      [
+        `Wallet default password file already exists: ${canonicalPath}.`,
+        "Remove it before joining with a different --wallet-secret-path.",
+      ].join(" "),
+    );
+    writeSecretFile(canonicalPath, password);
   }
-  expect(
-    !fs.existsSync(canonicalPath),
-    [
-      `Wallet default password file already exists: ${canonicalPath}.`,
-      "Remove it before joining with --random-wallet-secret.",
-    ].join(" "),
-  );
-  const password = ethers.hexlify(randomBytes(32));
-  writeSecretFile(canonicalPath, password);
   return password;
 }
 
@@ -5652,12 +5637,6 @@ function assertJoinChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  const randomWalletSecret = args.randomWalletSecret === true;
-  const hasWalletSecretPath = args.walletSecretPath !== undefined;
-  expect(
-    Number(randomWalletSecret) + Number(hasWalletSecretPath) === 1,
-    "join-channel requires exactly one wallet secret source: --random-wallet-secret or --wallet-secret-path <PATH>.",
-  );
   assertAllowedCommandKeys(
     args,
     "join-channel",
@@ -5667,12 +5646,12 @@ function assertJoinChannelArgs(args) {
       "channelName",
       "network",
       "account",
-      "randomWalletSecret",
       "walletSecretPath",
       "rpcUrl",
     ]),
-    "--channel-name, --network, --account, one wallet secret source, and optional --rpc-url",
+    "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
   );
+  requireArg(args.walletSecretPath, "--wallet-secret-path");
 }
 
 function assertGetMyWalletMetaArgs(args) {
@@ -5801,9 +5780,8 @@ Commands:
   recover-wallet --channel-name <NAME> --network <NAME> --account <NAME> [--rpc-url <URL>]
       Rebuild a recoverable local wallet from on-chain channel state
 
-  join-channel --channel-name <NAME> --network <NAME> --account <NAME> (--random-wallet-secret | --wallet-secret-path <PATH>) [--rpc-url <URL>]
+  join-channel --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path <PATH> [--rpc-url <URL>]
       Pay the channel join toll and bind a wallet to a channel-specific L2 identity
-      --random-wallet-secret creates a new protected wallet-local secret file
       --wallet-secret-path imports an existing source secret file into the protected wallet-local secret file
       Prints the immutable policy snapshot before first registration
 

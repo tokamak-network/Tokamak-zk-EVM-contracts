@@ -124,6 +124,7 @@ Important rules:
 - recipient note delivery is recovered from bridge-propagated Ethereum event logs through `get-my-notes`
 - `anvil` support exists only for command-driven local end-to-end testing
 - proof-backed commands print four progress phases, `loading`, `proving`, `submitting`, and `persisting`, followed by `done`
+- common failures print `Try:` recovery actions after the root error message
 
 ## Recipient Note Delivery
 

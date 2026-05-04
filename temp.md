@@ -94,6 +94,13 @@ Recommended improvement:
 
 ### 5. Medium-Low: common errors need recovery actions
 
+Resolution:
+
+- Added a centralized CLI error formatter that appends actionable `Try:` recovery lines for common failures without adding per-command output branches.
+- Covered missing RPC configuration, unknown or mismatched wallet selection, missing wallet default secret files, wallet decrypt failures, missing account secrets, missing deployment artifacts, missing channel registrations, and missing channel selectors.
+- Kept the original validation message first, then printed recovery actions below it so automation and humans can still identify the root failure.
+- Documented the behavior in the README.
+
 The current validation errors are generally correct, but many do not tell the user how to recover.
 
 Examples:

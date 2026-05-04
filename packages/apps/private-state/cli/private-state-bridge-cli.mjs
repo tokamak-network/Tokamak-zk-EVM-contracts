@@ -103,6 +103,7 @@ const DOCTOR_GPU_PROBE_TIMEOUT_MS = 120000;
 const GROTH16_PACKAGE_NAME = "@tokamak-private-dapps/groth16";
 const TOKAMAK_ZKEVM_CLI_PACKAGE_NAME = "@tokamak-zk-evm/cli";
 let jsonOutputRequested = false;
+let activeCliArgs = {};
 
 const abiCoder = AbiCoder.defaultAbiCoder();
 const erc20MetadataAbi = [
@@ -290,6 +291,7 @@ function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  activeCliArgs = args;
   configureOutput(args);
 
   rejectDashPrefixedCommandAliases(args);
@@ -7032,6 +7034,95 @@ function emitProgress(action, phase) {
   }
 }
 
+function formatCliErrorForDisplay(error, args = {}) {
+  const message = String(error?.message ?? error);
+  const hints = buildRecoveryHints(message, args);
+  if (hints.length === 0) {
+    return message;
+  }
+  return [
+    message,
+    "",
+    ...hints.map((hint) => `Try: ${hint}`),
+  ].join("\n");
+}
+
+function buildRecoveryHints(message, args = {}) {
+  const hints = [];
+  const networkName = typeof args.network === "string" && args.network.length > 0
+    ? args.network
+    : "<NETWORK>";
+  const channelName = typeof args.channelName === "string" && args.channelName.length > 0
+    ? args.channelName
+    : "<CHANNEL>";
+  const accountName = typeof args.account === "string" && args.account.length > 0
+    ? args.account
+    : "<ACCOUNT>";
+  const walletName = typeof args.wallet === "string" && args.wallet.length > 0
+    ? args.wallet
+    : extractUnknownWalletName(message) ?? "<WALLET>";
+
+  if (message.includes("Missing RPC_URL")) {
+    hints.push("rerun the same bridge-facing command once with --rpc-url <URL>.");
+    if (networkName !== "<NETWORK>") {
+      hints.push(`create ${networkSecretEnvPath(networkName)} with RPC_URL=<URL>.`);
+    }
+  }
+
+  if (
+    message.startsWith("Unknown wallet:")
+    || message.includes("Unable to derive the channel name from wallet")
+    || message.includes("Missing --wallet")
+    || message.includes("does not match the wallet channel")
+    || message.includes("The provided wallet does not belong to the selected channel")
+  ) {
+    hints.push(`private-state-cli list-local-wallets --network ${networkName}`);
+    hints.push(`private-state-cli guide --network ${networkName} --wallet ${walletName}`);
+  }
+
+  if (message.includes("Missing wallet default password file")) {
+    hints.push("restore the wallet-local default secret file from backup before running wallet commands.");
+    hints.push(`private-state-cli guide --network ${networkName} --wallet ${walletName}`);
+  }
+
+  if (message.includes("Unable to decrypt wallet data")) {
+    hints.push("verify that the wallet-local default secret file is the same secret used when the wallet was created.");
+    hints.push("if the encrypted wallet file is corrupted but the wallet secret and L1 account secret still exist, rerun recover-wallet.");
+    hints.push("if the wallet secret was lost, the local L2 key cannot be recovered from the encrypted wallet file.");
+  }
+
+  if (
+    message.startsWith("Missing --account:")
+    || message === "Provide --account for L1 signing."
+    || message.includes("Missing --account.")
+  ) {
+    hints.push(`private-state-cli account import --account ${accountName} --network ${networkName} --private-key-file <PATH>`);
+    hints.push(`private-state-cli guide --network ${networkName} --account ${accountName}`);
+  }
+
+  if (message.includes("Deployment artifacts for chain") || message.includes("DApp deployment artifact")) {
+    hints.push("private-state-cli install");
+    hints.push("private-state-cli doctor --json");
+  }
+
+  if (message.includes("No channelTokenVault registration exists")) {
+    hints.push(`private-state-cli join-channel --channel-name ${channelName} --network ${networkName} --account ${accountName} --wallet-secret-path <PATH>`);
+    hints.push(`private-state-cli guide --network ${networkName} --channel-name ${channelName} --account ${accountName}`);
+  }
+
+  if (message.includes("Missing channel selector")) {
+    hints.push(`private-state-cli list-local-wallets --network ${networkName}`);
+    hints.push(`private-state-cli guide --network ${networkName} --channel-name <CHANNEL> --wallet <WALLET>`);
+  }
+
+  return [...new Set(hints)];
+}
+
+function extractUnknownWalletName(message) {
+  const match = /^Unknown wallet: ([^ ]+) on /u.exec(message);
+  return match?.[1] ?? null;
+}
+
 function shortAddress(address) {
   return getAddress(address).slice(2, 10).toLowerCase();
 }
@@ -8049,6 +8140,6 @@ function compareChainIds(left, right) {
 }
 
 main().catch((error) => {
-  console.error(error.message ?? String(error));
+  console.error(formatCliErrorForDisplay(error, activeCliArgs));
   process.exitCode = 1;
 });

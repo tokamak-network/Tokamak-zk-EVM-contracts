@@ -1601,7 +1601,7 @@ function readErc20Balance(assetAddress, ownerAddress) {
 }
 
 function runAnvilCliCommand(command, args = []) {
-  return runPrivateStateCli([command, "--network", "anvil", ...args]);
+  return runPrivateStateCli([command, "--network", "anvil", "--rpc-url", providerUrl, ...args]);
 }
 
 function walletCliArgs(participant) {

@@ -416,13 +416,13 @@
               <li>
                 <span class="guide-label">Join a channel:</span> <code>join-channel</code>
                 <div class="guide-example">
-                  <code>join-channel --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --random-wallet-secret --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
+                  <code>join-channel --channel-name 'my-private-channel' --network 'sepolia' --account 'my-account' --random-wallet-secret --rpc-url '__RPC_URL__'</code>
                 </div>
               </li>
               <li>
                 <span class="guide-label">Create notes:</span> <code>deposit-bridge</code> -&gt; <code>deposit-channel</code> -&gt; <code>mint-notes</code>
                 <div class="guide-example">
-                  <code>deposit-bridge --amount '100' --network 'sepolia' --account 'my-account' --alchemy-api-key '__ALCHEMY_API_KEY__'</code><br />
+                  <code>deposit-bridge --amount '100' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code><br />
                   <code>deposit-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '100'</code><br />
                   <code>mint-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amounts '[&quot;50&quot;,&quot;50&quot;,&quot;0&quot;]'</code>
                 </div>
@@ -438,7 +438,7 @@
                 <div class="guide-example">
                   <code>redeem-notes --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --note-ids '[&quot;0xNoteIdA&quot;]'</code><br />
                   <code>withdraw-channel --wallet 'my-private-channel-0xYourL1Address' --network 'sepolia' --amount '25'</code><br />
-                  <code>withdraw-bridge --amount '25' --network 'sepolia' --account 'my-account' --alchemy-api-key '__ALCHEMY_API_KEY__'</code>
+                  <code>withdraw-bridge --amount '25' --network 'sepolia' --account 'my-account' --rpc-url '__RPC_URL__'</code>
                 </div>
               </li>
             </ol>
@@ -471,10 +471,11 @@
           type: "select",
           options: ["sepolia", "mainnet", "anvil"],
         },
-        alchemyApiKey: {
-          label: "Alchemy API Key",
+        rpcUrl: {
+          label: "RPC URL",
           type: "password",
-          placeholder: "alchemy-key",
+          placeholder: "https://example-rpc",
+          hint: "Optional. When omitted, the CLI reads RPC_URL from ~/tokamak-private-channels/secrets/<network>/.env.",
         },
         account: {
           label: "Account",
@@ -537,13 +538,13 @@
         { id: "account-import", description: "Store a 0600 local L1 account secret for later --account use.", fields: ["account", "network", "privateKeyFile"] },
         { id: "install-zk-evm", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
         { id: "uninstall-zk-evm", description: "Remove the Tokamak zk-EVM CLI runtime workspace.", fields: [] },
-        { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "account", "alchemyApiKey"] },
-        { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "alchemyApiKey"] },
-        { id: "deposit-bridge", description: "Deposit canonical tokens into the shared bridge vault.", fields: ["amount", "network", "account", "alchemyApiKey"] },
-        { id: "withdraw-bridge", description: "Withdraw shared bridge-vault funds back to the L1 wallet.", fields: ["amount", "network", "account", "alchemyApiKey"] },
-        { id: "get-my-bridge-fund", description: "Read the current bridge-vault balance.", fields: ["network", "account", "alchemyApiKey"] },
-        { id: "join-channel", description: "Accept the channel policy and bind the caller to a channel-specific L2 identity.", fields: ["channelName", "network", "account", "randomWalletSecret", "walletSecretPath", "alchemyApiKey"] },
-        { id: "recover-wallet", description: "Rebuild the recoverable portion of a wallet.", fields: ["channelName", "network", "account", "alchemyApiKey"] },
+        { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "account", "rpcUrl"] },
+        { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "rpcUrl"] },
+        { id: "deposit-bridge", description: "Deposit canonical tokens into the shared bridge vault.", fields: ["amount", "network", "account", "rpcUrl"] },
+        { id: "withdraw-bridge", description: "Withdraw shared bridge-vault funds back to the L1 wallet.", fields: ["amount", "network", "account", "rpcUrl"] },
+        { id: "get-my-bridge-fund", description: "Read the current bridge-vault balance.", fields: ["network", "account", "rpcUrl"] },
+        { id: "join-channel", description: "Accept the channel policy and bind the caller to a channel-specific L2 identity.", fields: ["channelName", "network", "account", "randomWalletSecret", "walletSecretPath", "rpcUrl"] },
+        { id: "recover-wallet", description: "Rebuild the recoverable portion of a wallet.", fields: ["channelName", "network", "account", "rpcUrl"] },
         { id: "get-my-wallet-meta", description: "Check whether a saved wallet matches on-chain registration.", fields: ["wallet", "network"] },
         { id: "get-my-l1-address", description: "Derive the L1 address for a local account.", fields: ["account", "network"] },
         { id: "list-local-wallets", description: "List saved local wallet names that can be reused with --wallet.", fields: ["network", "channelName"] },
@@ -561,7 +562,7 @@
         commandId: "join-channel",
         channelName: "",
         network: "sepolia",
-        alchemyApiKey: "",
+        rpcUrl: "",
         account: "",
         privateKeyFile: "",
         randomWalletSecret: true,
@@ -583,7 +584,7 @@
 
       const sharedFieldKeys = [
         "network",
-        "alchemyApiKey",
+        "rpcUrl",
         "account",
       ];
 
@@ -618,7 +619,7 @@
       const workspacePathLabelEl = document.getElementById("workspace-path-label");
       let workspaceStatusEl = null;
       const maskedSecretValues = {
-        alchemyApiKey: "__ALCHEMY_API_KEY__",
+        rpcUrl: "__RPC_URL__",
         privateKeyFile: "__PRIVATE_KEY_FILE__",
       };
 
@@ -1013,8 +1014,8 @@
         clearWalletNoteState("Enter note IDs manually. The CLI uses the wallet-local default password file and the assistant does not request wallet passwords.");
       }
 
-      function needsAlchemy(command) {
-        return command.fields.includes("alchemyApiKey") && state.network !== "anvil";
+      function acceptsRpcUrl(command) {
+        return command.fields.includes("rpcUrl");
       }
 
       function currentCommand() {
@@ -1026,7 +1027,7 @@
           ? currentTransferOutputs()
           : null;
         return command.fields.filter((fieldKey) => {
-          if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
+          if (fieldKey === "rpcUrl") {
             return false;
           }
           if (fieldKey === "amounts" && command.id === "mint-notes") {
@@ -1053,7 +1054,7 @@
           : null;
 
         for (const fieldKey of command.fields) {
-          if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
+          if (fieldKey === "rpcUrl" && !String(state.rpcUrl ?? "").trim()) {
             continue;
           }
 
@@ -1082,8 +1083,8 @@
             case "network":
               appendOption(parts, "--network", renderedValue);
               break;
-            case "alchemyApiKey":
-              appendOption(parts, "--alchemy-api-key", renderedValue);
+            case "rpcUrl":
+              appendOption(parts, "--rpc-url", renderedValue);
               break;
             case "account":
               appendOption(parts, "--account", renderedValue);
@@ -1640,12 +1641,12 @@
         memoryFieldsEl.innerHTML = "";
         [
           "network",
-          "alchemyApiKey",
+          "rpcUrl",
           "account",
         ].forEach((fieldKey) => {
           memoryFieldsEl.appendChild(createField(fieldKey));
         });
-        memoryStatusEl.textContent = "Use account import --private-key-file before signing commands.";
+        memoryStatusEl.textContent = "Use account import --private-key-file before signing commands. Optional --rpc-url is saved as the network RPC_URL for later commands.";
       }
 
       function renderCommandSelect() {
@@ -1677,7 +1678,7 @@
         }
 
         for (const fieldKey of commandOnlyFields) {
-          if (fieldKey === "alchemyApiKey" && !needsAlchemy(command)) {
+          if (fieldKey === "rpcUrl" && !acceptsRpcUrl(command)) {
             continue;
           }
           if (fieldKey === "amounts" && command.id === "transfer-notes") {
@@ -1705,9 +1706,7 @@
             : "",
         ].join("");
         warningEl.textContent = missing.length === 0
-          ? state.network === "anvil"
-            ? `Ready. --alchemy-api-key is omitted automatically on anvil.${workspaceWarnings}`
-            : `Ready.${workspaceWarnings}`
+          ? `Ready. If --rpc-url is omitted, the CLI uses the saved network RPC_URL.${workspaceWarnings}`
           : `Missing inputs: ${missing.map((fieldKey) => fieldCatalog[fieldKey].label).join(", ")}.${workspaceWarnings}`;
       }
 

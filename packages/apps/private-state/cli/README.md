@@ -115,6 +115,11 @@ The CLI stores user workspaces under:
 Wallet data is encrypted with the wallet-local default password file under
 `~/tokamak-private-channels/secrets/<network>/wallets/<wallet>/password`.
 
+Bridge-facing commands accept optional `--rpc-url <URL>`. When `--rpc-url` is provided, the CLI stores it in
+`~/tokamak-private-channels/secrets/<network>/.env` as `RPC_URL=<URL>` with `0600` permissions. When `--rpc-url` is
+omitted, the CLI reads `RPC_URL` from that file. The `anvil` network falls back to `http://127.0.0.1:8545` when no
+saved RPC URL exists.
+
 ## LLM Agent Guidance
 
 You may act as an interactive guide for users who do not understand this CLI or the private-state DApp. Assume the

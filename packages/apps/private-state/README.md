@@ -97,6 +97,8 @@ The CLI:
 
 - requires `--network` on bridge-facing commands that do not already have a local wallet
 - does not read `packages/apps/.env`
+- accepts optional `--rpc-url <URL>` on bridge-facing commands and stores it as `RPC_URL` in
+  `~/tokamak-private-channels/secrets/<network>/.env`; when omitted, reads the saved network RPC URL
 - rebuilds wallet-backed providers from the wallet metadata `rpcUrl`
 - reads installed bridge, DApp, registration, and Groth16 artifacts from
   `~/tokamak-private-channels/dapps/private-state/chain-id-<chainId>/`
@@ -173,7 +175,7 @@ The commands below are ordered by the normal execution flow.
 - creates the bridge channel on-chain
 - always binds the channel to the `private-state` DApp
 - always creates the saved channel workspace for the channel
-- requires `--alchemy-api-key` on public networks
+- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
 - prints an immutable-channel-policy warning before sending the transaction
 - should be run only after the verifier versions, DApp registration metadata, function layout, managed storage vector, and refund policy have been reviewed for the intended channel
 
@@ -184,7 +186,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
   --channel-name demo-channel \
   --join-toll 0 \
   --account <account-name> \
-  --alchemy-api-key <key> \
+  --rpc-url <url> \
   --network sepolia
 ```
 
@@ -196,7 +198,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - writes the saved workspace into `~/tokamak-private-channels/workspace/<network>/<channel-name>/channel/`
 - reuses existing local artifacts when their hashes still match the current on-chain channel state
 - is optional in the happy path because wallet-backed snapshot commands now materialize and refresh the saved workspace automatically
-- requires `--alchemy-api-key` on public networks
+- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
 
 ### 4. Fund the shared L1 bridge vault
 
@@ -204,12 +206,12 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 
 - deposits Tokamak Network Token into the shared bridge-level `bridgeTokenVault`
 - does not register the user in the channel
-- requires `--alchemy-api-key` on public networks
+- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
 
 `get-my-bridge-fund`
 
 - reads the caller's balance in the shared bridge-level `bridgeTokenVault`
-- requires `--network`, `--account`, and `--alchemy-api-key` on public networks
+- requires `--network` and `--account`; accepts optional `--rpc-url`, otherwise reads the saved network `RPC_URL`
 
 ### 5. Join the channel-specific wallet and L2 identity
 
@@ -223,7 +225,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
   - `--wallet-secret-path <PATH>` to import an existing `0600` secret file into the wallet-local secret path
 - stores the resolved `rpcUrl` in the wallet metadata so later wallet-backed commands do not need CLI RPC inputs
 - returns the deterministic wallet name `<channelName>-<l1Address>`
-- requires `--alchemy-api-key` on public networks
+- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
 - prints an immutable-channel-policy warning before first registration
 - should be treated as user acceptance of the channel's fixed verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy
 
@@ -234,7 +236,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - reclassifies every recovered current-version note into `unused` or `spent` by checking the on-chain commitment and nullifier state
 - resets `l2Nonce` to `0`
 - stops early if the target wallet folder already exists and decrypts to valid metadata and registration state for the requested channel
-- requires `--alchemy-api-key` on public networks
+- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
 
 ### 6. Inspect wallet-to-channel registration
 
@@ -306,4 +308,4 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 
 - claims value from the shared bridge-level `bridgeTokenVault` back into the caller wallet
 - uses the local `--account` signer instead of channel wallet state
-- requires `--amount`, `--network`, `--account`, and `--alchemy-api-key` on public networks
+- requires `--amount`, `--network`, and `--account`; accepts optional `--rpc-url`, otherwise reads the saved network `RPC_URL`

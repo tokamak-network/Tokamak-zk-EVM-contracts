@@ -43,7 +43,7 @@ import {
   hexToBigInt,
   hexToBytes,
 } from "@ethereumjs/util";
-import { deriveRpcUrl, resolveCliNetwork } from "@tokamak-private-dapps/common-library/network-config";
+import { resolveCliNetwork } from "@tokamak-private-dapps/common-library/network-config";
 import { fetchNpmPackageMetadata } from "@tokamak-private-dapps/common-library/npm-registry";
 import {
   normalizePackageVersionToCompatibleBackendVersion,
@@ -5058,16 +5058,6 @@ function requireAccountName(args) {
   return String(requireArg(args.account, "--account"));
 }
 
-function requireAlchemyApiKeyForPublicNetwork(args, commandName) {
-  const networkName = requireNetworkName(args);
-  if (networkName !== "anvil") {
-    requireArg(
-      args.alchemyApiKey,
-      `--alchemy-api-key (required for ${commandName} on ${networkName})`,
-    );
-  }
-}
-
 function requireL1Signer(args, provider) {
   return new Wallet(resolvePrivateKeySource(args), provider);
 }
@@ -5202,6 +5192,10 @@ function accountPrivateKeyPath(networkName, accountName) {
     slugifyPathComponent(accountName),
     "private-key",
   );
+}
+
+function networkSecretEnvPath(networkName) {
+  return path.join(secretRoot, requireNetworkName({ network: networkName }), ".env");
 }
 
 function accountMetadataPath(networkName, accountName) {
@@ -5449,7 +5443,6 @@ function assertCreateChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
   requireArg(args.joinToll, "--join-toll");
   requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, "create-channel");
   assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
@@ -5460,66 +5453,61 @@ function assertCreateChannelArgs(args) {
       "channelName",
       "joinToll",
       "network",
-      "alchemyApiKey",
+      "rpcUrl",
       "account",
     ]),
-    "--channel-name, --join-toll, --network, --account, and --alchemy-api-key on public networks",
+    "--channel-name, --join-toll, --network, --account, and optional --rpc-url",
   );
 }
 
 function assertRecoverWorkspaceArgs(args) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, "recover-workspace");
   assertAllowedCommandKeys(
     args,
     "recover-workspace",
-    new Set(["command", "positional", "channelName", "network", "alchemyApiKey", "fromGenesis"]),
-    "--channel-name, --network, optional --from-genesis, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "channelName", "network", "rpcUrl", "fromGenesis"]),
+    "--channel-name, --network, optional --from-genesis, and optional --rpc-url",
   );
 }
 
 function assertGetChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, "get-channel");
   assertAllowedCommandKeys(
     args,
     "get-channel",
-    new Set(["command", "positional", "channelName", "network", "alchemyApiKey"]),
-    "--channel-name, --network, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "channelName", "network", "rpcUrl"]),
+    "--channel-name, --network, and optional --rpc-url",
   );
 }
 
 function assertDepositBridgeArgs(args) {
   requireArg(args.amount, "--amount");
   requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, "deposit-bridge");
   assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
     "deposit-bridge",
-    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "account"]),
-    "--amount, --network, --account, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "amount", "network", "rpcUrl", "account"]),
+    "--amount, --network, --account, and optional --rpc-url",
   );
 }
 
 function assertGetMyBridgeFundArgs(args) {
   requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, "get-my-bridge-fund");
   assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
     "get-my-bridge-fund",
-    new Set(["command", "positional", "network", "alchemyApiKey", "account"]),
-    "--network, --account, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "network", "rpcUrl", "account"]),
+    "--network, --account, and optional --rpc-url",
   );
 }
 
 function assertExplicitSignerPasswordCommandArgs(args, commandName) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, commandName);
   assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
@@ -5530,9 +5518,9 @@ function assertExplicitSignerPasswordCommandArgs(args, commandName) {
       "channelName",
       "network",
       "account",
-      "alchemyApiKey",
+      "rpcUrl",
     ]),
-    "--channel-name, --network, --account, and --alchemy-api-key on public networks",
+    "--channel-name, --network, --account, and optional --rpc-url",
   );
 }
 
@@ -5543,7 +5531,6 @@ function assertRecoverWalletArgs(args) {
 function assertJoinChannelArgs(args) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, "join-channel");
   assertL1SecretSourceArgs(args, { allowAccount: true });
   const randomWalletSecret = args.randomWalletSecret === true;
   const hasWalletSecretPath = args.walletSecretPath !== undefined;
@@ -5562,9 +5549,9 @@ function assertJoinChannelArgs(args) {
       "account",
       "randomWalletSecret",
       "walletSecretPath",
-      "alchemyApiKey",
+      "rpcUrl",
     ]),
-    "--channel-name, --network, --account, one wallet secret source, and --alchemy-api-key on public networks",
+    "--channel-name, --network, --account, one wallet secret source, and optional --rpc-url",
   );
 }
 
@@ -5600,13 +5587,12 @@ function assertListLocalWalletsArgs(args) {
 function assertWithdrawBridgeArgs(args) {
   requireArg(args.amount, "--amount");
   requireNetworkName(args);
-  requireAlchemyApiKeyForPublicNetwork(args, "withdraw-bridge");
   assertL1SecretSourceArgs(args, { allowAccount: true });
   assertAllowedCommandKeys(
     args,
     "withdraw-bridge",
-    new Set(["command", "positional", "amount", "network", "alchemyApiKey", "account"]),
-    "--amount, --network, --account, and --alchemy-api-key on public networks",
+    new Set(["command", "positional", "amount", "network", "rpcUrl", "account"]),
+    "--amount, --network, --account, and optional --rpc-url",
   );
 }
 
@@ -5670,31 +5656,31 @@ Commands:
   account import --account <NAME> --network <NAME> --private-key-file <PATH>
       Store a 0600 local L1 account secret for later --account use
 
-  create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
+  create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --account <NAME> [--rpc-url <URL>]
       Create a bridge channel and initialize its workspace
       Prints the immutable policy snapshot before sending the transaction
 
-  recover-workspace --channel-name <NAME> --network <NAME> [--from-genesis] --alchemy-api-key <KEY>
+  recover-workspace --channel-name <NAME> --network <NAME> [--from-genesis] [--rpc-url <URL>]
       Rebuild the local channel workspace from bridge state
       By default, resumes RPC log scanning from the workspace recovery index when available
       Use --from-genesis to ignore the recovery index and replay logs from channel genesis
 
-  get-channel --channel-name <NAME> --network <NAME> --alchemy-api-key <KEY>
+  get-channel --channel-name <NAME> --network <NAME> [--rpc-url <URL>]
       Read channel existence, manager, vault, toll, refund schedule, and immutable policy snapshot
 
-  deposit-bridge --amount <TOKENS> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
+  deposit-bridge --amount <TOKENS> --network <NAME> --account <NAME> [--rpc-url <URL>]
       Deposit canonical tokens into the shared bridge vault
 
-  withdraw-bridge --amount <TOKENS> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
+  withdraw-bridge --amount <TOKENS> --network <NAME> --account <NAME> [--rpc-url <URL>]
       Withdraw tokens from the shared bridge vault back to the wallet
 
-  get-my-bridge-fund --network <NAME> --account <NAME> --alchemy-api-key <KEY>
+  get-my-bridge-fund --network <NAME> --account <NAME> [--rpc-url <URL>]
       Read the current shared bridge vault balance
 
-  recover-wallet --channel-name <NAME> --network <NAME> --account <NAME> --alchemy-api-key <KEY>
+  recover-wallet --channel-name <NAME> --network <NAME> --account <NAME> [--rpc-url <URL>]
       Rebuild a recoverable local wallet from on-chain channel state
 
-  join-channel --channel-name <NAME> --network <NAME> --account <NAME> (--random-wallet-secret | --wallet-secret-path <PATH>) --alchemy-api-key <KEY>
+  join-channel --channel-name <NAME> --network <NAME> --account <NAME> (--random-wallet-secret | --wallet-secret-path <PATH>) [--rpc-url <URL>]
       Pay the channel join toll and bind a wallet to a channel-specific L2 identity
       --random-wallet-secret creates a new 0600 wallet-local secret file
       --wallet-secret-path imports an existing 0600 secret file into the wallet-local secret file
@@ -5736,6 +5722,8 @@ Commands:
 Secret source options:
   Use account import --private-key-file once to create a 0600 local account secret.
   L1 signing commands use --account only.
+  Bridge-facing commands accept optional --rpc-url. When provided, it is saved to
+  ~/tokamak-private-channels/secrets/<network>/.env as RPC_URL. When omitted, the CLI reads RPC_URL from that file.
   Wallet commands use wallet-local default password files only.
 
 Options:
@@ -5761,6 +5749,105 @@ function writeJson(filePath, value) {
 function writeJsonWithMode(filePath, value, mode) {
   writeJson(filePath, value);
   fs.chmodSync(filePath, mode);
+}
+
+function readNetworkSecretEnv(networkName) {
+  const envPath = networkSecretEnvPath(networkName);
+  if (!fs.existsSync(envPath)) {
+    return {};
+  }
+  assertSecretFilePermissions(envPath, `${networkName} network secret env file`);
+  const result = {};
+  for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex).trim();
+    let value = trimmed.slice(separatorIndex + 1).trim();
+    if (
+      (value.startsWith("\"") && value.endsWith("\""))
+      || (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
+function writeNetworkSecretEnv(networkName, updates) {
+  const envPath = networkSecretEnvPath(networkName);
+  if (fs.existsSync(envPath)) {
+    fs.chmodSync(envPath, 0o600);
+  }
+  const existing = readNetworkSecretEnv(networkName);
+  const next = {
+    ...existing,
+    ...Object.fromEntries(
+      Object.entries(updates)
+        .filter(([_key, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+        .map(([key, value]) => [key, String(value).trim()]),
+    ),
+  };
+  const lines = Object.entries(next)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${formatEnvValue(value)}`);
+  writeSecretFile(envPath, lines.join("\n"));
+}
+
+function formatEnvValue(value) {
+  if (/^[^\s#"'`$\\]+$/u.test(value)) {
+    return value;
+  }
+  return JSON.stringify(value);
+}
+
+function resolveCommandRpcUrl(args) {
+  const networkName = requireNetworkName(args);
+  const network = resolveCliNetwork(networkName);
+  if (args.rpcUrl === true) {
+    throw new Error("--rpc-url requires a URL value.");
+  }
+  const explicitRpcUrl = typeof args.rpcUrl === "string" ? args.rpcUrl.trim() : "";
+  if (explicitRpcUrl) {
+    validateRpcUrl(explicitRpcUrl, "--rpc-url");
+    writeNetworkSecretEnv(networkName, { RPC_URL: explicitRpcUrl });
+    return explicitRpcUrl;
+  }
+
+  const savedRpcUrl = readNetworkSecretEnv(networkName).RPC_URL?.trim();
+  if (savedRpcUrl) {
+    validateRpcUrl(savedRpcUrl, `${networkSecretEnvPath(networkName)} RPC_URL`);
+    return savedRpcUrl;
+  }
+
+  if (network.defaultRpcUrl) {
+    return network.defaultRpcUrl;
+  }
+
+  throw new Error(
+    [
+      `Missing RPC_URL for ${networkName}.`,
+      `Pass --rpc-url <URL> once to save it to ${networkSecretEnvPath(networkName)},`,
+      "or create that 0600 file with RPC_URL=<URL>.",
+    ].join(" "),
+  );
+}
+
+function validateRpcUrl(value, label) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("unsupported protocol");
+    }
+  } catch {
+    throw new Error(`${label} must be a valid http(s) RPC URL.`);
+  }
 }
 
 function readSecretFile(filePath, label) {
@@ -5965,10 +6052,7 @@ function ensureDir(dirPath) {
 function loadExplicitCommandRuntime(args) {
   const networkName = requireNetworkName(args);
   const network = resolveCliNetwork(networkName);
-  const rpcUrl = deriveRpcUrl({
-    networkName,
-    alchemyApiKey: args.alchemyApiKey,
-  });
+  const rpcUrl = resolveCommandRpcUrl(args);
   return {
     network,
     rpcUrl,

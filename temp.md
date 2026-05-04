@@ -93,7 +93,8 @@ The current validation errors are generally correct, but many do not tell the us
 Examples:
 
 - An invalid wallet name reports that the CLI cannot derive the channel name from the wallet, but does not suggest `list-local-wallets`.
-- Missing Sepolia RPC credentials reports `Missing --alchemy-api-key`, but there is no supported env/file alternative.
+- Missing Sepolia RPC configuration should point users to `--rpc-url <URL>` or
+  `~/tokamak-private-channels/secrets/<network>/.env` with `RPC_URL=<URL>`.
 - Wrong wallet password reports a decrypt failure, but does not tell the user whether `recover-wallet` can help or whether the password is unrecoverable.
 
 Recommended improvement:

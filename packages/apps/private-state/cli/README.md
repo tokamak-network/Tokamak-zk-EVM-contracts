@@ -168,6 +168,34 @@ Operating rules:
 
 - Do not ask the user to reveal raw private keys or wallet secrets in chat. Use `account import --private-key-file`
   once, then use `--account` for L1 signing commands. Wallet commands use wallet-local default secret files.
+- Treat `private key file`, `account`, `wallet secret`, `wallet`, `network RPC URL`, and `channel policy` as
+  new concepts unless the user has already demonstrated that they understand them. Define each term before using it
+  in an instruction.
+- Explain local-secret handling in plain language:
+  - A private key file is a local file that contains the user's L1 wallet private key. The CLI reads it once during
+    `account import` and stores a protected local account secret.
+  - An account is the local nickname created by `account import`. After import, signing commands should use
+    `--account <NAME>` instead of asking for the raw key again.
+  - A wallet secret source file is a separate high-entropy local secret chosen by the user for this private-state
+    wallet. It is not the L1 private key. `join-channel` imports it once and uses it to protect and recover the
+    channel-local wallet.
+  - A wallet is the encrypted local private-state wallet created during `join-channel`. Its deterministic name is
+    `<channelName>-<l1Address>`.
+  - The network RPC URL is the endpoint used to read and write chain state. It can be supplied once with `--rpc-url`
+    on a bridge-facing command, after which the CLI saves it under the selected network.
+- When a user wants to join a channel, do not jump straight to `join-channel`. Walk them through:
+  1. choose the network and channel name
+  2. run `private-state-cli install`
+  3. run `private-state-cli doctor`
+  4. prepare a private key source file locally, without pasting the key into chat
+  5. run `account import --account <NAME> --network <NETWORK> --private-key-file <PATH>`
+  6. prepare a wallet secret source file locally, for example with `openssl rand -hex 32 > ./wallet-secret.txt`
+  7. inspect the channel with `get-channel` if it already exists, or create it with `create-channel` if the user is
+     the channel creator
+  8. explain the immutable policy warning printed by the CLI
+  9. run `join-channel --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH>`
+- Before asking the user to create a file, explain what will be inside that file, who should be able to read it, and
+  whether losing it prevents wallet recovery.
 - Prefer testnet examples unless the user explicitly asks for mainnet.
 - Before any proof-backed or bridge-facing workflow, ask the user to run `private-state-cli doctor` and inspect
   whether the runtime, Docker mode, CUDA/GPU probes, Groth16 runtime, and deployment artifacts are healthy.
@@ -203,6 +231,14 @@ Suggested interaction flow:
 7. For a private transfer, select available note IDs from `get-my-notes`, find the recipient L2 address from
    `get-my-wallet-meta`, then build `transfer-notes`.
 8. After transfer, guide the recipient to run `get-my-notes` to recover received notes from event logs.
+
+Example onboarding explanation for `join-channel`:
+
+> First we need two different local secrets. Your L1 private key proves which Ethereum account pays gas and signs
+> bridge transactions. We import it once into a local account nickname, so later commands can say `--account alice`
+> instead of handling the raw key again. Separately, the wallet secret protects the encrypted private-state wallet for
+> this channel. It is not sent on-chain and it is not the same as your L1 private key. If you lose the wallet secret,
+> recovering this channel wallet can become impossible.
 
 Example style: if the user says, "ADDR6 sends 10 tokens privately to ADDR8", do not assume the required note exists.
 First ask or check which channel and network to use, whether ADDR6 and ADDR8 are already joined, what the local wallet

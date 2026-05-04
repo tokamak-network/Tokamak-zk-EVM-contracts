@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Expanded LLM-agent README guidance so agents explain private key files, local account aliases,
+  wallet secret source files, network RPC URLs, and immutable channel policy step by step before
+  guiding new users through `join-channel`.
+
 ## 1.0.1 - 2026-05-05
 
 - Added global `--version` output for scripts that need the installed private-state CLI package

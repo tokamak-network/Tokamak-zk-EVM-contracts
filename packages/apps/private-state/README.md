@@ -126,6 +126,10 @@ Important rules:
 - `anvil` support exists only for command-driven local end-to-end testing
 - proof-backed commands print four progress phases, `loading`, `proving`, `submitting`, and `persisting`, followed by `done`
 - common failures print `Try:` recovery actions after the root error message
+- LLM agents that guide human users should read the CLI package's
+  [LLM Agent Guidance](cli/README.md#llm-agent-guidance). That section explains how to introduce
+  private key files, local account aliases, wallet secret source files, network RPC URLs, and
+  channel policy review before walking a new user through `join-channel`.
 
 ## Recipient Note Delivery
 

@@ -530,6 +530,7 @@
         { id: "account-import", description: "Import a private-key source file into a protected local L1 account secret for later --account use.", fields: ["account", "network", "privateKeyFile"] },
         { id: "install", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
         { id: "doctor", description: "Check the CLI package, runtime install state, Docker mode, CUDA mode, and deployment artifacts.", fields: [] },
+        { id: "guide", description: "Inspect local state and available on-chain state, then print the next safe command. The guide does not accept RPC URLs.", fields: ["network", "channelName", "account", "wallet"] },
         { id: "uninstall", description: "Interactively remove local private-state workspaces, wallet secrets, proof artifacts, Tokamak zk-EVM runtime data, and the global CLI package when installed.", fields: [] },
         { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "account", "rpcUrl"] },
         { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "rpcUrl"] },

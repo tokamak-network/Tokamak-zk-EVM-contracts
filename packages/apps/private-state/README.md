@@ -145,6 +145,14 @@ The commands below are ordered by the normal execution flow.
 
 ### 1. Install or remove the local zk-EVM toolchain
 
+`guide`
+
+- inspects local private-state workspace state, saved network RPC configuration, deployment artifacts, channel workspace state, account secrets, wallet metadata, bridge balance, channel balance, and local note inventory when enough selectors are provided
+- prints the next safe command and the reason for that recommendation
+- accepts optional `--network`, `--channel-name`, `--account`, and `--wallet`
+- does not accept `--rpc-url`; configure network RPC through a bridge-facing command once with `--rpc-url`, or by writing `RPC_URL=<URL>` to `~/tokamak-private-channels/secrets/<network>/.env`
+- is read-only and never creates wallets, sends transactions, or changes channel state
+
 `install`
 
 - installs the local Tokamak zk-EVM toolchain through the published `@tokamak-zk-evm/cli` package

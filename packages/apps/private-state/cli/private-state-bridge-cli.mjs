@@ -315,6 +315,12 @@ async function main() {
     return;
   }
 
+  if (args.command === "guide") {
+    assertGuideArgs(args);
+    await handleGuide({ args });
+    return;
+  }
+
   if (args.command === "get-my-l1-address") {
     assertGetMyL1AddressArgs(args);
     handleGetMyL1Address({ args });
@@ -1474,6 +1480,579 @@ function handleListLocalWallets({ args }) {
     },
     wallets,
   });
+}
+
+async function handleGuide({ args }) {
+  const guide = {
+    action: "guide",
+    generatedAt: new Date().toISOString(),
+    selectors: {
+      network: args.network ?? null,
+      channelName: args.channelName ?? null,
+      account: args.account ?? null,
+      wallet: args.wallet ?? null,
+    },
+    checks: [],
+    state: {},
+    nextSafeAction: null,
+    why: null,
+    candidateCommands: [],
+  };
+
+  guide.state.local = inspectGuideLocalState(args);
+  guide.checks.push(guideCheck(
+    "local private-state workspace",
+    guide.state.local.workspaceRootExists || guide.state.local.secretRootExists ? "ok" : "missing",
+    {
+      workspaceRoot,
+      secretRoot,
+      workspaceNetworks: guide.state.local.workspaceNetworks,
+      secretNetworks: guide.state.local.secretNetworks,
+    },
+  ));
+
+  if (!args.network) {
+    setGuideNextAction(guide, {
+      command: "guide --network <NAME>",
+      why: "Select a network before the guide can inspect RPC, deployment artifacts, channels, accounts, or wallets.",
+      candidates: [
+        "guide --network mainnet",
+        "guide --network sepolia",
+        "guide --network anvil",
+      ],
+    });
+    printJson(guide);
+    return;
+  }
+
+  const networkName = requireNetworkName(args);
+  const networkRuntime = inspectGuideNetworkRuntime(networkName);
+  guide.state.network = networkRuntime.state;
+  guide.checks.push(networkRuntime.check);
+  if (!networkRuntime.network) {
+    setGuideNextAction(guide, {
+      command: "guide --network <NAME>",
+      why: `The requested network ${networkName} is not supported by the CLI network config.`,
+    });
+    printJson(guide);
+    return;
+  }
+
+  const artifactState = inspectGuideDeploymentArtifacts(networkRuntime.network.chainId);
+  guide.state.deploymentArtifacts = artifactState;
+  guide.checks.push(guideCheck(
+    "installed deployment artifacts",
+    artifactState.installed ? "ok" : "missing",
+    {
+      chainId: networkRuntime.network.chainId,
+      rootDir: artifactState.rootDir,
+      missingFiles: artifactState.missingFiles,
+    },
+  ));
+  if (artifactState.installed) {
+    flatDeploymentArtifactPathsByChainId.set(Number(networkRuntime.network.chainId), artifactState.paths);
+  }
+
+  const provider = networkRuntime.provider;
+  if (args.channelName) {
+    guide.state.channel = await inspectGuideChannel({
+      channelName: String(args.channelName),
+      network: networkRuntime.network,
+      provider,
+      artifactsInstalled: artifactState.installed,
+    });
+    guide.checks.push(guideCheck(
+      "channel",
+      guide.state.channel.onchain?.exists || guide.state.channel.local?.workspaceExists ? "ok" : "missing",
+      {
+        channelName: args.channelName,
+        localWorkspaceExists: Boolean(guide.state.channel.local?.workspaceExists),
+        onchainExists: guide.state.channel.onchain?.exists ?? null,
+        error: guide.state.channel.error ?? null,
+      },
+    ));
+  } else {
+    guide.state.channels = listGuideLocalChannels(networkName);
+  }
+
+  if (args.account) {
+    guide.state.account = await inspectGuideAccount({
+      account: String(args.account),
+      networkName,
+      network: networkRuntime.network,
+      provider,
+      artifactsInstalled: artifactState.installed,
+    });
+    guide.checks.push(guideCheck(
+      "local account secret",
+      guide.state.account.exists ? "ok" : "missing",
+      {
+        account: args.account,
+        privateKeyPath: guide.state.account.privateKeyPath,
+        l1Address: guide.state.account.l1Address,
+        error: guide.state.account.error ?? null,
+      },
+    ));
+  }
+
+  if (args.wallet) {
+    guide.state.wallet = await inspectGuideWallet({
+      walletName: String(args.wallet),
+      networkName,
+      provider,
+      artifactsInstalled: artifactState.installed,
+    });
+    guide.checks.push(guideCheck(
+      "local wallet",
+      guide.state.wallet.exists ? "ok" : "missing",
+      {
+        wallet: args.wallet,
+        walletDir: guide.state.wallet.walletDir,
+        channelName: guide.state.wallet.channelName,
+        l1Address: guide.state.wallet.l1Address,
+        error: guide.state.wallet.error ?? null,
+      },
+    ));
+  }
+
+  destroyGuideProvider(provider);
+  applyGuideNextAction(guide);
+  printJson(guide);
+}
+
+function inspectGuideLocalState(args) {
+  return {
+    workspaceRoot,
+    secretRoot,
+    workspaceRootExists: fs.existsSync(workspaceRoot),
+    secretRootExists: fs.existsSync(secretRoot),
+    workspaceNetworks: listDirectoryNames(workspaceRoot),
+    secretNetworks: listDirectoryNames(secretRoot),
+    selectedWalletCandidates: args.wallet ? resolveWalletPathCandidates(String(args.wallet)) : [],
+  };
+}
+
+function inspectGuideNetworkRuntime(networkName) {
+  let network;
+  try {
+    network = {
+      ...resolveCliNetwork(networkName),
+      name: networkName,
+    };
+  } catch (error) {
+    return {
+      network: null,
+      provider: null,
+      state: {
+        name: networkName,
+        supported: false,
+        error: error.message,
+      },
+      check: guideCheck("network config", "error", {
+        network: networkName,
+        error: error.message,
+      }),
+    };
+  }
+
+  let rpcUrl = null;
+  let rpcSource = null;
+  let provider = null;
+  let error = null;
+  try {
+    const savedRpcUrl = readNetworkSecretEnv(networkName).RPC_URL?.trim();
+    if (savedRpcUrl) {
+      validateRpcUrl(savedRpcUrl, `${networkSecretEnvPath(networkName)} RPC_URL`);
+      rpcUrl = savedRpcUrl;
+      rpcSource = networkSecretEnvPath(networkName);
+    } else if (network.defaultRpcUrl) {
+      rpcUrl = network.defaultRpcUrl;
+      rpcSource = "network-default";
+    } else {
+      throw new Error(
+        `Missing RPC_URL for ${networkName}. Create ${networkSecretEnvPath(networkName)} with RPC_URL=<URL>, or run a bridge-facing command once with --rpc-url <URL>.`,
+      );
+    }
+    provider = new JsonRpcProvider(rpcUrl, Number(network.chainId), { staticNetwork: true });
+  } catch (caught) {
+    error = caught.message;
+  }
+
+  return {
+    network,
+    provider,
+    state: {
+      name: networkName,
+      chainId: network.chainId,
+      supported: true,
+      rpcConfigured: Boolean(rpcUrl),
+      rpcSource,
+      rpcUrl: rpcUrl ? redactRpcUrl(rpcUrl) : null,
+      networkSecretEnvPath: networkSecretEnvPath(networkName),
+      error,
+    },
+    check: guideCheck("network RPC", rpcUrl ? "ok" : "missing", {
+      network: networkName,
+      rpcSource,
+      error,
+    }),
+  };
+}
+
+function inspectGuideDeploymentArtifacts(chainId) {
+  const paths = privateStateCliArtifactPaths(resolveArtifactCacheBaseRoot(), chainId);
+  const requiredFiles = [
+    paths.bridgeDeploymentPath,
+    paths.bridgeAbiManifestPath,
+    paths.grothManifestPath,
+    paths.grothZkeyPath,
+    paths.dappDeploymentPath,
+    paths.dappStorageLayoutPath,
+    paths.privateStateControllerAbiPath,
+    paths.dappRegistrationPath,
+  ];
+  const missingFiles = requiredFiles.filter((filePath) => !fs.existsSync(filePath));
+  return {
+    installed: missingFiles.length === 0,
+    rootDir: paths.rootDir,
+    missingFiles,
+    paths,
+  };
+}
+
+async function inspectGuideChannel({ channelName, network, provider, artifactsInstalled }) {
+  const channelId = deriveChannelIdFromName(channelName);
+  const local = inspectGuideLocalChannel({ networkName: network.name, channelName });
+  const result = {
+    channelName,
+    channelId: channelId.toString(),
+    local,
+    onchain: null,
+    error: null,
+  };
+  if (!provider || !artifactsInstalled) {
+    return result;
+  }
+
+  try {
+    const bridgeResources = loadBridgeResources({ chainId: network.chainId });
+    const bridgeCore = new Contract(
+      bridgeResources.bridgeDeployment.bridgeCore,
+      bridgeResources.bridgeAbiManifest.contracts.bridgeCore.abi,
+      provider,
+    );
+    const channelInfo = await bridgeCore.getChannel(channelId);
+    result.onchain = {
+      exists: Boolean(channelInfo.exists),
+      manager: channelInfo.exists ? getAddress(channelInfo.manager) : null,
+      bridgeTokenVault: channelInfo.exists ? getAddress(channelInfo.bridgeTokenVault) : null,
+      leader: channelInfo.exists ? getAddress(channelInfo.leader) : null,
+      dappId: channelInfo.exists ? Number(channelInfo.dappId) : null,
+    };
+    if (channelInfo.exists) {
+      const channelManager = new Contract(
+        channelInfo.manager,
+        bridgeResources.bridgeAbiManifest.contracts.channelManager.abi,
+        provider,
+      );
+      const [joinToll, refundSchedule] = await Promise.all([
+        channelManager.joinToll(),
+        readChannelRefundSchedule(channelManager),
+      ]);
+      result.onchain.joinTollBaseUnits = joinToll.toString();
+      result.onchain.refundSchedule = refundSchedule;
+    }
+  } catch (error) {
+    result.error = error.message;
+  }
+  return result;
+}
+
+function inspectGuideLocalChannel({ networkName, channelName }) {
+  const workspaceDir = channelWorkspacePath(networkName, channelName);
+  const workspacePath = channelWorkspaceConfigPath(workspaceDir);
+  const currentDir = channelWorkspaceCurrentPath(workspaceDir);
+  const workspace = readJsonIfExists(workspacePath);
+  return {
+    workspaceDir,
+    workspaceExists: fs.existsSync(workspacePath),
+    hasCurrentSnapshot: fs.existsSync(path.join(currentDir, "state_snapshot.json")),
+    hasBlockInfo: fs.existsSync(path.join(currentDir, "block_info.json")),
+    hasContractCodes: fs.existsSync(path.join(currentDir, "contract_codes.json")),
+    channelManager: workspace?.channelManager ?? null,
+    bridgeTokenVault: workspace?.bridgeTokenVault ?? null,
+    recoveryLastScannedBlock: workspace?.recoveryLastScannedBlock ?? null,
+  };
+}
+
+async function inspectGuideAccount({ account, networkName, network, provider, artifactsInstalled }) {
+  const privateKeyPath = accountPrivateKeyPath(networkName, account);
+  const metadataPath = accountMetadataPath(networkName, account);
+  const result = {
+    account,
+    network: networkName,
+    privateKeyPath,
+    metadataPath,
+    exists: fs.existsSync(privateKeyPath),
+    metadataExists: fs.existsSync(metadataPath),
+    l1Address: null,
+    bridgeBalanceBaseUnits: null,
+    bridgeBalanceTokens: null,
+    error: null,
+  };
+  if (!result.exists) {
+    return result;
+  }
+  try {
+    const privateKey = normalizePrivateKey(readSecretFile(privateKeyPath, "--account"));
+    const signer = new Wallet(privateKey, provider ?? undefined);
+    result.l1Address = getAddress(signer.address);
+    if (provider && artifactsInstalled) {
+      const bridgeVaultContext = await loadBridgeVaultContext({ provider, chainId: network.chainId });
+      const bridgeTokenVault = new Contract(
+        bridgeVaultContext.bridgeTokenVaultAddress,
+        bridgeVaultContext.bridgeAbiManifest.contracts.bridgeTokenVault.abi,
+        provider,
+      );
+      const availableBalance = await bridgeTokenVault.availableBalanceOf(signer.address);
+      result.bridgeBalanceBaseUnits = availableBalance.toString();
+      result.bridgeBalanceTokens = ethers.formatUnits(availableBalance, Number(bridgeVaultContext.canonicalAssetDecimals));
+    }
+  } catch (error) {
+    result.error = error.message;
+  }
+  return result;
+}
+
+async function inspectGuideWallet({ walletName, networkName, provider, artifactsInstalled }) {
+  const walletDir = walletPath(walletName, networkName);
+  const result = {
+    wallet: walletName,
+    network: networkName,
+    walletDir,
+    exists: walletConfigExists(walletDir),
+    metadataExists: fs.existsSync(walletMetadataPath(walletDir)),
+    passwordFile: walletPasswordPath(networkName, walletName),
+    passwordFileExists: fs.existsSync(walletPasswordPath(networkName, walletName)),
+    channelName: null,
+    l1Address: null,
+    l2Address: null,
+    registrationExists: null,
+    channelBalanceBaseUnits: null,
+    channelBalanceTokens: null,
+    unusedNoteCount: null,
+    unusedNoteBalanceBaseUnits: null,
+    unusedNoteBalanceTokens: null,
+    spentNoteCount: null,
+    error: null,
+  };
+  if (!result.exists) {
+    return result;
+  }
+
+  try {
+    const walletContext = loadWallet(walletName, resolveWalletDefaultPassword(networkName, walletName), networkName);
+    const walletMetadata = loadWalletMetadata(walletName, networkName);
+    assertWalletMatchesMetadata(walletContext, walletMetadata);
+    result.channelName = walletContext.wallet.channelName;
+    result.l1Address = getAddress(walletContext.wallet.l1Address);
+    result.l2Address = getAddress(walletContext.wallet.l2Address);
+    result.unusedNoteCount = Object.keys(walletContext.wallet.notes.unused ?? {}).length;
+    result.spentNoteCount = Object.keys(walletContext.wallet.notes.spent ?? {}).length;
+    const unusedNoteBalance = Object.values(walletContext.wallet.notes.unused ?? {})
+      .reduce((sum, note) => sum + ethers.toBigInt(note.value), 0n);
+    result.unusedNoteBalanceBaseUnits = unusedNoteBalance.toString();
+    result.unusedNoteBalanceTokens = ethers.formatUnits(unusedNoteBalance, Number(walletContext.wallet.canonicalAssetDecimals));
+
+    if (provider && artifactsInstalled && walletChannelWorkspaceIsReady(walletContext)) {
+      const context = await loadWorkspaceContext(walletContext.wallet.channelName, networkName, provider);
+      const registration = await context.channelManager.getChannelTokenVaultRegistration(result.l1Address);
+      result.registrationExists = Boolean(registration.exists);
+      if (registration.exists) {
+        const stateManager = await buildStateManager(context.currentSnapshot, context.contractCodes);
+        const channelBalance = await currentStorageBigInt(
+          stateManager,
+          context.workspace.l2AccountingVault,
+          normalizeBytes32Hex(registration.channelTokenVaultKey),
+        );
+        result.channelBalanceBaseUnits = channelBalance.toString();
+        result.channelBalanceTokens = ethers.formatUnits(channelBalance, Number(context.workspace.canonicalAssetDecimals));
+      }
+    }
+  } catch (error) {
+    result.error = error.message;
+  }
+  return result;
+}
+
+function applyGuideNextAction(guide) {
+  if (guide.state.network && !guide.state.network.rpcConfigured) {
+    setGuideNextAction(guide, {
+      command: null,
+      why: `Configure RPC_URL in ${guide.state.network.networkSecretEnvPath}, or run a bridge-facing command once with --rpc-url <URL>.`,
+    });
+    return;
+  }
+  if (guide.state.deploymentArtifacts && !guide.state.deploymentArtifacts.installed) {
+    setGuideNextAction(guide, {
+      command: "install",
+      why: "The private-state deployment artifacts or proof runtime files are not installed for the selected network.",
+    });
+    return;
+  }
+  if (guide.selectors.account && guide.state.account && !guide.state.account.exists) {
+    setGuideNextAction(guide, {
+      command: `account import --account ${guide.selectors.account} --network ${guide.selectors.network} --private-key-file <PATH>`,
+      why: "The selected L1 account name does not have a protected local private-key secret yet.",
+    });
+    return;
+  }
+  if (guide.selectors.channelName && guide.state.channel?.onchain?.exists === false) {
+    const account = guide.selectors.account ?? "<ACCOUNT>";
+    setGuideNextAction(guide, {
+      command: `create-channel --channel-name ${guide.selectors.channelName} --join-toll <TOKENS> --network ${guide.selectors.network} --account ${account}`,
+      why: "The selected channel name is not registered on-chain yet.",
+    });
+    return;
+  }
+  if (guide.selectors.channelName && guide.state.channel?.onchain?.exists && !guide.state.channel?.local?.workspaceExists) {
+    setGuideNextAction(guide, {
+      command: `recover-workspace --channel-name ${guide.selectors.channelName} --network ${guide.selectors.network}`,
+      why: "The channel exists on-chain, but the local channel workspace has not been recovered yet.",
+    });
+    return;
+  }
+  if (guide.selectors.wallet && guide.state.wallet && !guide.state.wallet.exists) {
+    const channelName = guide.selectors.channelName ?? guide.state.channel?.channelName ?? "<CHANNEL>";
+    const account = guide.selectors.account ?? "<ACCOUNT>";
+    setGuideNextAction(guide, {
+      command: `join-channel --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH>`,
+      why: "The selected local wallet does not exist. Join the channel to create the wallet and register the channel L2 identity.",
+    });
+    return;
+  }
+  if (guide.state.wallet?.registrationExists === false) {
+    const channelName = guide.state.wallet.channelName ?? guide.selectors.channelName ?? "<CHANNEL>";
+    const account = guide.selectors.account ?? "<ACCOUNT>";
+    setGuideNextAction(guide, {
+      command: `join-channel --channel-name ${channelName} --network ${guide.selectors.network} --account ${account} --wallet-secret-path <PATH>`,
+      why: "The local wallet exists, but the corresponding L1 address is not registered in the channel.",
+    });
+    return;
+  }
+
+  const bridgeBalance = guide.state.account?.bridgeBalanceBaseUnits == null
+    ? null
+    : ethers.toBigInt(guide.state.account.bridgeBalanceBaseUnits);
+  const channelBalance = guide.state.wallet?.channelBalanceBaseUnits == null
+    ? null
+    : ethers.toBigInt(guide.state.wallet.channelBalanceBaseUnits);
+  const unusedNotes = guide.state.wallet?.unusedNoteCount ?? null;
+
+  if (guide.state.wallet?.exists && bridgeBalance === 0n && (channelBalance === null || channelBalance === 0n) && unusedNotes === 0) {
+    const account = guide.selectors.account ?? "<ACCOUNT>";
+    setGuideNextAction(guide, {
+      command: `deposit-bridge --amount <TOKENS> --network ${guide.selectors.network} --account ${account}`,
+      why: "The wallet is joined, but there is no bridge balance, channel balance, or local unused note to spend.",
+    });
+    return;
+  }
+  if (guide.state.wallet?.exists && bridgeBalance !== null && bridgeBalance > 0n && channelBalance === 0n) {
+    setGuideNextAction(guide, {
+      command: `deposit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amount <TOKENS>`,
+      why: "The account has funds in the shared bridge vault, but the wallet has no channel L2 accounting balance.",
+    });
+    return;
+  }
+  if (guide.state.wallet?.exists && channelBalance !== null && channelBalance > 0n && unusedNotes === 0) {
+    setGuideNextAction(guide, {
+      command: `mint-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --amounts <A,B>`,
+      why: "The wallet has channel L2 balance and no unused private notes yet.",
+    });
+    return;
+  }
+  if (guide.state.wallet?.exists && unusedNotes !== null && unusedNotes > 0) {
+    setGuideNextAction(guide, {
+      command: `transfer-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID,ID> --recipients <ADDR,ADDR> --amounts <A,B>`,
+      why: "The wallet has unused private notes. It can transfer or redeem those notes.",
+      candidates: [
+        `get-my-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
+        `redeem-notes --wallet ${guide.selectors.wallet} --network ${guide.selectors.network} --note-ids <ID>`,
+      ],
+    });
+    return;
+  }
+  if (guide.state.wallet?.exists && channelBalance === 0n) {
+    setGuideNextAction(guide, {
+      command: `exit-channel --wallet ${guide.selectors.wallet} --network ${guide.selectors.network}`,
+      why: "The wallet has zero channel balance, so channel exit is allowed by both the CLI and bridge contract.",
+    });
+    return;
+  }
+
+  setGuideNextAction(guide, {
+    command: "guide --network <NAME> --channel-name <CHANNEL> --account <ACCOUNT> --wallet <WALLET>",
+    why: "Provide more selectors so the guide can choose a single next safe action.",
+  });
+}
+
+function setGuideNextAction(guide, { command, why, candidates = [] }) {
+  guide.nextSafeAction = command;
+  guide.why = why;
+  guide.candidateCommands = candidates;
+}
+
+function guideCheck(name, status, details = {}) {
+  return {
+    name,
+    status,
+    ...details,
+  };
+}
+
+function listDirectoryNames(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    return [];
+  }
+  return fs.readdirSync(dirPath, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function listGuideLocalChannels(networkName) {
+  const networkWorkspaceRoot = path.join(workspaceRoot, slugifyPathComponent(networkName));
+  return listDirectoryNames(networkWorkspaceRoot).map((channelName) =>
+    inspectGuideLocalChannel({ networkName, channelName })
+  );
+}
+
+function destroyGuideProvider(provider) {
+  if (provider && typeof provider.destroy === "function") {
+    provider.destroy();
+  }
+}
+
+function redactRpcUrl(rpcUrl) {
+  try {
+    const parsed = new URL(rpcUrl);
+    if (parsed.password) {
+      parsed.password = "***";
+    }
+    if (parsed.username) {
+      parsed.username = "***";
+    }
+    if (parsed.search) {
+      parsed.search = "?...";
+    }
+    const pathParts = parsed.pathname.split("/").filter(Boolean);
+    if (pathParts.length > 1) {
+      parsed.pathname = `/${pathParts[0]}/...`;
+    }
+    return parsed.toString();
+  } catch {
+    return "<configured>";
+  }
 }
 
 async function handleGetMyWalletMeta({ args, provider }) {
@@ -5491,6 +6070,27 @@ function assertDoctorArgs(args) {
   assertAllowedCommandKeys(args, "doctor", new Set(["command", "positional"]), "no options");
 }
 
+function assertGuideArgs(args) {
+  if (args.network !== undefined) {
+    requireNetworkName(args);
+  }
+  if (args.channelName !== undefined) {
+    requireArg(args.channelName, "--channel-name");
+  }
+  if (args.account !== undefined) {
+    requireAccountName(args);
+  }
+  if (args.wallet !== undefined) {
+    requireWalletName(args);
+  }
+  assertAllowedCommandKeys(
+    args,
+    "guide",
+    new Set(["command", "positional", "network", "channelName", "account", "wallet"]),
+    "optional --network, --channel-name, --account, and --wallet",
+  );
+}
+
 function assertAccountImportArgs(args) {
   requireAccountName(args);
   requireNetworkName(args);
@@ -5750,6 +6350,10 @@ Commands:
 
   doctor
       Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
+
+  guide [--network <NAME>] [--channel-name <NAME>] [--account <NAME>] [--wallet <NAME>]
+      Inspect local CLI state and available on-chain state, then print the next safe command
+      Does not accept --rpc-url and never writes RPC configuration
 
   account import --account <NAME> --network <NAME> --private-key-file <PATH>
       Import a private-key source file into a protected local L1 account secret for later --account use

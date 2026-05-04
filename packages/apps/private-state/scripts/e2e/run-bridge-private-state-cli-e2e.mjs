@@ -942,7 +942,26 @@ function walletSecretInputPath(walletName) {
   return path.join(outputRoot, "secret-inputs", `${slugifyPathComponent(walletName)}.wallet-secret`);
 }
 
+function removeAnvilAccountSecret(accountName) {
+  fs.rmSync(path.join(
+    secretRoot,
+    workspaceNetworkName,
+    "accounts",
+    slugifyPathComponent(accountName),
+  ), { recursive: true, force: true });
+}
+
+function removeAnvilWalletSecret(walletName) {
+  fs.rmSync(path.join(
+    secretRoot,
+    workspaceNetworkName,
+    "wallets",
+    slugifyPathComponent(walletName),
+  ), { recursive: true, force: true });
+}
+
 function prepareAccountSecret(accountName, privateKey) {
+  removeAnvilAccountSecret(accountName);
   const inputPath = privateKeyInputPath(accountName);
   writeSecretFile(inputPath, privateKey);
   return runAnvilCliCommand("account", [
@@ -961,8 +980,9 @@ function prepareWalletSecretSource(participant) {
 function prepareCliSecrets(participants) {
   prepareAccountSecret("channel-creator", anvilDeployerPrivateKey);
   for (const participant of participants) {
-    prepareAccountSecret(participant.alias, participant.l1PrivateKey);
     participant.walletName = walletNameForChannelAndAddress(channelName, participant.l1Address);
+    removeAnvilWalletSecret(participant.walletName);
+    prepareAccountSecret(participant.alias, participant.l1PrivateKey);
     prepareWalletSecretSource(participant);
   }
 }

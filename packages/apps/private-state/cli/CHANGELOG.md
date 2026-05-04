@@ -1,11 +1,34 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 - 2026-05-04
 
-- Renamed private-state CLI commands `--install` and `--doctor` to `install` and `doctor` so commands consistently omit a leading `--`.
-- Replaced the old zk-EVM-only uninstall command with interactive `uninstall`, which removes local private-state data, Tokamak zk-EVM runtime data, and the global CLI package when installed.
-- Relaxed imported source secret file permission checks while keeping canonical CLI secrets protected with POSIX `0600` or Windows ACL repair and inspection.
-- Removed `join-channel --random-wallet-secret`; channel joins now always require `--wallet-secret-path <PATH>`.
+- Stabilized the private-state CLI command contract for the first mainnet-ready release.
+- Removed routine raw `--private-key` and `--password` command arguments.
+- Added named local L1 account management through `account import --private-key-file`, with later
+  signing commands using `--account`.
+- Moved wallet commands to wallet-local canonical secret files instead of explicit password input.
+- Added the wallet secret source-file flow for `join-channel --wallet-secret-path <PATH>`.
+- Removed `join-channel --random-wallet-secret`; channel joins now always require
+  `--wallet-secret-path <PATH>`.
+- Relaxed imported source secret file permission checks while keeping canonical CLI secrets
+  protected with POSIX `0600` or Windows ACL repair and inspection.
+- Added per-network RPC URL persistence under the private-state workspace, with `--rpc-url` as
+  the optional bridge-facing override.
+- Renamed private-state CLI commands `--install` and `--doctor` to `install` and `doctor` so
+  commands consistently omit a leading `--`.
+- Replaced the old zk-EVM-only uninstall command with interactive `uninstall`, which removes local
+  private-state data, Tokamak zk-EVM runtime data, and the global CLI package when installed.
+- Added `guide` as the state-aware workflow assistant command.
+- Added `get-channel` for channel policy, toll, refund schedule, and immutable policy snapshot
+  inspection.
+- Added CLI-wide `--json`; commands print human-readable output by default and structured output
+  when requested.
+- Made `doctor` human-readable by default while preserving full machine-readable diagnostics through
+  `doctor --json`.
+- Added durable progress phases for proof-backed commands: `loading`, `proving`, `submitting`,
+  `persisting`, and `done`.
+- Added centralized recovery hints for common RPC, artifact, account, wallet, channel selector,
+  registration, and local-state errors.
 
 ## 0.1.9 - 2026-05-03
 

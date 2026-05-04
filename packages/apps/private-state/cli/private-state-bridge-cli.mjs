@@ -277,7 +277,7 @@ function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
     throw new Error(
       [
         `Missing installed deployment artifacts for chain ${chainId} under ${artifactPaths.rootDir}.`,
-        "Run --install before running private-state CLI commands for this network.",
+        "Run install before running private-state CLI commands for this network.",
         `Original error: ${error.message}`,
       ].join(" "),
     );
@@ -287,12 +287,14 @@ function requireInstalledDeploymentArtifacts(artifactPaths, chainId) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
+  rejectDashPrefixedCommandAliases(args);
+
   if (args.help || !args.command) {
     printHelp();
     return;
   }
 
-  if (args.command === "--install") {
+  if (args.command === "install") {
     assertInstallZkEvmArgs(args);
     await handleInstallZkEvm({ args });
     return;
@@ -304,7 +306,7 @@ async function main() {
     return;
   }
 
-  if (args.command === "--doctor") {
+  if (args.command === "doctor") {
     assertDoctorArgs(args);
     await handleDoctor({ args });
     return;
@@ -433,6 +435,18 @@ async function main() {
     }
     default:
       throw new Error(`Unsupported command: ${args.command}`);
+  }
+}
+
+function rejectDashPrefixedCommandAliases(args) {
+  if (args.command || args.help) {
+    return;
+  }
+  if (args.install === true) {
+    throw new Error("Use `install` without a leading `--`.");
+  }
+  if (args.doctor === true) {
+    throw new Error("Use `doctor` without a leading `--`.");
   }
 }
 
@@ -4987,14 +5001,6 @@ function parseArgs(argv) {
     parsed.command = `${parsed.command}-${parsed.positional[1]}`;
     parsed.positional = [parsed.command];
   }
-  if (!parsed.command && parsed.install === true) {
-    parsed.command = "--install";
-    parsed.positional = ["--install"];
-  }
-  if (!parsed.command && parsed.doctor === true) {
-    parsed.command = "--doctor";
-    parsed.positional = ["--doctor"];
-  }
   return parsed;
 }
 
@@ -5360,11 +5366,10 @@ function assertWalletChannelMoveArgs(args, commandName) {
 function assertInstallZkEvmArgs(args) {
   assertAllowedCommandKeys(
     args,
-    "--install",
+    "install",
     new Set([
       "command",
       "positional",
-      "install",
       "docker",
       "includeLocalArtifacts",
       "groth16CliVersion",
@@ -5385,7 +5390,7 @@ function assertUninstallZkEvmArgs(args) {
 }
 
 function assertDoctorArgs(args) {
-  assertAllowedCommandKeys(args, "--doctor", new Set(["command", "positional", "doctor"]), "no options");
+  assertAllowedCommandKeys(args, "doctor", new Set(["command", "positional"]), "no options");
 }
 
 function assertAccountImportArgs(args) {
@@ -5641,7 +5646,7 @@ function persistCurrentState(context) {
 function printHelp() {
   console.log(`
 Commands:
-  --install [--docker] [--include-local-artifacts] [--groth16-cli-version <VERSION>] [--tokamak-zk-evm-cli-version <VERSION>]
+  install [--docker] [--include-local-artifacts] [--groth16-cli-version <VERSION>] [--tokamak-zk-evm-cli-version <VERSION>]
       Install the Tokamak zk-EVM CLI runtime, Groth16 runtime, and private-state deployment artifacts
       Version options install exact CLI package versions; omitted versions resolve to npm registry latest
       Use --docker on Linux to forward Docker mode to the Tokamak zk-EVM and Groth16 runtimes
@@ -5650,7 +5655,7 @@ Commands:
   uninstall-zk-evm
       Remove the Tokamak zk-EVM CLI runtime workspace
 
-  --doctor
+  doctor
       Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
 
   account import --account <NAME> --network <NAME> --private-key-file <PATH>
@@ -6742,7 +6747,7 @@ function resolveTokamakCliResourceDirForRuntimeRoot(runtimeRoot, ...segments) {
 
 function requireActiveTokamakCliRuntimeRoot() {
   const runtime = inspectTokamakCliRuntime();
-  expect(runtime.runtimeRoot, "Unable to resolve the installed Tokamak zk-EVM runtime root. Run --install first.");
+  expect(runtime.runtimeRoot, "Unable to resolve the installed Tokamak zk-EVM runtime root. Run install first.");
   return runtime.runtimeRoot;
 }
 

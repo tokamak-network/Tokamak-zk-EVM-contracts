@@ -530,13 +530,14 @@
         docker: {
           label: "Docker Install Mode",
           type: "checkbox",
-          hint: "Forward --docker to install-zk-evm. This mode is supported only on Linux hosts by the Tokamak CLI.",
+          hint: "Forward --docker to install. This mode is supported only on Linux hosts by the Tokamak CLI.",
         },
       };
 
       const commands = [
         { id: "account-import", description: "Store a 0600 local L1 account secret for later --account use.", fields: ["account", "network", "privateKeyFile"] },
-        { id: "install-zk-evm", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
+        { id: "install", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
+        { id: "doctor", description: "Check the CLI package, runtime install state, Docker mode, CUDA mode, and deployment artifacts.", fields: [] },
         { id: "uninstall-zk-evm", description: "Remove the Tokamak zk-EVM CLI runtime workspace.", fields: [] },
         { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "account", "rpcUrl"] },
         { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "rpcUrl"] },

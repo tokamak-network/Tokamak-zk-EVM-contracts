@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Renamed private-state CLI commands `--install` and `--doctor` to `install` and `doctor` so commands consistently omit a leading `--`.
+
 ## 0.1.9 - 2026-05-03
 
 - Used the bundled Groth16 package version as the default `private-state-cli --install` Groth16 runtime version.

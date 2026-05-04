@@ -16,15 +16,15 @@ Install the local Tokamak zk-EVM runtime workspace, Groth16 runtime workspace, a
 artifacts:
 
 ```bash
-private-state-cli --install
+private-state-cli install
 ```
 
-By default, `--install` resolves the latest `@tokamak-zk-evm/cli` from the npm registry and uses the bundled
+By default, `install` resolves the latest `@tokamak-zk-evm/cli` from the npm registry and uses the bundled
 `@tokamak-private-dapps/groth16` dependency version selected by the installed private-state CLI package. To pin exact
 proof backend versions for a channel, pass explicit versions:
 
 ```bash
-private-state-cli --install --tokamak-zk-evm-cli-version 2.1.0 --groth16-cli-version 0.2.0
+private-state-cli install --tokamak-zk-evm-cli-version 2.1.0 --groth16-cli-version 0.2.0
 ```
 
 The Groth16 installer downloads the public Google Drive CRS archive whose major.minor compatibility version matches the
@@ -32,11 +32,11 @@ selected Groth16 CLI package version.
 The Tokamak zk-EVM installer requires the selected CLI package to declare
 `tokamakZkEvm.compatibleBackendVersion` as a canonical major.minor version matching the selected package version.
 
-`--install` downloads public deployment artifacts from the configured artifact index. It does not read repository-local
+`install` downloads public deployment artifacts from the configured artifact index. It does not read repository-local
 `deployment/` outputs by default. Repository development workflows that need local anvil artifacts can opt in explicitly:
 
 ```bash
-private-state-cli --install --include-local-artifacts
+private-state-cli install --include-local-artifacts
 ```
 
 Run the CLI with:
@@ -48,7 +48,7 @@ private-state-cli <command> ...
 Check the installed package and runtime state with:
 
 ```bash
-private-state-cli --doctor
+private-state-cli doctor
 ```
 
 ## Commands
@@ -81,8 +81,8 @@ Channel policy warning:
   backend version is unexpected or has not been reviewed, do not create or join the channel. A later correction creates
   a new channel; it does not rewrite the policy of an already-created channel.
 
-`private-state-cli --doctor` reports the CLI package version, dependency versions recorded by the last
-`private-state-cli --install`, selected proof backend runtime versions, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
+`private-state-cli doctor` reports the CLI package version, dependency versions recorded by the last
+`private-state-cli install`, selected proof backend runtime versions, current dependency versions through `tokamak-l2js`, and Tokamak zk-EVM runtime
 install mode, Docker mode, CUDA runtime metadata, live `nvidia-smi` and Docker GPU probe results, and Groth16
 runtime health. The doctor check fails when the Tokamak Docker `useGpus` metadata does not match the live GPU probes.
 
@@ -134,7 +134,7 @@ Operating rules:
 - Do not ask the user to reveal raw private keys or wallet passwords in chat. Use `account import --private-key-file`
   once, then use `--account` for L1 signing commands. Wallet commands use wallet-local default password files.
 - Prefer testnet examples unless the user explicitly asks for mainnet.
-- Before any proof-backed or bridge-facing workflow, ask the user to run `private-state-cli --doctor` and inspect
+- Before any proof-backed or bridge-facing workflow, ask the user to run `private-state-cli doctor` and inspect
   whether the runtime, Docker mode, CUDA/GPU probes, Groth16 runtime, and deployment artifacts are healthy.
 - Use `private-state-cli list-local-wallets` to discover local wallet names instead of asking the user to inspect
   filesystem paths manually.
@@ -161,7 +161,7 @@ Suggested interaction flow:
 1. Identify the target network, usually `sepolia` for testing.
 2. Identify whether a channel already exists.
 3. Identify the sender and recipient wallets or local account names.
-4. Run `--doctor`.
+4. Run `doctor`.
 5. Run `list-local-wallets` and relevant metadata or balance checks.
 6. If needed, guide the user through `create-channel`, `deposit-bridge`, `join-channel`, `deposit-channel`, and
    `mint-notes`.
@@ -176,7 +176,7 @@ command.
 
 ## Artifacts
 
-Proof-backed commands require installed bridge, DApp, and Groth16 artifacts. Run `private-state-cli --install` before
+Proof-backed commands require installed bridge, DApp, and Groth16 artifacts. Run `private-state-cli install` before
 using bridge-facing commands on a new machine.
 
 Channel balance commands such as `deposit-channel` and `withdraw-channel` use the installed Groth16 runtime workspace
@@ -193,10 +193,10 @@ Release order matters for npm publication. `@tokamak-private-dapps/common-librar
 ### What does this package install?
 
 It installs the `private-state-cli` terminal command and the local files needed by that command.
-It does not install bridge contracts, app contracts, or local deployment outputs. The `private-state-cli --install`
+It does not install bridge contracts, app contracts, or local deployment outputs. The `private-state-cli install`
 command provisions the local Tokamak zk-EVM and Groth16 runtime workspaces used by proof-backed commands.
 
-### When should I run `private-state-cli --install`?
+### When should I run `private-state-cli install`?
 
 Run it once on a new machine, or after public bridge, DApp, Groth16, or Tokamak zk-EVM runtime artifacts are updated.
 

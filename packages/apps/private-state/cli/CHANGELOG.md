@@ -25,6 +25,10 @@
 - Replaced local wallet recovery hint string matching with typed CLI error codes for local RPC,
   wallet, artifact, registration, and stale-workspace failures.
 - Removed unused replay/synthetic snapshot helpers from the CLI end-to-end script.
+- Added deterministic anvil account and wallet secret cleanup to the CLI end-to-end runner so
+  repeated local runs do not fail on stale canonical secret files.
+- Stopped parsing the `install --include-local-artifacts` end-to-end step as JSON because runtime
+  package installation legitimately writes installer logs to stdout.
 - Reused a shared artifact selection helper for Drive and local private-state artifact installs.
 - Removed stale `--install` and `--doctor` compatibility aliases after the command syntax was
   standardized around positional command names.
@@ -35,6 +39,16 @@
 - Reused private-state CLI shared helpers in the CLI end-to-end test instead of duplicating channel
   ID, wallet path, and L2 identity derivation logic.
 - Fixed the browser CLI assistant's `create-channel` builder to include required `--join-toll`.
+- Preserved the resolved network name in CLI runtime contexts so account-backed commands and
+  wallet-backed commands can pass the correct network selector into downstream recovery helpers.
+- Routed Groth16 prover package root, entrypoint, and proof-manifest path resolution through
+  runtime management instead of leaving the CLI entrypoint to call internal runtime helper names.
+- Routed Tokamak CLI invocation resolution through runtime management instead of calling internal
+  runtime helper names from the CLI entrypoint.
+- Kept Groth16 prover stdout quiet during `--json` proof-backed commands so machine-readable output
+  remains valid JSON.
+- Verified the full private-state CLI end-to-end flow through channel exit and bridge withdrawal
+  after the runtime-management refactor.
 
 ## 1.0.0 - 2026-05-04
 

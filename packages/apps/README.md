@@ -53,8 +53,9 @@ Recommended targets:
 - `make deploy-mainnet`
 - `make cli-bridge-help`
 
-If a deployment target needs a different network than the one stored in `packages/apps/.env`, prefer creating a temporary
-app-local env override inside the command wrapper instead of asking the operator to rewrite `packages/apps/.env`.
+Deployment wrappers should pass the target network as an explicit command argument rather than hiding
+it in `packages/apps/.env`. This keeps the destination chain visible in command history and avoids
+accidental cross-network broadcasts caused by stale environment files.
 
 ## CLI Convention
 
@@ -68,7 +69,7 @@ Recommended structure:
 The CLI should:
 
 - accept a target network selection restricted to `mainnet`, `sepolia`, or `anvil`
-- optionally accept a wallet private key for signed transactions
+- avoid routine raw private-key arguments for user-facing flows; prefer local account aliases or protected secret files when signing is required
 - resolve deployed contract addresses from `packages/apps/<dapp>/deploy/deployment.<chain-id>.latest.json`
 - load callable ABIs from `packages/apps/<dapp>/deploy/*.callable-abi.json`
 - expose direct operator commands instead of maintaining a separate function-template layer

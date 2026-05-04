@@ -183,17 +183,23 @@ Operating rules:
     `<channelName>-<l1Address>`.
   - The network RPC URL is the endpoint used to read and write chain state. It can be supplied once with `--rpc-url`
     on a bridge-facing command, after which the CLI saves it under the selected network.
+- When the user does not have a network RPC URL yet, explain that they need an Ethereum JSON-RPC endpoint for the
+  selected network. They can obtain one from an infrastructure provider such as Alchemy, Infura, QuickNode, or from
+  their own node. Ask the user to create or select the endpoint in that provider's UI, then paste only the endpoint URL
+  into the CLI command that accepts `--rpc-url`; do not ask for provider account passwords, API dashboards, seed phrases,
+  private keys, or wallet secrets.
 - When a user wants to join a channel, do not jump straight to `join-channel`. Walk them through:
   1. choose the network and channel name
   2. run `private-state-cli install`
   3. run `private-state-cli doctor`
-  4. prepare a private key source file locally, without pasting the key into chat
-  5. run `account import --account <NAME> --network <NETWORK> --private-key-file <PATH>`
-  6. prepare a wallet secret source file locally, for example with `openssl rand -hex 32 > ./wallet-secret.txt`
-  7. inspect the channel with `get-channel` if it already exists, or create it with `create-channel` if the user is
+  4. obtain or confirm a network RPC URL for the selected network
+  5. prepare a private key source file locally, without pasting the key into chat
+  6. run `account import --account <NAME> --network <NETWORK> --private-key-file <PATH>`
+  7. prepare a wallet secret source file locally, for example with `openssl rand -hex 32 > ./wallet-secret.txt`
+  8. inspect the channel with `get-channel` if it already exists, or create it with `create-channel` if the user is
      the channel creator
-  8. explain the immutable policy warning printed by the CLI
-  9. run `join-channel --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH>`
+  9. explain the immutable policy warning printed by the CLI
+  10. run `join-channel --channel-name <CHANNEL> --network <NETWORK> --account <ACCOUNT> --wallet-secret-path <PATH>`
 - Before asking the user to create a file, explain what will be inside that file, who should be able to read it, and
   whether losing it prevents wallet recovery.
 - Prefer testnet examples unless the user explicitly asks for mainnet.

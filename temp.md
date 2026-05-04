@@ -2,134 +2,196 @@
 
 ## Scope
 
-This note records the current UX findings for the `private-state-cli`. The review looked at the command surface, help output, README guidance, argument validation, error handling, workspace behavior, and the Sepolia flow exercised through the CLI.
+This note records the current UX review for `private-state-cli` after the recent
+secret-handling, command-shape, guide, JSON-output, progress, and recovery-hint changes.
+The review checked the CLI help output, README command flow, current argument validation,
+representative command output, and the earlier UX findings that were tracked in this file.
 
-## Findings
+## Current UX Status
 
-### 1. High: secrets are first-class CLI arguments
+Most previously identified issues are resolved:
 
-Several commands require raw secrets directly in argv:
+- Raw `--private-key` and `--password` arguments have been removed from routine user flows.
+- L1 signing now uses named local accounts created by `account import`.
+- Wallet commands use wallet-local canonical secret files instead of explicit password arguments.
+- Commands use non-dash command names such as `install`, `doctor`, and `guide`.
+- `doctor` is human-readable by default and keeps the full machine-readable report behind
+  `--json`.
+- Long proof-backed commands print the durable phase sequence:
+  `loading`, `proving`, `submitting`, `persisting`, and `done`.
+- Common errors now keep the root error first and append actionable `Try:` recovery hints.
+- `guide` exists and can inspect local state, deployment artifacts, network RPC configuration,
+  channel workspaces, accounts, wallets, balances, and notes when enough selectors are provided.
 
-- `create-channel --private-key <HEX>`
-- `deposit-bridge --private-key <HEX>`
-- `join-channel --private-key <HEX> --password <PASSWORD>`
-- `recover-wallet --private-key <HEX> --password <PASSWORD>`
-- `withdraw-bridge --private-key <HEX>`
-- wallet commands such as `mint-notes`, `transfer-notes`, `redeem-notes`, `deposit-channel`, `withdraw-channel`, and `exit-channel` require `--password <PASSWORD>`.
+## Open Findings
 
-This is poor security UX because shell history, terminal scrollback, process inspection, copied commands, and agent logs can expose private keys or wallet passwords.
+### 1. Medium: `guide` default output is still too close to raw JSON
 
-Recommended improvement:
+`guide` should be the primary state-aware UX command, but its default human-readable output
+currently prints large `Checks` and `State` objects as inline JSON before the more useful
+`Next Safe Action` section. This makes the command look like a diagnostic dump instead of a
+workflow guide.
 
-- Add `--private-key-env <ENV_NAME>`.
-- Add `--private-key-file <PATH>`.
-- Add `--password-env <ENV_NAME>`.
-- Add `--password-file <PATH>`.
-- Add an interactive hidden password prompt for local terminal use.
-- Keep raw `--private-key` and `--password` only as explicit unsafe or development paths, with a warning in help text.
+Why this matters:
 
-### 2. Medium: help output is a command catalog, not a guided workflow
-
-The `--help` output lists commands, but it does not explain the user's current state or the next safe action. The README gives a common command sequence, but it is still a list of command names rather than a state-aware flow.
-
-This matters because the CLI is stateful. A user may be in one of several states:
-
-- runtime is not installed
-- no channel workspace exists
-- channel exists but the user has not joined
-- user joined but has no bridge balance
-- user has bridge balance but no channel balance
-- user has channel balance but no notes
-- user has notes and can transfer
-- recipient needs to recover received notes
-- user needs to redeem, withdraw, or exit
+- Users and LLM agents run `guide` when they do not know the next safe action.
+- The most important information is the next command, the reason, and a small set of blocking
+  checks.
+- Full local state is useful for automation and debugging, but it should live behind `--json`.
 
 Recommended improvement:
 
-- Add a `status` or `guide` command.
-- The command should inspect installed artifacts, local workspaces, wallet metadata, bridge balance, channel balance, notes, and channel registration.
-- It should print the next safe command rather than requiring the user to infer it from the full command list.
+- Give `guide` a custom human output path.
+- Default output should show:
+  - selected network/channel/account/wallet
+  - concise check rows with `ok`, `missing`, `warning`, or `error`
+  - `Next Safe Action`
+  - `Why`
+  - candidate commands
+- Keep the full `state` object only in `guide --json`.
 
-### 3. Medium: `--doctor` is machine-friendly but not human-friendly
+### 2. Medium: wallet secret source file creation is underspecified
+
+`join-channel` requires `--wallet-secret-path <PATH>`, but help text does not tell a user how
+to create a source wallet-secret file. It only says the option imports an existing source file.
+
+Why this matters:
+
+- A new user cannot join a channel until they create this source file.
+- The CLI intentionally removed raw password arguments and interactive wallet initialization, so
+  the non-interactive source-file path must be obvious.
+- This CLI is intended to be usable by LLM agents, and agents need a precise command recipe.
+
+Recommended improvement:
+
+- Add a short `Wallet secret source file` section to help and README.
+- Document that the source file is arbitrary high-entropy secret text read by the CLI.
+- Provide a concrete command example, such as:
+
+```bash
+openssl rand -hex 32 > ./wallet-secret.txt
+```
+
+- State that the import source file does not need `0600`, but the canonical wallet-local secret
+  written by the CLI remains protected.
+
+### 3. Medium-Low: invalid wallet selectors make `guide` fail instead of guiding
+
+Running `guide --network <NAME> --wallet <BAD_NAME>` can fail before emitting a guide result when
+the wallet name does not match the deterministic `<channelName>-<l1Address>` shape. The global
+error formatter does append useful `Try:` lines, but this is still inconsistent with the purpose
+of `guide`.
+
+Why this matters:
+
+- `guide` should absorb incomplete or invalid local selectors and report them as checks.
+- A hard failure makes the command feel like a normal validator rather than a recovery assistant.
+
+Recommended improvement:
+
+- Inside `guide`, treat malformed wallet selectors as a `wallet selector` check with `error`
+  status.
+- Still print `list-local-wallets --network <NETWORK>` as the next safe action.
+- Reserve hard failures for unexpected internal errors, not user-state discovery failures.
+
+### 4. Medium-Low: package version and changelog do not yet reflect the UX surface change
+
+The private-state CLI package version is still `0.1.9`, while the local code now contains a
+large user-facing change set after the deployed/published baseline:
+
+- command normalization
+- local account secret flow
+- wallet secret source-file flow
+- RPC URL persistence
+- `guide`
+- `get-channel`
+- `uninstall`
+- global `--json`
+- human-readable `doctor`
+- progress phases
+- error recovery hints
+
+Why this matters:
+
+- Consumers need a package version that clearly signals the changed command contract.
+- The package changelog currently lists some changes under `Unreleased`, but it does not yet
+  summarize the full UX migration as a release-ready entry.
+
+Recommended improvement:
+
+- Bump the private-state CLI package version before publishing the new UX.
+- Convert the CLI changelog `Unreleased` section into a dated version section.
+- Include all command-contract changes in that entry so package consumers know what changed.
+
+## Resolved Historical Findings
+
+### A. Secrets as first-class CLI arguments
+
+Status: Resolved.
+
+The earlier CLI required raw `--private-key` and `--password` values in command arguments. That
+exposed secrets through shell history, terminal scrollback, process lists, copied commands, and
+agent logs.
 
 Resolution:
 
-- Implemented `doctor` as a human-readable summary by default.
-- Added `doctor --json` for the full machine-readable report.
-- Generalized `--json` as the CLI-wide machine-readable output switch.
-- Updated CLI help, the browser assistant command builder, and README guidance.
+- Routine L1 signing commands now use `--account`.
+- `account import --private-key-file` imports a source private key into a protected canonical
+  local account secret.
+- Wallet commands no longer accept explicit password arguments.
+- `join-channel` imports a wallet secret source file into the protected wallet-local canonical
+  secret.
+- Canonical CLI secret files remain protected with POSIX `0600` or Windows ACL repair and
+  inspection where possible.
 
-`doctor` previously emitted a large JSON object by default. This was useful for automation, but difficult for a human operator. It could also be confusing when `ok: true` appeared together with verbose Docker or GPU probe failures that were irrelevant because Docker/GPU mode was not requested.
+### B. Help output as only a command catalog
 
-Recommended improvement:
-
-- Make the default output a concise human-readable table.
-- Show only pass, fail, and relevant warning rows.
-- Include exact installed versions and compatible backend versions.
-- Keep the full JSON report behind `--json`.
-
-### 4. Medium: long proof-backed commands need explicit progress phases
+Status: Mostly resolved.
 
 Resolution:
 
-- Added progress phases for `deposit-channel`, `withdraw-channel`, `mint-notes`, `transfer-notes`, and `redeem-notes`.
-- The phase sequence is `loading`, `proving`, `submitting`, `persisting`, and `done`.
-- Commands print human-readable output by default.
-- `--json` is now the CLI-wide machine-readable output switch; e2e uses `--json` when it needs structured results.
+- Added `guide`.
+- Updated README command flow.
+- Added actionable recovery hints to common errors.
 
-Proof-backed commands can take tens of seconds or minutes:
+Remaining gap:
 
-- `deposit-channel`
-- `withdraw-channel`
-- `mint-notes`
-- `transfer-notes`
-- `redeem-notes`
+- `guide` needs a better default human output shape, as described in open finding 1.
 
-Internally these commands load workspace state, run Groth16 or Tokamak proof generation, submit an on-chain transaction, wait for a receipt, and update local wallet/workspace state. A user currently sees limited phase-level progress, so a long-running command can look stuck.
+### C. `doctor` was machine-friendly but not human-friendly
 
-Recommended improvement:
-
-- Emit durable progress phases by default.
-- Keep the phase set small enough to be readable during normal CLI use.
-
-### 5. Medium-Low: common errors need recovery actions
+Status: Resolved.
 
 Resolution:
 
-- Added a centralized CLI error formatter that appends actionable `Try:` recovery lines for common failures without adding per-command output branches.
-- Covered missing RPC configuration, unknown or mismatched wallet selection, missing wallet default secret files, wallet decrypt failures, missing account secrets, missing deployment artifacts, missing channel registrations, and missing channel selectors.
-- Kept the original validation message first, then printed recovery actions below it so automation and humans can still identify the root failure.
-- Documented the behavior in the README.
+- `doctor` prints a concise human-readable table by default.
+- `doctor --json` prints the full machine-readable report.
+- CLI-wide `--json` is now the structured-output switch.
 
-The current validation errors are generally correct, but many do not tell the user how to recover.
+### D. Long proof-backed commands lacked durable progress phases
 
-Examples:
+Status: Resolved.
 
-- An invalid wallet name reports that the CLI cannot derive the channel name from the wallet, but does not suggest `list-local-wallets`.
-- Missing Sepolia RPC configuration should point users to `--rpc-url <URL>` or
-  `~/tokamak-private-channels/secrets/<network>/.env` with `RPC_URL=<URL>`.
-- Wrong wallet password reports a decrypt failure, but does not tell the user whether `recover-wallet` can help or whether the password is unrecoverable.
+Resolution:
 
-Recommended improvement:
+- `deposit-channel`, `withdraw-channel`, `mint-notes`, `transfer-notes`, and `redeem-notes`
+  print `loading`, `proving`, `submitting`, `persisting`, and `done`.
+- In `--json` mode, progress goes to stderr and the final JSON result stays on stdout.
 
-- Add actionable `Try:` lines for common failures.
-- Examples:
-  - `Try: private-state-cli list-local-wallets --network <NETWORK>`
-  - `Try: private-state-cli recover-wallet --channel-name <CHANNEL> ...`
-  - `If the wallet password is lost, the local L2 key cannot be recovered from the encrypted wallet file.`
+### E. Common errors lacked recovery actions
 
-## Existing UX Strengths
+Status: Resolved enough for current UX.
 
-- The immutable channel policy warning is explicit before channel creation and first channel registration.
-- `list-local-wallets` gives useful local wallet metadata and helps users avoid filesystem inspection.
-- Wallet flows can auto-recover missing or stale channel workspace data.
-- CLI-wide `--json` output is useful for automation and e2e harnesses.
-- The CLI checks proof backend compatibility against the channel's immutable verifier snapshot before proof-backed execution.
+Resolution:
+
+- Added centralized error formatting with `Try:` hints for common failures.
+- Covered missing RPC configuration, unknown or malformed wallet selectors, missing wallet
+  default secret files, wallet decrypt failures, missing account secrets, missing deployment
+  artifacts, missing channel registrations, and missing channel selectors.
 
 ## Recommended Priority
 
-1. Remove routine secret exposure from argv by adding env/file/prompt inputs.
-2. Add a state-aware `status` or `guide` command.
-3. Make `--doctor` human-readable by default and move full detail behind `--json`.
-4. Add durable progress phases for long proof-backed commands.
-5. Improve common error messages with recovery actions.
+1. Improve `guide` human-readable output.
+2. Document wallet secret source-file creation in help and README.
+3. Make `guide` absorb invalid wallet selectors as check results.
+4. Bump the private-state CLI package version and finalize its changelog before publishing.

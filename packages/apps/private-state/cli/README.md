@@ -51,6 +51,12 @@ Check the installed package and runtime state with:
 private-state-cli doctor
 ```
 
+Print only the installed CLI package version with:
+
+```bash
+private-state-cli --version
+```
+
 Remove all local private-state CLI data with:
 
 ```bash

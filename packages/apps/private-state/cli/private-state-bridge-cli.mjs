@@ -120,6 +120,7 @@ import {
 
 const require = createRequire(import.meta.url);
 const defaultCommandCwd = process.cwd();
+const privateStateCliPackageJson = require("./package.json");
 const privateStateCliPackageRoot = path.dirname(require.resolve("./package.json"));
 const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "workspace");
 const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secrets");
@@ -313,6 +314,12 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   activeCliArgs = args;
   configureOutput(args);
+
+  if (args.version !== undefined) {
+    assertVersionArgs(args);
+    printVersion();
+    return;
+  }
 
   if (args.help || !args.command) {
     printHelp();
@@ -5278,6 +5285,33 @@ function requireArg(value, label) {
   return value;
 }
 
+function assertVersionArgs(args) {
+  if (args.version !== true) {
+    throw new Error("--version does not accept a value.");
+  }
+  if (args.command) {
+    throw new Error("--version must be used without a command.");
+  }
+  const allowedKeys = new Set(["version", "json"]);
+  const unknownKeys = Object.keys(args)
+    .filter((key) => key !== "positional" && key !== "command" && !allowedKeys.has(key));
+  if (unknownKeys.length > 0) {
+    throw new Error(`Unsupported --version option(s): ${unknownKeys.map(toKebabCase).join(", ")}.`);
+  }
+}
+
+function printVersion() {
+  if (isJsonOutputRequested()) {
+    printJson({
+      action: "version",
+      packageName: privateStateCliPackageJson.name,
+      version: privateStateCliPackageJson.version,
+    });
+    return;
+  }
+  console.log(privateStateCliPackageJson.version);
+}
+
 function requireWorkspaceName(args) {
   const value = typeof args === "string" ? args : args.workspace;
   if (!value) {
@@ -5769,6 +5803,9 @@ Secret source options:
   canonical CLI secret files remain protected. On macOS/Linux this means 0600; on Windows the CLI repairs ACLs when possible.
 
 Options:
+  --version
+      Print the private-state CLI package version and exit.
+
   --json
       Print the command result as JSON. Without --json, commands print human-readable output.
 

@@ -5779,6 +5779,8 @@ Commands:
 
   recover-wallet --channel-name <NAME> --network <NAME> --account <NAME> [--rpc-url <URL>]
       Rebuild a recoverable local wallet from on-chain channel state
+      Requires the protected wallet-local secret imported during join-channel to exist at the canonical secret path
+      Does not create or recover the wallet secret itself
 
   join-channel --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path <PATH> [--rpc-url <URL>]
       Pay the channel join toll and bind a wallet to a channel-specific L2 identity

@@ -848,6 +848,19 @@ function defaultGroth16WorkspaceRoot() {
   return path.join(os.homedir(), "tokamak-private-channels", "groth16");
 }
 
+function resolveGroth16ProofManifestPath() {
+  return path.join(defaultGroth16WorkspaceRoot(), "proof", "proof-manifest.json");
+}
+
+function resolveActiveGroth16ProverRuntime() {
+  const packageRoot = resolveActiveGroth16PackageRoot();
+  return {
+    packageRoot,
+    entryPath: resolveGroth16CliEntryPath(packageRoot),
+    proofManifestPath: resolveGroth16ProofManifestPath(),
+  };
+}
+
 function inspectGroth16Runtime({ packageRoot = resolveActiveGroth16PackageRoot() } = {}) {
   const entryPath = resolveGroth16CliEntryPath(packageRoot);
   const doctor = runCaptured(process.execPath, [entryPath, "--doctor", "--verbose"], { cwd: packageRoot });
@@ -1286,6 +1299,7 @@ export {
   resolveArtifactCacheBaseRoot,
   privateStateCliArtifactPaths,
   inspectGroth16Runtime,
+  resolveActiveGroth16ProverRuntime,
   readTokamakCliPackageReport,
   requireActiveTokamakCliRuntimeRoot,
   resolveTokamakCliResourceDirForRuntimeRoot,

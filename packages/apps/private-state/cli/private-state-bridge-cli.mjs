@@ -72,6 +72,7 @@ import {
   privateStateCliArtifactPaths,
   readTokamakCliPackageReport,
   requireActiveTokamakCliRuntimeRoot,
+  resolveActiveGroth16ProverRuntime,
   resolveArtifactCacheBaseRoot,
   resolvePrivateStateInstallRuntimeVersions,
   resolveTokamakCliResourceDirForRuntimeRoot,
@@ -4475,18 +4476,16 @@ function runCaptured(command, args, { cwd = defaultCommandCwd, env = process.env
 }
 
 function runGroth16UpdateTreeProof(inputPath) {
-  const packageRoot = resolveActiveGroth16PackageRoot();
-  const entryPath = resolveGroth16CliEntryPath(packageRoot);
+  const {
+    packageRoot,
+    entryPath,
+    proofManifestPath,
+  } = resolveActiveGroth16ProverRuntime();
   run(process.execPath, [entryPath, "--prove", inputPath], { cwd: packageRoot });
-  const manifestPath = groth16ProofManifestPath();
-  const manifest = readJson(manifestPath);
+  const manifest = readJson(proofManifestPath);
   expect(typeof manifest.proofPath === "string" && manifest.proofPath.length > 0, "Groth16 proof manifest is missing proofPath.");
   expect(typeof manifest.publicPath === "string" && manifest.publicPath.length > 0, "Groth16 proof manifest is missing publicPath.");
   return manifest;
-}
-
-function groth16ProofManifestPath() {
-  return path.join(os.homedir(), "tokamak-private-channels", "groth16", "proof", "proof-manifest.json");
 }
 
 function runTokamakProofPipeline({ operationDir, bundlePath }) {

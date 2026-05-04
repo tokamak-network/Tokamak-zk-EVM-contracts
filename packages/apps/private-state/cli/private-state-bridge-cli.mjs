@@ -111,6 +111,7 @@ import {
   deriveChannelTokenVaultLeafIndex,
   deriveLiquidBalanceStorageKey,
   fetchContractCodes,
+  normalizeBytesHex,
   normalizeBytes32Hex,
   serializeBigInts,
 } from "./lib/private-state-tokamak-helpers.mjs";
@@ -4438,7 +4439,7 @@ async function buildGrothTransition({ operationDir, workspace, stateManager, vau
     proof: toGroth16SolidityProof(proofJson),
     update: {
       currentRootVector: normalizedRootVector(currentSnapshot.stateRoots),
-      updatedRoot: bytes32FromBigInt(updatedRoot),
+      updatedRoot: bigintToHex32(updatedRoot),
       currentUserKey: bytes32FromHex(keyHex),
       currentUserValue: currentValue,
       updatedUserKey: bytes32FromHex(keyHex),
@@ -4627,37 +4628,12 @@ function normalizedAddressVector(addresses) {
   return addresses.map((value) => getAddress(value));
 }
 
-function normalizeBytesHex(value, byteLength) {
-  expect(Number.isInteger(byteLength) && byteLength > 0, "normalizeBytesHex requires a positive byte length.");
-  const targetHexLength = byteLength * 2;
-  let hex;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    expect(/^0x[0-9a-fA-F]*$/.test(trimmed), `Expected a hex string, received ${value}.`);
-    hex = trimmed.replace(/^0x/i, "");
-    if (hex.length % 2 !== 0) {
-      hex = `0${hex}`;
-    }
-  } else {
-    hex = ethers.hexlify(value).replace(/^0x/i, "");
-  }
-  expect(
-    hex.length <= targetHexLength,
-    `Expected at most ${byteLength} bytes, received ${Math.ceil(hex.length / 2)} bytes.`,
-  );
-  return `0x${hex.padStart(targetHexLength, "0").toLowerCase()}`;
-}
-
 function normalizeBytes12Hex(value) {
   return normalizeBytesHex(value, 12);
 }
 
 function normalizeBytes16Hex(value) {
   return normalizeBytesHex(value, 16);
-}
-
-function bytes32FromBigInt(value) {
-  return normalizeBytes32Hex(ethers.toBeHex(value));
 }
 
 function hashTokamakPublicInputs(values) {
@@ -4832,7 +4808,7 @@ async function reconstructChannelSnapshot({
     for (const event of orderedGroup) {
       if (event.fragment?.name === "StorageWriteObserved") {
         const storageAddr = getAddress(event.args.storageAddr);
-        const storageKey = bytes32FromBigInt(ethers.toBigInt(event.args.storageKey));
+        const storageKey = bigintToHex32(ethers.toBigInt(event.args.storageKey));
         const storageValue = bigintToHex32(ethers.toBigInt(event.args.value));
         await stateManager.putStorage(
           createAddressFromString(storageAddr),

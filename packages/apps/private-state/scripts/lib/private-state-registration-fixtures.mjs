@@ -5,21 +5,17 @@ import {
   encryptNoteValueForRecipient,
 } from "../../cli/lib/private-state-note-delivery.mjs";
 export {
-  bigintToHex32,
   buildStateManager,
   buildTokamakTxSnapshot,
-  bytes32FromHex,
   currentStorageBigInt,
   deriveChannelTokenVaultLeafIndex,
   deriveLiquidBalanceStorageKey,
   fetchContractCodes,
-  getBlockInfoAt,
   getFixedBlockInfo,
   initializePrivateStateSnapshot,
   normalizeBytes32Hex,
   putStorageAndCapture,
   putStorageValue,
-  serializeBigInts,
 } from "../../cli/lib/private-state-tokamak-helpers.mjs";
 import {
   deriveChannelTokenVaultLeafIndex,

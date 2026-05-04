@@ -1285,10 +1285,8 @@ export {
   writePrivateStateCliInstallManifest,
   resolveArtifactCacheBaseRoot,
   privateStateCliArtifactPaths,
-  readPrivateStateCliInstallManifest,
   inspectGroth16Runtime,
   readTokamakCliPackageReport,
-  resolveActiveTokamakCliPackageRoot,
   requireActiveTokamakCliRuntimeRoot,
   resolveTokamakCliResourceDirForRuntimeRoot,
 };

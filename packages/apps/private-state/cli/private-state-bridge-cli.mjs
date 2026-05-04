@@ -89,6 +89,12 @@ import {
   walletMetadataPathForDir,
   walletNameForChannelAndAddress,
 } from "./lib/private-state-cli-shared.mjs";
+import {
+  PRIVATE_STATE_CLI_COMMANDS,
+  privateStateCliCommandDisplay,
+  privateStateCliCommandOptionKeys,
+  privateStateCliCommandSynopsis,
+} from "./lib/private-state-cli-command-registry.mjs";
 
 const require = createRequire(import.meta.url);
 const defaultCommandCwd = process.cwd();
@@ -1430,7 +1436,7 @@ function uninstallGlobalPrivateStateCliPackage() {
 }
 
 async function handleDoctor({ args }) {
-  const report = buildDoctorReport();
+  const report = buildDoctorReport({ probeGpu: args.gpu === true });
   if (isJsonOutputRequested()) {
     printJson(report);
   } else {
@@ -1497,12 +1503,14 @@ function buildDoctorHumanRows(report) {
     },
     {
       check: "docker gpu readiness",
-      status: doctorStatus(report.gpuDockerReadiness.ok),
-      detail: [
-        `expectedUseGpus=${formatDoctorBool(report.gpuDockerReadiness.expectedUseGpus)}`,
-        `liveUseGpus=${formatDoctorBool(report.gpuDockerReadiness.liveUseGpus)}`,
-        report.gpuDockerReadiness.mismatchError,
-      ].filter(Boolean).join(" "),
+      status: report.gpuDockerReadiness.skipped ? "SKIP" : doctorStatus(report.gpuDockerReadiness.ok),
+      detail: report.gpuDockerReadiness.skipped
+        ? "live GPU probe skipped; run `doctor --gpu` to check host NVIDIA and Docker GPU access"
+        : [
+          `expectedUseGpus=${formatDoctorBool(report.gpuDockerReadiness.expectedUseGpus)}`,
+          `liveUseGpus=${formatDoctorBool(report.gpuDockerReadiness.liveUseGpus)}`,
+          report.gpuDockerReadiness.mismatchError,
+        ].filter(Boolean).join(" "),
     },
     {
       check: "groth16 runtime",
@@ -6126,100 +6134,13 @@ function walletConfigExists(walletDir) {
   return fs.existsSync(walletConfigPath(walletDir));
 }
 
-const COMMAND_ARG_SCHEMAS = Object.freeze({
-  install: {
-    label: "install",
-    keys: ["command", "positional", "docker", "includeLocalArtifacts", "groth16CliVersion", "tokamakZkEvmCliVersion"],
-    usage: "optional --docker, --include-local-artifacts, --groth16-cli-version, and --tokamak-zk-evm-cli-version",
-  },
-  uninstall: { label: "uninstall", keys: ["command", "positional"], usage: "no options" },
-  doctor: { label: "doctor", keys: ["command", "positional", "json"], usage: "optional --json" },
-  guide: {
-    label: "guide",
-    keys: ["command", "positional", "network", "channelName", "account", "wallet"],
-    usage: "optional --network, --channel-name, --account, and --wallet",
-  },
-  "account-import": {
-    label: "account import",
-    keys: ["command", "positional", "account", "network", "privateKeyFile"],
-    usage: "--account, --network, and --private-key-file",
-  },
-  "create-channel": {
-    label: "create-channel",
-    keys: ["command", "positional", "channelName", "joinToll", "network", "rpcUrl", "account"],
-    usage: "--channel-name, --join-toll, --network, --account, and optional --rpc-url",
-  },
-  "recover-workspace": {
-    label: "recover-workspace",
-    keys: ["command", "positional", "channelName", "network", "rpcUrl", "fromGenesis"],
-    usage: "--channel-name, --network, optional --from-genesis, and optional --rpc-url",
-  },
-  "get-channel": {
-    label: "get-channel",
-    keys: ["command", "positional", "channelName", "network", "rpcUrl"],
-    usage: "--channel-name, --network, and optional --rpc-url",
-  },
-  "deposit-bridge": {
-    label: "deposit-bridge",
-    keys: ["command", "positional", "amount", "network", "rpcUrl", "account"],
-    usage: "--amount, --network, --account, and optional --rpc-url",
-  },
-  "withdraw-bridge": {
-    label: "withdraw-bridge",
-    keys: ["command", "positional", "amount", "network", "rpcUrl", "account"],
-    usage: "--amount, --network, --account, and optional --rpc-url",
-  },
-  "get-my-bridge-fund": {
-    label: "get-my-bridge-fund",
-    keys: ["command", "positional", "network", "rpcUrl", "account"],
-    usage: "--network, --account, and optional --rpc-url",
-  },
-  "explicit-signer-channel": {
-    label: "signer channel command",
-    keys: ["command", "positional", "channelName", "network", "account", "rpcUrl"],
-    usage: "--channel-name, --network, --account, and optional --rpc-url",
-  },
-  "join-channel": {
-    label: "join-channel",
-    keys: ["command", "positional", "channelName", "network", "account", "walletSecretPath", "rpcUrl"],
-    usage: "--channel-name, --network, --account, --wallet-secret-path, and optional --rpc-url",
-  },
-  "get-my-l1-address": {
-    label: "get-my-l1-address",
-    keys: ["command", "positional", "network", "account"],
-    usage: "--network and --account",
-  },
-  "list-local-wallets": {
-    label: "list-local-wallets",
-    keys: ["command", "positional", "network", "channelName"],
-    usage: "optional --network and --channel-name",
-  },
-  "wallet-default": {
-    label: "wallet command",
-    keys: ["command", "positional", "wallet", "network"],
-    usage: "--wallet and --network",
-  },
-  "wallet-amount": {
-    label: "wallet amount command",
-    keys: ["command", "positional", "wallet", "network", "amount"],
-    usage: "--wallet, --network, and --amount",
-  },
-  "mint-notes": {
-    label: "mint-notes",
-    keys: ["command", "positional", "wallet", "network", "amounts"],
-    usage: "--wallet, --network, and --amounts",
-  },
-  "redeem-notes": {
-    label: "redeem-notes",
-    keys: ["command", "positional", "wallet", "network", "noteIds"],
-    usage: "--wallet, --network, and --note-ids",
-  },
-  "transfer-notes": {
-    label: "transfer-notes",
-    keys: ["command", "positional", "wallet", "network", "noteIds", "recipients", "amounts"],
-    usage: "--wallet, --network, --note-ids, --recipients, and --amounts",
-  },
-});
+const COMMAND_ARG_SCHEMAS = Object.freeze(
+  Object.fromEntries(PRIVATE_STATE_CLI_COMMANDS.map((command) => [command.id, {
+    label: privateStateCliCommandDisplay(command),
+    keys: privateStateCliCommandOptionKeys(command),
+    usage: command.usage,
+  }])),
+);
 
 function assertAllowedCommandSchema(args, schemaKey, { label } = {}) {
   const schema = COMMAND_ARG_SCHEMAS[schemaKey];
@@ -6262,15 +6183,16 @@ function assertL1SecretSourceArgs(args, { allowAccount }) {
 function assertWalletSecretArgs(args, commandName, extraOptionKeys = [], acceptedUsage = "--wallet and --network") {
   requireWalletName(args);
   requireNetworkName(args);
-  if (extraOptionKeys.length === 0) {
-    assertAllowedCommandSchema(args, "wallet-default", { label: commandName });
+  if (COMMAND_ARG_SCHEMAS[commandName]) {
+    assertAllowedCommandSchema(args, commandName);
     return;
   }
-  if (extraOptionKeys.length === 1 && extraOptionKeys[0] === "amount") {
-    assertAllowedCommandSchema(args, "wallet-amount", { label: commandName });
-    return;
-  }
-  assertAllowedCommandKeys(args, commandName, new Set(["command", "positional", "wallet", "network", ...extraOptionKeys]), acceptedUsage);
+  assertAllowedCommandKeys(
+    args,
+    commandName,
+    new Set(["command", "positional", "wallet", "network", ...extraOptionKeys]),
+    acceptedUsage,
+  );
 }
 
 function assertWalletChannelMoveArgs(args, commandName) {
@@ -6294,6 +6216,9 @@ function assertUninstallArgs(args) {
 
 function assertDoctorArgs(args) {
   assertAllowedCommandSchema(args, "doctor");
+  if (args.gpu !== undefined && args.gpu !== true) {
+    throw new Error("doctor option --gpu does not accept a value.");
+  }
 }
 
 function assertGuideArgs(args) {
@@ -6396,7 +6321,7 @@ function assertExplicitSignerCommandArgs(args, commandName) {
   requireArg(args.channelName, "--channel-name");
   requireNetworkName(args);
   assertL1SecretSourceArgs(args, { allowAccount: true });
-  assertAllowedCommandSchema(args, "explicit-signer-channel", { label: commandName });
+  assertAllowedCommandSchema(args, commandName);
 }
 
 function assertRecoverWalletArgs(args) {
@@ -6480,92 +6405,14 @@ function persistCurrentState(context) {
 }
 
 function printHelp() {
+  const commandHelp = PRIVATE_STATE_CLI_COMMANDS.map((command) => [
+    `  ${privateStateCliCommandSynopsis(command)}`,
+    `      ${command.description}`,
+    ...(command.help ?? []).map((line) => `      ${line}`),
+  ].join("\n")).join("\n\n");
   console.log(`
 Commands:
-  install [--docker] [--include-local-artifacts] [--groth16-cli-version <VERSION>] [--tokamak-zk-evm-cli-version <VERSION>]
-      Install the Tokamak zk-EVM CLI runtime, Groth16 runtime, and private-state deployment artifacts
-      Version options install exact CLI package versions; omitted versions resolve to npm registry latest
-      Use --docker on Linux to forward Docker mode to the Tokamak zk-EVM and Groth16 runtimes
-      Use --include-local-artifacts to also install local deployment/ artifacts from the current working directory
-
-  uninstall
-      Interactively remove local private-state workspaces, wallet secrets, proof artifacts, Tokamak zk-EVM runtime data,
-      and the global private-state CLI package when npm reports it is globally installed
-
-  doctor [--json]
-      Check private-state CLI package versions, runtime install state, Docker mode, CUDA mode, and deployment artifacts
-      Prints a concise human-readable table by default; use --json for the full machine-readable report
-
-  guide [--network <NAME>] [--channel-name <NAME>] [--account <NAME>] [--wallet <NAME>]
-      Inspect local CLI state and available on-chain state, then print the next safe command
-      Does not accept --rpc-url and never writes RPC configuration
-
-  account import --account <NAME> --network <NAME> --private-key-file <PATH>
-      Import a private-key source file into a protected local L1 account secret for later --account use
-
-  create-channel --channel-name <NAME> --join-toll <TOKENS> --network <NAME> --account <NAME> [--rpc-url <URL>]
-      Create a bridge channel and initialize its workspace
-      Prints the immutable policy snapshot before sending the transaction
-
-  recover-workspace --channel-name <NAME> --network <NAME> [--from-genesis] [--rpc-url <URL>]
-      Rebuild the local channel workspace from bridge state
-      By default, resumes RPC log scanning from the workspace recovery index when available
-      Use --from-genesis to ignore the recovery index and replay logs from channel genesis
-
-  get-channel --channel-name <NAME> --network <NAME> [--rpc-url <URL>]
-      Read channel existence, manager, vault, toll, refund schedule, and immutable policy snapshot
-
-  deposit-bridge --amount <TOKENS> --network <NAME> --account <NAME> [--rpc-url <URL>]
-      Deposit canonical tokens into the shared bridge vault
-
-  withdraw-bridge --amount <TOKENS> --network <NAME> --account <NAME> [--rpc-url <URL>]
-      Withdraw tokens from the shared bridge vault back to the wallet
-
-  get-my-bridge-fund --network <NAME> --account <NAME> [--rpc-url <URL>]
-      Read the current shared bridge vault balance
-
-  recover-wallet --channel-name <NAME> --network <NAME> --account <NAME> [--rpc-url <URL>]
-      Rebuild a recoverable local wallet from on-chain channel state
-      Requires the protected wallet-local secret imported during join-channel to exist at the canonical secret path
-      Does not create or recover the wallet secret itself
-
-  join-channel --channel-name <NAME> --network <NAME> --account <NAME> --wallet-secret-path <PATH> [--rpc-url <URL>]
-      Pay the channel join toll and bind a wallet to a channel-specific L2 identity
-      --wallet-secret-path imports an existing source secret file into the protected wallet-local secret file
-      Prints the immutable policy snapshot before first registration
-
-  get-my-wallet-meta --wallet <NAME> --network <NAME>
-      Check whether a wallet matches the on-chain channel registration
-
-  get-my-l1-address --account <NAME> --network <NAME>
-      Derive the L1 address for a private key
-
-  list-local-wallets [--network <NAME>] [--channel-name <NAME>]
-      List saved local wallet names that can be reused with --wallet
-
-  deposit-channel --wallet <NAME> --network <NAME> --amount <TOKENS>
-      Move bridged funds into the channel L2 accounting balance
-
-  withdraw-channel --wallet <NAME> --network <NAME> --amount <TOKENS>
-      Move channel L2 balance back into the shared bridge vault
-
-  get-my-channel-fund --wallet <NAME> --network <NAME>
-      Read the current channel L2 accounting balance
-
-  exit-channel --wallet <NAME> --network <NAME>
-      Exit a channel. Both the CLI and bridge contract require a zero channel balance
-
-  mint-notes --wallet <NAME> --network <NAME> --amounts <A,B,...>
-      Mint one or two private-state notes from the wallet's channel balance
-
-  transfer-notes --wallet <NAME> --network <NAME> --note-ids <ID,ID,...> --recipients <ADDR,ADDR,...> --amounts <A,B,...>
-      Spend input notes into the registered 1->1, 1->2, or 2->1 private transfer shapes
-
-  redeem-notes --wallet <NAME> --network <NAME> --note-ids <ID,ID,...>
-      Redeem one tracked note back into the wallet's channel balance
-
-  get-my-notes --wallet <NAME> --network <NAME>
-      Show the wallet's tracked note state and refresh received notes
+${commandHelp}
 
 Secret source options:
   Use account import --private-key-file once to create a protected local account secret.
@@ -7336,14 +7183,16 @@ function summarizePackageReport(report) {
   };
 }
 
-function buildDoctorReport() {
+function buildDoctorReport({ probeGpu = false } = {}) {
   const cacheBaseRoot = resolveArtifactCacheBaseRoot();
   const installManifestPath = privateStateCliInstallManifestPath(cacheBaseRoot);
   const installManifest = readJsonIfExists(installManifestPath);
   const dependencyReports = collectDependencyPackageReports(installManifest);
   const tokamakCli = inspectTokamakCliRuntime();
   const groth16Runtime = inspectGroth16Runtime();
-  const gpuDockerReadiness = inspectGpuDockerReadiness(tokamakCli);
+  const gpuDockerReadiness = probeGpu
+    ? inspectGpuDockerReadiness(tokamakCli)
+    : buildSkippedGpuDockerReadiness(tokamakCli);
   const selectedRuntimeVersionCheck = buildSelectedRuntimeVersionCheck({
     installManifest,
     tokamakCli,
@@ -7383,10 +7232,15 @@ function buildDoctorReport() {
       details: {
         expectedUseGpus: gpuDockerReadiness.expectedUseGpus,
         liveUseGpus: gpuDockerReadiness.liveUseGpus,
+        skipped: gpuDockerReadiness.skipped,
         mismatch: gpuDockerReadiness.mismatch,
         mismatchError: gpuDockerReadiness.mismatchError,
-        hostNvidiaSmi: summarizeProbeResult(gpuDockerReadiness.hostNvidiaSmi),
-        dockerNvidiaSmi: summarizeProbeResult(gpuDockerReadiness.dockerNvidiaSmi),
+        hostNvidiaSmi: gpuDockerReadiness.hostNvidiaSmi
+          ? summarizeProbeResult(gpuDockerReadiness.hostNvidiaSmi)
+          : null,
+        dockerNvidiaSmi: gpuDockerReadiness.dockerNvidiaSmi
+          ? summarizeProbeResult(gpuDockerReadiness.dockerNvidiaSmi)
+          : null,
       },
     },
     {
@@ -7424,6 +7278,20 @@ function buildDoctorReport() {
     groth16Runtime,
     gpuDockerReadiness,
     checks,
+  };
+}
+
+function buildSkippedGpuDockerReadiness(tokamakCli) {
+  return {
+    ok: true,
+    skipped: true,
+    expectedUseGpus: Boolean(tokamakCli.cudaCompatible),
+    liveUseGpus: null,
+    mismatch: false,
+    mismatchError: null,
+    probeImage: DOCKER_CUDA_PROBE_IMAGE,
+    hostNvidiaSmi: null,
+    dockerNvidiaSmi: null,
   };
 }
 
@@ -7944,6 +7812,7 @@ function inspectGpuDockerReadiness(tokamakCli) {
   const mismatch = expectedUseGpus !== liveUseGpus;
   return {
     ok: !mismatch,
+    skipped: false,
     expectedUseGpus,
     liveUseGpus,
     mismatch,

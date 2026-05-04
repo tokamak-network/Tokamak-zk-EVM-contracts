@@ -448,119 +448,22 @@
     </main>
 
     <script src="../../../node_modules/ethers/dist/ethers.umd.js"></script>
-    <script>
+    <script type="module">
+      import {
+        PRIVATE_STATE_CLI_COMMANDS,
+        PRIVATE_STATE_CLI_FIELD_CATALOG,
+      } from "./lib/private-state-cli-command-registry.mjs";
+
       const storageKey = "private-state-cli-assistant:v2";
-      const windowNameKey = "private-state-cli-assistant-state:";
       const cliEntry = "node packages/apps/private-state/cli/private-state-bridge-cli.mjs";
       const defaultWorkspaceRootLabel = navigator.userAgent.includes("Windows")
         ? "%USERPROFILE%\\\\tokamak-private-channels\\\\workspace"
         : "~/tokamak-private-channels/workspace";
-      const walletEncryptionVersion = 1;
-      const walletEncryptionAlgorithm = "aes-256-gcm";
-      const textEncoder = new TextEncoder();
-      const textDecoder = new TextDecoder();
-
-      const fieldCatalog = {
-        channelName: {
-          label: "Channel Name",
-          type: "text",
-          placeholder: "demo-channel",
-        },
-        network: {
-          label: "Network",
-          type: "select",
-          options: ["sepolia", "mainnet", "anvil"],
-        },
-        rpcUrl: {
-          label: "RPC URL",
-          type: "password",
-          placeholder: "https://example-rpc",
-          hint: "Optional. When omitted, the CLI reads RPC_URL from ~/tokamak-private-channels/secrets/<network>/.env.",
-        },
-        account: {
-          label: "Account",
-          type: "text",
-          placeholder: "my-account",
-        },
-        privateKeyFile: {
-          label: "Private Key File",
-          type: "text",
-          placeholder: "/path/to/private-key",
-          hint: "Source file permissions are not enforced; the imported canonical account secret is protected.",
-        },
-        joinToll: {
-          label: "Join Toll",
-          type: "text",
-          placeholder: "1",
-        },
-        walletSecretPath: {
-          label: "Wallet Secret File",
-          type: "text",
-          placeholder: "/path/to/wallet-secret",
-          hint: "Source file permissions are not enforced; the imported wallet-local secret is protected.",
-        },
-        wallet: {
-          label: "Wallet Name",
-          type: "text",
-          placeholder: "channel-0xYourL1Address",
-        },
-        amount: {
-          label: "Amount",
-          type: "text",
-          placeholder: "3",
-        },
-        amounts: {
-          label: "Amounts",
-          type: "textarea",
-          placeholder: "[1,2,3]",
-        },
-        noteIds: {
-          label: "Note IDs",
-          type: "textarea",
-          placeholder: "[\"0x...\"]",
-        },
-        recipients: {
-          label: "Recipients JSON",
-          type: "textarea",
-          placeholder: "[\"0xRecipientL2Address\"]",
-        },
-        docker: {
-          label: "Docker Install Mode",
-          type: "checkbox",
-          hint: "Forward --docker to install. This mode is supported only on Linux hosts by the Tokamak CLI.",
-        },
-        json: {
-          label: "JSON Output",
-          type: "checkbox",
-          hint: "Print the command result as JSON.",
-        },
-      };
-
-      const commands = [
-        { id: "account-import", description: "Import a private-key source file into a protected local L1 account secret for later --account use.", fields: ["account", "network", "privateKeyFile"] },
-        { id: "install", description: "Install the local Tokamak zk-EVM toolchain. Optionally forward --docker for Linux-host Docker installs.", fields: ["docker"] },
-        { id: "doctor", description: "Check the CLI package, runtime install state, Docker mode, CUDA mode, and deployment artifacts.", fields: [] },
-        { id: "guide", description: "Inspect local state and available on-chain state, then print the next safe command. The guide does not accept RPC URLs.", fields: ["network", "channelName", "account", "wallet"] },
-        { id: "uninstall", description: "Interactively remove local private-state workspaces, wallet secrets, proof artifacts, Tokamak zk-EVM runtime data, and the global CLI package when installed.", fields: [] },
-        { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "joinToll", "network", "account", "rpcUrl"] },
-        { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "rpcUrl"] },
-        { id: "deposit-bridge", description: "Deposit canonical tokens into the shared bridge vault.", fields: ["amount", "network", "account", "rpcUrl"] },
-        { id: "withdraw-bridge", description: "Withdraw shared bridge-vault funds back to the L1 wallet.", fields: ["amount", "network", "account", "rpcUrl"] },
-        { id: "get-my-bridge-fund", description: "Read the current bridge-vault balance.", fields: ["network", "account", "rpcUrl"] },
-        { id: "join-channel", description: "Accept the channel policy and bind the caller to a channel-specific L2 identity.", fields: ["channelName", "network", "account", "walletSecretPath", "rpcUrl"] },
-        { id: "recover-wallet", description: "Rebuild the recoverable portion of a wallet.", fields: ["channelName", "network", "account", "rpcUrl"] },
-        { id: "get-my-wallet-meta", description: "Check whether a saved wallet matches on-chain registration.", fields: ["wallet", "network"] },
-        { id: "get-my-l1-address", description: "Derive the L1 address for a local account.", fields: ["account", "network"] },
-        { id: "list-local-wallets", description: "List saved local wallet names that can be reused with --wallet.", fields: ["network", "channelName"] },
-        { id: "deposit-channel", description: "Move bridged funds into the channel L2 accounting balance.", fields: ["wallet", "network", "amount"] },
-        { id: "withdraw-channel", description: "Move channel L2 balance back into the shared bridge vault.", fields: ["wallet", "network", "amount"] },
-        { id: "get-my-channel-fund", description: "Read the current channel L2 accounting balance.", fields: ["wallet", "network"] },
-        { id: "exit-channel", description: "Exit a channel. Both the CLI and bridge contract require a zero channel balance.", fields: ["wallet", "network"] },
-        { id: "mint-notes", description: "Mint one or two private-state notes from the wallet channel balance.", fields: ["wallet", "network", "amounts"] },
-        { id: "transfer-notes", description: "Spend tracked notes into the registered 1->1, 1->2, or 2->1 encrypted transfer shapes.", fields: ["wallet", "network", "noteIds", "recipients", "amounts"] },
-        { id: "redeem-notes", description: "Redeem exactly one tracked note back into liquid accounting balance.", fields: ["wallet", "network", "noteIds"] },
-        { id: "get-my-notes", description: "Refresh encrypted note-log recovery and show current wallet notes.", fields: ["wallet", "network"] },
-      ].map((command) => ({ ...command, fields: [...command.fields, "json"] }));
+      const fieldCatalog = PRIVATE_STATE_CLI_FIELD_CATALOG;
+      const commands = PRIVATE_STATE_CLI_COMMANDS.map((command) => ({
+        ...command,
+        fields: [...new Set([...command.fields, "json"])],
+      }));
 
       const defaultState = {
         commandId: "join-channel",
@@ -583,6 +486,12 @@
         transferRecipient2: "",
         transferAmount2: "",
         docker: false,
+        includeLocalArtifacts: false,
+        groth16CliVersion: "",
+        tokamakZkEvmCliVersion: "",
+        fromGenesis: false,
+        gpu: false,
+        json: false,
       };
 
       const sharedFieldKeys = [
@@ -606,8 +515,6 @@
         statusMessage: "",
         hasLoaded: false,
       };
-      let scryptModulePromise = null;
-      let ethersModulePromise = null;
       let walletNoteRefreshTimer = null;
 
       const workspacePickerEl = document.getElementById("workspace-picker");
@@ -646,17 +553,6 @@
             return parsed;
           }
         } catch {
-          // Fallback to window.name below.
-        }
-
-        try {
-          if (typeof window.name === "string" && window.name.startsWith(windowNameKey)) {
-            const parsed = parseSerializedState(window.name.slice(windowNameKey.length));
-            if (parsed) {
-              return parsed;
-            }
-          }
-        } catch {
           // Fall through to defaults.
         }
 
@@ -668,12 +564,7 @@
         try {
           window.localStorage.setItem(storageKey, serialized);
         } catch {
-          // window.name fallback below still preserves state across refreshes in the current tab.
-        }
-        try {
-          window.name = `${windowNameKey}${serialized}`;
-        } catch {
-          // Ignore window.name failures.
+          // Ignore storage failures; the generated command remains available in the preview.
         }
       }
 
@@ -931,85 +822,6 @@
         }, 250);
       }
 
-      function addHexPrefix(value) {
-        const normalized = String(value ?? "");
-        return normalized.startsWith("0x") || normalized.startsWith("0X") ? normalized : `0x${normalized}`;
-      }
-
-      function hexToBytes(value) {
-        const normalizedWithPrefix = addHexPrefix(value);
-        const normalized = normalizedWithPrefix.slice(2);
-        if (normalized.length === 0) {
-          return new Uint8Array();
-        }
-        return Uint8Array.from(
-          normalized.match(/.{1,2}/g).map((pair) => Number.parseInt(pair, 16)),
-        );
-      }
-
-      async function deriveScryptKeyBytes(password, saltHex) {
-        const browserEthers = window.ethers?.ethers ?? window.ethers;
-        if (browserEthers?.scryptSync) {
-          return browserEthers.getBytes(
-            browserEthers.scryptSync(textEncoder.encode(String(password)), saltHex, 16384, 8, 1, 32),
-          );
-        }
-        if (!scryptModulePromise) {
-          scryptModulePromise = import("../../../node_modules/@noble/hashes/esm/scrypt.js");
-        }
-        const { scrypt } = await scryptModulePromise;
-        return scrypt(textEncoder.encode(String(password)), hexToBytes(saltHex), {
-          N: 16384,
-          r: 8,
-          p: 1,
-          dkLen: 32,
-        });
-      }
-
-      async function decryptWalletJson(envelope, walletSecret) {
-        if (
-          envelope?.version !== walletEncryptionVersion
-          || envelope?.algorithm !== walletEncryptionAlgorithm
-          || envelope?.kdf !== "scrypt"
-        ) {
-          throw new Error("Unsupported wallet encryption envelope.");
-        }
-
-        const encryptionKeyBytes = await deriveScryptKeyBytes(walletSecret, envelope.salt);
-        const cryptoKey = await crypto.subtle.importKey("raw", encryptionKeyBytes, "AES-GCM", false, ["decrypt"]);
-        const ciphertext = hexToBytes(envelope.ciphertext);
-        const tag = hexToBytes(envelope.tag);
-        const combinedCiphertext = new Uint8Array(ciphertext.length + tag.length);
-        combinedCiphertext.set(ciphertext, 0);
-        combinedCiphertext.set(tag, ciphertext.length);
-        const plaintextBuffer = await crypto.subtle.decrypt(
-          {
-            name: "AES-GCM",
-            iv: hexToBytes(envelope.iv),
-            tagLength: 128,
-          },
-          cryptoKey,
-          combinedCiphertext,
-        );
-        return JSON.parse(textDecoder.decode(new Uint8Array(plaintextBuffer)));
-      }
-
-      function extractUnusedNoteOptions(walletJson) {
-        const notes = walletJson?.notes ?? {};
-        const unusedNotes = notes.unused ?? {};
-        const unusedOrder = Array.isArray(notes.unusedOrder) ? notes.unusedOrder : Object.keys(unusedNotes);
-        return unusedOrder
-          .map((commitment) => unusedNotes[commitment])
-          .filter((note) => note && typeof note.commitment === "string")
-          .map((note) => ({
-            value: note.commitment,
-            amountBaseUnits: String(note.value ?? "0"),
-            label: typeof note.value === "string"
-              ? `${note.commitment} (${note.value})`
-              : note.commitment,
-          }));
-      }
-
       async function refreshWalletNoteOptions() {
         if (!commandNeedsWalletNotes()) {
           return;
@@ -1029,8 +841,9 @@
         const transferOutputs = command.id === "transfer-notes"
           ? currentTransferOutputs()
           : null;
+        const optionalFields = new Set(command.optionalFields ?? []);
         return command.fields.filter((fieldKey) => {
-          if (fieldKey === "rpcUrl") {
+          if (fieldCatalog[fieldKey]?.optional || optionalFields.has(fieldKey)) {
             return false;
           }
           if (fieldKey === "amounts" && command.id === "mint-notes") {
@@ -1076,51 +889,11 @@
             ? maskedSecretValues[fieldKey]
             : value;
 
-          switch (fieldKey) {
-            case "channelName":
-              appendOption(parts, "--channel-name", renderedValue);
-              break;
-            case "joinToll":
-              appendOption(parts, "--join-toll", renderedValue);
-              break;
-            case "network":
-              appendOption(parts, "--network", renderedValue);
-              break;
-            case "rpcUrl":
-              appendOption(parts, "--rpc-url", renderedValue);
-              break;
-            case "account":
-              appendOption(parts, "--account", renderedValue);
-              break;
-            case "privateKeyFile":
-              appendOption(parts, "--private-key-file", renderedValue);
-              break;
-            case "walletSecretPath":
-              appendOption(parts, "--wallet-secret-path", renderedValue);
-              break;
-            case "wallet":
-              appendOption(parts, "--wallet", renderedValue);
-              break;
-            case "amount":
-              appendOption(parts, "--amount", renderedValue);
-              break;
-            case "amounts":
-              appendOption(parts, "--amounts", renderedValue);
-              break;
-            case "noteIds":
-              appendOption(parts, "--note-ids", renderedValue);
-              break;
-            case "recipients":
-              appendOption(parts, "--recipients", renderedValue);
-              break;
-            case "docker":
-              parts.push("--docker");
-              break;
-            case "json":
-              parts.push("--json");
-              break;
-            default:
-              break;
+          const fieldConfig = fieldCatalog[fieldKey];
+          if (fieldConfig?.type === "checkbox") {
+            parts.push(fieldConfig.option);
+          } else if (fieldConfig?.option) {
+            appendOption(parts, fieldConfig.option, renderedValue);
           }
         }
 

@@ -7,6 +7,12 @@
   compatibility targets.
 - Centralized CLI command option schemas used by validation, while keeping the existing command
   implementations in the single CLI entrypoint.
+- Reused the same command registry for CLI help text and the browser command assistant so command
+  additions no longer require three separate hardcoded updates.
+- Made live Docker/NVIDIA GPU probing in `doctor` opt-in through `doctor --gpu`; the default doctor
+  run now reports runtime metadata without launching GPU containers.
+- Shared private-state registration fixture builders between DApp registration materialization and
+  the CLI end-to-end scenario.
 - Replaced local wallet recovery hint string matching with typed CLI error codes for local RPC,
   wallet, artifact, registration, and stale-workspace failures.
 - Removed unused replay/synthetic snapshot helpers from the CLI end-to-end script.

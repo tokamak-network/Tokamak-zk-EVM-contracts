@@ -8,28 +8,19 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   HDNodeWallet,
-  Interface,
   JsonRpcProvider,
   Wallet,
   ethers,
   getAddress,
 } from "ethers";
 import {
-  MAX_MT_LEAVES,
   TokamakL2StateManager,
   createTokamakL2Common,
-  createTokamakL2StateManagerFromStateSnapshot,
-  createTokamakL2Tx,
-  getUserStorageKey,
-  poseidon,
 } from "tokamak-l2js";
 import {
   addHexPrefix,
-  bytesToBigInt,
-  bytesToHex,
   createAddressFromString,
   hexToBigInt,
-  hexToBytes,
 } from "@ethereumjs/util";
 import {
   buildTokamakCliInvocation,
@@ -39,10 +30,22 @@ import {
 } from "@tokamak-private-dapps/common-library/tokamak-runtime-paths";
 import {
   deriveNoteReceiveKeyMaterial,
-  encryptMintNoteValueForOwner,
-  computeEncryptedNoteSalt,
-  encryptNoteValueForRecipient,
 } from "./private-state-note-delivery.mjs";
+import {
+  buildEncryptedMintOutput,
+  buildEncryptedTransferOutput,
+  buildMintInterface,
+  buildRedeemInterface,
+  buildStateManager,
+  buildTokamakTxSnapshot,
+  buildTransferInterface,
+  currentStorageBigInt,
+  deriveChannelTokenVaultLeafIndex,
+  deriveLiquidBalanceStorageKey,
+  fetchContractCodes,
+  normalizeBytes32Hex,
+  putStorageValue,
+} from "../lib/private-state-registration-fixtures.mjs";
 import {
   deriveChannelIdFromName,
   deriveParticipantIdentityFromSigner,
@@ -451,17 +454,6 @@ function extractTrailingJsonObject(stdout) {
   return null;
 }
 
-function bytes32FromHex(hexValue) {
-  return ethers.zeroPadValue(
-    ethers.toBeHex(hexToBigInt(addHexPrefix(String(hexValue ?? "").replace(/^0x/i, "")))),
-    32,
-  );
-}
-
-function normalizeBytes32Hex(hexValue) {
-  return bytes32FromHex(hexValue).toLowerCase();
-}
-
 async function rpcCall(provider, method, params) {
   return provider.send(method, params);
 }
@@ -499,93 +491,10 @@ async function getBlockInfoAt(provider, blockNumber) {
   };
 }
 
-function deriveLiquidBalanceStorageKey(l2Address, slot) {
-  return normalizeBytes32Hex(bytesToHex(getUserStorageKey([l2Address, ethers.toBigInt(slot)], "TokamakL2")));
-}
-
-function poseidonHexFromBytes(bytesLike) {
-  return ethers.hexlify(poseidon(ethers.getBytes(bytesLike))).toLowerCase();
-}
-
-function buildMintInterface(outputCount) {
-  return new Interface([
-    `function mintNotes${outputCount}((uint256 value,bytes32[3] encryptedNoteValue)[${outputCount}] outputs)`,
-  ]);
-}
-
-function buildTransferInterface(inputCount, outputCount) {
-  return new Interface([
-    `function transferNotes${inputCount}To${outputCount}((address owner,uint256 value,bytes32[3] encryptedNoteValue)[${outputCount}] outputs,(address owner,uint256 value,bytes32 salt)[${inputCount}] inputNotes)`,
-  ]);
-}
-
-function buildRedeemInterface(inputCount) {
-  return new Interface([
-    `function redeemNotes${inputCount}((address owner,uint256 value,bytes32 salt)[${inputCount}] inputNotes,address receiver)`,
-  ]);
-}
-
-function serializeBigInts(value) {
-  return JSON.parse(JSON.stringify(value, (_key, current) => (
-    typeof current === "bigint" ? current.toString() : current
-  )));
-}
-
 async function getFixedBlockInfo(provider) {
   const latestNumberHex = await rpcCall(provider, "eth_blockNumber", []);
   const latestNumber = Number(hexToBigInt(addHexPrefix(String(latestNumberHex ?? "").replace(/^0x/i, ""))));
   return getBlockInfoAt(provider, latestNumber);
-}
-
-async function fetchContractCodes(provider, addresses) {
-  const codes = [];
-  for (const address of addresses) {
-    codes.push({
-      address: getAddress(address),
-      code: await provider.getCode(address),
-    });
-  }
-  return codes;
-}
-
-function buildTokamakTxSnapshot({ signerPrivateKey, senderPubKey, to, data, nonce }) {
-  return serializeBigInts(
-    createTokamakL2Tx(
-      {
-        nonce: ethers.toBigInt(nonce),
-        to: createAddressFromString(to),
-        data: hexToBytes(addHexPrefix(String(data ?? "").replace(/^0x/i, ""))),
-        senderPubKey,
-      },
-      { common: createTokamakL2Common() },
-    )
-      .sign(signerPrivateKey)
-      .captureTxSnapshot(),
-  );
-}
-
-async function buildStateManager(snapshot, contractCodes) {
-  return createTokamakL2StateManagerFromStateSnapshot(snapshot, {
-    contractCodes: contractCodes.map((entry) => ({
-      address: createAddressFromString(entry.address),
-      code: addHexPrefix(entry.code),
-    })),
-  });
-}
-
-function bigintToHex32(value) {
-  return ethers.zeroPadValue(ethers.toBeHex(value), 32);
-}
-
-async function currentStorageBigInt(stateManager, address, keyHex) {
-  const valueBytes = await stateManager.getStorage(
-    createAddressFromString(address),
-    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
-  );
-  if (valueBytes.length === 0) {
-    return 0n;
-  }
-  return bytesToBigInt(valueBytes);
 }
 
 async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex, nextValue) {
@@ -594,86 +503,13 @@ async function buildGrothTransition(stepName, stateManager, vaultAddress, keyHex
   const proof = stateManager.merkleTrees.getProof(vaultAddressObj, keyBigInt);
   const currentValue = await currentStorageBigInt(stateManager, vaultAddress, keyHex);
 
-  await stateManager.putStorage(
-    vaultAddressObj,
-    hexToBytes(addHexPrefix(String(keyHex ?? "").replace(/^0x/i, ""))),
-    hexToBytes(addHexPrefix(String(bigintToHex32(nextValue) ?? "").replace(/^0x/i, ""))),
-  );
+  await putStorageValue(stateManager, vaultAddress, keyHex, nextValue);
 
   return {
     stepName,
     proof,
     currentValue,
     nextSnapshot: await stateManager.captureStateSnapshot(),
-  };
-}
-
-function buildEncryptedTransferOutput({
-  owner,
-  value,
-  label,
-  recipientNoteReceivePubKey,
-  chainId,
-  channelId,
-}) {
-  const deterministicNonce = ethers.dataSlice(
-    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
-    0,
-    12,
-  );
-  const encryptedNoteValue = encryptNoteValueForRecipient({
-    value,
-    recipientNoteReceivePubKey,
-    chainId,
-    channelId,
-    owner,
-    nonce: deterministicNonce,
-  });
-  return {
-    output: {
-      owner: getAddress(owner),
-      value,
-      encryptedNoteValue,
-    },
-    note: {
-      owner: getAddress(owner),
-      value,
-      salt: computeEncryptedNoteSalt(encryptedNoteValue),
-    },
-  };
-}
-
-function buildEncryptedMintOutput({
-  owner,
-  ownerNoteReceivePubKey,
-  value,
-  label,
-  chainId,
-  channelId,
-}) {
-  const deterministicNonce = ethers.dataSlice(
-    poseidonHexFromBytes(ethers.toUtf8Bytes(`${label}:nonce`)),
-    0,
-    12,
-  );
-  const encryptedNoteValue = encryptMintNoteValueForOwner({
-    value,
-    ownerNoteReceivePubKey,
-    chainId,
-    channelId,
-    owner,
-    nonce: deterministicNonce,
-  });
-  return {
-    output: {
-      value,
-      encryptedNoteValue,
-    },
-    note: {
-      owner: getAddress(owner),
-      value,
-      salt: computeEncryptedNoteSalt(encryptedNoteValue),
-    },
   };
 }
 
@@ -693,10 +529,6 @@ function registrationParticipantAt(participants, index) {
   const participant = participants[index];
   expect(participant?.registration, `Missing resolved registration context for participant index ${index}.`);
   return participant;
-}
-
-function deriveChannelTokenVaultLeafIndex(storageKey) {
-  return hexToBigInt(addHexPrefix(String(storageKey ?? "").replace(/^0x/i, ""))) % ethers.toBigInt(MAX_MT_LEAVES);
 }
 
 function assertTokamakSetupArtifactsInstalled() {

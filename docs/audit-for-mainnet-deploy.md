@@ -288,7 +288,7 @@ Root cause: after moving deployment to `ChannelDeployer`, `BridgeCore` needed to
 returned manager matched the policy it had just approved before binding custody authority.
 
 Attack or failure enabled: a misconfigured or malicious deployer could return a manager with wrong
-channel ID, DApp ID, leader, digest, verifier, fee, or refund schedule. If accepted, the canonical
+channel ID, DApp ID, leader, digest, verifier, join toll, or refund schedule. If accepted, the canonical
 registry would point at a bad channel manager.
 
 Resolution:

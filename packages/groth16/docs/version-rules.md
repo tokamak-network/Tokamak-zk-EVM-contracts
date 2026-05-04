@@ -145,7 +145,7 @@ A Groth16 package patch release must not trigger a verifier redeploy when the CR
 
 ## Private-State CLI
 
-`private-state-cli --install` installs the selected Groth16 package version. If `--groth16-cli-version` is omitted, the
+`private-state-cli install` installs the selected Groth16 package version. If `--groth16-cli-version` is omitted, the
 CLI resolves the npm registry `latest` version. The installed package version remains full `MAJOR.MINOR.PATCH`.
 
 The Groth16 CRS download uses the installed package compatibility version, not the full package version. For example,

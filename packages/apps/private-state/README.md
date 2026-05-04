@@ -222,6 +222,13 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - reuses existing local artifacts when their hashes still match the current on-chain channel state
 - is optional in the happy path because wallet-backed snapshot commands now materialize and refresh the saved workspace automatically
 - accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
+- resumes RPC log scanning from the saved recovery index by default; pass `--from-genesis` only when the local index should be ignored and the channel should be replayed from its creation block
+
+`get-channel`
+
+- reads whether a channel exists and reports its manager, vault, join toll, refund schedule, and immutable policy snapshot
+- accepts optional `--rpc-url`; when omitted, reads `RPC_URL` from `~/tokamak-private-channels/secrets/<network>/.env`
+- is the lightest inspection command when a user or channel creator wants to review policy before joining or creating local wallet state
 
 ### 4. Fund the shared L1 bridge vault
 
@@ -285,7 +292,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 
 `mint-notes`
 
-- mints one to six notes owned by the wallet's L2 address
+- mints one or two notes owned by the wallet's L2 address with the currently registered private-state DApp metadata
 - builds self-mint ciphertext outputs and lets the controller derive note salts from the ciphertext hash
 - accepts `--wallet`, `--network`, and `--amounts`
 - maps the amount-vector length to the fixed-arity `mintNotes<N>` contract entrypoint
@@ -324,7 +331,17 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 - moves value from the channel L2 accounting vault back into the shared bridge-level `bridgeTokenVault`
 - accepts `--wallet`, `--network`, and `--amount`
 
-### 13. Claim the shared L1 bridge deposit
+### 13. Exit the channel registration
+
+`exit-channel`
+
+- deletes the wallet's channel registration after the channel L2 accounting balance is zero
+- frees the reserved token-vault leaf binding, L2 address binding, storage-key binding, and note-receive key binding
+- applies the channel's time-decayed join-toll refund schedule
+- accepts `--wallet` and `--network`
+- does not accept `--force`; both the CLI and the bridge contract require a zero channel balance
+
+### 14. Claim the shared L1 bridge deposit
 
 `withdraw-bridge`
 

@@ -1,15 +1,16 @@
 # Bridge and Private-State Mainnet Security Review
 
 Historical notice: this document is a point-in-time review from 2026-04-10. It is retained for audit
-history and should not be treated as the current mainnet-readiness verdict. For the consolidated
-current checklist, current statuses, and resolved/accepted risk classifications, read
+history and intentionally preserves the terminology, concrete limits, and findings as they existed
+at that review date. It is not maintained as the current mainnet-readiness verdict. For the
+consolidated current checklist, current statuses, and resolved/accepted risk classifications, read
 [`docs/audit-for-mainnet-deploy.md`](../../docs/audit-for-mainnet-deploy.md).
 
 Date: 2026-04-10
 
 ## 1. Scope
 
-This document reviews the current implementation that would be used to deploy:
+This document reviewed the implementation that would have been used to deploy on the review date:
 
 - the L1 bridge stack under `bridge/src`
 - the `private-state` DApp under `packages/apps/private-state/src`

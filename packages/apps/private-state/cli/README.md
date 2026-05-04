@@ -75,7 +75,8 @@ A common private-state flow is:
 7. `get-my-notes`
 8. `redeem-notes`
 9. `withdraw-channel`
-10. `withdraw-bridge`
+10. `exit-channel`
+11. `withdraw-bridge`
 
 Use `private-state-cli --help` for the full command list and required options.
 

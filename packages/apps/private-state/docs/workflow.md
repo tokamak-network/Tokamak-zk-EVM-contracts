@@ -44,7 +44,8 @@ The normal flow is:
 7. `get-my-notes`
 8. `redeem-notes`
 9. `withdraw-channel`
-10. `withdraw-bridge`
+10. `exit-channel`
+11. `withdraw-bridge`
 
 `create-channel` is permissionless at the bridge level. The caller becomes the channel leader and
 chooses the initial join toll. `join-channel` binds the user's L1 identity to a channel-specific L2
@@ -58,6 +59,12 @@ The flow moves value through three representations:
 
 Deposits and withdrawals move between the first two representations. Mint and redeem move between
 the second and third. Transfer moves value between notes without touching L1 custody.
+
+`exit-channel` is the registration cleanup step. It is separate from `withdraw-channel` because
+withdrawing liquid channel balance only moves value back to the shared bridge vault. Exiting removes
+the user's channel registration, frees the reserved token-vault leaf binding, and applies the
+channel's toll-refund schedule. Both the CLI and the bridge require the channel balance to be zero
+before this cleanup can succeed.
 
 ## 3. Channel Policy Review
 
@@ -210,7 +217,7 @@ would have been valid under the old local files.
 For `mint-notes`, the CLI:
 
 1. parses the amount vector
-2. chooses `mintNotesN` from the vector length
+2. chooses the currently registered `mintNotes1` or `mintNotes2` entrypoint from the vector length
 3. derives encrypted self-mint outputs for the wallet owner
 4. encrypts those outputs to the wallet's note-receive public key
 5. sends fixed-arity calldata to the DApp controller through the bridge execution path

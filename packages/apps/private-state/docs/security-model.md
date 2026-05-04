@@ -35,7 +35,7 @@ The DApp itself adds three local secret domains:
 - the channel-bound L2 private key
 - the channel-scoped note-receive private key
 
-The wallet password protects the encrypted local wallet file. It is a local-storage protection
+The wallet secret protects the encrypted local wallet file. It is a local-storage protection
 secret, not a bridge-side secret.
 
 ## 2. Bridge-Inherited Security Model
@@ -225,18 +225,18 @@ longer period.
 
 The CLI stores a channel wallet as an encrypted local file under the workspace.
 
-The wallet password is used to decrypt:
+The wallet secret is used to decrypt:
 
 - wallet metadata needed for normal wallet-backed commands
 - the stored L1 key copy
 - the stored L2 key pair
 - tracked note state
 
-The wallet password should be treated as a long-term ownership secret. If the wallet file and wallet
-password are both stolen, the attacker can decrypt the wallet and recover key material sufficient to
+The wallet secret should be treated as a long-term ownership secret. If the wallet file and wallet
+secret are both stolen, the attacker can decrypt the wallet and recover key material sufficient to
 endanger channel funds.
 
-The password should not be treated like a temporary UI unlock code. It participates in recovering
+The wallet secret should not be treated like a temporary UI unlock code. It participates in recovering
 the channel-bound L2 identity, so losing it can break spendability even if the Ethereum key remains
 available.
 
@@ -247,7 +247,7 @@ message that includes:
 
 - a fixed domain string
 - the channel name
-- the wallet password
+- the wallet secret
 
 From that signature, the CLI derives:
 
@@ -255,9 +255,9 @@ From that signature, the CLI derives:
 - `l2PublicKey`
 - `l2Address`
 
-If the wallet password is lost, the same `l2PrivateKey` can no longer be re-derived. Without that
+If the wallet secret is lost, the same `l2PrivateKey` can no longer be re-derived. Without that
 key, notes cannot be spent, transferred, or redeemed. Under the CLI's strict ownership definition,
-losing the wallet password means losing note ownership.
+losing the wallet secret means losing note ownership.
 
 ## 7. Note-Receive Auxiliary Keys
 
@@ -293,7 +293,7 @@ If the wallet file is lost, recovery is still possible if the user retains:
 
 - the Ethereum private key
 - the correct channel context
-- the wallet password
+- the wallet secret
 
 With those inputs, the CLI can reconstruct:
 
@@ -301,7 +301,7 @@ With those inputs, the CLI can reconstruct:
 - the note-receive key material
 - a recoverable wallet view from on-chain registration and bridge-propagated event logs
 
-If the wallet password is lost:
+If the wallet secret is lost:
 
 - existing note ciphertexts may still be recognized or decrypted through the note-receive path
 - the notes can no longer be used
@@ -310,7 +310,7 @@ If the wallet password is lost:
 This can look counterintuitive. A user may still see note data but be unable to spend it. The reason
 is that readable note plaintext is not the same as the L2 private key required to authorize note use.
 
-If the wallet file and wallet password are both stolen, the attacker can decrypt stored key material
+If the wallet file and wallet secret are both stolen, the attacker can decrypt stored key material
 and compromise channel funds.
 
 ## 9. Protocol Risks And Recommendations
@@ -322,9 +322,9 @@ delivery recovery can fail.
 
 Operational recommendations:
 
-- protect the wallet password as a long-term ownership secret
+- protect the wallet secret as a long-term ownership secret
 - back up the Ethereum private key separately from the local workspace
-- treat the wallet file and password together as sufficient to compromise channel funds
+- treat the wallet file and wallet secret together as sufficient to compromise channel funds
 - do not assume that being able to read a note implies being able to spend it
 - treat long-lived unused notes as having increasing future-nullifier exposure
 - prefer redeeming or rotating notes when a channel is expected to run for a long time

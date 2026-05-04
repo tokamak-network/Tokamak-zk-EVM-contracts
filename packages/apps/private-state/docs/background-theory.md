@@ -148,7 +148,7 @@ Reading note contents depends on the note-receive key.
 
 Using a note depends on the channel-bound L2 identity, because note spending, transfer, and redemption require the wallet's derived `l2PrivateKey`.
 
-Under the current CLI model, losing the wallet password means losing the ability to derive the channel-bound `l2PrivateKey`, which means losing note ownership in the stronger sense even if note ciphertexts can still be recognized or decrypted.
+Under the current CLI model, losing the wallet secret means losing the ability to derive the channel-bound `l2PrivateKey`, which means losing note ownership in the stronger sense even if note ciphertexts can still be recognized or decrypted.
 
 This distinction is important for recovery language. A user may still be able to see that an
 encrypted output was meant for them, but that is not enough to spend the note. Spendability requires

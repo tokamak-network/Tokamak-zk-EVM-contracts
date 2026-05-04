@@ -390,13 +390,13 @@
               </li>
               <li>
                 Even if you lose the channel wallet file, only your Ethereum private key, together with the correct
-                channel context, can recover your channel wallet as long as you still know the wallet password.
+                channel context, can recover your channel wallet as long as you still know the wallet secret.
               </li>
               <li>
-                If your channel wallet file and wallet password are both stolen, your channel funds can be stolen.
+                If your channel wallet file and wallet secret are both stolen, your channel funds can be stolen.
               </li>
               <li>
-                If you lose your wallet password, you lose the ability to derive your channel L2 private key. In that
+                If you lose your wallet secret, you lose the ability to derive your channel L2 private key. In that
                 case, you lose ownership of all notes because you can no longer use them, and that ownership cannot be
                 recovered.
               </li>
@@ -488,6 +488,11 @@
           placeholder: "/path/to/private-key",
           hint: "Source file permissions are not enforced; the imported canonical account secret is protected.",
         },
+        joinToll: {
+          label: "Join Toll",
+          type: "text",
+          placeholder: "1",
+        },
         walletSecretPath: {
           label: "Wallet Secret File",
           type: "text",
@@ -537,7 +542,7 @@
         { id: "doctor", description: "Check the CLI package, runtime install state, Docker mode, CUDA mode, and deployment artifacts.", fields: [] },
         { id: "guide", description: "Inspect local state and available on-chain state, then print the next safe command. The guide does not accept RPC URLs.", fields: ["network", "channelName", "account", "wallet"] },
         { id: "uninstall", description: "Interactively remove local private-state workspaces, wallet secrets, proof artifacts, Tokamak zk-EVM runtime data, and the global CLI package when installed.", fields: [] },
-        { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "network", "account", "rpcUrl"] },
+        { id: "create-channel", description: "Create a channel with an immutable operating policy and initialize its workspace.", fields: ["channelName", "joinToll", "network", "account", "rpcUrl"] },
         { id: "recover-workspace", description: "Rebuild the saved channel workspace from bridge state.", fields: ["channelName", "network", "rpcUrl"] },
         { id: "deposit-bridge", description: "Deposit canonical tokens into the shared bridge vault.", fields: ["amount", "network", "account", "rpcUrl"] },
         { id: "withdraw-bridge", description: "Withdraw shared bridge-vault funds back to the L1 wallet.", fields: ["amount", "network", "account", "rpcUrl"] },
@@ -560,6 +565,7 @@
       const defaultState = {
         commandId: "join-channel",
         channelName: "",
+        joinToll: "1",
         network: "sepolia",
         rpcUrl: "",
         account: "",
@@ -576,7 +582,6 @@
         transferAmount1: "",
         transferRecipient2: "",
         transferAmount2: "",
-        force: false,
         docker: false,
       };
 
@@ -961,7 +966,7 @@
         });
       }
 
-      async function decryptWalletJson(envelope, walletPassword) {
+      async function decryptWalletJson(envelope, walletSecret) {
         if (
           envelope?.version !== walletEncryptionVersion
           || envelope?.algorithm !== walletEncryptionAlgorithm
@@ -970,7 +975,7 @@
           throw new Error("Unsupported wallet encryption envelope.");
         }
 
-        const encryptionKeyBytes = await deriveScryptKeyBytes(walletPassword, envelope.salt);
+        const encryptionKeyBytes = await deriveScryptKeyBytes(walletSecret, envelope.salt);
         const cryptoKey = await crypto.subtle.importKey("raw", encryptionKeyBytes, "AES-GCM", false, ["decrypt"]);
         const ciphertext = hexToBytes(envelope.ciphertext);
         const tag = hexToBytes(envelope.tag);
@@ -1009,7 +1014,7 @@
         if (!commandNeedsWalletNotes()) {
           return;
         }
-        clearWalletNoteState("Enter note IDs manually. The CLI uses the wallet-local default password file and the assistant does not request wallet passwords.");
+        clearWalletNoteState("Enter note IDs manually. The CLI uses the wallet-local default secret file and the assistant does not request wallet secrets.");
       }
 
       function acceptsRpcUrl(command) {
@@ -1074,6 +1079,9 @@
           switch (fieldKey) {
             case "channelName":
               appendOption(parts, "--channel-name", renderedValue);
+              break;
+            case "joinToll":
+              appendOption(parts, "--join-toll", renderedValue);
               break;
             case "network":
               appendOption(parts, "--network", renderedValue);
@@ -1402,7 +1410,7 @@
 
         const hint = document.createElement("p");
         hint.className = "hint";
-        hint.textContent = walletNoteState.statusMessage || "Enter note IDs manually. Wallet passwords are not requested by this assistant.";
+        hint.textContent = walletNoteState.statusMessage || "Enter note IDs manually. Wallet secrets are not requested by this assistant.";
         wrapper.appendChild(hint);
 
         const totalHint = document.createElement("p");

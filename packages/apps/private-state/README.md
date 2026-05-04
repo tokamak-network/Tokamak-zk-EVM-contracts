@@ -114,11 +114,11 @@ Important rules:
 - `--amount` is always a human token amount and is converted with the canonical token decimals
 - commands print human-readable output by default; pass `--json` when automation needs a machine-readable result
 - L1 signing commands use `--account`; create the local account secret once with `account import --private-key-file`
-- wallet commands use the wallet-local default password file and do not accept explicit password arguments
+- wallet commands use the wallet-local default secret file and do not accept explicit secret arguments
 - `join-channel` requires `--wallet-secret-path <PATH>` and imports that source file into the protected wallet-local secret
 - channel creation commits to an immutable channel policy: verifier bindings, DApp execution metadata, function layout, managed storage vector, and refund policy are fixed for that channel
 - joining a channel means accepting that channel's current policy; later fixes to policy-level bugs require a new channel or migration rather than in-place mutation of the joined channel
-- `join-channel` binds the channel name, wallet-local password, and local account signer to derive the channel-specific L2 identity
+- `join-channel` binds the channel name, wallet-local secret, and local account signer to derive the channel-specific L2 identity
 - `join-channel` is the only command that sets up encrypted L1/L2 wallet keys
 - wallet folder names are fixed to `<channelName>-<l1Address>`
 - recipient note delivery is recovered from bridge-propagated Ethereum event logs through `get-my-notes`
@@ -253,7 +253,7 @@ node packages/apps/private-state/cli/private-state-bridge-cli.mjs create-channel
 `recover-wallet`
 
 - rebuilds the encrypted wallet only up to the subset that can be recovered from the current channel workspace, channel registration, and bridge-propagated encrypted note logs
-- recreates the channel-bound wallet keys from `--channel-name`, the wallet-local default password file, and `--account`
+- recreates the channel-bound wallet keys from `--channel-name`, the wallet-local default secret file, and `--account`
 - reclassifies every recovered current-version note into `unused` or `spent` by checking the on-chain commitment and nullifier state
 - resets `l2Nonce` to `0`
 - stops early if the target wallet folder already exists and decrypts to valid metadata and registration state for the requested channel

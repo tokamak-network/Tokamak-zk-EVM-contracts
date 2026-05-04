@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Removed stale `--install` and `--doctor` compatibility aliases after the command syntax was
+  standardized around positional command names.
+- Tightened local wallet loading to require the current wallet format instead of silently filling
+  legacy defaults.
+- Renamed stale internal wallet-secret terminology consistently around wallet secrets and moved the
+  canonical wallet secret path from `password` to `secret`.
+- Reused private-state CLI shared helpers in the CLI end-to-end test instead of duplicating channel
+  ID, wallet path, and L2 identity derivation logic.
+- Fixed the browser CLI assistant's `create-channel` builder to include required `--join-toll`.
+
 ## 1.0.0 - 2026-05-04
 
 - Stabilized the private-state CLI command contract for the first mainnet-ready release.

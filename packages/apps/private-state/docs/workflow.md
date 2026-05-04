@@ -106,7 +106,7 @@ The wallet contains:
 
 The channel workspace is shared context for the channel. The encrypted wallet is user-specific
 context. Losing the workspace is recoverable if the wallet and chain data can reconstruct it. Losing
-the encrypted wallet or its password has stronger consequences because it can remove the secrets
+the encrypted wallet or its wallet secret has stronger consequences because it can remove the secrets
 needed to use notes.
 
 ## 5. Bridge Registration Model

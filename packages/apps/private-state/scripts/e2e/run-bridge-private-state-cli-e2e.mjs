@@ -22,8 +22,6 @@ import {
   createTokamakL2Common,
   createTokamakL2StateManagerFromStateSnapshot,
   createTokamakL2Tx,
-  deriveL2KeysFromSignature,
-  fromEdwardsToAddress,
   getUserStorageKey,
   poseidon,
 } from "tokamak-l2js";
@@ -47,6 +45,15 @@ import {
   computeEncryptedNoteSalt,
   encryptNoteValueForRecipient,
 } from "./private-state-note-delivery.mjs";
+import {
+  deriveChannelIdFromName,
+  deriveParticipantIdentityFromSigner,
+  slugifyPathComponent,
+  walletDirForName as walletDirForNameInRoot,
+  walletNameForChannelAndAddress,
+  workspaceDirForName,
+  workspaceWalletsDir,
+} from "../../cli/lib/private-state-cli-shared.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -116,7 +123,6 @@ const workspaceRoot = path.resolve(os.homedir(), "tokamak-private-channels", "wo
 const secretRoot = path.resolve(os.homedir(), "tokamak-private-channels", "secrets");
 const abiCoder = AbiCoder.defaultAbiCoder();
 const noteCommitmentDomain = keccak256(ethers.toUtf8Bytes("PRIVATE_STATE_NOTE_COMMITMENT"));
-const l2PasswordSigningDomain = "Tokamak private-state L2 password binding";
 const registrationLaunchInputsRoot = path.resolve(outputRoot, "generated-launch-inputs");
 const localRegistrationExamples = [
   "mintNotes1",
@@ -215,63 +221,6 @@ function expect(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
-}
-
-function slugifyPathComponent(value) {
-  return String(value)
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
-}
-
-function deriveChannelIdFromName(name) {
-  return ethers.toBigInt(keccak256(ethers.toUtf8Bytes(name)));
-}
-
-function buildL2PasswordSigningMessage({ channelName: name, password }) {
-  if (typeof name !== "string" || name.length === 0) {
-    throw new Error("Missing channel name for L2 identity derivation.");
-  }
-  return [
-    l2PasswordSigningDomain,
-    `channel:${name}`,
-    `password:${String(password)}`,
-  ].join("\n");
-}
-
-async function deriveParticipantIdentityFromSigner({ channelName: name, password, signer }) {
-  const seedSignature = await signer.signMessage(buildL2PasswordSigningMessage({ channelName: name, password }));
-  const keySet = deriveL2KeysFromSignature(seedSignature);
-  const l2Address = getAddress(fromEdwardsToAddress(keySet.publicKey).toString());
-  return {
-    seedSignature,
-    l2PrivateKey: keySet.privateKey,
-    l2PublicKey: keySet.publicKey,
-    l2Address,
-  };
-}
-
-function walletNameForChannelAndAddress(name, l1Address) {
-  return `${name}-${getAddress(l1Address)}`;
-}
-
-function workspaceNetworkDir(root, networkName) {
-  return path.join(root, slugifyPathComponent(networkName));
-}
-
-function workspaceDirForName(root, networkName, workspaceName) {
-  return path.join(
-    workspaceNetworkDir(root, networkName),
-    slugifyPathComponent(workspaceName),
-  );
-}
-
-function workspaceWalletsDir(workspaceDir) {
-  return path.join(workspaceDir, "wallets");
-}
-
-function walletDirForNameInRoot(walletsRoot, walletName) {
-  return path.join(walletsRoot, slugifyPathComponent(walletName));
 }
 
 let currentCliE2EOptions = {
@@ -1199,8 +1148,8 @@ function deriveParticipant(index, alias) {
   const wallet = HDNodeWallet.fromPhrase(anvilMnemonic, undefined, `m/44'/60'/0'/0/${index}`);
   return {
     alias,
-    password: alias,
-    passwordSeed: alias,
+    walletSecret: alias,
+    walletSecretSeed: alias,
     l1Address: getAddress(wallet.address),
     l1PrivateKey: wallet.privateKey,
     walletName: null,
@@ -1210,11 +1159,11 @@ function deriveParticipant(index, alias) {
   };
 }
 
-async function deriveRegistrationCandidate({ participant, provider, password, liquidBalancesSlot }) {
+async function deriveRegistrationCandidate({ participant, provider, walletSecret, liquidBalancesSlot }) {
   const signer = new Wallet(participant.l1PrivateKey, provider);
   const l2Identity = await deriveParticipantIdentityFromSigner({
     channelName,
-    password,
+    password: walletSecret,
     signer,
   });
   const noteReceive = await deriveNoteReceiveKeyMaterial({
@@ -1227,7 +1176,7 @@ async function deriveRegistrationCandidate({ participant, provider, password, li
   const storageKey = normalizeBytes32Hex(deriveLiquidBalanceStorageKey(l2Identity.l2Address, liquidBalancesSlot));
   const leafIndex = deriveChannelTokenVaultLeafIndex(storageKey);
   return {
-    password,
+    walletSecret,
     l2Identity,
     noteReceive,
     storageKey,
@@ -1244,13 +1193,13 @@ async function resolveParticipantRegistrations(provider, participants) {
   for (const participant of participants) {
     let resolved = null;
     for (let attempt = 0; attempt < 64; attempt += 1) {
-      const password = attempt === 0
-        ? participant.passwordSeed
-        : `${participant.passwordSeed}-retry-${attempt}`;
+      const walletSecret = attempt === 0
+        ? participant.walletSecretSeed
+        : `${participant.walletSecretSeed}-retry-${attempt}`;
       const candidate = await deriveRegistrationCandidate({
         participant,
         provider,
-        password,
+        walletSecret,
         liquidBalancesSlot,
       });
       const l2AddressKey = getAddress(candidate.l2Identity.l2Address).toLowerCase();
@@ -1270,9 +1219,9 @@ async function resolveParticipantRegistrations(provider, participants) {
     }
     expect(
       resolved !== null,
-      `Failed to resolve a collision-free join-channel password for ${participant.alias} within 64 attempts.`,
+      `Failed to resolve a collision-free join-channel wallet secret for ${participant.alias} within 64 attempts.`,
     );
-    participant.password = resolved.password;
+    participant.walletSecret = resolved.walletSecret;
     participant.registration = resolved;
   }
 }
@@ -1301,10 +1250,10 @@ function prepareAccountSecret(accountName, privateKey) {
   ]);
 }
 
-function prepareWalletPasswordSecret(participant) {
+function prepareWalletSecretSource(participant) {
   expect(participant.walletName, `${participant.alias} walletName is not available.`);
   participant.walletSecretPath = walletSecretInputPath(participant.walletName);
-  writeSecretFile(participant.walletSecretPath, participant.password);
+  writeSecretFile(participant.walletSecretPath, participant.walletSecret);
 }
 
 function prepareCliSecrets(participants) {
@@ -1312,7 +1261,7 @@ function prepareCliSecrets(participants) {
   for (const participant of participants) {
     prepareAccountSecret(participant.alias, participant.l1PrivateKey);
     participant.walletName = walletNameForChannelAndAddress(channelName, participant.l1Address);
-    prepareWalletPasswordSecret(participant);
+    prepareWalletSecretSource(participant);
   }
 }
 
@@ -2070,7 +2019,6 @@ async function main() {
       localWallets: localWalletList,
       participants: participants.map((participant) => ({
         alias: participant.alias,
-        password: participant.password,
         wallet: participant.walletName,
         l1Address: participant.l1Address,
         l2Address: participant.l2Address,

@@ -117,7 +117,7 @@ for a local account.
 
 ### Wallet Secret Source File
 
-`join-channel` needs a wallet secret source file because the CLI no longer accepts raw wallet passwords on the command
+`join-channel` needs a wallet secret source file because the CLI no longer accepts raw wallet secrets on the command
 line. The source file is arbitrary high-entropy secret text that the CLI reads once and imports into the protected
 wallet-local canonical secret.
 
@@ -139,8 +139,8 @@ The CLI stores user workspaces under:
 ~/tokamak-private-channels/workspace/<network>/<channel>/
 ```
 
-Wallet data is encrypted with the wallet-local default password file under
-`~/tokamak-private-channels/secrets/<network>/wallets/<wallet>/password`.
+Wallet data is encrypted with the wallet-local default secret file under
+`~/tokamak-private-channels/secrets/<network>/wallets/<wallet>/secret`.
 
 Bridge-facing commands accept optional `--rpc-url <URL>`. When `--rpc-url` is provided, the CLI stores it in
 `~/tokamak-private-channels/secrets/<network>/.env` as `RPC_URL=<URL>` with protected canonical secret permissions.
@@ -159,8 +159,8 @@ explaining each step only as much as needed to proceed safely.
 
 Operating rules:
 
-- Do not ask the user to reveal raw private keys or wallet passwords in chat. Use `account import --private-key-file`
-  once, then use `--account` for L1 signing commands. Wallet commands use wallet-local default password files.
+- Do not ask the user to reveal raw private keys or wallet secrets in chat. Use `account import --private-key-file`
+  once, then use `--account` for L1 signing commands. Wallet commands use wallet-local default secret files.
 - Prefer testnet examples unless the user explicitly asks for mainnet.
 - Before any proof-backed or bridge-facing workflow, ask the user to run `private-state-cli doctor` and inspect
   whether the runtime, Docker mode, CUDA/GPU probes, Groth16 runtime, and deployment artifacts are healthy.

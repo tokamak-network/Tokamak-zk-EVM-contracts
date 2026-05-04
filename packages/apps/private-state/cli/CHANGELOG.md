@@ -7,6 +7,9 @@
   compatibility targets.
 - Centralized CLI command option schemas used by validation, while keeping the existing command
   implementations in the single CLI entrypoint.
+- Moved private-state Tokamak L2 snapshot, storage, and leaf-index helpers into a shared CLI library
+  reused by the CLI and registration materialization scripts.
+- Moved runtime install, artifact install, and doctor report helpers out of the CLI entrypoint.
 - Reused the same command registry for CLI help text and the browser command assistant so command
   additions no longer require three separate hardcoded updates.
 - Made live Docker/NVIDIA GPU probing in `doctor` opt-in through `doctor --gpu`; the default doctor

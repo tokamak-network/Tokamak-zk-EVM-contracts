@@ -321,6 +321,16 @@ export function privateStateCliCommandOptionKeys(command) {
   return ["command", "positional", ...command.fields];
 }
 
+export function privateStateCliCommandRequiredOptionKeys(command) {
+  const optionalFields = new Set(command.optionalFields ?? []);
+  return command.fields.filter((fieldKey) => {
+    const field = PRIVATE_STATE_CLI_FIELD_CATALOG[fieldKey];
+    return field?.optional !== true
+      && field?.type !== "checkbox"
+      && !optionalFields.has(fieldKey);
+  });
+}
+
 export function privateStateCliCommandSynopsis(command) {
   const display = privateStateCliCommandDisplay(command);
   const optionalFields = new Set(command.optionalFields ?? []);

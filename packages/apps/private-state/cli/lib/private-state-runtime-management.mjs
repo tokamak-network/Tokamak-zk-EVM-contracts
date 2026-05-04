@@ -918,6 +918,10 @@ function buildTokamakCliInvocationForPackageRoot(packageRoot = resolveActiveToka
   };
 }
 
+function resolveActiveTokamakCliInvocation() {
+  return buildTokamakCliInvocationForPackageRoot();
+}
+
 function resolveTokamakCliResourceDirForRuntimeRoot(runtimeRoot, ...segments) {
   return path.join(runtimeRoot, "resource", ...segments);
 }
@@ -1300,6 +1304,7 @@ export {
   privateStateCliArtifactPaths,
   inspectGroth16Runtime,
   resolveActiveGroth16ProverRuntime,
+  resolveActiveTokamakCliInvocation,
   readTokamakCliPackageReport,
   requireActiveTokamakCliRuntimeRoot,
   resolveTokamakCliResourceDirForRuntimeRoot,
